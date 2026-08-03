@@ -7955,12 +7955,15 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(layer > 0, "summary_click_layer should resolve by name");
             SELFTEST_CHECK(slot > 0, "mainmodal should resolve by name");
 
-            /* Arming: one IF_SETEVENTS covering 0..7 with ops 1-4 (mask 30). */
+            /* Arming: one IF_SETEVENTS covering 0..7 with ops 1-4 (mask 30).
+             * Combat Level: same if_open pushes clientscript 3954 with three
+             * ints (summary_contents, summary_click_layer, ~player_combat_level). */
             {
                 static struct Mock230Capture capture;
                 int mask = -1;
                 int from = -1;
                 int to = -1;
+                int run_at;
 
                 mock230_capture_begin(&srv, &capture);
                 mock230_scripts_run_proc(&srv, "[if_open,account_summary_sidepanel]", NULL, 0);
@@ -7985,6 +7988,36 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(from == 0 && to == 7,
                                "summary_click_layer should arm sub-ids 0..7, got %d..%d", from,
                                to);
+
+                run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                SELFTEST_CHECK(run_at >= 0,
+                               "if_open should push clientscript 3954 for combat level");
+                if( run_at >= 0 )
+                {
+                    struct RSAreaBuf run;
+                    char types[8];
+                    int argc = 0;
+                    int script_id;
+
+                    rsab_wrap(&run, capture.packets[run_at].data,
+                              (size_t)capture.packets[run_at].len);
+                    while( argc < (int)sizeof(types) - 1 )
+                    {
+                        int c = rsab_g1(&run);
+                        if( c == '\n' || !rsab_ok(&run) )
+                            break;
+                        types[argc++] = (char)c;
+                    }
+                    types[argc] = '\0';
+                    SELFTEST_CHECK(strcmp(types, "iii") == 0,
+                                   "clientscript 3954 takes three ints, packet says \"%s\"",
+                                   types);
+                    for( int a = argc - 1; a >= 0; a-- )
+                        (void)rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    SELFTEST_CHECK(script_id == 3954,
+                                   "if_open should run clientscript 3954, got %d", script_id);
+                }
             }
 
             struct

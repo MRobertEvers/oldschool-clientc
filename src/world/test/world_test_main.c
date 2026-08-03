@@ -27,6 +27,7 @@ main(void)
     test_collision_loc_change_inverse();
     test_route_coordinate_coincidence();
     test_tile_stack_dedup();
+    test_minusedlevel_entity_draw();
     test_rebuild_shift();
 
     sim_path_followers();

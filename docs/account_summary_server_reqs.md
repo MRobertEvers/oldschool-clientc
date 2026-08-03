@@ -10,7 +10,8 @@
 
 | row | sub-id | op(s) | target | status |
 |---|---|---|---|---|
-| Combat / Total Level / Total XP | 0–2 | — | click rectangles only | no server op |
+| Combat Level | 0 | — | value via `runclientscript* 3954` → `%varcint52` | **landed** |
+| Total Level / Total XP | 1–2 | — | client-computed (`~stat_totallevel` / `~stats_totalxp`); click rectangles only | no server op |
 | Quests Completed | 3 | op1 Quest List | `~journal_show(^journal_tab_quests)` → `questlist` in `side_journal:tab_container` | **landed** |
 | Achievements Completed | 4 | op1 Achievement Diaries | `~journal_show(^journal_tab_diaries)` → `area_task` | **landed** |
 | Combat Tasks Completed | 5 | op1–4 Overview/Bosses/Tasks/Rewards | `~ca_open` → interfaces 717/716/715/714 on `mainmodal` | **landed** |
@@ -43,6 +44,7 @@ hint was removed in `ssc_compile.c`.
 
 | counter | carriers / source | content |
 |---|---|---|
+| Combat Level | client `%varcint52` via CS2 3954 | `player/scripts/combat_level.rs2` (`~player_combat_level`); pushed from `[if_open]` and `[proc,combat_levelup_message]` |
 | Quest points / completed / total | varp `qp` (101), `qp_total` (904), `qp_total2` (2920) | `quests/scripts/questpoints.rs2` — denominators from dbtable `quest`; `~quest_complete` |
 | Combat Achievements | 21× `ca_task_completed_*` (`wholewrite=allow`), tier counts, `ca_points`, tier status | `interface_combat_achievements/` — `~ca_task_complete` / `::catask` |
 | Collection Log | container 620 `collection_transmit`; counts 2943/2944/4612 + subsection + ring | `interface_collection/` — `~collection_earn`, catalog max from enums 2102–2107; death-drop hook in `npc_default_death` |
@@ -58,7 +60,8 @@ truths stay 0 until that content exists.
 `mock230_world.c` "character summary":
 
 1. `[if_open,account_summary_sidepanel]` emits `IF_SETEVENTS` mask 30 for
-   sub-ids 0..7.
+   sub-ids 0..7, and `RUNCLIENTSCRIPT` 3954 with type string `iii` (combat
+   level → `%varcint52`).
 2. `IF_BUTTON1..4` on `summary_click_layer` with the row's sub-id reach the
    numbered triggers; `last_slot` matches; each op mounts a distinct
    interface (questlist / area_task / ca_* / collection*).

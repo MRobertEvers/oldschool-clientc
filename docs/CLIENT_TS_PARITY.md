@@ -1775,6 +1775,15 @@ Now it mirrors the reference exactly:
   split by tier), then projectiles, then spotanims. The local player is found by
   `player->server_pid == world->local_pid`; `local_pid` is mirrored from
   `app->esync.local_pid` in `app_world_frame` each frame (`app.c`).
+- **`minusedlevel` plane (reference `Client.minusedlevel`)**: movers have no
+  independent plane on the wire. `world_local_level` resolves the local player's
+  `grid_position.level`, and every player/NPC registers through
+  `addDynamic`-equivalent on that plane (not `entity->grid_position.level`).
+  Height sync in `app_world_sync_positions` samples the same plane
+  (`getAvH(minusedlevel, …)`). Projectiles and spotanims skip when
+  `level !== local_level`; obj-stacks only register when their stored level
+  matches (reference `objStacks[minusedlevel]`). Stored entity levels still
+  drive minimap dots and pick filtering.
 - **`alwaysontop`** (NpcType opcode 99) was undecoded — added to
   `ToriRS_Npctype` (from both the dat1 `alwaysontop` and dat2
   `has_render_priority` rscache fields), plumbed onto `WorldEntity_NPC.alwaysontop`
@@ -1801,7 +1810,9 @@ test-world`) — three stacked stationary 1×1 entities collapse to one painter
 element with the local player winning; an alwaysontop NPC beats a plain player
 on the same tile; a mid-walk mover is exempt (draws alongside a stationary NPC
 on the tile it's leaving). Verifies the painter element count and the winning
-entity id directly off the tile's scenery chain.
+entity id directly off the tile's scenery chain. `test_minusedlevel_entity_draw`
+— movers with a mismatched stored level still land on the local plane; off-plane
+projectiles/spotanims/obj-stacks are skipped.
 
 ---
 
@@ -1903,8 +1914,9 @@ Minor divergences found (none currently visible, logged for completeness):
   0` and clamps `filled < 0 → 0` on the health bar; the reference has neither
   (JS `Infinity|0 = 0` when `totalHealth==0`, so it draws an all-red bar where
   torirs skips it). Degenerate case only.
-- **Ground-level source.** Reference projects with `minusedlevel`; torirs uses
-  the local player's `grid_position.level`. Equal on single-level scenes.
+- **Ground-level source.** Reference projects overlays with `minusedlevel`; torirs
+  uses `app_cinema_level` (local player's `grid_position.level`). Mover paint
+  registration (§24) now also stamps onto that same plane.
 - **"20-sprite hitmarks array" (§19) is imprecise.** The reference allocates a
   20-slot array but only depacks as many hitmark sprites as the archive holds
   (breaking on the first missing index); both sides index the array raw off the

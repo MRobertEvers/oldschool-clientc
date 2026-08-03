@@ -1318,6 +1318,8 @@ app_minimap_build_dots(
 static int
 app_world_height(void* userdata, int world_x, int world_z, int level);
 static int
+app_cinema_level(struct App* app);
+static int
 app_hitsplat_font_scene_id(struct App* app);
 static int
 app_minimenu_font_scene_id(struct App* app);
@@ -4592,6 +4594,8 @@ app_world_sync_positions(struct App* app)
 {
     struct World* world = app->world;
     struct World_EntityPool* pool;
+    /* Reference getAvH(minusedlevel, …) — all movers sit on the local plane. */
+    int local_level = app_cinema_level(app);
 
     pool = &world->entities.player;
     for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
@@ -4608,7 +4612,7 @@ app_world_sync_positions(struct App* app)
             continue;
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
-        int wy = app_world_height(app, wx, wz, player->grid_position.level);
+        int wy = app_world_height(app, wx, wz, local_level);
         ToriDraw_SceneElementSetPosition(
             app->scene, player->element_id, wx, wy, wz, player->orientation.yaw);
     }
@@ -4626,7 +4630,7 @@ app_world_sync_positions(struct App* app)
             continue;
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
-        int wy = app_world_height(app, wx, wz, npc->grid_position.level);
+        int wy = app_world_height(app, wx, wz, local_level);
         ToriDraw_SceneElementSetPosition(
             app->scene, npc->element_id, wx, wy, wz, npc->orientation.yaw);
     }

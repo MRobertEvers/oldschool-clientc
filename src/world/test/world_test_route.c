@@ -718,3 +718,99 @@ test_tile_stack_dedup(void)
         World_Free(world);
     }
 }
+
+/* Reference gameDrawMain always addDynamic(minusedlevel) for players/NPCs and
+ * skips projectiles/spotanims (and only keeps objStacks) on other planes.
+ * Stored entity.grid_position.level must not choose the painter slevel. */
+void
+test_minusedlevel_entity_draw(void)
+{
+    printf("TEST: minusedlevel entity draw (force local plane)\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    char actions[5][32] = { "Take", "", "", "", "" };
+
+    /* Movers with a mismatched stored level still register on the local plane. */
+    {
+        struct World* world = World_TestMakeReady(104);
+        world->local_pid = 7;
+
+        int lp = World_PlayerSpawn(world, 200, 0, 40, 40, idle);
+        struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+        local->server_pid = 7;
+
+        /* Stored level 1, but must paint on local plane 0. */
+        int op = World_PlayerSpawn(world, 201, 1, 41, 40, idle);
+        struct WorldEntity_Player* other = World_EntityPoolGet(&world->entities.player, op);
+        other->server_pid = 8;
+
+        World_NpcSpawn(world, 202, 500, 1, 42, 40, 1, idle);
+
+        World_Cycle(world, 1);
+
+        int first = -1;
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 41, 40, 0, &first) == 1 && first == 201,
+            "mismatched-level player registers on local plane");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 41, 40, 1, NULL) == 0,
+            "mismatched-level player does not register on stored plane");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 42, 40, 0, &first) == 1 && first == 202,
+            "mismatched-level NPC registers on local plane");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 42, 40, 1, NULL) == 0,
+            "mismatched-level NPC does not register on stored plane");
+        World_Free(world);
+    }
+
+    /* Off-plane projectile / spotanim / obj-stack are skipped; on-plane draw. */
+    {
+        struct World* world = World_TestMakeReady(104);
+        world->local_pid = 7;
+
+        int lp = World_PlayerSpawn(world, 210, 0, 50, 50, idle);
+        struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+        local->server_pid = 7;
+
+        /* Fine coords for a tile-centred projectile near (45,45). */
+        int sx = 45 * 128 + 64;
+        int sz = 45 * 128 + 64;
+        World_ProjectileSpawn(
+            world, 211, 1, sx, sz, sx + 128, sz, 100, 40, 0, 60, 45, 128,
+            WORLD_PROJECTILE_TARGET_NONE);
+        World_SpotanimSpawn(world, 212, 1, 46 * 128 + 64, 46 * 128 + 64, 0, 0, 0, 100);
+        World_ObjStackAdd(world, 213, 47, 47, 1, 995, 1, "Coins", actions);
+        World_ObjStackAdd(world, 214, 48, 48, 0, 995, 1, "Coins", actions);
+
+        /* Same-plane projectile control (startpos 0 so it stays on the src tile). */
+        int same_sx = 49 * 128 + 64;
+        int same_sz = 49 * 128 + 64;
+        World_ProjectileSpawn(
+            world, 215, 0, same_sx, same_sz, same_sx + 128, same_sz, 100, 40, 0, 60, 45, 0,
+            WORLD_PROJECTILE_TARGET_NONE);
+
+        World_Cycle(world, 1);
+
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 45, 45, 0, NULL) == 0 &&
+                painter_tile_scenery_count(world->painter, 45, 45, 1, NULL) == 0,
+            "off-plane projectile is not registered");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 46, 46, 0, NULL) == 0 &&
+                painter_tile_scenery_count(world->painter, 46, 46, 1, NULL) == 0,
+            "off-plane spotanim is not registered");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 47, 47, 0, NULL) == 0 &&
+                painter_tile_scenery_count(world->painter, 47, 47, 1, NULL) == 0,
+            "off-plane obj-stack is not registered");
+        TEST_ASSERT(
+            painter_tile_scenery_count(world->painter, 48, 48, 0, NULL) == 1,
+            "on-plane obj-stack registers on local plane");
+
+        int first = -1;
+        int count = painter_tile_scenery_count(world->painter, 49, 49, 0, &first);
+        TEST_ASSERT(count >= 1 && first == 215, "on-plane projectile registers on local plane");
+        World_Free(world);
+    }
+}

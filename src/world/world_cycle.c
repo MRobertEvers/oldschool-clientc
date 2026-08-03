@@ -863,6 +863,24 @@ world_dyn_tile_claim(
     return false;
 }
 
+/* Local player's map plane (reference Client.minusedlevel). Movers have no
+ * independent plane on the wire — gameDrawMain always addDynamic(minusedlevel). */
+static int
+world_local_level(struct World* world)
+{
+    if( world->local_pid < 0 )
+        return 0;
+    struct World_EntityPool* pool = &world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( player && player->server_pid == world->local_pid )
+            return player->grid_position.level;
+    }
+    return 0;
+}
+
 /* Register one player/NPC element with the painter over its padded footprint
  * (mover span, reference World.addDynamic). */
 static void
@@ -891,9 +909,10 @@ world_dyn_register_mover(
 }
 
 /* Register every player in the pool except the local one (registered first by
- * the caller). `only_local` flips the sense: register just the local player. */
+ * the caller). `only_local` flips the sense: register just the local player.
+ * `local_level` is reference minusedlevel — all movers stamp onto that plane. */
 static void
-world_dyn_register_players(struct World* world, bool only_local)
+world_dyn_register_players(struct World* world, bool only_local, int local_level)
 {
     struct World_EntityPool* pool = &world->entities.player;
     for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
@@ -922,7 +941,7 @@ world_dyn_register_players(struct World* world, bool only_local)
         world_dyn_register_mover(
             world,
             player->element_id,
-            player->grid_position.level,
+            local_level,
             (int)player->draw_position.x,
             (int)player->draw_position.z,
             WORLD_MOVER_PAINTER_PADDING,
@@ -934,7 +953,7 @@ world_dyn_register_players(struct World* world, bool only_local)
 /* Register NPCs of one draw tier: `alwaysontop` NPCs first (added ahead of
  * other players in the reference), then the rest. */
 static void
-world_dyn_register_npcs(struct World* world, bool alwaysontop)
+world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
 {
     struct World_EntityPool* pool = &world->entities.npc;
     for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
@@ -963,7 +982,7 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop)
         world_dyn_register_mover(
             world,
             npc->element_id,
-            npc->grid_position.level,
+            local_level,
             (int)npc->draw_position.x,
             (int)npc->draw_position.z,
             WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
@@ -987,6 +1006,7 @@ static void
 World_CycleRegisterPainterDynamics(struct World* world)
 {
     struct World_EntityPool* pool;
+    int local_level = world_local_level(world);
 
     painter_reset_to_static(world->painter);
     world->scene_cycle++;
@@ -1023,7 +1043,8 @@ World_CycleRegisterPainterDynamics(struct World* world)
     }
 
     /* Ground items render below entities (reference tile.groundObject draws in
-     * the tile's base step, before any dynamic sprite). Registered first so
+     * the tile's base step, before any dynamic sprite). Only the local plane —
+     * reference keeps objStacks[minusedlevel] only. Registered first so
      * insertion-order ties keep them behind stacked players/NPCs. */
     pool = &world->entities.obj_stack;
     for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
@@ -1032,26 +1053,29 @@ World_CycleRegisterPainterDynamics(struct World* world)
         struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
         if( !stack || stack->element_id < 0 )
             continue;
+        if( stack->grid_position.level != local_level )
+            continue;
         int grid_x = stack->grid_position.x;
         int grid_z = stack->grid_position.z;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
         painter_add_normal_scenery(
-            world->painter, grid_x, grid_z, stack->grid_position.level, stack->element_id, 1, 1);
+            world->painter, grid_x, grid_z, local_level, stack->element_id, 1, 1);
     }
 
-    world_dyn_register_players(world, /*only_local=*/true);
-    world_dyn_register_npcs(world, /*alwaysontop=*/true);
-    world_dyn_register_players(world, /*only_local=*/false);
-    world_dyn_register_npcs(world, /*alwaysontop=*/false);
+    world_dyn_register_players(world, /*only_local=*/true, local_level);
+    world_dyn_register_npcs(world, /*alwaysontop=*/true, local_level);
+    world_dyn_register_players(world, /*only_local=*/false, local_level);
+    world_dyn_register_npcs(world, /*alwaysontop=*/false, local_level);
 
     pool = &world->entities.projectile;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
-        if( !p || p->element_id < 0 || p->cycle < p->t1 )
+        /* Reference addProjectiles: unlink when level !== minusedlevel. */
+        if( !p || p->element_id < 0 || p->cycle < p->t1 || p->level != local_level )
             continue;
         struct World_PainterFootprint footprint;
         if( !World_EntityPainterFootprint(
@@ -1067,7 +1091,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
             world->painter,
             footprint.sx,
             footprint.sz,
-            p->level,
+            local_level,
             p->element_id,
             footprint.size_x,
             footprint.size_z);
@@ -1078,14 +1102,15 @@ World_CycleRegisterPainterDynamics(struct World* world)
          si = World_EntityPoolNext(pool, si) )
     {
         struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, si);
-        if( !s || s->element_id < 0 || !s->active )
+        /* Reference addMapAnim: unlink when level !== minusedlevel. */
+        if( !s || s->element_id < 0 || !s->active || s->level != local_level )
             continue;
         int grid_x = (int)(s->draw_position.x >> 7);
         int grid_z = (int)(s->draw_position.z >> 7);
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        painter_add_normal_scenery(world->painter, grid_x, grid_z, s->level, s->element_id, 1, 1);
+        painter_add_normal_scenery(world->painter, grid_x, grid_z, local_level, s->element_id, 1, 1);
     }
 }
 
