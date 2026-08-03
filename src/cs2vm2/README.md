@@ -59,7 +59,7 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 |-------|---------|
 | `vm` | Back-pointer to parent `CS2VM2` (for host callback) |
 | `ints_stack` / `strs_stack` | Dual operand stacks (`CS2VM_STACK_MAX` = 1024) |
-| `frames` / `frame_sp` | Call stack (`CS2VM_MAX_FRAMES` = 32) |
+| `frames` / `frame_sp` / `frames_live` | Call stack, grown on demand up to `CS2VM_MAX_FRAMES`; slots are pointers into a shared frame free list, and `frames_live` is the high-water mark |
 | `active_component_id` / `dot_component_id` | IF/CC target resolution |
 | `arrays` | Script-defined int arrays (`CS2VM2_MAX_ARRAYS`) |
 | `str_pool` | Storage for every string the thread allocates (see below) |

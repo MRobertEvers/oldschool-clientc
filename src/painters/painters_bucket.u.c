@@ -308,7 +308,7 @@ painter_paint_bucket(
     int seed_gen_initialized = 0;
     int check_adjacent = 1;
 
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET, tiles_remaining);
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET, tiles_remaining);
 
     for( ;; )
     {

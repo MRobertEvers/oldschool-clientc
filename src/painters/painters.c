@@ -730,16 +730,6 @@ tile_paint_at_idx(
     return &painter->tile_paints[idx];
 }
 
-static struct TilePaint*
-tile_paint_at(
-    struct Painter* painter,
-    int sx,
-    int sz,
-    int slevel)
-{
-    return tile_paint_at_idx(painter, painter_coord_idx(painter, sx, sz, slevel));
-}
-
 static void
 compute_normal_scenery_spans(
     struct Painter* painter,

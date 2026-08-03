@@ -516,3 +516,33 @@ world3d: 23524 ns/iter  |  bucket: 23064 ns/iter  |  ratio: 0.980  |  slower: 12
 Both painters are ~35% faster than after round 1. Bucket is now 2% *faster* than world3d on
 average (126/500 seeds slower), across grid sizes 11–51, levels 1–4, nocull and runtime-baked
 cullmap modes.
+
+**Round 3 — aliasing / layout / emit / production cullmap** (2026-08-03):
+
+Applied to `painter_paint_bucket` (+ Soft3D clear / present sibling fixes):
+
+1. **Hoisted painter/ctx fields** into locals across setup + main loop so stores through
+   `tile_paints` no longer force per-iteration reloads of `width`/`tiles`/`cullmap`/etc.
+2. **Merged per-tile hot state** into an 8-byte `TilePaint` (`queue_next` + `in_queue` live
+   with `step`/`near_wall_flags`); deleted the parallel `bucket_next` / `in_heap` / `dist`
+   arrays. Distance is derived at push from coordinates already in hand.
+3. **Command emit cursor** — reserve once from `2*element_count + 2*tiles_in_box`, write
+   through a local `PaintersElementCommand*`; `g_trap_command` compiled out under `NDEBUG`.
+4. **Contiguous row setup** — replaced `TileIter` call-per-tile; cullmap `all_visible`
+   hoisted; live cull uses `pcull_bit_get` directly.
+5. **Single scenery walk** with incremental footprint indices; skip DONE on footprint push.
+6. Soft3D BG clear uses `memset_pattern4` (Apple) / word stores; `SDL_RenderClear` skipped
+   when letterbox covers the window.
+7. Production installs a real frustum cullmap via `app_ensure_painter_cullmap` (rebake on
+   viewport resize); `TORIRS_PAINTER_NOCULL=1` keeps the old stub for A/B.
+
+**After round-3** (500 seeds x 100 iters, re-measured on this machine — mixed nocull/baked
+as the fuzzer chooses per seed):
+```
+world3d: 12170.7 ns/iter  |  bucket: 9193.5 ns/iter  |  ratio: 0.755  |  slower: 0/500 seeds
+```
+
+Differential `fuzz_real 1 200` passes (bucket ⊇ world3d). `make test-world` and
+`make test-world-builder` green. New `TORIRS_PERF` counters:
+`painter_pops`, `painter_gate_rejects`, `painter_pushes`, `painter_push_dedup`,
+`painter_drain_events`, `painter_commands`, `painter_tiles_remaining_set`.

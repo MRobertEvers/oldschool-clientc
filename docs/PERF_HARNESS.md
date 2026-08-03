@@ -122,6 +122,17 @@ Gate: **PASS** on p95.
 | per-record dat2 config loaders → `Dat2GroupCache`                                    |    **7.31 ms** | keep (logic p95 4.96 → 0.30 ms)  |
 | incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip |    **6.30 ms** | keep                             |
 | emit drag pass only when something is being dragged                                  |    **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
+| CS2 call stack grown on demand instead of reserved inline                            |   *no change*  | keep for footprint, not for time |
+
+The last row is a footprint change, not a speed change, and it is in the table so
+nobody re-derives it from the frame time. `struct CS2VM2` held
+`frames[128] x 12,352 B` inline per thread — 6.03 MB of a 7.10 MB VM, reserved on
+every acquire for a stack that the counters show peaking at **11 frames**. Making
+the slots pointers off a shared free list puts the VM at **1.07 MB** (and the pool's
+retention at 17 MB instead of 113 MB), while `cs2_frame_pool_miss` totals **11 for a
+900-frame run** — i.e. growth allocates once and then recycles. Interleaved A/B in
+one worktree: HEAD p95 6.65 / 6.43 ms, lazy 6.68 / 5.96 ms. That spread is noise,
+which is the expected result given `cs2vm2_thread_init` never touched `frames[]`.
 
 Absolute p95 across rows is only comparable within a row's own session: the
 machine drifts warmer over a run of measurements, and `render` (untouched, and
@@ -194,19 +205,35 @@ measurable and puts the same-frame reveal path at risk.
 
 ## Not done / next candidates (ranked by counter evidence)
 
-1. `painter_paint_bucket` 5.9%, plus `SDL_FillRect4` 3.3% and `_platform_memset`
-   2.5% (framebuffer clears) — the 2D/present path, not the model rasterizer.
-2. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
+1. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
    `cache_model_hit` 27.8/frame vs `cache_model_miss` 2.4/frame, so the win here
    is in `RenderModel2SortFaces` (5.2%), not in decode.
-3. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
+2. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
    appeared in the profile under any scenario.
-4. `cs2vm2_thread_init` — **not a frame-time target, do not chase it on these
+3. `cs2vm2_thread_init` — **not a frame-time target, do not chase it on these
    numbers.** It reads as 0.02–0.03% of samples in four of the five flamegraphs
    and 0.75% in the fifth, and `cs2_vm_init_ns` puts it at 5.9 µs/frame over 8.3
    acquires, i.e. ~0.1% of a 5.7 ms frame. An earlier revision of this section
    claimed 4.8%; that was wrong. The lazy call stack below was done for the
    memory footprint, not for the frame.
+
+### Done (round 3 painter / present) — attribution corrections
+
+An earlier note bundled `painter_paint_bucket` 5.9% with `SDL_FillRect4` 3.3% and
+`_platform_memset` 2.5% as “2D/present”. Re-check of `src/out.sample.txt`:
+
+- `_platform_memset` (91 samples, 0.36%) is mostly `ToriDraw_ComputeProjectedFaceOrder`
+  and `try_emit_world_draw_model`, **not** framebuffer clears. Soft3D clear was a
+  scalar store loop (now `memset_pattern4` / word fill).
+- `SDL_FillRect4` is a **harness artifact**: production uses
+  `SDL_RENDERER_ACCELERATED` (Metal). The software-renderer FillRect only appears
+  under the headless SDL backend. Present now skips `SDL_RenderClear` when the
+  letterbox covers the window.
+- `painter_paint_bucket` itself was optimized (merged `TilePaint` layout, hoisted
+  aliasing, emit cursor, contiguous setup, production frustum cullmap). See
+  [painter_bucket_vs_world3d.md](painter_bucket_vs_world3d.md) round 3: mean ratio
+  bucket/world3d **0.755**, **0/500** seeds slower. Re-profile before ranking it
+  again.
 
 ## Correctness
 

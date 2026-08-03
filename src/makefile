@@ -261,6 +261,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
 	painters/painters.c \
+	painters/painters_cull_project.c \
 	perf/torirs_perf.c
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
