@@ -748,6 +748,27 @@ interaction_target(
         return 1;
     }
 
+    case MOCK230_INTERACT_PLAYER:
+    {
+        struct Mock230Player* target;
+
+        if( interaction->npc_slot < 0 || interaction->npc_slot >= srv->player_count )
+            return 0;
+        target = &srv->players[interaction->npc_slot];
+        /* Logged out, or the slot now holds somebody else. */
+        if( !target->active || target->pid != interaction->target_id )
+            return 0;
+        if( target == srv->active_player )
+            return 0;
+        if( target->level != srv->active_player->level )
+            return 0;
+        *out_x = target->x;
+        *out_z = target->z;
+        *out_size_x = 1;
+        *out_size_z = 1;
+        return 1;
+    }
+
     case MOCK230_INTERACT_LOC:
     {
         int slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
@@ -899,6 +920,8 @@ interaction_ap_trigger(
         return use_on ? SS_TRIGGER_APLOCU : SS_TRIGGER_APLOC1 + (op - 1);
     case MOCK230_INTERACT_OBJ:
         return use_on ? SS_TRIGGER_APOBJU : SS_TRIGGER_APOBJ1 + (op - 1);
+    case MOCK230_INTERACT_PLAYER:
+        return use_on ? SS_TRIGGER_APPLAYERU : SS_TRIGGER_APPLAYER1 + (op - 1);
     default:
         return -1;
     }
@@ -1035,16 +1058,23 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         {
             mock230_scene_npc_approach(size_x, &approach);
         }
+        else if( interaction->kind == MOCK230_INTERACT_PLAYER )
+        {
+            /* A player is a 1x1 pathing entity, approached like one. */
+            mock230_scene_npc_approach(1, &approach);
+        }
         else
         {
             mock230_scene_obj_approach(0, &approach);
         }
 
-        /* An npc that moved takes its walk with it — but only when we are at
+        /* A target that moved takes its walk with it — but only when we are at
          * the last waypoint (or have none). PathingEntity.pathToPathingTarget
          * for SMART re-routes at the last waypoint. Non-moving targets are
-         * never re-pathed (that discarded MOVE_OPCLICK). */
-        if( interaction->kind == MOCK230_INTERACT_NPC &&
+         * never re-pathed (that discarded MOVE_OPCLICK). Both pathing-entity
+         * kinds move; locs and ground objs do not. */
+        if( (interaction->kind == MOCK230_INTERACT_NPC ||
+             interaction->kind == MOCK230_INTERACT_PLAYER) &&
             (target_x != interaction->x || target_z != interaction->z) )
         {
             interaction->x = target_x;
@@ -1087,12 +1117,18 @@ mock230_world_process_interaction(struct Mock230Server* srv)
 
             /* AP also requires approached() LoS. Player→npc for OPNPC/APNPC;
              * cast backwards when the mover is the npc (handled in npc_run_mode).
-             * los_symmetric_pvp would require both directions for player↔player. */
+             * Player→player is the one pairing that went symmetric in 2019, and
+             * it asks through its own predicate so PvM cannot inherit it. */
             if( interaction->kind == MOCK230_INTERACT_NPC )
             {
                 ap_ok = mock230_scene_approached(
                     player->level, player->x, player->z, target_x, target_z, 1, 1, size_x,
                     size_z);
+            }
+            else if( interaction->kind == MOCK230_INTERACT_PLAYER )
+            {
+                ap_ok = mock230_scene_approached_pvp(
+                    player->level, player->x, player->z, target_x, target_z, 1, 1, 1, 1);
             }
             if( ap_ok )
             {
@@ -1281,6 +1317,15 @@ mock230_world_process_interaction(struct Mock230Server* srv)
                 mock230_say(srv, "nothing_interesting_message", NULL);
             break;
         }
+        case MOCK230_INTERACT_PLAYER:
+            /* No engine verb and no fallback: everything a player can do to
+             * another player is content's (`Player.defaultOp` for the miss).
+             * The subject is -1 — an `[opplayer<n>]` binds on the trigger alone,
+             * there being no player "type" to key on. */
+            if( mock230_scripts_run_trigger(srv, SS_TRIGGER_OPPLAYER1 + (op_num - 1), -1,
+                                            category, -1) == MOCK230_TRIGGER_NONE )
+                mock230_say(srv, "nothing_interesting_message", NULL);
+            break;
         default:
             break;
         }

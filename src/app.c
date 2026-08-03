@@ -4260,17 +4260,23 @@ app_logic_tick(struct App* app)
                     char one[96] = { 0 };
                     char const* sep = strchr(cheat, ';');
                     size_t len = sep ? (size_t)(sep - cheat) : strlen(cheat);
+                    char const* body;
                     if( len >= sizeof(one) )
                         len = sizeof(one) - 1;
                     memcpy(one, cheat, len);
-                    if( one[0] )
+                    /* Packet body is without "::" (net_out_client_cheat); accept
+                     * either spelling in the env so harnesses can write ::bank. */
+                    body = one;
+                    if( body[0] == ':' && body[1] == ':' )
+                        body += 2;
+                    if( body[0] )
                     {
-                        if( strncmp(one, "lootkill ", 9) == 0 )
+                        if( strncmp(body, "lootkill ", 9) == 0 )
                         {
                             char lk_source[64] = { 0 };
                             int lk_obj = 0;
                             int lk_qty = 1;
-                            if( sscanf(one + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                            if( sscanf(body + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
                             {
                                 if( lk_qty <= 0 )
                                     lk_qty = 1;
@@ -4286,7 +4292,7 @@ app_logic_tick(struct App* app)
                                     app->net->random_out,
                                     _nsbuf,
                                     sizeof(_nsbuf),
-                                    one));
+                                    body));
                         }
                     }
                     cheat = sep ? sep + 1 : NULL;
@@ -4464,7 +4470,12 @@ app_logic_tick(struct App* app)
     /* onTimer fires once per client tick for every component with a timer
      * hook (reference processWidgetTimers). Walk the compact hook index —
      * rebuilt lazily when ApplyRuntimeHook / reclaim dirty it — instead of
-     * scanning every component every tick. */
+     * scanning every component every tick.
+     *
+     * Hidden / unmounted packs stay in the tree (IF_CLOSESUB hides rather than
+     * reclaiming so a remount reuses dynamic children). Skip them the same way
+     * inv/var/stat transmit dispatch does via ComponentOrAncestorHidden — a
+     * closed bank's timers must not keep running every tick. */
     {
         int timer_n = UITree_EnsureHookIndexes(app->tree);
         if( timer_n > 256 )
@@ -4474,6 +4485,8 @@ app_logic_tick(struct App* app)
             int com_id = app->tree->timer_hook_ids[i];
             int32_t idx = UITree_FindByComponentId(app->tree, com_id);
             if( idx < 0 )
+                continue;
+            if( UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                 continue;
             RS_CS2_DispatchHook(
                 &app->host,
@@ -4567,14 +4580,48 @@ app_logic_tick(struct App* app)
         if( stats_enabled < 0 )
             stats_enabled = getenv("TORIRS_STATS") != NULL;
         if( stats_enabled && ++stats_tick % 250 == 0 )
+        {
+            uint32_t hidden = 0;
+            uint32_t freed = 0;
+            uint32_t live = 0;
+            int timers = UITree_EnsureHookIndexes(app->tree);
+            int timers_hidden = 0;
+            for( uint32_t i = 0; i < app->tree->component_count; i++ )
+            {
+                struct UITreeComponent const* c = &app->tree->components[i];
+                if( c->freed )
+                {
+                    freed++;
+                    continue;
+                }
+                if( c->component_id < 0 )
+                    continue;
+                live++;
+                if( c->behavior.hide )
+                    hidden++;
+            }
+            for( int i = 0; i < timers; i++ )
+            {
+                if( UITree_ComponentOrAncestorHidden(app->tree, app->tree->timer_hook_ids[i]) )
+                    timers_hidden++;
+            }
             fprintf(
                 stderr,
-                "torirs_stats: tick=%d components=%u free_head=%d inv_hooks=%d var_hooks=%d\n",
+                "torirs_stats: tick=%d components=%u live=%u hidden=%u freed=%u "
+                "free_head=%d inv_hooks=%d var_hooks=%d timers=%d timers_hidden=%d "
+                "iface_parents=%d\n",
                 stats_tick,
                 app->tree->component_count,
+                live,
+                hidden,
+                freed,
                 app->tree->free_head,
                 app->host.inv_transmit_hook_count,
-                app->host.var_transmit_hook_count);
+                app->host.var_transmit_hook_count,
+                timers,
+                timers_hidden,
+                app->tree->interface_parent_count);
+        }
     }
 
     {
@@ -5193,6 +5240,8 @@ app_world_paint(struct App* app)
         if( occ && !occ_off )
         {
             int top_level = app_world_roof_check(app);
+            /* Use the same clamped tile coords as the painter / cullspan so
+             * footprint visibility lines up with World.gx/gz. */
             scene_occluders_select_for_camera(
                 occ,
                 app->world_camera_pos.x,
@@ -5203,6 +5252,38 @@ app_world_paint(struct App* app)
                 NULL,
                 app->world_camera.pitch,
                 app->world_camera.yaw);
+            if( getenv("TORIRS_OCCLUDERS_DEBUG") )
+            {
+                static int s_logged;
+                if( !s_logged )
+                {
+                    int n_wall = 0;
+                    int n_floor = 0;
+                    int i;
+                    s_logged = 1;
+                    for( i = 0; i < occ->level_occluder_count[top_level]; i++ )
+                    {
+                        uint8_t p = occ->level_occluders[top_level][i].plane;
+                        if( p == OCCLUDER_PLANE_CONSTANT_Y )
+                            n_floor++;
+                        else
+                            n_wall++;
+                    }
+                    fprintf(
+                        stderr,
+                        "occluders: top=%d built_wall=%d built_floor=%d active=%d "
+                        "eye=(%d,%d,%d) cam_tile=(%d,%d)\n",
+                        top_level,
+                        n_wall,
+                        n_floor,
+                        occ->active_count,
+                        app->world_camera_pos.x,
+                        app->world_camera_pos.y,
+                        app->world_camera_pos.z,
+                        occ->camera_sx,
+                        occ->camera_sz);
+                }
+            }
         }
         else if( occ && occ_off )
         {

@@ -106,6 +106,23 @@ Gate: **PASS**.
 
 Gate: **PASS** on p95.
 
+## Planar occluders (2026-08-03)
+
+Occlusion culling (`docs/OCCLUDER_SYSTEM.md`) is on by default. Kill switch
+`TORIRS_OCCLUDERS=0`.
+
+Headless Lumbridge (`tele 0,50,50,16,14`, pitch 167, steady frame):
+
+| | off | on |
+|---|---:|---:|
+| painter commands | 5853 | 5021 (−14%) |
+
+`tools/perf/run_perf.sh idle 300` with occluders on still clears the p95 < 20 ms
+gate (build `-O0` + `TORIDRAW_OPT=1`). Re-measure before claiming a paint-stage
+delta — outdoor frames often have `active_count == 0` and cost one load per
+emit site.
+
+
 - Soft3D render dominates attributed steady-state work (~3.6 ms p95).
 - UITree walks still visit every node twice per emit (normal + drag) plus
   hit/hover; emit_skip is high — dirty filtering works, but the walk itself
@@ -174,6 +191,22 @@ tabs (f1–f12) + Escape, and re-opens `::bank` every 40 logic ticks via
 4.85 → 5.08 ms (+4.9%, under the 5% guard). `uitree_components` flat at 7092;
 only `zone_map_count` rose (46→63). Mid-run windows spiked to ~13 ms then
 recovered — noise / one-shot mount cost, not a leak slope.
+
+**UITree open/close path (follow-up):** the earlier `drift-ui` run never
+actually opened the bank — `TORIRS_NET_CHEAT="::bank"` was sent with the
+leading `::`, and the cheat handler matches `bank` without it (harness now
+strips `::`). With a real bank open/close cycle:
+
+- `IF_CLOSESUB` **hides** packs rather than reclaiming them so a remount can
+  reuse dynamic children (`already baked; reusing it`). After one bank open
+  the tree sits at ~9523 components with ~4450 hidden (~47%).
+- Each remount re-runs onload (`cc_deleteall` + `cc_create` with fresh dynamic
+  uids) and re-registers `if_setonvartransmit`. Dead hook entries for the
+  reclaimed uids were only compacted when the 512-slot array filled, so
+  `var_hooks` sawtoothed 220→512→220 every few minutes of open/close. Fixed:
+  compact dead inv/var/stat transmit hooks before every append.
+- `onTimer` did not skip hidden ancestors (inv/var/stat already did). Closed
+  panels' timers kept firing; gated with `UITree_ComponentOrAncestorHidden`.
 
 The last row is a footprint change, not a speed change, and it is in the table so
 nobody re-derives it from the frame time. `struct CS2VM2` held

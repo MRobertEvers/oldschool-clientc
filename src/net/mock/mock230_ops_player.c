@@ -194,6 +194,61 @@ mock230_ops_player(
         return 1;
     }
 
+    /*
+     * `[command,p_opplayer](int $op)` — `PlayerOps.ts`, the `n` opcode:
+     *
+     *     const target = state._activePlayer2;
+     *     if (!target) return;
+     *     state.activePlayer.stopAction();
+     *     state.activePlayer.setInteraction(SCRIPT, target, APPLAYER1 + type);
+     *
+     * The target is the *secondary* active player, which is the only way a
+     * player-versus-player interaction can start in this tree: rev 230 assigns
+     * no OPPLAYER wire opcode (see `mock230_world.c`'s note beside
+     * `useon_interact`), so no click reaches here. Content that has two players
+     * in hand — the `.` dialect — can.
+     *
+     * The silent return on a missing target is the reference's, not a guard: a
+     * script whose second player logged out between ticks stops interacting
+     * rather than aborting.
+     */
+    case SS_OP_P_OPPLAYER:
+    {
+        int32_t op_num;
+        struct Mock230Player* target;
+        int slot;
+
+        if( !SSVM_PopInt(state, &op_num) )
+            return 1;
+        if( op_num < 1 || op_num > 5 )
+        {
+            /* `throw new Error(\`Invalid opplayer: ${type + 1}\`)`. */
+            SSVM_Abort(state, "p_opplayer: op %d is not 1..5", (int)op_num);
+            return 1;
+        }
+
+        target = (struct Mock230Player*)SSVM_ActiveSlot(state, SSVM_ENT_PLAYER, SSVM_SECONDARY);
+        if( !target || !target->active || target == srv->active_player )
+            return 1;
+        slot = (int)(target - srv->players);
+        if( slot < 0 || slot >= srv->player_count )
+            return 1;
+
+        mock230_world_clear_pending_action(srv);
+        mock230_world_interaction_clear(srv);
+        mock230_world_interaction_set(srv, MOCK230_INTERACT_PLAYER, (int)op_num, slot,
+                                      target->pid, target->x, target->z, target->level, 1, 1);
+        {
+            struct CollisionApproach approach;
+            mock230_scene_npc_approach(1, &approach);
+            mock230_world_walk_to_approach(srv, target->x, target->z, &approach);
+        }
+        /* Not resolved here, for the same reason `p_oploc` does not: an
+         * `[opplayer<n>]` that re-issues itself would recurse inside its own
+         * tick. */
+        return 1;
+    }
+
     default:
         return 0;
     }

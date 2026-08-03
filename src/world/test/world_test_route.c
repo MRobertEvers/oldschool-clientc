@@ -463,6 +463,7 @@ test_features_eras(void)
     TEST_ASSERT(lostcity->npc_approach_uses_size == 0, "lostcity npc target is 1x1");
     TEST_ASSERT(lostcity->op_click_nearest_range == 0, "lostcity has no op-click fallback");
     TEST_ASSERT(lostcity->los_symmetric_pvp == 0, "lostcity LoS is asymmetric");
+    TEST_ASSERT(lostcity->route_window_tiles == 0, "lostcity floods its whole scene");
 
     TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "osrs still paths client-side");
     TEST_ASSERT(osrs->approach_model == TORIRS_APPROACH_RECT, "osrs uses rect strategies");
@@ -470,6 +471,8 @@ test_features_eras(void)
     TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
     TEST_ASSERT(osrs->nearest_ranks_by_rect_distance == 1, "osrs ranks by rect distance");
     TEST_ASSERT(osrs->los_symmetric_pvp == 1, "osrs PvP LoS is symmetric");
+    TEST_ASSERT(osrs->route_window_tiles == COLLISION_ROUTE_WINDOW,
+                "osrs floods rsmod's fixed window");
 
     TEST_ASSERT(routed->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
                 "server_routed defers to the server");
@@ -957,6 +960,26 @@ test_line_of_sight_asymmetry(void)
             TEST_ASSERT(sym == 0, "asymmetric geometry fails the symmetric AND");
     }
 
+    /*
+     * And the same rule as the AP predicate the PvP gate actually calls, so the
+     * two cannot drift apart. Asymmetric geometry must fail the symmetric form
+     * in *both* orders — that is the guarantee the 2019 update states, and the
+     * only observable difference between it and the legacy ray.
+     */
+    {
+        int ap_ab = collision_map_approached(cm, 8, 10, 12, 11, 1, 1, 1, 1);
+        int ap_ba = collision_map_approached(cm, 12, 11, 8, 10, 1, 1, 1, 1);
+        int sym_ab = collision_map_approached_symmetric(cm, 8, 10, 12, 11, 1, 1, 1, 1);
+        int sym_ba = collision_map_approached_symmetric(cm, 12, 11, 8, 10, 1, 1, 1, 1);
+
+        TEST_ASSERT(sym_ab == sym_ba, "the symmetric predicate reads the same both ways");
+        TEST_ASSERT(sym_ab == (ap_ab && ap_ba), "and is the AND of the two one-way casts");
+
+        /* Overlapping footprints are never approached, symmetric or not. */
+        TEST_ASSERT(collision_map_approached_symmetric(cm, 8, 10, 8, 10, 1, 1, 1, 1) == 0,
+                    "overlap refuses the symmetric form too");
+    }
+
     collision_map_free(cm);
 }
 
@@ -1043,6 +1066,117 @@ test_occupancy_stacking(void)
     TEST_ASSERT(
         (collision_map_tile(cm, 10, 10) & COLL_FLAG_NPC_OCC) == 0,
         "unconditional clear permits stacking (flag gone after one leave)");
+
+    collision_map_free(cm);
+}
+
+/*
+ * The routing window is the router's, not the scene's.
+ *
+ * A map wider than the window is the only way to see the difference, which is
+ * exactly why this cannot be tested through the 104-tile scene — and why the
+ * gap it closes was invisible: with window == map, "128" and "104" are the same
+ * code path.
+ */
+void
+test_route_window(void)
+{
+    printf("TEST: BFS window is the router's, not the map's\n");
+
+    struct CollisionMap* cm = collision_map_new(300, 300);
+    int path_x[512];
+    int path_z[512];
+    int n;
+
+    /* Whole-map default: a 200-tile walk across open ground is reachable. */
+    TEST_ASSERT(cm->route_window == 0, "a fresh map floods whole (the 2004 client)");
+    n = collision_map_bfs_path(cm, 20, 150, 220, 150, path_x, path_z, 512);
+    TEST_ASSERT(n == 200, "unwindowed flood reaches 200 tiles away");
+
+    /* rsmod's window: 128 tiles centred on the source, so 64 either side. A
+     * destination 50 tiles away is inside it; one 200 tiles away is not, and no
+     * amount of loaded map makes it reachable. */
+    collision_map_set_route_window(cm, COLLISION_ROUTE_WINDOW);
+    n = collision_map_bfs_path(cm, 20, 150, 70, 150, path_x, path_z, 512);
+    TEST_ASSERT(n == 50, "inside the window still routes");
+    n = collision_map_bfs_path(cm, 20, 150, 220, 150, path_x, path_z, 512);
+    TEST_ASSERT(n <= 0, "outside the window is unreachable");
+
+    /* The far edge of the window itself: src + 63 is in, src + 64 is out
+     * (base = src - 64, width 128, so the last local index is src + 63). */
+    n = collision_map_bfs_path(cm, 100, 150, 163, 150, path_x, path_z, 512);
+    TEST_ASSERT(n == 63, "the window's last column routes");
+    n = collision_map_bfs_path(cm, 100, 150, 164, 150, path_x, path_z, 512);
+    TEST_ASSERT(n <= 0, "one tile past the window does not");
+
+    collision_map_free(cm);
+}
+
+/*
+ * rsmod CollisionStrategy per moverestrict. Every branch has a tile that only
+ * it accepts, which is the whole point: an npc with moverestrict=blocked lives
+ * where a normal one cannot walk at all.
+ */
+void
+test_collision_types(void)
+{
+    printf("TEST: moverestrict collision strategies\n");
+
+    struct CollisionMap* cm = collision_map_new(32, 32);
+    const int open = COLL_FLAG_OPEN;
+
+    /* NORMAL: the plain mask test. */
+    TEST_ASSERT(collision_can_move(COLL_TYPE_NORMAL, open, COLL_FLAG_BLOCK_NORTH),
+                "normal walks open ground");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_NORMAL, COLL_FLAG_FLOOR, COLL_FLAG_BLOCK_NORTH),
+                "normal refuses a blocked floor");
+
+    /* BLOCKED: the inverse — FLOOR stops blocking and becomes *required*. */
+    TEST_ASSERT(collision_can_move(COLL_TYPE_BLOCKED, COLL_FLAG_FLOOR, COLL_FLAG_BLOCK_NORTH),
+                "blocked walks only where the floor blocks");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_BLOCKED, open, COLL_FLAG_BLOCK_NORTH),
+                "blocked refuses open ground");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_BLOCKED, COLL_FLAG_FLOOR | COLL_FLAG_WALL_SOUTH,
+                                    COLL_FLAG_BLOCK_NORTH),
+                "blocked still honours walls");
+
+    /* INDOORS / OUTDOORS split on the roof bit. */
+    TEST_ASSERT(collision_can_move(COLL_TYPE_INDOORS, COLL_FLAG_ROOF, COLL_FLAG_BLOCK_NORTH),
+                "indoors requires a roof");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_INDOORS, open, COLL_FLAG_BLOCK_NORTH),
+                "indoors will not step outside");
+    TEST_ASSERT(collision_can_move(COLL_TYPE_OUTDOORS, open, COLL_FLAG_BLOCK_NORTH),
+                "outdoors walks unroofed ground");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_OUTDOORS, COLL_FLAG_ROOF, COLL_FLAG_BLOCK_NORTH),
+                "outdoors will not step under a roof");
+
+    /* LINE_OF_SIGHT reads the mask as its projectile twin: a walk-only wall is
+     * no obstacle, a projectile-blocking one is. */
+    TEST_ASSERT(collision_can_move(COLL_TYPE_LINE_OF_SIGHT, COLL_FLAG_WALL_SOUTH,
+                                   COLL_FLAG_BLOCK_NORTH),
+                "blocked_normal passes a walk-only wall");
+    TEST_ASSERT(!collision_can_move(COLL_TYPE_LINE_OF_SIGHT, COLL_FLAG_WALL_SOUTH_PROJ,
+                                    COLL_FLAG_BLOCK_NORTH),
+                "blocked_normal stops at a projectile wall");
+
+    /* And through the step validator, which is how the npc stepper asks. A
+     * blocked floor north of (10,10) refuses a NORMAL step and is the only
+     * place a BLOCKED mover may go. */
+    collision_map_add_floor(cm, 10, 11);
+    TEST_ASSERT(!collision_map_can_travel_typed(cm, 10, 10, 0, 1, 1, 0, COLL_TYPE_NORMAL),
+                "normal step refuses the blocked tile");
+    TEST_ASSERT(collision_map_can_travel_typed(cm, 10, 10, 0, 1, 1, 0, COLL_TYPE_BLOCKED),
+                "blocked step takes it");
+    TEST_ASSERT(collision_map_can_travel(cm, 10, 10, 0, -1, 1, 0),
+                "the untyped form is still NORMAL");
+
+    /* Roof stamping is add/remove, like every other runtime flag. */
+    collision_map_change_roof(cm, 5, 6, 1);
+    TEST_ASSERT(collision_map_can_travel_typed(cm, 5, 5, 0, 1, 1, 0, COLL_TYPE_INDOORS),
+                "an indoors mover steps onto a roofed tile");
+    collision_map_change_roof(cm, 5, 6, 0);
+    TEST_ASSERT(!collision_map_can_travel_typed(cm, 5, 5, 0, 1, 1, 0, COLL_TYPE_INDOORS),
+                "and not once the roof is gone");
 
     collision_map_free(cm);
 }

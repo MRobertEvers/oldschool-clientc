@@ -17,8 +17,8 @@
  *      7  host commands (npc)
  *      8  host commands (obj)
  *      2  host commands (param)
- *      2  host commands (player)
- *    270  total, of 404 declared opcodes
+ *      3  host commands (player)
+ *    271  total, of 404 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 270
+#define MOCK230_OPCODE_COVERAGE_COUNT 271
 #define MOCK230_OPCODE_DECLARED_COUNT 404
 
 /*
@@ -127,6 +127,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2078, /* SS_OP_P_OPLOC (host commands (player)) */
     2079, /* SS_OP_P_OPNPC (host commands) */
     2081, /* SS_OP_P_OPOBJ (host commands (player)) */
+    2082, /* SS_OP_P_OPPLAYER (host commands (player)) */
     2084, /* SS_OP_P_PAUSEBUTTON (host commands) */
     2087, /* SS_OP_P_STOPACTION (host commands) */
     2088, /* SS_OP_P_TELEJUMP (host commands) */

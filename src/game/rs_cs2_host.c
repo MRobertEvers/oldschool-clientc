@@ -2806,9 +2806,27 @@ exec_widget_set_model_angle(
  * same component reuses its entry (the new script supersedes the old) while
  * preserving last_seen_serial — a transmit script re-registering itself must not
  * re-arm and re-fire every pump (TS parity: reassigning node.onInvTransmit does
- * not reset lastChangedInvCount). When the array is full, entries whose
- * component no longer exists are purged first. Returns NULL when genuinely
- * full; the returned slot is zeroed except last_seen_serial. */
+ * not reset lastChangedInvCount).
+ *
+ * Dead entries (component reclaimed by CC_CREATE/CC_DELETEALL) are compacted
+ * before appending: an interface reopen re-runs onload, which often
+ * deleteall+create with fresh dynamic uids and re-registers — without compacting
+ * on every grow the array climbed until MAX and only then purged. */
+static void
+rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
+{
+    int w = 0;
+    for( int i = 0; i < host->inv_transmit_hook_count; i++ )
+    {
+        if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) < 0 )
+            continue;
+        if( w != i )
+            host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
+        w++;
+    }
+    host->inv_transmit_hook_count = w;
+}
+
 static struct RS_CS2InvTransmitHook*
 rs_cs2_acquire_inv_transmit_hook(
     struct RS_CS2Host* host,
@@ -2829,34 +2847,23 @@ rs_cs2_acquire_inv_transmit_hook(
         }
     }
 
+    rs_cs2_compact_inv_transmit_hooks(host);
+
     if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
     {
-        int w = 0;
-        for( i = 0; i < host->inv_transmit_hook_count; i++ )
+        /* Say so, once. A dropped registration is invisible at the drop:
+         * the script that asked carries on, the panel draws, and the bug
+         * only shows up later as a panel that never updates. */
+        static int warned;
+        if( !warned )
         {
-            if( UITree_FindByComponentId(host->tree, host->inv_transmit_hooks[i].component_id) < 0 )
-                continue;
-            if( w != i )
-                host->inv_transmit_hooks[w] = host->inv_transmit_hooks[i];
-            w++;
+            warned = 1;
+            fprintf(stderr,
+                    "cs2 host: inv-transmit hooks full (%d); component 0x%08x will "
+                    "never update\n",
+                    RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
-        host->inv_transmit_hook_count = w;
-        if( host->inv_transmit_hook_count >= RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX )
-        {
-            /* Say so, once. A dropped registration is invisible at the drop:
-             * the script that asked carries on, the panel draws, and the bug
-             * only shows up later as a panel that never updates. */
-            static int warned;
-            if( !warned )
-            {
-                warned = 1;
-                fprintf(stderr,
-                        "cs2 host: inv-transmit hooks full (%d); component 0x%08x will "
-                        "never update\n",
-                        RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX, (unsigned)component_id);
-            }
-            return NULL;
-        }
+        return NULL;
     }
 
     hook = &host->inv_transmit_hooks[host->inv_transmit_hook_count++];
@@ -2865,6 +2872,21 @@ rs_cs2_acquire_inv_transmit_hook(
 }
 
 /* Var-transmit counterpart of rs_cs2_acquire_inv_transmit_hook. */
+static void
+rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
+{
+    int w = 0;
+    for( int i = 0; i < host->var_transmit_hook_count; i++ )
+    {
+        if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) < 0 )
+            continue;
+        if( w != i )
+            host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
+        w++;
+    }
+    host->var_transmit_hook_count = w;
+}
+
 static struct RS_CS2VarTransmitHook*
 rs_cs2_acquire_var_transmit_hook(
     struct RS_CS2Host* host,
@@ -2885,34 +2907,20 @@ rs_cs2_acquire_var_transmit_hook(
         }
     }
 
+    rs_cs2_compact_var_transmit_hooks(host);
+
     if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
-        int w = 0;
-        for( i = 0; i < host->var_transmit_hook_count; i++ )
+        static int warned;
+        if( !warned )
         {
-            if( UITree_FindByComponentId(host->tree, host->var_transmit_hooks[i].component_id) < 0 )
-                continue;
-            if( w != i )
-                host->var_transmit_hooks[w] = host->var_transmit_hooks[i];
-            w++;
+            warned = 1;
+            fprintf(stderr,
+                    "cs2 host: var-transmit hooks full (%d); component 0x%08x will "
+                    "never update\n",
+                    RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
-        host->var_transmit_hook_count = w;
-        if( host->var_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
-        {
-            /* Say so, once. A dropped registration is invisible at the drop:
-             * the script that asked carries on, the panel draws, and the bug
-             * only shows up later as a panel that never updates. */
-            static int warned;
-            if( !warned )
-            {
-                warned = 1;
-                fprintf(stderr,
-                        "cs2 host: var-transmit hooks full (%d); component 0x%08x will "
-                        "never update\n",
-                        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
-            }
-            return NULL;
-        }
+        return NULL;
     }
 
     hook = &host->var_transmit_hooks[host->var_transmit_hook_count++];
@@ -2992,6 +3000,21 @@ exec_set_on_inv_transmit(
  * seen, or the XP-drop script would replay its whole queue every time the
  * gameframe re-armed it.
  */
+static void
+rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
+{
+    int w = 0;
+    for( int i = 0; i < host->stat_transmit_hook_count; i++ )
+    {
+        if( UITree_FindByComponentId(host->tree, host->stat_transmit_hooks[i].component_id) < 0 )
+            continue;
+        if( w != i )
+            host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
+        w++;
+    }
+    host->stat_transmit_hook_count = w;
+}
+
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
@@ -3012,36 +3035,22 @@ rs_cs2_acquire_stat_transmit_hook(
         }
     }
 
-    /* Full: drop the entries whose component has gone (a closed interface
-     * leaves its hooks behind), and only then refuse. */
+    /* Compact dead entries (closed/rebuilt interface left hooks behind) before
+     * appending — same as inv/var acquire. */
+    rs_cs2_compact_stat_transmit_hooks(host);
+
     if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
     {
-        int w = 0;
-        for( i = 0; i < host->stat_transmit_hook_count; i++ )
+        static int warned;
+        if( !warned )
         {
-            if( UITree_FindByComponentId(host->tree, host->stat_transmit_hooks[i].component_id) < 0 )
-                continue;
-            if( w != i )
-                host->stat_transmit_hooks[w] = host->stat_transmit_hooks[i];
-            w++;
+            warned = 1;
+            fprintf(stderr,
+                    "cs2 host: stat-transmit hooks full (%d); component 0x%08x will "
+                    "never update\n",
+                    RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
         }
-        host->stat_transmit_hook_count = w;
-        if( host->stat_transmit_hook_count >= RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX )
-        {
-            /* Say so, once. A dropped registration is invisible at the drop:
-             * the script that asked carries on, the panel draws, and the bug
-             * only shows up later as a panel that never updates. */
-            static int warned;
-            if( !warned )
-            {
-                warned = 1;
-                fprintf(stderr,
-                        "cs2 host: stat-transmit hooks full (%d); component 0x%08x will "
-                        "never update\n",
-                        RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX, (unsigned)component_id);
-            }
-            return NULL;
-        }
+        return NULL;
     }
 
     hook = &host->stat_transmit_hooks[host->stat_transmit_hook_count++];

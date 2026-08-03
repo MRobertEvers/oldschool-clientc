@@ -1255,6 +1255,17 @@ enum Mock230InteractionKind
     MOCK230_INTERACT_NPC,
     MOCK230_INTERACT_LOC,
     MOCK230_INTERACT_OBJ,
+    /**
+     * Another player — `[applayer<n>]` / `[opplayer<n>]`.
+     *
+     * Reached from `p_opplayer` (LostCity `PlayerOps`: `setInteraction(SCRIPT,
+     * activePlayer2, APPLAYER1 + op)`), not from the wire: rev 230 assigns no
+     * OPPLAYER opcode, so a click cannot start one at this revision. What makes
+     * it worth having anyway is the AP rung — player-versus-player is the one
+     * pairing whose line of sight became **symmetric** in 2019, and this is the
+     * kind that selects it (`mock230_scene_approached_pvp`).
+     */
+    MOCK230_INTERACT_PLAYER,
 };
 
 struct Mock230Interaction
@@ -1263,11 +1274,14 @@ struct Mock230Interaction
     /** 1-based op index, as the OP<thing><n> packet numbered it. */
     int op;
 
-    /** NPC slot for MOCK230_INTERACT_NPC. Revalidated every tick: an npc can
-     *  die or have its slot reused while the player is still walking over. */
+    /** Pathing-entity slot: the npc slot for MOCK230_INTERACT_NPC, the player
+     *  slot for MOCK230_INTERACT_PLAYER. Revalidated every tick — an npc can die
+     *  or have its slot reused, and a player can log out, while the mover is
+     *  still walking over. */
     int npc_slot;
-    /** The npc type / loc id / obj id this interaction was started against, so
-     *  a slot that changed underneath is detected rather than acted on. */
+    /** The npc type / loc id / obj id / target player's pid this interaction was
+     *  started against, so a slot that changed underneath is detected rather
+     *  than acted on. */
     int target_id;
 
     /** South-west tile of the target, and its footprint. A 3x3 npc is reachable

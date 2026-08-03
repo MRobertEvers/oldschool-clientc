@@ -94,6 +94,8 @@ void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);
 void test_naive_path_safespot(void);
 void test_occupancy_stacking(void);
+void test_route_window(void);
+void test_collision_types(void);
 void test_follow_dance_semantics(void);
 
 /* Simulations */

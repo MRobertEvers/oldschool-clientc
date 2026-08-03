@@ -34,6 +34,8 @@ main(void)
     test_line_of_sight_asymmetry();
     test_naive_path_safespot();
     test_occupancy_stacking();
+    test_route_window();
+    test_collision_types();
     test_follow_dance_semantics();
 
     sim_path_followers();

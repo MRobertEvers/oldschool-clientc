@@ -209,6 +209,10 @@ swallows them:
 - `COLL_FLAG_BLOCK_NPC_AND_PLAYERS = 0x4000000`
 - `COLL_FLAG_PROJ_BLOCK_ENTITY = 0x8000000`
 
+`COLL_FLAG_ROOF = 0x10000000` sits beside them — rsmod puts it at `0x80000000`,
+which is the sign bit of the `int` this array holds, and nothing else needs the
+top nibble.
+
 ---
 
 ## 5. What this tree implements
@@ -221,25 +225,75 @@ swallows them:
 | Naive NPC movement (no flood), waypoints, stuck counters | `mock230_world.c` |
 | `last_step` / `follow`, occupancy on step/spawn/death | `mock230_world.c`, `mock230_combat.c` |
 | AP LoS gate (npc casts backwards) | `mock230_world_process_interaction` |
-| `los_symmetric_pvp` era flag | `features.h` / `features.c` |
+| Symmetric PvP AP (`MOCK230_INTERACT_PLAYER`, `p_opplayer`) | `mock230_world.c`, `mock230_ops_player.c` |
+| `CollisionType` strategies + `COLL_FLAG_ROOF` | `collision_map.c`, `mock230_scene.c` |
+| Configurable BFS window (`route_window`) | `collision_map.c` |
+| Occupancy re-stamp after a scene rebuild | `world_occupancy_restamp` |
+| `los_symmetric_pvp`, `route_window_tiles` era flags | `features.h` / `features.c` |
 | `SS_OP_LINEOFSIGHT`, hunt/`npc_find*` checkvis, `map_findsquare` modes | `mock230_scripts.c`, `mock230_ops_npc.c` |
 | `blockwalk` / `blocksight` / `moverestrict` | `fields/npc.ini` + content/codec |
 
-### 5.1 Recorded divergences (deliberately open)
+### 5.1 The routing window
 
-1. **Player BFS window is 104, not 128.** Scene is
-   `MOCK230_SCENE_TILES = 104` with rebuild margin 16. A 128×128 window centred
-   on the mover does not fit. Closing it means decoupling the routing window
-   from the scene — separate structural work; only reachable on very long
-   routes.
-2. **Route-blocker tier (`breakroutefinding`)** — modern rsmod bits 22–30;
-   deleted from LostCity. Needs nine bits and would force `flags` to
-   `uint32_t*`. Recorded, deferred.
-3. **Scene rebuild** currently rebuilds loc collision only; entity occupancy
-   must be re-stamped after rebuild (gap noted at landing).
-4. **`moverestrict` beyond nomove/passthru** is stored; full
-   `CollisionType` strategies (indoors/outdoors/blocked/line_of_sight) are not
-   yet selected per step.
+The window is a property of the **router**, not of the loaded scene, and that is
+the whole point of stating it separately: read the scene's size instead and a
+route silently becomes a function of how much terrain happens to be resident.
+
+- `CollisionMap.route_window` (tiles, centred on the mover; 0 = the whole map).
+  Set with `collision_map_set_route_window`; `collision_flood` clips every
+  expansion to it.
+- A fresh map is 0, because that is literally what Client-TS does — its BFS is
+  over the resident scene and has no window of its own.
+- `ToriRS_FeatureTable.route_window_tiles` states the era's: 0 for `lostcity`,
+  **128** for `osrs` / `server_routed` (rsmod / LostCity
+  `PathFinder.DEFAULT_SEARCH_MAP_SIZE`). `mock230_scene_reset` applies it.
+
+At `MOCK230_SCENE_TILES = 104` the two agree, because a map narrower than the
+window is covered whole — so this is not observable today and only becomes so
+when a map wider than 128 exists. `test_route_window` builds a 300-tile map to
+exercise it: unwindowed reaches 200 tiles away, windowed reaches the window's
+last column (`src + 63`) and no further.
+
+### 5.2 `moverestrict` → `CollisionType`
+
+Selected per step, from the npc's `moverestrict` (`npc_collision_type` in
+`mock230_world.c`, LostCity `PathingEntity.getCollisionStrategy`), and applied by
+`collision_can_move` — rsmod `CollisionStrategy.canMove`, branch for branch:
+
+| `moverestrict` | `CollisionType` | rule |
+|---|---|---|
+| normal, nomove, passthru | `NORMAL` | the plain mask test |
+| blocked | `BLOCKED` | `FLOOR` stops blocking and becomes **required** |
+| indoors | `INDOORS` | normal, and the tile must carry `COLL_FLAG_ROOF` |
+| outdoors | `OUTDOORS` | normal, and the tile must not |
+| blocked_normal | `LINE_OF_SIGHT` | the wall/loc bits are read as their projectile twins (`<< 9`) — walks where a projectile could fly |
+
+`nomove` has no strategy because it means "does not step", which every caller
+answers before asking. `COLL_FLAG_ROOF` (bit 28) is stamped from the map square's
+own `REMOVE_ROOF` tile setting in `mock230_scene.c`, which is the same bit the
+reference reads (LostCity `GameMap`).
+
+### 5.3 Non-gaps (closed, with the evidence)
+
+- **Route-blocker tier.** Not deferred — *deleted upstream*. LostCity's
+  `flags.ts` reclaimed bits 22–30 with the note that "the route-blocker
+  subsystem was removed (it only ever fed `CollisionType.LINE_OF_SIGHT`, was
+  never written — `changeLocCollision` hardcoded false)". `LINE_OF_SIGHT` is
+  implemented here the way the reference implements it, by shifting into the
+  projectile twins, so the tier has nothing left to carry. The era's actual
+  `breakroutefinding` behaviour is the decoder collapse — opcode 74 sets
+  `blocks_walk = blocks_projectiles = 0` (`dat2_config_loc.c`), matching
+  `Client-TS/src/config/LocType.ts`.
+- **Scene rebuild dropping occupancy.** `mock230_scene_build` re-reads the map
+  squares, so the flags it returns describe terrain and locs and nothing else.
+  `world_occupancy_restamp` re-stamps every live npc and player after the
+  rebuild; without it the first tick after a re-centre lets entities walk
+  through each other until each happens to move.
+- **Symmetric PvP LoS had no caller.** It has one now:
+  `MOCK230_INTERACT_PLAYER`, reached from `p_opplayer` (`mock230_ops_player.c`)
+  against the secondary active player, whose AP rung calls
+  `mock230_scene_approached_pvp`. Rev 230 assigns no OPPLAYER wire opcode, so a
+  click still cannot start one — content with two players in hand can.
 
 ---
 
@@ -250,10 +304,16 @@ swallows them:
 - `test_line_of_sight` — same tile, open lines, plain vs proj wall, LOC blind /
   dest strip, approached overlap refuse.
 - `test_line_of_sight_asymmetry` — pins `los(a→b) != los(b→a)` (or both
-  blocked); symmetric AND for the modern PvP construction.
+  blocked); symmetric AND for the modern PvP construction, and that
+  `collision_map_approached_symmetric` reads the same in both orders and equals
+  the AND of the two one-way casts.
+- `test_route_window` — the window is the router's, not the map's: a 300-tile
+  map, whole-map flood vs the 128 window's last reachable column.
+- `test_collision_types` — one tile per `CollisionType` branch that only that
+  branch accepts, plus the same through `can_travel_typed` and the roof stamp.
 - `test_naive_path_safespot` — axis-align stop; BFS finds a route naive does
   not walk through a blocking column.
 - `test_occupancy_stacking` — extra_flag refuses the step; flood ignores
   occupancy; unconditional clear.
 - `test_follow_dance_semantics` — west seed; mutual-follow lag corridor.
-- `test_features_eras` — `los_symmetric_pvp` 0/1 per era.
+- `test_features_eras` — `los_symmetric_pvp` and `route_window_tiles` per era.

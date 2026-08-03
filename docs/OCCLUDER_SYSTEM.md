@@ -33,7 +33,7 @@ The composite constants used in code:
 
 2. **L-shaped walls** (`WALL_L`, shape 2): Sets bits for both wall segments based on the two rotation angles.
 
-3. **Roof shapes** (shapes 12–16, excluding 15): Always set `0x924` (floor bits on all levels) at their tile position.
+3. **Roof shapes** (shapes 12–17, excluding 13): Always set `0x924` (floor bits on all levels) at their tile position. The excluded shape is 13 (`ROOF_DIAGONAL_WITH_ROOFEDGE` in Client-TS / `ROOF_SLOPED_OUTER_CORNER` in this tree). Older prose that said "excluding 15" was wrong.
 
 4. **Flat floor tiles**: During `finishBuild`, if a tile on level > 0 is fully covered by an underlay (or a non-transparent overlay) AND has all four corners at the same height, it sets `0x924`.
 
@@ -82,7 +82,7 @@ Each active occluder gets assigned a **mode** (1–5) based on its type and whic
 | 2 | Type 1 (X-plane) | Camera west of the plane |
 | 3 | Type 2 (Z-plane) | Camera south of the plane |
 | 4 | Type 2 (Z-plane) | Camera north of the plane |
-| 5 | Type 4 (Y-plane/floor) | Camera below the plane |
+| 5 | Type 4 (Y-plane/floor) | Camera **above** the plane (y is negative-up; hides points below) |
 
 Delta values are precomputed as fixed-point perspective projections from the camera to the occluder plane edges.
 
@@ -107,6 +107,61 @@ This is used by three visibility checks during rendering:
 | `World3D.ts` / `World.ts` | Stores occluders per level; runs `updateActiveOccluders` and `occluded` tests at render time |
 | `LocType.ts` | `occlude` property (opcode 23) controls whether a wall contributes to occlusion |
 | `FloType.ts` | `occlude` property (default true, opcode 5 disables) controls whether a floor overlay blocks occlusion |
+
+## The C port
+
+Ported into `src/` from Client-TS `Occlude` / `ClientBuild` / `World.calcOcclude`.
+Default **on**; `TORIRS_OCCLUDERS=0` disables (mirrors `TORIRS_PAINTER_NOCULL=1`).
+
+### Name mapping
+
+| Reference | C port |
+|---|---|
+| `mapo` bitfield | `struct OccluderBuildmap` (`occluder_buildmap.{c,h}`) |
+| `Occlude` | `struct SceneOccluder` |
+| `mode` 1..5 | `enum OccluderHides` |
+| `type` 1 / 2 / 4 | `OCCLUDER_PLANE_CONSTANT_{X,Z,Y}` |
+| `minDelta*` | `spread_min_*` / `spread_max_*` (8.8 fixed) |
+| `calcOcclude` | `scene_occluders_select_for_camera` |
+| `occluded` / `groundOccluded` / `wallOccluded` / `spriteOccluded` / `spriteOccluded2` | `scene_occluders_{point,ground_tile,wall,column,footprint}_hidden` |
+| `visibilityMap` | `PaintersCullSpan` (analytic per frame); no 9×32×51×51 bake |
+| `FloType.occlude` | `Dat2ConfigFlo.hide_underlay` (same opcode 5) |
+
+### Split flat-floor condition
+
+The reference marks a flat opaque floor in one place. Inputs live in two places here, so the condition is split:
+
+1. **Opacity** — during `WorldBuilder_RebuildCenterzoneChunkTerrain`: underlay present or overlay shape PLAIN, and the overlay does not clear `hide_underlay`. Stored in `OccluderBuildmap.floor_opacity`.
+2. **Flatness** — during `world_build_scene_terrain`, once all four corner heights are known (the NE corner can belong to the next map square). Calls `occluder_buildmap_mark_flat_floor`.
+
+Only levels `> 0` contribute, matching the reference.
+
+### Preserved Jagex bug
+
+L-wall west arm marks with `0x109` (`OCCLUDER_MARK_WALL_L_WEST_ARM`), not `0x249`. That sets a floor bit on level 2 instead of wall0 on level 3. Ported verbatim so occlusion matches the reference.
+
+### Roof shapes
+
+Shapes **12..17 except 13** (`ROOF_SLOPED_OUTER_CORNER` / reference `ROOF_DIAGONAL_WITH_ROOFEDGE`), only above level 0. Gate on the numeric shape ids — this tree's enum names differ from Client-TS for the same numbers.
+
+### Cullspan substitution
+
+`scene_occluders_select_for_camera` takes a `PaintersCullSpan*` instead of porting `visibilityMap`. Footprint tiles are tested with the span's row ranges (same question the painters already ask: "is this tile on screen?"). `NULL`/empty span treats every footprint tile as visible (activates more occluders).
+
+### Painter wiring
+
+All three painters (`bucket`, `world3d`, `distancemetric`) skip **emits** when occluded; traversal / step / neighbour pushes / span gating are untouched so the wavefront still propagates. Ground verdict is computed once per tile into `TilePaint.occlusion`.
+
+### Measured (2026-08-03, Lumbridge `tele 0,50,50,16,14`, pitch 167)
+
+| | `TORIRS_OCCLUDERS=0` | `=1` |
+|---|---:|---:|
+| painter commands (steady frame) | 5853 | 5021 (−14%) |
+| entities / terrain kinds | 1341 / 4512 | 1135 / 3886 |
+| built planes (top=3) | — | 38 wall + 116 floor |
+| active planes this eye | 0 | 10 |
+
+Headless BMPs are **not** frame-deterministic even with occluders off (~1.3% pixel churn from water/NPC/UI animation between runs), so pixel identity is not a usable gate. The command-count drop plus the fuzz subsequence check (`scripts/painter/c/fuzz_real.c`) and `make -C src test-painters-occluders` are the correctness gates.
 
 ## Summary
 

@@ -61,6 +61,17 @@ the baked bitpacked cullmap remains available via `TORIRS_PAINTER_CULL=baked`.
 Cull-rejected tiles are set to `PAINT_STEP_DONE` but must still propagate the
 traversal wave inward so that visible tiles behind them are not stranded.
 
+### Planar occluders
+
+Frustum culling (above) drops tiles off-screen. **Occlusion** drops geometry
+that is on screen but hidden behind an opaque wall/floor/roof — see
+[`OCCLUDER_SYSTEM.md`](OCCLUDER_SYSTEM.md). Built once at scene load
+(`occluder_buildmap` → `SceneOccluders`), selected per frame next to
+`app_update_painter_cull`, and consulted at every emit site in all three
+painters. Traversal is never skipped: a hidden tile still advances
+`PAINT_STEP_*` and still pushes neighbours (same rule as cull-rejected tiles).
+Kill switch: `TORIRS_OCCLUDERS=0`.
+
 ### Command kinds
 
 - `PNTR_CMD_TERRAIN` — draw the terrain mesh at `(x, z, level)`.
