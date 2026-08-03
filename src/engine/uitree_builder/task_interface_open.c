@@ -119,13 +119,16 @@ upload_model_nodes(
     struct UITree* tree,
     struct UITreeSceneBridge* bridge)
 {
-    uint32_t i;
+    int mi;
     assert(tree && bridge);
-    for( i = 0; i < tree->component_count; i++ )
+    for( mi = 0; mi < tree->models.count; mi++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
+        int32_t i = tree->models.slots[mi];
+        struct UITreeComponent* c;
         int cache_id;
         int scene_id;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
         cache_id = c->u.rs_model.gamecache_model_id;
@@ -178,11 +181,14 @@ upload_model_nodes(
 static void
 reassert_player_idle_anim(struct UITree* tree)
 {
-    uint32_t i;
+    int mi;
     assert(tree);
-    for( i = 0; i < tree->component_count; i++ )
+    for( mi = 0; mi < tree->models.count; mi++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
+        int32_t i = tree->models.slots[mi];
+        struct UITreeComponent* c;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
         if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
@@ -288,15 +294,7 @@ interface_group_in_tree(
     struct UITree const* tree,
     int group)
 {
-    for( uint32_t i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( ((c->component_id >> 16) & 0xffff) == group )
-            return 1;
-    }
-    return 0;
+    return UITree_GroupPresent(tree, group);
 }
 
 /*
@@ -314,6 +312,8 @@ static void
 mount_pack_under_target(struct Task_InterfaceOpen* self)
 {
     int32_t mount_idx;
+    struct UITreeNodeSet const* gset;
+    int gi;
     assert(self->target_uid >= 0);
     mount_idx = UITree_FindByComponentId(self->tree, self->target_uid);
     assert(mount_idx >= 0 && "openSub target must exist");
@@ -321,13 +321,20 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
     (void)UITree_InterfaceParentSet(
         self->tree, self->target_uid, self->interface_id, self->mount_type);
 
-    for( uint32_t i = 0; i < self->tree->component_count; i++ )
+    gset = UITree_GroupNodes(self->tree, self->interface_id);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+    if( !gset )
+        return;
+    for( gi = 0; gi < gset->count; gi++ )
     {
-        struct UITreeComponent* c = &self->tree->components[i];
-        int cid = c->component_id;
+        int32_t i = gset->slots[gi];
+        struct UITreeComponent* c;
+        int cid;
+        assert(i >= 0 && (uint32_t)i < self->tree->component_count);
+        c = &self->tree->components[i];
+        cid = c->component_id;
         if( c->freed || cid < 0 )
-            continue;
-        if( ((cid >> 16) & 0xffff) != self->interface_id )
             continue;
         /* Pack-internal node (its parent belongs to the same group): the bake
          * already linked it, and its ancestor carries the mount. */
@@ -342,7 +349,7 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
         }
         if( c->parent == mount_idx )
             continue;
-        UITree_Reparent(self->tree, (int32_t)i, mount_idx);
+        UITree_Reparent(self->tree, i, mount_idx);
     }
 }
 
@@ -427,15 +434,23 @@ collect_runtime_hooks_kind(
     struct Task_InterfaceOpen* self,
     int use_resize)
 {
-    uint32_t i;
+    struct UITreeNodeSet const* set;
+    int si;
     self->runtime_hook_count = 0;
-    for( i = 0; i < self->tree->component_count; i++ )
+    set = use_resize ? &self->tree->resize_hooks : &self->tree->sub_change_hooks;
+    for( si = 0; si < set->count; si++ )
     {
-        struct UITreeComponent const* c = &self->tree->components[i];
-        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
-        struct UITreeRuntimeScriptHook const* slot =
-            use_resize ? &hooks->on_resize : &hooks->on_sub_change;
+        int32_t i = set->slots[si];
+        struct UITreeComponent const* c;
+        struct UITreeRuntimeHooks const* hooks;
+        struct UITreeRuntimeScriptHook const* slot;
         struct InterfaceOpenRuntimeHook* dst;
+        assert(i >= 0 && (uint32_t)i < self->tree->component_count);
+        c = &self->tree->components[i];
+        if( c->freed )
+            continue;
+        hooks = UITree_Hooks(c);
+        slot = use_resize ? &hooks->on_resize : &hooks->on_sub_change;
         if( slot->script_id <= 0 )
             continue;
         if( use_resize )

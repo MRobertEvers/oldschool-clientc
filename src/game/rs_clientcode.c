@@ -296,10 +296,13 @@ RS_ClientCode_Tick(
     assert(tree);
     assert(social);
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    for( int ci = 0; ci < tree->client_code.count; ci++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
+        int32_t i = tree->client_code.slots[ci];
+        struct UITreeComponent* c;
         int cc;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
         if( c->freed )
             continue;
         cc = c->behavior.client_code;
@@ -308,11 +311,11 @@ RS_ClientCode_Tick(
 
         if( (cc >= RS_CC_FRIENDS_START && cc <= RS_CC_FRIENDS_END) ||
             (cc >= RS_CC_FRIENDS2_START && cc <= RS_CC_FRIENDS2_END) )
-            changed |= friends_row_tick(tree, (int32_t)i, social, cc);
+            changed |= friends_row_tick(tree, i, social, cc);
         else if(
             (cc >= RS_CC_FRIENDS_UPDATE_START && cc <= RS_CC_FRIENDS_UPDATE_END) ||
             (cc >= RS_CC_FRIENDS2_UPDATE_START && cc <= RS_CC_FRIENDS2_UPDATE_END) )
-            changed |= friends_world_row_tick(tree, (int32_t)i, social, cc);
+            changed |= friends_world_row_tick(tree, i, social, cc);
         else if( cc == RS_CC_FRIENDS_SIZE )
             changed |= set_list_scroll_height(
                 tree,

@@ -9,6 +9,509 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- UITreeNodeSet ------------------------------------------------------- */
+
+static void
+UITreeNodeSet_Init(struct UITreeNodeSet* set)
+{
+    assert(set);
+    set->slots = NULL;
+    set->pos = NULL;
+    set->count = 0;
+    set->cap = 0;
+    set->pos_cap = 0;
+}
+
+static void
+UITreeNodeSet_Free(struct UITreeNodeSet* set)
+{
+    assert(set);
+    free(set->slots);
+    free(set->pos);
+    UITreeNodeSet_Init(set);
+}
+
+static void
+UITreeNodeSet_Clear(struct UITreeNodeSet* set)
+{
+    uint32_t i;
+    assert(set);
+    if( set->pos )
+    {
+        for( i = 0; i < set->pos_cap; i++ )
+            set->pos[i] = -1;
+    }
+    set->count = 0;
+}
+
+static void
+UITreeNodeSet_EnsurePosCap(
+    struct UITreeNodeSet* set,
+    uint32_t need_cap)
+{
+    uint32_t old_cap;
+    uint32_t ncap;
+    int32_t* p;
+    uint32_t i;
+
+    assert(set);
+    if( need_cap <= set->pos_cap )
+        return;
+    old_cap = set->pos_cap;
+    ncap = old_cap == 0 ? 16 : old_cap;
+    while( ncap < need_cap )
+        ncap *= 2;
+    p = (int32_t*)realloc(set->pos, (size_t)ncap * sizeof(int32_t));
+    assert(p);
+    for( i = old_cap; i < ncap; i++ )
+        p[i] = -1;
+    set->pos = p;
+    set->pos_cap = ncap;
+}
+
+static int
+UITreeNodeSet_Contains(
+    struct UITreeNodeSet const* set,
+    int32_t slot)
+{
+    assert(set);
+    if( slot < 0 || set->pos == NULL || (uint32_t)slot >= set->pos_cap )
+        return 0;
+    return set->pos[slot] >= 0;
+}
+
+static void
+UITreeNodeSet_Add(
+    struct UITreeNodeSet* set,
+    int32_t slot)
+{
+    int32_t* slots;
+    assert(set);
+    assert(slot >= 0);
+    UITreeNodeSet_EnsurePosCap(set, (uint32_t)slot + 1u);
+    if( UITreeNodeSet_Contains(set, slot) )
+        return;
+    if( set->count >= set->cap )
+    {
+        int ncap = set->cap == 0 ? 16 : set->cap * 2;
+        slots = (int32_t*)realloc(set->slots, (size_t)ncap * sizeof(int32_t));
+        assert(slots);
+        set->slots = slots;
+        set->cap = ncap;
+    }
+    set->pos[slot] = set->count;
+    set->slots[set->count++] = slot;
+}
+
+static void
+UITreeNodeSet_Remove(
+    struct UITreeNodeSet* set,
+    int32_t slot)
+{
+    int32_t at;
+    int32_t last_slot;
+    assert(set);
+    if( slot < 0 || set->pos == NULL || (uint32_t)slot >= set->pos_cap )
+        return;
+    at = set->pos[slot];
+    if( at < 0 )
+        return;
+    assert(at < set->count);
+    last_slot = set->slots[set->count - 1];
+    set->slots[at] = last_slot;
+    set->pos[last_slot] = at;
+    set->pos[slot] = -1;
+    set->count--;
+}
+
+/* ---- Per-tree live-set bookkeeping --------------------------------------- */
+
+static void
+uitree_all_sets_ensure_pos(
+    struct UITree* tree,
+    uint32_t need_cap)
+{
+    uint32_t i;
+    assert(tree);
+    UITreeNodeSet_EnsurePosCap(&tree->models, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->timer_hooks, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->key_hooks, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->wheel_hooks, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->opkeys, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->client_code, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->resize_hooks, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->sub_change_hooks, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->scroll_layers, need_cap);
+    if( tree->group_map )
+    {
+        for( i = 0; i < tree->group_map_cap; i++ )
+        {
+            if( tree->group_map[i].group_id >= 0 )
+                UITreeNodeSet_EnsurePosCap(&tree->group_map[i].nodes, need_cap);
+        }
+    }
+}
+
+static void
+uitree_all_sets_free(struct UITree* tree)
+{
+    uint32_t i;
+    assert(tree);
+    UITreeNodeSet_Free(&tree->models);
+    UITreeNodeSet_Free(&tree->timer_hooks);
+    UITreeNodeSet_Free(&tree->key_hooks);
+    UITreeNodeSet_Free(&tree->wheel_hooks);
+    UITreeNodeSet_Free(&tree->opkeys);
+    UITreeNodeSet_Free(&tree->client_code);
+    UITreeNodeSet_Free(&tree->resize_hooks);
+    UITreeNodeSet_Free(&tree->sub_change_hooks);
+    UITreeNodeSet_Free(&tree->scroll_layers);
+    if( tree->group_map )
+    {
+        for( i = 0; i < tree->group_map_cap; i++ )
+            UITreeNodeSet_Free(&tree->group_map[i].nodes);
+        free(tree->group_map);
+        tree->group_map = NULL;
+        tree->group_map_cap = 0;
+    }
+}
+
+static void
+uitree_all_sets_clear(struct UITree* tree)
+{
+    uint32_t i;
+    assert(tree);
+    UITreeNodeSet_Clear(&tree->models);
+    UITreeNodeSet_Clear(&tree->timer_hooks);
+    UITreeNodeSet_Clear(&tree->key_hooks);
+    UITreeNodeSet_Clear(&tree->wheel_hooks);
+    UITreeNodeSet_Clear(&tree->opkeys);
+    UITreeNodeSet_Clear(&tree->client_code);
+    UITreeNodeSet_Clear(&tree->resize_hooks);
+    UITreeNodeSet_Clear(&tree->sub_change_hooks);
+    UITreeNodeSet_Clear(&tree->scroll_layers);
+    if( tree->group_map )
+    {
+        for( i = 0; i < tree->group_map_cap; i++ )
+        {
+            UITreeNodeSet_Free(&tree->group_map[i].nodes);
+            tree->group_map[i].group_id = -1;
+        }
+    }
+    tree->world_index = -1;
+    tree->worldmap_index = -1;
+}
+
+static uint32_t
+uitree_group_hash(int group_id)
+{
+    return (uint32_t)group_id * 2654435761u;
+}
+
+static struct UITreeGroupBucket*
+uitree_group_bucket(
+    struct UITree* tree,
+    int group_id,
+    int create)
+{
+    uint32_t i;
+    uint32_t cap;
+    uint32_t start;
+    struct UITreeGroupBucket* map;
+
+    assert(tree);
+    assert(group_id >= 0);
+    if( tree->group_map_cap == 0 )
+    {
+        if( !create )
+            return NULL;
+        cap = 16;
+        map = (struct UITreeGroupBucket*)calloc(cap, sizeof(*map));
+        assert(map);
+        for( i = 0; i < cap; i++ )
+            map[i].group_id = -1;
+        tree->group_map = map;
+        tree->group_map_cap = cap;
+    }
+
+    if( create )
+    {
+        uint32_t live = 0;
+        for( i = 0; i < tree->group_map_cap; i++ )
+            if( tree->group_map[i].group_id >= 0 )
+                live++;
+        if( live * 2u >= tree->group_map_cap )
+        {
+            uint32_t ncap = tree->group_map_cap * 2u;
+            struct UITreeGroupBucket* nmap =
+                (struct UITreeGroupBucket*)calloc(ncap, sizeof(*nmap));
+            assert(nmap);
+            for( i = 0; i < ncap; i++ )
+                nmap[i].group_id = -1;
+            for( i = 0; i < tree->group_map_cap; i++ )
+            {
+                if( tree->group_map[i].group_id < 0 )
+                    continue;
+                {
+                    uint32_t j =
+                        uitree_group_hash(tree->group_map[i].group_id) & (ncap - 1u);
+                    while( nmap[j].group_id >= 0 )
+                        j = (j + 1u) & (ncap - 1u);
+                    nmap[j] = tree->group_map[i];
+                }
+            }
+            free(tree->group_map);
+            tree->group_map = nmap;
+            tree->group_map_cap = ncap;
+        }
+    }
+
+    cap = tree->group_map_cap;
+    start = uitree_group_hash(group_id) & (cap - 1u);
+    i = start;
+    for( ;; )
+    {
+        struct UITreeGroupBucket* b = &tree->group_map[i];
+        if( b->group_id == group_id )
+            return b;
+        if( b->group_id < 0 )
+        {
+            if( !create )
+                return NULL;
+            b->group_id = group_id;
+            UITreeNodeSet_Init(&b->nodes);
+            if( tree->component_capacity > 0 )
+                UITreeNodeSet_EnsurePosCap(&b->nodes, tree->component_capacity);
+            return b;
+        }
+        i = (i + 1u) & (cap - 1u);
+        assert(i != start && "group map full");
+    }
+}
+
+static void
+uitree_group_add(
+    struct UITree* tree,
+    int group_id,
+    int32_t idx)
+{
+    struct UITreeGroupBucket* b;
+    if( group_id < 0 )
+        return;
+    b = uitree_group_bucket(tree, group_id, 1);
+    assert(b);
+    UITreeNodeSet_Add(&b->nodes, idx);
+}
+
+static void
+uitree_group_remove(
+    struct UITree* tree,
+    int group_id,
+    int32_t idx)
+{
+    struct UITreeGroupBucket* b;
+    if( group_id < 0 || !tree->group_map )
+        return;
+    b = uitree_group_bucket(tree, group_id, 0);
+    if( !b )
+        return;
+    UITreeNodeSet_Remove(&b->nodes, idx);
+}
+
+static void
+uitree_sync_hook_sets(
+    struct UITree* tree,
+    int32_t idx)
+{
+    struct UITreeComponent const* c;
+    struct UITreeRuntimeHooks const* h;
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    h = c->runtime_hooks;
+    if( h && h->on_timer.script_id > 0 )
+        UITreeNodeSet_Add(&tree->timer_hooks, idx);
+    else
+        UITreeNodeSet_Remove(&tree->timer_hooks, idx);
+    if( h && h->on_key.script_id > 0 )
+        UITreeNodeSet_Add(&tree->key_hooks, idx);
+    else
+        UITreeNodeSet_Remove(&tree->key_hooks, idx);
+    if( h && h->on_scroll_wheel.script_id > 0 )
+        UITreeNodeSet_Add(&tree->wheel_hooks, idx);
+    else
+        UITreeNodeSet_Remove(&tree->wheel_hooks, idx);
+    if( h && h->on_resize.script_id > 0 )
+        UITreeNodeSet_Add(&tree->resize_hooks, idx);
+    else
+        UITreeNodeSet_Remove(&tree->resize_hooks, idx);
+    if( h && h->on_sub_change.script_id > 0 )
+        UITreeNodeSet_Add(&tree->sub_change_hooks, idx);
+    else
+        UITreeNodeSet_Remove(&tree->sub_change_hooks, idx);
+}
+
+static void
+uitree_live_unregister(
+    struct UITree* tree,
+    int32_t idx)
+{
+    struct UITreeComponent const* c;
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    UITreeNodeSet_Remove(&tree->models, idx);
+    UITreeNodeSet_Remove(&tree->timer_hooks, idx);
+    UITreeNodeSet_Remove(&tree->key_hooks, idx);
+    UITreeNodeSet_Remove(&tree->wheel_hooks, idx);
+    UITreeNodeSet_Remove(&tree->opkeys, idx);
+    UITreeNodeSet_Remove(&tree->client_code, idx);
+    UITreeNodeSet_Remove(&tree->resize_hooks, idx);
+    UITreeNodeSet_Remove(&tree->sub_change_hooks, idx);
+    UITreeNodeSet_Remove(&tree->scroll_layers, idx);
+    if( c->component_id >= 0 )
+        uitree_group_remove(tree, (c->component_id >> 16) & 0xffff, idx);
+    if( tree->world_index == idx )
+        tree->world_index = -1;
+    if( tree->worldmap_index == idx )
+        tree->worldmap_index = -1;
+}
+
+static void
+uitree_live_register(
+    struct UITree* tree,
+    int32_t idx)
+{
+    struct UITreeComponent const* c;
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    if( c->type == UIELEM_RS_MODEL )
+        UITreeNodeSet_Add(&tree->models, idx);
+    if( c->type == UIELEM_RS_LAYER )
+        UITreeNodeSet_Add(&tree->scroll_layers, idx);
+    if( c->behavior.client_code > 0 )
+        UITreeNodeSet_Add(&tree->client_code, idx);
+    if( c->op_keys.has_bindings )
+        UITreeNodeSet_Add(&tree->opkeys, idx);
+    if( c->component_id >= 0 )
+        uitree_group_add(tree, (c->component_id >> 16) & 0xffff, idx);
+    if( c->type == UIELEM_BUILTIN_WORLD )
+        tree->world_index = idx;
+    if( c->type == UIELEM_BUILTIN_WORLDMAP )
+        tree->worldmap_index = idx;
+    uitree_sync_hook_sets(tree, idx);
+}
+
+void
+UITree_SyncHookMembership(
+    struct UITree* tree,
+    int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    uitree_sync_hook_sets(tree, idx);
+}
+
+void
+UITree_FreeHooksAt(
+    struct UITree* tree,
+    int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    UITreeNodeSet_Remove(&tree->timer_hooks, idx);
+    UITreeNodeSet_Remove(&tree->key_hooks, idx);
+    UITreeNodeSet_Remove(&tree->wheel_hooks, idx);
+    UITreeNodeSet_Remove(&tree->resize_hooks, idx);
+    UITreeNodeSet_Remove(&tree->sub_change_hooks, idx);
+    UITree_HooksFree(&tree->components[idx]);
+}
+
+struct UITreeNodeSet const*
+UITree_GroupNodes(
+    struct UITree const* tree,
+    int group_id)
+{
+    struct UITreeGroupBucket* b;
+    assert(tree);
+    if( group_id < 0 || !tree->group_map )
+        return NULL;
+    b = uitree_group_bucket((struct UITree*)tree, group_id, 0);
+    if( !b || b->nodes.count <= 0 )
+        return NULL;
+    return &b->nodes;
+}
+
+int
+UITree_GroupPresent(
+    struct UITree const* tree,
+    int group_id)
+{
+    return UITree_GroupNodes(tree, group_id) != NULL;
+}
+
+#ifdef UITREE_NODE_SET_VERIFY
+static int
+uitree_set_has_slot(
+    struct UITreeNodeSet const* set,
+    int32_t slot)
+{
+    int i;
+    for( i = 0; i < set->count; i++ )
+        if( set->slots[i] == slot )
+            return 1;
+    return 0;
+}
+
+void
+UITree_VerifyLiveSets(struct UITree const* tree)
+{
+    uint32_t i;
+    assert(tree);
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int expect;
+        if( c->freed )
+        {
+            assert(!UITreeNodeSet_Contains(&tree->models, (int32_t)i));
+            assert(!UITreeNodeSet_Contains(&tree->timer_hooks, (int32_t)i));
+            assert(!UITreeNodeSet_Contains(&tree->client_code, (int32_t)i));
+            continue;
+        }
+        expect = c->type == UIELEM_RS_MODEL;
+        assert(!!UITreeNodeSet_Contains(&tree->models, (int32_t)i) == !!expect);
+        expect = c->type == UIELEM_RS_LAYER;
+        assert(!!UITreeNodeSet_Contains(&tree->scroll_layers, (int32_t)i) == !!expect);
+        expect = c->behavior.client_code > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->client_code, (int32_t)i) == !!expect);
+        expect = c->op_keys.has_bindings != 0;
+        assert(!!UITreeNodeSet_Contains(&tree->opkeys, (int32_t)i) == !!expect);
+        expect = c->runtime_hooks && c->runtime_hooks->on_timer.script_id > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->timer_hooks, (int32_t)i) == !!expect);
+        expect = c->runtime_hooks && c->runtime_hooks->on_key.script_id > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->key_hooks, (int32_t)i) == !!expect);
+        expect = c->runtime_hooks && c->runtime_hooks->on_scroll_wheel.script_id > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->wheel_hooks, (int32_t)i) == !!expect);
+        expect = c->runtime_hooks && c->runtime_hooks->on_resize.script_id > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->resize_hooks, (int32_t)i) == !!expect);
+        expect = c->runtime_hooks && c->runtime_hooks->on_sub_change.script_id > 0;
+        assert(!!UITreeNodeSet_Contains(&tree->sub_change_hooks, (int32_t)i) == !!expect);
+        if( c->component_id >= 0 )
+        {
+            int group = (c->component_id >> 16) & 0xffff;
+            struct UITreeNodeSet const* g = UITree_GroupNodes(tree, group);
+            assert(g && uitree_set_has_slot(g, (int32_t)i));
+        }
+        if( c->type == UIELEM_BUILTIN_WORLD )
+            assert(tree->world_index == (int32_t)i);
+        if( c->type == UIELEM_BUILTIN_WORLDMAP )
+            assert(tree->worldmap_index == (int32_t)i);
+    }
+}
+#endif
+
 char const*
 UITree_MenuSubmenuEntry(
     struct UITreeMenuOptions const* opts,
@@ -317,6 +820,7 @@ push_element_unlinked(struct UITree* tree)
                 return -1;
             tree->components = new_components;
             tree->component_capacity = new_capacity;
+            uitree_all_sets_ensure_pos(tree, new_capacity);
         }
         idx = (int32_t)tree->component_count++;
     }
@@ -610,6 +1114,8 @@ UITree_New(uint32_t hint)
     tree->root_index = -1;
     tree->last_root_index = -1;
     tree->free_head = -1;
+    tree->world_index = -1;
+    tree->worldmap_index = -1;
     return tree;
 }
 
@@ -696,6 +1202,8 @@ uitree_reclaim_subtree(
         uitree_cs1_script_nodes_drop(tree);
     /* A CC_DELETEALL can reclaim the node a drag is still running on. */
     UITree_SetComponentDragActive(tree, idx, 0);
+    /* Drop live-set membership before clearing type/id/hooks. */
+    uitree_live_unregister(tree, idx);
     uitree_component_free_owned(c);
     memset(c, 0, sizeof(*c));
     c->parent = -1;
@@ -708,8 +1216,6 @@ uitree_reclaim_subtree(
     c->free_next = tree->free_head;
     tree->free_head = idx;
     tree->id_generation++;
-    tree->hook_index_stale = 1;
-    tree->model_index_stale = 1;
 }
 
 void
@@ -724,11 +1230,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_order);
     free(tree->layout_depth);
     free(tree->layout_changed);
-    free(tree->timer_hook_ids);
-    free(tree->key_hook_ids);
-    free(tree->wheel_hook_ids);
-    free(tree->opkey_ids);
-    free(tree->model_node_ids);
+    uitree_all_sets_free(tree);
     free(tree->components);
     free(tree);
 }
@@ -752,8 +1254,8 @@ UITree_Clear(struct UITree* tree)
     tree->last_root_index = -1;
     tree->interface_parent_count = 0;
     tree->generation++;
-    tree->hook_index_stale = 1;
-    tree->model_index_stale = 1;
+    /* Reclaim already unregistered each node; clear empties any leftover buckets. */
+    uitree_all_sets_clear(tree);
 }
 
 void
@@ -1049,6 +1551,7 @@ UITree_SetBehavior(
 
     struct UITreeComponent* c = &tree->components[idx];
     struct UITreeBehavior* dst = &c->behavior;
+    int old_client_code = dst->client_code;
 
     if( dst->scripts )
     {
@@ -1076,6 +1579,14 @@ UITree_SetBehavior(
     dst->script_kind = src->script_kind;
     if( dst->scripts_count > 0 )
         tree->cs1_script_nodes++;
+
+    if( (old_client_code > 0) != (dst->client_code > 0) )
+    {
+        if( dst->client_code > 0 )
+            UITreeNodeSet_Add(&tree->client_code, idx);
+        else
+            UITreeNodeSet_Remove(&tree->client_code, idx);
+    }
 
     if( src->scripts_count <= 0 || !src->scripts )
         return;
@@ -1135,6 +1646,7 @@ fail:
     if( dst->scripts_count > 0 )
         uitree_cs1_script_nodes_drop(tree);
     memset(dst, 0, sizeof(*dst));
+    UITreeNodeSet_Remove(&tree->client_code, idx);
 }
 
 int32_t
@@ -1415,9 +1927,7 @@ UITree_Push(
     if( spec->behavior )
         UITree_SetBehavior(tree, idx, spec->behavior);
 
-    tree->hook_index_stale = 1;
-    if( component->type == UIELEM_RS_MODEL )
-        tree->model_index_stale = 1;
+    uitree_live_register(tree, idx);
     return idx;
 }
 
@@ -1694,6 +2204,11 @@ UITree_CcCopy(
      * by field rather than by struct assignment, so a template row that binds
      * op keys would silently lose them on copy. */
     dst->op_keys = src.op_keys;
+    uitree_sync_hook_sets(tree, idx);
+    if( dst->op_keys.has_bindings )
+        UITreeNodeSet_Add(&tree->opkeys, idx);
+    else
+        UITreeNodeSet_Remove(&tree->opkeys, idx);
 
     /* cs1 behavior scripts stay uncopied: dynamic children are driven by cs2
      * hooks, and the script arrays are owned per node. */
@@ -2608,7 +3123,11 @@ UITree_ApplyRuntimeHook(
         strncpy(slot->strv[i], strs[i] ? strs[i] : "", UITREE_HOOK_STR_ARG_LEN - 1);
         slot->strv[i][UITREE_HOOK_STR_ARG_LEN - 1] = '\0';
     }
-    tree->hook_index_stale = 1;
+    {
+        int32_t idx = UITree_FindByComponentId(tree, component_id);
+        if( idx >= 0 )
+            uitree_sync_hook_sets(tree, idx);
+    }
     return true;
 }
 
@@ -2686,7 +3205,10 @@ UITree_ApplyOpKey(
     {
         memset(slot, 0, sizeof(*slot));
         uitree_opkey_refresh_has_bindings(node);
-        tree->hook_index_stale = 1;
+        if( node->op_keys.has_bindings )
+            UITreeNodeSet_Add(&tree->opkeys, (int32_t)(node - tree->components));
+        else
+            UITreeNodeSet_Remove(&tree->opkeys, (int32_t)(node - tree->components));
         return true;
     }
 
@@ -2699,7 +3221,7 @@ UITree_ApplyOpKey(
         slot->key_codes[i] = key_codes[i];
     }
     node->op_keys.has_bindings = 1;
-    tree->hook_index_stale = 1;
+    UITreeNodeSet_Add(&tree->opkeys, (int32_t)(node - tree->components));
     return true;
 }
 
@@ -3252,145 +3774,4 @@ UITree_FindDropTarget(
             tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);
     }
     return best_id;
-}
-
-void
-UITree_InvalidateHookIndexes(struct UITree* tree)
-{
-    assert(tree);
-    tree->hook_index_stale = 1;
-}
-
-int
-UITree_EnsureHookIndexes(struct UITree* tree)
-{
-    uint32_t i;
-    int t_n = 0;
-    int k_n = 0;
-    int w_n = 0;
-    int o_n = 0;
-    assert(tree);
-    if( !tree->hook_index_stale )
-        return tree->timer_hook_count;
-
-    TORIRS_PERF_COUNT(
-        TORIRS_PERF_CTR_UITREE_HOOK_INDEX_REBUILD_NODES, (int64_t)tree->component_count);
-
-    /* Count first so we size once. A node with no hook block cannot carry
-     * timer/key/wheel hooks; opkeys live on the component itself. */
-    for( i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( c->op_keys.has_bindings )
-            o_n++;
-        if( !c->runtime_hooks )
-            continue;
-        if( c->runtime_hooks->on_timer.script_id > 0 )
-            t_n++;
-        if( c->runtime_hooks->on_key.script_id > 0 )
-            k_n++;
-        if( c->runtime_hooks->on_scroll_wheel.script_id > 0 )
-            w_n++;
-    }
-
-    if( t_n > tree->timer_hook_cap )
-    {
-        int cap = t_n < 16 ? 16 : t_n;
-        int32_t* p = (int32_t*)realloc(tree->timer_hook_ids, (size_t)cap * sizeof(int32_t));
-        assert(p);
-        tree->timer_hook_ids = p;
-        tree->timer_hook_cap = cap;
-    }
-    if( k_n > tree->key_hook_cap )
-    {
-        int cap = k_n < 16 ? 16 : k_n;
-        int32_t* p = (int32_t*)realloc(tree->key_hook_ids, (size_t)cap * sizeof(int32_t));
-        assert(p);
-        tree->key_hook_ids = p;
-        tree->key_hook_cap = cap;
-    }
-    if( w_n > tree->wheel_hook_cap )
-    {
-        int cap = w_n < 16 ? 16 : w_n;
-        int32_t* p = (int32_t*)realloc(tree->wheel_hook_ids, (size_t)cap * sizeof(int32_t));
-        assert(p);
-        tree->wheel_hook_ids = p;
-        tree->wheel_hook_cap = cap;
-    }
-    if( o_n > tree->opkey_cap )
-    {
-        int cap = o_n < 16 ? 16 : o_n;
-        int32_t* p = (int32_t*)realloc(tree->opkey_ids, (size_t)cap * sizeof(int32_t));
-        assert(p);
-        tree->opkey_ids = p;
-        tree->opkey_cap = cap;
-    }
-
-    t_n = 0;
-    k_n = 0;
-    w_n = 0;
-    o_n = 0;
-    for( i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( c->op_keys.has_bindings )
-            tree->opkey_ids[o_n++] = c->component_id;
-        if( !c->runtime_hooks )
-            continue;
-        if( c->runtime_hooks->on_timer.script_id > 0 )
-            tree->timer_hook_ids[t_n++] = c->component_id;
-        if( c->runtime_hooks->on_key.script_id > 0 )
-            tree->key_hook_ids[k_n++] = c->component_id;
-        if( c->runtime_hooks->on_scroll_wheel.script_id > 0 )
-            tree->wheel_hook_ids[w_n++] = c->component_id;
-    }
-    tree->timer_hook_count = t_n;
-    tree->key_hook_count = k_n;
-    tree->wheel_hook_count = w_n;
-    tree->opkey_count = o_n;
-    tree->hook_index_stale = 0;
-    return tree->timer_hook_count;
-}
-
-int
-UITree_EnsureModelIndex(struct UITree* tree)
-{
-    uint32_t i;
-    int n = 0;
-    assert(tree);
-    if( !tree->model_index_stale )
-        return tree->model_node_count;
-
-    for( i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( c->type == UIELEM_RS_MODEL )
-            n++;
-    }
-    if( n > tree->model_node_cap )
-    {
-        int cap = n < 16 ? 16 : n;
-        int32_t* p = (int32_t*)realloc(tree->model_node_ids, (size_t)cap * sizeof(int32_t));
-        assert(p);
-        tree->model_node_ids = p;
-        tree->model_node_cap = cap;
-    }
-    n = 0;
-    for( i = 0; i < tree->component_count; i++ )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( c->type == UIELEM_RS_MODEL )
-            tree->model_node_ids[n++] = c->component_id;
-    }
-    tree->model_node_count = n;
-    tree->model_index_stale = 0;
-    return tree->model_node_count;
 }

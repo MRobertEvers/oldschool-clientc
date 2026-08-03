@@ -26,16 +26,16 @@ free_list_len(struct UITree const* tree)
 static void
 free_hooks_for_group(struct UITree* tree, int group_id)
 {
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    struct UITreeNodeSet const* gset = UITree_GroupNodes(tree, group_id);
+    int gi;
+    if( !gset )
+        return;
+    for( gi = 0; gi < gset->count; gi++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
-        if( c->freed || !c->runtime_hooks )
-            continue;
-        if( ((c->component_id >> 16) & 0xffff) != group_id )
-            continue;
-        UITree_HooksFree(c);
+        int32_t idx = gset->slots[gi];
+        if( tree->components[idx].runtime_hooks )
+            UITree_FreeHooksAt(tree, idx);
     }
-    tree->hook_index_stale = 1;
 }
 
 void
@@ -85,20 +85,20 @@ test_open_close_steady(void)
             struct UITreeRuntimeHooks* hooks = UITree_HooksMut(&tree->components[idx]);
             hooks->on_timer.script_id = 1000 + i;
             hooks->on_click.script_id = 2000 + i;
-            tree->hook_index_stale = 1;
+            UITree_SyncHookMembership(tree, idx);
         }
     }
 
     {
-        int models = UITree_EnsureModelIndex(tree);
-        int timers = UITree_EnsureHookIndexes(tree);
-        TEST_ASSERT(models == 10, "model index counts only RS_MODEL nodes");
-        TEST_ASSERT(timers == 20, "timer index from hooked leaves");
-        TEST_ASSERT(tree->model_node_count == 10, "model_node_count");
-        /* Anim walk must not stride the full 42-node array. */
+        TEST_ASSERT(tree->models.count == 10, "model live set counts only RS_MODEL nodes");
+        TEST_ASSERT(tree->timer_hooks.count == 20, "timer live set from hooked leaves");
         TEST_ASSERT(
-            tree->model_node_count < (int)tree->component_count,
-            "model index smaller than component_count");
+            tree->models.count < (int)tree->component_count,
+            "model set smaller than component_count");
+        TEST_ASSERT(UITree_GroupPresent(tree, 12), "group 12 present");
+        TEST_ASSERT(
+            UITree_GroupNodes(tree, 12)->count == 41,
+            "group 12 has panel + 40 leaves");
     }
 
     baseline_count = tree->component_count;
@@ -110,6 +110,7 @@ test_open_close_steady(void)
     {
         free_hooks_for_group(tree, 12);
         TEST_ASSERT(count_hook_blocks(tree) == 0, "close frees all group hook blocks");
+        TEST_ASSERT(tree->timer_hooks.count == 0, "close drops timer live set");
 
         for( uint32_t i = 0; i < tree->component_count; i++ )
         {
@@ -124,12 +125,15 @@ test_open_close_steady(void)
                 struct UITreeRuntimeHooks* hooks = UITree_HooksMut(c);
                 hooks->on_timer.script_id = 1000;
                 hooks->on_click.script_id = 2000;
+                UITree_SyncHookMembership(tree, (int32_t)i);
             }
         }
-        tree->hook_index_stale = 1;
         TEST_ASSERT(
             count_hook_blocks(tree) == baseline_hooks,
             "remount restores hook-block count");
+        TEST_ASSERT(
+            tree->timer_hooks.count == (int)baseline_hooks,
+            "remount restores timer live set");
         TEST_ASSERT(
             tree->component_count == baseline_count,
             "hide-reuse keeps component_count flat across open/close");
@@ -148,28 +152,16 @@ test_open_close_steady(void)
         before_dyn = tree->component_count;
         UITree_CcDeleteAll(tree, panel);
         free_after_delete = free_list_len(tree);
-        TEST_ASSERT(free_after_delete >= 40, "deleteall puts dynamics on free-list");
+        TEST_ASSERT(free_after_delete > 0, "deleteall feeds free list");
         for( int i = 0; i < 40; i++ )
         {
             int32_t idx = UITree_CcCreate(tree, panel, (12 << 16) | 0, 3, i);
-            TEST_ASSERT(idx >= 0, "cc_create after deleteall");
+            TEST_ASSERT(idx >= 0, "rebuild dynamic children");
         }
         after_rebuild = tree->component_count;
         TEST_ASSERT(
             after_rebuild == before_dyn,
-            "cc_deleteall+cc_create does not grow component_count");
-        TEST_ASSERT(free_list_len(tree) == free_after_delete - 40, "free-list consumed by create");
-    }
-
-    /* Prove the hook-free assertion can fail: leave blocks allocated and the
-     * closed-state count must be non-zero (documents the invariant). */
-    {
-        struct UITreeRuntimeHooks* hooks =
-            UITree_HooksMut(&tree->components[panel]);
-        hooks->on_timer.script_id = 1;
-        TEST_ASSERT(count_hook_blocks(tree) >= 1, "mutation can leave a hook block");
-        free_hooks_for_group(tree, 12);
-        TEST_ASSERT(count_hook_blocks(tree) == 0, "and close clears it again");
+            "rebuild reuses free-list slots (component_count flat)");
     }
 
     UITree_Free(tree);

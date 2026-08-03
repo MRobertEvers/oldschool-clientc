@@ -714,6 +714,29 @@ struct UITreeHotkey
 
 #define UITREE_HOTKEY_MAX 64
 
+/**
+ * Dense live set of component slot indices with O(1) add/remove.
+ * `pos[slot]` is the index into `slots[]`, or -1 when absent. `pos` is allocated
+ * lazily on first insert and must be regrown whenever component_capacity grows.
+ * Written only at the centralized mutation seams (Push, reclaim, SetBehavior,
+ * ApplyRuntimeHook, ApplyOpKey, HooksFree) — see docs/UI_RENDERER_ARCHITECTURE.md §9.
+ */
+struct UITreeNodeSet
+{
+    int32_t* slots;
+    int32_t* pos;
+    int32_t count;
+    int32_t cap;
+    uint32_t pos_cap;
+};
+
+/** One open-addressed bucket: group id -> live nodes whose component_id>>16 matches. */
+struct UITreeGroupBucket
+{
+    int group_id; /* -1 = empty */
+    struct UITreeNodeSet nodes;
+};
+
 struct UITree
 {
     struct UITreeComponent* components;
@@ -825,30 +848,26 @@ struct UITree
      *  a rebuild re-resolves them from the manifest. */
     struct UITreeHotkey hotkeys[UITREE_HOTKEY_MAX];
     int hotkey_count;
-    /** Compact indices of components with on_timer / on_key / on_scroll_wheel
-     *  hooks, and of nodes with op-key bindings. Rebuilt lazily when
-     *  hook_index_stale is set (ApplyRuntimeHook, push, reclaim, SetOpKey).
-     *  Steady-state logic ticks walk timer_count entries instead of every node. */
-    int32_t* timer_hook_ids;
-    int timer_hook_count;
-    int timer_hook_cap;
-    int32_t* key_hook_ids;
-    int key_hook_count;
-    int key_hook_cap;
-    int32_t* wheel_hook_ids;
-    int wheel_hook_count;
-    int wheel_hook_cap;
-    int32_t* opkey_ids;
-    int opkey_count;
-    int opkey_cap;
-    uint8_t hook_index_stale;
-    /** Compact indices of UIELEM_RS_MODEL nodes. Rebuilt lazily when
-     *  model_index_stale is set (Push of a model, reclaim). UITreeAnim walks
-     *  this instead of every component every tick. */
-    int32_t* model_node_ids;
-    int model_node_count;
-    int model_node_cap;
-    uint8_t model_index_stale;
+    /**
+     * Live node sets — maintained incrementally at Push / reclaim / predicate
+     * writers. Consumers walk `set.slots[0..count)` (slot indices) instead of
+     * scanning component_count. See UITreeNodeSet and §9 of the architecture doc.
+     */
+    struct UITreeNodeSet models;
+    struct UITreeNodeSet timer_hooks;
+    struct UITreeNodeSet key_hooks;
+    struct UITreeNodeSet wheel_hooks;
+    struct UITreeNodeSet opkeys;
+    struct UITreeNodeSet client_code;
+    struct UITreeNodeSet resize_hooks;
+    struct UITreeNodeSet sub_change_hooks;
+    struct UITreeNodeSet scroll_layers;
+    /** Singleton builtins; -1 when absent. Maintained on Push / reclaim. */
+    int32_t world_index;
+    int32_t worldmap_index;
+    /** Open-addressed group_id -> nodes with that component_id high half. */
+    struct UITreeGroupBucket* group_map;
+    uint32_t group_map_cap;
 };
 
 struct UITreeNodeSpec
@@ -1630,13 +1649,34 @@ UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,
     int component_id);
 
-/** Rebuild timer/key/wheel/opkey hook id lists if stale. Returns timer_hook_count. */
-int UITree_EnsureHookIndexes(struct UITree* tree);
+/** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
+ *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */
+void
+UITree_SyncHookMembership(
+    struct UITree* tree,
+    int32_t idx);
 
-/** Rebuild model-node id list if stale. Returns model_node_count. */
-int UITree_EnsureModelIndex(struct UITree* tree);
+/** Free runtime_hooks at idx and drop the node from every hook live set. */
+void
+UITree_FreeHooksAt(
+    struct UITree* tree,
+    int32_t idx);
 
-/** Mark hook indexes stale (call after external hook writes). */
-void UITree_InvalidateHookIndexes(struct UITree* tree);
+/** Live nodes whose component_id high half equals group_id, or NULL if none. */
+struct UITreeNodeSet const*
+UITree_GroupNodes(
+    struct UITree const* tree,
+    int group_id);
+
+/** True when the tree holds at least one live node in group_id. */
+int
+UITree_GroupPresent(
+    struct UITree const* tree,
+    int group_id);
+
+#ifdef UITREE_NODE_SET_VERIFY
+/** Brute-force check that every live set matches a full-array scan. */
+void UITree_VerifyLiveSets(struct UITree const* tree);
+#endif
 
 #endif

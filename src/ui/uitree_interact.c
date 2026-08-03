@@ -75,13 +75,16 @@ find_wheel_scroll_layer(
 {
     int32_t best = -1;
     int best_area = 0;
-    uint32_t i;
+    int si;
 
     assert(tree);
-    for( i = 0; i < tree->component_count; i++ )
+    for( si = 0; si < tree->scroll_layers.count; si++ )
     {
-        struct UITreeComponent const* c = &tree->components[i];
+        int32_t i = tree->scroll_layers.slots[si];
+        struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
         if( c->type != UIELEM_RS_LAYER || c->behavior.hide || c->if3 || c->freed )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
@@ -95,7 +98,7 @@ find_wheel_scroll_layer(
             int area = bw * bh;
             if( best < 0 || area < best_area )
             {
-                best = (int32_t)i;
+                best = i;
                 best_area = area;
             }
         }
@@ -117,16 +120,14 @@ find_wheel_hook_component(
     int wi;
 
     assert(tree);
-    UITree_EnsureHookIndexes((struct UITree*)tree);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WHEEL_SCAN_NODES, (int64_t)tree->wheel_hook_count);
-    for( wi = 0; wi < tree->wheel_hook_count; wi++ )
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WHEEL_SCAN_NODES, (int64_t)tree->wheel_hooks.count);
+    for( wi = 0; wi < tree->wheel_hooks.count; wi++ )
     {
-        int32_t idx = UITree_FindByComponentId(tree, tree->wheel_hook_ids[wi]);
+        int32_t idx = tree->wheel_hooks.slots[wi];
         struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
-        if( idx < 0 )
-            continue;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || c->component_id < 0 )
             continue;
@@ -182,20 +183,17 @@ collect_key_targets(
     assert(out_targets);
 
     t = (struct UITree*)tree;
-    UITree_EnsureHookIndexes(t);
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_KEY_SCAN, 1);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_KEY_SCAN_NODES, (int64_t)t->key_hook_count);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_KEY_SCAN_NODES, (int64_t)t->key_hooks.count);
 
-    for( i = 0; i < t->key_hook_count && count < max_targets; i++ )
+    for( i = 0; i < t->key_hooks.count && count < max_targets; i++ )
     {
-        int com_id = t->key_hook_ids[i];
-        int32_t idx = UITree_FindByComponentId(tree, com_id);
+        int32_t idx = t->key_hooks.slots[i];
         struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
-        if( idx < 0 )
-            continue;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || UITree_Hooks(c)->on_key.script_id <= 0 )
             continue;
@@ -884,14 +882,12 @@ interact_op_keys(
 {
     int oi;
 
-    UITree_EnsureHookIndexes(tree);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_OPKEY_SCAN_NODES, (int64_t)tree->opkey_count);
-    for( oi = 0; oi < tree->opkey_count; oi++ )
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_OPKEY_SCAN_NODES, (int64_t)tree->opkeys.count);
+    for( oi = 0; oi < tree->opkeys.count; oi++ )
     {
-        int32_t idx = UITree_FindByComponentId(tree, tree->opkey_ids[oi]);
+        int32_t idx = tree->opkeys.slots[oi];
         struct UITreeComponent const* node;
-        if( idx < 0 )
-            continue;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         node = &tree->components[idx];
         if( node->freed || node->component_id < 0 || !node->op_keys.has_bindings )
             continue;

@@ -139,8 +139,9 @@ emit site.
 1. **Harness** — `src/perf/torirs_perf.{h,c}`, stage scopes in `app.c`/`main.c`,
    `tools/perf/run_perf.sh`, `tools/perf/compare.py`, embed-aware `profile-mac.sh`.
 2. **`TORIDRAW_OPT=1`** — Soft3D at `-O2` in a `-O0` client (`_tdo` objdir).
-3. **UITree hook indexes** — `timer_hook_ids` / `key_hook_ids` rebuilt lazily;
-   logic ticks and key collection no longer scan every component every time.
+3. **UITree live node sets** — dense slot lists (`models`, `timer_hooks`,
+   `key_hooks`, …) maintained at Push/reclaim/predicate writers; no lazy
+   full-array rebuild. Consumers walk `set.slots[0..count)`.
 4. **CS2 VM pool** — `CS2VM2_POOL_MAX` 4 → 16 (fewer Init cold paths).
 5. **`TorirsLru` + `TorirsModelInstCache`** — spotanim lit bases cached (size 30,
    Client-TS SpotType.modelCache), cleared at world-load seam; hit/miss/evict
@@ -232,22 +233,26 @@ sidebar F-keys interleaved. Diagnosis from the new counters:
 | `uitree_components` | ~10119 flat | ~10119 flat | residency set at boot, not a leak |
 | `iface_groups_resident` | 33 | 33 | hide-not-destroy; packs stay |
 | `uitree_anim_scan_nodes` / window | ~2.7M | ~650–950 | was full-array ×2 / logic tick |
-| `uitree_anim_model_nodes` / window | ~800 | ~650–950 | now equals scan (model index) |
+| `uitree_anim_model_nodes` / window | ~800 | ~650–950 | now equals scan (live model set) |
+| `uitree_hook_index_rebuild_nodes` | present | **0** (omitted) | no lazy rebuild path left |
+| `iface_group_scan_nodes` / 3k frames | n/a (full tree ×4) | ~16k total | open/close proportional to group size |
 | `uitree_hook_blocks` | ~2872 | ~844 | close frees `runtime_hooks` |
 
 Fixes that landed:
 
-1. **Model / wheel / opkey indexes** — `UITree_EnsureModelIndex` and extended
-   `UITree_EnsureHookIndexes` so per-tick/per-input walks are proportional to
-   live interested nodes, not `component_count`. Writers of each predicate
-   set the stale bit (Push of a model, reclaim, ApplyRuntimeHook, ApplyOpKey).
+1. **Live node sets (slot indices)** — models / timer / key / wheel / opkey /
+   client_code / resize / sub_change / scroll_layers / per-group map, maintained
+   at Push, reclaim, SetBehavior, ApplyRuntimeHook, ApplyOpKey. No
+   `Ensure*Index` rebuild; consumers drop per-entry `FindByComponentId`.
+   Open/close group walks are O(group) via `UITree_GroupNodes`
+   (`iface_group_scan_nodes` counter).
 2. **Free `runtime_hooks` on unmount** — `ClearHooksForInterfaceGroup` frees
-   the block; remount onLoad reallocates. Bank alone had been retaining
-   ~1500 blocks ≈ 15 MB while closed.
+   the block via the group set + subtree; remount onLoad reallocates. Bank alone
+   had been retaining ~1500 blocks ≈ 15 MB while closed.
 3. **Telemetry** — `iface_open/close/bake/reuse`, hitch ns, growth gauges,
    scan-cost counters, and `TORIRS_IFACE_STATS=1` per-group ledger.
-4. **Guard** — `test-uitree` `test_open_close_steady`; soak-ui under
-   `compare.py --drift`.
+4. **Guard** — `test-uitree` `test_open_close_steady` + `test_live_node_sets`;
+   soak-ui under `compare.py --drift`.
 
 Pack residency (destroying hidden groups) was **not** required for frame
 stability once the scans and hook blocks were fixed; the remount-reuse
@@ -380,8 +385,9 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 
 - Spotanim instance cache returns `ToriDraw_ModelCopy` of the cached base —
   scene owns a mutable copy; animation still applies per frame.
-- Hook indexes rebuild on ApplyRuntimeHook / Push / reclaim; EnsureHookIndexes
-  is the only reader contract.
+- Live node sets are maintained at ApplyRuntimeHook / Push / reclaim /
+  SetBehavior / ApplyOpKey; `UITree_SyncHookMembership` covers direct hook
+  writes (tests). There is no Ensure*Index rebuild path.
 - The incremental `LayoutResolve` recomputes a node only when its own box was
   invalidated or its parent's box moved in the same pass, so **every write to a
   layout input must clear that node's `position.layout_resolved`** — the resolve

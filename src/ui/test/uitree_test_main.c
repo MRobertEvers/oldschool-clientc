@@ -23,6 +23,7 @@ main(void)
     test_menu_submenus();
     test_component_params();
     test_open_close_steady();
+    test_live_node_sets();
 
     if( g_failures )
     {

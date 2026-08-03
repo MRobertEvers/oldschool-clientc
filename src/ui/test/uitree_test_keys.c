@@ -14,6 +14,7 @@ set_on_key(
     struct UITreeRuntimeHooks* hooks = UITree_HooksMut(&tree->components[idx]);
     memset(&hooks->on_key, 0, sizeof(hooks->on_key));
     hooks->on_key.script_id = script_id;
+    UITree_SyncHookMembership(tree, idx);
 }
 
 static void

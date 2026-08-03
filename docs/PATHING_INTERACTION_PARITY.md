@@ -4,9 +4,10 @@ What happens between "the user clicks an NPC / loc row in the minimenu" and "the
 player starts walking", in each of the three codebases, and what torirs
 (`src/`) does differently today.
 
-For modern OSRS LoS, naive NPC pathing, occupancy, and the follow dance, see
-[`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md). §7.2 of this doc covers the
-server-side movement model (players BFS / NPCs never flood).
+For modern OSRS LoS, naive NPC pathing, occupancy, shape-keyed reach, and the
+follow dance, see [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) — that doc is
+the authority (Ash-first evidence hierarchy, per-reference comparison, the
+decision). §7.2 of this doc covers the server-side movement model.
 
 Scope: the **approach/route** decision only. The right-click menu build, the
 pick/hit-test, and the OP packet encodings are covered elsewhere
@@ -131,90 +132,53 @@ route connected to the source.
 
 ---
 
-## 2. XRSPS-Typescript — server-authoritative, strategy-driven
+## 2. XRSPS-Typescript — why its reach model was rejected
 
-### 2.1 The client does not path for interactions
+XRSPS is **server-authoritative on the wire** (click carries the target, no
+waypoints), which agrees with Ash and with modern OSRS. Its *reach* model does
+not. That distinction matters: this tree briefly copied the wrong half.
 
-`performWorldEntryAction` (`WebGLOsrsRenderer.ts:10178`) resolves the loc's
-anchor tile, spawns the click cross, and hands off to the network layer. The
-wire is high-level:
+### 2.1 What XRSPS got right
 
-```
-LOC_INTERACT(231) = u16 locId, u16 tileX, u16 tileY, u8 level, str action, u8 opNum
-WALK(210)         = x, y, run, modifierFlags
-PATHFIND(213)     = id, from{x,y,plane}, to{x,y}, size
-```
+- Client does not path for interactions; `LOC_INTERACT` / `WALK` carry target
+  identity / destination only.
+- Server BFS with a 21×21 alternative-route fallback (`dist < 100`, ranked by
+  squared distance to the rect) and a 25-checkpoint cap.
+- Map flag is server-owned.
 
-No route, no waypoints, no collision map consulted at click time.
+### 2.2 What XRSPS invented (and what broke loc pathing here)
 
-Two client-side helpers do exist and matter:
-
-- `resolveLocInteractionTile(locId, approxTile)` — expanding-ring search
-  (radius ≤ 8, all 4 planes) for a tile actually carrying `locId`, returning its
-  anchor tile + `typeRot`. This is XRSPS's replacement for Client-TS's
-  `typecode2` lookup; it falls back to the raw clicked tile.
-- `isLocalPlayerAdjacentToLoc(locId, tile)` — clamps the player tile into the
-  loc's `sizeX × sizeY` rect and accepts Chebyshev distance ≤ 1 (so **corners
-  count** here, unlike the server predicate). Used purely to suppress a
-  redundant client-initiated walk.
-
-`OsrsRouteFinder32` is *not* on this path. It is used only by
-`PlayerMovementSync.buildRunTargetPath` to interpolate **remote** actors toward
-a server-supplied run target. Its notable properties (32×32 window centred on
-the mover; separate size-1 / size-2 / size-≥3 neighbour tests using the
-`19136830/19136911/19136995/19137016` extra masks; partial fallback over a 21×21
-box ranked by squared distance-to-rect then route distance with `dist < 100`;
-50-waypoint cap that drops the destination end) are worth knowing because the
-server pathfinder mirrors them.
-
-### 2.2 Server: `Pathfinder` + `RouteStrategy`
-
-`Pathfinder` (32×32 graph, BFS, `findPathS1/S2/SX` by mover size,
-`CollisionStrategy` ∈ {NORMAL, BLOCKED, FLY}) is generic; the interaction
-semantics live entirely in `RouteStrategy.hasArrived(tileX, tileY, level, size)`.
-
-| strategy | arrival rule |
-|---|---|
-| `ExactRouteStrategy` / `ApproximateRouteStrategy` | `tile === dest` (mover size ignored) |
-| `RectRouteStrategy` ("inside") | mover footprint **overlaps** the loc rect |
-| `RectAdjacentRouteStrategy` | overlap → `allowOverlap`; else must be **flush against one cardinal side with axis overlap** (no diagonal unless `allowLargeDiagonal`); then arrived if **any** tile along the shared edge is not wall-separated. Wall check reads **both** tiles' wall bits (`playerFlag & WALL_EAST` or `targetFlag & WALL_WEST`, etc.) |
-| `CardinalAdjacentRouteStrategy` | same flush-side test plus explicit `blockedSides`; a size>1 mover whose footprint contains the wall tile is arrived unconditionally |
-| `RectWithinRangeRouteStrategy` | overlap → false; else rect-to-rect Chebyshev ≤ range |
-| `RectWithinRangeLineOfSightRouteStrategy` | as above + a single rsmod-style LoS ray between the nearest edge tiles |
-
-Strategy selection (`LocInteractionHandler.deriveLocRouteProfile`, cached per
-loc id) is driven by the **loc definition**, not by the placed shape:
+Strategy selection (`LocInteractionHandler.deriveLocRouteProfile`) is driven by
+the **loc definition** (`clipType`, model types, action list), **not** by the
+placed shape:
 
 ```
 loc.types ∩ WALLISH_TYPES        → "cardinal"
 clipType === 0 && FLOOR_DECORATION in types → "inside"
 clipType === 0 && has any action  → "adjacent_overlap"
 clipType === 0                    → "inside"
-otherwise                         → "adjacent"  (RectAdjacent, no overlap, wall-checked)
+otherwise                         → "adjacent"
 ```
 
-Door actions (`open`/`close`/`unlock`/`lock`/`pay-toll(`) additionally get
-`allowOverlap = true`, per-door `blockedSides` from the door manager, and
-**skip** the wall-edge gate — you must be able to reach a closed door from
-either side.
+rsmod, LostCity and Kronos all dispatch on **placed shape** via
+`exitStrategy` (wall 0–3/9, wall-decor 4–8, rectangle 10/11/22, exclusive −2).
+Ash's "awkward for wall-shaped pieces" only makes sense under that dispatch.
+XRSPS's heuristic collapses every wall/door/ladder into a generic 1×1
+adjacent-with-overlap test — and that is exactly the bug
+`app_scenery_approach` / `mock230_scene_loc_approach` shipped until the
+pathing-parity rework.
 
-### 2.3 Server fallback and caps
+Further XRSPS-only divergences this tree must **not** keep:
 
-`findPath(..., findAlternative = true)`: on failure, scan
-`approxDest ± ALTERNATIVE_ROUTE_RANGE (10)` for the tile with the lowest
-squared distance-to-rect (ties broken by fewest steps) whose
-`distances[..] < ALTERNATIVE_ROUTE_MAX_DISTANCE (100)`. Unlike Client-TS this
-fallback **is** applied to interactions.
+- Wall check reading **both** tiles' bits along the shared edge (rsmod's
+  `reachRectangle1` reads the **source** tile only).
+- No exact-tile shortcut for non-exclusive strategies (rsmod / LostCity both
+  have one).
+- Corners counting as adjacent in the client-side UI helper
+  (`isLocalPlayerAdjacentToLoc`).
 
-`MAX_PATH_CHECKPOINTS = 25`, same drop-the-destination-end overflow rule as
-Client-TS.
-
-### 2.4 The one-line summary of the difference
-
-Client-TS decides *"which tile is close enough"* from the **placed shape +
-angle** of the loc. XRSPS decides it from the **loc definition's model types,
-clip type and action list**, with a mover-size-aware rectangle, and does it on
-the server.
+See [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) §0 / §1 / §3 for the authority
+order and the shape-keyed decision.
 
 ---
 
@@ -371,8 +335,13 @@ enum ToriRS_ApproachModel { LEGACY_SHAPE = 0, RECT };
 | era | `pathing_mode` | `approach_model` | npc size | op-click fallback |
 |---|---|---|---|---|
 | `lostcity` | CLIENT_BFS | LEGACY_SHAPE | 1×1 | none |
-| `osrs` | CLIENT_BFS | RECT | `npc->size` | range 10, rect-ranked |
-| `server_routed` | SERVER_AUTHORITATIVE | RECT | `npc->size` | n/a |
+| `osrs` | SERVER_AUTHORITATIVE | RECT (shape-keyed `exitStrategy`) | `npc->size` | range 10, rect-ranked |
+| `server_routed` | SERVER_AUTHORITATIVE | RECT (shape-keyed) | `npc->size` | n/a |
+
+`osrs` flipped to `SERVER_AUTHORITATIVE` in the pathing-parity rework (Ash:
+server paths since end-2013; rev-230 has no `MOVE_OPCLICK`). RECT no longer
+means XRSPS's clipType heuristic — it means rsmod's shape-keyed
+`ReachStrategy`. See [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) §1 / §7.4.
 
 Resolution (`App_Init`), unconditional — an offline boot still clicks locs:
 
@@ -394,25 +363,24 @@ paths, exactly as xrsps does. A ground click degenerates to a 1-entry route,
 which `out_move` already encodes as "absolute destination, no deltas" — the
 shape of xrsps's `WALK`.
 
-### 5.3 The rect approach model
+### 5.3 The rect approach model (corrected)
 
-`struct CollisionApproach` gained a `kind` discriminator
-(`collision_map.h`). The old logic moved under `COLL_APPROACH_LEGACY_SHAPE`
-untouched; `RECT_ADJACENT` / `RECT_INSIDE` / `RECT_WITHIN_RANGE` are ports of
-the corresponding `RouteStrategy.hasArrived`.
+`struct CollisionApproach` has a `kind` discriminator (`collision_map.h`).
+`COLL_APPROACH_LEGACY_SHAPE` is the Client-TS shape+angle path;
+`RECT_ADJACENT` / `RECT_INSIDE` / `RECT_WITHIN_RANGE` /
+`RECT_EXCLUSIVE` are the rsmod `ReachStrategy` family.
 
-**The exact-destination shortcut is legacy-only.** Client-TS tests
-`x === dx && z === dz` before any shape test, so standing on a loc's own tile is
-always an arrival there. `Pathfinder.findPathS1` has no such test —
-`hasArrived` is the only predicate — and that is precisely what lets rsmod
-refuse an approach overlapping a clipping loc. Applying the shortcut to the RECT
-kinds would have silently re-introduced the legacy behaviour under the modern
-era.
+**The exact-destination shortcut is NOT legacy-only.** rsmod and LostCity both
+open `ReachStrategy.reached` with
+`if (exitStrategy != RECTANGLE_EXCLUSIVE && srcX == destX && srcZ == destZ)
+return true`. The earlier claim that "rsmod has no such test" was describing
+XRSPS's `Pathfinder`, not rsmod. Exclusive-rectangle (NPCs/players, shape
+`-2`) is the only strategy that refuses the exact tile.
 
-Loc strategy selection (`app_scenery_approach`) mirrors
-`deriveLocRouteProfile`: wall shapes → adjacent+overlap; non-clipping floor
-decor → inside; non-clipping with actions → adjacent+overlap; non-clipping
-otherwise → inside; clipping → adjacent, no overlap.
+Loc strategy selection (`app_scenery_approach` / `mock230_scene_loc_approach`)
+is **shape-keyed** via `collision_exit_strategy(shape)` — wall 0–3/9, wall-decor
+4–8, rectangle 10/11/22 — matching rsmod / LostCity / Kronos. The XRSPS
+`deriveLocRouteProfile` heuristic (`blocks_walk` / has-action) was deleted.
 
 ### 5.4 The defect fixes
 

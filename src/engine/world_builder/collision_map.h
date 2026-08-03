@@ -300,10 +300,33 @@ collision_map_try_route(
     int* out_used_nearest);
 
 /*
- * Which arrival rule the flood applies. The client supports two generations of
- * approach semantics, selected per boot by the era feature table
- * (src/features/features.h, enum ToriRS_ApproachModel) — see
- * docs/PATHING_INTERACTION_PARITY.md for why they differ.
+ * rsmod / LostCity ReachStrategy.exitStrategy — which arrival geometry a
+ * placed loc shape uses. The modern era fills CollisionApproach from this;
+ * the legacy era keeps Client-TS's shape+1 packing under LEGACY_SHAPE.
+ *
+ * See docs/OSRS_PATHING_LOS.md §2.4.
+ */
+enum CollisionExitStrategy
+{
+    COLL_EXIT_NONE = 0,
+    COLL_EXIT_WALL,
+    COLL_EXIT_WALL_DECOR,
+    COLL_EXIT_RECTANGLE,
+    COLL_EXIT_RECTANGLE_EXCLUSIVE,
+};
+
+/**
+ * Map a placed loc shape (or the entity sentinels -1 / -2) to an exit strategy.
+ * Matches rsmod ReachStrategy.exitStrategy / LostCity ReachStrategy.exitStrategy
+ * byte for byte.
+ */
+int
+collision_exit_strategy(int loc_shape);
+
+/*
+ * Which arrival rule the flood applies. Selected per boot by the era feature
+ * table (src/features/features.h) — LEGACY_SHAPE for lostcity, the
+ * shape-keyed WALL / WALL_DECOR / RECT_* family for osrs.
  */
 enum CollisionApproachKind
 {
@@ -311,41 +334,48 @@ enum CollisionApproachKind
      *  reference's exact-tile obj attempt). Also what a NULL approach means. */
     COLL_APPROACH_EXACT = 0,
     /** Client-TS CollisionMap.testWall / testWDecor / testLoc, keyed off the
-     *  loc's placed shape+angle, with forceapproach vetoing sides. */
+     *  loc's placed shape+angle, with forceapproach vetoing sides. Uses the
+     *  Client-TS `shape + 1` packing in loc_shape. */
     COLL_APPROACH_LEGACY_SHAPE,
-    /** rsmod / XRSPS RectAdjacentRouteStrategy: footprint overlap (accepted
-     *  only when allow_overlap), else a flush cardinal side with axis overlap
-     *  — never a diagonal — and then a wall check along the shared edge that
-     *  reads BOTH tiles' wall bits. blocked_sides vetoes sides the way
-     *  forceapproach does for the legacy model. */
+    /** rsmod reachWall — actual RSCACHE shape 0–3 / 9 + angle. */
+    COLL_APPROACH_WALL,
+    /** rsmod reachWallDeco — actual RSCACHE shape 4–8 + angle. */
+    COLL_APPROACH_WALL_DECOR,
+    /** rsmod reachRectangle adjacency half: flush cardinal side with axis
+     *  overlap (never a diagonal), source-tile wall bit, blocked_sides
+     *  veto. Overlap is accepted only when allow_overlap is set — for
+     *  exitStrategy RECTANGLE the filler sets allow_overlap so
+     *  intersects-OR-adjacent matches reachRectangle. */
     COLL_APPROACH_RECT_ADJACENT,
-    /** rsmod RectRouteStrategy: arrive by standing anywhere on the rect. Used
-     *  for non-clipping locs (floor decorations, rugs, traps). */
+    /** Stand anywhere on the rect (non-clipping floor decor helper). */
     COLL_APPROACH_RECT_INSIDE,
-    /** rsmod RectWithinRangeRouteStrategy: never on the rect, else Chebyshev
-     *  distance from the rect <= range. */
+    /** Never on the rect, else Chebyshev distance from the rect <= range. */
     COLL_APPROACH_RECT_WITHIN_RANGE,
+    /** rsmod reachExclusiveRectangle (shape -2, NPCs/players): adjacent and
+     *  must NOT overlap. */
+    COLL_APPROACH_RECT_EXCLUSIVE,
 };
 
 /*
- * Loc/obj/npc approach descriptor for op-clicks (reference Client.tryMove type
- * 2). The flood arrives on any tile satisfying this test, not just the exact
- * destination.
+ * Loc/obj/npc approach descriptor for op-clicks. The flood arrives on any tile
+ * satisfying this test, not just the exact destination.
  *
  * `kind` picks the rule; the fields below are read per kind:
  *   EXACT             — nothing.
  *   LEGACY_SHAPE      — loc_width/loc_length + forceapproach for a sized loc
  *                       (testLoc); loc_shape (= RSCACHE shape + 1) + loc_angle
- *                       for a wall / wall-decor (testWall / testWDecor). A
- *                       loc_shape of 0 means "no wall test" (WALL_STRAIGHT),
- *                       so an unshaped loc leaves the wall tests off.
+ *                       for a wall / wall-decor. A loc_shape of 0 means "no
+ *                       wall test".
+ *   WALL / WALL_DECOR — loc_shape (actual RSCACHE shape) + loc_angle.
  *   RECT_ADJACENT     — loc_width/loc_length, allow_overlap, blocked_sides.
  *   RECT_INSIDE       — loc_width/loc_length.
  *   RECT_WITHIN_RANGE — loc_width/loc_length, range.
+ *   RECT_EXCLUSIVE    — loc_width/loc_length, blocked_sides (allow_overlap
+ *                       ignored; overlap always refuses).
  *
  * `mover_size` is the footprint of the thing being routed (1 for the local
- * player, which is the only mover torirs paths today) and is honoured by the
- * RECT_* kinds; the legacy kinds ignore it, exactly like the reference.
+ * player) and is honoured by the RECT_* kinds; WALL / WALL_DECOR / LEGACY
+ * ignore it the way the size-1 references do.
  */
 struct CollisionApproach
 {
@@ -357,9 +387,24 @@ struct CollisionApproach
     int forceapproach;
     int mover_size;
     int allow_overlap;
-    int blocked_sides; /* DirectionFlag bits (1 N, 2 E, 4 S, 8 W) */
+    int blocked_sides; /* DirectionFlag / BlockAccessFlag bits (1 N, 2 E, 4 S, 8 W) */
     int range;
 };
+
+/**
+ * Fill `out` from a placed loc's shape / angle / size / forceapproach under
+ * the modern (shape-keyed) model. `forceapproach` must already be rotated
+ * into the placed frame. Entity targets use shape -2.
+ */
+void
+collision_approach_from_shape(
+    int loc_shape,
+    int loc_angle,
+    int width,
+    int length,
+    int forceapproach_rotated,
+    int mover_size,
+    struct CollisionApproach* out);
 
 /*
  * "Could not reach it — walk as close as possible."

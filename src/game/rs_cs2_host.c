@@ -3077,6 +3077,50 @@ rs_cs2_component_in_interface_group(
     return 0;
 }
 
+/* Free runtime_hooks on `root` and every descendant. Uses a heap-grown stack
+ * because interface trees are shallow but can be very wide (bank), so a fixed
+ * array overflows and recursion blows the platform stack. */
+static void
+rs_cs2_free_hooks_subtree(
+    struct UITree* tree,
+    int32_t root)
+{
+    int32_t* stack = NULL;
+    int sp = 0;
+    int cap = 0;
+
+    assert(tree);
+    assert(root >= 0 && (uint32_t)root < tree->component_count);
+
+    stack = (int32_t*)malloc(64 * sizeof(int32_t));
+    assert(stack);
+    cap = 64;
+    stack[sp++] = root;
+
+    while( sp > 0 )
+    {
+        int32_t cur = stack[--sp];
+        int32_t child;
+        if( tree->components[cur].runtime_hooks )
+            UITree_FreeHooksAt(tree, cur);
+        for( child = tree->components[cur].first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            if( sp >= cap )
+            {
+                int ncap = cap * 2;
+                int32_t* nstack =
+                    (int32_t*)realloc(stack, (size_t)ncap * sizeof(int32_t));
+                assert(nstack);
+                stack = nstack;
+                cap = ncap;
+            }
+            stack[sp++] = child;
+        }
+    }
+    free(stack);
+}
+
 void
 RS_CS2Host_ClearHooksForInterfaceGroup(
     struct RS_CS2Host* host,
@@ -3136,17 +3180,37 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
      * runtime_hooks block: onLoad re-registers click/op/drag as well as the
      * reactive slots on the next mount, and leaving ~10 KB blocks on every
      * hidden node was the dominant retained footprint under multi-panel use
-     * (bank alone held ~1500 blocks ≈ 15 MB while closed). */
-    for( uint32_t n = 0; n < tree->component_count; n++ )
+     * (bank alone held ~1500 blocks ≈ 15 MB while closed).
+     *
+     * Walk the group's live set (plus descendants under each group root)
+     * instead of scanning every component with an ancestor walk. Wide packs
+     * (bank) need a growable stack — fixed arrays overflow, recursion does too. */
     {
-        struct UITreeComponent* c = &tree->components[n];
-        if( c->freed || !c->runtime_hooks )
-            continue;
-        if( !rs_cs2_component_in_interface_group(tree, (int32_t)n, group_id) )
-            continue;
-        UITree_HooksFree(c);
+        struct UITreeNodeSet const* gset = UITree_GroupNodes(tree, group_id);
+        int gi;
+        TORIRS_PERF_COUNT(
+            TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+        if( gset )
+        {
+            for( gi = 0; gi < gset->count; gi++ )
+            {
+                int32_t idx = gset->slots[gi];
+                int32_t parent;
+                assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+                /* Only start a subtree walk from group roots relative to this
+                 * group — children that are also in the set are visited from
+                 * their ancestor, avoiding double FreeHooksAt. */
+                parent = tree->components[idx].parent;
+                if( parent >= 0 &&
+                    !tree->components[parent].freed &&
+                    tree->components[parent].component_id >= 0 &&
+                    ((tree->components[parent].component_id >> 16) & 0xffff) ==
+                        group_id )
+                    continue;
+                rs_cs2_free_hooks_subtree(tree, idx);
+            }
+        }
     }
-    tree->hook_index_stale = 1;
 }
 
 /*

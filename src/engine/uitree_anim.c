@@ -39,17 +39,16 @@ UITreeAnim_RequestMissing(
     int mi;
 
     assert(tree && scene && queue && tracker);
-    model_n = UITree_EnsureModelIndex(tree);
+    model_n = tree->models.count;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN_NODES, (int64_t)model_n);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_MODEL_NODES, (int64_t)model_n);
     for( mi = 0; mi < model_n; mi++ )
     {
-        int32_t idx = UITree_FindByComponentId(tree, tree->model_node_ids[mi]);
+        int32_t idx = tree->models.slots[mi];
         struct UITreeComponent const* c;
         int seq;
-        if( idx < 0 )
-            continue;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
@@ -83,20 +82,19 @@ UITreeAnim_Advance(
     int mi;
 
     assert(tree && scene);
-    model_n = UITree_EnsureModelIndex(tree);
+    model_n = tree->models.count;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_SCAN_NODES, (int64_t)model_n);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ANIM_MODEL_NODES, (int64_t)model_n);
     for( mi = 0; mi < model_n; mi++ )
     {
-        int32_t idx = UITree_FindByComponentId(tree, tree->model_node_ids[mi]);
+        int32_t idx = tree->models.slots[mi];
         struct UITreeComponent* c;
         int seq;
         int model_id;
         struct ToriDraw_Animation* anim;
         struct ToriDraw_ModelHandle hnd;
-        if( idx < 0 )
-            continue;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
         if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;

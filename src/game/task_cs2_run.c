@@ -379,10 +379,13 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
 
     if( self->host->bridge )
     {
-        uint32_t mi;
-        for( mi = 0; mi < tree->component_count; mi++ )
+        int mi;
+        for( mi = 0; mi < tree->models.count; mi++ )
         {
-            struct UITreeComponent* c = &tree->components[mi];
+            int32_t idx = tree->models.slots[mi];
+            struct UITreeComponent* c;
+            assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+            c = &tree->components[idx];
             if( c->type != UIELEM_RS_MODEL )
                 continue;
             if( c->u.rs_model.gamecache_model_id >= 0 )

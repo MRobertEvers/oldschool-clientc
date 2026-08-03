@@ -1055,31 +1055,27 @@ static int
 app_worldmap_surface_live(struct App* app)
 {
     struct UITree* tree;
-    uint32_t i;
+    int32_t idx;
 
     assert(app);
     tree = app->tree;
     if( !tree )
         return 0;
-    for( i = 0; i < tree->component_count; i++ )
+    idx = tree->worldmap_index;
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return 0;
+    if( tree->components[idx].freed ||
+        tree->components[idx].type != UIELEM_BUILTIN_WORLDMAP )
+        return 0;
+    for( ;; )
     {
-        struct UITreeComponent const* c = &tree->components[i];
-        int32_t idx;
-
-        if( c->freed || c->type != UIELEM_BUILTIN_WORLDMAP )
-            continue;
-        idx = (int32_t)i;
-        for( ;; )
-        {
-            struct UITreeComponent const* n = &tree->components[idx];
-            if( n->behavior.hide )
-                return 0;
-            if( n->parent < 0 )
-                return UITree_RootIsDisplayable(tree, idx);
-            idx = n->parent;
-        }
+        struct UITreeComponent const* n = &tree->components[idx];
+        if( n->behavior.hide )
+            return 0;
+        if( n->parent < 0 )
+            return UITree_RootIsDisplayable(tree, idx);
+        idx = n->parent;
     }
-    return 0;
 }
 
 /*
@@ -3573,13 +3569,8 @@ int32_t
 App_WorldNodeIndex(struct App const* app)
 {
     assert(app);
-    for( uint32_t i = 0; i < app->tree->component_count; i++ )
-    {
-        struct UITreeComponent const* node = &app->tree->components[i];
-        if( !node->freed && node->type == UIELEM_BUILTIN_WORLD )
-            return (int32_t)i;
-    }
-    return -1;
+    assert(app->tree);
+    return app->tree->world_index;
 }
 
 /* The async boot protothread: builds the root tree (RevConfig or cache
@@ -3909,20 +3900,32 @@ Task_OpenSubRefresh_Run(
             {
                 int old_group = app->tree->interface_parents[rec].group_id;
                 UITreeIfaceStats_NoteClose(old_group);
-                for( uint32_t i = 0; i < app->tree->component_count; i++ )
                 {
-                    struct UITreeComponent* c = &app->tree->components[i];
-                    if( c->freed || c->component_id < 0 )
-                        continue;
-                    if( ((c->component_id >> 16) & 0xffff) != old_group )
-                        continue;
-                    if( c->parent >= 0 &&
-                        ((app->tree->components[c->parent].component_id >> 16) & 0xffff) ==
-                            old_group )
-                        continue;
-                    if( !c->behavior.hide )
-                        c->behavior.hide_unmounted = 1;
-                    c->behavior.hide = 1;
+                    struct UITreeNodeSet const* gset =
+                        UITree_GroupNodes(app->tree, old_group);
+                    int gi;
+                    TORIRS_PERF_COUNT(
+                        TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES,
+                        gset ? (int64_t)gset->count : 0);
+                    if( gset )
+                    {
+                        for( gi = 0; gi < gset->count; gi++ )
+                        {
+                            int32_t idx = gset->slots[gi];
+                            struct UITreeComponent* c;
+                            assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
+                            c = &app->tree->components[idx];
+                            if( c->freed || c->component_id < 0 )
+                                continue;
+                            if( c->parent >= 0 &&
+                                ((app->tree->components[c->parent].component_id >> 16) &
+                                 0xffff) == old_group )
+                                continue;
+                            if( !c->behavior.hide )
+                                c->behavior.hide_unmounted = 1;
+                            c->behavior.hide = 1;
+                        }
+                    }
                 }
                 RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
             }
@@ -4514,23 +4517,25 @@ app_logic_tick(struct App* app)
         redraw = 1;
 
     /* onTimer fires once per client tick for every component with a timer
-     * hook (reference processWidgetTimers). Walk the compact hook index —
-     * rebuilt lazily when ApplyRuntimeHook / reclaim dirty it — instead of
-     * scanning every component every tick.
+     * hook (reference processWidgetTimers). Walk the live timer_hooks set —
+     * maintained at ApplyRuntimeHook / reclaim — instead of scanning every
+     * component every tick.
      *
      * Hidden / unmounted packs stay in the tree (IF_CLOSESUB hides rather than
      * reclaiming so a remount reuses dynamic children). Skip them the same way
      * inv/var/stat transmit dispatch does via ComponentOrAncestorHidden — a
      * closed bank's timers must not keep running every tick. */
     {
-        int timer_n = UITree_EnsureHookIndexes(app->tree);
+        int timer_n = app->tree->timer_hooks.count;
         if( timer_n > 256 )
             timer_n = 256;
         for( int i = 0; i < timer_n; i++ )
         {
-            int com_id = app->tree->timer_hook_ids[i];
-            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
-            if( idx < 0 )
+            int32_t idx = app->tree->timer_hooks.slots[i];
+            int com_id;
+            assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
+            com_id = app->tree->components[idx].component_id;
+            if( com_id < 0 )
                 continue;
             if( UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                 continue;
@@ -4661,7 +4666,7 @@ app_logic_tick(struct App* app)
             uint32_t hidden = 0;
             uint32_t freed = 0;
             uint32_t live = 0;
-            int timers = UITree_EnsureHookIndexes(app->tree);
+            int timers = app->tree->timer_hooks.count;
             int timers_hidden = 0;
             for( uint32_t i = 0; i < app->tree->component_count; i++ )
             {
@@ -4679,7 +4684,9 @@ app_logic_tick(struct App* app)
             }
             for( int i = 0; i < timers; i++ )
             {
-                if( UITree_ComponentOrAncestorHidden(app->tree, app->tree->timer_hook_ids[i]) )
+                int32_t tidx = app->tree->timer_hooks.slots[i];
+                int com_id = app->tree->components[tidx].component_id;
+                if( com_id >= 0 && UITree_ComponentOrAncestorHidden(app->tree, com_id) )
                     timers_hidden++;
             }
             fprintf(
@@ -5735,18 +5742,22 @@ app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_he
     if( !npc )
         return 0;
     size = app->features->npc_approach_uses_size && npc->size > 0 ? npc->size : 1;
-    approach.kind = app->features->approach_model == TORIRS_APPROACH_RECT
-                        ? COLL_APPROACH_RECT_ADJACENT
-                        : COLL_APPROACH_LEGACY_SHAPE;
-    approach.loc_width = size;
-    approach.loc_length = size;
-    approach.mover_size = 1;
+    if( app->features->approach_model == TORIRS_APPROACH_RECT )
+        collision_approach_from_shape(-2, 0, size, size, 0, 1, &approach);
+    else
+    {
+        approach.kind = COLL_APPROACH_LEGACY_SHAPE;
+        approach.loc_width = size;
+        approach.loc_length = size;
+        approach.mover_size = 1;
+    }
     return app_try_move_op(
         app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, ctrl_held);
 }
 
 /* Approach another player (Client.ts OPPLAYER1..5 / OPPLAYERU / OPPLAYERT):
- * always a literal 1×1 at routeX[0]/routeZ[0] (PATHING_INTERACTION_PARITY D6). */
+ * always a literal 1×1 at routeX[0]/routeZ[0] (PATHING_INTERACTION_PARITY D6).
+ * Modern era: exclusive rectangle (shape -2). */
 static int
 app_try_move_player(struct App* app, struct WorldEntity_Player const* player, int ctrl_held)
 {
@@ -5754,12 +5765,15 @@ app_try_move_player(struct App* app, struct WorldEntity_Player const* player, in
 
     if( !player )
         return 0;
-    approach.kind = app->features->approach_model == TORIRS_APPROACH_RECT
-                        ? COLL_APPROACH_RECT_ADJACENT
-                        : COLL_APPROACH_LEGACY_SHAPE;
-    approach.loc_width = 1;
-    approach.loc_length = 1;
-    approach.mover_size = 1;
+    if( app->features->approach_model == TORIRS_APPROACH_RECT )
+        collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &approach);
+    else
+    {
+        approach.kind = COLL_APPROACH_LEGACY_SHAPE;
+        approach.loc_width = 1;
+        approach.loc_length = 1;
+        approach.mover_size = 1;
+    }
     return app_try_move_op(
         app, player->pathing.route_x[0], player->pathing.route_z[0], &approach, ctrl_held);
 }
@@ -5773,16 +5787,10 @@ app_try_move_player(struct App* app, struct WorldEntity_Player const* player, in
  * decorations approach an adjacent facing tile (testWall/testWDecor, locShape =
  * shape + 1).
  *
- * RECT is the rsmod model XRSPS's server uses, which keys off the loc's own
- * clip/action metadata rather than its placed shape
- * (LocInteractionHandler.deriveLocRouteProfile):
- *   wall-ish shapes            -> adjacent, with the wall's own side blocked
- *   non-clipping floor decor   -> stand on it
- *   non-clipping with actions  -> adjacent, overlap allowed
- *   non-clipping otherwise     -> stand on it
- *   clipping                   -> adjacent, no overlap
- * `blocks_walk` (LocType opcode 17/27) is the clip flag; the decoder already
- * folds break_routefinding into it.
+ * RECT is rsmod ReachStrategy keyed off the **placed shape** via
+ * collision_exit_strategy / collision_approach_from_shape (wall 0–3/9,
+ * wall-decor 4–8, rectangle 10/11/22). The XRSPS clipType/action heuristic
+ * that used to live here was deleted — see docs/OSRS_PATHING_LOS.md §1.1.
  */
 static struct CollisionApproach
 app_scenery_approach(struct App const* app, struct WorldEntity_Scenery const* scenery)
@@ -5812,52 +5820,14 @@ app_scenery_approach(struct App const* app, struct WorldEntity_Scenery const* sc
         return approach;
     }
 
-    approach.loc_width = scenery->size_x > 0 ? scenery->size_x : 1;
-    approach.loc_length = scenery->size_z > 0 ? scenery->size_z : 1;
-    /* forceapproach carries over as the rect model's blocked sides: same bits,
-     * same meaning, already rotated into the placed frame. */
-    approach.blocked_sides = scenery->force_approach;
-
-    if( !sized )
-    {
-        /* Wall / wall-decor: a 1x1 target you stand beside. The wall's own
-         * facing side is the one you interact THROUGH, so it must stay open;
-         * the shared-edge wall test in collision_test_rect_adjacent is what
-         * refuses the sides the wall actually blocks. */
-        approach.kind = COLL_APPROACH_RECT_ADJACENT;
-        approach.loc_width = 1;
-        approach.loc_length = 1;
-        approach.allow_overlap = 1;
-        return approach;
-    }
-
-    {
-        struct ToriRS_Location const* loc =
-            CacheProvider_LocationGet(app->provider, scenery->loc_id);
-        bool clips = !loc || loc->blocks_walk != 0;
-        bool has_action = false;
-        for( int i = 0; i < 5 && !has_action; i++ )
-            has_action = scenery->actions[i].name[0] != '\0';
-
-        if( clips )
-        {
-            approach.kind = COLL_APPROACH_RECT_ADJACENT;
-            approach.allow_overlap = 0;
-        }
-        else if( shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
-        {
-            approach.kind = COLL_APPROACH_RECT_INSIDE;
-        }
-        else if( has_action )
-        {
-            approach.kind = COLL_APPROACH_RECT_ADJACENT;
-            approach.allow_overlap = 1;
-        }
-        else
-        {
-            approach.kind = COLL_APPROACH_RECT_INSIDE;
-        }
-    }
+    collision_approach_from_shape(
+        shape,
+        scenery->angle,
+        scenery->size_x,
+        scenery->size_z,
+        scenery->force_approach,
+        1,
+        &approach);
     return approach;
 }
 
@@ -5894,14 +5864,16 @@ app_try_move_obj(struct App* app, int tile_x, int tile_z, int ctrl_held)
     struct CollisionApproach exact = { .kind = COLL_APPROACH_EXACT, .mover_size = 1 };
     if( !app_try_move_op(app, tile_x, tile_z, &exact, ctrl_held) )
     {
-        struct CollisionApproach one = {
-            .kind = app->features->approach_model == TORIRS_APPROACH_RECT
-                        ? COLL_APPROACH_RECT_ADJACENT
-                        : COLL_APPROACH_LEGACY_SHAPE,
-            .loc_width = 1,
-            .loc_length = 1,
-            .mover_size = 1,
-        };
+        struct CollisionApproach one = { 0 };
+        if( app->features->approach_model == TORIRS_APPROACH_RECT )
+            collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &one);
+        else
+        {
+            one.kind = COLL_APPROACH_LEGACY_SHAPE;
+            one.loc_width = 1;
+            one.loc_length = 1;
+            one.mover_size = 1;
+        }
         app_try_move_op(app, tile_x, tile_z, &one, ctrl_held);
     }
 }
@@ -7880,9 +7852,12 @@ app_player_model_poll(struct App* app)
      * is the same swing the design preview gets from RS_ClientCode_Tick. */
     yan = ((int)(sin((double)app->logic_cycle / 40.0) * 256.0)) & 0x7ff;
 
-    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    for( int mi = 0; mi < app->tree->client_code.count; mi++ )
     {
-        struct UITreeComponent* node = &app->tree->components[i];
+        int32_t i = app->tree->client_code.slots[mi];
+        struct UITreeComponent* node;
+        assert(i >= 0 && (uint32_t)i < app->tree->component_count);
+        node = &app->tree->components[i];
         if( node->freed || node->type != UIELEM_RS_MODEL )
             continue;
         if( node->behavior.client_code != UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL )
@@ -7892,7 +7867,7 @@ app_player_model_poll(struct App* app)
             node->u.rs_model.zan != 0 || node->u.rs_model.anim_frame != seq_frame ||
             node->u.rs_model.anim_seq_id != seq_id )
         {
-            UITree_MarkNodeDirty(app->tree, (int32_t)i);
+            UITree_MarkNodeDirty(app->tree, i);
             app->need_redraw = 1;
         }
         node->u.rs_model.gamecache_model_id = scene_id;
@@ -9979,9 +9954,12 @@ app_dispatch_resize_hooks(struct App* app)
     if( !app->tree )
         return;
 
-    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    for( int i = 0; i < app->tree->resize_hooks.count; i++ )
     {
-        struct UITreeComponent const* c = &app->tree->components[i];
+        int32_t idx = app->tree->resize_hooks.slots[i];
+        struct UITreeComponent const* c;
+        assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
+        c = &app->tree->components[idx];
         if( c->freed || c->component_id < 0 )
             continue;
         if( UITree_Hooks(c)->on_resize.script_id <= 0 )

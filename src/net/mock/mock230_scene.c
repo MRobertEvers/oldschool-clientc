@@ -1172,47 +1172,8 @@ mock230_scene_loc_approach(
         return;
     }
 
-    out->loc_width = loc->size_x > 0 ? loc->size_x : 1;
-    out->loc_length = loc->size_z > 0 ? loc->size_z : 1;
-    out->blocked_sides = force;
-
-    if( !sized )
-    {
-        out->kind = COLL_APPROACH_RECT_ADJACENT;
-        out->loc_width = 1;
-        out->loc_length = 1;
-        out->allow_overlap = 1;
-        return;
-    }
-
-    {
-        int clips = !config || config->blocks_walk != 0;
-        int has_action = 0;
-        if( config )
-        {
-            for( int i = 0; i < 5 && !has_action; i++ )
-                has_action = config->actions[i] && config->actions[i][0] != '\0';
-        }
-
-        if( clips )
-        {
-            out->kind = COLL_APPROACH_RECT_ADJACENT;
-            out->allow_overlap = 0;
-        }
-        else if( shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
-        {
-            out->kind = COLL_APPROACH_RECT_INSIDE;
-        }
-        else if( has_action )
-        {
-            out->kind = COLL_APPROACH_RECT_ADJACENT;
-            out->allow_overlap = 1;
-        }
-        else
-        {
-            out->kind = COLL_APPROACH_RECT_INSIDE;
-        }
-    }
+    collision_approach_from_shape(
+        shape, loc->angle, loc->size_x, loc->size_z, force, 1, out);
 }
 
 void
@@ -1224,13 +1185,17 @@ mock230_scene_npc_approach(
     int s;
 
     assert(out);
-    memset(out, 0, sizeof(*out));
-    out->mover_size = 1;
     s = features->npc_approach_uses_size && size > 0 ? size : 1;
-    out->kind = features->approach_model == TORIRS_APPROACH_RECT ? COLL_APPROACH_RECT_ADJACENT
-                                                                : COLL_APPROACH_LEGACY_SHAPE;
-    out->loc_width = s;
-    out->loc_length = s;
+    if( features->approach_model == TORIRS_APPROACH_RECT )
+        collision_approach_from_shape(-2, 0, s, s, 0, 1, out);
+    else
+    {
+        memset(out, 0, sizeof(*out));
+        out->mover_size = 1;
+        out->kind = COLL_APPROACH_LEGACY_SHAPE;
+        out->loc_width = s;
+        out->loc_length = s;
+    }
 }
 
 void
@@ -1248,10 +1213,18 @@ mock230_scene_obj_approach(
         out->kind = COLL_APPROACH_EXACT;
         return;
     }
-    out->kind = features->approach_model == TORIRS_APPROACH_RECT ? COLL_APPROACH_RECT_ADJACENT
-                                                                : COLL_APPROACH_LEGACY_SHAPE;
-    out->loc_width = 1;
-    out->loc_length = 1;
+    if( features->approach_model == TORIRS_APPROACH_RECT )
+    {
+        /* Adjacent pickup retry: exclusive 1x1 so standing on the pile is the
+         * EXACT attempt, and this arm only accepts a cardinal neighbour. */
+        collision_approach_from_shape(-2, 0, 1, 1, 0, 1, out);
+    }
+    else
+    {
+        out->kind = COLL_APPROACH_LEGACY_SHAPE;
+        out->loc_width = 1;
+        out->loc_length = 1;
+    }
 }
 
 void

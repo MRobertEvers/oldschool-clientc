@@ -593,7 +593,7 @@ collision_test_loc(
 }
 
 /* Does a size x size mover footprint anchored at (src) overlap the rect
- * [min_x..max_x] x [min_z..max_z]? (XRSPS RouteStrategy footprintOverlaps.) */
+ * [min_x..max_x] x [min_z..max_z]? */
 static bool
 collision_footprint_overlaps(
     int src_x,
@@ -608,37 +608,13 @@ collision_footprint_overlaps(
            src_z + size - 1 >= min_z;
 }
 
-/* Is the shared edge between the mover's edge tile (px,pz) and the target's
- * edge tile (tx,tz) walled off? `side` names where the mover stands relative to
- * the target. A wall is flagged on both tiles of an edge, so either bit blocks
- * — this is the part the legacy testLoc does NOT do (it only reads the source
- * tile), and the reason a rev-230 server can refuse an approach Client-TS would
- * have accepted. (XRSPS RouteStrategy.isEdgeWallBlocked.) */
-static bool
-collision_edge_wall_blocked(
-    struct CollisionMap* cm,
-    int px,
-    int pz,
-    int tx,
-    int tz,
-    int side)
-{
-    int pflag = cm->flags[collision_map_index_at(cm, px, pz)];
-    int tflag = cm->flags[collision_map_index_at(cm, tx, tz)];
-    switch( side )
-    {
-    case DIR_WEST: /* mover is west of the target */
-        return (pflag & COLL_FLAG_WALL_EAST) != 0 || (tflag & COLL_FLAG_WALL_WEST) != 0;
-    case DIR_EAST:
-        return (pflag & COLL_FLAG_WALL_WEST) != 0 || (tflag & COLL_FLAG_WALL_EAST) != 0;
-    case DIR_SOUTH:
-        return (pflag & COLL_FLAG_WALL_NORTH) != 0 || (tflag & COLL_FLAG_WALL_SOUTH) != 0;
-    default: /* DIR_NORTH */
-        return (pflag & COLL_FLAG_WALL_SOUTH) != 0 || (tflag & COLL_FLAG_WALL_NORTH) != 0;
-    }
-}
-
-/* rsmod / XRSPS RectAdjacentRouteStrategy.hasArrived. */
+/*
+ * rsmod reachRectangle1 / reachRectangleN — source-tile wall bits for size 1,
+ * dest-edge wall bits for size N. blocked_sides is BlockAccessFlag /
+ * forceapproach (1 N, 2 E, 4 S, 8 W), naming the side the mover stands on.
+ *
+ * The earlier both-tiles check was an XRSPS invention; do not reinstate it.
+ */
 static bool
 collision_test_rect_adjacent(
     struct CollisionMap* cm,
@@ -649,62 +625,112 @@ collision_test_rect_adjacent(
     struct CollisionApproach const* approach)
 {
     int size = approach->mover_size > 0 ? approach->mover_size : 1;
+    int width = approach->loc_width > 0 ? approach->loc_width : 1;
+    int length = approach->loc_length > 0 ? approach->loc_length : 1;
     int min_x = dst_x;
     int min_z = dst_z;
-    int max_x = dst_x + (approach->loc_width > 0 ? approach->loc_width : 1) - 1;
-    int max_z = dst_z + (approach->loc_length > 0 ? approach->loc_length : 1) - 1;
-    int src_max_x = src_x + size - 1;
-    int src_max_z = src_z + size - 1;
+    int max_x = dst_x + width - 1;
+    int max_z = dst_z + length - 1;
+    int blocked = approach->blocked_sides;
 
     if( collision_footprint_overlaps(src_x, src_z, size, min_x, min_z, max_x, max_z) )
         return approach->allow_overlap != 0;
 
-    /* Flush against exactly one cardinal side, with overlap on the other axis.
-     * Corner-only contact is never an arrival — OSRS forbids diagonal
-     * interaction outright. */
-    bool z_overlap = src_z <= max_z && src_max_z >= min_z;
-    bool x_overlap = src_x <= max_x && src_max_x >= min_x;
-    bool on_west = src_max_x == min_x - 1 && z_overlap;
-    bool on_east = src_x == max_x + 1 && z_overlap;
-    bool on_south = src_max_z == min_z - 1 && x_overlap;
-    bool on_north = src_z == max_z + 1 && x_overlap;
-
-    if( !(on_west || on_east || on_south || on_north) )
-        return false;
-    /* blocked_sides is the rect model's forceapproach: it names the side the
-     * mover is standing on, in the same DirectionFlag bits. */
-    if( (on_west && (approach->blocked_sides & DIR_WEST)) ||
-        (on_east && (approach->blocked_sides & DIR_EAST)) ||
-        (on_south && (approach->blocked_sides & DIR_SOUTH)) ||
-        (on_north && (approach->blocked_sides & DIR_NORTH)) )
-        return false;
-
-    /* Arrived if ANY tile along the shared edge is not wall-separated. */
-    if( on_west || on_east )
+    if( size == 1 )
     {
-        int from_z = src_z > min_z ? src_z : min_z;
-        int to_z = src_max_z < max_z ? src_max_z : max_z;
-        int px = on_west ? src_max_x : src_x;
-        int tx = on_west ? min_x : max_x;
-        for( int pz = from_z; pz <= to_z; pz++ )
-        {
-            if( !collision_edge_wall_blocked(
-                    cm, px, pz, tx, pz, on_west ? DIR_WEST : DIR_EAST) )
-                return true;
-        }
+        int f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+
+        if( src_x == dst_x - 1 && src_z >= dst_z && src_z <= max_z &&
+            (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN && (blocked & DIR_WEST) == 0 )
+            return true;
+        if( src_x == max_x + 1 && src_z >= dst_z && src_z <= max_z &&
+            (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN && (blocked & DIR_EAST) == 0 )
+            return true;
+        if( src_z + 1 == dst_z && src_x >= dst_x && src_x <= max_x &&
+            (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN && (blocked & DIR_SOUTH) == 0 )
+            return true;
+        if( src_z == max_z + 1 && src_x >= dst_x && src_x <= max_x &&
+            (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN && (blocked & DIR_NORTH) == 0 )
+            return true;
         return false;
     }
 
-    int from_x = src_x > min_x ? src_x : min_x;
-    int to_x = src_max_x < max_x ? src_max_x : max_x;
-    int pz = on_south ? src_max_z : src_z;
-    int tz = on_south ? min_z : max_z;
-    for( int px = from_x; px <= to_x; px++ )
+    /* size-N: rsmod reachRectangleN — scan the shared edge reading the
+     * destination's facing wall bit. */
     {
-        if( !collision_edge_wall_blocked(cm, px, pz, px, tz, on_south ? DIR_SOUTH : DIR_NORTH) )
-            return true;
+        int src_east = src_x + size;
+        int src_north = src_z + size;
+        int dest_east = dst_x + width;
+        int dest_north = dst_z + length;
+
+        if( dest_east == src_x && (blocked & DIR_EAST) == 0 )
+        {
+            int from_z = src_z > dst_z ? src_z : dst_z;
+            int to_z = src_north < dest_north ? src_north : dest_north;
+            for( int side_z = from_z; side_z < to_z; side_z++ )
+            {
+                if( (cm->flags[collision_map_index_at(cm, dest_east - 1, side_z)] &
+                     COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN )
+                    return true;
+            }
+        }
+        else if( src_east == dst_x && (blocked & DIR_WEST) == 0 )
+        {
+            int from_z = src_z > dst_z ? src_z : dst_z;
+            int to_z = src_north < dest_north ? src_north : dest_north;
+            for( int side_z = from_z; side_z < to_z; side_z++ )
+            {
+                if( (cm->flags[collision_map_index_at(cm, dst_x, side_z)] &
+                     COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN )
+                    return true;
+            }
+        }
+        else if( src_z == dest_north && (blocked & DIR_NORTH) == 0 )
+        {
+            int from_x = src_x > dst_x ? src_x : dst_x;
+            int to_x = src_east < dest_east ? src_east : dest_east;
+            for( int side_x = from_x; side_x < to_x; side_x++ )
+            {
+                if( (cm->flags[collision_map_index_at(cm, side_x, dest_north - 1)] &
+                     COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN )
+                    return true;
+            }
+        }
+        else if( dst_z == src_north && (blocked & DIR_SOUTH) == 0 )
+        {
+            int from_x = src_x > dst_x ? src_x : dst_x;
+            int to_x = src_east < dest_east ? src_east : dest_east;
+            for( int side_x = from_x; side_x < to_x; side_x++ )
+            {
+                if( (cm->flags[collision_map_index_at(cm, side_x, dst_z)] &
+                     COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN )
+                    return true;
+            }
+        }
     }
     return false;
+}
+
+/* rsmod reachExclusiveRectangle: adjacent and must NOT overlap. */
+static bool
+collision_test_rect_exclusive(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    int size = approach->mover_size > 0 ? approach->mover_size : 1;
+    int width = approach->loc_width > 0 ? approach->loc_width : 1;
+    int length = approach->loc_length > 0 ? approach->loc_length : 1;
+    struct CollisionApproach adj = *approach;
+
+    if( collision_footprint_overlaps(
+            src_x, src_z, size, dst_x, dst_z, dst_x + width - 1, dst_z + length - 1) )
+        return false;
+    adj.allow_overlap = 0;
+    return collision_test_rect_adjacent(cm, src_x, src_z, dst_x, dst_z, &adj);
 }
 
 /* rsmod RectRouteStrategy: stand anywhere on the rect. */
@@ -785,13 +811,11 @@ collision_test_legacy_shape(
 /*
  * Arrival predicate for the flood.
  *
- * The exact-destination shortcut belongs to the LEGACY family only. Client-TS
- * tryMove tests `x === dx && z === dz` first, before any shape test, so
- * standing on a loc's own tile is always an arrival there. The rsmod
- * pathfinder has no such test — `RouteStrategy.hasArrived` is the *only*
- * predicate (Pathfinder.findPathS1) — which is exactly what lets it refuse an
- * approach that overlaps a clipping loc. Applying the shortcut to the RECT
- * kinds would quietly re-introduce the legacy behaviour under the modern era.
+ * Exact-tile shortcut: rsmod / LostCity ReachStrategy.reached opens with
+ * `if (exitStrategy != RECTANGLE_EXCLUSIVE && srcX == destX && srcZ == destZ)
+ * return true`. Exclusive-rectangle is the only strategy that refuses it —
+ * that is what keeps a player from "reaching" an NPC by standing on it.
+ * The earlier claim that "rsmod has no such test" described XRSPS, not rsmod.
  */
 static bool
 collision_flood_arrived(
@@ -810,15 +834,98 @@ collision_flood_arrived(
     case COLL_APPROACH_LEGACY_SHAPE:
         return (x == dst_x && z == dst_z) ||
                collision_test_legacy_shape(cm, x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_WALL:
+        return (x == dst_x && z == dst_z) ||
+               collision_test_wall(
+                   cm, x, z, dst_x, dst_z, approach->loc_shape, approach->loc_angle);
+    case COLL_APPROACH_WALL_DECOR:
+        return (x == dst_x && z == dst_z) ||
+               collision_test_wdecor(
+                   cm, x, z, dst_x, dst_z, approach->loc_shape, approach->loc_angle);
     case COLL_APPROACH_RECT_ADJACENT:
+        /* reachRectangle = intersects OR adjacent. allow_overlap carries the
+         * intersects half; the exact-tile shortcut would bypass allow_overlap=0
+         * so it is not applied here. Under exitStrategy RECTANGLE the filler
+         * always sets allow_overlap. */
         return collision_test_rect_adjacent(cm, x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_RECT_INSIDE:
-        return collision_test_rect_inside(x, z, dst_x, dst_z, approach);
+        return (x == dst_x && z == dst_z) ||
+               collision_test_rect_inside(x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_RECT_WITHIN_RANGE:
         return collision_test_rect_within_range(x, z, dst_x, dst_z, approach);
+    case COLL_APPROACH_RECT_EXCLUSIVE:
+        /* No exact-tile shortcut — exclusive means not overlapping. */
+        return collision_test_rect_exclusive(cm, x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_EXACT:
     default:
         return x == dst_x && z == dst_z;
+    }
+}
+
+int
+collision_exit_strategy(int loc_shape)
+{
+    if( loc_shape == -2 )
+        return COLL_EXIT_RECTANGLE_EXCLUSIVE;
+    if( loc_shape == -1 )
+        return COLL_EXIT_NONE;
+    if( (loc_shape >= 0 && loc_shape <= 3) || loc_shape == 9 )
+        return COLL_EXIT_WALL;
+    if( loc_shape < 9 )
+        return COLL_EXIT_WALL_DECOR;
+    if( (loc_shape >= 10 && loc_shape <= 11) || loc_shape == 22 )
+        return COLL_EXIT_RECTANGLE;
+    return COLL_EXIT_NONE;
+}
+
+void
+collision_approach_from_shape(
+    int loc_shape,
+    int loc_angle,
+    int width,
+    int length,
+    int forceapproach_rotated,
+    int mover_size,
+    struct CollisionApproach* out)
+{
+    int exit;
+
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->mover_size = mover_size > 0 ? mover_size : 1;
+    out->loc_width = width > 0 ? width : 1;
+    out->loc_length = length > 0 ? length : 1;
+    out->loc_angle = loc_angle;
+    out->loc_shape = loc_shape;
+    out->blocked_sides = forceapproach_rotated & 0xf;
+    out->forceapproach = forceapproach_rotated & 0xf;
+
+    exit = collision_exit_strategy(loc_shape);
+    switch( exit )
+    {
+    case COLL_EXIT_WALL:
+        out->kind = COLL_APPROACH_WALL;
+        out->loc_width = 1;
+        out->loc_length = 1;
+        break;
+    case COLL_EXIT_WALL_DECOR:
+        out->kind = COLL_APPROACH_WALL_DECOR;
+        out->loc_width = 1;
+        out->loc_length = 1;
+        break;
+    case COLL_EXIT_RECTANGLE:
+        /* reachRectangle = intersects OR adjacent. */
+        out->kind = COLL_APPROACH_RECT_ADJACENT;
+        out->allow_overlap = 1;
+        break;
+    case COLL_EXIT_RECTANGLE_EXCLUSIVE:
+        out->kind = COLL_APPROACH_RECT_EXCLUSIVE;
+        out->allow_overlap = 0;
+        break;
+    case COLL_EXIT_NONE:
+    default:
+        out->kind = COLL_APPROACH_EXACT;
+        break;
     }
 }
 

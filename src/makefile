@@ -799,7 +799,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
-		ui/test/uitree_test_open_close.c
+		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c
 	./$(OBJ_DIR)/uitree_test
 
 # The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.

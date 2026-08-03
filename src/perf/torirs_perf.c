@@ -150,6 +150,7 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "uitree_wheel_scan_nodes",
     "uitree_opkey_scan_nodes",
     "uitree_hook_index_rebuild_nodes",
+    "iface_group_scan_nodes",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */

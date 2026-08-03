@@ -545,12 +545,35 @@ Unmount sets `hide` / `hide_unmounted` and leaves nodes in `components[]` so a
 remount can reuse the bake (baking a second copy renders blank). That is
 intentional. What was not: (1) `UITreeAnim_*` and wheel/opkey walks strode the
 whole array every tick looking for ~800 model nodes among ~10k; fixed with
-`UITree_EnsureModelIndex` and extended hook indexes. (2) `runtime_hooks` blocks
-(~10 KB each) survived close — bank alone retained ~1500 while hidden; 
-`RS_CS2Host_ClearHooksForInterfaceGroup` now frees them (onload reallocates).
+**live node sets** (`tree->models`, `tree->timer_hooks`, …) maintained at Push /
+reclaim / predicate writers — no lazy full-array rebuild. (2) `runtime_hooks`
+blocks (~10 KB each) survived close — bank alone retained ~1500 while hidden;
+`RS_CS2Host_ClearHooksForInterfaceGroup` now frees them via the per-group live
+set (onload reallocates). (3) Open/close used to scan all ~10k components four
+times for group membership; `UITree_GroupNodes` is O(group size).
 Measure with `./tools/perf/run_perf.sh soak-ui` and `TORIRS_IFACE_STATS=1`;
 `drift-ui` only remounts one pack and will not show residency growth.
 See [PERF_HARNESS.md](PERF_HARNESS.md) § Multi-panel soak.
+
+**Live node sets must be written only at the mutation seams.**
+`struct UITreeNodeSet` is a dense slot list with an O(1) pos back-index. Every
+set (`models`, `timer_hooks`, `key_hooks`, `wheel_hooks`, `opkeys`,
+`client_code`, `resize_hooks`, `sub_change_hooks`, `scroll_layers`, and the
+`group_map` buckets) is updated only from:
+
+| Seam | What it maintains |
+|---|---|
+| `UITree_Push` / `uitree_live_register` | type-based sets, group membership, world/worldmap singletons |
+| `uitree_reclaim_subtree` / `uitree_live_unregister` | remove from every set |
+| `UITree_SetBehavior` | `client_code` |
+| `UITree_ApplyRuntimeHook` / `UITree_SyncHookMembership` / `UITree_FreeHooksAt` | timer/key/wheel/resize/sub_change |
+| `UITree_ApplyOpKey` | `opkeys` |
+| `UITree_CcCopy` (after field copy) | hooks + opkeys resync |
+
+A writer that mutates a predicate outside those seams (e.g. poking
+`hooks->on_timer.script_id` directly) must call `UITree_SyncHookMembership`.
+`test_live_node_sets` and `test_open_close_steady` pin the invariant.
+Sets hold **slot indices**, so consumers never `FindByComponentId` per entry.
 
 **`CC_CREATE` must reclaim *before* allocating a uid.**
 Replace-in-slot semantics: the existing dynamic child with the same `sub_id` is
@@ -837,7 +860,9 @@ The UI was recomputing everything, every frame.
 | `UITree_ChildMountType` linear-scanned the mount table once per child per emit sweep | `UITree_ContainerHasMounts` answers it once per node | [uitree.c](src/ui/uitree.c) |
 | The CS1 pass scanned every component every 20 ms tick on a tree with no CS1 scripts | `UITree_HasCS1Scripts` short-circuits it | [task_cs1_run.c](src/game/task_cs1_run.c) |
 | `runtime_hooks` inlined in every node (~11 KB per component) | lazily side-allocated; `UITree_Hooks` / `UITree_HooksMut` accessors | [uitree.h](src/ui/uitree.h) |
-| Closed packs left `runtime_hooks` blocks allocated; anim/wheel/opkey strode full `component_count` every tick | free hooks on unmount; model/wheel/opkey indexes | [rs_cs2_host.c](src/game/rs_cs2_host.c), [uitree_anim.c](src/engine/uitree_anim.c) |
+| Closed packs left `runtime_hooks` blocks allocated; anim/wheel/opkey strode full `component_count` every tick | free hooks on unmount; **live node sets** (slot lists, no rebuild) | [rs_cs2_host.c](src/game/rs_cs2_host.c), [uitree_anim.c](src/engine/uitree_anim.c), [uitree.c](src/ui/uitree.c) |
+| Interface open/close scanned all components for group membership (×4) | `group_map` live sets; iteration proportional to group size | [task_interface_open.c](src/engine/uitree_builder/task_interface_open.c), [app.c](src/app.c) |
+| `RS_ClientCode_Tick` / player-model poll / resize / IF1 wheel strode full array | `client_code`, `resize_hooks`, `scroll_layers`, world/worldmap singletons | [rs_clientcode.c](src/game/rs_clientcode.c), [uitree_interact.c](src/ui/uitree_interact.c) |
 
 ---
 
@@ -855,6 +880,7 @@ The UI was recomputing everything, every frame.
 | `TORIRS_DUMP_HOOKS=1` | dump every runtime hook (component, kind, script id, argc) |
 | `TORIRS_SIM_CLICK=0x...` | headless: dispatch that component's `on_click` (or `on_op`) right after open, then run 25 logic ticks |
 | `UITREE_ID_INDEX_VERIFY` (compile-time) | assert the hashed id lookup against the linear scan on every call |
+| `UITREE_NODE_SET_VERIFY` (compile-time) | `UITree_VerifyLiveSets` brute-force check of every live set |
 | `UITREE_CLICK_DEBUG` (compile-time) | log transmit dispatch decisions |
 
 Run: `./torirs <cache_dir> <interface_id> [--bmp]`.
