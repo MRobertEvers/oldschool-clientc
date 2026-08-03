@@ -917,8 +917,17 @@ RS_GameProto_Exec(
     case PKT_NAME_UNSET_MAP_FLAG:
         if( ctx->app )
         {
-            ctx->app->minimap_flag_x = -1;
-            ctx->app->minimap_flag_z = -1;
+            if( packet->_set_map_flag.clear )
+            {
+                ctx->app->minimap_flag_x = -1;
+                ctx->app->minimap_flag_z = -1;
+            }
+            else
+            {
+                ctx->app->minimap_flag_x = packet->_set_map_flag.x;
+                ctx->app->minimap_flag_z = packet->_set_map_flag.z;
+            }
+            ctx->app->need_redraw = 1;
         }
         break;
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:

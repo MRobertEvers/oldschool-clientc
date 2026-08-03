@@ -34,13 +34,12 @@ enum ToriRS_FeatureEra
     /** 2004-era / LostCity (dat1 caches, lc245_2 + lc254 protocol). The client
      *  owns pathing; loc approach is decided from the loc's placed shape. */
     TORIRS_FEATURE_ERA_LOSTCITY = 1,
-    /** OldSchool rev 230-ish (dat2 caches, osrs230 protocol). Still a
-     *  waypoint-packet client, but the server's approach model is rsmod's
-     *  rectangle strategy, so the client must agree with it or it flags a tile
-     *  the server will not accept. */
+    /** OldSchool rev 230-ish (dat2 caches, osrs230 protocol). Server-authoritative
+     *  pathing since end-2013: MOVE_GAMECLICK is destination-only; reach uses
+     *  rsmod's shape-keyed exitStrategy under RECT. */
     TORIRS_FEATURE_ERA_OSRS = 2,
-    /** xrsps233 and anything else where interaction routing is entirely the
-     *  server's: the client sends the interaction and never a route. */
+    /** Named alias that shares osrs pathing; still carries xrsps lighting flags
+     *  for manifests that already state it. */
     TORIRS_FEATURE_ERA_SERVER_ROUTED = 3,
 };
 
@@ -50,8 +49,8 @@ enum ToriRS_PathingMode
     /** Client-TS `tryMove`: BFS on the local collision map at click time, then
      *  a MOVE_GAMECLICK / MINIMAPCLICK / OPCLICK waypoint packet. */
     TORIRS_PATHING_CLIENT_BFS = 0,
-    /** xrsps: the click packet carries the target only and the server paths.
-     *  The client still latches the minimap flag so the UI reads the same. */
+    /** Server owns the route: destination / interaction target only on the
+     *  wire; SET_MAP_FLAG comes from the server. */
     TORIRS_PATHING_SERVER_AUTHORITATIVE = 1,
 };
 
@@ -61,9 +60,9 @@ enum ToriRS_ApproachModel
     /** Client-TS CollisionMap.testWall / testWDecor / testLoc, keyed off the
      *  loc's placed shape + angle, with LocType.forceapproach vetoing sides. */
     TORIRS_APPROACH_LEGACY_SHAPE = 0,
-    /** rsmod / XRSPS RouteStrategy rectangles: footprint overlap, flush
-     *  cardinal side with axis overlap, and a wall check that reads BOTH the
-     *  mover's and the target's wall bits along the shared edge. */
+    /** rsmod ReachStrategy via collision_approach_from_shape: wall / wall-decor
+     *  / rectangle / exclusive-rectangle from the placed loc shape. Size-1
+     *  rectangle adjacency reads the source tile's facing wall bit. */
     TORIRS_APPROACH_RECT = 1,
 };
 

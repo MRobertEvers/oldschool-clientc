@@ -29,17 +29,14 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
 };
 
 /*
- * OldSchool rev 230-ish. Still a waypoint-packet client — the wire is
- * unchanged, so pathing_mode stays CLIENT_BFS — but the *server* it talks to
- * decides reachability with rsmod's rectangle strategies. Three consequences,
- * all of them "agree with the server or flag a tile it will refuse":
+ * OldSchool rev 230-ish. Since end-2013 the server owns routefinding (Ash);
+ * MOVE_GAMECLICK is a fixed 5-byte destination body and the client never
+ * emits waypoints. Reach uses rsmod's shape-keyed exitStrategy under RECT.
  *
- *   - approach_model RECT: the shared edge is wall-checked from both tiles,
- *     and a loc that does not clip is stood on rather than approached.
- *   - npc_approach_uses_size: a size-3 NPC is a 3x3 target, not its SW tile.
- *   - op_click_nearest_range 10: rsmod always runs its alternative-route
- *     search for interactions, so an obstructed target still walks you most of
- *     the way instead of producing no movement at all.
+ *   - pathing_mode SERVER_AUTHORITATIVE: no client BFS; server SET_MAP_FLAG.
+ *   - approach_model RECT: collision_approach_from_shape on placed shape.
+ *   - npc_approach_uses_size: a size-3 NPC is a 3x3 exclusive-rect target.
+ *   - op_click_nearest_range 10: rsmod's alternative-route search (server).
  *   - los_symmetric_pvp: the 2019 LMS update — PvP LoS is symmetric; PvM is
  *     not.
  *   - route_window_tiles 128: rsmod's PathFinder floods a fixed 128x128 box
@@ -48,7 +45,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
 static struct ToriRS_FeatureTable const k_features_osrs = {
     .era = TORIRS_FEATURE_ERA_OSRS,
     .name = "osrs",
-    .pathing_mode = TORIRS_PATHING_CLIENT_BFS,
+    .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
     .op_click_nearest_range = 10,
@@ -60,14 +57,11 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
 };
 
 /*
- * xrsps233 and friends: the click packet carries the target and the server
- * paths. The client runs no BFS, sends no waypoints, and only latches the
- * minimap flag so the UI still reads correctly.
+ * Named alias for manifests that already state server_routed. Same pathing
+ * mode and approach model as osrs; keeps the xrsps lighting flags.
  *
- * The approach fields still matter even here: nothing routes, but the same
- * predicates answer "is the player already adjacent?" for the UI (xrsps's own
- * isLocalPlayerAdjacentToLoc), so state the modern model rather than leaving
- * the legacy default sitting under a modern server.
+ * The approach fields still matter: nothing routes on the client, but the
+ * same predicates answer "is the player already adjacent?" for the UI.
  */
 static struct ToriRS_FeatureTable const k_features_server_routed = {
     .era = TORIRS_FEATURE_ERA_SERVER_ROUTED,

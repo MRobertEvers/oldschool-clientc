@@ -255,12 +255,15 @@ net_out_tut_clickside(
 
 /* -- movement ----------------------------------------------------------- */
 
-/* Reference tryMove packet body (Client.ts:6068-6104): ctrl, then the turn
- * waypoint closest to the source as absolute tiles, then up to 24 signed
- * (dx,dz) byte pairs walking toward the destination. route uses the tryMove
- * scratch layout (collision_map_try_route): [0] = destination, ascending
- * toward the source. A 1-entry route degenerates to the old
- * single-coordinate body. */
+/* Encode a MOVE_* body. route uses the tryMove scratch layout
+ * (collision_map_try_route): [0] = destination, ascending toward the source.
+ *
+ * osrs230 MOVE_GAMECLICK is a fixed 5-byte destination body
+ * (keyCombination, x, z) with no length byte and no waypoints — that is the
+ * post-2013 server-authoritative wire. Every other MOVE_* (lc254 waypoint
+ * packets, minimap with trailer) still writes the classic var-u8 length +
+ * start + (dx,dz) pairs. A 1-entry route degenerates to start==dest with no
+ * deltas on the classic path. */
 static int
 out_move(
     struct GameProtoRevTable const* rev,
@@ -277,26 +280,44 @@ out_move(
     int trailer_len)
 {
     struct RSCache_Buffer b;
+    int dest_only;
+
     if( route_len < 1 )
         return -1;
-    int buffer_size = route_len < 25 ? route_len : 25;
-    int idx = route_len - 1;
-    int start_x = route_x[idx];
-    int start_z = route_z[idx];
-    if( out_begin(
-            rev, random_out, buf, cap, out_name, 1 + buffer_size * 2 + 3 + trailer_len, &b) < 0 )
-        return -1;
-    p1(&b, buffer_size * 2 + 3 + trailer_len); /* var-u8 payload length */
-    p1(&b, ctrl_held ? 1 : 0);
-    p2(&b, base_x + start_x);
-    p2(&b, base_z + start_z);
-    for( int i = 1; i < buffer_size; i++ )
+
+    /* Fixed 5-byte MOVE_GAMECLICK on osrs230: destination only. */
+    dest_only = rev->revision == GAMEPROTO_REVISION_OSRS230 &&
+                out_name == PKTOUT_NAME_MOVE_GAMECLICK && trailer_len == 0;
+    if( dest_only )
     {
-        idx--;
-        p1(&b, route_x[idx] - start_x);
-        p1(&b, route_z[idx] - start_z);
+        if( out_begin(rev, random_out, buf, cap, out_name, 5, &b) < 0 )
+            return -1;
+        p1(&b, ctrl_held ? 1 : 0);
+        p2(&b, base_x + route_x[0]);
+        p2(&b, base_z + route_z[0]);
+        return 1 + (int)b.position;
     }
-    return 1 + (int)b.position;
+
+    {
+        int buffer_size = route_len < 25 ? route_len : 25;
+        int idx = route_len - 1;
+        int start_x = route_x[idx];
+        int start_z = route_z[idx];
+        if( out_begin(
+                rev, random_out, buf, cap, out_name, 1 + buffer_size * 2 + 3 + trailer_len, &b) < 0 )
+            return -1;
+        p1(&b, buffer_size * 2 + 3 + trailer_len); /* var-u8 payload length */
+        p1(&b, ctrl_held ? 1 : 0);
+        p2(&b, base_x + start_x);
+        p2(&b, base_z + start_z);
+        for( int i = 1; i < buffer_size; i++ )
+        {
+            idx--;
+            p1(&b, route_x[idx] - start_x);
+            p1(&b, route_z[idx] - start_z);
+        }
+        return 1 + (int)b.position;
+    }
 }
 
 int

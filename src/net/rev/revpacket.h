@@ -512,6 +512,15 @@ struct PktMidiJingle
     int delay; /* g2 */
 };
 
+/* SET_MAP_FLAG / UNSET_MAP_FLAG. Scene-local (x, z); 255,255 clears. lc254
+ * sends a 0-byte UNSET which is treated as clear. */
+struct PktSetMapFlag
+{
+    int x;
+    int z;
+    int clear; /* 1 = clear the flag */
+};
+
 struct PktSetPlayerOp
 {
     int slot;    /* g1: op slot 1-5 */
@@ -661,6 +670,7 @@ struct RevPacket
         struct PktSynthSound _synth_sound;
         struct PktMidiSong _midi_song;
         struct PktMidiJingle _midi_jingle;
+        struct PktSetMapFlag _set_map_flag;
         struct PktSetPlayerOp _set_player_op;
         struct PktRunClientScript _runclientscript;
     };

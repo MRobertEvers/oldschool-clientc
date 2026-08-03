@@ -593,7 +593,22 @@ gameproto_parse(
         return 1;
     }
     case PKT_NAME_UNSET_MAP_FLAG:
-        /* no payload */
+        /* osrs230 SET_MAP_FLAG is 2 bytes (x, z) with 255,255 = clear. lc254
+         * UNSET_MAP_FLAG is 0 bytes and always clears. */
+        if( data_size >= 2 )
+        {
+            packet->_set_map_flag.x = g1(&buffer);
+            packet->_set_map_flag.z = g1(&buffer);
+            packet->_set_map_flag.clear =
+                (packet->_set_map_flag.x == 255 && packet->_set_map_flag.z == 255);
+            assert(buffer.position == data_size);
+        }
+        else
+        {
+            packet->_set_map_flag.x = 255;
+            packet->_set_map_flag.z = 255;
+            packet->_set_map_flag.clear = 1;
+        }
         return 1;
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
     {

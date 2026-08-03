@@ -13,12 +13,10 @@
  * unambiguous set the two ends agree on is what matters. They stay inside the
  * rev-230 opcode space and collide with nothing else in this table.
  *
- * PAYLOAD LAYOUTS ARE THE lc254 ONES. net_out.c has a single set of builders
- * shared by every revision; only the opcode number is revision-specific. Real
- * rev-230 re-orders most of these fields through RSProt's alt byte orders, so
- * a packet built here would not parse on a real OldSchool server — but the
- * mock in src/net/mock decodes exactly what net_out.c writes, which is what
- * makes the pair testable. `osrs230_packetout_size` is the mock's framing
+ * PAYLOAD LAYOUTS mostly follow the lc254 builders in net_out.c. The one
+ * deliberate divergence: MOVE_GAMECLICK is a fixed 5-byte destination body
+ * (rev 230/239), not the classic var-u8 waypoint packet. See
+ * docs/OSRS_PATHING_LOS.md. `osrs230_packetout_size` is the mock's framing
  * table: >=0 fixed, -1 var-u8 (the builder writes the length byte itself).
  * See docs/osrs230_mockserver.md.
  */
@@ -44,9 +42,10 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     { PKTOUT_NAME_MAP_BUILD_COMPLETE,  54,  0 },
     { PKTOUT_NAME_EVENT_APPLET_FOCUS,  71,  1 },
 
-    /* Movement. The builders emit their own var-u8 length byte. */
-    { PKTOUT_NAME_MOVE_GAMECLICK,      86,  PKTOUT_LENGTH_VARU8 },
-    { PKTOUT_NAME_MOVE_OPCLICK,        30,  PKTOUT_LENGTH_VARU8 },
+    /* Movement. Rev 230/239 MOVE_GAMECLICK is a fixed 5-byte destination
+     * body (keyCombination, x, z) — no waypoints, no MOVE_OPCLICK. Minimap
+     * still carries the classic trailer after a var-u8 length byte. */
+    { PKTOUT_NAME_MOVE_GAMECLICK,      86,  5 },
     { PKTOUT_NAME_MOVE_MINIMAPCLICK,   55,  PKTOUT_LENGTH_VARU8 },
 
     /* Interface component clicks: p2 component id. */

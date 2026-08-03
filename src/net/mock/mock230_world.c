@@ -608,12 +608,20 @@ mock230_world_walk_to(
     int z)
 {
     struct Mock230Player* player = srv->active_player;
+    int base_x;
+    int base_z;
 
     steps_clear(player);
     player->dest_x = x;
     player->dest_z = z;
     player->steps_taken = 0;
     waypoints_walk_to(player, x, z);
+
+    /* Server owns the yellow cross: scene-local destination. */
+    base_x = mock230_scene_base_x();
+    base_z = mock230_scene_base_z();
+    if( base_x >= 0 && player->waypoint_index >= 0 )
+        mock230_send_set_map_flag(player, x - base_x, z - base_z);
 }
 
 void
@@ -624,6 +632,8 @@ mock230_world_walk_to_approach(
     struct CollisionApproach const* approach)
 {
     struct Mock230Player* player = srv->active_player;
+    int base_x;
+    int base_z;
 
     assert(approach);
     steps_clear(player);
@@ -631,6 +641,12 @@ mock230_world_walk_to_approach(
     player->dest_z = z;
     player->steps_taken = 0;
     waypoints_walk_to_approach(player, x, z, approach);
+
+    base_x = mock230_scene_base_x();
+    base_z = mock230_scene_base_z();
+    if( base_x >= 0 && player->waypoint_index >= 0 )
+        mock230_send_set_map_flag(
+            player, player->dest_x - base_x, player->dest_z - base_z);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2727,20 +2743,14 @@ mock230_world_ground_slot(
 /* ------------------------------------------------------------------ */
 
 /*
- * MOVE_GAMECLICK / MOVE_OPCLICK / MOVE_MINIMAPCLICK.
+ * MOVE_GAMECLICK / MOVE_MINIMAPCLICK.
  *
- * Wire form (net_out.c out_move): p1 ctrlHeld, p2 absolute start x, p2
- * absolute start z, then up to 24 signed byte pairs relative to that start.
- * The waypoints run from the tile nearest the player to the destination, so
- * the last one is where the click landed. The minimap variant appends a
- * 14-byte anti-cheat trailer, which must be subtracted before counting
- * waypoints — reading it as coordinate pairs would append seven junk tiles to
- * every minimap walk.
- *
- * Server-authoritative: the client's waypoints are a hint for the destination
- * only. LostCity's NODE_CLIENT_ROUTEFINDER=false branch does the same —
- * findPath from the player to path[last]. Trusting the client's intermediate
- * tiles and then letting handle_oploc throw them away was the old bug.
+ * osrs230 MOVE_GAMECLICK is a fixed 5-byte destination body
+ * (keyCombination, x, z) with no waypoints — the server owns the route.
+ * Minimap still uses the classic start + signed (dx,dz) pairs plus a
+ * 14-byte anti-cheat trailer (subtracted before counting waypoints).
+ * If a LostCity-era client still sends intermediate waypoints, the last
+ * one is the destination and we re-path from the player.
  */
 static void
 handle_move(
@@ -4977,7 +4987,6 @@ struct Mock230PacketRoute
  */
 static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_MOVE_GAMECLICK, handle_move_gameclick },
-    { PKTOUT_NAME_MOVE_OPCLICK, handle_move_gameclick },
     { PKTOUT_NAME_MOVE_MINIMAPCLICK, handle_move_minimapclick },
 
     { PKTOUT_NAME_OPHELD1, handle_opheld_packet },

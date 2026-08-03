@@ -89,9 +89,9 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
      * the only producer, so what matters is that the two ends agree.
      */
     { 3, 3, PKT_NAME_CHAT_FILTER_SETTINGS },
-    /* SET_MAP_FLAG carries (x, y) with 255,255 meaning "clear". The mock only
-     * ever sends the clear form, and the canonical UNSET_MAP_FLAG handler
-     * ignores its payload, so the 2-byte frame maps straight onto it. */
+    /* SET_MAP_FLAG carries (x, y) with 255,255 meaning "clear". The mock
+     * sends both the destination form (server-owned yellow cross) and the
+     * clear form; the canonical UNSET_MAP_FLAG handler reads the payload. */
     { 2, 2, PKT_NAME_UNSET_MAP_FLAG },
     { 75, PKTIN_LENGTH_VARU8, PKT_NAME_NONE },   /* SET_PLAYER_OP */
     { 76, 6, PKT_NAME_NONE },  /* HINT_ARROW */

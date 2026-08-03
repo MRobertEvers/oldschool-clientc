@@ -3896,6 +3896,12 @@ mock230_send_message(
     const char* text);
 void
 mock230_send_unset_map_flag(struct Mock230Player* player);
+/** SET_MAP_FLAG with scene-local (x, z). Server-owned yellow cross. */
+void
+mock230_send_set_map_flag(
+    struct Mock230Player* player,
+    int local_x,
+    int local_z);
 void
 mock230_send_tick_end(struct Mock230Player* player);
 

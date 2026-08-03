@@ -911,6 +911,17 @@ mock230_send_unset_map_flag(struct Mock230Player* player)
 }
 
 void
+mock230_send_set_map_flag(struct Mock230Player* player, int local_x, int local_z)
+{
+    struct RSAreaBuf buf;
+    assert(player);
+    open_packet(&buf, 8);
+    rsab_p1(&buf, local_x & 0xff);
+    rsab_p1(&buf, local_z & 0xff);
+    flush(player, &buf, OP_SET_MAP_FLAG, 0);
+}
+
+void
 mock230_send_tick_end(struct Mock230Player* player)
 {
     mock230_send(player, OP_SERVER_TICK_END, NULL, 0, 0);

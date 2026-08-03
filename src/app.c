@@ -3400,6 +3400,18 @@ App_WorldLoadFinish(struct App* app)
         /* World scenery models reference textures; the bridge scan walks the
          * scene elements the rebuild just created. */
         app_sync_textures(app);
+        /* Decouple the BFS window from the resident scene size: rsmod floods a
+         * fixed 128x128 box around the mover. LostCity leaves this at 0
+         * (whole map). */
+        if( app->features )
+        {
+            for( int i = 0; i < COLLISION_LEVELS; i++ )
+            {
+                if( app->world->collision_maps[i] )
+                    collision_map_set_route_window(
+                        app->world->collision_maps[i], app->features->route_window_tiles);
+            }
+        }
         {
             struct WorldEntity_Player* local = app_local_player(app);
             app_rebuild_world_map(app, local ? local->grid_position.level : 0);
@@ -5532,9 +5544,8 @@ app_try_move(
 
     if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
     {
-        /* The server owns the route (xrsps WALK): send the destination alone.
-         * A 1-entry route is exactly that — out_move writes the absolute
-         * coordinate and no deltas. */
+        /* The server owns the route and the map flag (SET_MAP_FLAG). Send the
+         * destination alone — osrs230 MOVE_GAMECLICK is a fixed 5-byte body. */
         route_x[0] = dst_x;
         route_z[0] = dst_z;
         route_len = 1;
@@ -5607,10 +5618,16 @@ app_try_move(
                 route_len,
                 ctrl_held));
 
-    /* Reference tryMove latches the flag from the routed destination. */
-    app->minimap_flag_x = route_x[0];
-    app->minimap_flag_z = route_z[0];
-    app->need_redraw = 1;
+    /* Client-BFS eras latch the flag from the routed destination. Under
+     * SERVER_AUTHORITATIVE the server owns SET_MAP_FLAG — do not paint a
+     * local guess that the clear packet would then fight. Offline still
+     * wants the UI mark. */
+    if( app->features->pathing_mode != TORIRS_PATHING_SERVER_AUTHORITATIVE || !online )
+    {
+        app->minimap_flag_x = route_x[0];
+        app->minimap_flag_z = route_z[0];
+        app->need_redraw = 1;
+    }
     return 1;
 }
 
@@ -5641,8 +5658,7 @@ app_op_nearest_opts(struct App const* app)
  *
  * Under a server-authoritative era there is no route to compute and no
  * MOVE_OPCLICK to send: the interaction packet carries the target and the
- * server paths. The minimap flag is still latched, because the UI reads the
- * same either way. */
+ * server paths. The map flag comes from the server's SET_MAP_FLAG. */
 static int
 app_try_move_op(
     struct App* app,
@@ -5669,12 +5685,7 @@ app_try_move_op(
         return 0;
 
     if( app->features->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE )
-    {
-        app->minimap_flag_x = dst_x;
-        app->minimap_flag_z = dst_z;
-        app->need_redraw = 1;
         return 1;
-    }
 
     level = player->grid_position.level;
     if( level < 0 )
