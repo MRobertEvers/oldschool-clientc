@@ -209,6 +209,9 @@ struct ToriRS_Location
     int contour_ground_type;
     int contour_ground_param;
     int sharelight;
+    /** LocType.occlude (config opcode 23): walls/roofs with this set contribute
+     *  to the planar occluder system (Client-TS mapo marks). Default 0. */
+    int occlude;
     int shadowed;
     int ambient;
     int contrast;

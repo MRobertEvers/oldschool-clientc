@@ -596,10 +596,12 @@ UITreeSceneBridge_EnsureNpcHead(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    ToriDraw_LightModelActor(
-        hnd,
-        bridge->npc_light_uses_type_ambient_contrast ? npc->contrast : 0,
-        bridge->npc_light_uses_type_ambient_contrast ? npc->ambient : 0);
+    /* Client-TS IfType.getTempModel lights every IF model (incl. NPC heads)
+     * with the scene regime. xrsps ChatheadFactory uses actor + type offsets. */
+    if( bridge->npc_light_uses_type_ambient_contrast )
+        ToriDraw_LightModelActor(hnd, npc->contrast, npc->ambient);
+    else
+        ToriDraw_LightModelScene(hnd, 0, 0);
 
     scene_id = (int)(UITREE_SCENE_NPC_HEAD_BASE | (unsigned)npc_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
@@ -640,9 +642,9 @@ UITreeSceneBridge_EnsurePlayerHead(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    /* Client-TS leaves head models unlit; xrsps lights with absolute ambient
-     * 128 (= profile 64 + 64). player_head_light_ambient is that absolute value
-     * when non-zero. */
+    /* Client-TS getTempModel lights IF heads with the scene regime; xrsps
+     * PlayerChatheadFactory uses absolute ambient 128 + actor dir/atten.
+     * player_head_light_ambient is that absolute value when non-zero. */
     if( bridge->player_head_light_ambient != 0 )
     {
         struct ToriDraw_LightProfile const* p = ToriDraw_LightActorProfile();
@@ -653,6 +655,10 @@ UITreeSceneBridge_EnsurePlayerHead(
             p->src_x,
             p->src_y,
             p->src_z);
+    }
+    else
+    {
+        ToriDraw_LightModelScene(hnd, 0, 0);
     }
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
     bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;

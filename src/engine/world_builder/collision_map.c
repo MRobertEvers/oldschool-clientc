@@ -34,9 +34,20 @@ collision_map_new(
     memset(cm, 0, sizeof(struct CollisionMap));
     cm->size_x = size_x;
     cm->size_z = size_z;
+    cm->route_window = COLLISION_ROUTE_WINDOW;
     cm->flags = (int*)malloc((size_t)(size_x * size_z) * sizeof(int));
     collision_map_reset(cm);
     return cm;
+}
+
+void
+collision_map_set_route_window(
+    struct CollisionMap* cm,
+    int window)
+{
+    assert(cm);
+    assert(window >= 0);
+    cm->route_window = window;
 }
 
 void
@@ -96,6 +107,74 @@ collision_map_add_floor(
     int tile_z)
 {
     collision_map_add(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
+}
+
+void
+collision_map_change_roof(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int add)
+{
+    if( add )
+        collision_map_add(cm, tile_x, tile_z, COLL_FLAG_ROOF);
+    else
+        collision_map_remove(cm, tile_x, tile_z, COLL_FLAG_ROOF);
+}
+
+/*
+ * rsmod CollisionStrategy.canMove, verbatim per branch.
+ *
+ * NORMAL is the mask test every other reader of this file already does; the
+ * other four are the moverestrict cases. LINE_OF_SIGHT is the one worth
+ * reading twice: it does not consult a separate flag tier, it *reinterprets*
+ * the mask, shifting the wall and loc bits up into their projectile twins
+ * (0x1 << 9 == WALL_NORTH_WEST_PROJ, 0x100 << 9 == LOC_PROJ_BLOCKER), so a
+ * mover walks exactly where a projectile could fly.
+ */
+int
+collision_can_move(
+    int coll_type,
+    int tile_flag,
+    int block_flag)
+{
+    static const int k_los_movement = COLL_FLAG_WALL_NORTH_WEST | COLL_FLAG_WALL_NORTH |
+                                      COLL_FLAG_WALL_NORTH_EAST | COLL_FLAG_WALL_EAST |
+                                      COLL_FLAG_WALL_SOUTH_EAST | COLL_FLAG_WALL_SOUTH |
+                                      COLL_FLAG_WALL_SOUTH_WEST | COLL_FLAG_WALL_WEST |
+                                      COLL_FLAG_LOC;
+
+    switch( coll_type )
+    {
+    case COLL_TYPE_NORMAL:
+        return (tile_flag & block_flag) == COLL_FLAG_OPEN;
+    case COLL_TYPE_BLOCKED:
+    {
+        int mask = block_flag & ~COLL_FLAG_FLOOR;
+        return (tile_flag & mask) == COLL_FLAG_OPEN &&
+               (tile_flag & COLL_FLAG_FLOOR) != COLL_FLAG_OPEN;
+    }
+    case COLL_TYPE_INDOORS:
+        return (tile_flag & block_flag) == COLL_FLAG_OPEN &&
+               (tile_flag & COLL_FLAG_ROOF) != COLL_FLAG_OPEN;
+    case COLL_TYPE_OUTDOORS:
+        return (tile_flag & (block_flag | COLL_FLAG_ROOF)) == COLL_FLAG_OPEN;
+    case COLL_TYPE_LINE_OF_SIGHT:
+    {
+        /* The proj twins are exactly nine bits above the walk bits in this
+         * layout too, which is what makes the reference's shift portable here.
+         */
+        _Static_assert(
+            (COLL_FLAG_WALL_NORTH_WEST << 9) == COLL_FLAG_WALL_NORTH_WEST_PROJ,
+            "wall bits must sit nine below their proj twins");
+        _Static_assert(
+            (COLL_FLAG_LOC << 9) == COLL_FLAG_LOC_PROJ_BLOCKER,
+            "LOC must sit nine below LOC_PROJ_BLOCKER");
+        return (tile_flag & ((block_flag & k_los_movement) << 9)) == COLL_FLAG_OPEN;
+    }
+    default:
+        return 0;
+    }
 }
 
 /* Shared core for add_loc / del_loc: `add` selects OR (add) vs AND-NOT (del) so
@@ -824,13 +903,56 @@ collision_nearest_fallback(
     return found;
 }
 
+/* The tile range the flood may expand into: cm->route_window tiles centred on
+ * the source (rsmod `baseX = srcX - searchHalfMapSize`), clipped to the map. A
+ * window of 0, or one at least as wide as the map, is the whole map — which is
+ * what the 2004 client does and why a 104-tile scene sees no difference. */
+struct CollisionFloodWindow
+{
+    int min_x;
+    int min_z;
+    int max_x; /* inclusive */
+    int max_z; /* inclusive */
+};
+
+static void
+collision_flood_window(
+    struct CollisionMap const* cm,
+    int src_x,
+    int src_z,
+    struct CollisionFloodWindow* out)
+{
+    int half;
+
+    assert(cm && out);
+    out->min_x = 0;
+    out->min_z = 0;
+    out->max_x = cm->size_x - 1;
+    out->max_z = cm->size_z - 1;
+    if( cm->route_window <= 0 )
+        return;
+
+    half = cm->route_window / 2;
+    if( src_x - half > out->min_x )
+        out->min_x = src_x - half;
+    if( src_z - half > out->min_z )
+        out->min_z = src_z - half;
+    if( src_x - half + cm->route_window - 1 < out->max_x )
+        out->max_x = src_x - half + cm->route_window - 1;
+    if( src_z - half + cm->route_window - 1 < out->max_z )
+        out->max_z = src_z - half + cm->route_window - 1;
+}
+
 /* Reference tryMove flood (Client.ts:5860-6008 ground-click arrival): fills
  * dir_map with the DirectionFlag toward each tile's parent and dist_map with
  * step counts, stopping early when a tile satisfies `approach` (or is the exact
  * destination when approach is NULL). The arrival tile is written to
  * *out_arrive_x/z. All four scratch arrays are size_x*size_z ints. Returns 1
  * when arrival was reached; on 0 the maps are fully flooded (needed for the
- * try-nearest fallback). */
+ * try-nearest fallback).
+ *
+ * Expansion is confined to the router's window (above), so the reachable set is
+ * the mover's neighbourhood rather than "however much scene is loaded". */
 static int
 collision_flood(
     struct CollisionMap* cm,

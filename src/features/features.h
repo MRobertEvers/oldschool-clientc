@@ -121,10 +121,11 @@ struct ToriRS_FeatureTable
      */
     int npc_light_uses_type_ambient_contrast;
     /**
-     * Extra ambient applied when lighting a player chathead. 0 = Client-TS
-     * (head models are left unlit). 128 = xrsps PlayerChatheadFactory
-     * (`light(..., 64 + 64, 850, ...)` — the profile ambient is 64, so this
-     * field is the *extra* ambient passed as the LightModelActor offset).
+     * Absolute ambient used when lighting a player chathead with the actor
+     * direction/attenuation. 0 = Client-TS: bridge lights with the scene
+     * regime (IfType.getTempModel). 128 = xrsps PlayerChatheadFactory
+     * (`light(..., 64 + 64, 850, -30, -50, -30)` — passed as absolute ambient
+     * to LightModelParams, not an Actor offset).
      */
     int player_head_light_ambient;
 };

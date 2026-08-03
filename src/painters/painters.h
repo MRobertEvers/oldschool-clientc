@@ -499,6 +499,18 @@ painter_set_cullspan(
     struct Painter* painter,
     const struct PaintersCullSpan* span);
 
+struct SceneOccluders;
+
+/** Install (or clear, with NULL) the planar occluder set for this painter.
+ * Takes ownership: painter_free / a subsequent set frees the previous set. */
+void
+painter_set_occluders(
+    struct Painter* painter,
+    struct SceneOccluders* occ);
+
+struct SceneOccluders*
+painter_get_occluders(struct Painter* painter);
+
 void
 painter_set_camera_angles(
     struct Painter* painter,

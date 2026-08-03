@@ -5,6 +5,7 @@
 #include "painters/painters.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "minimap.h"
+#include "occluder_buildmap.h"
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "toridraw_light_model.h"
@@ -940,6 +941,46 @@ scenery_add_wall_single(
         ROTATION_WALL_TYPE[orientation]);
     scenery_record_runtime_wall(builder, element_id, WALL_A, ROTATION_WALL_TYPE[orientation]);
 
+    /* Planar occluder marks (Client-TS ClientBuild.addLoc WALL_STRAIGHT). */
+    if( config_loc->occlude )
+    {
+        switch( orientation )
+        {
+        case 0: /* WEST */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
+            break;
+        case 1: /* NORTH */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z + 1,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            break;
+        case 2: /* EAST */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x + 1,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
+            break;
+        case 3: /* SOUTH */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            break;
+        }
+    }
+
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
         scene_x,
@@ -1075,6 +1116,72 @@ scenery_add_wall_two_sides(
 
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id2, 1, 1);
+
+    /* Planar occluder marks (Client-TS ClientBuild.addLoc WALL_L). The west
+     * arm uses OCCLUDER_MARK_WALL_L_WEST_ARM (0x109), not the all-levels
+     * wall-along-X composite — a Jagex bug preserved for parity. */
+    if( config_loc->occlude )
+    {
+        switch( orientation )
+        {
+        case 0: /* WEST */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_L_WEST_ARM);
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z + 1,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            break;
+        case 1: /* NORTH */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z + 1,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x + 1,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
+            break;
+        case 2: /* EAST */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x + 1,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            break;
+        case 3: /* SOUTH — both marks land on the same tile in the reference */
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
+            break;
+        }
+    }
 }
 
 static void
@@ -1559,6 +1666,25 @@ scenery_add_roof(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_normal_scenery(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+
+    /* Roof occluder marks: shapes 12..17 except 13 (ROOF_DIAGONAL_WITH_ROOFEDGE
+     * / ROOF_SLOPED_OUTER_CORNER), only above level 0. Gate on the shape
+     * numbers — the repo's enum names differ from Client-TS for the same ids. */
+    {
+        int shape = map_loc->shape_select;
+        if( shape >= RSCACHE_LOC_SHAPE_ROOF_SLOPED && shape <= RSCACHE_LOC_SHAPE_ROOF_FLAT &&
+            shape != RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER &&
+            map_loc->chunk_pos_level > 0 )
+        {
+            occluder_buildmap_or_mark(
+                builder->occluder_buildmap,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                OCCLUDER_MARK_FLOOR_ALL_LEVELS);
+        }
+    }
+
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }

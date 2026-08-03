@@ -17,6 +17,8 @@ struct Lightmap;
 struct SharelightMap;
 struct Shademap2;
 struct FlagMap;
+struct OccluderBuildmap;
+struct SceneOccluders;
 
 struct WorldBuilder
 {
@@ -33,6 +35,8 @@ struct WorldBuilder
     struct SharelightMap* sharelight_map;
     struct Shademap2* shademap;
     struct FlagMap* flag_map;
+    /** Build-only mapo bitfield; freed after the greedy merge emits occluders. */
+    struct OccluderBuildmap* occluder_buildmap;
     struct ContourGroundQueue contour_ground_queue;
 
     /** Set during scenery chunk rebuild for scenery_load_model diagnostics. */

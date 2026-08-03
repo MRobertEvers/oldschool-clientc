@@ -272,6 +272,7 @@ painter_paint_bucket(
 
                 tp->near_wall_flags = 0;
                 tp->in_queue = 0;
+                tp->occlusion = TILE_OCCLUSION_UNKNOWN;
 
                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
                 if( tile_excluded_by_bridge_or_draw_mask(
@@ -496,6 +497,10 @@ painter_paint_bucket(
             int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
             tile_paint->near_wall_flags |= (uint8_t)~far_walls;
 
+            struct SceneOccluders* occ = painter->occluders;
+            int ground_hidden =
+                painter_tile_ground_hidden(occ, tile_paint, paintgrid_level, tile_sx, tile_sz);
+
             if( tile->bridge_tile != -1 )
             {
                 struct PaintersTile* bridge_underpass_tile = &tiles[tile->bridge_tile];
@@ -529,14 +534,17 @@ painter_paint_bucket(
                 }
             }
 
-            bucket_emit_terrain(
-                &cmd_cur, cmd_end, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
+            if( !ground_hidden )
+                bucket_emit_terrain(
+                    &cmd_cur, cmd_end, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
 
             if( tile->wall_a != -1 )
             {
                 struct PaintersElement* element = &elements[tile->wall_a];
                 assert(element->kind == PNTRELEM_WALL_A);
-                if( (element->_wall.side & far_walls) != 0 )
+                if( (element->_wall.side & far_walls) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
             }
 
@@ -544,7 +552,9 @@ painter_paint_bucket(
             {
                 struct PaintersElement* element = &elements[tile->wall_b];
                 assert(element->kind == PNTRELEM_WALL_B);
-                if( (element->_wall.side & far_walls) != 0 )
+                if( (element->_wall.side & far_walls) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
             }
 
@@ -552,20 +562,27 @@ painter_paint_bucket(
             {
                 struct PaintersElement* element = &elements[tile->ground_decor];
                 assert(element->kind == PNTRELEM_GROUND_DECOR);
-                bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
+                if( !(occ && scene_occluders_column_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
             }
 
             if( tile->ground_object_bottom != -1 )
             {
                 struct PaintersElement* element = &elements[tile->ground_object_bottom];
                 assert(element->kind == PNTRELEM_GROUND_OBJECT);
-                bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
+                if( !(occ && scene_occluders_column_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
             }
 
             if( tile->wall_decor_a != -1 )
             {
                 struct PaintersElement* element = &elements[tile->wall_decor_a];
                 assert(element->kind == PNTRELEM_WALL_DECOR);
+                int decor_hidden =
+                    occ &&
+                    scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
                 if( element->_wall_decor._bf_through_wall_flags != 0 )
                 {
                     int x_diff = element->sx - camera_sx;
@@ -582,17 +599,22 @@ painter_paint_bucket(
                         z_near = -z_diff;
 
                     if( z_near < x_near )
-                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    {
+                        if( !decor_hidden )
+                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    }
                     else if( tile->wall_decor_b != -1 )
                     {
                         element = &elements[tile->wall_decor_b];
                         assert(element->kind == PNTRELEM_WALL_DECOR);
-                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                        if( !decor_hidden )
+                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
                     }
                 }
                 else if( (element->_wall_decor._bf_side & far_walls) != 0 )
                 {
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    if( !decor_hidden )
+                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
                 }
             }
             else
@@ -703,7 +725,16 @@ painter_paint_bucket(
 
             struct PaintersElement* element = &elements[si];
             assert(element->kind == PNTRELEM_SCENERY);
-            bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
+            if( !(painter->occluders &&
+                  scene_occluders_footprint_hidden(
+                      painter->occluders,
+                      paintgrid_level,
+                      (int)element->sx,
+                      (int)element->sz,
+                      element->_scenery.size_x,
+                      element->_scenery.size_z,
+                      0)) )
+                bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
 
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
@@ -740,55 +771,70 @@ painter_paint_bucket(
         if( blocked_undrawn )
             continue;
 
-        if( tile->wall_decor_a != -1 )
         {
-            struct PaintersElement* element = &elements[tile->wall_decor_a];
-            assert(element->kind == PNTRELEM_WALL_DECOR);
+            struct SceneOccluders* occ = painter->occluders;
+            int decor_hidden =
+                occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
 
-            if( element->_wall_decor._bf_through_wall_flags != 0 )
+            if( tile->wall_decor_a != -1 )
             {
-                int x_diff = element->sx - camera_sx;
-                int z_diff = element->sz - camera_sz;
+                struct PaintersElement* element = &elements[tile->wall_decor_a];
+                assert(element->kind == PNTRELEM_WALL_DECOR);
 
-                int x_near = x_diff;
-                if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
-                    element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
-                    x_near = -x_diff;
-
-                int z_near = z_diff;
-                if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
-                    element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
-                    z_near = -z_diff;
-
-                if( z_near >= x_near )
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                else if( tile->wall_decor_b != -1 )
+                if( element->_wall_decor._bf_through_wall_flags != 0 )
                 {
-                    element = &elements[tile->wall_decor_b];
-                    assert(element->kind == PNTRELEM_WALL_DECOR);
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    int x_diff = element->sx - camera_sx;
+                    int z_diff = element->sz - camera_sz;
+
+                    int x_near = x_diff;
+                    if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                        element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                        x_near = -x_diff;
+
+                    int z_near = z_diff;
+                    if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                        element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                        z_near = -z_diff;
+
+                    if( z_near >= x_near )
+                    {
+                        if( !decor_hidden )
+                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    }
+                    else if( tile->wall_decor_b != -1 )
+                    {
+                        element = &elements[tile->wall_decor_b];
+                        assert(element->kind == PNTRELEM_WALL_DECOR);
+                        if( !decor_hidden )
+                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    }
+                }
+                else if( (element->_wall_decor._bf_side & tile_paint->near_wall_flags) != 0 )
+                {
+                    if( !decor_hidden )
+                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
                 }
             }
-            else if( (element->_wall_decor._bf_side & tile_paint->near_wall_flags) != 0 )
+
+            if( tile->wall_a != -1 )
             {
-                bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                struct PaintersElement* element = &elements[tile->wall_a];
+                assert(element->kind == PNTRELEM_WALL_A);
+                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
             }
-        }
 
-        if( tile->wall_a != -1 )
-        {
-            struct PaintersElement* element = &elements[tile->wall_a];
-            assert(element->kind == PNTRELEM_WALL_A);
-            if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
-                bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-        }
-
-        if( tile->wall_b != -1 )
-        {
-            struct PaintersElement* element = &elements[tile->wall_b];
-            assert(element->kind == PNTRELEM_WALL_B);
-            if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
-                bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+            if( tile->wall_b != -1 )
+            {
+                struct PaintersElement* element = &elements[tile->wall_b];
+                assert(element->kind == PNTRELEM_WALL_B);
+                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+            }
         }
 
         tile_paint->step = PAINT_STEP_DONE;

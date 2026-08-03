@@ -13,8 +13,8 @@ Both Client-TS and xrsps-typescript light models with
 
 | Regime | ambient | attenuation | light (X,Y,Z) | Used for |
 |--------|---------|-------------|---------------|----------|
-| **Actor** | 64 | 850 | (-30, -50, -30) | players, NPCs, spotanims, projectiles, chatheads |
-| **Scene** | 64 | 768 | (-50, -10, -50) | locs, ground objs, widget models, sharelight |
+| **Actor** | 64 | 850 | (-30, -50, -30) | world players/NPCs, spotanims, projectiles; xrsps chatheads |
+| **Scene** | 64 | 768 | (-50, -10, -50) | locs, ground objs, widget models, sharelight, Client-TS IF chatheads |
 
 torirs encodes them as process-wide profiles in
 `ToriDraw_LightModelActor` / `ToriDraw_LightModelScene`
@@ -27,14 +27,24 @@ and players — so actor models were shaded with the wrong direction and
 attenuation. The character-design preview was the only site that already
 passed `(64, 850, -30, -50, -30)`.
 
+## Interface chatheads
+
+Client-TS builds NPC/player head composites unlit (`NpcType.getHead` /
+`ClientPlayer.getHeadModel`), then `IfType.getTempModel` lights every IF model
+with the **scene** regime. torirs has no draw-time re-light, so
+`UITreeSceneBridge_EnsureNpcHead` / `EnsurePlayerHead` bake at build time.
+
+xrsps disagrees: `ChatheadFactory` uses actor + NpcType ambient/contrast;
+`PlayerChatheadFactory` uses absolute ambient 128 with actor dir/atten.
+
 ## Where xrsps and Client-TS disagree
 
 Only two things; both are era-table fields whose **zero is Client-TS**:
 
 | Field | 0 (Client-TS / lostcity / osrs) | non-zero (xrsps / `server_routed`) |
 |-------|----------------------------------|-------------------------------------|
-| `npc_light_uses_type_ambient_contrast` | ignore NpcType opcodes 100/101 | ambient += npctype.ambient, contrast += npctype.contrast |
-| `player_head_light_ambient` | leave chathead unlit | absolute ambient when lighting the head (128) |
+| `npc_light_uses_type_ambient_contrast` | world NPC bodies ignore opcodes 100/101; IF NPC heads use Scene | ambient += npctype.ambient, contrast += npctype.contrast (bodies + IF heads use Actor) |
+| `player_head_light_ambient` | IF player head uses Scene | absolute ambient when lighting the head with actor dir (128) |
 
 Defined on `struct ToriRS_FeatureTable` (`src/features/features.h`).
 `App_Init` copies them onto `App` / `UITreeSceneBridge` so a
@@ -69,8 +79,9 @@ Parsed by `src/bootmanifest/bootmanifest.c`, applied in `App_Init` via
 | `app_world_build_model` (ground obj) | Scene (+ obj ambient/contrast) |
 | `app_world_build_spotanim_model` | Actor (+ spot ambient/contrast) |
 | `PlayerModel_BuildFromAppearance` | Actor |
-| `PlayerHeadModel_BuildFromAppearance` | unlit; bridge lights when `player_head_light_ambient != 0` |
-| `UITreeSceneBridge_EnsureNpcHead` | Actor (+ type offsets when enabled) |
+| `PlayerHeadModel_BuildFromAppearance` | unlit; bridge always lights |
+| `UITreeSceneBridge_EnsureNpcHead` | Scene (Client-TS); Actor + type offsets when era flag on |
+| `UITreeSceneBridge_EnsurePlayerHead` | Scene when `player_head_light_ambient==0`; else absolute ambient + actor dir |
 | Widget cache models / obj icons / obj 3D | Scene |
 | Loc defaultlight / sharelight / runtime spawn | Scene |
 

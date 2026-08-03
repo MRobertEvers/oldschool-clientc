@@ -1,6 +1,7 @@
 #include "painters.h"
 
 #include "painters_i.h"
+#include "scene_occluders.h"
 #include "perf/torirs_perf.h"
 
 #include <assert.h>
@@ -623,6 +624,24 @@ painter_set_cullspan(
 }
 
 void
+painter_set_occluders(
+    struct Painter* painter,
+    struct SceneOccluders* occ)
+{
+    assert(painter);
+    if( painter->occluders && painter->occluders != occ )
+        scene_occluders_free(painter->occluders);
+    painter->occluders = occ;
+}
+
+struct SceneOccluders*
+painter_get_occluders(struct Painter* painter)
+{
+    assert(painter);
+    return painter->occluders;
+}
+
+void
 painter_set_camera_angles(
     struct Painter* painter,
     int pitch,
@@ -666,6 +685,8 @@ painter_free(struct Painter* painter)
     bucket_ctx_free(painter);
     w3d_ctx_free(painter);
     distmetric_ctx_free(painter);
+    if( painter->occluders )
+        scene_occluders_free(painter->occluders);
     free(painter);
 }
 

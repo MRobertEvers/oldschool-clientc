@@ -75,7 +75,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .nearest_ranks_by_rect_distance = 1,
     .los_symmetric_pvp = 1,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
-     * light with ambient 128 (= profile 64 + this field). */
+     * light with absolute ambient 128 + actor dir (PlayerChatheadFactory). */
     .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 128,
 };

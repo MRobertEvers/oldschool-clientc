@@ -6,10 +6,12 @@
 #include "decor_buildmap.h"
 #include "engine/cache_provider.h"
 #include "painters/painters.h"
+#include "painters/scene_occluders.h"
 #include "flag_map.h"
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
+#include "occluder_buildmap.h"
 #include "overlaymap.h"
 #include "shademap.h"
 #include "sharelight_map.h"
@@ -48,6 +50,8 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
         shademap2_free(builder->shademap);
     if( builder->flag_map )
         flag_map_free(builder->flag_map);
+    if( builder->occluder_buildmap )
+        occluder_buildmap_free(builder->occluder_buildmap);
     contour_ground_q_free(&builder->contour_ground_queue);
     builder->blendmap = NULL;
     builder->overlaymap = NULL;
@@ -57,6 +61,7 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
     builder->sharelight_map = NULL;
     builder->shademap = NULL;
     builder->flag_map = NULL;
+    builder->occluder_buildmap = NULL;
 }
 
 struct WorldBuilder*
@@ -115,6 +120,10 @@ WorldBuilder_RebuildCenterzoneBegin(
     builder->sharelight_map = sharelight_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->shademap = shademap2_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->flag_map = flag_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    /* +1 so wall marks at [x+1]/[z+1] stay in range (Client-TS mapo is
+     * maxTileX+1 × maxTileZ+1). */
+    builder->occluder_buildmap =
+        occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
 }
 
 static inline bool
@@ -384,6 +393,30 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
      * persisted world->tile_flags; builder->flag_map is already freed above). */
     world_builder_pushdown_minimap(builder);
 
+    /* Planar occluders: greedy-merge the mapo marks (walls/roofs marked during
+     * scenery, flat floors marked during terrain) into SceneOccluder planes and
+     * install them on the painter. Reference order is pushDown then merge; our
+     * bridge push-down of painter tiles does not touch the mark bitfield. */
+    if( builder->occluder_buildmap && world->painter )
+    {
+        struct SceneOccluders* occ = painter_get_occluders(world->painter);
+        if( !occ )
+        {
+            occ = scene_occluders_new(
+                world->_scene_size, world->_scene_size, WORLD_MAP_TERRAIN_LEVELS);
+            painter_set_occluders(world->painter, occ);
+        }
+        occluder_buildmap_build_occluders(
+            builder->occluder_buildmap, world->heightmap, occ);
+        occluder_buildmap_free(builder->occluder_buildmap);
+        builder->occluder_buildmap = NULL;
+    }
+    else if( builder->occluder_buildmap )
+    {
+        occluder_buildmap_free(builder->occluder_buildmap);
+        builder->occluder_buildmap = NULL;
+    }
+
     if( builder->sharelight_map )
     {
         sharelight_map_free(builder->sharelight_map);
@@ -481,6 +514,10 @@ WorldBuilder_RebuildChunklistBegin(
     builder->sharelight_map = sharelight_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->shademap = shademap2_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->flag_map = flag_map_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
+    /* +1 so wall marks at [x+1]/[z+1] stay in range (Client-TS mapo is
+     * maxTileX+1 × maxTileZ+1). */
+    builder->occluder_buildmap =
+        occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
 }
 
 void

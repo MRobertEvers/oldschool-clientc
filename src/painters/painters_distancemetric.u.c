@@ -450,6 +450,10 @@ painter_paint_distancemetric(
             int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
             tile_paint->near_wall_flags |= ~far_walls;
 
+            struct SceneOccluders* occ = painter->occluders;
+            int ground_hidden =
+                painter_tile_ground_hidden(occ, tile_paint, paintgrid_level, tile_sx, tile_sz);
+
             if( tile->bridge_tile != -1 )
             {
                 bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
@@ -490,14 +494,17 @@ painter_paint_distancemetric(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
+            if( !ground_hidden )
+                push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
 
             if( tile->wall_a != -1 )
             {
                 element = &painter->elements[tile->wall_a];
                 assert(element->kind == PNTRELEM_WALL_A);
 
-                if( (element->_wall.side & far_walls) != 0 )
+                if( (element->_wall.side & far_walls) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     push_command_entity(buffer, element->_wall.entity);
             }
 
@@ -506,7 +513,9 @@ painter_paint_distancemetric(
                 element = &painter->elements[tile->wall_b];
                 assert(element->kind == PNTRELEM_WALL_B);
 
-                if( (element->_wall.side & far_walls) != 0 )
+                if( (element->_wall.side & far_walls) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     push_command_entity(buffer, element->_wall.entity);
             }
 
@@ -514,20 +523,27 @@ painter_paint_distancemetric(
             {
                 element = &painter->elements[tile->ground_decor];
                 assert(element->kind == PNTRELEM_GROUND_DECOR);
-                push_command_entity(buffer, element->_ground_decor.entity);
+                if( !(occ && scene_occluders_column_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+                    push_command_entity(buffer, element->_ground_decor.entity);
             }
 
             if( tile->ground_object_bottom != -1 )
             {
                 element = &painter->elements[tile->ground_object_bottom];
                 assert(element->kind == PNTRELEM_GROUND_OBJECT);
-                push_command_entity(buffer, element->_ground_object.entity);
+                if( !(occ && scene_occluders_column_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+                    push_command_entity(buffer, element->_ground_object.entity);
             }
 
             if( tile->wall_decor_a != -1 )
             {
                 element = &painter->elements[tile->wall_decor_a];
                 assert(element->kind == PNTRELEM_WALL_DECOR);
+                int decor_hidden =
+                    occ &&
+                    scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
                 if( element->_wall_decor._bf_through_wall_flags != 0 )
                 {
                     int x_diff = element->sx - camera_sx;
@@ -547,18 +563,21 @@ painter_paint_distancemetric(
                     if( z_near < x_near )
                     {
                         // Draw model a
-                        push_command_entity(buffer, element->_wall_decor.entity);
+                        if( !decor_hidden )
+                            push_command_entity(buffer, element->_wall_decor.entity);
                     }
                     else if( tile->wall_decor_b != -1 )
                     {
                         element = &painter->elements[tile->wall_decor_b];
                         assert(element->kind == PNTRELEM_WALL_DECOR);
-                        push_command_entity(buffer, element->_wall_decor.entity);
+                        if( !decor_hidden )
+                            push_command_entity(buffer, element->_wall_decor.entity);
                     }
                 }
                 else if( (element->_wall_decor._bf_side & far_walls) != 0 )
                 {
-                    push_command_entity(buffer, element->_wall_decor.entity);
+                    if( !decor_hidden )
+                        push_command_entity(buffer, element->_wall_decor.entity);
                 }
             }
             else
@@ -695,7 +714,16 @@ painter_paint_distancemetric(
                 element = &painter->elements[scenery_element];
                 assert(element->kind == PNTRELEM_SCENERY);
 
-                push_command_entity(buffer, element->_scenery.entity);
+                if( !(painter->occluders &&
+                      scene_occluders_footprint_hidden(
+                          painter->occluders,
+                          paintgrid_level,
+                          (int)element->sx,
+                          (int)element->sz,
+                          element->_scenery.size_x,
+                          element->_scenery.size_z,
+                          0)) )
+                    push_command_entity(buffer, element->_scenery.entity);
 
                 int min_tile_x = element->sx;
                 int min_tile_z = element->sz;
@@ -816,6 +844,10 @@ painter_paint_distancemetric(
 
         if( tile_paint->step == PAINT_STEP_NEAR_WALL )
         {
+            struct SceneOccluders* occ = painter->occluders;
+            int decor_hidden =
+                occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
+
             if( tile->wall_decor_a != -1 )
             {
                 element = &painter->elements[tile->wall_decor_a];
@@ -842,7 +874,8 @@ painter_paint_distancemetric(
                     if( z_near >= x_near )
                     {
                         // Draw model a
-                        push_command_entity(buffer, element->_wall_decor.entity);
+                        if( !decor_hidden )
+                            push_command_entity(buffer, element->_wall_decor.entity);
                     }
                     else if( tile->wall_decor_b != -1 )
                     {
@@ -850,12 +883,14 @@ painter_paint_distancemetric(
                         assert(element->kind == PNTRELEM_WALL_DECOR);
 
                         // Draw model b
-                        push_command_entity(buffer, element->_wall_decor.entity);
+                        if( !decor_hidden )
+                            push_command_entity(buffer, element->_wall_decor.entity);
                     }
                 }
                 else if( (element->_wall_decor._bf_side & tile_paint->near_wall_flags) != 0 )
                 {
-                    push_command_entity(buffer, element->_wall_decor.entity);
+                    if( !decor_hidden )
+                        push_command_entity(buffer, element->_wall_decor.entity);
                 }
             }
 
@@ -864,7 +899,9 @@ painter_paint_distancemetric(
                 element = &painter->elements[tile->wall_a];
                 assert(element->kind == PNTRELEM_WALL_A);
 
-                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
+                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     push_command_entity(buffer, element->_wall.entity);
             }
 
@@ -873,7 +910,9 @@ painter_paint_distancemetric(
                 element = &painter->elements[tile->wall_b];
                 assert(element->kind == PNTRELEM_WALL_B);
 
-                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
+                if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
+                    !(occ && scene_occluders_wall_hidden(
+                                 occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
                     push_command_entity(buffer, element->_wall.entity);
             }
 

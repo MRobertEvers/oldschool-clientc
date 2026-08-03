@@ -39,7 +39,7 @@
  *                 scene_ambient=<n>  scene_attenuation=<n>
  *                 scene_light=<x>,<y>,<z>
  *                 npc_type_ambient_contrast=0|1
- *                 player_head_ambient=<n>   (0 = leave chathead unlit)
+ *                 player_head_ambient=<n>   (0 = scene-light like Client-TS)
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
  *   [ui:gameframe]  <component>=<interface_id> or

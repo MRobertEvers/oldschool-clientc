@@ -109,6 +109,7 @@ ToriRS_LocationFromRSCacheDat2(
     loc->contour_ground_type = src->contour_ground_type;
     loc->contour_ground_param = src->contour_ground_param;
     loc->sharelight = src->sharelight;
+    loc->occlude = src->occlude;
     loc->shadowed = src->shadowed;
     loc->ambient = src->ambient;
     loc->contrast = src->contrast;

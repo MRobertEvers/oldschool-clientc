@@ -8,6 +8,17 @@
 #define COLLISION_SIZE 104
 #define COLLISION_LEVELS 4
 
+/*
+ * Width of the BFS search window, in tiles — rsmod / LostCity
+ * `PathFinder.DEFAULT_SEARCH_MAP_SIZE`. The flood is centred on the mover and
+ * clamped to this box, which is what stops a route from being a function of
+ * how big the loaded scene happens to be. A map narrower than the window (this
+ * client's 104-tile scene) is covered whole, so the two agree until the scene
+ * grows. `collision_map_set_route_window` overrides it per map; 0 means "the
+ * whole map", which is the 2004 client's own behaviour (it floods its scene).
+ */
+#define COLLISION_ROUTE_WINDOW 128
+
 /* CollisionFlag equivalents (CollisionFlag.ts) */
 #define COLL_FLAG_OPEN 0x0
 #define COLL_FLAG_WALL_NORTH_WEST 0x1
@@ -86,6 +97,62 @@
 #define COLL_FLAG_BLOCK_NPC_AND_PLAYERS 0x4000000
 #define COLL_FLAG_PROJ_BLOCK_ENTITY 0x8000000
 
+/*
+ * "This tile is under a roof" — rsmod `CollisionFlag.ROOF`, and the only input
+ * the INDOORS / OUTDOORS move restrictions have. Stamped from the map square's
+ * own REMOVE_ROOF tile setting, which is what the reference reads too
+ * (LostCity GameMap: `if (land & REMOVE_ROOFS) changeRoofCollision(...)`).
+ *
+ * Bit 28 rather than rsmod's 0x80000000: bit 31 is the sign bit of the `int`
+ * these flags live in, and nothing else needs the top nibble.
+ */
+#define COLL_FLAG_ROOF 0x10000000
+
+/*
+ * The route-blocker tier (rsmod's nine `WALL_*_ROUTE_BLOCKER` / `LOC_ROUTE_BLOCKER`
+ * bits at 0x400000..0x40000000) is deliberately absent, and not merely deferred:
+ * the reference deleted it. LostCity's own note where those bits used to be —
+ * "the route-blocker subsystem was removed (it only ever fed
+ * CollisionType.LINE_OF_SIGHT, was never written — changeLocCollision hardcoded
+ * false — and is reclaimed for player-occupancy collision)". LINE_OF_SIGHT is
+ * implemented here the way the reference implements it, by shifting the wall/loc
+ * bits into their projectile twins (COLL_TYPE_LINE_OF_SIGHT below), so there is
+ * nothing left for the tier to carry.
+ */
+
+/*
+ * Which move restriction a mover walks under — rsmod `CollisionType`, chosen
+ * from an NPC's `moverestrict` (LostCity `PathingEntity.getCollisionStrategy`).
+ * Players are always NORMAL. `nomove` is not a value here: it means "does not
+ * move at all", which the caller answers by not stepping.
+ */
+enum CollisionType
+{
+    /** Blocked by everything the mask names. Every player, and most NPCs. */
+    COLL_TYPE_NORMAL = 0,
+    /** moverestrict=blocked: may walk ONLY on tiles the map blocks, and FLOOR
+     *  stops counting as a blocker. Lava, water, the inside of walls. */
+    COLL_TYPE_BLOCKED = 1,
+    /** moverestrict=indoors: normal blocking, and the tile must be roofed. */
+    COLL_TYPE_INDOORS = 2,
+    /** moverestrict=outdoors: normal blocking, and the tile must NOT be roofed. */
+    COLL_TYPE_OUTDOORS = 3,
+    /** moverestrict=blocked_normal: walks wherever a projectile could fly —
+     *  the wall/loc bits of the mask are read as their PROJ twins (<< 9). */
+    COLL_TYPE_LINE_OF_SIGHT = 4,
+};
+
+/*
+ * rsmod `CollisionStrategy.canMove`: is `tile_flag` passable for a mover of
+ * `coll_type` against the blocker mask `block_flag`? Exposed because the step
+ * validator, the flood and the naive walk must all ask it the same way.
+ */
+int
+collision_can_move(
+    int coll_type,
+    int tile_flag,
+    int block_flag);
+
 /* LocAngle: 0=WEST, 1=NORTH, 2=EAST, 3=SOUTH (clientts LocAngle) */
 enum CollisionLocAngle
 {
@@ -100,6 +167,10 @@ struct CollisionMap
     int* flags;
     int size_x;
     int size_z;
+    /** BFS window width in tiles, centred on the mover. 0 = the whole map.
+     *  Defaults to COLLISION_ROUTE_WINDOW; set with
+     *  collision_map_set_route_window. */
+    int route_window;
 };
 
 struct CollisionMap*
@@ -112,6 +183,27 @@ collision_map_free(struct CollisionMap* cm);
 
 void
 collision_map_reset(struct CollisionMap* cm);
+
+/*
+ * Resize the BFS window (tiles, centred on the mover; 0 = the whole map).
+ *
+ * The window is a property of the *router*, not of the loaded scene, which is
+ * the whole reason it is stated separately: rsmod floods 128x128 around the
+ * mover whatever its map holds, and reading the scene's own size instead makes
+ * the route silently depend on how much terrain happens to be resident.
+ */
+void
+collision_map_set_route_window(
+    struct CollisionMap* cm,
+    int window);
+
+/** Roof presence for the INDOORS / OUTDOORS restrictions (COLL_FLAG_ROOF). */
+void
+collision_map_change_roof(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int add);
 
 void
 collision_map_add_floor(
@@ -583,6 +675,26 @@ collision_map_approached(
     int dest_height);
 
 /*
+ * The 2019 symmetric form: approached(a->b) && approached(b->a).
+ *
+ * Live OSRS applies this to **player versus player only** (the 29 Aug 2019 LMS
+ * update); PvM keeps the asymmetric single cast above, so this is not a drop-in
+ * replacement for it. Stated as its own function because the symmetry, not the
+ * ray, is what the era flag selects — see docs/OSRS_PATHING_LOS.md §2.2.
+ */
+int
+collision_map_approached_symmetric(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height);
+
+/*
  * Entity occupancy — rsmod CollisionEngine.changeSquare. Unconditional clear
  * (does not check whether another entity still occupies the tile) — that is
  * exactly why NPC stacking works.
@@ -601,6 +713,9 @@ collision_map_change_square(
  * only mover size NPCs/players use through the naive pathfinder today).
  * extra_flag is OR'd into every BLOCK_* test (occupancy). Returns 1 when the
  * step is legal.
+ *
+ * The plain form is COLL_TYPE_NORMAL, which is every player and most NPCs; the
+ * typed form takes an `enum CollisionType` for the moverestrict cases.
  */
 int
 collision_map_can_travel(
@@ -611,6 +726,17 @@ collision_map_can_travel(
     int offset_z,
     int size,
     int extra_flag);
+
+int
+collision_map_can_travel_typed(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag,
+    int coll_type);
 
 /*
  * Naive / "dumb" pathfinder — rsmod NaivePathFinder.findNaivePath.

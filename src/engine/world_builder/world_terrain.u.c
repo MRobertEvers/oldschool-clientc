@@ -7,6 +7,7 @@
 #include "heightmap.h"
 #include "lightmap.h"
 #include "minimap.h"
+#include "occluder_buildmap.h"
 #include "osrs/palette.h"
 #include "overlaymap.h"
 #include "shademap.h"
@@ -320,6 +321,23 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
                     terrain_shape_map_set_tile(
                         builder->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
                 }
+
+                /* Opacity half of the flat-floor occluder condition (Client-TS
+                 * finishBuild). Flatness is applied later once all corner
+                 * heights are known — the NE corner may belong to the next
+                 * map square. Only levels > 0 contribute. */
+                if( level > 0 && builder->occluder_buildmap )
+                {
+                    int has_underlay = tile->underlay_id > 0;
+                    /* floors === PLAIN: raw overlay shape 0 (or absent). */
+                    int overlay_plain = (overlay_id == -1) || (tile->shape == 0);
+                    int occludes = has_underlay || overlay_plain;
+                    if( overlay_id != -1 && overlay_flotype && !overlay_flotype->hide_underlay )
+                        occludes = 0;
+                    if( occludes )
+                        occluder_buildmap_set_floor_opacity(
+                            builder->occluder_buildmap, offset_x, offset_z, level, 1);
+                }
             }
         }
     }
@@ -368,6 +386,18 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 int height_se = heightmap_get(world->heightmap, x + 1, z, level);
                 int height_ne = heightmap_get(world->heightmap, x + 1, z + 1, level);
                 int height_nw = heightmap_get(world->heightmap, x, z + 1, level);
+
+                /* Flatness half of the floor occluder condition. */
+                if( builder->occluder_buildmap )
+                    occluder_buildmap_mark_flat_floor(
+                        builder->occluder_buildmap,
+                        x,
+                        z,
+                        level,
+                        height_sw,
+                        height_se,
+                        height_ne,
+                        height_nw);
 
                 int light_sw = lightmap_get(builder->lightmap, x, z, level);
                 int light_se = lightmap_get(builder->lightmap, x + 1, z, level);
