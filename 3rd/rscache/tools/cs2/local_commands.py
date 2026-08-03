@@ -349,6 +349,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7610": (["INT"], ["INT"], False),
     "_7611": (["STRING", "INT"], ["INT", "INT"], False),
     "_7612": (["INT", "INT"], ["INT", "INT"], False),
+    # 7628: script 7192 (LOOTTRACKER_ADD_LOOT) — push name, obj, qty, eventId
+    # then native store write. RuneLite ScriptPreFired args match that order.
+    "_7628": (["STRING", "INT", "INT", "INT"], [], False),
 
     # ---------------------------------------------------------------
     # Read out of a deobfuscated client, not inferred.

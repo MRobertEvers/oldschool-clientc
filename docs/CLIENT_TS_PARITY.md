@@ -1809,6 +1809,11 @@ Now it mirrors the reference exactly:
     `net_out_opplayer*` when the revision defines those opcodes. **osrs230
     still has no OPPLAYER\* row in `packetout.h`** — encode returns -1; menu
     visibility and pathing still run.
+  - **Ground items on the tile** (`add_objs_on_tile`): Client-TS lists every
+    obj on a tile from an entityType-3 pick. Entity models often occlude that
+    pick here, so NPC/player stack expansion also emits every `ObjStack` on the
+    same grid tile (deduped if an obj pick is also present). An obj pick itself
+    expands siblings the same way.
 
 **What's deliberately not ported:** the `locModel` addDynamic2 bypass (torirs
 doesn't model loc-bound player anims), and the anticheat `cyclelogic` packets
@@ -1823,7 +1828,9 @@ entity id directly off the tile's scenery chain. `test_minusedlevel_entity_draw`
 — movers with a mismatched stored level still land on the local plane; off-plane
 projectiles/spotanims/obj-stacks are skipped. `make -C src test-minimenu-world`
 — local player pick expands stacked NPC options with zero local OPPLAYER rows;
-other players on the same tile get Follow/Trade rows; solo local yields none.
+other players on the same tile get Follow/Trade rows; solo local yields none;
+ground items on the tile appear from a player pick and from an obj sibling
+expansion.
 
 ---
 

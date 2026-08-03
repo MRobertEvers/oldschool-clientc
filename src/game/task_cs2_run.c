@@ -499,6 +499,19 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
 }
 
 static void
+task_cs2_plan_npc_name(struct Task_CS2Run* self)
+{
+    assert(self->pending.kind == CS2VM_HOST_REQUEST_NC_NAME);
+    self->await_id = self->pending.u.nc_name.npc_id;
+    if( self->await_id < 0 )
+    {
+        self->yield_plan = TASK_CS2_YIELD_NONE;
+        return;
+    }
+    self->yield_plan = TASK_CS2_YIELD_NPC;
+}
+
+static void
 task_cs2_plan_component(struct Task_CS2Run* self)
 {
     self->await_id = task_cs2_group_id_from_request(&self->pending);
@@ -676,6 +689,10 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_IOP:
     case CS2VM_HOST_REQUEST_OC_EXAMINE:
         task_cs2_plan_obj(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_NC_NAME:
+        task_cs2_plan_npc_name(self);
         break;
 
     case CS2VM_HOST_REQUEST_CC_CREATE:

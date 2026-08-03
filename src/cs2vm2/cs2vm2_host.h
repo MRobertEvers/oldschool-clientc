@@ -212,6 +212,8 @@ enum CS2VM_HostRequestKind
     // OC Object config
     CS2VM_HOST_REQUEST_OC_PARAM,
     CS2VM_HOST_REQUEST_OC_NAME,
+    /* NC_NAME: npc type id → name string (clientscript 7192 loottracker). */
+    CS2VM_HOST_REQUEST_NC_NAME,
     CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
     /* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot
      * (the slot is the opcode's baked-in operand, carried as op_index below).
@@ -1035,6 +1037,11 @@ struct CS2VM_HostRequest_OC_Name
     int item_id;
 };
 
+struct CS2VM_HostRequest_NC_Name
+{
+    int npc_id;
+};
+
 struct CS2VM_HostRequest_OC_Unplaceholder
 {
     int item_id;
@@ -1410,6 +1417,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_CC_SetOnOp cc_set_on_op;
         struct CS2VM_HostRequest_OC_Param oc_param;
         struct CS2VM_HostRequest_OC_Name oc_name;
+        struct CS2VM_HostRequest_NC_Name nc_name;
         struct CS2VM_HostRequest_OC_Unplaceholder oc_unplaceholder;
         struct CS2VM_HostRequest_OC_Op oc_op;
         struct CS2VM_HostRequest_OC_Op oc_iop;

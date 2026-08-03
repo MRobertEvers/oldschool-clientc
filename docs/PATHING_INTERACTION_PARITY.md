@@ -482,16 +482,13 @@ Op handlers route to the **target** with its approach — they never call
 
 Players store at most 25 dest-first waypoints (`PathingEntity.waypoints`) and
 advance with a greedy `takeStep` that re-validates `mock230_scene_can_step` and
-stalls instead of clearing the route. When an interaction is mid-walk and the
-corner queue is empty, or a post-move step is blocked, the server re-floods and
-queues the **full** approach path again (`queue_path_as_waypoints` /
-LostCity `pathToTarget`) — not a single adjacent tile. Keeping only one tile
-per re-flood forced `move_count == 1` on every op approach and ignored run
-mode; ground clicks were unaffected because they never hit that recovery path
-on the packet-handler call. A fresh route whose first step is still legal is
-not treated as a stall (`steps_taken == 0` alone is not enough). After a step
-toward an npc, the same full re-flood re-aims at the mover (the one-tile path
-used to do that every tick by emptying the queue).
+stalls instead of clearing the route. Loc/obj recovery re-floods when the corner
+queue is empty or a post-move step is blocked, and queues the **full** approach
+path (`queue_path_as_waypoints` / LostCity `pathToTarget`) — not a single
+adjacent tile. Truncating a fresh `walk_to_approach` on the packet-handler call
+forced `move_count == 1` on every loc approach and ignored run mode. Npc chase
+keeps the older one-tile recovery (`steps_taken == 0` or empty queue) so a
+wanderer stays sticky after `walk_to_approach` at the last waypoint.
 
 Unreachable interactions terminate with content's
 `[proc,cannot_reach_message]` (`player/messages.rs2`), not a latched op.
@@ -515,4 +512,4 @@ Unreachable interactions terminate with content's
 | P3 | exact BFS, no nearest fallback | era `CollisionNearestOpts` on `route_tiles` |
 | P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
 | P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |
-| P6 | op-approach recovery kept one BFS tile → run never took 2 steps | full `queue_path_as_waypoints` re-flood; stall only when next step blocked |
+| P6 | loc/obj op-approach recovery kept one BFS tile → run never took 2 steps | full `queue_path_as_waypoints` re-flood; stall only when next step blocked (npc chase keeps one-tile) |

@@ -2169,6 +2169,19 @@ struct Mock230Server
     int scripts_ok;
     /** Resolved once when that pack loads. See struct Mock230Hooks. */
     struct Mock230Hooks hooks;
+
+    /*
+     * Kill-drop credit for the client's loot tracker.
+     *
+     * While [ai_queue3] runs, every SS_OP_OBJ_ADD fires clientscript 7192
+     * (LOOTTRACKER_ADD_LOOT) at players who were fighting this npc when it
+     * died. Armed only from the combat death path — bare map/inventory
+     * OBJ_ADD must not attribute loot. -1 means idle.
+     */
+    int loot_credit_npc_type;
+    int loot_credit_event_id;
+    int loot_credit_seq;
+    unsigned char loot_credit_players[MOCK230_PLAYER_MAX];
 };
 
 /* ------------------------------------------------------------------ */

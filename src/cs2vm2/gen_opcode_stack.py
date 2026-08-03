@@ -472,7 +472,9 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7623: (0, 1, 0, 0),  # LOOT_SOURCE_IGNORE_REMOVE(name)
     7625: (0, 0, 1, 0),  # LOOT_SRCLIST_COUNT() -> int (source-ignore count)
     7626: (1, 0, 0, 1),  # LOOT_SRCLIST_NAME(index) -> string (1-based)
+    7628: (3, 1, 0, 0),  # LOOT_ADD(name, obj, qty, event_id)
     7630: (1, 0, 0, 1),  # LOOT_SOURCE_NAME2(id) -> string
+    6754: (1, 0, 0, 1),  # NC_NAME(npc) -> string
     # Loot aux-list ops (7400-family).
     7400: (1, 1, 0, 0),  # LOOT_AUX_UPSERT2(kind, name)
     7401: (2, 1, 0, 0),  # LOOT_AUX_UPSERT(kind, name, flag)

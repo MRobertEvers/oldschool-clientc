@@ -1971,6 +1971,35 @@ exec_oc_name(
 }
 
 static int
+exec_nc_name(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_NC_Name request)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Npctype* npc =
+        provider ? CacheProvider_NpctypeGet(provider, request.npc_id) : NULL;
+    char const* name = "null";
+
+    if( request.npc_id < 0 )
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
+
+    if( !npc )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_NC_NAME;
+        req.u.nc_name = request;
+        if( !rs_cs2_await_spent(host, req.kind, request.npc_id, -1) )
+            return rs_cs2_yield_load(host, &req, request.npc_id, -1);
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
+    }
+
+    if( npc->name[0] != '\0' )
+        name = npc->name;
+    return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
+}
+
+static int
 exec_oc_unplaceholder(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
@@ -4157,6 +4186,23 @@ exec_loot(
         LootStore_AuxClear(loot, req->int_args[0]);
         return CS2VM_EXECNO_OK;
 
+    case CS2_OP_LOOT_ADD:
+    {
+        /* int_args: [0]=event_id, [1]=qty, [2]=obj (pop order from 7192). */
+        int obj_id = req->int_args[2];
+        int qty = req->int_args[1];
+        int cost = 1;
+        struct CacheProvider* provider = rs_cs2_provider(host);
+        struct ToriRS_Objtype* obj =
+            provider ? CacheProvider_ObjtypeGet(provider, obj_id) : NULL;
+
+        if( obj )
+            cost = obj->cost;
+        LootStore_AddKillLoot(
+            loot, req->name ? req->name : "", obj_id, qty, cost);
+        return CS2VM_EXECNO_OK;
+    }
+
     default:
         assert(0 && "exec_loot: unexpected opcode");
         return CS2VM_EXECNO_OK;
@@ -4538,6 +4584,9 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_OC_NAME:
         return exec_oc_name(host, vm, request->u.oc_name);
+
+    case CS2VM_HOST_REQUEST_NC_NAME:
+        return exec_nc_name(host, vm, request->u.nc_name);
 
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
         return exec_oc_unplaceholder(host, vm, request->u.oc_unplaceholder);

@@ -2803,6 +2803,14 @@
 #define CS2_OP_LOOT_SOURCE_IGNORE_REMOVE 7623
 #define CS2_OP_LOOT_SRCLIST_COUNT    7625
 #define CS2_OP_LOOT_SRCLIST_NAME     7626
+/* LOOT_ADD — write one kill-drop row into the native store.
+ * int stack in:   obj, qty, event_id  (pushed after name)
+ * str stack in:   source_name
+ * int/str out:    -
+ * notes: Clientscript 7192 (LOOTTRACKER_ADD_LOOT) is the only caller. The
+ *        event_id batches multi-item kills for the UI refresh (7158); the
+ *        store merges by source name and does not keep it. */
+#define CS2_OP_LOOT_ADD              7628
 #define CS2_OP_LOOT_SOURCE_NAME2     7630
 
 /* Loot aux-list ops (7400-family). */

@@ -156,6 +156,85 @@ test_other_player_stack_rows(void)
     World_Free(world);
 }
 
+static int
+menu_obj_row_count(struct UIMinimenu const* menu)
+{
+    int n = 0;
+    for( int i = 0; i < menu->option_count; i++ )
+        if( menu->options[i].pick.kind == UI_MINIMENU_PICK_OBJ )
+            n++;
+    return n;
+}
+
+static void
+test_local_player_pick_expands_ground_items(void)
+{
+    printf("TEST: local player pick expands ground items on tile\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World* world = World_TestMakeReady(104);
+    world->local_pid = 7;
+    char actions[5][32] = { { 0 } };
+
+    int lp = World_PlayerSpawn(world, 400, 0, 22, 22, idle);
+    struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+    local->server_pid = 7;
+
+    World_ObjStackAdd(world, 401, 22, 22, 0, 995, 1, "Coins", actions);
+    World_ObjStackAdd(world, 402, 22, 22, 0, 526, 1, "Bones", actions);
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 400, WORLD_PICK_PLAYER, 22, 22, 0);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    TEST_ASSERT(menu_has_substr(&menu, "Coins"), "Coins on tile appear");
+    TEST_ASSERT(menu_has_substr(&menu, "Bones"), "Bones on tile appear");
+    TEST_ASSERT(menu_has_substr(&menu, "Take"), "Take default for empty op2");
+    TEST_ASSERT(menu_obj_row_count(&menu) >= 2, "at least one row family per item");
+
+    World_Free(world);
+}
+
+static void
+test_obj_pick_expands_siblings(void)
+{
+    printf("TEST: obj pick expands sibling ground items on tile\n");
+
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { { 0 } };
+    World_ObjStackAdd(world, 501, 15, 15, 0, 995, 5, "Coins", actions);
+    World_ObjStackAdd(world, 502, 15, 15, 0, 526, 1, "Bones", actions);
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 501, WORLD_PICK_OBJSTACK, 15, 15, 0);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    TEST_ASSERT(menu_has_substr(&menu, "Coins"), "picked Coins listed");
+    TEST_ASSERT(menu_has_substr(&menu, "Bones"), "sibling Bones listed");
+
+    World_Free(world);
+}
+
 static void
 test_local_alone_no_player_ops(void)
 {
@@ -218,6 +297,8 @@ main(void)
     test_player_get_by_element_id();
     test_local_player_pick_expands_stacked_npcs();
     test_other_player_stack_rows();
+    test_local_player_pick_expands_ground_items();
+    test_obj_pick_expands_siblings();
     test_local_alone_no_player_ops();
 
     if( g_failures )

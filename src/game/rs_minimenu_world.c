@@ -477,6 +477,64 @@ add_obj_rows(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
 }
 
+/* True when this obj_id on (tile_x, tile_z) already has a menu row — avoids
+ * double-emitting when both an entity pick expands the tile and an obj pick
+ * for the same stack is also in the pickset. */
+static bool
+menu_has_obj_on_tile(
+    struct UIMinimenu const* menu,
+    int obj_id,
+    int tile_x,
+    int tile_z)
+{
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        struct UIMinimenuPick const* p = &menu->options[i].pick;
+        if( p->kind == UI_MINIMENU_PICK_OBJ && p->secondary_id == obj_id &&
+            p->tertiary_id == tile_x && p->quaternary_id == tile_z )
+            return true;
+    }
+    return false;
+}
+
+/* Client-TS entityType 3: one ground-obj pick lists every obj on the tile.
+ * Entity models often occlude the item pick here, so NPC/player stack expansion
+ * also pulls in every ObjStack on the same grid tile (deduped). */
+static void
+add_objs_on_tile(
+    struct UIMinimenu* menu,
+    struct RS_MinimenuSelection const* sel,
+    struct World* world,
+    int tile_x,
+    int tile_z,
+    int tile_level)
+{
+    struct World_EntityPool* pool;
+
+    assert(menu && sel && world);
+    pool = &world->entities.obj_stack;
+    for( int oi = World_EntityPoolHead(pool); oi != WORLD_ENTITY_NIL;
+         oi = World_EntityPoolNext(pool, oi) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
+        if( !stack || stack->element_id < 0 )
+            continue;
+        if( stack->grid_position.x != tile_x || stack->grid_position.z != tile_z ||
+            stack->grid_position.level != tile_level )
+            continue;
+        if( menu_has_obj_on_tile(menu, stack->obj_id, tile_x, tile_z) )
+            continue;
+        struct World_Picked other_picked = {
+            .element_id = stack->element_id,
+            .type = WORLD_PICK_OBJSTACK,
+            .tile_x = tile_x,
+            .tile_z = tile_z,
+            .tile_level = tile_level,
+        };
+        add_obj_rows(menu, sel, stack, &other_picked);
+    }
+}
+
 /* Client-TS addWorldOptions (Client.ts:9591-9603): a picked size-1, tile-centred
  * NPC stands in for the whole pile of NPCs on its tile. The renderer draws — and
  * therefore picks — only one model per tile (the one-model-per-tile dedup,
@@ -504,6 +562,11 @@ add_npc_stack_rows(
     struct World_Picked const* picked)
 {
     int viewer_combat_level = world_local_combat_level(world);
+
+    /* Ground items sit under entities and are often occluded from the pick
+     * pass — always list every ObjStack on this grid tile. */
+    add_objs_on_tile(
+        menu, sel, world, picked->tile_x, picked->tile_z, picked->tile_level);
 
     if( npc->size == 1 && ((int)npc->draw_position.x & 0x7f) == 64 &&
         ((int)npc->draw_position.z & 0x7f) == 64 )
@@ -625,7 +688,8 @@ add_player_rows(
 
 /* Client-TS addWorldOptions player branch (Client.ts:9607-9627): a picked
  * tile-centred player stands in for the whole pile — expand co-located size-1
- * NPCs and other players, then the picked player (no-op when local). */
+ * NPCs and other players, then the picked player (no-op when local). Ground
+ * items on the tile are included too (see add_objs_on_tile). */
 static void
 add_player_stack_rows(
     struct UIMinimenu* menu,
@@ -637,6 +701,9 @@ add_player_stack_rows(
     int viewer_combat_level = world_local_combat_level(world);
 
     assert(menu && ctx && world && player && picked);
+
+    add_objs_on_tile(
+        menu, &ctx->selection, world, picked->tile_x, picked->tile_z, picked->tile_level);
 
     if( ((int)player->draw_position.x & 0x7f) == 64 &&
         ((int)player->draw_position.z & 0x7f) == 64 )
@@ -789,10 +856,14 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_OBJSTACK:
         {
-            struct WorldEntity_ObjStack* stack =
-                World_ObjStackGetByElementId(ctx->world, picked->element_id);
-            if( stack )
-                add_obj_rows(menu, sel, stack, picked);
+            /* Client-TS entityType 3: one pick lists every obj on the tile. */
+            add_objs_on_tile(
+                menu,
+                sel,
+                ctx->world,
+                picked->tile_x,
+                picked->tile_z,
+                picked->tile_level);
             break;
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */

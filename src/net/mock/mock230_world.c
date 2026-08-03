@@ -938,14 +938,22 @@ mock230_world_process_interaction(struct Mock230Server* srv)
             /*
              * Keep closing the distance.
              *
-             * The greedy turn-point follower can stall when a long BFS path was
-             * compressed into MOCK230_WAYPOINT_MAX corners. When the queue is
-             * empty (or we stalled with no step), re-flood and keep only the
-             * next tile so the stepper cannot skip around a wall — same
-             * one-step-from-BFS shape as mock230_world_npc_walk_to. A failed
-             * flood with no step this tick means the target is unreachable.
+             * Npc chase keeps the historical recovery: re-flood whenever the
+             * queue is empty or steps_taken == 0, and keep only the next tile —
+             * that sticks to a wanderer after walk_to_approach at the last
+             * waypoint. Loc/obj re-flood only when empty or truly blocked, and
+             * queue the full approach path so run can take two tiles per tick.
+             * Truncating a fresh loc walk_to_approach on the packet-handler call
+             * is what forced walk-only op approaches with run on.
              */
-            if( !player_has_waypoints(player) || player->steps_taken == 0 )
+            int need_reflood;
+            if( interaction->kind == MOCK230_INTERACT_NPC )
+                need_reflood = !player_has_waypoints(player) || player->steps_taken == 0;
+            else
+                need_reflood = !player_has_waypoints(player) ||
+                               (player->steps_taken == 0 && player_waypoint_step_blocked(player));
+
+            if( need_reflood )
             {
                 int path_x[MOCK230_STEP_MAX];
                 int path_z[MOCK230_STEP_MAX];
@@ -956,11 +964,20 @@ mock230_world_process_interaction(struct Mock230Server* srv)
                                                MOCK230_STEP_MAX, &arrive_x, &arrive_z);
                 if( n > 0 )
                 {
-                    player->waypoints[0].x = (int16_t)path_x[0];
-                    player->waypoints[0].z = (int16_t)path_z[0];
-                    player->waypoint_index = 0;
-                    player->dest_x = arrive_x;
-                    player->dest_z = arrive_z;
+                    if( interaction->kind == MOCK230_INTERACT_NPC )
+                    {
+                        player->waypoints[0].x = (int16_t)path_x[0];
+                        player->waypoints[0].z = (int16_t)path_z[0];
+                        player->waypoint_index = 0;
+                        player->dest_x = arrive_x;
+                        player->dest_z = arrive_z;
+                    }
+                    else
+                    {
+                        queue_path_as_waypoints(player, path_x, path_z, n);
+                        player->dest_x = arrive_x;
+                        player->dest_z = arrive_z;
+                    }
                     return;
                 }
                 if( player->steps_taken == 0 )
@@ -12078,6 +12095,58 @@ mock230_world_selftest(void)
                        "destination waypoint (index 0) is 7 north");
         player->run_toggle = 0;
 
+        /*
+         * Op-approach + run: handle_oploc queues a full path then calls
+         * process_interaction before any step. Loc recovery must not truncate
+         * that path to one tile — otherwise move_count stays 1 with run on.
+         */
+        {
+            int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+
+            SELFTEST_CHECK(door >= 0, "castle door for op-approach run check");
+            if( door >= 0 )
+            {
+                struct Mock230SceneLoc* loc = mock230_scene_loc(door);
+                struct CollisionApproach approach;
+                int before_x;
+                int before_z;
+
+                selftest_park_player(&srv, 3222, 3218);
+                mock230_scene_loc_approach(door, &approach);
+                mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id,
+                                              loc->x, loc->z, 0, loc->size_x > 0 ? loc->size_x : 1,
+                                              loc->size_z > 0 ? loc->size_z : 1);
+                player->interaction.ap_tried = 1;
+                mock230_world_walk_to_approach(&srv, loc->x, loc->z, &approach);
+                mock230_world_process_interaction(&srv);
+                SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_LOC,
+                               "distant door stays latched while approaching");
+                SELFTEST_CHECK(player->waypoint_index > 0,
+                               "approach route was not truncated to one adjacent tile, idx=%d",
+                               player->waypoint_index);
+
+                player->run_toggle = 1;
+                player->run_energy = MOCK230_RUN_ENERGY_MAX;
+                before_x = player->x;
+                before_z = player->z;
+                /* One world tick advances every npc's roam RNG. Freeze wanderers
+                 * so this check cannot poison later Hans settle tests. */
+                for( int slot = 0; slot < srv.npc_slot_max; slot++ )
+                {
+                    if( srv.npcs[slot].active )
+                        srv.npcs[slot].next_roam_tick = srv.tick + 1000;
+                }
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->move_count == 2,
+                               "run on a distant op-approach covers two tiles, got %d",
+                               player->move_count);
+                SELFTEST_CHECK(player->x != before_x || player->z != before_z,
+                               "ran away from the park tile toward the door");
+                player->run_toggle = 0;
+                mock230_world_interaction_clear(&srv);
+                steps_clear(player);
+            }
+        }
     }
 
     fprintf(stderr, "mock230 selftest: prayer\n");

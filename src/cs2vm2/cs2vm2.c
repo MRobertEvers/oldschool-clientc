@@ -7811,6 +7811,32 @@ CS2VM2_Op_OC_Name(
 }
 
 int
+CS2VM2_Op_NC_Name(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int npc_id;
+    if( CS2VM2_PopInt(vm, &npc_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_NC_NAME;
+    request.u.nc_name.npc_id = npc_id;
+
+    int result = vm->vm->host_exec(vm, &request);
+    if( result != CS2VM_EXECNO_OK )
+        return result;
+
+    return CS2VM_EXECNO_OK;
+}
+
+int
 CS2VM2_Op_OC_Unplaceholder(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -8057,6 +8083,19 @@ CS2VM2_Op_Loot(
         if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 3;
+        break;
+
+    /* (string, int, int, int) -> () : LOOT_ADD — name then obj/qty/eventId */
+    case CS2_OP_LOOT_ADD:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[2]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         request.u.loot.int_arg_count = 3;
         break;
@@ -9301,6 +9340,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_OC_Param(vm, frame, operand);
     case CS2_OP_OC_NAME:
         return CS2VM2_Op_OC_Name(vm, frame, operand);
+    case CS2_OP_NC_NAME:
+        return CS2VM2_Op_NC_Name(vm, frame, operand);
     case CS2_OP_OC_UNPLACEHOLDER:
         return CS2VM2_Op_OC_Unplaceholder(vm, frame, operand);
     case CS2_OP_OC_OP:
@@ -10051,6 +10092,7 @@ CS2VM2_RunOp(
     case CS2_OP_LOOT_AUX_COUNT:
     case CS2_OP_LOOT_AUX_LOOKUP:
     case CS2_OP_LOOT_AUX_CLEAR:
+    case CS2_OP_LOOT_ADD:
         return CS2VM2_Op_Loot(vm, opcode);
     /* Hiscores stubs (7809/7811). */
     case CS2_OP_HISCORES_STATUS:
@@ -10134,6 +10176,9 @@ CS2VM2_OpArgCounts(
         *int_args = 2;
         return 0;
     case CS2_OP_OC_NAME:
+        *int_args = 1;
+        return 0;
+    case CS2_OP_NC_NAME:
         *int_args = 1;
         return 0;
     case CS2_OP_OC_UNPLACEHOLDER:
