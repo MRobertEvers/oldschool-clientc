@@ -1,8 +1,0 @@
-// 4838
-[clientscript,script4838](struct $struct0, string $string0)
-def_string $string1 = struct_param($struct0, param_1321);
-if (string_length($string1) > 0) {
-	~script2399($string1, 1, 1);
-} else {
-	~script3301("Search", "", "", "", $string0);
-}

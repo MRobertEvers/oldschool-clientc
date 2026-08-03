@@ -1,7 +1,0 @@
-// 1984
-[clientscript,script1984]
-if (~script1972 = 0) {
-	return;
-}
-%varcint1226 = 0;
-mobile_keyboardhide;

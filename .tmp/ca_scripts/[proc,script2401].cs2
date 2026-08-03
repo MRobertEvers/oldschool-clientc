@@ -1,9 +1,0 @@
-// 2401
-[proc,script2401](int $int0)(string)
-def_string $string0 = "";
-if (%varbit11866 = 1) {
-	$string0 = ~script2411($int0, %varbit11890);
-} else {
-	$string0 = ~script2410($int0, %varbit11890);
-}
-return($string0);

@@ -4162,14 +4162,17 @@ exec_hiscores(
     switch( req->opcode )
     {
     case CS2_OP_HISCORES_STATUS:
-        /* Script 7469 treats status 2 as "success — ranks available". Return
-         * 0 ("not attempted") so the script takes its failure path. */
-        return CS2VM2_PushInt(vm, 0);
+        /* Script 7530 switch: 1=pending, 2=success, 3=error. Return 3 so the
+         * panel takes its failure path and shows the cache's own
+         * "Unable to load hiscores…" message (script 7530 case 3) — no
+         * fabricated ranks, no game-facing string in C. */
+        return CS2VM2_PushInt(vm, 3);
 
     case CS2_OP_HISCORES_ERROR:
-        /* The error string a hiscores panel shows on failure. Return empty:
-         * script 7469 falls back to varc string 1233 when empty, which content
-         * can populate via a varc write without any game-facing C literal. */
+        /* Optional detail after the cache's "Unable to load…" prefix.
+         * Empty is fine: script 7530 falls back to the prefix-only form.
+         * A non-empty detail must come from content (varc / future HTTP),
+         * never a C literal (PORTING_GUIDE §2.4). */
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
 
     default:

@@ -386,10 +386,10 @@ Proven to fail, by mutation:
 **What it deliberately does not assert** is that index N is the skill whose name
 the cell carries. That mapping's ground truth is the fourth argument of each
 cell's onload in `interfaces/stats.if`, and the same numbers in the cache's
-`enum_681` — and neither is readable from the server: nothing server-side
-parses an `.if`, and `mock230_content.c` walks `.enum` only under
-`server/scripts`, so `configs/all.enum`'s 6,024 rank-0 enums are not loaded at
-all. §4's two screenshots are the check for that.
+`enum_681`. Nothing server-side parses an `.if`. Cache enums *are* loaded now
+(`configs/all.enum` rank-0 in `mock230_content.c` — see
+`docs/account_summary_server_reqs.md` §1); the skill-guide selftest still leaves
+the index↔name check to §4's screenshots rather than asserting it here.
 
 ---
 
@@ -398,11 +398,11 @@ all. §4's two screenshots are the check for that.
 - **`player->last_verb` is written and read by nothing.** No `last_verb`
   command exists here or in the reference. The comment beside it claimed it was
   "where a RuneScript trigger reads them"; it is corrected.
-- **`configs/all.enum` is never loaded by the server.** `mock230_content.c`
-  walks `.enum` under `server/scripts` only, so a content script that writes
-  `enum(int, stat, enum_681, $i)` aborts with "enum 681 is not defined by any
-  `.enum` config". Nothing needs it yet; the first thing that does will find it
-  the hard way.
+- **`configs/all.enum` is loaded by the server (rank-0).** Authored
+  `server/scripts/**/*.enum` still override on name. The claim that
+  `mock230_content.c` walked `.enum` under `server/scripts` only is retired —
+  see `docs/account_summary_server_reqs.md` §1. `enum(int, stat, enum_681, $i)`
+  is expressible; the skill guide still does not need it server-side.
 - **The server's copy of every cache dbtable is an empty shell.** The `.dbtable`
   parser reads `column=name,type…` and `data=column,value…` (the authored
   grammar); the machine-exported `configs/all.dbtable` / `all.dbrow` use

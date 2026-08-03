@@ -1,4 +1,0 @@
-// 4868
-[clientscript,script4868](component $component0, int $int1, int $int2, int $int3, int $int4)
-if_setonvartransmit("script4869($int1, $int2, $int3, $int4){var4093}", $component0);
-~script4870($int1, $int2, $int3, $int4);

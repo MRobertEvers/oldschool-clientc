@@ -12,7 +12,8 @@
 > reference again at that time.
 >
 > One result up front, because it inverts the expected order: **chatmenu is
-> essentially done.** `questlist` and `levelup_display` are the real gaps.
+> essentially done.** Questlist's header vars and "Read journal" path are
+> landed (§1.5); `levelup_display` remains the open interface gap.
 
 ---
 
@@ -21,7 +22,7 @@
 | interface | id | status | what's missing |
 |---|---|---|---|
 | `chatmenu` | 219 | **landed** | nothing server-side; two loose ends noted in §2.4 |
-| `questlist` | 399 | **gap** | 7 varps/varbits never declared or written; no `%qp` accumulation |
+| `questlist` | 399 | **landed** (header + journal) | ops 3–6 (map / wiki / pin) and overview 782 still open; see §1.5 |
 | `levelup_display` | 233 | **gap** | level-up detection exists but stops at a chat string; the popup interface is never opened |
 
 ---
@@ -61,44 +62,40 @@ only for the header numbers below.
 
 ### 1.2 Server obligations
 
-None of these are declared or written anywhere under `OSRS-Content/osrs239-content/server/scripts`
-(`grep -rniE "questpoint|questlist|qp_total|qp_max|varbit1782|var101\b" src/net/mock src/game` — zero
-hits outside an unrelated selftest fixture, `mock_quest_progress`).
+The header vars are declared and written under `server/scripts/quests/`.
+Character Summary's Quests row reads the same completed/total pair via the
+sidepanel draw (CS2 3174) — see
+[`account_summary_server_reqs.md`](account_summary_server_reqs.md).
 
-| state | read by | meaning | delivery | mock230 status |
+| state | read by | meaning | delivery | status |
 |---|---|---|---|---|
-| `%var101` (`qp`) | `script_1356:5` | current total quest points | varp transmit | **not declared** — `all.varp.compack:144` names it `qp` but has no `transmit=`/`scope=perm` overlay |
-| `%varbit1782` (`qp_max`, backed by varp904) | `script_1356:5` | max obtainable QP (denominator) | varbit transmit via varp904 | **not declared** |
-| `%varbit6347` (backed by varp904) | `script_5995:5` | quests completed count | varbit transmit via varp904 | **not declared** |
-| `%varbit11877` (backed by varp2920) | `script_5995:5` | total quests available (denominator) | varbit transmit via varp2920 | **not declared** |
-| `%var3717` bit 8 | `script_5849:3` | "in an active speedrun" — swaps QP/Completed for Speedrun-Trophies/Points | varp transmit | **not declared**, no speedrun system exists |
-| `%var3365` | `script_5995:7` | speedrun score | varp transmit | **not declared** |
-| `%varp3368/3369/3766` (backed by varbits 13632-13635, 6543) | `script_5893:3-7` | 5-tier speedrun trophy totals | varbit transmit | **not declared** |
+| `%qp` (varp 101) | `script_1356` | current total quest points | varp transmit | **landed** — `quests/configs/questpoints.varp` |
+| `%qp_max` (varbit 1782 on `qp_total`) | `script_1356` | max obtainable QP | varbit via carrier transmit | **landed** — `~questpoints_login` sums `quest:questpoints` |
+| `%quests_completed_count` (varbit 6347 on `qp_total`) | `script_5995` | quests completed | varbit via carrier | **landed** — bumped by `~quest_complete` |
+| `%quests_total_count` (varbit 11877 on `qp_total2`) | `script_5995` | total quests available | varbit via carrier | **landed** — `db_listall_with_count(quest)` at login |
+| speedrun vars (`%var3717` bit 8, `%var3365`, trophies) | speedrun chrome | not in scope | — | **undeclared** — no speedrun system |
 
-The transport itself is generic and already works (`.varp` config `transmit=yes`
-→ `src/net/mock/mock230_content.c:1635-1636`); the gap is entirely **content**:
-no `.varp`/`.varbit` overlay declares these, and nothing computes `%qp`.
+### 1.3 Corpus gap — answered: script 2633
 
-The one quest that's actually ported states the gap explicitly:
-`OSRS-Content/osrs239-content/server/scripts/quests/quest_cook/scripts/quest_cook.rs2:154-156`
-— *"The quest-point total is not tracked anywhere yet, so the count is stated
-rather than accumulated."*
+`~questlist_draw` is **clientscript 2633**. It fails to decompile cleanly but
+disassembles: rows are `cc_create(questlist:list, iftype_text, $n, 0)` where
+`$n` runs `1..db_findall_with_count(quest)` and `~script6154($n)` resolves the
+row via `db_find(quest:id, $n)`. **The dynamic sub-id is the quest's `id`
+column**, which arrives as `last_slot` on `IF_BUTTON2`. Every op is
+`cc_setop` with **no** `cc_setonop` — so op 2 `"Read journal:"` is the
+server's (op 1 is blank outside speedrun mode).
 
-### 1.3 Corpus gap — read before porting
+The panel op 2 opens is **`questjournal` (119)** (`qj1..qj210`). `%qj_lines`
+(varp **4398**) sizes the scrollbar via `script_6923`; **clientscript 2523**
+is the rest of the contract:
 
-`~questlist_draw` (the actual list-population routine — the thing that walks
-the 213 quest rows, sorts them, and creates the name rows) and
-`~quicksort_questlist` are called from `script_1350`, `script_1340`, and
-`script_5886`, but **no `[proc,questlist_draw]` exists anywhere in the 9,368
-decompiled `.cs2` files** in this tree. Before implementing against this doc,
-re-decompile it directly rather than guessing the body:
-
-```sh
-3rd/rscache/tools/cs2/cs2 decompile --rev osrs239 --cache cache.osrs239 --out /tmp/cs2 <questlist_draw's real id>
+```
+[clientscript,script2523](int $reset_scroll, int $line_count)
+def_component $component2 = interface_119:6;   // questjournal:textlayer
+~script6949(7798791 /* scrollbar */, $component2, $line_count, ...);
 ```
 
-(id unknown — grep the live cache's script name table, not this corpus, since
-this corpus is missing it.)
+No journal text lives in any dbtable — content paints the lines.
 
 ### 1.4 LostCity precedent
 
@@ -119,6 +116,25 @@ is the natural source of truth) over completed quests, rather than copying
 LostCity's per-quest `if` chain. Per `docs/PORTING_GUIDE.md` §2.4 checklist
 item 3, `%qp`/`%varbit6347`/etc. belong in `.varp`/`.varbit` config plus a
 recompute proc in content — never as a literal in C.
+
+### 1.5 Built record — quest journal + QP header
+
+Landed under `server/scripts/interface_questjournal/` and `quests/`:
+
+- `~quest_journal_login` arms `questlist:list` for op 2 over `1..db_listall(quest)`.
+- `[if_button2,questlist:list]` → `db_find(quest:id, last_slot)` →
+  `%latest_quest_journal`, then `~cook_journal` or `~quest_journal_unwritten`.
+- `~quest_journal($title, $text)` splits on `|`, paints `qj1..qjN`, sets
+  `%qj_lines`, mounts `questjournal` into `mainmodal`, then
+  `runclientscript*(2523)(1, N)` (mount before clientscript).
+- QP: `~questpoints_login` / `~quest_complete` (Cook's Assistant completion).
+- Engine: `mock230_db_load_cache` fills cache DBTABLE/DBROW so `quest:id` /
+  `displayname` / `questpoints` resolve; authored `quest.dbtable` supplies
+  column names. Verified in `mock230 --selftest` ("quest journal" section).
+
+Still open (named so they are not rediscovered): op 3 "Show on map", ops 4/5
+wiki, op 6 "Pin journal", `questjournal:switch` → overview 782, and the other
+56 LostCity per-quest journals (quests with no gameplay here).
 
 ---
 
@@ -306,13 +322,10 @@ open/populate belongs in the triggered content script.
 
 ## 4. What this doc does not cover
 
-- The 213-row `quest` dbtable's own content (per-quest completion tracking,
-  `db_getfield` reads of columns beyond what §1 traces) — out of scope; only
-  the header numbers (`%qp` and friends) were in the questlist onload's own
-  var-transmit hooks.
-- `chatbox_multi_addoption`'s and `questlist_draw`'s actual bodies — missing
-  from this decompiled corpus (§1.3, §2.1); re-decompile directly from the
-  live cache before porting either.
+- Per-quest completion tracking beyond Cook's Assistant, and ops 3–6 / overview
+  782 on the quest journal (named in §1.5).
+- `chatbox_multi_addoption`'s body — missing from this decompiled corpus (§2.1);
+  re-decompile directly from the live cache before porting.
 - The "rest on demand" tail of the interface queue (`docs/LOSTCITY_PORT_TRIAGE.md`
   §7.3) — deliberately not surveyed here; each gets this same treatment when
   its driving script is next.

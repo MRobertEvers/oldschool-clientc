@@ -1,7 +1,0 @@
-// 4803
-[clientscript,script4803]
-if (%varbit12884 = 1) {
-	~script4079;
-	%varbit12884 = 0;
-	~script4794(46923777, 46923778, 46923781, 0);
-}

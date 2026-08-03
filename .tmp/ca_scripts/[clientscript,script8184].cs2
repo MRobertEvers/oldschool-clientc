@@ -1,6 +1,0 @@
-// 8184
-[clientscript,script8184](int $int0, component $component1, int $comsubid2, int $opindex3)
-def_int $int4 = ~script8183($int0);
-if ($int4 = 0 & $int0 = 13 & %varbit4681 = 1) {
-	if_triggerop($component1, $comsubid2, $opindex3);
-}

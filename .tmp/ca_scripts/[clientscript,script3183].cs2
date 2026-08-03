@@ -1,9 +1,0 @@
-// 3183
-[clientscript,script3183](int $int0, int $int1, int $int2, int $int3, string $string0)
-if (%varcint385 = $int1) {
-	~script41($int2);
-	%varcint385 = -1;
-} else {
-	~script2701($int0, $int1, $int2, $string0, $int3);
-	%varcint385 = $int1;
-}

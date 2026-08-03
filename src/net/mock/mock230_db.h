@@ -38,8 +38,9 @@
 
 enum
 {
-    /** Measured across the reference's 23 tables: `magic_spell_table` has 25. */
-    MOCK230_DB_COLUMN_MAX = 32,
+    /** Cache tables are sparse by column id — `quest` declares columndef 48.
+     *  Authored LostCity tables top out around 25; 64 covers both. */
+    MOCK230_DB_COLUMN_MAX = 64,
     /** Measured: the widest tuple in the reference is 8. */
     MOCK230_DB_TUPLE_MAX = 8,
 };
@@ -127,5 +128,60 @@ const struct Mock230DbRow*
 mock230_db_row_in_table(
     int table_id,
     int index);
+
+/*
+ * Cache import (mock230_dbinfo.c). Authored tables keep priority: a table that
+ * already has columns is not overwritten. Rows for cache table ids are always
+ * filled from the binary records — the machine-exported `configs/all.dbrow`
+ * uses `values=` which the text reader does not parse.
+ */
+
+/** Ensure a table slot for `table_id`. Creates one when absent. When
+ *  `replace_empty` is set and the existing table has zero columns, its schema
+ *  is cleared so the caller can redefine it. */
+struct Mock230DbTable*
+mock230_db_ensure_table(
+    int table_id,
+    const char* symbol,
+    int replace_empty);
+
+/** Ensure a row slot. Creates one when absent; never replaces an authored row
+ *  that already has values. */
+struct Mock230DbRow*
+mock230_db_ensure_row(
+    int row_id,
+    const char* symbol,
+    int table_id);
+
+/** Define column `col_id` (sparse id, not densified). `name` may be NULL for
+ *  cache-only columns that scripts address by packed id. */
+void
+mock230_db_column_define(
+    struct Mock230DbTable* table,
+    int col_id,
+    const char* name,
+    int type_count,
+    const int* is_string);
+
+/** Replace the values stored at `col_id` on a row. Takes ownership of nothing —
+ *  string texts are strdup'd. */
+void
+mock230_db_row_column_set(
+    struct Mock230DbRow* row,
+    int col_id,
+    const struct Mock230DbValue* values,
+    int count);
+
+/** Load every DBTABLE / DBROW from the dat2 cache into the runtime. Returns 1
+ *  on success (including "cache missing" with a diagnostic), 0 never — boot
+ *  continues either way, matching objinfo. */
+int
+mock230_db_load_cache(const char* cache_dir);
+
+int
+mock230_db_table_count(void);
+
+int
+mock230_db_total_row_count(void);
 
 #endif

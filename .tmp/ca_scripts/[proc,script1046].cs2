@@ -1,6 +1,0 @@
-// 1046
-[proc,script1046](int $int0, int $int1)(int)
-if ($int0 < $int1) {
-	return($int0);
-}
-return($int1);

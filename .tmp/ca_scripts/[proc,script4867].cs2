@@ -1,4 +1,0 @@
-// 4867
-[proc,script4867]()(int)
-def_int $int0 = db_find_with_count(249872, 1, 0);
-return($int0);

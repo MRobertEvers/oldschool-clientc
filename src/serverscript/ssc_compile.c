@@ -638,8 +638,13 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
 
         if( op_name && strcmp(op_name, "ENUM") == 0 )
             type_args = 2;
-        else if( op_name && strcmp(op_name, "ENUM_GETOUTPUTCOUNT") == 0 )
-            type_args = 1;
+        /*
+         * ENUM_GETOUTPUTCOUNT takes an enum *value* (the enum's id), not a
+         * ScriptVarType. Treating it as a type-position argument made
+         * `enum_getoutputcount(enum_4067)` fail with "'enum_4067' is not a
+         * type" and forced callers to pass a variable or hardcode the count.
+         * LostCity's surface is the same: `enum_getoutputcount(stats)`.
+         */
 
         if( op_name &&
             (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||

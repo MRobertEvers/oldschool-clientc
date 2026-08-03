@@ -44,14 +44,15 @@
 
 ## 0. Status at a glance
 
-Re-measured 2026-08-02; the "measured" column is a client run, not a reading.
-See §7.5 for the runs.
+Re-measured 2026-08-03 (chrome panels + XP drops pass). The "measured"
+column is a client run, not a reading. See §7.5 for the runs.
 
 | interface | id | status | measured | what's missing |
 |---|---|---|---|---|
-| `xptracker` | 729 | **needs almost nothing from the server** | **opens and draws, exit 0, zero stubbed opcodes** | the `xpdrops_*` varps for the goal *display*; the goal *button* is dead in the cache (§1.1) |
-| `hiscores` | 894 | **not a server feature at all** | **opens and draws, exit 0, one stubbed opcode (7809)** | host implementations for 7809/7811 — and the lookup itself is out of band, so "lookup failed" is the honest end state |
-| `loottools` | 650 | **open-path arities landed; store still stubbed** | **opens, exit 0** (re-measured 2026-08-03); `cs2-stub` on the 7600/7401/7407/7408 family | host impl for the client-native loot store; remaining tier-B outside this open path (§7.6); popout opens into mainmodal like the other two (store answers are faked zeros / panel may be empty) |
+| `xptracker` | 729 | **client init + goal varps landed** | **opens; overview row keeps `Total XP/Hr` / `Total XP Gained` after timer ticks** (was collapsing onto skill labels at sub-id 0). Exit 0. | Set Goal button stays dead in this cache (§1.1). Skill rows appear once XP lands *after* the tracker enable/reset at login. |
+| `hiscores` | 894 | **honest failure path** | **opens, exit 0; 7809 returns status 3 (error), 7811 empty detail** — cache script 7530 shows its own "Unable to load hiscores…" (no ranks faked, no C string) | Real HTTP lookup is out of band forever; do not fabricate ranks. |
+| `loottools` | 650 | **native store + host ops landed** | **opens, exit 0; 7400/7600 family is `known=1` against `LootStore_*`**. Seed via `TORIRS_NET_CHEAT=lootkill <src> <obj> <qty>` then `loottools`. | Combat kill-credit auto-hook still greenfield beyond the `lootkill` / `App_LootNotifyKill` bridge; `loottools_varp1` 3798 still undeclared if the chrome wants it. |
+| `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)` from `~orbs_login`. `xpdrops_options` + goal varps + carriers declared. | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
 
@@ -379,71 +380,37 @@ panels could be opened.
 
 | panel | opens | draws | exit | what the run says |
 |---|---|---|---|---|
-| `xptracker` 729 | yes | yes (71k px differ vs no-panel) | 0 | **zero** `cs2-stub` lines — its open path reaches no un-implemented opcode at all |
-| `hiscores` 894 | yes | yes (104k px differ) | 0 | one `cs2-stub` line: opcode **7809**, `(0,0,1,0)`, in script 7469 |
-| `loottools` 650 | yes | chrome draws (empty store) | **0** | open path no longer aborts; 7601/7602/7605/7606/7619/7620/7625/7626/7630/7401/7407/7408 now have call-site arities and inherit as `known=2` stubs (§7.6) |
+| `xptracker` 729 | yes | yes — **overview labels correct** | 0 | Exit dump (2026-08-03): `729:12` text is `Total XP/Hr: <br>Total XP Gained: `, not the skill-row `XP/Hr`/`XP>Lvl` collapse. Root cause was missing tracker enable/reset: popout ontimer 5452→5453→5374 treated default-0 timers/positions as "row 0" and overwrote the overview. Fixed in content via `~chrome_popout_login` running clientscripts 5450+5455. Earlier "draws cleanly" claims measured that collapsed single row. |
+| `hiscores` 894 | yes | yes | 0 | 7809/7811 are `known=1`: status **3** (error), empty detail string. Script 7530 case 3 owns the user-visible "Unable to load…" text. |
+| `loottools` 650 | yes | chrome + rows once seeded | 0 | Loot store host ops `known=1`. `lootkill` cheat fills the store and runs clientscript 7159. |
+| `xpdrops_setup` 137 | from orb Setup | — | — | `orbs:xp_drops` op2 armed; goal/`xpdrops_options`/carrier varps declared under `interface_chrome/configs/xpdrops.varp`. |
 
-The hiscores row is the proof the bridge does work, and it was obtained the
-way PORTING_GUIDE §2.5 demands — by making the assertion fail. A control
-binary built with all 335 bridged rows flipped back to `known = 0` **aborts
-(exit 134) at opcode 7809** on the identical run. With the bridge it exits 0
-and prints the one honest line. A green run against a panel nothing opens
-would have proved nothing; this is the same run, differing only in the table.
-
-Note what the xptracker row does *and does not* say: the panel opens and draws
-cleanly, and `abs` is implemented, but **the open path does not reach `abs`**
-in a plain open — script5380 is the actions-to-goal estimator and needs a goal
-set. `abs` is verified by unit test, not by that BMP. Saying otherwise would
-be claiming verification that was not run.
+The hiscores row is still the proof the signature bridge works, and it was
+obtained the way PORTING_GUIDE §2.5 demands — by making the assertion fail. A
+control binary built with all bridged rows flipped back to `known = 0`
+**aborts (exit 134) at opcode 7809** on the identical run. With the bridge
+(and now a real host impl) it exits 0 without faking ranks.
 
 ### 7.6 Still missing — the honest list
 
-- **Tier-B arities still unsigned: 2624, 7800, 7803, 7805, 7807, 7813, 7814,
-  7816, 7820.** (And neighbours like 7608/7609/7404 that sit off the plain
-  open path.) These still have no signature in either table. Two of them
-  (`7800` = `(STRING, INT)` shape claims) cannot even be *tried* via
-  `cs2 decompile --override`, which can only express ints-then-strings.
-- **Loottools open-path arities, landed 2026-08-03** by call-site reading of
-  scripts 7166/7200/1792/7133/7212 (empty-stack statement boundaries / typed
-  pops), not a client — LostCity/Client-TS have none of this family, and the
-  older deob tops out before it. Installed in `local_commands.py` and
-  inherited as `known=2`: **7601** `()->(INT)`, **7602** `(INT)->(STRING)`,
-  **7605** `(INT,INT,INT)->(INT)`, **7606** `(INT)->(INT)`, **7619**/**7625**
-  `()->(INT)`, **7620**/**7626** `(INT)->(STRING)`, **7630** `(INT)->(STRING)`,
-  **7401** `(INT,STRING,INT)->()`, **7407** `(INT)->(INT)`, **7408**
-  `(INT,STRING,INT,INT)->(INT)`. `cs2 decompile` recovers 7166/7200/1792;
-  headless `TORIRS_NET_CHEAT=loottools` exits **0** (was 134 at 7601).
-  Evidence is not uniform across that list, and the comments in
-  `local_commands.py` say so per opcode. **7407** was left
-  "2 candidates, under-determined" by `cs2 infer-arity` and is settled by
-  scoring instead (5 of its 6 witnesses decompile under `(1,0,1,0)`, 0 under
-  every other candidate tried). **7408** rests on call-site reading alone —
-  four sites agree, but it cannot be scored at all, because every script using
-  it also holds an unknown (7609/7404), which is also why `infer-arity` reports
-  "no arity works" for it. It is the weakest row of the set.
-- **Host implementations for the bridged families.** 7809/7811 (hiscores
-  request status and result string), the 7600 loottools store family (now
-  including the open-path set above), and `NC_PARAM`/`LC_PARAM` (6513/6514)
-  all have signatures and no behaviour. They report themselves via `cs2-stub`.
-- **The hiscores lookup cannot be made to work and should not be faked.**
-  `grep -rn hiscore src/net/rev/` is zero in every revision: the real client
-  goes out of band over HTTP. The correct end state is a panel that opens and
-  reports "lookup failed" through `_7809`/`_7811`, with the string coming from
-  content (PORTING_GUIDE §2.4 item 2), not a literal in C. Fabricating ranks
-  would be inventing data.
-- **Populating loottools** is greenfield client-engine work (a native loot
-  store fed from the kill/pickup path). Script 7166 under the landed arities
-  reads as `begin→count / index→id / id→name` against a **client-native list
-  store**, so **no new game packet is needed**.
-- **The varps** (`xpdrops_*` 1228-1275, `loottools_varp1` 3798,
-  `settings_varp_ehc_5` 3795) are still undeclared under `server/scripts/`.
-  They earn the tracker's goal *display* only; the Set Goal *button* stays
-  dead for the reason in the header.
+- **Tier-B arities still unsigned outside loot: 2624, 7800, 7803, 7805, 7807,
+  7813, 7814, 7816, 7820.** Sign only if a reached path hits them.
+- **Loot tier-B arities (7404, 7608–7612) landed 2026-08-03** in
+  `local_commands.py` from scripts 4298/4452/7179/7199 call sites; host ops
+  are `known=1` against `src/game/rs_loot_store.c`.
+- **Hiscores HTTP lookup** remains out of band (`grep -rn hiscore src/net/rev/`
+  is zero). Status 3 + cache script text is the end state; do not fabricate
+  ranks. Detail string for 7811 stays empty unless content/HTTP fills it —
+  never a C literal (PORTING_GUIDE §2.4 item 2).
+- **Combat kill → loot store** still needs a real kill-credit hook beyond
+  `App_LootNotifyKill` / `TORIRS_NET_CHEAT=lootkill` (do not attribute bare
+  `OBJ_ADD` to an NPC death).
+- **`loottools_varp1` (3798) / `settings_varp_ehc_5` (3795)** still undeclared
+  if chrome needs them.
+- **Set Goal button** stays dead — `script5463`'s `switch_int` has cases
+  8/9/10 only, no case 6.
 - **`cs2_opcode_meta_lookup` returns entry [0] for any opcode ≥ 7511** —
-  `PUSH_CONSTANT_INT`, operand INT32. Every opcode in these three panels'
-  graphs happens to be INT32-operand so it does not bite here, but an opcode
-  ≥ 7511 whose real operand width is INT8 would mis-advance the bytecode
-  reader. A latent decoder hazard, independent of this work, left as-is.
+  latent decoder hazard, independent of this work, left as-is.
 
 ### 7.7 Reproducing
 

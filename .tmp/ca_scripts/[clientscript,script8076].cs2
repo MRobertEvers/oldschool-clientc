@@ -1,3 +1,0 @@
-// 8076
-[clientscript,script8076](int $int0, int $int1, int $int2, int $int3, int $int4, int $int5, int $int6, int $int7)
-~script4813($int0, $int1, $int2, $int3, $int4, $int5, $int6, $int7, enum(int, struct, enum_3980, ~script1425(0, calc(enum_getoutputcount(enum_3980) - 1), %varbit17941)));

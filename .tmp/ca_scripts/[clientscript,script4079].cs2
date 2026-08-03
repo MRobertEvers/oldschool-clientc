@@ -1,7 +1,0 @@
-// 4079
-[clientscript,script4079]
-~script927(1);
-%varcint11 = 0;
-if (~script1972 = 1) {
-	~script1984;
-}

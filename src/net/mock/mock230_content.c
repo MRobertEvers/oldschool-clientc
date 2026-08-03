@@ -1737,11 +1737,20 @@ load_enum_config(const char* path)
                               comma + 1);
             if( !key_ok || !value_ok )
                 continue;
-            if( def->count >= MOCK230_ENUM_VALUE_MAX )
+            if( def->count >= def->capacity )
             {
-                CONTENT_ERROR("%s:%d: more than %d values in one enum\n", path,
-                              line_number, MOCK230_ENUM_VALUE_MAX);
-                continue;
+                int next = def->capacity ? def->capacity * 2 : 32;
+                struct Mock230EnumValue* grown =
+                    realloc(def->values, (size_t)next * sizeof(*grown));
+
+                if( !grown )
+                {
+                    CONTENT_ERROR("%s:%d: out of memory growing enum values\n", path,
+                                  line_number);
+                    continue;
+                }
+                def->values = grown;
+                def->capacity = next;
             }
             def->values[def->count].key = key;
             def->values[def->count].text = text;
@@ -1754,6 +1763,157 @@ load_enum_config(const char* path)
         }
     }
     fclose(file);
+}
+
+/*
+ * Rank-0 enums — the cache export at `configs/all.enum`.
+ *
+ * ServerScript's `enum` / `enum_getoutputcount` used to answer only for the
+ * handful of authored `.enum` files under `server/scripts`. Everything the
+ * client's own CS2 reads — Combat Achievement tier lists, the collection-log
+ * catalog, the popout strip's panel list (`enum_4067`) — lives here, and
+ * content that needed a count hardcoded it. Loading this file is what retires
+ * that limitation.
+ *
+ * The grammar is a subset of the authored one plus three keys the unpacker
+ * emits for string enums (`outputstring`, `defaultstr`, `valstr`). Types are
+ * not declared (`inputtype`/`outputtype` are absent); int enums are the
+ * default and `outputstring=yes` flips the output to text. Values are raw
+ * integers — no symbol resolution, because this file is a machine dump.
+ */
+static int
+load_rank0_enums(const char* content_dir)
+{
+    char path[1024];
+    FILE* file;
+    char raw[8192];
+    struct Mock230EnumDef* def = NULL;
+    int line_number = 0;
+    int loaded = 0;
+
+    snprintf(path, sizeof(path), "%s/configs/all.enum", content_dir);
+    file = fopen(path, "rb");
+    if( !file )
+    {
+        fprintf(stderr,
+                "mock230: no configs/all.enum — enum()/enum_getoutputcount cannot "
+                "answer for cache tables\n");
+        return 0;
+    }
+
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char* header;
+        char* value;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = mock230_content_section_header(line);
+        if( header )
+        {
+            /* Authored overlays loaded first win: skip a cache dump that
+             * restates a name already present. */
+            if( mock230_content_enum(header) )
+            {
+                def = NULL;
+                continue;
+            }
+            g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
+                               sizeof(*g_enum_defs));
+            def = &g_enum_defs[g_enum_def_count++];
+            memset(def, 0, sizeof(*def));
+            def->symbol = strdup(header);
+            def->input_kind = MOCK230_PACK_COUNT;
+            def->output_kind = MOCK230_PACK_COUNT;
+            def->default_int = 0;
+            def->default_text = "null";
+            loaded++;
+            continue;
+        }
+
+        value = mock230_content_split_key_value(line);
+        if( !value || !def )
+            continue;
+
+        if( strcmp(line, "inputtype") == 0 )
+        {
+            def->input_kind = pack_kind_for_type(value);
+            def->input_is_string = type_is_string(value);
+        }
+        else if( strcmp(line, "outputtype") == 0 )
+        {
+            def->output_kind = pack_kind_for_type(value);
+            def->output_is_string = type_is_string(value);
+        }
+        else if( strcmp(line, "outputstring") == 0 )
+        {
+            def->output_is_string = strcmp(value, "yes") == 0;
+        }
+        else if( strcmp(line, "default") == 0 )
+        {
+            if( def->output_is_string )
+                def->default_text = strdup(value);
+            else
+                def->default_int = atoi(value);
+        }
+        else if( strcmp(line, "defaultstr") == 0 )
+        {
+            def->output_is_string = 1;
+            def->default_text = strdup(value);
+        }
+        else if( strcmp(line, "val") == 0 || strcmp(line, "valstr") == 0 )
+        {
+            char* comma = strchr(value, ',');
+            int key;
+            int mapped = 0;
+            const char* text = NULL;
+            int as_string = def->output_is_string || strcmp(line, "valstr") == 0;
+
+            if( !comma )
+            {
+                CONTENT_ERROR("%s:%d: %s needs `key,value`\n", path, line_number, line);
+                continue;
+            }
+            *comma = '\0';
+            key = atoi(value);
+            if( as_string )
+            {
+                def->output_is_string = 1;
+                text = strdup(comma + 1);
+            }
+            else
+            {
+                mapped = atoi(comma + 1);
+            }
+            if( def->count >= def->capacity )
+            {
+                int next = def->capacity ? def->capacity * 2 : 32;
+                struct Mock230EnumValue* grown =
+                    realloc(def->values, (size_t)next * sizeof(*grown));
+
+                if( !grown )
+                {
+                    CONTENT_ERROR("%s:%d: out of memory growing enum values\n", path,
+                                  line_number);
+                    continue;
+                }
+                def->values = grown;
+                def->capacity = next;
+            }
+            def->values[def->count].key = key;
+            def->values[def->count].text = text;
+            def->values[def->count].value = mapped;
+            def->count++;
+        }
+        /* Unknown keys are ignored here: the unpacker emits fields the
+         * decoder does not store (`EXCEPTIONS.md`), and a silent skip is the
+         * same trade the rest of the rank-0 loaders make. */
+    }
+    fclose(file);
+    return loaded;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2643,6 +2803,16 @@ mock230_content_load(const char* dir)
      * goes, and an unexpanded caret is a load error rather than a zero. */
     walk_configs(path, ".constant", load_constant_config);
     walk_configs(path, ".enum", load_enum_config);
+    /* Rank-0 enums after the server walk so an authored `.enum` of the same
+     * name keeps winning (mock230_content_enum returns the first match).
+     * Structs need no text loader: mock230_structinfo_load already feeds
+     * SS_OP_STRUCT_PARAM from the binary cache. */
+    {
+        int enums = load_rank0_enums(dir);
+
+        if( enums )
+            fprintf(stderr, "mock230: %d enums from configs/all.enum\n", enums);
+    }
     walk_configs(path, ".varp", load_varp_config);
     /* `[default]` first, then the roster — see load_npc_default_config. */
     walk_configs(path, ".npc", load_npc_default_config);
@@ -3067,7 +3237,15 @@ mock230_content_free(void)
     g_varp_defs = NULL;
     g_varp_def_count = g_varp_def_capacity = 0;
     for( int i = 0; i < g_enum_def_count; i++ )
+    {
         free((void*)g_enum_defs[i].symbol);
+        if( g_enum_defs[i].default_text &&
+            strcmp(g_enum_defs[i].default_text, "null") != 0 )
+            free((void*)g_enum_defs[i].default_text);
+        for( int j = 0; j < g_enum_defs[i].count; j++ )
+            free((void*)g_enum_defs[i].values[j].text);
+        free(g_enum_defs[i].values);
+    }
     free(g_enum_defs);
     g_enum_defs = NULL;
     g_enum_def_count = g_enum_def_capacity = 0;

@@ -1,3 +1,0 @@
-// 86
-[clientscript,script86](int $int0, int $int1, string $string0)
-~script7822($int0, $string0, $int1);

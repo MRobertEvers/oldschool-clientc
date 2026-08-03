@@ -284,6 +284,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_paramtable.c \
 	net/mock/mock230_locinfo.c net/mock/mock230_structinfo.c \
+	net/mock/mock230_dbinfo.c \
 	net/mock/mock230_ops_db.c \
 	net/mock/mock230_ops_param.c \
 	net/mock/mock230_ops_loc.c \

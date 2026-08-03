@@ -7374,13 +7374,13 @@ mock230_world_selftest(void)
              * What this deliberately does not assert is that index N is the
              * skill whose name the cell carries. That mapping's ground truth is
              * the fourth argument of each cell's onload in `interfaces/stats.if`
-             * (and the same numbers in the cache's enum_681), and neither is
-             * readable from here: nothing server-side parses an `.if`,
-             * mock230_content.c walks `.enum` only under server/scripts, and the
-             * exported `configs/all.dbtable` uses a `columndef=`/`values=`
+             * (and the same numbers in the cache's enum_681). Nothing
+             * server-side parses an `.if`. Cache enums are loaded now
+             * (`configs/all.enum` rank-0), but this selftest still leaves the
+             * index↔name check to the real client (docs/skill_guide.md §4).
+             * The exported `configs/all.dbtable` uses a `columndef=`/`values=`
              * grammar this server's `column=`/`data=` parser skips — so its copy
-             * of skill_guide_subsections is an empty shell. Verified in the real
-             * client instead, per skill: docs/skill_guide.md §4.
+             * of skill_guide_subsections is an empty shell.
              */
             static const char* const k_cells[] = {
                 "stats:attack",      "stats:strength",     "stats:defence",
@@ -7635,6 +7635,489 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(mock230_capture_find(&capture, 84, 0) < 0,
                                "op 1 on stats:attack is unbound and must run nothing");
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: quest journal\n");
+    {
+        /*
+         * Cache-backed `quest` table + op 2 on questlist:list.
+         *
+         * Clientscript 2633 builds each row with the quest's `id` column as the
+         * dynamic sub-id and `cc_setop(2, "Read journal:")` with no onop — so
+         * IF_BUTTON2 is the server's. Content resolves `db_find(quest:id,
+         * last_slot)`, paints interface 119, then runs clientscript 2523.
+         */
+        int quest_table = mock230_content_symbol(MOCK230_PACK_DBTABLE, "quest");
+        int cook_row = mock230_content_symbol(MOCK230_PACK_DBROW, "quest_cooksassistant");
+        const struct Mock230DbTable* table;
+        const struct Mock230DbRow* found = NULL;
+        int id_col;
+        int name_col;
+
+        SELFTEST_CHECK(quest_table >= 0, "the pack should name dbtable `quest`");
+        SELFTEST_CHECK(cook_row >= 0, "the pack should name dbrow `quest_cooksassistant`");
+
+        table = mock230_db_table(quest_table);
+        SELFTEST_CHECK(table != NULL && table->column_count > 0,
+                       "quest table should carry an authored schema (got %s, %d columns)",
+                       table ? table->symbol : "(null)", table ? table->column_count : -1);
+        id_col = mock230_db_column_index(table, "id");
+        name_col = mock230_db_column_index(table, "displayname");
+        SELFTEST_CHECK(id_col >= 0 && name_col >= 0,
+                       "quest schema should name id and displayname columns");
+
+        if( table && id_col >= 0 )
+        {
+            int rows = mock230_db_row_count(quest_table);
+
+            SELFTEST_CHECK(rows >= 200, "cache fill should leave ~213 quest rows, got %d", rows);
+            for( int i = 0; i < rows; i++ )
+            {
+                const struct Mock230DbRow* row = mock230_db_row_in_table(quest_table, i);
+                const struct Mock230DbRowColumn* store;
+
+                if( !row )
+                    continue;
+                store = &row->columns[id_col];
+                if( store->count < 1 || store->values[0].value != 1 )
+                    continue;
+                found = row;
+                break;
+            }
+            SELFTEST_CHECK(found != NULL, "db_find(quest:id, 1) should resolve a row");
+            if( found )
+            {
+                SELFTEST_CHECK(found->row_id == cook_row,
+                               "quest id 1 should be quest_cooksassistant (%d), got %d (%s)",
+                               cook_row, found->row_id,
+                               found->symbol ? found->symbol : "?");
+                if( name_col >= 0 )
+                {
+                    const struct Mock230DbRowColumn* names = &found->columns[name_col];
+
+                    SELFTEST_CHECK(names->count >= 1 && names->values[0].text &&
+                                       strcmp(names->values[0].text, "Cook's Assistant") == 0,
+                                   "quest_cooksassistant displayname should be \"Cook's Assistant\", "
+                                   "got \"%s\"",
+                                   names->count >= 1 && names->values[0].text
+                                       ? names->values[0].text
+                                       : "(empty)");
+                }
+            }
+        }
+
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int list = mock230_content_symbol(MOCK230_PACK_COMPONENT, "questlist:list");
+            int journal = mock230_content_symbol(MOCK230_PACK_INTERFACE, "questjournal");
+            int slot = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                              "toplevel_osrs_stretch:mainmodal");
+            int qj1 = mock230_content_symbol(MOCK230_PACK_COMPONENT, "questjournal:qj1");
+            int title = mock230_content_symbol(MOCK230_PACK_COMPONENT, "questjournal:title");
+            int qj_lines = mock230_content_symbol(MOCK230_PACK_VARP, "qj_lines");
+            int latest = mock230_content_symbol(MOCK230_PACK_VARP, "latest_quest_journal");
+            uint8_t button[6];
+            static struct Mock230Capture capture;
+            int open_at;
+            int run_at;
+            int text_hits = 0;
+            int saw_title = 0;
+            int saw_qj1 = 0;
+
+            SELFTEST_CHECK(list > 0 && journal > 0 && slot > 0 && qj1 > 0 && title > 0,
+                           "questlist/questjournal symbols should resolve");
+            SELFTEST_CHECK(qj_lines > 0 && latest > 0,
+                           "qj_lines / latest_quest_journal should resolve");
+
+            /* ---- arming --------------------------------------------------- */
+            {
+                static struct Mock230Capture arm;
+                int mask = -1;
+                int from = -1;
+                int to = -1;
+
+                mock230_capture_begin(&srv, &arm);
+                mock230_scripts_run_proc(&srv, "[proc,quest_journal_login]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( int p = 0; p < arm.count; p++ )
+                {
+                    struct RSAreaBuf ev;
+
+                    if( arm.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        continue;
+                    rsab_wrap(&ev, arm.packets[p].data, (size_t)arm.packets[p].len);
+                    if( rsab_g4_alt3(&ev) != list )
+                        continue;
+                    from = rsab_g2_alt2(&ev);
+                    mask = rsab_g4_alt1(&ev);
+                    to = rsab_g2(&ev);
+                    break;
+                }
+                SELFTEST_CHECK(mask == 4 /* ^if_event_op2 */,
+                               "questlist:list should be armed for op 2 only (mask 4), got %d",
+                               mask);
+                SELFTEST_CHECK(from == 1 && to >= 200,
+                               "questlist:list arming range should be 1..N (got %d..%d)", from, to);
+            }
+
+            button[0] = (uint8_t)(list >> 24);
+            button[1] = (uint8_t)(list >> 16);
+            button[2] = (uint8_t)(list >> 8);
+            button[3] = (uint8_t)list;
+            button[4] = 0;
+            button[5] = 1; /* Cook's Assistant quest:id */
+
+            if( qj_lines > 0 )
+                player->varps[qj_lines] = 0;
+            if( latest > 0 )
+                player->varps[latest] = -1;
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(player->last_slot == 1,
+                           "Cook's Assistant click should arrive as last_slot 1, got %d",
+                           player->last_slot);
+            if( latest > 0 )
+            {
+                SELFTEST_CHECK(player->varps[latest] == cook_row,
+                               "%%latest_quest_journal should be quest_cooksassistant (%d), got %d",
+                               cook_row, player->varps[latest]);
+            }
+            if( qj_lines > 0 )
+            {
+                SELFTEST_CHECK(player->varps[qj_lines] > 0,
+                               "%%qj_lines should be the painted line count, got %d",
+                               player->varps[qj_lines]);
+            }
+
+            open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+            run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+            SELFTEST_CHECK(open_at >= 0, "Read journal should mount questjournal");
+            SELFTEST_CHECK(run_at >= 0, "Read journal should run clientscript 2523");
+            SELFTEST_CHECK(open_at >= 0 && run_at > open_at,
+                           "mount must precede clientscript 2523 (IF_OPENSUB %d, RUNCLIENTSCRIPT %d)",
+                           open_at, run_at);
+
+            if( open_at >= 0 )
+            {
+                struct RSAreaBuf mount;
+                int type;
+                int group;
+                int target;
+
+                rsab_wrap(&mount, capture.packets[open_at].data,
+                          (size_t)capture.packets[open_at].len);
+                type = rsab_g1(&mount);
+                group = rsab_g2_alt2(&mount);
+                target = rsab_g4_alt3(&mount);
+                SELFTEST_CHECK(group == journal,
+                               "should mount questjournal (%d), got %d", journal, group);
+                SELFTEST_CHECK(target == slot,
+                               "should mount into toplevel mainmodal (%d), got %d", slot, target);
+                SELFTEST_CHECK(type == 0, "questjournal should mount as a modal (type 0), got %d",
+                               type);
+            }
+
+            if( run_at >= 0 )
+            {
+                struct RSAreaBuf run;
+                char types[8];
+                int argc = 0;
+                int argv[2] = { 0, 0 };
+                int script_id;
+
+                rsab_wrap(&run, capture.packets[run_at].data,
+                          (size_t)capture.packets[run_at].len);
+                while( argc < (int)sizeof(types) - 1 )
+                {
+                    int c = rsab_g1(&run);
+                    if( c == '\n' || !rsab_ok(&run) )
+                        break;
+                    types[argc++] = (char)c;
+                }
+                types[argc] = '\0';
+                SELFTEST_CHECK(strcmp(types, "ii") == 0,
+                               "clientscript 2523 takes two ints, packet says \"%s\"", types);
+                if( strcmp(types, "ii") == 0 )
+                {
+                    for( int a = argc - 1; a >= 0; a-- )
+                        argv[a] = rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    SELFTEST_CHECK(script_id == 2523,
+                                   "layout clientscript should be 2523, got %d", script_id);
+                    SELFTEST_CHECK(argv[0] == 1,
+                                   "2523's first arg resets scroll (1), got %d", argv[0]);
+                    if( qj_lines > 0 )
+                    {
+                        SELFTEST_CHECK(argv[1] == player->varps[qj_lines],
+                                       "2523's line count (%d) should match %%qj_lines (%d)",
+                                       argv[1], player->varps[qj_lines]);
+                    }
+                }
+            }
+
+            for( int p = 0; p < capture.count; p++ )
+            {
+                struct RSAreaBuf text;
+                int uid;
+                char body[512];
+
+                if( capture.packets[p].opcode != 94 /* IF_SETTEXT */ )
+                    continue;
+                rsab_wrap(&text, capture.packets[p].data, (size_t)capture.packets[p].len);
+                uid = rsab_g4(&text);
+                if( rsab_gjstr(&text, body, sizeof(body), RSAB_JSTR_NEWLINE) < 0 )
+                    continue;
+                text_hits++;
+                if( uid == title && strstr(body, "Cook") )
+                    saw_title = 1;
+                if( uid == qj1 && body[0] != '\0' )
+                    saw_qj1 = 1;
+            }
+            SELFTEST_CHECK(text_hits > 0, "Read journal should send IF_SETTEXT for qj lines");
+            SELFTEST_CHECK(saw_title, "title should mention Cook's Quest");
+            SELFTEST_CHECK(saw_qj1, "qj1 should carry the first journal line");
+
+            /* Fallback path: a quest with no journal script still paints. */
+            {
+                static struct Mock230Capture other;
+                int other_id = 2; /* Demon Slayer */
+
+                button[4] = 0;
+                button[5] = (uint8_t)other_id;
+                mock230_capture_begin(&srv, &other);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
+                mock230_capture_end(&srv);
+                SELFTEST_CHECK(mock230_capture_find(&other, 6 /* IF_OPENSUB */, 0) >= 0,
+                               "an unwritten quest should still mount questjournal");
+            }
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: character summary\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Character Summary (interface 712) click-layer ops.
+             *
+             * The draw proc builds 8 dense sub-ids under summary_click_layer.
+             * Ops start at sub 3. Each op mounts a different target; playtime
+             * instead pushes clientscript 3970 with three ints.
+             *
+             * Before IF_BUTTON1..10 existed, all ten ops of one component
+             * collapsed into one trigger and Bosses/Tasks/Rewards were
+             * unreachable. This asserts the numbered triggers and last_slot.
+             */
+            int layer = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "account_summary_sidepanel:summary_click_layer");
+            int slot = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                              "toplevel_osrs_stretch:mainmodal");
+            int questlist = mock230_content_symbol(MOCK230_PACK_INTERFACE, "questlist");
+            int area_task = mock230_content_symbol(MOCK230_PACK_INTERFACE, "area_task");
+            int ca_overview = mock230_content_symbol(MOCK230_PACK_INTERFACE, "ca_overview");
+            int ca_bosses = mock230_content_symbol(MOCK230_PACK_INTERFACE, "ca_bosses");
+            int ca_tasks = mock230_content_symbol(MOCK230_PACK_INTERFACE, "ca_tasks");
+            int ca_rewards = mock230_content_symbol(MOCK230_PACK_INTERFACE, "ca_rewards");
+            int collection = mock230_content_symbol(MOCK230_PACK_INTERFACE, "collection");
+            int collection_overview =
+                mock230_content_symbol(MOCK230_PACK_INTERFACE, "collection_overview");
+            int tab_container =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "side_journal:tab_container");
+
+            SELFTEST_CHECK(layer > 0, "summary_click_layer should resolve by name");
+            SELFTEST_CHECK(slot > 0, "mainmodal should resolve by name");
+
+            /* Arming: one IF_SETEVENTS covering 0..7 with ops 1-4 (mask 30). */
+            {
+                static struct Mock230Capture capture;
+                int mask = -1;
+                int from = -1;
+                int to = -1;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_proc(&srv, "[if_open,account_summary_sidepanel]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( int p = 0; p < capture.count; p++ )
+                {
+                    struct RSAreaBuf ev;
+
+                    if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        continue;
+                    rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
+                    if( rsab_g4_alt3(&ev) != layer )
+                        continue;
+                    from = rsab_g2_alt2(&ev);
+                    mask = rsab_g4_alt1(&ev);
+                    to = rsab_g2(&ev);
+                    break;
+                }
+                SELFTEST_CHECK(mask == 30 /* ^if_event_op1to4 */,
+                               "summary_click_layer should arm ops 1-4 (mask 30), got %d", mask);
+                SELFTEST_CHECK(from == 0 && to == 7,
+                               "summary_click_layer should arm sub-ids 0..7, got %d..%d", from,
+                               to);
+            }
+
+            struct
+            {
+                int op_name;
+                int sub;
+                int expect_iface;
+                int expect_target; /* 0 = mainmodal, 1 = tab_container */
+                const char* label;
+            } cases[] = {
+                { PKTOUT_NAME_IF_BUTTON1, 3, questlist, 1, "Quest List" },
+                { PKTOUT_NAME_IF_BUTTON1, 4, area_task, 1, "Achievement Diaries" },
+                { PKTOUT_NAME_IF_BUTTON1, 5, ca_overview, 0, "CA Overview" },
+                { PKTOUT_NAME_IF_BUTTON2, 5, ca_bosses, 0, "CA Bosses" },
+                { PKTOUT_NAME_IF_BUTTON3, 5, ca_tasks, 0, "CA Tasks" },
+                { PKTOUT_NAME_IF_BUTTON4, 5, ca_rewards, 0, "CA Rewards" },
+                { PKTOUT_NAME_IF_BUTTON1, 6, collection, 0, "Collection Log" },
+                { PKTOUT_NAME_IF_BUTTON2, 6, collection_overview, 0, "Collection Overview" },
+            };
+
+            for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
+            {
+                static struct Mock230Capture capture;
+                uint8_t button[6];
+                int open_at;
+                int expect_target =
+                    cases[i].expect_target ? tab_container : slot;
+
+                if( cases[i].expect_iface <= 0 || expect_target <= 0 )
+                    continue;
+
+                button[0] = (uint8_t)(layer >> 24);
+                button[1] = (uint8_t)(layer >> 16);
+                button[2] = (uint8_t)(layer >> 8);
+                button[3] = (uint8_t)layer;
+                button[4] = (uint8_t)(cases[i].sub >> 8);
+                button[5] = (uint8_t)cases[i].sub;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, cases[i].op_name, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(player->last_slot == cases[i].sub,
+                               "%s: last_slot should be %d, got %d", cases[i].label,
+                               cases[i].sub, player->last_slot);
+
+                open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                SELFTEST_CHECK(open_at >= 0, "%s should mount an interface", cases[i].label);
+                if( open_at >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int type;
+                    int group;
+                    int target;
+
+                    rsab_wrap(&mount, capture.packets[open_at].data,
+                              (size_t)capture.packets[open_at].len);
+                    type = rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    target = rsab_g4_alt3(&mount);
+                    SELFTEST_CHECK(group == cases[i].expect_iface,
+                                   "%s should mount interface %d, got %d", cases[i].label,
+                                   cases[i].expect_iface, group);
+                    SELFTEST_CHECK(target == expect_target,
+                                   "%s should mount into the expected slot (%d), got %d",
+                                   cases[i].label, expect_target, target);
+                    (void)type;
+                }
+            }
+
+            /* Time Played: op1 on sub 7 pushes clientscript 3970 with three ints. */
+            {
+                static struct Mock230Capture capture;
+                uint8_t button[6];
+                int run_at;
+                int playtime = mock230_content_symbol(MOCK230_PACK_VARP, "playtime_minutes");
+
+                button[0] = (uint8_t)(layer >> 24);
+                button[1] = (uint8_t)(layer >> 16);
+                button[2] = (uint8_t)(layer >> 8);
+                button[3] = (uint8_t)layer;
+                button[4] = 0;
+                button[5] = 7;
+
+                if( playtime > 0 )
+                    player->varps[playtime] = 42;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                SELFTEST_CHECK(run_at >= 0,
+                               "Time Played reveal should push clientscript 3970");
+                if( run_at >= 0 )
+                {
+                    struct RSAreaBuf run;
+                    char types[8];
+                    int argc = 0;
+                    int script_id;
+
+                    rsab_wrap(&run, capture.packets[run_at].data,
+                              (size_t)capture.packets[run_at].len);
+                    while( argc < (int)sizeof(types) - 1 )
+                    {
+                        int c = rsab_g1(&run);
+                        if( c == '\n' || !rsab_ok(&run) )
+                            break;
+                        types[argc++] = (char)c;
+                    }
+                    types[argc] = '\0';
+                    SELFTEST_CHECK(strcmp(types, "iii") == 0,
+                                   "clientscript 3970 takes three ints, packet says \"%s\"",
+                                   types);
+                    for( int a = argc - 1; a >= 0; a-- )
+                        (void)rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    SELFTEST_CHECK(script_id == 3970,
+                                   "Time Played should run clientscript 3970, got %d",
+                                   script_id);
+                }
+            }
+
+            /* Cache enums must be readable — the popout strip derives its range
+             * from enum_4067, and CA/collection totals walk the cache tables. */
+            {
+                const struct Mock230EnumDef* popout = mock230_content_enum("enum_4067");
+                const struct Mock230EnumDef* easy = mock230_content_enum("enum_3981");
+
+                SELFTEST_CHECK(popout && popout->count == 3,
+                               "configs/all.enum should load enum_4067 with 3 values");
+                SELFTEST_CHECK(easy && easy->count > 0,
+                               "configs/all.enum should load CA tier enum_3981");
             }
 
             mock230_scripts_free(&srv);

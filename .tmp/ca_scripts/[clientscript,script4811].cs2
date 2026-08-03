@@ -1,8 +1,0 @@
-// 4811
-[clientscript,script4811](component $component0, int $int1, int $int2, int $int3, int $int4, int $int5, int $int6, int $int7, component $component8, int $int9, int $int10, int $int11)
-~script4767($int9, $int10, $int11, 2);
-~script228($int1, "Combat Achievements - Rewards", 0);
-cc_deleteall($component8);
-~script31($component8, $int4, 792, 789, 790, 791, 773, 788);
-~script4813($component0, $int2, $int3, $int4, $int5, $int6, $int7, $component8, enum(int, struct, enum_3980, ~script1425(0, calc(enum_getoutputcount(enum_3980) - 1), %varbit17941)));
-if_setonvartransmit("script8076($component0, $int2, $int3, $int4, $int5, $int6, $int7, $component8){var3137}", $component0);

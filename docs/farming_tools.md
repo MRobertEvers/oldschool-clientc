@@ -257,15 +257,15 @@ All of it, except the four seams above. `server/scripts/interface_farming/`:
 | `scripts/farming_tools.rs2` | pack/unpack, the quantity table, store, remove, examine, deposit-all, the messages, the arming, `::farmkit` |
 | `scripts/farming_tools_ops.rs2` | 118 one-line `[if_button<n>,…]` bindings |
 
-Two things in there are transcriptions of cache data rather than reads of it,
-and both are marked as such: the twelve capacities (`enum_2193`) and the
-watering can's charge table (`enum_136`). **The server cannot read a cache enum
-at all** — `mock230_content.c` walks `.enum` under `server/scripts` only, so all
-6,024 rank-0 enums in `configs/all.enum` are absent from the symbol table.
-`docs/skill_guide.md` §7 found the same thing from the other direction. Until
-that loads, these are the one place in the feature where the server and the
-client hold the same number twice; the selftest's capacity case is what stands
-in for the missing single source.
+Two things in there used to be transcriptions of cache data rather than reads
+of it, and both are marked as such: the twelve capacities (`enum_2193`) and the
+watering can's charge table (`enum_136`). **That limitation is retired** —
+`mock230_content.c` now loads `configs/all.enum` as rank-0 config (authored
+`.enum` under `server/scripts` still wins on name), so
+`enum_getoutputcount(enum_2193)` is expressible. The constants remain until a
+follow-up rewrites those two tables to read the cache; the Character Summary /
+chrome popout path already consumes the loader
+(`docs/account_summary_server_reqs.md` §1).
 
 ### 3.1 Why 118 trigger blocks
 

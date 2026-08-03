@@ -1,7 +1,0 @@
-// 927
-[clientscript,script927](int $int0)
-if ($int0 = 1) {
-	if_setonkey("script73(event_key, event_keychar)", interface_162:0);
-} else {
-	if_setonkey(null, interface_162:0);
-}

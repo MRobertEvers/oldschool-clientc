@@ -1,6 +1,0 @@
-// 4863
-[clientscript,script4863]
-if (~script100 = 0) {
-	return;
-}
-%varbit9622 = calc(1 - %varbit9622);

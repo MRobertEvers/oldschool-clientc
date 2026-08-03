@@ -1391,6 +1391,15 @@ The loader order also moved out of `main()` into `mock230_boot.c`, because two
 callers now need it and it is order-dependent in three places that all fail
 *silently* when reversed (see that file's header).
 
+Authored `.dbtable`/`.dbrow` under `server/scripts` load first
+(`mock230_db_load`). Cache kinds 38/39 then fill via `mock230_db_load_cache`
+(`mock230_dbinfo.c`) so ServerScript can `db_find(quest:id, …)` the same
+tables CS2 already reads — the machine export `configs/all.dbtable` /
+`all.dbrow` uses `columndef=`/`values=` and is skipped by the text reader.
+Authored schemas keep priority (e.g. `interface_questjournal/configs/quest.dbtable`
+names columns 0..19); boot reports `db tables loaded (N tables, M rows …)`.
+`MOCK230_DB_COLUMN_MAX` is 64 so sparse cache columns (quest's 48) fit.
+
 ## 3.13c Interactions walk before they act
 
 Every op handler used to walk *and* act in the same call. `handle_opobj` queued

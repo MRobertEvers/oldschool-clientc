@@ -1,7 +1,0 @@
-// 549
-[clientscript,script549]
-if (string_length(%varcstring359) > 0) {
-	if_settext("Filter public chat: <col=0000ff><escape(lowercase(%varcstring359))></col>", interface_162:43);
-} else {
-	if_settext("Filter public chat: <col=7f0000>[no filter]</col>", interface_162:43);
-}

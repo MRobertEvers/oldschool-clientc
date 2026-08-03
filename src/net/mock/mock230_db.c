@@ -20,6 +20,7 @@
 
 #include "mock230_db.h"
 
+#include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -646,7 +647,13 @@ walk_suffix(
         name_length = strlen(entry->d_name);
         if( name_length >= suffix_length &&
             strcmp(entry->d_name + name_length - suffix_length, suffix) == 0 )
+        {
+            /* Machine exports — see mock230_db_load. */
+            if( strcmp(entry->d_name, "all.dbtable") == 0 ||
+                strcmp(entry->d_name, "all.dbrow") == 0 )
+                continue;
             handler(path);
+        }
     }
     closedir(handle);
 }
@@ -655,7 +662,12 @@ void
 mock230_db_load(const char* dir)
 {
     mock230_db_free();
-    /* Both passes here, not one walk: see the file header. */
+    /* Both passes here, not one walk: see the file header.
+     *
+     * `configs/all.dbtable` / `all.dbrow` are the machine export
+     * (`columndef=` / `values=`) and are not this grammar — walking them used
+     * to leave 246 zero-column stubs that shadowed any later cache fill. They
+     * are skipped by name; the binary records land via mock230_db_load_cache. */
     walk_suffix(dir, ".dbtable", load_dbtable_file);
     walk_suffix(dir, ".dbrow", load_dbrow_file);
 }
@@ -690,4 +702,166 @@ mock230_db_free(void)
     g_rows = NULL;
     g_row_count = 0;
     g_row_capacity = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cache-import helpers (used by mock230_dbinfo.c)                     */
+/* ------------------------------------------------------------------ */
+
+struct Mock230DbTable*
+mock230_db_ensure_table(
+    int table_id,
+    const char* symbol,
+    int replace_empty)
+{
+    struct Mock230DbTable* table;
+
+    assert(table_id >= 0);
+    assert(symbol);
+
+    for( int i = 0; i < g_table_count; i++ )
+    {
+        if( g_tables[i].table_id != table_id )
+            continue;
+        table = &g_tables[i];
+        if( table->column_count > 0 && !replace_empty )
+            return table;
+        if( replace_empty && table->column_count == 0 )
+        {
+            /* Stub from a prior incomplete load — clear so the caller can
+             * redefine. Symbol is kept when it matches. */
+            return table;
+        }
+        return table;
+    }
+
+    g_tables = db_grow(g_tables, &g_table_capacity, g_table_count, sizeof(*g_tables));
+    table = &g_tables[g_table_count++];
+    memset(table, 0, sizeof(*table));
+    table->symbol = strdup(symbol);
+    table->table_id = table_id;
+    return table;
+}
+
+struct Mock230DbRow*
+mock230_db_ensure_row(
+    int row_id,
+    const char* symbol,
+    int table_id)
+{
+    struct Mock230DbRow* row;
+    int has_values = 0;
+
+    assert(row_id >= 0);
+    assert(symbol);
+    assert(table_id >= 0);
+
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        if( g_rows[i].row_id != row_id )
+            continue;
+        row = &g_rows[i];
+        for( int col = 0; col < MOCK230_DB_COLUMN_MAX; col++ )
+        {
+            if( row->columns[col].count > 0 )
+            {
+                has_values = 1;
+                break;
+            }
+        }
+        /* Authored rows win — do not overwrite. */
+        if( has_values )
+            return NULL;
+        row->table_id = table_id;
+        return row;
+    }
+
+    g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
+    row = &g_rows[g_row_count++];
+    memset(row, 0, sizeof(*row));
+    row->symbol = strdup(symbol);
+    row->row_id = row_id;
+    row->table_id = table_id;
+    return row;
+}
+
+void
+mock230_db_column_define(
+    struct Mock230DbTable* table,
+    int col_id,
+    const char* name,
+    int type_count,
+    const int* is_string)
+{
+    struct Mock230DbColumn* column;
+
+    assert(table);
+    assert(col_id >= 0);
+    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(type_count > 0);
+    assert(type_count <= MOCK230_DB_TUPLE_MAX);
+    assert(is_string);
+
+    column = &table->columns[col_id];
+    if( column->name )
+        free((void*)column->name);
+    column->name = name ? strdup(name) : NULL;
+    column->type_count = type_count;
+    for( int i = 0; i < type_count; i++ )
+        column->is_string[i] = is_string[i] ? 1 : 0;
+    for( int i = type_count; i < MOCK230_DB_TUPLE_MAX; i++ )
+    {
+        column->is_string[i] = 0;
+        column->kind[i] = MOCK230_PACK_COUNT;
+    }
+    if( col_id + 1 > table->column_count )
+        table->column_count = col_id + 1;
+}
+
+void
+mock230_db_row_column_set(
+    struct Mock230DbRow* row,
+    int col_id,
+    const struct Mock230DbValue* values,
+    int count)
+{
+    struct Mock230DbRowColumn* store;
+
+    assert(row);
+    assert(col_id >= 0);
+    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(count >= 0);
+    assert(values || count == 0);
+
+    store = &row->columns[col_id];
+    for( int i = 0; i < store->count; i++ )
+        free((void*)store->values[i].text);
+    free(store->values);
+    store->values = NULL;
+    store->count = 0;
+    store->capacity = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct Mock230DbValue copy = { 0, NULL };
+
+        store->values = db_grow(store->values, &store->capacity, store->count,
+                                sizeof(*store->values));
+        copy.value = values[i].value;
+        if( values[i].text )
+            copy.text = strdup(values[i].text);
+        store->values[store->count++] = copy;
+    }
+}
+
+int
+mock230_db_table_count(void)
+{
+    return g_table_count;
+}
+
+int
+mock230_db_total_row_count(void)
+{
+    return g_row_count;
 }

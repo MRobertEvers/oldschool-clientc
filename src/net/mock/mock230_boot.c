@@ -139,8 +139,10 @@ mock230_boot_load(const struct Mock230BootConfig* config)
     /* 3. The db tables, which resolve their own ids and their `^constants` out
      *    of what step 2 loaded. Separate from step 2 because a `.dbrow` also
      *    resolves obj/npc/loc names, so it needs the whole symbol space, not
-     *    just the packs. */
+     *    just the packs. Authored `.dbtable` / `.dbrow` first; then the cache's
+     *    own DBTABLE/DBROW binary fills the cache-id half (quest, …). */
     mock230_db_load(config->content_dir);
+    mock230_db_load_cache(config->cache_dir);
 
     /* 4. Every interface, component and varbit the engine addresses is a name
      *    in that tree. */

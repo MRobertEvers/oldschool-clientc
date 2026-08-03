@@ -731,7 +731,8 @@ absence). **They are server-requirements specs, not implementations** — per
 | [`clan_chat_server_reqs.md`](clan_chat_server_reqs.md) | clans_sidepanel 701, clans_members 693 | greenfield, **larger than friends/PM** — see §5.2's correction |
 | [`emote_tab_server_reqs.md`](emote_tab_server_reqs.md) | emote 216 | **already landed + selftested**; only unlock-bit content is open |
 | [`skill_guide_server_reqs.md`](skill_guide_server_reqs.md) | skill_guide_v2 860 | mostly static dbtable; needs a query-state change for `db_find_filter_with_count` |
-| [`collection_log_server_reqs.md`](collection_log_server_reqs.md) | collection 621, collection_overview 908 | **largest single state gap**: a new 500-slot monotonic container |
+| [`collection_log_server_reqs.md`](collection_log_server_reqs.md) | collection 621, collection_overview 908 | **landed** (container registry + `interface_collection/`); per-table earn hooks / kill counts still open |
+| [`account_summary_server_reqs.md`](account_summary_server_reqs.md) | account_summary_sidepanel 712 | **landed** — all 8 click-layer ops + counter plumbing; selftested |
 | [`grand_exchange_server_reqs.md`](grand_exchange_server_reqs.md) | ge_offers 465 + family | **largest feature**: 3 data idioms + a world-wide matching engine |
 | [`trading_server_reqs.md`](trading_server_reqs.md) | trademain 335, tradeside 336, tradeconfirm 334 | **most novel architecturally**: needs cross-player container read/write |
 | [`chrome_panels_server_reqs.md`](chrome_panels_server_reqs.md) | xptracker 729, hiscores 894, loottools 650 | xptracker needs ~nothing; hiscores is **out-of-band HTTP**, not a game packet |

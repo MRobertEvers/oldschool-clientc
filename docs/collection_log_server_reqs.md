@@ -1,53 +1,39 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-03 — content plumbing landed.** Container 620 was already
+> proven. What this feature still owed is now in
+> `server/scripts/interface_collection/`: the ~20 varps, open procs for 621/908,
+> `%collection_count_max` from the catalog enums, `~collection_earn` /
+> `::collect`, and a catalog-guarded hook on `~npc_default_death`. Character
+> Summary ops that open these panels are in `interface_summary/` — see
+> [`account_summary_server_reqs.md`](account_summary_server_reqs.md). Per-table
+> drop scripts and kill-count/PB scratch remain ongoing content.
+>
 > **Blockers A + B, 2026-08-02 — both cleared; this feature only ever needed B.**
 > A (`runclientscript` carrying ints) was never on this doc's path — no screen
-> here is server-pushed. B (the container registry) was its entire blocker and
-> is gone, container 620 proven end to end including a logout round trip.
-> **Still blocked on: nothing structural** — the panel's own content, ~20
-> varps, and the point-of-earning trigger, which is a corpus gap on both sides.
-> Shortest remaining list of the four.
-
+> here is server-pushed. B (the container registry) was its entire structural
+> blocker and is gone, container 620 proven end to end including a logout
+> round trip. **Still blocked on: nothing structural.**
+>
 > **UPDATE 2026-08-02 (lane-blockers): the container blocker is CLEARED.**
 > `container_for`/`container_dirty` are a registry now — see
 > [`mock230_containers.md`](mock230_containers.md). Resolve-or-create means
 > **no `inv_collection` row, no player struct field and no case were needed**:
 > container 620 sizes itself to 500 from the cache the first time content names
 > it, transmits as a whole-container UPDATE_INV_FULL because it is past 32
-> slots, and persists as `[container.620]`. `SS_OP_INV_SETSLOT` (4323) is
-> implemented. Verified in the headless client end to end, including a
-> logout/login round trip. What is still owed is the *feature*: the panel, the
-> ~20 varps, and the point-of-earning trigger — which remains a genuine corpus
-> gap, no script in the tree fires it.
-
-> **NOT BUILT — triaged 2026-08-02: NEEDS-ONE-THING, and it is the highest
-> leverage per line in the survey.** The blocker is the fourth container this
-> doc already names: `container_for` — re-measured today at
-> `mock230_scripts.c:2088`, not §2's `1504-1526` — still has exactly three
-> hardcoded cases, and `container_dirty` the same. ~50-80 lines (a
-> `Mock230Item*` + size on `Mock230Player`, a case in each, an
-> `inv_collection` row resolving `"collection_transmit"`, init and shutdown),
-> and it forces the container-registry generalisation shop, GE, trading and
-> death all need. **§2's persistence dependency is no longer a gate**:
-> `mock230_save_player`/`_load_player` were given callers on 2026-08-02 with
-> `farming_tools`. One claim to drop: §2's "this ruled out … a bitset of
-> varbits" — 55 `collection_item_<name>` varbits across 12 `collection_items_N`
-> varps do exist; no decompiled script reads them, so it is a parallel store to
-> decide about, not something ruled out. Otherwise the most accurate doc in the
-> set.
+> slots, and persists as `[container.620]`.
 
 > Companion to `docs/questlist_chatmenu_levelup.md` and
-> `docs/chrome_panels_server_reqs.md`, same discovery pass. **This is the
-> single largest new per-player state requirement found in this whole survey
-> series** — not a handful of undeclared varps, but an entire 500-slot
-> container mock230 has no concept of at all.
+> `docs/chrome_panels_server_reqs.md`, same discovery pass. The engine half of
+> the "500-slot container" finding is done; the content half is
+> `interface_collection/`.
 
 ## 0. Status at a glance
 
 | interface | id | status | what's missing |
 |---|---|---|---|
-| `collection` (detail view) | 621 | mechanism fully traced | a 500-slot per-player container (`inv_620`) never wired server-side, plus ~10 small varps |
-| `collection_overview` (summary grid) | 908 | mechanism fully traced | same container dependency, plus ~15 aggregate/ring varps |
+| `collection` (detail view) | 621 | **landed** (open + state) | per-source kill-count/PB scratch; earn hooks beyond default death |
+| `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts) | same |
 
 ---
 
@@ -93,62 +79,53 @@ agree. It rides the exact same generic
 `inv_total`/`UPDATE_INV_FULL`/`UPDATE_INV_PARTIAL` machinery the bank
 already uses — no new opcode, no new wire format.
 
-**And mock230 has zero support for it, confirmed directly**:
+**And mock230 supports it via the container registry** (re-measured
+2026-08-02 / content 2026-08-03): resolve-or-create sizes 620 to 500 from the
+cache, dirty/transmit work like any other large container, and persistence is
+`[container.620]`. See [`mock230_containers.md`](mock230_containers.md). The
+historical note below is kept so the discovery trail stays readable — the
+three-case `container_for` it describes no longer exists.
+
+~~**And mock230 has zero support for it, confirmed directly**:
 `container_for()` (`src/net/mock/mock230_scripts.c:1504-1526`) has exactly
 three cases — `inv_backpack`, `inv_worn`, `inv_bank` — and falls through to
 `*out_slots = 0; return NULL;` for anything else, including 620.
 `container_dirty()` has the identical three-way branch: a write to inv 620
 would mark nothing dirty and transmit nothing. There is no
-`struct Mock230Player` field for it. The wire encoders themselves need no
-change — `mock230_send_inv_full`/`_partial` already take an arbitrary
-container id and slot array, and were already widened once for the bank's
-1220 slots — so the entire gap is "no per-player storage exists for id 620,
-and nothing ever populates it," not a wire-format limitation.
+`struct Mock230Player` field for it.~~ **Superseded** — registry + content
+plumbing landed; §3's status column is current.
 
-**Why this is the largest finding in the series**: 500 slots × (obj id +
+**Why this was the largest finding in the series**: 500 slots × (obj id +
 count) per player, and unlike the bank it's **monotonic** — write-once,
-grows forever, must persist indefinitely. That collides directly with an
-already-known gap: `mock230_save_player`/`mock230_load_player` have zero
-callers anywhere (`docs/PORTING_GUIDE.md` §2.5) — collection log is the
-first feature in this survey series where "persistence doesn't work yet" is
-load-bearing rather than a footnote, since a collection log that resets on
-reconnect defeats the entire point of the feature.
+grows forever, must persist indefinitely. Persistence callers exist now
+(`mock230_save_player`/`_load_player`); the remaining work is content density.
 
 ## 3. Server obligations
 
 | state | meaning | delivery | mock230 status |
 |---|---|---|---|
-| container **620** (`collection_transmit`, 500 slots) | the load-bearing per-item obtained+count state | generic container wire, same as bank | **not wired** — `container_for`/`container_dirty` have no case for it; no player struct field; no persistence path |
-| `%collection_count`/`_max` | overview "Collections Logged: N/M" | generic varp transmit | not declared |
-| `%collection_count_highscores` (Account Summary's own line) | a *different* numerator than the overview's — worth resolving as a naming inconsistency, not assuming identical | generic varp transmit | not declared |
-| per-subsection counts (Bosses/Raids/Clues/Minigames/Other ×2 each) | the 5 progress rings | generic varp transmit | not declared |
-| 12-slot "Latest Collections" ring (item + day-obtained ×12) | the overview's recent-items strip | generic varp transmit | not declared; a fixed rotation, not the container |
-| `%varbit9535` (`current_runeday`) | "obtained N days ago" display | pre-existing systemwide clock — **not collection-log-specific**, check if landed for other reasons first | not confirmed landed |
-| per-source kill-count/PB scratch varps (`%collection_category_count` family) | a **transmit mailbox** — server copies the selected source's real counter into shared scratch varps on demand, one set, not one-per-boss | generic varp transmit | not declared; and the real persistent kill-count/PB tracking underneath is a **pre-existing, larger dependency**, confirmed zero kill-count infrastructure anywhere in mock230 |
-| `%varbit14577` (`collection_player_bodytype`) | gendered item-variant substitution for counting | generic varbit transmit | not declared |
-| point-of-earning trigger (write the slot + message the player) | the actual "you got a new collection log item" moment | — | **corpus gap** — no script anywhere writes to `inv_620` or contains a "New item added" string; same missing-proc class as the rest of this series |
+| container **620** (`collection_transmit`, 500 slots) | the load-bearing per-item obtained+count state | generic container wire, same as bank | **landed** — registry resolve-or-create; persists as `[container.620]`; selftested |
+| `%collection_count`/`_max` | overview "Collections Logged: N/M" | generic varp transmit | **landed** — `interface_collection/`; max from catalog enums |
+| `%collection_count_highscores` (Account Summary's own line) | kept in lockstep with `%collection_count` on earn/login | generic varp transmit | **landed** |
+| per-subsection counts (Bosses/Raids/Clues/Minigames/Other ×2 each) | the 5 progress rings | generic varp transmit | **declared**; subsection bump on earn still open |
+| 12-slot "Latest Collections" ring (item + day-obtained ×12) | the overview's recent-items strip | generic varp transmit | **landed** item ring; day-obtained pairing still open |
+| `%varbit9535` (`current_runeday`) | "obtained N days ago" display | pre-existing systemwide clock | not confirmed landed |
+| per-source kill-count/PB scratch varps (`%collection_category_count` family) | a **transmit mailbox** — server copies the selected source's real counter into shared scratch varps on demand | generic varp transmit | not declared; kill-count infrastructure still absent |
+| `%varbit14577` (`collection_player_bodytype`) | gendered item-variant substitution for counting | generic varbit transmit | **declared** on the collection carrier |
+| point-of-earning trigger | write the slot + message the player | content | **partial** — `~collection_earn` + `::collect` + catalog-guarded hook on `~npc_default_death`; per-table drops ongoing |
 
-The transport for every varp/varbit row is generic and already works — each
-is a small, isolated content-side declaration, same fix as `%qp` in
-`docs/questlist_chatmenu_levelup.md` §1.2. **The container is not** — it's
-new engine surface (a fourth `container_for` case, a player struct field,
-persistence), plus a content-side trigger at the point of earning.
+The transport for every varp/varbit row is generic and already works. The
+container is no longer novel engine surface — see
+[`mock230_containers.md`](mock230_containers.md).
 
 ## 4. Landed vs. gap
 
-- **Landed / reusable as-is**: the entire container wire path, generic varp/
-  varbit transmit, client-side `inv_total`/`inv_getobj`/`inv_getnum`, both
-  interfaces' chrome (needs zero server input, same "panel paints itself"
-  pattern as the loot tracker and xptracker).
-- **Gap, small**: ~20 varps/varbits — declare `transmit=yes`/`scope=perm`,
-  compute content-side.
-- **Gap, large and novel**: a fourth `container_for`/`container_dirty` case
-  for `inv_620` (500 slots), a new player struct field, persistence (riding
-  whatever eventually fixes `mock230_save_player`'s zero-callers problem,
-  since this state is permanent by definition), and — per
-  `docs/PORTING_GUIDE.md` §2's "port the proc, not the field" — a
-  content-side trigger fired at the moment a loggable item is received,
-  whose body is the missing corpus piece above.
+- **Landed**: container registry path for 620, open procs for 621/908, aggregate
+  varps, catalog-derived `%collection_count_max`, `~collection_earn` /
+  `::collect`, default-death catalog hook, Character Summary ops that mount
+  the panels.
+- **Gap, content**: earn hooks in every `drop_tables/` script; subsection
+  counter bumps on first find; kill-count/PB mailbox; day-obtained ring half.
 - **Not new work**: per-source kill counts/PBs look collection-log-adjacent
   but are a pre-existing dependency this feature merely displays — the same
   relationship the loot tracker has to the NPC-death drop-roll mechanism

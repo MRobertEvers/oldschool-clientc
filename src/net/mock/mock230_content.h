@@ -499,11 +499,6 @@ mock230_content_varp(int varp_id);
  * Order is preserved. The gameframe is mounted in the order it is listed, and
  * the chatbox has to exist before anything writes to it.
  */
-enum
-{
-    MOCK230_ENUM_VALUE_MAX = 256,
-};
-
 struct Mock230EnumValue
 {
     int key;
@@ -536,8 +531,12 @@ struct Mock230EnumDef
      *  reference, and the reason a missing key is not an error. */
     int default_int;
     const char* default_text;
-    struct Mock230EnumValue values[MOCK230_ENUM_VALUE_MAX];
+    /** Heap-owned. Growable: the cache's `configs/all.enum` has enums with
+     *  more than a thousand values (max measured 1658), and a fixed 256-slot
+     *  array was the reason ServerScript could not read those tables. */
+    struct Mock230EnumValue* values;
     int count;
+    int capacity;
 };
 
 /** An enum by name, or NULL. */

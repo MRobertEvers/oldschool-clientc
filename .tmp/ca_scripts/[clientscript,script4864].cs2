@@ -1,6 +1,0 @@
-// 4864
-[clientscript,script4864](int $int0)
-if (~script100 = 0) {
-	return;
-}
-%varbit9619 = $int0;

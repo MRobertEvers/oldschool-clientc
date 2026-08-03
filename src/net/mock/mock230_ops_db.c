@@ -90,6 +90,12 @@ resolve_column(
                    column_index, table->column_count);
         return NULL;
     }
+    if( table->columns[column_index].type_count <= 0 )
+    {
+        SSVM_Abort(state, "db table `%s` column %d is not defined", table->symbol,
+                   column_index);
+        return NULL;
+    }
     *out_table = table;
     *out_index = column_index;
     return &table->columns[column_index];
