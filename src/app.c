@@ -4069,6 +4069,48 @@ App_RunClientScript(
     }
 }
 
+void
+App_LootNotifyKill(
+    struct App* app,
+    char const* source_name,
+    int obj_id,
+    int qty)
+{
+    assert(app);
+    assert(source_name);
+
+    int cost = 0;
+    struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( obj )
+        cost = obj->cost;
+
+    LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost);
+
+    /*
+     * Clientscript 7159: the decompiled signature is (int objId, int qty,
+     * string sourceName). The engine fills the store FIRST, then pushes 7159
+     * so CS2 can read it back.
+     *
+     * Argument layout: intv[0] = objId, intv[1] = qty; str_mask bit 2 marks
+     * argument 2 as a string; str_args[0] = sourceName (compacted).
+     */
+    {
+        int intv[3] = { obj_id, qty, 0 };
+        char const* str_args[1] = { source_name };
+        uint64_t str_mask = 1u << 2;
+
+        RS_CS2_RunScript(
+            &app->host,
+            &app->runner,
+            7159,
+            intv,
+            3,
+            str_mask,
+            str_args,
+            1);
+    }
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void
@@ -4185,10 +4227,27 @@ app_logic_tick(struct App* app)
                     len = sizeof(one) - 1;
                 memcpy(one, cheat, len);
                 if( one[0] )
-                    APP_NET_SEND(
-                        app,
-                        net_out_client_cheat(
-                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), one));
+                {
+                    if( strncmp(one, "lootkill ", 9) == 0 )
+                    {
+                        char lk_source[64] = { 0 };
+                        int lk_obj = 0;
+                        int lk_qty = 1;
+                        if( sscanf(one + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                        {
+                            if( lk_qty <= 0 )
+                                lk_qty = 1;
+                            App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                        }
+                    }
+                    else
+                    {
+                        APP_NET_SEND(
+                            app,
+                            net_out_client_cheat(
+                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), one));
+                    }
+                }
                 cheat = sep ? sep + 1 : NULL;
             }
         }
@@ -4316,6 +4375,19 @@ app_logic_tick(struct App* app)
                 app->need_redraw = 1;
                 break;
             case RS_CS2_SOCIAL_SEND_CHEAT:
+                if( strncmp(send.text, "lootkill ", 9) == 0 )
+                {
+                    char lk_source[64] = { 0 };
+                    int lk_obj = 0;
+                    int lk_qty = 1;
+                    if( sscanf(send.text + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                    {
+                        if( lk_qty <= 0 )
+                            lk_qty = 1;
+                        App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                    }
+                    break;
+                }
                 APP_NET_SEND(app, net_out_client_cheat(app->net->rev, app->net->random_out,
                                                         _nsbuf, sizeof(_nsbuf), send.text));
                 break;

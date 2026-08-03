@@ -1919,8 +1919,7 @@ exec_oc_int_param(
     switch( request.field )
     {
     case CS2VM_OC_INT_COST:
-        /* Stub: cost not carried on ToriRS_Objtype yet. */
-        value = 0;
+        value = obj->cost;
         break;
     case CS2VM_OC_INT_STACKABLE:
         value = obj->stackable;

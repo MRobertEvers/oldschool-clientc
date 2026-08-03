@@ -71,6 +71,7 @@ ToriRS_ObjtypeFromRSCacheDat1(
     torirs_copy_menu_actions(objtype->inv_actions, src->iop);
     torirs_copy_menu_actions(objtype->ground_actions, src->op);
     objtype->stackable = src->stackable ? 1 : 0;
+    objtype->cost = src->cost;
     objtype->inventory_model_id = src->model;
     objtype->cert_link = src->certlink;
     objtype->cert_template = src->certtemplate;
@@ -172,6 +173,7 @@ ToriRS_ObjtypeFromRSCacheDat2(
     torirs_copy_menu_actions(objtype->ground_actions, src->actions);
     objtype->stackable = src->stacking_behaviour != 0 ? 1 : 0;
     objtype->category = src->category;
+    objtype->cost = src->cost;
     objtype->inventory_model_id = src->inventory_model_id;
     objtype->cert_link = src->noted_id;
     objtype->cert_template = src->noted_template;

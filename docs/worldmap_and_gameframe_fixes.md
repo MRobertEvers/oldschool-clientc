@@ -670,31 +670,40 @@ churn the LRU.
 **Verified:** `FORCE_MAP=4` (braindeath) → `geography: file=4 archive=ok`,
 `baked region 33,79` / `33,80`, BMP terrain colours (not a black fill).
 
-### Repeating tile grid on non-Gielinor maps — kind=1 read the wrong chunk
+### Vertical striping on underground maps — wrong archive key + zone order
 
 Gielinor Surface and Braindeath use compositemap **kind=0** (whole-region)
-records. Dungeon / ocean maps often use **kind=1** (chunk) records that still
-point at full 4096-tile table-18 files. Headerless decode treated every kind=1
-file as a lone 64-tile stream: it always consumed the first 8×8 and wrote it at
-`dst_chunk`. Sixty-four sibling records therefore painted the same source chunk
-across the region — the repeating mountain/cell grid on Ardent Ocean
-Underground.
+records. Dungeon maps use **kind=1** (chunk) records. Two bugs stacked:
+
+1. **Archive key** used `src_region` packing. Table 18 (and ground table 20)
+   are addressed by **destination** region `(dst_rx << 8) | dst_ry`. Measured
+   on `compositemap.wmc`: dst key → every file is exactly `64 * records` tiles;
+   src key → 46 mismatches / 29 missing groups.
+2. **Tile order** treated the file as an x-major 64×64 grid sliced by
+   `src_chunk`. It is actually consecutive 64-tile zone blocks in compositemap
+   record order, each placed at `dst_chunk` (reference:
+   `class184.method5887`). Reading zone-major as tile-major produces
+   1-tile-wide vertical columns — Yanille Underground, Dorgesh-Kaan, Ardent
+   Ocean Underground.
 
 **Fix** (`dat2_worldmap_geography.c`, `task_dat2_worldmap_geography_load.c`):
-pass `src_chunk` into decode; for headerless kind=1, decode the file as a
-region (or single 8×8) and blit `src_chunk` → `dst_chunk`. Cache each decoded
-source file inside the region load task.
+derive group from `dst_region`; `RSCache_WorldMapGeographyReader` +
+`ReadChunk` / `ReadRegion` with a per-file cursor shared across sibling
+records.
 
-**Verified** (`manifest_osrs239_worldmap.ini`, headless):
+**Verified** (`manifest_osrs239_worldmap.ini`, headless; BMP col/row equality
+ratio ≈ 1.0 = no striping):
 
-| `FORCE_MAP` | area | baked | decode fail | notes |
+| `FORCE_MAP` | area | decode fail | leftover | notes |
 |---|---|---|---|---|
-| 46 | ardent_ocean_underground | 15 | 0 | continuous cave colours; no 8×8 grid |
-| 1 | ancient_cavern | 3 | 0 | kind=1-only map |
-| 4 | braindeath_island | 2 | 0 | kind=0 regression |
+| 27 | yanille_underground | 0 | 0 | connected rooms; was vertical strips |
+| 5 | dorgeshkaan | 0 | 0 | city halls; was shredded columns |
+| 46 | ardent_ocean_underground | 0 | 0 | continuous caves |
+| 1 | ancient_cavern | 0 | 0 | kind=1 regression |
+| 4 | braindeath_island | 0 | 0 | kind=0 regression |
+| 0 | main (Gielinor) | 0 | 0 | kind=0 regression |
 
-(Area file ids come from `details.compack` — Ardent is **46**, not array
-index 45 / Neypotzli.)
+(Area file ids from `details.compack` — Ardent is **46**, not array index 45.)
 
 ---
 

@@ -1212,4 +1212,18 @@ App_WriteBmp(
 int32_t
 App_WorldNodeIndex(struct App const* app);
 
+/**
+ * Record a kill-loot drop into the client store and run clientscript 7159.
+ *
+ * Sequence from the decompiled 7159: the engine fills the store THEN the
+ * script reads it back, so AddKillLoot must precede the script push.
+ * `obj_id` is the cache obj id; cost is looked up from the objtype.
+ */
+void
+App_LootNotifyKill(
+    struct App* app,
+    char const* source_name,
+    int obj_id,
+    int qty);
+
 #endif

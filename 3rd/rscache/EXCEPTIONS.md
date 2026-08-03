@@ -1298,10 +1298,16 @@ area, which comes out as recognisable Gielinor.
 
 From OSRS 238 the compositemap drops the group/file pair
 (`RSCACHE_WORLDMAP_DECODE_REV238_NO_GROUP_FILE`) and the geography file drops its
-header. The addressing was worked out first and has been correct throughout:
-table 18 becomes a sparse array indexed by `(region_x << 8) | region_y`, one file
-per group — `cache.osrs239`'s 15938-slot table has 2101 populated groups, the
-first being 3872 = region 15,32 and Lumbridge's 49,48 being 12592.
+header. Table 18 becomes a sparse array indexed by
+`(dst_region_x << 8) | dst_region_y` — the *destination* (display) region from
+the compositemap record, not the source — one file per group keyed by area id.
+`cache.osrs239`'s 15938-slot table has 2101 populated groups, the first being
+3872 = region 15,32 and Lumbridge's 49,48 being 12592. Measured over all 52
+areas in `compositemap.wmc`: every kind=1 group's file holds exactly
+`64 * record_count` tiles when keyed by dst region (0 mismatches, 0 missing);
+keying by src region leaves 46 mismatched groups and 29 missing. Ground
+(table 20) matches the same dst key. The reference client
+(`class184.method5887`) loads that same display-region packing.
 
 **The tile record itself was mis-measured, not unknown — the grammar was already
 solved elsewhere in this tree and just never reached the shared decoder.**
@@ -1333,23 +1339,28 @@ separate codec), and the client's own decode goes from "decoded nothing" on
 every region to zero `archive=MISSING` / zero truncated-stream errors under
 `TORIRS_WORLDMAP_DEBUG=1`.
 
-**Headerless kind=1 vs full-region files *(Fixed 2026-08-03).*** Compositemap
-chunk records (kind 1) often point at a *full* 4096-tile geography file (or a
-truncated multiple of 64 in the same x-major order) — Ardent Ocean Underground
-has 568 kind-1 records against mostly `tiles=4096` files; Ancient Cavern is
-kind-1 only. The old headerless chunk path always read the first 64 tiles and
-painted them at every `dst_chunk`, producing a repeating 8×8 grid on screen.
-`RSCache_WorldMapGeographyDecodeInplace` now takes `src_chunk_x/y`, decodes the
-stream as a region (or lone 8×8), and blits the requested source chunk to the
-destination; the geography load task caches each decoded source file so a
-64-chunk region does not reparse the same bytes 64 times.
+**Headerless kind=1 is a zone stream, not an x-major region *(Fixed 2026-08-03).***
+Compositemap chunk records (kind 1) for one destination region share one
+table-18 file: consecutive 64-tile zone blocks in compositemap record order.
+Each block is read `for lx 0..7 { for ly 0..7 }` and written at
+`(dst_chunk_x*8 + lx, dst_chunk_y*8 + ly)` — matching the reference
+(`class169.method5611` / `class184.method5887`, one shared buffer advanced per
+chunk record). `src_region` / `src_chunk` stay on the record for loc world
+coords only; they do not address the archive or pick a slice inside the file.
 
-**Still open (narrower):** a few multi-file groups lack the requesting area's
-file id (e.g. Ardent id 46 vs group 10644 holding only files for other areas) —
-those records correctly decode nothing. Truncated region files (`tiles=N*64`
-with `N<64`) omit high `src_chunk_x` columns; blits for those chunks fail
-rather than invent tiles. True back-to-back 8×8 bundles that are *not*
-region-scan order remain ambiguous if any appear.
+Earlier mistakes: (1) deriving the group from `src_region` instead of
+`dst_region`; (2) decoding the zone stream as a flat 64×64 x-major grid and
+blitting `src_chunk` — that turns each 8×8 zone into a 1-tile-wide column
+(vertical striping on Yanille Underground, Dorgesh-Kaan, Ardent Ocean
+Underground). Adjacent-tile underlay agreement across zone seams after the
+sequential read: Ardent (41,147) 0.648→0.935, Dorgesh-Kaan (42,83) 0.410→0.837,
+Yanille (40,148) 0.885→0.946, Ancient Cavern (27,83) 0.533→0.814 (interior
+agreement unchanged ~0.84–0.95).
+
+API: `RSCache_WorldMapGeographyReader` + `ReadRegion` / `ReadChunk`; the load
+task keeps an owned byte copy and cursor per `(group, file)` so sibling
+records advance one stream. Exact leftover-byte check under
+`TORIRS_WORLDMAP_DEBUG`.
 
 ## C. Open — real defects deliberately not fixed
 
