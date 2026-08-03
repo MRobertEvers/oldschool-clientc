@@ -23,6 +23,7 @@ main(void)
     test_try_route_op_forceapproach();
     test_force_approach_rotation();
     test_try_route_op_rect();
+    test_try_route_op_exit_strategy();
     test_features_eras();
     test_bfs_path_source_end_truncation();
     test_collision_loc_change_inverse();

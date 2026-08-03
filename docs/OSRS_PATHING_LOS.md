@@ -354,7 +354,8 @@ The window is a property of the **router**, not of the loaded scene:
 - `CollisionMap.route_window` (tiles, centred on the mover; 0 = the whole map).
 - A fresh map is 0 (Client-TS floods the resident scene).
 - `ToriRS_FeatureTable.route_window_tiles`: 0 for `lostcity`, **128** for
-  `osrs` / `server_routed`. `mock230_scene_reset` applies it.
+  `osrs` / `server_routed`. `mock230_scene_reset` applies it on the server;
+  `App_WorldLoadFinish` applies it on the client after every scene rebuild.
 
 At `MOCK230_SCENE_TILES = 104` the two agree until a map wider than 128
 exists; `test_route_window` builds a 300-tile map to exercise the clamp.

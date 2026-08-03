@@ -752,8 +752,8 @@ peer_login(
 }
 
 /** Send a real MOVE_GAMECLICK: the same encoder app.c uses for a ground click,
- *  through the same ISAAC stream. A one-waypoint route is a walk to that tile,
- *  and a zero scene base makes the waypoint absolute. */
+ *  through the same ISAAC stream. osrs230's body is a fixed 5-byte destination
+ *  (ctrl, x, z) — no waypoints. A zero scene base makes the coordinate absolute. */
 static void
 peer_walk_to(
     struct Peer* peer,

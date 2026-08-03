@@ -88,13 +88,18 @@ npc_def(const struct Mock230Npc* npc)
  * Only melee is orthogonal. A ranged or magic attacker with `attackrange > 1`
  * uses the diagonal-permitting distance, which is why the two cases split here
  * rather than in the caller.
+ *
+ * `range` is the *attacker's* reach: the player's worn `weapon_attackrange`
+ * (cache param 13) on the player swing path, the npc's `attackrange` on the
+ * npc path. Using the npc's reach for both sides left bows stuck at melee
+ * adjacency.
  */
 static int
-in_attack_range(
+in_attack_range_with(
     const struct Mock230Player* player,
-    const struct Mock230Npc* npc)
+    const struct Mock230Npc* npc,
+    int range)
 {
-    int range = npc_def(npc)->attackrange;
     int dx;
     int dz;
 
@@ -108,6 +113,45 @@ in_attack_range(
         return (dx + dz) == 1;
 
     return tile_distance(player->x, player->z, npc->x, npc->z) <= range;
+}
+
+/** Player weapon reach from the cache's `weapon_attackrange` param, capped at
+ *  10 the way LostCity's `~player_attackrange` is. Unarmed / missing = 1. */
+static int
+player_weapon_attackrange(const struct Mock230Player* player)
+{
+    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
+    int param_id;
+    const struct Mock230ObjParam* p;
+    int range = 1;
+
+    if( weapon < 0 )
+        return 1;
+    param_id = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
+    if( param_id < 0 )
+        return 1;
+    p = mock230_obj_param(weapon, param_id);
+    if( p && p->ival > 0 )
+        range = p->ival;
+    if( range > 10 )
+        range = 10;
+    return range;
+}
+
+static int
+in_player_attack_range(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc)
+{
+    return in_attack_range_with(player, npc, player_weapon_attackrange(player));
+}
+
+static int
+in_npc_attack_range(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc)
+{
+    return in_attack_range_with(player, npc, npc_def(npc)->attackrange);
 }
 
 /*
@@ -684,7 +728,7 @@ mock230_combat_player_approach(struct Mock230Server* srv)
     if( !npc->active || npc->death_tick >= 0 )
         return;
 
-    if( in_attack_range(player, npc) )
+    if( in_player_attack_range(player, npc) )
     {
         mock230_world_steps_clear(player);
         return;
@@ -753,7 +797,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     /* The approach happened before the player moved, in
      * `mock230_combat_player_approach`. Out of range here means it has not
      * arrived yet. */
-    if( !in_attack_range(player, npc) )
+    if( !in_player_attack_range(player, npc) )
         return;
 
     if( player->attack_clock > 0 )
@@ -987,7 +1031,7 @@ mock230_combat_npc_tick(
      */
     mock230_npc_face_player(npc, npc->combat_target);
 
-    if( !in_attack_range(player, npc) )
+    if( !in_npc_attack_range(player, npc) )
     {
         /*
          * Pursue — the reference's `aiMode()`: path to the target, take one

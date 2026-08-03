@@ -9688,48 +9688,57 @@ app_minimenu_run_option(
          * stays purely client-side, which is what rev 230 means by "no
          * clickable-by-default".
          */
-        if( opt.pick.kind == UI_MINIMENU_PICK_UI && opt.action_index >= 0 &&
-            opt.action_index < 10 && app->net )
         {
-            int const op_num = opt.action_index + 1;
-            /* The events mask is the whole of "is this op the server's", so it
-             * is the one number worth printing beside the row that carries it —
-             * a component the server never armed produces a perfectly good menu
-             * row and sends nothing. */
-            if( getenv("TORIRS_CLICK_DEBUG") )
-                fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
-                        opt.pick.id, app_if_events_for_node(app, opt.pick.id), app->net ? 1 : 0);
-            if( app_if_events_for_node(app, opt.pick.id) & (1u << op_num) )
+            int if_button_sent = 0;
+            if( opt.pick.kind == UI_MINIMENU_PICK_UI && opt.action_index >= 0 &&
+                opt.action_index < 10 && app->net )
             {
-                int target;
-                int sub;
-
-                app_if_button_target(app, opt.pick.id, &target, &sub);
+                int const op_num = opt.action_index + 1;
+                /* The events mask is the whole of "is this op the server's", so it
+                 * is the one number worth printing beside the row that carries it —
+                 * a component the server never armed produces a perfectly good menu
+                 * row and sends nothing. */
                 if( getenv("TORIRS_CLICK_DEBUG") )
-                    fprintf(stderr, "clickdbg: send op%d target=0x%x sub=%d state=%d\n", op_num,
-                            target, sub, app->net ? (int)app->net->state : -1);
-                APP_NET_SEND(
-                    app,
-                    net_out_if_button_op(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_num,
-                        target, sub));
+                    fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
+                            opt.pick.id, app_if_events_for_node(app, opt.pick.id),
+                            app->net ? 1 : 0);
+                if( app_if_events_for_node(app, opt.pick.id) & (1u << op_num) )
+                {
+                    int target;
+                    int sub;
+
+                    app_if_button_target(app, opt.pick.id, &target, &sub);
+                    if( getenv("TORIRS_CLICK_DEBUG") )
+                        fprintf(stderr, "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
+                                op_num, target, sub, app->net ? (int)app->net->state : -1);
+                    APP_NET_SEND(
+                        app,
+                        net_out_if_button_op(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_num,
+                            target, sub));
+                    if_button_sent = 1;
+                }
             }
-        }
-        hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
-        if( !hook || hook->script_id <= 0 )
-        {
-            /* IF1-style static buttons have no CS2 hook — the button engine
-             * applies buttonType/varp semantics locally (+ server notify via
-             * the sink once networking attaches). */
-            if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
+            hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
+            if( !hook || hook->script_id <= 0 )
+            {
+                /* IF1-style static buttons have no CS2 hook — the button engine
+                 * applies buttonType/varp semantics locally (+ server notify via
+                 * the sink once networking attaches). */
+                if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
+                    return 0;
+                /* Server-armed ops are done once IF_BUTTON went out; popout strip
+                 * cells (and similar) carry events without an onop script. */
+                if( if_button_sent )
+                    return 0;
+                fprintf(
+                    stderr,
+                    "minimenu: no hook for com=0x%x action=%d op=%d\n",
+                    opt.pick.id,
+                    opt.action,
+                    opt.action_index);
                 return 0;
-            fprintf(
-                stderr,
-                "minimenu: no hook for com=0x%x action=%d op=%d\n",
-                opt.pick.id,
-                opt.action,
-                opt.action_index);
-            return 0;
+            }
         }
         hook_copy = *hook;
         RS_CS2_SetEventOp(&app->host, opt.action_index >= 0 ? opt.action_index + 1 : 1, 0);

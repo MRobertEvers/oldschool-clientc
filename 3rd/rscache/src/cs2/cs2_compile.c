@@ -1077,6 +1077,18 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
         cs2_cc_fail(cc, "no proc with the name '%s'", name);
         return;
     }
+    /* A sole other-trigger hit in NamesScriptId can bind ~foo to the
+     * clientscript that *is* this source (trampoline wrappers like
+     * `[clientscript,toplevel_resize]` whose body is `~toplevel_resize(...)`).
+     * That compiles to GOSUB-self and blows the call stack at runtime. Refuse
+     * here so pack declines the friendly form and keeps the base bytecode. */
+    if( cc->script_id >= 0 && callee_id == cc->script_id )
+    {
+        cs2_cc_fail(
+            cc, "~%s resolves to this script (%d); missing [proc,%s] name seed?", name,
+            callee_id, name);
+        return;
+    }
 
     if( cs2_cc_accept_punct(cc, '(') )
     {
@@ -2316,6 +2328,30 @@ cs2_cc_return(struct cs2_cc_compiler* cc)
     cs2_cc_emit(cc, RSCACHE_CS2_OP_RETURN, 0);
 }
 
+/**
+ * Type the left-hand side of an assignment wants pushed.
+ *
+ * Quoted graphics (`"graphic_4912"`) are ints only when the expected type says
+ * so; a multi-assign must pass each target's type into its paired RHS, or the
+ * string form is emitted and POP_INT_LOCAL finds an empty int stack.
+ */
+static enum RSCache_CS2_Type
+cs2_cc_assign_target_type(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
+{
+    if( target->kind == CS2_CC_TOK_LOCAL )
+    {
+        int index = cs2_cc_find_local(cc, target->text);
+        if( index < 0 )
+            index = cs2_cc_declare_local_from_name(cc, target->text);
+        if( index >= 0 )
+            return cc->locals[index].type;
+        return RSCACHE_CS2_TYPE_NONE;
+    }
+    /* Globals (%varbit, %varc, …) are always ints or strings by kind; the
+     * expression path does not need a graphic-style rewrite for them. */
+    return RSCACHE_CS2_TYPE_NONE;
+}
+
 /** The left-hand side of an assignment, after its value is on the stack. */
 static void
 cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
@@ -2492,12 +2528,22 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         if( !cs2_cc_expect_punct(cc, '=') )
             return;
         /* The right-hand side is itself a list: `$a, $b = $c, $d` is as legal as
-         * `$a, $b = ~two_results`, and one expression may fill several slots. */
-        for( ;; )
+         * `$a, $b = ~two_results`, and one expression may fill several slots.
+         * When the RHS is a comma-list paired 1:1 with the targets, each slot's
+         * type is the expected type for that expression — otherwise a quoted
+         * graphic stays a string and the following POP_INT_LOCAL underflows. */
         {
-            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
-            if( cc->failed || !cs2_cc_accept_punct(cc, ',') )
-                break;
+            int rhs_index = 0;
+            for( ;; )
+            {
+                enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
+                if( rhs_index < target_count )
+                    expected = cs2_cc_assign_target_type(cc, &targets[rhs_index]);
+                cs2_cc_expression(cc, expected);
+                rhs_index++;
+                if( cc->failed || !cs2_cc_accept_punct(cc, ',') )
+                    break;
+            }
         }
         /* Values come off the stack top-first, so the last target stores first. */
         for( int i = target_count - 1; i >= 0 && !cc->failed; i-- )

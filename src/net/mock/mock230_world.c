@@ -10613,7 +10613,7 @@ mock230_world_selftest(void)
                            npc->combat_target,
                            npc->face_entity - MOCK230_FACE_PLAYER_BASE);
 
-            /* MOVE_GAMECLICK: p1 ctrl, p2 start x, p2 start z, then waypoints. */
+            /* MOVE_GAMECLICK: fixed 5-byte destination (ctrl, x, z). */
             player->masks = 0;
             move[0] = 0;
             move[1] = (uint8_t)((player->x + 3) >> 8);

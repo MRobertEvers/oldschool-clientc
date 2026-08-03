@@ -282,9 +282,9 @@ test_force_approach_rotation(void)
 }
 
 /* The OSRS-era approach model (features era "osrs"): rsmod rectangle
- * strategies. The behaviour that separates it from the legacy shape tests is
- * the shared-edge wall check reading BOTH tiles' wall bits, plus size-aware
- * targets and the alternative-route fallback. */
+ * strategies via shape-keyed exitStrategy. Size-1 adjacency reads the
+ * *source* tile's facing wall bit (reachRectangle1); size-N scans the
+ * destination edge (reachRectangleN). */
 void
 test_try_route_op_rect(void)
 {
@@ -299,7 +299,8 @@ test_try_route_op_rect(void)
     /* A 1x1 rect target at (20,20) reached from the south: flush cardinal side,
      * no wall, so (20,19) arrives — same answer as the legacy model. */
     struct CollisionApproach rect = {
-        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 1, .loc_length = 1, .mover_size = 1
+        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 1, .loc_length = 1, .mover_size = 1,
+        .allow_overlap = 1,
     };
     len = collision_map_try_route_op(cm, 20, 10, 20, 20, &rect, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 19, "rect: arrives on the south edge");
@@ -310,7 +311,7 @@ test_try_route_op_rect(void)
 
     /*
      * A wall added through collision_map_add_wall flags BOTH tiles of the edge,
-     * so both models refuse it and this is not where they differ.
+     * so both models refuse it.
      */
     collision_map_add_wall(cm, 20, 20, 0, COLL_ANGLE_SOUTH, 0);
     len =
@@ -322,12 +323,9 @@ test_try_route_op_rect(void)
                 "rect: refuses the same walled edge");
 
     /*
-     * Where they DO differ: an ASYMMETRIC wall, flagged on the target tile only.
-     * testLoc reads the source tile's bits and nothing else, so it happily
-     * arrives on (35,19); the rect model reads the target's WALL_SOUTH as well
-     * and walks around. This state is reachable in practice — del_wall is an
-     * unconditional clear (see the reference's own locChangeUnchecked), so a
-     * shared edge can lose one of its two flags.
+     * Size-1 rect reads only the SOURCE tile's wall bit (reachRectangle1).
+     * An asymmetric wall flagged on the TARGET alone is accepted by both
+     * legacy (source-only) and rect size-1.
      */
     cm->flags[collision_map_index_at(cm, 35, 20)] |= COLL_FLAG_WALL_SOUTH;
     len =
@@ -335,13 +333,19 @@ test_try_route_op_rect(void)
     TEST_ASSERT(len >= 1 && route_x[0] == 35 && route_z[0] == 19,
                 "legacy: source-tile-only check accepts an edge the target alone walls off");
     len = collision_map_try_route_op(cm, 35, 10, 35, 20, &rect, NULL, route_x, route_z, 256, NULL);
-    TEST_ASSERT(len >= 1 && !(route_x[0] == 35 && route_z[0] == 19),
-                "rect: reads the target's wall bit too and refuses that edge");
+    TEST_ASSERT(len >= 1 && route_x[0] == 35 && route_z[0] == 19,
+                "rect size-1: also source-only — target-only wall does not block");
+
+    /* Source-only WALL_NORTH on the approach tile refuses the south edge. */
+    cm->flags[collision_map_index_at(cm, 36, 19)] |= COLL_FLAG_WALL_NORTH;
+    len = collision_map_try_route_op(cm, 36, 10, 36, 20, &rect, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 36 && route_z[0] == 19),
+                "rect size-1: source WALL_NORTH blocks the south approach");
 
     /*
-     * The other real divergence: overlap. Standing ON the target is always an
-     * arrival for testLoc; the rect model refuses it unless allow_overlap is
-     * set. Starting the route inside the footprint makes that unambiguous.
+     * Overlap. Standing ON the target is always an arrival for testLoc; the
+     * rect model refuses it unless allow_overlap is set. Exclusive-rectangle
+     * always refuses overlap (see test_try_route_op_exit_strategy).
      */
     len = collision_map_try_route_op(cm, 50, 30, 50, 30, &legacy, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len == 1 && route_x[0] == 50 && route_z[0] == 30,
@@ -401,7 +405,8 @@ test_try_route_op_rect(void)
     /* A size-3 target (a large NPC) is approached beside its 3x3 footprint, not
      * beside its south-west tile: from the north the arrival is z = 20+3 = 23. */
     struct CollisionApproach big = {
-        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 3, .loc_length = 3, .mover_size = 1
+        .kind = COLL_APPROACH_RECT_ADJACENT, .loc_width = 3, .loc_length = 3, .mover_size = 1,
+        .allow_overlap = 1,
     };
     len = collision_map_try_route_op(cm, 21, 30, 20, 20, &big, NULL, route_x, route_z, 256, NULL);
     TEST_ASSERT(len >= 1, "size-3 target: route found");
@@ -439,6 +444,92 @@ test_try_route_op_rect(void)
     collision_map_free(cm);
 }
 
+/*
+ * Shape-keyed exitStrategy dispatch and the exact-tile / exclusive rules
+ * ReachStrategy.reached encodes. See docs/OSRS_PATHING_LOS.md §2.4.
+ */
+void
+test_try_route_op_exit_strategy(void)
+{
+    printf("TEST: exitStrategy dispatch + exact-tile / exclusive\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    struct CollisionApproach approach;
+    int route_x[256];
+    int route_z[256];
+    int len;
+    int shape;
+    int angle;
+
+    TEST_ASSERT(collision_exit_strategy(-2) == COLL_EXIT_RECTANGLE_EXCLUSIVE, "shape -2 exclusive");
+    TEST_ASSERT(collision_exit_strategy(-1) == COLL_EXIT_NONE, "shape -1 none");
+    for( shape = 0; shape <= 3; shape++ )
+        TEST_ASSERT(collision_exit_strategy(shape) == COLL_EXIT_WALL, "wall shapes 0-3");
+    TEST_ASSERT(collision_exit_strategy(9) == COLL_EXIT_WALL, "shape 9 wall");
+    for( shape = 4; shape <= 8; shape++ )
+        TEST_ASSERT(collision_exit_strategy(shape) == COLL_EXIT_WALL_DECOR, "decor shapes 4-8");
+    TEST_ASSERT(collision_exit_strategy(10) == COLL_EXIT_RECTANGLE, "shape 10 rectangle");
+    TEST_ASSERT(collision_exit_strategy(11) == COLL_EXIT_RECTANGLE, "shape 11 rectangle");
+    TEST_ASSERT(collision_exit_strategy(22) == COLL_EXIT_RECTANGLE, "shape 22 rectangle");
+
+    /* Wall shape 0 at every angle: filler selects WALL, approach from the
+     * open side arrives. */
+    for( angle = 0; angle < 4; angle++ )
+    {
+        collision_map_reset(cm);
+        collision_map_add_wall(cm, 25, 20, 0, (enum CollisionLocAngle)angle, 0);
+        collision_approach_from_shape(0, angle, 1, 1, 0, 1, &approach);
+        TEST_ASSERT(approach.kind == COLL_APPROACH_WALL, "shape 0 -> WALL kind");
+        len = collision_map_try_route_op(
+            cm, 20, 20, 25, 20, &approach, NULL, route_x, route_z, 256, NULL);
+        TEST_ASSERT(len >= 1, "wall angle: route found");
+    }
+
+    /* Decor shape 4 -> WALL_DECOR. */
+    collision_approach_from_shape(4, 0, 1, 1, 0, 1, &approach);
+    TEST_ASSERT(approach.kind == COLL_APPROACH_WALL_DECOR, "shape 4 -> WALL_DECOR");
+
+    /* Rectangle shape 10: allow_overlap set (intersects OR adjacent). */
+    collision_map_reset(cm);
+    collision_approach_from_shape(10, 0, 2, 2, 0, 1, &approach);
+    TEST_ASSERT(approach.kind == COLL_APPROACH_RECT_ADJACENT && approach.allow_overlap == 1,
+                "shape 10 -> RECT_ADJACENT with overlap");
+    len = collision_map_try_route_op(
+        cm, 10, 10, 20, 20, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1, "rect shape 10: route found");
+
+    /* Exact-tile shortcut: wall/decor accept standing on the dest tile. */
+    collision_map_reset(cm);
+    collision_approach_from_shape(0, COLL_ANGLE_WEST, 1, 1, 0, 1, &approach);
+    len = collision_map_try_route_op(
+        cm, 25, 20, 25, 20, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len == 1 && route_x[0] == 25 && route_z[0] == 20,
+                "wall: exact-tile shortcut arrives on dest");
+
+    /* Exclusive rectangle (NPC shape -2): standing on it is NOT an arrival. */
+    collision_map_reset(cm);
+    collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &approach);
+    TEST_ASSERT(approach.kind == COLL_APPROACH_RECT_EXCLUSIVE, "shape -2 -> RECT_EXCLUSIVE");
+    len = collision_map_try_route_op(
+        cm, 30, 30, 30, 30, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 30 && route_z[0] == 30),
+                "exclusive: standing on the NPC steps off");
+    len = collision_map_try_route_op(
+        cm, 30, 20, 30, 30, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 30 && route_z[0] == 29,
+                "exclusive: arrives on a cardinal neighbour");
+
+    /* forceapproach rotated into blocked_sides vetoes a side of a rectangle. */
+    collision_map_reset(cm);
+    collision_approach_from_shape(10, 0, 1, 1, /*south*/ 4, 1, &approach);
+    len = collision_map_try_route_op(
+        cm, 40, 10, 40, 20, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && !(route_x[0] == 40 && route_z[0] == 19),
+                "forceapproach south: does not stop on the vetoed south tile");
+
+    collision_map_free(cm);
+}
+
 /* The era table is the seam both modes hang off. Assert the two shipped tables
  * differ in exactly the ways the client branches on, so a future edit that
  * flattens them fails here rather than silently in the world. */
@@ -465,7 +556,8 @@ test_features_eras(void)
     TEST_ASSERT(lostcity->los_symmetric_pvp == 0, "lostcity LoS is asymmetric");
     TEST_ASSERT(lostcity->route_window_tiles == 0, "lostcity floods its whole scene");
 
-    TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "osrs still paths client-side");
+    TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
+                "osrs is server-authoritative");
     TEST_ASSERT(osrs->approach_model == TORIRS_APPROACH_RECT, "osrs uses rect strategies");
     TEST_ASSERT(osrs->npc_approach_uses_size == 1, "osrs npc target is size-aware");
     TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
@@ -476,6 +568,8 @@ test_features_eras(void)
 
     TEST_ASSERT(routed->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
                 "server_routed defers to the server");
+    TEST_ASSERT(routed->approach_model == TORIRS_APPROACH_RECT,
+                "server_routed shares the shape-keyed rect model");
     TEST_ASSERT(routed->los_symmetric_pvp == 1, "server_routed PvP LoS is symmetric");
 
     /* Derivation from the cache identity: the lineage decides, not the number.
