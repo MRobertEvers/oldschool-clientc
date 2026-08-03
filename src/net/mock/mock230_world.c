@@ -241,19 +241,42 @@ player_has_waypoints(struct Mock230Player const* player)
     return player->waypoint_index >= 0;
 }
 
+/*
+ * `Player.blockWalkFlag()` — `BLOCK_NPC_AND_PLAYERS`, and nothing else.
+ *
+ * Not NPC_OCC: a player walks *through* an ordinary npc and is stopped only by
+ * the ones that hard-block, which is `blockwalk=all` (`npc_occupancy_mask`) and
+ * the default is `blockwalk=npc`. NPC_OCC is the npcs' own affair — it is what
+ * keeps them from standing on each other.
+ *
+ * Reading NPC_OCC here was invisible for as long as a scene rebuild silently
+ * threw every occupancy bit away; re-stamping them (world_occupancy_restamp)
+ * turned it into a player frozen behind the first npc on its route.
+ */
 static int
 player_travel_extra(void)
 {
-    /* Players are blocked by NPC occupancy (and by blockwalk=all hard blocks). */
-    return COLL_FLAG_NPC_OCC | COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+    return COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
 }
 
+/*
+ * `Npc.blockWalkFlag()`. The hard blocks always apply; the two opt-outs are
+ * orthogonal, and `moverestrict=blocked` opts out of all of it — an npc that
+ * lives where the map blocks (lava, water) respects no entity collision at all.
+ *
+ * `nomove` returns NULL there, meaning "clear the waypoints"; here the callers
+ * answer that before stepping, so it falls through to the ordinary flags.
+ */
 static int
 npc_travel_extra(struct Mock230Npc const* npc)
 {
-    int flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+    int flag;
 
     assert(npc);
+    if( npc->def && npc->def->moverestrict == 1 /* blocked */ )
+        return COLL_FLAG_OPEN;
+
+    flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
     /* blockwalk=none: do not respect npc-occupancy. */
     if( npc->blockwalk != 0 )
         flag |= COLL_FLAG_NPC_OCC;

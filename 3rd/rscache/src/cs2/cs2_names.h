@@ -120,6 +120,14 @@ RSCache_CS2_NamesLookupId(
  * care which.
  *
  * A fully bracketed name (`[proc,min]`) matches exactly and ignores the hint.
+ *
+ * Where no script carries the name under `required` but exactly one carries it
+ * at all, that one is the answer. A trigger is a fact about the name table and
+ * not about the bytecode — `gosub_with_params` takes an id, and a script record
+ * has no trigger field — so a gosub to a script the table calls a clientscript
+ * is well-formed. The ambiguity the paragraph above guards against needs two
+ * candidates to exist; with one there is nothing to choose wrongly, and with
+ * several this still refuses.
  */
 bool
 RSCache_CS2_NamesScriptId(

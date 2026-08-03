@@ -254,6 +254,12 @@ RSCache_CS2_NamesScriptId(
 {
     if( !names || !name )
         return false;
+
+    /* Scripts carrying the name under some *other* trigger. Kept rather than
+     * skipped so the count is known: one is an answer, several are not. */
+    int other_trigger_id = -1;
+    int other_trigger_count = 0;
+
     for( int i = 0; i < names->script_names.capacity; i++ )
     {
         if( !names->script_names.entries[i].occupied )
@@ -283,9 +289,38 @@ RSCache_CS2_NamesScriptId(
             memcpy(trigger, stored + 1, trigger_length);
             trigger[trigger_length] = '\0';
             if( RSCache_CS2_TriggerOfName(trigger) != required )
+            {
+                other_trigger_id = names->script_names.entries[i].key;
+                other_trigger_count++;
                 continue;
+            }
         }
         *out_id = names->script_names.entries[i].key;
+        return true;
+    }
+
+    /*
+     * No script carries the name under the required trigger, but exactly one
+     * carries it at all — so resolve to that one.
+     *
+     * The trigger is a fact about the *name table*, not about the bytecode:
+     * `gosub_with_params` takes an id and a script record has no trigger field,
+     * so a gosub to a script the table calls a clientscript is well-formed and
+     * the client runs it. `cs2_write_call_target` already decides this exact
+     * disagreement the same way in the other direction — it writes the bare id
+     * and says the call site is evidence where the table lags — and a compiler
+     * that refuses what the decompiler prints cannot round-trip.
+     *
+     * The count is what keeps this safe. Ambiguity is the reason the trigger is
+     * required at all (`1v1arena_hud_toggle` is clientscript 2716 *and* proc
+     * 2717, and binding to whichever was found first would call the wrong
+     * script), and that reasoning only bites when there is more than one
+     * candidate. With exactly one there is nothing to choose wrongly; with
+     * several this still refuses.
+     */
+    if( other_trigger_count == 1 )
+    {
+        *out_id = other_trigger_id;
         return true;
     }
     return false;
