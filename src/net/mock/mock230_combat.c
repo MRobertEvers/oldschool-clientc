@@ -480,16 +480,30 @@ mock230_combat_hit_npc(
          * the wrong units, what the line above already says.
          */
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+        /*
+         * Capture kill attribution before combat_stop clears combat_target.
+         * Clientscript 7192 needs the npc type + a per-kill event id; each
+         * OBJ_ADD during [ai_queue3] then RUNCLIENTSCRIPTs the killers.
+         */
+        srv->loot_credit_armed = 1;
+        srv->loot_credit_npc_type = npc->type;
+        srv->loot_credit_event_id = ++srv->loot_credit_seq;
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         mock230_combat_stop_npc(srv, slot);
         for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
+            {
+                srv->loot_credit_players[i] = 1;
                 mock230_combat_stop_player_at(&srv->players[i]);
+            }
         }
         /* The drop table is content: [ai_queue3,<npc>] with obj_add calls, the
          * same shape as LostCity's. mock230_scripts.c runs it and falls back to
          * the config's death_drop when nothing is bound. */
         mock230_world_npc_died(srv, slot);
+        srv->loot_credit_armed = 0;
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
     }
 }
 

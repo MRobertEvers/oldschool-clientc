@@ -4200,6 +4200,16 @@ exec_loot(
             cost = obj->cost;
         LootStore_AddKillLoot(
             loot, req->name ? req->name : "", obj_id, qty, cost);
+        if( getenv("TORIRS_LOOT_TRACE") )
+        {
+            fprintf(
+                stderr,
+                "loot-add: \"%s\" obj=%d qty=%d event=%d\n",
+                req->name ? req->name : "",
+                obj_id,
+                qty,
+                req->int_args[0]);
+        }
         return CS2VM_EXECNO_OK;
     }
 

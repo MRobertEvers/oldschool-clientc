@@ -5075,6 +5075,32 @@ mock230_script_command(
         mock230_world_obj_add(srv, values[1], values[2], coord_x(values[0]),
                               coord_z(values[0]), coord_level(values[0]),
                               values[3] > 0 ? values[3] : -1);
+        /*
+         * Official client loot tracker: RUNCLIENTSCRIPT script_7192
+         * (LOOTTRACKER_ADD_LOOT) with (npcId, eventId, itemId, qty). Only while
+         * combat death credit is armed — not every ground spawn.
+         */
+        if( srv->loot_credit_armed )
+        {
+            enum
+            {
+                MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT = 7192
+            };
+            int args[4] = {
+                srv->loot_credit_npc_type,
+                srv->loot_credit_event_id,
+                (int)values[1],
+                (int)values[2],
+            };
+
+            for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+            {
+                if( !srv->loot_credit_players[i] || !srv->players[i].active )
+                    continue;
+                mock230_send_run_clientscript(
+                    &srv->players[i], MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
+            }
+        }
         return 1;
     }
 

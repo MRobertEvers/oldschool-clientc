@@ -53,7 +53,7 @@ with screenshots under `tmp_panel_shots/after_*.png`, not a reading. See
 |---|---|---|---|---|
 | `xptracker` | 729 | **mounted in `popout:container`** | **right-docked 264×491 inside widened strip (312px); overview keeps `Total XP/Hr` / `Total XP Gained`**. Exit 0. Screenshots: `tmp_panel_shots/after_xptracker.png`. | Set Goal dead (§1.1). Skill rows still empty after `::xp attack N` in the same cheat batch — baseline/transmit timing, not mount. |
 | `hiscores` | 894 | **honest failure path, framed** | **right-docked; 7809 status 3; cache text `In-world lookup: Disabled` draws inside the nine-slice frame**. Exit 0. `after_hiscores.png`. | Real HTTP lookup stays out of band; do not fabricate ranks. |
-| `loottools` | 650 | **mounted + framed; store still empty in UI** | **right-docked 264×491; header/body geometry sane**. `lootkill` then open still shows `Total count: 0` / `0 gp`. `after_loottools.png`. | Store↔7166 populate path; combat kill-credit beyond `lootkill`; undeclared `loottools_varp1` 3798 if chrome wants it. |
+| `loottools` | 650 | **mounted + framed; kill drops populate** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). | Settings gear / ignore chrome; undeclared `loottools_varp1` 3798 if chrome wants it. |
 | `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)` from `~orbs_login`. `xpdrops_options` + goal varps + carriers declared. | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
@@ -387,7 +387,7 @@ Re-measured 2026-08-03 after the mount fix. Geometry from
 |---|---|---|---|---|
 | `xptracker` 729 | yes into **728:9** | **right-docked framed column** | 0 | Strip widens 42→312; `728:9` = 264×491 (was −6×491 under mainmodal). Panel root fills that box. Overview text `Total XP/Hr` / `Total XP Gained` survives timer ticks (5450+5455 at login). Skill rows still empty after `::xp attack N` in the same cheat batch. |
 | `hiscores` 894 | yes into **728:9** | **framed; honest empty** | 0 | 7809/7811 `known=1`: status **3**, empty detail. Cache text `In-world lookup: Disabled` draws inside the nine-slice. |
-| `loottools` 650 | yes into **728:9** | **framed chrome; list empty** | 0 | Host ops `known=1`. Header/body geometry sane. `lootkill` then open still shows totals 0 — populate path separate from mount. |
+| `loottools` 650 | yes into **728:9** | **framed; kill loot shows** | 0 | Host ops `known=1` incl. 7628. Combat → 7192 → store; `after_kill_loot.png`. |
 | `xpdrops_setup` 137 | from orb Setup | — | — | Still `mainmodal` (correct — Configure is a modal, not a popout panel). |
 
 The hiscores row is still the proof the signature bridge works, and it was
@@ -407,10 +407,17 @@ control binary built with all bridged rows flipped back to `known = 0`
   is zero). Status 3 + cache script text is the end state; do not fabricate
   ranks. Detail string for 7811 stays empty unless content/HTTP fills it —
   never a C literal (PORTING_GUIDE §2.4 item 2).
-- **Combat kill → loot store** still needs a real kill-credit hook beyond
-  `App_LootNotifyKill` / `TORIRS_NET_CHEAT=lootkill` (do not attribute bare
-  `OBJ_ADD` to an NPC death). Even with `lootkill`, the open-path UI still
-  shows totals 0 — the store↔7166 read loop needs a separate pass.
+- **Combat kill → loot store landed 2026-08-03.** Official path (RuneLite
+  `ScriptID.LOOTTRACKER_ADD_LOOT` / clientscript 7192): on combat death,
+  each `SS_OP_OBJ_ADD` during `[ai_queue3]` sends `RUNCLIENTSCRIPT` 7192
+  `(npcId, eventId, itemId, qty)` to players who had that npc as
+  `combat_target`. Client implements `NC_NAME` (6754) and `LOOT_ADD` (7628);
+  7192 then refreshes via 7158. Gated by `loot_credit_armed` — bare map
+  `OBJ_ADD` is not attributed. `lootkill` / `App_LootNotifyKill` (7159) remains
+  the debug seed. Verified headless: `fight;loottools` → `loot-add: "Man"…`
+  and non-zero tracker totals (`tmp_panel_shots/after_kill_loot.png`).
+  Deob `method10020` (7600–7699) is a stub; arities from 7192 disassembly +
+  RuneLite `ScriptPreFired` args, not the deob.
 - **XP skill rows** still empty after `::xp attack N` in the same
   `TORIRS_NET_CHEAT` batch as `xptracker` (chat shows the gain; overview stays
   at 0). Not a mount bug; baseline/stat-transmit timing.
@@ -551,14 +558,14 @@ close. Measured: strip 42→312, `728:9` −6×491 → **264×491**, panel roots
 it. Toggle click collapses back to −6. Bank (`iface=12`) still mounts into
 `mainmodal` alongside an open popout panel.
 
-### 8.3 Loot Tools opens framed; list still empty
+### 8.3 Loot Tools opens framed; kill drops populate
 
 `loottools` no longer aborts on open (§7.6). It mounts into `popout:container`
-type 1 with the other two. Host ops are `known=1` against the native store;
-`lootkill` seeds the store, but the open-path read loop still shows
-`Total count: 0` / `0 gp` — honest emptiness of the populate path, not a
-mount failure. Re-measured 2026-08-03: strip widens, `728:9` is 264×491,
-exit 0.
+type 1 with the other two. Host ops are `known=1` against the native store.
+Combat deaths credit via clientscript 7192 → opcode 7628 (see §7.6); debug
+`lootkill` still works via `App_LootNotifyKill`. Re-measured 2026-08-03:
+`TORIRS_NET_CHEAT='fight;loottools'` with `TORIRS_NET_CHEAT_EVERY=500` →
+tracker shows non-zero totals (`tmp_panel_shots/after_kill_loot.png`).
 
 ### 8.4 Verified by clicking
 

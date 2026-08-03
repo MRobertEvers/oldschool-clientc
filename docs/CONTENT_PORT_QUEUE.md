@@ -27,9 +27,9 @@ re-arm. Stop only when the user stops the loop.
 | 6f | F2P quest: VampireSlayer | done | Morgan+Harlow(vis)+coffin+garlic cupboard+stake kill; garlic weaken/regen deferred |
 | 6g | F2P quest: Monk's Friend (drunkmonk) | done | Omad+Cedric+journal+ladder timer; party balloons deferred |
 | 6h | F2P quest: Goblin Diplomacy | done | bartender+generals+dye mail+journal; %gobdip_main; dragon/clue deferred |
-| 7a | skill_woodcutting | in_progress | Prefer cache `woodcutting_*` dbtables |
-| 7b | skill_mining | pending | |
-| 7c | skill_firemaking | pending | |
+| 7a | skill_woodcutting | done | woodcutting_trees server table; cat 189=tree; cache WC cols empty; axe anim switch |
+| 7b | skill_mining | done | mining_table + rock cats; clay..runite; prospect; essence/gem deferred |
+| 7c | skill_firemaking | in_progress | |
 | 7d | skill_fishing | pending | |
 | 7e | skill_cooking | pending | |
 | 7f | skill_crafting (remainder) | pending | Spinning may land in 3 |
@@ -56,4 +56,6 @@ re-arm. Stop only when the user stops the loop.
 - slice 6f done: Vampire Slayer (Morgan/Harlow_vis/coffin/garlic cupboard/stake finish); garlic weaken+regen deferred
 - slice 6g done: Monk's Friend (Omad/Cedric + journal + quest_monksfriend); party balloons deferred; blanket ladder timer
 - slice 6h done: Goblin Diplomacy (bartender start + Wartface/Bentnoze + dye mail + journal); %gobdip_main on carrier; dragon/clue deferred
-- next pending: 7a skill_woodcutting
+- slice 7a done: woodcutting (woodcutting_trees + tree cat/overlays + chop loop); cache woodcutting_* has columns=0 so server table; axe anim switch; p_oploc(1) resume
+- slice 7b done: mining (mining_table + normal/fast rock cats + prospect); clay..runite; essence/gem/blurite deferred
+- next pending: 7c skill_firemaking

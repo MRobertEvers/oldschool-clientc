@@ -1,5 +1,13 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-03 — body-draw bootstrap landed.** Stretch desktop's
+> `collection_init` (script_2240) never calls script7798 (only the mobile
+> enum_1132 branch does), so mount alone left tabs visible and the parchment
+> empty. `~collection_open` now mounts 621 then `runclientscript*` 7798
+> (skill-guide order); tab/list/close `if_button1` handlers re-run the same
+> draw. Constant `^clientscript_collection_draw` lives in
+> `interface_collection/configs/collection.constant`.
+>
 > **UPDATE 2026-08-03 — content plumbing landed.** Container 620 was already
 > proven. What this feature still owed is now in
 > `server/scripts/interface_collection/`: the ~20 varps, open procs for 621/908,
@@ -9,11 +17,12 @@
 > [`account_summary_server_reqs.md`](account_summary_server_reqs.md). Per-table
 > drop scripts and kill-count/PB scratch remain ongoing content.
 >
-> **Blockers A + B, 2026-08-02 — both cleared; this feature only ever needed B.**
-> A (`runclientscript` carrying ints) was never on this doc's path — no screen
-> here is server-pushed. B (the container registry) was its entire structural
-> blocker and is gone, container 620 proven end to end including a logout
-> round trip. **Still blocked on: nothing structural.**
+> **Blockers A + B, 2026-08-02 — both cleared; A was needed after all.**
+> A (`runclientscript` carrying ints) *is* on this path for stretch: script_2240
+> does not self-boot 7798 the way overview's 7802 sets `if_setonresize`. B (the
+> container registry) was the other structural blocker and is gone, container
+> 620 proven end to end including a logout round trip. **Still blocked on:
+> nothing structural.**
 >
 > **UPDATE 2026-08-02 (lane-blockers): the container blocker is CLEARED.**
 > `container_for`/`container_dirty` are a registry now — see
@@ -32,18 +41,24 @@
 
 | interface | id | status | what's missing |
 |---|---|---|---|
-| `collection` (detail view) | 621 | **landed** (open + state) | per-source kill-count/PB scratch; earn hooks beyond default death |
+| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close) | per-source kill-count/PB scratch; earn hooks beyond default death |
 | `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts) | same |
 
 ---
 
 ## 1. The mechanism
 
+**Server bootstrap (required on stretch):** after `if_opensub` of 621,
+`~collection_draw` runs `runclientscript*(^clientscript_collection_draw=7798)`
+with the selected tab's scroll/bg/text/scrollbar comps and the tab struct from
+`enum_2102`. Script 7798 paints `~steelborder` and calls
+`~collection_draw_list`. Without that push, stretch open shows tabs only.
+
 `collection.if` `[tabs]` onload (`i:2388,i:0`) → `script_2388`
 (`collection_draw_tabs_all`) draws the 5 category tabs (Bosses/Raids/Clues/
-Minigames/Other) and dispatches to `collection_draw_list`
-(`script_2730`/`2731`), which for the selected source calls
-**`~collection_draw_log`** (`script_2732.cs2`) — the item-grid renderer.
+Minigames/Other). The body list/grid is **not** from that onload — it comes
+from 7798 → `collection_draw_list` (`script_2730`/`2731`), which for the
+selected source calls **`~collection_draw_log`** (`script_2732.cs2`).
 `collection_overview.if`'s onload (`script_7802`) is pure chrome (same
 drag-follow-toplevel/close-button pattern as the loot tracker's
 `script_7128`, `docs/chrome_panels_server_reqs.md` §3) and delegates to
@@ -120,8 +135,9 @@ container is no longer novel engine surface — see
 
 ## 4. Landed vs. gap
 
-- **Landed**: container registry path for 620, open procs for 621/908, aggregate
-  varps, catalog-derived `%collection_count_max`, `~collection_earn` /
+- **Landed**: container registry path for 620, open procs for 621/908, stretch
+  body-draw bootstrap (`runclientscript*` 7798 + tab/list/close handlers),
+  aggregate varps, catalog-derived `%collection_count_max`, `~collection_earn` /
   `::collect`, default-death catalog hook, Character Summary ops that mount
   the panels.
 - **Gap, content**: earn hooks in every `drop_tables/` script; subsection
