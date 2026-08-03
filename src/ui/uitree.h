@@ -421,6 +421,14 @@ struct UITreeComponent
      *  zero-init default), 1 always, 2 never. Read by emit_obj_stack_count. */
     uint8_t item_num_mode;
 
+    /* Script-visible Component.colour / .fillColour / .text. Every Jagex iftype
+     * carries these; layers use them as opaque data bags (loot info slots store
+     * row counts and source names). TEXT/RECT rendering also mirrors colour into
+     * the typed fields below. */
+    int colour;
+    int fill_colour;
+    char* data_text;
+
     int trans;
     uint8_t if3;
     uint8_t no_click_through;
@@ -1221,6 +1229,12 @@ UITree_ApplyGraphic(
 
 bool
 UITree_ApplyColour(
+    struct UITree* tree,
+    int component_id,
+    int colour);
+
+bool
+UITree_ApplyFillColour(
     struct UITree* tree,
     int component_id,
     int colour);

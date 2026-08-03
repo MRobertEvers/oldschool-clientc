@@ -316,6 +316,7 @@ rs_cs2_get_text(
     int buf_len)
 {
     int32_t idx;
+    char const* text = NULL;
     assert(tree);
     assert(buf);
     assert(buf_len > 0);
@@ -323,9 +324,13 @@ rs_cs2_get_text(
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
         return;
-    if( tree->components[idx].type == UIELEM_RS_TEXT && tree->components[idx].u.rs_text.text )
+    if( tree->components[idx].type == UIELEM_RS_TEXT )
+        text = tree->components[idx].u.rs_text.text;
+    if( !text )
+        text = tree->components[idx].data_text;
+    if( text )
     {
-        strncpy(buf, tree->components[idx].u.rs_text.text, (size_t)buf_len - 1);
+        strncpy(buf, text, (size_t)buf_len - 1);
         buf[buf_len - 1] = '\0';
     }
 }
@@ -2695,7 +2700,7 @@ exec_widget_set_int(
             node->u.rs_graphic.flip_v = request.value ? 1 : 0;
         break;
     case CS2VM_WIDGET_INT_FILL_COLOUR:
-        (void)UITree_ApplyColour(rs_cs2_tree(host), request.component_id, request.value);
+        (void)UITree_ApplyFillColour(rs_cs2_tree(host), request.component_id, request.value);
         break;
     case CS2VM_WIDGET_INT_LINE_WIDTH:
         if( node->type == UIELEM_RS_LINE )
@@ -4866,6 +4871,22 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
+    case CS2VM_HOST_REQUEST_IF_GETCOLOUR:
+        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->colour : 0);
+
+    case CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR:
+        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
+
+    case CS2VM_HOST_REQUEST_IF_GETINVOBJECT:
+        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->item_id : 0);
+
+    case CS2VM_HOST_REQUEST_IF_GETINVCOUNT:
+        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->item_count : 0);
+
     /* ---- IF / CC mutators ---- */
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         if( tree )
@@ -5291,6 +5312,22 @@ rs_cs2_host_exec_dispatch(
             rs_cs2_get_text(tree, request->u.cc_gettext.component_id, buf, (int)sizeof(buf));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
+
+    case CS2VM_HOST_REQUEST_CC_GETCOLOUR:
+        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->colour : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR:
+        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETINVOBJECT:
+        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->item_id : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETINVCOUNT:
+        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        return CS2VM2_PushInt(vm, node ? node->item_count : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
         node = rs_cs2_node(host, request->u.cc_gettrans.component_id);

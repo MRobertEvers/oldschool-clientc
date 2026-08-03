@@ -20,9 +20,9 @@ re-arm. Stop only when the user stops the loop.
 | 5c | general_use batch: hat_stand, locked_doors, locked_gates, manholes, mithril_seeds | done | hatstand/lockeddoor1/metal gates/mithril seeds; manholes already in 5b |
 | 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | done | tables/trapdoors/wardrobes/web/windmills/organs; sacks+spade already 5b; newcomer_map deferred (playermap_east + newcomers_pos) |
 | 6a | F2P quest: Rune Mysteries | done | Duke+Sedridor+Aubury+journal; essence teleport/shop stubbed |
-| 6b | F2P quest: Imp Catcher | in_progress | |
+| 6b | F2P quest: Imp Catcher | done | Mizgog + journal + quest_impcatcher; beads already on imp drop table |
 | 6c | F2P quest: Doric's Quest | done | full dialogue + journal + quest_dorics |
-| 6d | F2P quest: Witch's Potion (Hetty) | pending | |
+| 6d | F2P quest: Witch's Potion (Hetty) | done | Hetty+cauldron+journal; rats_tail drop gate enabled |
 | 6e | F2P quest: Romeo & Juliet | pending | |
 | 6f | F2P quest: VampireSlayer | pending | |
 | 6g | F2P quest: Monk's Friend (drunkmonk) | pending | |
@@ -50,5 +50,6 @@ re-arm. Stop only when the user stops the loop.
 - slice 5c done: hatstand, lockeddoor1, lockedmetalgate l/r, mithril_seeds (simplified plant)
 - slice 5d done: tables (cat+name expand), trapdoors, wardrobes, web+slash_checker, windmills (%mill_flour + hopper_full), organs mes-stub; newcomer_map deferred
 - slice 6a done: Rune Mysteries (Duke/Sedridor/Aubury + journal + quest_runemysteries); essence teleport + Aubury shop stubbed
-- next pending: 6b Imp Catcher
-- loop armed: AGENT_LOOP_TICK_content_port every 3m (pid tracked in agent)
+- slice 6b done: Imp Catcher (Mizgog + journal + quest_impcatcher); ^chat_laugh added
+- slice 6d done: Witch's Potion (Hetty + cauldron + journal + quest_witchspotion); rats_tail drop gated
+- next pending: 6e Romeo & Juliet

@@ -2832,6 +2832,47 @@ CS2VM2_Op_CC_SetHide(
 
     return CS2VM_EXECNO_OK;
 }
+static int
+cs2vm2_op_cc_get_int(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.cc_gettext.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    return vm->vm->host_exec(vm, &request);
+}
+
+static int
+cs2vm2_op_if_get_int(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand,
+    enum CS2VM_HostRequestKind kind)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+    (void)frame;
+
+    int component_id;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.if_gettext.component_id = component_id;
+    return vm->vm->host_exec(vm, &request);
+}
+
 
 int
 CS2VM2_Op_CC_GetId(
@@ -9531,6 +9572,14 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnEventDiscard(vm, frame, operand);
     case CS2_OP_CC_GETTEXT:
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
+    case CS2_OP_CC_GETCOLOUR:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETCOLOUR);
+    case CS2_OP_CC_GETFILLCOLOUR:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR);
+    case CS2_OP_CC_GETINVOBJECT:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETINVOBJECT);
+    case CS2_OP_CC_GETINVCOUNT:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETINVCOUNT);
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
     case CS2_OP_CC_GETCOMPONENTPARAM:
@@ -9589,6 +9638,14 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetX(vm, frame, operand);
     case CS2_OP_IF_GETTEXT:
         return CS2VM2_Op_IF_GetText(vm, frame, operand);
+    case CS2_OP_IF_GETCOLOUR:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETCOLOUR);
+    case CS2_OP_IF_GETFILLCOLOUR:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR);
+    case CS2_OP_IF_GETINVOBJECT:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETINVOBJECT);
+    case CS2_OP_IF_GETINVCOUNT:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETINVCOUNT);
     case CS2_OP_IF_GETSCROLLWIDTH:
         return CS2VM2_Op_IF_GetScrollWidth(vm, frame, operand);
     case CS2_OP_SETBIT:

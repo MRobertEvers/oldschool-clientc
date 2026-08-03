@@ -638,6 +638,8 @@ uitree_component_free_owned(struct UITreeComponent* c)
         free((void*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
+    free(c->data_text);
+    c->data_text = NULL;
     for( int i = 0; i < c->params_count; i++ )
         free(c->params[i].str);
     free(c->params);
@@ -1981,14 +1983,25 @@ UITree_ApplyText(
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
+    if( idx < 0 )
         return false;
     char* copy = strdup(text ? text : "");
     if( !copy )
         return false;
 
-    free((void*)tree->components[idx].u.rs_text.text);
-    tree->components[idx].u.rs_text.text = copy;
+    struct UITreeComponent* c = &tree->components[idx];
+    if( c->type == UIELEM_RS_TEXT )
+    {
+        free((void*)c->u.rs_text.text);
+        c->u.rs_text.text = copy;
+    }
+    else
+    {
+        /* Layers (and other non-TEXT types) still accept if_settext — loot
+         * script 4298 stores the source name on info-slot layers this way. */
+        free(c->data_text);
+        c->data_text = copy;
+    }
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -2021,12 +2034,27 @@ UITree_ApplyColour(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    if( tree->components[idx].type == UIELEM_RS_TEXT )
-        tree->components[idx].u.rs_text.color = colour;
-    else if( tree->components[idx].type == UIELEM_RS_RECT )
-        tree->components[idx].u.rs_rect.color = colour;
-    else
+    struct UITreeComponent* c = &tree->components[idx];
+    c->colour = colour;
+    if( c->type == UIELEM_RS_TEXT )
+        c->u.rs_text.color = colour;
+    else if( c->type == UIELEM_RS_RECT )
+        c->u.rs_rect.color = colour;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
+UITree_ApplyFillColour(
+    struct UITree* tree,
+    int component_id,
+    int colour)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
         return false;
+    tree->components[idx].fill_colour = colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
