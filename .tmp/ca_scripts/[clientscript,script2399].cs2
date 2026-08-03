@@ -1,0 +1,6 @@
+// 2399
+[clientscript,script2399](boolean $boolean0, int $int1, string $url0)
+if ($int1 = 1) {
+	sound_synth(synth_2266, 1, 0);
+}
+openurl($url0, $boolean0);

@@ -1,0 +1,18 @@
+// 4835
+[clientscript,script4835](int $int0, int $int1, int $int2, int $int3, int $int4, int $int5, int $int6, int $int7, int $int8, int $int9, int $int10, int $int11, int $int12, int $int13)
+~script4767($int11, $int12, $int13, -1);
+def_struct $struct14 = enum(int, struct, enum_3987, %varbit12862);
+def_string $string0 = struct_param($struct14, param_1313);
+def_int $int15 = 0;
+if ($struct14 ! null) {
+	~script228($int0, "Combat Achievements - <$string0>", 0);
+} else {
+	~script228($int0, "Combat Achievements - Boss", 0);
+}
+~script4836($int1, $string0);
+~script4837($int2, $int3, $struct14, $string0);
+~script4839($int4, $int5, $string0);
+~script4840($int6, $int7, $string0);
+~script4842($int8, $struct14);
+$int15 = ~script4843($int9, $struct14);
+~script4844($int9, $int10, $int15, $struct14);

@@ -661,9 +661,11 @@ app_worldmap_build_tiles(
     int max_region_y;
 
     app->worldmap_tile_count = 0;
-    /* The drag handler needs the surface's box, and the emit walk is the only
-     * place that knows it — the widget is sized by the world map's own
-     * scripts, not by anything the app configures. */
+    /* Emit-time record of where the tiles were placed this redraw. Click
+     * coordinate math reads it; whether the map is open at all is answered by
+     * app_worldmap_surface_live, not by this box — emit only runs on redraw
+     * frames, and once the interface is hidden it stops writing, so the last
+     * rectangle would otherwise outlive the open map. */
     app->worldmap_box_x = box_x;
     app->worldmap_box_y = box_y;
     app->worldmap_box_w = box_w;
@@ -1041,6 +1043,44 @@ app_worldmap_click(
 }
 
 /*
+ * Is the map surface actually on screen? The emit-time box cannot answer this:
+ * emit only runs on redraw frames, and once the interface is hidden it stops
+ * running at all, so the last box it recorded outlives the open map. Close
+ * sets hide only on the group roots (not on the builtin surface node itself),
+ * so the ancestor walk and RootIsDisplayable are both required.
+ */
+static int
+app_worldmap_surface_live(struct App* app)
+{
+    struct UITree* tree;
+    uint32_t i;
+
+    assert(app);
+    tree = app->tree;
+    if( !tree )
+        return 0;
+    for( i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        int32_t idx;
+
+        if( c->freed || c->type != UIELEM_BUILTIN_WORLDMAP )
+            continue;
+        idx = (int32_t)i;
+        for( ;; )
+        {
+            struct UITreeComponent const* n = &tree->components[idx];
+            if( n->behavior.hide )
+                return 0;
+            if( n->parent < 0 )
+                return UITree_RootIsDisplayable(tree, idx);
+            idx = n->parent;
+        }
+    }
+    return 0;
+}
+
+/*
  * Drag to pan the world map.
  *
  * Anchored, like the reference (OsrsClient.updateWorldMapDrag): the grab records
@@ -1065,6 +1105,17 @@ app_worldmap_drag_tick(
 {
     int mouse_x = input->curr.mouse_x;
     int mouse_y = input->curr.mouse_y;
+
+    /* Idle frames skip the tree scan; an in-progress drag still reaches its
+     * release handling below. */
+    if( !app->worldmap_drag_active && !LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        return;
+
+    if( !app_worldmap_surface_live(app) )
+    {
+        app->worldmap_drag_active = 0;
+        return;
+    }
 
     if( app->worldmap_box_w <= 0 || app->worldmap_box_h <= 0 || !app->host.worldmap )
     {
@@ -2487,6 +2538,7 @@ App_Init(
     InvManager_Init(&app->invs);
     VarPManager_Init(&app->varps);
     VarCManager_Init(&app->varcs);
+    LootStore_Init(&app->loot);
 
     /* Phase 4b: world sim + builder. The World is a pure simulation that
      * references scene elements/assets by integer id; the builder keeps it in
@@ -2547,6 +2599,7 @@ App_Init(
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
+    app->host.loot = &app->loot;
     /* Publish the boot canvas through the one setter so the host's viewport
      * copy starts out agreeing with the layout root. main.c may already have
      * moved the root (TORIRS_ROOT_SIZE, which must be applied before App_Init
@@ -2748,6 +2801,7 @@ App_Shutdown(struct App* app)
     World_Free(app->world);
     VarPManager_Free(&app->varps);
     VarCManager_Free(&app->varcs);
+    LootStore_Free(&app->loot);
     InvManager_Free(&app->invs);
     UITree_Free(app->tree);
     if( app->builder_active )
@@ -3730,6 +3784,16 @@ App_OpenRootInterface(
     if( getenv("TORIRS_CS2_TRACE") )
         g_cs2_trace_mode = 2;
 
+    /* Display Fixed/Classic/Modern remount: drop the live gameframe before the
+     * new root bakes. Without this, InterfaceOpen would add 548/164 beside the
+     * old 161 forest, and IF_OPENSUB targets for the new top race the boot. */
+    if( app->tree && app->tree->root_index >= 0 )
+    {
+        UITree_Clear(app->tree);
+        app->host.inv_transmit_hook_count = 0;
+        app->host.var_transmit_hook_count = 0;
+    }
+
     if( app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] )
     {
         /* RevConfig build: the INI names the whole gameframe (chrome widgets
@@ -3791,6 +3855,21 @@ Task_OpenSubRefresh_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
+    /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
+     * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
+     * before mount_pack_under_target asserts. */
+    while( app->app_state == APP_STATE_BOOTING )
+        PT_YIELD(&self->pt);
+    if( self->interface_id > 0 &&
+        UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
+    {
+        fprintf(
+            stderr,
+            "if-opensub: target 0x%08x missing after boot (iface=%d); skip\n",
+            (unsigned)self->target_uid,
+            self->interface_id);
+        PT_EXIT(&self->pt);
+    }
     if( self->interface_id > 0 )
     {
         TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(

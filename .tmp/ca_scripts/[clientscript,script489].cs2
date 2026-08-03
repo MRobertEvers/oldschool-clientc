@@ -1,0 +1,5 @@
+// 489
+[clientscript,script489](int $index0, int $flags1)
+if (testbit($flags1, $index0) = ^true) {
+	sound_synth(synth_2266, 1, 0);
+}

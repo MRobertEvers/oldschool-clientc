@@ -1,0 +1,3 @@
+// 4583
+[clientscript,script4583](int $int0)
+gameoption_set(1, ~script3428($int0));

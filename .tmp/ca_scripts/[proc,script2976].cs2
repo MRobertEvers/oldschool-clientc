@@ -1,0 +1,33 @@
+// 2976
+[proc,script2976](component $component0, int $int1, int $colour2)(int)
+if (cc_find($component0, calc($int1 + 0)) = ^true) {
+	cc_setgraphic("graphic_297");
+}
+if (cc_find($component0, calc($int1 + 1)) = ^true) {
+	cc_setgraphic("graphic_913");
+}
+if (cc_find($component0, calc($int1 + 2)) = ^true) {
+	cc_setgraphic("graphic_914");
+}
+if (cc_find($component0, calc($int1 + 3)) = ^true) {
+	cc_setgraphic("graphic_915");
+}
+if (cc_find($component0, calc($int1 + 4)) = ^true) {
+	cc_setgraphic("graphic_916");
+}
+if (cc_find($component0, calc($int1 + 5)) = ^true) {
+	cc_setgraphic("graphic_917");
+}
+if (cc_find($component0, calc($int1 + 6)) = ^true) {
+	cc_setgraphic("graphic_918");
+}
+if (cc_find($component0, calc($int1 + 7)) = ^true) {
+	cc_setgraphic("graphic_919");
+}
+if (cc_find($component0, calc($int1 + 8)) = ^true) {
+	cc_setgraphic("graphic_920");
+}
+if (cc_find($component0, calc($int1 + 9)) = ^true) {
+	cc_setcolour($colour2);
+}
+return(0);

@@ -1,0 +1,7 @@
+// 2157
+[clientscript,script2157]
+%varcint11 = 1;
+if (if_gethide(interface_162:39) = false) {
+	~script299(1, 1, 1);
+}
+~script927(0);

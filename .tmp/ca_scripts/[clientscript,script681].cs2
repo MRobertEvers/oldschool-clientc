@@ -1,0 +1,122 @@
+// 681
+[clientscript,script681]
+if (%varcint5 = 14 | %varcint5 = 17) {
+	%varcint66 = 1;
+	return;
+}
+def_int $int0 = -1;
+def_string $string0 = "";
+def_int $length1 = string_length(%varcstring359);
+if ($length1 > 0) {
+	switch_int (%varcint5) {
+		case 1 :
+			return;
+		case 4, 5 :
+			if (ignore_count < 0) {
+				mes("Unable to update ignore list - system busy.");
+			} else if (%varcint5 = 4) {
+				ignore_add(%varcstring359);
+			} else if (%varcint5 = 5) {
+				ignore_del(%varcstring359);
+			}
+		case 2, 3, 6 :
+			if (friend_count < 0) {
+				mes("Unable to complete action - system busy.");
+			} else if (%varcint5 = 2) {
+				friend_add(%varcstring359);
+			} else if (%varcint5 = 3) {
+				friend_del(%varcstring359);
+			} else if (%varcint5 = 6) {
+				if (%varbit8119 = 0) {
+					~script299(1, 1, 1);
+					mes("You must set a name before you can chat.");
+					return;
+				}
+				if (chat_getfilter_private = 2) {
+					chat_setfilter(chat_getfilter_public, 1, chat_getfilter_trade);
+					~script178;
+					$int0 = ~script553;
+					~script84($int0);
+					~script89($int0);
+				}
+				if (%varbit4394 = 1) {
+					friend_del(%varcstring360);
+				} else {
+					chat_sendprivate(%varcstring360, %varcstring359);
+				}
+				%varcint61 = clientclock;
+			}
+		case 7, 19 :
+			resume_countdialog(~script212(%varcstring359));
+			%varcint5 = 0;
+		case 8 :
+			%varcstring361 = removetags(%varcstring359);
+			resume_namedialog(%varcstring359);
+			%varcint5 = 0;
+		case 9, 15, 20, 21, 27 :
+			switch_int (%varcint5) {
+				case 20 :
+					~script4394(removetags(%varcstring359));
+				case 27 :
+					~script7330(removetags(%varcstring359));
+				case 21 :
+					%varcstring359 = ~script4191(%varcstring359, "jagex", " ");
+					%varcstring359 = ~script4191(%varcstring359, "jaqex", " ");
+					%varcstring359 = ~script4191(%varcstring359, "jagx", " ");
+					%varcstring359 = ~script4191(%varcstring359, "jgex", " ");
+					%varcstring359 = ~script4191(%varcstring359, "jgx", " ");
+					%varcstring359 = ~script4191(%varcstring359, "admin", " ");
+					%varcstring359 = ~script4191(%varcstring359, "staff", " ");
+					%varcstring359 = ~script4191(%varcstring359, "mod ", " ");
+					%varcstring359 = ~script4191(%varcstring359, "m0d ", " ");
+					%varcstring359 = ~script4191(%varcstring359, "-", " ");
+					%varcstring359 = ~script4191(%varcstring359, "_", " ");
+					%varcstring359 = ~script4191(%varcstring359, "  ", " ");
+			}
+			resume_stringdialog(%varcstring359);
+			%varcint5 = 0;
+		case 10 :
+			if (%varbit8119 = 0) {
+				~script299(1, 1, 1);
+				mes("You must set a name before you can chat.");
+				return;
+			}
+			%varcstring362 = removetags(%varcstring359);
+			clan_joinchat(%varcstring359);
+		case 12 :
+			if ($length1 > 10) {
+				$string0 = substring(%varcstring359, 0, 9);
+			} else {
+				$string0 = %varcstring359;
+			}
+			chat_setmessagefilter(lowercase($string0));
+			~script84(~script553);
+		case 13 :
+			if (%varbit8119 = 0) {
+				~script299(1, 1, 1);
+				mes("You must set a name before you can chat.");
+				return;
+			}
+			%varcstring358, %varcint62 = %varcstring359, 0;
+			~script95;
+			if_setontimer("script552(event_com, 1)", interface_162:11);
+		case 11, 18 :
+			~script299(0, 1, 1);
+			return;
+		case 16 :
+			~script2061(%varcstring359);
+		case 29 :
+			resume_stringdialog(%varcstring359);
+			%varcint5 = 0;
+	}
+} else {
+	switch_int (%varcint5) {
+		case 7, 8, 9, 15, 20, 21, 29 :
+			return;
+		case 16 :
+			return;
+		case 27 :
+			~script7330("");
+	}
+}
+~script299(1, 1, 1);

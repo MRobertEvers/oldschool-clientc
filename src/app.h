@@ -33,6 +33,7 @@
 #include "ui/uitree_hovertext.h"
 #include "ui/uitree_interact.h"
 #include "varc/varc_manager.h"
+#include "game/rs_loot_store.h"
 #include "game/rs_hitsplat.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
@@ -487,6 +488,7 @@ struct App
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
     struct RS_Hitsplats hitsplats;
     struct VarCManager varcs;
+    struct LootStore loot;
     struct RS_PlayerStats stats;
     struct RS_CS2Host host;
     struct RS_CS1Host cs1_host;

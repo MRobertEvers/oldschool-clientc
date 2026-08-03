@@ -7890,6 +7890,163 @@ CS2VM2_Op_OC_Find(
 }
 
 /*
+ * Loot-tracker native store ops (7400-family + 7600-family).
+ *
+ * Every opcode pops its own arguments here and forwards the opcode + payload
+ * to the host, which calls into LootStore_*. The pattern mirrors
+ * CS2VM2_Op_Social: one function, per-opcode pop rules, one host request kind.
+ */
+static int
+CS2VM2_Op_Loot(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+
+    assert(vm);
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_LOOT;
+    request.u.loot.opcode = opcode;
+
+    switch( opcode )
+    {
+    /* No-arg getters */
+    case CS2_OP_LOOT_SOURCE_COUNT:
+    case CS2_OP_LOOT_AUX_COUNT_TOTAL:
+    case CS2_OP_LOOT_GROUND_COUNT:
+    case CS2_OP_LOOT_SRCLIST_COUNT:
+    case CS2_OP_LOOT_CLEAR_ALL:
+    case CS2_OP_LOOT_IGNORE_CLEAR:
+        break;
+
+    /* (int) -> ... */
+    case CS2_OP_LOOT_SOURCE_NAME:
+    case CS2_OP_LOOT_SOURCE_NAME2:
+    case CS2_OP_LOOT_QUERY_ID:
+    case CS2_OP_LOOT_ROW_COUNT_BYID:
+    case CS2_OP_LOOT_REMOVE_BYID:
+    case CS2_OP_LOOT_GROUND_NAME:
+    case CS2_OP_LOOT_SRCLIST_NAME:
+    case CS2_OP_LOOT_AUX_COUNT:
+    case CS2_OP_LOOT_AUX_CLEAR:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 1;
+        break;
+
+    /* (string) -> ... */
+    case CS2_OP_LOOT_SOURCE_ITEMCOUNT:
+    case CS2_OP_LOOT_SOURCE_TOTALVAL:
+    case CS2_OP_LOOT_ROW_COUNT_BYNAME:
+    case CS2_OP_LOOT_IGNORE_ADD:
+    case CS2_OP_LOOT_IGNORE_ADD2:
+    case CS2_OP_LOOT_IGNORE_REMOVE:
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+
+    /* (int, int, int) -> int : BeginQuery */
+    case CS2_OP_LOOT_BEGIN_QUERY:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[2]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 3;
+        break;
+
+    /* (int, int) -> (int, int) : RowById */
+    case CS2_OP_LOOT_ROW_BYID:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 2;
+        break;
+
+    /* (string, int) -> (int, int) : RowByName */
+    case CS2_OP_LOOT_ROW_BYNAME:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 1;
+        break;
+
+    /* (int, string) -> () : AuxUpsert2 / 7400 */
+    case CS2_OP_LOOT_AUX_UPSERT2:
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 1;
+        break;
+
+    /* (int, string, int) -> () : AuxUpsert / AuxRemove */
+    case CS2_OP_LOOT_AUX_UPSERT:
+    case CS2_OP_LOOT_AUX_REMOVE:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 2;
+        break;
+
+    /* (int, int) -> string : AuxGet */
+    case CS2_OP_LOOT_AUX_GET:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 2;
+        break;
+
+    /* (int, string, int, int) -> int : AuxLookup */
+    case CS2_OP_LOOT_AUX_LOOKUP:
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[2]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[1]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.loot.name) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.loot.int_args[0]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        request.u.loot.int_arg_count = 3;
+        break;
+
+    default:
+        assert(0 && "loot opcode reached CS2VM2_Op_Loot with no pop rule");
+        return CS2VM_EXECNO_ERROR;
+    }
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * Hiscores stubs (7809/7811). No-arg opcodes: 7809 pushes a status int,
+ * 7811 pushes an error string. The host answers both.
+ */
+static int
+CS2VM2_Op_Hiscores(
+    struct CS2VM2_Thread* vm,
+    int opcode)
+{
+    struct CS2VM_HostRequest request;
+
+    assert(vm);
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_HISCORES;
+    request.u.hiscores.opcode = opcode;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
  * Friends / ignore list ops (3600..3609, 3621..3623).
  *
  * The pops below are written out per opcode rather than driven off the
@@ -9803,6 +9960,41 @@ CS2VM2_RunOp(
             return CS2VM_EXECNO_ERROR;
         return vm->vm->host_exec(vm, &request);
     }
+    /* Loot-tracker native store (7400-family + 7600-family). */
+    case CS2_OP_LOOT_SOURCE_COUNT:
+    case CS2_OP_LOOT_SOURCE_NAME:
+    case CS2_OP_LOOT_SOURCE_ITEMCOUNT:
+    case CS2_OP_LOOT_SOURCE_TOTALVAL:
+    case CS2_OP_LOOT_BEGIN_QUERY:
+    case CS2_OP_LOOT_QUERY_ID:
+    case CS2_OP_LOOT_AUX_COUNT_TOTAL:
+    case CS2_OP_LOOT_ROW_COUNT_BYNAME:
+    case CS2_OP_LOOT_ROW_COUNT_BYID:
+    case CS2_OP_LOOT_ROW_BYNAME:
+    case CS2_OP_LOOT_ROW_BYID:
+    case CS2_OP_LOOT_CLEAR_ALL:
+    case CS2_OP_LOOT_IGNORE_ADD:
+    case CS2_OP_LOOT_REMOVE_BYID:
+    case CS2_OP_LOOT_IGNORE_ADD2:
+    case CS2_OP_LOOT_IGNORE_REMOVE:
+    case CS2_OP_LOOT_GROUND_COUNT:
+    case CS2_OP_LOOT_GROUND_NAME:
+    case CS2_OP_LOOT_IGNORE_CLEAR:
+    case CS2_OP_LOOT_SRCLIST_COUNT:
+    case CS2_OP_LOOT_SRCLIST_NAME:
+    case CS2_OP_LOOT_SOURCE_NAME2:
+    case CS2_OP_LOOT_AUX_UPSERT2:
+    case CS2_OP_LOOT_AUX_UPSERT:
+    case CS2_OP_LOOT_AUX_REMOVE:
+    case CS2_OP_LOOT_AUX_GET:
+    case CS2_OP_LOOT_AUX_COUNT:
+    case CS2_OP_LOOT_AUX_LOOKUP:
+    case CS2_OP_LOOT_AUX_CLEAR:
+        return CS2VM2_Op_Loot(vm, opcode);
+    /* Hiscores stubs (7809/7811). */
+    case CS2_OP_HISCORES_STATUS:
+    case CS2_OP_HISCORES_ERROR:
+        return CS2VM2_Op_Hiscores(vm, opcode);
     default:
         /* Contiguous families, matched by range rather than forty case labels. */
         if( (opcode >= CS2_OP_WORLDMAP_INIT && opcode <= CS2_OP_WORLDMAP_LISTELEMENT_NEXT) ||

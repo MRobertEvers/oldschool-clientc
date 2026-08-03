@@ -1031,6 +1031,11 @@ UITree_New(uint32_t hint);
 void
 UITree_Free(struct UITree* tree);
 
+/** Tear down every live node and mount record, keeping the tree object for a
+ *  subsequent root open (IF_OPENTOP remount). Freed slots stay on the free-list. */
+void
+UITree_Clear(struct UITree* tree);
+
 void
 UITree_MarkAllDirty(struct UITree* tree);
 

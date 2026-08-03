@@ -1,0 +1,3 @@
+// 3160
+[proc,script3160]()(int)
+return(~script206(%var3717));

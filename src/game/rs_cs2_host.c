@@ -1,5 +1,6 @@
 #include "game/rs_cs2_host.h"
 
+#include "game/rs_loot_store.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
@@ -4006,6 +4007,178 @@ social_queue(
     rs_cs2_social_send_push(host, &send);
 }
 
+/* =========================================================================
+ * Loot tracker
+ * ========================================================================= */
+
+static int
+exec_loot(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_Loot const* req)
+{
+    struct LootStore* loot = host->loot;
+    assert(loot && "host->loot must be non-NULL when loot ops are reached");
+
+    switch( req->opcode )
+    {
+    case CS2_OP_LOOT_SOURCE_COUNT:
+        return CS2VM2_PushInt(vm, LootStore_SourceCount(loot));
+
+    case CS2_OP_LOOT_SOURCE_NAME:
+    case CS2_OP_LOOT_SOURCE_NAME2:
+    {
+        const char* name = LootStore_SourceName(loot, req->int_args[0]);
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
+    }
+
+    case CS2_OP_LOOT_SOURCE_ITEMCOUNT:
+        return CS2VM2_PushInt(vm, LootStore_SourceItemCount(loot, req->name));
+
+    case CS2_OP_LOOT_SOURCE_TOTALVAL:
+        return CS2VM2_PushInt(vm, LootStore_SourceTotalValue(loot, req->name));
+
+    case CS2_OP_LOOT_BEGIN_QUERY:
+        return CS2VM2_PushInt(vm, LootStore_BeginQuery(
+            loot, req->int_args[0], req->int_args[1], req->int_args[2]));
+
+    case CS2_OP_LOOT_QUERY_ID:
+        return CS2VM2_PushInt(vm, LootStore_QueryId(loot, req->int_args[0]));
+
+    case CS2_OP_LOOT_AUX_COUNT_TOTAL:
+        return CS2VM2_PushInt(vm, LootStore_AuxCountTotal(loot));
+
+    case CS2_OP_LOOT_ROW_COUNT_BYNAME:
+        return CS2VM2_PushInt(vm, LootStore_RowCountByName(loot, req->name));
+
+    case CS2_OP_LOOT_ROW_COUNT_BYID:
+        return CS2VM2_PushInt(vm, LootStore_RowCountById(loot, req->int_args[0]));
+
+    case CS2_OP_LOOT_ROW_BYNAME:
+    {
+        int obj_id = 0, qty = 0;
+        LootStore_RowByName(loot, req->name, req->int_args[0], &obj_id, &qty);
+        if( CS2VM2_PushInt(vm, obj_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(vm, qty);
+    }
+
+    case CS2_OP_LOOT_ROW_BYID:
+    {
+        int obj_id = 0, qty = 0;
+        LootStore_RowById(loot, req->int_args[0], req->int_args[1], &obj_id, &qty);
+        if( CS2VM2_PushInt(vm, obj_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(vm, qty);
+    }
+
+    case CS2_OP_LOOT_CLEAR_ALL:
+        LootStore_ClearAll(loot);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_IGNORE_ADD:
+    case CS2_OP_LOOT_IGNORE_ADD2:
+        LootStore_IgnoreAdd(loot, req->name ? req->name : "");
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_REMOVE_BYID:
+        LootStore_RemoveById(loot, req->int_args[0]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_IGNORE_REMOVE:
+        LootStore_IgnoreRemove(loot, req->name ? req->name : "");
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_IGNORE_CLEAR:
+        LootStore_IgnoreClear(loot);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_GROUND_COUNT:
+        return CS2VM2_PushInt(vm, LootStore_GroundItemCount(loot));
+
+    case CS2_OP_LOOT_GROUND_NAME:
+    {
+        const char* name = LootStore_GroundItemName(loot, req->int_args[0]);
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
+    }
+
+    case CS2_OP_LOOT_SRCLIST_COUNT:
+        return CS2VM2_PushInt(vm, LootStore_SourceListCount(loot));
+
+    case CS2_OP_LOOT_SRCLIST_NAME:
+    {
+        const char* name = LootStore_SourceListName(loot, req->int_args[0]);
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
+    }
+
+    /* Aux-list ops (7400-family). */
+    case CS2_OP_LOOT_AUX_UPSERT2:
+        LootStore_AuxUpsert(loot, req->int_args[0], req->name ? req->name : "", 0);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_AUX_UPSERT:
+        LootStore_AuxUpsert(loot, req->int_args[0], req->name ? req->name : "", req->int_args[1]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_AUX_REMOVE:
+        LootStore_AuxRemove(loot, req->int_args[0], req->name ? req->name : "", req->int_args[1]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_AUX_GET:
+    {
+        const char* s = LootStore_AuxGet(loot, req->int_args[0], req->int_args[1]);
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, s));
+    }
+
+    case CS2_OP_LOOT_AUX_COUNT:
+        return CS2VM2_PushInt(vm, LootStore_AuxCount(loot, req->int_args[0]));
+
+    case CS2_OP_LOOT_AUX_LOOKUP:
+        return CS2VM2_PushInt(vm, LootStore_AuxLookup(
+            loot, req->int_args[0], req->name ? req->name : "",
+            req->int_args[1], req->int_args[2]));
+
+    case CS2_OP_LOOT_AUX_CLEAR:
+        LootStore_AuxClear(loot, req->int_args[0]);
+        return CS2VM_EXECNO_OK;
+
+    default:
+        assert(0 && "exec_loot: unexpected opcode");
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+/* =========================================================================
+ * Hiscores stubs
+ * ========================================================================= */
+
+static int
+exec_hiscores(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_Hiscores const* req)
+{
+    (void)host;
+
+    switch( req->opcode )
+    {
+    case CS2_OP_HISCORES_STATUS:
+        /* Script 7469 treats status 2 as "success — ranks available". Return
+         * 0 ("not attempted") so the script takes its failure path. */
+        return CS2VM2_PushInt(vm, 0);
+
+    case CS2_OP_HISCORES_ERROR:
+        /* The error string a hiscores panel shows on failure. Return empty:
+         * script 7469 falls back to varc string 1233 when empty, which content
+         * can populate via a varc write without any game-facing C literal. */
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
+    default:
+        assert(0 && "exec_hiscores: unexpected opcode");
+        return CS2VM_EXECNO_OK;
+    }
+}
+
 static int
 exec_social(
     struct RS_CS2Host* host,
@@ -4411,6 +4584,12 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_SOCIAL:
         return exec_social(host, vm, &request->u.social);
+
+    case CS2VM_HOST_REQUEST_LOOT:
+        return exec_loot(host, vm, &request->u.loot);
+
+    case CS2VM_HOST_REQUEST_HISCORES:
+        return exec_hiscores(host, vm, &request->u.hiscores);
 
     case CS2VM_HOST_REQUEST_CHAT:
         return exec_chat(host, vm, &request->u.chat);

@@ -728,6 +728,28 @@ UITree_Free(struct UITree* tree)
 }
 
 void
+UITree_Clear(struct UITree* tree)
+{
+    assert(tree);
+
+    while( tree->root_index >= 0 )
+    {
+        int32_t root = tree->root_index;
+        tree->root_index = tree->components[root].next_sibling;
+        if( tree->last_root_index == root )
+            tree->last_root_index = tree->root_index;
+        tree->components[root].next_sibling = -1;
+        tree->components[root].parent = -1;
+        uitree_reclaim_subtree(tree, root);
+    }
+    tree->root_index = -1;
+    tree->last_root_index = -1;
+    tree->interface_parent_count = 0;
+    tree->generation++;
+    tree->hook_index_stale = 1;
+}
+
+void
 UITree_MarkAllDirty(struct UITree* tree)
 {
     assert(tree);

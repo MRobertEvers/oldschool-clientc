@@ -1,0 +1,13 @@
+// 4786
+[proc,script4786](int $int0)(int)
+if ($int0 = 0) {
+	return(0);
+}
+def_int $int1 = 0;
+$int1 = calc($int1 + ~script4787(3981, $int0));
+$int1 = calc($int1 + ~script4787(3982, $int0));
+$int1 = calc($int1 + ~script4787(3983, $int0));
+$int1 = calc($int1 + ~script4787(3984, $int0));
+$int1 = calc($int1 + ~script4787(3985, $int0));
+$int1 = calc($int1 + ~script4787(3986, $int0));
+return($int1);

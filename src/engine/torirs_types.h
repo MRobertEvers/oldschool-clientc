@@ -342,6 +342,9 @@ struct ToriRS_Objtype
      *  gives the bronze scimitar 21 and the abyssal whip 150. Carried through
      *  from the cache because nothing else can reconstruct it. */
     int category;
+    /** Base GE/alch value (cache opcode 12). The loot tracker's value column
+     *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
+    int cost;
     int zoom2d;
     int xan2d;
     int yan2d;

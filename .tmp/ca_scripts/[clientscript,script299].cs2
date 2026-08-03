@@ -1,0 +1,86 @@
+// 299
+[clientscript,script299](int $int0, int $int1, int $int2)
+if_sethide(true, interface_162:39);
+if_sethide(false, interface_162:55);
+~script923;
+def_int $int3 = 0;
+if ($int1 = 1) {
+	$int3 = ~script553;
+	~script84($int3);
+	~script89($int3);
+	~script223;
+	~script927(1);
+	if (~script1972 = 1) {
+		~script1984;
+	}
+}
+if (~script1972 = 1) {
+	~script2581;
+}
+if ($int2 = 1) {
+	switch_int (%varcint5) {
+		case 7, 19 :
+			resume_countdialog("0");
+		case 8 :
+			resume_namedialog("");
+		case 9, 15, 20, 21, 27, 29 :
+			resume_stringdialog("");
+	}
+}
+%varcint5 = 0;
+if ($int0 = 1) {
+	%varcstring359 = "";
+}
+if_setposition(0, -8, 1, 1, interface_162:43);
+if_setsize(0, 40, 1, 0, interface_162:43);
+if_setposition(0, 22, 1, 1, interface_162:44);
+if_setsize(0, 20, 1, 0, interface_162:44);
+if_sethide(false, interface_162:43);
+if_sethide(false, interface_162:44);
+if_sethide(true, interface_162:48);
+if_sethide(true, interface_162:54);
+if_setscrollpos(0, 0, interface_162:52);
+cc_deleteall(interface_162:52);
+cc_deleteall(interface_162:53);
+if_setposition(0, -8, 1, 1, interface_162:43);
+if_setsize(0, 40, 1, 0, interface_162:43);
+if_settextalign(1, 1, 0, interface_162:43);
+if_settextfont(fontmetrics_496, interface_162:43);
+if_settextfont(fontmetrics_496, interface_162:44);
+if_setcolour(0x000080, interface_162:44);
+if_setonmouseover(null, interface_162:44);
+if_setonmouseleave(null, interface_162:44);
+if_settext("", interface_162:44);
+if_setposition(0, 22, 1, 1, interface_162:44);
+if_setonclick(null, interface_162:39);
+if_setonclick(null, interface_162:44);
+if_setonkey(null, interface_162:44);
+if_sethide(true, interface_162:41);
+if_setonclick(null, interface_162:39);
+if_setontimer(null, interface_162:39);
+cc_deleteall(interface_162:39);
+cc_deleteall(interface_162:45);
+cc_deleteall(interface_162:46);
+cc_deleteall(interface_162:47);
+if_sethide(true, interface_162:45);
+if_sethide(true, interface_162:46);
+if_sethide(true, interface_162:47);
+if_setonmouserepeat(null, interface_162:45);
+if_setonmouserepeat(null, interface_162:46);
+if_setonmouserepeat(null, interface_162:47);
+if_setonmouseleave(null, interface_162:45);
+if_setonmouseleave(null, interface_162:46);
+if_setonmouseleave(null, interface_162:47);
+if_setontimer(null, interface_162:45);
+if_setontimer(null, interface_162:46);
+if_setontimer(null, interface_162:47);
+if_setonclick(null, interface_162:45);
+if_setonclick(null, interface_162:46);
+if_setonclick(null, interface_162:47);
+if (%varcint41 = 1337) {
+	~script2526;
+	%varcint384 = clientclock;
+}
+if (~script1972 = 1) {
+	~script2581;
+}

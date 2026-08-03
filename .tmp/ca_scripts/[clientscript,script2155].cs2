@@ -1,0 +1,5 @@
+// 2155
+[clientscript,script2155](int $clock0)
+if (clientclock >= $clock0) {
+	~script923;
+}

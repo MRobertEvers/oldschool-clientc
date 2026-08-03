@@ -1,0 +1,16 @@
+// 664
+[clientscript,script664](int $int0)
+def_int $clock1 = clientclock;
+def_int $int2 = -1;
+if ($int0 = 1 | $clock1 = %varcint65 | calc($clock1 % 25) = 0) {
+	$int2 = ~script553;
+	if ($clock1 = %varcint65) {
+		~script84($int2);
+	}
+	~script89($int2);
+	if (%varcint65 > $clock1 | reboottimer > 0 | %varcint55 > calc($clock1 - 3000)) {
+		if_setontimer("script664(0)", interface_162:0);
+	} else {
+		if_setontimer(null, interface_162:0);
+	}
+}

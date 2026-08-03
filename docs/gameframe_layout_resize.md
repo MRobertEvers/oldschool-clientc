@@ -394,64 +394,97 @@ the correct classic-viewport path for a normal session. Nothing to do there.
 
 ---
 
-## 8. Still open — the fixed/resizable **toplevel switch**
+## 8. Gameframe layout dropdown remount (landed)
 
-**Which direction is blocked, measured.** The switch is not what resizable mode
-needs — **161 already *is* the resizable toplevel**. Booting each and pushing the
-canvas to 1280×800 (`TORIRS_SIM_WINDOW=260,1280x800 TORIRS_DUMP_BOUNDS=…`):
+LostCity has **no** layout/windowmode system (rev 254 fixed-only). The Display
+panel's layout dropdown (Fixed / Resizable Classic / Resizable Modern) is a
+modern feature: content owns the mount tables and remount policy; C only fills
+the missing wire (`WINDOW_STATUS`, `IF_OPENTOP` root switch, `IF_MOVESUB`) and
+ServerScript ops.
+
+### 8.0 Mapping (measured)
+
+| Dropdown (`enum_3509`) | Toplevel | `settings_client_mode` arg | Canvas |
+| --- | --- | --- | --- |
+| 0 Fixed – Classic | `toplevel` (548) | 0 | fixed 765×503 |
+| 1 Resizable – Classic | `toplevel_osrs_stretch` (161) | 1 | follows window |
+| 2 Resizable – Modern | `toplevel_pre_eoc` (164) | 2 | follows window |
+
+Sequence (OpenRune-shaped): CS2 case 12 → `settings_client_mode` → client
+`WINDOW_STATUS(mode,w,h)` (mock wire op **101**, not 10) → server
+`~gameframe_set_mode` → `runclientscript(3998)` + delayed `if_opentop` → remount
+from `gameframe.enum` block named after that toplevel.
+
+### 8.1 What landed
+
+**Content**
+
+- `script_3967.cs2` / `script_4569.cs2`: case 12 calls `~settings_client_mode`
+  and sets `%varbit4607` (1 iff modern).
+- `gameframe.enum`: `[toplevel]`, `[toplevel_osrs_stretch]`,
+  `[toplevel_pre_eoc]` mount blocks (same HUD/tab set, different slot names).
+- `gameframe_layout.rs2`: `[proc,gameframe_set_mode]` /
+  `[queue,gameframe_apply_mode]` → `runclientscript*(3998)` then `if_opentop`.
+
+**C mechanisms**
+
+- `PKTOUT_NAME_WINDOW_STATUS` (op 101): `p1 mode`, `p2 w`, `p2 h`. Host stashes
+  mode on `settings_client_mode` (script 3998) entry — including Classic↔Modern
+  when canvas mode does not flip — and `main.c` drains/sends in `TORIRS_NET_GAME`.
+- `IF_OPENTOP` switches root via `App_OpenRootInterface`: `UITree_Clear` tears
+  down the live forest first; `IF_OPENSUB` on the exec pipeline waits out
+  `APP_STATE_BOOTING` so mount slots exist.
+- `IF_MOVESUB` (inbound op 42) + ServerScript `if_opentop` / `if_movesub`.
+- Ids resolve `toplevel` / `toplevel_pre_eoc` by name; login still opens stretch
+  (`ids->iface_gameframe` stays 161) until the first `WINDOW_STATUS`.
+
+### 8.2 Verification (re-measured 2026-08-03)
+
+Embed client (`make -C src torirs EMBED_SERVER=1`,
+`manifest_osrs230_embed.ini`):
 
 ```
-161  viewport (161|92)  765x503 -> 1280x800    children modes=w1,h1  (parent-relative)
-548  viewport (548|10)  512x334 @4,4 -> unchanged at 1280x800
-     minimap  (548|9)   249x163 @516,4 -> unchanged
-     chat     (548|11)  519x165 @0,338 -> unchanged   children modes=w0,h0 (absolute)
+TORIRS_SIM_RUNSCRIPT="300,3998,0;800,3998,2;1300,3998,1"
+→ if-opentop: 161→548, 548→164, 164→161
 ```
 
-548's frame is authored in absolute pixels and does not reflow at any canvas
-size; 161's is parent-relative and reflows at every size. So the open work is
-**fixed** mode: today `--windowmode fixed` is 161 pinned to 765×503, which looks
-right and is not the same widget tree as the real fixed frame. Four things are
-missing for the real one, all measured:
+`TORIRS_DUMP_BOUNDS` + `TORIRS_EXIT_BMP` after each remount:
 
-1. **No wire surface.** `src/net/rev/pktnames.h` declares 96 `PKTOUT_NAME_*` and
-   none are window/display related; `src/net/rev/osrs230/packetout.h` has no
-   such row; `grep -rniE 'windowstatus|window_status'` over the repo is empty.
-   The client has no sender and the server no decoder. Note the real rev-230
-   opcode and field order are **unknown here** — RSProt's client-prot table is
-   not vendored, so any packet added would be a local convention like the rest
-   of `packetout.h` and would not talk to a real OldSchool server.
-2. **The server hardcodes one toplevel.** `mock230_ids.c` binds only
-   `toplevel_osrs_stretch` → `iface_gameframe`; `mock230_world.c` sends
-   `IF_OPENTOP(iface_gameframe)` unconditionally in the login burst, and a
-   selftest pins it. The mount table
-   (`OSRS-Content/osrs239-content/server/scripts/player/configs/gameframe.enum`)
-   has exactly one block, `[toplevel_osrs_stretch]`; there is no `[toplevel]`
-   block for 548, although every 548 slot is already named in
-   `interfaces/toplevel.compack` (`chat_container` 11, `mainmodal` 41,
-   `floater` 43, `sidemodal` 79, `side0..side13` 81..94).
-3. **A server root switch is refused, deliberately.**
-   `src/game/rs_gameproto_exec.c` logs and drops any `IF_OPENTOP` whose id
-   differs from `app->boot_interface_id`, and its own comment names this exact
-   gap. Rebooting on `IF_OPENTOP` was destructive once already (a live server
-   sent id 0 and wiped the live gameframe), so a real switch needs id
-   validation, a root teardown path (`task_interface_open.c` only bakes and lays
-   out — there is no teardown) and sub-remount handling, not a raw reboot.
-   Booting 548 against the live mock today reaches
-   `Assertion failed: (mount_idx >= 0 && "openSub target must exist")` because
-   the server's `IF_OPENSUB` targets are 161-relative.
-4. **Whichever toplevel is chosen is content's call**, not C's. Naming 161 or
-   548 in C is a §2.4 violation; `mock230_ids.c` already resolves interfaces
-   through the pack and a per-mode table must too.
+```
+548  viewport (548|10)  512x334 @4,4
+     minimap  (548|9)   249x163 @516,4
+     chat     (548|11)  519x165 @0,338     (absolute — fixed frame)
+164  mainmodal (164|16) 512x334  modes x1,y1
+     chat      (164|93) 519x165 @0,338
+161  mainmodal (161|16) 512x334  modes x1,y1
+     chat      (161|96) 519x165 @0,338
+```
 
-Independently verified as *working already*, for whoever picks this up: booting
-548 offline (scratch manifest, `--offline`) gives `IF_GETTOP=548`,
-`toplevel_getcomponents` → 1129, and a correct fixed frame —
-`TORIRS_DUMP_BOUNDS=548` → `548|10` viewport 512×334 @4,4; `548|9` minimap
-249×163 @516,4; `548|11` chat 519×165 @0,338. The 548 layout is not the problem;
-the switch is. (Re-measured 2026-08-02: still true, and still unchanged by canvas
-size — see the table at the top of this section.)
+`mock230_pack --check-only`: 0 errors. `test-cmdbus` / `test-bootmanifest` /
+`test-uitree` green. Selftest still pins `ids->iface_gameframe == 161` as the
+**login default** pack id (session top is `player->gameframe_*`).
 
-### 8.1 The popout strip is gated on toplevel *identity*, not geometry
+Canvas size still distinguishes the frames (from earlier §8 table): 161/164
+reflow; 548 does not. Remount alone is what `--windowmode fixed` was missing
+for a real fixed tree.
+
+### 8.3 Remaining gaps
+
+- **Client CS2 in `cache.osrs239`:** edited `script_3967` / `4569` / `3998` live
+  in the content tree; the pristine cache still has the unbound setters until
+  a derived cache is packed. Headless verification uses
+  `TORIRS_SIM_RUNSCRIPT` with script id 3998 (always present). Entry-hook stash
+  of the mode arg covers Classic↔Modern even when cache 3998 early-outs.
+- **Persistence** of layout across logins — out of scope.
+- **OpenRune intermediate hop** (fixed→pre_eoc via stretch) — deferred unless a
+  measured break needs it.
+- Many content `.rs2` files still hardcode `toplevel_osrs_stretch:mainmodal`;
+  after a switch to 548/164 those call sites should use the live gameframe
+  slots (or `if_gettop`) rather than the stretch name.
+- Talking to a real Old School server: local `WINDOW_STATUS` opcode 101 is a
+  mock convention (rev-230 RSProt op 10 collides with `OPNPC2` here).
+
+### 8.4 The popout strip is gated on toplevel *identity*, not geometry
 
 Reported as a resize symptom, measured as something else. `popout:container`
 (728:9) resolves to **-6 × 491** — `widthmode=1` means "parent minus 48" and its

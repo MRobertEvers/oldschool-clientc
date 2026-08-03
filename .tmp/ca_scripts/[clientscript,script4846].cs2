@@ -1,0 +1,5 @@
+// 4846
+[clientscript,script4846](int $int0, int $int1, int $int2, int $int3, int $int4, int $int5)
+def_int $int6 = 16750623;
+def_int $int7 = 16754735;
+~script4848($int0, $int0, $int1, $int3, $int6, $int7, $int4, $int5);

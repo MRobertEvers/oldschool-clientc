@@ -1333,13 +1333,23 @@ separate codec), and the client's own decode goes from "decoded nothing" on
 every region to zero `archive=MISSING` / zero truncated-stream errors under
 `TORIRS_WORLDMAP_DEBUG=1`.
 
-**Still open:** the ~165 files whose tile count is a multiple of 64 but not
-4,096 — a region assembled from more than one chunk bundled back to back in a
-single file, with no per-chunk coordinate inside the file to say where each 64-
-tile block after the first goes. The decoder reads only the requesting record's
-own chunk and stops rather than guess the rest's placement; those regions may be
-incomplete rather than wrong. Worth revisiting if a specific area turns out to
-be one of the 165 and matters.
+**Headerless kind=1 vs full-region files *(Fixed 2026-08-03).*** Compositemap
+chunk records (kind 1) often point at a *full* 4096-tile geography file (or a
+truncated multiple of 64 in the same x-major order) — Ardent Ocean Underground
+has 568 kind-1 records against mostly `tiles=4096` files; Ancient Cavern is
+kind-1 only. The old headerless chunk path always read the first 64 tiles and
+painted them at every `dst_chunk`, producing a repeating 8×8 grid on screen.
+`RSCache_WorldMapGeographyDecodeInplace` now takes `src_chunk_x/y`, decodes the
+stream as a region (or lone 8×8), and blits the requested source chunk to the
+destination; the geography load task caches each decoded source file so a
+64-chunk region does not reparse the same bytes 64 times.
+
+**Still open (narrower):** a few multi-file groups lack the requesting area's
+file id (e.g. Ardent id 46 vs group 10644 holding only files for other areas) —
+those records correctly decode nothing. Truncated region files (`tiles=N*64`
+with `N<64`) omit high `src_chunk_x` columns; blits for those chunks fail
+rather than invent tiles. True back-to-back 8×8 bundles that are *not*
+region-scan order remain ambiguous if any appear.
 
 ## C. Open — real defects deliberately not fixed
 

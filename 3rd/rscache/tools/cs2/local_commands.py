@@ -329,6 +329,23 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # (1,0,1,0) decompiles 5 and every other candidate tried — (0,0,1,0),
     # (1,0,0,0), (2,0,1,0), (1,0,0,1) — decompiles 0.
     "_7407": (["INT"], ["INT"], False),
+    # Tier-B loot row painters (scripts 4298 / 4452) and the remove twin of
+    # 7401. Settled from call-site stack deltas + `cs2 decompile --override`
+    # where the push order is ints-then-strings-legal; interleaved signatures
+    # are call-site only (same class as 7401). See chrome_panels_server_reqs
+    # and the chrome-panels plan.
+    #   7404: twin of 7401 at 7199/7222/1791 — (kind, string, flag) → ()
+    #   7608: () → int — script 7179 `_7605(0, _7608, 2)`
+    #   7609: (string) → int — script 4298 count for a string-keyed group
+    #   7610: (int) → int — script 4452 count for an int-keyed group
+    #   7611: (string, int) → (int, int) — 4298 index → (obj, qty)
+    #   7612: (int, int) → (int, int) — 4452 index → (obj, qty)
+    "_7404": (["INT", "STRING", "INT"], [], False),
+    "_7608": ([], ["INT"], False),
+    "_7609": (["STRING"], ["INT"], False),
+    "_7610": (["INT"], ["INT"], False),
+    "_7611": (["STRING", "INT"], ["INT", "INT"], False),
+    "_7612": (["INT", "INT"], ["INT", "INT"], False),
 
     # ---------------------------------------------------------------
     # Read out of a deobfuscated client, not inferred.

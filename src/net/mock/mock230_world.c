@@ -6656,8 +6656,15 @@ mock230_world_selftest(void)
                        mock230_content_symbol(MOCK230_PACK_VARP, "mock_quest_progress"),
                        mock230_content_symbol(MOCK230_PACK_VARP, "lumbridge_visited"));
 
-        SELFTEST_CHECK(ids->iface_gameframe == 161, "gameframe should be 161, got %d",
+        /* iface_gameframe is the pack-resolved *login default*
+         * (toplevel_osrs_stretch). Session remounts to toplevel /
+         * toplevel_pre_eoc live on player->gameframe_* after WINDOW_STATUS. */
+        SELFTEST_CHECK(ids->iface_gameframe == 161,
+                       "login default gameframe (toplevel_osrs_stretch) should be 161, got %d",
                        ids->iface_gameframe);
+        SELFTEST_CHECK(ids->iface_toplevel == 548 && ids->iface_toplevel_pre_eoc == 164,
+                       "fixed/modern tops should be 548/164, got %d/%d",
+                       ids->iface_toplevel, ids->iface_toplevel_pre_eoc);
         SELFTEST_CHECK(ids->iface_bankmain == 12 && ids->iface_bankside == 15,
                        "the bank should be 12/15, got %d/%d", ids->iface_bankmain,
                        ids->iface_bankside);

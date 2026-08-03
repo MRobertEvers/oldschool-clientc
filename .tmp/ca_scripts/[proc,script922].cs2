@@ -1,0 +1,15 @@
+// 922
+[proc,script922]()(int)
+if (getwindowmode = 1) {
+	return(0);
+}
+if (if_hassub(interface_162:567) = true | if_hassub(interface_162:566) = true) {
+	return(0);
+}
+if (if_gethide(interface_162:39) = false) {
+	return(0);
+}
+if (testbit(%varcint1189, 0) = ^true) {
+	return(0);
+}
+return(1);

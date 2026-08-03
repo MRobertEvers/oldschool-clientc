@@ -1,0 +1,4 @@
+// 714
+[clientscript,script714](component $component0)
+cc_deleteall($component0);
+~script715($component0, 0);

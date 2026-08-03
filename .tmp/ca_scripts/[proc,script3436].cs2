@@ -1,0 +1,3 @@
+// 3436
+[proc,script3436](string $string0)(int)
+return(~script2484($string0, -1, 0));

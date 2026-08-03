@@ -1,0 +1,3 @@
+// 2975
+[clientscript,script2975](int $int0, int $int1, int $int2)
+~script2976($int0, $int1, $int2);

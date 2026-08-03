@@ -1,0 +1,63 @@
+// 5845
+[proc,script5845](component $component0, component $component1, fontmetrics $fontmetrics2, int $int3, int $int4, int $colour5, int $int6, int $int7, int $int8, int $int9, int $int10, int $comsubid11, int $int12, int $int13, string $string0)(int)
+def_int $int14 = calc($int8 - 9);
+def_int $int15 = calc($int9 - 9);
+def_int $int16 = calc($int8 - 18);
+def_int $int17 = calc($int9 - 18);
+~script98($component0, $int10, 297, $int6, $int7, 0, 0, $int8, $int9, 0, 0, 1);
+if ($int13 = 1) {
+	~script98($component0, calc(1 + $int10), 921, $int6, $int7, 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(2 + $int10), 922, calc($int6 + $int14), $int7, 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(3 + $int10), 923, $int6, calc($int7 + $int15), 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(4 + $int10), 924, calc($int6 + $int14), calc($int7 + $int15), 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(5 + $int10), 925, $int6, calc($int7 + 9), 0, 0, 9, $int17, 0, 0, 1);
+	~script98($component0, calc(6 + $int10), 926, calc($int6 + 9), $int7, 0, 0, $int16, 9, 0, 0, 1);
+	~script98($component0, calc(7 + $int10), 927, calc($int6 + $int14), calc($int7 + 9), 0, 0, 9, $int17, 0, 0, 1);
+	~script98($component0, calc(8 + $int10), 928, calc($int6 + 9), calc($int7 + $int15), 0, 0, $int16, 9, 0, 0, 1);
+} else {
+	~script98($component0, calc(1 + $int10), 913, $int6, $int7, 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(2 + $int10), 914, calc($int6 + $int14), $int7, 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(3 + $int10), 915, $int6, calc($int7 + $int15), 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(4 + $int10), 916, calc($int6 + $int14), calc($int7 + $int15), 0, 0, 9, 9, 0, 0, 1);
+	~script98($component0, calc(5 + $int10), 917, $int6, calc($int7 + 9), 0, 0, 9, $int17, 0, 0, 1);
+	~script98($component0, calc(6 + $int10), 918, calc($int6 + 9), $int7, 0, 0, $int16, 9, 0, 0, 1);
+	~script98($component0, calc(7 + $int10), 919, calc($int6 + $int14), calc($int7 + 9), 0, 0, 9, $int17, 0, 0, 1);
+	~script98($component0, calc(8 + $int10), 920, calc($int6 + 9), calc($int7 + $int15), 0, 0, $int16, 9, 0, 0, 1);
+}
+def_int $int18 = ~script1045($int8, 26);
+def_int $int19 = ~script1045($int9, 26);
+def_int $x20 = calc($int6 - ($int18 - $int8) / 2);
+def_int $y21 = calc($int7 - ($int19 - $int9) / 2);
+def_int $int22 = 0;
+if ($int12 = 1 & $component1 ! null) {
+	$int22 = ~script1972;
+	cc_create($component1, 3, $comsubid11, 0);
+	if ($int22 = 1) {
+		cc_setsize($int18, $int19, 0, 0);
+		cc_setposition($x20, $y21, 0, 0);
+	} else {
+		cc_setsize($int8, $int9, 0, 0);
+		cc_setposition($int6, $int7, 0, 0);
+		if ($int13 = 0) {
+			cc_setonmouseover("script2977($component0, $int10, $int4)");
+			cc_setonmouseleave("script2975($component0, $int10, $int3)");
+		}
+	}
+	cc_settrans(255);
+}
+if (string_length($string0) > 0) {
+	cc_create($component0, 4, calc(9 + $int10), 0);
+	cc_setsize($int8, $int9, 0, 0);
+	cc_setposition($int6, $int7, 0, 0);
+	cc_settext($string0);
+	cc_settextfont($fontmetrics2);
+	cc_settextalign(1, 1, 0);
+	cc_settextshadow(true);
+	if ($int12 = 1) {
+		cc_setcolour($int3);
+	} else {
+		cc_setcolour($colour5);
+	}
+	return(calc(10 + $int10));
+}
+return(calc(9 + $int10));

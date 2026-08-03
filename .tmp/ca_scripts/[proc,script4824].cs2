@@ -1,0 +1,14 @@
+// 4824
+[proc,script4824](int $int0)(int)
+switch_int ($int0) {
+	case 3967 :
+		return(%varbit12858);
+	case 3974 :
+		return(%varbit12861);
+	case 3968 :
+		return(%varbit12859);
+	case 3970 :
+		return(%varbit12860);
+	case default :
+		return(0);
+}

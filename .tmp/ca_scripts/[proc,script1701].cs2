@@ -1,0 +1,34 @@
+// 1701
+[proc,script1701](int $int0, int $int1)(int)
+if (%varcint187 > clientclock) {
+	return(0);
+}
+def_enum $enum2 = ~script900;
+if (if_hassub(enum(component, component, $enum2, interface_161:18)) = true) {
+	if (%varcint190 = 1 & $int1 ! 595) {
+		return(0);
+	} else if (%varbit16074 = 1 & %varbit16073 = 1 & $int1 ! 134 & $int1 ! 621) {
+		return(0);
+	}
+}
+if (if_hassub(enum(component, component, $enum2, interface_161:16)) = true) {
+	if (%varcint435 = 1 & $int0 ! 558) {
+		return(0);
+	} else if (if_hassub(interface_162:567) = false & if_hassub(interface_162:566) = false & if_gethide(interface_162:39) = true) {
+		if (%varcint989 = 1 & $int0 ! 312 & $int0 ! 698) {
+			return(0);
+		} else if (%varcint990 = 1 & $int0 ! 446 & $int0 ! 6) {
+			return(0);
+		}
+	}
+}
+if ($enum2 = enum_1132 & if_hassub(interface_165:40) = true) {
+	if ($int0 = 16 | $int0 = 955) {
+		$enum2 = $enum2;
+	} else if ($int1 = 595 & %varcint190 = 1) {
+		$enum2 = $enum2;
+	} else {
+		return(0);
+	}
+}
+return(1);

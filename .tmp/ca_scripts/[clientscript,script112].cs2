@@ -1,0 +1,68 @@
+// 112
+[clientscript,script112](int $int0, int $int1, string $string0)
+if (~script1701(-1, 162) = 0) {
+	return;
+}
+if ($int0 = 84) {
+	if (%varcint56 = 1 & string_length(%varcstring359) <= 0) {
+		switch_int (%varcint5) {
+			case 8 :
+				%varcstring359 = %varcstring361;
+				~script222($string0);
+			case 10 :
+				%varcstring359 = %varcstring362;
+				~script222($string0);
+			case 20 :
+				%varcstring359 = ~script4393;
+				~script222($string0);
+		}
+	}
+	~script681;
+	return;
+}
+switch_int (%varcint5) {
+	case 6, 9 :
+		%varcstring359 = ~script74(%varcstring359, 0, $int0, $int1);
+	case 11 :
+		if ($int0 = 13) {
+			~script299(1, 1, 1);
+			return;
+		}
+		%varcstring359 = ~script74(%varcstring359, 0, $int0, $int1);
+	case 7, 16 :
+		%varcstring359 = ~script74(%varcstring359, 1, $int0, $int1);
+	case 19 :
+		%varcstring359 = ~script74(%varcstring359, 6, $int0, $int1);
+	case 12 :
+		%varcstring359 = ~script74(%varcstring359, 3, $int0, $int1);
+		~script549;
+	case 18 :
+		if ($int0 = 13) {
+			~script299(1, 1, 1);
+			return;
+		}
+		%varcstring359 = ~script74(%varcstring359, 3, $int0, $int1);
+		%varcstring359 = ~script1299(%varcstring359, " ", " ");
+	case 13 :
+		%varcstring359 = ~script74(%varcstring359, 0, $int0, $int1);
+		~script551;
+	case 14, 17 :
+		if ($int0 = 13) {
+			resume_objdialog(null);
+			sound_synth(synth_2266, 1, 0);
+			~script299(1, 1, 1);
+			return;
+		}
+		%varcstring359 = ~script74(%varcstring359, 4, $int0, $int1);
+	case 20, 21 :
+		%varcstring359 = ~script74(%varcstring359, 8, $int0, $int1);
+	case 27 :
+		%varcstring359 = ~script74(%varcstring359, 12, $int0, $int1);
+	case 28 :
+		%varcstring359 = ~script74(%varcstring359, 13, $int0, $int1);
+	case 29 :
+		%varcstring359 = ~script74(%varcstring359, 14, $int0, $int1);
+	case default :
+		%varcstring359 = ~script74(%varcstring359, 2, $int0, $int1);
+}
+~script222($string0);

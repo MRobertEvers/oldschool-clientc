@@ -157,7 +157,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	game/rs_hitsplat.c engine/dat2/task_dat2_hitsplat_load.c \
-	game/rs_ui_slots.c game/rs_social.c game/rs_clientcode.c game/rs_if1_buttons.c \
+	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \
 	game/rs_worldmap.c \
@@ -348,7 +348,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social test-cs2-transmit-pump
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social test-cs2-transmit-pump
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -623,6 +623,10 @@ test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varc_manager_test varc/varc_manager.c varc/varc_manager_test.c
 	./$(OBJ_DIR)/varc_manager_test
+
+test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_loot_store_test game/rs_loot_store.c game/test/rs_loot_store_test.c
+	./$(OBJ_DIR)/rs_loot_store_test
 
 # ---------------------------------------------------------------------------
 # ServerScript (LostCity RuneScript) reader / compiler / VM.

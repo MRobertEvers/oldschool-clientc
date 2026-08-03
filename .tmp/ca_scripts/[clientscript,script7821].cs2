@@ -1,0 +1,20 @@
+// 7821
+[clientscript,script7821](int $int0, int $int1, int $int2, string $string0)
+def_struct $struct3 = null;
+def_struct $struct4 = null;
+switch_int ($int0) {
+	case 6 :
+		if ($int1 = 0 | $int1 = 43) {
+			$struct3 = ~script7819($int2);
+			if ($struct3 ! null) {
+				$struct4 = struct_param($struct3, param_1307);
+				mes("<~script7820(struct_param($struct4, param_1304), struct_param($struct4, param_1305))><struct_param($struct3, param_1308)></col>: <struct_param($struct3, param_1309)>");
+			}
+		}
+	case 7 :
+		if (($int1 = 0 | $int1 = 43) & cc_find(interface_162:35, $int2) = ^true) {
+			cc_triggerop(1);
+		}
+	case default :
+		~script7822($int0, $string0, $int1);
+}

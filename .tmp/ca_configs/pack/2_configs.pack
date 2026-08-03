@@ -1,0 +1,27 @@
+// The archives of cache index 2, the config table. Each one holds the
+// records of a single config type, and `pack/<type>.pack` names those
+// records — this file names the archives they live in.
+//
+// The id is what the client addresses the group by, which is why they are
+// not consecutive: the gaps are groups this revision has no decoder for.
+
+1=underlay
+3=idk
+4=overlay
+5=inv
+6=loc
+8=enum
+9=npc
+10=obj
+11=param
+12=seq
+13=spotanim
+14=varbit
+16=varp
+19=varc
+32=hitsplat
+33=healthbar
+34=struct
+35=mapelement
+38=dbrow
+39=dbtable

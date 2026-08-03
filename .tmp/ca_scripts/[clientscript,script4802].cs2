@@ -1,0 +1,6 @@
+// 4802
+[clientscript,script4802]
+if (%varbit12884 = 0) {
+	~script2157;
+	%varbit12884 = 1;
+}

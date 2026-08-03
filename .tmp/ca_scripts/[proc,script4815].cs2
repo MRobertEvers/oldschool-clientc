@@ -1,0 +1,125 @@
+// 4815
+[proc,script4815](int $int0, component $component1, component $component2, int $int3, int $int4, int $int5, int $int6, int $int7, int $int8, int $int9, int $int10, struct $struct11, int $int12)(int, int, int)
+def_string $string0 = struct_param($struct11, param_1330);
+def_graphic $graphic13 = struct_param($struct11, param_1332);
+def_int $int14 = 16750623;
+def_int $height15 = paraheight($string0, calc(if_getwidth($component2) - 8), fontmetrics_495);
+def_int $int16 = calc($height15 * 14 + 4);
+def_int $int17 = 24;
+def_int $int18 = 4;
+def_int $x19 = 0;
+if (~script4785($struct11) = 2) {
+	$int14 = 65280;
+}
+if ($int12 = 1) {
+	$int18 = 0;
+	$x19 = 2;
+}
+if (~script1972 = 1 & $int16 < 24) {
+	$int16 = 24;
+}
+if ($int17 > $int16) {
+	$int16 = $int17;
+}
+def_int $y20 = calc($int16 + 4 + $int10);
+def_int $int21 = calc($int16 + 8);
+.cc_create($component1, 3, $int9, 0);
+.cc_setsize(0, $int21, 1, 0);
+.cc_setposition(0, $int10, 0, 0);
+.cc_setfill(true);
+.cc_setcolour(^white);
+.cc_settrans(255);
+.cc_setop(1, "Select <col=ff981f><$string0>");
+if ($int12 = 0) {
+	.cc_setonop("script4812($int0, $component1, $component2, $int3, $int4, $int5, $int6, $int7, $struct11)");
+}
+$int9 = calc($int9 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, 4, 0, 0);
+cc_setposition(4, $int10, 0, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1004");
+} else {
+	cc_setgraphic("graphic_1012");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, 4, 0, 0);
+cc_setposition($int18, $int10, 2, 0);
+cc_setgraphic("graphic_1013");
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, 4, 0, 0);
+cc_setposition(4, $y20, 0, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1006");
+} else {
+	cc_setgraphic("graphic_1014");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, 4, 0, 0);
+cc_setposition($int18, $y20, 2, 0);
+cc_setgraphic("graphic_2834");
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(calc(12 + $int18), 4, 1, 0);
+cc_setposition($x19, $int10, 1, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1008");
+} else {
+	cc_setgraphic("graphic_2835");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(calc(12 + $int18), 4, 1, 0);
+cc_setposition($x19, $y20, 1, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1009");
+} else {
+	cc_setgraphic("graphic_2836");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, $int16, 0, 0);
+cc_setposition(4, calc($int10 + 4), 0, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1010");
+} else {
+	cc_setgraphic("graphic_2837");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(4, $int16, 0, 0);
+cc_setposition($int18, calc($int10 + 4), 2, 0);
+cc_setgraphic("graphic_2838");
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize(calc(12 + $int18), $int16, 1, 0);
+cc_setposition($x19, calc($int10 + 4), 1, 0);
+if ($int12 = 1) {
+	cc_setgraphic("graphic_1011");
+} else {
+	cc_setgraphic("graphic_2839");
+}
+$int8 = calc($int8 + 1);
+cc_create($component2, 5, $int8, 0);
+cc_setsize($int17, $int17, 0, 0);
+cc_setposition(8, calc($int10 + 4), 0, 0);
+cc_setgraphic($graphic13);
+$int8 = calc($int8 + 1);
+cc_create($component2, 4, $int8, 0);
+cc_setsize(calc(.cc_getwidth - $int17), $int16, 0, 0);
+cc_setposition($int17, calc($int10 + 4), 0, 0);
+cc_settext($string0);
+cc_settextfont(fontmetrics_495);
+cc_settextshadow(true);
+cc_setcolour($int14);
+cc_settextalign(1, 1, 0);
+if (~script1972 = 0 & $int12 = 0) {
+	.cc_setonmouseover("script85($component2, $int8, 16777215)");
+	.cc_setonmouseleave("script85($component2, $int8, $int14)");
+}
+$int8 = calc($int8 + 1);
+$int10 = calc($int10 + $int21);
+return($int8, $int9, $int10);

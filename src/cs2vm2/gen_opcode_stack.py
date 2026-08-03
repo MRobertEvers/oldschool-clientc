@@ -447,6 +447,41 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     8023: (1, 1, 0, 0),  # ARRAY_SETLENGTH(handle, n)
     8024: (2, 1, 0, 0),  # ARRAY_APPEND(handle, value, type) — int-typed form
     4036: (0, 1, 1, 0),  # STRING_TO_INT(string) -> int
+    # Loot-tracker native store (7600-family). Arities from local_commands.py,
+    # each verified at call sites in scripts 7166/4298/4452/7200/1792.
+    7601: (0, 0, 1, 0),  # LOOT_SOURCE_COUNT() -> int
+    7602: (1, 0, 0, 1),  # LOOT_SOURCE_NAME(id) -> string
+    7603: (0, 1, 1, 0),  # LOOT_SOURCE_ITEMCOUNT(name) -> int
+    7604: (0, 1, 1, 0),  # LOOT_SOURCE_TOTALVAL(name) -> int
+    7605: (3, 0, 1, 0),  # LOOT_BEGIN_QUERY(start, limit, kind) -> count
+    7606: (1, 0, 1, 0),  # LOOT_QUERY_ID(index) -> id
+    7608: (0, 0, 1, 0),  # LOOT_AUX_COUNT_TOTAL() -> int
+    7609: (0, 1, 1, 0),  # LOOT_ROW_COUNT_BYNAME(name) -> int
+    7610: (1, 0, 1, 0),  # LOOT_ROW_COUNT_BYID(id) -> int
+    7611: (1, 1, 2, 0),  # LOOT_ROW_BYNAME(name, index) -> (obj_id, qty)
+    7612: (2, 0, 2, 0),  # LOOT_ROW_BYID(id, index) -> (obj_id, qty)
+    7613: (0, 0, 0, 0),  # LOOT_CLEAR_ALL()
+    7614: (0, 1, 0, 0),  # LOOT_IGNORE_ADD(name)
+    7615: (1, 0, 0, 0),  # LOOT_REMOVE_BYID(id)
+    7616: (0, 1, 0, 0),  # LOOT_IGNORE_ADD2(name) — duplicate entry point
+    7617: (0, 1, 0, 0),  # LOOT_IGNORE_REMOVE(name)
+    7619: (0, 0, 1, 0),  # LOOT_GROUND_COUNT() -> int
+    7620: (1, 0, 0, 1),  # LOOT_GROUND_NAME(index) -> string
+    7621: (0, 0, 0, 0),  # LOOT_IGNORE_CLEAR()
+    7625: (0, 0, 1, 0),  # LOOT_SRCLIST_COUNT() -> int
+    7626: (1, 0, 0, 1),  # LOOT_SRCLIST_NAME(index) -> string
+    7630: (1, 0, 0, 1),  # LOOT_SOURCE_NAME2(id) -> string
+    # Loot aux-list ops (7400-family).
+    7400: (1, 1, 0, 0),  # LOOT_AUX_UPSERT2(kind, name)
+    7401: (2, 1, 0, 0),  # LOOT_AUX_UPSERT(kind, name, flag)
+    7404: (2, 1, 0, 0),  # LOOT_AUX_REMOVE(kind, name, flag)
+    7406: (2, 0, 0, 1),  # LOOT_AUX_GET(kind, index) -> string
+    7407: (1, 0, 1, 0),  # LOOT_AUX_COUNT(kind) -> int
+    7408: (3, 1, 1, 0),  # LOOT_AUX_LOOKUP(kind, name, arg3, arg4) -> int
+    7409: (1, 0, 0, 0),  # LOOT_AUX_CLEAR(kind)
+    # Hiscores stubs (7809/7811). Arities from local_commands.py.
+    7809: (0, 0, 1, 0),  # HISCORES_STATUS() -> int (non-2 = not success)
+    7811: (0, 0, 0, 1),  # HISCORES_ERROR() -> string
 }
 
 

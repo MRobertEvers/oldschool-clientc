@@ -1,0 +1,21 @@
+// 4769
+[clientscript,script4769](component $component0, int $int1, int $int2, int $int3)
+if (~script1972 = 1) {
+	if_setsize(33, 33, 0, 0, $component0);
+	if_setposition(1, 1, 0, 0, $component0);
+} else {
+	if_setsize(21, 21, 0, 0, $component0);
+	if_setposition(7, 7, 0, 0, $component0);
+}
+cc_create($component0, 5, $int1, 0);
+cc_setsize(21, 21, 0, 0);
+cc_setposition(0, 0, 1, 1);
+cc_setgraphic("graphic_2289");
+def_int $int4 = 2290;
+def_int $int5 = 2289;
+if (~script1972 = 0) {
+	cc_setonmouserepeat("script229(event_com, event_comsubid, $int4, -1)");
+	cc_setonmouseleave("script229(event_com, event_comsubid, $int5, -1)");
+}
+if_setonop("script4770(event_opindex, $component0, $int2, $int1, $int3)", $component0);
+if_setop(1, "Show Menu", $component0);

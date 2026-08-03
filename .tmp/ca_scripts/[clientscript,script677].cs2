@@ -1,0 +1,38 @@
+// 677
+[clientscript,script677](int $int0)
+~script299(1, 0, 0);
+%varcint5 = $int0;
+if_sethide(false, interface_162:39);
+if (~script1972 = 1) {
+	~script2581;
+	if_sethide(false, interface_162:41);
+	switch_int ($int0) {
+		case 8, 10, 20 :
+			if_sethide(false, interface_162:40);
+			if_setposition(0, if_gety(interface_162:43), 1, 0, interface_162:40);
+			if_setsize(20, if_gety(interface_162:43), 1, 1, interface_162:40);
+			if_setonclick("script2727", interface_162:40);
+		case 14, 17 :
+			if_sethide(false, interface_162:40);
+			if_setposition(0, 0, 1, 0, interface_162:40);
+			if_setsize(20, 20, 1, 0, interface_162:40);
+			if_setonclick("script2727", interface_162:40);
+		case 1 :
+			if_sethide(true, interface_162:40);
+			if_setonclick(null, interface_162:40);
+		case default :
+			if_sethide(false, interface_162:40);
+			if_setposition(0, 0, 1, 1, interface_162:40);
+			if_setsize(20, 20, 1, 1, interface_162:40);
+			if_setonclick("script2727", interface_162:40);
+	}
+	~script2526;
+} else {
+	if_sethide(true, interface_162:40);
+	if_setonclick(null, interface_162:40);
+}
+%varcint384 = clientclock;
+if_sethide(true, interface_162:55);
+~script923;
+~script89(~script553);
+~script927(0);

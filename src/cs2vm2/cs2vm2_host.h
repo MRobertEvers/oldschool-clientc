@@ -444,6 +444,15 @@ enum CS2VM_HostRequestKind
      * channel it carries no trigger list — one dirty flag re-runs every
      * registered hook. */
     CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT,
+
+    /* Loot-tracker native store (7400/7600-family), one kind carrying the
+     * opcode and its popped args — same shape as SOCIAL/WORLDMAP. The host
+     * forwards to LootStore_* on host->loot. */
+    CS2VM_HOST_REQUEST_LOOT,
+
+    /* Hiscores stubs (7809/7811), one kind carrying the opcode. 7809 returns
+     * a non-success status; 7811 returns an empty string. */
+    CS2VM_HOST_REQUEST_HISCORES,
 };
 
 /** Friends / ignore accessors + mutators (3600..3609, 3621..3623).
@@ -1312,6 +1321,23 @@ struct CS2VM_HostRequest_ClientOp
     char* label;
 };
 
+/** Any loot-tracker opcode (7400-family + 7600-family). `name` is borrowed
+ *  from the VM's string pool for the ops that pop a string; the host must
+ *  copy it if kept. `int_args` hold remaining int arguments in pop order. */
+struct CS2VM_HostRequest_Loot
+{
+    int opcode;
+    char* name;
+    int int_args[4];
+    int int_arg_count;
+};
+
+/** Any hiscores opcode (7809/7811). Only the opcode distinguishes them. */
+struct CS2VM_HostRequest_Hiscores
+{
+    int opcode;
+};
+
 /** SETWINDOWMODE / SETDEFAULTWINDOWMODE payload: one enum CS2VM_WindowMode. */
 struct CS2VM_HostRequest_WindowMode
 {
@@ -1461,6 +1487,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_ResumeCountDialog resume_countdialog;
         struct CS2VM_HostRequest_ResumePauseButton resume_pausebutton;
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_friend_transmit;
+        struct CS2VM_HostRequest_Loot loot;
+        struct CS2VM_HostRequest_Hiscores hiscores;
     } u;
 };
 

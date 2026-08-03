@@ -203,6 +203,43 @@ while the X, the key panel and the bottom bar all report real component ids.
 The gate covers the drag start as well as the click, which also stops the map
 panning behind the key panel's scrollbar while it is being dragged.
 
+**`hover_com_id` does not answer "is the map open?"** It only separates chrome
+from bare map *while the surface is mounted*. The press also needs a live
+surface. `app->worldmap_box_*` is written only by the emit walk
+(`app_worldmap_build_tiles`), and emit stops visiting the builtin once
+`IF_CLOSESUB` hides interface 595 — so the last rectangle outlived the open
+map. After close, a left press over bare world (`hover_com_id == -1`) inside
+that stale box started a phantom pan and the release fired `CLICK_WORLD_MAP`:
+
+```
+mock230: <- IF_BUTTON1 595:38     # close
+mock230: world map closed
+# ...later click at 400,90 over the 3D world...
+worldmap_click: screen=400,90 ...
+mock230: <- CLICK_WORLD_MAP ...   # phantom — map is already gone
+```
+
+`app_worldmap_surface_live` asks the tree instead: find the
+`UIELEM_BUILTIN_WORLDMAP` node, reject any hidden ancestor (close only sets
+`hide` on the group roots, not on the builtin itself), and require
+`UITree_RootIsDisplayable` on its top root. Idle frames skip the scan; an
+in-progress drag still reaches its release handling. Measured after the fix
+(`manifest_osrs230_alt.ini`, orb at 704,140, close X at 470,22):
+
+```sh
+MOCK230_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_mock230 \
+TORIRS_NET_DEBUG=1 TORIRS_SIM_CLICK_AT="250,704,140;320,470,22;400,400,90" \
+TORIRS_MAX_FRAMES=520 ./run-live.sh manifest_osrs230_alt.ini
+# mock230: world map opened
+# mock230: <- IF_BUTTON1 595:38
+# mock230: world map closed
+# sim_click_at: frame=400 ... 400,90
+# (no worldmap_click, no CLICK_WORLD_MAP)
+```
+
+Open-then-click without the close step still emits one `CLICK_WORLD_MAP`;
+re-open after close still pans and clicks.
+
 ### Mock server side
 
 `src/net/mock/mock230_worldmap.c`, four entry points:
@@ -632,6 +669,32 @@ churn the LRU.
 
 **Verified:** `FORCE_MAP=4` (braindeath) → `geography: file=4 archive=ok`,
 `baked region 33,79` / `33,80`, BMP terrain colours (not a black fill).
+
+### Repeating tile grid on non-Gielinor maps — kind=1 read the wrong chunk
+
+Gielinor Surface and Braindeath use compositemap **kind=0** (whole-region)
+records. Dungeon / ocean maps often use **kind=1** (chunk) records that still
+point at full 4096-tile table-18 files. Headerless decode treated every kind=1
+file as a lone 64-tile stream: it always consumed the first 8×8 and wrote it at
+`dst_chunk`. Sixty-four sibling records therefore painted the same source chunk
+across the region — the repeating mountain/cell grid on Ardent Ocean
+Underground.
+
+**Fix** (`dat2_worldmap_geography.c`, `task_dat2_worldmap_geography_load.c`):
+pass `src_chunk` into decode; for headerless kind=1, decode the file as a
+region (or single 8×8) and blit `src_chunk` → `dst_chunk`. Cache each decoded
+source file inside the region load task.
+
+**Verified** (`manifest_osrs239_worldmap.ini`, headless):
+
+| `FORCE_MAP` | area | baked | decode fail | notes |
+|---|---|---|---|---|
+| 46 | ardent_ocean_underground | 15 | 0 | continuous cave colours; no 8×8 grid |
+| 1 | ancient_cavern | 3 | 0 | kind=1-only map |
+| 4 | braindeath_island | 2 | 0 | kind=0 regression |
+
+(Area file ids come from `details.compack` — Ardent is **46**, not array
+index 45 / Neypotzli.)
 
 ---
 

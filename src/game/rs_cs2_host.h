@@ -17,6 +17,7 @@ struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
 struct RS_Social;
+struct LootStore;
 
 /*
  * Outbound social requests a CS2 script made.
@@ -217,6 +218,7 @@ struct RS_CS2Host
     int awaited_id2; /* second resource of a two-resource request, else -1 */
 
     struct VarCManager* varcs; /* client-variable store; may be NULL */
+    struct LootStore* loot;   /* client-native loot tracker; may be NULL */
 
     int client_clock;
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE

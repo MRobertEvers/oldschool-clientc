@@ -1,0 +1,9 @@
+// 4866
+[proc,script4866](int $int0)(int)
+if (db_getrowtable($int0) = 61) {
+	if (db_getfieldcount($int0, 249856) > 0) {
+		return(db_getfield($int0, 249856, 0));
+	}
+	return(-1);
+}
+return(-1);
