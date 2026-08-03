@@ -21,7 +21,7 @@ typedef struct
     uint32_t seed;
     int grid;
     int levels;
-    int use_cullmap; /* 0 = nocull, 1 = runtime bake */
+    int use_cullmap; /* 0 = nocull, 1 = analytic span, 2 = runtime bake */
     int camera_sx;
     int camera_sz;
     int camera_slevel;

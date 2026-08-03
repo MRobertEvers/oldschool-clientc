@@ -43,7 +43,8 @@ REAL_BENCH_SOURCES = bench_real.c $(REAL_COMMON)
 # Host build (unchanged)
 # ---------------------------------------------------------------------------
 .PHONY: all clean run fuzz fuzz_real bench_real bench_real_cache \
-	bench_real_run bench_real_cache_run fuzz_cache fuzz_cache_run winxp win64 windows
+	bench_real_run bench_real_cache_run fuzz_cache fuzz_cache_run \
+	cullspan_test winxp win64 windows
 
 all: bench_painter
 
@@ -56,6 +57,10 @@ fuzz_real: $(FUZZ_SOURCES) Makefile
 bench_real: $(REAL_BENCH_SOURCES) Makefile
 	$(CC) $(CFLAGS) $(CPPFLAGS) -DTORIRS_PERF_DISABLE $(REAL_BENCH_SOURCES) $(LDFLAGS) -o $@
 
+cullspan_test: cullspan_test.c $(SRC_DIR)/painters/painters_cullspan.u.c \
+		$(SRC_DIR)/painters/painters.h Makefile
+	$(CC) $(CFLAGS) $(CPPFLAGS) cullspan_test.c $(LDFLAGS) -o $@
+
 run: all
 	./bench_painter
 
@@ -63,7 +68,7 @@ fuzz: fuzz_real
 	./fuzz_real
 
 clean:
-	rm -f bench_painter bench_real bench_real_cache fuzz_real fuzz_cache
+	rm -f bench_painter bench_real bench_real_cache fuzz_real fuzz_cache cullspan_test
 	rm -rf dist
 
 # ---------------------------------------------------------------------------

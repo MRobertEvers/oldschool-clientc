@@ -13,6 +13,7 @@
 // clang-format off
 #include "painters_intqueue.u.c"
 #include "painters_cullmap.u.c"
+#include "painters_cullspan.u.c"
 // clang-format on
 
 /* Uncomment to disable all cullmap visibility checks (every tile treated as visible). */
@@ -489,6 +490,13 @@ painter_new(
     painter->cullmap = NULL;
     painter->camera_pitch = 0;
     painter->camera_yaw = 0;
+    painter->cull_camera_key = 0;
+    painter->cullspan_active = 0;
+    memset(&painter->cullspan, 0, sizeof(painter->cullspan));
+    painter->cullspan.empty = 1;
+    painter->has_draw_center = 0;
+    painter->draw_center_sx = -1;
+    painter->draw_center_sz = -1;
     painter->level_mask = 0xFu;
     painter->min_level = 0;
 
@@ -574,11 +582,17 @@ painter_cullmap_tile_visible(
     (void)camera_sz;
     return true;
 #else
-    if( painter->cullmap == NULL || tile_paint->step != PAINT_STEP_READY )
+    int dx;
+    int dz;
+    if( tile_paint->step != PAINT_STEP_READY )
         return true;
-    int dx = tile_sx - camera_sx;
-    int dz = tile_sz - camera_sz;
-    return painters_cullmap_visible_keyed(painter->cullmap, dx, dz, painter->cull_camera_key);
+    dx = tile_sx - camera_sx;
+    dz = tile_sz - camera_sz;
+    if( painter->cullspan_active )
+        return painters_cullspan_visible(&painter->cullspan, dx, dz) != 0;
+    if( painter->cullmap == NULL )
+        return true;
+    return painters_cullmap_visible_keyed(painter->cullmap, dx, dz, painter->cull_camera_key) != 0;
 #endif
 }
 
@@ -593,6 +607,22 @@ painter_set_cullmap(
 }
 
 void
+painter_set_cullspan(
+    struct Painter* painter,
+    const struct PaintersCullSpan* span)
+{
+    assert(painter);
+    if( !span || span->empty )
+    {
+        painter->cullspan_active = 0;
+        painter->cullspan.empty = 1;
+        return;
+    }
+    painter->cullspan = *span;
+    painter->cullspan_active = 1;
+}
+
+void
 painter_set_camera_angles(
     struct Painter* painter,
     int pitch,
@@ -602,6 +632,25 @@ painter_set_camera_angles(
         return;
     painter->camera_pitch = pitch;
     painter->camera_yaw = yaw;
+}
+
+void
+painter_set_draw_center(
+    struct Painter* painter,
+    int sx,
+    int sz)
+{
+    assert(painter);
+    if( sx < 0 || sz < 0 )
+    {
+        painter->has_draw_center = 0;
+        painter->draw_center_sx = -1;
+        painter->draw_center_sz = -1;
+        return;
+    }
+    painter->has_draw_center = 1;
+    painter->draw_center_sx = sx;
+    painter->draw_center_sz = sz;
 }
 
 void
@@ -1201,6 +1250,107 @@ struct PainterSeedGen
     int dz;     /* runs -R..0 */
     int sub;    /* 0..3: which of the up-to-4 candidates within (dx,dz) */
 };
+
+/** Resolve draw-box centre (orbit target) and clamp a radius-R square to the
+ * painter grid. Eye-relative distance / wall logic still uses camera_s*. */
+static void
+painter_resolve_draw_box(
+    const struct Painter* painter,
+    int camera_sx,
+    int camera_sz,
+    int radius,
+    int* out_center_sx,
+    int* out_center_sz,
+    int* out_min_x,
+    int* out_max_x,
+    int* out_min_z,
+    int* out_max_z)
+{
+    int cx;
+    int cz;
+    int min_x;
+    int max_x;
+    int min_z;
+    int max_z;
+    assert(painter);
+    assert(out_center_sx && out_center_sz);
+    assert(out_min_x && out_max_x && out_min_z && out_max_z);
+
+    cx = painter->has_draw_center ? painter->draw_center_sx : camera_sx;
+    cz = painter->has_draw_center ? painter->draw_center_sz : camera_sz;
+
+    max_x = cx + radius;
+    max_z = cz + radius;
+    if( max_x >= painter->width )
+        max_x = painter->width;
+    if( max_z >= painter->height )
+        max_z = painter->height;
+    if( max_x < 0 )
+        max_x = 0;
+    if( max_z < 0 )
+        max_z = 0;
+
+    min_x = cx - radius;
+    min_z = cz - radius;
+    if( min_x < 0 )
+        min_x = 0;
+    if( min_z < 0 )
+        min_z = 0;
+    if( min_x > painter->width )
+        min_x = painter->width;
+    if( min_z > painter->height )
+        min_z = painter->height;
+
+    *out_center_sx = cx;
+    *out_center_sz = cz;
+    *out_min_x = min_x;
+    *out_max_x = max_x;
+    *out_min_z = min_z;
+    *out_max_z = max_z;
+}
+
+/** Seed radius must cover every tile in the draw box relative to the eye so an
+ * offset orbit centre still gets perimeter seeds. */
+static int
+painter_seed_radius_for_box(
+    int eye_sx,
+    int eye_sz,
+    int min_draw_x,
+    int max_draw_x,
+    int min_draw_z,
+    int max_draw_z,
+    int radius)
+{
+    int r = radius;
+    int d;
+    if( max_draw_x > min_draw_x )
+    {
+        d = eye_sx - min_draw_x;
+        if( d < 0 )
+            d = -d;
+        if( d > r )
+            r = d;
+        d = eye_sx - (max_draw_x - 1);
+        if( d < 0 )
+            d = -d;
+        if( d > r )
+            r = d;
+    }
+    if( max_draw_z > min_draw_z )
+    {
+        d = eye_sz - min_draw_z;
+        if( d < 0 )
+            d = -d;
+        if( d > r )
+            r = d;
+        d = eye_sz - (max_draw_z - 1);
+        if( d < 0 )
+            d = -d;
+        if( d > r )
+            r = d;
+    }
+    return r < 1 ? 1 : r;
+}
 
 static void
 seed_gen_init(

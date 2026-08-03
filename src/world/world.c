@@ -172,9 +172,9 @@ World_ResetSceneAlloc(
         scene_size,
         WORLD_MAP_TERRAIN_LEVELS,
         PAINTER_NEW_CTX_BUCKET | PAINTER_NEW_CTX_WORLD3D);
-    /* Default nocull; the client rebakes a real frustum cullmap once the world
-     * viewport size is known (app_ensure_painter_cullmap). TORIRS_PAINTER_NOCULL=1
-     * keeps this stub for A/B. */
+    /* Default nocull; the client installs a per-frame analytic span cull once
+     * the world viewport is known (app_update_painter_cull). TORIRS_PAINTER_NOCULL=1
+     * keeps this stub; TORIRS_PAINTER_CULL=baked restores the CPU-baked table. */
     world->cullmap = painters_cullmap_new_nocull();
     if( world->painter )
         painter_set_cullmap(world->painter, world->cullmap);

@@ -416,6 +416,44 @@ struct PaintersCullMap
     int all_visible;
 };
 
+/** Max |dz| (eye-relative tiles) the per-frame span table can cover. Must fit
+ * radius 25 plus the largest orbit-eye offset (~40 at 300% zoom). */
+#ifndef PAINTERS_CULLSPAN_MAX_DZ
+#define PAINTERS_CULLSPAN_MAX_DZ 96
+#endif
+#define PAINTERS_CULLSPAN_ROWS (2 * PAINTERS_CULLSPAN_MAX_DZ + 1)
+
+struct PaintersCullSpanParams
+{
+    int pitch;
+    int yaw;
+    /** Down-positive eye-to-ground offset in scene units (matches bake `ph`). */
+    int eye_height;
+    int y_lo;
+    int y_hi;
+    int near_clip;
+    int far_clip;
+    int screen_width;
+    int screen_height;
+    int fov_rpi2048;
+    int dz_min;
+    int dz_max;
+};
+
+struct PaintersCullSpan
+{
+    int16_t row_min[PAINTERS_CULLSPAN_ROWS];
+    int16_t row_max[PAINTERS_CULLSPAN_ROWS];
+    int dz_min;
+    int dz_max;
+    int empty;
+};
+
+void
+painters_cullspan_build(
+    struct PaintersCullSpan* span,
+    const struct PaintersCullSpanParams* params);
+
 /** Build cullmap at runtime (CPU bake).
  * project and sin_fn are required; both receive the same user pointer. */
 struct PaintersCullMap*
@@ -454,11 +492,27 @@ painter_set_cullmap(
     struct Painter* painter,
     struct PaintersCullMap* cm);
 
+/** Install a per-frame analytic span cull (clears cullspan_active when span is
+ * NULL or empty). Takes precedence over the baked cullmap bit test. */
+void
+painter_set_cullspan(
+    struct Painter* painter,
+    const struct PaintersCullSpan* span);
+
 void
 painter_set_camera_angles(
     struct Painter* painter,
     int pitch,
     int yaw);
+
+/** Centre the draw box on (sx, sz). Distance / wall / seed logic stays
+ * eye-relative (the camera tile passed to painter_paint_*). Pass sx=sz=-1 to
+ * clear and fall back to the eye tile (fuzz / tests default). */
+void
+painter_set_draw_center(
+    struct Painter* painter,
+    int sx,
+    int sz);
 
 /** Bitmask of levels to draw (bits 0-3 for levels 0-3). Default 0xF = all levels. */
 void

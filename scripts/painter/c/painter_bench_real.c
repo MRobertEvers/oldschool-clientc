@@ -3,7 +3,6 @@
 #include "painter_fuzz_diff.h"
 #include "painter_fuzz_scene.h"
 #include "painters.h"
-#include "platforms/platform_x/cache_path_resolve.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +10,7 @@
 #include <time.h>
 
 #ifdef FUZZ_WITH_CACHE
+#include "platforms/platform_x/cache_path_resolve.h"
 #include "../../src2/games/runescape.h"
 #include "../../src2/libtorirs.h"
 #include "../../src2/libtorirs_internal.h"

@@ -4604,40 +4604,52 @@ app_world_roof_check(struct App* app)
     return top;
 }
 
-/* Fill the painter buffer for the current camera. Called by App_Render once
- * per frame (painter_paint_bucket resets command_count, so repainting is
- * safe). */
+/* Update painter frustum cull for the current camera. Default path builds a
+ * per-frame analytic span from live eye height (zoom-aware). TORIRS_PAINTER_CULL=baked
+ * restores the old CPU-baked table. TORIRS_PAINTER_NOCULL=1 disables both. */
 static void
-app_ensure_painter_cullmap(struct App* app)
+app_update_painter_cull(
+    struct App* app,
+    int cam_sx,
+    int cam_sz)
 {
     struct World* world;
-    struct PaintersCullMap* cm = NULL;
+    struct Painter* painter;
     char const* nocull;
+    char const* cull_mode;
+    int follow_cam;
     int vw;
     int vh;
     int near_z;
-    int slice_n;
-    struct timespec t0;
-    struct timespec t1;
-    uint64_t bake_ns;
+    int far_z;
+    int radius = 25;
+    int center_sx;
+    int center_sz;
+    int eye_height;
+    int level;
+    int anchor_x;
+    int anchor_z;
+    struct PaintersCullSpan span;
+    struct PaintersCullSpanParams params;
 
     assert(app);
     world = app->world;
     if( !world || !world->painter )
         return;
+    painter = world->painter;
 
     nocull = getenv("TORIRS_PAINTER_NOCULL");
     if( nocull && nocull[0] != '\0' && nocull[0] != '0' )
     {
+        painter_set_cullspan(painter, NULL);
         if( !world->cullmap || !world->cullmap->all_visible )
         {
             if( world->cullmap )
                 painters_cullmap_free(world->cullmap);
             world->cullmap = painters_cullmap_new_nocull();
-            painter_set_cullmap(world->painter, world->cullmap);
-            app->painter_cullmap_bake_w = 0;
-            app->painter_cullmap_bake_h = 0;
+            painter_set_cullmap(painter, world->cullmap);
         }
+        painter_set_draw_center(painter, -1, -1);
         return;
     }
 
@@ -4648,90 +4660,163 @@ app_ensure_painter_cullmap(struct App* app)
     if( vw < 1 || vh < 1 )
         return;
 
-    /* Debounce viewport resize: ignore sub-8px jitter so a drag-resize cannot
-     * re-bake (1s+) every frame. Exact match of the last bake attempt (success
-     * or fail-safe nocull) still skips. */
-    if( app->painter_cullmap_bake_w > 0 && app->painter_cullmap_bake_h > 0 )
+    /* Follow cam owns the orbit anchor; free/scripted cam is eye-centred. */
+    follow_cam = app->net && !app->cam_script.scripted;
+    if( follow_cam )
     {
-        int dw = vw - app->painter_cullmap_bake_w;
-        int dh = vh - app->painter_cullmap_bake_h;
-        if( dw < 0 )
-            dw = -dw;
-        if( dh < 0 )
-            dh = -dh;
-        if( dw < 8 && dh < 8 )
-            return;
+        center_sx = app->orbit_x >> 7;
+        center_sz = app->orbit_z >> 7;
+        anchor_x = app->orbit_x;
+        anchor_z = app->orbit_z;
+        painter_set_draw_center(painter, center_sx, center_sz);
     }
+    else
+    {
+        center_sx = cam_sx;
+        center_sz = cam_sz;
+        anchor_x = app->world_camera_pos.x;
+        anchor_z = app->world_camera_pos.z;
+        painter_set_draw_center(painter, -1, -1);
+    }
+
+    level = 0;
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByServerPid(world, world->local_pid);
+        if( player )
+            level = player->grid_position.level;
+    }
+    eye_height = app_world_height(app, anchor_x, anchor_z, level) - app->world_camera_pos.y;
 
     near_z = app->world_camera.near_plane_z;
     if( near_z < 1 )
         near_z = 50;
+    /* Reference far plane is drawDistance * 210; use a generous bound so the
+     * span never clips the radius-25 box diagonal (~4525). */
+    far_z = 100000;
 
+    cull_mode = getenv("TORIRS_PAINTER_CULL");
+    if( cull_mode && strcmp(cull_mode, "baked") == 0 )
     {
-        struct ToriDrawTrigTables tables = {
-            .sin = ToriDraw_GetSinTable(),
-            .cos = ToriDraw_GetCosTable(),
-            .tan = ToriDraw_GetTanTable(),
-        };
-        struct ToriDrawTrigFns trig;
-        ToriDraw_TrigFnsFromTables(&trig, &tables);
+        struct PaintersCullMap* cm = NULL;
+        int slice_n;
+        struct timespec t0;
+        struct timespec t1;
+        uint64_t bake_ns;
 
-        clock_gettime(CLOCK_MONOTONIC, &t0);
-        /* radius matches painter_paint_bucket; near_clip matches the live camera
-         * (was hardcoded 512 and culled every tile the soft3d path draws). */
-        cm = painters_cullmap_build_toridraw(25, near_z, vw, vh, &trig);
-        clock_gettime(CLOCK_MONOTONIC, &t1);
-    }
-    if( !cm )
-        return;
+        painter_set_cullspan(painter, NULL);
 
-    bake_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-              (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        /* Debounce viewport resize: the CPU bake is multi-hundred-ms. */
+        if( app->painter_cullmap_bake_w > 0 && app->painter_cullmap_bake_h > 0 )
+        {
+            int dw = vw - app->painter_cullmap_bake_w;
+            int dh = vh - app->painter_cullmap_bake_h;
+            if( dw < 0 )
+                dw = -dw;
+            if( dh < 0 )
+                dh = -dh;
+            if( dw < 8 && dh < 8 )
+                return;
+        }
 
-    slice_n = painters_cullmap_slice_visible_count(
-        cm, app->world_camera.pitch, app->world_camera.yaw);
-    if( slice_n <= 0 )
-    {
+        {
+            struct ToriDrawTrigTables tables = {
+                .sin = ToriDraw_GetSinTable(),
+                .cos = ToriDraw_GetCosTable(),
+                .tan = ToriDraw_GetTanTable(),
+            };
+            struct ToriDrawTrigFns trig;
+            ToriDraw_TrigFnsFromTables(&trig, &tables);
+
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            cm = painters_cullmap_build_toridraw(radius, near_z, vw, vh, &trig);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+        }
+        if( !cm )
+            return;
+
+        bake_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                  (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+
+        slice_n = painters_cullmap_slice_visible_count(
+            cm, app->world_camera.pitch, app->world_camera.yaw);
+        if( slice_n <= 0 )
+        {
+            fprintf(
+                stderr,
+                "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
+                "(%.2f ms) — keeping nocull\n",
+                app->world_camera.pitch,
+                app->world_camera.yaw,
+                near_z,
+                vw,
+                vh,
+                (double)bake_ns / 1.0e6);
+            painters_cullmap_free(cm);
+            if( !world->cullmap || !world->cullmap->all_visible )
+            {
+                if( world->cullmap )
+                    painters_cullmap_free(world->cullmap);
+                world->cullmap = painters_cullmap_new_nocull();
+                painter_set_cullmap(painter, world->cullmap);
+            }
+            app->painter_cullmap_bake_w = vw;
+            app->painter_cullmap_bake_h = vh;
+            return;
+        }
+
         fprintf(
             stderr,
-            "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
-            "(%.2f ms) — keeping nocull\n",
-            app->world_camera.pitch,
-            app->world_camera.yaw,
+            "painter_cullmap: baked radius=%d near=%d %dx%d slice_vis=%d in %.2f ms\n",
+            radius,
             near_z,
             vw,
             vh,
+            slice_n,
             (double)bake_ns / 1.0e6);
-        painters_cullmap_free(cm);
-        if( !world->cullmap || !world->cullmap->all_visible )
-        {
-            if( world->cullmap )
-                painters_cullmap_free(world->cullmap);
-            world->cullmap = painters_cullmap_new_nocull();
-            painter_set_cullmap(world->painter, world->cullmap);
-        }
-        /* Remember the viewport so a failed bake is not retried every frame
-         * (was resetting to 0 and re-paying ~2.4 s per pitch tick). */
+
+        if( world->cullmap )
+            painters_cullmap_free(world->cullmap);
+        world->cullmap = cm;
+        painter_set_cullmap(painter, world->cullmap);
         app->painter_cullmap_bake_w = vw;
         app->painter_cullmap_bake_h = vh;
         return;
     }
 
-    fprintf(
-        stderr,
-        "painter_cullmap: baked radius=25 near=%d %dx%d slice_vis=%d in %.2f ms\n",
-        near_z,
-        vw,
-        vh,
-        slice_n,
-        (double)bake_ns / 1.0e6);
+    /* Default: analytic per-frame span. Keep a nocull cullmap installed so any
+     * leftover bit-test path is a no-op. */
+    if( !world->cullmap || !world->cullmap->all_visible )
+    {
+        if( world->cullmap )
+            painters_cullmap_free(world->cullmap);
+        world->cullmap = painters_cullmap_new_nocull();
+        painter_set_cullmap(painter, world->cullmap);
+    }
 
-    if( world->cullmap )
-        painters_cullmap_free(world->cullmap);
-    world->cullmap = cm;
-    painter_set_cullmap(world->painter, world->cullmap);
-    app->painter_cullmap_bake_w = vw;
-    app->painter_cullmap_bake_h = vh;
+    params.pitch = app->world_camera.pitch;
+    params.yaw = app->world_camera.yaw & 0x7ff;
+    params.eye_height = eye_height;
+    params.y_lo = PCULL_FRUSTUM_Y_START;
+    params.y_hi = PCULL_FRUSTUM_Y_END;
+    params.near_clip = near_z;
+    params.far_clip = far_z;
+    params.screen_width = vw;
+    params.screen_height = vh;
+    params.fov_rpi2048 = app->world_camera.fov_rpi2048;
+    if( params.fov_rpi2048 < 1 )
+        params.fov_rpi2048 = 512;
+    /* Eye-relative row range covering the draw box around the orbit centre. */
+    params.dz_min = (center_sz - radius) - cam_sz - 2;
+    params.dz_max = (center_sz + radius) - cam_sz + 2;
+    if( params.dz_min < -PAINTERS_CULLSPAN_MAX_DZ )
+        params.dz_min = -PAINTERS_CULLSPAN_MAX_DZ;
+    if( params.dz_max > PAINTERS_CULLSPAN_MAX_DZ )
+        params.dz_max = PAINTERS_CULLSPAN_MAX_DZ;
+
+    painters_cullspan_build(&span, &params);
+    painter_set_cullspan(painter, &span);
+    (void)center_sx;
 }
 
 static void
@@ -4831,7 +4916,7 @@ app_world_paint(struct App* app)
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
 
-    app_ensure_painter_cullmap(app);
+    app_update_painter_cull(app, cam_sx, cam_sz);
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;

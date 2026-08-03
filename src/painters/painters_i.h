@@ -49,6 +49,16 @@ struct Painter
     /** Bit offset for current (pitch,yaw) slice: pcull_bit_index(pitch_idx, yaw_idx, 0, 0, ...). */
     size_t cull_camera_key;
 
+    /** Per-frame analytic frustum spans; when cullspan_active, replaces the
+     * baked cullmap bit test. */
+    struct PaintersCullSpan cullspan;
+    int cullspan_active;
+
+    /** Draw-box centre (orbit target). -1 = use the eye tile from paint(). */
+    int draw_center_sx;
+    int draw_center_sz;
+    int has_draw_center;
+
     /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
     uint8_t level_mask;
     /** Lowest set bit in level_mask; 0 when mask is all bits or unset. */

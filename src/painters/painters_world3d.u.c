@@ -331,27 +331,25 @@ painter_paint_world3d(
     int radius = 25;
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
 
-    int max_draw_x = camera_sx + radius;
-    int max_draw_z = camera_sz + radius;
-    if( max_draw_x >= painter->width )
-        max_draw_x = painter->width;
-    if( max_draw_z >= painter->height )
-        max_draw_z = painter->height;
-    if( max_draw_x < 0 )
-        max_draw_x = 0;
-    if( max_draw_z < 0 )
-        max_draw_z = 0;
-
-    int min_draw_x = camera_sx - radius;
-    int min_draw_z = camera_sz - radius;
-    if( min_draw_x < 0 )
-        min_draw_x = 0;
-    if( min_draw_z < 0 )
-        min_draw_z = 0;
-    if( min_draw_x > painter->width )
-        min_draw_x = painter->width;
-    if( min_draw_z > painter->height )
-        min_draw_z = painter->height;
+    int draw_center_sx;
+    int draw_center_sz;
+    int min_draw_x;
+    int max_draw_x;
+    int min_draw_z;
+    int max_draw_z;
+    painter_resolve_draw_box(
+        painter,
+        camera_sx,
+        camera_sz,
+        radius,
+        &draw_center_sx,
+        &draw_center_sz,
+        &min_draw_x,
+        &max_draw_x,
+        &min_draw_z,
+        &max_draw_z);
+    (void)draw_center_sx;
+    (void)draw_center_sz;
 
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
         return 0;
@@ -421,7 +419,8 @@ painter_paint_world3d(
         min_draw_z,
         max_draw_z,
         painter->levels,
-        radius);
+        painter_seed_radius_for_box(
+            eye_ix, eye_iz, min_draw_x, max_draw_x, min_draw_z, max_draw_z, radius));
 
     int check_adjacent = 1;
 

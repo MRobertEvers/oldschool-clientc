@@ -271,7 +271,7 @@ struct App
     struct World* world;
     struct WorldBuilder* world_builder;
     struct PaintersBuffer* painter_buffer;
-    /** Viewport size the painter cullmap was last baked for (0 = none / nocull). */
+    /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
     struct ToriDraw_Camera world_camera;

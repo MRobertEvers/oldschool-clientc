@@ -52,11 +52,14 @@ neighbour must already be in `PAINT_STEP_GROUND` or later before this tile may p
 unless the tile has an active span flag in that direction (meaning it is the "outer" tile of
 the object and the span exception applies).
 
-### Cullmap
+### Cullmap / cullspan
 
-`painter_cullmap_tile_visible` rejects tiles outside the view frustum given the current
-camera pitch/yaw. Cullmap-rejected tiles are set to `PAINT_STEP_DONE` but must still
-propagate the traversal wave inward so that visible tiles behind them are not stranded.
+`painter_cullmap_tile_visible` (and the inlined setup path in
+`painter_paint_bucket`) rejects tiles outside the view frustum. Production
+default is the per-frame analytic **cullspan** (`painter->cullspan_active`);
+the baked bitpacked cullmap remains available via `TORIRS_PAINTER_CULL=baked`.
+Cull-rejected tiles are set to `PAINT_STEP_DONE` but must still propagate the
+traversal wave inward so that visible tiles behind them are not stranded.
 
 ### Command kinds
 
@@ -567,3 +570,53 @@ Differential `fuzz_real 1 200` passes (bucket ⊇ world3d). `make test-world` an
 
 Live check after the cullmap fix: one bake (`near=50`, `slice_vis≈1226`), then
 `commands≈6100` per frame (nocull was ~12950 — the frustum is doing real work).
+
+---
+
+## Round 4 — Zoom-aware analytic cullspan (2026-08-03)
+
+### Problem
+
+The baked `(pitch, yaw, dx, dz)` cullmap assumed a fixed camera height
+(`PCULL_PITCH_HEIGHT_OFFSET = 1600`). The live follow camera scales orbit
+distance by `world_zoom_pct` (40–300%):
+
+```
+distance = (pitch * 3 + 600) * world_zoom_pct / 100
+```
+
+At pitch 383 / zoom 300% the bake wrongly culled **17.4%** of on-screen tiles
+(black wedges in the upper half of the view). At zoom 40% it over-drew by ~49%.
+The reference deob folds orbit distance into the pitch axis (`var16*3+600`) and
+has no wheel zoom, so a pitch-only table is enough there — not here.
+
+### Fix
+
+1. **`painters_cullspan.u.c`** — per-frame analytic convex trapezoid in tile
+   space. Four half-planes from pitch/yaw/eye-height/fov/viewport collapse to a
+   `[dx_min, dx_max]` span per eye-relative `dz` row. Outward rounding + one-tile
+   dilation keep it a superset of the discrete 4-corner × Y-sweep test.
+2. **`app_update_painter_cull`** (was `app_ensure_painter_cullmap`) — default path
+   builds the span from live `eye_height = ground(anchor) - camera_y` every
+   frame. No bake, no resize debounce.
+3. **Draw box re-centred on the orbit target** via `painter_set_draw_center`
+   (reference `renderTileXOffset` / `drawCenterTile` split). Distance / walls /
+   seeds stay eye-relative; seed radius widens to cover the offset box.
+4. **Env switches** — `TORIRS_PAINTER_NOCULL=1` disables both; `TORIRS_PAINTER_CULL=baked`
+   restores the old CPU table for A/B.
+
+### Verification
+
+```
+make -C scripts/painter/c cullspan_test && ./cullspan_test
+# cells=5680584 MISSED=0 over_ratio=1.089  PASS
+
+./fuzz_real 1 2000
+# OK: 2000 seeds  (nocull / span / baked mixed)
+
+make -C src test-world test-world-builder
+# All tests passed
+```
+
+`cullspan_test` sweeps pitch 128–512 × yaw × zoom {40,100,200,300}% against the
+brute-force frustum sample and requires zero missed cells.

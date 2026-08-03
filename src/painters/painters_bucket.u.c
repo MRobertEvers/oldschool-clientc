@@ -200,30 +200,31 @@ painter_paint_bucket(
     int min_level = 0;
     int max_level = levels;
 
-    int max_draw_x = camera_sx + radius;
-    int max_draw_z = camera_sz + radius;
-    if( max_draw_x >= width )
-        max_draw_x = width;
-    if( max_draw_z >= height )
-        max_draw_z = height;
-    if( max_draw_x < 0 )
-        max_draw_x = 0;
-    if( max_draw_z < 0 )
-        max_draw_z = 0;
-
-    int min_draw_x = camera_sx - radius;
-    int min_draw_z = camera_sz - radius;
-    if( min_draw_x < 0 )
-        min_draw_x = 0;
-    if( min_draw_z < 0 )
-        min_draw_z = 0;
-    if( min_draw_x > width )
-        min_draw_x = width;
-    if( min_draw_z > height )
-        min_draw_z = height;
+    int draw_center_sx;
+    int draw_center_sz;
+    int min_draw_x;
+    int max_draw_x;
+    int min_draw_z;
+    int max_draw_z;
+    painter_resolve_draw_box(
+        painter,
+        camera_sx,
+        camera_sz,
+        radius,
+        &draw_center_sx,
+        &draw_center_sz,
+        &min_draw_x,
+        &max_draw_x,
+        &min_draw_z,
+        &max_draw_z);
+    (void)draw_center_sx;
+    (void)draw_center_sz;
 
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
         return 0;
+
+    int cullspan_active = painter->cullspan_active;
+    const struct PaintersCullSpan* cullspan = &painter->cullspan;
 
     painter_cullmap_refresh_camera_key(painter);
     cull_camera_key = painter->cull_camera_key;
@@ -238,6 +239,31 @@ painter_paint_bucket(
             int row = min_draw_x + z * width + s * level_stride;
             int adz = abs(z - camera_sz);
             (void)adz;
+            int span_lo = min_draw_x;
+            int span_hi = max_draw_x; /* exclusive end of visible band */
+            int row_culled = 0;
+
+            if( cullspan_active )
+            {
+                int lo;
+                int hi;
+                if( !painters_cullspan_row(cullspan, z - camera_sz, &lo, &hi) )
+                {
+                    row_culled = 1;
+                }
+                else
+                {
+                    span_lo = camera_sx + lo;
+                    span_hi = camera_sx + hi + 1;
+                    if( span_lo < min_draw_x )
+                        span_lo = min_draw_x;
+                    if( span_hi > max_draw_x )
+                        span_hi = max_draw_x;
+                    if( span_lo >= span_hi )
+                        row_culled = 1;
+                }
+            }
+
             for( int x = min_draw_x, ti = row; x < max_draw_x; x++, ti++ )
             {
                 tiles_in_box++;
@@ -255,7 +281,15 @@ painter_paint_bucket(
                     continue;
                 }
 
-                if( !cull_all_visible )
+                if( cullspan_active )
+                {
+                    if( row_culled || x < span_lo || x >= span_hi )
+                    {
+                        tp->step = PAINT_STEP_DONE;
+                        continue;
+                    }
+                }
+                else if( !cull_all_visible )
                 {
                     int dx = x - camera_sx;
                     int dz = z - camera_sz;
@@ -314,7 +348,8 @@ painter_paint_bucket(
     /* Runtime outcome: a live cullmap that marks every tile in the draw box as
      * DONE leaves the world blank. Warn once so a bad bake is obvious; do not
      * assert (cullmap contents are data, not a programming invariant). */
-    if( tiles_in_box > 0 && tiles_remaining == 0 && !cull_all_visible )
+    if( tiles_in_box > 0 && tiles_remaining == 0 &&
+        (cullspan_active || !cull_all_visible) )
     {
         static int s_warned_empty_cull;
         if( !s_warned_empty_cull )
@@ -323,10 +358,11 @@ painter_paint_bucket(
             fprintf(
                 stderr,
                 "painter_paint_bucket: draw box %dx%d has 0 visible tiles "
-                "(cullmap radius=%d) — world will be blank; set "
+                "(cullspan=%d cullmap_radius=%d) — world will be blank; set "
                 "TORIRS_PAINTER_NOCULL=1 to recover\n",
                 max_draw_x - min_draw_x,
                 max_draw_z - min_draw_z,
+                cullspan_active,
                 cull_radius);
         }
     }
@@ -339,6 +375,14 @@ painter_paint_bucket(
                 break;
             if( !seed_gen_initialized )
             {
+                int seed_r = painter_seed_radius_for_box(
+                    camera_sx,
+                    camera_sz,
+                    min_draw_x,
+                    max_draw_x,
+                    min_draw_z,
+                    max_draw_z,
+                    radius);
                 seed_gen_init(
                     &seed_gen,
                     camera_sx,
@@ -348,7 +392,7 @@ painter_paint_bucket(
                     min_draw_z,
                     max_draw_z,
                     levels,
-                    radius);
+                    seed_r);
                 seed_gen_initialized = 1;
             }
             int seeded = 0;

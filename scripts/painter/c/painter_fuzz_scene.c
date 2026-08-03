@@ -4,6 +4,7 @@
 #include "graphics/shared_tables.h"
 #include "painters/painters_cull_project.h"
 
+#include <math.h>
 #include <string.h>
 
 static uint32_t
@@ -59,7 +60,7 @@ painter_fuzz_fill_config(PainterFuzzConfig* cfg, uint32_t seed)
     cfg->seed = seed;
     cfg->grid = rng_range(&rng, 11, PAINTER_FUZZ_MAX_GRID);
     cfg->levels = rng_range(&rng, 1, 4);
-    cfg->use_cullmap = (int)(rng_u32(&rng) & 1u);
+    cfg->use_cullmap = (int)(rng_u32(&rng) % 3u); /* 0=nocull, 1=span, 2=baked */
     cfg->camera_sx = rng_range(&rng, 0, cfg->grid - 1);
     cfg->camera_sz = rng_range(&rng, 0, cfg->grid - 1);
     if( (rng_u32(&rng) & 7u) == 0 )
@@ -103,7 +104,7 @@ painter_fuzz_build_scene(
         return NULL;
 
     struct PaintersCullMap* cm = NULL;
-    if( cfg->use_cullmap )
+    if( cfg->use_cullmap == 2 )
     {
         struct ToriDrawTrigTables tables = {
             .sin = ToriDraw_GetSinTable(),
@@ -112,12 +113,13 @@ painter_fuzz_build_scene(
         };
         struct ToriDrawTrigFns trig;
         ToriDraw_TrigFnsFromTables(&trig, &tables);
-        cm = painters_cullmap_build_toridraw(25, 512, 512, 384, &trig);
+        cm = painters_cullmap_build_toridraw(25, 50, 512, 384, &trig);
         if( !cm )
         {
             painter_free(painter);
             return NULL;
         }
+        painter_set_cullmap(painter, cm);
     }
     else
     {
@@ -127,8 +129,31 @@ painter_fuzz_build_scene(
             painter_free(painter);
             return NULL;
         }
+        painter_set_cullmap(painter, cm);
+        if( cfg->use_cullmap == 1 )
+        {
+            struct PaintersCullSpanParams params;
+            struct PaintersCullSpan span;
+            int dist = cfg->pitch * 3 + 600;
+            int ph = (int)((double)dist * sin((double)cfg->pitch * 2.0 * 3.14159265358979323846 /
+                                              2048.0));
+            memset(&params, 0, sizeof(params));
+            params.pitch = cfg->pitch;
+            params.yaw = cfg->yaw;
+            params.eye_height = ph;
+            params.y_lo = PCULL_FRUSTUM_Y_START;
+            params.y_hi = PCULL_FRUSTUM_Y_END;
+            params.near_clip = 50;
+            params.far_clip = 100000;
+            params.screen_width = 512;
+            params.screen_height = 384;
+            params.fov_rpi2048 = 512;
+            params.dz_min = -25;
+            params.dz_max = 25;
+            painters_cullspan_build(&span, &params);
+            painter_set_cullspan(painter, &span);
+        }
     }
-    painter_set_cullmap(painter, cm);
     painter_set_camera_angles(painter, cfg->pitch, cfg->yaw);
     painter_set_level_mask(painter, cfg->level_mask);
 
