@@ -2438,8 +2438,8 @@ exec_cc_create(
             parent_id & 0xffff,
             request.child_index,
             (unsigned)tree->components[child_idx].component_id,
-            vm && vm->frame_sp >= 0 && vm->frames[vm->frame_sp].script
-                ? vm->frames[vm->frame_sp].script->script_id
+            vm && vm->frame_sp > 0 && CS2VM_FRAME(vm)->script
+                ? CS2VM_FRAME(vm)->script->script_id
                 : -1);
 
 #if UITREE_CLICK_DEBUG

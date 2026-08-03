@@ -249,6 +249,9 @@ struct App
     struct World* world;
     struct WorldBuilder* world_builder;
     struct PaintersBuffer* painter_buffer;
+    /** Viewport size the painter cullmap was last baked for (0 = none / nocull). */
+    int painter_cullmap_bake_w;
+    int painter_cullmap_bake_h;
     struct ToriDraw_Camera world_camera;
     struct ToriDraw_Position world_camera_pos;
     /* Reference orbit camera (Client-TS followCamera): velocity-driven

@@ -926,8 +926,14 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
     SDL_GetWindowSize(platform->window, &window_w, &window_h);
     letterbox_dst(platform->width, platform->height, window_w, window_h, &dst);
 
-    SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
-    SDL_RenderClear(platform->renderer);
+    /* When the letterbox fills the window, RenderCopy overwrites every pixel —
+     * skip the clear (and the software-renderer SDL_FillRect4 it becomes under
+     * the headless harness). */
+    if( dst.x != 0 || dst.y != 0 || dst.w != window_w || dst.h != window_h )
+    {
+        SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
+        SDL_RenderClear(platform->renderer);
+    }
     SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dst);
     SDL_RenderPresent(platform->renderer);
 }

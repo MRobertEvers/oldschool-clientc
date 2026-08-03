@@ -33,7 +33,9 @@
 struct CS2VM2;
 
 #define CS2VM_USER(thread) ((struct CS2VM2_Thread*)(thread))->vm->user
-#define CS2VM_FRAME(thread) &((struct CS2VM2_Thread*)(thread))->frames[((struct CS2VM2_Thread*)(thread))->frame_sp - 1]
+/* Only valid where frame_sp > 0; frames below frame_sp are always allocated
+ * (see the frames[] comment on struct CS2VM2_Thread). */
+#define CS2VM_FRAME(thread) ((struct CS2VM2_Thread*)(thread))->frames[((struct CS2VM2_Thread*)(thread))->frame_sp - 1]
 #define CS2VM_MAX_LOCALS 1024
 struct CS2VM2_Frame
 {
@@ -62,9 +64,10 @@ struct CS2VM2_Frame
  * worst case and the other books are larger — so this sits well above what was
  * measured rather than at it.
  *
- * Frames are fat (CS2VM_MAX_LOCALS ints plus string pointers, ~12 KB each) and
- * there are CS2VM2_MAX_THREADS of them, so this is ~6 MB of the VM — worth
- * knowing before raising it much further.
+ * Frames are fat (CS2VM_MAX_LOCALS ints plus string pointers, ~12 KB each), but
+ * raising this no longer costs anything up front: the stack grows on demand, so
+ * this is only the depth at which a runaway recursion is cut off. What it does
+ * bound is the frame free list (CS2VM2_FRAME_POOL_MAX in cs2vm2.c).
  */
 #define CS2VM_MAX_FRAMES 128
 #define CS2VM_MAX_CYCLES 1000000
@@ -279,7 +282,26 @@ struct CS2VM2_Thread
 {
     struct CS2VM2* vm;
 
-    struct CS2VM2_Frame frames[CS2VM_MAX_FRAMES];
+    /*
+     * Call stack, grown on demand. Held inline, this was 128 x 12,352 bytes =
+     * 1.51 MB per thread and 6.03 MB of the 7.10 MB VM, reserved on every
+     * acquire for a stack that is a handful of frames deep in the common case
+     * (only the recursive sorts — the world map's label sort 1491, the
+     * spellbook's 2621 — go deep, and 2621 peaks around 70).
+     *
+     * So the slots are pointers and the blocks come from a shared free list
+     * (cs2vm2_frame_acquire), which means a depth-3 script touches 3 blocks
+     * instead of reserving 128. frames_live is the high-water mark: slots below
+     * it hold live blocks, slots at or above it are uninitialised and must not
+     * be read. It is deliberately not lowered when frame_sp drops, so a
+     * quicksort that recurses to depth 70 allocates each depth once rather than
+     * once per partition.
+     *
+     * frames_live >= frame_sp always holds, so frames[0 .. frame_sp) are
+     * non-NULL and the hot readers (CS2VM_FRAME and friends) need no check.
+     */
+    struct CS2VM2_Frame* frames[CS2VM_MAX_FRAMES];
+    int frames_live;
 
     int ints_stack[CS2VM_STACK_MAX];
     int ints_stack_top;
@@ -389,15 +411,17 @@ void
 CS2VM2_Free(struct CS2VM2* vm);
 
 /* Heap-allocated VMs come from a free list rather than malloc: struct CS2VM2 is
- * ~2.9 MB (frames[50] x 12 KB plus arrays[128]), and the client starts a script
- * often enough that malloc/free of that block was the single largest source of
+ * ~1.07 MB (4 threads x arrays[128] plus the stacks; measured, do not trust this
+ * number after changing the limits above), and the client starts a script often
+ * enough that malloc/free of that block was the single largest source of
  * allocator traffic in a boot — a gigabyte of it, interleaved with the small
  * long-lived allocations that fragment a wasm heap.
  *
  * Acquire returns an Init'd VM; Release runs the same CS2VM2_Free teardown and
  * parks the block. Recycling a block is exactly as safe as a fresh malloc:
  * cs2vm2_thread_init is written against uninitialised memory (see its comment).
- * Drain releases the parked blocks — call it at shutdown or when trimming. */
+ * Drain releases the parked blocks and the pooled call frames — call it at
+ * shutdown or when trimming. */
 struct CS2VM2*
 CS2VM2_Acquire(void);
 

@@ -25,9 +25,11 @@ enum TilePaintStep
 
 struct TilePaint
 {
+    int32_t queue_next; /* bucket intrusive list; -1 = end (valid only when in_queue) */
     uint8_t step;
-    uint8_t queue_count;
+    uint8_t queue_count; /* distancemetric painter only */
     uint8_t near_wall_flags;
+    uint8_t in_queue;
 };
 
 struct ElementPaint

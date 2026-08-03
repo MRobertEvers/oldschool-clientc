@@ -36,6 +36,7 @@
 #include "input/torirs_input_cmd.h"
 #include "input/torirs_keymap.h"
 #include "painters/painters.h"
+#include "painters/painters_cull_project.h"
 #include "perf/torirs_perf.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -52,6 +53,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 enum
 {
@@ -4490,6 +4492,82 @@ app_world_roof_check(struct App* app)
  * per frame (painter_paint_bucket resets command_count, so repainting is
  * safe). */
 static void
+app_ensure_painter_cullmap(struct App* app)
+{
+    struct World* world;
+    struct PaintersCullMap* cm = NULL;
+    char const* nocull;
+    int vw;
+    int vh;
+    struct timespec t0;
+    struct timespec t1;
+    uint64_t bake_ns;
+
+    assert(app);
+    world = app->world;
+    if( !world || !world->painter )
+        return;
+
+    nocull = getenv("TORIRS_PAINTER_NOCULL");
+    if( nocull && nocull[0] != '\0' && nocull[0] != '0' )
+    {
+        if( !world->cullmap || !world->cullmap->all_visible )
+        {
+            if( world->cullmap )
+                painters_cullmap_free(world->cullmap);
+            world->cullmap = painters_cullmap_new_nocull();
+            painter_set_cullmap(world->painter, world->cullmap);
+            app->painter_cullmap_bake_w = 0;
+            app->painter_cullmap_bake_h = 0;
+        }
+        return;
+    }
+
+    if( !app->world_view_valid )
+        return;
+    vw = app->world_emit_desc.w;
+    vh = app->world_emit_desc.h;
+    if( vw < 1 || vh < 1 )
+        return;
+    if( world->cullmap && !world->cullmap->all_visible && app->painter_cullmap_bake_w == vw &&
+        app->painter_cullmap_bake_h == vh )
+        return;
+
+    {
+        struct ToriDrawTrigTables tables = {
+            .sin = ToriDraw_GetSinTable(),
+            .cos = ToriDraw_GetCosTable(),
+            .tan = ToriDraw_GetTanTable(),
+        };
+        struct ToriDrawTrigFns trig;
+        ToriDraw_TrigFnsFromTables(&trig, &tables);
+
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        /* radius matches painter_paint_bucket; near_clip_z matches fuzz/gen tools. */
+        cm = painters_cullmap_build_toridraw(25, 512, vw, vh, &trig);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+    }
+    if( !cm )
+        return;
+
+    bake_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+              (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+    fprintf(
+        stderr,
+        "painter_cullmap: baked radius=25 near=512 %dx%d in %.2f ms\n",
+        vw,
+        vh,
+        (double)bake_ns / 1.0e6);
+
+    if( world->cullmap )
+        painters_cullmap_free(world->cullmap);
+    world->cullmap = cm;
+    painter_set_cullmap(world->painter, world->cullmap);
+    app->painter_cullmap_bake_w = vw;
+    app->painter_cullmap_bake_h = vh;
+}
+
+static void
 app_world_paint(struct App* app)
 {
     /* >>7, not /128: the orbit eye can sit at negative coords past the scene
@@ -4586,6 +4664,7 @@ app_world_paint(struct App* app)
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
 
+    app_ensure_painter_cullmap(app);
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;

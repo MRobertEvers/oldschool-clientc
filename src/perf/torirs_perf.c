@@ -79,6 +79,8 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "cs2_vm_pool_hit",
     "cs2_vm_pool_miss",
     "cs2_vm_init_ns",
+    "cs2_frame_pool_hit",
+    "cs2_frame_pool_miss",
     "cache_model_hit",
     "cache_model_miss",
     "cache_model_evict",
@@ -104,6 +106,13 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "model_inst_hit",
     "model_inst_miss",
     "model_inst_evict",
+    "painter_pops",
+    "painter_gate_rejects",
+    "painter_pushes",
+    "painter_push_dedup",
+    "painter_drain_events",
+    "painter_commands",
+    "painter_tiles_remaining_set",
 };
 
 static uint64_t

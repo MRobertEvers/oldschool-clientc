@@ -11,6 +11,7 @@
 #include "toridraw_types.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -728,7 +729,6 @@ ToriRS_Soft3D_RenderFrame(
     struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand cmd;
-    int i;
     size_t n;
 
     assert(soft);
@@ -737,8 +737,27 @@ ToriRS_Soft3D_RenderFrame(
     assert(soft->width > 0 && soft->height > 0);
 
     n = (size_t)soft->width * (size_t)soft->height;
-    for( i = 0; i < (int)n; i++ )
-        soft->pixels[i] = TORIRS_SOFT3D_BG;
+#if defined(__APPLE__)
+    {
+        uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
+        memset_pattern4(soft->pixels, &bg, n * sizeof(int));
+    }
+#else
+    {
+        uint32_t* p = (uint32_t*)soft->pixels;
+        uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
+        size_t i = 0;
+        for( ; i + 4 <= n; i += 4 )
+        {
+            p[i] = bg;
+            p[i + 1] = bg;
+            p[i + 2] = bg;
+            p[i + 3] = bg;
+        }
+        for( ; i < n; i++ )
+            p[i] = bg;
+    }
+#endif
 
     soft->has_3d = false;
     ToriRS_FrameBegin(frame);

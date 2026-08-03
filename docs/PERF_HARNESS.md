@@ -57,35 +57,35 @@ Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
 
 ### idle
 
-| metric | value |
-|--------|------:|
-| frame p50 | 7.05 ms |
-| frame p95 | **8.25 ms** |
-| frames over 20 ms | 15 / 900 (1.7%, boot) |
-| eff fps (1/mean) | 59.4 |
-| render p95 | 3.64 ms |
-| paint p95 | 0.92 ms |
-| emit p95 | 0.45 ms |
-| cs2 scripts/frame | ~13.5 |
-| uitree find_id/frame | ~682 |
+| metric               |                 value |
+| -------------------- | --------------------: |
+| frame p50            |               7.05 ms |
+| frame p95            |           **8.25 ms** |
+| frames over 20 ms    | 15 / 900 (1.7%, boot) |
+| eff fps (1/mean)     |                  59.4 |
+| render p95           |               3.64 ms |
+| paint p95            |               0.92 ms |
+| emit p95             |               0.45 ms |
+| cs2 scripts/frame    |                 ~13.5 |
+| uitree find_id/frame |                  ~682 |
 
 ### ui
 
-| metric | value |
-|--------|------:|
-| frame p50 | 7.36 ms |
-| frame p95 | **8.21 ms** |
+| metric            |           value |
+| ----------------- | --------------: |
+| frame p50         |         7.36 ms |
+| frame p95         |     **8.21 ms** |
 | frames over 20 ms | 14 / 900 (1.6%) |
-| eff fps | 59.2 |
+| eff fps           |            59.2 |
 
 Gate: **PASS**.
 
 ### world
 
-| metric | value |
-|--------|------:|
-| frame p50 | 7.07 ms |
-| frame p95 | **8.56 ms** |
+| metric            |                             value |
+| ----------------- | --------------------------------: |
+| frame p50         |                           7.07 ms |
+| frame p95         |                       **8.56 ms** |
 | frames over 20 ms | 14 / 600 (2.3%, boot-skewed mean) |
 
 Gate: **PASS** on p95.
@@ -114,14 +114,14 @@ Gate: **PASS** on p95.
 
 ## Attempt log
 
-| change | idle frame p95 | keep? |
-|--------|---------------:|-------|
-| harness + TORIDRAW_OPT + hook indexes + VM pool 16 + spotanim inst cache | **8.25 ms** | keep (gate met) |
-| lazy `runtime_hooks` side-allocation (node 11–12 KB → 1720 B) | **7.43 ms** | keep |
-| `LayoutResolve` early-out when nothing layout-affecting changed | **7.24 ms** | keep |
-| per-record dat2 config loaders → `Dat2GroupCache` | **7.31 ms** | keep (logic p95 4.96 → 0.30 ms) |
-| incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip | **6.30 ms** | keep |
-| emit drag pass only when something is being dragged | **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
+| change                                                                               | idle frame p95 | keep?                            |
+| ------------------------------------------------------------------------------------ | -------------: | -------------------------------- |
+| harness + TORIDRAW_OPT + hook indexes + VM pool 16 + spotanim inst cache             |    **8.25 ms** | keep (gate met)                  |
+| lazy `runtime_hooks` side-allocation (node 11–12 KB → 1720 B)                        |    **7.43 ms** | keep                             |
+| `LayoutResolve` early-out when nothing layout-affecting changed                      |    **7.24 ms** | keep                             |
+| per-record dat2 config loaders → `Dat2GroupCache`                                    |    **7.31 ms** | keep (logic p95 4.96 → 0.30 ms)  |
+| incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip |    **6.30 ms** | keep                             |
+| emit drag pass only when something is being dragged                                  |    **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
 
 Absolute p95 across rows is only comparable within a row's own session: the
 machine drifts warmer over a run of measurements, and `render` (untouched, and
@@ -133,10 +133,10 @@ session, or read the flamegraph, before believing a delta.
 ### Final state (all three scenarios, one session)
 
 | scenario | frame p95 | eff fps | layout p95 | emit p95 |
-|----------|----------:|--------:|-----------:|---------:|
-| idle | 5.67 ms | 93.5 | 0.001 ms | 0.075 ms |
-| ui | 5.71 ms | 93.3 | 0.001 ms | 0.076 ms |
-| world | 6.21 ms | 89.5 | 0.001 ms | 0.086 ms |
+| -------- | --------: | ------: | ---------: | -------: |
+| idle     |   5.67 ms |    93.5 |   0.001 ms | 0.075 ms |
+| ui       |   5.71 ms |    93.3 |   0.001 ms | 0.076 ms |
+| world    |   6.21 ms |    89.5 |   0.001 ms | 0.086 ms |
 
 `over_20ms` is 12 frames in every scenario, all of them the world-load/login
 frame (`max` ≈ 4.6 s); steady-state frames never approach the budget.
@@ -146,13 +146,13 @@ frame (`max` ≈ 4.6 s); steady-state frames never approach the budget.
 Sampled with `OUT=... TORIDRAW_OPT=1 ./profile-mac.sh manifest_osrs230_embed.ini 30`,
 main-thread leaf shares:
 
-| leaf | before | after |
-|------|-------:|------:|
-| `RSCache_BufferReadto` (per-record group re-decode) | 15.4% | gone |
-| `layout_compute_node` + `layout_parent_box` + `UITree_LayoutResolve` | 7.8% | 1.8% |
-| `UITree_ChildMountType` | 6.0% | gone |
-| `task_cs1_component_has_scripts` | 3.9% | gone |
-| `emit_walk_node` | 3.4% | gone |
+| leaf                                                                 | before | after |
+| -------------------------------------------------------------------- | -----: | ----: |
+| `RSCache_BufferReadto` (per-record group re-decode)                  |  15.4% |  gone |
+| `layout_compute_node` + `layout_parent_box` + `UITree_LayoutResolve` |   7.8% |  1.8% |
+| `UITree_ChildMountType`                                              |   6.0% |  gone |
+| `task_cs1_component_has_scripts`                                     |   3.9% |  gone |
+| `emit_walk_node`                                                     |   3.4% |  gone |
 
 What is left on top is the rasterizer (~35% across
 `draw_texture_scanline*`/`raster_gouraud*`/`ToriDraw2D_BlendArgbPixel`/
@@ -172,18 +172,18 @@ Two traps this session, both worth remembering:
 There are five instrumented node visits over three traversal implementations,
 and they are **not** interchangeable — the prune rules differ on purpose:
 
-| walk | visits/frame (rev230) | when | hide rule |
-|------|----------------------:|------|-----------|
-| emit, draw pass | 2478 | when `need_redraw` | prunes hidden subtrees **unless** the node is the hovered one (same-frame reveal) |
-| emit, drag pass | 0 (was 3033) | only with a drag active | same |
-| hit (`UITree_HitTestInteractive`) | 618 | every non-minimenu frame, twice on a click | any `behavior.hide` prunes |
-| hover (`UITree_FindHoveredComponentIdForRegion`) | 95 | every non-minimenu frame | prunes only hidden RS_LAYER/SIDEBAR, so hidden widgets are still discovered and can drive emit's reveal in the same frame |
-| drop (`UITree_FindDropTarget`) | ~0 | only during an active drag | any `behavior.hide` prunes |
+| walk                                             | visits/frame (rev230) | when                                       | hide rule                                                                                                                 |
+| ------------------------------------------------ | --------------------: | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| emit, draw pass                                  |                  2478 | when `need_redraw`                         | prunes hidden subtrees **unless** the node is the hovered one (same-frame reveal)                                         |
+| emit, drag pass                                  |          0 (was 3033) | only with a drag active                    | same                                                                                                                      |
+| hit (`UITree_HitTestInteractive`)                |                   618 | every non-minimenu frame, twice on a click | any `behavior.hide` prunes                                                                                                |
+| hover (`UITree_FindHoveredComponentIdForRegion`) |                    95 | every non-minimenu frame                   | prunes only hidden RS_LAYER/SIDEBAR, so hidden widgets are still discovered and can drive emit's reveal in the same frame |
+| drop (`UITree_FindDropTarget`)                   |                    ~0 | only during an active drag                 | any `behavior.hide` prunes                                                                                                |
 
 The drag pass was the big one and it is now gated on `UITree_HasActiveDrag`. It
 existed only to redraw deferred (picked-up) drag subtrees on top of everything
 else, so on an ordinary frame every node it reached took the descend-only branch
-and emitted nothing — and it visited *more* nodes than the draw pass, because
+and emitted nothing — and it visited _more_ nodes than the draw pass, because
 descend-only bypasses the collapsed-layer prune.
 
 **Folding hit into hover is not worth doing.** Together they are 713 visits a
@@ -194,18 +194,19 @@ measurable and puts the same-frame reveal path at risk.
 
 ## Not done / next candidates (ranked by counter evidence)
 
-1. `cs2vm2_thread_init` is **4.8% of samples** — the largest non-rasterizer leaf
-   left. `cs2_vm_acquire` is 10/frame with `cs2_vm_pool_miss` at 2 for a whole
-   900-frame run, so the pool is working and the cost is the per-acquire reset of
-   the VM thread state itself, not allocation. Look at what `thread_init` actually
-   has to clear versus what the previous script left behind.
-2. `painter_paint_bucket` 5.9%, plus `SDL_FillRect4` 3.3% and `_platform_memset`
+1. `painter_paint_bucket` 5.9%, plus `SDL_FillRect4` 3.3% and `_platform_memset`
    2.5% (framebuffer clears) — the 2D/present path, not the model rasterizer.
-3. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
+2. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
    `cache_model_hit` 27.8/frame vs `cache_model_miss` 2.4/frame, so the win here
    is in `RenderModel2SortFaces` (5.2%), not in decode.
-4. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
+3. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
    appeared in the profile under any scenario.
+4. `cs2vm2_thread_init` — **not a frame-time target, do not chase it on these
+   numbers.** It reads as 0.02–0.03% of samples in four of the five flamegraphs
+   and 0.75% in the fifth, and `cs2_vm_init_ns` puts it at 5.9 µs/frame over 8.3
+   acquires, i.e. ~0.1% of a 5.7 ms frame. An earlier revision of this section
+   claimed 4.8%; that was wrong. The lazy call stack below was done for the
+   memory footprint, not for the frame.
 
 ## Correctness
 
@@ -240,28 +241,28 @@ measurable and puts the same-frame reveal path at risk.
 
 ## Verification close-out (2026-08-03)
 
-| check | result |
-|-------|--------|
-| idle / ui / world harness p95 &lt; 20 ms | PASS (CSVs in `tools/perf/results/19e81d70-*.csv`) |
-| headless embed `TORIRS_EXIT_BMP` | wrote successfully (`EMBED_SERVER=1 TORIDRAW_OPT=1`) |
-| `mock230_pack --check-only` | **0 errors**, 15 warnings |
-| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-mock230-embed` | green |
-| `test-mock230-coverage` | green |
-| `make -C 3rd/rscache test` | green (`cachepack-fidelity: all bars met`) |
-| `readme.md` UITree performance section | points at this doc; historical 84% ToriDraw figure marked stale |
+| check                                                                  | result                                                          |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| idle / ui / world harness p95 &lt; 20 ms                               | PASS (CSVs in `tools/perf/results/19e81d70-*.csv`)              |
+| headless embed `TORIRS_EXIT_BMP`                                       | wrote successfully (`EMBED_SERVER=1 TORIDRAW_OPT=1`)            |
+| `mock230_pack --check-only`                                            | **0 errors**, 15 warnings                                       |
+| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-mock230-embed` | green                                                           |
+| `test-mock230-coverage`                                                | green                                                           |
+| `make -C 3rd/rscache test`                                             | green (`cachepack-fidelity: all bars met`)                      |
+| `readme.md` UITree performance section                                 | points at this doc; historical 84% ToriDraw figure marked stale |
 
 ### Second close-out (2026-08-03, after the dat2/layout/emit round)
 
-| check | result |
-|-------|--------|
-| idle / ui / world harness p95 &lt; 20 ms | PASS at 5.67 / 5.71 / 6.21 ms (`tools/perf/results/61548478-*.csv`) |
-| incremental layout vs forced full resolve, 900 frames × 3 scenarios | 0 box mismatches |
-| `mock230_pack --check-only` | **0 errors**, 15 warnings |
-| `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-chat-widgets`, `test-minimap` | green |
-| `test-cs1`, `test-cs1vm` | green (`test-cs1` needed `perf/torirs_perf.c` added to its hand-picked link list — the harness counters had broken it) |
-| `test-db`, `test-cs2-{math,string,component-param,triggerop,dialect}`, `test-cache-trim`, `test-task-order`, `test-world`, `test-inv`, `test-varp`, `test-varc`, `test-social` | green |
-| `test-mock230-embed` | green |
-| `test-ui-slots` | fails on `manifest must state [cache:boot] identity` — pre-existing, the target passes a bare `../cache254` rather than a manifest |
+| check                                                                                                                                                                          | result                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| idle / ui / world harness p95 &lt; 20 ms                                                                                                                                       | PASS at 5.67 / 5.71 / 6.21 ms (`tools/perf/results/61548478-*.csv`)                                                                |
+| incremental layout vs forced full resolve, 900 frames × 3 scenarios                                                                                                            | 0 box mismatches                                                                                                                   |
+| `mock230_pack --check-only`                                                                                                                                                    | **0 errors**, 15 warnings                                                                                                          |
+| `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-chat-widgets`, `test-minimap`                                                                          | green                                                                                                                              |
+| `test-cs1`, `test-cs1vm`                                                                                                                                                       | green (`test-cs1` needed `perf/torirs_perf.c` added to its hand-picked link list — the harness counters had broken it)             |
+| `test-db`, `test-cs2-{math,string,component-param,triggerop,dialect}`, `test-cache-trim`, `test-task-order`, `test-world`, `test-inv`, `test-varp`, `test-varc`, `test-social` | green                                                                                                                              |
+| `test-mock230-embed`                                                                                                                                                           | green                                                                                                                              |
+| `test-ui-slots`                                                                                                                                                                | fails on `manifest must state [cache:boot] identity` — pre-existing, the target passes a bare `../cache254` rather than a manifest |
 
 Windowed eye-check is left to the operator (`./run-live.sh manifest_osrs230_embed.ini`
 after an `EMBED_SERVER=1 TORIDRAW_OPT=1` build). Pixel A/B against a pre-cache

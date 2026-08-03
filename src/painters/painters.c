@@ -1,6 +1,7 @@
 #include "painters.h"
 
 #include "painters_i.h"
+#include "perf/torirs_perf.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -1098,7 +1099,7 @@ push_command_entity(
 {
     int count = buffer->command_count;
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !defined(NDEBUG)
     if( count == g_trap_command )
     {
         printf("TRAP: %d\n", count);
@@ -1124,7 +1125,7 @@ push_command_terrain(
 {
     int count = buffer->command_count;
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !defined(NDEBUG)
     if( count == g_trap_command )
     {
         printf("TRAP: %d\n", count);
@@ -1393,7 +1394,6 @@ painter_dump_command_order(
 }
 
 // clang-format off
-#include "painter_tile_iter.u.c"
 #include "painters_bucket.u.c"
 #include "painters_world3d.u.c"
 #include "painters_distancemetric.u.c"

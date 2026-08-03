@@ -23,6 +23,79 @@
 int g_cs2_trace_mode = 0;
 char g_cs2_trace_extra[512];
 
+/* --- Call frame pool ----------------------------------------------------- */
+/*
+ * Call frames (12 KB each) are uniform blocks with no identity, so the threads
+ * share one free list instead of each reserving CS2VM_MAX_FRAMES of them inline.
+ * A thread pops blocks as its stack grows and returns them all on teardown.
+ *
+ * The cap bounds what is retained across teardowns. One full stack's worth is
+ * the useful size: it covers the deepest recursion the cache actually contains
+ * (script 2621 sorting the standard spellbook, ~70) without re-mallocing, and
+ * costs the same 1.51 MB that a single thread used to reserve unconditionally.
+ */
+#define CS2VM2_FRAME_POOL_MAX CS2VM_MAX_FRAMES
+
+static struct CS2VM2_Frame* g_frame_pool[CS2VM2_FRAME_POOL_MAX];
+static int g_frame_pool_count;
+
+/* Contents are left as-is; every caller memsets the frame before use. */
+static struct CS2VM2_Frame*
+cs2vm2_frame_acquire(void)
+{
+    if( g_frame_pool_count > 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_POOL_HIT, 1);
+        return g_frame_pool[--g_frame_pool_count];
+    }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_POOL_MISS, 1);
+    return (struct CS2VM2_Frame*)malloc(sizeof(struct CS2VM2_Frame));
+}
+
+static void
+cs2vm2_frame_release(struct CS2VM2_Frame* frame)
+{
+    assert(frame);
+    if( g_frame_pool_count < CS2VM2_FRAME_POOL_MAX )
+        g_frame_pool[g_frame_pool_count++] = frame;
+    else
+        free(frame);
+}
+
+/*
+ * The frame at `depth`, allocated if the stack has not reached that far yet.
+ * Only ever called with depth == frames_live (push is one at a time), so this
+ * grows by one; the loop is there so the invariant does not depend on that.
+ */
+static struct CS2VM2_Frame*
+cs2vm2_thread_frame_grow(
+    struct CS2VM2_Thread* thread,
+    int depth)
+{
+    assert(thread);
+    assert(depth >= 0);
+    assert(depth < CS2VM_MAX_FRAMES);
+
+    while( thread->frames_live <= depth )
+    {
+        struct CS2VM2_Frame* frame = cs2vm2_frame_acquire();
+        if( !frame )
+            return NULL;
+        thread->frames[thread->frames_live++] = frame;
+    }
+    return thread->frames[depth];
+}
+
+/* Hand every block this thread holds back to the free list. Safe to repeat. */
+static void
+cs2vm2_thread_frames_release(struct CS2VM2_Thread* thread)
+{
+    assert(thread);
+    for( int i = 0; i < thread->frames_live; i++ )
+        cs2vm2_frame_release(thread->frames[i]);
+    thread->frames_live = 0;
+}
+
 static void
 CS2VM2_ClearTraceExtra(void)
 {
@@ -76,15 +149,16 @@ CS2VM2_RestoreYieldCheckpoint(
      * clear the now-abandoned frames. Under the invariant frame_sp is unchanged and
      * this loop does nothing. Frame contents at/below cp->frame_sp are untouched by a
      * yielding op, so no frame copy is needed — only the pointers and pc are rolled back. */
+    assert(vm->frame_sp <= vm->frames_live);
     for( int i = cp->frame_sp; i < vm->frame_sp; i++ )
-        memset(&vm->frames[i], 0, sizeof(struct CS2VM2_Frame));
+        memset(vm->frames[i], 0, sizeof(struct CS2VM2_Frame));
 
     vm->ints_stack_top = cp->ints_stack_top;
     vm->strs_stack_top = cp->strs_stack_top;
     vm->frame_sp = cp->frame_sp;
     vm->active_component_id = cp->active_component_id;
     vm->dot_component_id = cp->dot_component_id;
-    vm->frames[vm->frame_sp - 1].pc = op_pc;
+    vm->frames[vm->frame_sp - 1]->pc = op_pc;
 
     /* Undo any opt-in VM-field mutations the yielding op applied before it
      * yielded, newest first, so the op re-runs from the same clean state as the
@@ -1286,7 +1360,7 @@ CS2VM2_Op_GosubWithParams(
     if( result != CS2VM_EXECNO_OK )
         return result;
 
-    struct CS2VM2_Frame* callee = &vm->frames[vm->frame_sp - 1];
+    struct CS2VM2_Frame* callee = CS2VM_FRAME(vm);
     int argc = callee->script->int_argument_count + callee->script->string_argument_count;
     int str_args = callee->script->string_argument_count;
     int int_args = callee->script->int_argument_count;
@@ -9911,8 +9985,14 @@ CS2VM2_PushCallScript(
     assert(vm->frame_sp < CS2VM_MAX_FRAMES);
     assert(script);
 
-    memset(&vm->frames[vm->frame_sp], 0, sizeof(struct CS2VM2_Frame));
-    vm->frames[vm->frame_sp].script = script;
+    struct CS2VM2_Frame* frame = vm->frame_sp < vm->frames_live
+                                     ? vm->frames[vm->frame_sp]
+                                     : cs2vm2_thread_frame_grow(vm, vm->frame_sp);
+    if( !frame )
+        return CS2VM_EXECNO_ERROR;
+
+    memset(frame, 0, sizeof(*frame));
+    frame->script = script;
     vm->frame_sp += 1;
     return CS2VM_EXECNO_OK;
 }
@@ -9953,7 +10033,7 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
             return CS2VM_EXECNO_DONE;
         }
 
-        struct CS2VM2_Frame* frame = &vm->frames[vm->frame_sp - 1];
+        struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
         if( frame->pc >= frame->script->op_count )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_OPCODES, cycles - 1);
@@ -10019,7 +10099,7 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
     }
 
     {
-        struct CS2VM2_Frame* frame = &vm->frames[vm->frame_sp - 1];
+        struct CS2VM2_Frame* frame = CS2VM_FRAME(vm);
         vm->last_error_opcode = -1;
         vm->last_error_pc = frame->pc;
         vm->last_error_script_id = frame->script->script_id;
@@ -10547,13 +10627,15 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
 /*
  * Reset one thread without touching its bulk arrays.
  *
- * struct CS2VM2 is ~2.9 MB, almost all of it frames[50] (12 KB each) and
- * arrays[128]. A blanket memset of the whole VM on every script invocation was
- * one of the largest single costs in the frame (it showed up as __bzero), and
- * none of that zeroing is load-bearing:
+ * struct CS2VM2 is ~1.07 MB, almost all of it arrays[128] per thread. A blanket
+ * memset of the whole VM on every script invocation was one of the largest
+ * single costs in the frame (it showed up as __bzero), and none of that zeroing
+ * is load-bearing:
  *
- *   - frames[]  — CS2VM2_PushCallScript memsets each frame as it pushes it, and
- *                 nothing reads a frame at or above frame_sp.
+ *   - frames[]  — the table is only read below frames_live, which is set to 0
+ *                 here, so the slots themselves need no clearing; whoever grows
+ *                 the stack writes the slot, and whoever pushes the frame
+ *                 memsets its contents.
  *   - stacks    — ints_stack/strs_stack are only read below their _top.
  *   - undo_log, children_iter_indices — only read below their counters.
  *   - arrays[]  — every read is guarded by .defined && index < .size, and
@@ -10564,6 +10646,9 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  * So only the scalars and the per-array .defined/.size flags need clearing.
  * Values below match exactly what the old memset produced (note yield_halt_pc
  * is 0 here, not the -1 that CS2VM2_ClearYieldHalt uses).
+ *
+ * Like CS2VM2_StrPool_Init, this drops rather than frees what the thread held:
+ * it is for a fresh block or one that CS2VM2_Free has already emptied.
  */
 static void
 cs2vm2_thread_init(
@@ -10571,6 +10656,8 @@ cs2vm2_thread_init(
     struct CS2VM2* vm)
 {
     thread->vm = vm;
+
+    thread->frames_live = 0;
 
     thread->ints_stack_top = 0;
     thread->strs_stack_top = 0;
@@ -10629,6 +10716,7 @@ CS2VM2_Free(struct CS2VM2* vm)
         CS2VM2_ResetRuntime(&vm->threads[i]);
         /* ResetRuntime keeps a block for reuse; nothing will reuse it now. */
         CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
+        cs2vm2_thread_frames_release(&vm->threads[i]);
     }
 }
 
@@ -10690,6 +10778,10 @@ CS2VM2_PoolDrain(void)
 {
     while( g_vm_pool_count > 0 )
         free(g_vm_pool[--g_vm_pool_count]);
+    /* Parked VMs hold no frames (Release empties them), so the free list is all
+     * that is left to give back. */
+    while( g_frame_pool_count > 0 )
+        free(g_frame_pool[--g_frame_pool_count]);
 }
 
 void

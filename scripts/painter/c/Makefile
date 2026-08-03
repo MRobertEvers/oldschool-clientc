@@ -50,10 +50,10 @@ bench_painter: $(SOURCES) painter_common.h Makefile
 	$(CC) $(CFLAGS) -DBENCH_ITERS=$(BENCH_ITERS) $(SOURCES) $(LDFLAGS) -o $@
 
 fuzz_real: $(FUZZ_SOURCES) Makefile
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(FUZZ_SOURCES) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DTORIRS_PERF_DISABLE $(FUZZ_SOURCES) $(LDFLAGS) -o $@
 
 bench_real: $(REAL_BENCH_SOURCES) Makefile
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(REAL_BENCH_SOURCES) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DTORIRS_PERF_DISABLE $(REAL_BENCH_SOURCES) $(LDFLAGS) -o $@
 
 run: all
 	./bench_painter
