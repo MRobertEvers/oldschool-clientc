@@ -65,6 +65,27 @@ truths stay 0 until that content exists.
 3. Time Played pushes `RUNCLIENTSCRIPT` 3970 with type string `iii`.
 4. Cache enums `enum_4067` and `enum_3981` resolve from `configs/all.enum`.
 
+## 3.1 Headless client (2026-08-03)
+
+`SDL_VIDEODRIVER=dummy` + embed + `TORIRS_CLICK_DEBUG=1`. Quest tab at
+`(553,186)`, then row centres from the tree dump (`summary_click_layer`
+sub-ids 3..7 at ~`(555,345)`, `(640,345)`, `(555,400)`, `(640,400)`,
+`(555,445)`):
+
+```
+clickdbg: … events=0x1e net=1
+mock230: <- IF_BUTTON1 712:3 sub=3   # Quests
+mock230: <- IF_BUTTON1 712:3 sub=4   # Diaries
+mock230: <- IF_BUTTON1 712:3 sub=5   # CA Overview
+mock230: <- IF_BUTTON1 712:3 sub=6   # Collection Log
+mock230: <- IF_BUTTON1 712:3 sub=7   # Time Played
+mock230: -> RUNCLIENTSCRIPT    op=84  payload=20   # iii + 3970
+```
+
+`events=0x1e` is mask 30. Ops 2–4 (CA Bosses/Tasks/Rewards, Collection
+Overview) are covered by the selftest's numbered `IF_BUTTON2..4` injection;
+right-click menu selection in the headless harness was not re-driven here.
+
 ## 4. LostCity
 
 No Character Summary / Combat Achievements / Collection Log precedent
