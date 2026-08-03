@@ -184,8 +184,31 @@ defaults.
 - LoS-blocking NPCs (Pest Control Brawlers, Inferno/Colosseum stacks) set the
   projectile occupancy flag.
 
-LostCity: `BlockWalk.{NPC,ALL,PLAYER}` → `NPC_OCC` / `BLOCK_NPC_AND_PLAYERS` /
-`PLAYER_OCC`.
+What each entity **writes** — LostCity `PathingEntity.refreshZonePresence`'s
+`blockWalk` switch, and `blockwalk`'s default is **npc**:
+
+| `blockwalk` | writes |
+|---|---|
+| none | nothing |
+| npc (default) | `NPC_OCC` |
+| all | `NPC_OCC` + `BLOCK_NPC_AND_PLAYERS` |
+| player | `PLAYER_OCC` |
+
+What each mover **reads** (`blockWalkFlag()`), which is the other half and is
+not the same set:
+
+| mover | reads |
+|---|---|
+| player | `BLOCK_NPC_AND_PLAYERS`, and nothing else |
+| npc, `moverestrict=blocked` | nothing at all |
+| npc, otherwise | `BLOCK_NPC_AND_PLAYERS` + `NPC_OCC` (unless `blockwalk=none`) + `PLAYER_OCC` (unless `passthru`) |
+
+The player row is the one that surprises: **an ordinary npc does not stop a
+player**, because the default `blockwalk=npc` writes only `NPC_OCC` and the
+player does not read it. Only `blockwalk=all` npcs block, and `NPC_OCC` exists
+to keep npcs off each other. Reading `NPC_OCC` as a player here froze the mover
+behind the first npc on its route, and stayed invisible for as long as every
+scene rebuild threw the occupancy bits away before anyone could walk into them.
 
 ### 4.1 Flag-layout warning
 
@@ -289,6 +312,12 @@ reference reads (LostCity `GameMap`).
   `world_occupancy_restamp` re-stamps every live npc and player after the
   rebuild; without it the first tick after a re-centre lets entities walk
   through each other until each happens to move.
+
+  Landing it exposed the read-side bug in §4 above (the player was reading
+  `NPC_OCC`), because until occupancy survived a rebuild there was nothing on
+  the map for the wrong read to trip over. Fixing both took the mock server's
+  selftest from 30 failures to 4 — the 20 the re-stamp had turned up plus 6 that
+  were already there, all of them "the walk did not complete".
 - **Symmetric PvP LoS had no caller.** It has one now:
   `MOCK230_INTERACT_PLAYER`, reached from `p_opplayer` (`mock230_ops_player.c`)
   against the secondary active player, whose AP rung calls
@@ -317,3 +346,17 @@ reference reads (LostCity `GameMap`).
   occupancy; unconditional clear.
 - `test_follow_dance_semantics` — west seed; mutual-follow lag corridor.
 - `test_features_eras` — `los_symmetric_pvp` and `route_window_tiles` per era.
+
+`./src/build/mock230 --selftest`:
+
+- *an ordinary npc does not block a player* — the §4 read/write asymmetry, put
+  against the two extra masks rather than against a walk (a walk passes for the
+  wrong reason as soon as its route goes round): a `blockwalk=npc` npc beside
+  the player stops another npc and not the player, and turning it into
+  `blockwalk=all` stops the player too.
+
+Two npc stanzas still fail and are **stale, not broken**: *"an npc whose
+straight step is blocked still moves"* / *"walks round to …"* and playerfollow's
+*"and reach the player"* were written when npcs had the flood, and §1.2 is the
+reason they cannot hold — a naive mover whose straight step is refused does not
+step at all, which is what safespotting *is*.

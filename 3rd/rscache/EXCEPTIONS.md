@@ -1801,6 +1801,25 @@ Two further departures from upstream, both strictly more capable:
 
 Neither changes any of the 6,489 outputs that match the reference.
 
+`windowmode` was later seeded alongside `false`/`true` for the same two reasons
+and no others: `windowmode-names.tsv` is two lines (`1 fixed`, `2 resizable`),
+and they are the dialect's own words for the only two modes a client implements.
+Leaving it to the corpus left `[clientscript,settings_client_mode]` — the Display
+panel's layout dropdown, the whole of a shipped feature — uncompilable for every
+caller that has no name directory. Round-trip: 9,433 → 9,507 decompiled.
+
+**The compiler now resolves a `~name` across triggers when the name is unique.**
+The first bullet above is the decompiler's half of this, and for a long time the
+compiler had no matching half: `~name` demanded that the table call the target a
+`proc`, so a source calling a `clientscript` was refused even though the
+decompiler had already decided such a call is well-formed and the call site is
+the evidence. It is: `gosub_with_params` takes an id, and a script record has no
+trigger field at all — the trigger lives only in the name table. The guard the
+requirement exists for is ambiguity (`1v1arena_hud_toggle` is clientscript 2716
+*and* proc 2717), and that needs two candidates, so the fallback fires only when
+exactly one script in the table carries the name and still refuses when several
+do. An exact-trigger match always wins outright.
+
 ---
 
 ## H. `cachepack` — the cache unpacker / packer

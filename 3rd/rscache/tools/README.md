@@ -625,9 +625,25 @@ so editing it takes effect, and the 357 records that cannot promise that are
 **Pack the way you unpacked.** Verification uses whatever `CACHEPACK_CS2_NAMES`
 was set to at unpack time, and a source full of `coins_995` will not compile
 without those tables: packing the same tree with the variable unset declines
-4,991 records rather than 357. Coverage does not depend on the tables (see
+2,921 records rather than 357. Coverage does not depend on the tables (see
 `--names` below) — only the spellings do — so unpacking without them is equally
 fine, as long as packing matches.
+
+That figure was 4,991 until the script half of it stopped needing a corpus at
+all. A `~name` call is the one spelling the *tree* can resolve on its own:
+`scripts/<name>.cs2` opens with the `[trigger,name]` header the decompiler wrote
+and `pack/12_clientscripts.pack` maps that file to its id, so
+`cs2_seed_script_names` reads the two together and seeds the table after any
+TSVs — the tree's own headers are what the tree's own sources are calling. What
+is left is entity names (`coins_995`, `p12_full`, `interface_select1`), which
+name records rather than scripts and still come from the corpus.
+
+The rule matters because breaking it is quiet. A declined record keeps the base
+cache's bytes and only a counter says so, and if the tree holds a `.cs2b` beside
+the `.cs2` — which the export invariant above means it should never do, but a
+hand-placed one will — not even the counter moves. The Display panel's layout
+dropdown shipped inert for exactly this reason; see
+`docs/gameframe_layout_resize.md` §8.3 in the parent repo.
 
 A few things worth knowing:
 

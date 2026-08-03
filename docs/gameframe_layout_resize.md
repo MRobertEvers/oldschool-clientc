@@ -441,12 +441,21 @@ from `gameframe.enum` block named after that toplevel.
 ### 8.2 Verification (re-measured 2026-08-03)
 
 Embed client (`make -C src torirs EMBED_SERVER=1`,
-`manifest_osrs230_embed.ini`):
+`manifest_osrs230_embed.ini`), against a cache baked from the tree
+(`make -C src mock230-cache`, §8.3):
 
 ```
-TORIRS_SIM_RUNSCRIPT="300,3998,0;800,3998,2;1300,3998,1"
-→ if-opentop: 161→548, 548→164, 164→161
+TORIRS_SIM_RUNSCRIPT="300,3967,12,0;800,3967,12,2;1300,3967,12,1"
+→ windowmode: fixed      if-opentop: 161→548
+→ windowmode: resizable  if-opentop: 548→164
+→                        if-opentop: 164→161
 ```
+
+The entry point is **3967 case 12** — `[clientscript,settings_set_dropdown]`,
+what the Display panel's layout row actually runs — not 3998 forced by hand. It
+is the difference between testing the mechanism and testing the feature: against
+pristine `cache.osrs239` this same command does nothing at all, because the arm
+that calls 3998 is not in that cache.
 
 `TORIRS_DUMP_BOUNDS` + `TORIRS_EXIT_BMP` after each remount:
 
@@ -468,13 +477,50 @@ Canvas size still distinguishes the frames (from earlier §8 table): 161/164
 reflow; 548 does not. Remount alone is what `--windowmode fixed` was missing
 for a real fixed tree.
 
-### 8.3 Remaining gaps
+### 8.3 The client had to boot a cache baked from the tree (landed)
 
-- **Client CS2 in `cache.osrs239`:** edited `script_3967` / `4569` / `3998` live
-  in the content tree; the pristine cache still has the unbound setters until
-  a derived cache is packed. Headless verification uses
-  `TORIRS_SIM_RUNSCRIPT` with script id 3998 (always present). Entry-hook stash
-  of the mode arg covers Classic↔Modern even when cache 3998 early-outs.
+The dropdown was inert with all of §8.1 already written, and the reason was one
+step of the pipeline that did not exist. `cache.osrs239` is the pristine unpack
+source and is frozen; every manifest booted it; so the client read the CS2 *as
+downloaded* and the case-12 arm in `script_3967` / `script_4569` was simply not
+in the cache it ran. No content edit to a client-visible record had ever reached
+a running client.
+
+`make -C src mock230-cache` is the missing step — `cachepack pack --base
+cache.osrs239 --out cache.osrs239.baked --assets --binary`, the client half of
+the bake PORTING_GUIDE §1 already draws. `--base` means the result is the
+pristine cache plus what the tree changes, so it is not a second corpus. The
+mock230 manifest family points at it; the offline-render and worldmap manifests
+still boot pristine, which is what they want.
+
+Two engine faults in `cachepack` had to be fixed first, both of which made an
+edited script *silently* ship its original bytes (`3rd/rscache/tools/README.md`,
+"pack the way you unpacked"):
+
+- **Script names came only from RuneStar's un-vendored `script-names.tsv`**, so
+  `~on_mobile` did not resolve and 5,032 of 9,725 sources were declined on a
+  machine without that corpus. The tree states this about itself — every
+  `scripts/<name>.cs2` opens with its `[trigger,name]` header and
+  `pack/12_clientscripts.pack` maps the file to its id — so `cs2_seed_script_names`
+  reads the two together. Declines fell to 2,921 (the rest are entity names:
+  `coins_995`, `p12_full`, still table-only).
+- **`^windowmode_fixed` / `^windowmode_resizable` had no spelling**, which is
+  what made `[clientscript,settings_client_mode]` itself uncompilable. Seeded in
+  `RSCache_CS2_NamesInit` beside `true`/`false` and on the same grounds: a
+  two-line dialect table is the language's own words, not recovered data.
+
+A third fault was in the language, not the tables: `~name` required the name
+table to call the target a `proc`, and 3998 is a `clientscript`. A trigger is a
+fact about the table and not about the bytecode — `gosub_with_params` takes an
+id and a script record has no trigger field — and `cs2_write_call_target` had
+already decided this same disagreement the other way for years, writing the bare
+id because "the call site is evidence". `RSCache_CS2_NamesScriptId` now falls
+back across triggers when exactly one script carries the name, which keeps the
+ambiguity guard (`1v1arena_hud_toggle` is clientscript 2716 *and* proc 2717)
+intact. `cs2 roundtrip` went 9,433 → 9,507 decompiled of 9,725.
+
+### 8.3a Remaining gaps
+
 - **Persistence** of layout across logins — out of scope.
 - **OpenRune intermediate hop** (fixed→pre_eoc via stretch) — deferred unless a
   measured break needs it.

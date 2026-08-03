@@ -851,12 +851,17 @@ frame_loop_step(void)
          *
          * TORIRS_SIM_HOOK covers "click this component", which is the right
          * harness whenever the component exists and its binding is in the
-         * tree. It does not cover a clientscript whose *binder* is missing:
-         * [clientscript,settings_client_mode] (3998), the Display panel's
-         * client-mode dropdown, is called from no script in a full decompile
-         * of cache.osrs239 and from no `onop=` in the content tree, so there
-         * is no component to click. Same shape as the RUNCLIENTSCRIPT packet
-         * path, which is also "run this id with these ints, no component". */
+         * tree. This covers the rest: a script reached through a dropdown or a
+         * menu whose component is a chore to address, and a script with no
+         * binder at all. Same shape as the RUNCLIENTSCRIPT packet path, which
+         * is also "run this id with these ints, no component".
+         *
+         * `3967,12,<mode>` is [clientscript,settings_set_dropdown] on the
+         * Display panel's layout row — the case-12 arm that calls 3998 and so
+         * the whole Fixed/Classic/Modern remount, from the content's own entry
+         * point rather than from 3998 forced by hand. It only reaches 3998 in a
+         * cache baked from the tree (docs/gameframe_layout_resize.md §8.3);
+         * pristine cache.osrs239 has the arm missing and nothing happens. */
         {
             static char const* rs_cursor = NULL;
             static int rs_init = 0;

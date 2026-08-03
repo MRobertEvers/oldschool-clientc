@@ -351,7 +351,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-painters-occluders
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-painters-occluders
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1083,6 +1083,29 @@ mock230-servpack:
 	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \
 		--src OSRS-Content/osrs239-content --server-only
+
+# The client half of the same bake: the tree written back into a cache the
+# client can boot (PORTING_GUIDE §1, `cachepack pack ──► client cache (--out)`).
+#
+# `cache.osrs239` is the pristine unpack source and stays frozen, so nothing the
+# tree says about a *client-visible* record reached a running client until this
+# existed — a `.cs2` edit packed into no cache is an edit that ships nowhere, and
+# the Display panel's layout dropdown was the case that found it. Server-side
+# `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
+# CS2, interfaces and configs are read out of the cache and do.
+#
+# `--base` copies the pristine cache first, so every record the tree does not
+# change keeps the bytes it had, and the output is a fresh 440M rather than an
+# in-place append that grows without bound.
+MOCK230_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.baked
+mock230-cache:
+	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
+	rm -rf $(MOCK230_CACHE_DIR)
+	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \
+		--src OSRS-Content/osrs239-content \
+		--base cache.osrs239 \
+		--out cache.osrs239.baked \
+		--rev osrs239 --assets --binary
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it

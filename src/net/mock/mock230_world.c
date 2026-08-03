@@ -13861,6 +13861,86 @@ mock230_world_selftest(void)
      * one *finds* a chase that has to turn a corner and asserts the npc still
      * arrives.
      */
+    /*
+     * Occupancy is written by one entity and read by another, and the two sets
+     * are deliberately not the same (`docs/OSRS_PATHING_LOS.md` §4). An ordinary
+     * npc is `blockwalk=npc` — the default — and writes only NPC_OCC, which a
+     * player does not read: you walk through Hans. Only `blockwalk=all` stops a
+     * player, and NPC_OCC is what keeps npcs off each other.
+     *
+     * Reading NPC_OCC as a player froze the mover behind the first npc on its
+     * route, and it stayed invisible because a scene rebuild threw every
+     * occupancy bit away before anyone could walk into one — the two halves of
+     * one bug, which is why the check is here rather than left to the walk
+     * stanzas that failed for it.
+     *
+     * Stated against the two extra masks rather than against a walk: a walk
+     * passes for the wrong reason the moment the route happens to go round.
+     */
+    fprintf(stderr, "mock230 selftest: an ordinary npc does not block a player\n");
+    {
+        int slot = selftest_find_npc(&srv, 3105 /* Hans */);
+
+        SELFTEST_CHECK(slot >= 0, "the roster should include Hans");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int const dxs[4] = { 1, -1, 0, 0 };
+            int const dzs[4] = { 0, 0, 1, -1 };
+            int keep_x = npc->x;
+            int keep_z = npc->z;
+            int keep_level = npc->level;
+            int keep_blockwalk = npc->blockwalk;
+            int px;
+            int pz;
+            int pick = -1;
+
+            selftest_park_player(&srv, 3222, 3218);
+            px = player->x;
+            pz = player->z;
+            /* Found, not named: which way is open off the home tile is a fact
+             * about this cache's Lumbridge, not about occupancy. */
+            for( int i = 0; i < 4 && pick < 0; i++ )
+                if( mock230_scene_can_travel(0, px, pz, dxs[i], dzs[i], 1, 0) )
+                    pick = i;
+            SELFTEST_CHECK(pick >= 0, "the home tile should have an open neighbour");
+
+            if( pick >= 0 )
+            {
+                int dx = dxs[pick];
+                int dz = dzs[pick];
+
+                npc_set_occupancy(npc, 0);
+                npc->x = px + dx;
+                npc->z = pz + dz;
+                npc->level = 0;
+                npc->blockwalk = 1; /* BlockWalk.NPC */
+                npc_set_occupancy(npc, 1);
+
+                SELFTEST_CHECK(
+                    mock230_scene_can_travel(0, px, pz, dx, dz, 1, player_travel_extra()),
+                    "a player walks through a blockwalk=npc npc");
+                SELFTEST_CHECK(
+                    !mock230_scene_can_travel(0, px, pz, dx, dz, 1, npc_travel_extra(npc)),
+                    "while another npc is stopped by it");
+
+                npc_set_occupancy(npc, 0);
+                npc->blockwalk = 2; /* BlockWalk.ALL */
+                npc_set_occupancy(npc, 1);
+                SELFTEST_CHECK(
+                    !mock230_scene_can_travel(0, px, pz, dx, dz, 1, player_travel_extra()),
+                    "and a blockwalk=all npc stops the player");
+
+                npc_set_occupancy(npc, 0);
+            }
+            npc->x = keep_x;
+            npc->z = keep_z;
+            npc->level = keep_level;
+            npc->blockwalk = keep_blockwalk;
+            npc_set_occupancy(npc, 1);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: an npc pursues the player\n");
     {
         int goblin = selftest_find_npc(&srv, 3028);
