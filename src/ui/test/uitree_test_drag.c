@@ -63,7 +63,7 @@ test_drag_composite(void)
     UITree_EmitBufferFree(&buf);
 
     /* Pick up the thumb and move it by (+50, +40). */
-    tree->components[pi].drag_active = 1;
+    UITree_SetComponentDragActive(tree, pi, 1);
     tree->components[pi].drag_behavior = 0; /* deferred (picked-up) drag */
     tree->components[pi].drag_visual_x = px0 + 50;
     tree->components[pi].drag_visual_y = py0 + 40;

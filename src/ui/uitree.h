@@ -758,6 +758,10 @@ struct UITree
      *  Maintained by UITree_SetBehavior and slot reclaim, the only two places a
      *  node's `behavior.scripts_count` can change. */
     uint32_t cs1_script_nodes;
+    /** Live nodes with `drag_active` set (see UITree_HasActiveDrag). Write it
+     *  through UITree_SetComponentDragActive rather than touching `drag_active`
+     *  directly, so the count cannot drift. */
+    uint32_t drag_active_nodes;
     uint16_t next_dynamic_uid;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
@@ -1508,6 +1512,28 @@ int
 UITree_ContainerHasMounts(
     struct UITree const* tree,
     int container_uid);
+
+/** Set or clear a component's `drag_active`, keeping `drag_active_nodes` in step.
+ *
+ * `idx` must name a live component. Idempotent: setting an already-set flag (or
+ * clearing an already-clear one) does not move the count. */
+void
+UITree_SetComponentDragActive(
+    struct UITree* tree,
+    int32_t idx,
+    int active);
+
+/** 1 if any live node is mid-drag.
+ *
+ * The emit walk's second pass exists only to redraw deferred drag subtrees on
+ * top of everything else, so with nothing being dragged it is a whole-tree
+ * descent that emits nothing. */
+static inline int
+UITree_HasActiveDrag(struct UITree const* tree)
+{
+    assert(tree);
+    return tree->drag_active_nodes > 0;
+}
 
 /** 1 if any live node carries CS1 (if1) behavior scripts.
  *

@@ -819,6 +819,11 @@ The UI was recomputing everything, every frame.
 | Tree grew without bound under rebuild scripts | free-list reclaim | [uitree.c:87](src/ui/uitree.c#L87) |
 | Root append walked the whole sibling list | `last_root_index` tail pointer | [uitree.c:44](src/ui/uitree.c#L44) |
 | Textures loaded one-at-a-time, retried forever on failure | batch collect → load → publish, with a permanent `texture_failed` set | [app.c:82](src/app.c#L82) |
+| Every resolve recomputed every node's box, so one `cc_create` cost a whole-tree relayout | recompute only nodes whose own box was invalidated or whose parent's moved (§4) | [uitree_layout.c](src/ui/uitree_layout.c) |
+| The emit drag pass descended the whole tree every frame to find deferred drag subtrees that usually did not exist | gated on `UITree_HasActiveDrag` | [uitree_emit.c](src/ui/uitree_emit.c) |
+| `UITree_ChildMountType` linear-scanned the mount table once per child per emit sweep | `UITree_ContainerHasMounts` answers it once per node | [uitree.c](src/ui/uitree.c) |
+| The CS1 pass scanned every component every 20 ms tick on a tree with no CS1 scripts | `UITree_HasCS1Scripts` short-circuits it | [task_cs1_run.c](src/game/task_cs1_run.c) |
+| `runtime_hooks` inlined in every node (~11 KB per component) | lazily side-allocated; `UITree_Hooks` / `UITree_HooksMut` accessors | [uitree.h](src/ui/uitree.h) |
 
 ---
 

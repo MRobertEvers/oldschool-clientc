@@ -5264,10 +5264,11 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.widget_set_int.component_id);
         if( node )
         {
+            int32_t const drag_idx =
+                rs_cs2_find_node(host, request->u.widget_set_int.component_id);
             node->draggable = 1;
-            node->drag_active = 1;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.widget_set_int.component_id));
+            UITree_SetComponentDragActive(tree, drag_idx, 1);
+            UITree_MarkNodeDirty(tree, drag_idx);
         }
         return CS2VM_EXECNO_OK;
 

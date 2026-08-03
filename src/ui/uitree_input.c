@@ -721,7 +721,7 @@ UITree_InputUpdate(
                 (uint32_t)state->drag_source_idx < tree->component_count )
             {
                 struct UITreeComponent* src = &tree->components[state->drag_source_idx];
-                src->drag_active = 0;
+                UITree_SetComponentDragActive(tree, state->drag_source_idx, 0);
                 src->drag_visual_trans = -1;
             }
             /* Cancel deferred click. */
@@ -800,7 +800,7 @@ UITree_InputDragTick(
         if( state->drag_duration > threshold && dist > zone )
         {
             state->drag_active = 1;
-            src->drag_active = 1;
+            UITree_SetComponentDragActive(tree, state->drag_source_idx, 1);
             src->drag_visual_trans = (src->drag_behavior == 1) ? -1 : 128;
             changed = 1;
         }

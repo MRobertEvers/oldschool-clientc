@@ -121,6 +121,7 @@ Gate: **PASS** on p95.
 | `LayoutResolve` early-out when nothing layout-affecting changed | **7.24 ms** | keep |
 | per-record dat2 config loaders → `Dat2GroupCache` | **7.31 ms** | keep (logic p95 4.96 → 0.30 ms) |
 | incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip | **6.30 ms** | keep |
+| emit drag pass only when something is being dragged | **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
 
 Absolute p95 across rows is only comparable within a row's own session: the
 machine drifts warmer over a run of measurements, and `render` (untouched, and
@@ -131,11 +132,11 @@ session, or read the flamegraph, before believing a delta.
 
 ### Final state (all three scenarios, one session)
 
-| scenario | frame p95 | eff fps | layout p95 | emit p95 | render p95 |
-|----------|----------:|--------:|-----------:|---------:|-----------:|
-| idle | 6.26 ms | 87.0 | 0.001 ms | 0.201 ms | 3.18 ms |
-| ui | 6.25 ms | 86.8 | 0.001 ms | 0.192 ms | 3.17 ms |
-| world | 6.96 ms | 85.1 | 0.001 ms | 0.287 ms | 3.59 ms |
+| scenario | frame p95 | eff fps | layout p95 | emit p95 |
+|----------|----------:|--------:|-----------:|---------:|
+| idle | 5.67 ms | 93.5 | 0.001 ms | 0.075 ms |
+| ui | 5.71 ms | 93.3 | 0.001 ms | 0.076 ms |
+| world | 6.21 ms | 89.5 | 0.001 ms | 0.086 ms |
 
 `over_20ms` is 12 frames in every scenario, all of them the world-load/login
 frame (`max` ≈ 4.6 s); steady-state frames never approach the budget.
@@ -151,6 +152,7 @@ main-thread leaf shares:
 | `layout_compute_node` + `layout_parent_box` + `UITree_LayoutResolve` | 7.8% | 1.8% |
 | `UITree_ChildMountType` | 6.0% | gone |
 | `task_cs1_component_has_scripts` | 3.9% | gone |
+| `emit_walk_node` | 3.4% | gone |
 
 What is left on top is the rasterizer (~35% across
 `draw_texture_scanline*`/`raster_gouraud*`/`ToriDraw2D_BlendArgbPixel`/
@@ -165,15 +167,44 @@ Two traps this session, both worth remembering:
   were re-walked thousands of times (2.8% of samples, all cache misses into
   1.7 KB structs). Memoizing so each parent link is followed once removed it.
 
+## The four DFS walks
+
+There are five instrumented node visits over three traversal implementations,
+and they are **not** interchangeable — the prune rules differ on purpose:
+
+| walk | visits/frame (rev230) | when | hide rule |
+|------|----------------------:|------|-----------|
+| emit, draw pass | 2478 | when `need_redraw` | prunes hidden subtrees **unless** the node is the hovered one (same-frame reveal) |
+| emit, drag pass | 0 (was 3033) | only with a drag active | same |
+| hit (`UITree_HitTestInteractive`) | 618 | every non-minimenu frame, twice on a click | any `behavior.hide` prunes |
+| hover (`UITree_FindHoveredComponentIdForRegion`) | 95 | every non-minimenu frame | prunes only hidden RS_LAYER/SIDEBAR, so hidden widgets are still discovered and can drive emit's reveal in the same frame |
+| drop (`UITree_FindDropTarget`) | ~0 | only during an active drag | any `behavior.hide` prunes |
+
+The drag pass was the big one and it is now gated on `UITree_HasActiveDrag`. It
+existed only to redraw deferred (picked-up) drag subtrees on top of everything
+else, so on an ordinary frame every node it reached took the descend-only branch
+and emitted nothing — and it visited *more* nodes than the draw pass, because
+descend-only bypasses the collapsed-layer prune.
+
+**Folding hit into hover is not worth doing.** Together they are 713 visits a
+frame inside an `interact` stage that measures ~20 µs p95 (0.3% of the frame),
+neither appears in the profile, and their hide rules are deliberately opposite:
+hover has to see hidden widgets that hit must not. Merging them buys nothing
+measurable and puts the same-frame reveal path at risk.
+
 ## Not done / next candidates (ranked by counter evidence)
 
-1. Fold the four DFS walks (emit×2 + hit + hover) — `uitree_walk_emit` 2475/frame
-   and `uitree_walk_emit_drag` 3033/frame still dominate UITree, and
-   `emit_walk_node` is 3.4% of samples.
-2. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
+1. `cs2vm2_thread_init` is **4.8% of samples** — the largest non-rasterizer leaf
+   left. `cs2_vm_acquire` is 10/frame with `cs2_vm_pool_miss` at 2 for a whole
+   900-frame run, so the pool is working and the cost is the per-acquire reset of
+   the VM thread state itself, not allocation. Look at what `thread_init` actually
+   has to clear versus what the previous script left behind.
+2. `painter_paint_bucket` 5.9%, plus `SDL_FillRect4` 3.3% and `_platform_memset`
+   2.5% (framebuffer clears) — the 2D/present path, not the model rasterizer.
+3. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
    `cache_model_hit` 27.8/frame vs `cache_model_miss` 2.4/frame, so the win here
-   is in `RenderModel2SortFaces` (4.2%), not in decode.
-3. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
+   is in `RenderModel2SortFaces` (5.2%), not in decode.
+4. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
    appeared in the profile under any scenario.
 
 ## Correctness
@@ -201,6 +232,11 @@ Two traps this session, both worth remembering:
 - `cs1_script_nodes` gates the per-tick CS1 whole-tree scan. It is maintained in
   `UITree_SetBehavior` and slot reclaim, which are the only two places a tree
   node's `behavior.scripts_count` changes; `test-cs1` covers the non-zero path.
+- `drag_active_nodes` gates the emit drag pass. Write `drag_active` through
+  `UITree_SetComponentDragActive` — the drag start, the drag-end UP, the CS2
+  `DRAGPICKUP` op and slot reclaim all do. A missed writer would skip the pass
+  and freeze a picked-up widget at its stale visual; `test-uitree`'s composite
+  drag and emit-golden cases both exercise the pass actually running.
 
 ## Verification close-out (2026-08-03)
 
@@ -218,7 +254,7 @@ Two traps this session, both worth remembering:
 
 | check | result |
 |-------|--------|
-| idle / ui / world harness p95 &lt; 20 ms | PASS at 6.26 / 6.25 / 6.96 ms (`tools/perf/results/92f3c14c-*.csv`) |
+| idle / ui / world harness p95 &lt; 20 ms | PASS at 5.67 / 5.71 / 6.21 ms (`tools/perf/results/61548478-*.csv`) |
 | incremental layout vs forced full resolve, 900 frames × 3 scenarios | 0 box mismatches |
 | `mock230_pack --check-only` | **0 errors**, 15 warnings |
 | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-chat-widgets`, `test-minimap` | green |

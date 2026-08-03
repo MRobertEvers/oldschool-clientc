@@ -2205,6 +2205,13 @@ UITree_EmitWalk(
      * an earlier one — an open dropdown over a label — drew under its text. */
     emit_walk_pass(
         tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
-    emit_walk_pass(
-        tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+    /* The second pass has nothing to draw unless a drag is running: every node it
+     * reaches takes the descend-only branch. It was the single largest traversal
+     * in the client (more visits than the draw pass, since descend-only bypasses
+     * the collapsed-layer prune) and on an ordinary frame all of it was waste. */
+    if( UITree_HasActiveDrag(tree) )
+    {
+        emit_walk_pass(
+            tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+    }
 }

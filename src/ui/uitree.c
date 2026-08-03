@@ -692,6 +692,8 @@ uitree_reclaim_subtree(
 
     if( c->behavior.scripts_count > 0 )
         uitree_cs1_script_nodes_drop(tree);
+    /* A CC_DELETEALL can reclaim the node a drag is still running on. */
+    UITree_SetComponentDragActive(tree, idx, 0);
     uitree_component_free_owned(c);
     memset(c, 0, sizeof(*c));
     c->parent = -1;
@@ -2853,6 +2855,29 @@ UITree_InterfaceParentIsMountedGroup(
             return 1;
     }
     return 0;
+}
+
+void
+UITree_SetComponentDragActive(
+    struct UITree* tree,
+    int32_t idx,
+    int active)
+{
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+
+    struct UITreeComponent* com = &tree->components[idx];
+    uint8_t const want = active ? 1 : 0;
+    if( com->drag_active == want )
+        return;
+    com->drag_active = want;
+    if( want )
+    {
+        tree->drag_active_nodes++;
+        return;
+    }
+    assert(tree->drag_active_nodes > 0);
+    tree->drag_active_nodes--;
 }
 
 int

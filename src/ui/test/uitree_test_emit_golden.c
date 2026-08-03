@@ -154,7 +154,7 @@ build_reference_tree(struct UITree* tree, struct UITreeHost* host)
     drag.u.rs_graphic.scene_id = 6;
     int32_t di = UITree_Push(tree, root, &drag);
     tree->components[di].draggable = 1;
-    tree->components[di].drag_active = 1;
+    UITree_SetComponentDragActive(tree, di, 1);
     tree->components[di].drag_visual_x = 320;
     tree->components[di].drag_visual_y = 180;
     tree->components[di].drag_visual_trans = 128;
