@@ -103,6 +103,23 @@ struct ToriRS_FeatureTable
      * steps", which is the only sane rule once the box is 21x21.
      */
     int nearest_ranks_by_rect_distance;
+
+    /* --- model lighting -------------------------------------------------- */
+
+    /**
+     * 0 = Client-TS: NPC body lighting ignores NpcType ambient/contrast
+     * (opcodes 100/101) and always uses the actor profile alone. 1 = xrsps:
+     * ambient += npctype.ambient, contrast += npctype.contrast (decoder already
+     * pre-scales contrast by 5).
+     */
+    int npc_light_uses_type_ambient_contrast;
+    /**
+     * Extra ambient applied when lighting a player chathead. 0 = Client-TS
+     * (head models are left unlit). 128 = xrsps PlayerChatheadFactory
+     * (`light(..., 64 + 64, 850, ...)` — the profile ambient is 64, so this
+     * field is the *extra* ambient passed as the LightModelActor offset).
+     */
+    int player_head_light_ambient;
 };
 
 /* Era getters (static singletons, like the rev tables). */

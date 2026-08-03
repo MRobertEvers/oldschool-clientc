@@ -25,6 +25,10 @@ struct UITreeSceneBridge
     struct HMap* obj_icon_map;
     /** (obj_id, count) → scene_id for the white-outlined "Use"-selected variant */
     struct HMap* obj_icon_outline_map;
+    /** (obj_id, count) → scene_id for the plain (no baked shadow) variant —
+     * reference outlineRgb == -1; used when a component applies runtime
+     * cc_setoutline / cc_setgraphicshadow on top of a SETOBJECT icon. */
+    struct HMap* obj_icon_plain_map;
 
     /**
      * Client-hardcoded sprites (compass, hitmarks, cross, scrollbar arrows, …)
@@ -53,6 +57,12 @@ struct UITreeSceneBridge
 
     /** Texture ids whose load already failed; never re-requested. */
     unsigned char texture_failed[2048];
+
+    /** Effective lighting behaviour after era + `[render:light]` merge.
+     *  Copied from App at init so the bridge can light NPC/player heads
+     *  without an App* in hand. */
+    int npc_light_uses_type_ambient_contrast;
+    int player_head_light_ambient;
 };
 
 /* Reserved scene model id for the composited player avatar (out of cache range). */
@@ -258,6 +268,19 @@ UITreeSceneBridge_EnsureObjIcon(
  */
 int
 UITreeSceneBridge_EnsureObjIconSelected(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count);
+
+/**
+ * Rasterize the plain (no baked drop-shadow) variant of an obj icon (reference
+ * ObjType.getSprite with outlineRgb = -1). Used when the component's
+ * cc_setoutline / cc_setgraphicshadow will apply the post-process at draw time
+ * — stacking that pass on a SHADOW-baked icon doubles the shadow. Returns
+ * scene sprite id or -1.
+ */
+int
+UITreeSceneBridge_EnsureObjIconPlain(
     struct UITreeSceneBridge* bridge,
     int obj_id,
     int count);

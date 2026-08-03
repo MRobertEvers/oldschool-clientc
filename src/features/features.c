@@ -22,6 +22,8 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .npc_approach_uses_size = 0,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
+    .npc_light_uses_type_ambient_contrast = 0,
+    .player_head_light_ambient = 0,
 };
 
 /*
@@ -45,6 +47,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .npc_approach_uses_size = 1,
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
+    .npc_light_uses_type_ambient_contrast = 0,
+    .player_head_light_ambient = 0,
 };
 
 /*
@@ -65,6 +69,10 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .npc_approach_uses_size = 1,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 1,
+    /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
+     * light with ambient 128 (= profile 64 + this field). */
+    .npc_light_uses_type_ambient_contrast = 1,
+    .player_head_light_ambient = 128,
 };
 
 struct ToriRS_FeatureTable const*

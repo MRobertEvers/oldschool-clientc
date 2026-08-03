@@ -230,7 +230,7 @@ defaultlight_build(struct WorldBuilder* builder)
                         .kind = TORIDRAWMK_MODEL,
                         .u.model.model = dm,
                     };
-                    ToriDraw_LightModelDefault(
+                    ToriDraw_LightModelScene(
                         hnd, map_element->light_attenuation, map_element->light_ambient);
                     ToriDraw_ModelFreeNormals(dm);
                 }
@@ -424,50 +424,49 @@ apply_and_free_column(
                     !scene_element->model.u.model.model )
                     continue;
 
-                int light_ambient = 64;
-                int light_attenuation = 768;
-                int lightsrc_x = -50;
-                int lightsrc_y = -10;
-                int lightsrc_z = -50;
+                /* Scene regime base + per-loc offsets. Contrast arrives
+                 * pre-scaled from the loc decoder — see LightModelScene. */
+                {
+                    struct ToriDraw_LightProfile const* p = ToriDraw_LightSceneProfile();
+                    int light_ambient = p->ambient + map_element->light_ambient;
+                    int light_attenuation = p->attenuation + map_element->light_attenuation;
+                    int lightsrc_x = p->src_x;
+                    int lightsrc_y = p->src_y;
+                    int lightsrc_z = p->src_z;
 
-                /* Signed, and the contrast arrives pre-scaled from the loc
-                 * decoder — see ToriDraw_LightModelDefault, which this inlines
-                 * because the shared pass feeds merged normals. */
-                light_ambient += map_element->light_ambient;
-                light_attenuation += map_element->light_attenuation;
+                    int light_magnitude =
+                        (int)sqrt((double)(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
+                                           lightsrc_z * lightsrc_z));
+                    int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-                int light_magnitude =
-                    (int)sqrt((double)(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
-                                       lightsrc_z * lightsrc_z));
-                int attenuation = (light_attenuation * light_magnitude) >> 8;
+                    struct ToriDraw_Model* dm = scene_element->model.u.model.model;
+                    if( !ToriDraw_ModelIsLightable(dm) )
+                        continue;
+                    ToriDraw_ApplyLighting(
+                        dm->face_colors_a,
+                        dm->face_colors_b,
+                        dm->face_colors_c,
+                        dm->merged_normals->vertex_normals,
+                        dm->normals->face_normals,
+                        dm->face_indices_a,
+                        dm->face_indices_b,
+                        dm->face_indices_c,
+                        dm->face_count,
+                        dm->face_colors,
+                        dm->face_alphas,
+                        dm->face_textures,
+                        dm->face_infos,
+                        light_ambient,
+                        attenuation,
+                        lightsrc_x,
+                        lightsrc_y,
+                        lightsrc_z,
+                        dm->vertices_x,
+                        dm->vertices_y,
+                        dm->vertices_z);
 
-                struct ToriDraw_Model* dm = scene_element->model.u.model.model;
-                if( !ToriDraw_ModelIsLightable(dm) )
-                    continue;
-                ToriDraw_ApplyLighting(
-                    dm->face_colors_a,
-                    dm->face_colors_b,
-                    dm->face_colors_c,
-                    dm->merged_normals->vertex_normals,
-                    dm->normals->face_normals,
-                    dm->face_indices_a,
-                    dm->face_indices_b,
-                    dm->face_indices_c,
-                    dm->face_count,
-                    dm->face_colors,
-                    dm->face_alphas,
-                    dm->face_textures,
-                    dm->face_infos,
-                    light_ambient,
-                    attenuation,
-                    lightsrc_x,
-                    lightsrc_y,
-                    lightsrc_z,
-                    dm->vertices_x,
-                    dm->vertices_y,
-                    dm->vertices_z);
-
-                ToriDraw_ModelFreeNormals(dm);
+                    ToriDraw_ModelFreeNormals(dm);
+                }
             }
         }
     }

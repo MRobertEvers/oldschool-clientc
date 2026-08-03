@@ -681,6 +681,53 @@ app_worldmap_build_tiles(
     if( !area )
         return 0;
 
+    /* TORIRS_WORLDMAP_FORCE_MAP=<id>: one-shot area switch for measuring why
+     * non-Gielinor surfaces go black. Logs display vs region bounds and leaves
+     * the forced area selected for the rest of the run. */
+    {
+        static int force_done;
+        char const* force = getenv("TORIRS_WORLDMAP_FORCE_MAP");
+        if( force && !force_done )
+        {
+            int map_id = (int)strtol(force, NULL, 0);
+            force_done = 1;
+            RS_WorldMap_SetCurrentMapId(map, map_id);
+            area = RS_WorldMap_CurrentArea(map);
+            if( area )
+            {
+                int dx, dy;
+                RS_WorldMap_DisplayPosition(map, &dx, &dy);
+                fprintf(
+                    stderr,
+                    "worldmap FORCE_MAP id=%d name=%s display=%d,%d "
+                    "regions x=%d..%d y=%d..%d sources=%d sections=%d zoom=%d\n",
+                    area->id,
+                    area->internal_name ? area->internal_name : "?",
+                    dx,
+                    dy,
+                    area->region_low_x,
+                    area->region_high_x,
+                    area->region_low_y,
+                    area->region_high_y,
+                    area->region_source_count,
+                    area->section_count,
+                    RS_WorldMap_Zoom(map));
+            }
+            else
+                fprintf(stderr, "worldmap FORCE_MAP id=%d: Area() returned NULL\n", map_id);
+        }
+    }
+
+    /* Drop resident Gielinor (or previous-area) bakes on area change so the new
+     * area does not churn the LRU on its first frames. */
+    {
+        static int last_area_id = -1;
+        int area_id = area->id;
+        if( last_area_id >= 0 && last_area_id != area_id )
+            RS_WorldMapRender_Clear(app->worldmap_render, app->scene);
+        last_area_id = area_id;
+    }
+
     if( req->u.get_worldmap_tiles.out_background_rgb )
         *req->u.get_worldmap_tiles.out_background_rgb = area->background_colour & 0xFFFFFF;
 
@@ -1709,6 +1756,11 @@ app_build_entity_overlays(
     return app->entity_overlay_count;
 }
 
+/* Forward decls: UITREE_HOST_GET_INV_DRAG asks whether the armed press is
+ * ghosting; the definitions live beside app_inv_drag_tick. */
+static int app_inv_drag_promoted(struct App const* app);
+static int app_inv_drag_ghosting(struct App const* app);
+
 static int
 app_host_request(
     void* user,
@@ -1867,11 +1919,11 @@ app_host_request(
         return 1;
     }
     case UITREE_HOST_GET_INV_DRAG:
-        /* Reports the armed slot even on a non-draggable grid: the pressed item
-         * still fades to trans 128 while held (dx/dy stay 0 there, so it never
-         * moves — the held tick bails before computing an offset), only the
-         * drag/swap is suppressed. */
-        if( app->inv_drag_com_id < 0 )
+        /* Reports the slot only while it should ghost (trans 128). IF1/CS1
+         * ghosts from arm time (reference Client.ts:9706); IF3 ghosts only
+         * once the press promotes past the deadzone + dead time — a plain
+         * click must not flicker. */
+        if( !app_inv_drag_ghosting(app) )
             return 0;
         if( req->u.get_inv_drag.out_source_id )
             *req->u.get_inv_drag.out_source_id = app->inv_drag_source_id;
@@ -1915,6 +1967,11 @@ app_host_request(
             &app->bridge,
             req->u.get_inv_select_icon.obj_id,
             req->u.get_inv_select_icon.count > 0 ? req->u.get_inv_select_icon.count : 1);
+    case UITREE_HOST_GET_OBJ_ICON_PLAIN:
+        return UITreeSceneBridge_EnsureObjIconPlain(
+            &app->bridge,
+            req->u.get_obj_icon_plain.obj_id,
+            req->u.get_obj_icon_plain.count > 0 ? req->u.get_obj_icon_plain.count : 1);
     default:
         return 0;
     }
@@ -2541,6 +2598,65 @@ App_Init(
         assert(app->features);
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr, "app: features era=%s\n", app->features->name);
+
+        /* Model lighting: era defaults for the two xrsps-vs-Client-TS
+         * divergences, then [render:light] overrides, then push the regimes
+         * into toridraw (compiled-in actor/scene profiles unless overridden). */
+        app->npc_light_uses_type_ambient_contrast =
+            app->features->npc_light_uses_type_ambient_contrast;
+        app->player_head_light_ambient = app->features->player_head_light_ambient;
+        if( cfg->light_npc_type_ambient_contrast_set )
+            app->npc_light_uses_type_ambient_contrast = cfg->light_npc_type_ambient_contrast;
+        if( cfg->light_player_head_ambient_set )
+            app->player_head_light_ambient = cfg->light_player_head_ambient;
+
+        {
+            struct ToriDraw_LightProfile actor = *ToriDraw_LightActorProfile();
+            struct ToriDraw_LightProfile scene = *ToriDraw_LightSceneProfile();
+            int actor_override = 0;
+            int scene_override = 0;
+
+            if( cfg->light_actor_ambient_set )
+            {
+                actor.ambient = cfg->light_actor_ambient;
+                actor_override = 1;
+            }
+            if( cfg->light_actor_attenuation_set )
+            {
+                actor.attenuation = cfg->light_actor_attenuation;
+                actor_override = 1;
+            }
+            if( cfg->light_actor_set )
+            {
+                actor.src_x = cfg->light_actor_x;
+                actor.src_y = cfg->light_actor_y;
+                actor.src_z = cfg->light_actor_z;
+                actor_override = 1;
+            }
+            if( cfg->light_scene_ambient_set )
+            {
+                scene.ambient = cfg->light_scene_ambient;
+                scene_override = 1;
+            }
+            if( cfg->light_scene_attenuation_set )
+            {
+                scene.attenuation = cfg->light_scene_attenuation;
+                scene_override = 1;
+            }
+            if( cfg->light_scene_set )
+            {
+                scene.src_x = cfg->light_scene_x;
+                scene.src_y = cfg->light_scene_y;
+                scene.src_z = cfg->light_scene_z;
+                scene_override = 1;
+            }
+            if( actor_override || scene_override )
+                ToriDraw_LightSetProfiles(
+                    actor_override ? &actor : NULL, scene_override ? &scene : NULL);
+        }
+        app->bridge.npc_light_uses_type_ambient_contrast =
+            app->npc_light_uses_type_ambient_contrast;
+        app->bridge.player_head_light_ambient = app->player_head_light_ambient;
     }
 
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
@@ -4499,6 +4615,8 @@ app_ensure_painter_cullmap(struct App* app)
     char const* nocull;
     int vw;
     int vh;
+    int near_z;
+    int slice_n;
     struct timespec t0;
     struct timespec t1;
     uint64_t bake_ns;
@@ -4529,9 +4647,25 @@ app_ensure_painter_cullmap(struct App* app)
     vh = app->world_emit_desc.h;
     if( vw < 1 || vh < 1 )
         return;
-    if( world->cullmap && !world->cullmap->all_visible && app->painter_cullmap_bake_w == vw &&
-        app->painter_cullmap_bake_h == vh )
-        return;
+
+    /* Debounce viewport resize: ignore sub-8px jitter so a drag-resize cannot
+     * re-bake (1s+) every frame. Exact match of the last bake attempt (success
+     * or fail-safe nocull) still skips. */
+    if( app->painter_cullmap_bake_w > 0 && app->painter_cullmap_bake_h > 0 )
+    {
+        int dw = vw - app->painter_cullmap_bake_w;
+        int dh = vh - app->painter_cullmap_bake_h;
+        if( dw < 0 )
+            dw = -dw;
+        if( dh < 0 )
+            dh = -dh;
+        if( dw < 8 && dh < 8 )
+            return;
+    }
+
+    near_z = app->world_camera.near_plane_z;
+    if( near_z < 1 )
+        near_z = 50;
 
     {
         struct ToriDrawTrigTables tables = {
@@ -4543,8 +4677,9 @@ app_ensure_painter_cullmap(struct App* app)
         ToriDraw_TrigFnsFromTables(&trig, &tables);
 
         clock_gettime(CLOCK_MONOTONIC, &t0);
-        /* radius matches painter_paint_bucket; near_clip_z matches fuzz/gen tools. */
-        cm = painters_cullmap_build_toridraw(25, 512, vw, vh, &trig);
+        /* radius matches painter_paint_bucket; near_clip matches the live camera
+         * (was hardcoded 512 and culled every tile the soft3d path draws). */
+        cm = painters_cullmap_build_toridraw(25, near_z, vw, vh, &trig);
         clock_gettime(CLOCK_MONOTONIC, &t1);
     }
     if( !cm )
@@ -4552,11 +4687,43 @@ app_ensure_painter_cullmap(struct App* app)
 
     bake_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
               (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+
+    slice_n = painters_cullmap_slice_visible_count(
+        cm, app->world_camera.pitch, app->world_camera.yaw);
+    if( slice_n <= 0 )
+    {
+        fprintf(
+            stderr,
+            "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
+            "(%.2f ms) — keeping nocull\n",
+            app->world_camera.pitch,
+            app->world_camera.yaw,
+            near_z,
+            vw,
+            vh,
+            (double)bake_ns / 1.0e6);
+        painters_cullmap_free(cm);
+        if( !world->cullmap || !world->cullmap->all_visible )
+        {
+            if( world->cullmap )
+                painters_cullmap_free(world->cullmap);
+            world->cullmap = painters_cullmap_new_nocull();
+            painter_set_cullmap(world->painter, world->cullmap);
+        }
+        /* Remember the viewport so a failed bake is not retried every frame
+         * (was resetting to 0 and re-paying ~2.4 s per pitch tick). */
+        app->painter_cullmap_bake_w = vw;
+        app->painter_cullmap_bake_h = vh;
+        return;
+    }
+
     fprintf(
         stderr,
-        "painter_cullmap: baked radius=25 near=512 %dx%d in %.2f ms\n",
+        "painter_cullmap: baked radius=25 near=%d %dx%d slice_vis=%d in %.2f ms\n",
+        near_z,
         vw,
         vh,
+        slice_n,
         (double)bake_ns / 1.0e6);
 
     if( world->cullmap )
@@ -5832,7 +5999,17 @@ struct AppModelRecolorSpec
  * a scale applied after it would vanish on the first animated tick. The
  * reference re-scales the animated copy every frame instead (NpcModelLoader);
  * scaling the base is equivalent for rotation frames and off by the scale
- * factor only on a frame's translate deltas, which nothing visible exercises. */
+ * factor only on a frame's translate deltas, which nothing visible exercises.
+ *
+ * light_actor selects the actor regime (players/NPCs/spotanims/projectiles) vs
+ * the scene regime (ground objs). light_ambient/contrast are signed config
+ * offsets added onto the regime base (0,0 for Client-TS NPC bodies). */
+enum
+{
+    APP_LIGHT_SCENE = 0,
+    APP_LIGHT_ACTOR = 1,
+};
+
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
@@ -5840,7 +6017,10 @@ app_world_build_model(
     int count,
     const struct AppModelRecolorSpec* recolors,
     int scale_xz,
-    int scale_y)
+    int scale_y,
+    int light_actor,
+    int light_contrast,
+    int light_ambient)
 {
     struct ToriDraw_Model* parts[16];
     struct ToriDraw_Model* model = NULL;
@@ -5898,7 +6078,10 @@ app_world_build_model(
         memset(&hnd, 0, sizeof(hnd));
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = model;
-        ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+        if( light_actor )
+            ToriDraw_LightModelActor(hnd, light_contrast, light_ambient);
+        else
+            ToriDraw_LightModelScene(hnd, light_contrast, light_ambient);
     }
     ToriDraw_ModelSetBoundsCylinder(model);
     ToriDraw_ModelCaptureOriginalVertices(model);
@@ -5968,7 +6151,7 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
         memset(&hnd, 0, sizeof(hnd));
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = model;
-        ToriDraw_LightModelDefaultPreScaled(hnd, spot->contrast, spot->ambient);
+        ToriDraw_LightModelActor(hnd, spot->contrast, spot->ambient);
     }
     ToriDraw_ModelSetBoundsCylinder(model);
     ToriDraw_ModelCaptureOriginalVertices(model);
@@ -6099,7 +6282,10 @@ app_world_spawn_npc_now(
             npctype->models_count,
             &recolors,
             npctype->width_scale,
-            npctype->height_scale);
+            npctype->height_scale,
+            APP_LIGHT_ACTOR,
+            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
+            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
     }
     if( !model )
     {
@@ -6196,7 +6382,7 @@ app_world_spawn_projectile_now(
     int element_id;
 
     model_ids[0] = model_id;
-    model = app_world_build_model(app, model_ids, 1, NULL, 128, 128);
+    model = app_world_build_model(app, model_ids, 1, NULL, 128, 128, APP_LIGHT_ACTOR, 0, 0);
     if( !model )
     {
         fprintf(stderr, "spawn_projectile: model %d failed to load\n", model_id);
@@ -8420,19 +8606,45 @@ app_inv_drag_drop(
             app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
 }
 
+/* A press has become a real drag once it clears the deadzone and the dead
+ * time — the same test the release branch uses to choose swap over click, so
+ * the ghost and the swap can never disagree about what a gesture was. */
+static int
+app_inv_drag_promoted(struct App const* app)
+{
+    return app->inv_drag_can_drag && app->inv_drag_threshold &&
+           app->inv_drag_cycles >= 5;
+}
+
+/* Whether emit should ghost the armed slot at trans 128.
+ * IF1/CS1 keeps the reference's arm-time fade (Client.ts:9706 draws the armed
+ * slot at alpha 128 from objDragArea != 0); IF3 has no objDrag machine and
+ * ghosts only while a drag is in flight. */
+static int
+app_inv_drag_ghosting(struct App const* app)
+{
+    if( app->inv_drag_com_id < 0 )
+        return 0;
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+        return 1;
+    return app_inv_drag_promoted(app);
+}
+
 /* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
  * mouseLoop 8584 + gameLoop 2476):
  *  - left press over a FILLED slot arms; nothing fires on the down edge.
  *  - each held cycle: cycles++, >5px of travel sets the grab threshold, and
  *    the emit offset dx/dy is recomputed (+-5px deadzone, zero before 5
- *    cycles) so the armed icon follows the mouse at trans 128.
- *  - release: real drag (threshold && cycles >= 5) resolves the slot under
+ *    cycles) so a promoted drag icon follows the mouse at trans 128.
+ *  - release: real drag (app_inv_drag_promoted) resolves the slot under
  *    the mouse — same source, different slot → optimistic local swap +
  *    INV_BUTTOND(com, src, dst, 0); anything else is a SHORT CLICK and runs
  *    the default menu row (how a left click submits OPHELD*).
- * While armed the generic node drag is suppressed (tree->anti_drag; the
- * reference freezes mouseLoop/buildMinimenu during objDragArea != 0) so the
- * grid's ancestors can never pick the press up as a whole-panel drag. */
+ * Ghosting: IF1/CS1 from arm time; IF3 only once promoted (plain clicks
+ * must not flicker). While armed the generic node drag is suppressed
+ * (tree->anti_drag; the reference freezes mouseLoop/buildMinimenu during
+ * objDragArea != 0) so the grid's ancestors can never pick the press up as
+ * a whole-panel drag. */
 static void
 app_inv_drag_tick(
     struct App* app,
@@ -8459,7 +8671,10 @@ app_inv_drag_tick(
             app->inv_drag_threshold = 0;
             app->inv_drag_dx = 0;
             app->inv_drag_dy = 0;
-            app->need_redraw = 1; /* armed slot renders trans-128 now */
+            /* CS1 ghosts from arm; IF3 waits for promotion — no pixels change
+             * on a plain CS2 press, so no redraw here. */
+            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+                app->need_redraw = 1;
         }
     }
 
@@ -8477,15 +8692,17 @@ app_inv_drag_tick(
     {
         int dx = mx - app->inv_drag_grab_x;
         int dy = my - app->inv_drag_grab_y;
+        int was_promoted;
 
         /* Non-draggable grid (equipment/worn: objSwap && objReplace both
-         * false): the held item still fades to trans 128 in place (dx/dy stay
-         * 0, so it never moves — GET_INV_DRAG still reports the slot), the
-         * press still counts as a click on release, but it never promotes to a
-         * drag — no threshold, no offset, no swap. */
+         * false): the press still counts as a click on release, but it never
+         * promotes to a drag — no threshold, no offset, no swap. IF1/CS1 still
+         * fades in place from arm (GET_INV_DRAG reports while ghosting); IF3
+         * does not ghost a non-promoted press. */
         if( !app->inv_drag_can_drag )
             return;
 
+        was_promoted = app_inv_drag_promoted(app);
         app->inv_drag_cycles++;
         if( dx > 5 || dx < -5 || dy > 5 || dy < -5 )
             app->inv_drag_threshold = 1;
@@ -8501,7 +8718,8 @@ app_inv_drag_tick(
             dx = 0;
             dy = 0;
         }
-        if( dx != app->inv_drag_dx || dy != app->inv_drag_dy )
+        if( dx != app->inv_drag_dx || dy != app->inv_drag_dy ||
+            ( !was_promoted && app_inv_drag_promoted(app) ) )
         {
             app->inv_drag_dx = dx;
             app->inv_drag_dy = dy;
@@ -8511,7 +8729,7 @@ app_inv_drag_tick(
     }
 
     /* Released. */
-    if( app->inv_drag_threshold && app->inv_drag_cycles >= 5 )
+    if( app_inv_drag_promoted(app) )
         app_inv_drag_drop(app, mx, my);
     else
     {
@@ -10517,7 +10735,8 @@ App_WorldObjStackAdd(
             .recolors_to = obj->recolors_to,
             .recolor_count = obj->recolor_count,
         };
-        model = app_world_build_model(app, model_ids, 1, &recolors, 128, 128);
+        model = app_world_build_model(
+            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
     }
     if( !model )
         return -1;
@@ -10698,7 +10917,10 @@ App_WorldApplyNpcType(
             npctype->models_count,
             &recolors,
             npctype->width_scale,
-            npctype->height_scale);
+            npctype->height_scale,
+            APP_LIGHT_ACTOR,
+            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
+            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
     }
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {

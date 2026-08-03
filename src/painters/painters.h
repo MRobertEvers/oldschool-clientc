@@ -372,12 +372,16 @@ typedef void (*PaintersProjectFn)(
 /** Angle in units of (2π/2048); returns fixed-point sin (typically Q16). */
 typedef int (*PaintersSinFn)(int angle_r2pi2048, void* user);
 
-/* Bake grid parameters (must match between bake tool and runtime). */
+/* Bake grid parameters (must match between bake tool and runtime).
+ * Pitch covers the orbit / free-cam range the app actually produces (scene-reset
+ * uses 450; shake clamps 128..383; orbit can go higher). Y sweep and the pitch-
+ * height offset must reach typical orbit eye heights (~1600), not the old 600
+ * stub that left every sample behind the near plane. */
 #ifndef PCULL_PITCH_MIN
 #define PCULL_PITCH_MIN 128
 #endif
 #ifndef PCULL_PITCH_MAX
-#define PCULL_PITCH_MAX 384
+#define PCULL_PITCH_MAX 512
 #endif
 #ifndef PCULL_PITCH_STEP
 #define PCULL_PITCH_STEP 32
@@ -396,6 +400,10 @@ typedef int (*PaintersSinFn)(int angle_r2pi2048, void* user);
 #endif
 #ifndef PCULL_Y_GRANULARITY
 #define PCULL_Y_GRANULARITY 1
+#endif
+/** Camera-height term in pcull_pitch_height (scene units). */
+#ifndef PCULL_PITCH_HEIGHT_OFFSET
+#define PCULL_PITCH_HEIGHT_OFFSET 1600
 #endif
 
 struct PaintersCullMap
@@ -433,6 +441,13 @@ painters_cullmap_from_blob(
 
 void
 painters_cullmap_free(struct PaintersCullMap* cm);
+
+/** Visible-bit count in the (pitch, yaw) slice (0 when empty / nocull-null). */
+int
+painters_cullmap_slice_visible_count(
+    const struct PaintersCullMap* cm,
+    int pitch,
+    int yaw);
 
 void
 painter_set_cullmap(

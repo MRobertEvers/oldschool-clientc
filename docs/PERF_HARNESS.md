@@ -235,6 +235,18 @@ An earlier note bundled `painter_paint_bucket` 5.9% with `SDL_FillRect4` 3.3% an
   bucket/world3d **0.755**, **0/500** seeds slower. Re-profile before ranking it
   again.
 
+**Round-3 cullmap follow-up:** the first production bake blanked the world
+(`painter_*` counters all 0 at `1fcf825c`). Root cause was
+`painters_cullmap_build_toridraw` feeding `TrigFns*` to a sin callback that
+expects the raw tables, plus near-clip / pitch-domain mismatches. Fixed; fail-
+safe keeps nocull if a slice is empty. Re-measured idle (`518c0c3a`, 900 frames):
+one bake (`near=50`, `slice_vis=1226`), `painter_commands` ≈3739/frame (non-zero),
+paint p50 **257 µs** / render p50 **2509 µs** (broken was paint 63 / render 742
+with empty world; nocull baseline paint 745 / render 2716). Paint `max` still
+includes the one-shot ~2 s bake. Obj-icon double-shadow from stacking runtime
+`graphic_shadow` on a SHADOW-baked `item_scene_id` is fixed by flavour-select
+emit (see [skill_guide.md](skill_guide.md) §9).
+
 ## Correctness
 
 - Spotanim instance cache returns `ToriDraw_ModelCopy` of the cached base —

@@ -95,6 +95,52 @@ bm_parse_padded_int(char const* key, char const* value, int* out)
     return 1;
 }
 
+/* Signed int — light components and ambient/attenuation offsets may be negative. */
+static int
+bm_parse_int(char const* key, char const* value, int* out)
+{
+    char* end = NULL;
+    long v;
+
+    assert(key && value && out);
+    v = strtol(value, &end, 10);
+    if( end == value || *end != '\0' )
+    {
+        fprintf(stderr, "bootmanifest: '%s' must be an int, got '%s'\n", key, value);
+        return 0;
+    }
+    *out = (int)v;
+    return 1;
+}
+
+/* "x,y,z" signed triple for actor_light / scene_light. */
+static int
+bm_parse_xyz(char const* key, char const* value, int* x, int* y, int* z)
+{
+    char* end = NULL;
+    long vx, vy, vz;
+
+    assert(key && value && x && y && z);
+    vx = strtol(value, &end, 10);
+    if( end == value || *end != ',' )
+        goto bad;
+    value = end + 1;
+    vy = strtol(value, &end, 10);
+    if( end == value || *end != ',' )
+        goto bad;
+    value = end + 1;
+    vz = strtol(value, &end, 10);
+    if( end == value || *end != '\0' )
+        goto bad;
+    *x = (int)vx;
+    *y = (int)vy;
+    *z = (int)vz;
+    return 1;
+bad:
+    fprintf(stderr, "bootmanifest: '%s' must be x,y,z ints, got '%s'\n", key, value);
+    return 0;
+}
+
 enum bm_section
 {
     BM_SECTION_NONE = 0,
@@ -105,6 +151,7 @@ enum bm_section
     BM_SECTION_UI_VARC,
     BM_SECTION_SPAWN,
     BM_SECTION_FEATURES,
+    BM_SECTION_RENDER,
 };
 
 static enum bm_section
@@ -125,6 +172,8 @@ bm_section_of(char const* header)
         return BM_SECTION_SPAWN;
     if( strncmp(header, "features:", 9) == 0 )
         return BM_SECTION_FEATURES;
+    if( strncmp(header, "render:", 7) == 0 )
+        return BM_SECTION_RENDER;
     return BM_SECTION_NONE;
 }
 
@@ -515,6 +564,71 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_RENDER:
+        if( strcmp(key, "actor_ambient") == 0 )
+        {
+            if( bm_parse_int(key, value, &bm->actor_ambient) )
+                bm->actor_ambient_set = 1;
+            return;
+        }
+        if( strcmp(key, "actor_attenuation") == 0 )
+        {
+            if( bm_parse_int(key, value, &bm->actor_attenuation) )
+                bm->actor_attenuation_set = 1;
+            return;
+        }
+        if( strcmp(key, "actor_light") == 0 )
+        {
+            if( bm_parse_xyz(
+                    key, value, &bm->actor_light_x, &bm->actor_light_y, &bm->actor_light_z) )
+                bm->actor_light_set = 1;
+            return;
+        }
+        if( strcmp(key, "scene_ambient") == 0 )
+        {
+            if( bm_parse_int(key, value, &bm->scene_ambient) )
+                bm->scene_ambient_set = 1;
+            return;
+        }
+        if( strcmp(key, "scene_attenuation") == 0 )
+        {
+            if( bm_parse_int(key, value, &bm->scene_attenuation) )
+                bm->scene_attenuation_set = 1;
+            return;
+        }
+        if( strcmp(key, "scene_light") == 0 )
+        {
+            if( bm_parse_xyz(
+                    key, value, &bm->scene_light_x, &bm->scene_light_y, &bm->scene_light_z) )
+                bm->scene_light_set = 1;
+            return;
+        }
+        if( strcmp(key, "npc_type_ambient_contrast") == 0 )
+        {
+            int v;
+            if( bm_parse_int(key, value, &v) )
+            {
+                if( v != 0 && v != 1 )
+                {
+                    fprintf(
+                        stderr,
+                        "bootmanifest: npc_type_ambient_contrast must be 0|1, got '%s'\n",
+                        value);
+                    return;
+                }
+                bm->npc_type_ambient_contrast = v;
+                bm->npc_type_ambient_contrast_set = 1;
+            }
+            return;
+        }
+        if( strcmp(key, "player_head_ambient") == 0 )
+        {
+            if( bm_parse_int(key, value, &bm->player_head_ambient) )
+                bm->player_head_ambient_set = 1;
+            return;
+        }
+        break;
+
     case BM_SECTION_NONE:
         return;
     }
@@ -705,6 +819,51 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
 
     if( bm->features_era[0] )
         cfg->features_era = bm->features_era;
+
+    if( bm->actor_ambient_set )
+    {
+        cfg->light_actor_ambient = bm->actor_ambient;
+        cfg->light_actor_ambient_set = 1;
+    }
+    if( bm->actor_attenuation_set )
+    {
+        cfg->light_actor_attenuation = bm->actor_attenuation;
+        cfg->light_actor_attenuation_set = 1;
+    }
+    if( bm->actor_light_set )
+    {
+        cfg->light_actor_x = bm->actor_light_x;
+        cfg->light_actor_y = bm->actor_light_y;
+        cfg->light_actor_z = bm->actor_light_z;
+        cfg->light_actor_set = 1;
+    }
+    if( bm->scene_ambient_set )
+    {
+        cfg->light_scene_ambient = bm->scene_ambient;
+        cfg->light_scene_ambient_set = 1;
+    }
+    if( bm->scene_attenuation_set )
+    {
+        cfg->light_scene_attenuation = bm->scene_attenuation;
+        cfg->light_scene_attenuation_set = 1;
+    }
+    if( bm->scene_light_set )
+    {
+        cfg->light_scene_x = bm->scene_light_x;
+        cfg->light_scene_y = bm->scene_light_y;
+        cfg->light_scene_z = bm->scene_light_z;
+        cfg->light_scene_set = 1;
+    }
+    if( bm->npc_type_ambient_contrast_set )
+    {
+        cfg->light_npc_type_ambient_contrast = bm->npc_type_ambient_contrast;
+        cfg->light_npc_type_ambient_contrast_set = 1;
+    }
+    if( bm->player_head_ambient_set )
+    {
+        cfg->light_player_head_ambient = bm->player_head_ambient;
+        cfg->light_player_head_ambient_set = 1;
+    }
 
     if( bm->ui_logic )
         cfg->ui_logic = bm->ui_logic;

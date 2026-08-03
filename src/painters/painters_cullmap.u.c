@@ -19,7 +19,7 @@ pcull_pitch_height(
         angle -= 2048;
     if( angle < 0 )
         angle += 2048;
-    int offset = 600;
+    int offset = PCULL_PITCH_HEIGHT_OFFSET;
     int sin = sin_fn(angle, user);
     return (int64_t)offset * (int64_t)sin >> 16;
 }
@@ -133,7 +133,9 @@ painters_cullmap_build(
     if( yaw_levels < 1 )
         yaw_levels = 1;
 
-    int grid_side = radius * 2;
+    /* Inclusive dx/dz in [-radius, +radius] so the paint box edge at ±radius is
+     * representable (was radius*2 → half-open [-radius, radius)). */
+    int grid_side = radius * 2 + 1;
     int padded_side = 2 * radius + 3;
 
     size_t raw_count =
@@ -359,7 +361,7 @@ pcull_dims_and_nbytes_for_radius(
     int yl = 2048 / PCULL_YAW_STEP;
     if( yl < 1 )
         yl = 1;
-    int gs = radius * 2;
+    int gs = radius * 2 + 1;
     size_t nbits = (size_t)pol * (size_t)yl * (size_t)gs * (size_t)gs;
     size_t nbytes = (nbits + 7u) / 8u;
     *pitch_out_levels = pol;
@@ -451,7 +453,7 @@ painters_cullmap_visible_keyed(
     if( !cm || cm->all_visible )
         return 1;
 
-    if( dx < -cm->radius || dx >= cm->radius || dz < -cm->radius || dz >= cm->radius )
+    if( dx < -cm->radius || dx > cm->radius || dz < -cm->radius || dz > cm->radius )
         return 0;
 
     int ix = dx + cm->radius;
@@ -459,4 +461,36 @@ painters_cullmap_visible_keyed(
     int gs = cm->grid_side;
     size_t bidx = camera_key + (size_t)ix * (size_t)gs + (size_t)iz;
     return pcull_bit_get(cm->visibility, bidx);
+}
+
+/** Count set bits in the (pitch, yaw) slice. Used by the client fail-safe so an
+ * empty bake never blanks the world. */
+int
+painters_cullmap_slice_visible_count(
+    const struct PaintersCullMap* cm,
+    int pitch,
+    int yaw)
+{
+    int pitch_idx;
+    int yaw_idx;
+    size_t camera_key;
+    int n = 0;
+    int gs;
+
+    if( !cm || cm->all_visible || !cm->visibility )
+        return cm && cm->all_visible ? cm->grid_side * cm->grid_side : 0;
+
+    painters_cullmap_indices_from_angles(cm, pitch, yaw, &pitch_idx, &yaw_idx);
+    camera_key = painters_cullmap_camera_key_from_indices(cm, pitch_idx, yaw_idx);
+    gs = cm->grid_side;
+    for( int ix = 0; ix < gs; ix++ )
+    {
+        for( int iz = 0; iz < gs; iz++ )
+        {
+            size_t bidx = camera_key + (size_t)ix * (size_t)gs + (size_t)iz;
+            if( pcull_bit_get(cm->visibility, bidx) )
+                n++;
+        }
+    }
+    return n;
 }

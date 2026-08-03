@@ -536,6 +536,24 @@ Applied to `painter_paint_bucket` (+ Soft3D clear / present sibling fixes):
 7. Production installs a real frustum cullmap via `app_ensure_painter_cullmap` (rebake on
    viewport resize); `TORIRS_PAINTER_NOCULL=1` keeps the old stub for A/B.
 
+**Round-3 production cullmap regressions (fixed same day):**
+
+The first production bake blanked the 3D world (`painter_*` counters all 0, `paint`
+p50 63 µs). Two bugs:
+
+1. **`painters_cullmap_build_toridraw` passed the wrong `user` to `sin_fn`** — project
+   wants `ToriDrawTrigFns*`, but `ToriDraw_TrigSinFromTables` wants the raw tables in
+   `trig->user`. Pitch-height and every frustum sample read garbage → empty visibility
+   → every tile `PAINT_STEP_DONE`. Fixed with a `painters_cull_sin` bridge.
+2. **Bake parameters** — near clip was hardcoded `512` (live camera uses `50`); pitch
+   domain capped at `384` (scene-reset uses `450`); pitch-height offset was `600`
+   (orbit eye ~1600); `grid_side` is now `2*radius+1` (inclusive ±radius).
+
+Fail-safes that stay: validate the current `(pitch,yaw)` slice after bake and keep
+nocull if empty; one-shot stderr from `painter_paint_bucket` when the draw box has
+tiles but `tiles_remaining == 0`; debounce viewport rebake (±8 px) and remember a
+failed bake's size so it is not retried every frame.
+
 **After round-3** (500 seeds x 100 iters, re-measured on this machine — mixed nocull/baked
 as the fuzzer chooses per seed):
 ```
@@ -546,3 +564,6 @@ Differential `fuzz_real 1 200` passes (bucket ⊇ world3d). `make test-world` an
 `make test-world-builder` green. New `TORIRS_PERF` counters:
 `painter_pops`, `painter_gate_rejects`, `painter_pushes`, `painter_push_dedup`,
 `painter_drain_events`, `painter_commands`, `painter_tiles_remaining_set`.
+
+Live check after the cullmap fix: one bake (`near=50`, `slice_vis≈1226`), then
+`commands≈6100` per frame (nocull was ~12950 — the frustum is doing real work).

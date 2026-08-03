@@ -249,19 +249,48 @@ UITree_EmitFill(
              * stays in rs_graphic.scene_id. Prefer the item overlay when set.
              * Reference draws the 36x32 icon at the widget rect with no
              * draw-time centering (widgets-gl type-5 itemId path).
-             * Outline/shadow stay on the component: skill-guide rows call
-             * cc_setoutline/cc_setgraphicshadow after cc_setobject, same as the
-             * sprite branch — zeroing them here dropped that pass. Inventory
-             * cells leave both at 0, so they are unchanged. */
+             *
+             * Icon flavour selection (not stacked passes):
+             * - outline==0 && graphic_shadow==0 (inventory/bank): use the
+             *   SHADOW-baked item_scene_id and keep both fields at 0 — the
+             *   drop shadow is already in the pixels.
+             * - either non-zero (skill-guide rows after cc_setoutline /
+             *   cc_setgraphicshadow): swap to the plain (outlineRgb=-1) bake
+             *   and forward the component fields so Soft3D/GL3 apply the
+             *   post-process once. Stacking on a SHADOW bake doubles the
+             *   shadow at +2px. */
             if( component->item_id > 0 && component->item_scene_id > 0 )
             {
-                out->scene_id = component->item_scene_id;
-                out->atlas_index = component->item_atlas_index;
+                int outline = component->u.rs_graphic.outline;
+                int graphic_shadow = component->u.rs_graphic.graphic_shadow;
                 out->tiled = 0;
-                out->outline = component->u.rs_graphic.outline;
-                out->graphic_shadow = component->u.rs_graphic.graphic_shadow;
                 out->flip_h = component->u.rs_graphic.flip_h;
                 out->flip_v = component->u.rs_graphic.flip_v;
+                if( outline == 0 && graphic_shadow == 0 )
+                {
+                    out->scene_id = component->item_scene_id;
+                    out->atlas_index = component->item_atlas_index;
+                    out->outline = 0;
+                    out->graphic_shadow = 0;
+                }
+                else
+                {
+                    int plain = -1;
+                    if( host )
+                    {
+                        struct UITreeHostRequest req = {
+                            .kind = UITREE_HOST_GET_OBJ_ICON_PLAIN,
+                            .u.get_obj_icon_plain.obj_id = component->item_id,
+                            .u.get_obj_icon_plain.count =
+                                component->item_count > 0 ? component->item_count : 1,
+                        };
+                        plain = UITree_Host(host, &req);
+                    }
+                    out->scene_id = plain > 0 ? plain : component->item_scene_id;
+                    out->atlas_index = plain > 0 ? 0 : component->item_atlas_index;
+                    out->outline = outline;
+                    out->graphic_shadow = graphic_shadow;
+                }
             }
             else if( active && component->u.rs_graphic.scene_id_active > 0 )
             {

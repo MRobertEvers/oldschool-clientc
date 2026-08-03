@@ -57,6 +57,30 @@ test_mutate_emit(void)
     TEST_ASSERT(tree->components[dyn_if3].type == UIELEM_RS_GRAPHIC, "cc type graphic for widget 5");
     tree->components[layer].if3 = 0;
 
+    /* Widget types 6 (model) and 9 (line) must not fall through to CC_OBJ —
+     * that left world-map key/overview icons blank (ApplyModel no-ops on
+     * CC_OBJ; emit skips obj_id<=0). */
+    {
+        int32_t model = UITree_CcCreate(tree, layer, 400, 6, 3);
+        TEST_ASSERT(model >= 0, "cc_create model");
+        TEST_ASSERT(tree->components[model].type == UIELEM_RS_MODEL, "cc type model for widget 6");
+        TEST_ASSERT(
+            tree->components[model].u.rs_model.gamecache_model_id == -1,
+            "model id unset until setmodel");
+        TEST_ASSERT(
+            tree->components[model].u.rs_model.active_model_id == -1,
+            "active model id unset until set");
+        TEST_ASSERT(tree->components[model].u.rs_model.zoom == 100, "model default zoom 100");
+        TEST_ASSERT(UITree_ApplyModel(tree, tree->components[model].component_id, 42),
+                    "applymodel on cc model");
+        TEST_ASSERT(
+            tree->components[model].u.rs_model.gamecache_model_id == 42, "applymodel wrote id");
+
+        int32_t line = UITree_CcCreate(tree, layer, 400, 9, 4);
+        TEST_ASSERT(line >= 0, "cc_create line");
+        TEST_ASSERT(tree->components[line].type == UIELEM_RS_LINE, "cc type line for widget 9");
+    }
+
     int indices[8];
     int n = UITree_CollectDynamicChildIndices(tree, 400, 0, indices, 8);
     TEST_ASSERT(n >= 1, "collect dynamic indices");

@@ -1287,6 +1287,7 @@ UITree_Push(
 
     case UIELEM_RS_MODEL:
         component->u.rs_model.gamecache_model_id = spec->u.rs_model.gamecache_model_id;
+        component->u.rs_model.active_model_id = spec->u.rs_model.active_model_id;
         component->u.rs_model.zoom = spec->u.rs_model.zoom;
         component->u.rs_model.xan = spec->u.rs_model.xan;
         component->u.rs_model.yan = spec->u.rs_model.yan;
@@ -1527,18 +1528,34 @@ UITree_CcCreate(
 
     switch( widget_type )
     {
-    case 5:
+    case 5: /* TORIRS_COMPONENT_GRAPHIC */
         spec.type = UIELEM_RS_GRAPHIC;
         break;
-    case 3:
+    case 3: /* TORIRS_COMPONENT_RECT */
         spec.type = UIELEM_RS_RECT;
         spec.u.rs_rect.color = 0;
         spec.u.rs_rect.filled = 1;
         break;
-    case 4:
+    case 4: /* TORIRS_COMPONENT_TEXT */
         spec.type = UIELEM_RS_TEXT;
         break;
+    case 6: /* TORIRS_COMPONENT_MODEL */
+        /* World map key/overview toggles (and ~96 other cc_create sites) use
+         * iftype_model. Mapping to CC_OBJ left ApplyModel a no-op and emit
+         * skipped the node (obj_id stays 0). Ids -1 so the gap between create
+         * and setmodel does not draw scene model 0; zoom 100 is the reference
+         * default when no setmodelangle has run yet. */
+        spec.type = UIELEM_RS_MODEL;
+        spec.u.rs_model.gamecache_model_id = -1;
+        spec.u.rs_model.active_model_id = -1;
+        spec.u.rs_model.anim_seq_id = -1;
+        spec.u.rs_model.zoom = 100;
+        break;
+    case 9: /* TORIRS_COMPONENT_LINE */
+        spec.type = UIELEM_RS_LINE;
+        break;
     default:
+        /* Type 2 (INV) and any unknown: item box until SETOBJECT fills it. */
         spec.type = UIELEM_CC_OBJ;
         break;
     }

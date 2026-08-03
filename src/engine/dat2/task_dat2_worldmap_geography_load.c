@@ -50,10 +50,25 @@ worldmap_geography_group(struct ToriRS_WorldMapRegionSource const* source)
     return ((source->src_region_x & 0xFF) << 8) | (source->src_region_y & 0xFF);
 }
 
+/*
+ * Which file inside the geography group to read.
+ *
+ * Named composemap records (pre-238) carry file_id outright. Derived addressing
+ * (OSRS >= 238, group_id < 0) used to hardcode 0, which only works for the main
+ * map (area id 0): every other area's single-file group stores the *area id* as
+ * the file id, so want=0 skipped the only file, Decode never ran, and the
+ * renderer baked a solid background_colour — black. Measured:
+ *   braindeath (area 4) -> skip file_id=4 want=0
+ *   ancient_cavern (area 1) -> skip file_id=1 want=0
+ */
 static int
-worldmap_geography_file(struct ToriRS_WorldMapRegionSource const* source)
+worldmap_geography_file(
+    struct ToriRS_WorldMapRegionSource const* source,
+    int area_id)
 {
-    return source->file_id >= 0 ? source->file_id : 0;
+    if( source->file_id >= 0 )
+        return source->file_id;
+    return area_id & 0xFF;
 }
 
 struct Task_Dat2WorldMapGeographyLoad
@@ -96,15 +111,18 @@ Task_Dat2WorldMapGeographyLoad_Run(
         RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, worldmap_geography_group(source));
         PT_YIELD(&task->pt);
 
-        /* Re-read after the yield: locals do not survive it. */
+        /* Re-read after the yield: locals do not survive it. Area id is the
+         * high byte of the geography cache key (CacheProvider_WorldMapGeographyKey);
+         * derived addressing picks the file by that id. */
         source = &task->sources[task->cursor];
+        int const area_id = (task->key >> 24) & 0xFF;
         archive = RSCache_IO_Dat2WorldMapGeographyDecode(io, 0);
         if( getenv("TORIRS_WORLDMAP_DEBUG") )
             fprintf(
                 stderr,
                 "worldmap geography: group=%d file=%d archive=%s files=%d\n",
                 worldmap_geography_group(source),
-                worldmap_geography_file(source),
+                worldmap_geography_file(source, area_id),
                 archive ? "ok" : "MISSING",
                 archive ? archive->file_count : -1);
         if( !archive )
@@ -122,8 +140,18 @@ Task_Dat2WorldMapGeographyLoad_Run(
         for( int i = 0; i < filelist->file_count; i++ )
         {
             bool derived = source->group_id < 0;
-            if( archive->file_ids[i] != worldmap_geography_file(source) )
+            int want_file = worldmap_geography_file(source, area_id);
+            if( archive->file_ids[i] != want_file )
+            {
+                if( getenv("TORIRS_WORLDMAP_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "worldmap geography: skip file_id=%d want=%d (group=%d)\n",
+                        archive->file_ids[i],
+                        want_file,
+                        worldmap_geography_group(source));
                 continue;
+            }
             /* A derived address has no in-file marker/coords to check against —
              * `headerless` tells the decoder that — but `kind` and the chunk
              * destination are the record's own fields, known either way, and
@@ -142,6 +170,18 @@ Task_Dat2WorldMapGeographyLoad_Run(
                     source->dst_chunk_x,
                     source->dst_chunk_y) )
                 task->decoded++;
+            else if( getenv("TORIRS_WORLDMAP_DEBUG") )
+                fprintf(
+                    stderr,
+                    "worldmap geography: decode FAILED group=%d file=%d size=%d "
+                    "kind=%d derived=%d chunk=%d,%d\n",
+                    worldmap_geography_group(source),
+                    want_file,
+                    filelist->file_sizes[i],
+                    source->kind,
+                    (int)derived,
+                    source->dst_chunk_x,
+                    source->dst_chunk_y);
             break;
         }
 

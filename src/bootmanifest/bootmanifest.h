@@ -30,6 +30,16 @@
  *                 every cache-only boot. State it when the *server* diverges
  *                 from what the cache implies (xrsps paths server-side over a
  *                 rev-233 cache, so it needs era=server_routed).
+ *   [render:light]  Optional overrides for the two model-light regimes and the
+ *                 two places xrsps diverges from Client-TS (see
+ *                 docs/MODEL_LIGHTING.md). Absent keys keep the compiled-in /
+ *                 era-table defaults.
+ *                 actor_ambient=<n>  actor_attenuation=<n>
+ *                 actor_light=<x>,<y>,<z>
+ *                 scene_ambient=<n>  scene_attenuation=<n>
+ *                 scene_light=<x>,<y>,<z>
+ *                 npc_type_ambient_contrast=0|1
+ *                 player_head_ambient=<n>   (0 = leave chathead unlit)
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
  *   [ui:gameframe]  <component>=<interface_id> or
@@ -125,6 +135,29 @@ struct BootManifest
     /* [features:boot] — client-behaviour era name; "" = derive from the cache
      * identity (ToriRS_Features_ForCache). */
     char features_era[32];
+
+    /* [render:light] — optional overrides. Each *_set flag is 1 when the key
+     * was present; App_Init merges set fields over the era/compiled defaults. */
+    int actor_ambient;
+    int actor_attenuation;
+    int actor_light_x;
+    int actor_light_y;
+    int actor_light_z;
+    int actor_ambient_set;
+    int actor_attenuation_set;
+    int actor_light_set;
+    int scene_ambient;
+    int scene_attenuation;
+    int scene_light_x;
+    int scene_light_y;
+    int scene_light_z;
+    int scene_ambient_set;
+    int scene_attenuation_set;
+    int scene_light_set;
+    int npc_type_ambient_contrast; /* 0|1 */
+    int npc_type_ambient_contrast_set;
+    int player_head_ambient;
+    int player_head_ambient_set;
 
     /* [ui:boot] */
     int ui_logic;  /* enum AppUiLogic; 0 = unset/default */

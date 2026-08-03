@@ -150,10 +150,12 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_OBJ_NAME,
     /**
-     * Armed inventory slot press/drag (reference objDrag*): writes the armed
-     * cell's identity and the current mouse delta (already deadzoned host-side)
-     * to u.get_inv_drag outs. Returns 1 while armed — emit renders that cell
-     * alone offset by (dx,dy) at trans 128.
+     * Inventory slot press/drag ghost (reference objDrag* visual): writes the
+     * cell's identity and the current mouse delta (already deadzoned
+     * host-side) to u.get_inv_drag outs. Returns 1 while the slot should
+     * ghost — emit renders that cell alone offset by (dx,dy) at trans 128.
+     * IF1/CS1 ghosts from arm time; IF3 ghosts only once the press promotes
+     * past the deadzone + dead time (a plain click must not flicker).
      *
      * An item cell comes in two shapes and the identity differs between them.
      * A TYPE_INV grid cell is (inv source id, slot), because the grid is one
@@ -190,6 +192,13 @@ enum UITreeHostRequestKind
      * addressing without walking to its parent, which is what this saves.
      */
     UITREE_HOST_GET_INV_SELECTION,
+    /**
+     * Plain (no baked drop-shadow) obj icon for a SETOBJECT cell that also has
+     * cc_setoutline / cc_setgraphicshadow. Returns the scene sprite id, or -1
+     * while the model is still loading. Inventory cells leave outline/shadow at
+     * 0 and keep the SHADOW-baked item_scene_id instead.
+     */
+    UITREE_HOST_GET_OBJ_ICON_PLAIN,
 };
 
 /*
@@ -286,6 +295,11 @@ struct UITreeHostRequest
             int* out_component_id;
             int* out_slot;
         } get_inv_selection;
+        struct
+        {
+            int obj_id;
+            int count;
+        } get_obj_icon_plain;
         struct
         {
             int slot;

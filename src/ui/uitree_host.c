@@ -37,6 +37,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_INV_DRAG:
     case UITREE_HOST_GET_INV_SELECT_ICON:
     case UITREE_HOST_GET_INV_SELECTION:
+    case UITREE_HOST_GET_OBJ_ICON_PLAIN:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
         return 0;

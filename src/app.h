@@ -178,6 +178,28 @@ struct AppConfig
      * "osrs" or "server_routed" (src/features/features.h). NULL/"" = derive
      * from the cache identity; TORIRS_FEATURES_ERA still overrides. */
     char const* features_era;
+    /** `[render:light]` overrides. Each *_set flag is 1 when the manifest key
+     * was present; App_Init merges set fields over era/compiled defaults. */
+    int light_actor_ambient;
+    int light_actor_attenuation;
+    int light_actor_x;
+    int light_actor_y;
+    int light_actor_z;
+    int light_actor_ambient_set;
+    int light_actor_attenuation_set;
+    int light_actor_set;
+    int light_scene_ambient;
+    int light_scene_attenuation;
+    int light_scene_x;
+    int light_scene_y;
+    int light_scene_z;
+    int light_scene_ambient_set;
+    int light_scene_attenuation_set;
+    int light_scene_set;
+    int light_npc_type_ambient_contrast;
+    int light_npc_type_ambient_contrast_set;
+    int light_player_head_ambient;
+    int light_player_head_ambient_set;
     /** `[ui:boot] windowmode` — enum CS2VM_WindowMode, 0 = unset (keep the
      * host's own default). Fixed letterboxes a 765x503 canvas into whatever
      * window it is given; resizable lays the gameframe out at the window size.
@@ -502,6 +524,11 @@ struct App
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. */
     struct ToriRS_FeatureTable const* features;
+    /** Effective lighting behaviour after era + `[render:light]` merge.
+     *  Call sites read these rather than features->npc_light_* directly so a
+     *  manifest override wins without mutating the const era table. */
+    int npc_light_uses_type_ambient_contrast;
+    int player_head_light_ambient;
 
     /* Phase 5: frame state. */
     struct UITreeHost ui_host;

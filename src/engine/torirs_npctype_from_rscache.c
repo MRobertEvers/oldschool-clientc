@@ -128,6 +128,8 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
     npctype->alwaysontop = src->alwaysontop;
+    npctype->ambient = src->ambient;
+    npctype->contrast = src->contrast;
 
     return npctype;
 }
@@ -187,6 +189,8 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->width_scale = src->width_scale > 0 ? src->width_scale : 128;
     npctype->height_scale = src->height_scale > 0 ? src->height_scale : 128;
     npctype->alwaysontop = src->has_render_priority;
+    npctype->ambient = src->ambient;
+    npctype->contrast = src->contrast;
 
     return npctype;
 }

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -258,8 +259,8 @@ painter_paint_bucket(
                 {
                     int dx = x - camera_sx;
                     int dz = z - camera_sz;
-                    if( dx < -cull_radius || dx >= cull_radius || dz < -cull_radius ||
-                        dz >= cull_radius )
+                    if( dx < -cull_radius || dx > cull_radius || dz < -cull_radius ||
+                        dz > cull_radius )
                     {
                         tp->step = PAINT_STEP_DONE;
                         continue;
@@ -309,6 +310,26 @@ painter_paint_bucket(
     int check_adjacent = 1;
 
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET, tiles_remaining);
+
+    /* Runtime outcome: a live cullmap that marks every tile in the draw box as
+     * DONE leaves the world blank. Warn once so a bad bake is obvious; do not
+     * assert (cullmap contents are data, not a programming invariant). */
+    if( tiles_in_box > 0 && tiles_remaining == 0 && !cull_all_visible )
+    {
+        static int s_warned_empty_cull;
+        if( !s_warned_empty_cull )
+        {
+            s_warned_empty_cull = 1;
+            fprintf(
+                stderr,
+                "painter_paint_bucket: draw box %dx%d has 0 visible tiles "
+                "(cullmap radius=%d) — world will be blank; set "
+                "TORIRS_PAINTER_NOCULL=1 to recover\n",
+                max_draw_x - min_draw_x,
+                max_draw_z - min_draw_z,
+                cull_radius);
+        }
+    }
 
     for( ;; )
     {

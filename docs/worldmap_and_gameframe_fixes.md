@@ -574,10 +574,64 @@ Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
 - **The overview panel is grey** because `overview_display` 595:12 declares
   `clientcode=1401` and `uitree_build.c` maps only 1337/1338/1339/1400.
 - **The whole gameframe sits 21px left** (161:1..161:18 resolve at abs x=-21),
-  which clips the map's left border.
-- `mock230_pack --check-only` reports 1445 errors, **1428 of them one file** —
-  `ladders_stairs/configs/ladders.loc` unknown categories, from another lane's
-  in-flight content. Nothing in this change touches content.
+  which clips the map's left border (and the key-toggle model at
+  `595:24` / dynamic child abs x=-12).
+- `mock230_pack --check-only` is green at **0 errors** (15 unrelated warnings).
+
+---
+
+## 4. Three UI bugs closed (2026-08-03)
+
+### Blank key/overview toggles — `cc_create` dropped model widgets
+
+Scripts 1733/1743 build the key and overview icons with
+`cc_create(^iftype_model)` + `cc_setmodel`. `UITree_CcCreate` only mapped
+widget types 3/4/5; type **6 (model)** and **9 (line)** fell through to
+`UIELEM_CC_OBJ`, so `ApplyModel` no-oped and emit skipped them (`obj_id <= 0`).
+
+**Fix** (`src/ui/uitree.c`): cases 6 and 9; model ids initialised to `-1`
+(emit skips `model_id < 0`, so leaving `0` would briefly draw scene model 0);
+default zoom `100`. Covered by `uitree_test_mutate_emit`.
+
+**Verified:** after opening the map, `DUMP_BOUNDS=595` shows type-16
+(`UIELEM_RS_MODEL`) children on both toggles; the overview icon at
+`abs=450,301` samples ~72 unique colours (not a blank square).
+
+### Doubled search characters — stale event context on queued hooks
+
+`RS_CS2_DispatchHook` only enqueues. One printable key produces two events
+(OSRS code on `KEYDOWN`, character on `TEXTINPUT`). The broadcast loop
+`SetEventKey` then enqueues once per event, so without a snapshot both tasks
+later read the character event and `~add_to_inputstring`'s
+`char_isprintable` accepts both.
+
+**Fix** (`src/game/task_cs2_run.c`): snapshot key/mouse/op/drag scalars into
+`Task_CS2Run` at `task_cs2_run_new`; `task_cs2_set_int_local` reads the
+snapshot. `WIDGET_ID` / `WIDGET_CHILD_INDEX` stay late-bound on the live tree.
+
+**Verified:** same-frame KEYDOWN+TEXTINPUT pair against the search field
+(`script=1737`) logs two dispatches with distinct snapshots
+(`typed=97 pressed=0` then `typed=-1 pressed=97`) — the shape that used to
+collapse to two character appends.
+
+### Black surface after switching map area — wrong geography file id
+
+Measured with `TORIRS_WORLDMAP_FORCE_MAP` + `TORIRS_WORLDMAP_DEBUG`: region
+ranges were sane and sources existed. Derived geography (`group_id < 0`,
+OSRS ≥238) used `file_id = 0`. Area 0 (Gielinor) worked; every other area
+stores the **area id** as the archive file id (`braindeath` → skip
+`file_id=4 want=0`), so Decode never ran and the baker painted
+`background_colour` (black).
+
+**Fix** (`task_dat2_worldmap_geography_load.c`): derived file id is
+`(key >> 24) & 0xFF` (the area id baked into
+`CacheProvider_WorldMapGeographyKey`). Also: last-resort display position
+centres on `ToriRS_WorldMapArea_Bounds` instead of raw world coords, and
+`RS_WorldMapRender_Clear` runs on area change so previous-area bakes do not
+churn the LRU.
+
+**Verified:** `FORCE_MAP=4` (braindeath) → `geography: file=4 archive=ok`,
+`baked region 33,79` / `33,80`, BMP terrain colours (not a black fill).
 
 ---
 

@@ -277,6 +277,11 @@ struct ToriRS_Npctype
      *  reference adds alwaysontop NPCs before other players/normal NPCs
      *  (Client.ts addNpcs), so they win the one-entity-per-tile dedup. */
     bool alwaysontop;
+    /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
+     *  by 5 from the decoder. Used when the era/manifest enables
+     *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */
+    int ambient;
+    int contrast;
 };
 
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).

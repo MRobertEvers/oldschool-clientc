@@ -297,7 +297,7 @@ scenery_register_sharelight(
                 .kind = TORIDRAWMK_MODEL,
                 .u.model.model = el->model.u.model.model,
             };
-            ToriDraw_LightModelDefault(hnd, config_loc->contrast, config_loc->ambient);
+            ToriDraw_LightModelScene(hnd, config_loc->contrast, config_loc->ambient);
             ToriDraw_ModelFreeNormals(el->model.u.model.model);
         }
         return;

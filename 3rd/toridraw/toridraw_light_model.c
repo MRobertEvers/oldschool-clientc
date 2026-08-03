@@ -8,6 +8,46 @@
 #include <math.h>
 #include <string.h>
 
+/* Reference defaults — Client-TS / xrsps both agree on these two regimes. */
+static struct ToriDraw_LightProfile g_actor_profile = {
+    .ambient = 64,
+    .attenuation = 850,
+    .src_x = -30,
+    .src_y = -50,
+    .src_z = -30,
+};
+
+static struct ToriDraw_LightProfile g_scene_profile = {
+    .ambient = 64,
+    .attenuation = 768,
+    .src_x = -50,
+    .src_y = -10,
+    .src_z = -50,
+};
+
+void
+ToriDraw_LightSetProfiles(
+    struct ToriDraw_LightProfile const* actor,
+    struct ToriDraw_LightProfile const* scene)
+{
+    if( actor )
+        g_actor_profile = *actor;
+    if( scene )
+        g_scene_profile = *scene;
+}
+
+struct ToriDraw_LightProfile const*
+ToriDraw_LightSceneProfile(void)
+{
+    return &g_scene_profile;
+}
+
+struct ToriDraw_LightProfile const*
+ToriDraw_LightActorProfile(void)
+{
+    return &g_actor_profile;
+}
+
 void
 ToriDraw_LightModelParams(
     struct ToriDraw_ModelHandle hnd,
@@ -77,30 +117,51 @@ ToriDraw_LightModelParams(
         model->vertices_z);
 }
 
-/* Scene/widget default light: Model.calculateNormals(64, 768, -50, -10, -50).
- *
- * Both parameters are added as they arrive, signed. There used to be a second
- * mode here that applied `(contrast & 0xff) * 5`, on the theory that the caller
- * held the raw config byte — but no rscache decoder hands out a raw byte: obj
- * opcode 114 and npc opcode 101 pre-scale by 5, loc opcode 39 by 5 (dat1) or 25
- * (dat2), and spotanim opcodes 7/8 are unscaled in the reference too. So that
- * mode scaled an already-scaled contrast, and its mask turned every negative
- * ambient/contrast into a large positive one — which is what washed loc and obj
- * models out to white. */
+/* Both regimes add signed ambient/contrast offsets as they arrive. There used
+ * to be a second mode that applied `(contrast & 0xff) * 5`, on the theory that
+ * the caller held the raw config byte — but no rscache decoder hands out a
+ * raw byte: obj opcode 114 and npc opcode 101 pre-scale by 5, loc opcode 39
+ * by 5 (dat1) or 25 (dat2), and spotanim opcodes 7/8 are unscaled in the
+ * reference too. So that mode scaled an already-scaled contrast, and its mask
+ * turned every negative ambient/contrast into a large positive one — which is
+ * what washed loc and obj models out to white. */
+void
+ToriDraw_LightModelScene(
+    struct ToriDraw_ModelHandle hnd,
+    int model_contrast,
+    int model_ambient)
+{
+    struct ToriDraw_LightProfile const* p = &g_scene_profile;
+    ToriDraw_LightModelParams(
+        hnd,
+        p->ambient + model_ambient,
+        p->attenuation + model_contrast,
+        p->src_x,
+        p->src_y,
+        p->src_z);
+}
+
+void
+ToriDraw_LightModelActor(
+    struct ToriDraw_ModelHandle hnd,
+    int model_contrast,
+    int model_ambient)
+{
+    struct ToriDraw_LightProfile const* p = &g_actor_profile;
+    ToriDraw_LightModelParams(
+        hnd,
+        p->ambient + model_ambient,
+        p->attenuation + model_contrast,
+        p->src_x,
+        p->src_y,
+        p->src_z);
+}
+
 void
 ToriDraw_LightModelDefault(
     struct ToriDraw_ModelHandle hnd,
     int model_contrast,
     int model_ambient)
 {
-    ToriDraw_LightModelParams(hnd, 64 + model_ambient, 768 + model_contrast, -50, -10, -50);
-}
-
-void
-ToriDraw_LightModelDefaultPreScaled(
-    struct ToriDraw_ModelHandle hnd,
-    int model_contrast,
-    int model_ambient)
-{
-    ToriDraw_LightModelDefault(hnd, model_contrast, model_ambient);
+    ToriDraw_LightModelScene(hnd, model_contrast, model_ambient);
 }

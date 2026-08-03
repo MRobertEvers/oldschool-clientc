@@ -147,6 +147,8 @@ UITreeSceneBridge_Init(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->obj_icon_outline_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
+    bridge->obj_icon_plain_map = bridge_hmap_new_keyed(
+        sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->npc_head_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
@@ -155,7 +157,8 @@ UITreeSceneBridge_Init(
     bridge->local_player_scene_id = -1;
     bridge->player_head_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map &&
-           bridge->obj_icon_outline_map && bridge->npc_head_map && bridge->obj_model_map);
+           bridge->obj_icon_outline_map && bridge->obj_icon_plain_map &&
+           bridge->npc_head_map && bridge->obj_model_map);
 }
 
 void
@@ -167,6 +170,7 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->model_map);
     bridge_hmap_free(bridge->obj_icon_map);
     bridge_hmap_free(bridge->obj_icon_outline_map);
+    bridge_hmap_free(bridge->obj_icon_plain_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
     memset(bridge, 0, sizeof(*bridge));
@@ -383,7 +387,7 @@ UITreeSceneBridge_EnsureModel(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_LightModelScene(hnd, 0, 0);
     /* Rest-pose snapshot enables IF/CC_SETMODELANIM sequence playback on widgets. */
     ToriDraw_ModelCaptureOriginalVertices(model);
     ToriDraw_SceneModelAdd(bridge->scene, cache_model_id, hnd);
@@ -438,14 +442,13 @@ UITreeSceneBridge_BuildPlayerDesignModel(
     if( !merged )
         return -1;
 
-    /* CC_DESIGN_PREVIEW lights the composite with its own parameters, not the
-     * widget-model defaults PlayerModel_BuildFromAppearance applies:
-     * calculateNormals(64, 850, -30, -50, -30, true). Re-lighting is safe —
-     * ApplyLighting always reads the unlit face_colors. */
+    /* PlayerModel_BuildFromAppearance already lights with the actor regime
+     * (64, 850, -30, -50, -30). Re-lighting is safe — ApplyLighting always
+     * reads the unlit face_colors — but unnecessary now that the builder
+     * matches the design-preview constants. */
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    ToriDraw_LightModelParams(hnd, 64, 850, -30, -50, -30);
 
     /* SceneModelAdd overwrites the slot without freeing what was there, so
      * drop the superseded composite (a design edit rebuilds every change). */
@@ -504,9 +507,7 @@ UITreeSceneBridge_BuildLocalPlayerModel(
 
     /* Identical compositor to the world entity's own model (worn objs merge in
      * slot order over the identity kits), so the figure on the widget and the
-     * figure in the viewport cannot disagree. It lights itself with the
-     * widget-model defaults; the design preview's own parameters are a
-     * design-screen thing and deliberately not applied here. */
+     * figure in the viewport cannot disagree. Both light with the actor regime. */
     merged = PlayerModel_BuildFromAppearance(bridge->provider, slots, colours, gender);
     if( !merged )
         return -1;
@@ -595,7 +596,10 @@ UITreeSceneBridge_EnsureNpcHead(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_LightModelActor(
+        hnd,
+        bridge->npc_light_uses_type_ambient_contrast ? npc->contrast : 0,
+        bridge->npc_light_uses_type_ambient_contrast ? npc->ambient : 0);
 
     scene_id = (int)(UITREE_SCENE_NPC_HEAD_BASE | (unsigned)npc_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
@@ -636,6 +640,20 @@ UITreeSceneBridge_EnsurePlayerHead(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = merged;
+    /* Client-TS leaves head models unlit; xrsps lights with absolute ambient
+     * 128 (= profile 64 + 64). player_head_light_ambient is that absolute value
+     * when non-zero. */
+    if( bridge->player_head_light_ambient != 0 )
+    {
+        struct ToriDraw_LightProfile const* p = ToriDraw_LightActorProfile();
+        ToriDraw_LightModelParams(
+            hnd,
+            bridge->player_head_light_ambient,
+            p->attenuation,
+            p->src_x,
+            p->src_y,
+            p->src_z);
+    }
     ToriDraw_SceneModelAdd(bridge->scene, UITREE_SCENE_PLAYER_HEAD_ID, hnd);
     bridge->player_head_scene_id = UITREE_SCENE_PLAYER_HEAD_ID;
     return bridge->player_head_scene_id;
@@ -734,7 +752,7 @@ bridge_rasterize_obj_icon(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
-    ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
+    ToriDraw_LightModelScene(hnd, obj->contrast, obj->ambient);
 
     render_zoom = zoom > 0 ? zoom : 2000;
     /* Reference: outlineRgb > 0 renders at (zoom * 1.04)|0 so the white ring has
@@ -945,7 +963,7 @@ UITreeSceneBridge_EnsureObjModel(
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
-    ToriDraw_LightModelDefault(hnd, obj->contrast, obj->ambient);
+    ToriDraw_LightModelScene(hnd, obj->contrast, obj->ambient);
 
     scene_id = (int)(UITREE_SCENE_OBJ_MODEL_BASE | (unsigned)obj_id);
     ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
@@ -971,6 +989,16 @@ UITreeSceneBridge_EnsureObjIconSelected(
 {
     return bridge_ensure_obj_icon(
         bridge, obj_id, count, BRIDGE_ICON_OUTLINE_WHITE, bridge->obj_icon_outline_map);
+}
+
+int
+UITreeSceneBridge_EnsureObjIconPlain(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count)
+{
+    return bridge_ensure_obj_icon(
+        bridge, obj_id, count, BRIDGE_ICON_OUTLINE_NONE, bridge->obj_icon_plain_map);
 }
 
 int

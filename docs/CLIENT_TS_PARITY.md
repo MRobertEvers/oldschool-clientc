@@ -1471,8 +1471,10 @@ Now (all reference-shaped):
 - Visuals: new host request `UITREE_HOST_GET_INV_DRAG` (armed source id +
   slot + deadzoned dx/dy, computed in the tick — the ±5px/5-cycle rules live
   host-side). `emit_rs_inv_slots` offsets **only** the matching slot and
-  stamps `trans = 128`. Armed-in-place therefore shows the reference's
-  held-click transparency immediately.
+  stamps `trans = 128`. IF1/CS1 ghosts from arm time (reference
+  Client.ts:9706 draws the armed slot at alpha 128 from `objDragArea != 0`).
+  IF3 has no objDrag machine — `GET_INV_DRAG` reports only once the press
+  promotes (`threshold && cycles >= 5`), so a plain click does not flicker.
 
 Not ported (deferred, cosmetic/situational): drag autoscroll at clip edges
 (`Client.ts:10226-10252`, matters for scrolled bank grids), bank insert-mode
@@ -1488,9 +1490,10 @@ Verified: full build clean; `test-uitree` (incl. §18's collect regression),
 `test-inv`, `test-net-exec`, `test-net-login`, `test-net-loopback`,
 `test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` all pass. Live
 check-list for the next session: logs no longer render as notes, hover names
-resolve after first icon load, left-click Wield/Wear fires on release, held
-click shows the in-place trans-128 icon, and slot-to-slot drag swaps + sends
-`INV_BUTTOND` while the rest of the grid stays put.
+resolve after first icon load, left-click Wield/Wear fires on release without
+a press-fade on IF3, IF1 held click still shows the in-place trans-128 icon,
+and slot-to-slot drag swaps + sends `INV_BUTTOND` while the rest of the grid
+stays put.
 
 ---
 
@@ -1646,17 +1649,20 @@ to end:
   equipped item still runs its default row on release — reference parity), but
   `inv_drag_can_drag` is captured from the node and, when false, the held tick
   returns before touching the threshold/offset — no drag promotion, no swap,
-  no `INV_BUTTOND`. The slot stays armed with `dx/dy == 0`, so
-  `UITREE_HOST_GET_INV_DRAG` still reports it and `emit_rs_inv_slots` **still
-  fades the held icon to trans 128 in place** — the press feedback is kept; only
-  the movement and swap are removed.
+  no `INV_BUTTOND`. IF1/CS1 still fades the held icon to trans 128 in place
+  from arm (`UITREE_HOST_GET_INV_DRAG` reports while ghosting); IF3 ghosts
+  only once a drag promotes past the deadzone + dead time, so a plain press
+  on worn/bank cells does not flicker.
 
-Net: equipment/worn items fade while pressed and are clickable (Remove/Operate)
-but cannot be dragged or reordered; the backpack (objSwap) is unaffected.
+Net: equipment/worn items are clickable (Remove/Operate) but cannot be
+dragged or reordered; on IF1 they still fade while pressed, on IF3 they do
+not. The backpack (objSwap) is unaffected for swaps; IF3 backpack clicks no
+longer flash translucent before the op runs.
 Verified: clean build; `test-inv`, `test-uitree`, `test-net-exec`,
 `test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live check:
-press-hold a worn item — it fades in place but does not move; on release its op
-runs and no `INV_BUTTOND` is sent; the backpack still drags/swaps.
+press-hold a worn item — it does not move; on release its op runs and no
+`INV_BUTTOND` is sent; the backpack still drags/swaps; a plain backpack click
+runs its op with no fade.
 
 ---
 
@@ -2364,10 +2370,11 @@ built the missing vertical slice, end to end.
   recolour (guarded on `recol_s[0]`, per the reference), retexture (dat2),
   `ToriDraw_ModelScale(m, resizeh, resizeh, resizev)` for `resize(resizeh,
   resizev, resizeh)`, `ToriDraw_ModelOrient(m, angle/90)` for the `rotate90`s,
-  then `LightModelDefaultPreScaled(hnd, contrast, ambient)`. (The reference lights
-  with base `850`; the engine's house base is `768`, applied pre-scaled to every
-  model — passing the config offsets straight through is the engine-native
-  equivalent, matching how npc/obj/loc models are already lit.)
+  then `LightModelActor(hnd, contrast, ambient)`. Spotanims share the actor
+  regime with players/NPCs (base `850`, direction `-30,-50,-30`); see
+  [`MODEL_LIGHTING.md`](MODEL_LIGHTING.md). Passing the config offsets straight
+  through matches how the reference adds `spot.ambient` / `spot.contrast` onto
+  that base.
 - `app_world_spawn_spotanim_now` — build the model, create a scene element at
   `(tile*128+64, getAvH - height, tile*128+64)`, and `World_SpotanimSpawn` it
   with `lifetime = app_seq_total_duration(seq)` (Σ of `frame_delay + 1`, matching
@@ -3761,10 +3768,12 @@ cache model 0 before whatever packet supplies their real model arrived.
    `rs_model.anim_hold` pins `anim_frame` and `UITreeAnim_Advance` skips the
    frame walk for held nodes; the 327/328 wiring sets it alongside the seq.
 3. **Design-preview lighting.** The reference lights this composite with
-   `calculateNormals(64, 850, -30, -50, -30, true)`, not the widget-model default
-   `(64, 768, -50, -10, -50)` that `ToriDraw_LightModelDefaultPreScaled` bakes in.
-   Added `ToriDraw_LightModelParams` (the existing default helpers now delegate to
-   it, byte-identically) and `EnsurePlayerModel` passes the design parameters.
+   `calculateNormals(64, 850, -30, -50, -30, true)` — the **actor** regime,
+   not the scene/widget `(64, 768, -50, -10, -50)`. That split is now first
+   class: `ToriDraw_LightModelActor` / `ToriDraw_LightModelScene` (see
+   [`MODEL_LIGHTING.md`](MODEL_LIGHTING.md)). `PlayerModel_BuildFromAppearance`
+   lights with the actor regime, so the design preview no longer needs a
+   separate relight pass.
 
 ### Verification
 

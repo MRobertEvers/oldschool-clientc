@@ -279,7 +279,7 @@ PlayerModel_BuildFromAppearance(
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = merged;
         hnd.u.model.ground = NULL;
-        ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+        ToriDraw_LightModelActor(hnd, 0, 0);
     }
     ToriDraw_ModelSetBoundsCylinder(merged);
     ToriDraw_ModelCaptureOriginalVertices(merged);
@@ -381,13 +381,9 @@ PlayerHeadModel_BuildFromAppearance(
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(provider, merged);
-    {
-        struct ToriDraw_ModelHandle hnd;
-        hnd.kind = TORIDRAWMK_MODEL;
-        hnd.u.model.model = merged;
-        hnd.u.model.ground = NULL;
-        ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
-    }
+    /* Chatheads are left unlit here: Client-TS never lights head models, and
+     * xrsps lights them with a different ambient (128) that the bridge applies
+     * when player_head_light_ambient is non-zero. */
     ToriDraw_ModelSetBoundsCylinder(merged);
     ToriDraw_ModelCaptureOriginalVertices(merged);
     return merged;

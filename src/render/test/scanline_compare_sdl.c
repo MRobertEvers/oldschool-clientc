@@ -433,7 +433,7 @@ load_model(
     /* Scene/widget default light (ambient 64, attenuation 768). The per-type
      * contrast/ambient overrides are 0 here because a bare model carries none;
      * passing anything else washes the model out to flat white. */
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_LightModelScene(hnd, 0, 0);
 
     printf("model %d: %d faces, alpha mode 0x%02X\n", model_id, viewer->model->face_count, alpha);
     return 1;

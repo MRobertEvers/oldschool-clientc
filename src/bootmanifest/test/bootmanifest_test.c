@@ -64,6 +64,25 @@ test_load_fields(void)
     CHECK(bm.spawn_spotanim_delay == 0);
     CHECK(bm.spawn_proj_model_id == 3081);
     CHECK(bm.spawn_proj_seq_id == 659);
+
+    CHECK(bm.actor_ambient_set == 1);
+    CHECK(bm.actor_ambient == 64);
+    CHECK(bm.actor_attenuation_set == 1);
+    CHECK(bm.actor_attenuation == 850);
+    CHECK(bm.actor_light_set == 1);
+    CHECK(bm.actor_light_x == -30);
+    CHECK(bm.actor_light_y == -50);
+    CHECK(bm.actor_light_z == -30);
+    CHECK(bm.scene_ambient_set == 1);
+    CHECK(bm.scene_attenuation == 768);
+    CHECK(bm.scene_light_set == 1);
+    CHECK(bm.scene_light_x == -50);
+    CHECK(bm.scene_light_y == -10);
+    CHECK(bm.scene_light_z == -50);
+    CHECK(bm.npc_type_ambient_contrast_set == 1);
+    CHECK(bm.npc_type_ambient_contrast == 1);
+    CHECK(bm.player_head_ambient_set == 1);
+    CHECK(bm.player_head_ambient == 128);
 }
 
 static void
@@ -97,6 +116,20 @@ test_apply_to_config(void)
     CHECK(cfg.spawn_spotanim_delay == 0);
     CHECK(cfg.spawn_proj_model_id == 3081);
     CHECK(cfg.spawn_proj_seq_id == 659);
+
+    CHECK(cfg.light_actor_ambient_set == 1);
+    CHECK(cfg.light_actor_ambient == 64);
+    CHECK(cfg.light_actor_attenuation == 850);
+    CHECK(cfg.light_actor_set == 1);
+    CHECK(cfg.light_actor_x == -30);
+    CHECK(cfg.light_actor_y == -50);
+    CHECK(cfg.light_actor_z == -30);
+    CHECK(cfg.light_scene_set == 1);
+    CHECK(cfg.light_scene_y == -10);
+    CHECK(cfg.light_npc_type_ambient_contrast_set == 1);
+    CHECK(cfg.light_npc_type_ambient_contrast == 1);
+    CHECK(cfg.light_player_head_ambient_set == 1);
+    CHECK(cfg.light_player_head_ambient == 128);
 }
 
 /* ApplyToConfig must only write fields the manifest actually set, so a

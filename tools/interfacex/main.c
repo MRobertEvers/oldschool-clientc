@@ -10561,7 +10561,7 @@ InterfaceX_RasterModelNodeToCanvas(
     if( model->item_id >= 0 && bounds )
         model_center_y = -bounds->min_y / 2;
 
-    ToriDraw_LightModelDefaultPreScaled(hnd, 0, 0);
+    ToriDraw_LightModelScene(hnd, 0, 0);
 
     int draw_x = 0;
     int draw_y = 0;

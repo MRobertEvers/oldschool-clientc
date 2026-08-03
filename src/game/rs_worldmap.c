@@ -177,7 +177,18 @@ jump_to_source_or_origin_instant(
         set_display_position(state, out_x, out_y);
         return;
     }
-    set_display_position(state, origin_x, origin_y);
+    /* Last resort: centre on the area's own display bounds. Storing raw world
+     * coords as display coords can land outside region_low..high, invert the
+     * visit clamp, and paint only background_colour (black for most areas). */
+    {
+        int min_x = 0;
+        int min_y = 0;
+        int max_x = 0;
+        int max_y = 0;
+
+        ToriRS_WorldMapArea_Bounds(area, &min_x, &min_y, &max_x, &max_y);
+        set_display_position(state, (min_x + max_x) / 2, (min_y + max_y) / 2);
+    }
 }
 
 static void

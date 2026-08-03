@@ -47,6 +47,18 @@ painters_cull_project(
     out->clipped = pv.clipped;
 }
 
+/* painters_cullmap_build passes the same user to project and sin_fn. Project
+ * wants the TrigFns*; sin callbacks want trig->user (the raw tables). Bridge. */
+static int
+painters_cull_sin(
+    int angle_r2pi2048,
+    void* user)
+{
+    const struct ToriDrawTrigFns* trig = (const struct ToriDrawTrigFns*)user;
+    assert(trig && trig->sin);
+    return trig->sin(angle_r2pi2048, trig->user);
+}
+
 struct PaintersCullMap*
 painters_cullmap_build_toridraw(
     int radius,
@@ -63,5 +75,5 @@ painters_cullmap_build_toridraw(
         screen_height,
         painters_cull_project,
         (void*)trig,
-        (PaintersSinFn)trig->sin);
+        painters_cull_sin);
 }

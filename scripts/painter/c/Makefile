@@ -14,7 +14,8 @@
 REPO_ROOT := ../../..
 SRC_DIR   := $(REPO_ROOT)/src
 SRC2      := $(REPO_ROOT)/src2
-include $(SRC2)/toriauxlib/core/tasks/tasks_sources.mk
+# Optional: only needed for cache-scene / win cross targets that pull src2.
+-include $(SRC2)/toriauxlib/core/tasks/tasks_sources.mk
 PLAT_DIR  := $(SRC2)/platforms
 SCRIPT_DIR := $(SRC2)/scripting
 

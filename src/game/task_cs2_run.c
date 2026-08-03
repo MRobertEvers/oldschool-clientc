@@ -102,6 +102,27 @@ struct Task_CS2Run
     int str_arg_count;
     char str_args[TASK_CS2_RUN_STR_ARGS_MAX][TASK_CS2_RUN_STR_ARG_LEN];
 
+    /*
+     * Event context frozen at CreateTask time.
+     *
+     * DispatchHook / the intent loop set host->event_* then enqueue; the task
+     * only runs once the serial FIFO reaches it. Without a snapshot, every
+     * queued onKey for one printable key (code event then character event)
+     * would read the last SetEventKey — both append the character, which is
+     * the world-map search double-input. The same overwrite hits event_op /
+     * event_mouse when two intents share a frame, and a yield for IO loses the
+     * whole live context. WIDGET_ID / WIDGET_CHILD_INDEX stay late-bound
+     * against the live tree: those are identity lookups, not event payloads.
+     */
+    int event_key_typed;
+    int event_key_pressed;
+    int event_mouse_x;
+    int event_mouse_y;
+    int event_op_index;
+    int event_op_subindex;
+    int event_drag_target_id;
+    int event_drag_target_child_index;
+
     struct CS2VM_HostRequest pending;
     enum TaskCS2YieldPlan yield_plan;
     int await_id;
@@ -156,13 +177,16 @@ task_cs2_resolve_font(
 
 static void
 task_cs2_set_int_local(
-    struct RS_CS2Host* host,
+    struct Task_CS2Run* self,
     struct CS2VM2_Thread* thread,
     int local_idx,
-    int argi,
-    int active_component_id)
+    int argi)
 {
-    assert(host);
+    struct RS_CS2Host* host;
+
+    assert(self);
+    assert(self->host);
+    host = self->host;
     switch( argi )
     {
     case CS2VM_SCRIPT_ARG_WIDGET_ID:
@@ -191,6 +215,7 @@ task_cs2_set_int_local(
          * `event_com` beside a *sibling's* `cc_getid` and are unreadable under
          * any other convention.
          */
+        int active_component_id = self->active_component_id;
         int32_t idx = UITree_FindByComponentId(host->tree, active_component_id);
         int com = active_component_id;
         if( idx >= 0 && host->tree->components[idx].dynamic )
@@ -203,17 +228,17 @@ task_cs2_set_int_local(
         break;
     }
     case CS2VM_SCRIPT_ARG_OP_INDEX:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_op_index);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_op_index);
         break;
     case CS2VM_SCRIPT_ARG_MOUSE_X:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_mouse_x);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_mouse_x);
         break;
     case CS2VM_SCRIPT_ARG_MOUSE_Y:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_mouse_y);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_mouse_y);
         break;
     case CS2VM_SCRIPT_ARG_WIDGET_CHILD_INDEX:
     {
-        int32_t idx = UITree_FindByComponentId(host->tree, active_component_id);
+        int32_t idx = UITree_FindByComponentId(host->tree, self->active_component_id);
         int child = -1;
         if( idx >= 0 && host->tree->components[idx].dynamic )
             child = host->tree->components[idx].dynamic_child_index;
@@ -221,22 +246,23 @@ task_cs2_set_int_local(
         break;
     }
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_ID:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_drag_target_id);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_drag_target_id);
         break;
     case CS2VM_SCRIPT_ARG_DRAG_TARGET_CHILD_INDEX:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_drag_target_child_index);
+        CS2VM2_SetIntCurrentFrameLocal(
+            thread, local_idx, self->event_drag_target_child_index);
         break;
     /* See struct LibToriRS_KeyEvent: key_typed is the OSRS key CODE and
      * key_pressed the typed CHARACTER, inverted vs canonical OSRS naming but
      * consistent with the reference at both ends. */
     case CS2VM_SCRIPT_ARG_KEY_TYPED:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_key_typed);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_key_typed);
         break;
     case CS2VM_SCRIPT_ARG_KEY_PRESSED:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_key_pressed);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_key_pressed);
         break;
     case CS2VM_SCRIPT_ARG_OP_SUBINDEX:
-        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, host->event_op_subindex);
+        CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, self->event_op_subindex);
         break;
     default:
         CS2VM2_SetIntCurrentFrameLocal(thread, local_idx, argi);
@@ -901,12 +927,7 @@ Task_CS2Run_Run(
                 }
                 else
                 {
-                    task_cs2_set_int_local(
-                        self->host,
-                        thread,
-                        int_i,
-                        self->int_args[j],
-                        self->active_component_id);
+                    task_cs2_set_int_local(self, thread, int_i, self->int_args[j]);
                     int_i++;
                 }
             }
@@ -1158,6 +1179,16 @@ task_cs2_run_new(
     self->script = script;
     self->active_component_id = active_component_id;
     self->dot_component_id = dot_component_id >= 0 ? dot_component_id : active_component_id;
+
+    /* Freeze the event the dispatcher just wrote. See struct Task_CS2Run. */
+    self->event_key_typed = host->event_key_typed;
+    self->event_key_pressed = host->event_key_pressed;
+    self->event_mouse_x = host->event_mouse_x;
+    self->event_mouse_y = host->event_mouse_y;
+    self->event_op_index = host->event_op_index;
+    self->event_op_subindex = host->event_op_subindex;
+    self->event_drag_target_id = host->event_drag_target_id;
+    self->event_drag_target_child_index = host->event_drag_target_child_index;
 
     if( int_arg_count > TASK_CS2_RUN_INT_ARGS_MAX )
         int_arg_count = TASK_CS2_RUN_INT_ARGS_MAX;

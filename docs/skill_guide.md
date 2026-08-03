@@ -581,10 +581,26 @@ obj branches, does `cc_setgraphicshadow(0x333333)` then `cc_setoutline(1)`.
 Inventory cells leave those fields at 0, so they were fine; skill-guide obj
 rows discarded the same post-process the spell-icon branch keeps.
 
-**Fix.** Pass `rs_graphic.outline` / `graphic_shadow` through on the item
-overlay. Also raise `TRSPK_GL3_SPRITE_CAP` 256→2048 (with a one-shot stderr
-when the table is full) so a large unique-icon burst cannot silently drop
-late scene sprites on the GL path.
+**Fix (first pass).** Pass `rs_graphic.outline` / `graphic_shadow` through on
+the item overlay. Also raise `TRSPK_GL3_SPRITE_CAP` 256→2048 (with a one-shot
+stderr when the table is full) so a large unique-icon burst cannot silently
+drop late scene sprites on the GL path.
+
+**Fix (double-shadow, same day).** `item_scene_id` icons are baked by
+`UITreeSceneBridge_EnsureObjIcon` with the SHADOW post-process already in the
+pixels (reference `outlineRgb == 0`). Forwarding `graphic_shadow` on top ran
+`ToriDraw_SpriteNewGraphicShadow` again at draw time → a second edge at +2px.
+Reference `ObjType.getSprite` never stacks: `outlineRgb` selects plain /
+shadow / white, never two of them.
+
+Emit now **selects the baked flavour**:
+
+- `outline == 0 && graphic_shadow == 0` (inventory/bank): keep the SHADOW-baked
+  `item_scene_id` and force both emit fields to 0.
+- either non-zero (skill-guide rows): resolve
+  `UITreeSceneBridge_EnsureObjIconPlain` (`BRIDGE_ICON_OUTLINE_NONE`, host
+  `UITREE_HOST_GET_OBJ_ICON_PLAIN`) and forward the component fields so Soft3D
+  / GL3 apply the post-process once.
 
 ### Pixel proof (outline pass-through)
 
@@ -609,4 +625,5 @@ column BMP shows tiered sword pixels with outline+shadow. Forcing the item
 overlay back to `outline=0`/`graphic_shadow=0` and diffing again reproduces
 **1138 / 10920 = 10.42%** and black **0 → 809**; metal/sword pixels remain in
 the before BMP (icons were never blank after §8 — only the post-process was
-missing). No further C change.
+missing). The flavour-select path keeps that outline edge without stacking a
+second shadow on inventory icons.
