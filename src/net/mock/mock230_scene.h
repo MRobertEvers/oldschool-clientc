@@ -246,6 +246,89 @@ mock230_scene_can_step(
     int z,
     int dir);
 
+/** Like can_step, but ORs `extra_flag` into the can_travel occupancy test. */
+int
+mock230_scene_can_step_extra(
+    int level,
+    int x,
+    int z,
+    int dir,
+    int extra_flag);
+
+int
+mock230_scene_can_travel(
+    int level,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag);
+
+int
+mock230_scene_line_of_sight(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh,
+    int extra);
+
+int
+mock230_scene_line_of_walk(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh,
+    int extra);
+
+int
+mock230_scene_approached(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh);
+
+void
+mock230_scene_change_occupancy(
+    int level,
+    int x,
+    int z,
+    int size,
+    int mask,
+    int add);
+
+/** Naive path in world coords: writes one absolute tile into out_x/out_z. */
+int
+mock230_scene_naive_path(
+    int level,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag,
+    unsigned* rng,
+    int* out_x,
+    int* out_z);
+
 /** Is this absolute tile inside the built scene? */
 int
 mock230_scene_contains(
@@ -271,5 +354,21 @@ mock230_scene_walk_blocked(
     int level,
     int x,
     int z);
+
+/**
+ * LostCity `HuntVis`: 0 = off, 1 = lineofsight, 2 = lineofwalk.
+ *
+ * Returns 1 when the candidate passes. Direction is caller-owned — npc finds
+ * cast source→candidate; player `huntall` casts candidate→source
+ * (`ScriptIterators.ts`). Casts a 1×1→1×1 ray with extra_flag 0.
+ */
+int
+mock230_scene_checkvis(
+    int checkvis,
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z);
 
 #endif

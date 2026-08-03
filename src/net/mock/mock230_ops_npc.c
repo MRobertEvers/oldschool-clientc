@@ -81,6 +81,7 @@
 
 #include "mock230.h"
 #include "mock230_content.h"
+#include "mock230_scene.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -188,22 +189,22 @@ euclidean_sq(
  * The one walk the three searches share: every live npc on the coord's level
  * within `distance`, in slot order.
  *
- * `checkvis` is accepted and ignored, the way `npc_find` and `npc_findall`
- * already accept and ignore it — there is no line of sight in this server, the
- * scene has collision but nothing projects a ray through it. The effect is that
- * a search occasionally finds an npc through a wall, which is a wrong answer in
- * the direction of doing something rather than nothing. Stated once here for
- * all three.
+ * `checkvis` is LostCity HuntVis: 0 off, 1 lineofsight, 2 lineofwalk. The ray
+ * runs source→npc (ScriptIterators.ts NpcIterator).
  */
 static int
 search_matches(
     const struct Mock230Npc* npc,
     int32_t coord,
-    int32_t distance)
+    int32_t distance,
+    int32_t checkvis)
 {
     if( !npc->active || npc->level != mock230_coord_level(coord) )
         return 0;
-    return coord_range(npc, coord) <= distance;
+    if( coord_range(npc, coord) > distance )
+        return 0;
+    return mock230_scene_checkvis(checkvis, npc->level, mock230_coord_x(coord),
+                                  mock230_coord_z(coord), npc->x, npc->z);
 }
 
 int
@@ -368,7 +369,6 @@ mock230_ops_npc(
             return 1;
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        (void)checkvis;
         if( !srv )
             return 1;
 
@@ -379,7 +379,7 @@ mock230_ops_npc(
         {
             const struct Mock230Npc* npc = &srv->npcs[slot];
 
-            if( !search_matches(npc, coord, distance) || !huntable(npc->type) )
+            if( !search_matches(npc, coord, distance, checkvis) || !huntable(npc->type) )
                 continue;
             if( srv->iterator.count <
                 (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
@@ -419,7 +419,6 @@ mock230_ops_npc(
             return 1;
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        (void)checkvis;
         if( !srv )
         {
             SSVM_PushInt(state, 0);
@@ -431,7 +430,7 @@ mock230_ops_npc(
             const struct Mock230Npc* npc = &srv->npcs[slot];
             int rank;
 
-            if( !search_matches(npc, coord, distance) )
+            if( !search_matches(npc, coord, distance, checkvis) )
                 continue;
             if( opcode == SS_OP_NPC_HUNT )
             {
@@ -519,10 +518,10 @@ mock230_ops_npc(
  *     out loud.
  *
  * `npc_sethuntmode` (14/7), `npc_sethunt` (1/1).
- *     A `hunt` config namespace, a per-npc huntMode/huntrange, a HuntVis test
- *     and a per-tick hunt pass. One feature wearing five opcodes; `npc_hunt`
- *     and `npc_huntall` above are the two of the five that are pure searches
- *     and need none of it.
+ *     A `hunt` config namespace, a per-npc huntMode/huntrange, and a per-tick
+ *     hunt pass. `npc_hunt` / `npc_huntall` above are pure searches and now
+ *     honour HuntVis (`checkvis`); the remaining set-hunt opcodes still need
+ *     the config namespace and the tick pass.
  *
  * `npc_arrivedelay` (2/2).
  *     Needs `lastMovement` compared against the current tick (NpcOps.ts:542) —

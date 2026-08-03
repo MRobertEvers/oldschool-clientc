@@ -4,6 +4,10 @@ What happens between "the user clicks an NPC / loc row in the minimenu" and "the
 player starts walking", in each of the three codebases, and what torirs
 (`src/`) does differently today.
 
+For modern OSRS LoS, naive NPC pathing, occupancy, and the follow dance, see
+[`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md). §7.2 of this doc covers the
+server-side movement model (players BFS / NPCs never flood).
+
 Scope: the **approach/route** decision only. The right-click menu build, the
 pick/hit-test, and the OP packet encodings are covered elsewhere
 (`docs/CLIENT_TS_PARITY.md` §5, §9). Ground clicks and minimap clicks are
@@ -481,17 +485,25 @@ Op handlers route to the **target** with its approach — they never call
 ### 7.2 Movement model
 
 Players store at most 25 dest-first waypoints (`PathingEntity.waypoints`) and
-advance with a greedy `takeStep` that re-validates `mock230_scene_can_step` and
-stalls instead of clearing the route. Loc/obj recovery re-floods when the corner
-queue is empty or a post-move step is blocked, and queues the **full** approach
-path (`queue_path_as_waypoints` / LostCity `pathToTarget`) — not a single
-adjacent tile. Truncating a fresh `walk_to_approach` on the packet-handler call
-forced `move_count == 1` on every loc approach and ignored run mode. Npc chase
-keeps the older one-tile recovery (`steps_taken == 0` or empty queue) so a
-wanderer stays sticky after `walk_to_approach` at the last waypoint.
+advance with a greedy `takeStep` that re-validates `mock230_scene_can_step_extra`
+(with NPC/BLOCK occupancy) and stalls instead of clearing the route. Interaction
+recovery re-floods when the corner queue is empty or a post-move step is blocked,
+and queues the **full** approach path (`queue_path_as_waypoints` / LostCity
+`pathToTarget`) — not a single adjacent tile. Truncating a fresh
+`walk_to_approach` on the packet-handler call (`steps_taken == 0` alone) forced
+`move_count == 1` on every op approach and ignored run mode. When an npc target
+moves at the last waypoint, the engine re-aims with one adjacent tile so chase
+stays sticky without that truncate.
+
+NPCs never flood: `mock230_world_npc_walk_to` queues one tile from
+`collision_map_naive_path` (via `mock230_scene_naive_path`) and advances with the
+same takeStep shape, gated by entity occupancy flags written at spawn/move.
 
 Unreachable interactions terminate with content's
 `[proc,cannot_reach_message]` (`player/messages.rs2`), not a latched op.
+
+AP-range triggers also require `mock230_scene_approached` LoS (player→npc;
+npc APPLAYER casts the reverse).
 
 ### 7.3 Still asymmetric
 
@@ -512,4 +524,4 @@ Unreachable interactions terminate with content's
 | P3 | exact BFS, no nearest fallback | era `CollisionNearestOpts` on `route_tiles` |
 | P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
 | P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |
-| P6 | loc/obj op-approach recovery kept one BFS tile → run never took 2 steps | full `queue_path_as_waypoints` re-flood; stall only when next step blocked (npc chase keeps one-tile) |
+| P6 | op-approach recovery kept one BFS tile → run never took 2 steps | full-path re-flood; stall only when next step blocked; npc movers re-aimed one tile at last waypoint |

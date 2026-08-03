@@ -1357,3 +1357,730 @@ collision_map_try_route_op(
     free(queue_z);
     return length;
 }
+
+/* =========================================================================
+ * Line of sight / line of walk — rsmod LineValidator.rayCastLine
+ * ========================================================================= */
+
+/* Fixed-point helpers: tiles << 16, HALF_TILE = 0x8000. */
+#define COLL_HALF_TILE 0x8000
+
+static int
+collision_scale_up(int tiles)
+{
+    return tiles << 16;
+}
+
+static int
+collision_scale_down(int tiles)
+{
+    return tiles >> 16;
+}
+
+int
+collision_line_coordinate(
+    int a,
+    int b,
+    int size)
+{
+    if( a >= b )
+        return a;
+    if( a + size - 1 <= b )
+        return a + size - 1;
+    return b;
+}
+
+static int
+collision_is_flagged(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int masks)
+{
+    if( x < 0 || z < 0 || x >= cm->size_x || z >= cm->size_z )
+        return 1;
+    return (cm->flags[collision_map_index_at(cm, x, z)] & masks) != COLL_FLAG_OPEN;
+}
+
+static int
+collision_ray_cast(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int flag_west,
+    int flag_east,
+    int flag_south,
+    int flag_north,
+    int flag_loc,
+    int flag_proj,
+    int los)
+{
+    int start_x = collision_line_coordinate(src_x, dest_x, src_width);
+    int start_z = collision_line_coordinate(src_z, dest_z, src_height);
+    int end_x = collision_line_coordinate(dest_x, src_x, dest_width);
+    int end_z = collision_line_coordinate(dest_z, src_z, dest_height);
+    int delta_x;
+    int delta_z;
+    int abs_dx;
+    int abs_dz;
+    int travel_east;
+    int travel_north;
+    int x_flags;
+    int z_flags;
+
+    assert(cm);
+    assert(src_width >= 1 && src_height >= 1);
+    assert(dest_width >= 1 && dest_height >= 1);
+
+    if( start_x == end_x && start_z == end_z )
+        return 1;
+
+    if( los && collision_is_flagged(cm, start_x, start_z, flag_loc) )
+        return 0;
+
+    delta_x = end_x - start_x;
+    delta_z = end_z - start_z;
+    abs_dx = delta_x < 0 ? -delta_x : delta_x;
+    abs_dz = delta_z < 0 ? -delta_z : delta_z;
+    travel_east = delta_x >= 0;
+    travel_north = delta_z >= 0;
+    x_flags = travel_east ? flag_west : flag_east;
+    z_flags = travel_north ? flag_south : flag_north;
+
+    if( abs_dx > abs_dz )
+    {
+        int offset_x = travel_east ? 1 : -1;
+        int offset_z = travel_north ? 0 : -1;
+        int scaled_z = collision_scale_up(start_z) + COLL_HALF_TILE + offset_z;
+        int tangent = abs_dx == 0 ? 0 : (collision_scale_up(delta_z) / abs_dx);
+        int curr_x = start_x;
+
+        while( curr_x != end_x )
+        {
+            int curr_z;
+            int next_z;
+
+            curr_x += offset_x;
+            curr_z = collision_scale_down(scaled_z);
+            if( los && curr_x == end_x && curr_z == end_z )
+                x_flags &= ~flag_proj;
+            if( collision_is_flagged(cm, curr_x, curr_z, x_flags) )
+                return 0;
+
+            scaled_z += tangent;
+            next_z = collision_scale_down(scaled_z);
+            if( los && curr_x == end_x && next_z == end_z )
+                z_flags &= ~flag_proj;
+            if( next_z != curr_z && collision_is_flagged(cm, curr_x, next_z, z_flags) )
+                return 0;
+        }
+    }
+    else
+    {
+        int offset_x = travel_east ? 0 : -1;
+        int offset_z = travel_north ? 1 : -1;
+        int scaled_x = collision_scale_up(start_x) + COLL_HALF_TILE + offset_x;
+        int tangent = abs_dz == 0 ? 0 : (collision_scale_up(delta_x) / abs_dz);
+        int curr_z = start_z;
+
+        while( curr_z != end_z )
+        {
+            int curr_x;
+            int next_x;
+
+            curr_z += offset_z;
+            curr_x = collision_scale_down(scaled_x);
+            if( los && curr_x == end_x && curr_z == end_z )
+                z_flags &= ~flag_proj;
+            if( collision_is_flagged(cm, curr_x, curr_z, z_flags) )
+                return 0;
+
+            scaled_x += tangent;
+            next_x = collision_scale_down(scaled_x);
+            if( los && next_x == end_x && curr_z == end_z )
+                x_flags &= ~flag_proj;
+            if( next_x != curr_x && collision_is_flagged(cm, next_x, curr_z, x_flags) )
+                return 0;
+        }
+    }
+
+    return 1;
+}
+
+int
+collision_map_line_of_sight(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag)
+{
+    return collision_ray_cast(
+        cm, src_x, src_z, dest_x, dest_z, src_width, src_height, dest_width, dest_height,
+        COLL_FLAG_SIGHT_BLOCKED_WEST | extra_flag, COLL_FLAG_SIGHT_BLOCKED_EAST | extra_flag,
+        COLL_FLAG_SIGHT_BLOCKED_SOUTH | extra_flag, COLL_FLAG_SIGHT_BLOCKED_NORTH | extra_flag,
+        COLL_FLAG_LOC | extra_flag, COLL_FLAG_LOC_PROJ_BLOCKER | extra_flag, 1);
+}
+
+int
+collision_map_line_of_walk(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag)
+{
+    /*
+     * Walk masks: WALK_BLOCKED_WEST == BLOCK_EAST, WALK_BLOCKED_EAST ==
+     * BLOCK_WEST, WALK_BLOCKED_SOUTH == BLOCK_NORTH, WALK_BLOCKED_NORTH ==
+     * BLOCK_SOUTH. Compile-time pinned so a flag-layout change cannot silently
+     * break LoW.
+     */
+    _Static_assert(
+        COLL_FLAG_BLOCK_EAST == (COLL_FLAG_WALL_WEST | COLL_FLAG_WALK_BLOCKED),
+        "WALK_BLOCKED_WEST must equal BLOCK_EAST");
+    _Static_assert(
+        COLL_FLAG_BLOCK_WEST == (COLL_FLAG_WALL_EAST | COLL_FLAG_WALK_BLOCKED),
+        "WALK_BLOCKED_EAST must equal BLOCK_WEST");
+    _Static_assert(
+        COLL_FLAG_BLOCK_NORTH == (COLL_FLAG_WALL_SOUTH | COLL_FLAG_WALK_BLOCKED),
+        "WALK_BLOCKED_SOUTH must equal BLOCK_NORTH");
+    _Static_assert(
+        COLL_FLAG_BLOCK_SOUTH == (COLL_FLAG_WALL_NORTH | COLL_FLAG_WALK_BLOCKED),
+        "WALK_BLOCKED_NORTH must equal BLOCK_SOUTH");
+
+    return collision_ray_cast(
+        cm, src_x, src_z, dest_x, dest_z, src_width, src_height, dest_width, dest_height,
+        COLL_FLAG_BLOCK_EAST | extra_flag, COLL_FLAG_BLOCK_WEST | extra_flag,
+        COLL_FLAG_BLOCK_NORTH | extra_flag, COLL_FLAG_BLOCK_SOUTH | extra_flag,
+        COLL_FLAG_LOC | extra_flag, COLL_FLAG_LOC_PROJ_BLOCKER | extra_flag, 0);
+}
+
+static int
+collision_footprints_intersect(
+    int ax,
+    int az,
+    int aw,
+    int ah,
+    int bx,
+    int bz,
+    int bw,
+    int bh)
+{
+    return !(bx >= ax + aw || bx + bw <= ax || bz >= az + ah || bz + bh <= az);
+}
+
+int
+collision_map_approached(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height)
+{
+    assert(cm);
+    if( collision_footprints_intersect(
+            src_x, src_z, src_width, src_height, dest_x, dest_z, dest_width, dest_height) )
+        return 0;
+    return collision_map_line_of_sight(
+        cm, src_x, src_z, dest_x, dest_z, src_width, src_height, dest_width, dest_height,
+        COLL_FLAG_BLOCK_NPC_AND_PLAYERS);
+}
+
+/* =========================================================================
+ * Entity occupancy — rsmod CollisionEngine.changeSquare
+ * ========================================================================= */
+
+void
+collision_map_change_square(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size,
+    int mask,
+    int add)
+{
+    int area;
+    int i;
+
+    assert(cm);
+    assert(size >= 1);
+    assert(mask != 0);
+
+    area = size * size;
+    for( i = 0; i < area; i++ )
+    {
+        int dx = tile_x + (i % size);
+        int dz = tile_z + (i / size);
+        if( add )
+            collision_map_add(cm, dx, dz, mask);
+        else
+            collision_map_remove(cm, dx, dz, mask);
+    }
+}
+
+/* =========================================================================
+ * Step validator — rsmod StepValidator.canTravel (size 1 primary path)
+ * ========================================================================= */
+
+static int
+collision_tile_open(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int masks)
+{
+    if( x < 0 || z < 0 || x >= cm->size_x || z >= cm->size_z )
+        return 0;
+    return (cm->flags[collision_map_index_at(cm, x, z)] & masks) == COLL_FLAG_OPEN;
+}
+
+int
+collision_map_can_travel(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag)
+{
+    assert(cm);
+    assert(size >= 1);
+
+    /* Size > 1 is supported for the composites the plan requires, but NPCs /
+     * players today are size 1 through the naive pathfinder. */
+    if( size == 1 )
+    {
+        if( offset_x == 0 && offset_z == -1 )
+            return collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+        if( offset_x == 0 && offset_z == 1 )
+            return collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+        if( offset_x == -1 && offset_z == 0 )
+            return collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag);
+        if( offset_x == 1 && offset_z == 0 )
+            return collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag);
+        if( offset_x == -1 && offset_z == -1 )
+            return collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
+                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+        if( offset_x == -1 && offset_z == 1 )
+            return collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_WEST | extra_flag) &&
+                   collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+        if( offset_x == 1 && offset_z == -1 )
+            return collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
+                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH | extra_flag);
+        if( offset_x == 1 && offset_z == 1 )
+            return collision_tile_open(cm, x + 1, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z, COLL_FLAG_BLOCK_EAST | extra_flag) &&
+                   collision_tile_open(cm, x, z + 1, COLL_FLAG_BLOCK_NORTH | extra_flag);
+        return 0;
+    }
+
+    if( size == 2 )
+    {
+        if( offset_x == 0 && offset_z == -1 )
+            return collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag);
+        if( offset_x == 0 && offset_z == 1 )
+            return collision_tile_open(cm, x, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
+        if( offset_x == -1 && offset_z == 0 )
+            return collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag);
+        if( offset_x == 1 && offset_z == 0 )
+            return collision_tile_open(cm, x + 2, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag);
+        /* Diagonals for size 2: three-tile check via the size-1 style on the
+         * leading corner plus the two cardinals — matches StepValidator. */
+        if( offset_x == -1 && offset_z == -1 )
+            return collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
+        if( offset_x == -1 && offset_z == 1 )
+            return collision_tile_open(cm, x - 1, z + 2, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x - 1, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
+        if( offset_x == 1 && offset_z == -1 )
+            return collision_tile_open(cm, x + 2, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x + 2, z, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag);
+        if( offset_x == 1 && offset_z == 1 )
+            return collision_tile_open(cm, x + 2, z + 2, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) &&
+                   collision_tile_open(cm, x + 2, z + 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) &&
+                   collision_tile_open(cm, x + 1, z + 2, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag);
+        return 0;
+    }
+
+    /* size >= 3: corners + mid-edge loop (StepValidator default branch). */
+    if( offset_x == 0 && offset_z == -1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+            return 0;
+        if( !collision_tile_open(cm, x + size - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+            return 0;
+        for( mid = x + 1; mid < x + size - 1; mid++ )
+        {
+            if( !collision_tile_open(cm, mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == 0 && offset_z == 1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+            return 0;
+        if( !collision_tile_open(cm, x + size - 1, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+            return 0;
+        for( mid = x + 1; mid < x + size - 1; mid++ )
+        {
+            if( !collision_tile_open(cm, mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == -1 && offset_z == 0 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x - 1, z, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+            return 0;
+        if( !collision_tile_open(cm, x - 1, z + size - 1, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+            return 0;
+        for( mid = z + 1; mid < z + size - 1; mid++ )
+        {
+            if( !collision_tile_open(cm, x - 1, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == 1 && offset_z == 0 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x + size, z, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+            return 0;
+        if( !collision_tile_open(cm, x + size, z + size - 1, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+            return 0;
+        for( mid = z + 1; mid < z + size - 1; mid++ )
+        {
+            if( !collision_tile_open(cm, x + size, mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    /* Diagonals for size >= 3 — StepValidator isBlocked* default branches. */
+    if( offset_x == -1 && offset_z == -1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x - 1, z - 1, COLL_FLAG_BLOCK_SOUTH_WEST | extra_flag) )
+            return 0;
+        for( mid = 1; mid < size; mid++ )
+        {
+            if( !collision_tile_open(
+                    cm, x - 1, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+                return 0;
+            if( !collision_tile_open(
+                    cm, x + mid - 1, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == -1 && offset_z == 1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x - 1, z + size, COLL_FLAG_BLOCK_NORTH_WEST | extra_flag) )
+            return 0;
+        for( mid = 1; mid < size; mid++ )
+        {
+            if( !collision_tile_open(
+                    cm, x - 1, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST | extra_flag) )
+                return 0;
+            if( !collision_tile_open(
+                    cm, x + mid - 1, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == 1 && offset_z == -1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x + size, z - 1, COLL_FLAG_BLOCK_SOUTH_EAST | extra_flag) )
+            return 0;
+        for( mid = 1; mid < size; mid++ )
+        {
+            if( !collision_tile_open(
+                    cm, x + size, z + mid - 1, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+                return 0;
+            if( !collision_tile_open(
+                    cm, x + mid, z - 1, COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    if( offset_x == 1 && offset_z == 1 )
+    {
+        int mid;
+        if( !collision_tile_open(cm, x + size, z + size, COLL_FLAG_BLOCK_NORTH_EAST | extra_flag) )
+            return 0;
+        for( mid = 1; mid < size; mid++ )
+        {
+            if( !collision_tile_open(
+                    cm, x + mid, z + size, COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST | extra_flag) )
+                return 0;
+            if( !collision_tile_open(
+                    cm, x + size, z + mid, COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST | extra_flag) )
+                return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/* =========================================================================
+ * Naive pathfinder — rsmod NaivePathFinder.findNaivePath
+ * ========================================================================= */
+
+static int
+collision_coerce_at_most(int value, int max)
+{
+    return value > max ? max : value;
+}
+
+static int
+collision_coerce_at_least(int value, int min)
+{
+    return value < min ? min : value;
+}
+
+static int
+collision_is_diagonal_adj(
+    int src_x,
+    int src_z,
+    int src_w,
+    int src_h,
+    int dest_x,
+    int dest_z,
+    int dest_w,
+    int dest_h)
+{
+    if( src_x + src_w == dest_x && src_z + src_h == dest_z )
+        return 1;
+    if( src_x - 1 == dest_x + dest_w - 1 && src_z - 1 == dest_z + dest_h - 1 )
+        return 1;
+    if( src_x + src_w == dest_x && src_z - 1 == dest_z + dest_h - 1 )
+        return 1;
+    return src_x - 1 == dest_x + dest_w - 1 && src_z + src_h == dest_z;
+}
+
+static unsigned
+collision_rng_next(unsigned* rng)
+{
+    /* xorshift32 — deterministic, matches the project's "fixed seed" rule. */
+    unsigned x = *rng ? *rng : 0x5eed1234u;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    *rng = x;
+    return x;
+}
+
+static int
+collision_sign(int v)
+{
+    return (v > 0) - (v < 0);
+}
+
+/*
+ * Returns 1 and writes out_x/out_z on success; 0 when the source is exactly
+ * on a corner (authentic empty path).
+ */
+static int
+collision_naive_destination(
+    int src_x,
+    int src_z,
+    int src_w,
+    int src_h,
+    int dest_x,
+    int dest_z,
+    int dest_w,
+    int dest_h,
+    int* out_x,
+    int* out_z)
+{
+    int diagonal = src_x - dest_x + (src_z - dest_z);
+    int anti = src_x - dest_x - (src_z - dest_z);
+    int south_west_cw = anti < 0;
+    int north_west_cw = diagonal >= dest_h - 1 - (src_w - 1);
+    int north_east_cw = anti > src_w - src_h;
+    int south_east_cw = diagonal <= dest_w - 1 - (src_h - 1);
+
+    if( south_west_cw && !north_west_cw )
+    {
+        int off_z = 0;
+        if( diagonal >= -src_w )
+            off_z = collision_coerce_at_most(diagonal + src_w, dest_h - 1);
+        else if( anti > -src_w )
+            off_z = -(src_w + anti);
+        *out_x = -src_w + dest_x;
+        *out_z = off_z + dest_z;
+        return 1;
+    }
+    if( north_west_cw && !north_east_cw )
+    {
+        int off_x = 0;
+        if( anti >= -dest_h )
+            off_x = collision_coerce_at_most(anti + dest_h, dest_w - 1);
+        else if( diagonal < dest_h )
+            off_x = collision_coerce_at_least(diagonal - dest_h, -(src_w - 1));
+        *out_x = off_x + dest_x;
+        *out_z = dest_h + dest_z;
+        return 1;
+    }
+    if( north_east_cw && !south_east_cw )
+    {
+        int off_z = 0;
+        if( anti <= dest_w )
+            off_z = dest_h - anti;
+        else if( diagonal < dest_w )
+            off_z = collision_coerce_at_least(diagonal - dest_w, -(src_h - 1));
+        *out_x = dest_w + dest_x;
+        *out_z = off_z + dest_z;
+        return 1;
+    }
+    if( !(south_east_cw && !south_west_cw) )
+        return 0;
+
+    {
+        int off_x = 0;
+        if( diagonal > -src_h )
+            off_x = collision_coerce_at_most(diagonal + src_h, dest_w - 1);
+        else if( anti < src_h )
+            off_x = collision_coerce_at_least(anti - src_h, -(src_h - 1));
+        *out_x = off_x + dest_x;
+        *out_z = -src_h + dest_z;
+        return 1;
+    }
+}
+
+int
+collision_map_naive_path(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag,
+    unsigned* rng,
+    int* out_x,
+    int* out_z)
+{
+    static const int k_cardinals[4][2] = { { -1, 0 }, { 1, 0 }, { 0, 1 }, { 0, -1 } };
+    int dx;
+    int dz;
+    int curr_x;
+    int curr_z;
+    unsigned local_rng;
+
+    assert(cm);
+    assert(out_x && out_z);
+    assert(src_width >= 1 && src_height >= 1);
+    assert(dest_width >= 1 && dest_height >= 1);
+
+    if( !rng )
+    {
+        local_rng = 0x5eed1234u;
+        rng = &local_rng;
+    }
+
+    if( collision_footprints_intersect(
+            src_x, src_z, src_width, src_height, dest_x, dest_z, dest_width, dest_height) )
+    {
+        int pick = (int)(collision_rng_next(rng) % 4u);
+        *out_x = src_x + k_cardinals[pick][0];
+        *out_z = src_z + k_cardinals[pick][1];
+        return 1;
+    }
+
+    /* naiveDestination is called with dest size 1x1 in LostCity — the SW of
+     * the target footprint is the anchor the perimeter walk uses. */
+    if( !collision_naive_destination(
+            src_x, src_z, src_width, src_height, dest_x, dest_z, 1, 1, &dx, &dz) )
+        return 0;
+
+    if( collision_is_diagonal_adj(
+            dx, dz, src_width, src_height, dest_x, dest_z, dest_width, dest_height) )
+    {
+        *out_x = dx;
+        *out_z = dz;
+        return 1;
+    }
+
+    if( collision_footprints_intersect(
+            dx, dz, src_width, src_height, dest_x, dest_z, dest_width, dest_height) )
+    {
+        *out_x = dx;
+        *out_z = dz;
+        return 1;
+    }
+
+    curr_x = dx;
+    curr_z = dz;
+    while( curr_x != dest_x && curr_z != dest_z )
+    {
+        int step_x = collision_sign(dest_x - curr_x);
+        int step_z = collision_sign(dest_z - curr_z);
+        if( collision_map_can_travel(
+                cm, curr_x, curr_z, step_x, step_z, src_width, extra_flag) )
+        {
+            curr_x += step_x;
+            curr_z += step_z;
+        }
+        else if(
+            step_x != 0 &&
+            collision_map_can_travel(cm, curr_x, curr_z, step_x, 0, src_width, extra_flag) )
+        {
+            curr_x += step_x;
+        }
+        else if(
+            step_z != 0 &&
+            collision_map_can_travel(cm, curr_x, curr_z, 0, step_z, src_width, extra_flag) )
+        {
+            curr_z += step_z;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    *out_x = curr_x;
+    *out_z = curr_z;
+    return 1;
+}

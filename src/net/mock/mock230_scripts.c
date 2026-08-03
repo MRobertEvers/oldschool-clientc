@@ -2604,12 +2604,9 @@ mock230_script_command(
      * pick one — is 1,681 collision reads for a radius of 20 and this runs
      * inside a per-npc timer.
      *
-     * `mode` is `lineofwalk` / `lineofsight` / `none`, and only `none` is
-     * honoured: the other two require a reachability test from the source tile,
-     * which this server has no cheap form of. Rather than silently treating
-     * them as `none` — a monster teleporting through a wall, occasionally, for
-     * no visible reason — an unsupported mode reports and falls back, so the
-     * gap is in the log rather than in the world.
+     * `mode` is LostCity MapFindSquareType: 0 lineofwalk, 1 lineofsight,
+     * 2 none. LINEOFWALK / LINEOFSIGHT require a clear path from the candidate
+     * back to the origin (ServerOps.ts); NONE only needs a standable tile.
      *
      * Failure returns the *source* coord, not -1. The reference's callers
      * assign the result straight into `npc_tele`, so a sentinel would teleport
@@ -2624,6 +2621,7 @@ mock230_script_command(
         int level;
         int min_range;
         int max_range;
+        int mode;
 
         for( int i = 3; i >= 0; i-- )
         {
@@ -2635,11 +2633,7 @@ mock230_script_command(
         origin_z = coord_z(values[0]);
         min_range = values[1] < 0 ? 0 : values[1];
         max_range = values[2] < min_range ? min_range : values[2];
-
-        if( values[3] != 2 /* ^map_findsquare_none */ && srv->verbose )
-            fprintf(stderr,
-                    "mock230: map_findsquare mode %d is not implemented — using `none`\n",
-                    values[3]);
+        mode = values[3];
 
         {
             int found = values[0];
@@ -2658,6 +2652,16 @@ mock230_script_command(
                 if( !mock230_scene_contains(x, z) )
                     continue;
                 if( mock230_scene_walk_blocked(level, x, z) )
+                    continue;
+                /* Reachability last — same order as ServerOps.ts (cheap filters
+                 * first). Candidate → origin. */
+                if( mode == 0 /* LINEOFWALK */ &&
+                    !mock230_scene_line_of_walk(level, x, z, origin_x, origin_z, 1, 1, 1,
+                                                1, 0) )
+                    continue;
+                if( mode == 1 /* LINEOFSIGHT */ &&
+                    !mock230_scene_line_of_sight(level, x, z, origin_x, origin_z, 1, 1, 1,
+                                                 1, 0) )
                     continue;
                 found = coord_pack(level, x, z);
                 break;
@@ -3294,7 +3298,6 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        (void)checkvis; /* No line of sight here — see npc_find. */
 
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
@@ -3316,6 +3319,9 @@ mock230_script_command(
             if( dz < 0 )
                 dz = -dz;
             if( (dx > dz ? dx : dz) > distance )
+                continue;
+            if( !mock230_scene_checkvis(checkvis, npc->level, coord_x(coord),
+                                       coord_z(coord), npc->x, npc->z) )
                 continue;
             if( srv->iterator.count <
                 (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
@@ -3421,7 +3427,6 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        (void)checkvis;
 
         /*
          * `huntall` collects *players* in range — `[proc,sound_area]` uses it to
@@ -3429,6 +3434,9 @@ mock230_script_command(
          * (§6.1), so this finds at most one, and it is written as a loop over
          * the pool anyway: the day a second player exists this is already
          * right, where a hardcoded `srv->active_player` would be one more place to find.
+         *
+         * HuntVis for players casts candidate→source (ScriptIterators.ts), the
+         * opposite of the npc finds.
          */
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
@@ -3449,6 +3457,9 @@ mock230_script_command(
             if( dz < 0 )
                 dz = -dz;
             if( (dx > dz ? dx : dz) > distance )
+                continue;
+            if( !mock230_scene_checkvis(checkvis, other->level, other->x, other->z,
+                                       coord_x(coord), coord_z(coord)) )
                 continue;
             srv->iterator.slots[srv->iterator.count++] = i;
         }
@@ -3510,14 +3521,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
         /*
-         * `checkvis` asks for line of sight. There is no LOS here — the scene
-         * has collision but nothing projects a ray through it — so the flag is
-         * accepted and ignored rather than refused. Content uses it to avoid
-         * addressing an npc through a wall; here it will occasionally find one
-         * it should not, which is a wrong answer in the direction of doing
-         * something rather than nothing.
+         * `checkvis` is LostCity HuntVis (0 off / 1 lineofsight / 2 lineofwalk).
+         * Content uses it to avoid addressing an npc through a wall.
          */
-        (void)checkvis;
 
         for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
         {
@@ -3546,6 +3552,9 @@ mock230_script_command(
             {
                 continue;
             }
+            if( !mock230_scene_checkvis(checkvis, npc->level, coord_x(coord),
+                                       coord_z(coord), npc->x, npc->z) )
+                continue;
             /* Nearest wins. The reference does the same, and it is what makes
              * `npc_find(coord, guard, 5, 0)` mean "the guard beside me" rather
              * than "whichever guard the slot array happened to reach first". */
@@ -4538,25 +4547,49 @@ mock230_script_command(
     {
         int32_t op_num;
         int slot = (int)state->host_tag - 1;
+        struct Mock230Npc* npc;
+        const struct Mock230NpcInfo* info;
 
         if( !SSVM_PopInt(state, &op_num) )
             return 1;
-        if( slot < 0 )
+        if( op_num < 1 || op_num > 5 )
+        {
+            SSVM_Abort(state, "p_opnpc: op %d is not 1..5", (int)op_num);
+            return 1;
+        }
+        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
         {
             SSVM_Abort(state, "p_opnpc with no active npc");
             return 1;
         }
-        /* Op 2 is Attack on every combat npc in this cache. Anything else is a
-         * non-combat interaction the mock has no model for yet, so it walks
-         * over and stops rather than pretending. */
+        npc = &srv->npcs[slot];
+        info = mock230_npcinfo(npc->type);
+        /*
+         * Op 2 stays combat_engage: content's Attack bindings (`combat.rs2`)
+         * and auto-retaliate call `p_opnpc(2)` expecting that. LostCity
+         * re-issues APNPC2 into player_combat instead; until that content
+         * lands, the engage shortcut is the working path.
+         *
+         * Every other op re-issues like LostCity PlayerOps.ts — fishing's
+         * Light-style resume loops (`p_opnpc(4)` / `p_opnpc(5)` on saltfish
+         * and freshfish) need the dispatch, not a walk-and-stop.
+         */
         if( op_num == 2 )
+        {
             mock230_combat_engage(srv, slot);
-        else
+            return 1;
+        }
+        if( !info->ops[op_num - 1] )
+            return 1;
+        mock230_world_clear_pending_action(srv);
+        mock230_world_interaction_clear(srv);
+        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, (int)op_num, slot,
+                                      npc->type, npc->x, npc->z, npc->level,
+                                      info->size, info->size);
         {
             struct CollisionApproach approach;
-            const struct Mock230NpcInfo* info = mock230_npcinfo(srv->npcs[slot].type);
-            mock230_scene_npc_approach(info ? info->size : 1, &approach);
-            mock230_world_walk_to_approach(srv, srv->npcs[slot].x, srv->npcs[slot].z, &approach);
+            mock230_scene_npc_approach(info->size, &approach);
+            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
         }
         return 1;
     }
@@ -4913,6 +4946,46 @@ mock230_script_command(
                  coord_level(pos) >= coord_level(corner_sw) &&
                  coord_level(pos) <= coord_level(corner_ne);
         SSVM_PushInt(state, inside);
+        return 1;
+    }
+
+    /*
+     * Can you see / walk a straight line between two tiles?
+     *
+     * LostCity `ServerOps.ts` LINEOFSIGHT / LINEOFWALK → rsmod
+     * `hasLineOfSight` / `hasLineOfWalk(..., 1,1,1,1, 0)`. Different plane →
+     * false. Outside the built scene → false (same "unknown means don't" rule
+     * as map_blocked). The F2P-zone gate the reference applies is not here —
+     * this tree has no free-to-play map mask yet.
+     */
+    case SS_OP_LINEOFSIGHT:
+    case SS_OP_LINEOFWALK:
+    {
+        int32_t from;
+        int32_t to;
+        int level;
+        int x1;
+        int z1;
+        int x2;
+        int z2;
+        int clear;
+
+        if( !SSVM_PopInt(state, &to) || !SSVM_PopInt(state, &from) )
+            return 1;
+        level = coord_level(from);
+        if( level != coord_level(to) )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        x1 = coord_x(from);
+        z1 = coord_z(from);
+        x2 = coord_x(to);
+        z2 = coord_z(to);
+        clear = opcode == SS_OP_LINEOFSIGHT
+                    ? mock230_scene_line_of_sight(level, x1, z1, x2, z2, 1, 1, 1, 1, 0)
+                    : mock230_scene_line_of_walk(level, x1, z1, x2, z2, 1, 1, 1, 1, 0);
+        SSVM_PushInt(state, clear ? 1 : 0);
         return 1;
     }
 

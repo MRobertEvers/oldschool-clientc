@@ -58,6 +58,34 @@
 // CollisionFlag.WALL_SOUTH | CollisionFlag.WALL_SOUTH_WEST | CollisionFlag.BLOCK_EAST
 #define COLL_FLAG_BLOCK_NORTH_EAST 0x2801E0
 
+/* Size-2 / size-N edge composites (rsmod BLOCK_NORTH_AND_SOUTH_* family),
+ * computed against this repo's 0x280000 FLOOR_BLOCKED base — not rsmod's
+ * 0x240000. See docs/OSRS_PATHING_LOS.md §1.5. */
+#define COLL_FLAG_BLOCK_NORTH_AND_SOUTH_EAST 0x28013E
+#define COLL_FLAG_BLOCK_NORTH_AND_SOUTH_WEST 0x2801E3
+#define COLL_FLAG_BLOCK_NORTH_EAST_AND_WEST 0x28018F
+#define COLL_FLAG_BLOCK_SOUTH_EAST_AND_WEST 0x2801F8
+
+/*
+ * Line-of-sight directional masks (rsmod Line.SIGHT_BLOCKED_*).
+ * LOC_PROJ_BLOCKER | WALL_*_PROJ — identical below bit 18 in both layouts.
+ */
+#define COLL_FLAG_SIGHT_BLOCKED_NORTH 0x20400
+#define COLL_FLAG_SIGHT_BLOCKED_EAST 0x21000
+#define COLL_FLAG_SIGHT_BLOCKED_SOUTH 0x24000
+#define COLL_FLAG_SIGHT_BLOCKED_WEST 0x30000
+
+/*
+ * Server-runtime occupancy flags. Bits 24+ so COLL_FLAG_BOUNDS (0xffffff)
+ * never swallows them, and so they stay clear of every cache-derived bit
+ * (0..23). Numbering deliberately does NOT match rsmod: rsmod's NPC_OCC is
+ * 0x80000, which is this client's ANTIMACRO bit. See docs/OSRS_PATHING_LOS.md.
+ */
+#define COLL_FLAG_NPC_OCC 0x1000000
+#define COLL_FLAG_PLAYER_OCC 0x2000000
+#define COLL_FLAG_BLOCK_NPC_AND_PLAYERS 0x4000000
+#define COLL_FLAG_PROJ_BLOCK_ENTITY 0x8000000
+
 /* LocAngle: 0=WEST, 1=NORTH, 2=EAST, 3=SOUTH (clientts LocAngle) */
 enum CollisionLocAngle
 {
@@ -497,5 +525,116 @@ collision_map_can_step_diagonal_north_east(
     }
     return false;
 }
+
+/*
+ * Line of sight / line of walk — rsmod LineValidator.rayCastLine.
+ *
+ * Walk masks equal the existing BLOCK_* constants (WALK_BLOCKED_NORTH ==
+ * BLOCK_SOUTH, etc.); sight masks are COLL_FLAG_SIGHT_BLOCKED_*.
+ * extra_flag is OR'd into every directional / loc / proj check.
+ */
+int
+collision_line_coordinate(
+    int a,
+    int b,
+    int size);
+
+int
+collision_map_line_of_sight(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag);
+
+int
+collision_map_line_of_walk(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag);
+
+/*
+ * AP-range predicate: Chebyshev distance is the caller's job; this is the
+ * LoS half — hasLineOfSight with extra_flag | BLOCK_NPC_AND_PLAYERS, plus the
+ * "overlapping footprints are never in AP range" rule. Returns 1 when clear.
+ */
+int
+collision_map_approached(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height);
+
+/*
+ * Entity occupancy — rsmod CollisionEngine.changeSquare. Unconditional clear
+ * (does not check whether another entity still occupies the tile) — that is
+ * exactly why NPC stacking works.
+ */
+void
+collision_map_change_square(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size,
+    int mask,
+    int add);
+
+/*
+ * Single-step travel check — rsmod StepValidator.canTravel for size 1 (the
+ * only mover size NPCs/players use through the naive pathfinder today).
+ * extra_flag is OR'd into every BLOCK_* test (occupancy). Returns 1 when the
+ * step is legal.
+ */
+int
+collision_map_can_travel(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag);
+
+/*
+ * Naive / "dumb" pathfinder — rsmod NaivePathFinder.findNaivePath.
+ *
+ * Writes at most one destination tile into out_x/out_z. Returns 1 when a
+ * tile was produced, 0 when the source sits exactly on a corner of the target
+ * (authentic empty path / dead tick). When footprints already intersect,
+ * picks a random cardinal step using *rng (advanced); pass a fixed seed for
+ * determinism.
+ */
+int
+collision_map_naive_path(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag,
+    unsigned* rng,
+    int* out_x,
+    int* out_z);
 
 #endif

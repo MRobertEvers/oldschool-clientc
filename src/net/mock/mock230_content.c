@@ -1143,8 +1143,56 @@ npc_config_key(
      * anything else means yes. */
     else if( strcmp(key, "givechase") == 0 )
         def->givechase = strcmp(value, "no") != 0;
+    else if( strcmp(key, "blockwalk") == 0 )
+    {
+        /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
+         * `NPC`). Numeric literals are allowed so a band dump round-trips. */
+        if( strcmp(value, "none") == 0 || strcmp(value, "0") == 0 )
+            def->blockwalk = 0;
+        else if( strcmp(value, "npc") == 0 || strcmp(value, "NPC") == 0 ||
+                 strcmp(value, "1") == 0 )
+            def->blockwalk = 1;
+        else if( strcmp(value, "all") == 0 || strcmp(value, "2") == 0 )
+            def->blockwalk = 2;
+        else if( strcmp(value, "player") == 0 || strcmp(value, "3") == 0 )
+            def->blockwalk = 3;
+        else
+            CONTENT_ERROR("%s: blockwalk `%s` is not none/npc/all/player\n", where, value);
+    }
+    else if( strcmp(key, "blocksight") == 0 )
+    {
+        if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 ||
+            strcmp(value, "1") == 0 )
+            def->blocksight = 1;
+        else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 ||
+                 strcmp(value, "0") == 0 )
+            def->blocksight = 0;
+        else
+            CONTENT_ERROR("%s: blocksight `%s` is not 0/1\n", where, value);
+    }
     else if( strcmp(key, "moverestrict") == 0 )
-        def->nomove = strcmp(value, "nomove") == 0;
+    {
+        /* LostCity MoveRestrict. Only nomove is enforced by the mover; the rest
+         * are stored so content can state them. Always keep `nomove` in sync. */
+        if( strcmp(value, "normal") == 0 )
+            def->moverestrict = 0;
+        else if( strcmp(value, "blocked") == 0 )
+            def->moverestrict = 1;
+        else if( strcmp(value, "blocked+normal") == 0 || strcmp(value, "los") == 0 )
+            def->moverestrict = 2;
+        else if( strcmp(value, "indoors") == 0 )
+            def->moverestrict = 3;
+        else if( strcmp(value, "outdoors") == 0 )
+            def->moverestrict = 4;
+        else if( strcmp(value, "nomove") == 0 )
+            def->moverestrict = 5;
+        else if( strcmp(value, "passthru") == 0 )
+            def->moverestrict = 6;
+        else
+            CONTENT_ERROR("%s: moverestrict `%s` is not a known MoveRestrict\n", where,
+                          value);
+        def->nomove = def->moverestrict == 5;
+    }
     else if( strcmp(key, "huntmode") == 0 )
         def->huntmode = strcmp(value, "aggressive") == 0 ? MOCK230_HUNT_AGGRESSIVE
                                                          : MOCK230_HUNT_NONE;
@@ -2700,6 +2748,11 @@ init_defaults(void)
      * follow. */
     g_npc_default.maxrange = 7;
     g_npc_default.givechase = 1;
+    /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
+    g_npc_default.blockwalk = 1;
+    g_npc_default.blocksight = 0;
+    g_npc_default.moverestrict = 0;
+    g_npc_default.nomove = 0;
     g_npc_default.damagetype = MOCK230_DAMAGE_CRUSH;
     g_npc_default.attack_anim = -1;
     g_npc_default.defend_anim = -1;
@@ -3145,7 +3198,18 @@ band_apply_type(
         int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
 
         if( size > 0 )
+        {
             Mock230_ServerDecode(type, def, band, size);
+            /* Packs that emit moverestrict=nomove without the collapsed nomove
+             * opcode still pin the mover. */
+            if( strcmp(type->name, "npc") == 0 )
+            {
+                struct Mock230NpcDef* npc = (struct Mock230NpcDef*)def;
+
+                if( npc->moverestrict == 5 )
+                    npc->nomove = 1;
+            }
+        }
     }
 }
 

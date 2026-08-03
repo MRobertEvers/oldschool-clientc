@@ -572,11 +572,12 @@ which locs it missed.
 | op | id | signature | engine.rs2 |
 |---|---:|---|---:|
 | `p_oploc` | 2078 | `(int $op)` | :179 |
+| `p_opobj` | 2081 | `(int $op)` | PlayerOps.ts:1047 |
 
-`mock230_ops_player.c` is the newest domain file (2026-08-02) and holds one
-opcode, which is the point: the rest of the family — `p_opnpc`, `p_opheld`,
-`p_opobj`, `p_opplayer` — belongs beside it as each is written or corrected, and
-the distinction they all turn on had nowhere to live in the big switch.
+`mock230_ops_player.c` holds the re-issue pair. The rest of the family —
+`p_opnpc`, `p_opheld`, `p_opplayer` — belongs beside them as each is written or
+corrected, and the distinction they all turn on had nowhere to live in the big
+switch.
 
 `PlayerOps.ts:389-403` does three things: `stopAction()`, queue a waypoint when
 the loc is out of operable distance, and `setInteraction(SCRIPT, activeLoc,

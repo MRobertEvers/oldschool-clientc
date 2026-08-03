@@ -1112,6 +1112,9 @@ For any substantial task, in this order:
      §1, §9, §10.1, §12, and
      `LostCity_Server/content/scripts/README.md`
    - ServerScript → [`serverscript.md`](serverscript.md)
+   - pathfinding / LoS / NPC movement →
+     [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md), then
+     [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md) §7
    - UI-facing features → [`REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md),
      [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md)
    - anything that reads or writes the client canvas size, the gameframe

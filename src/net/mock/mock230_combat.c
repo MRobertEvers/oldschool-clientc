@@ -924,6 +924,7 @@ mock230_combat_npc_tick(
     {
         if( srv->tick >= npc->death_tick )
         {
+            mock230_world_npc_occupancy(npc, 0);
             npc->active = 0;
             npc->death_tick = -1;
             npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
@@ -1076,6 +1077,13 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->attack_clock = 0;
         npc->step_dir = -1;
         npc->masks = 0;
+        npc->last_step_x = npc->x - 1;
+        npc->last_step_z = npc->z;
+        npc->follow_x = npc->last_step_x;
+        npc->follow_z = npc->last_step_z;
+        npc->waypoint_index = -1;
+        npc->stuck_counter = 0;
+        mock230_world_npc_occupancy(npc, 1);
         /* Nothing to clear: each player's own `npc_tracked` set dropped this
          * npc on the tick it went inactive, so the next NPC_INFO adds it as a
          * new entity — which is what a respawn is from the client's side. */

@@ -10,15 +10,15 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    164  host commands
+ *    166  host commands
  *      9  host commands (db)
  *      5  host commands (inv)
  *      8  host commands (loc)
  *      7  host commands (npc)
  *      8  host commands (obj)
  *      2  host commands (param)
- *      1  host commands (player)
- *    267  total, of 404 declared opcodes
+ *      2  host commands (player)
+ *    270  total, of 404 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 267
+#define MOCK230_OPCODE_COVERAGE_COUNT 270
 #define MOCK230_OPCODE_DECLARED_COUNT 404
 
 /*
@@ -74,6 +74,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1002, /* SS_OP_COORDZ (host commands) */
     1003, /* SS_OP_DISTANCE (host commands) */
     1004, /* SS_OP_INZONE (host commands) */
+    1005, /* SS_OP_LINEOFSIGHT (host commands) */
+    1006, /* SS_OP_LINEOFWALK (host commands) */
     1007, /* SS_OP_MAP_BLOCKED (host commands) */
     1008, /* SS_OP_MAP_CLOCK (host commands) */
     1009, /* SS_OP_MAP_FINDSQUARE (host commands) */
@@ -124,6 +126,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2076, /* SS_OP_P_LOGOUT (host commands) */
     2078, /* SS_OP_P_OPLOC (host commands (player)) */
     2079, /* SS_OP_P_OPNPC (host commands) */
+    2081, /* SS_OP_P_OPOBJ (host commands (player)) */
     2084, /* SS_OP_P_PAUSEBUTTON (host commands) */
     2087, /* SS_OP_P_STOPACTION (host commands) */
     2088, /* SS_OP_P_TELEJUMP (host commands) */

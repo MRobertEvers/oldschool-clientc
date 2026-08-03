@@ -832,45 +832,187 @@ mock230_scene_can_step(
     int z,
     int dir)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
-    int scene_x = x - g_base_x;
-    int scene_z = z - g_base_z;
+    return mock230_scene_can_step_extra(level, x, z, dir, 0);
+}
 
-    /*
-     * Unknown means DON'T. This returns "can step", so an unbuilt tile has to
-     * answer 0, not 1.
-     *
-     * `mock230_scene_walk_blocked` already answers 1 (blocked) for exactly
-     * these conditions (:102-106), and `map_blocked` documents the rule as
-     * "unknown means don't" — this function was the one dissenter, and it let
-     * the player walk straight off the edge of the built scene.
-     */
-    if( !map || dir < 0 || dir > 7 )
+int
+mock230_scene_can_step_extra(
+    int level,
+    int x,
+    int z,
+    int dir,
+    int extra_flag)
+{
+    if( dir < 0 || dir > 7 )
+        return 0;
+    return mock230_scene_can_travel(
+        level, x, z, k_step_dx[dir], k_step_dz[dir], 1, extra_flag);
+}
+
+int
+mock230_scene_can_travel(
+    int level,
+    int x,
+    int z,
+    int offset_x,
+    int offset_z,
+    int size,
+    int extra_flag)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map || size < 1 )
         return 0;
     if( !mock230_scene_contains(x, z) )
         return 0;
-    if( !mock230_scene_contains(x + k_step_dx[dir], z + k_step_dz[dir]) )
+    if( !mock230_scene_contains(x + offset_x, z + offset_z) )
         return 0;
+    return collision_map_can_travel(
+        map, x - g_base_x, z - g_base_z, offset_x, offset_z, size, extra_flag);
+}
 
-    switch( dir )
-    {
-    case 0:
-        return collision_map_can_step_diagonal_north_west(map, scene_x, scene_z);
-    case 1:
-        return collision_map_can_step_north(map, scene_x, scene_z);
-    case 2:
-        return collision_map_can_step_diagonal_north_east(map, scene_x, scene_z);
-    case 3:
-        return collision_map_can_step_west(map, scene_x, scene_z);
-    case 4:
-        return collision_map_can_step_east(map, scene_x, scene_z);
-    case 5:
-        return collision_map_can_step_diagonal_south_west(map, scene_x, scene_z);
-    case 6:
-        return collision_map_can_step_south(map, scene_x, scene_z);
-    default:
-        return collision_map_can_step_diagonal_south_east(map, scene_x, scene_z);
-    }
+int
+mock230_scene_line_of_sight(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh,
+    int extra)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map )
+        return 0;
+    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+        return 0;
+    return collision_map_line_of_sight(
+        map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh,
+        extra);
+}
+
+int
+mock230_scene_line_of_walk(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh,
+    int extra)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map )
+        return 0;
+    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+        return 0;
+    return collision_map_line_of_walk(
+        map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh,
+        extra);
+}
+
+int
+mock230_scene_checkvis(
+    int checkvis,
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z)
+{
+    /* HuntVis.OFF / LINEOFSIGHT / LINEOFWALK — LostCity HuntVis.ts. */
+    if( checkvis == 1 )
+        return mock230_scene_line_of_sight(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1,
+                                           0);
+    if( checkvis == 2 )
+        return mock230_scene_line_of_walk(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1, 0);
+    return 1;
+}
+
+int
+mock230_scene_approached(
+    int level,
+    int sx,
+    int sz,
+    int dx,
+    int dz,
+    int sw,
+    int sh,
+    int dw,
+    int dh)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map )
+        return 0;
+    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+        return 0;
+    return collision_map_approached(
+        map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh);
+}
+
+void
+mock230_scene_change_occupancy(
+    int level,
+    int x,
+    int z,
+    int size,
+    int mask,
+    int add)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map || size < 1 || mask == 0 )
+        return;
+    if( !mock230_scene_contains(x, z) )
+        return;
+    collision_map_change_square(map, x - g_base_x, z - g_base_z, size, mask, add);
+}
+
+int
+mock230_scene_naive_path(
+    int level,
+    int src_x,
+    int src_z,
+    int dest_x,
+    int dest_z,
+    int src_width,
+    int src_height,
+    int dest_width,
+    int dest_height,
+    int extra_flag,
+    unsigned* rng,
+    int* out_x,
+    int* out_z)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+    int sx;
+    int sz;
+    int ok;
+
+    assert(out_x && out_z);
+    if( !map )
+        return 0;
+    if( !mock230_scene_contains(src_x, src_z) || !mock230_scene_contains(dest_x, dest_z) )
+        return 0;
+    ok = collision_map_naive_path(
+        map, src_x - g_base_x, src_z - g_base_z, dest_x - g_base_x, dest_z - g_base_z,
+        src_width, src_height, dest_width, dest_height, extra_flag, rng, &sx, &sz);
+    if( !ok )
+        return 0;
+    *out_x = sx + g_base_x;
+    *out_z = sz + g_base_z;
+    if( !mock230_scene_contains(*out_x, *out_z) )
+        return 0;
+    return 1;
 }
 
 /* Straight-line interpolation. Used ONLY when there is no collision map at

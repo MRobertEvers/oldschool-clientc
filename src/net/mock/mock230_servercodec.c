@@ -54,10 +54,17 @@ static const struct ServerField k_npc_fields[] = {
     { 153, WIRE_U4, offsetof(struct Mock230NpcDef, defend_anim), "defend_anim" },
     { 154, WIRE_U4, offsetof(struct Mock230NpcDef, death_anim),  "death_anim"  },
     { 155, WIRE_U1, offsetof(struct Mock230NpcDef, death_delay), "death_delay" },
+    /* 156/157 are ours alone (150..199). LostCity puts blockwalk at 208, but
+     * that opcode already carries this tree's `nomove` boolean. */
+    { 156, WIRE_U1, offsetof(struct Mock230NpcDef, blockwalk),   "blockwalk"   },
+    { 157, WIRE_U1, offsetof(struct Mock230NpcDef, blocksight),  "blocksight"  },
     { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
     { 201, WIRE_U2, offsetof(struct Mock230NpcDef, maxrange),    "maxrange"    },
     { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },
     { 204, WIRE_U2, offsetof(struct Mock230NpcDef, respawnrate), "respawnrate" },
+    /* LostCity's moverestrict opcode. `nomove` at 208 stays for packs that
+     * already emit the collapsed boolean. */
+    { 206, WIRE_U1, offsetof(struct Mock230NpcDef, moverestrict),"moverestrict"},
     { 208, WIRE_U1, offsetof(struct Mock230NpcDef, nomove),      "nomove"      },
     { 209, WIRE_U1, offsetof(struct Mock230NpcDef, huntmode),    "huntmode"    },
     { 213, WIRE_U1, offsetof(struct Mock230NpcDef, givechase),   "givechase"   },

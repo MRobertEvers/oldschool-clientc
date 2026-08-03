@@ -22,6 +22,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .npc_approach_uses_size = 0,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
+    .los_symmetric_pvp = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
 };
@@ -38,6 +39,8 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
  *   - op_click_nearest_range 10: rsmod always runs its alternative-route
  *     search for interactions, so an obstructed target still walks you most of
  *     the way instead of producing no movement at all.
+ *   - los_symmetric_pvp: the 2019 LMS update — PvP LoS is symmetric; PvM is
+ *     not.
  */
 static struct ToriRS_FeatureTable const k_features_osrs = {
     .era = TORIRS_FEATURE_ERA_OSRS,
@@ -47,6 +50,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .npc_approach_uses_size = 1,
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
+    .los_symmetric_pvp = 1,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
 };
@@ -69,6 +73,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .npc_approach_uses_size = 1,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 1,
+    .los_symmetric_pvp = 1,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
      * light with ambient 128 (= profile 64 + this field). */
     .npc_light_uses_type_ambient_contrast = 1,

@@ -241,6 +241,97 @@ player_has_waypoints(struct Mock230Player const* player)
     return player->waypoint_index >= 0;
 }
 
+static int
+player_travel_extra(void)
+{
+    /* Players are blocked by NPC occupancy (and by blockwalk=all hard blocks). */
+    return COLL_FLAG_NPC_OCC | COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+}
+
+static int
+npc_travel_extra(struct Mock230Npc const* npc)
+{
+    int flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+
+    assert(npc);
+    /* blockwalk=none: do not respect npc-occupancy. */
+    if( npc->blockwalk != 0 )
+        flag |= COLL_FLAG_NPC_OCC;
+    /* passthru: do not respect player-occupancy. */
+    if( !npc->def || npc->def->moverestrict != 6 )
+        flag |= COLL_FLAG_PLAYER_OCC;
+    return flag;
+}
+
+static int
+npc_occupancy_mask(struct Mock230Npc const* npc)
+{
+    int mask = 0;
+
+    assert(npc);
+    switch( npc->blockwalk )
+    {
+    case 1: /* NPC */
+        mask = COLL_FLAG_NPC_OCC;
+        break;
+    case 2: /* ALL */
+        mask = COLL_FLAG_NPC_OCC | COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
+        break;
+    case 3: /* PLAYER */
+        mask = COLL_FLAG_PLAYER_OCC;
+        break;
+    default: /* NONE */
+        break;
+    }
+    if( npc->blocksight )
+        mask |= COLL_FLAG_PROJ_BLOCK_ENTITY;
+    return mask;
+}
+
+static void
+npc_set_occupancy(struct Mock230Npc const* npc, int add)
+{
+    int mask;
+
+    assert(npc);
+    mask = npc_occupancy_mask(npc);
+    if( mask == 0 )
+        return;
+    mock230_scene_change_occupancy(npc->level, npc->x, npc->z, npc->size, mask, add);
+}
+
+void
+mock230_world_npc_occupancy(
+    struct Mock230Npc* npc,
+    int add)
+{
+    npc_set_occupancy(npc, add);
+}
+
+static void
+player_set_occupancy(struct Mock230Player const* player, int add)
+{
+    assert(player);
+    mock230_scene_change_occupancy(
+        player->level, player->x, player->z, 1, COLL_FLAG_PLAYER_OCC, add);
+}
+
+static void
+npc_queue_waypoint(struct Mock230Npc* npc, int x, int z)
+{
+    assert(npc);
+    npc->waypoints[0].x = (int16_t)x;
+    npc->waypoints[0].z = (int16_t)z;
+    npc->waypoint_index = 0;
+}
+
+static void
+npc_clear_waypoints(struct Mock230Npc* npc)
+{
+    assert(npc);
+    npc->waypoint_index = -1;
+}
+
 /*
  * True when the greedy stepper cannot leave the current tile toward the active
  * waypoint. Used by process_interaction to tell a real post-move stall from the
@@ -257,6 +348,7 @@ player_waypoint_step_blocked(struct Mock230Player const* player)
     int dz;
     int dir;
     int index;
+    int extra = player_travel_extra();
 
     if( player->waypoint_index < 0 )
         return 1;
@@ -279,18 +371,21 @@ player_waypoint_step_blocked(struct Mock230Player const* player)
         return 1;
 
     dir = mock230_step_direction(dx, dz);
-    if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+    if( dir >= 0 &&
+        mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
         return 0;
     if( dx != 0 )
     {
         dir = mock230_step_direction(dx, 0);
-        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        if( dir >= 0 &&
+            mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
             return 0;
     }
     if( dz != 0 )
     {
         dir = mock230_step_direction(0, dz);
-        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        if( dir >= 0 &&
+            mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
             return 0;
     }
     return 1;
@@ -880,9 +975,8 @@ mock230_world_process_interaction(struct Mock230Server* srv)
 
         /* An npc that moved takes its walk with it — but only when we are at
          * the last waypoint (or have none). PathingEntity.pathToPathingTarget
-         * for SMART re-routes at the last waypoint; re-routing every tick would
-         * thrash the queue while following. Non-moving targets are never
-         * re-pathed (that was the bug that discarded MOVE_OPCLICK). */
+         * for SMART re-routes at the last waypoint. Non-moving targets are
+         * never re-pathed (that discarded MOVE_OPCLICK). */
         if( interaction->kind == MOCK230_INTERACT_NPC &&
             (target_x != interaction->x || target_z != interaction->z) )
         {
@@ -890,9 +984,7 @@ mock230_world_process_interaction(struct Mock230Server* srv)
             interaction->z = target_z;
             /* One adjacent tile — not walk_to_approach. A full path here plus
              * steps_taken==0 truncate was the wanderer sticky chase, but that
-             * truncate also destroyed loc approaches. Re-aiming one tile when
-             * the mover steps at the last waypoint keeps chase without the
-             * truncate. */
+             * truncate also destroyed loc approaches. */
             if( player->waypoint_index <= 0 )
             {
                 int path_x[MOCK230_STEP_MAX];
@@ -924,19 +1016,34 @@ mock230_world_process_interaction(struct Mock230Server* srv)
          */
         if( !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
         {
-            interaction->ap_tried = 1;
-            trigger = interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
-            /* A miss here has no fallback and needs none: "nothing bound at range"
-             * is the ordinary case for almost every interaction in the game, and
-             * what it means is "keep walking". It still reports once per
-             * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
-             * above and this runs on one tick of the walk rather than all of them. */
-            if( trigger >= 0 && run_interaction_trigger(srv, interaction, trigger) !=
-                                    MOCK230_TRIGGER_NONE )
+            int ap_ok = 1;
+
+            /* AP also requires approached() LoS. Player→npc for OPNPC/APNPC;
+             * cast backwards when the mover is the npc (handled in npc_run_mode).
+             * los_symmetric_pvp would require both directions for player↔player. */
+            if( interaction->kind == MOCK230_INTERACT_NPC )
             {
-                steps_clear(player);
-                mock230_world_interaction_clear(srv);
-                return;
+                ap_ok = mock230_scene_approached(
+                    player->level, player->x, player->z, target_x, target_z, 1, 1, size_x,
+                    size_z);
+            }
+            if( ap_ok )
+            {
+                interaction->ap_tried = 1;
+                trigger =
+                    interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
+                /* A miss here has no fallback and needs none: "nothing bound at range"
+                 * is the ordinary case for almost every interaction in the game, and
+                 * what it means is "keep walking". It still reports once per
+                 * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
+                 * above and this runs on one tick of the walk rather than all of them. */
+                if( trigger >= 0 && run_interaction_trigger(srv, interaction, trigger) !=
+                                        MOCK230_TRIGGER_NONE )
+                {
+                    steps_clear(player);
+                    mock230_world_interaction_clear(srv);
+                    return;
+                }
             }
         }
 
@@ -1294,7 +1401,11 @@ player_take_step(struct Mock230Player* player)
     int dir;
     int try_dx;
     int try_dz;
+    int prev_x;
+    int prev_z;
+    int extra = player_travel_extra();
 
+    assert(player);
     if( player->waypoint_index < 0 )
         return -1;
 
@@ -1314,11 +1425,15 @@ player_take_step(struct Mock230Player* player)
     if( dx == 0 && dz == 0 )
         return -1;
 
+    prev_x = player->x;
+    prev_z = player->z;
+
     /* Prefer the diagonal when both axes differ. */
     try_dx = dx;
     try_dz = dz;
     dir = mock230_step_direction(try_dx, try_dz);
-    if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+    if( dir >= 0 &&
+        mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
         goto step;
 
     /* Cardinally: E/W first, then N/S — PathingEntity.takeStep order. */
@@ -1327,7 +1442,8 @@ player_take_step(struct Mock230Player* player)
         try_dx = dx;
         try_dz = 0;
         dir = mock230_step_direction(try_dx, try_dz);
-        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        if( dir >= 0 &&
+            mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
             goto step;
     }
     if( dz != 0 )
@@ -1335,16 +1451,23 @@ player_take_step(struct Mock230Player* player)
         try_dx = 0;
         try_dz = dz;
         dir = mock230_step_direction(try_dx, try_dz);
-        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        if( dir >= 0 &&
+            mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
             goto step;
     }
 
-    /* Blocked — stall, keep the waypoint. */
+    /* Blocked — stall, keep the waypoint; still record last_step. */
+    player->last_step_x = prev_x;
+    player->last_step_z = prev_z;
     return -1;
 
 step:
+    player_set_occupancy(player, 0);
     player->x += try_dx;
     player->z += try_dz;
+    player_set_occupancy(player, 1);
+    player->last_step_x = prev_x;
+    player->last_step_z = prev_z;
     if( player->x == wp_x && player->z == wp_z )
         player->waypoint_index--;
     return dir;
@@ -1355,6 +1478,12 @@ advance_player(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->active_player;
     int max_tiles;
+
+    assert(player);
+    /* Publish confrontation snapshot before this tick's movement — followers
+     * (and PLAYERFOLLOW) read follow_x/z as the previous tile. */
+    player->follow_x = player->last_step_x;
+    player->follow_z = player->last_step_z;
 
     /* Running is a request, not a state: the toggle says the player wants to,
      * the energy says whether they can. Deciding it here rather than at the
@@ -1519,6 +1648,18 @@ npc_spawn(
         npc->spawn_level = level;
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
+        {
+            const struct Mock230NpcInfo* info = mock230_npcinfo(type);
+            npc->size = (info && info->size > 0) ? info->size : 1;
+        }
+        npc->blockwalk = def->blockwalk;
+        npc->blocksight = def->blocksight;
+        npc->last_step_x = x - 1;
+        npc->last_step_z = z;
+        npc->follow_x = npc->last_step_x;
+        npc->follow_z = npc->last_step_z;
+        npc->waypoint_index = -1;
+        npc->stuck_counter = 0;
         /*
          * Wander is the *default*, not the absence of a mode — see the field's
          * comment. An npc with no radius starts on `none`.
@@ -1575,6 +1716,8 @@ npc_spawn(
         npc->block_seq = def->defend_anim;
         npc->death_seq = def->death_anim;
 
+        npc_set_occupancy(npc, 1);
+
         /* The per-tick phases walk to this rather than to MOCK230_NPC_MAX,
          * which is a memory ceiling now and not the roster. */
         if( slot >= srv->npc_slot_max )
@@ -1603,51 +1746,96 @@ mock230_world_npc_spawn(
     return npc_spawn(srv, type, x, z, level);
 }
 
-/** One step in `dir`, if collision allows it. Returns 1 when the npc moved. */
+/*
+ * PathingEntity.takeStep against the current waypoint. Returns 1 when the npc
+ * moved. Never uses mock230_scene_route — occupancy gates every attempt.
+ */
 static int
-npc_take_step(
-    struct Mock230Npc* npc,
-    int dir)
+npc_take_step(struct Mock230Npc* npc)
 {
+    int wp_x;
+    int wp_z;
     int dx;
     int dz;
+    int try_dx;
+    int try_dz;
+    int prev_x;
+    int prev_z;
+    int extra;
+    int size;
+    int moved = 0;
 
-    if( dir < 0 )
+    assert(npc);
+    if( npc->waypoint_index < 0 )
         return 0;
-    if( !mock230_scene_can_step(npc->level, npc->x, npc->z, dir) )
+
+    wp_x = npc->waypoints[npc->waypoint_index].x;
+    wp_z = npc->waypoints[npc->waypoint_index].z;
+    if( wp_x == npc->x && wp_z == npc->z )
+    {
+        npc->waypoint_index--;
+        if( npc->waypoint_index < 0 )
+            return 0;
+        wp_x = npc->waypoints[npc->waypoint_index].x;
+        wp_z = npc->waypoints[npc->waypoint_index].z;
+    }
+
+    dx = wp_x > npc->x ? 1 : (wp_x < npc->x ? -1 : 0);
+    dz = wp_z > npc->z ? 1 : (wp_z < npc->z ? -1 : 0);
+    if( dx == 0 && dz == 0 )
         return 0;
-    mock230_step_delta(dir, &dx, &dz);
-    npc->x += dx;
-    npc->z += dz;
-    npc->step_dir = dir;
-    return 1;
+
+    prev_x = npc->x;
+    prev_z = npc->z;
+    extra = npc_travel_extra(npc);
+    size = npc->size > 0 ? npc->size : 1;
+    try_dx = 0;
+    try_dz = 0;
+
+    /* Diagonal only for 1x1 — PathingEntity.takeStep. */
+    if( size == 1 && dx != 0 && dz != 0 &&
+        mock230_scene_can_travel(npc->level, npc->x, npc->z, dx, dz, size, extra) )
+    {
+        try_dx = dx;
+        try_dz = dz;
+    }
+    else if( dx != 0 &&
+             mock230_scene_can_travel(npc->level, npc->x, npc->z, dx, 0, size, extra) )
+    {
+        try_dx = dx;
+        try_dz = 0;
+    }
+    else if( dz != 0 &&
+             mock230_scene_can_travel(npc->level, npc->x, npc->z, 0, dz, size, extra) )
+    {
+        try_dx = 0;
+        try_dz = dz;
+    }
+    /* else stall — keep waypoint */
+
+    npc->last_step_x = prev_x;
+    npc->last_step_z = prev_z;
+
+    if( try_dx != 0 || try_dz != 0 )
+    {
+        npc_set_occupancy(npc, 0);
+        npc->x += try_dx;
+        npc->z += try_dz;
+        npc_set_occupancy(npc, 1);
+        npc->step_dir = mock230_step_direction(try_dx, try_dz);
+        moved = 1;
+        if( npc->x == wp_x && npc->z == wp_z )
+            npc->waypoint_index--;
+    }
+    return moved;
 }
 
 /*
- * One step of an npc's walk toward a tile — the reference's `pathToTarget()`
- * followed by `updateMovement()`, at one tile a tick.
+ * One step of an npc's walk toward a tile via the naive pathfinder.
  *
- * The straight-line step is tried first because it is what a route through open
- * ground produces anyway, and it costs nothing. **The router behind it is the
- * point.** What was here before was the greedy step alone, with a comment saying
- * a blocked step is "simply not taken — the npc will try again next tick", and
- * that reasoning only holds while the obstacle is something the player is also
- * walking around. It is not: the player walks away *through* the gap and the npc
- * spends the rest of the fight walking into the same wall, one tick at a time,
- * still in combat and still facing them. A goblin standing on the Lumbridge
- * castle path could not follow the player one tile east, because the tile east
- * of it happened to carry a wall flag.
- *
- * The reference has no such hole: an npc closing on a target sets a destination
- * and runs the same route-finder a player's click does (`Npc.pathToTarget` ->
- * `PathingEntity.updateMovement`). This is that, sharing `mock230_scene_route`
- * with the player's walk so a route the npc takes and a route the player would
- * have taken cannot disagree.
- *
- * Routing every tick rather than keeping waypoints is deliberate: the
- * destination is a moving player, so a stored path is stale the moment it is
- * computed. The flood only runs when the straight step is refused, which is the
- * case a stored path would not have helped with anyway.
+ * NPCs never flood — collision_map_naive_path (through the scene helper) queues
+ * a single waypoint, then takeStep advances one tile. When footprints already
+ * overlap, naive_path itself picks a random cardinal (randomWalk).
  *
  * Returns 1 when the npc moved this tick.
  */
@@ -1657,53 +1845,69 @@ mock230_world_npc_walk_to(
     int target_x,
     int target_z)
 {
-    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
-    int path_x[MOCK230_STEP_MAX];
-    int path_z[MOCK230_STEP_MAX];
-    int steps;
+    const struct Mock230NpcDef* def;
+    int out_x;
+    int out_z;
+    int size;
+    unsigned* rng = NULL;
+    unsigned local_rng;
 
+    assert(npc);
+    def = npc->def ? npc->def : mock230_content_npc_default();
+    if( def->nomove || def->moverestrict == 5 )
+        return 0;
+
+    size = npc->size > 0 ? npc->size : 1;
     if( npc->x == target_x && npc->z == target_z )
         return 0;
-    /*
-     * `moverestrict=nomove`, checked in the mover rather than in each caller —
-     * which is the reference's arrangement too (`MoveRestrict` is read by
-     * `PathingEntity.updateMovement`, not by the modes).
-     *
-     * Roaming already respected it by way of a zero wander radius, so it never
-     * needed saying while this was the only way an npc moved. Chasing does not
-     * go near the radius: without this, provoking Bob would walk him out from
-     * behind his counter and across Lumbridge.
-     */
-    if( def->nomove )
-        return 0;
 
-    if( npc_take_step(npc, mock230_step_direction(sign_of(target_x - npc->x),
-                                                  sign_of(target_z - npc->z))) )
+    /* Prefer the world's RNG when we can reach it through a live player. */
+    if( npc->def )
+    {
+        /* walk_to has no srv; seed from tick-ish last_step as a stable stand-in
+         * when the caller did not pass a server. Occupancy randomWalk still
+         * advances whatever we give it. */
+    }
+    local_rng = (unsigned)(npc->x * 73856093u ^ (unsigned)npc->z * 19349663u ^
+                           (unsigned)npc->stuck_counter);
+    rng = &local_rng;
+
+    if( !mock230_scene_naive_path(
+            npc->level, npc->x, npc->z, target_x, target_z, size, size, 1, 1,
+            npc_travel_extra(npc), rng, &out_x, &out_z) )
+    {
+        npc_clear_waypoints(npc);
+        return 0;
+    }
+
+    npc_queue_waypoint(npc, out_x, out_z);
+    if( npc_take_step(npc) )
+    {
+        npc->stuck_counter = 0;
         return 1;
-
-    steps = mock230_scene_route(npc->level, npc->x, npc->z, target_x, target_z, path_x, path_z,
-                                MOCK230_STEP_MAX);
-    if( steps <= 0 )
-        return 0;
-    return npc_take_step(npc, mock230_step_direction(path_x[0] - npc->x, path_z[0] - npc->z));
+    }
+    npc->stuck_counter++;
+    return 0;
 }
 
 /*
- * One greedy step away from a tile — `playerescape`, and only that.
- *
- * Retreating has no destination to route to: the reference walks one tile
- * directly away and, when that is blocked, gives up the mode entirely
- * (`Npc.playerEscapeMode` -> `resetDefaults`). So this stays greedy where
- * `mock230_world_npc_walk_to` does not.
+ * One step away from a tile — `playerescape`. Queues a cardinal/diagonal away
+ * waypoint and takeSteps; stuck_counter is the caller's.
  */
-static void
+static int
 npc_step_away(
     struct Mock230Npc* npc,
     int target_x,
     int target_z)
 {
-    npc_take_step(npc, mock230_step_direction(-sign_of(target_x - npc->x),
-                                              -sign_of(target_z - npc->z)));
+    int dx = -sign_of(target_x - npc->x);
+    int dz = -sign_of(target_z - npc->z);
+
+    assert(npc);
+    if( dx == 0 && dz == 0 )
+        return 0;
+    npc_queue_waypoint(npc, npc->x + dx, npc->z + dz);
+    return npc_take_step(npc);
 }
 
 /** Chebyshev tiles between an npc and the player. */
@@ -1723,24 +1927,31 @@ npc_player_range(
 }
 
 /*
- * One step of a walk toward the player under a size-aware approach.
- *
- * The reference's `pathToTarget()` approaches a footprint, not the SW tile.
- * An npc that routed to the player's own tile would spend every tick trying to
- * step into it and, since nothing there is walkable to it, stand still.
+ * One step toward the player. PLAYERFOLLOW paths to the player's published
+ * follow tile (previous step); other modes path to the player's tile and let
+ * naive destination handle the perimeter.
  */
 static int
 npc_walk_to_player(
     struct Mock230Npc* npc,
-    const struct Mock230Player* player)
+    const struct Mock230Player* player,
+    int follow_mode)
 {
-    struct CollisionApproach approach = {
-        .kind = COLL_APPROACH_RECT_ADJACENT,
-        .loc_width = 1,
-        .loc_length = 1,
-        .mover_size = 1,
-    };
-    return mock230_world_npc_walk_to_approach(npc, player->x, player->z, &approach);
+    int tx;
+    int tz;
+
+    assert(npc && player);
+    if( follow_mode && player->follow_x >= 0 && player->follow_z >= 0 )
+    {
+        tx = player->follow_x;
+        tz = player->follow_z;
+    }
+    else
+    {
+        tx = player->x;
+        tz = player->z;
+    }
+    return mock230_world_npc_walk_to(npc, tx, tz);
 }
 
 int
@@ -1750,22 +1961,19 @@ mock230_world_npc_walk_to_approach(
     int target_z,
     struct CollisionApproach const* approach)
 {
-    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
-    int path_x[MOCK230_STEP_MAX];
-    int path_z[MOCK230_STEP_MAX];
-    int steps;
+    const struct Mock230NpcDef* def;
 
+    assert(npc);
     assert(approach);
+    def = npc->def ? npc->def : mock230_content_npc_default();
     if( mock230_scene_reached(npc->level, npc->x, npc->z, target_x, target_z, approach) )
         return 0;
-    if( def->nomove )
+    if( def->nomove || def->moverestrict == 5 )
         return 0;
 
-    steps = mock230_scene_route_op(npc->level, npc->x, npc->z, target_x, target_z, approach,
-                                   path_x, path_z, MOCK230_STEP_MAX, NULL, NULL);
-    if( steps <= 0 )
-        return 0;
-    return npc_take_step(npc, mock230_step_direction(path_x[0] - npc->x, path_z[0] - npc->z));
+    /* Naive destination already walks the perimeter of a larger footprint when
+     * dest width/height are passed; approach rects are 1x1 here for NPCs. */
+    return mock230_world_npc_walk_to(npc, target_x, target_z);
 }
 
 /*
@@ -1811,17 +2019,42 @@ npc_run_mode(
     if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
         mock230_npc_face_player(npc, player->pid);
 
+    /* Follow-mode confrontation snapshot: cache the player's previous tile. */
+    if( npc->mode == MOCK230_NPCMODE_PLAYERFOLLOW ||
+        npc->mode == MOCK230_NPCMODE_PLAYERFACECLOSE ||
+        (npc->mode >= MOCK230_NPCMODE_OPPLAYER1 && npc->mode <= MOCK230_NPCMODE_APPLAYER5) )
+    {
+        npc->follow_x = player->last_step_x;
+        npc->follow_z = player->last_step_z;
+    }
+
     switch( npc->mode )
     {
     case MOCK230_NPCMODE_PLAYERESCAPE:
         if( range < 8 )
-            npc_step_away(npc, player->x, player->z);
+        {
+            if( !npc_step_away(npc, player->x, player->z) )
+                npc->stuck_counter++;
+            else
+                npc->stuck_counter = 0;
+        }
+        if( npc->stuck_counter >= 5 )
+        {
+            npc->mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
+            if( npc->def && npc->def->defaultmode != MOCK230_NPCMODE_NONE )
+                npc->mode = npc->def->defaultmode;
+            npc->stuck_counter = 0;
+        }
         return 1;
 
     case MOCK230_NPCMODE_PLAYERFOLLOW:
+        if( range > 1 )
+            npc_walk_to_player(npc, player, 1);
+        return 1;
+
     case MOCK230_NPCMODE_PLAYERFACECLOSE:
         if( range > 1 )
-            npc_walk_to_player(npc, player);
+            npc_walk_to_player(npc, player, 0);
         return 1;
 
     case MOCK230_NPCMODE_PLAYERFACE:
@@ -1846,7 +2079,7 @@ npc_run_mode(
 
         if( range > 1 )
         {
-            npc_walk_to_player(npc, player);
+            npc_walk_to_player(npc, player, 0);
             return 1;
         }
         /* Cleared *before* the trigger runs, so a script that sets a new mode
@@ -1859,10 +2092,18 @@ npc_run_mode(
     if( npc->mode >= MOCK230_NPCMODE_APPLAYER1 && npc->mode <= MOCK230_NPCMODE_APPLAYER5 )
     {
         int op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
+        int size = npc->size > 0 ? npc->size : 1;
 
         if( range > MOCK230_AP_RANGE_DEFAULT )
         {
-            npc_walk_to_player(npc, player);
+            npc_walk_to_player(npc, player, 0);
+            return 1;
+        }
+        /* AP also requires approached LoS — cast backwards (player → npc). */
+        if( !mock230_scene_approached(
+                npc->level, player->x, player->z, npc->x, npc->z, 1, 1, size, size) )
+        {
+            npc_walk_to_player(npc, player, 0);
             return 1;
         }
         npc->mode = MOCK230_NPCMODE_NONE; /* see above */
@@ -1871,22 +2112,14 @@ npc_run_mode(
     }
 
     /*
-     * Patrol: walk the route, pause where the route says to.
-     *
-     * The waypoints are content's (`patrol1..patrolN` on the `.npc` block) and
-     * the route is a *ring* — reaching the last one goes back to the first, so
-     * Hans keeps circling rather than stopping at the end of his round. Routing
-     * is `mock230_world_npc_walk_to`, the same flood the player's click uses, so
-     * a patrol that has to go round the castle wall does.
-     *
-     * A waypoint on another level is walked to as though it were on this one and
-     * then arrived at: this server has no stairs for an npc to take. It is not a
-     * case the Lumbridge routes reach, and doing it silently rather than
-     * refusing keeps a route with one bad level from stalling the whole ring.
+     * Patrol: walk the route via naive pathing, pause where the route says.
+     * stuck_counter >= 32 → teleport to the current patrol waypoint.
      */
     if( npc->mode == MOCK230_NPCMODE_PATROL )
     {
         const struct Mock230NpcDef* def = npc->def;
+        int dest_x;
+        int dest_z;
 
         if( !def || def->patrol_count <= 0 )
         {
@@ -1896,23 +2129,35 @@ npc_run_mode(
         if( npc->patrol_index < 0 || npc->patrol_index >= def->patrol_count )
             npc->patrol_index = 0;
 
+        dest_x = def->patrol[npc->patrol_index].x;
+        dest_z = def->patrol[npc->patrol_index].z;
+
         if( npc->patrol_pause > 0 )
         {
             npc->patrol_pause--;
             return 1;
         }
-        if( npc->x == def->patrol[npc->patrol_index].x &&
-            npc->z == def->patrol[npc->patrol_index].z )
+        if( npc->x == dest_x && npc->z == dest_z )
         {
-            /* Arrived. Take this waypoint's pause, then aim at the next one —
-             * in that order, or the pause would be charged to the waypoint the
-             * npc is walking *away* from. */
             npc->patrol_pause = def->patrol[npc->patrol_index].pause;
             npc->patrol_index = (npc->patrol_index + 1) % def->patrol_count;
+            npc->stuck_counter = 0;
             return 1;
         }
-        mock230_world_npc_walk_to(npc, def->patrol[npc->patrol_index].x,
-                                  def->patrol[npc->patrol_index].z);
+        (void)mock230_world_npc_walk_to(npc, dest_x, dest_z);
+        if( npc->stuck_counter >= 32 || npc->level != def->patrol[npc->patrol_index].level )
+        {
+            npc_set_occupancy(npc, 0);
+            npc->x = dest_x;
+            npc->z = dest_z;
+            npc->level = def->patrol[npc->patrol_index].level;
+            npc_set_occupancy(npc, 1);
+            npc->last_step_x = npc->x - 1;
+            npc->last_step_z = npc->z;
+            npc_clear_waypoints(npc);
+            npc->stuck_counter = 0;
+            npc->step_dir = -1;
+        }
         return 1;
     }
 
@@ -1951,6 +2196,7 @@ advance_npcs(struct Mock230Server* srv)
          */
         if( npc->active && npc->despawn_tick >= 0 && srv->tick >= npc->despawn_tick )
         {
+            npc_set_occupancy(npc, 0);
             npc->active = 0;
             continue;
         }
@@ -1995,12 +2241,13 @@ advance_npcs(struct Mock230Server* srv)
                                             npc->type, -1, slot);
             }
         }
-        int step_x;
-        int step_z;
-        int dir;
-
         if( !npc->active )
             continue;
+
+        /* Publish own confrontation snapshot each turn. */
+        npc->follow_x = npc->last_step_x;
+        npc->follow_z = npc->last_step_z;
+
         /* Combat and death own the npc's movement. Roaming used to clear
          * step_dir here, which also wiped the step the combat mover had just
          * produced — phase 11 does that clear, once, at the right time. */
@@ -2014,18 +2261,7 @@ advance_npcs(struct Mock230Server* srv)
             continue;
 
         /*
-         * Outside its radius, wandering means *going home*.
-         *
-         * Until an npc could chase it could never be out here, and the roll
-         * below silently made that permanent: every candidate tile outside the
-         * radius is rejected, so an npc standing more than one tile beyond it
-         * has no legal roam at all and freezes where the chase ended. The
-         * reference has the same asymmetry and answers it the same way —
-         * `Npc.wander()` queues a *waypoint* near the spawn tile and the router
-         * walks it back, rather than rolling one adjacent tile and hoping.
-         *
-         * Every tick rather than on the roam timer: the walk home is a path
-         * being followed, not a fresh decision each time.
+         * Outside its radius, wandering means *going home* via naive pathing.
          */
         if( npc->x - npc->spawn_x > npc->wander_radius ||
             npc->spawn_x - npc->x > npc->wander_radius ||
@@ -2033,33 +2269,53 @@ advance_npcs(struct Mock230Server* srv)
             npc->spawn_z - npc->z > npc->wander_radius )
         {
             mock230_world_npc_walk_to(npc, npc->spawn_x, npc->spawn_z);
-            continue;
         }
+        else if( next_random(srv) % 8u == 0u )
+        {
+            int dest_x =
+                npc->spawn_x + random_range(srv, -npc->wander_radius, npc->wander_radius);
+            int dest_z =
+                npc->spawn_z + random_range(srv, -npc->wander_radius, npc->wander_radius);
+            if( dest_x != npc->x || dest_z != npc->z )
+                mock230_world_npc_walk_to(npc, dest_x, dest_z);
+            else if( npc->waypoint_index >= 0 )
+            {
+                if( npc_take_step(npc) )
+                    npc->stuck_counter = 0;
+                else
+                    npc->stuck_counter++;
+            }
+            else
+                npc->stuck_counter++;
+        }
+        else if( npc->waypoint_index >= 0 )
+        {
+            if( npc_take_step(npc) )
+                npc->stuck_counter = 0;
+            else
+                npc->stuck_counter++;
+        }
+        else
+            npc->stuck_counter++;
 
-        if( srv->tick < npc->next_roam_tick )
-            continue;
-
-        npc->next_roam_tick = srv->tick + random_range(srv, 15, 30);
-        step_x = npc->x + random_range(srv, -1, 1);
-        step_z = npc->z + random_range(srv, -1, 1);
-        if( step_x - npc->spawn_x > npc->wander_radius ||
-            npc->spawn_x - step_x > npc->wander_radius ||
-            step_z - npc->spawn_z > npc->wander_radius ||
-            npc->spawn_z - step_z > npc->wander_radius )
-            continue;
-
-        dir = mock230_step_direction(step_x - npc->x, step_z - npc->z);
-        if( dir < 0 )
-            continue;
-        /* Roaming used to walk npcs through walls, which is more visible than
-         * the player doing it: a goblin wandering out of a fenced pen and
-         * across a river reads as a broken server long before anyone checks
-         * the pathfinding. */
-        if( !mock230_scene_can_step(npc->level, npc->x, npc->z, dir) )
-            continue;
-        npc->x = step_x;
-        npc->z = step_z;
-        npc->step_dir = dir;
+        /* stuck_counter > 500 → teleport to spawn (LostCity wanderMode). */
+        if( npc->stuck_counter > 500 )
+        {
+            if( npc->x != npc->spawn_x || npc->z != npc->spawn_z ||
+                npc->level != npc->spawn_level )
+            {
+                npc_set_occupancy(npc, 0);
+                npc->x = npc->spawn_x;
+                npc->z = npc->spawn_z;
+                npc->level = npc->spawn_level;
+                npc_set_occupancy(npc, 1);
+                npc->last_step_x = npc->x - 1;
+                npc->last_step_z = npc->z;
+                npc_clear_waypoints(npc);
+                npc->step_dir = -1;
+            }
+            npc->stuck_counter = 0;
+        }
     }
 }
 
@@ -5154,6 +5410,7 @@ mock230_world_remove_player(
      * from `World.removePlayer` (World.ts:1590).
      */
     mock230_friends_logout(player->name37);
+    player_set_occupancy(player, 0);
     player->active = 0;
     player->session = NULL;
     /* Everyone else is holding this pid. Clearing `active` is what the next
@@ -5293,6 +5550,12 @@ mock230_world_player_init(struct Mock230Player* player)
     player->z = g_home_z;
     player->combat_target = -1;
     player->level = 0;
+    player->last_step_x = player->x - 1;
+    player->last_step_z = player->z;
+    player->follow_x = player->last_step_x;
+    player->follow_z = player->last_step_z;
+    player->waypoint_index = -1;
+    player_set_occupancy(player, 1);
     /* Same reason as the npc's: 0 is a sequence id, and the priority gate reads
      * this as the animation already queued for the tick. */
     player->anim_id = -1;

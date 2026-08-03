@@ -880,7 +880,7 @@ needed and both are small:
 
 | opcode | note |
 | --- | --- |
-| `map_findsquare(coord, min, max, mode)` | rejection sampling over the box, because enumerating every legal tile is 1,681 collision reads at radius 20 and this runs per npc per timer. Only `^map_findsquare_none` is honoured — the line-of-walk/sight modes need a reachability test this server has no cheap form of, and an unsupported mode says so under `MOCK230_VERBOSE` rather than silently teleporting a monster through a wall. Failure returns the **source** coord, not -1: callers assign it straight into `npc_tele`. |
+| `map_findsquare(coord, min, max, mode)` | rejection sampling over the box, because enumerating every legal tile is 1,681 collision reads at radius 20 and this runs per npc per timer. Modes match LostCity `MapFindSquareType`: `0` lineofwalk, `1` lineofsight, `2` none — the first two also require a clear walk/sight path from the candidate back to the origin. Failure returns the **source** coord, not -1: callers assign it straight into `npc_tele`. |
 | `npc_getmode` | the setter had been here since npc modes landed and the getter had not, so content branching on it (`npc_getmode = opplayer2`) was always false — invisible for a sound, a behaviour that silently never happens for a guard. |
 
 Two things the reference does that this does not, both stated in the script's own
@@ -1962,10 +1962,9 @@ keeps the **last** candidate at an equal distance where `<` would keep the
 first. The two measures disagree on diagonals, so ranking by the filter's
 measure picks a different npc.
 
-`checkvis` is accepted and ignored, exactly as `npc_find` and `npc_findall`
-already accept and ignore it: there is no line of sight in this server. The
-effect is a search that occasionally reaches through a wall — a wrong answer in
-the direction of doing something rather than nothing.
+`checkvis` is LostCity HuntVis (`0` off, `1` lineofsight, `2` lineofwalk), and
+filters candidates with a scene ray cast — the same gate `npc_find` and
+`npc_findall` honour.
 
 ### Eight families deliberately NOT landed
 

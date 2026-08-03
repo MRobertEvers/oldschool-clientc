@@ -30,6 +30,11 @@ main(void)
     test_tile_stack_dedup();
     test_minusedlevel_entity_draw();
     test_rebuild_shift();
+    test_line_of_sight();
+    test_line_of_sight_asymmetry();
+    test_naive_path_safespot();
+    test_occupancy_stacking();
+    test_follow_dance_semantics();
 
     sim_path_followers();
     sim_projectile_barrage();

@@ -1350,6 +1350,14 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    int last_step_x, last_step_z; /* tile before this tick's step attempt; seed (x-1,z) on spawn */
+    int follow_x, follow_z;       /* snapshot of target's last_step at top of turn */
+    struct Mock230Step waypoints[MOCK230_WAYPOINT_MAX];
+    int waypoint_index; /* -1 idle; counts down like player */
+    int stuck_counter;
+    int size;      /* footprint; from npcinfo at spawn, default 1 */
+    int blockwalk; /* 0 none, 1 npc, 2 all, 3 player — from def */
+    int blocksight; /* 0/1 — sets PROJ_BLOCK_ENTITY when moving */
 
     /** Which extended-info fields this npc has to send. Cleared in phase 11. */
     uint32_t masks;
@@ -1598,6 +1606,8 @@ struct Mock230Player
      */
     struct Mock230Step waypoints[MOCK230_WAYPOINT_MAX];
     int waypoint_index;
+    int last_step_x, last_step_z;
+    int follow_x, follow_z;
 
     /** Steps taken this tick (for "I can't reach that" termination). */
     int steps_taken;
@@ -2750,6 +2760,12 @@ mock230_world_npc_spawn(
     int x,
     int z,
     int level);
+
+/** Add (1) or remove (0) this npc's occupancy flags from the collision map. */
+void
+mock230_world_npc_occupancy(
+    struct Mock230Npc* npc,
+    int add);
 
 void
 mock230_world_npc_died(

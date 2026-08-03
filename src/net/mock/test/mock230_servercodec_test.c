@@ -63,6 +63,7 @@ defaults_record(void)
     def.hitpoints = 10;
     def.attackrate = 4;
     def.respawnrate = 25;
+    def.blockwalk = 1; /* LostCity BlockWalk.NPC default */
     /* -1, not 0: "drops nothing" and "drops obj 0" are different records, and a
      * zero-compare would confuse them — see the note in the encoder. */
     def.death_drop = -1;
@@ -95,6 +96,9 @@ check_round_trip(void)
     src.huntrange = 12;
     src.huntmode = 3;
     src.nomove = 1;
+    src.blockwalk = 2; /* all */
+    src.blocksight = 1;
+    src.moverestrict = 5; /* nomove */
     src.attackrate = 6;
     src.death_drop = 526;
     src.attack_anim = 4652;
@@ -117,6 +121,8 @@ check_round_trip(void)
     check(dst.respawnrate == 100 && dst.wanderrange == 5, "respawn and wander survive");
     check(dst.huntrange == 12 && dst.huntmode == 3, "hunt range and mode survive");
     check(dst.nomove == 1 && dst.attackrate == 6, "nomove and attackrate survive");
+    check(dst.blockwalk == 2 && dst.blocksight == 1 && dst.moverestrict == 5,
+          "blockwalk, blocksight and moverestrict survive");
     check(dst.death_drop == 526, "death_drop survives");
     check(
         dst.attack_anim == 4652 && dst.defend_anim == 4653 && dst.death_anim == 4654,

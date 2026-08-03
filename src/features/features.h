@@ -103,6 +103,13 @@ struct ToriRS_FeatureTable
      * steps", which is the only sane rule once the box is 21x21.
      */
     int nearest_ranks_by_rect_distance;
+    /**
+     * 0 = asymmetric LoS (2004 / LostCity / live PvM): A can range B while B
+     * cannot range back. 1 = modern symmetric LoS for *player-vs-player only*
+     * (the 29 Aug 2019 LMS update): los(a→b) && los(b→a). PvM stays asymmetric
+     * either way. See docs/OSRS_PATHING_LOS.md.
+     */
+    int los_symmetric_pvp;
 
     /* --- model lighting -------------------------------------------------- */
 

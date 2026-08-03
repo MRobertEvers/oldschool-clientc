@@ -5,10 +5,10 @@
  * header states the contract): `mock230_script_command` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
- * One opcode today, `p_oploc`, and the file exists rather than a case in the big
- * switch because `docs/serverscript.md` says new opcodes go in a domain file and
- * because the rest of the `p_*` family — `p_opnpc`, `p_opheld`, `p_opplayer`,
- * `p_opobj` — belongs here beside it as each is written or corrected.
+ * Two opcodes today, `p_oploc` and `p_opobj`, and the file exists rather than a
+ * case in the big switch because `docs/serverscript.md` says new opcodes go in a
+ * domain file and because the rest of the `p_*` family — `p_opnpc`, `p_opheld`,
+ * `p_opplayer` — belongs here beside them as each is written or corrected.
  *
  * ------------------------------------------------------------------
  * A re-issue is not a call into the engine's handler
@@ -141,6 +141,56 @@ mock230_ops_player(
          * would otherwise be. The reference has the same shape and the same
          * comment in `woodcut.rs2`: "gets delayed by a tick >:(".
          */
+        return 1;
+    }
+
+    /*
+     * `[command,p_opobj](int $op)` — engine.rs2, `PlayerOps.ts:1047`.
+     *
+     * Same re-issue shape as `p_oploc`: stop the current action, queue a walk
+     * onto the pile's tile, and set an interaction the dispatch resolves next
+     * tick. Firemaking's Light loop (`p_opobj(4)`) is the caller that made this
+     * land.
+     *
+     * The silent "op empty" return the reference makes against `ObjType.op` is
+     * not here yet: `Mock230ObjInfo` only loads inventory `if_ops`, not ground
+     * `op`s. A resume against a pile that lost its verb is rare (logs keep
+     * Light); if the pile itself is gone the generation check aborts.
+     */
+    case SS_OP_P_OPOBJ:
+    {
+        int32_t op_num;
+        struct Mock230GroundObj* obj;
+        intptr_t handle;
+        int slot;
+
+        if( !SSVM_PopInt(state, &op_num) )
+            return 1;
+        if( op_num < 1 || op_num > 5 )
+        {
+            SSVM_Abort(state, "p_opobj: op %d is not 1..5", (int)op_num);
+            return 1;
+        }
+
+        handle = (intptr_t)SSVM_Active(state, SSVM_ENT_OBJ);
+        slot = mock230_world_ground_slot(srv, handle);
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "p_opobj: the active obj is gone");
+            return 1;
+        }
+        obj = &srv->ground[slot];
+
+        mock230_world_clear_pending_action(srv);
+        mock230_world_interaction_clear(srv);
+        mock230_world_interaction_set(srv, MOCK230_INTERACT_OBJ, (int)op_num, -1,
+                                      obj->obj_id, obj->x, obj->z, obj->level, 1, 1);
+        /* Onto the tile, same as handle_opobj — a pile is used from on top. */
+        {
+            struct CollisionApproach exact;
+            mock230_scene_obj_approach(0, &exact);
+            mock230_world_walk_to_approach(srv, obj->x, obj->z, &exact);
+        }
         return 1;
     }
 

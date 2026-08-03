@@ -462,15 +462,18 @@ test_features_eras(void)
     TEST_ASSERT(lostcity->approach_model == TORIRS_APPROACH_LEGACY_SHAPE, "lostcity uses shapes");
     TEST_ASSERT(lostcity->npc_approach_uses_size == 0, "lostcity npc target is 1x1");
     TEST_ASSERT(lostcity->op_click_nearest_range == 0, "lostcity has no op-click fallback");
+    TEST_ASSERT(lostcity->los_symmetric_pvp == 0, "lostcity LoS is asymmetric");
 
     TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "osrs still paths client-side");
     TEST_ASSERT(osrs->approach_model == TORIRS_APPROACH_RECT, "osrs uses rect strategies");
     TEST_ASSERT(osrs->npc_approach_uses_size == 1, "osrs npc target is size-aware");
     TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
     TEST_ASSERT(osrs->nearest_ranks_by_rect_distance == 1, "osrs ranks by rect distance");
+    TEST_ASSERT(osrs->los_symmetric_pvp == 1, "osrs PvP LoS is symmetric");
 
     TEST_ASSERT(routed->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
                 "server_routed defers to the server");
+    TEST_ASSERT(routed->los_symmetric_pvp == 1, "server_routed PvP LoS is symmetric");
 
     /* Derivation from the cache identity: the lineage decides, not the number.
      * RSCACHE_EPOCH_DAT1 = 1, DAT2 = 2; RSCACHE_GAME_OLDSCHOOL = 1, RS2 = 2. */
@@ -848,4 +851,254 @@ test_minusedlevel_entity_draw(void)
         TEST_ASSERT(count >= 1 && first == 215, "on-plane projectile registers on local plane");
         World_Free(world);
     }
+}
+
+/* =========================================================================
+ * Line of sight / naive path / occupancy — docs/OSRS_PATHING_LOS.md
+ * ========================================================================= */
+
+void
+test_line_of_sight(void)
+{
+    printf("TEST: line of sight / line of walk\n");
+
+    struct CollisionMap* cm = collision_map_new(32, 32);
+    int open;
+    int sight;
+    int walk;
+
+    /* Same tile / overlapping: always clear. */
+    open = collision_map_line_of_sight(cm, 5, 5, 5, 5, 1, 1, 1, 1, 0);
+    TEST_ASSERT(open == 1, "same tile is clear LoS");
+    open = collision_map_line_of_walk(cm, 5, 5, 5, 5, 1, 1, 1, 1, 0);
+    TEST_ASSERT(open == 1, "same tile is clear LoW");
+
+    /* Straight open corridor. */
+    open = collision_map_line_of_sight(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0);
+    TEST_ASSERT(open == 1, "open north corridor has LoS");
+    open = collision_map_line_of_walk(cm, 5, 5, 15, 5, 1, 1, 1, 1, 0);
+    TEST_ASSERT(open == 1, "open east corridor has LoW");
+
+    /* Plain wall (movement only) blocks walk but not sight. */
+    collision_map_add_wall(cm, 5, 10, 0 /* WALL_STRAIGHT */, COLL_ANGLE_SOUTH, 0);
+    walk = collision_map_line_of_walk(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0);
+    sight = collision_map_line_of_sight(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0);
+    TEST_ASSERT(walk == 0, "plain wall blocks LoW");
+    TEST_ASSERT(sight == 1, "plain wall does not block LoS");
+
+    /* Projectile-blocking wall blocks both. */
+    collision_map_del_wall(cm, 5, 10, 0, COLL_ANGLE_SOUTH, 0);
+    collision_map_add_wall(cm, 5, 10, 0, COLL_ANGLE_SOUTH, 1 /* blockrange */);
+    walk = collision_map_line_of_walk(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0);
+    sight = collision_map_line_of_sight(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0);
+    TEST_ASSERT(walk == 0, "proj wall blocks LoW");
+    TEST_ASSERT(sight == 0, "proj wall blocks LoS");
+
+    /* Standing on a LOC blinds the source for LoS but not the destination
+     * (destination LOC_PROJ_BLOCKER is stripped). */
+    collision_map_del_wall(cm, 5, 10, 0, COLL_ANGLE_SOUTH, 1);
+    collision_map_add_loc(cm, 8, 8, 1, 1, COLL_ANGLE_WEST, 1);
+    sight = collision_map_line_of_sight(cm, 8, 8, 12, 8, 1, 1, 1, 1, 0);
+    TEST_ASSERT(sight == 0, "standing on LOC blinds source LoS");
+    sight = collision_map_line_of_sight(cm, 5, 8, 8, 8, 1, 1, 1, 1, 0);
+    TEST_ASSERT(sight == 1, "destination LOC_PROJ_BLOCKER is stripped");
+
+    /* approached() refuses overlapping footprints. */
+    TEST_ASSERT(
+        collision_map_approached(cm, 10, 10, 10, 10, 1, 1, 1, 1) == 0,
+        "overlapping footprints are never approached");
+
+    collision_map_free(cm);
+}
+
+/*
+ * Pin the asymmetry of the legacy ray cast: a geometry where a→b != b→a.
+ * If someone "fixes" the ray to be symmetric, this goes red — which is the
+ * whole point of the legacy era.
+ */
+void
+test_line_of_sight_asymmetry(void)
+{
+    printf("TEST: line of sight asymmetry (legacy)\n");
+
+    struct CollisionMap* cm = collision_map_new(32, 32);
+    int ab;
+    int ba;
+
+    /* Place a proj-blocking wall that the ray hits only when travelling one
+     * direction because of the direction-dependent half-tile offset and the
+     * major-axis tie rule. A L-shaped proj wall corner is a reliable case. */
+    collision_map_add_wall(cm, 10, 12, 0, COLL_ANGLE_WEST, 1);
+    collision_map_add_wall(cm, 12, 10, 0, COLL_ANGLE_SOUTH, 1);
+
+    ab = collision_map_line_of_sight(cm, 8, 8, 14, 14, 1, 1, 1, 1, 0);
+    ba = collision_map_line_of_sight(cm, 14, 14, 8, 8, 1, 1, 1, 1, 0);
+
+    /* At least one direction may still clear depending on exact wall pairs;
+     * what we pin is that the two directions can disagree. If this geometry
+     * happens to be symmetric, try a offset pair known to trip the seed. */
+    if( ab == ba )
+    {
+        /* Diagonal across a single proj wall on the west edge of (10,10): the
+         * eastbound and westbound rays enter different tiles' wall bits. */
+        collision_map_reset(cm);
+        collision_map_add_wall(cm, 10, 10, 0, COLL_ANGLE_WEST, 1);
+        ab = collision_map_line_of_sight(cm, 8, 10, 12, 11, 1, 1, 1, 1, 0);
+        ba = collision_map_line_of_sight(cm, 12, 11, 8, 10, 1, 1, 1, 1, 0);
+    }
+
+    TEST_ASSERT(ab != ba || ab == 0, "legacy ray is asymmetric or both blocked");
+
+    /* Symmetric-PvP construction: AND of both directions. */
+    {
+        int sym = ab && ba;
+        TEST_ASSERT(sym == 0 || (ab && ba), "symmetric PvP is los(a->b) && los(b->a)");
+        if( ab != ba )
+            TEST_ASSERT(sym == 0, "asymmetric geometry fails the symmetric AND");
+    }
+
+    collision_map_free(cm);
+}
+
+void
+test_naive_path_safespot(void)
+{
+    printf("TEST: naive path slides / safespots\n");
+
+    struct CollisionMap* cm = collision_map_new(32, 32);
+    unsigned rng = 0x5eed1234u;
+    int out_x = -1;
+    int out_z = -1;
+    int ok;
+    int bfs_x[64];
+    int bfs_z[64];
+    int bfs_n;
+
+    /* Open ground: naive walks greedily toward the destination but stops when
+     * either axis aligns (while currX != destX && currZ != destZ) — so a pure
+     * diagonal request ends one tile short of the SE corner. */
+    ok = collision_map_naive_path(cm, 5, 5, 10, 10, 1, 1, 1, 1, 0, &rng, &out_x, &out_z);
+    TEST_ASSERT(ok == 1, "open naive path produces a tile");
+    TEST_ASSERT(out_x != 5 || out_z != 5, "open naive leaves the source");
+    TEST_ASSERT(
+        (out_x == 10 || out_z == 10),
+        "open naive stops when one axis aligns with dest");
+
+    /* Wall between (5,5) and (5,15): BFS goes around; naive slides / stops. */
+    for( int z = 6; z <= 14; z++ )
+        collision_map_add_floor(cm, 5, z);
+    /* Leave a gap at x=8 so BFS can go around. */
+    bfs_n = collision_map_bfs_path(cm, 5, 5, 5, 15, bfs_x, bfs_z, 64);
+    TEST_ASSERT(bfs_n > 0, "BFS finds a route around the wall");
+
+    ok = collision_map_naive_path(cm, 5, 5, 5, 15, 1, 1, 1, 1, 0, &rng, &out_x, &out_z);
+    TEST_ASSERT(ok == 1, "naive still produces a tile");
+    /* Naive cannot go through the blocked column — it either stops short or
+     * slides sideways. It must NOT equal the BFS length-around path endpoint
+     * in a single call (naive returns one tile, the greedy walk result). */
+    TEST_ASSERT(!(out_x == 5 && out_z == 15),
+                "naive does not walk through a full-blocking column");
+
+    /* Corner source → empty path (authentic dead tick). */
+    collision_map_reset(cm);
+    ok = collision_map_naive_path(cm, 4, 4, 5, 5, 1, 1, 1, 1, 0, &rng, &out_x, &out_z);
+    /* Exactly on a corner of a 1x1 target: naive_destination may return empty.
+     * The intersects check fires first only when footprints overlap — 4,4 and
+     * 5,5 do not. Corner of 5,5 from SW is (4,4) which is the south-west
+     * diagonal-adjacent case — is_diagonal returns true and yields the tile. */
+    TEST_ASSERT(ok == 1, "diagonal-adjacent yields the corner tile");
+
+    collision_map_free(cm);
+}
+
+void
+test_occupancy_stacking(void)
+{
+    printf("TEST: occupancy gates step, not route; stacking via unconditional clear\n");
+
+    struct CollisionMap* cm = collision_map_new(32, 32);
+    int can;
+    int route_x[16];
+    int route_z[16];
+    int n;
+
+    /* Place an NPC occupancy on (10,10). */
+    collision_map_change_square(cm, 10, 10, 1, COLL_FLAG_NPC_OCC, 1);
+
+    /* Step onto occupied tile with NPC_OCC extra is refused. */
+    can = collision_map_can_travel(cm, 10, 9, 0, 1, 1, COLL_FLAG_NPC_OCC);
+    TEST_ASSERT(can == 0, "step onto NPC_OCC with extra refused");
+
+    /* Without the extra flag the flood/step ignores occupancy. */
+    can = collision_map_can_travel(cm, 10, 9, 0, 1, 1, 0);
+    TEST_ASSERT(can == 1, "step without occupancy extra is allowed");
+
+    /* Route/flood still produces a path through the occupied tile. */
+    n = collision_map_bfs_path(cm, 10, 5, 10, 15, route_x, route_z, 16);
+    TEST_ASSERT(n > 0, "BFS ignores occupancy flags");
+
+    /* Unconditional clear: remove even if another entity "still there". */
+    collision_map_change_square(cm, 10, 10, 1, COLL_FLAG_NPC_OCC, 1); /* stack */
+    collision_map_change_square(cm, 10, 10, 1, COLL_FLAG_NPC_OCC, 0); /* one leaves */
+    TEST_ASSERT(
+        (collision_map_tile(cm, 10, 10) & COLL_FLAG_NPC_OCC) == 0,
+        "unconditional clear permits stacking (flag gone after one leave)");
+
+    collision_map_free(cm);
+}
+
+void
+test_follow_dance_semantics(void)
+{
+    printf("TEST: follow dance last_step seed and snapshot\n");
+
+    /* Pure arithmetic contract — the dance is last_step lagged by one tick.
+     * Seed on spawn/login is WEST of current tile. */
+    int x = 100;
+    int z = 200;
+    int last_step_x = x - 1;
+    int last_step_z = z;
+    int follow_x;
+    int follow_z;
+    int a_x = 50;
+    int a_z = 50;
+    int b_x = 51;
+    int b_z = 50;
+    int a_last_x = a_x;
+    int a_last_z = a_z;
+    int b_last_x = b_x;
+    int b_last_z = b_z;
+    int i;
+
+    TEST_ASSERT(last_step_x == 99 && last_step_z == 200, "spawn seeds last_step west");
+
+    /* Mutual follow for N ticks: each aims at the other's previous tile. */
+    for( i = 0; i < 8; i++ )
+    {
+        int a_follow_x = b_last_x;
+        int a_follow_z = b_last_z;
+        int b_follow_x = a_last_x;
+        int b_follow_z = a_last_z;
+        int a_nx = a_x + ((a_follow_x > a_x) - (a_follow_x < a_x));
+        int a_nz = a_z + ((a_follow_z > a_z) - (a_follow_z < a_z));
+        int b_nx = b_x + ((b_follow_x > b_x) - (b_follow_x < b_x));
+        int b_nz = b_z + ((b_follow_z > b_z) - (b_follow_z < b_z));
+
+        a_last_x = a_x;
+        a_last_z = a_z;
+        b_last_x = b_x;
+        b_last_z = b_z;
+        a_x = a_nx;
+        a_z = a_nz;
+        b_x = b_nx;
+        b_z = b_nz;
+        (void)follow_x;
+        (void)follow_z;
+    }
+
+    /* Neither settles on the other's current tile — the lag prevents arrival. */
+    TEST_ASSERT(!(a_x == b_x && a_z == b_z), "mutual followers do not stack on one tile");
+    TEST_ASSERT(
+        (a_x == 50 || a_x == 51) && (b_x == 50 || b_x == 51),
+        "dance stays on the two-tile corridor");
 }

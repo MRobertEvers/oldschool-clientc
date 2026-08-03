@@ -321,7 +321,12 @@ struct Mock230NpcDef
     int respawnrate; /* ticks from despawn to respawn */
     int death_delay; /* ticks the corpse lies there before it despawns */
     int wanderrange; /* 0 = stays put */
-    int nomove;      /* moverestrict=nomove */
+    int blockwalk;   /* 0 none, 1 npc, 2 all, 3 player; default 1 (npc) */
+    int blocksight;  /* default 0 */
+    /* 0 normal, 1 blocked, 2 blocked_normal/los, 3 indoors, 4 outdoors,
+     * 5 nomove, 6 passthru — keep nomove working as today. */
+    int moverestrict;
+    int nomove; /* derived/compat: set when moverestrict==5 */
 
     enum Mock230HuntMode huntmode;
     int huntrange;
