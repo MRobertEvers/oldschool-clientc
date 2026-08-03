@@ -1099,10 +1099,20 @@ mock230-servpack:
 # change keeps the bytes it had, and the output is a fresh 440M rather than an
 # in-place append that grows without bound.
 MOCK230_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.baked
+# Optional RuneStar CS2 name tables (script/graphic/…). Without them, ~proc
+# calls into .cs2b-only scripts cannot resolve (PROC no longer falls back to a
+# sole clientscript alias — that rebound trampoline wrappers to themselves).
+# Pack then keeps the base bytes. With the tables, trampolines recompile to the
+# real proc id.
+RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
 mock230-cache:
 	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
 	rm -rf $(MOCK230_CACHE_DIR)
-	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \
+	cd $(REPO_ROOT) && \
+		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
+			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
+		fi; \
+		3rd/rscache/tools/cachepack/cachepack pack \
 		--src OSRS-Content/osrs239-content \
 		--base cache.osrs239 \
 		--out cache.osrs239.baked \

@@ -1077,18 +1077,6 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
         cs2_cc_fail(cc, "no proc with the name '%s'", name);
         return;
     }
-    /* A sole other-trigger hit in NamesScriptId can bind ~foo to the
-     * clientscript that *is* this source (trampoline wrappers like
-     * `[clientscript,toplevel_resize]` whose body is `~toplevel_resize(...)`).
-     * That compiles to GOSUB-self and blows the call stack at runtime. Refuse
-     * here so pack declines the friendly form and keeps the base bytecode. */
-    if( cc->script_id >= 0 && callee_id == cc->script_id )
-    {
-        cs2_cc_fail(
-            cc, "~%s resolves to this script (%d); missing [proc,%s] name seed?", name,
-            callee_id, name);
-        return;
-    }
 
     if( cs2_cc_accept_punct(cc, '(') )
     {

@@ -288,8 +288,20 @@ RSCache_CS2_NamesScriptId(
                 continue;
             memcpy(trigger, stored + 1, trigger_length);
             trigger[trigger_length] = '\0';
-            if( RSCache_CS2_TriggerOfName(trigger) != required )
+            enum RSCache_CS2_Trigger hit = RSCache_CS2_TriggerOfName(trigger);
+            if( hit != required )
             {
+                /* A ~proc call must not fall back to a sole [clientscript,…]
+                 * alias. Tree seed (and trampoline sources) register the
+                 * clientscript wrapper under the same bare name as the real
+                 * proc that lives only as `.cs2b`; binding ~name to that
+                 * wrapper while compiling the wrapper is GOSUB-self. Exact
+                 * [proc,…] hits still win above; RuneStar/CACHEPACK_CS2_NAMES
+                 * seeds the proc id when the bytecode-only half must recompile.
+                 * Other required triggers keep the one-candidate fallback. */
+                if( required == RSCACHE_CS2_TRIGGER_PROC &&
+                    hit == RSCACHE_CS2_TRIGGER_CLIENTSCRIPT )
+                    continue;
                 other_trigger_id = names->script_names.entries[i].key;
                 other_trigger_count++;
                 continue;
@@ -316,7 +328,8 @@ RSCache_CS2_NamesScriptId(
      * 2717, and binding to whichever was found first would call the wrong
      * script), and that reasoning only bites when there is more than one
      * candidate. With exactly one there is nothing to choose wrongly; with
-     * several this still refuses.
+     * several this still refuses. PROC→CLIENTSCRIPT candidates are excluded
+     * above, so a trampoline's sole clientscript alias never lands here.
      */
     if( other_trigger_count == 1 )
     {

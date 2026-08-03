@@ -56,7 +56,9 @@ re-arm. Stop only when the user stops the loop.
 | 8t | skill_herblore | done | clean/brew/grind dbtables; cat 773/69; members gate; deferred decant, snails, mort/eadgar/ogre, extreme/raids/barb/tar, huasca |
 | 8u | skill_combat F2P ranged | done | player_ranged via player_melee_swing; ranged_ammo_table; cats 62/63; ranged XP/maxhit; deferred PvP/crossbow/thrown/specs/poison/ammo drop |
 | 8v | Varrock NPCs (shops + kids + bartenders) | done | Lowe/Thessalia/Zaff/Horvik/swordshop/tea/Scavvo/Valaine/tailorp + kids stub + Gertrude stub + bartenders + sworddummy; shops Trade-stubbed; deferred: shop open, Gertrude's Cat, Thessalia makeover IF1, east_gate, barcrawl/trails |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: general_use chests / outward areas (shops blocked on inv.ini) |
+| 8w | general_use chests/cupboards/drawers | done | Name-bound F2P shut↔open pairs + empty search; deferred: orphan cats, trails, findsomethingnice, locked chests, members/quest loot |
+| 8x | Falador NPCs (shops + mining guild + hair/makeover) | done | barmaid/cassie/drogo/flynn/herquin/wayne/nurmof + mining_guild + hairdresser/makeover stubs + goblin_armed; Trade-stubbed; deferred: shops, barcrawl, IF1 kits, pickaxe repair, guard2 |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: outward areas (shops blocked on inv.ini); fence/findsomethingnice/gangplank/gates/newcomer_map still deferred |
 
 
 ## Log
@@ -109,4 +111,6 @@ re-arm. Stop only when the user stops the loop.
 - slice 8t done: skill_herblore (herblore_clean/brew/grind tables; identify+brew+grind+empty; cat 773=grimy_herb / 69=potion; members gate); deferred decanting, snail grind, mort serum/eadgar/ogre quest mixes, extreme/raids/barbarian/tar, huasca
 - slice 8u done: skill_combat F2P ranged (player_ranged.rs2 via player_melee_swing; ranged_ammo_table bronze..rune; cat 62=arrows/63=bolts; ranged XP + maxhit; weapon_attackrange approach); deferred PvP, crossbow combat, thrown, crystal/dark bow specs, chinchompas, poison, inv_dropitem_delayed ammo recover, rapid/longrange clock tweaks
 - slice 8v done: Varrock NPCs — Lowe, Thessalia (dialogue+makeover stub), Zaff, Horvik, swordshop1/2, tea_seller, Scavvo, Valaine, tailorp, kanel/philop/shilop/wilough, Gertrude stub, jollyboar/bluemoon/donkey bartenders, sworddummy; Trade → mes stub; deferred: ~openshop, Gertrude's Cat, Thessalia IF1 makeover, east_gate (orphan cat+biohazard), barcrawl, trails; tramppg/aris already present
-- next pending: general_use chests / outward areas (shops blocked on inv.ini)
+- slice 8w done: general_use chests/cupboards/drawers (name-bound F2P pairs; ~open_chest/~close_chest shared; empty search); deferred: orphan cats, trails, findsomethingnice, locked chests, arena_hospital drawers, members/quest cupboards already elsewhere
+- slice 8x done: Falador NPCs — risingsun_barmaid ales, cassie/drogo/flynn/herquin/wayne/nurmof shop stubs, mguild_ladder/door (mining 60), hairdresser+makeover_mage IF stubs, goblin_red/greenarmour; Trade → mes stub; deferred: ~openshop, barcrawl, kit IFs, to_be_fixed_by_nurmof, guard2 (name unresolved), Kaylee/Tina barmaid binds
+- next pending: outward areas (shops blocked on inv.ini); fence/findsomethingnice/gangplank/gates/newcomer_map still deferred
