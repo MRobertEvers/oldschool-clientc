@@ -439,8 +439,10 @@ row_value(
     }
     if( column->kind[position] != MOCK230_PACK_COUNT )
     {
-        out.value = mock230_content_symbol(column->kind[position], expanded);
-        if( out.value < 0 )
+        /* `null` is a real answer (id -1), not a miss — same rule as
+         * mock230_content_symbol_checked / param=death_drop,null. */
+        if( !mock230_content_symbol_checked(column->kind[position], expanded,
+                                            &out.value) )
             *out_ok = 0;
         return out;
     }

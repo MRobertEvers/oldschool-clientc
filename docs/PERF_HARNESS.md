@@ -28,7 +28,8 @@ hot kernels get their own flag without forcing a full-client release build.
 ./tools/perf/run_perf.sh world 900  # npc spawn pressure for model-instance cache
 ./tools/perf/run_perf.sh drift 30000        # long idle uncapped (work-time drift)
 ./tools/perf/run_perf.sh drift-capped 30000 # long idle at 50 fps (wall-clock ticks)
-./tools/perf/run_perf.sh drift-ui 30000     # sidebar + bank open/close churn
+./tools/perf/run_perf.sh drift-ui 30000     # sidebar + bank open/close churn (one pack)
+./tools/perf/run_perf.sh soak-ui 60000      # multi-panel residency soak
 
 # Compare two CSVs (exit 1 on p95 regression >5% or frame p95 over 20 ms)
 python3 tools/perf/compare.py before.csv after.csv
@@ -39,9 +40,11 @@ python3 tools/perf/compare.py --drift tools/perf/results/<rev>-drift.csv.windows
 
 Env: `TORIRS_PERF=1` enables stage timers/counters; `TORIRS_PERF_CSV=<path>`
 writes the machine-readable report; `TORIRS_PERF_WINDOW=<N>` (default 1000,
-500 for drift) also appends `<csv>.windows.csv` with per-window stage
-percentiles and counter deltas / gauge snapshots. Embed transport requires
-`EMBED_SERVER=1`.
+500 for drift/soak) also appends `<csv>.windows.csv` with per-window stage
+percentiles and counter deltas / gauge snapshots. `TORIRS_IFACE_STATS=1`
+prints a per-group open/close ledger every 250 logic ticks. `TORIRS_NET_CHEAT_ROTATE=1`
+fires one semicolon-separated cheat per EVERY cycle (soak-ui). Embed transport
+requires `EMBED_SERVER=1`.
 
 **Frame work vs pacing:** `TORIRS_PERF_FRAME_END` runs *before* the 50 fps
 `Delay` / uncapped `Delay(1)`. Capped runs that timed the sleep used to report
@@ -192,6 +195,11 @@ tabs (f1–f12) + Escape, and re-opens `::bank` every 40 logic ticks via
 only `zone_map_count` rose (46→63). Mid-run windows spiked to ~13 ms then
 recovered — noise / one-shot mount cost, not a leak slope.
 
+**`drift-ui` covers one resident pack only.** It remounts the bank over and
+over (`iface_bake_reuse`), which is the case that stays flat. Multi-panel
+open/close — the interactive "open lots of different interfaces" case — is
+`soak-ui`.
+
 **UITree open/close path (follow-up):** the earlier `drift-ui` run never
 actually opened the bank — `TORIRS_NET_CHEAT="::bank"` was sent with the
 leading `::`, and the cheat handler matches `bank` without it (harness now
@@ -199,18 +207,51 @@ strips `::`). With a real bank open/close cycle:
 
 - `IF_CLOSESUB` **hides** packs rather than reclaiming them so a remount can
   reuse dynamic children (`already baked; reusing it`). After one bank open
-  the tree sits at ~9523 components with ~4450 hidden (~47%).
+  the tree sits at ~10k components with ~4400 hidden (~43%). The gameframe
+  boot itself already parks ~33 interface groups in the array.
 - Each remount re-runs onload (`cc_deleteall` + `cc_create` with fresh dynamic
   uids) and re-registers `if_setonvartransmit`. Dead hook entries for the
   reclaimed uids were only compacted when the 512-slot array filled, so
   `var_hooks` sawtoothed 220→512→220 every few minutes of open/close. Fixed in
   two layers: (1) compact dead inv/var/stat hooks before every append;
   (2) `RS_CS2Host_ClearHooksForInterfaceGroup` on IF_CLOSESUB / replacing
-  mount drops host inv/var/stat entries and reactive component listeners
-  (timer/key/*transmit/resize/sub_change) for that pack, including dynamic
-  children. Misc/friend transmit walks also skip hidden ancestors.
+  mount drops host inv/var/stat entries and **frees** the component
+  `runtime_hooks` blocks for that pack (onload re-registers click/op as well
+  as reactive listeners). Misc/friend transmit walks also skip hidden ancestors.
 - `onTimer` did not skip hidden ancestors (inv/var/stat already did). Closed
   panels' timers kept firing; gated with `UITree_ComponentOrAncestorHidden`.
+
+### Multi-panel soak (`soak-ui`, measured 2026-08-03)
+
+`./tools/perf/run_perf.sh soak-ui 60000` rotates `bank;equipstats;xptracker;
+loottools;hiscores;farmkit` via `TORIRS_NET_CHEAT_ROTATE=1`, with Escape +
+sidebar F-keys interleaved. Diagnosis from the new counters:
+
+| gauge / counter | before fix (60k) | after fix (12k) | reading |
+| --- | ---: | ---: | --- |
+| `uitree_components` | ~10119 flat | ~10119 flat | residency set at boot, not a leak |
+| `iface_groups_resident` | 33 | 33 | hide-not-destroy; packs stay |
+| `uitree_anim_scan_nodes` / window | ~2.7M | ~650–950 | was full-array ×2 / logic tick |
+| `uitree_anim_model_nodes` / window | ~800 | ~650–950 | now equals scan (model index) |
+| `uitree_hook_blocks` | ~2872 | ~844 | close frees `runtime_hooks` |
+
+Fixes that landed:
+
+1. **Model / wheel / opkey indexes** — `UITree_EnsureModelIndex` and extended
+   `UITree_EnsureHookIndexes` so per-tick/per-input walks are proportional to
+   live interested nodes, not `component_count`. Writers of each predicate
+   set the stale bit (Push of a model, reclaim, ApplyRuntimeHook, ApplyOpKey).
+2. **Free `runtime_hooks` on unmount** — `ClearHooksForInterfaceGroup` frees
+   the block; remount onLoad reallocates. Bank alone had been retaining
+   ~1500 blocks ≈ 15 MB while closed.
+3. **Telemetry** — `iface_open/close/bake/reuse`, hitch ns, growth gauges,
+   scan-cost counters, and `TORIRS_IFACE_STATS=1` per-group ledger.
+4. **Guard** — `test-uitree` `test_open_close_steady`; soak-ui under
+   `compare.py --drift`.
+
+Pack residency (destroying hidden groups) was **not** required for frame
+stability once the scans and hook blocks were fixed; the remount-reuse
+invariant stays.
 
 The last row is a footprint change, not a speed change, and it is in the table so
 nobody re-derives it from the frame time. `struct CS2VM2` held

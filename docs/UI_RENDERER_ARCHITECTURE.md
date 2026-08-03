@@ -536,8 +536,21 @@ Rebuild scripts (`CC_DELETEALL` then N × `CC_CREATE`) ran every transmit. Unlin
 without reclaiming left dead nodes that every id lookup, layout pass and uid
 allocation kept paying for. Now `uitree_reclaim_subtree` recycles the slot onto a
 free-list and clears the id, matching `unregisterWidgetTree`
-([uitree.c:1209](src/ui/uitree.c#L1209)). `TORIRS_STATS=1` prints
+([uitree.c](src/ui/uitree.c)). `TORIRS_STATS=1` prints
 `components / free_head` every 250 ticks precisely to watch this stay flat.
+`test_open_close_steady` pins the rebuild pattern.
+
+**`IF_CLOSESUB` hides packs; closed panels used to keep paying.**
+Unmount sets `hide` / `hide_unmounted` and leaves nodes in `components[]` so a
+remount can reuse the bake (baking a second copy renders blank). That is
+intentional. What was not: (1) `UITreeAnim_*` and wheel/opkey walks strode the
+whole array every tick looking for ~800 model nodes among ~10k; fixed with
+`UITree_EnsureModelIndex` and extended hook indexes. (2) `runtime_hooks` blocks
+(~10 KB each) survived close — bank alone retained ~1500 while hidden; 
+`RS_CS2Host_ClearHooksForInterfaceGroup` now frees them (onload reallocates).
+Measure with `./tools/perf/run_perf.sh soak-ui` and `TORIRS_IFACE_STATS=1`;
+`drift-ui` only remounts one pack and will not show residency growth.
+See [PERF_HARNESS.md](PERF_HARNESS.md) § Multi-panel soak.
 
 **`CC_CREATE` must reclaim *before* allocating a uid.**
 Replace-in-slot semantics: the existing dynamic child with the same `sub_id` is
@@ -824,6 +837,7 @@ The UI was recomputing everything, every frame.
 | `UITree_ChildMountType` linear-scanned the mount table once per child per emit sweep | `UITree_ContainerHasMounts` answers it once per node | [uitree.c](src/ui/uitree.c) |
 | The CS1 pass scanned every component every 20 ms tick on a tree with no CS1 scripts | `UITree_HasCS1Scripts` short-circuits it | [task_cs1_run.c](src/game/task_cs1_run.c) |
 | `runtime_hooks` inlined in every node (~11 KB per component) | lazily side-allocated; `UITree_Hooks` / `UITree_HooksMut` accessors | [uitree.h](src/ui/uitree.h) |
+| Closed packs left `runtime_hooks` blocks allocated; anim/wheel/opkey strode full `component_count` every tick | free hooks on unmount; model/wheel/opkey indexes | [rs_cs2_host.c](src/game/rs_cs2_host.c), [uitree_anim.c](src/engine/uitree_anim.c) |
 
 ---
 
@@ -834,6 +848,8 @@ The UI was recomputing everything, every frame.
 | `TORIRS_CS2_TRACE=1` | full CS2 opcode trace (`g_cs2_trace_mode = 2`) |
 | `TORIRS_ANIM_DEBUG=1` | model/seq resolution at open, per-frame anim state every 25 ticks, seq load failures |
 | `TORIRS_STATS=1` | component count / free-list head / hook counts every 250 ticks — watch for growth |
+| `TORIRS_IFACE_STATS=1` | per-group open/close/bake ledger every 250 ticks — names the panel |
+| `TORIRS_PERF=1` | stage timers + counters (see [PERF_HARNESS.md](PERF_HARNESS.md)); soak-ui / drift-ui |
 | `TORIRS_TASK_LOG=1` | task completion and early-exit logging |
 | `TORIRS_DUMP_TREE=1` | dump the baked tree for the opened group |
 | `TORIRS_DUMP_HOOKS=1` | dump every runtime hook (component, kind, script id, argc) |

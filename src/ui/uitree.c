@@ -3270,7 +3270,7 @@ UITree_EnsureHookIndexes(struct UITree* tree)
     int w_n = 0;
     int o_n = 0;
     assert(tree);
-    if( !tree->hook_index_stale && tree->timer_hook_ids )
+    if( !tree->hook_index_stale )
         return tree->timer_hook_count;
 
     TORIRS_PERF_COUNT(
@@ -3362,7 +3362,7 @@ UITree_EnsureModelIndex(struct UITree* tree)
     uint32_t i;
     int n = 0;
     assert(tree);
-    if( !tree->model_index_stale && tree->model_node_ids )
+    if( !tree->model_index_stale )
         return tree->model_node_count;
 
     for( i = 0; i < tree->component_count; i++ )

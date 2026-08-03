@@ -49,7 +49,8 @@ re-arm. Stop only when the user stops the loop.
 | 8m | Wyson woad leaves (Falador) | done | 15/20gp woadleaf purchase dialogue |
 | 8n | skill_thieving (stalls/pickpocket) | done | pickpocket.dbrow + stealing.dbrow (*thiefstall remap); thieving.rs2 helpers; deferred: chests/doors, viking/misc stalls, guard2, npc_retaliate |
 | 8o | skill_thieving (chests/doors) | done | trapped_chest + locked_door dbrows/scripts; loc remap trapchest*/picklock*/toollock*; walk-through (open_and_close deferred); viking/misc stalls still deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: skill_magic; shops blocked on inv.ini |
+| 8p | skill_magic F2P core | done | helpers+staff/spells tables; teleport/alchemy/telegrab/enchant1-4/superheat; magic_spellbook IF remap; deferred: combat spells (skill_combat), charge orb/charge/bones, enchant5, trollheim, Ancient/Lunar, oc_cost/oc_members runtime |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: shops (blocked on inv.ini) or skill_combat magic / F2P areas |
 
 
 ## Log
@@ -95,4 +96,5 @@ re-arm. Stop only when the user stops the loop.
 - slice 8m done: Wyson the gardener woad leaf purchase (15gp×1 / 20gp×2)
 - slice 8n done: skill_thieving stalls/pickpocket (dbrows + thieving.rs2 helpers + stealing.rs2; loc remap *thiefstall; %thieving_stall_timer server varp); deferred: trapped_chest/locked_door, viking/misc/etc stalls, viking pickpocket, guard2, ~npc_retaliate
 - slice 8o done: skill_thieving chests/doors (trapped_chest.rs2 + locked_door.rs2 + dbrows; trapchest1..5/pickchest3/emptypickchest/inacopenchest + picklock*/toollock* remap; door swing → walk-through; damage via hitsplat); deferred: open_and_close_door swing, viking/misc stalls
-- next pending: skill_magic; shops still blocked on inv.ini
+- slice 8p done: skill_magic F2P core (magic.rs2 helpers + magic_spell/staff tables; teleport Varrock/Lumby/Fally + Camelot/Ardougne/Watchtower; low/high alch; telegrab; enchant 1-4; superheat via smelting table; IF → magic_spellbook:*); deferred: combat spells under skill_combat, charge orb/charge/bones convert, enchant5, trollheim, Ancient/Lunar, oc_cost+oc_members engine gaps
+- next pending: shops (blocked on inv.ini) or skill_combat magic / outward areas

@@ -3132,25 +3132,19 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
     }
     host->stat_transmit_hook_count = w;
 
-    /* Component-local reactive listeners for the same group. Interaction hooks
-     * (click/op/drag/…) stay so the reused bake still responds to input. */
+    /* Drop component-local listeners for the group. Free the whole
+     * runtime_hooks block: onLoad re-registers click/op/drag as well as the
+     * reactive slots on the next mount, and leaving ~10 KB blocks on every
+     * hidden node was the dominant retained footprint under multi-panel use
+     * (bank alone held ~1500 blocks ≈ 15 MB while closed). */
     for( uint32_t n = 0; n < tree->component_count; n++ )
     {
         struct UITreeComponent* c = &tree->components[n];
-        struct UITreeRuntimeHooks* hooks;
         if( c->freed || !c->runtime_hooks )
             continue;
         if( !rs_cs2_component_in_interface_group(tree, (int32_t)n, group_id) )
             continue;
-        hooks = c->runtime_hooks;
-        memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
-        memset(&hooks->on_key, 0, sizeof(hooks->on_key));
-        memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
-        memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
-        memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
-        memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
-        memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
-        memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
+        UITree_HooksFree(c);
     }
     tree->hook_index_stale = 1;
 }

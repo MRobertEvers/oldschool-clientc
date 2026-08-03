@@ -22,6 +22,7 @@ main(void)
     test_child_subid();
     test_menu_submenus();
     test_component_params();
+    test_open_close_steady();
 
     if( g_failures )
     {
