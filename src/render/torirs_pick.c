@@ -8,8 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Entity picks report the entity's own tile; players are not yet minimenu
- * targets, so they are hoverable-through (terrain still hits under them). */
+/* Entity picks report the entity's own tile. Players (including local) are
+ * pickable so a tile-occupancy winner can expand co-located stackmates into
+ * the minimenu (Client-TS addViewportOptions); local rows are skipped later. */
 static bool
 pick_classify_element(
     struct World* world,
@@ -26,6 +27,16 @@ pick_classify_element(
         *out_tile_x = npc->grid_position.x;
         *out_tile_z = npc->grid_position.z;
         *out_tile_level = npc->grid_position.level;
+        return true;
+    }
+
+    struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
+    if( player )
+    {
+        *out_type = WORLD_PICK_PLAYER;
+        *out_tile_x = player->grid_position.x;
+        *out_tile_z = player->grid_position.z;
+        *out_tile_level = player->grid_position.level;
         return true;
     }
 
@@ -139,7 +150,9 @@ pick_debug_dump(
     for( int i = 0; i < pickset->count; i++ )
     {
         struct World_Picked const* p = &pickset->items[i];
-        static char const* const kind[] = { "terrain", "scenery", "projectile", "npc", "obj" };
+        static char const* const kind[] = {
+            "terrain", "scenery", "projectile", "npc", "obj", "player"
+        };
         int loc_id = -1;
         if( p->type == WORLD_PICK_SCENERY )
         {
@@ -151,7 +164,7 @@ pick_debug_dump(
             stderr,
             "  [%d] %-10s el=%-5d tile=(%d,%d) lvl=%d%s",
             i,
-            p->type <= WORLD_PICK_OBJSTACK ? kind[p->type] : "?",
+            p->type <= WORLD_PICK_PLAYER ? kind[p->type] : "?",
             p->element_id,
             p->tile_x,
             p->tile_z,

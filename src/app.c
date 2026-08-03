@@ -4230,42 +4230,66 @@ app_logic_tick(struct App* app)
 
         /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::
          * commands (';'-separated) right after login — headless harness hook
-         * (the dev server grants staffmod, so tele/give work). */
-        if( app->net->state == TORIRS_NET_GAME && !app->net_cheat_sent )
+         * (the dev server grants staffmod, so tele/give work).
+         * TORIRS_NET_CHEAT_EVERY=N: re-send the same cheats every N logic
+         * cycles (menu open/close churn in drift-ui). N<=0 keeps one-shot. */
+        if( app->net->state == TORIRS_NET_GAME )
         {
+            static int cheat_every = -1;
             char const* cheat = getenv("TORIRS_NET_CHEAT");
-            app->net_cheat_sent = 1;
-            while( cheat && cheat[0] )
+            int fire = 0;
+
+            if( cheat_every < 0 )
             {
-                char one[96] = { 0 };
-                char const* sep = strchr(cheat, ';');
-                size_t len = sep ? (size_t)(sep - cheat) : strlen(cheat);
-                if( len >= sizeof(one) )
-                    len = sizeof(one) - 1;
-                memcpy(one, cheat, len);
-                if( one[0] )
+                char const* every = getenv("TORIRS_NET_CHEAT_EVERY");
+                cheat_every = (every && every[0]) ? atoi(every) : 0;
+            }
+            if( cheat && cheat[0] )
+            {
+                if( !app->net_cheat_sent )
+                    fire = 1;
+                else if( cheat_every > 0 && (app->logic_cycle % cheat_every) == 0 )
+                    fire = 1;
+            }
+            if( fire )
+            {
+                app->net_cheat_sent = 1;
+                while( cheat && cheat[0] )
                 {
-                    if( strncmp(one, "lootkill ", 9) == 0 )
+                    char one[96] = { 0 };
+                    char const* sep = strchr(cheat, ';');
+                    size_t len = sep ? (size_t)(sep - cheat) : strlen(cheat);
+                    if( len >= sizeof(one) )
+                        len = sizeof(one) - 1;
+                    memcpy(one, cheat, len);
+                    if( one[0] )
                     {
-                        char lk_source[64] = { 0 };
-                        int lk_obj = 0;
-                        int lk_qty = 1;
-                        if( sscanf(one + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                        if( strncmp(one, "lootkill ", 9) == 0 )
                         {
-                            if( lk_qty <= 0 )
-                                lk_qty = 1;
-                            App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                            char lk_source[64] = { 0 };
+                            int lk_obj = 0;
+                            int lk_qty = 1;
+                            if( sscanf(one + 9, "%63s %d %d", lk_source, &lk_obj, &lk_qty) >= 2 )
+                            {
+                                if( lk_qty <= 0 )
+                                    lk_qty = 1;
+                                App_LootNotifyKill(app, lk_source, lk_obj, lk_qty);
+                            }
+                        }
+                        else
+                        {
+                            APP_NET_SEND(
+                                app,
+                                net_out_client_cheat(
+                                    app->net->rev,
+                                    app->net->random_out,
+                                    _nsbuf,
+                                    sizeof(_nsbuf),
+                                    one));
                         }
                     }
-                    else
-                    {
-                        APP_NET_SEND(
-                            app,
-                            net_out_client_cheat(
-                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), one));
-                    }
+                    cheat = sep ? sep + 1 : NULL;
                 }
-                cheat = sep ? sep + 1 : NULL;
             }
         }
     }
@@ -5533,6 +5557,25 @@ app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_he
     approach.mover_size = 1;
     return app_try_move_op(
         app, npc->pathing.route_x[0], npc->pathing.route_z[0], &approach, ctrl_held);
+}
+
+/* Approach another player (Client.ts OPPLAYER1..5 / OPPLAYERU / OPPLAYERT):
+ * always a literal 1×1 at routeX[0]/routeZ[0] (PATHING_INTERACTION_PARITY D6). */
+static int
+app_try_move_player(struct App* app, struct WorldEntity_Player const* player, int ctrl_held)
+{
+    struct CollisionApproach approach = { 0 };
+
+    if( !player )
+        return 0;
+    approach.kind = app->features->approach_model == TORIRS_APPROACH_RECT
+                        ? COLL_APPROACH_RECT_ADJACENT
+                        : COLL_APPROACH_LEGACY_SHAPE;
+    approach.loc_width = 1;
+    approach.loc_length = 1;
+    approach.mover_size = 1;
+    return app_try_move_op(
+        app, player->pathing.route_x[0], player->pathing.route_z[0], &approach, ctrl_held);
 }
 
 /*
@@ -8575,6 +8618,8 @@ app_hover_text_update(
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
                 .selection = app_minimenu_selection(app),
+                .player_ops = (char const(*)[40])app->player_ops,
+                .player_ops_primary = app->player_ops_primary,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -8627,6 +8672,8 @@ app_minimenu_open(
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
         .selection = app_minimenu_selection(app),
+        .player_ops = (char const(*)[40])app->player_ops,
+        .player_ops_primary = app->player_ops_primary,
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -8855,6 +8902,8 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
         .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
+        .player_ops = (char const(*)[40])app->player_ops,
+        .player_ops_primary = app->player_ops_primary,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
@@ -9316,8 +9365,10 @@ app_minimenu_run_option(
         (opt.action == REVCONFIG_MINIMENU_USEHELD_ONLOC ||
          opt.action == REVCONFIG_MINIMENU_USEHELD_ONNPC ||
          opt.action == REVCONFIG_MINIMENU_USEHELD_ONOBJ ||
+         opt.action == REVCONFIG_MINIMENU_USEHELD_ONPLAYER ||
          opt.action == REVCONFIG_MINIMENU_TGT_LOC || opt.action == REVCONFIG_MINIMENU_TGT_NPC ||
-         opt.action == REVCONFIG_MINIMENU_TGT_OBJ) )
+         opt.action == REVCONFIG_MINIMENU_TGT_OBJ ||
+         opt.action == REVCONFIG_MINIMENU_TGT_PLAYER) )
     {
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
@@ -9387,6 +9438,37 @@ app_minimenu_run_option(
                     app, net_out_opnpct(
                              app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                              npc->server_slot, app->targetsel.component_id));
+            }
+            break;
+        }
+        case REVCONFIG_MINIMENU_USEHELD_ONPLAYER:
+        {
+            struct WorldEntity_Player* player =
+                World_PlayerGetByElementId(app->world, opt.pick.id);
+            if( player && player->server_pid >= 0 &&
+                player->server_pid != app->world->local_pid )
+            {
+                app_try_move_player(app, player, app->ctrl_held);
+                APP_NET_SEND(
+                    app, net_out_opplayeru(
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                             player->server_pid, app->objsel.obj_id, app->objsel.slot,
+                             app->objsel.component_id));
+            }
+            break;
+        }
+        case REVCONFIG_MINIMENU_TGT_PLAYER:
+        {
+            struct WorldEntity_Player* player =
+                World_PlayerGetByElementId(app->world, opt.pick.id);
+            if( player && player->server_pid >= 0 &&
+                player->server_pid != app->world->local_pid )
+            {
+                app_try_move_player(app, player, app->ctrl_held);
+                APP_NET_SEND(
+                    app, net_out_opplayert(
+                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                             player->server_pid, app->targetsel.component_id));
             }
             break;
         }
@@ -9525,6 +9607,35 @@ app_minimenu_run_option(
                 net_out_opnpc(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     opt.action_index + 1, npc->server_slot));
+        }
+        return 0;
+    }
+    case UI_MINIMENU_PICK_PLAYER:
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByElementId(app->world, opt.pick.id);
+        /* Menu never emits local-player rows; refuse if one slips through. */
+        if( !player || player->server_pid < 0 ||
+            player->server_pid == app->world->local_pid )
+            return 0;
+        app_try_move_player(app, player, app->ctrl_held);
+        if( app->objsel.active )
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opplayeru(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    player->server_pid, app->objsel.obj_id, app->objsel.slot,
+                    app->objsel.component_id));
+            app->objsel.active = 0;
+        }
+        else
+        {
+            APP_NET_SEND(
+                app,
+                net_out_opplayer(
+                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                    opt.action_index + 1, player->server_pid));
         }
         return 0;
     }
@@ -10039,6 +10150,8 @@ App_RunOnce(
             .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
+            .player_ops = (char const(*)[40])app->player_ops,
+            .player_ops_primary = app->player_ops_primary,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -10148,6 +10261,8 @@ App_RunOnce(
             .chat = &app->chat_source,
         .events_for_component = app_minimenu_events_for_component,
         .events_user = app,
+            .player_ops = (char const(*)[40])app->player_ops,
+            .player_ops_primary = app->player_ops_primary,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,

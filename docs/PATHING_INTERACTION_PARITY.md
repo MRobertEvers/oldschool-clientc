@@ -289,13 +289,16 @@ already populated, so this is a policy choice, not a missing input. Under a
 2004-era server the 1×1 form is correct; under a modern server it makes the
 client flag a tile inside a large NPC's footprint.
 
-### D6 — no player-click pathing, because players are not pickable  *(player)*
+### D6 — player-click pathing  *(done on the client; osrs230 wire gap)*
 
-`enum` in `src/ui/uitree_minimenu.h:27-33` has no `UI_MINIMENU_PICK_PLAYER`, so
-the OPPLAYER1..5 / OPPLAYERT / OPPLAYERU encoders that already exist
-(`net_out.c:762/775/794`) are unreachable and the reference's
+`UI_MINIMENU_PICK_PLAYER` / `WORLD_PICK_PLAYER` land players in the pickset
+(including local, so a tile-occupancy winner can expand stacked NPCs/players
+into the minimenu). `add_player_rows` skips the local player.
+`app_try_move_player` mirrors the reference
 `tryMove(..., player.routeX[0], player.routeZ[0], 2, 1, 1, 0, 0, 0, false)`
-(Client.ts:8998/9054/9092/9108) has no counterpart.
+and `app_minimenu_run_option` dispatches `net_out_opplayer` / `opplayeru` /
+`opplayert`. **osrs230 `packetout.h` still has no OPPLAYER\* opcodes** — encode
+returns -1; menu and pathing still run on revisions that define the packets.
 
 ### D7 — no fallback for interaction clicks under a modern server  *(loc/npc; era-dependent)*
 
@@ -443,11 +446,9 @@ why 175 records moved `same-len` → `differ` without anything regressing.
 ## 6. Deliberately not done
 
 
-- **D6 (player picks)** — needs `UI_MINIMENU_PICK_PLAYER`, player rows in
-  `rs_minimenu_world.c` and the `OPPLAYER*` dispatch before the pathing question
-  even arises. Its route call is one line (`{1,1}` at
-  `player->pathing.route_x[0]`, identical to `app_try_move_npc`) and should land
-  with that work, not this.
+- **D6 (player picks)** — client pick/menu/pathing landed (see §3 D6). Remaining
+  gap is osrs230 OPPLAYER\* opcodes in `packetout.h` (and trading/INVOTHER,
+  which is out of this pathing doc's scope).
 - **D8 / D9** — torirs's behaviour is a superset of the reference's and the
   failure modes are unreachable in practice. Leave them; they are recorded here
   so a future "why does the reference route differently on a huge failed flood"
@@ -482,9 +483,15 @@ Op handlers route to the **target** with its approach — they never call
 Players store at most 25 dest-first waypoints (`PathingEntity.waypoints`) and
 advance with a greedy `takeStep` that re-validates `mock230_scene_can_step` and
 stalls instead of clearing the route. When an interaction is mid-walk and the
-queue is empty or a step stalled, the server re-floods and keeps only the next
-tile — the same one-step-from-BFS shape NPC chase already used — so a long
-zigzag compressed into 25 corners cannot wedge the player forever.
+corner queue is empty, or a post-move step is blocked, the server re-floods and
+queues the **full** approach path again (`queue_path_as_waypoints` /
+LostCity `pathToTarget`) — not a single adjacent tile. Keeping only one tile
+per re-flood forced `move_count == 1` on every op approach and ignored run
+mode; ground clicks were unaffected because they never hit that recovery path
+on the packet-handler call. A fresh route whose first step is still legal is
+not treated as a stall (`steps_taken == 0` alone is not enough). After a step
+toward an npc, the same full re-flood re-aims at the mover (the one-tile path
+used to do that every tick by emptying the queue).
 
 Unreachable interactions terminate with content's
 `[proc,cannot_reach_message]` (`player/messages.rs2`), not a latched op.
@@ -508,3 +515,4 @@ Unreachable interactions terminate with content's
 | P3 | exact BFS, no nearest fallback | era `CollisionNearestOpts` on `route_tiles` |
 | P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
 | P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |
+| P6 | op-approach recovery kept one BFS tile → run never took 2 steps | full `queue_path_as_waypoints` re-flood; stall only when next step blocked |

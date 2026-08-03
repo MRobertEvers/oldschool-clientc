@@ -75,6 +75,11 @@ struct RS_MinimenuBuildCtx
     /* Held-item / spell targeting mode (reference useMode/targetMode). */
     struct RS_MinimenuSelection selection;
 
+    /* SET_PLAYER_OP rows for OPPLAYER1..5 text (NULL = no player ops). Points
+     * at App::player_ops / player_ops_primary — five slots, index 0 = op 1. */
+    char const (*player_ops)[40];
+    int const* player_ops_primary;
+
     /* World hittest results for this click (NULL/false = no world rows). The
      * pickset must have been refreshed at the click point by the caller. */
     struct World* world;

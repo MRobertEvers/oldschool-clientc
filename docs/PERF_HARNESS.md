@@ -28,6 +28,7 @@ hot kernels get their own flag without forcing a full-client release build.
 ./tools/perf/run_perf.sh world 900  # npc spawn pressure for model-instance cache
 ./tools/perf/run_perf.sh drift 30000        # long idle uncapped (work-time drift)
 ./tools/perf/run_perf.sh drift-capped 30000 # long idle at 50 fps (wall-clock ticks)
+./tools/perf/run_perf.sh drift-ui 30000     # sidebar + bank open/close churn
 
 # Compare two CSVs (exit 1 on p95 regression >5% or frame p95 over 20 ms)
 python3 tools/perf/compare.py before.csv after.csv
@@ -166,6 +167,13 @@ Fixes applied anyway (structural / Soft3D allocator churn):
 
 Drift guard: `python3 tools/perf/compare.py --drift <csv>.windows.csv`
 (fails if last steady frame p95 > first by 5%).
+
+Menu-churn follow-up (`./tools/perf/run_perf.sh drift-ui`): cycles sidebar
+tabs (f1–f12) + Escape, and re-opens `::bank` every 40 logic ticks via
+`TORIRS_NET_CHEAT_EVERY`. Uncapped 30k frames / window=500: steady frame p95
+4.85 → 5.08 ms (+4.9%, under the 5% guard). `uitree_components` flat at 7092;
+only `zone_map_count` rose (46→63). Mid-run windows spiked to ~13 ms then
+recovered — noise / one-shot mount cost, not a leak slope.
 
 The last row is a footprint change, not a speed change, and it is in the table so
 nobody re-derives it from the frame time. `struct CS2VM2` held

@@ -8,6 +8,7 @@ enum World_PickType
     WORLD_PICK_PROJECTILE,
     WORLD_PICK_NPC,
     WORLD_PICK_OBJSTACK,
+    WORLD_PICK_PLAYER,
 };
 
 struct World_Picked

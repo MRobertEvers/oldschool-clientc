@@ -896,6 +896,23 @@ World_PlayerGetByServerPid(
     return NULL;
 }
 
+struct WorldEntity_Player*
+World_PlayerGetByElementId(
+    struct World* world,
+    int element_id)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( player && player->element_id == element_id )
+            return player;
+    }
+    return NULL;
+}
+
 struct WorldEntity_NPC*
 World_NpcGetByElementId(
     struct World* world,

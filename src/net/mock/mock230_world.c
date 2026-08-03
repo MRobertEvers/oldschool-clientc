@@ -242,6 +242,61 @@ player_has_waypoints(struct Mock230Player const* player)
 }
 
 /*
+ * True when the greedy stepper cannot leave the current tile toward the active
+ * waypoint. Used by process_interaction to tell a real post-move stall from the
+ * pre-move packet-handler call (fresh route, steps_taken still 0, first step
+ * still legal) — truncating that route to one tile is what broke run on op
+ * approaches.
+ */
+static int
+player_waypoint_step_blocked(struct Mock230Player const* player)
+{
+    int wp_x;
+    int wp_z;
+    int dx;
+    int dz;
+    int dir;
+    int index;
+
+    if( player->waypoint_index < 0 )
+        return 1;
+
+    index = player->waypoint_index;
+    wp_x = player->waypoints[index].x;
+    wp_z = player->waypoints[index].z;
+    if( wp_x == player->x && wp_z == player->z )
+    {
+        index--;
+        if( index < 0 )
+            return 1;
+        wp_x = player->waypoints[index].x;
+        wp_z = player->waypoints[index].z;
+    }
+
+    dx = wp_x > player->x ? 1 : (wp_x < player->x ? -1 : 0);
+    dz = wp_z > player->z ? 1 : (wp_z < player->z ? -1 : 0);
+    if( dx == 0 && dz == 0 )
+        return 1;
+
+    dir = mock230_step_direction(dx, dz);
+    if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        return 0;
+    if( dx != 0 )
+    {
+        dir = mock230_step_direction(dx, 0);
+        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+            return 0;
+    }
+    if( dz != 0 )
+    {
+        dir = mock230_step_direction(0, dz);
+        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+            return 0;
+    }
+    return 1;
+}
+
+/*
  * Install waypoints from a walk-order path (path[0] = first tile from the player).
  * Mirrors PathingEntity.queueWaypoints: the array is stored dest-first, and
  * waypoint_index counts down from the tile nearest the player toward the
@@ -12022,6 +12077,7 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->waypoints[0].z == player->z + 7,
                        "destination waypoint (index 0) is 7 north");
         player->run_toggle = 0;
+
     }
 
     fprintf(stderr, "mock230 selftest: prayer\n");

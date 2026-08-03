@@ -430,6 +430,12 @@ World_PlayerGetByServerPid(
     struct World* world,
     int server_pid);
 
+/** Pool walk by painter element id. Returns NULL when no player owns it. */
+struct WorldEntity_Player*
+World_PlayerGetByElementId(
+    struct World* world,
+    int element_id);
+
 /** Pool walk; out_index (optional) receives the npc pool index for the
  * face/path mutators. */
 struct WorldEntity_NPC*

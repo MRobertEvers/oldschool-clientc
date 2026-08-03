@@ -2,14 +2,14 @@
 # Build and run a deterministic headless perf scenario with the embedded server.
 #
 # Usage:
-#   ./tools/perf/run_perf.sh [idle|ui|world|drift|drift-capped] [frames]
+#   ./tools/perf/run_perf.sh [idle|ui|world|drift|drift-capped|drift-ui] [frames]
 #
 # Env:
 #   PLATFORM_OBJ_BASE   private objdir (default: build_perf)
 #   TORIDRAW_OPT        Soft3D -O2 knob (default: 1)
 #   EMBED_SERVER        must be 1 for embed manifest (default: 1)
 #   TORIRS_PERF_OUT     CSV output path override
-#   TORIRS_PERF_WINDOW  window size for drift CSV (default: 1000 idle/ui/world, 500 drift)
+#   TORIRS_PERF_WINDOW  window size for drift CSV (default: 1000 idle/ui/world, 500 drift*)
 #   USER/PASS           login credentials (default: testc/test)
 set -euo pipefail
 
@@ -28,9 +28,9 @@ mkdir -p "$OUT_DIR"
 MANIFEST="$ROOT/manifest_osrs230_embed.ini"
 
 case "$SCENARIO" in
-  idle|ui|world|drift|drift-capped) ;;
+  idle|ui|world|drift|drift-capped|drift-ui) ;;
   *)
-    echo "usage: $0 [idle|ui|world|drift|drift-capped] [frames]" >&2
+    echo "usage: $0 [idle|ui|world|drift|drift-capped|drift-ui] [frames]" >&2
     exit 2
     ;;
 esac
@@ -38,7 +38,7 @@ esac
 # Default frame counts: short scenarios stay at 1200; drift needs many windows.
 if [ -z "$FRAMES" ]; then
   case "$SCENARIO" in
-    drift) FRAMES=30000 ;;
+    drift|drift-ui) FRAMES=30000 ;;
     drift-capped) FRAMES=30000 ;; # ~10 min at 50 fps
     *) FRAMES=1200 ;;
   esac
@@ -48,7 +48,7 @@ CSV="${TORIRS_PERF_OUT:-$OUT_DIR/${REV}-${SCENARIO}.csv}"
 WINDOW="${TORIRS_PERF_WINDOW:-}"
 if [ -z "$WINDOW" ]; then
   case "$SCENARIO" in
-    drift|drift-capped) WINDOW=500 ;;
+    drift|drift-capped|drift-ui) WINDOW=500 ;;
     *) WINDOW=1000 ;;
   esac
 fi
@@ -84,6 +84,26 @@ case "$SCENARIO" in
     # accumulate over real minutes (the user's "sitting idle" case).
     PACE=()
     ;;
+  drift-ui)
+    # Menu open/close churn: re-open bank every 40 logic ticks, Escape mid-
+    # cycle to close it, and cycle sidebar tabs (f1–f12) on main-loop frames.
+    # Escape at frame 350 also clears default chat focus so F-keys bind.
+    EXTRA_ENV+=(TORIRS_NET_CHEAT="::bank")
+    EXTRA_ENV+=(TORIRS_NET_CHEAT_EVERY=40)
+    {
+      parts=("350,escape")
+      f=400
+      while [ "$f" -lt "$FRAMES" ]; do
+        for key in f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 escape; do
+          parts+=("${f},${key}")
+          f=$((f + 25))
+          [ "$f" -ge "$FRAMES" ] && break
+        done
+      done
+      IFS=';'
+      EXTRA_ENV+=(TORIRS_SIM_HOTKEY="${parts[*]}")
+    }
+    ;;
 esac
 
 echo "run_perf: scenario=$SCENARIO frames=$FRAMES window=$WINDOW csv=$CSV"
@@ -117,4 +137,7 @@ grep -A80 '=== torirs_perf report ===' "$OUT_DIR/${REV}-${SCENARIO}.log" || true
 if [[ "$SCENARIO" == drift* ]]; then
   echo "--- window frame_p95 ---"
   grep 'torirs_perf: window=' "$OUT_DIR/${REV}-${SCENARIO}.log" || true
+  if [ -f "${CSV}.windows.csv" ]; then
+    python3 "$ROOT/tools/perf/compare.py" --drift "${CSV}.windows.csv" || true
+  fi
 fi

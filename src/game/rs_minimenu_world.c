@@ -534,6 +534,160 @@ add_npc_stack_rows(
     add_npc_rows(menu, sel, npc, picked, viewer_combat_level);
 }
 
+static int
+opplayer_action_for_slot(int slot)
+{
+    static int const ids[5] = {
+        REVCONFIG_MINIMENU_OPPLAYER1, REVCONFIG_MINIMENU_OPPLAYER2,
+        REVCONFIG_MINIMENU_OPPLAYER3, REVCONFIG_MINIMENU_OPPLAYER4,
+        REVCONFIG_MINIMENU_OPPLAYER5,
+    };
+    return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPPLAYER1;
+}
+
+/* Client-TS addPlayerOptions: never emit rows for the local player. Use/target
+ * modes short-circuit; otherwise SET_PLAYER_OP text drives OPPLAYER1..5. */
+static void
+add_player_rows(
+    struct UIMinimenu* menu,
+    struct RS_MinimenuBuildCtx const* ctx,
+    struct World* world,
+    struct WorldEntity_Player const* player,
+    struct World_Picked const* picked)
+{
+    char text[UITREE_MINIMENU_OPTION_LEN];
+    char tooltip[UITREE_MINIMENU_OPTION_LEN];
+    struct RS_MinimenuSelection const* sel;
+    int viewer_combat_level;
+    struct UIMinimenuPick pick = {
+        .kind = UI_MINIMENU_PICK_PLAYER,
+        .id = picked->element_id,
+        .secondary_id = player->server_pid,
+        .tertiary_id = picked->tile_x,
+        .quaternary_id = picked->tile_z,
+    };
+
+    assert(menu && ctx && world && player && picked);
+    if( world->local_pid >= 0 && player->server_pid == world->local_pid )
+        return;
+
+    sel = &ctx->selection;
+    viewer_combat_level = world_local_combat_level(world);
+    if( player->combat_level > 0 && viewer_combat_level >= 0 )
+        snprintf(
+            tooltip,
+            sizeof(tooltip),
+            "%s%s (level-%d)",
+            player->name[0] ? player->name : "Player",
+            combat_colour_code(viewer_combat_level, player->combat_level),
+            player->combat_level);
+    else
+        snprintf(tooltip, sizeof(tooltip), "%s", player->name[0] ? player->name : "Player");
+
+    if( add_world_select_row(
+            menu, sel, pick, "@whi@ ", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,
+            REVCONFIG_MINIMENU_TGT_PLAYER) )
+        return;
+
+    if( !ctx->player_ops )
+        return;
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        int action;
+        char const* op = ctx->player_ops[i];
+        if( !op || op[0] == '\0' )
+            continue;
+        action = opplayer_action_for_slot(i);
+        if( strcasecmp(op, "attack") == 0 && viewer_combat_level >= 0 &&
+            player->combat_level > viewer_combat_level )
+            action = UIMinimenu_ActionDeprioritize(action);
+        else if( ctx->player_ops_primary && !ctx->player_ops_primary[i] )
+            action = UIMinimenu_ActionDeprioritize(action);
+        snprintf(text, sizeof(text), "%s @whi@ %s", op, tooltip);
+        UIMinimenu_AddOption(menu, text, action, i, pick);
+    }
+
+    /* Reference: rename the existing Walk here row with this player's tooltip. */
+    for( int i = 0; i < menu->option_count; i++ )
+    {
+        if( menu->options[i].action == REVCONFIG_MINIMENU_WALK )
+        {
+            snprintf(
+                menu->options[i].text,
+                sizeof(menu->options[i].text),
+                "Walk here @whi@ %s",
+                tooltip);
+            break;
+        }
+    }
+}
+
+/* Client-TS addWorldOptions player branch (Client.ts:9607-9627): a picked
+ * tile-centred player stands in for the whole pile — expand co-located size-1
+ * NPCs and other players, then the picked player (no-op when local). */
+static void
+add_player_stack_rows(
+    struct UIMinimenu* menu,
+    struct RS_MinimenuBuildCtx const* ctx,
+    struct World* world,
+    struct WorldEntity_Player const* player,
+    struct World_Picked const* picked)
+{
+    int viewer_combat_level = world_local_combat_level(world);
+
+    assert(menu && ctx && world && player && picked);
+
+    if( ((int)player->draw_position.x & 0x7f) == 64 &&
+        ((int)player->draw_position.z & 0x7f) == 64 )
+    {
+        struct World_EntityPool* npc_pool = &world->entities.npc;
+        struct World_EntityPool* player_pool = &world->entities.player;
+
+        for( int ni = World_EntityPoolHead(npc_pool); ni != WORLD_ENTITY_NIL;
+             ni = World_EntityPoolNext(npc_pool, ni) )
+        {
+            struct WorldEntity_NPC* other = World_EntityPoolGet(npc_pool, ni);
+            if( !other || other->element_id < 0 || other->size != 1 )
+                continue;
+            if( other->draw_position.x != player->draw_position.x ||
+                other->draw_position.z != player->draw_position.z )
+                continue;
+            struct World_Picked other_picked = {
+                .element_id = other->element_id,
+                .type = WORLD_PICK_NPC,
+                .tile_x = other->grid_position.x,
+                .tile_z = other->grid_position.z,
+                .tile_level = picked->tile_level,
+            };
+            add_npc_rows(menu, &ctx->selection, other, &other_picked, viewer_combat_level);
+        }
+
+        for( int pi = World_EntityPoolHead(player_pool); pi != WORLD_ENTITY_NIL;
+             pi = World_EntityPoolNext(player_pool, pi) )
+        {
+            struct WorldEntity_Player* other = World_EntityPoolGet(player_pool, pi);
+            if( !other || other->element_id < 0 )
+                continue;
+            if( other->element_id == player->element_id )
+                continue;
+            if( other->draw_position.x != player->draw_position.x ||
+                other->draw_position.z != player->draw_position.z )
+                continue;
+            struct World_Picked other_picked = {
+                .element_id = other->element_id,
+                .type = WORLD_PICK_PLAYER,
+                .tile_x = other->grid_position.x,
+                .tile_z = other->grid_position.z,
+                .tile_level = picked->tile_level,
+            };
+            add_player_rows(menu, ctx, world, other, &other_picked);
+        }
+    }
+
+    add_player_rows(menu, ctx, world, player, picked);
+}
+
 void
 RS_Minimenu_AddWorldRows(
     struct RS_MinimenuBuildCtx const* ctx,
@@ -615,6 +769,14 @@ RS_Minimenu_AddWorldRows(
                 World_NpcGetByElementId(ctx->world, picked->element_id, NULL);
             if( npc )
                 add_npc_stack_rows(menu, sel, ctx->world, npc, picked);
+            break;
+        }
+        case WORLD_PICK_PLAYER:
+        {
+            struct WorldEntity_Player* player =
+                World_PlayerGetByElementId(ctx->world, picked->element_id);
+            if( player )
+                add_player_stack_rows(menu, ctx, ctx->world, player, picked);
             break;
         }
         case WORLD_PICK_SCENERY:

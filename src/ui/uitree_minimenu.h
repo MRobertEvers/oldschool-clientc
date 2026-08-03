@@ -20,8 +20,8 @@
 /** Reference OPTIONS_MENU background/title color. */
 #define UITREE_MINIMENU_COLOR_BODY 0x5D5447
 
-/** What a menu row targets. NPC/SCENERY/TERRAIN are the seam for the world
- * pickset task; only NONE/UI/INV_SLOT are producible today. */
+/** What a menu row targets. World entity kinds (NPC/PLAYER/SCENERY/TERRAIN/OBJ)
+ * come from the pickset; NONE/UI/INV_SLOT are UI/inv builders. */
 enum UIMinimenuPickKind
 {
     UI_MINIMENU_PICK_NONE = 0,
@@ -31,6 +31,7 @@ enum UIMinimenuPickKind
     UI_MINIMENU_PICK_SCENERY,
     UI_MINIMENU_PICK_TERRAIN,
     UI_MINIMENU_PICK_OBJ,
+    UI_MINIMENU_PICK_PLAYER,
 };
 
 /*

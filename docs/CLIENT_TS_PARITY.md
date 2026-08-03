@@ -1790,16 +1790,25 @@ Now it mirrors the reference exactly:
   in `App_WorldApplyNpcType`, and used only for the tier split.
 - Overlays (§12) are untouched — `app_build_entity_overlays` already walks all
   entities, so hitsplats/health/chat still show on dedup-hidden models.
-- **Minimenu stack expansion** (`add_npc_stack_rows`, `game/rs_minimenu_world.c`):
-  the pickset holds only the one drawn model per tile (picking rides the render
-  pass — `torirs_pick.c`), so `RS_Minimenu_AddWorldRows` was emitting rows for
-  just the tile winner and dropping the rest of the stack. It now mirrors the
-  reference: for a picked size-1, tile-centred NPC it scans `world->entities.npc`
-  and emits `add_npc_rows` for every other size-1 NPC whose `draw_position` matches
-  (co-located), then the picked NPC last so its rows sort on top. Players aren't
-  minimenu targets in torirs yet (`torirs_pick.c` never classifies them), so the
-  player half of `Client.ts:9607-9627` is a no-op here — when players become
-  clickable, the same expansion belongs in their row builder.
+- **Minimenu stack expansion** (`add_npc_stack_rows` /
+  `add_player_stack_rows`, `game/rs_minimenu_world.c`): the pickset holds only
+  the one drawn model per tile (picking rides the render pass —
+  `torirs_pick.c`), so `RS_Minimenu_AddWorldRows` must re-expand co-located
+  entities. Mirrors the reference:
+  - Picked size-1, tile-centred **NPC** → scan `world->entities.npc` for other
+    size-1 NPCs whose `draw_position` matches, emit their rows, then the picked
+    NPC last.
+  - Picked tile-centred **player** (including local) → expand co-located
+    size-1 NPCs *and* other players, then `add_player_rows` for the picked
+    player. `add_player_rows` returns immediately when
+    `player->server_pid == world->local_pid` (reference `addPlayerOptions`
+    skips `localPlayer`). Player ops text comes from `SET_PLAYER_OP` via
+    `RS_MinimenuBuildCtx.player_ops`.
+  - Players are pickable (`WORLD_PICK_PLAYER` / `UI_MINIMENU_PICK_PLAYER`);
+    click dispatch walks with `app_try_move_player` (literal 1×1) and sends
+    `net_out_opplayer*` when the revision defines those opcodes. **osrs230
+    still has no OPPLAYER\* row in `packetout.h`** — encode returns -1; menu
+    visibility and pathing still run.
 
 **What's deliberately not ported:** the `locModel` addDynamic2 bypass (torirs
 doesn't model loc-bound player anims), and the anticheat `cyclelogic` packets
@@ -1812,7 +1821,9 @@ on the same tile; a mid-walk mover is exempt (draws alongside a stationary NPC
 on the tile it's leaving). Verifies the painter element count and the winning
 entity id directly off the tile's scenery chain. `test_minusedlevel_entity_draw`
 — movers with a mismatched stored level still land on the local plane; off-plane
-projectiles/spotanims/obj-stacks are skipped.
+projectiles/spotanims/obj-stacks are skipped. `make -C src test-minimenu-world`
+— local player pick expands stacked NPC options with zero local OPPLAYER rows;
+other players on the same tile get Follow/Trade rows; solo local yields none.
 
 ---
 
