@@ -1491,15 +1491,17 @@ endpoint IfButtonD). torirs now matches that on the CS2 path (no local
 2004 optimistic swap only for CS1/dat1 talking to LostCity. The reference
 for rev-230 UI behaviour is the Java deob, not in-repo `Client-TS`.
 
-Verified: full build clean; `test-uitree` (incl. §18's collect regression),
-`test-inv`, `test-net-exec`, `test-net-login`, `test-net-loopback`,
-`test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` all pass. Live
-check-list for the next session: logs no longer render as notes, hover names
-resolve after first icon load, left-click Wield/Wear fires on release without
-a press-fade on IF3, IF1 held click still shows the in-place trans-128 icon,
-CS1 drag still swaps locally + classic `INV_BUTTOND`, and CS2 drag fires
-`onDragComplete` then the dual-endpoint packet (pixels move on the server
-echo / hook paint).
+Verified: `test-uitree`, `test-inv`, `test-varp` (incl. optimistic+sync),
+`test-net-exec`, `mock230 --selftest` (inventory drag stanza), and
+`mock230_pack --check-only` at 0 errors. Live under `manifest_osrs230.ini`:
+CS2 backpack drag `541,229→583,229` sends ClientProt 48
+(`INV_BUTTOND 149|0#0 → 149|0#1`) and the server's `UPDATE_INV_PARTIAL`
+repaints; Escape after `TORIRS_NET_CHEAT=bank` sends `CLOSE_MODAL` and locally
+unmounts the type-0/3 subs (`if-closesub`) before the server echo. Wire writers
+mask every alt byte (`(v+128)&0xff`) so item ids whose low byte is ≥128 do not
+trip `RSCache_BufferP1`. CS1/dat1 against LostCity keeps the optimistic swap +
+classic frame (gated on `APP_UI_LOGIC_CS1`); live rs254 not re-driven this
+pass.
 
 ---
 
@@ -1668,11 +1670,11 @@ locally (see §21.4 rev-230 correction — `onDragComplete` + dual-endpoint
 IfButtonD). The 2004 `objReplace` / bank-insert cascade are not IF3
 features; do not reintroduce them on the CS2 path.
 
-Verified: clean build; `test-inv`, `test-uitree`, `test-net-exec`,
-`test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live check:
-press-hold a worn item — it does not move; on release its op runs and no
-`INV_BUTTOND` is sent; the backpack still drags/swaps; a plain backpack click
-runs its op with no fade.
+Verified: `test-inv`, `test-uitree`, `test-net-exec`, `test-varp` pass. Live
+under `manifest_osrs230.ini`: press-hold a worn item does not move; a plain
+backpack click runs its op with no fade; a promoted backpack drag fires
+`onDragComplete` + dual-endpoint `INV_BUTTOND` (no local swap on CS2). CS1
+against LostCity still does the optimistic swap (see §21.4).
 
 ---
 

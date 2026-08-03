@@ -25,6 +25,11 @@
  *
  * The whole region is one task rather than one task per file: the renderer
  * cannot draw a half-decoded region, and the caller has one thing to wait on.
+ *
+ * Headerless kind=1 records often share one full 4096-tile geography file
+ * across all 64 chunks of a region (Ardent Ocean Underground, Ancient Cavern).
+ * Decoding that stream once per task and blitting each src_chunk→dst_chunk
+ * avoids reparsing the same bytes 64 times.
  */
 /*
  * Where a record's tiles live.
@@ -71,6 +76,20 @@ worldmap_geography_file(
     return area_id & 0xFF;
 }
 
+enum
+{
+    WORLDMAP_GEO_FILE_CACHE_CAP = 8,
+};
+
+struct WorldMapGeoFileCacheEntry
+{
+    int group_id;
+    int file_id;
+    struct RSCache_WorldMapGeography* full;
+    bool is_chunk;
+    int tile_count;
+};
+
 struct Task_Dat2WorldMapGeographyLoad
 {
     struct ToriRS_Task task;
@@ -86,7 +105,101 @@ struct Task_Dat2WorldMapGeographyLoad
     /* The ground image is per group, so it is fetched once for the first record
      * that names one — a chunk-assembled region shares its neighbours' image. */
     int ground_group;
+    /* Decoded headerless source files reused across chunk records. */
+    struct WorldMapGeoFileCacheEntry file_cache[WORLDMAP_GEO_FILE_CACHE_CAP];
+    int file_cache_count;
 };
+
+static void
+worldmap_geo_file_cache_clear(struct Task_Dat2WorldMapGeographyLoad* task)
+{
+    for( int i = 0; i < task->file_cache_count; i++ )
+    {
+        if( task->file_cache[i].full )
+        {
+            RSCache_WorldMapGeographyFreeInplace(task->file_cache[i].full);
+            free(task->file_cache[i].full);
+            task->file_cache[i].full = NULL;
+        }
+    }
+    task->file_cache_count = 0;
+}
+
+static struct WorldMapGeoFileCacheEntry*
+worldmap_geo_file_cache_find(
+    struct Task_Dat2WorldMapGeographyLoad* task,
+    int group_id,
+    int file_id)
+{
+    for( int i = 0; i < task->file_cache_count; i++ )
+    {
+        if( task->file_cache[i].group_id == group_id && task->file_cache[i].file_id == file_id )
+            return &task->file_cache[i];
+    }
+    return NULL;
+}
+
+static struct WorldMapGeoFileCacheEntry*
+worldmap_geo_file_cache_put(
+    struct Task_Dat2WorldMapGeographyLoad* task,
+    int group_id,
+    int file_id,
+    const void* data,
+    int data_size,
+    int planes)
+{
+    struct WorldMapGeoFileCacheEntry* entry;
+    struct RSCache_WorldMapGeography* full;
+    bool is_chunk = false;
+    int tile_count;
+
+    if( task->file_cache_count >= WORLDMAP_GEO_FILE_CACHE_CAP )
+        return NULL;
+
+    full = calloc(1, sizeof(*full));
+    assert(full);
+    tile_count =
+        RSCache_WorldMapGeographyDecodeHeaderlessFile(full, data, data_size, planes, &is_chunk);
+    if( tile_count < 0 )
+    {
+        RSCache_WorldMapGeographyFreeInplace(full);
+        free(full);
+        return NULL;
+    }
+
+    entry = &task->file_cache[task->file_cache_count++];
+    entry->group_id = group_id;
+    entry->file_id = file_id;
+    entry->full = full;
+    entry->is_chunk = is_chunk;
+    entry->tile_count = tile_count;
+    return entry;
+}
+
+static bool
+worldmap_apply_cached_chunk(
+    struct RSCache_WorldMapGeography* dst,
+    struct WorldMapGeoFileCacheEntry const* entry,
+    struct ToriRS_WorldMapRegionSource const* source)
+{
+    int src_cx = source->src_chunk_x;
+    int src_cy = source->src_chunk_y;
+    int dst_cx = source->dst_chunk_x;
+    int dst_cy = source->dst_chunk_y;
+
+    if( entry->is_chunk )
+        return RSCache_WorldMapGeographyBlitChunk(dst, entry->full, 0, 0, dst_cx, dst_cy);
+
+    {
+        int columns = entry->tile_count / RSCACHE_WORLDMAP_TILE_COUNT;
+        if( src_cx < 0 || src_cy < 0 || src_cx >= 8 || src_cy >= 8 )
+            return false;
+        if( src_cx * 8 + 8 > columns )
+            return false;
+    }
+    return RSCache_WorldMapGeographyBlitChunk(
+        dst, entry->full, src_cx, src_cy, dst_cx, dst_cy);
+}
 
 static int
 Task_Dat2WorldMapGeographyLoad_Run(
@@ -106,23 +219,58 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
     for( task->cursor = 0; task->cursor < task->source_count; task->cursor++ )
     {
+        /* Area id is the high byte of the geography cache key
+         * (CacheProvider_WorldMapGeographyKey); derived addressing picks the
+         * file by that id. Checked before IO so sibling chunk records that
+         * share one full-region file skip the archive round-trip. */
         source = &task->sources[task->cursor];
+        {
+            int const area_id = (task->key >> 24) & 0xFF;
+            int const group_id = worldmap_geography_group(source);
+            int const want_file = worldmap_geography_file(source, area_id);
+            bool const derived = source->group_id < 0;
+
+            if( derived && source->kind == 1 )
+            {
+                struct WorldMapGeoFileCacheEntry* cached =
+                    worldmap_geo_file_cache_find(task, group_id, want_file);
+                if( cached )
+                {
+                    if( worldmap_apply_cached_chunk(task->geography, cached, source) )
+                        task->decoded++;
+                    else if( getenv("TORIRS_WORLDMAP_DEBUG") )
+                        fprintf(
+                            stderr,
+                            "worldmap geography: cached blit FAILED group=%d file=%d "
+                            "src_chunk=%d,%d dst_chunk=%d,%d\n",
+                            group_id,
+                            want_file,
+                            source->src_chunk_x,
+                            source->src_chunk_y,
+                            source->dst_chunk_x,
+                            source->dst_chunk_y);
+                    continue;
+                }
+            }
+        }
 
         RSCache_IO_Dat2WorldMapGeographyLoad(io, 0, worldmap_geography_group(source));
         PT_YIELD(&task->pt);
 
-        /* Re-read after the yield: locals do not survive it. Area id is the
-         * high byte of the geography cache key (CacheProvider_WorldMapGeographyKey);
-         * derived addressing picks the file by that id. */
+        /* Re-read after the yield: locals do not survive it. */
         source = &task->sources[task->cursor];
         int const area_id = (task->key >> 24) & 0xFF;
+        int const group_id = worldmap_geography_group(source);
+        int const want_file = worldmap_geography_file(source, area_id);
+        bool const derived = source->group_id < 0;
+
         archive = RSCache_IO_Dat2WorldMapGeographyDecode(io, 0);
         if( getenv("TORIRS_WORLDMAP_DEBUG") )
             fprintf(
                 stderr,
                 "worldmap geography: group=%d file=%d archive=%s files=%d\n",
-                worldmap_geography_group(source),
-                worldmap_geography_file(source, area_id),
+                group_id,
+                want_file,
                 archive ? "ok" : "MISSING",
                 archive ? archive->file_count : -1);
         if( !archive )
@@ -139,8 +287,6 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
         for( int i = 0; i < filelist->file_count; i++ )
         {
-            bool derived = source->group_id < 0;
-            int want_file = worldmap_geography_file(source, area_id);
             if( archive->file_ids[i] != want_file )
             {
                 if( getenv("TORIRS_WORLDMAP_DEBUG") )
@@ -149,37 +295,87 @@ Task_Dat2WorldMapGeographyLoad_Run(
                         "worldmap geography: skip file_id=%d want=%d (group=%d)\n",
                         archive->file_ids[i],
                         want_file,
-                        worldmap_geography_group(source));
+                        group_id);
                 continue;
             }
-            /* A derived address has no in-file marker/coords to check against —
-             * `headerless` tells the decoder that — but `kind` and the chunk
-             * destination are the record's own fields, known either way, and
-             * headerless placement has no other source for them. */
             if( task->ground_group < 0 )
-                task->ground_group = worldmap_geography_group(source);
-            if( RSCache_WorldMapGeographyDecodeInplace(
-                    task->geography,
+                task->ground_group = group_id;
+
+            if( derived && source->kind == 1 )
+            {
+                struct WorldMapGeoFileCacheEntry* cached = worldmap_geo_file_cache_put(
+                    task,
+                    group_id,
+                    want_file,
                     filelist->files[i],
                     filelist->file_sizes[i],
-                    derived,
-                    source->kind,
-                    source->planes,
-                    derived ? -1 : source->dst_region_x,
-                    derived ? -1 : source->dst_region_y,
-                    source->dst_chunk_x,
-                    source->dst_chunk_y) )
+                    source->planes);
+                if( cached &&
+                    worldmap_apply_cached_chunk(task->geography, cached, source) )
+                {
+                    task->decoded++;
+                }
+                else if( !cached &&
+                         RSCache_WorldMapGeographyDecodeInplace(
+                             task->geography,
+                             filelist->files[i],
+                             filelist->file_sizes[i],
+                             true,
+                             source->kind,
+                             source->planes,
+                             -1,
+                             -1,
+                             source->src_chunk_x,
+                             source->src_chunk_y,
+                             source->dst_chunk_x,
+                             source->dst_chunk_y) )
+                {
+                    /* Cache full: still decode this record directly. */
+                    task->decoded++;
+                }
+                else if( getenv("TORIRS_WORLDMAP_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "worldmap geography: decode FAILED group=%d file=%d size=%d "
+                        "kind=%d derived=%d src_chunk=%d,%d dst_chunk=%d,%d\n",
+                        group_id,
+                        want_file,
+                        filelist->file_sizes[i],
+                        source->kind,
+                        (int)derived,
+                        source->src_chunk_x,
+                        source->src_chunk_y,
+                        source->dst_chunk_x,
+                        source->dst_chunk_y);
+            }
+            else if( RSCache_WorldMapGeographyDecodeInplace(
+                         task->geography,
+                         filelist->files[i],
+                         filelist->file_sizes[i],
+                         derived,
+                         source->kind,
+                         source->planes,
+                         derived ? -1 : source->dst_region_x,
+                         derived ? -1 : source->dst_region_y,
+                         source->src_chunk_x,
+                         source->src_chunk_y,
+                         source->dst_chunk_x,
+                         source->dst_chunk_y) )
+            {
                 task->decoded++;
+            }
             else if( getenv("TORIRS_WORLDMAP_DEBUG") )
                 fprintf(
                     stderr,
                     "worldmap geography: decode FAILED group=%d file=%d size=%d "
-                    "kind=%d derived=%d chunk=%d,%d\n",
-                    worldmap_geography_group(source),
+                    "kind=%d derived=%d src_chunk=%d,%d dst_chunk=%d,%d\n",
+                    group_id,
                     want_file,
                     filelist->file_sizes[i],
                     source->kind,
                     (int)derived,
+                    source->src_chunk_x,
+                    source->src_chunk_y,
                     source->dst_chunk_x,
                     source->dst_chunk_y);
             break;
@@ -200,15 +396,31 @@ Task_Dat2WorldMapGeographyLoad_Run(
         archive = RSCache_IO_Dat2WorldMapGroundDecode(io, 0);
         if( archive )
         {
+            int const area_id = (task->key >> 24) & 0xFF;
+            int file_index = 0;
             filelist = RSCache_FileListNewFromDecode(
                 archive->data, archive->data_size, archive->file_count);
             if( filelist && filelist->file_count > 0 )
             {
+                if( archive->file_ids )
+                {
+                    for( int i = 0; i < filelist->file_count; i++ )
+                    {
+                        if( archive->file_ids[i] == (area_id & 0xFF) )
+                        {
+                            file_index = i;
+                            break;
+                        }
+                    }
+                }
                 int png_width = 0;
                 int png_height = 0;
                 uint32_t* png_pixels = NULL;
                 if( PngDecode_Rgb(
-                        filelist->files[0], filelist->file_sizes[0], &png_width, &png_height,
+                        filelist->files[file_index],
+                        filelist->file_sizes[file_index],
+                        &png_width,
+                        &png_height,
                         &png_pixels) )
                 {
                     int copy_w = png_width < RSCACHE_WORLDMAP_TILE_COUNT
@@ -232,6 +444,8 @@ Task_Dat2WorldMapGeographyLoad_Run(
         }
     }
 
+    worldmap_geo_file_cache_clear(task);
+
     if( task->decoded == 0 )
     {
         /* Nothing decoded: still publish the empty geography, so the renderer
@@ -252,6 +466,7 @@ Task_Dat2WorldMapGeographyLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2WorldMapGeographyLoad* task =
         (struct Task_Dat2WorldMapGeographyLoad*)task_base;
+    worldmap_geo_file_cache_clear(task);
     if( task->geography )
     {
         RSCache_WorldMapGeographyFreeInplace(task->geography);
