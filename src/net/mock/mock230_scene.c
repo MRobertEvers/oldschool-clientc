@@ -908,13 +908,16 @@ route_straight(
 }
 
 /* LocType.forceapproach rotation into the placed frame — same formula the
- * client applies at scenery register time. */
+ * client applies at scenery register time. The value is a 4-bit DirectionFlag
+ * nibble; mask before shifting so high bits (seen on some OSRS records, e.g.
+ * cooksquestrange=29) cannot leak into the rotated result via the right-shift. */
 static int
 rotate_force_approach(int force_approach, int angle)
 {
+    force_approach &= 0xf;
     angle &= 3;
     if( angle == 0 )
-        return force_approach & 0xf;
+        return force_approach;
     return ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
 }
 

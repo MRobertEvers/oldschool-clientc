@@ -461,15 +461,17 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7611: (1, 1, 2, 0),  # LOOT_ROW_BYNAME(name, index) -> (obj_id, qty)
     7612: (2, 0, 2, 0),  # LOOT_ROW_BYID(id, index) -> (obj_id, qty)
     7613: (0, 0, 0, 0),  # LOOT_CLEAR_ALL()
-    7614: (0, 1, 0, 0),  # LOOT_IGNORE_ADD(name)
+    7614: (0, 1, 0, 0),  # LOOT_CLEAR_SOURCE(name)
     7615: (1, 0, 0, 0),  # LOOT_REMOVE_BYID(id)
-    7616: (0, 1, 0, 0),  # LOOT_IGNORE_ADD2(name) — duplicate entry point
+    7616: (0, 1, 0, 0),  # LOOT_IGNORE_ADD(name) — item ignore
     7617: (0, 1, 0, 0),  # LOOT_IGNORE_REMOVE(name)
-    7619: (0, 0, 1, 0),  # LOOT_GROUND_COUNT() -> int
-    7620: (1, 0, 0, 1),  # LOOT_GROUND_NAME(index) -> string
+    7619: (0, 0, 1, 0),  # LOOT_GROUND_COUNT() -> int (item-ignore count)
+    7620: (1, 0, 0, 1),  # LOOT_GROUND_NAME(index) -> string (1-based)
     7621: (0, 0, 0, 0),  # LOOT_IGNORE_CLEAR()
-    7625: (0, 0, 1, 0),  # LOOT_SRCLIST_COUNT() -> int
-    7626: (1, 0, 0, 1),  # LOOT_SRCLIST_NAME(index) -> string
+    7622: (0, 1, 0, 0),  # LOOT_SOURCE_IGNORE_ADD(name)
+    7623: (0, 1, 0, 0),  # LOOT_SOURCE_IGNORE_REMOVE(name)
+    7625: (0, 0, 1, 0),  # LOOT_SRCLIST_COUNT() -> int (source-ignore count)
+    7626: (1, 0, 0, 1),  # LOOT_SRCLIST_NAME(index) -> string (1-based)
     7630: (1, 0, 0, 1),  # LOOT_SOURCE_NAME2(id) -> string
     # Loot aux-list ops (7400-family).
     7400: (1, 1, 0, 0),  # LOOT_AUX_UPSERT2(kind, name)

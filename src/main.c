@@ -1275,6 +1275,10 @@ frame_loop_step(void)
         App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
 
     update_window_title(sdl, &app, cfg.interface_id);
+    /* Close the work timer before pacing sleeps — otherwise capped runs always
+     * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
+     * flat 1 ms that hides real drift. */
+    TORIRS_PERF_FRAME_END();
     /* The browser paces us: emscripten_set_main_loop is backed by
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
@@ -1293,7 +1297,6 @@ frame_loop_step(void)
         }
     }
 #endif
-    TORIRS_PERF_FRAME_END();
     return 1;
 }
 

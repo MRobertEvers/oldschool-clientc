@@ -300,23 +300,27 @@ extended-info section. Their loop guards differ, and the difference matters:
 Omitting it is the classic way to make a stream decode as garbage entities: the
 loop keeps pulling 11- or 14-bit ids out of the appearance blob that follows.
 
-### 3.4 The client sends turning points, not tiles
+### 3.4 The client sends turning points; the server re-routes
 
 `net_out_move_gameclick` writes the client's own route: `p1 ctrlHeld`, `p2`
 absolute start x, `p2` absolute start z, then up to 24 signed byte pairs
 relative to that start, ordered from the tile nearest the player to the
 destination.
 
-Those are the **turning points** of `collision_map_try_route`, not every tile. A
-six-tile walk arrived as two waypoints:
+Those are the **turning points** of `collision_map_try_route`, not every tile.
+The server does **not** trust that list as a walk queue: `handle_move` takes the
+**last** waypoint as the destination (LostCity `MoveClickHandler`), validates
+`distanceToSW <= 104`, and re-routes through `mock230_scene_route` /
+`collision_map_route_tiles` — the same flood the client uses. Op clicks
+(`OPLOC`/`OPNPC`/`OPOBJ`) build a `CollisionApproach` (footprint, angle, shape,
+rotated `forceapproach`) and route with `mock230_scene_route_op` rather than a
+four-neighbour guess of the SW tile.
 
-```
-mock230: <- MOVE ctrl=0 start=3409,3268 waypoints=1 steps=6 dest=3406,3271
-```
-
-So the server has to interpolate between consecutive waypoints the way an actor
-walks — diagonally while both axes differ, then straight (`steps_walk_to`).
-Treating each waypoint as one tile would make the player teleport in jumps.
+Player movement stores at most 25 dest-first waypoints and advances with a
+greedy `takeStep` that re-validates `mock230_scene_can_step` each tick and
+stalls instead of clearing. Reach uses `collision_map_reached` against the same
+approach used to route; an unreachable interaction terminates with content's
+`[proc,cannot_reach_message]`. See [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md) §7.
 
 `MOVE_MINIMAPCLICK` appends a 14-byte anti-cheat trailer. Counting waypoints as
 `(len - 5) / 2` without subtracting it appends seven junk tiles to every minimap
@@ -4529,7 +4533,7 @@ tab needed a different answer from the backpack.
 test-mock230` drives the game logic with no socket attached:
 
 ```
-movement                          walk 1 tile/tick, run 2, waypoint interpolation
+movement                          walk 1 tile/tick, run 2; 25 dest-first waypoints + greedy takeStep (collision re-validated); approach-aware route_op for loc/npc/obj; collision_map_reached for arrival; cannot_reach_message on dead ends
 rebuild on scene edge             re-centre + absolute placement, player inside the new scene
 equip / unequip                   worn slot, backpack vacated, appearance + partial-update dirty bits
 two-handed weapon evicts shield   shortbow (wearpos 3/5) displaces the kiteshield back to the backpack
@@ -4545,6 +4549,10 @@ Run energy, the equipment-stats screen and overhead prayers are documented
 separately in [`mock230_player_systems.md`](mock230_player_systems.md), along
 with the second binary (`make -C src mock230-dev`, port 43597) they were built
 against.
+
+Server pathing parity with the client (shared `collision_map_route_tiles`,
+approach construction, reach predicate) is recorded in
+[`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md) §7.
 
 ---
 

@@ -361,7 +361,7 @@ window_flush(void)
         stage_stats_tail((enum TorirsPerfStage)i, n, &mean, &p50, &p95, &mx);
         fprintf(
             g_window_csv,
-            "window_stage,%s,%llu,%llu,%llu,%llu,,,,%d\n",
+            "window_stage,%s,%llu,%llu,%llu,%llu,,,%d\n",
             g_stage_names[i],
             (unsigned long long)mean,
             (unsigned long long)p50,

@@ -1,0 +1,2962 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="502" onload="init(evt)" viewBox="0 0 1200 502" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+		if (currentSearchTerm === null) return;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="502.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >torirs unused 2026-08-03 15:50</text>
+<text id="details" x="10.00" y="485" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="485" > </text>
+<g id="frames">
+<g >
+<title>libdispatch`_dispatch_workloop_worker_thread (5 samples, 0.04%)</title><rect x="1189.6" y="389" width="0.4" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="1192.57" y="399.5" ></text>
+</g>
+<g >
+<title>torirs`layer_is_if1_scrollbar (2 samples, 0.01%)</title><rect x="80.9" y="245" width="0.2" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="83.91" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__findenv_locked (4 samples, 0.03%)</title><rect x="124.3" y="309" width="0.4" height="15.0" fill="rgb(253,224,53)" rx="2" ry="2" />
+<text  x="127.32" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolGet (3 samples, 0.02%)</title><rect x="111.2" y="309" width="0.3" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="114.21" y="319.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_UnlockMutex_REAL (2 samples, 0.01%)</title><rect x="234.1" y="309" width="0.2" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="237.13" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`__commpage_gettimeofday_internal (3 samples, 0.02%)</title><rect x="236.7" y="293" width="0.2" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="239.69" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg_overwrite (4 samples, 0.03%)</title><rect x="1189.6" y="69" width="0.3" height="15.0" fill="rgb(221,74,17)" rx="2" ry="2" />
+<text  x="1192.57" y="79.5" ></text>
+</g>
+<g >
+<title>torirs`raster_gouraud_screen_opaque_bary_branching_s4_ordered (1,537 samples, 11.09%)</title><rect x="814.9" y="277" width="130.8" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="817.85" y="287.5" >torirs`raster_go..</text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg2_internal (4 samples, 0.03%)</title><rect x="1189.6" y="53" width="0.3" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="1192.57" y="63.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_RenderModel1Project (14 samples, 0.10%)</title><rect x="395.7" y="309" width="1.2" height="15.0" fill="rgb(222,81,19)" rx="2" ry="2" />
+<text  x="398.70" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollIntersectClip (2 samples, 0.01%)</title><rect x="53.1" y="245" width="0.1" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="56.07" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="1147.2" y="277" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1150.18" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_StrFmt (2 samples, 0.01%)</title><rect x="44.0" y="213" width="0.1" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="46.96" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_MarkNodeDirty (3 samples, 0.02%)</title><rect x="112.0" y="309" width="0.2" height="15.0" fill="rgb(208,16,4)" rx="2" ry="2" />
+<text  x="114.98" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`App_RunOnce (2,339 samples, 16.87%)</title><rect x="16.2" y="373" width="199.1" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="19.21" y="383.5" >torirs`App_RunOnce</text>
+</g>
+<g >
+<title>torirs`raster_gouraud_screen_opaque_bary_branching_s4_ordered (35 samples, 0.25%)</title><rect x="791.1" y="261" width="3.0" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="794.11" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (3 samples, 0.02%)</title><rect x="121.9" y="213" width="0.3" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="124.94" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_apply_entity_anim_tracks (5 samples, 0.04%)</title><rect x="209.3" y="325" width="0.4" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="212.28" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`font_draw_string_shadow_range (4 samples, 0.03%)</title><rect x="397.7" y="277" width="0.3" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="400.66" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`memory_recv (7 samples, 0.05%)</title><rect x="223.8" y="277" width="0.6" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="226.83" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentShouldEmit (2 samples, 0.01%)</title><rect x="49.5" y="277" width="0.2" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="52.50" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_pass (391 samples, 2.82%)</title><rect x="48.6" y="341" width="33.2" height="15.0" fill="rgb(251,212,50)" rx="2" ry="2" />
+<text  x="51.56" y="351.5" >to..</text>
+</g>
+<g >
+<title>libsystem_c`getenv (5 samples, 0.04%)</title><rect x="22.3" y="293" width="0.5" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="25.34" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (391 samples, 2.82%)</title><rect x="48.6" y="325" width="33.2" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="51.56" y="335.5" >to..</text>
+</g>
+<g >
+<title>torirs`mock230_session_alive (4 samples, 0.03%)</title><rect x="223.2" y="309" width="0.4" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="226.24" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`exec_cc_find (5 samples, 0.04%)</title><rect x="36.3" y="181" width="0.4" height="15.0" fill="rgb(213,37,8)" rx="2" ry="2" />
+<text  x="39.30" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="118.0" y="229" width="0.2" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="121.02" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_Soft3D_RenderFrame (9,393 samples, 67.76%)</title><rect x="352.4" y="341" width="799.5" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
+<text  x="355.37" y="351.5" >torirs`ToriRS_Soft3D_RenderFrame</text>
+</g>
+<g >
+<title>torirs`layer_needs_scroll_offset (2 samples, 0.01%)</title><rect x="80.7" y="229" width="0.2" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="83.74" y="239.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_strlen (2 samples, 0.01%)</title><rect x="20.0" y="245" width="0.1" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="22.96" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_pop (66 samples, 0.48%)</title><rect x="276.0" y="293" width="5.6" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="279.02" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`Task_AppCS1Eval_Run (25 samples, 0.18%)</title><rect x="19.1" y="309" width="2.1" height="15.0" fill="rgb(221,75,18)" rx="2" ry="2" />
+<text  x="22.11" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_HitTestInteractive (21 samples, 0.15%)</title><rect x="211.1" y="341" width="1.8" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="214.06" y="351.5" ></text>
+</g>
+<g >
+<title>CoreAudio`HALC_ProxySystem::HALC_ProxySystem() (4 samples, 0.03%)</title><rect x="1189.6" y="181" width="0.3" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="1192.57" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_PushCallScript (20 samples, 0.14%)</title><rect x="37.8" y="165" width="1.7" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="40.75" y="175.5" ></text>
+</g>
+<g >
+<title>CoreAudio`invocation.function (4 samples, 0.03%)</title><rect x="1189.6" y="245" width="0.3" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="1192.57" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_PushConstantInt (2 samples, 0.01%)</title><rect x="41.2" y="229" width="0.2" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="44.24" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`CmdRing_Push (9 samples, 0.06%)</title><rect x="215.7" y="341" width="0.7" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="218.66" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (7 samples, 0.05%)</title><rect x="85.2" y="197" width="0.6" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="88.17" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlendArgbPixel (479 samples, 3.46%)</title><rect x="1047.7" y="277" width="40.7" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="1050.67" y="287.5" >tor..</text>
+</g>
+<g >
+<title>torirs`mock230_content_symbol (4 samples, 0.03%)</title><rect x="222.7" y="277" width="0.4" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
+<text  x="225.73" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (4 samples, 0.03%)</title><rect x="216.1" y="309" width="0.3" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="219.09" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutResolve (261 samples, 1.88%)</title><rect x="88.1" y="341" width="22.2" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="91.06" y="351.5" >t..</text>
+</g>
+<g >
+<title>torirs`CmdBus_PushFrame (13 samples, 0.09%)</title><rect x="215.3" y="373" width="1.1" height="15.0" fill="rgb(252,217,51)" rx="2" ry="2" />
+<text  x="218.32" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_IF_GetLayer (4 samples, 0.03%)</title><rect x="40.0" y="229" width="0.3" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="42.96" y="239.5" ></text>
+</g>
+<g >
+<title>libxpc`_xpc_interface_routine (4 samples, 0.03%)</title><rect x="1189.6" y="133" width="0.3" height="15.0" fill="rgb(212,33,8)" rx="2" ry="2" />
+<text  x="1192.57" y="143.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInClip (2 samples, 0.01%)</title><rect x="84.2" y="229" width="0.2" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="87.23" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (7 samples, 0.05%)</title><rect x="79.6" y="181" width="0.6" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="82.63" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ResolveComponentTarget (38 samples, 0.27%)</title><rect x="112.2" y="309" width="3.3" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="115.23" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (5 samples, 0.04%)</title><rect x="121.8" y="229" width="0.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="124.77" y="239.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (12 samples, 0.09%)</title><rect x="948.5" y="293" width="1.0" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="951.50" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (3 samples, 0.02%)</title><rect x="40.4" y="149" width="0.2" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="43.39" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_height (3 samples, 0.02%)</title><rect x="208.7" y="325" width="0.2" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="211.68" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_HitTestInteractive (46 samples, 0.33%)</title><rect x="81.8" y="309" width="4.0" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="84.85" y="319.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_WaitEventTimeout_REAL (58 samples, 0.42%)</title><rect x="230.3" y="357" width="4.9" height="15.0" fill="rgb(250,209,49)" rx="2" ry="2" />
+<text  x="233.30" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (2 samples, 0.01%)</title><rect x="40.6" y="213" width="0.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="43.64" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`LibToriRS_Input_Begin (21 samples, 0.15%)</title><rect x="216.4" y="373" width="1.8" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="219.43" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_TaskQueue_Remove (4 samples, 0.03%)</title><rect x="18.3" y="325" width="0.4" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="21.34" y="335.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_Delay_REAL (15 samples, 0.11%)</title><rect x="228.3" y="357" width="1.2" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="231.26" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (15 samples, 0.11%)</title><rect x="86.4" y="277" width="1.3" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="89.44" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (2 samples, 0.01%)</title><rect x="36.9" y="213" width="0.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="39.90" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EnsureHookIndexes (121 samples, 0.87%)</title><rect x="128.3" y="341" width="10.3" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="131.32" y="351.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SW_ActivateRenderer (6 samples, 0.04%)</title><rect x="1181.1" y="293" width="0.6" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="1184.15" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (21 samples, 0.15%)</title><rect x="211.1" y="325" width="1.8" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="214.06" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_ToString (2 samples, 0.01%)</title><rect x="44.0" y="229" width="0.1" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="46.96" y="239.5" ></text>
+</g>
+<g >
+<title>all (13,862 samples, 100%)</title><rect x="10.0" y="453" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="463.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (5 samples, 0.04%)</title><rect x="15.7" y="309" width="0.4" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="18.70" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInScrolledBounds (3 samples, 0.02%)</title><rect x="85.5" y="181" width="0.3" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="88.51" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`ring_read (9 samples, 0.06%)</title><rect x="15.4" y="325" width="0.7" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="18.36" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset_pattern16 (45 samples, 0.32%)</title><rect x="352.5" y="325" width="3.8" height="15.0" fill="rgb(209,22,5)" rx="2" ry="2" />
+<text  x="355.46" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`interact_hover (23 samples, 0.17%)</title><rect x="85.8" y="341" width="2.0" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="88.85" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_c`stpcpy (6 samples, 0.04%)</title><rect x="19.6" y="261" width="0.5" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="22.62" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (2 samples, 0.01%)</title><rect x="39.8" y="149" width="0.2" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="42.79" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ResolveComponentTarget (3 samples, 0.02%)</title><rect x="40.4" y="165" width="0.2" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="43.39" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`layer_is_if1_scrollbar (2 samples, 0.01%)</title><rect x="80.6" y="229" width="0.1" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="83.57" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_IF_GetWidth (4 samples, 0.03%)</title><rect x="40.3" y="229" width="0.3" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="43.30" y="239.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (12 samples, 0.09%)</title><rect x="47.2" y="261" width="1.0" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="50.20" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_HitTestInteractive (28 samples, 0.20%)</title><rect x="118.3" y="325" width="2.4" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="121.28" y="335.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GetWindowData_REAL (3 samples, 0.02%)</title><rect x="1181.7" y="293" width="0.3" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="1184.74" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (9 samples, 0.06%)</title><rect x="50.7" y="277" width="0.8" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="53.69" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__findenv_locked (3 samples, 0.02%)</title><rect x="18.1" y="309" width="0.2" height="15.0" fill="rgb(253,224,53)" rx="2" ry="2" />
+<text  x="21.09" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered (38 samples, 0.27%)</title><rect x="809.2" y="261" width="3.3" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="812.24" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SceneElementGet (9 samples, 0.06%)</title><rect x="376.9" y="293" width="0.8" height="15.0" fill="rgb(209,22,5)" rx="2" ry="2" />
+<text  x="379.89" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInScrolledBounds (2 samples, 0.01%)</title><rect x="211.9" y="261" width="0.2" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="214.92" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (21 samples, 0.15%)</title><rect x="41.7" y="197" width="1.8" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="44.67" y="207.5" ></text>
+</g>
+<g >
+<title>libsystem_c`nanosleep (12 samples, 0.09%)</title><rect x="228.5" y="341" width="1.0" height="15.0" fill="rgb(224,87,20)" rx="2" ry="2" />
+<text  x="231.52" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_pthread`pthread_mutex_lock (2 samples, 0.01%)</title><rect x="232.6" y="293" width="0.2" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="235.60" y="303.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GestureProcessEvent (2 samples, 0.01%)</title><rect x="233.5" y="293" width="0.1" height="15.0" fill="rgb(220,70,16)" rx="2" ry="2" />
+<text  x="236.45" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (43 samples, 0.31%)</title><rect x="82.1" y="293" width="3.7" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="85.10" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`painter_tile_at (7 samples, 0.05%)</title><rect x="205.8" y="293" width="0.6" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="208.79" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (3 samples, 0.02%)</title><rect x="40.0" y="149" width="0.3" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="43.05" y="159.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`DUMMY_PumpEvents (2 samples, 0.01%)</title><rect x="231.3" y="325" width="0.2" height="15.0" fill="rgb(231,122,29)" rx="2" ry="2" />
+<text  x="234.32" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (10 samples, 0.07%)</title><rect x="79.5" y="197" width="0.9" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="82.55" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (10 samples, 0.07%)</title><rect x="214.5" y="245" width="0.8" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="217.47" y="255.5" ></text>
+</g>
+<g >
+<title>CoreAudio`HALC_ProxyObjectMap::_CreateSystemObject() (4 samples, 0.03%)</title><rect x="1189.6" y="197" width="0.3" height="15.0" fill="rgb(248,200,47)" rx="2" ry="2" />
+<text  x="1192.57" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`collect_nodes_recursive (3 samples, 0.02%)</title><rect x="118.0" y="245" width="0.3" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="121.02" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_pthread`_pthread_mutex_firstfit_lock_slow (2 samples, 0.01%)</title><rect x="232.4" y="293" width="0.2" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="235.43" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_find_node (2 samples, 0.01%)</title><rect x="36.6" y="149" width="0.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="39.56" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Free (2 samples, 0.01%)</title><rect x="18.5" y="261" width="0.2" height="15.0" fill="rgb(207,13,3)" rx="2" ry="2" />
+<text  x="21.51" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsActiveHost (3 samples, 0.02%)</title><rect x="55.9" y="213" width="0.2" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="58.88" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`Task_CS2Run_Free (3 samples, 0.02%)</title><rect x="18.4" y="293" width="0.3" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="21.43" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hmap_search (3 samples, 0.02%)</title><rect x="45.3" y="277" width="0.3" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="48.33" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`painters_tile_get_flags (13 samples, 0.09%)</title><rect x="304.8" y="293" width="1.1" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="307.79" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CmdBus_Pop (11 samples, 0.08%)</title><rect x="15.2" y="357" width="0.9" height="15.0" fill="rgb(253,225,53)" rx="2" ry="2" />
+<text  x="18.19" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (2 samples, 0.01%)</title><rect x="53.8" y="245" width="0.2" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="56.84" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`__commpage_gettimeofday_internal (11 samples, 0.08%)</title><rect x="22.8" y="229" width="0.9" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="25.77" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (28 samples, 0.20%)</title><rect x="118.3" y="309" width="2.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="121.28" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg2_trap (9 samples, 0.06%)</title><rect x="228.8" y="293" width="0.7" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="231.77" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (10 samples, 0.07%)</title><rect x="119.8" y="245" width="0.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="122.81" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`cs2vm2_thread_init (48 samples, 0.35%)</title><rect x="23.8" y="261" width="4.1" height="15.0" fill="rgb(211,30,7)" rx="2" ry="2" />
+<text  x="26.79" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SceneSpriteGet (2 samples, 0.01%)</title><rect x="1097.0" y="293" width="0.2" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="1100.04" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolNext (229 samples, 1.65%)</title><rect x="185.5" y="309" width="19.5" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="188.53" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_c`stpncpy (3 samples, 0.02%)</title><rect x="62.3" y="133" width="0.2" height="15.0" fill="rgb(236,146,34)" rx="2" ry="2" />
+<text  x="65.27" y="143.5" ></text>
+</g>
+<g >
+<title>torirs`tile_is_west_inbounds (21 samples, 0.15%)</title><rect x="324.0" y="293" width="1.8" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="327.03" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CacheProvider_ObjtypeGet (5 samples, 0.04%)</title><rect x="62.5" y="165" width="0.4" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="65.52" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`task_cs2_run_new (15 samples, 0.11%)</title><rect x="122.6" y="309" width="1.3" height="15.0" fill="rgb(241,169,40)" rx="2" ry="2" />
+<text  x="125.62" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_IF_GetHeight (2 samples, 0.01%)</title><rect x="39.8" y="229" width="0.2" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="42.79" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_PushIntFrameLocal (2 samples, 0.01%)</title><rect x="41.5" y="213" width="0.2" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="44.50" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`app_logic_tick (258 samples, 1.86%)</title><rect x="122.2" y="357" width="22.0" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="125.19" y="367.5" >t..</text>
+</g>
+<g >
+<title>torirs`phase_world (2 samples, 0.01%)</title><rect x="223.1" y="309" width="0.1" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="226.07" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_DrawStringBox (104 samples, 0.75%)</title><rect x="398.0" y="293" width="8.9" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="401.00" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_camera_follow (10 samples, 0.07%)</title><rect x="208.4" y="341" width="0.9" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="211.43" y="351.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_source_invoke (5 samples, 0.04%)</title><rect x="1189.6" y="309" width="0.4" height="15.0" fill="rgb(231,121,28)" rx="2" ry="2" />
+<text  x="1192.57" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="123.7" y="293" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="126.73" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (2 samples, 0.01%)</title><rect x="945.9" y="277" width="0.1" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="948.86" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`app_update_painter_cull (3 samples, 0.02%)</title><rect x="237.3" y="309" width="0.2" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="240.28" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`hmap_hash_bytes (4 samples, 0.03%)</title><rect x="46.3" y="245" width="0.3" height="15.0" fill="rgb(206,9,2)" rx="2" ry="2" />
+<text  x="49.26" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`torirs_perf_now_ns (3 samples, 0.02%)</title><rect x="48.3" y="341" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="51.31" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`app_sync_textures (3 samples, 0.02%)</title><rect x="143.7" y="341" width="0.3" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="146.73" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_world_sync_combat_varbits (4 samples, 0.03%)</title><rect x="222.7" y="293" width="0.4" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="225.73" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_Network_PopOut (9 samples, 0.06%)</title><rect x="220.3" y="341" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="223.26" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (3 samples, 0.02%)</title><rect x="212.6" y="245" width="0.3" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="215.60" y="255.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_continuation_pop (5 samples, 0.04%)</title><rect x="1189.6" y="277" width="0.4" height="15.0" fill="rgb(230,115,27)" rx="2" ry="2" />
+<text  x="1192.57" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformX_IO_Pending (4 samples, 0.03%)</title><rect x="17.3" y="341" width="0.4" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="20.32" y="351.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PeepEventsInternal (5 samples, 0.04%)</title><rect x="230.6" y="341" width="0.4" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="233.56" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_boottime_usec (2 samples, 0.01%)</title><rect x="236.9" y="309" width="0.2" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="239.94" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_mouse_gate (46 samples, 0.33%)</title><rect x="118.3" y="341" width="3.9" height="15.0" fill="rgb(236,144,34)" rx="2" ry="2" />
+<text  x="121.28" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`tile_is_north_inbounds (20 samples, 0.14%)</title><rect x="321.6" y="293" width="1.7" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="324.64" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_xzone_free_freelist (2 samples, 0.01%)</title><rect x="1122.2" y="277" width="0.2" height="15.0" fill="rgb(230,117,28)" rx="2" ry="2" />
+<text  x="1125.24" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`raster_texshadeflat_persp_texopaque_branching_lerp8_ordered (21 samples, 0.15%)</title><rect x="812.5" y="261" width="1.8" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="815.47" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_PushVarcInt (3 samples, 0.02%)</title><rect x="43.5" y="229" width="0.2" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="46.45" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (21 samples, 0.15%)</title><rect x="41.7" y="213" width="1.8" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="44.67" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_RunOp (4 samples, 0.03%)</title><rect x="28.0" y="261" width="0.3" height="15.0" fill="rgb(221,75,18)" rx="2" ry="2" />
+<text  x="30.96" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInScrolledBounds (2 samples, 0.01%)</title><rect x="121.3" y="245" width="0.1" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="124.26" y="255.5" ></text>
+</g>
+<g >
+<title>libxpc`_xpc_pipe_routine (4 samples, 0.03%)</title><rect x="1189.6" y="117" width="0.3" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="1192.57" y="127.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_DUMMY_UpdateWindowFramebuffer (3 samples, 0.02%)</title><rect x="1181.7" y="309" width="0.3" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="1184.74" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`layer_needs_scroll_offset (2 samples, 0.01%)</title><rect x="81.4" y="261" width="0.2" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="84.42" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (35 samples, 0.25%)</title><rect x="82.8" y="277" width="3.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="85.78" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`RS_Minimenu_Build (23 samples, 0.17%)</title><rect x="116.3" y="341" width="2.0" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="119.32" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`main (13,857 samples, 99.96%)</title><rect x="10.0" y="405" width="1179.6" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="13.00" y="415.5" >torirs`main</text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsDraggable (2 samples, 0.01%)</title><rect x="212.2" y="229" width="0.1" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="215.17" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`raster_flat_screen_alpha_branching_s4_ordered (3 samples, 0.02%)</title><rect x="779.3" y="261" width="0.2" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="782.27" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_StageBegin (16 samples, 0.12%)</title><rect x="46.9" y="357" width="1.4" height="15.0" fill="rgb(238,151,36)" rx="2" ry="2" />
+<text  x="49.94" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_Resize (3 samples, 0.02%)</title><rect x="235.2" y="373" width="0.3" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="238.24" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_CollectNodesAt (22 samples, 0.16%)</title><rect x="116.4" y="325" width="1.9" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="119.41" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`task_run (3 samples, 0.02%)</title><rect x="21.0" y="293" width="0.2" height="15.0" fill="rgb(206,6,1)" rx="2" ry="2" />
+<text  x="23.98" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="217.3" y="357" width="0.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="220.28" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered (1,634 samples, 11.79%)</title><rect x="618.5" y="261" width="139.1" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="621.47" y="271.5" >torirs`draw_textu..</text>
+</g>
+<g >
+<title>torirs`UITree_PointBlocksWorld (29 samples, 0.21%)</title><rect x="212.9" y="341" width="2.4" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="215.85" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsVertical (2 samples, 0.01%)</title><rect x="82.5" y="245" width="0.2" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="85.53" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (83 samples, 0.60%)</title><rect x="1182.3" y="341" width="7.1" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="1185.34" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`try_emit_world_draw_model (388 samples, 2.80%)</title><rect x="360.5" y="309" width="33.0" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="363.46" y="319.5" >to..</text>
+</g>
+<g >
+<title>torirs`app_world_sync_positions (3 samples, 0.02%)</title><rect x="210.0" y="341" width="0.3" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="213.04" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_draw_fill_rect (2 samples, 0.01%)</title><rect x="396.9" y="309" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="399.89" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`Task_CS2Run_Run (302 samples, 2.18%)</title><rect x="21.2" y="309" width="25.7" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="24.24" y="319.5" >t..</text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PollEvent_REAL (6 samples, 0.04%)</title><rect x="229.8" y="357" width="0.5" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="232.79" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollIntersectClip (3 samples, 0.02%)</title><rect x="54.4" y="229" width="0.2" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="57.35" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (4 samples, 0.03%)</title><rect x="40.3" y="213" width="0.3" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="43.30" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (3 samples, 0.02%)</title><rect x="1131.2" y="277" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1134.18" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsPassThrough (2 samples, 0.01%)</title><rect x="84.8" y="197" width="0.2" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="87.82" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ChildMountType (2 samples, 0.01%)</title><rect x="119.2" y="261" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="122.22" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`pump_client (47 samples, 0.34%)</title><rect x="223.2" y="325" width="4.0" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="226.24" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (8 samples, 0.06%)</title><rect x="52.4" y="261" width="0.7" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="55.39" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`CmdRing_Pop (11 samples, 0.08%)</title><rect x="15.2" y="341" width="0.9" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="18.19" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`net_out_no_timeout (2 samples, 0.01%)</title><rect x="144.0" y="341" width="0.2" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="146.99" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolNext (185 samples, 1.33%)</title><rect x="336.5" y="261" width="15.8" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="339.54" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`World_CycleUpdatePlayers (3 samples, 0.02%)</title><rect x="207.7" y="325" width="0.3" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="210.74" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (10 samples, 0.07%)</title><rect x="86.9" y="261" width="0.8" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="89.87" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`CacheProvider_ClientScriptGet (3 samples, 0.02%)</title><rect x="39.5" y="165" width="0.2" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="42.45" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`emit_loc_debug (2 samples, 0.01%)</title><rect x="393.3" y="293" width="0.2" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="396.32" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Release (2 samples, 0.01%)</title><rect x="18.5" y="277" width="0.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="21.51" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_RenderModel2SortFaces (1,094 samples, 7.89%)</title><rect x="456.6" y="293" width="93.2" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="459.65" y="303.5" >torirs`Tori..</text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PushEvent_REAL (2 samples, 0.01%)</title><rect x="233.5" y="309" width="0.1" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="236.45" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`World_CycleUpdateSpotanims (2 samples, 0.01%)</title><rect x="208.3" y="325" width="0.1" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="211.26" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_c`getenv (8 samples, 0.06%)</title><rect x="122.6" y="293" width="0.7" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="125.62" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`heightmap_get (4 samples, 0.03%)</title><rect x="208.9" y="325" width="0.4" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="211.94" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (2 samples, 0.01%)</title><rect x="43.5" y="213" width="0.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="46.54" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (13 samples, 0.09%)</title><rect x="47.1" y="309" width="1.1" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="50.11" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_StrPool_VFmt (2 samples, 0.01%)</title><rect x="44.0" y="197" width="0.1" height="15.0" fill="rgb(205,4,1)" rx="2" ry="2" />
+<text  x="46.96" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (22 samples, 0.16%)</title><rect x="213.4" y="293" width="1.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="216.45" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (9 samples, 0.06%)</title><rect x="212.1" y="261" width="0.8" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="215.09" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`layer_needs_scroll_offset (2 samples, 0.01%)</title><rect x="80.9" y="229" width="0.2" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="83.91" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`pick_classify_element (311 samples, 2.24%)</title><rect x="325.8" y="293" width="26.5" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="328.81" y="303.5" >t..</text>
+</g>
+<g >
+<title>torirs`RS_CS2_DispatchHook (18 samples, 0.13%)</title><rect x="122.4" y="341" width="1.5" height="15.0" fill="rgb(236,142,34)" rx="2" ry="2" />
+<text  x="125.36" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_emit_terrain (16 samples, 0.12%)</title><rect x="274.7" y="293" width="1.3" height="15.0" fill="rgb(209,22,5)" rx="2" ry="2" />
+<text  x="277.65" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (35 samples, 0.25%)</title><rect x="112.5" y="293" width="3.0" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="115.49" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ring_read (3 samples, 0.02%)</title><rect x="220.8" y="309" width="0.2" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="223.77" y="319.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_client_callout (4 samples, 0.03%)</title><rect x="1189.6" y="261" width="0.3" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="1192.57" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_Soft3D_Execute (8,910 samples, 64.28%)</title><rect x="393.5" y="325" width="758.4" height="15.0" fill="rgb(214,44,10)" rx="2" ry="2" />
+<text  x="396.49" y="335.5" >torirs`ToriRS_Soft3D_Execute</text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (3 samples, 0.02%)</title><rect x="48.9" y="309" width="0.3" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="51.90" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`DYLD-STUB$$__memset_chk (4 samples, 0.03%)</title><rect x="376.5" y="293" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="379.55" y="303.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GetTicks64_REAL (7 samples, 0.05%)</title><rect x="235.5" y="357" width="0.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="238.50" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlitArgb (4 samples, 0.03%)</title><rect x="951.8" y="293" width="0.4" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="954.82" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_ModelTextureWantsTake (3 samples, 0.02%)</title><rect x="143.7" y="325" width="0.3" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="146.73" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_draw_model (6,348 samples, 45.79%)</title><rect x="407.0" y="309" width="540.4" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="410.02" y="319.5" >torirs`soft3d_draw_model</text>
+</g>
+<g >
+<title>torirs`CS2VM2_RunOp (161 samples, 1.16%)</title><rect x="30.4" y="245" width="13.7" height="15.0" fill="rgb(221,75,18)" rx="2" ry="2" />
+<text  x="33.43" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (3 samples, 0.02%)</title><rect x="40.0" y="165" width="0.3" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="43.05" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`phase_info (4 samples, 0.03%)</title><rect x="222.7" y="309" width="0.4" height="15.0" fill="rgb(237,147,35)" rx="2" ry="2" />
+<text  x="225.73" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolIsActive (38 samples, 0.27%)</title><rect x="388.4" y="277" width="3.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="391.38" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (3 samples, 0.02%)</title><rect x="56.4" y="229" width="0.2" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="59.39" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (5 samples, 0.04%)</title><rect x="36.3" y="213" width="0.4" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="39.30" y="223.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_SoftBlit (336 samples, 2.42%)</title><rect x="1152.5" y="277" width="28.6" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="1155.55" y="287.5" >li..</text>
+</g>
+<g >
+<title>torirs`ToriDraw_ModelAnimateReset (16 samples, 0.12%)</title><rect x="946.0" y="277" width="1.4" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="949.03" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (2 samples, 0.01%)</title><rect x="221.2" y="293" width="0.2" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="224.19" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (13 samples, 0.09%)</title><rect x="84.7" y="213" width="1.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="87.65" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`task_run (332 samples, 2.40%)</title><rect x="18.7" y="325" width="28.2" height="15.0" fill="rgb(206,6,1)" rx="2" ry="2" />
+<text  x="21.68" y="335.5" >t..</text>
+</g>
+<g >
+<title>torirs`UITreeAnim_RequestMissing (27 samples, 0.19%)</title><rect x="126.0" y="341" width="2.3" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="129.03" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`CacheProvider_ClientScriptHas (12 samples, 0.09%)</title><rect x="45.6" y="293" width="1.0" height="15.0" fill="rgb(231,121,28)" rx="2" ry="2" />
+<text  x="48.58" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered (255 samples, 1.84%)</title><rect x="757.6" y="261" width="21.7" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="760.57" y="271.5" >t..</text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (6 samples, 0.04%)</title><rect x="236.6" y="325" width="0.5" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="239.60" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (214 samples, 1.54%)</title><rect x="531.4" y="277" width="18.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="534.39" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (3 samples, 0.02%)</title><rect x="40.4" y="197" width="0.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="43.39" y="207.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg2_trap (4 samples, 0.03%)</title><rect x="1189.6" y="37" width="0.3" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="1192.57" y="47.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (2 samples, 0.01%)</title><rect x="87.0" y="245" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="90.04" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_draw_sprite (2,403 samples, 17.34%)</title><rect x="947.4" y="309" width="204.5" height="15.0" fill="rgb(251,213,50)" rx="2" ry="2" />
+<text  x="950.39" y="319.5" >torirs`soft3d_draw_sprite</text>
+</g>
+<g >
+<title>torirs`ToriDraw_RasterWithFaceIndices (2 samples, 0.01%)</title><rect x="421.2" y="293" width="0.1" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="424.15" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="53.1" y="261" width="0.1" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="56.07" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_CC_SetHide (2 samples, 0.01%)</title><rect x="36.9" y="229" width="0.2" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="39.90" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (23 samples, 0.17%)</title><rect x="118.7" y="293" width="2.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="121.70" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (380 samples, 2.74%)</title><rect x="49.4" y="309" width="32.4" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="52.41" y="319.5" >to..</text>
+</g>
+<g >
+<title>torirs`UITree_ScrollIntersectClip (2 samples, 0.01%)</title><rect x="51.5" y="261" width="0.1" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="54.46" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`app_inv_needs_icons (27 samples, 0.19%)</title><rect x="138.8" y="325" width="2.3" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="141.79" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`tile_is_south_inbounds (8 samples, 0.06%)</title><rect x="323.3" y="293" width="0.7" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="326.34" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointBlocksWorld (18 samples, 0.13%)</title><rect x="120.7" y="325" width="1.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="123.66" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_free_outlined (2 samples, 0.01%)</title><rect x="948.1" y="293" width="0.1" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="951.08" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`viewport_from_scissor (3 samples, 0.02%)</title><rect x="1151.7" y="293" width="0.2" height="15.0" fill="rgb(251,211,50)" rx="2" ry="2" />
+<text  x="1154.69" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolGet (9 samples, 0.06%)</title><rect x="387.6" y="277" width="0.8" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="390.61" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ApplyHide (45 samples, 0.32%)</title><rect x="111.6" y="325" width="3.9" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="114.64" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`far_wall_flags (34 samples, 0.25%)</title><rect x="301.7" y="293" width="2.9" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="304.72" y="303.5" ></text>
+</g>
+<g >
+<title>dyld`start (13,857 samples, 99.96%)</title><rect x="10.0" y="421" width="1179.6" height="15.0" fill="rgb(217,57,13)" rx="2" ry="2" />
+<text  x="13.00" y="431.5" >dyld`start</text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (5 samples, 0.04%)</title><rect x="87.2" y="245" width="0.4" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="90.21" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInClip (2 samples, 0.01%)</title><rect x="83.5" y="245" width="0.2" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="86.55" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_SaveYieldCheckpoint (9 samples, 0.06%)</title><rect x="44.1" y="245" width="0.8" height="15.0" fill="rgb(207,13,3)" rx="2" ry="2" />
+<text  x="47.14" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`Task_CS1Eval_Run (2 samples, 0.01%)</title><rect x="21.1" y="277" width="0.1" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="24.07" y="287.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GetVideoDevice (2 samples, 0.01%)</title><rect x="230.4" y="341" width="0.2" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="233.39" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_sync_entity_spotanims (4 samples, 0.03%)</title><rect x="209.7" y="341" width="0.3" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="212.70" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_BranchEquals (2 samples, 0.01%)</title><rect x="36.1" y="229" width="0.2" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="39.13" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_world_tick (6 samples, 0.04%)</title><rect x="222.7" y="325" width="0.5" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="225.73" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlitArgbTiled (565 samples, 4.08%)</title><rect x="1040.4" y="293" width="48.0" height="15.0" fill="rgb(238,152,36)" rx="2" ry="2" />
+<text  x="1043.35" y="303.5" >tori..</text>
+</g>
+<g >
+<title>torirs`emit_walk_node (326 samples, 2.35%)</title><rect x="53.6" y="261" width="27.7" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="56.58" y="271.5" >t..</text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (2 samples, 0.01%)</title><rect x="221.2" y="309" width="0.2" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="224.19" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (6 samples, 0.04%)</title><rect x="221.4" y="245" width="0.5" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="224.36" y="255.5" ></text>
+</g>
+<g >
+<title>libxpc`bootstrap_look_up3 (4 samples, 0.03%)</title><rect x="1189.6" y="149" width="0.3" height="15.0" fill="rgb(241,169,40)" rx="2" ry="2" />
+<text  x="1192.57" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (3 samples, 0.02%)</title><rect x="54.4" y="245" width="0.2" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="57.35" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_GetLayoutWidth (3 samples, 0.02%)</title><rect x="40.4" y="181" width="0.2" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="43.39" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (2 samples, 0.01%)</title><rect x="36.9" y="197" width="0.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="39.90" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`app_host_request (10 samples, 0.07%)</title><rect x="62.1" y="181" width="0.8" height="15.0" fill="rgb(231,122,29)" rx="2" ry="2" />
+<text  x="65.10" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_tick_animations (9 samples, 0.06%)</title><rect x="210.3" y="341" width="0.8" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="213.30" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (19 samples, 0.14%)</title><rect x="213.7" y="277" width="1.6" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="216.70" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (5 samples, 0.04%)</title><rect x="1123.4" y="277" width="0.5" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="1126.43" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_height (2 samples, 0.01%)</title><rect x="210.1" y="325" width="0.2" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="213.13" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg2_internal (9 samples, 0.06%)</title><rect x="228.8" y="309" width="0.7" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="231.77" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`torirs_perf_now_ns (15 samples, 0.11%)</title><rect x="47.0" y="341" width="1.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="50.03" y="351.5" ></text>
+</g>
+<g >
+<title>Thread_992678.DispatchQueue_1: (13,857 samples, 99.96%)</title><rect x="10.0" y="437" width="1179.6" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="13.00" y="447.5" >Thread_992678.DispatchQueue_1:</text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (15 samples, 0.11%)</title><rect x="84.5" y="229" width="1.3" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="87.48" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`interactive_render_present (11,188 samples, 80.71%)</title><rect x="237.1" y="373" width="952.4" height="15.0" fill="rgb(218,59,14)" rx="2" ry="2" />
+<text  x="240.11" y="383.5" >torirs`interactive_render_present</text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (2 samples, 0.01%)</title><rect x="40.9" y="197" width="0.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="43.90" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_mouse_gate (50 samples, 0.36%)</title><rect x="211.1" y="357" width="4.2" height="15.0" fill="rgb(236,144,34)" rx="2" ry="2" />
+<text  x="214.06" y="367.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_msg (4 samples, 0.03%)</title><rect x="1189.6" y="85" width="0.3" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1192.57" y="95.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ApplyText (2 samples, 0.01%)</title><rect x="40.9" y="181" width="0.2" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="43.90" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (21 samples, 0.15%)</title><rect x="86.0" y="293" width="1.8" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="89.02" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (2 samples, 0.01%)</title><rect x="79.2" y="197" width="0.2" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="82.21" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_clamp_to_nominal (186 samples, 1.34%)</title><rect x="1131.5" y="293" width="15.9" height="15.0" fill="rgb(245,186,44)" rx="2" ry="2" />
+<text  x="1134.52" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (13 samples, 0.09%)</title><rect x="47.1" y="293" width="1.1" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="50.11" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (16 samples, 0.12%)</title><rect x="37.9" y="149" width="1.4" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="40.92" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_push_if_active (220 samples, 1.59%)</title><rect x="281.6" y="293" width="18.8" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="284.63" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindHoveredComponentIdForRegion (23 samples, 0.17%)</title><rect x="85.8" y="325" width="2.0" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="88.85" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SpriteNewGraphicOutline (313 samples, 2.26%)</title><rect x="1097.2" y="293" width="26.7" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="1100.21" y="303.5" >t..</text>
+</g>
+<g >
+<title>libdispatch`_dispatch_source_latch_and_call (5 samples, 0.04%)</title><rect x="1189.6" y="293" width="0.4" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="1192.57" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`World_CycleRegisterPainterDynamics (734 samples, 5.30%)</title><rect x="145.2" y="325" width="62.5" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="148.18" y="335.5" >torirs..</text>
+</g>
+<g >
+<title>torirs`ToriRS_Network_SendRaw (6 samples, 0.04%)</title><rect x="124.3" y="341" width="0.5" height="15.0" fill="rgb(226,96,23)" rx="2" ry="2" />
+<text  x="127.32" y="351.5" ></text>
+</g>
+<g >
+<title>Thread_992683.DispatchQueue_43: (5 samples, 0.04%)</title><rect x="1189.6" y="437" width="0.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="1192.57" y="447.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsPassThrough (3 samples, 0.02%)</title><rect x="82.2" y="277" width="0.2" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="85.19" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`painter_paint_bucket (1,036 samples, 7.47%)</title><rect x="237.6" y="309" width="88.2" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="240.62" y="319.5" >torirs`pai..</text>
+</g>
+<g >
+<title>torirs`ToriDraw_TriangleTextureBlendOpaque (44 samples, 0.32%)</title><rect x="614.3" y="261" width="3.7" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="617.30" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsHorizontal (2 samples, 0.01%)</title><rect x="54.2" y="213" width="0.2" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="57.18" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__findenv_locked (8 samples, 0.06%)</title><rect x="122.6" y="277" width="0.7" height="15.0" fill="rgb(253,224,53)" rx="2" ry="2" />
+<text  x="125.62" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (3 samples, 0.02%)</title><rect x="48.3" y="309" width="0.3" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="51.31" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (5 samples, 0.04%)</title><rect x="52.0" y="261" width="0.4" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="54.97" y="271.5" ></text>
+</g>
+<g >
+<title>libsystem_pthread`start_wqthread (5 samples, 0.04%)</title><rect x="1189.6" y="421" width="0.4" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="1192.57" y="431.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (6 samples, 0.04%)</title><rect x="221.4" y="277" width="0.5" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="224.36" y="287.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_UpperBlit_REAL (336 samples, 2.42%)</title><rect x="1152.5" y="293" width="28.6" height="15.0" fill="rgb(250,207,49)" rx="2" ry="2" />
+<text  x="1155.55" y="303.5" >li..</text>
+</g>
+<g >
+<title>torirs`World_EntityPoolGet (415 samples, 2.99%)</title><rect x="150.2" y="309" width="35.3" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="153.20" y="319.5" >to..</text>
+</g>
+<g >
+<title>libdispatch`_dispatch_root_queue_drain_deferred_wlh (5 samples, 0.04%)</title><rect x="1189.6" y="373" width="0.4" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="1192.57" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`CacheProvider_ClientScriptGet (10 samples, 0.07%)</title><rect x="45.8" y="277" width="0.8" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="48.75" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_malloc_zone_malloc_type_calloc_entry (2 samples, 0.01%)</title><rect x="20.1" y="277" width="0.2" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="23.13" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`viewport_from_scissor (2 samples, 0.01%)</title><rect x="406.9" y="293" width="0.1" height="15.0" fill="rgb(251,211,50)" rx="2" ry="2" />
+<text  x="409.85" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (12 samples, 0.09%)</title><rect x="22.8" y="277" width="1.0" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="25.77" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (7 samples, 0.05%)</title><rect x="114.9" y="277" width="0.6" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="117.87" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ApplyText (4 samples, 0.03%)</title><rect x="115.5" y="325" width="0.3" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="118.47" y="335.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_UpdateWindowSurface_REAL (3 samples, 0.02%)</title><rect x="1181.7" y="325" width="0.3" height="15.0" fill="rgb(251,212,50)" rx="2" ry="2" />
+<text  x="1184.74" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`cycle_flash (2 samples, 0.01%)</title><rect x="123.9" y="325" width="0.2" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="126.90" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_RenderModel1Project (415 samples, 2.99%)</title><rect x="421.3" y="293" width="35.3" height="15.0" fill="rgb(222,81,19)" rx="2" ry="2" />
+<text  x="424.32" y="303.5" >to..</text>
+</g>
+<g >
+<title>torirs`World_CycleUpdateProjectiles (3 samples, 0.02%)</title><rect x="208.0" y="325" width="0.3" height="15.0" fill="rgb(241,167,40)" rx="2" ry="2" />
+<text  x="211.00" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`painter_resolve_draw_box (2 samples, 0.01%)</title><rect x="304.6" y="293" width="0.2" height="15.0" fill="rgb(250,209,49)" rx="2" ry="2" />
+<text  x="307.62" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_PopFrame (2 samples, 0.01%)</title><rect x="43.8" y="213" width="0.2" height="15.0" fill="rgb(222,79,18)" rx="2" ry="2" />
+<text  x="46.79" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__memset_chk (2 samples, 0.01%)</title><rect x="216.6" y="357" width="0.2" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="219.60" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_MapSearch (2 samples, 0.01%)</title><rect x="209.4" y="293" width="0.1" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="212.36" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsPassThrough (2 samples, 0.01%)</title><rect x="212.2" y="245" width="0.1" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="215.17" y="255.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (3 samples, 0.02%)</title><rect x="235.8" y="341" width="0.3" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="238.84" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`collect_nodes_recursive (8 samples, 0.06%)</title><rect x="117.6" y="261" width="0.7" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="120.60" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`app_host_request (5 samples, 0.04%)</title><rect x="52.6" y="229" width="0.4" height="15.0" fill="rgb(231,122,29)" rx="2" ry="2" />
+<text  x="55.56" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentEstablishesSurface (3 samples, 0.02%)</title><rect x="82.4" y="261" width="0.3" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="85.44" y="271.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="55.7" y="213" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="58.71" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`painters_tile_get_visible_gte_level (21 samples, 0.15%)</title><rect x="306.1" y="293" width="1.8" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="309.15" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (12 samples, 0.09%)</title><rect x="22.8" y="261" width="1.0" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="25.77" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`app_inv_icon_reconcile_tick (28 samples, 0.20%)</title><rect x="138.7" y="341" width="2.4" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="141.71" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (12 samples, 0.09%)</title><rect x="121.2" y="261" width="1.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="124.17" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (13 samples, 0.09%)</title><rect x="121.1" y="277" width="1.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="124.09" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`collect_nodes_recursive (20 samples, 0.14%)</title><rect x="116.6" y="309" width="1.7" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="119.58" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_pthread`_pthread_wqthread (5 samples, 0.04%)</title><rect x="1189.6" y="405" width="0.4" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="1192.57" y="415.5" ></text>
+</g>
+<g >
+<title>torirs`free_space (4 samples, 0.03%)</title><rect x="215.7" y="325" width="0.3" height="15.0" fill="rgb(234,133,31)" rx="2" ry="2" />
+<text  x="218.66" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__strncpy_chk (4 samples, 0.03%)</title><rect x="62.2" y="165" width="0.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="65.18" y="175.5" ></text>
+</g>
+<g >
+<title>libsystem_pthread`___chkstk_darwin (4 samples, 0.03%)</title><rect x="35.8" y="229" width="0.3" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="38.79" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_scale_pixel_alpha (51 samples, 0.37%)</title><rect x="1147.4" y="293" width="4.3" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="1150.35" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (3 samples, 0.02%)</title><rect x="48.3" y="325" width="0.3" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="51.31" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`tile_remove_scenery_element (13 samples, 0.09%)</title><rect x="206.4" y="293" width="1.1" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="209.38" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (3 samples, 0.02%)</title><rect x="19.7" y="245" width="0.3" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="22.70" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`World_Cycle (746 samples, 5.38%)</title><rect x="144.9" y="341" width="63.5" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="147.92" y="351.5" >torirs..</text>
+</g>
+<g >
+<title>torirs`CreateTask_CS1Eval (15 samples, 0.11%)</title><rect x="19.3" y="293" width="1.3" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="22.28" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`clear_gesture_oneshots (7 samples, 0.05%)</title><rect x="217.6" y="357" width="0.6" height="15.0" fill="rgb(244,179,43)" rx="2" ry="2" />
+<text  x="220.62" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SceneElementApplyAnimation (18 samples, 0.13%)</title><rect x="945.9" y="293" width="1.5" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="948.86" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Acquire (61 samples, 0.44%)</title><rect x="22.8" y="293" width="5.2" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="25.77" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_yield_if_group_missing (2 samples, 0.01%)</title><rect x="36.6" y="165" width="0.1" height="15.0" fill="rgb(215,50,12)" rx="2" ry="2" />
+<text  x="39.56" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`ring_write (5 samples, 0.04%)</title><rect x="216.0" y="325" width="0.4" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="219.00" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`hmap_search (8 samples, 0.06%)</title><rect x="45.9" y="261" width="0.7" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="48.92" y="271.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`__error (2 samples, 0.01%)</title><rect x="228.5" y="325" width="0.2" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="231.52" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`RS_WorldMap_Cycle (2 samples, 0.01%)</title><rect x="123.9" y="341" width="0.2" height="15.0" fill="rgb(228,110,26)" rx="2" ry="2" />
+<text  x="126.90" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (5 samples, 0.04%)</title><rect x="36.3" y="197" width="0.4" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="39.30" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`Task_CS1Eval_Free (3 samples, 0.02%)</title><rect x="20.7" y="277" width="0.3" height="15.0" fill="rgb(240,165,39)" rx="2" ry="2" />
+<text  x="23.73" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`DYLD-STUB$$mkdtempat_np (3 samples, 0.02%)</title><rect x="1182.0" y="341" width="0.3" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="1185.00" y="351.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GestureProcessEvent (2 samples, 0.01%)</title><rect x="232.3" y="309" width="0.1" height="15.0" fill="rgb(220,70,16)" rx="2" ry="2" />
+<text  x="235.26" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`raster_flat_screen_opaque_branching_s4_ordered (3 samples, 0.02%)</title><rect x="814.6" y="277" width="0.3" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="817.60" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`App_BuildFrame (1,041 samples, 7.51%)</title><rect x="237.2" y="341" width="88.6" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="240.20" y="351.5" >torirs`App..</text>
+</g>
+<g >
+<title>torirs`UITree_InputUpdate (46 samples, 0.33%)</title><rect x="81.8" y="325" width="4.0" height="15.0" fill="rgb(206,8,2)" rx="2" ry="2" />
+<text  x="84.85" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_sync_one_entity_spotanim (3 samples, 0.02%)</title><rect x="209.8" y="325" width="0.2" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="212.79" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="45.1" y="261" width="0.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="48.07" y="271.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_lane_invoke (5 samples, 0.04%)</title><rect x="1189.6" y="341" width="0.4" height="15.0" fill="rgb(238,152,36)" rx="2" ry="2" />
+<text  x="1192.57" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_TriangleGouraud (435 samples, 3.14%)</title><rect x="577.3" y="261" width="37.0" height="15.0" fill="rgb(217,57,13)" rx="2" ry="2" />
+<text  x="580.27" y="271.5" >tor..</text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (23 samples, 0.17%)</title><rect x="213.4" y="309" width="1.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="216.36" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`painter_reset_to_static (29 samples, 0.21%)</title><rect x="205.0" y="309" width="2.5" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="208.02" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (14 samples, 0.10%)</title><rect x="47.0" y="325" width="1.2" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="50.03" y="335.5" ></text>
+</g>
+<g >
+<title>libxpc`_xpc_pipe_mach_msg (4 samples, 0.03%)</title><rect x="1189.6" y="101" width="0.3" height="15.0" fill="rgb(220,73,17)" rx="2" ry="2" />
+<text  x="1192.57" y="111.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentShouldEmit (2 samples, 0.01%)</title><rect x="51.3" y="261" width="0.2" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="54.29" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`tile_inward_north_inbounds (7 samples, 0.05%)</title><rect x="318.8" y="293" width="0.6" height="15.0" fill="rgb(218,59,14)" rx="2" ry="2" />
+<text  x="321.83" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (6 samples, 0.04%)</title><rect x="120.2" y="229" width="0.5" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="123.15" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`app_entity_spotanim_find (3 samples, 0.02%)</title><rect x="209.8" y="309" width="0.2" height="15.0" fill="rgb(250,209,49)" rx="2" ry="2" />
+<text  x="212.79" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsActiveHost (2 samples, 0.01%)</title><rect x="54.0" y="229" width="0.2" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="57.01" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (3 samples, 0.02%)</title><rect x="82.4" y="277" width="0.3" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="85.44" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (2 samples, 0.01%)</title><rect x="56.6" y="229" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="59.65" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_Delay (17 samples, 0.12%)</title><rect x="228.1" y="373" width="1.4" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="231.09" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`task_cs2_set_int_local (4 samples, 0.03%)</title><rect x="46.6" y="293" width="0.3" height="15.0" fill="rgb(251,213,50)" rx="2" ry="2" />
+<text  x="49.60" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_pick_finish (311 samples, 2.24%)</title><rect x="325.8" y="325" width="26.5" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="328.81" y="335.5" >t..</text>
+</g>
+<g >
+<title>libsystem_malloc`_malloc_zone_calloc (2 samples, 0.01%)</title><rect x="1121.7" y="277" width="0.2" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="1124.73" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (6 samples, 0.04%)</title><rect x="216.8" y="357" width="0.5" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="219.77" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (12 samples, 0.09%)</title><rect x="214.3" y="261" width="1.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="217.30" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`heightmap_coord_idx (4 samples, 0.03%)</title><rect x="208.9" y="309" width="0.4" height="15.0" fill="rgb(206,8,1)" rx="2" ry="2" />
+<text  x="211.94" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`layer_needs_scroll_offset (2 samples, 0.01%)</title><rect x="81.6" y="277" width="0.2" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="84.59" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityPoolGet (106 samples, 0.76%)</title><rect x="327.5" y="261" width="9.0" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="330.52" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_StageBegin (2 samples, 0.01%)</title><rect x="221.2" y="341" width="0.2" height="15.0" fill="rgb(238,151,36)" rx="2" ry="2" />
+<text  x="224.19" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (2 samples, 0.01%)</title><rect x="215.2" y="213" width="0.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="218.15" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsVertical (2 samples, 0.01%)</title><rect x="80.9" y="213" width="0.2" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="83.91" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_push (77 samples, 0.56%)</title><rect x="293.8" y="277" width="6.6" height="15.0" fill="rgb(253,224,53)" rx="2" ry="2" />
+<text  x="296.81" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (16 samples, 0.12%)</title><rect x="120.8" y="293" width="1.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="123.83" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (11 samples, 0.08%)</title><rect x="22.8" y="213" width="0.9" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="25.77" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_TaskQueue_Run (344 samples, 2.48%)</title><rect x="17.7" y="341" width="29.2" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="20.66" y="351.5" >to..</text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_RendererEventWatch (6 samples, 0.04%)</title><rect x="233.6" y="309" width="0.5" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="236.62" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_RasterWithFaceIndices (3,109 samples, 22.43%)</title><rect x="549.9" y="277" width="264.6" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="552.86" y="287.5" >torirs`ToriDraw_RasterWithFaceIndices</text>
+</g>
+<g >
+<title>torirs`ToriDraw_TextureAnimate (4 samples, 0.03%)</title><rect x="144.6" y="325" width="0.3" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="147.58" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (23 samples, 0.17%)</title><rect x="85.8" y="309" width="2.0" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="88.85" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (2 samples, 0.01%)</title><rect x="39.8" y="197" width="0.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="42.79" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (26 samples, 0.19%)</title><rect x="37.6" y="213" width="2.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="40.58" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline (3 samples, 0.02%)</title><rect x="814.3" y="261" width="0.2" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="817.26" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`LibToriRS_Input_End (11 samples, 0.08%)</title><rect x="218.2" y="373" width="1.0" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="221.22" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_DrawRectOutline (2 samples, 0.01%)</title><rect x="396.9" y="293" width="0.2" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="399.89" y="303.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SW_RunCommandQueue (343 samples, 2.47%)</title><rect x="1152.5" y="309" width="29.2" height="15.0" fill="rgb(227,104,25)" rx="2" ry="2" />
+<text  x="1155.55" y="319.5" >li..</text>
+</g>
+<g >
+<title>torirs`App_PickFinish (311 samples, 2.24%)</title><rect x="325.8" y="341" width="26.5" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="328.81" y="351.5" >t..</text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (2 samples, 0.01%)</title><rect x="51.8" y="261" width="0.2" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="54.80" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_Ticks64 (2 samples, 0.01%)</title><rect x="220.1" y="341" width="0.2" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="223.09" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`isaac_next (3 samples, 0.02%)</title><rect x="225.5" y="277" width="0.2" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="228.45" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`__commpage_gettimeofday_internal (6 samples, 0.04%)</title><rect x="221.4" y="261" width="0.5" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="224.36" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_Host (5 samples, 0.04%)</title><rect x="52.6" y="245" width="0.4" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="55.56" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`app_chat_build_view (55 samples, 0.40%)</title><rect x="111.5" y="357" width="4.7" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="114.47" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (2 samples, 0.01%)</title><rect x="39.8" y="213" width="0.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="42.79" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`tile_inward_east_inbounds (11 samples, 0.08%)</title><rect x="317.9" y="293" width="0.9" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="320.90" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (79 samples, 0.57%)</title><rect x="267.8" y="293" width="6.7" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="270.76" y="303.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_JoystickUpdate_REAL (7 samples, 0.05%)</title><rect x="231.5" y="325" width="0.6" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="234.49" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_xzone_malloc_freelist_outlined (12 samples, 0.09%)</title><rect x="1122.4" y="277" width="1.0" height="15.0" fill="rgb(227,102,24)" rx="2" ry="2" />
+<text  x="1125.41" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_JoinString (2 samples, 0.01%)</title><rect x="41.1" y="229" width="0.1" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="44.07" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlitSpriteRotatedMaskedEx (101 samples, 0.73%)</title><rect x="1088.4" y="293" width="8.6" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
+<text  x="1091.45" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memmove (12 samples, 0.09%)</title><rect x="946.4" y="261" width="1.0" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="949.37" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (375 samples, 2.71%)</title><rect x="49.8" y="293" width="32.0" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="52.84" y="303.5" >to..</text>
+</g>
+<g >
+<title>torirs`ToriRS_FrameNextCommand (437 samples, 3.15%)</title><rect x="356.3" y="325" width="37.2" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="359.29" y="335.5" >tor..</text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_ReleaseAutoReleaseKeys (3 samples, 0.02%)</title><rect x="234.3" y="325" width="0.3" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="237.30" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`RS_EntitySync_FindPlayer (4 samples, 0.03%)</title><rect x="110.9" y="309" width="0.3" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="113.87" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (2 samples, 0.01%)</title><rect x="48.3" y="293" width="0.2" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="51.31" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (28 samples, 0.20%)</title><rect x="212.9" y="325" width="2.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="215.94" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_c`getenv (4 samples, 0.03%)</title><rect x="18.0" y="325" width="0.3" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="21.00" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (308 samples, 2.22%)</title><rect x="54.7" y="245" width="26.2" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="57.69" y="255.5" >t..</text>
+</g>
+<g >
+<title>torirs`font_draw_string_range (45 samples, 0.32%)</title><rect x="400.0" y="277" width="3.9" height="15.0" fill="rgb(253,225,53)" rx="2" ry="2" />
+<text  x="403.04" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (2 samples, 0.01%)</title><rect x="115.8" y="325" width="0.2" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="118.81" y="335.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_lane_serial_drain (5 samples, 0.04%)</title><rect x="1189.6" y="325" width="0.4" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="1192.57" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (20 samples, 0.14%)</title><rect x="211.1" y="309" width="1.8" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="214.15" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (66 samples, 0.48%)</title><rect x="69.1" y="197" width="5.6" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="72.08" y="207.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_GetTicks64_REAL (2 samples, 0.01%)</title><rect x="220.1" y="325" width="0.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="223.09" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindChildBySubid (2 samples, 0.01%)</title><rect x="36.3" y="165" width="0.2" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="39.30" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_ThreadResume (201 samples, 1.45%)</title><rect x="28.0" y="277" width="17.1" height="15.0" fill="rgb(237,151,36)" rx="2" ry="2" />
+<text  x="30.96" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_Present (440 samples, 3.17%)</title><rect x="1151.9" y="357" width="37.5" height="15.0" fill="rgb(212,32,7)" rx="2" ry="2" />
+<text  x="1154.95" y="367.5" >tor..</text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (6 samples, 0.04%)</title><rect x="221.4" y="309" width="0.5" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="224.36" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`task_free (4 samples, 0.03%)</title><rect x="18.3" y="309" width="0.4" height="15.0" fill="rgb(208,18,4)" rx="2" ry="2" />
+<text  x="21.34" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (15 samples, 0.11%)</title><rect x="119.4" y="261" width="1.3" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="122.39" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`exec_vars_read_varbit (21 samples, 0.15%)</title><rect x="41.7" y="181" width="1.8" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="44.67" y="191.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PeepEventsInternal (8 samples, 0.06%)</title><rect x="232.8" y="309" width="0.7" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="235.77" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered_noclip (4 samples, 0.03%)</title><rect x="790.8" y="245" width="0.3" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="793.76" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (18 samples, 0.13%)</title><rect x="120.7" y="309" width="1.5" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="123.66" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_IF_SetHide (2 samples, 0.01%)</title><rect x="40.6" y="229" width="0.2" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="43.64" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_PollCommands (67 samples, 0.48%)</title><rect x="229.5" y="373" width="5.7" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="232.54" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (30 samples, 0.22%)</title><rect x="83.2" y="261" width="2.6" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="86.21" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="85.0" y="197" width="0.2" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="87.99" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentVisibleById (53 samples, 0.38%)</title><rect x="74.7" y="197" width="4.5" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="77.69" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (4 samples, 0.03%)</title><rect x="40.0" y="213" width="0.3" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="42.96" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered (4 samples, 0.03%)</title><rect x="812.1" y="245" width="0.4" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="815.13" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`CreateTask_CS2RunMixed (15 samples, 0.11%)</title><rect x="122.6" y="325" width="1.3" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="125.62" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_free (2 samples, 0.01%)</title><rect x="20.8" y="261" width="0.2" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="23.81" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (10 samples, 0.07%)</title><rect x="55.5" y="229" width="0.8" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="58.46" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`layer_needs_scroll_offset (3 samples, 0.02%)</title><rect x="81.1" y="245" width="0.2" height="15.0" fill="rgb(231,124,29)" rx="2" ry="2" />
+<text  x="84.08" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SpriteNewGraphicShadow (89 samples, 0.64%)</title><rect x="1123.9" y="293" width="7.5" height="15.0" fill="rgb(221,75,18)" rx="2" ry="2" />
+<text  x="1126.86" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (2 samples, 0.01%)</title><rect x="39.8" y="133" width="0.2" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="42.79" y="143.5" ></text>
+</g>
+<g >
+<title>torirs`World_TerrainTileIdx (20 samples, 0.14%)</title><rect x="391.6" y="277" width="1.7" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="394.61" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (4 samples, 0.03%)</title><rect x="54.0" y="245" width="0.4" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="57.01" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_ThreadRun (201 samples, 1.45%)</title><rect x="28.0" y="293" width="17.1" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="30.96" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (6 samples, 0.04%)</title><rect x="60.9" y="213" width="0.5" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="63.90" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`frame_take_queued (13 samples, 0.09%)</title><rect x="358.8" y="309" width="1.1" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="361.76" y="319.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_SensorUpdate_REAL (4 samples, 0.03%)</title><rect x="234.8" y="325" width="0.4" height="15.0" fill="rgb(244,180,43)" rx="2" ry="2" />
+<text  x="237.81" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`collect_nodes_recursive (17 samples, 0.12%)</title><rect x="116.8" y="293" width="1.5" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="119.83" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_FillRect (2 samples, 0.01%)</title><rect x="396.9" y="277" width="0.2" height="15.0" fill="rgb(214,44,10)" rx="2" ry="2" />
+<text  x="399.89" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (4 samples, 0.03%)</title><rect x="60.6" y="213" width="0.3" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="63.56" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`raster_gouraud_screen_alpha_bary_branching_s4_ordered (10 samples, 0.07%)</title><rect x="790.3" y="261" width="0.8" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="793.25" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitFill (3 samples, 0.02%)</title><rect x="49.4" y="293" width="0.3" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="52.41" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (277 samples, 2.00%)</title><rect x="57.0" y="229" width="23.6" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="59.99" y="239.5" >t..</text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (2 samples, 0.01%)</title><rect x="118.0" y="181" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="121.02" y="191.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (3 samples, 0.02%)</title><rect x="236.7" y="277" width="0.2" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="239.69" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`app_minimap_push_dot (3 samples, 0.02%)</title><rect x="52.6" y="197" width="0.3" height="15.0" fill="rgb(236,144,34)" rx="2" ry="2" />
+<text  x="55.65" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlendArgbPixel (774 samples, 5.58%)</title><rect x="974.5" y="277" width="65.9" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="977.46" y="287.5" >torirs`..</text>
+</g>
+<g >
+<title>torirs`UITree_ComponentEstablishesSurface (2 samples, 0.01%)</title><rect x="118.0" y="213" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="121.02" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_emit_entity (2 samples, 0.01%)</title><rect x="274.5" y="293" width="0.2" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="277.48" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_Return (2 samples, 0.01%)</title><rect x="43.8" y="229" width="0.2" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="46.79" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (20 samples, 0.14%)</title><rect x="119.0" y="277" width="1.7" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="121.96" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__strncpy_chk.cold.1 (3 samples, 0.02%)</title><rect x="62.3" y="149" width="0.2" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="65.27" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`bucket_queue_empty (16 samples, 0.12%)</title><rect x="300.4" y="293" width="1.3" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="303.36" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (206 samples, 1.49%)</title><rect x="62.9" y="213" width="17.6" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="65.95" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_Host (11 samples, 0.08%)</title><rect x="62.0" y="197" width="0.9" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="65.01" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`World_EntityRegistryFind (3 samples, 0.02%)</title><rect x="111.0" y="293" width="0.2" height="15.0" fill="rgb(222,78,18)" rx="2" ry="2" />
+<text  x="113.96" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__strcpy_chk (6 samples, 0.04%)</title><rect x="19.6" y="277" width="0.5" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="22.62" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`hmap_search (3 samples, 0.02%)</title><rect x="39.5" y="149" width="0.2" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="42.45" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`raster_flat_screen_opaque_branching_s4_ordered (126 samples, 0.91%)</title><rect x="779.5" y="261" width="10.8" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="782.53" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (2 samples, 0.01%)</title><rect x="86.2" y="277" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="89.19" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`emit_walk_node (352 samples, 2.54%)</title><rect x="51.6" y="277" width="30.0" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="54.63" y="287.5" >to..</text>
+</g>
+<g >
+<title>torirs`draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered (23 samples, 0.17%)</title><rect x="807.3" y="245" width="1.9" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="810.28" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`PlatformSDL2_Ticks64 (7 samples, 0.05%)</title><rect x="235.5" y="373" width="0.6" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="238.50" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`TaskRunner_Step (351 samples, 2.53%)</title><rect x="17.1" y="357" width="29.8" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="20.07" y="367.5" >to..</text>
+</g>
+<g >
+<title>torirs`UITreeAnim_Advance (14 samples, 0.10%)</title><rect x="124.8" y="341" width="1.2" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="127.83" y="351.5" ></text>
+</g>
+<g >
+<title>CoreAudio`HALC_ProxyObjectMap::CopyObjectByObjectID(unsigned.int) (4 samples, 0.03%)</title><rect x="1189.6" y="213" width="0.3" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1192.57" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_c`DYLD-STUB$$mkostemps (2 samples, 0.01%)</title><rect x="375.7" y="293" width="0.2" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="378.70" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (18 samples, 0.13%)</title><rect x="211.3" y="293" width="1.6" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="214.32" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_ThreadStart (3 samples, 0.02%)</title><rect x="45.1" y="293" width="0.2" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="48.07" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`app_player_model_poll (31 samples, 0.22%)</title><rect x="141.1" y="341" width="2.6" height="15.0" fill="rgb(246,192,45)" rx="2" ry="2" />
+<text  x="144.09" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (2 samples, 0.01%)</title><rect x="55.9" y="197" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="58.88" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_TriangleTextureBlendTransparent (5 samples, 0.04%)</title><rect x="618.0" y="261" width="0.5" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="621.05" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`torirs_perf_now_ns (8 samples, 0.06%)</title><rect x="236.4" y="357" width="0.7" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="239.43" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_FrameBegin (12 samples, 0.09%)</title><rect x="236.1" y="373" width="1.0" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="239.09" y="383.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_xzone_malloc_freelist_outlined (4 samples, 0.03%)</title><rect x="123.3" y="293" width="0.3" height="15.0" fill="rgb(227,102,24)" rx="2" ry="2" />
+<text  x="126.30" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (24 samples, 0.17%)</title><rect x="37.8" y="197" width="2.0" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="40.75" y="207.5" ></text>
+</g>
+<g >
+<title>libsystem_c`_mach_boottime_usec (6 samples, 0.04%)</title><rect x="221.4" y="293" width="0.5" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="224.36" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_AnimApplyTransform (107 samples, 0.77%)</title><rect x="409.2" y="293" width="9.1" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="412.15" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_TriangleFlat (22 samples, 0.16%)</title><rect x="575.4" y="261" width="1.9" height="15.0" fill="rgb(238,151,36)" rx="2" ry="2" />
+<text  x="578.40" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (3 samples, 0.02%)</title><rect x="61.6" y="213" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="64.59" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`World_SceneryGetByElementId (310 samples, 2.24%)</title><rect x="325.9" y="277" width="26.4" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="328.90" y="287.5" >t..</text>
+</g>
+<g >
+<title>torirs`TorirsPerf_StageEnd (3 samples, 0.02%)</title><rect x="48.3" y="357" width="0.3" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="51.31" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_InteractFrame (70 samples, 0.50%)</title><rect x="81.8" y="357" width="6.0" height="15.0" fill="rgb(206,9,2)" rx="2" ry="2" />
+<text  x="84.85" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsPassThrough (3 samples, 0.02%)</title><rect x="121.5" y="229" width="0.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="124.51" y="239.5" ></text>
+</g>
+<g >
+<title>libdispatch`_dispatch_workloop_invoke (5 samples, 0.04%)</title><rect x="1189.6" y="357" width="0.4" height="15.0" fill="rgb(206,8,1)" rx="2" ry="2" />
+<text  x="1192.57" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentIsDraggable (2 samples, 0.01%)</title><rect x="82.2" y="261" width="0.2" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="85.19" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_RunScript (196 samples, 1.41%)</title><rect x="28.3" y="261" width="16.7" height="15.0" fill="rgb(241,170,40)" rx="2" ry="2" />
+<text  x="31.30" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_session_pump (43 samples, 0.31%)</title><rect x="223.6" y="309" width="3.6" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="226.58" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (7 samples, 0.05%)</title><rect x="1122.8" y="261" width="0.6" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1125.84" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`tile_excluded_by_bridge_or_draw_mask (58 samples, 0.42%)</title><rect x="313.0" y="293" width="4.9" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
+<text  x="315.96" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsHorizontal (2 samples, 0.01%)</title><rect x="81.1" y="229" width="0.1" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="84.08" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`App_Render (10,747 samples, 77.53%)</title><rect x="237.1" y="357" width="914.8" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="240.11" y="367.5" >torirs`App_Render</text>
+</g>
+<g >
+<title>torirs`mock230_embed_write (5 samples, 0.04%)</title><rect x="227.3" y="341" width="0.4" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="230.32" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_RootIsDisplayable (3 samples, 0.02%)</title><rect x="81.8" y="293" width="0.3" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="84.85" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`__commpage_gettimeofday_internal (13 samples, 0.09%)</title><rect x="47.1" y="277" width="1.1" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="50.11" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_embed_pump (63 samples, 0.45%)</title><rect x="221.9" y="341" width="5.3" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="224.88" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`font_draw_string_shadow_range (30 samples, 0.22%)</title><rect x="403.9" y="277" width="2.5" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="406.87" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`app_update_world_viewport (2 samples, 0.01%)</title><rect x="144.2" y="357" width="0.1" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="147.16" y="367.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_SendPendingSignalEvents (3 samples, 0.02%)</title><rect x="234.6" y="325" width="0.2" height="15.0" fill="rgb(233,131,31)" rx="2" ry="2" />
+<text  x="237.56" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_strnlen (3 samples, 0.02%)</title><rect x="62.3" y="117" width="0.2" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="65.27" y="127.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlitArgbScaled (1,036 samples, 7.47%)</title><rect x="952.2" y="293" width="88.2" height="15.0" fill="rgb(206,8,1)" rx="2" ry="2" />
+<text  x="955.16" y="303.5" >torirs`Tor..</text>
+</g>
+<g >
+<title>torirs`fill (8 samples, 0.06%)</title><rect x="223.7" y="293" width="0.7" height="15.0" fill="rgb(250,209,49)" rx="2" ry="2" />
+<text  x="226.75" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`font_try_consume_markup (3 samples, 0.02%)</title><rect x="403.6" y="261" width="0.3" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="406.62" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`emit_obj_stack_count (13 samples, 0.09%)</title><rect x="61.8" y="213" width="1.1" height="15.0" fill="rgb(250,211,50)" rx="2" ry="2" />
+<text  x="64.84" y="223.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_xzone_find_and_malloc_from_freelist_chunk (2 samples, 0.01%)</title><rect x="1122.6" y="261" width="0.2" height="15.0" fill="rgb(230,119,28)" rx="2" ry="2" />
+<text  x="1125.58" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline (18 samples, 0.13%)</title><rect x="812.7" y="245" width="1.6" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="815.73" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SceneElementIsLive (3 samples, 0.02%)</title><rect x="377.7" y="293" width="0.2" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="380.65" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`tile_inward_west_inbounds (12 samples, 0.09%)</title><rect x="320.1" y="293" width="1.0" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="323.11" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (14 samples, 0.10%)</title><rect x="211.7" y="277" width="1.2" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="214.66" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (3 samples, 0.02%)</title><rect x="236.7" y="309" width="0.2" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="239.69" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_GetLayoutHeight (2 samples, 0.01%)</title><rect x="39.8" y="181" width="0.2" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="42.79" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`App_DrainCommands (14 samples, 0.10%)</title><rect x="15.0" y="373" width="1.2" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="18.02" y="383.5" ></text>
+</g>
+<g >
+<title>libsystem_c`getenv (6 samples, 0.04%)</title><rect x="124.3" y="325" width="0.5" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="127.32" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_FindByComponentId (2 samples, 0.01%)</title><rect x="36.6" y="133" width="0.1" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="39.56" y="143.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (2 samples, 0.01%)</title><rect x="40.6" y="197" width="0.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="43.64" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`CacheProvider_ClientScriptGet (3 samples, 0.02%)</title><rect x="45.3" y="293" width="0.3" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="48.33" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (8 samples, 0.06%)</title><rect x="375.9" y="293" width="0.6" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="378.87" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriRS_PickHitsClassify (311 samples, 2.24%)</title><rect x="325.8" y="309" width="26.5" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="328.81" y="319.5" >t..</text>
+</g>
+<g >
+<title>torirs`font_draw_string_range (3 samples, 0.02%)</title><rect x="397.4" y="277" width="0.3" height="15.0" fill="rgb(253,225,53)" rx="2" ry="2" />
+<text  x="400.40" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_PushVarbit (21 samples, 0.15%)</title><rect x="41.7" y="229" width="1.8" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="44.67" y="239.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PumpEventsInternal (50 samples, 0.36%)</title><rect x="231.0" y="341" width="4.2" height="15.0" fill="rgb(218,59,14)" rx="2" ry="2" />
+<text  x="233.98" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`NetTransport_Poll (105 samples, 0.76%)</title><rect x="219.2" y="373" width="8.9" height="15.0" fill="rgb(248,202,48)" rx="2" ry="2" />
+<text  x="222.15" y="383.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="214.5" y="229" width="0.1" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="217.47" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_sync_entity_animations (5 samples, 0.04%)</title><rect x="209.3" y="341" width="0.4" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="212.28" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`clock_get_time (9 samples, 0.06%)</title><rect x="228.8" y="325" width="0.7" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="231.77" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_CountSet (2 samples, 0.01%)</title><rect x="221.0" y="341" width="0.2" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="224.02" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ComponentShouldEmit (2 samples, 0.01%)</title><rect x="54.2" y="229" width="0.2" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="57.18" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`emit_obj_stack_count (2 samples, 0.01%)</title><rect x="53.4" y="261" width="0.2" height="15.0" fill="rgb(250,211,50)" rx="2" ry="2" />
+<text  x="56.41" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`painters_tile_get_paintgrid_level (3 samples, 0.02%)</title><rect x="305.9" y="293" width="0.2" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="308.89" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_parent_component_id (4 samples, 0.03%)</title><rect x="40.0" y="181" width="0.3" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="42.96" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_frame (783 samples, 5.65%)</title><rect x="144.4" y="357" width="66.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="147.41" y="367.5" >torirs`..</text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_PushEvent_REAL (26 samples, 0.19%)</title><rect x="232.1" y="325" width="2.2" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="235.09" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_pipe_write (3 samples, 0.02%)</title><rect x="227.5" y="325" width="0.2" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="230.49" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`embed_poll (104 samples, 0.75%)</title><rect x="219.2" y="357" width="8.9" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="222.24" y="367.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (11 samples, 0.08%)</title><rect x="22.8" y="245" width="0.9" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="25.77" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_SceneAnimationGet (2 samples, 0.01%)</title><rect x="209.4" y="309" width="0.1" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="212.36" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`soft3d_draw_font (117 samples, 0.84%)</title><rect x="397.1" y="309" width="9.9" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="400.06" y="319.5" ></text>
+</g>
+<g >
+<title>libsystem_malloc`_xzm_xzone_malloc_tiny (3 samples, 0.02%)</title><rect x="20.3" y="277" width="0.3" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="23.30" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_StageEnd (6 samples, 0.04%)</title><rect x="221.4" y="341" width="0.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="224.36" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`RS_CS2Host_Exec (2 samples, 0.01%)</title><rect x="40.9" y="213" width="0.2" height="15.0" fill="rgb(210,25,5)" rx="2" ry="2" />
+<text  x="43.90" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`RS_ChatWidgets_Apply (54 samples, 0.39%)</title><rect x="111.5" y="341" width="4.6" height="15.0" fill="rgb(216,53,12)" rx="2" ry="2" />
+<text  x="114.47" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_IF_SetText (3 samples, 0.02%)</title><rect x="40.8" y="229" width="0.3" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="43.82" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (9 samples, 0.06%)</title><rect x="121.4" y="245" width="0.8" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="124.43" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_paint (1,040 samples, 7.50%)</title><rect x="237.3" y="325" width="88.5" height="15.0" fill="rgb(227,104,25)" rx="2" ry="2" />
+<text  x="240.28" y="335.5" >torirs`app..</text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="84.0" y="229" width="0.1" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="86.97" y="239.5" ></text>
+</g>
+<g >
+<title>libxpc`bootstrap_look_up2 (4 samples, 0.03%)</title><rect x="1189.6" y="165" width="0.3" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="1192.57" y="175.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_CutEvent (2 samples, 0.01%)</title><rect x="230.7" y="325" width="0.2" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="233.73" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_pipe_read (4 samples, 0.03%)</title><rect x="224.1" y="261" width="0.3" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="227.09" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_EmitWalk (391 samples, 2.82%)</title><rect x="48.6" y="357" width="33.2" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="51.56" y="367.5" >to..</text>
+</g>
+<g >
+<title>CoreAudio`HALC_ShellPlugIn::ConnectToServer() (4 samples, 0.03%)</title><rect x="1189.6" y="229" width="0.3" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="1192.57" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsVertical (2 samples, 0.01%)</title><rect x="118.0" y="197" width="0.2" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="121.02" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`app_world_map_poll (12 samples, 0.09%)</title><rect x="110.4" y="341" width="1.1" height="15.0" fill="rgb(212,33,8)" rx="2" ry="2" />
+<text  x="113.45" y="351.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_RenderPresent_REAL (346 samples, 2.50%)</title><rect x="1152.5" y="341" width="29.5" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="1155.55" y="351.5" >li..</text>
+</g>
+<g >
+<title>torirs`ToriRS_TaskQueue_Run (2 samples, 0.01%)</title><rect x="124.1" y="325" width="0.1" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="127.07" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_CC_Find (5 samples, 0.04%)</title><rect x="36.3" y="229" width="0.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="39.30" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`heightmap_get_interpolated (2 samples, 0.01%)</title><rect x="208.8" y="309" width="0.1" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="211.77" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`translate_ui_cmd (7 samples, 0.05%)</title><rect x="359.9" y="309" width="0.6" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="362.86" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_PushCallScript (2 samples, 0.01%)</title><rect x="45.1" y="277" width="0.1" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="48.07" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`bridge_input_to_uitree (46 samples, 0.33%)</title><rect x="81.8" y="341" width="4.0" height="15.0" fill="rgb(221,76,18)" rx="2" ry="2" />
+<text  x="84.85" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`app_hover_text_update (71 samples, 0.51%)</title><rect x="116.2" y="357" width="6.0" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="119.15" y="367.5" ></text>
+</g>
+<g >
+<title>torirs`tile_recalculate_spans (3 samples, 0.02%)</title><rect x="207.2" y="277" width="0.3" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="210.23" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_GosubWithParams (28 samples, 0.20%)</title><rect x="37.4" y="229" width="2.4" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="40.41" y="239.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_memset (3 samples, 0.02%)</title><rect x="123.4" y="277" width="0.2" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="126.39" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`torirs_perf_now_ns (2 samples, 0.01%)</title><rect x="221.2" y="325" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="224.19" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (5 samples, 0.04%)</title><rect x="55.0" y="229" width="0.5" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="58.03" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`cs2vm2_thread_frame_grow (2 samples, 0.01%)</title><rect x="39.3" y="149" width="0.2" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="42.28" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`DYLD-STUB$$bzero (2 samples, 0.01%)</title><rect x="549.6" y="277" width="0.2" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="552.61" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`step_online (33 samples, 0.24%)</title><rect x="224.4" y="293" width="2.8" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="227.43" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`hmap_search (4 samples, 0.03%)</title><rect x="62.6" y="149" width="0.3" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="65.61" y="159.5" ></text>
+</g>
+<g >
+<title>torirs`World_StepEntityAnimation (2 samples, 0.01%)</title><rect x="207.8" y="309" width="0.2" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="210.83" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_RenderModel3Raster (4,653 samples, 33.57%)</title><rect x="549.8" y="293" width="396.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="552.78" y="303.5" >torirs`ToriDraw_RenderModel3Raster</text>
+</g>
+<g >
+<title>torirs`CmdRing_Pop (6 samples, 0.04%)</title><rect x="220.5" y="325" width="0.5" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="223.51" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`collect_nodes_recursive (12 samples, 0.09%)</title><rect x="117.3" y="277" width="1.0" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<text  x="120.26" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`TaskRunner_Step (2 samples, 0.01%)</title><rect x="124.1" y="341" width="0.1" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="127.07" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ScrollLayerNeedsVertical (2 samples, 0.01%)</title><rect x="211.5" y="277" width="0.2" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="214.49" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`frame_loop_step (13,856 samples, 99.96%)</title><rect x="10.1" y="389" width="1179.5" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="13.09" y="399.5" >torirs`frame_loop_step</text>
+</g>
+<g >
+<title>torirs`ToriDraw_ProjectedModelContainsPoint (32 samples, 0.23%)</title><rect x="418.4" y="293" width="2.8" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="421.43" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (2 samples, 0.01%)</title><rect x="36.6" y="117" width="0.1" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="39.56" y="127.5" ></text>
+</g>
+<g >
+<title>torirs`app_minimap_build_dots (4 samples, 0.03%)</title><rect x="52.6" y="213" width="0.3" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="55.56" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_BlendArgbPixel (27 samples, 0.19%)</title><rect x="949.5" y="293" width="2.3" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="952.52" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`rs_cs2_host_exec_dispatch (4 samples, 0.03%)</title><rect x="40.0" y="197" width="0.3" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="42.96" y="207.5" ></text>
+</g>
+<g >
+<title>torirs`World_TerrainElementAt (181 samples, 1.31%)</title><rect x="377.9" y="293" width="15.4" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="380.91" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_c`clock_gettime (8 samples, 0.06%)</title><rect x="236.4" y="341" width="0.7" height="15.0" fill="rgb(207,12,3)" rx="2" ry="2" />
+<text  x="239.43" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`painters_cullspan_build (3 samples, 0.02%)</title><rect x="237.3" y="293" width="0.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="240.28" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`tile_inward_south_inbounds (8 samples, 0.06%)</title><rect x="319.4" y="293" width="0.7" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="322.43" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_PointInScrolledBounds (3 samples, 0.02%)</title><rect x="117.3" y="261" width="0.3" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="120.34" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`app_local_player (9 samples, 0.06%)</title><rect x="110.7" y="325" width="0.8" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="113.70" y="335.5" ></text>
+</g>
+<g >
+<title>torirs`tile_is_east_inbounds (6 samples, 0.04%)</title><rect x="321.1" y="293" width="0.5" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="324.13" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`app_async_polls (278 samples, 2.01%)</title><rect x="87.8" y="357" width="23.7" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="90.80" y="367.5" >t..</text>
+</g>
+<g >
+<title>torirs`mock230_zone_map_stats (4 samples, 0.03%)</title><rect x="227.7" y="341" width="0.4" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<text  x="230.75" y="351.5" ></text>
+</g>
+<g >
+<title>libsystem_c`DYLD-STUB$$mkdtempat_np (2 samples, 0.01%)</title><rect x="15.5" y="309" width="0.2" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="18.53" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`task_free (5 samples, 0.04%)</title><rect x="20.6" y="293" width="0.4" height="15.0" fill="rgb(208,18,4)" rx="2" ry="2" />
+<text  x="23.56" y="303.5" ></text>
+</g>
+<g >
+<title>libsystem_kernel`mach_absolute_time (2 samples, 0.01%)</title><rect x="220.1" y="309" width="0.2" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="223.09" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`torirs_perf_now_ns (6 samples, 0.04%)</title><rect x="221.4" y="325" width="0.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="224.36" y="335.5" ></text>
+</g>
+<g >
+<title>libsystem_c`vsnprintf (2 samples, 0.01%)</title><rect x="44.0" y="181" width="0.1" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="46.96" y="191.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayerChildClip (2 samples, 0.01%)</title><rect x="51.5" y="277" width="0.1" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="54.46" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Init (48 samples, 0.35%)</title><rect x="23.8" y="277" width="4.1" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="26.79" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_LayoutGetBounds (2 samples, 0.01%)</title><rect x="54.2" y="197" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="57.18" y="207.5" ></text>
+</g>
+<g >
+<title>libsystem_c`gettimeofday (2 samples, 0.01%)</title><rect x="221.2" y="277" width="0.2" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="224.19" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`mock230_world_handle (16 samples, 0.12%)</title><rect x="225.7" y="277" width="1.4" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="228.71" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ContainerHasMounts (4 samples, 0.03%)</title><rect x="50.3" y="277" width="0.4" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="53.35" y="287.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`Blit4to4MaskAlpha (335 samples, 2.42%)</title><rect x="1152.6" y="261" width="28.5" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="1155.63" y="271.5" >li..</text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (2 samples, 0.01%)</title><rect x="120.5" y="213" width="0.2" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="123.49" y="223.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_TextureMapAnimate (5 samples, 0.04%)</title><rect x="144.5" y="341" width="0.4" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="147.50" y="351.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (24 samples, 0.17%)</title><rect x="83.7" y="245" width="2.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="86.72" y="255.5" ></text>
+</g>
+<g >
+<title>torirs`CS2VM2_Op_PushIntLocal (2 samples, 0.01%)</title><rect x="41.5" y="229" width="0.2" height="15.0" fill="rgb(213,37,9)" rx="2" ry="2" />
+<text  x="44.50" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`font_measure_range (5 samples, 0.04%)</title><rect x="406.4" y="277" width="0.5" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="409.43" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`painter_coord_idx (7 samples, 0.05%)</title><rect x="205.8" y="277" width="0.6" height="15.0" fill="rgb(222,82,19)" rx="2" ry="2" />
+<text  x="208.79" y="287.5" ></text>
+</g>
+<g >
+<title>libsystem_c`__findenv_locked (4 samples, 0.03%)</title><rect x="22.4" y="277" width="0.4" height="15.0" fill="rgb(253,224,53)" rx="2" ry="2" />
+<text  x="25.43" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw2D_DrawString (10 samples, 0.07%)</title><rect x="397.1" y="293" width="0.9" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="400.15" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered (178 samples, 1.28%)</title><rect x="794.1" y="261" width="15.1" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="797.08" y="271.5" ></text>
+</g>
+<g >
+<title>torirs`hit_test_interactive_recursive (5 samples, 0.04%)</title><rect x="214.9" y="229" width="0.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="217.90" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`font_try_consume_markup (2 samples, 0.01%)</title><rect x="406.7" y="261" width="0.2" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="409.68" y="271.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`SDL_LockMutex_REAL (4 samples, 0.03%)</title><rect x="232.4" y="309" width="0.4" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="235.43" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`UITree_ResolveComponentTarget (2 samples, 0.01%)</title><rect x="39.8" y="165" width="0.2" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="42.79" y="175.5" ></text>
+</g>
+<g >
+<title>torirs`VarPManager_GetVarbit (21 samples, 0.15%)</title><rect x="41.7" y="165" width="1.8" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="44.67" y="175.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`_platform_strcmp$VARIANT$Base (2 samples, 0.01%)</title><rect x="1181.8" y="277" width="0.2" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="1184.83" y="287.5" ></text>
+</g>
+<g >
+<title>libSDL2-2.0.0`FlushRenderCommands (343 samples, 2.47%)</title><rect x="1152.5" y="325" width="29.2" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="1155.55" y="335.5" >li..</text>
+</g>
+<g >
+<title>torirs`CmdBus_Push (11 samples, 0.08%)</title><rect x="215.5" y="357" width="0.9" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="218.49" y="367.5" ></text>
+</g>
+<g >
+<title>libsystem_platform`os_unfair_lock_lock_with_options (2 samples, 0.01%)</title><rect x="124.7" y="309" width="0.1" height="15.0" fill="rgb(240,165,39)" rx="2" ry="2" />
+<text  x="127.66" y="319.5" ></text>
+</g>
+<g >
+<title>torirs`find_hovered_recursive (3 samples, 0.02%)</title><rect x="87.3" y="229" width="0.2" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<text  x="90.29" y="239.5" ></text>
+</g>
+<g >
+<title>torirs`seed_gen_next (59 samples, 0.43%)</title><rect x="307.9" y="293" width="5.1" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="310.94" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`ToriDraw_ModelAnimateFrame (2 samples, 0.01%)</title><rect x="418.3" y="293" width="0.1" height="15.0" fill="rgb(250,207,49)" rx="2" ry="2" />
+<text  x="421.26" y="303.5" ></text>
+</g>
+<g >
+<title>torirs`TorirsPerf_Count (60 samples, 0.43%)</title><rect x="288.7" y="277" width="5.1" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="291.70" y="287.5" ></text>
+</g>
+<g >
+<title>torirs`exec_push_script (24 samples, 0.17%)</title><rect x="37.8" y="181" width="2.0" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="40.75" y="191.5" ></text>
+</g>
+</g>
+</svg>

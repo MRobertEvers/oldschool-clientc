@@ -1444,13 +1444,14 @@ main(void)
                   "with the clicked item as the subject and the other in last_useitem");
 
             /* And the interaction form, which has a different component width
-             * and a walk in front of it. */
+             * and a walk in front of it. Approach is west of the range
+             * (forceapproach); park a few tiles west so the walk is short. */
             alice->varps[progress] = 0;
-            mock230_world_teleport(world, 0, 3213, 3215);
+            mock230_world_teleport(world, 0, 3208, 3215);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
             peer_oplocu(&peers[0], 3212, 3215, range, bucket, 1, 0);
-            for( int round = 0; round < 8; round++ )
+            for( int round = 0; round < 40; round++ )
                 pump(peers, 2, embed, 1, 64);
             check(alice->varps[progress] == 10,
                   "and a real OPLOCU reaches [oplocu,cooksquestrange]");

@@ -136,6 +136,12 @@ test_begin_query(void)
     const char* name3 = LootStore_SourceName(&store, id0);
     TEST_ASSERT(strlen(name3) > 0, "kind=3 id resolves to name");
 
+    /* kind=2 (Clear-data cleanup in 7179) also walks sources */
+    n = LootStore_BeginQuery(&store, 0, 10, 2);
+    TEST_ASSERT(n == 3, "kind=2 query returns 3 sources");
+    id0 = LootStore_QueryId(&store, 0);
+    TEST_ASSERT(strlen(LootStore_SourceName(&store, id0)) > 0, "kind=2 id → name");
+
     LootStore_Free(&store);
 }
 
@@ -213,15 +219,12 @@ test_aux_lists(void)
     LootStore_AuxClear(&store, 2);
     TEST_ASSERT(LootStore_AuxCount(&store, 2) == 0, "cleared");
 
-    /* Shorthand accessors (7619/7620) */
-    LootStore_AuxUpsert(&store, 2, "Arrow", 0);
-    TEST_ASSERT(LootStore_GroundItemCount(&store) == 1, "ground item count");
-    TEST_ASSERT(strcmp(LootStore_GroundItemName(&store, 0), "Arrow") == 0, "ground item name");
-
-    /* Kind 1 (7625/7626) */
-    LootStore_AuxUpsert(&store, 1, "Goblin", 0);
-    TEST_ASSERT(LootStore_SourceListCount(&store) == 1, "source list count");
-    TEST_ASSERT(strcmp(LootStore_SourceListName(&store, 0), "Goblin") == 0, "source list name");
+    /* Ground Items highlight/filter use aux kinds 3/4 */
+    LootStore_AuxUpsert(&store, 3, "Filter*", 0);
+    LootStore_AuxUpsert(&store, 4, "Highlight*", 0);
+    TEST_ASSERT(LootStore_AuxCount(&store, 3) == 1, "kind 3");
+    TEST_ASSERT(LootStore_AuxCount(&store, 4) == 1, "kind 4");
+    TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "kinds 3+4 total");
 
     /* out of range kind */
     TEST_ASSERT(LootStore_AuxCount(&store, -1) == 0, "negative kind");
@@ -231,43 +234,63 @@ test_aux_lists(void)
 }
 
 /* ======================================================================== */
-/* 6. Ignore list (ops 7614/7616/7617/7621)                                 */
+/* 6. Item vs source ignore + 1-based list accessors                        */
 /* ======================================================================== */
 
 static void
 test_ignore_list(void)
 {
-    printf("TEST: ignore list\n");
+    printf("TEST: item/source ignore lists\n");
 
     struct LootStore store;
     LootStore_Init(&store);
 
-    TEST_ASSERT(!LootStore_IsIgnored(&store, "Goblin"), "not ignored initially");
+    TEST_ASSERT(!LootStore_IsItemIgnored(&store, "Bones"), "item not ignored");
+    TEST_ASSERT(!LootStore_IsSourceIgnored(&store, "Goblin"), "source not ignored");
 
-    LootStore_IgnoreAdd(&store, "Goblin");
-    TEST_ASSERT(LootStore_IsIgnored(&store, "Goblin"), "ignored after add");
+    LootStore_ItemIgnoreAdd(&store, "Bones");
+    LootStore_ItemIgnoreAdd(&store, "Bones"); /* duplicate */
+    LootStore_ItemIgnoreAdd(&store, "Coins");
+    TEST_ASSERT(LootStore_IsItemIgnored(&store, "Bones"), "Bones ignored");
+    TEST_ASSERT(LootStore_ItemIgnoreCount(&store) == 2, "2 item ignores");
+    /* 7619/7620 are 1-based */
+    TEST_ASSERT(strcmp(LootStore_ItemIgnoreName(&store, 1), "Bones") == 0, "1-based name 1");
+    TEST_ASSERT(strcmp(LootStore_ItemIgnoreName(&store, 2), "Coins") == 0, "1-based name 2");
+    TEST_ASSERT(strcmp(LootStore_ItemIgnoreName(&store, 0), "") == 0, "0 → empty");
 
-    LootStore_IgnoreAdd(&store, "Goblin"); /* duplicate — no-op */
-    LootStore_IgnoreAdd(&store, "Imp");
+    LootStore_SourceIgnoreAdd(&store, "Goblin");
+    LootStore_SourceIgnoreAdd(&store, "Imp");
+    TEST_ASSERT(LootStore_IsSourceIgnored(&store, "Goblin"), "Goblin source ignored");
+    TEST_ASSERT(!LootStore_IsItemIgnored(&store, "Goblin"), "source ignore ≠ item");
+    TEST_ASSERT(LootStore_SourceIgnoreCount(&store) == 2, "2 source ignores");
+    TEST_ASSERT(strcmp(LootStore_SourceIgnoreName(&store, 1), "Goblin") == 0, "src 1-based");
 
-    LootStore_IgnoreRemove(&store, "Goblin");
-    TEST_ASSERT(!LootStore_IsIgnored(&store, "Goblin"), "no longer ignored");
-    TEST_ASSERT(LootStore_IsIgnored(&store, "Imp"), "Imp still ignored");
+    /* 1792/7200 must not circularly wipe: clearing aux leaves persistent lists */
+    LootStore_AuxUpsert(&store, 1, "scratch", 0);
+    LootStore_AuxClear(&store, 1);
+    TEST_ASSERT(LootStore_SourceIgnoreCount(&store) == 2, "src ignore survives aux clear");
+    TEST_ASSERT(LootStore_ItemIgnoreCount(&store) == 2, "item ignore survives aux clear");
 
-    LootStore_IgnoreClear(&store);
-    TEST_ASSERT(!LootStore_IsIgnored(&store, "Imp"), "clear removes all");
+    LootStore_ItemIgnoreRemove(&store, "Bones");
+    TEST_ASSERT(!LootStore_IsItemIgnored(&store, "Bones"), "Bones removed");
+    LootStore_SourceIgnoreRemove(&store, "Goblin");
+    TEST_ASSERT(!LootStore_IsSourceIgnored(&store, "Goblin"), "Goblin removed");
+
+    LootStore_ItemIgnoreClear(&store);
+    TEST_ASSERT(LootStore_ItemIgnoreCount(&store) == 0, "item clear");
+    TEST_ASSERT(LootStore_IsSourceIgnored(&store, "Imp"), "source untouched by item clear");
 
     LootStore_Free(&store);
 }
 
 /* ======================================================================== */
-/* 7. ClearAll + RemoveById (ops 7613/7615)                                 */
+/* 7. ClearAll + ClearSourceByName + RemoveById (7613/7614/7615)            */
 /* ======================================================================== */
 
 static void
 test_clear_and_remove(void)
 {
-    printf("TEST: ClearAll and RemoveById\n");
+    printf("TEST: ClearAll / ClearSourceByName / RemoveById\n");
 
     struct LootStore store;
     LootStore_Init(&store);
@@ -276,18 +299,34 @@ test_clear_and_remove(void)
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);
     TEST_ASSERT(LootStore_SourceCount(&store) == 2, "two sources");
 
+    /* 7614 clear-source-by-name (NOT ignore-add) */
+    LootStore_ClearSourceByName(&store, "Goblin");
+    TEST_ASSERT(LootStore_SourceCount(&store) == 1, "Goblin cleared");
+    TEST_ASSERT(LootStore_SourceItemCount(&store, "Goblin") == 0, "Goblin gone");
+    TEST_ASSERT(LootStore_SourceItemCount(&store, "Imp") == 1, "Imp remains");
+
+    /* Script 7179 Clear-data sequence: 7614 then kind-2 query + 7615 */
+    LootStore_AddKillLoot(&store, "Guard", 300, 1, 50);
+    LootStore_ClearSourceByName(&store, "Guard");
+    int n = LootStore_BeginQuery(&store, 0, LootStore_AuxCountTotal(&store) + 10, 2);
+    for( int i = 0; i < n; i++ )
+    {
+        int id = LootStore_QueryId(&store, i);
+        if( strcmp(LootStore_SourceName(&store, id), "Guard") == 0 )
+            LootStore_RemoveById(&store, id);
+    }
+    TEST_ASSERT(LootStore_SourceItemCount(&store, "Guard") == 0, "clear-data sequence");
+
     /* RemoveById */
     LootStore_BeginQuery(&store, 0, 10, 1);
     int id0 = LootStore_QueryId(&store, 0);
     LootStore_RemoveById(&store, id0);
-    TEST_ASSERT(LootStore_SourceCount(&store) == 1, "one source after remove");
-    TEST_ASSERT(strcmp(LootStore_SourceName(&store, id0), "") == 0, "removed id → empty");
+    TEST_ASSERT(LootStore_SourceCount(&store) == 0, "last source removed");
 
-    /* RemoveById with bad id — no crash */
+    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);
     LootStore_RemoveById(&store, 9999);
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "remove bad id: no effect");
 
-    /* ClearAll */
     LootStore_ClearAll(&store);
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "cleared all");
 
@@ -308,13 +347,15 @@ test_reset_all(void)
 
     LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
     LootStore_AuxUpsert(&store, 1, "SrcName", 0);
-    LootStore_IgnoreAdd(&store, "Goblin");
+    LootStore_ItemIgnoreAdd(&store, "Bones");
+    LootStore_SourceIgnoreAdd(&store, "Goblin");
 
     LootStore_ResetAll(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "sources cleared");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "aux cleared");
-    TEST_ASSERT(!LootStore_IsIgnored(&store, "Goblin"), "ignore cleared");
+    TEST_ASSERT(!LootStore_IsItemIgnored(&store, "Bones"), "item ignore cleared");
+    TEST_ASSERT(!LootStore_IsSourceIgnored(&store, "Goblin"), "source ignore cleared");
 
     /* Usable after reset */
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);

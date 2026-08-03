@@ -110,20 +110,23 @@ ensure_aux_capacity(struct LootAuxList* aux)
 }
 
 static bool
-ensure_ignored_capacity(struct LootStore* store)
+ensure_strlist_capacity(
+    char*** entries,
+    int* count,
+    int* cap)
 {
-    if( store->ignored_count < store->ignored_cap )
+    if( *count < *cap )
         return true;
 
-    int grown = store->ignored_cap == 0 ? 16 : store->ignored_cap * 2;
+    int grown = *cap == 0 ? 16 : *cap * 2;
     char** buf = calloc((size_t)grown, sizeof(char*));
     if( !buf )
         return false;
-    if( store->ignored_count > 0 )
-        memcpy(buf, store->ignored, (size_t)store->ignored_count * sizeof(char*));
-    free(store->ignored);
-    store->ignored = buf;
-    store->ignored_cap = grown;
+    if( *count > 0 )
+        memcpy(buf, *entries, (size_t)(*count) * sizeof(char*));
+    free(*entries);
+    *entries = buf;
+    *cap = grown;
     return true;
 }
 
@@ -142,6 +145,100 @@ free_aux(struct LootAuxList* aux)
         free(aux->entries[i]);
     free(aux->entries);
     memset(aux, 0, sizeof(*aux));
+}
+
+static void
+free_strlist(
+    char*** entries,
+    int* count,
+    int* cap)
+{
+    for( int i = 0; i < *count; i++ )
+        free((*entries)[i]);
+    free(*entries);
+    *entries = NULL;
+    *count = 0;
+    *cap = 0;
+}
+
+static bool
+strlist_contains(
+    char* const* entries,
+    int count,
+    const char* name)
+{
+    if( !name )
+        return false;
+    for( int i = 0; i < count; i++ )
+    {
+        if( entries[i] && strcmp(entries[i], name) == 0 )
+            return true;
+    }
+    return false;
+}
+
+static void
+strlist_add(
+    char*** entries,
+    int* count,
+    int* cap,
+    const char* name)
+{
+    if( !name )
+        return;
+    if( strlist_contains(*entries, *count, name) )
+        return;
+    if( !ensure_strlist_capacity(entries, count, cap) )
+        return;
+    (*entries)[(*count)++] = strdup(name);
+}
+
+static void
+strlist_remove(
+    char*** entries,
+    int* count,
+    const char* name)
+{
+    if( !name )
+        return;
+    for( int i = 0; i < *count; i++ )
+    {
+        if( (*entries)[i] && strcmp((*entries)[i], name) == 0 )
+        {
+            free((*entries)[i]);
+            (*entries)[i] = (*entries)[*count - 1];
+            (*entries)[*count - 1] = NULL;
+            (*count)--;
+            return;
+        }
+    }
+}
+
+static int
+begin_source_query(
+    struct LootStore* store,
+    int start,
+    int limit)
+{
+    int total = store->source_count;
+    if( start < 0 )
+        start = 0;
+    if( start >= total )
+        return 0;
+    int end = start + limit;
+    if( end > total )
+        end = total;
+    int count = end - start;
+    if( count <= 0 )
+        return 0;
+
+    if( !ensure_query_capacity(store, count) )
+        return 0;
+
+    for( int i = 0; i < count; i++ )
+        store->query_ids[i] = store->sources[start + i].id;
+    store->query_count = count;
+    return count;
 }
 
 /* ========================================================================= */
@@ -166,9 +263,14 @@ LootStore_Free(struct LootStore* store)
         free_source(&store->sources[i]);
     free(store->sources);
 
-    for( int i = 0; i < store->ignored_count; i++ )
-        free(store->ignored[i]);
-    free(store->ignored);
+    free_strlist(
+        &store->item_ignored,
+        &store->item_ignored_count,
+        &store->item_ignored_cap);
+    free_strlist(
+        &store->source_ignored,
+        &store->source_ignored_count,
+        &store->source_ignored_cap);
 
     for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
         free_aux(&store->aux[k]);
@@ -295,77 +397,9 @@ LootStore_BeginQuery(
 
     store->query_count = 0;
 
-    if( kind == 1 )
-    {
-        int total = store->source_count;
-        if( start < 0 )
-            start = 0;
-        if( start >= total )
-            return 0;
-        int end = start + limit;
-        if( end > total )
-            end = total;
-        int count = end - start;
-        if( count <= 0 )
-            return 0;
-
-        if( !ensure_query_capacity(store, count) )
-            return 0;
-
-        for( int i = 0; i < count; i++ )
-            store->query_ids[i] = store->sources[start + i].id;
-        store->query_count = count;
-        return count;
-    }
-
-    if( kind >= 0 && kind < LOOT_AUX_KIND_MAX )
-    {
-        struct LootAuxList* aux = &store->aux[kind];
-        int total = aux->count;
-        if( start < 0 )
-            start = 0;
-        if( start >= total )
-            return 0;
-        int end = start + limit;
-        if( end > total )
-            end = total;
-        int count = end - start;
-        if( count <= 0 )
-            return 0;
-
-        if( !ensure_query_capacity(store, count) )
-            return 0;
-
-        for( int i = 0; i < count; i++ )
-            store->query_ids[i] = start + i;
-        store->query_count = count;
-        return count;
-    }
-
-    /* kind=3 is used in script 7166's second loop for ground items; map it to
-     * the source list so _7606→_7630 returns source ids. */
-    if( kind == 3 )
-    {
-        int total = store->source_count;
-        if( start < 0 )
-            start = 0;
-        if( start >= total )
-            return 0;
-        int end = start + limit;
-        if( end > total )
-            end = total;
-        int count = end - start;
-        if( count <= 0 )
-            return 0;
-
-        if( !ensure_query_capacity(store, count) )
-            return 0;
-
-        for( int i = 0; i < count; i++ )
-            store->query_ids[i] = store->sources[start + i].id;
-        store->query_count = count;
-        return count;
-    }
+    /* Scripts 7166/7179 use kinds 1, 2, and 3 — all walk recorded sources. */
+    if( kind == 1 || kind == 2 || kind == 3 )
+        return begin_source_query(store, start, limit);
 
     return 0;
 }
@@ -563,104 +597,133 @@ LootStore_AuxClear(
     free_aux(&store->aux[kind]);
 }
 
-/* ========================================================================= */
-/* Shorthand kind-1 / kind-2 accessors                                       */
-/* ========================================================================= */
-
 int
-LootStore_GroundItemCount(const struct LootStore* store)
+LootStore_AuxCountTotal(const struct LootStore* store)
 {
-    return LootStore_AuxCount(store, 2);
-}
-
-const char*
-LootStore_GroundItemName(
-    const struct LootStore* store,
-    int index)
-{
-    return LootStore_AuxGet(store, 2, index);
-}
-
-int
-LootStore_SourceListCount(const struct LootStore* store)
-{
-    return LootStore_AuxCount(store, 1);
-}
-
-const char*
-LootStore_SourceListName(
-    const struct LootStore* store,
-    int index)
-{
-    return LootStore_AuxGet(store, 1, index);
+    assert(store);
+    int total = 0;
+    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
+        total += store->aux[k].count;
+    return total;
 }
 
 /* ========================================================================= */
-/* Ignore list                                                               */
+/* Item ignore                                                               */
 /* ========================================================================= */
 
 void
-LootStore_IgnoreAdd(
+LootStore_ItemIgnoreAdd(
     struct LootStore* store,
     const char* name)
 {
     assert(store);
-    if( !name )
-        return;
-
-    if( LootStore_IsIgnored(store, name) )
-        return;
-
-    if( !ensure_ignored_capacity(store) )
-        return;
-    store->ignored[store->ignored_count++] = strdup(name);
+    strlist_add(
+        &store->item_ignored,
+        &store->item_ignored_count,
+        &store->item_ignored_cap,
+        name);
 }
 
 void
-LootStore_IgnoreRemove(
+LootStore_ItemIgnoreRemove(
     struct LootStore* store,
     const char* name)
 {
     assert(store);
-    if( !name )
-        return;
-
-    for( int i = 0; i < store->ignored_count; i++ )
-    {
-        if( store->ignored[i] && strcmp(store->ignored[i], name) == 0 )
-        {
-            free(store->ignored[i]);
-            store->ignored[i] = store->ignored[store->ignored_count - 1];
-            store->ignored[store->ignored_count - 1] = NULL;
-            store->ignored_count--;
-            return;
-        }
-    }
+    strlist_remove(&store->item_ignored, &store->item_ignored_count, name);
 }
 
 void
-LootStore_IgnoreClear(struct LootStore* store)
+LootStore_ItemIgnoreClear(struct LootStore* store)
 {
     assert(store);
-    for( int i = 0; i < store->ignored_count; i++ )
-        free(store->ignored[i]);
-    store->ignored_count = 0;
+    for( int i = 0; i < store->item_ignored_count; i++ )
+        free(store->item_ignored[i]);
+    store->item_ignored_count = 0;
 }
 
 bool
-LootStore_IsIgnored(
+LootStore_IsItemIgnored(
     const struct LootStore* store,
     const char* name)
 {
     assert(store);
-    if( !name )
-        return false;
-    for( int i = 0; i < store->ignored_count; i++ )
-    {
-        if( store->ignored[i] && strcmp(store->ignored[i], name) == 0 )
-            return true;
-    }
-    return false;
+    return strlist_contains(store->item_ignored, store->item_ignored_count, name);
+}
+
+int
+LootStore_ItemIgnoreCount(const struct LootStore* store)
+{
+    assert(store);
+    return store->item_ignored_count;
+}
+
+const char*
+LootStore_ItemIgnoreName(
+    const struct LootStore* store,
+    int index_1based)
+{
+    assert(store);
+    if( index_1based < 1 || index_1based > store->item_ignored_count )
+        return "";
+    const char* s = store->item_ignored[index_1based - 1];
+    return s ? s : "";
+}
+
+/* ========================================================================= */
+/* Source ignore                                                             */
+/* ========================================================================= */
+
+void
+LootStore_SourceIgnoreAdd(
+    struct LootStore* store,
+    const char* name)
+{
+    assert(store);
+    strlist_add(
+        &store->source_ignored,
+        &store->source_ignored_count,
+        &store->source_ignored_cap,
+        name);
+}
+
+void
+LootStore_SourceIgnoreRemove(
+    struct LootStore* store,
+    const char* name)
+{
+    assert(store);
+    strlist_remove(
+        &store->source_ignored, &store->source_ignored_count, name);
+}
+
+bool
+LootStore_IsSourceIgnored(
+    const struct LootStore* store,
+    const char* name)
+{
+    assert(store);
+    return strlist_contains(
+        store->source_ignored, store->source_ignored_count, name);
+}
+
+int
+LootStore_SourceIgnoreCount(const struct LootStore* store)
+{
+    assert(store);
+    return store->source_ignored_count;
+}
+
+const char*
+LootStore_SourceIgnoreName(
+    const struct LootStore* store,
+    int index_1based)
+{
+    assert(store);
+    if( index_1based < 1 || index_1based > store->source_ignored_count )
+        return "";
+    const char* s = store->source_ignored[index_1based - 1];
+    return s ? s : "";
 }
 
 /* ========================================================================= */
@@ -678,6 +741,31 @@ LootStore_ClearAll(struct LootStore* store)
 }
 
 void
+LootStore_ClearSourceByName(
+    struct LootStore* store,
+    const char* name)
+{
+    assert(store);
+    if( !name )
+        return;
+
+    for( int i = 0; i < store->source_count; i++ )
+    {
+        if( store->sources[i].name && strcmp(store->sources[i].name, name) == 0 )
+        {
+            free_source(&store->sources[i]);
+            store->sources[i] = store->sources[store->source_count - 1];
+            memset(
+                &store->sources[store->source_count - 1],
+                0,
+                sizeof(struct LootSource));
+            store->source_count--;
+            return;
+        }
+    }
+}
+
+void
 LootStore_RemoveById(
     struct LootStore* store,
     int source_id)
@@ -689,23 +777,12 @@ LootStore_RemoveById(
         {
             free_source(&store->sources[i]);
             store->sources[i] = store->sources[store->source_count - 1];
-            memset(&store->sources[store->source_count - 1], 0, sizeof(struct LootSource));
+            memset(
+                &store->sources[store->source_count - 1],
+                0,
+                sizeof(struct LootSource));
             store->source_count--;
             return;
         }
     }
-}
-
-/* ========================================================================= */
-/* Aux count total                                                           */
-/* ========================================================================= */
-
-int
-LootStore_AuxCountTotal(const struct LootStore* store)
-{
-    assert(store);
-    int total = 0;
-    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
-        total += store->aux[k].count;
-    return total;
 }

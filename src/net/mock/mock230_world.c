@@ -864,26 +864,59 @@ mock230_world_process_interaction(struct Mock230Server* srv)
 
         reached = mock230_scene_reached(player->level, player->x, player->z, target_x, target_z,
                                         &approach);
-        /* Ground obj EXACT: standing on the tile. If EXACT fails and we have
-         * no waypoints left, try the 1x1 adjacent form the client retries. */
-        if( !reached && interaction->kind == MOCK230_INTERACT_OBJ )
+        /* Ground obj EXACT: standing on the tile. Retry 1x1 adjacent only when
+         * we have finished trying to walk (no step this tick, no waypoints left)
+         * — and never mutate `approach` itself: the re-route below must keep
+         * routing EXACT, or a mid-walk adjacent check permanently redirects the
+         * destination to a neighbour tile. */
+        if( !reached && interaction->kind == MOCK230_INTERACT_OBJ &&
+            !player_has_waypoints(player) && player->steps_taken == 0 )
         {
-            mock230_scene_obj_approach(1, &approach);
+            struct CollisionApproach adjacent;
+            mock230_scene_obj_approach(1, &adjacent);
             reached = mock230_scene_reached(player->level, player->x, player->z, target_x, target_z,
-                                            &approach);
+                                            &adjacent);
         }
 
         if( !reached )
         {
-            /* Still walking, or stalled unreachable. Reference terminates when
-             * there are no waypoints and no step was taken this tick. */
-            if( !player_has_waypoints(player) && player->steps_taken == 0 )
+            /*
+             * Keep closing the distance.
+             *
+             * The greedy turn-point follower can stall when a long BFS path was
+             * compressed into MOCK230_WAYPOINT_MAX corners. When the queue is
+             * empty (or we stalled with no step), re-flood and keep only the
+             * next tile so the stepper cannot skip around a wall — same
+             * one-step-from-BFS shape as mock230_world_npc_walk_to. A failed
+             * flood with no step this tick means the target is unreachable.
+             */
+            if( !player_has_waypoints(player) || player->steps_taken == 0 )
             {
-                mock230_say(srv, "cannot_reach_message", NULL);
-                mock230_world_interaction_clear(srv);
-                player->clear_map_flag = 1;
-                player->dest_x = -1;
-                player->dest_z = -1;
+                int path_x[MOCK230_STEP_MAX];
+                int path_z[MOCK230_STEP_MAX];
+                int arrive_x = target_x;
+                int arrive_z = target_z;
+                int n = mock230_scene_route_op(player->level, player->x, player->z, target_x,
+                                               target_z, &approach, path_x, path_z,
+                                               MOCK230_STEP_MAX, &arrive_x, &arrive_z);
+                if( n > 0 )
+                {
+                    player->waypoints[0].x = (int16_t)path_x[0];
+                    player->waypoints[0].z = (int16_t)path_z[0];
+                    player->waypoint_index = 0;
+                    player->dest_x = arrive_x;
+                    player->dest_z = arrive_z;
+                    return;
+                }
+                if( player->steps_taken == 0 )
+                {
+                    mock230_say(srv, "cannot_reach_message", NULL);
+                    mock230_world_interaction_clear(srv);
+                    player->clear_map_flag = 1;
+                    player->dest_x = -1;
+                    player->dest_z = -1;
+                    player->waypoint_index = -1;
+                }
             }
             return;
         }
@@ -11254,30 +11287,19 @@ mock230_world_selftest(void)
                        "and does NOT act on it from eight tiles away");
         SELFTEST_CHECK(player->waypoint_index >= 0, "it starts a walk instead");
 
-        settled = selftest_settle(&srv, 40);
         {
             struct CollisionApproach exact, adj;
-            int px = player->x, pz = player->z;
             mock230_scene_obj_approach(0, &exact);
             mock230_scene_obj_approach(1, &adj);
-            fprintf(stderr, "  PROBE obj settle: settled=%d pos=%d,%d kind=%d wpi=%d dest=%d,%d exact=%d adj=%d blocked_obj=%d\n",
-                    settled, px, pz, (int)player->interaction.kind, player->waypoint_index,
-                    player->dest_x, player->dest_z,
-                    mock230_scene_reached(0, px, pz, obj_x, obj_z, &exact),
-                    mock230_scene_reached(0, px, pz, obj_x, obj_z, &adj),
-                    mock230_scene_walk_blocked(0, obj_x, obj_z));
-            {
-                int path_x[256], path_z[256], ax, az, n;
-                n = mock230_scene_route_op(0, 3222, 3218, obj_x, obj_z, &exact, path_x, path_z, 256, &ax, &az);
-                fprintf(stderr, "  PROBE exact route n=%d arrive=%d,%d last=%d,%d\n",
-                        n, ax, az, n>0?path_x[n-1]:-1, n>0?path_z[n-1]:-1);
-                n = mock230_scene_route_op(0, 3222, 3218, obj_x, obj_z, &adj, path_x, path_z, 256, &ax, &az);
-                fprintf(stderr, "  PROBE adj route n=%d arrive=%d,%d\n", n, ax, az);
-                if (mock230_scene_collision(0)) {
-                    int bx = mock230_scene_base_x(), bz = mock230_scene_base_z();
-                    unsigned f = collision_map_tile(mock230_scene_collision(0), obj_x-bx, obj_z-bz);
-                    fprintf(stderr, "  PROBE obj tile flags=0x%x\n", f);
-                }
+            for( int i = 0; i < 40; i++ ) {
+                fprintf(stderr, "  T%d pos=%d,%d wpi=%d dest=%d,%d steps_taken=%d kind=%d exact=%d adj=%d\n",
+                        i, player->x, player->z, player->waypoint_index, player->dest_x, player->dest_z,
+                        player->steps_taken, (int)player->interaction.kind,
+                        mock230_scene_reached(0, player->x, player->z, obj_x, obj_z, &exact),
+                        mock230_scene_reached(0, player->x, player->z, obj_x, obj_z, &adj));
+                if( player->interaction.kind == MOCK230_INTERACT_NONE ) { settled = i; break; }
+                mock230_world_tick(&srv);
+                if( i == 39 ) settled = -1;
             }
         }
         SELFTEST_CHECK(settled > 0, "arriving takes ticks, got %d", settled);
@@ -13396,6 +13418,9 @@ mock230_world_selftest(void)
              * it, which is the case that used to end it.
              */
             {
+                /* Scene must cover the goblin: route no longer straight-lines
+                 * through tiles outside the built window. */
+                selftest_park_player(&srv, home_x, home_z);
                 for( int ox = -12; ox <= 12 && flee_steps < 6; ox++ )
                 {
                     for( int oz = -12; oz <= 12 && flee_steps < 6; oz++ )

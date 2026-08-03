@@ -4075,38 +4075,49 @@ exec_loot(
         LootStore_ClearAll(loot);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_IGNORE_ADD:
-    case CS2_OP_LOOT_IGNORE_ADD2:
-        LootStore_IgnoreAdd(loot, req->name ? req->name : "");
+    case CS2_OP_LOOT_CLEAR_SOURCE:
+        LootStore_ClearSourceByName(loot, req->name ? req->name : "");
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_LOOT_REMOVE_BYID:
         LootStore_RemoveById(loot, req->int_args[0]);
         return CS2VM_EXECNO_OK;
 
+    case CS2_OP_LOOT_IGNORE_ADD:
+        LootStore_ItemIgnoreAdd(loot, req->name ? req->name : "");
+        return CS2VM_EXECNO_OK;
+
     case CS2_OP_LOOT_IGNORE_REMOVE:
-        LootStore_IgnoreRemove(loot, req->name ? req->name : "");
+        LootStore_ItemIgnoreRemove(loot, req->name ? req->name : "");
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_LOOT_IGNORE_CLEAR:
-        LootStore_IgnoreClear(loot);
+        LootStore_ItemIgnoreClear(loot);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_SOURCE_IGNORE_ADD:
+        LootStore_SourceIgnoreAdd(loot, req->name ? req->name : "");
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOT_SOURCE_IGNORE_REMOVE:
+        LootStore_SourceIgnoreRemove(loot, req->name ? req->name : "");
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_LOOT_GROUND_COUNT:
-        return CS2VM2_PushInt(vm, LootStore_GroundItemCount(loot));
+        return CS2VM2_PushInt(vm, LootStore_ItemIgnoreCount(loot));
 
     case CS2_OP_LOOT_GROUND_NAME:
     {
-        const char* name = LootStore_GroundItemName(loot, req->int_args[0]);
+        const char* name = LootStore_ItemIgnoreName(loot, req->int_args[0]);
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     }
 
     case CS2_OP_LOOT_SRCLIST_COUNT:
-        return CS2VM2_PushInt(vm, LootStore_SourceListCount(loot));
+        return CS2VM2_PushInt(vm, LootStore_SourceIgnoreCount(loot));
 
     case CS2_OP_LOOT_SRCLIST_NAME:
     {
-        const char* name = LootStore_SourceListName(loot, req->int_args[0]);
+        const char* name = LootStore_SourceIgnoreName(loot, req->int_args[0]);
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     }
 

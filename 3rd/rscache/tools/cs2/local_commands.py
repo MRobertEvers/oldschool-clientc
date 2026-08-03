@@ -122,6 +122,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7617": (["STRING"], [], False),
     # 7621: 1 witness, unique.
     "_7621": ([], [], False),
+    # 7622/7623: source-ignore add/remove (script 1791); mirror 7616/7617.
+    "_7622": (["STRING"], [], False),
+    "_7623": (["STRING"], [], False),
     # 7809: 1 witness, unique.
     "_7809": ([], ["INT"], False),
     # 7810: 2 witnesses, unique.

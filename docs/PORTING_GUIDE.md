@@ -61,7 +61,8 @@ OSRS-Content/osrs239-content/                ← source of truth for what it sta
 
 mock230 boot (mock230_boot.c — the order is a function, not a convention):
   cache.osrs239        → obj/npc/seq/varbit configs, collision (client's own
-                         collision_map.c, LINKED not reimplemented), inv sizes
+                         collision_map.c, LINKED not reimplemented — flags and
+                         routing), inv sizes
   content tree         → symbols, config overlays, spawns, db tables
   script pack          → ServerScript VM (per session)
 ```
@@ -132,7 +133,7 @@ Measured from the reference (details in the triage and in
 | subsystem | owner | evidence |
 |---|---|---|
 | tick loop, 11 phases | ENGINE | `engine/src/engine/World.ts` `cycle()` |
-| pathfinding/collision | ENGINE | `rsmod-pathfinder` npm; here: linked client `collision_map.c` |
+| pathfinding/collision | ENGINE | `rsmod-pathfinder` npm; here: linked client `collision_map.c` (tile flags **and** routing — `collision_map_route_tiles` / `collision_map_reached`, used by both `app.c` and `mock230_scene.c`) |
 | op/ap interaction resolution | ENGINE | `Player.tryInteract` |
 | npc modes (wander/patrol/follow), hunt *mechanism* | ENGINE | `Npc.ts`, `HuntType.ts` |
 | queues/timers/delays *primitives* | ENGINE | `ScriptState` suspension |

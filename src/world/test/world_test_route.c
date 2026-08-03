@@ -246,6 +246,7 @@ test_try_route_op_forceapproach(void)
 static int
 rotate_force_approach(int force_approach, int angle)
 {
+    force_approach &= 0xf;
     if( angle == 0 )
         return force_approach;
     return ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
@@ -267,6 +268,9 @@ test_force_approach_rotation(void)
     TEST_ASSERT(rotate_force_approach(11, 1) == 7, "11 at angle 1 -> 7");
     TEST_ASSERT(rotate_force_approach(11, 2) == 14, "11 at angle 2 -> 14");
     TEST_ASSERT(rotate_force_approach(11, 3) == 13, "11 at angle 3 -> 13");
+    /* OSRS cooksquestrange stores 29; high bits must not leak through >> .
+     * Low nibble is 13 (N|S|W, east open); angle 2 -> west open (7 = N|E|S). */
+    TEST_ASSERT(rotate_force_approach(29, 2) == 7, "29 at angle 2 masks then rotates to 7");
     /* Four steps is the identity for every mask. */
     for( int mask = 0; mask <= 0xf; mask++ )
     {

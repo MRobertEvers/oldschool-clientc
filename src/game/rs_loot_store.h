@@ -11,26 +11,22 @@
  * No game packet populates it — the server hook (AddKillLoot) feeds the store
  * directly when an NPC death drop is rolled.
  *
- * Data model, reverse-engineered from decompiled CS2 (scripts 7166, 4298,
- * 4452, 7200, 7159):
+ * Data model (scripts 7166, 7179, 7199, 1791, 1792, 7200, debug 1223-1228):
  *
- *   Sources  — keyed by (auto-id, name). Each holds rows of (obj_id, qty,
- *              value). A source is e.g. "Goblin" or "Kalphite Queen".
- *
- *   Aux lists — three kind-indexed string lists (kind 0 = main loot entries,
- *              kind 1 = sources via ops 7625/7626, kind 2 = ground-item names
- *              via 7619/7620). Ops 7401/7404/7407/7408/7409 operate on these.
- *
- *   Ignore   — source names the user has muted; ops 7614/7616 add,
- *              7617 removes, 7621 clears.
- *
- *   Query    — a cursor set by 7605 (begin) and walked by 7606 (index→id).
+ *   Sources       — keyed by (auto-id, name). Rows of (obj_id, qty, value).
+ *   Aux lists     — scratch string lists kinds 0..4 (7400-family). Scripts
+ *                   1792/7200 rebuild kinds 1/2 from the persistent ignore
+ *                   lists; Ground Items highlight/filter use kinds 3/4.
+ *   Item ignore   — 7616/7617/7621; also backs 1-based 7619/7620.
+ *   Source ignore — 7622/7623; also backs 1-based 7625/7626.
+ *   Clear source  — 7614 by name; 7615 by id; 7613 clears all sources.
+ *   Query         — 7605 begin / 7606 index→id. Kinds 1, 2, and 3 = sources.
  *
  * Modelled on VarCManager: Init/Free/ResetAll, grow-on-demand, asserts for
  * programming errors per .cursor/rules/c-assert-invariants.mdc.
  */
 
-#define LOOT_AUX_KIND_MAX 3
+#define LOOT_AUX_KIND_MAX 5
 
 struct LootRow
 {
@@ -62,9 +58,15 @@ struct LootStore
     int source_cap;
     int next_source_id;
 
-    char** ignored;
-    int ignored_count;
-    int ignored_cap;
+    /* Item ignore (7616/7617/7621); backs 7619/7620. */
+    char** item_ignored;
+    int item_ignored_count;
+    int item_ignored_cap;
+
+    /* Source ignore (7622/7623); backs 7625/7626. */
+    char** source_ignored;
+    int source_ignored_count;
+    int source_ignored_cap;
 
     struct LootAuxList aux[LOOT_AUX_KIND_MAX];
 
@@ -85,7 +87,7 @@ LootStore_ResetAll(struct LootStore* store);
 /* --- Populate hook (server/engine side) --------------------------------- */
 
 /** Record one loot drop. Creates the source group if it does not exist;
- *  appends or merges a row for obj_id. */
+ *  appends or merges a row for obj_id. Does not consult ignore lists. */
 void
 LootStore_AddKillLoot(
     struct LootStore* store,
@@ -118,8 +120,8 @@ LootStore_SourceTotalValue(
     const struct LootStore* store,
     const char* source_name);
 
-/** Begin a query: populate query_ids from sources or aux list and return the
- *  result count (op 7605). kind=1 queries sources, kind=0/2 queries aux. */
+/** Begin a query: populate query_ids from sources and return the result
+ *  count (op 7605). Kinds 1, 2, and 3 all walk the source list. */
 int
 LootStore_BeginQuery(
     struct LootStore* store,
@@ -135,20 +137,16 @@ LootStore_QueryId(
 
 /* --- Per-source row access (backing ops 7609..7612) --------------------- */
 
-/** Count of rows under a source looked up by name (op 7609). */
 int
 LootStore_RowCountByName(
     const struct LootStore* store,
     const char* source_name);
 
-/** Count of rows under a source looked up by id (op 7610). */
 int
 LootStore_RowCountById(
     const struct LootStore* store,
     int source_id);
 
-/** Fetch (obj_id, qty) by source name + row index (op 7611). Returns false
- *  on miss. */
 bool
 LootStore_RowByName(
     const struct LootStore* store,
@@ -157,8 +155,6 @@ LootStore_RowByName(
     int* out_obj_id,
     int* out_qty);
 
-/** Fetch (obj_id, qty) by source id + row index (op 7612). Returns false
- *  on miss. */
 bool
 LootStore_RowById(
     const struct LootStore* store,
@@ -169,7 +165,6 @@ LootStore_RowById(
 
 /* --- Aux string lists (backing ops 7401/7404/7407/7408/7409) ------------ */
 
-/** Upsert a string into aux list `kind` (op 7401). flag is unused for now. */
 void
 LootStore_AuxUpsert(
     struct LootStore* store,
@@ -177,7 +172,6 @@ LootStore_AuxUpsert(
     const char* str,
     int flag);
 
-/** Remove a string from aux list `kind` (op 7404). */
 void
 LootStore_AuxRemove(
     struct LootStore* store,
@@ -185,13 +179,11 @@ LootStore_AuxRemove(
     const char* str,
     int flag);
 
-/** Length of aux list `kind` (op 7407). */
 int
 LootStore_AuxCount(
     const struct LootStore* store,
     int kind);
 
-/** Lookup: does `str` exist in aux list `kind`? (op 7408). */
 int
 LootStore_AuxLookup(
     const struct LootStore* store,
@@ -200,77 +192,104 @@ LootStore_AuxLookup(
     int arg3,
     int arg4);
 
-/** Retrieve string at index from aux list `kind` (op 7406). */
 const char*
 LootStore_AuxGet(
     const struct LootStore* store,
     int kind,
     int index);
 
-/** Clear aux list `kind` (op 7409). */
 void
 LootStore_AuxClear(
     struct LootStore* store,
     int kind);
 
-/* --- Shorthand accessors for specific aux kinds (7619/7620/7625/7626) --- */
-
-/** Count of kind-2 ground-item names (op 7619). */
 int
-LootStore_GroundItemCount(const struct LootStore* store);
+LootStore_AuxCountTotal(const struct LootStore* store);
 
-/** Index → ground-item name string (op 7620). */
-const char*
-LootStore_GroundItemName(
-    const struct LootStore* store,
-    int index);
-
-/** Count of kind-1 source names (op 7625). */
-int
-LootStore_SourceListCount(const struct LootStore* store);
-
-/** Index → source list name string (op 7626). */
-const char*
-LootStore_SourceListName(
-    const struct LootStore* store,
-    int index);
-
-/* --- Ignore list (backing ops 7614/7616/7617/7621) ---------------------- */
+/* --- Item ignore (7616/7617/7621) + 1-based 7619/7620 -------------------- */
 
 void
-LootStore_IgnoreAdd(
+LootStore_ItemIgnoreAdd(
     struct LootStore* store,
     const char* name);
 
 void
-LootStore_IgnoreRemove(
+LootStore_ItemIgnoreRemove(
     struct LootStore* store,
     const char* name);
 
 void
-LootStore_IgnoreClear(struct LootStore* store);
+LootStore_ItemIgnoreClear(struct LootStore* store);
 
 bool
-LootStore_IsIgnored(
+LootStore_IsItemIgnored(
     const struct LootStore* store,
     const char* name);
 
-/* --- Removal (backing op 7613/7615) ------------------------------------- */
+/** Count of item-ignore entries (op 7619). */
+int
+LootStore_ItemIgnoreCount(const struct LootStore* store);
 
-/** Clear the entire store (op 7613). */
+/** 1-based index → item-ignore name (op 7620). Returns "" if out of range. */
+const char*
+LootStore_ItemIgnoreName(
+    const struct LootStore* store,
+    int index_1based);
+
+/* Compat aliases used by older host/test call sites. */
+#define LootStore_IgnoreAdd LootStore_ItemIgnoreAdd
+#define LootStore_IgnoreRemove LootStore_ItemIgnoreRemove
+#define LootStore_IgnoreClear LootStore_ItemIgnoreClear
+#define LootStore_IsIgnored LootStore_IsItemIgnored
+#define LootStore_GroundItemCount LootStore_ItemIgnoreCount
+#define LootStore_GroundItemName LootStore_ItemIgnoreName
+
+/* --- Source ignore (7622/7623) + 1-based 7625/7626 ----------------------- */
+
+void
+LootStore_SourceIgnoreAdd(
+    struct LootStore* store,
+    const char* name);
+
+void
+LootStore_SourceIgnoreRemove(
+    struct LootStore* store,
+    const char* name);
+
+bool
+LootStore_IsSourceIgnored(
+    const struct LootStore* store,
+    const char* name);
+
+/** Count of source-ignore entries (op 7625). */
+int
+LootStore_SourceIgnoreCount(const struct LootStore* store);
+
+/** 1-based index → source-ignore name (op 7626). */
+const char*
+LootStore_SourceIgnoreName(
+    const struct LootStore* store,
+    int index_1based);
+
+#define LootStore_SourceListCount LootStore_SourceIgnoreCount
+#define LootStore_SourceListName LootStore_SourceIgnoreName
+
+/* --- Removal (backing ops 7613/7614/7615) -------------------------------- */
+
+/** Clear all recorded sources (op 7613). Does not clear ignore/aux. */
 void
 LootStore_ClearAll(struct LootStore* store);
+
+/** Remove the source with the given name (op 7614). */
+void
+LootStore_ClearSourceByName(
+    struct LootStore* store,
+    const char* name);
 
 /** Remove a source by id (op 7615). */
 void
 LootStore_RemoveById(
     struct LootStore* store,
     int source_id);
-
-/* --- Aux count total (op 7608) ------------------------------------------ */
-
-/** Total entry count across all aux lists (op 7608). */
-int
-LootStore_AuxCountTotal(const struct LootStore* store);
 
 #endif /* RS_LOOT_STORE_H */

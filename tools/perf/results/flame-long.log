@@ -1,4 +1,5 @@
 torirs: dat2 cache=cache.osrs239 iface=161
+torirs_perf: enabled (ring=2048 window=1000 budget=20ms)
 audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
 audio: no device; running silent
 mock230: features era=osrs approach=rect op_nearest=10
@@ -11,7 +12,7 @@ mock230: 2872 varp(s) carry varbits
 mock230: varbit table loaded (19008 records from cache.osrs239)
 mock230: 1117 param types from configs/all.param
 mock230: 5862 enums from configs/all.enum
-mock230: content loaded (213779 symbols, 473 constants, 44 npc defs, 2204 loc defs, 198 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: content loaded (213779 symbols, 476 constants, 44 npc defs, 2204 loc defs, 201 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
 mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
 mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
 mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
@@ -20,24 +21,25 @@ mock230: db tables loaded (257 tables, 15608 rows from cache.osrs239; 245 schema
 mock230: bank tables loaded (19008 varbits, bank=1410 slots)
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-boot: 4831ms  frames=1 steps=242 capped=0
 mock230: login user='testc' session=ok
-mock230: 1014 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 1029 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 1 opcode(s) this content uses are not implemented:
+  LINEOFWALK                   first wanted by [opheld1,mithril_seed]
 mock230: 3 engine fallback(s) still answer triggers content does not bind
 mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
 net: no decoder for wire opcode 108 (osrs230) — dropped
 textures: sprite-backed system (no materials table)
 Failed to load dat2 texture 65535
 world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 painter_paint_bucket: draw box 25x25 has 0 visible tiles (cullspan=1 cullmap_radius=0) — world will be blank; set TORIRS_PAINTER_NOCULL=1 to recover
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
@@ -94,55 +96,5 @@ spawn_npc: npc=6773 element=59760 tile=90,84 level=0 size=1 recolors=6 retexture
 spawn_npc: npc=3254 element=59761 tile=90,84 level=0 size=1 recolors=3 retextures=0
 spawn_npc: npc=3254 element=59762 tile=90,84 level=0 size=1 recolors=3 retextures=0
 spawn_npc: npc=6816 element=59763 tile=90,84 level=0 size=1 recolors=3 retextures=0
-torirs_stats: tick=250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
 spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=1000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=1250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
 spawn_npc: npc=3111 element=59754 tile=90,84 level=0 size=1 recolors=3 retextures=0
-torirs_stats: tick=1500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=1750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=4000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-spawn_npc: npc=5007 element=59752 tile=90,84 level=0 size=1 recolors=0 retextures=0
-torirs_stats: tick=6000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=7250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=10000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
-post-boot: busy_frames=1 busy_steps=32 (frames that used the whole budget with work still queued)
-app: map archives are unencrypted at this revision
-app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
-varbit load: 20411 types (19008 records, ids 0..20410)
-hitsplat load: 83 types (83 records)
-InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=8 mounts=0

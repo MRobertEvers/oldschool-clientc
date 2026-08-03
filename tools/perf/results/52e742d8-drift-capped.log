@@ -1,4 +1,5 @@
-torirs: dat2 cache=cache.osrs239 iface=161
+torirs: dat2 cache=/Users/matthewevers/Documents/git_repos/3draster/cache.osrs239 iface=161
+torirs_perf: enabled (ring=2048 window=500 budget=20ms) csv=/Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift-capped.csv
 audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
 audio: no device; running silent
 mock230: features era=osrs approach=rect op_nearest=10
@@ -11,7 +12,7 @@ mock230: 2872 varp(s) carry varbits
 mock230: varbit table loaded (19008 records from cache.osrs239)
 mock230: 1117 param types from configs/all.param
 mock230: 5862 enums from configs/all.enum
-mock230: content loaded (213779 symbols, 473 constants, 44 npc defs, 2204 loc defs, 198 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: content loaded (213779 symbols, 476 constants, 44 npc defs, 2204 loc defs, 199 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
 mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
 mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
 mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
@@ -20,24 +21,24 @@ mock230: db tables loaded (257 tables, 15608 rows from cache.osrs239; 245 schema
 mock230: bank tables loaded (19008 varbits, bank=1410 slots)
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-boot: 4831ms  frames=1 steps=242 capped=0
+boot: 4923ms  frames=1 steps=242 capped=0
 mock230: login user='testc' session=ok
-mock230: 1014 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 1021 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
 mock230: 3 engine fallback(s) still answer triggers content does not bind
 mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
 net: no decoder for wire opcode 108 (osrs230) — dropped
 textures: sprite-backed system (no materials table)
 Failed to load dat2 texture 65535
 world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
-Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 painter_paint_bucket: draw box 25x25 has 0 visible tiles (cullspan=1 cullmap_radius=0) — world will be blank; set TORIRS_PAINTER_NOCULL=1 to recover
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
@@ -94,53 +95,123 @@ spawn_npc: npc=6773 element=59760 tile=90,84 level=0 size=1 recolors=6 retexture
 spawn_npc: npc=3254 element=59761 tile=90,84 level=0 size=1 recolors=3 retextures=0
 spawn_npc: npc=3254 element=59762 tile=90,84 level=0 size=1 recolors=3 retextures=0
 spawn_npc: npc=6816 element=59763 tile=90,84 level=0 size=1 recolors=3 retextures=0
-torirs_stats: tick=250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=500 writing /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift-capped.csv.windows.csv
+torirs_perf: window=0 frame_p95=24.17ms
 spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=1000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=1250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=1 frame_p95=24.17ms
 spawn_npc: npc=3111 element=59754 tile=90,84 level=0 size=1 recolors=3 retextures=0
-torirs_stats: tick=1500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=1750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=2750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=3750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=2 frame_p95=24.10ms
+torirs_perf: window=3 frame_p95=24.08ms
+torirs_perf: window=4 frame_p95=24.21ms
+torirs_perf: window=5 frame_p95=24.17ms
 spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=4000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=4750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=5750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=6 frame_p95=24.15ms
+torirs_perf: window=7 frame_p95=24.34ms
+torirs_perf: window=8 frame_p95=24.14ms
+torirs_perf: window=9 frame_p95=24.12ms
 spawn_npc: npc=5007 element=59752 tile=90,84 level=0 size=1 recolors=0 retextures=0
-torirs_stats: tick=6000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=6750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=10 frame_p95=24.12ms
+torirs_perf: window=11 frame_p95=24.22ms
 spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
-torirs_stats: tick=7250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=7750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=8750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9250 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9500 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=9750 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
-torirs_stats: tick=10000 components=7092 free_head=7091 inv_hooks=19 var_hooks=171
+torirs_perf: window=12 frame_p95=24.11ms
+torirs_perf: window=13 frame_p95=24.11ms
+torirs_perf: window=14 frame_p95=24.05ms
+torirs_perf: window=15 frame_p95=24.17ms
+torirs_perf: window=16 frame_p95=24.07ms
 spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
+torirs_perf: window=17 frame_p95=24.08ms
+torirs_perf: window=18 frame_p95=24.04ms
+torirs_perf: window=19 frame_p95=24.09ms
+torirs_perf: window=20 frame_p95=24.07ms
+spawn_npc: npc=3111 element=59754 tile=90,84 level=0 size=1 recolors=3 retextures=0
+torirs_perf: window=21 frame_p95=24.14ms
+torirs_perf: window=22 frame_p95=24.11ms
+spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3111 element=59756 tile=90,84 level=0 size=1 recolors=3 retextures=0
+torirs_perf: window=23 frame_p95=24.34ms
+torirs_perf: window=24 frame_p95=24.15ms
+torirs_perf: window=25 frame_p95=24.45ms
+torirs_perf: window=26 frame_p95=24.03ms
+torirs_perf: window=27 frame_p95=24.06ms
+spawn_npc: npc=3111 element=59752 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
+torirs_perf: window=28 frame_p95=24.37ms
+spawn_npc: npc=2854 element=59756 tile=90,84 level=0 size=1 recolors=1 retextures=0
 post-boot: busy_frames=1 busy_steps=32 (frames that used the whole budget with work still queued)
+torirs_perf: window=29 frame_p95=24.41ms
+
+=== torirs_perf report ===
+frames=15000 ring=2048 over_20ms=14689 (97.9%) eff_fps=44.1
+frame_ns mean=22653219 p50=22922000 p95=24217000 max=25430000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async            258259     236000     425000    1950000
+logic            452664     446000     575000    2163000
+cs2              159301     156000     220000     508000
+layout              137          0       1000       1000
+interact          26549      26000      33000     136000
+emit             168484     169000     222000    1283000
+paint            431495     444000     504000    2915000
+build            431696     444000     504000    2915000
+render          3879619    3976000    4456000   16732000
+present          162979     166000     189000    1021000
+server             6382       2000      12000     169000
+residual       16675654  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                        1447973       707.02
+uitree_find_id_probes                 4823816      2355.38
+uitree_find_child                       50780        24.79
+uitree_find_child_hit                   15065         7.36
+uitree_find_child_ceil_miss             35715        17.44
+uitree_walk_emit                      5885952      2874.00
+uitree_walk_hit                       1454080       710.00
+uitree_walk_hover                      212992       104.00
+uitree_emit_skip                      5578752      2724.00
+uitree_layout_resolve                    4096         2.00
+uitree_layout_skip                       2048         1.00
+uitree_layout_nodes                  14524416      7092.00
+uitree_layout_node_skip              14517260      7088.51
+uitree_layout_depth_recompute            2048         1.00
+uitree_ensure_layout                   126931        61.98
+uitree_cc_deleteall                      2320         1.13
+uitree_apply_geo                        27208        13.29
+uitree_apply_content                    23344        11.40
+uitree_apply_hook                        4465         2.18
+uitree_apply_other                    1040052       507.84
+uitree_components                    14524416      7092.00
+uitree_capacity                      16777216      8192.00
+uitree_free_list                         6144         3.00
+uitree_node_bytes                 28856811520  14090240.00
+cs2_scripts                             69600        33.98
+cs2_opcodes                           6345935      3098.60
+cs2_host_ops                           847506       413.82
+cs2_cycles                            6345935      3098.60
+cs2_vm_acquire                          69600        33.98
+cs2_vm_pool_hit                         69600        33.98
+cs2_vm_init_ns                       54329000     26527.83
+cs2_frame_pool_hit                     136388        66.60
+cache_model_hit                            31         0.02
+cache_model_miss                            1         0.00
+cache_sprite_hit                           24         0.01
+painter_pops                         17201843      8399.34
+painter_gate_rejects                  7508891      3666.45
+painter_pushes                       17201843      8399.34
+painter_push_dedup                    7530272      3676.89
+painter_drain_events                     8192         4.00
+painter_commands                     11144320      5441.56
+painter_tiles_remaining_set           8857600      4325.00
+scene_elements                      122411008     59771.00
+scene_anim_list                        632832       309.00
+zone_map_count                         130464        63.70
+zone_map_capacity                      524288       256.00
+npc_slot_max                           133120        65.00
+cache_model_size                      2333058      1139.19
+cache_sprite_size                     1138688       556.00
+
+torirs_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift-capped.csv
+=== end torirs_perf ===
+
 app: map archives are unencrypted at this revision
 app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
 varbit load: 20411 types (19008 records, ids 0..20410)

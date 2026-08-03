@@ -452,3 +452,59 @@ why 175 records moved `same-len` → `differ` without anything regressing.
   failure modes are unreachable in practice. Leave them; they are recorded here
   so a future "why does the reference route differently on a huge failed flood"
   investigation starts from the answer.
+
+---
+
+## 7. Server half (mock230)
+
+§3 covered only `app.c`. The mock server used to discard the client's correct
+`MOVE_OPCLICK` route on every loc/npc/obj click and substitute a four-neighbour
+guess of the SW tile, routed by an exact-arrival BFS with no nearest fallback
+and truncation at the wrong end of long paths. That stack is gone.
+
+### 7.1 What the server now shares with the client
+
+| piece | shared primitive |
+|---|---|
+| tile flags | `collision_map.c` via `mock230_scene.c` (same builder rules as `world_collision.u.c`) |
+| flood + approach + nearest | `collision_map_route_tiles` / `collision_map_try_route_op` |
+| arrival / reach | `collision_map_reached` (rect-adjacent, cardinal, both tiles' wall bits) |
+| loc approach | `mock230_scene_loc_approach` mirrors `app_scenery_approach` (shape, angle, rotated footprint, `forceapproach`) |
+| era nearest box | `ToriRS_Features_ForCache` → `mock230_scene_op_nearest_opts` |
+
+`handle_move` takes the **last** packet waypoint as the destination and
+re-routes (LostCity `MoveClickHandler`), with `distanceToSW > 104` rejected.
+Op handlers route to the **target** with its approach — they never call
+`walk_beside`.
+
+### 7.2 Movement model
+
+Players store at most 25 dest-first waypoints (`PathingEntity.waypoints`) and
+advance with a greedy `takeStep` that re-validates `mock230_scene_can_step` and
+stalls instead of clearing the route. When an interaction is mid-walk and the
+queue is empty or a step stalled, the server re-floods and keeps only the next
+tile — the same one-step-from-BFS shape NPC chase already used — so a long
+zigzag compressed into 25 corners cannot wedge the player forever.
+
+Unreachable interactions terminate with content's
+`[proc,cannot_reach_message]` (`player/messages.rs2`), not a latched op.
+
+### 7.3 Still asymmetric
+
+1. **The client still paths for `CLIENT_BFS` eras and sends waypoints.** The
+   server re-routes from the last waypoint rather than replaying the client's
+   tile list. Agreement is "same flood, same arrival", not byte-identical
+   packets.
+2. **`route_straight` remains only when there is no collision map at all** (cache
+   missing). An in-scene source with an out-of-scene destination returns -1 —
+   it no longer walks through unmapped walls.
+
+### 7.4 Defects that were the server drift
+
+| id | failure | fix |
+|---|---|---|
+| P1 | `walk_beside` → `steps_clear` threw away `MOVE_OPCLICK` | deleted; op handlers route with approach |
+| P2 | four-neighbour SW guess ignored footprint/shape/angle | `mock230_scene_*_approach` + `route_op` |
+| P3 | exact BFS, no nearest fallback | era `CollisionNearestOpts` on `route_tiles` |
+| P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
+| P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |

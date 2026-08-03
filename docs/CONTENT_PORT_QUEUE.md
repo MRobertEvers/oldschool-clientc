@@ -17,7 +17,7 @@ re-arm. Stop only when the user stops the loop.
 | 4 | Sheep Shearer quest + journal | done | journal + quest_complete dbrow; Fred dialogue in slice 1 |
 | 5a | general_use batch: barrels, bookcases, chests, coffins, cupboards | done | barrels/bookcases/coffins; chests+cupboards deferred (orphan cats) |
 | 5b | general_use batch: drawers, fence, findsomethingnice, gangplank, hammer | done | sacks/manholes/hammer/spade; drawers/fence/findsomethingnice/gangplank deferred |
-| 5c | general_use batch: hat_stand, locked_doors, locked_gates, manholes, mithril_seeds | pending | |
+| 5c | general_use batch: hat_stand, locked_doors, locked_gates, manholes, mithril_seeds | done | hatstand/lockeddoor1/metal gates/mithril seeds; manholes already in 5b |
 | 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | pending | |
 | 6a | F2P quest: Rune Mysteries | pending | Needs Duke (slice 1) |
 | 6b | F2P quest: Imp Catcher | pending | |
@@ -47,3 +47,5 @@ re-arm. Stop only when the user stops the loop.
 - next pending: 5c / 5d / 6a Rune Mysteries
 - loop armed: AGENT_LOOP_WAKE_content_port every ~180s
 - slice 6c done: Doric's Quest (ahead of 5c/6a — small self-contained F2P)
+- slice 5c done: hatstand, lockeddoor1, lockedmetalgate l/r, mithril_seeds (simplified plant)
+- next pending: 5d
