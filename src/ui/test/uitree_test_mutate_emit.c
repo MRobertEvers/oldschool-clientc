@@ -46,6 +46,8 @@ test_mutate_emit(void)
     TEST_ASSERT(dyn >= 0, "cc_create");
     TEST_ASSERT(tree->components[dyn].dynamic == 1, "dynamic");
     TEST_ASSERT(tree->components[dyn].type == UIELEM_RS_RECT, "cc type rect for widget 3");
+    TEST_ASSERT(tree->components[dyn].u.rs_rect.filled == 0,
+                "cc rect defaults to outline (scripts call setfill for tint)");
     TEST_ASSERT(tree->components[dyn].if3 == 0, "cc inherits if3=0 from parent");
     TEST_ASSERT(tree->components[layer].is_dirty == 1 || tree->components[dyn].is_dirty == 1,
                 "cc dirties");

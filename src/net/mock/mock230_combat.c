@@ -601,7 +601,12 @@ mock230_combat_engage(
      * an opening delay reads as the click having been dropped. */
     player->attack_clock = 0;
 
-    mock230_world_walk_beside(srv, npc->x, npc->z);
+    {
+        struct CollisionApproach approach;
+        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+        mock230_scene_npc_approach(info ? info->size : 1, &approach);
+        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -673,7 +678,12 @@ mock230_combat_player_approach(struct Mock230Server* srv)
     /* Nothing else is walking the player while a combat target is set: every
      * other click clears the target first (see the OPNPC/OPLOC/MOVE handlers),
      * so this owns the step queue and can recompute it outright. */
-    mock230_world_walk_beside(srv, npc->x, npc->z);
+    {
+        struct CollisionApproach approach;
+        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+        mock230_scene_npc_approach(info ? info->size : 1, &approach);
+        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+    }
 }
 
 void
@@ -981,16 +991,24 @@ mock230_combat_npc_tick(
          * strolled off. It is the reason npcs did not pursue at all, and it was
          * invisible in open ground, which is where anyone testing stands.
          */
-        int dest_x;
-        int dest_z;
-
-        mock230_world_beside_tile(npc->level, npc->x, npc->z, player->x, player->z, &dest_x,
-                                  &dest_z);
+        /* The destination is the player under a 1x1 adjacent approach — melee
+         * cannot reach a diagonal, and standing on the player's tile is wrong.
+         * What this replaces was a single greedy step with the whole approach
+         * rule inlined beside it, and no route behind it — "a blocked step is
+         * simply not taken, the npc will try again next tick". That is only
+         * true if the block goes away, and a wall does not. */
+        struct CollisionApproach approach = {
+            .kind = COLL_APPROACH_RECT_ADJACENT,
+            .loc_width = 1,
+            .loc_length = 1,
+            .mover_size = 1,
+        };
 
         /* Moves *then* gives up, which is the reference's order
          * (`const moved = this.updateMovement(); if (moved && !givechase)`) and
          * visible: a `givechase=no` npc takes one step before turning away. */
-        if( mock230_world_npc_walk_to(npc, dest_x, dest_z) && !npc_def(npc)->givechase )
+        if( mock230_world_npc_walk_to_approach(npc, player->x, player->z, &approach) &&
+            !npc_def(npc)->givechase )
             mock230_combat_stop_npc(srv, slot);
         return;
     }

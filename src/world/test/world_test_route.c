@@ -482,6 +482,37 @@ test_features_eras(void)
                 "server_routed is never derived from a cache");
 }
 
+/*
+ * collision_map_bfs_path / collision_map_route_tiles must truncate at the
+ * *source* end of an over-long path. Truncating at the destination end left
+ * path[0] not adjacent to the mover, and the server's advance_player then
+ * cleared the whole route — the literal mechanism of "far away does not work".
+ */
+void
+test_bfs_path_source_end_truncation(void)
+{
+    printf("TEST: bfs_path truncates at the source end\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int path_x[8];
+    int path_z[8];
+    int n;
+
+    /* Open corridor: (1,1) -> (1,40) is 39 steps. Cap at 8. */
+    n = collision_map_bfs_path(cm, 1, 1, 1, 40, path_x, path_z, 8);
+    TEST_ASSERT(n == 8, "capped path returns max_path tiles");
+    TEST_ASSERT(path_x[0] == 1 && path_z[0] == 2,
+                "first emitted tile is adjacent to the source");
+    TEST_ASSERT(path_z[7] == 9, "last emitted tile is 8 steps from source");
+
+    /* Same property through route_tiles (the shared implementation). */
+    n = collision_map_route_tiles(cm, 1, 1, 1, 40, NULL, NULL, path_x, path_z, 5, NULL, NULL,
+                                  NULL);
+    TEST_ASSERT(n == 5 && path_z[0] == 2, "route_tiles also keeps the source end");
+
+    collision_map_free(cm);
+}
+
 /* Runtime LOC change (door open/close) removes a loc's collision with the del_*
  * inverse of the add_* it was built with. Verify each add/del pair restores the
  * exact tile flags — the reference relies on delWall/delLoc/delFloor being exact

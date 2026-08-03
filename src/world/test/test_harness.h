@@ -84,6 +84,7 @@ void test_try_route_op_forceapproach(void);
 void test_force_approach_rotation(void);
 void test_try_route_op_rect(void);
 void test_features_eras(void);
+void test_bfs_path_source_end_truncation(void);
 void test_collision_loc_change_inverse(void);
 void test_route_coordinate_coincidence(void);
 void test_tile_stack_dedup(void);

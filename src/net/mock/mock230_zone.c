@@ -25,6 +25,7 @@
 
 #include "mock230.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -323,6 +324,25 @@ mock230_zone_reset(struct Mock230Server* srv)
         map->dirty[i]->listed = 0;
     }
     map->dirty_count = 0;
+}
+
+void
+mock230_zone_map_stats(
+    struct Mock230Server const* srv,
+    int* out_count,
+    int* out_capacity)
+{
+    struct Mock230ZoneMap* map;
+
+    assert(out_count);
+    assert(out_capacity);
+    *out_count = 0;
+    *out_capacity = 0;
+    if( !srv || !srv->zone_map )
+        return;
+    map = srv->zone_map;
+    *out_count = map->count;
+    *out_capacity = map->capacity;
 }
 
 /* ------------------------------------------------------------------ */

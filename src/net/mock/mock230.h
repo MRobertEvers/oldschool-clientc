@@ -91,6 +91,8 @@
 #include "mock230_bank.h"
 #include "mock230_zone.h"
 
+#include "engine/world_builder/collision_map.h"
+
 #include <stdint.h>
 
 struct Mock230Conn;
@@ -171,8 +173,11 @@ enum
      */
     MOCK230_NPC_MAX = 2048,
     MOCK230_TRACKED_NPC_MAX = 255,
-    /* The client sends at most 25 waypoints per move request; a walk can then
-     * be interpolated over many tiles, so the step queue is larger. */
+    /* The client sends at most 25 waypoints per move request; the server stores
+     * the same bound and walks greedily toward the current one (LostCity
+     * PathingEntity.waypoints). Scratch buffers for a full expanded route —
+     * NPC one-step routing, selftests — still use MOCK230_STEP_MAX. */
+    MOCK230_WAYPOINT_MAX = 25,
     MOCK230_STEP_MAX = 256,
     MOCK230_INV_SLOTS = 28,
     MOCK230_WORN_SLOTS = 14,
@@ -1578,13 +1583,24 @@ struct Mock230Player
     int run_energy_sent;
     int run_weight_sent;
 
-    struct Mock230Step steps[MOCK230_STEP_MAX];
-    int step_count;
-    int step_head;
-
     /** Absolute destination of the walk in progress, for the arrival check
      *  that clears the client's map flag. -1 when idle. */
     int dest_x, dest_z;
+
+    /**
+     * Waypoint queue — LostCity PathingEntity shape.
+     *
+     * waypoints[waypoint_index] is the tile currently being walked toward;
+     * the index counts down to 0 (the final destination). -1 means idle.
+     * At most MOCK230_WAYPOINT_MAX entries; each is a turn point, not every
+     * tile — advance_player greedily steps toward the current one and
+     * re-validates collision each tick.
+     */
+    struct Mock230Step waypoints[MOCK230_WAYPOINT_MAX];
+    int waypoint_index;
+
+    /** Steps taken this tick (for "I can't reach that" termination). */
+    int steps_taken;
 
     /** What this walk is *for*, resolved once per tick by phase 5. */
     struct Mock230Interaction interaction;
@@ -2804,30 +2820,21 @@ mock230_world_steps_clear(struct Mock230Player* player);
 void
 mock230_world_player_level_changed(struct Mock230Player* player);
 
-/** Queue a walk to a tile adjacent to (x, z) rather than onto it. */
+/** Queue a route to an absolute destination (ground click). Clears any prior
+ *  waypoints and fills from a collision-aware BFS. */
 void
-mock230_world_walk_beside(
+mock230_world_walk_to(
     struct Mock230Server* srv,
     int x,
     int z);
 
-/**
- * The tile to stand on to reach (x, z), approaching from (from_x, from_z).
- *
- * An orthogonal neighbour of the target, nearest the approacher and one it can
- * stand on — melee cannot reach a diagonal, so this is where "squaring up"
- * comes from. Shared by the player's walk and the npc chase so both approach
- * the same way.
- */
+/** Queue a route to a target under an approach predicate (loc/npc/obj). */
 void
-mock230_world_beside_tile(
-    int level,
-    int from_x,
-    int from_z,
+mock230_world_walk_to_approach(
+    struct Mock230Server* srv,
     int x,
     int z,
-    int* out_x,
-    int* out_z);
+    struct CollisionApproach const* approach);
 
 /**
  * One tile of an npc's walk toward (target_x, target_z), routing around
@@ -2842,6 +2849,17 @@ mock230_world_npc_walk_to(
     struct Mock230Npc* npc,
     int target_x,
     int target_z);
+
+/**
+ * One tile of an npc's walk toward a target under an approach predicate.
+ * Used when closing on a player (size-aware).
+ */
+int
+mock230_world_npc_walk_to_approach(
+    struct Mock230Npc* npc,
+    int target_x,
+    int target_z,
+    struct CollisionApproach const* approach);
 
 /* ------------------------------------------------------------------ */
 /* Interactions (mock230_world.c)                                      */

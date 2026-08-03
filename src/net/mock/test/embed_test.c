@@ -36,7 +36,10 @@
 #include "net/mock/mock230_content.h"
 #include "net/mock/mock230_embed.h"
 #include "net/mock/mock230_friends.h"
+#include "net/mock/mock230_scene.h"
 #include "net/mock/mock230_session.h"
+
+#include "engine/world_builder/collision_map.h"
 
 #include "cmd/cmdbus.h"
 #include "net/jbase37.h"
@@ -1066,6 +1069,97 @@ main(void)
         check(peers[1].saw_steps > steps_before,
               "bob's client decoded alice's steps out of PLAYER_INFO");
         check(!peers[1].saw_unknown_target, "with every step attributed to a tracked player");
+    }
+
+    /*
+     * ── Client and server route off one collision map ────────────────
+     *
+     * The client's pathfinder and the server's both call
+     * collision_map_route_tiles. mock230_scene_route_op is only a scene-base
+     * translation around that flood: a direct call on the same CollisionMap
+     * must agree tile-for-tile, and the server's waypoint queue must land on
+     * the same arrival. The castle door is far enough from the home tile that
+     * the old four-neighbour guess used to diverge.
+     */
+    {
+        int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+        struct CollisionMap* cm = mock230_scene_collision(0);
+        int base_x = mock230_scene_base_x();
+        int base_z = mock230_scene_base_z();
+        int scene_x[MOCK230_STEP_MAX];
+        int scene_z[MOCK230_STEP_MAX];
+        int direct_x[MOCK230_STEP_MAX];
+        int direct_z[MOCK230_STEP_MAX];
+        int scene_n = -1;
+        int direct_n = -1;
+        int arrive_sx = -1;
+        int arrive_sz = -1;
+        int arrive_dx = -1;
+        int arrive_dz = -1;
+        int used_nearest = 0;
+        int tiles_match = 0;
+        int blocked = 0;
+        struct CollisionApproach approach;
+        struct CollisionNearestOpts nearest;
+
+        check(door >= 0 && cm != NULL && base_x >= 0,
+              "embed has a castle door and a level-0 collision map");
+        if( door >= 0 && cm != NULL && base_x >= 0 )
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(door);
+
+            mock230_scene_loc_approach(door, &approach);
+            mock230_scene_op_nearest_opts(&nearest);
+            scene_n = mock230_scene_route_op(0, 3222, 3218, loc->x, loc->z, &approach, scene_x,
+                                             scene_z, MOCK230_STEP_MAX, &arrive_sx, &arrive_sz);
+            direct_n = collision_map_route_tiles(
+                cm, 3222 - base_x, 3218 - base_z, loc->x - base_x, loc->z - base_z, &approach,
+                &nearest, direct_x, direct_z, MOCK230_STEP_MAX, &used_nearest, &arrive_dx,
+                &arrive_dz);
+            if( direct_n >= 0 )
+            {
+                for( int i = 0; i < direct_n; i++ )
+                {
+                    direct_x[i] += base_x;
+                    direct_z[i] += base_z;
+                }
+                arrive_dx += base_x;
+                arrive_dz += base_z;
+            }
+
+            check(scene_n >= 0 && direct_n >= 0,
+                  "approach route to the castle door exists on both call paths");
+            if( scene_n >= 0 && direct_n >= 0 )
+            {
+                tiles_match = (scene_n == direct_n && arrive_sx == arrive_dx &&
+                               arrive_sz == arrive_dz);
+                for( int i = 0; tiles_match && i < scene_n; i++ )
+                {
+                    if( scene_x[i] != direct_x[i] || scene_z[i] != direct_z[i] )
+                        tiles_match = 0;
+                }
+                check(tiles_match,
+                      "scene_route_op and collision_map_route_tiles agree tile-for-tile");
+
+                mock230_world_set_active(world, alice);
+                mock230_world_teleport(world, 0, 3222, 3218);
+                mock230_world_walk_to_approach(world, loc->x, loc->z, &approach);
+                check(alice->waypoint_index >= 0, "walk_to_approach queued waypoints");
+                if( alice->waypoint_index >= 0 )
+                {
+                    /* Dest-first: waypoints[0] is the arrival tile. */
+                    check(alice->waypoints[0].x == arrive_sx &&
+                              alice->waypoints[0].z == arrive_sz,
+                          "server waypoint destination matches the shared route arrival");
+                }
+            }
+
+            for( int x = 0; x < 104; x++ )
+                for( int z = 0; z < 104; z++ )
+                    if( collision_map_tile(cm, x, z) != COLL_FLAG_OPEN )
+                        blocked++;
+            check(blocked > 1000, "embed scene collision is more than a border ring");
+        }
     }
 
     /*

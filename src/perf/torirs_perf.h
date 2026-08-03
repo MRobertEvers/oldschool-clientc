@@ -11,6 +11,11 @@
  * Report at exit via TorirsPerf_Report(): per-stage mean/p50/p95/max, counter
  * totals, frames over 20 ms, effective fps. Optional TORIRS_PERF_CSV=<path>
  * writes a machine-readable CSV for tools/perf/compare.py.
+ *
+ * Windowed drift: TORIRS_PERF_WINDOW=<N> (default 1000) also appends one row
+ * per stage and per counter every N frames (kind=window_stage /
+ * window_counter / window_gauge). Counters are deltas over the window;
+ * gauges (COUNT_SET) are the last sample. compare.py --drift reads these.
  */
 
 #include <stdint.h>
@@ -32,6 +37,8 @@ enum TorirsPerfStage
     TORIRS_PERF_STAGE_BUILD,
     TORIRS_PERF_STAGE_RENDER,
     TORIRS_PERF_STAGE_PRESENT,
+    /** Embedded mock230 pump + world tick (net_transport_embed). */
+    TORIRS_PERF_STAGE_SERVER,
     TORIRS_PERF_STAGE_COUNT
 };
 
@@ -125,6 +132,15 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_PAINTER_DRAIN_EVENTS,
     TORIRS_PERF_CTR_PAINTER_COMMANDS,
     TORIRS_PERF_CTR_PAINTER_TILES_REMAINING_SET,
+
+    /* Growth gauges (COUNT_SET once per frame / tick — last value in a window) */
+    TORIRS_PERF_CTR_SCENE_ELEMENTS,
+    TORIRS_PERF_CTR_SCENE_ANIM_LIST,
+    TORIRS_PERF_CTR_ZONE_MAP_COUNT,
+    TORIRS_PERF_CTR_ZONE_MAP_CAPACITY,
+    TORIRS_PERF_CTR_NPC_SLOT_MAX,
+    TORIRS_PERF_CTR_CACHE_MODEL_SIZE,
+    TORIRS_PERF_CTR_CACHE_SPRITE_SIZE,
 
     TORIRS_PERF_CTR_COUNT
 };

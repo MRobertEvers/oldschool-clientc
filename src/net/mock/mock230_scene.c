@@ -26,12 +26,14 @@
 #include "mock230.h"
 
 #include "engine/world_builder/collision_map.h"
+#include "features/features.h"
 
 #include <rscache.h>
 
 #include <datatypes/maps.h>
 #include <xtea_config.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +48,11 @@ enum
 static struct CollisionMap* g_collision[SCENE_LEVELS];
 static int g_base_x = -1;
 static int g_base_z = -1;
+
+/* Era feature table: approach model + op-click nearest fallback. Resolved once
+ * at boot; defaults to OSRS when nothing has been set yet (this server boots
+ * against an OldSchool cache). */
+static struct ToriRS_FeatureTable const* g_features;
 
 /* Which scene columns have a bridge deck (LINK_BELOW at raw level 1), captured
  * during apply_terrain and consumed once by apply_bridges() after every map
@@ -804,6 +811,20 @@ mock230_scene_remove_loc(int slot)
 static const int k_step_dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
 static const int k_step_dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
 
+void
+mock230_scene_set_features(struct ToriRS_FeatureTable const* features)
+{
+    g_features = features;
+}
+
+struct ToriRS_FeatureTable const*
+mock230_scene_features(void)
+{
+    if( !g_features )
+        g_features = ToriRS_Features_OSRS();
+    return g_features;
+}
+
 int
 mock230_scene_can_step(
     int level,
@@ -852,8 +873,9 @@ mock230_scene_can_step(
     }
 }
 
-/* Straight-line interpolation, the mock's pre-collision behaviour. Used when
- * there is no collision map at all, so a caller never has to know. */
+/* Straight-line interpolation. Used ONLY when there is no collision map at
+ * all (cache missing), so a caller never has to know. An out-of-scene endpoint
+ * with a loaded map must refuse rather than walk through walls. */
 static int
 route_straight(
     int from_x,
@@ -885,6 +907,173 @@ route_straight(
     return count;
 }
 
+/* LocType.forceapproach rotation into the placed frame — same formula the
+ * client applies at scenery register time. */
+static int
+rotate_force_approach(int force_approach, int angle)
+{
+    angle &= 3;
+    if( angle == 0 )
+        return force_approach & 0xf;
+    return ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
+}
+
+void
+mock230_scene_loc_approach(
+    int slot,
+    struct CollisionApproach* out)
+{
+    struct Mock230SceneLoc* loc;
+    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    const struct RSCache_Dat2ConfigLoc* config;
+    int shape;
+    int sized;
+    int force;
+
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->mover_size = 1;
+    out->kind = COLL_APPROACH_EXACT;
+
+    loc = mock230_scene_loc(slot);
+    if( !loc || !loc->active )
+        return;
+
+    shape = loc->shape;
+    sized = shape == RSCACHE_LOC_SHAPE_SCENERY || shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
+            shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION;
+    config = loc_config(loc->loc_id);
+    force = config ? rotate_force_approach(config->force_approach, loc->angle) : 0;
+
+    if( features->approach_model != TORIRS_APPROACH_RECT )
+    {
+        out->kind = COLL_APPROACH_LEGACY_SHAPE;
+        if( sized )
+        {
+            out->loc_width = loc->size_x > 0 ? loc->size_x : 1;
+            out->loc_length = loc->size_z > 0 ? loc->size_z : 1;
+            out->forceapproach = force;
+        }
+        else
+        {
+            out->loc_angle = loc->angle;
+            out->loc_shape = shape + 1;
+        }
+        return;
+    }
+
+    out->loc_width = loc->size_x > 0 ? loc->size_x : 1;
+    out->loc_length = loc->size_z > 0 ? loc->size_z : 1;
+    out->blocked_sides = force;
+
+    if( !sized )
+    {
+        out->kind = COLL_APPROACH_RECT_ADJACENT;
+        out->loc_width = 1;
+        out->loc_length = 1;
+        out->allow_overlap = 1;
+        return;
+    }
+
+    {
+        int clips = !config || config->blocks_walk != 0;
+        int has_action = 0;
+        if( config )
+        {
+            for( int i = 0; i < 5 && !has_action; i++ )
+                has_action = config->actions[i] && config->actions[i][0] != '\0';
+        }
+
+        if( clips )
+        {
+            out->kind = COLL_APPROACH_RECT_ADJACENT;
+            out->allow_overlap = 0;
+        }
+        else if( shape == RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+        {
+            out->kind = COLL_APPROACH_RECT_INSIDE;
+        }
+        else if( has_action )
+        {
+            out->kind = COLL_APPROACH_RECT_ADJACENT;
+            out->allow_overlap = 1;
+        }
+        else
+        {
+            out->kind = COLL_APPROACH_RECT_INSIDE;
+        }
+    }
+}
+
+void
+mock230_scene_npc_approach(
+    int size,
+    struct CollisionApproach* out)
+{
+    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    int s;
+
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->mover_size = 1;
+    s = features->npc_approach_uses_size && size > 0 ? size : 1;
+    out->kind = features->approach_model == TORIRS_APPROACH_RECT ? COLL_APPROACH_RECT_ADJACENT
+                                                                : COLL_APPROACH_LEGACY_SHAPE;
+    out->loc_width = s;
+    out->loc_length = s;
+}
+
+void
+mock230_scene_obj_approach(
+    int retry_adjacent,
+    struct CollisionApproach* out)
+{
+    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->mover_size = 1;
+    if( !retry_adjacent )
+    {
+        out->kind = COLL_APPROACH_EXACT;
+        return;
+    }
+    out->kind = features->approach_model == TORIRS_APPROACH_RECT ? COLL_APPROACH_RECT_ADJACENT
+                                                                : COLL_APPROACH_LEGACY_SHAPE;
+    out->loc_width = 1;
+    out->loc_length = 1;
+}
+
+void
+mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out)
+{
+    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+
+    assert(out);
+    out->range = features->op_click_nearest_range;
+    out->max_dist = 100;
+    out->rank_by_rect_distance = features->nearest_ranks_by_rect_distance;
+}
+
+static void
+route_trace(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    int steps,
+    int nearest,
+    int arrive_x,
+    int arrive_z)
+{
+    if( !getenv("MOCK230_VERBOSE") )
+        return;
+    fprintf(stderr,
+            "mock230: route level=%d from=%d,%d to=%d,%d steps=%d nearest=%d arrive=%d,%d\n",
+            level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
+}
+
 int
 mock230_scene_route(
     int level,
@@ -898,22 +1087,148 @@ mock230_scene_route(
 {
     struct CollisionMap* map = mock230_scene_collision(level);
     int steps;
+    int nearest = 0;
+    int arrive_x = to_x;
+    int arrive_z = to_z;
 
     if( from_x == to_x && from_z == to_z )
         return 0;
-    if( !map || !mock230_scene_contains(from_x, from_z) ||
-        !mock230_scene_contains(to_x, to_z) )
+
+    /* No collision at all (cache missing): the announced open-field fallback. */
+    if( !map )
         return route_straight(from_x, from_z, to_x, to_z, path_x, path_z, max_steps);
 
-    steps = collision_map_bfs_path(map, from_x - g_base_x, from_z - g_base_z,
-                                   to_x - g_base_x, to_z - g_base_z, path_x, path_z,
-                                   max_steps);
-    if( steps < 0 )
+    /* An endpoint outside the built scene is unreachable — do not straight-line
+     * through walls the map has not been asked about. */
+    if( !mock230_scene_contains(from_x, from_z) || !mock230_scene_contains(to_x, to_z) )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
         return -1;
+    }
+
+    {
+        /* Ground clicks get the 3x3 nearest ring — same as the client's
+         * collision_map_try_route. */
+        struct CollisionNearestOpts const ring = {
+            .range = 1,
+            .max_dist = 100,
+            .rank_by_rect_distance = 0,
+        };
+        steps = collision_map_route_tiles(
+            map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z, NULL,
+            &ring, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
+    }
+    if( steps < 0 )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
+        return -1;
+    }
     for( int i = 0; i < steps; i++ )
     {
         path_x[i] += g_base_x;
         path_z[i] += g_base_z;
     }
+    arrive_x += g_base_x;
+    arrive_z += g_base_z;
+    route_trace(level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
     return steps;
+}
+
+int
+mock230_scene_route_op(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    struct CollisionApproach const* approach,
+    int* path_x,
+    int* path_z,
+    int max_steps,
+    int* out_arrive_x,
+    int* out_arrive_z)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionNearestOpts nearest_opts;
+    int steps;
+    int nearest = 0;
+    int arrive_x = to_x;
+    int arrive_z = to_z;
+
+    assert(approach);
+    assert(path_x && path_z);
+
+    if( from_x == to_x && from_z == to_z &&
+        ( !map || collision_map_reached(
+                      map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z,
+                      approach) ) )
+    {
+        if( out_arrive_x )
+            *out_arrive_x = from_x;
+        if( out_arrive_z )
+            *out_arrive_z = from_z;
+        return 0;
+    }
+
+    if( !map )
+        return route_straight(from_x, from_z, to_x, to_z, path_x, path_z, max_steps);
+
+    if( !mock230_scene_contains(from_x, from_z) || !mock230_scene_contains(to_x, to_z) )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
+        return -1;
+    }
+
+    mock230_scene_op_nearest_opts(&nearest_opts);
+    steps = collision_map_route_tiles(
+        map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z, approach,
+        &nearest_opts, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
+    if( steps < 0 )
+    {
+        route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
+        return -1;
+    }
+    for( int i = 0; i < steps; i++ )
+    {
+        path_x[i] += g_base_x;
+        path_z[i] += g_base_z;
+    }
+    arrive_x += g_base_x;
+    arrive_z += g_base_z;
+    if( out_arrive_x )
+        *out_arrive_x = arrive_x;
+    if( out_arrive_z )
+        *out_arrive_z = arrive_z;
+    route_trace(level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
+    return steps;
+}
+
+int
+mock230_scene_reached(
+    int level,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map )
+    {
+        /* No collision: fall back to Chebyshev adjacent / exact for EXACT. */
+        int dx = x - dst_x;
+        int dz = z - dst_z;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        if( !approach || approach->kind == COLL_APPROACH_EXACT )
+            return dx == 0 && dz == 0;
+        return dx <= 1 && dz <= 1 && !(dx == 1 && dz == 1);
+    }
+    if( !mock230_scene_contains(x, z) || !mock230_scene_contains(dst_x, dst_z) )
+        return 0;
+    return collision_map_reached(
+        map, x - g_base_x, z - g_base_z, dst_x - g_base_x, dst_z - g_base_z, approach);
 }

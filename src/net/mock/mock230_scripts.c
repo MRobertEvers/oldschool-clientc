@@ -2577,8 +2577,7 @@ mock230_script_command(
              * the new position — both of which the tick handles off
              * place_dirty. */
             player->place_dirty = 1;
-            player->step_count = 0;
-            player->step_head = 0;
+            player->waypoint_index = -1;
             /*
              * A plane change is the case place_dirty does not cover. The scene
              * *window* has not moved, so `maybe_rebuild` sees nothing, and the
@@ -4553,7 +4552,12 @@ mock230_script_command(
         if( op_num == 2 )
             mock230_combat_engage(srv, slot);
         else
-            mock230_world_walk_beside(srv, srv->npcs[slot].x, srv->npcs[slot].z);
+        {
+            struct CollisionApproach approach;
+            const struct Mock230NpcInfo* info = mock230_npcinfo(srv->npcs[slot].type);
+            mock230_scene_npc_approach(info ? info->size : 1, &approach);
+            mock230_world_walk_to_approach(srv, srv->npcs[slot].x, srv->npcs[slot].z, &approach);
+        }
         return 1;
     }
 

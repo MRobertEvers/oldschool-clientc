@@ -2495,21 +2495,47 @@ gl3_ev_fill_rect(
     float rgba[4];
     trspk_color_argb_to_rgba(command->u.fill_rect.argb, rgba);
 
+    if( command->u.fill_rect.filled )
+    {
+        gl3_draw_textured_quad(
+            renderer,
+            renderer->white_texture,
+            0,
+            false,
+            NULL,
+            (float)x,
+            (float)y,
+            (float)(x + w),
+            (float)(y + h),
+            0.0f,
+            0.0f,
+            1.0f,
+            1.0f,
+            rgba);
+        return;
+    }
+
+    /* Outline: Soft3D uses ToriDraw2D_DrawRectOutline (1px edges). Match that
+     * with four thin quads so unfilled TYPE_RECT from cc_create stays a border
+     * instead of painting an opaque black box over a translucent fill. */
     gl3_draw_textured_quad(
-        renderer,
-        renderer->white_texture,
-        0,
-        false,
-        NULL,
-        (float)x,
-        (float)y,
-        (float)(x + w),
-        (float)(y + h),
-        0.0f,
-        0.0f,
-        1.0f,
-        1.0f,
-        rgba);
+        renderer, renderer->white_texture, 0, false, NULL, (float)x, (float)y,
+        (float)(x + w), (float)(y + 1), 0.0f, 0.0f, 1.0f, 1.0f, rgba);
+    if( h > 1 )
+        gl3_draw_textured_quad(
+            renderer, renderer->white_texture, 0, false, NULL, (float)x, (float)(y + h - 1),
+            (float)(x + w), (float)(y + h), 0.0f, 0.0f, 1.0f, 1.0f, rgba);
+    if( h > 2 )
+    {
+        gl3_draw_textured_quad(
+            renderer, renderer->white_texture, 0, false, NULL, (float)x, (float)(y + 1),
+            (float)(x + 1), (float)(y + h - 1), 0.0f, 0.0f, 1.0f, 1.0f, rgba);
+        if( w > 1 )
+            gl3_draw_textured_quad(
+                renderer, renderer->white_texture, 0, false, NULL, (float)(x + w - 1),
+                (float)(y + 1), (float)(x + w), (float)(y + h - 1), 0.0f, 0.0f, 1.0f, 1.0f,
+                rgba);
+    }
 }
 
 static void

@@ -284,6 +284,49 @@ collision_map_try_route_op(
     int max_route,
     int* out_used_nearest);
 
+/*
+ * Same flood and arrival as collision_map_try_route_op, but emits every tile in
+ * walk order (path[0] = first step from the source toward the arrival), not only
+ * direction-change waypoints. Truncation keeps the source end — a long path
+ * still starts adjacent to the mover. Returns the number of steps (excluding
+ * the source), 0 when already arrived, or -1 when unreachable.
+ *
+ * *out_used_nearest, when non-NULL, reports whether arrival used the nearest
+ * fallback. *out_arrive_x / *out_arrive_z, when non-NULL, receive the arrival
+ * tile (which may differ from dst when the fallback fired).
+ */
+int
+collision_map_route_tiles(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_used_nearest,
+    int* out_arrive_x,
+    int* out_arrive_z);
+
+/*
+ * Is (x, z) an arrival for `approach` at destination (dst_x, dst_z)?
+ *
+ * The same predicate the flood uses. A NULL approach means exact-tile. Used by
+ * the server to decide whether an interaction has closed the distance, so the
+ * reach test and the router cannot disagree.
+ */
+int
+collision_map_reached(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach);
+
 static inline int
 collision_map_index_at(
     struct CollisionMap* cm,

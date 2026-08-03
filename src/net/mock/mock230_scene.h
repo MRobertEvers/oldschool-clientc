@@ -22,7 +22,10 @@
 
 #include <stdint.h>
 
+#include "engine/world_builder/collision_map.h"
+
 struct CollisionMap;
+struct ToriRS_FeatureTable;
 
 /* ------------------------------------------------------------------ */
 /* Locs                                                                */
@@ -160,8 +163,8 @@ mock230_scene_base_z(void);
  *
  * Returns the number of steps, 0 when already there, or -1 when no route
  * exists. With no collision loaded this degrades to the straight-line
- * interpolation the mock used before, so a caller never has to branch on
- * whether the scene is built.
+ * interpolation the mock used before. An endpoint outside the built scene
+ * returns -1 rather than walking through unmapped walls.
  */
 int
 mock230_scene_route(
@@ -173,6 +176,66 @@ mock230_scene_route(
     int* path_x,
     int* path_z,
     int max_steps);
+
+/**
+ * Route toward a target under an approach predicate (loc/npc/obj click).
+ *
+ * Uses the era's op-click nearest fallback. Writes walk-order tiles; on
+ * success *out_arrive_x/z (when non-NULL) receive the arrival tile, which may
+ * differ from (to_x,to_z) when the fallback fired.
+ */
+int
+mock230_scene_route_op(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    struct CollisionApproach const* approach,
+    int* path_x,
+    int* path_z,
+    int max_steps,
+    int* out_arrive_x,
+    int* out_arrive_z);
+
+/** Build the approach descriptor for a scene loc slot (mirrors app_scenery_approach). */
+void
+mock230_scene_loc_approach(
+    int slot,
+    struct CollisionApproach* out);
+
+/** NPC approach: size-aware under the OSRS era, 1x1 under LostCity. */
+void
+mock230_scene_npc_approach(
+    int size,
+    struct CollisionApproach* out);
+
+/** Ground-obj approach. retry_adjacent=0 is EXACT; 1 is the 1x1 adjacent retry. */
+void
+mock230_scene_obj_approach(
+    int retry_adjacent,
+    struct CollisionApproach* out);
+
+/** Era op-click nearest-fallback options. */
+void
+mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out);
+
+/** Is (x,z) an arrival for approach at (dst_x,dst_z)? */
+int
+mock230_scene_reached(
+    int level,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach);
+
+/** Install the era feature table used for approach/nearest. */
+void
+mock230_scene_set_features(struct ToriRS_FeatureTable const* features);
+
+struct ToriRS_FeatureTable const*
+mock230_scene_features(void);
 
 /** Can an actor at (x, z) step to the adjacent tile in `dir` (the client's
  *  World_CoordStep numbering)? True with no collision loaded. */

@@ -35,6 +35,9 @@
 /* Inside the guard: a build without the embedded server pulls in neither the
  * server's headers nor the SDL clock. */
 #include "net/mock/mock230_embed.h"
+#include "net/mock/mock230.h"
+#include "net/mock/mock230_zone.h"
+#include "perf/torirs_perf.h"
 #include "platform_sdl2.h"
 
 /* The server's own tick. Matched to the real one rather than to the frame rate:
@@ -122,10 +125,32 @@ embed_poll(
             self->next_tick_ms += EMBED_TICK_MS;
     }
 
-    if( !mock230_embed_pump(self->embed, run_tick) )
     {
-        emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
-        return;
+        int alive = 1;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SERVER)
+        {
+            alive = mock230_embed_pump(self->embed, run_tick);
+            /* Growth gauges: sample after the pump so a tick's zone/npc work is
+             * reflected this frame. Cheap (two ints + one field). */
+            {
+                struct Mock230Server* srv = mock230_embed_world(self->embed);
+                int zone_count = 0;
+                int zone_cap = 0;
+                if( srv )
+                {
+                    mock230_zone_map_stats(srv, &zone_count, &zone_cap);
+                    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_ZONE_MAP_COUNT, zone_count);
+                    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_ZONE_MAP_CAPACITY, zone_cap);
+                    TORIRS_PERF_COUNT_SET(
+                        TORIRS_PERF_CTR_NPC_SLOT_MAX, srv->npc_slot_max);
+                }
+            }
+        }
+        if( !alive )
+        {
+            emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
+            return;
+        }
     }
 
     /* 3. server -> client, in bus-sized pieces */

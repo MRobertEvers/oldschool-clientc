@@ -7,11 +7,12 @@
 > interface 728 `popout`**, already login-mounted by `gameframe.enum`, drawing
 > three icons down the right edge. See §8.
 
-> **PARTLY BUILT — 2026-08-02.** All three panels now *open* in the headless
-> client and two of the three *draw*. See §7 for exactly what landed, what it
-> cost, and what is still missing. Read §7 before acting on anything below it:
-> the sections that follow §0 are the discovery pass and several of their
-> headline claims did not survive measurement.
+> **PARTLY BUILT — 2026-08-03 (mount fix).** All three panels now open into
+> `popout:container` (728:9), the strip widens under `script5355`, and the
+> nine-slice frame draws. See §7 / §8.2. Bodies still thin: XP skill rows and
+> loot list populate are separate from the mount. Read §7 before acting on
+> anything below it: the sections that follow §0 are the discovery pass and
+> several of their headline claims did not survive measurement.
 >
 > Three corrections to the previous header, all re-measured (PORTING_GUIDE §7):
 >
@@ -44,14 +45,15 @@
 
 ## 0. Status at a glance
 
-Re-measured 2026-08-03 (chrome panels + XP drops pass). The "measured"
-column is a client run, not a reading. See §7.5 for the runs.
+Re-measured 2026-08-03 (mount fix). The "measured" column is a client run
+with screenshots under `tmp_panel_shots/after_*.png`, not a reading. See
+§7.5 / §8.2 for the runs.
 
 | interface | id | status | measured | what's missing |
 |---|---|---|---|---|
-| `xptracker` | 729 | **client init + goal varps landed** | **opens; overview row keeps `Total XP/Hr` / `Total XP Gained` after timer ticks** (was collapsing onto skill labels at sub-id 0). Exit 0. | Set Goal button stays dead in this cache (§1.1). Skill rows appear once XP lands *after* the tracker enable/reset at login. |
-| `hiscores` | 894 | **honest failure path** | **opens, exit 0; 7809 returns status 3 (error), 7811 empty detail** — cache script 7530 shows its own "Unable to load hiscores…" (no ranks faked, no C string) | Real HTTP lookup is out of band forever; do not fabricate ranks. |
-| `loottools` | 650 | **native store + host ops landed** | **opens, exit 0; 7400/7600 family is `known=1` against `LootStore_*`**. Seed via `TORIRS_NET_CHEAT=lootkill <src> <obj> <qty>` then `loottools`. | Combat kill-credit auto-hook still greenfield beyond the `lootkill` / `App_LootNotifyKill` bridge; `loottools_varp1` 3798 still undeclared if the chrome wants it. |
+| `xptracker` | 729 | **mounted in `popout:container`** | **right-docked 264×491 inside widened strip (312px); overview keeps `Total XP/Hr` / `Total XP Gained`**. Exit 0. Screenshots: `tmp_panel_shots/after_xptracker.png`. | Set Goal dead (§1.1). Skill rows still empty after `::xp attack N` in the same cheat batch — baseline/transmit timing, not mount. |
+| `hiscores` | 894 | **honest failure path, framed** | **right-docked; 7809 status 3; cache text `In-world lookup: Disabled` draws inside the nine-slice frame**. Exit 0. `after_hiscores.png`. | Real HTTP lookup stays out of band; do not fabricate ranks. |
+| `loottools` | 650 | **mounted + framed; store still empty in UI** | **right-docked 264×491; header/body geometry sane**. `lootkill` then open still shows `Total count: 0` / `0 gp`. `after_loottools.png`. | Store↔7166 populate path; combat kill-credit beyond `lootkill`; undeclared `loottools_varp1` 3798 if chrome wants it. |
 | `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)` from `~orbs_login`. `xpdrops_options` + goal varps + carriers declared. | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
@@ -364,26 +366,29 @@ rather than UB. Four cases added to `make -C src test-cs2-math`.
 
 `OSRS-Content/osrs239-content/server/scripts/interface_chrome/scripts/chrome_panels.rs2`
 adds `[debugproc,xptracker]`, `[debugproc,loottools]`, `[debugproc,hiscores]`,
-each opening its panel into `toplevel_osrs_stretch:mainmodal` type 0 — the
-same slot and type the bank, skill guide, slayer rewards and farming view use,
-which is what gives them a working X and Escape with no code. Every id is
-resolved **by name** through the pack. Nothing is added to
-`player/configs/gameframe.enum`: none of the three is a login-mounted slot in
-the real client, correctly.
+each opening its panel into **`popout:container` (728:9) type 1** — the
+overlay form the strip's own layout scripts size against. An earlier pass
+mounted them into `toplevel_osrs_stretch:mainmodal` type 0; that was wrong
+(see §8.2). Every id is resolved **by name** through the pack. Nothing is
+added to `player/configs/gameframe.enum`: the popout strip (728) is already
+login-mounted there; the three panels open on demand into its container.
 
-This is not cosmetic. Before it, **all 36 aborting opcodes were latent** — a
-clean boot printed zero `cs2-survey` lines and exited 0 purely because nothing
-could reach the panels. No claim about the VM work was testable until the
-panels could be opened.
+This is not cosmetic. Before the debugprocs, **all 36 aborting opcodes were
+latent** — a clean boot printed zero `cs2-survey` lines and exited 0 purely
+because nothing could reach the panels. No claim about the VM work was
+testable until the panels could be opened.
 
 ### 7.5 Measured result, per panel
 
+Re-measured 2026-08-03 after the mount fix. Geometry from
+`TORIRS_DUMP_BOUNDS`; pixels from `tmp_panel_shots/after_*.png`.
+
 | panel | opens | draws | exit | what the run says |
 |---|---|---|---|---|
-| `xptracker` 729 | yes | yes — **overview labels correct** | 0 | Exit dump (2026-08-03): `729:12` text is `Total XP/Hr: <br>Total XP Gained: `, not the skill-row `XP/Hr`/`XP>Lvl` collapse. Root cause was missing tracker enable/reset: popout ontimer 5452→5453→5374 treated default-0 timers/positions as "row 0" and overwrote the overview. Fixed in content via `~chrome_popout_login` running clientscripts 5450+5455. Earlier "draws cleanly" claims measured that collapsed single row. |
-| `hiscores` 894 | yes | yes | 0 | 7809/7811 are `known=1`: status **3** (error), empty detail string. Script 7530 case 3 owns the user-visible "Unable to load…" text. |
-| `loottools` 650 | yes | chrome + rows once seeded | 0 | Loot store host ops `known=1`. `lootkill` cheat fills the store and runs clientscript 7159. |
-| `xpdrops_setup` 137 | from orb Setup | — | — | `orbs:xp_drops` op2 armed; goal/`xpdrops_options`/carrier varps declared under `interface_chrome/configs/xpdrops.varp`. |
+| `xptracker` 729 | yes into **728:9** | **right-docked framed column** | 0 | Strip widens 42→312; `728:9` = 264×491 (was −6×491 under mainmodal). Panel root fills that box. Overview text `Total XP/Hr` / `Total XP Gained` survives timer ticks (5450+5455 at login). Skill rows still empty after `::xp attack N` in the same cheat batch. |
+| `hiscores` 894 | yes into **728:9** | **framed; honest empty** | 0 | 7809/7811 `known=1`: status **3**, empty detail. Cache text `In-world lookup: Disabled` draws inside the nine-slice. |
+| `loottools` 650 | yes into **728:9** | **framed chrome; list empty** | 0 | Host ops `known=1`. Header/body geometry sane. `lootkill` then open still shows totals 0 — populate path separate from mount. |
+| `xpdrops_setup` 137 | from orb Setup | — | — | Still `mainmodal` (correct — Configure is a modal, not a popout panel). |
 
 The hiscores row is still the proof the signature bridge works, and it was
 obtained the way PORTING_GUIDE §2.5 demands — by making the assertion fail. A
@@ -404,7 +409,11 @@ control binary built with all bridged rows flipped back to `known = 0`
   never a C literal (PORTING_GUIDE §2.4 item 2).
 - **Combat kill → loot store** still needs a real kill-credit hook beyond
   `App_LootNotifyKill` / `TORIRS_NET_CHEAT=lootkill` (do not attribute bare
-  `OBJ_ADD` to an NPC death).
+  `OBJ_ADD` to an NPC death). Even with `lootkill`, the open-path UI still
+  shows totals 0 — the store↔7166 read loop needs a separate pass.
+- **XP skill rows** still empty after `::xp attack N` in the same
+  `TORIRS_NET_CHEAT` batch as `xptracker` (chat shows the gain; overview stays
+  at 0). Not a mount bug; baseline/stat-transmit timing.
 - **`loottools_varp1` (3798) / `settings_varp_ehc_5` (3795)** still undeclared
   if chrome needs them.
 - **Set Goal button** stays dead — `script5463`'s `switch_int` has cases
@@ -495,55 +504,79 @@ thing here that is silently wrong if you get it backwards.
 | piece | file |
 |---|---|
 | declare varp 1021 `toplevel_temp` `transmit=yes scope=temp` | `interface_chrome/configs/chrome.varp` |
-| slot-name constants (0-based, named so `if ($slot = 1)` cannot read as "the first panel") | `interface_chrome/configs/chrome.constant` |
-| arm the range, `[if_button1,popout:buttons]`, open/close/toggle | `interface_chrome/scripts/chrome_panels.rs2` |
-| `~chrome_popout_login` | `player/login.rs2` |
+| slot-name + layout clientscript constants | `interface_chrome/configs/chrome.constant` |
+| arm the range, `[if_button1,popout:buttons]`, open/close/toggle into **`popout:container` type 1**, drive `script5354` after every open/close | `interface_chrome/scripts/chrome_panels.rs2` |
+| `~chrome_popout_login` (also arms XP tracker 5450+5455) | `player/login.rs2` |
 
 Every primitive already existed: `if_setevents` (11000), `IF_BUTTON1` (trigger
-168), `last_slot`, `if_opensub` (11001), `if_closesub` (11005). Zero engine
-changes were needed, which is what §5's "the client already implements the
-feature" means in practice.
+168), `last_slot`, `if_opensub` (11001), `if_closesub` (11005),
+`runclientscript*`. Zero engine changes were needed.
 
 **The declaration is the load-bearing half.** `popout_open` is bits 19-24 of
 varp 1021 `toplevel_temp`, and that varp was undeclared — so the server could
-have tracked the open panel perfectly and the strip would never have redrawn:
-clientscript 7570 is bound to `{var1021}`'s transmit and is what widens the
-strip 58 → 58+278 to make room. Writing it as a *varbit* is likewise not
-optional; a whole-varp write clobbers the other tenants of 1021.
+have tracked the open panel perfectly and the strip would never have redrawn.
+Writing it as a *varbit* is likewise not optional; a whole-varp write clobbers
+the other tenants of 1021.
 
-Mount slot is `popout:container` (728:9), type 1 — the overlay-into-a-nested-
-container form. `[clientscript,script7568]` keys its whole layout off
-`if_hassub(interface_728:9)`, so the mainmodal slot the debugprocs use would
-have left the strip narrow and the panel homeless.
+#### Where the panel mounts, and who sizes the strip
 
-### 8.3 Loot Tools opens; store answers are faked zeros
+The panel roots (729/650/894) are authored `widthmode=1 heightmode=1 xmode=1
+ymode=1` — fill-parent, no chrome. Their nine-slice frame is a *sibling*
+under `popout:frame` (728:5). They belong in **`popout:container` (728:9)
+type 1**. An earlier pass mounted them into `toplevel_osrs_stretch:mainmodal`
+because 728:9 measured −6×491 while the strip was collapsed; that was the
+wrong conclusion. The −6 came from `width=48 widthmode=MINUS` against a
+42-wide parent — exactly the collapsed state, not evidence that 728:9 is
+unusable.
 
-`loottools` no longer aborts on open (§7.6 — arities landed, store still
-stubbed). Slot 2 opens into `toplevel_osrs_stretch:mainmodal` the same way
-xptracker and hiscores do. The stubs return zeros, so the chrome draws and the
-loot list stays empty until a native store lands — honest emptiness, not a
-`mes()` refusal. Re-measured 2026-08-03: popout click at (744,57) mounts
-iface=650 and the client exits 0.
+Who widens the strip depends on the toplevel (`~script900`):
+
+| toplevel | enum | layout owner |
+|---|---|---|
+| 601 `toplevel_osm` | 1745 | `[clientscript,script7568]` (58→336 when `if_hassub(728:9)`) |
+| 161 `toplevel_osrs_stretch` | 1130 | `[proc,script5355]` (42→312 when `if_hassub(728:9)`) |
+| 548 `toplevel` / 164 `toplevel_pre_eoc` | 1129 / 1131 | same `script5355` via enum remap |
+
+`[proc,script9336]` returns 1 for enum **1745 only**, so `script7568` is a
+no-op under 161. The gameframe onload chain (`script901` → `script907` →
+`~script5355`) runs 5355 at boot — that is why the launcher icons are visible
+despite `content_desktop` being authored `hidden=yes`.
+
+**Desktop gap.** `script7570` (the `{var1021}` / `%varbit13090` transmit hook
+that re-runs layout when a panel opens) is registered on `728:24
+mobile_toggle` from 5355's *mobile* branch only. On desktop nothing re-ran
+layout after `%popout_open` changed. Content closes that gap by driving
+`[clientscript,script5354]` (`~script5355(~script900)`) after every open and
+close. Measured: strip 42→312, `728:9` −6×491 → **264×491**, panel roots fill
+it. Toggle click collapses back to −6. Bank (`iface=12`) still mounts into
+`mainmodal` alongside an open popout panel.
+
+### 8.3 Loot Tools opens framed; list still empty
+
+`loottools` no longer aborts on open (§7.6). It mounts into `popout:container`
+type 1 with the other two. Host ops are `known=1` against the native store;
+`lootkill` seeds the store, but the open-path read loop still shows
+`Total count: 0` / `0 gp` — honest emptiness of the populate path, not a
+mount failure. Re-measured 2026-08-03: strip widens, `728:9` is 264×491,
+exit 0.
 
 ### 8.4 Verified by clicking
 
-Against a fresh mock230 on a private port, `TORIRS_SIM_CLICK_AT` at the
-measured button centres (x 744; y 21 / 57 / 93). Re-measured 2026-08-03 for
-Loot Tools after the popout gate came off:
+Against embed / mock230, `TORIRS_SIM_CLICK_AT` at the measured button centres
+(x 744; y 21 / 57 / 93 — icons stay right-anchored after widen). Re-measured
+2026-08-03 after the mount fix:
 
 ```
-XP Tracker (744,21):  mock230: <- IF_BUTTON1 728:6 sub=0
-                      -> if_closesub, IF_OPENSUB, VARP_LARGE
-                      client: mount iface=729 under 0x02d80009   aborts=0
-Loot Tools (744,57):  mock230: <- IF_BUTTON1 728:6 sub=1
-                      client: mount iface=650 under 0x00a10010 (161:16) type=0
-                      cs2-stub: opcode 7601 … results faked — exit 0
-Hiscores   (744,93):  mount iface=894                            aborts=0
-toggle (click 744,21 twice): mount iface=729 then unmount 0x02d80009
+XP Tracker (744,21):  mount iface=729 under 0x02d80009 (728:9) type=1
+                      BOUNDS 728:9 = 264x491; strip 312x503
+Loot Tools (744,57):  mount iface=650 under 0x02d80009 type=1
+Hiscores   (744,93):  mount iface=894 under 0x02d80009 type=1
+toggle (open then click 744,21): unmount 0x02d80009; 728:9 collapses to -6x491
+bank while popout open: iface=12 -> 161:16 (mainmodal); 729 stays in 728:9
 ```
 
 `TORIRS_NET_CHEAT=loottools` is the same open path (debugproc →
-`~chrome_loottools_open`) and also exits 0 with mount iface=650.
+`~chrome_loottools_open`) and also exits 0 with mount iface=650 under 728:9.
 ### 8.5 Two traps this cost time on, worth writing down
 
 1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it

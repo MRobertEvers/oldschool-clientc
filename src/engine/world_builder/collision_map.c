@@ -1043,42 +1043,57 @@ collision_map_bfs_path(
     int* path_z,
     int max_path)
 {
+    return collision_map_route_tiles(
+        cm, src_x, src_z, dst_x, dst_z, NULL, NULL, path_x, path_z, max_path, NULL, NULL, NULL);
+}
+
+/*
+ * Backtrace every tile from arrival toward the source into a heap buffer, then
+ * emit the first min(len, max_path) tiles in walk order (source end first).
+ *
+ * Truncating at the destination end is the load-bearing property: an over-long
+ * path must still start on a tile adjacent to the mover, or the next step is
+ * not a legal direction and the walk aborts. The previous fixed 256-entry
+ * scratch truncated at the source end and produced exactly that failure on any
+ * route longer than the caller's budget.
+ */
+static int
+collision_tiles_backtrace(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int end_x,
+    int end_z,
+    int const* dir_map,
+    int* path_x,
+    int* path_z,
+    int max_path)
+{
     const int buf_size = cm->size_x * cm->size_z;
-
-    int* bfs_direction = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* bfs_cost = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* bfs_step_x = (int*)malloc((size_t)buf_size * sizeof(int));
-    int* bfs_step_z = (int*)malloc((size_t)buf_size * sizeof(int));
-    if( !bfs_direction || !bfs_cost || !bfs_step_x || !bfs_step_z )
-    {
-        free(bfs_direction);
-        free(bfs_cost);
-        free(bfs_step_x);
-        free(bfs_step_z);
-        return -1;
-    }
-
-    int arrived = collision_flood(
-        cm, src_x, src_z, dst_x, dst_z, NULL, bfs_direction, bfs_cost, bfs_step_x, bfs_step_z, NULL,
-        NULL);
-
-    if( !arrived )
-    {
-        free(bfs_direction);
-        free(bfs_cost);
-        free(bfs_step_x);
-        free(bfs_step_z);
-        return -1;
-    }
-
-    int trace_x = dst_x, trace_z = dst_z;
+    int* tmp_x;
+    int* tmp_z;
     int path_len = 0;
-    int tmp_x[256], tmp_z[256];
-    assert(max_path <= 256);
+    int n;
+    int trace_x = end_x;
+    int trace_z = end_z;
 
-    while( path_len < max_path && (trace_x != src_x || trace_z != src_z) )
+    if( max_path <= 0 )
+        return 0;
+    if( end_x == src_x && end_z == src_z )
+        return 0;
+
+    tmp_x = (int*)malloc((size_t)buf_size * sizeof(int));
+    tmp_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    if( !tmp_x || !tmp_z )
     {
-        int dir = bfs_direction[collision_map_index_at(cm, trace_x, trace_z)];
+        free(tmp_x);
+        free(tmp_z);
+        return -1;
+    }
+
+    while( path_len < buf_size && (trace_x != src_x || trace_z != src_z) )
+    {
+        int dir = dir_map[collision_map_index_at(cm, trace_x, trace_z)];
         tmp_x[path_len] = trace_x;
         tmp_z[path_len] = trace_z;
         path_len++;
@@ -1093,17 +1108,120 @@ collision_map_bfs_path(
             trace_z--;
     }
 
-    int n = path_len < max_path ? path_len : max_path;
+    /* path_len tiles, dest-first in tmp. Walk order is the reverse; keep the
+     * source end when truncating. */
+    n = path_len < max_path ? path_len : max_path;
     for( int i = 0; i < n; i++ )
     {
-        path_x[i] = tmp_x[n - 1 - i];
-        path_z[i] = tmp_z[n - 1 - i];
+        path_x[i] = tmp_x[path_len - 1 - i];
+        path_z[i] = tmp_z[path_len - 1 - i];
     }
 
-    free(bfs_direction);
-    free(bfs_cost);
-    free(bfs_step_x);
-    free(bfs_step_z);
+    free(tmp_x);
+    free(tmp_z);
+    return n;
+}
+
+int
+collision_map_reached(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    return collision_flood_arrived(cm, x, z, dst_x, dst_z, approach) ? 1 : 0;
+}
+
+int
+collision_map_route_tiles(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_used_nearest,
+    int* out_arrive_x,
+    int* out_arrive_z)
+{
+    const int buf_size = cm->size_x * cm->size_z;
+    int end_x = dst_x;
+    int end_z = dst_z;
+    int arrived;
+    int n;
+    int* dir_map;
+    int* dist_map;
+    int* queue_x;
+    int* queue_z;
+
+    if( out_used_nearest )
+        *out_used_nearest = 0;
+    if( !cm || !path_x || !path_z || max_path < 0 )
+        return -1;
+    if( src_x < 0 || src_z < 0 || src_x >= cm->size_x || src_z >= cm->size_z || dst_x < 0 ||
+        dst_z < 0 || dst_x >= cm->size_x || dst_z >= cm->size_z )
+        return -1;
+
+    if( collision_flood_arrived(cm, src_x, src_z, dst_x, dst_z, approach) )
+    {
+        if( out_arrive_x )
+            *out_arrive_x = src_x;
+        if( out_arrive_z )
+            *out_arrive_z = src_z;
+        return 0;
+    }
+
+    dir_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
+    queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
+    queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    if( !dir_map || !dist_map || !queue_x || !queue_z )
+    {
+        free(dir_map);
+        free(dist_map);
+        free(queue_x);
+        free(queue_z);
+        return -1;
+    }
+
+    arrived = collision_flood(
+        cm, src_x, src_z, dst_x, dst_z, approach, dir_map, dist_map, queue_x, queue_z, &end_x,
+        &end_z);
+
+    if( !arrived &&
+        collision_nearest_fallback(cm, dst_x, dst_z, approach, nearest, dist_map, &end_x, &end_z) )
+    {
+        arrived = 1;
+        if( out_used_nearest )
+            *out_used_nearest = 1;
+    }
+
+    if( !arrived )
+    {
+        free(dir_map);
+        free(dist_map);
+        free(queue_x);
+        free(queue_z);
+        return -1;
+    }
+
+    if( out_arrive_x )
+        *out_arrive_x = end_x;
+    if( out_arrive_z )
+        *out_arrive_z = end_z;
+
+    n = collision_tiles_backtrace(cm, src_x, src_z, end_x, end_z, dir_map, path_x, path_z, max_path);
+
+    free(dir_map);
+    free(dist_map);
+    free(queue_x);
+    free(queue_z);
     return n;
 }
 

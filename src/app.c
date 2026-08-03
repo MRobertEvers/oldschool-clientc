@@ -4665,6 +4665,20 @@ app_world_tick_animations(struct App* app)
      * stand — they are just no longer paid once per slot per cycle. */
     int anim_count = 0;
     int const* anim_ids = ToriDraw_SceneAnimatedElements(app->scene, &anim_count);
+    TORIRS_PERF_COUNT_SET(
+        TORIRS_PERF_CTR_SCENE_ELEMENTS,
+        app->scene ? ToriDraw_SceneElementSlotCount(app->scene) : 0);
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_SCENE_ANIM_LIST, anim_count);
+    if( app->provider )
+    {
+        TORIRS_PERF_COUNT_SET(
+            TORIRS_PERF_CTR_CACHE_MODEL_SIZE,
+            app->provider->model_cache ? (int64_t)app->provider->model_cache->size : 0);
+        TORIRS_PERF_COUNT_SET(
+            TORIRS_PERF_CTR_CACHE_SPRITE_SIZE,
+            app->provider->sprite_cache ? (int64_t)app->provider->sprite_cache->size
+                                        : 0);
+    }
     for( int k = 0; k < anim_count; k++ )
     {
         int element_id = anim_ids[k];

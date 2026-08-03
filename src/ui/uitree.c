@@ -1554,9 +1554,13 @@ UITree_CcCreate(
         spec.type = UIELEM_RS_GRAPHIC;
         break;
     case 3: /* TORIRS_COMPONENT_RECT */
+        /* Default is outline, not fill. Scripts that want a filled tint call
+         * cc_setfill(true) (and usually cc_settrans); those that leave the
+         * default get a 1px border. Filled=1 here painted opaque black over
+         * the XP tracker's trans=128 row tint (script5364). */
         spec.type = UIELEM_RS_RECT;
         spec.u.rs_rect.color = 0;
-        spec.u.rs_rect.filled = 1;
+        spec.u.rs_rect.filled = 0;
         break;
     case 4: /* TORIRS_COMPONENT_TEXT */
         spec.type = UIELEM_RS_TEXT;

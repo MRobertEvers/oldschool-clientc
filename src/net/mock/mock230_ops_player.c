@@ -118,13 +118,18 @@ mock230_ops_player(
         /*
          * `queueWaypoint` only when out of operable distance. Here the walk is
          * unconditional and that is a deliberate narrowing, not an oversight:
-         * `mock230_world_walk_beside` computes a route from where the player
+         * `mock230_world_walk_to_approach` computes a route from where the player
          * already is, so a player already beside the loc gets a zero-length one.
          * The observable difference is nil and the alternative would be a second,
          * separate answer to "is this close enough" beside the one
          * `mock230_world_process_interaction` already applies a tick later.
          */
-        mock230_world_walk_beside(srv, loc->x, loc->z);
+        {
+            struct CollisionApproach approach;
+            int loc_slot = mock230_scene_find_loc(loc->x, loc->z, loc->level, loc->loc_id);
+            mock230_scene_loc_approach(loc_slot, &approach);
+            mock230_world_walk_to_approach(srv, loc->x, loc->z, &approach);
+        }
 
         /*
          * Deliberately NOT `mock230_world_process_interaction` here.

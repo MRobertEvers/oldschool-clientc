@@ -298,4 +298,12 @@ mock230_zone_player_reset(struct Mock230Player* player);
 void
 mock230_zone_reset(struct Mock230Server* srv);
 
+/** Growth gauges for the perf harness: how many zones the map holds and the
+ *  hash table capacity (never shrinks during a session). */
+void
+mock230_zone_map_stats(
+    struct Mock230Server const* srv,
+    int* out_count,
+    int* out_capacity);
+
 #endif

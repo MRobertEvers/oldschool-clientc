@@ -10,6 +10,10 @@
 #include "mock230_content.h"
 #include "mock230_db.h"
 #include "mock230_ids.h"
+#include "mock230_scene.h"
+#include "features/features.h"
+
+#include "rscache_profile.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,7 +86,18 @@ mock230_boot_defaults(struct Mock230BootConfig* config)
 int
 mock230_boot_load(const struct Mock230BootConfig* config)
 {
+    struct ToriRS_FeatureTable const* features;
+
     mock230_world_set_cache_dir(config->cache_dir);
+
+    /* Era feature table — approach model and op-click nearest fallback. The
+     * server and client must agree; this cache is OldSchool/dat2 so OSRS. */
+    features = ToriRS_Features_ForCache(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2,
+                                        MOCK230_CACHE_REVISION);
+    mock230_scene_set_features(features);
+    fprintf(stderr, "mock230: features era=%s approach=%s op_nearest=%d\n", features->name,
+            features->approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
+            features->op_click_nearest_range);
 
     /* 1. The cache's own tables. The content tree overlays these, so they have
      *    to exist before it is read. */

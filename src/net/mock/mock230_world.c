@@ -32,6 +32,7 @@
 
 #include <rsareabuf.h>
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -225,8 +226,7 @@ unequip_slot(
 void
 mock230_world_steps_clear(struct Mock230Player* player)
 {
-    player->step_count = 0;
-    player->step_head = 0;
+    player->waypoint_index = -1;
 }
 
 static void
@@ -235,159 +235,162 @@ steps_clear(struct Mock230Player* player)
     mock230_world_steps_clear(player);
 }
 
-static void
-steps_push(
-    struct Mock230Player* player,
-    int x,
-    int z)
+static int
+player_has_waypoints(struct Mock230Player const* player)
 {
-    if( player->step_count >= MOCK230_STEP_MAX )
-        return;
-    player->steps[player->step_count].x = (int16_t)x;
-    player->steps[player->step_count].z = (int16_t)z;
-    player->step_count++;
+    return player->waypoint_index >= 0;
 }
 
 /*
- * Fill in the tiles between the last queued position and (x, z).
+ * Install waypoints from a walk-order path (path[0] = first tile from the player).
+ * Mirrors PathingEntity.queueWaypoints: the array is stored dest-first, and
+ * waypoint_index counts down from the tile nearest the player toward the
+ * destination.
  *
- * The client's move packet carries up to 25 waypoints of the path it already
- * routed, which for a short walk is every tile and for a long one is a
- * truncated prefix. Either way consecutive waypoints can be more than a tile
- * apart, so the gap has to be filled in.
- *
- * The filling is a real route through the scene's collision, not the
- * straight-line interpolation this used to do: the client routes around a wall
- * and sends the turning points, and interpolating between two turning points in
- * a straight line cuts the corner the client walked around. The player then
- * stands inside the castle wall, and every subsequent step disagrees with what
- * is on screen.
- *
- * An unreachable waypoint falls back to the straight line rather than to
- * nothing. A server that silently refuses to move is much harder to diagnose
- * than one that walks somewhere slightly wrong, and this is a mock.
+ * Only turn points are stored — subsample every tile into at most
+ * MOCK230_WAYPOINT_MAX by keeping direction changes plus the final tile. The
+ * greedy stepper fills the gaps.
  */
 static void
-steps_walk_to(
+queue_path_as_waypoints(
+    struct Mock230Player* player,
+    int const* path_x,
+    int const* path_z,
+    int steps)
+{
+    int turn_x[MOCK230_WAYPOINT_MAX];
+    int turn_z[MOCK230_WAYPOINT_MAX];
+    int turns = 0;
+    int prev_dx = 0;
+    int prev_dz = 0;
+
+    player->waypoint_index = -1;
+    if( steps <= 0 )
+        return;
+
+    for( int i = 0; i < steps; i++ )
+    {
+        int from_x = i == 0 ? player->x : path_x[i - 1];
+        int from_z = i == 0 ? player->z : path_z[i - 1];
+        int dx = path_x[i] - from_x;
+        int dz = path_z[i] - from_z;
+        int is_turn = (i == 0) || (dx != prev_dx || dz != prev_dz);
+        int is_last = (i == steps - 1);
+
+        if( !is_turn && !is_last )
+            continue;
+        if( turns >= MOCK230_WAYPOINT_MAX )
+        {
+            /* Cap: overwrite the last turn with the destination so we still
+             * finish at the right tile. */
+            turn_x[MOCK230_WAYPOINT_MAX - 1] = path_x[steps - 1];
+            turn_z[MOCK230_WAYPOINT_MAX - 1] = path_z[steps - 1];
+            turns = MOCK230_WAYPOINT_MAX;
+            break;
+        }
+        turn_x[turns] = path_x[i];
+        turn_z[turns] = path_z[i];
+        turns++;
+        prev_dx = dx;
+        prev_dz = dz;
+    }
+
+    /* Reverse into dest-first storage: waypoints[0] = destination,
+     * waypoints[turns-1] = first tile to walk toward. */
+    for( int i = 0; i < turns; i++ )
+    {
+        player->waypoints[i].x = (int16_t)turn_x[turns - 1 - i];
+        player->waypoints[i].z = (int16_t)turn_z[turns - 1 - i];
+    }
+    player->waypoint_index = turns - 1;
+}
+
+/*
+ * Fill waypoints from a BFS to (x, z). Used for ground clicks and as the body
+ * of walk_to_approach when the approach is EXACT.
+ */
+static void
+waypoints_walk_to(
     struct Mock230Player* player,
     int x,
     int z)
 {
-    int cur_x = player->step_count > 0 ? player->steps[player->step_count - 1].x : player->x;
-    int cur_z = player->step_count > 0 ? player->steps[player->step_count - 1].z : player->z;
     int path_x[MOCK230_STEP_MAX];
     int path_z[MOCK230_STEP_MAX];
-    int steps = mock230_scene_route(player->level, cur_x, cur_z, x, z, path_x, path_z,
+    int steps = mock230_scene_route(player->level, player->x, player->z, x, z, path_x, path_z,
                                     MOCK230_STEP_MAX);
 
-    if( steps >= 0 )
+    if( steps < 0 )
     {
-        for( int i = 0; i < steps; i++ )
-            steps_push(player, path_x[i], path_z[i]);
+        /*
+         * Route failed, so do not move.
+         *
+         * The reference has no straight-line fallback: an unreachable click is
+         * a click that does nothing. Leaving the waypoint queue empty is the
+         * correct answer.
+         */
+        player->waypoint_index = -1;
         return;
     }
-
-    /*
-     * Route failed, so do not move.
-     *
-     * There used to be a straight-line fallback here that stepped toward the
-     * destination one tile at a time regardless of collision. A route of -1
-     * means the flood could not reach the target, and the reason it could not
-     * is almost always a wall — so the fallback's entire job was to walk
-     * through the thing that had just refused the path, up to MOCK230_STEP_MAX
-     * tiles of it.
-     *
-     * The reference has no such fallback: an unreachable click is a click that
-     * does nothing. Leaving the step queue empty is the correct answer.
-     */
+    queue_path_as_waypoints(player, path_x, path_z, steps);
 }
 
-/*
- * The tile to stand on to reach (x, z) from (from_x, from_z).
- *
- * Pick an ORTHOGONAL neighbour of the target, not a diagonal one.
- *
- * The player's approach used to be `dest = target - sign(target - from)`, which
- * lands on a diagonal whenever both axes differ — and melee cannot reach a
- * diagonal (see in_attack_range in mock230_combat.c). The walker arrived at the
- * corner, the range test refused, and the fight stalled with both parties
- * standing still: the "squaring up" step never happened.
- *
- * Of the four orthogonal neighbours, take the one nearest the approacher that it
- * can actually stand on, so the approach still looks direct.
- *
- * Shared with the npc chase, which wants the same tile for the same reason: an
- * npc closing on the player has to end up square with it or it can never swing.
- * That used to be a second rule in mock230_combat.c — "one tile out on both axes
- * means drop an axis" — which is this one written from the other end and does
- * not survive an obstacle in the way.
- */
-void
-mock230_world_beside_tile(
-    int level,
-    int from_x,
-    int from_z,
+static void
+waypoints_walk_to_approach(
+    struct Mock230Player* player,
     int x,
     int z,
-    int* out_x,
-    int* out_z)
+    struct CollisionApproach const* approach)
 {
-    static const int k_off_x[4] = { -1, 1, 0, 0 };
-    static const int k_off_z[4] = { 0, 0, -1, 1 };
-    int best_x = x - sign_of(x - from_x);
-    int best_z = z - sign_of(z - from_z);
-    int best_cost = -1;
+    int path_x[MOCK230_STEP_MAX];
+    int path_z[MOCK230_STEP_MAX];
+    int arrive_x = x;
+    int arrive_z = z;
+    int steps;
 
-    for( int i = 0; i < 4; i++ )
+    assert(approach);
+    steps = mock230_scene_route_op(player->level, player->x, player->z, x, z, approach, path_x,
+                                   path_z, MOCK230_STEP_MAX, &arrive_x, &arrive_z);
+    if( steps < 0 )
     {
-        int cand_x = x + k_off_x[i];
-        int cand_z = z + k_off_z[i];
-        int dx = cand_x - from_x;
-        int dz = cand_z - from_z;
-        int cost;
-
-        if( dx < 0 )
-            dx = -dx;
-        if( dz < 0 )
-            dz = -dz;
-        cost = dx > dz ? dx : dz;
-
-        if( mock230_scene_walk_blocked(level, cand_x, cand_z) )
-            continue;
-        if( best_cost < 0 || cost < best_cost )
-        {
-            best_cost = cost;
-            best_x = cand_x;
-            best_z = cand_z;
-        }
+        player->waypoint_index = -1;
+        return;
     }
-
-    *out_x = best_x;
-    *out_z = best_z;
+    queue_path_as_waypoints(player, path_x, path_z, steps);
+    player->dest_x = arrive_x;
+    player->dest_z = arrive_z;
 }
 
-/*
- * Queue a walk to a tile beside (x, z) rather than onto it.
- *
- * Every "click a thing" op wants this: standing on top of an npc or a door is
- * wrong, and the adjacent tile is the one an interaction happens from.
- */
 void
-mock230_world_walk_beside(
+mock230_world_walk_to(
     struct Mock230Server* srv,
     int x,
     int z)
 {
     struct Mock230Player* player = srv->active_player;
-    int best_x;
-    int best_z;
-
-    mock230_world_beside_tile(player->level, player->x, player->z, x, z, &best_x, &best_z);
 
     steps_clear(player);
-    player->dest_x = best_x;
-    player->dest_z = best_z;
-    steps_walk_to(player, player->dest_x, player->dest_z);
+    player->dest_x = x;
+    player->dest_z = z;
+    player->steps_taken = 0;
+    waypoints_walk_to(player, x, z);
+}
+
+void
+mock230_world_walk_to_approach(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    struct CollisionApproach const* approach)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    assert(approach);
+    steps_clear(player);
+    player->dest_x = x;
+    player->dest_z = z;
+    player->steps_taken = 0;
+    waypoints_walk_to_approach(player, x, z, approach);
 }
 
 /* ------------------------------------------------------------------ */
@@ -798,44 +801,93 @@ mock230_world_process_interaction(struct Mock230Server* srv)
         return;
     }
 
-    /* An npc that moved takes its walk with it. Re-routing every tick is what
-     * makes following work; without it the player walks to a memory. */
-    if( interaction->kind == MOCK230_INTERACT_NPC &&
-        (target_x != interaction->x || target_z != interaction->z) )
+    /* Build the same approach the walk used, so the reach test cannot disagree
+     * with the router. */
     {
-        interaction->x = target_x;
-        interaction->z = target_z;
-        mock230_world_walk_beside(srv, target_x, target_z);
-    }
+        struct CollisionApproach approach;
+        int loc_slot;
+        int reached;
 
-    distance = distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z);
-
-    /*
-     * At range: content's chance to handle this without closing the distance.
-     * Only content can — the engine has no ranged behaviour of its own — so a
-     * miss here just falls through to the walk.
-     */
-    if( !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
-    {
-        interaction->ap_tried = 1;
-        trigger = interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
-        /* A miss here has no fallback and needs none: "nothing bound at range"
-         * is the ordinary case for almost every interaction in the game, and
-         * what it means is "keep walking". It still reports once per
-         * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
-         * above and this runs on one tick of the walk rather than all of them. */
-        if( trigger >= 0 && run_interaction_trigger(srv, interaction, trigger) !=
-                                MOCK230_TRIGGER_NONE )
+        if( interaction->kind == MOCK230_INTERACT_LOC )
         {
-            steps_clear(player);
-            mock230_world_interaction_clear(srv);
+            loc_slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
+                                            interaction->target_id);
+            mock230_scene_loc_approach(loc_slot, &approach);
+        }
+        else if( interaction->kind == MOCK230_INTERACT_NPC )
+        {
+            mock230_scene_npc_approach(size_x, &approach);
+        }
+        else
+        {
+            mock230_scene_obj_approach(0, &approach);
+        }
+
+        /* An npc that moved takes its walk with it — but only when we are at
+         * the last waypoint (or have none). PathingEntity.pathToPathingTarget
+         * for SMART re-routes at the last waypoint; re-routing every tick would
+         * thrash the queue while following. Non-moving targets are never
+         * re-pathed (that was the bug that discarded MOVE_OPCLICK). */
+        if( interaction->kind == MOCK230_INTERACT_NPC &&
+            (target_x != interaction->x || target_z != interaction->z) )
+        {
+            interaction->x = target_x;
+            interaction->z = target_z;
+            if( player->waypoint_index <= 0 )
+                mock230_world_walk_to_approach(srv, target_x, target_z, &approach);
+        }
+
+        distance = distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z);
+
+        /*
+         * At range: content's chance to handle this without closing the distance.
+         * Only content can — the engine has no ranged behaviour of its own — so a
+         * miss here just falls through to the walk.
+         */
+        if( !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
+        {
+            interaction->ap_tried = 1;
+            trigger = interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
+            /* A miss here has no fallback and needs none: "nothing bound at range"
+             * is the ordinary case for almost every interaction in the game, and
+             * what it means is "keep walking". It still reports once per
+             * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
+             * above and this runs on one tick of the walk rather than all of them. */
+            if( trigger >= 0 && run_interaction_trigger(srv, interaction, trigger) !=
+                                    MOCK230_TRIGGER_NONE )
+            {
+                steps_clear(player);
+                mock230_world_interaction_clear(srv);
+                return;
+            }
+        }
+
+        reached = mock230_scene_reached(player->level, player->x, player->z, target_x, target_z,
+                                        &approach);
+        /* Ground obj EXACT: standing on the tile. If EXACT fails and we have
+         * no waypoints left, try the 1x1 adjacent form the client retries. */
+        if( !reached && interaction->kind == MOCK230_INTERACT_OBJ )
+        {
+            mock230_scene_obj_approach(1, &approach);
+            reached = mock230_scene_reached(player->level, player->x, player->z, target_x, target_z,
+                                            &approach);
+        }
+
+        if( !reached )
+        {
+            /* Still walking, or stalled unreachable. Reference terminates when
+             * there are no waypoints and no step was taken this tick. */
+            if( !player_has_waypoints(player) && player->steps_taken == 0 )
+            {
+                mock230_say(srv, "cannot_reach_message", NULL);
+                mock230_world_interaction_clear(srv);
+                player->clear_map_flag = 1;
+                player->dest_x = -1;
+                player->dest_z = -1;
+            }
             return;
         }
     }
-
-    /* A ground obj has to be stood on; everything else is reached from beside. */
-    if( distance > (interaction->kind == MOCK230_INTERACT_OBJ ? 0 : 1) )
-        return; /* still walking */
 
     {
         int op_num = interaction->op;
@@ -1117,8 +1169,79 @@ run_energy_flush(struct Mock230Server* srv)
     }
 }
 
-/* Consume up to `max_tiles` queued steps, recording the direction of each so
- * PLAYER_INFO can spell them out. */
+/* Consume up to `max_tiles` steps toward the current waypoint, recording the
+ * direction of each so PLAYER_INFO can spell them out.
+ *
+ * Port of PathingEntity.validateAndAdvanceStep / takeStep: face the current
+ * waypoint, try the diagonal via collision, else E/W, else N/S, else stall
+ * keeping the waypoint. Never clear the route on a blocked step — a temporary
+ * obstacle (another actor) is why the reference retains it. */
+static int
+player_take_step(struct Mock230Player* player)
+{
+    int wp_x;
+    int wp_z;
+    int dx;
+    int dz;
+    int dir;
+    int try_dx;
+    int try_dz;
+
+    if( player->waypoint_index < 0 )
+        return -1;
+
+    wp_x = player->waypoints[player->waypoint_index].x;
+    wp_z = player->waypoints[player->waypoint_index].z;
+    if( wp_x == player->x && wp_z == player->z )
+    {
+        player->waypoint_index--;
+        if( player->waypoint_index < 0 )
+            return -1;
+        wp_x = player->waypoints[player->waypoint_index].x;
+        wp_z = player->waypoints[player->waypoint_index].z;
+    }
+
+    dx = wp_x > player->x ? 1 : (wp_x < player->x ? -1 : 0);
+    dz = wp_z > player->z ? 1 : (wp_z < player->z ? -1 : 0);
+    if( dx == 0 && dz == 0 )
+        return -1;
+
+    /* Prefer the diagonal when both axes differ. */
+    try_dx = dx;
+    try_dz = dz;
+    dir = mock230_step_direction(try_dx, try_dz);
+    if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+        goto step;
+
+    /* Cardinally: E/W first, then N/S — PathingEntity.takeStep order. */
+    if( dx != 0 )
+    {
+        try_dx = dx;
+        try_dz = 0;
+        dir = mock230_step_direction(try_dx, try_dz);
+        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+            goto step;
+    }
+    if( dz != 0 )
+    {
+        try_dx = 0;
+        try_dz = dz;
+        dir = mock230_step_direction(try_dx, try_dz);
+        if( dir >= 0 && mock230_scene_can_step(player->level, player->x, player->z, dir) )
+            goto step;
+    }
+
+    /* Blocked — stall, keep the waypoint. */
+    return -1;
+
+step:
+    player->x += try_dx;
+    player->z += try_dz;
+    if( player->x == wp_x && player->z == wp_z )
+        player->waypoint_index--;
+    return dir;
+}
+
 static void
 advance_player(struct Mock230Server* srv)
 {
@@ -1132,31 +1255,23 @@ advance_player(struct Mock230Server* srv)
     max_tiles = player->running ? 2 : 1;
 
     player->move_count = 0;
+    player->steps_taken = 0;
     for( int i = 0; i < max_tiles; i++ )
     {
-        int dir;
-        if( player->step_head >= player->step_count )
-            break;
-        dir = mock230_step_direction(
-            player->steps[player->step_head].x - player->x,
-            player->steps[player->step_head].z - player->z);
+        int dir = player_take_step(player);
         if( dir < 0 )
-        {
-            /* Not an adjacent tile — the only way to get there is a place, so
-             * drop the rest of the route rather than emit a bogus direction. */
-            steps_clear(player);
             break;
-        }
-        player->x = player->steps[player->step_head].x;
-        player->z = player->steps[player->step_head].z;
-        player->step_head++;
         player->move_dirs[player->move_count++] = dir;
+        player->steps_taken++;
     }
 
-    if( player->step_head >= player->step_count && player->step_count > 0 )
+    if( !player_has_waypoints(player) && player->dest_x >= 0 )
     {
-        steps_clear(player);
-        if( player->dest_x >= 0 )
+        /* Arrived (or never had a route that reached). Clear the map flag when
+         * we actually walked somewhere this interaction; unreachable handling
+         * is process_interaction's job. */
+        if( player->steps_taken > 0 ||
+            (player->x == player->dest_x && player->z == player->dest_z) )
         {
             player->clear_map_flag = 1;
             player->dest_x = -1;
@@ -1500,11 +1615,10 @@ npc_player_range(
 }
 
 /*
- * One step of a walk to the tile *beside* the player, never onto it.
+ * One step of a walk toward the player under a size-aware approach.
  *
- * The reference's `pathToTarget()` does the same thing through
- * `naiveDestination`: a target with a footprint is approached, not stood on. An
- * npc that routed to the player's own tile would spend every tick trying to
+ * The reference's `pathToTarget()` approaches a footprint, not the SW tile.
+ * An npc that routed to the player's own tile would spend every tick trying to
  * step into it and, since nothing there is walkable to it, stand still.
  */
 static int
@@ -1512,11 +1626,38 @@ npc_walk_to_player(
     struct Mock230Npc* npc,
     const struct Mock230Player* player)
 {
-    int dest_x;
-    int dest_z;
+    struct CollisionApproach approach = {
+        .kind = COLL_APPROACH_RECT_ADJACENT,
+        .loc_width = 1,
+        .loc_length = 1,
+        .mover_size = 1,
+    };
+    return mock230_world_npc_walk_to_approach(npc, player->x, player->z, &approach);
+}
 
-    mock230_world_beside_tile(npc->level, npc->x, npc->z, player->x, player->z, &dest_x, &dest_z);
-    return mock230_world_npc_walk_to(npc, dest_x, dest_z);
+int
+mock230_world_npc_walk_to_approach(
+    struct Mock230Npc* npc,
+    int target_x,
+    int target_z,
+    struct CollisionApproach const* approach)
+{
+    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
+    int path_x[MOCK230_STEP_MAX];
+    int path_z[MOCK230_STEP_MAX];
+    int steps;
+
+    assert(approach);
+    if( mock230_scene_reached(npc->level, npc->x, npc->z, target_x, target_z, approach) )
+        return 0;
+    if( def->nomove )
+        return 0;
+
+    steps = mock230_scene_route_op(npc->level, npc->x, npc->z, target_x, target_z, approach,
+                                   path_x, path_z, MOCK230_STEP_MAX, NULL, NULL);
+    if( steps <= 0 )
+        return 0;
+    return npc_take_step(npc, mock230_step_direction(path_x[0] - npc->x, path_z[0] - npc->z));
 }
 
 /*
@@ -2080,6 +2221,11 @@ mock230_world_ground_slot(
  * 14-byte anti-cheat trailer, which must be subtracted before counting
  * waypoints — reading it as coordinate pairs would append seven junk tiles to
  * every minimap walk.
+ *
+ * Server-authoritative: the client's waypoints are a hint for the destination
+ * only. LostCity's NODE_CLIENT_ROUTEFINDER=false branch does the same —
+ * findPath from the player to path[last]. Trusting the client's intermediate
+ * tiles and then letting handle_oploc throw them away was the old bug.
  */
 static void
 handle_move(
@@ -2094,6 +2240,10 @@ handle_move(
     int start_x;
     int start_z;
     int waypoints;
+    int dest_x;
+    int dest_z;
+    int dx_sw;
+    int dz_sw;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
     ctrl = rsab_g1(&buf);
@@ -2116,6 +2266,24 @@ handle_move(
         player->run_toggle = 1;
         mock230_world_set_varp(srv, mock230_world_varp("option_run"), 1);
     }
+
+    /* Reference MoveClickHandler: reject clicks whose first waypoint is more
+     * than a scene away from the player. */
+    dx_sw = start_x - player->x;
+    dz_sw = start_z - player->z;
+    if( dx_sw < 0 )
+        dx_sw = -dx_sw;
+    if( dz_sw < 0 )
+        dz_sw = -dz_sw;
+    if( dx_sw > 104 || dz_sw > 104 )
+    {
+        player->clear_map_flag = 1;
+        steps_clear(player);
+        player->dest_x = -1;
+        player->dest_z = -1;
+        return;
+    }
+
     /* Walking somewhere is a new interaction, and a new interaction ends the
      * old one. Without this the player keeps swinging at whatever they were
      * fighting the moment they get back in range, and — more visibly — keeps
@@ -2131,9 +2299,9 @@ handle_move(
      * to park hit "dropping a script that suspended while another waits", so a
      * single unfinished chat quietly disabled every dialogue after it. */
     mock230_world_clear_pending_action(srv);
-    steps_clear(player);
-    steps_walk_to(player, start_x, start_z);
 
+    dest_x = start_x;
+    dest_z = start_z;
     waypoints = (len - 5 - trailer_len) / 2;
     if( waypoints < 0 )
         waypoints = 0;
@@ -2143,23 +2311,31 @@ handle_move(
         int dz = rsab_g1s(&buf);
         if( !rsab_ok(&buf) )
             break;
-        steps_walk_to(player, start_x + dx, start_z + dz);
+        dest_x = start_x + dx;
+        dest_z = start_z + dz;
     }
 
-    if( player->step_count > 0 )
+    /* Same-tile click: clear the route (reference sets allowRepath NONE). */
+    if( waypoints == 0 && start_x == player->x && start_z == player->z )
     {
-        player->dest_x = player->steps[player->step_count - 1].x;
-        player->dest_z = player->steps[player->step_count - 1].z;
+        steps_clear(player);
+        player->dest_x = -1;
+        player->dest_z = -1;
+        player->clear_map_flag = 1;
+        return;
     }
+
+    mock230_world_walk_to(srv, dest_x, dest_z);
+
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: <- MOVE ctrl=%d start=%d,%d waypoints=%d steps=%d dest=%d,%d\n",
+            "mock230: <- MOVE ctrl=%d start=%d,%d waypoints=%d wp_idx=%d dest=%d,%d\n",
             ctrl,
             start_x,
             start_z,
             waypoints,
-            player->step_count,
+            player->waypoint_index,
             player->dest_x,
             player->dest_z);
 }
@@ -2486,7 +2662,11 @@ handle_opnpc(
     info = mock230_npcinfo(npc->type);
     mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, op_num, slot, npc->type, npc->x,
                                   npc->z, npc->level, info->size, info->size);
-    mock230_world_walk_beside(srv, npc->x, npc->z);
+    {
+        struct CollisionApproach approach;
+        mock230_scene_npc_approach(info->size, &approach);
+        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+    }
 
     /* Idle roaming resumes only after the response has had time to show. */
     npc->next_roam_tick = srv->tick + 8;
@@ -2587,11 +2767,21 @@ handle_opobj(
     mock230_world_clear_pending_action(srv);
     mock230_world_interaction_set(srv, MOCK230_INTERACT_OBJ, op_num, -1, obj_id, tile_x,
                                   tile_z, srv->active_player->level, 1, 1);
-    /* Onto the tile, not beside it: a pile is picked up from on top. */
-    steps_clear(srv->active_player);
-    srv->active_player->dest_x = tile_x;
-    srv->active_player->dest_z = tile_z;
-    steps_walk_to(srv->active_player, tile_x, tile_z);
+    /* Onto the tile, not beside it: a pile is picked up from on top. Exact
+     * arrival first; the reach test retries 1x1 adjacent if needed. */
+    {
+        struct CollisionApproach exact;
+        mock230_scene_obj_approach(0, &exact);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &exact);
+        if( !player_has_waypoints(srv->active_player) &&
+            !mock230_scene_reached(srv->active_player->level, srv->active_player->x,
+                                   srv->active_player->z, tile_x, tile_z, &exact) )
+        {
+            struct CollisionApproach adj;
+            mock230_scene_obj_approach(1, &adj);
+            mock230_world_walk_to_approach(srv, tile_x, tile_z, &adj);
+        }
+    }
 
     mock230_world_process_interaction(srv);
 }
@@ -2675,7 +2865,11 @@ handle_oploc(
 
     mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, op_num, -1, loc_id, tile_x,
                                   tile_z, srv->active_player->level, size_x, size_z);
-    mock230_world_walk_beside(srv, tile_x, tile_z);
+    {
+        struct CollisionApproach approach;
+        mock230_scene_loc_approach(slot, &approach);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &approach);
+    }
 
     mock230_world_process_interaction(srv);
 }
@@ -2841,15 +3035,29 @@ useon_interact(
 
     if( kind == MOCK230_INTERACT_OBJ )
     {
-        /* Onto the tile, not beside it — the same rule OPOBJ<n> follows. */
-        steps_clear(player);
-        player->dest_x = tile_x;
-        player->dest_z = tile_z;
-        steps_walk_to(player, tile_x, tile_z);
+        struct CollisionApproach exact;
+        mock230_scene_obj_approach(0, &exact);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &exact);
+        if( !player_has_waypoints(player) &&
+            !mock230_scene_reached(player->level, player->x, player->z, tile_x, tile_z, &exact) )
+        {
+            struct CollisionApproach adj;
+            mock230_scene_obj_approach(1, &adj);
+            mock230_world_walk_to_approach(srv, tile_x, tile_z, &adj);
+        }
+    }
+    else if( kind == MOCK230_INTERACT_NPC )
+    {
+        struct CollisionApproach approach;
+        mock230_scene_npc_approach(size_x, &approach);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &approach);
     }
     else
     {
-        mock230_world_walk_beside(srv, tile_x, tile_z);
+        int loc_slot = mock230_scene_find_loc(tile_x, tile_z, level, target_id);
+        struct CollisionApproach approach;
+        mock230_scene_loc_approach(loc_slot, &approach);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &approach);
     }
 
     mock230_world_process_interaction(srv);
@@ -5032,6 +5240,7 @@ mock230_world_player_init(struct Mock230Player* player)
     mock230_combat_sync_hitpoints(player);
     player->dest_x = -1;
     player->dest_z = -1;
+    player->waypoint_index = -1;
     player->place_dirty = 1;
     player->masks |= MOCK230_PMASK_APPEARANCE;
 
@@ -10334,6 +10543,106 @@ mock230_world_selftest(void)
                            "got %d tiles",
                            blocked);
         }
+
+        /*
+         * Approach-aware routing to a far loc, and the reach predicate.
+         *
+         * The castle door at 3226,3223 is the same one the doors selftest uses.
+         * Routing from the home tile with a real CollisionApproach must produce
+         * a contiguous path that ends on a tile the reach test accepts — not on
+         * a four-neighbour guess of the SW tile that may be unreachable.
+         */
+        {
+            int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+            struct CollisionApproach approach;
+            int arrive_x = -1;
+            int arrive_z = -1;
+
+            SELFTEST_CHECK(door >= 0, "Lumbridge castle door should be in the scene");
+            if( door >= 0 )
+            {
+                struct Mock230SceneLoc* loc = mock230_scene_loc(door);
+                mock230_scene_loc_approach(door, &approach);
+                steps = mock230_scene_route_op(0, 3222, 3218, loc->x, loc->z, &approach, path_x,
+                                               path_z, MOCK230_STEP_MAX, &arrive_x, &arrive_z);
+                SELFTEST_CHECK(steps >= 0, "approach route to the castle door exists, got %d",
+                               steps);
+                if( steps > 0 )
+                {
+                    int at_x = 3222;
+                    int at_z = 3218;
+                    int contiguous = 1;
+                    for( int i = 0; i < steps; i++ )
+                    {
+                        int dir = mock230_step_direction(path_x[i] - at_x, path_z[i] - at_z);
+                        if( dir < 0 || !mock230_scene_can_step(0, at_x, at_z, dir) )
+                        {
+                            contiguous = 0;
+                            break;
+                        }
+                        at_x = path_x[i];
+                        at_z = path_z[i];
+                    }
+                    SELFTEST_CHECK(contiguous, "door approach route is contiguous");
+                    SELFTEST_CHECK(mock230_scene_reached(0, arrive_x, arrive_z, loc->x, loc->z,
+                                                         &approach),
+                                   "arrival tile satisfies the approach predicate");
+                }
+
+                /* Diagonal-only contact is not a reach — Chebyshev <= 1 used to
+                 * accept the corner and stall the interaction forever. */
+                {
+                    struct CollisionApproach rect = {
+                        .kind = COLL_APPROACH_RECT_ADJACENT,
+                        .loc_width = 1,
+                        .loc_length = 1,
+                        .mover_size = 1,
+                    };
+                    SELFTEST_CHECK(
+                        !mock230_scene_reached(0, loc->x - 1, loc->z - 1, loc->x, loc->z, &rect),
+                        "diagonal corner contact is not an arrival");
+                }
+            }
+        }
+
+        /* A long corridor path capped below its length keeps the source end. */
+        {
+            int short_x[8];
+            int short_z[8];
+            int n = mock230_scene_route(0, 3222, 3218, 3250, 3218, short_x, short_z, 8);
+            if( n > 0 )
+            {
+                int dir = mock230_step_direction(short_x[0] - 3222, short_z[0] - 3218);
+                SELFTEST_CHECK(dir >= 0, "truncated route's first tile is adjacent to the source");
+            }
+        }
+
+        /*
+         * An unreachable interaction terminates instead of latching forever.
+         *
+         * Park the player away from a loc, latch an interaction with an empty
+         * waypoint queue and no step this tick, then process once: the reach
+         * test fails, there is nowhere left to walk, and the interaction clears
+         * (with cannot_reach_message via mock230_say).
+         */
+        {
+            int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+
+            if( door >= 0 )
+            {
+                struct Mock230SceneLoc* loc = mock230_scene_loc(door);
+
+                selftest_park_player(&srv, 3222, 3218);
+                mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id, loc->x,
+                                              loc->z, 0, loc->size_x, loc->size_z);
+                player->interaction.ap_tried = 1; /* skip the at-range arm */
+                steps_clear(player);
+                player->steps_taken = 0;
+                mock230_world_process_interaction(&srv);
+                SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
+                               "an unreachable interaction clears rather than latching");
+            }
+        }
     }
 
     fprintf(stderr, "mock230 selftest: ground objs\n");
@@ -10943,9 +11252,34 @@ mock230_world_selftest(void)
                        "a click on something out of reach latches an interaction");
         SELFTEST_CHECK(free_slot < 0 || player->inv[free_slot].obj_id != 526,
                        "and does NOT act on it from eight tiles away");
-        SELFTEST_CHECK(player->step_count > 0, "it starts a walk instead");
+        SELFTEST_CHECK(player->waypoint_index >= 0, "it starts a walk instead");
 
         settled = selftest_settle(&srv, 40);
+        {
+            struct CollisionApproach exact, adj;
+            int px = player->x, pz = player->z;
+            mock230_scene_obj_approach(0, &exact);
+            mock230_scene_obj_approach(1, &adj);
+            fprintf(stderr, "  PROBE obj settle: settled=%d pos=%d,%d kind=%d wpi=%d dest=%d,%d exact=%d adj=%d blocked_obj=%d\n",
+                    settled, px, pz, (int)player->interaction.kind, player->waypoint_index,
+                    player->dest_x, player->dest_z,
+                    mock230_scene_reached(0, px, pz, obj_x, obj_z, &exact),
+                    mock230_scene_reached(0, px, pz, obj_x, obj_z, &adj),
+                    mock230_scene_walk_blocked(0, obj_x, obj_z));
+            {
+                int path_x[256], path_z[256], ax, az, n;
+                n = mock230_scene_route_op(0, 3222, 3218, obj_x, obj_z, &exact, path_x, path_z, 256, &ax, &az);
+                fprintf(stderr, "  PROBE exact route n=%d arrive=%d,%d last=%d,%d\n",
+                        n, ax, az, n>0?path_x[n-1]:-1, n>0?path_z[n-1]:-1);
+                n = mock230_scene_route_op(0, 3222, 3218, obj_x, obj_z, &adj, path_x, path_z, 256, &ax, &az);
+                fprintf(stderr, "  PROBE adj route n=%d arrive=%d,%d\n", n, ax, az);
+                if (mock230_scene_collision(0)) {
+                    int bx = mock230_scene_base_x(), bz = mock230_scene_base_z();
+                    unsigned f = collision_map_tile(mock230_scene_collision(0), obj_x-bx, obj_z-bz);
+                    fprintf(stderr, "  PROBE obj tile flags=0x%x\n", f);
+                }
+            }
+        }
         SELFTEST_CHECK(settled > 0, "arriving takes ticks, got %d", settled);
         SELFTEST_CHECK(free_slot >= 0 && player->inv[free_slot].obj_id == 526,
                        "and the obj is taken on arrival");
@@ -11604,16 +11938,11 @@ mock230_world_selftest(void)
                         clear = 0;
                 }
                 /*
-                 * The seven-tile north leg the interpolation check walks, from
+                 * The seven-tile north leg the greedy stepper walks, from
                  * where the diagonal leaves the player: (start+3, start+3).
                  *
-                 * This used to go unchecked, and the route to it genuinely
-                 * failed — the straight-line fallback in `steps_walk_to` then
-                 * filled the queue by walking through whatever was in the way,
-                 * so the assertion passed on the strength of the bug it should
-                 * have caught. With the fallback gone an unreachable leg is an
-                 * empty queue, which is correct and which made this test fail
-                 * honestly for the first time.
+                 * Waypoints store turn points, not every tile — a straight
+                 * north leg is one waypoint and takeStep fills the gap.
                  */
                 if( !mock230_scene_contains(candidate_x + 3, candidate_z + 10) )
                     continue;
@@ -11641,9 +11970,9 @@ mock230_world_selftest(void)
 
         steps_clear(player);
         player->running = 0;
-        steps_walk_to(player, start_x + 4, start_z + 4);
-        SELFTEST_CHECK(player->step_count == 4, "diagonal walk should be 4 tiles, got %d",
-                       player->step_count);
+        mock230_world_walk_to(&srv, start_x + 4, start_z + 4);
+        SELFTEST_CHECK(player->waypoint_index >= 0, "diagonal walk queues a waypoint, idx=%d",
+                       player->waypoint_index);
 
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->move_count == 1, "walking covers one tile per tick, got %d",
@@ -11661,12 +11990,15 @@ mock230_world_selftest(void)
                        player->move_count);
         SELFTEST_CHECK(player->x == start_x + 3, "ran two tiles, x=%d", player->x);
 
-        /* Waypoints more than a tile apart are interpolated, not teleported:
-         * the client only sends the turning points of its route. */
+        /* Waypoints more than a tile apart are walked greedily, not teleported:
+         * the client only sends the turning points of its route, and the
+         * server stores the same. */
         steps_clear(player);
-        steps_walk_to(player, player->x, player->z + 7);
-        SELFTEST_CHECK(player->step_count == 7, "7-tile leg fills 7 steps, got %d",
-                       player->step_count);
+        mock230_world_walk_to(&srv, player->x, player->z + 7);
+        SELFTEST_CHECK(player->waypoint_index >= 0, "7-tile leg queues a waypoint, idx=%d",
+                       player->waypoint_index);
+        SELFTEST_CHECK(player->waypoints[0].z == player->z + 7,
+                       "destination waypoint (index 0) is 7 north");
         player->run_toggle = 0;
     }
 
@@ -11922,7 +12254,7 @@ mock230_world_selftest(void)
         weight = player_weight_grams(player);
         SELFTEST_CHECK(weight > 0, "the starting kit weighs something (%d g)", weight);
 
-        steps_walk_to(player, player->x + 6, player->z);
+        mock230_world_walk_to(&srv, player->x + 6, player->z);
         energy_before = player->run_energy;
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->move_count == 2, "running covers two tiles");
@@ -11949,7 +12281,7 @@ mock230_world_selftest(void)
         /* Empty means walk, and the toggle goes with it — otherwise the orb
          * stays lit over a player who is plainly walking. */
         player->run_energy = 1;
-        steps_walk_to(player, player->x + 6, player->z);
+        mock230_world_walk_to(&srv, player->x + 6, player->z);
         mock230_world_tick(&srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
