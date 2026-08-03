@@ -85,6 +85,25 @@ net_out_map_build_complete(
     return out_empty(rev, random_out, buf, cap, PKTOUT_NAME_MAP_BUILD_COMPLETE);
 }
 
+int
+net_out_window_status(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int mode,
+    int width,
+    int height)
+{
+    struct RSCache_Buffer b;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_WINDOW_STATUS, 5, &b) < 0 )
+        return -1;
+    p1(&b, mode & 0xff);
+    p2(&b, width & 0xffff);
+    p2(&b, height & 0xffff);
+    return 1 + (int)b.position;
+}
+
 /* -- interface ---------------------------------------------------------- */
 
 /*
@@ -509,26 +528,83 @@ net_out_inv_button(
         component_id);
 }
 
+/* Jagex alt byte-order writers used by the rev-230 IfButtonD frame.
+ * Naming matches rsareabuf / RSProt: alt1 = LE, alt2 = BE+128, alt3 = LE+128.
+ * Mask every byte: Java writes `(byte)(n + 128)` and rsareabuf's put truncates;
+ * RSCache_BufferP1 asserts value < 256 without accepting (v+128) >= 256. */
+static void
+out_p2_alt1(struct RSCache_Buffer* b, int v)
+{
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+}
+
+static void
+out_p2_alt2(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (v >> 8) & 0xff);
+    p1(b, (v + 128) & 0xff);
+}
+
+static void
+out_p2_alt3(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (v + 128) & 0xff);
+    p1(b, (v >> 8) & 0xff);
+}
+
+static void
+out_p4_alt1(struct RSCache_Buffer* b, int v)
+{
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+    p1(b, (v >> 16) & 0xff);
+    p1(b, (v >> 24) & 0xff);
+}
+
 int
 net_out_inv_buttond(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int component_id,
-    int from_slot,
-    int to_slot,
+    int src_com,
+    int src_obj,
+    int src_slot,
+    int dst_com,
+    int dst_obj,
+    int dst_slot,
     int mode)
 {
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
 
+    /* Rev-230: ClientProt 48 shape — both endpoints with item ids (16 bytes).
+     * Encodings from the deob class108.method3759 / class617 writers. */
+    if( width == 4 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND, 16, &b) < 0 )
+            return -1;
+        out_p4_alt1(&b, src_com);       /* method13150: p4 LE */
+        out_p2_alt1(&b, src_obj);       /* method13170: p2 LE */
+        out_p2_alt3(&b, src_slot);      /* method13196: p2 LE+128 */
+        p4(&b, dst_com);                /* method13396: p4 BE */
+        out_p2_alt2(&b, dst_obj);       /* method13174: p2 BE+128 */
+        out_p2_alt2(&b, dst_slot);      /* method13174 */
+        (void)mode;
+        return 1 + (int)b.position;
+    }
+
+    /* Classic 2004 INV_BUTTOND: single component + mode byte. */
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND, 5 + width, &b) < 0 )
         return -1;
-    out_p_com(&b, width, component_id);
-    p2(&b, from_slot);
-    p2(&b, to_slot);
+    out_p_com(&b, width, src_com);
+    p2(&b, src_slot);
+    p2(&b, dst_slot);
     p1(&b, mode);
+    (void)src_obj;
+    (void)dst_com;
+    (void)dst_obj;
     return 1 + (int)b.position;
 }
 

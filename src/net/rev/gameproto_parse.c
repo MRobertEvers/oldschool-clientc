@@ -275,8 +275,11 @@ gameproto_parse(
         assert(buffer.position == data_size);
         return 1;
     }
-    case PKT_NAME_RESET_CLIENT_VARCACHE:
-        /* VARP_SYNC: no payload, sync all vars to server authoritative set */
+    case PKT_NAME_VARP_SYNC:
+        /* Restore client vars from the server-authoritative set. No payload. */
+        return 1;
+    case PKT_NAME_VARP_RESET:
+        /* Zero both copies. No payload. */
         return 1;
     case PKT_NAME_UPDATE_STAT:
     {

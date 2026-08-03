@@ -455,22 +455,17 @@ RS_GameProto_Exec(
     /* ---- modern gameframe interfaces (rev-230 openTop/openSub) ---- */
     case PKT_NAME_IF_OPENTOP:
     {
-        /* IF_OPENTOP names the gameframe root (TS setRootInterface). This client
-         * already boots its gameframe (161) from the manifest and mounts every
-         * server sub-interface INTO it, so the booted root is authoritative and
-         * IF_OPENTOP is informational — we do NOT reboot on it. Rebooting here was
-         * destructive: a stray/zero id (the live server sent 0) rebuilt the tree to
-         * an empty root, wiping the live 161 gameframe and leaving a panel covering
-         * the viewport. Log the mismatch for visibility; a real gameframe *switch*
-         * (161<->548 fixed) would need proper sub-remount handling, not a raw reboot. */
+        /* Switch the gameframe root when the server asks for a different top
+         * (Display Fixed/Classic/Modern). Reject non-positive ids — a live
+         * server once sent 0 and wiped the tree. Same-id is a no-op. */
         int top = packet->_if_opentop.interface_id;
-        int boot = ctx->app ? ctx->app->boot_interface_id : -1;
-        if( top != boot )
-            fprintf(
-                stderr,
-                "if-opentop: server root=%d differs from booted root=%d; keeping booted root\n",
-                top,
-                boot);
+        int cur = ctx->app ? ctx->app->boot_interface_id : -1;
+        if( !ctx->app || top <= 0 )
+            break;
+        if( top == cur )
+            break;
+        fprintf(stderr, "if-opentop: switching root %d -> %d\n", cur, top);
+        App_OpenRootInterface(ctx->app, top);
         break;
     }
     case PKT_NAME_IF_OPENSUB:
@@ -493,6 +488,11 @@ RS_GameProto_Exec(
     case PKT_NAME_IF_CLOSESUB:
         if( ctx->app )
             App_CloseSubInterface(ctx->app, packet->_if_closesub.target_uid);
+        break;
+    case PKT_NAME_IF_MOVESUB:
+        if( ctx->app )
+            App_MoveSubInterface(
+                ctx->app, packet->_if_movesub.source_uid, packet->_if_movesub.dest_uid);
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( ctx->app )
@@ -782,7 +782,13 @@ RS_GameProto_Exec(
         if( ctx->app )
             ctx->app->esync.local_pid = packet->_update_pid.local_player_index;
         break;
-    case PKT_NAME_RESET_CLIENT_VARCACHE:
+    case PKT_NAME_VARP_SYNC:
+        /* Restore the client-visible copy from the server-authoritative set
+         * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct
+         * from VARP_RESET, which zeroes both. */
+        VarPManager_ApplySync(ctx->varps);
+        break;
+    case PKT_NAME_VARP_RESET:
         VarPManager_ResetAll(ctx->varps);
         break;
     case PKT_NAME_LAST_LOGIN_INFO:

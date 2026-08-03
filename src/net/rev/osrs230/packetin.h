@@ -48,8 +48,8 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 0, 2, PKT_NAME_NONE },   /* SET_NPC_UPDATE_ORIGIN */
     { 35, 3, PKT_NAME_VARP_SMALL },  /* p2 id, p1 signed value — same as lc254 */
     { 82, 6, PKT_NAME_VARP_LARGE },  /* p2 id, p4 value — same as lc254 */
-    { 7, 0, PKT_NAME_NONE },   /* VARP_RESET */
-    { 88, 0, PKT_NAME_RESET_CLIENT_VARCACHE }, /* VARP_SYNC */
+    { 7, 0, PKT_NAME_VARP_RESET },   /* zero both client + server copies */
+    { 88, 0, PKT_NAME_VARP_SYNC },   /* restore client from server-authoritative */
     { 77, 2, PKT_NAME_UPDATE_RUNENERGY }, /* p2 hundredths — osrs230_parse override */
     { 27, 2, PKT_NAME_UPDATE_RUNWEIGHT }, /* p2 signed kg — same as lc254 */
     { 114, 7, PKT_NAME_UPDATE_STAT }, /* V2 layout — osrs230_parse override */
@@ -59,6 +59,7 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 60, 2, PKT_NAME_IF_OPENTOP },  /* IF_OPENTOP (root interface) */
     { 6, 7, PKT_NAME_IF_OPENSUB },   /* IF_OPENSUB */
     { 36, 4, PKT_NAME_IF_CLOSESUB }, /* IF_CLOSESUB */
+    { 42, 8, PKT_NAME_IF_MOVESUB },  /* IF_MOVESUB: dest then source combinedIds */
     { 53, PKTIN_LENGTH_VARU16, PKT_NAME_NONE },  /* IF_RESYNC */
     /* The IF_SET* family. Only 94 is a real RSProt opcode; 95-98 are assigned
      * here the same way the client->server table's are (see

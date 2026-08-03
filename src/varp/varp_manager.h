@@ -141,11 +141,11 @@ VarPManager_ApplyLarge(
     int variable,
     int value);
 
-/** Apply VARP_SYNC: reset all vars to server authoritative set. */
+/** VARP_SYNC: restore client-visible vars from the server-authoritative set. */
 void
 VarPManager_ApplySync(struct VarPManager* mgr);
 
-/** RESET_CLIENT_VARCACHE: zero every var (client + server-authoritative). */
+/** VARP_RESET: zero every var (client + server-authoritative). */
 void
 VarPManager_ResetAll(struct VarPManager* mgr);
 

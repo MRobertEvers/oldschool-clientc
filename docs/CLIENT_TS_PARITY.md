@@ -1477,14 +1477,19 @@ Now (all reference-shaped):
   promotes (`threshold && cycles >= 5`), so a plain click does not flicker.
 
 Not ported (deferred, cosmetic/situational): drag autoscroll at clip edges
-(`Client.ts:10226-10252`, matters for scrolled bank grids), bank insert-mode
-(`mode=1` + cascade swap + `objReplace` move-and-clear — torirs always sends
-mode 0 and swaps), count text following the drag offset (the grid draws no
-count text yet, see §17's owi=33 note), the objSwap/objReplace arm gate (the
-dat1 component flags `swappable/draggable/usable/interactable` are dropped at
-decode — torirs arms on any filled slot; over-arms on some shop/bank panels
-where the reference would fire on the down edge instead), and freezing hover
-text during a real drag.
+(`Client.ts:10226-10252`, matters for scrolled bank grids), count text
+following the drag offset (the grid draws no count text yet, see §17's
+owi=33 note).
+
+**Rev-230 correction (Deobfuscator `src_20260730`, client 1.12.33):** the
+2004 client's optimistic slot swap / `objReplace` move-and-clear / bank
+insert-mode (`mode=1` cascade) are **not** deferrals for IF3 — they do not
+exist at this revision. `class415.method9501` writes nothing to item fields
+on release; it fires `onDragComplete` then ClientProt 48 (16-byte dual-
+endpoint IfButtonD). torirs now matches that on the CS2 path (no local
+`InvManager`/`UITree` swap; hook + dual-endpoint packet), and keeps the
+2004 optimistic swap only for CS1/dat1 talking to LostCity. The reference
+for rev-230 UI behaviour is the Java deob, not in-repo `Client-TS`.
 
 Verified: full build clean; `test-uitree` (incl. §18's collect regression),
 `test-inv`, `test-net-exec`, `test-net-login`, `test-net-loopback`,
@@ -1492,8 +1497,9 @@ Verified: full build clean; `test-uitree` (incl. §18's collect regression),
 check-list for the next session: logs no longer render as notes, hover names
 resolve after first icon load, left-click Wield/Wear fires on release without
 a press-fade on IF3, IF1 held click still shows the in-place trans-128 icon,
-and slot-to-slot drag swaps + sends `INV_BUTTOND` while the rest of the grid
-stays put.
+CS1 drag still swaps locally + classic `INV_BUTTOND`, and CS2 drag fires
+`onDragComplete` then the dual-endpoint packet (pixels move on the server
+echo / hook paint).
 
 ---
 
@@ -1656,8 +1662,12 @@ to end:
 
 Net: equipment/worn items are clickable (Remove/Operate) but cannot be
 dragged or reordered; on IF1 they still fade while pressed, on IF3 they do
-not. The backpack (objSwap) is unaffected for swaps; IF3 backpack clicks no
-longer flash translucent before the op runs.
+not. The backpack (objSwap) is unaffected for swaps on CS1; IF3 backpack
+clicks no longer flicker, and IF3 drag release no longer mutates slots
+locally (see §21.4 rev-230 correction — `onDragComplete` + dual-endpoint
+IfButtonD). The 2004 `objReplace` / bank-insert cascade are not IF3
+features; do not reintroduce them on the CS2 path.
+
 Verified: clean build; `test-inv`, `test-uitree`, `test-net-exec`,
 `test-ui-slots`, `test-uitree-builder-dat1`, `test-revconfig` pass. Live check:
 press-hold a worn item — it does not move; on release its op runs and no

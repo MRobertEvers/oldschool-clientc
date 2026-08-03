@@ -3923,6 +3923,36 @@ App_CloseSubInterface(
 }
 
 void
+App_MoveSubInterface(
+    struct App* app,
+    int source_uid,
+    int dest_uid)
+{
+    int idx;
+    int group_id;
+    int type;
+
+    assert(app);
+    if( !app->tree || source_uid < 0 || dest_uid < 0 )
+        return;
+    idx = UITree_InterfaceParentFind(app->tree, source_uid);
+    if( idx < 0 )
+        return;
+    group_id = app->tree->interface_parents[idx].group_id;
+    type = app->tree->interface_parents[idx].type;
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "if-movesub: group=%d type=%d src=0x%08x dest=0x%08x\n",
+            group_id,
+            type,
+            (unsigned)source_uid,
+            (unsigned)dest_uid);
+    App_CloseSubInterface(app, source_uid);
+    App_OpenSubInterface(app, dest_uid, group_id, type);
+}
+
+void
 App_RunClientScript(
     struct App* app,
     struct PktRunClientScript const* request)
@@ -4095,17 +4125,44 @@ app_logic_tick(struct App* app)
      * An interface asked to close itself.
      *
      * `if_close` is what every framed interface's X runs (steelborder binds op 1
-     * to clientscript 29, whose whole body is that one opcode). It is a request,
-     * not a local close: the server is what unmounts, and it answers with
-     * IF_CLOSESUB. Draining the flag here rather than inside the hook dispatch
-     * keeps the CS2 host free of any knowledge of the socket, which is the same
-     * split every other host request has.
+     * to clientscript 29, whose whole body is that one opcode). Rev-230's
+     * method9167 both sends CLOSE_MODAL and locally unmounts every open modal
+     * / sidemodal sub (type 0 / 3); overlays (type 1) stay. The deferred flag
+     * is drained here rather than inside the hook so the CS2 host stays free
+     * of the socket — same split every other host request has.
      */
     if( app->host.close_modal_requested )
     {
         app->host.close_modal_requested = false;
-        if( app->button_sink.close_modal )
-            app->button_sink.close_modal(app->button_sink.user);
+        if( !app->closing_modals )
+        {
+            int uids[UITREE_INTERFACE_PARENT_MAX];
+            int n = 0;
+
+            app->closing_modals = 1;
+            if( app->button_sink.close_modal )
+                app->button_sink.close_modal(app->button_sink.user);
+
+            /* Snapshot first: App_CloseSubInterface mutates interface_parents. */
+            if( app->tree )
+            {
+                for( int i = 0; i < app->tree->interface_parent_count; i++ )
+                {
+                    int t = app->tree->interface_parents[i].type;
+                    if( t == 0 || t == 3 )
+                        uids[n++] = app->tree->interface_parents[i].container_uid;
+                }
+                for( int i = 0; i < n; i++ )
+                    App_CloseSubInterface(app, uids[i]);
+            }
+
+            /* CS1 IF1 slots: 2004 closeModal() cleared these locally too. */
+            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
+                RS_UISlots_CloseModal(app);
+
+            app->closing_modals = 0;
+            app->need_redraw = 1;
+        }
     }
 
     if( app->host.resume_pausebutton_component_id != -1 )
@@ -8555,6 +8612,7 @@ app_minimenu_inv_action(
 
 #include "ui/uitree_inv_view.h"
 #include "ui/uitree_obj_cell.h"
+#include "ui/uitree_scroll.h"
 
 /* Filled item cell under a canvas point, of either shape the tree can express
  * one in — a TYPE_INV grid slot or a rev-230 CS2 item child. Resolution and
@@ -8636,7 +8694,7 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
 
 /*
  * A real drag was released at (mx, my): find the destination slot in the
- * container the drag started from, apply it locally, and tell the server.
+ * container the drag started from, and tell the server.
  *
  * The destination lookup is NOT app_obj_cell_at. An empty slot is a legal
  * drop target and is exactly what a hit-test cannot see: a TYPE_INV grid has
@@ -8644,6 +8702,12 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
  * outright. Each shape therefore resolves its own way — the grid by its slot
  * geometry, the CS2 container by walking its (laid-out, possibly hidden)
  * children.
+ *
+ * CS1 / dat1 (2004 Client.ts): optimistic InvManager swap then classic
+ * INV_BUTTOND with a mode byte. CS2 / rev-230 (Deobfuscator class415): no
+ * local item mutation — fire onDragComplete, then the dual-endpoint
+ * IfButtonD packet; the server UPDATE_INV (or the hook's own paint) moves
+ * the pixels.
  */
 static void
 app_inv_drag_drop(
@@ -8652,43 +8716,149 @@ app_inv_drag_drop(
     int mouse_y)
 {
     int to_slot = -1;
+    int src_obj = -1;
+    int dst_obj = -1;
+    int dst_com = app->inv_drag_com_id;
+    int32_t src_node = -1;
+    int32_t dst_node = -1;
 
     if( app->inv_drag_source_id >= 0 )
     {
         struct UITreeObjCell dest;
+        struct InvSlot inv_slot;
         if( UITree_ObjCellAt(app->tree, &app->ui_host, mouse_x, mouse_y, &dest) &&
             dest.kind == UITREE_OBJ_CELL_GRID && dest.inv_source_id == app->inv_drag_source_id )
             to_slot = dest.slot;
+        if( InvManager_GetSlot(
+                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, &inv_slot) &&
+            inv_slot.obj_id > 0 )
+            src_obj = inv_slot.obj_id;
+        if( to_slot >= 0 &&
+            InvManager_GetSlot(&app->invs, app->inv_drag_source_id, to_slot, &inv_slot) &&
+            inv_slot.obj_id > 0 )
+            dst_obj = inv_slot.obj_id;
     }
     else
     {
+        int obj = 0;
         to_slot =
             UITree_ObjCellDynamicSlotAt(app->tree, app->inv_drag_com_id, mouse_x, mouse_y);
+        if( UITree_ObjCellDynamicAtSlot(
+                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, &src_node, &obj, NULL) &&
+            obj > 0 )
+            src_obj = obj;
+        if( to_slot >= 0 &&
+            UITree_ObjCellDynamicAtSlot(
+                app->tree, app->inv_drag_com_id, to_slot, &dst_node, &obj, NULL) )
+        {
+            dst_obj = obj > 0 ? obj : -1;
+            /* Packet names the static parent (rsprot IfButtonD combinedId);
+             * the drag-target event below uses the child node. */
+            dst_com = app->inv_drag_com_id;
+        }
     }
 
     if( to_slot < 0 || to_slot == app->inv_drag_from_slot )
         return;
 
-    /* The move is applied locally so the drag feels instant; the server's
-     * UPDATE_INV echo repaints it a tick later either way. */
-    if( app->inv_drag_source_id >= 0 )
+    if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
     {
-        InvManager_SwapSlots(
-            &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
-        RS_CS2Host_NotifyInvChanged(
-            &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
+        /* 2004 Client.ts: apply locally so the drag feels instant; the
+         * server's UPDATE_INV echo repaints either way. */
+        if( app->inv_drag_source_id >= 0 )
+        {
+            InvManager_SwapSlots(
+                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+            RS_CS2Host_NotifyInvChanged(
+                &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
+        }
+        else
+        {
+            UITree_ObjCellDynamicSwap(
+                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+        }
+        APP_NET_SEND(
+            app,
+            net_out_inv_buttond(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                app->inv_drag_com_id,
+                src_obj,
+                app->inv_drag_from_slot,
+                app->inv_drag_com_id,
+                dst_obj,
+                to_slot,
+                0));
+        return;
     }
-    else
+
+    /* Rev-230: onDragComplete first, then the dual-endpoint packet. No local
+     * item-field write (Deobfuscator class415.method9501 / class108.method3759). */
     {
-        UITree_ObjCellDynamicSwap(
-            app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+        int hook_com = app->inv_drag_com_id;
+        struct UITreeRuntimeScriptHook const* hook = NULL;
+        int32_t hook_idx = src_node;
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
+        int32_t parent_idx;
+
+        if( hook_idx < 0 )
+            hook_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+        if( hook_idx >= 0 )
+        {
+            hook = &UITree_Hooks(&app->tree->components[hook_idx])->on_drag_complete;
+            hook_com = app->tree->components[hook_idx].component_id;
+            if( hook->script_id <= 0 )
+            {
+                /* Fall back to the container: some paint scripts put the hook
+                 * on the parent layer rather than every CC_CREATE child. */
+                parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+                if( parent_idx >= 0 )
+                {
+                    hook = &UITree_Hooks(&app->tree->components[parent_idx])->on_drag_complete;
+                    hook_com = app->inv_drag_com_id;
+                }
+            }
+        }
+
+        parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
+        if( parent_idx >= 0 )
+        {
+            UITree_LayoutGetBounds(
+                &app->tree->components[parent_idx].position, &bx, &by, &bw, &bh);
+            UITree_AccumScrollOffset(app->tree, parent_idx, &offx, &offy);
+        }
+
+        if( hook && hook->script_id > 0 )
+        {
+            struct UITreeRuntimeScriptHook hook_copy = *hook;
+            int target_id = app->inv_drag_com_id;
+            if( dst_node >= 0 )
+                target_id = app->tree->components[dst_node].component_id;
+            RS_CS2_SetEventOp(&app->host, 1, 0);
+            RS_CS2_SetEventMouse(
+                &app->host, mouse_x - (bx - offx), mouse_y - (by - offy));
+            RS_CS2_SetEventDragTarget(&app->host, app->tree, target_id);
+            RS_CS2_DispatchHook(&app->host, &app->runner, hook_com, &hook_copy);
+        }
     }
 
     APP_NET_SEND(
         app,
         net_out_inv_buttond(
-            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-            app->inv_drag_com_id, app->inv_drag_from_slot, to_slot, 0));
+            app->net->rev,
+            app->net->random_out,
+            _nsbuf,
+            sizeof(_nsbuf),
+            app->inv_drag_com_id,
+            src_obj,
+            app->inv_drag_from_slot,
+            dst_com,
+            dst_obj,
+            to_slot,
+            0));
 }
 
 /* A press has become a real drag once it clears the deadzone and the dead
@@ -8716,15 +8886,18 @@ app_inv_drag_ghosting(struct App const* app)
 }
 
 /* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
- * mouseLoop 8584 + gameLoop 2476):
+ * mouseLoop 8584 + gameLoop 2476 for CS1; rev-230 Deobfuscator class415 for
+ * CS2):
  *  - left press over a FILLED slot arms; nothing fires on the down edge.
  *  - each held cycle: cycles++, >5px of travel sets the grab threshold, and
  *    the emit offset dx/dy is recomputed (+-5px deadzone, zero before 5
  *    cycles) so a promoted drag icon follows the mouse at trans 128.
  *  - release: real drag (app_inv_drag_promoted) resolves the slot under
- *    the mouse — same source, different slot → optimistic local swap +
- *    INV_BUTTOND(com, src, dst, 0); anything else is a SHORT CLICK and runs
- *    the default menu row (how a left click submits OPHELD*).
+ *    the mouse — CS1 does an optimistic local swap + classic INV_BUTTOND;
+ *    CS2 fires onDragComplete then the dual-endpoint IfButtonD and waits
+ *    for the server echo (no local item mutation). Anything else is a
+ *    SHORT CLICK and runs the default menu row (how a left click submits
+ *    OPHELD*).
  * Ghosting: IF1/CS1 from arm time; IF3 only once promoted (plain clicks
  * must not flicker). While armed the generic node drag is suppressed
  * (tree->anti_drag; the reference freezes mouseLoop/buildMinimenu during
@@ -9430,6 +9603,25 @@ App_TakeWindowModeChange(
     app->host.window_mode_dirty = false;
     if( out_mode )
         *out_mode = app->host.window_mode;
+    return 1;
+}
+
+/**
+ * Drain a Display-panel layout choice (0/1/2) raised by settings_client_mode.
+ * Same split as App_TakeWindowModeChange: the App owns the flag; the shell
+ * sends WINDOW_STATUS.
+ */
+int
+App_TakeClientLayoutChange(
+    struct App* app,
+    int* out_mode)
+{
+    assert(app);
+    if( !app->host.client_layout_dirty )
+        return 0;
+    app->host.client_layout_dirty = false;
+    if( out_mode )
+        *out_mode = app->host.client_layout_mode;
     return 1;
 }
 

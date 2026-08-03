@@ -2296,14 +2296,15 @@ handle_opheld(
         mock230_say(srv, "nothing_interesting_message", NULL);
 }
 
-/* INV_BUTTOND: p4 componentId, p2 fromSlot, p2 toSlot, p1 mode. The client has
- * already applied the swap locally, so this confirms it; a server that
- * disagreed would send a partial update putting both slots back.
+/* INV_BUTTOND / IfButtonD: rev-230 dual-endpoint frame (16 bytes):
+ *   srcCom p4 LE, srcObj p2 LE, srcSlot p2 LE+128,
+ *   dstCom p4 BE, dstObj p2 BE+128, dstSlot p2 BE+128.
+ * Empty slots send obj_id = -1. The client no longer mutates locally on the
+ * CS2 path, so this is what actually moves the items; a reject would leave
+ * the client looking at the pre-drag layout until the next transmit.
  *
- * A real rev-230 IfButtonD names both ends (selected component + sub, target
- * component + sub) so an item can be dragged between two interfaces. The mock
- * only ever moves within the backpack, so it carries one component and refuses
- * anything else — a drag onto the worn tab is not an equip here. */
+ * Same-component moves inside the backpack (and bankmain items) are accepted.
+ * Cross-container drags are refused — the mock has no equip-by-drag model. */
 static void
 handle_inv_buttond(
     struct Mock230Server* srv,
@@ -2312,37 +2313,89 @@ handle_inv_buttond(
 {
     struct Mock230Player* player = srv->active_player;
     struct RSAreaBuf buf;
-    int component;
-    int from_slot;
-    int to_slot;
-    struct Mock230Item swap;
+    int src_com;
+    int src_obj;
+    int src_slot;
+    int dst_com;
+    int dst_obj;
+    int dst_slot;
+    const struct Mock230Ids* ids = mock230_ids();
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
-    component = rsab_g4(&buf);
-    from_slot = rsab_g2(&buf);
-    to_slot = rsab_g2(&buf);
-    (void)rsab_g1(&buf); /* mode */
+    src_com = rsab_g4_alt1(&buf);
+    src_obj = rsab_g2_alt1(&buf);
+    src_slot = rsab_g2_alt3(&buf);
+    dst_com = rsab_g4(&buf);
+    dst_obj = rsab_g2_alt2(&buf);
+    dst_slot = rsab_g2_alt2(&buf);
     if( !rsab_ok(&buf) )
         return;
+
+    /* Sign-extend the 16-bit item ids: empty slots arrive as 0xffff (-1). */
+    if( src_obj >= 0x8000 )
+        src_obj -= 0x10000;
+    if( dst_obj >= 0x8000 )
+        dst_obj -= 0x10000;
 
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: <- INV_BUTTOND com=%d|%d %d -> %d\n",
-            (component >> 16) & 0xffff,
-            component & 0xffff,
-            from_slot,
-            to_slot);
+            "mock230: <- INV_BUTTOND %d|%d#%d (obj %d) -> %d|%d#%d (obj %d)\n",
+            (src_com >> 16) & 0xffff,
+            src_com & 0xffff,
+            src_slot,
+            src_obj,
+            (dst_com >> 16) & 0xffff,
+            dst_com & 0xffff,
+            dst_slot,
+            dst_obj);
 
-    if( component != mock230_ids()->com_inventory_items )
+    if( src_com != dst_com )
         return;
-    if( from_slot < 0 || from_slot >= MOCK230_INV_SLOTS || to_slot < 0 ||
-        to_slot >= MOCK230_INV_SLOTS || from_slot == to_slot )
+    if( src_slot == dst_slot )
         return;
 
-    swap = player->inv[from_slot];
-    inv_set(player, from_slot, player->inv[to_slot].obj_id, player->inv[to_slot].count);
-    inv_set(player, to_slot, swap.obj_id, swap.count);
+    if( src_com == ids->com_inventory_items )
+    {
+        struct Mock230Item swap;
+
+        if( src_slot < 0 || src_slot >= MOCK230_INV_SLOTS || dst_slot < 0 ||
+            dst_slot >= MOCK230_INV_SLOTS )
+            return;
+        /* Stale drag: the client named an item that is no longer there. */
+        if( src_obj >= 0 && player->inv[src_slot].obj_id != src_obj )
+            return;
+        if( dst_obj >= 0 && player->inv[dst_slot].obj_id != dst_obj )
+            return;
+        if( dst_obj < 0 && player->inv[dst_slot].obj_id >= 0 )
+            return;
+
+        swap = player->inv[src_slot];
+        inv_set(player, src_slot, player->inv[dst_slot].obj_id, player->inv[dst_slot].count);
+        inv_set(player, dst_slot, swap.obj_id, swap.count);
+        return;
+    }
+
+    if( src_com == ids->com_bankmain_items )
+    {
+        struct Mock230Bank* bank = &player->bank;
+        struct Mock230Item swap;
+
+        if( src_slot < 0 || src_slot >= bank->size || dst_slot < 0 || dst_slot >= bank->size )
+            return;
+        if( src_obj >= 0 && bank->slots[src_slot].obj_id != src_obj )
+            return;
+        if( dst_obj >= 0 && bank->slots[dst_slot].obj_id != dst_obj )
+            return;
+        if( dst_obj < 0 && bank->slots[dst_slot].obj_id >= 0 )
+            return;
+
+        swap = bank->slots[src_slot];
+        bank->slots[src_slot] = bank->slots[dst_slot];
+        bank->slots[dst_slot] = swap;
+        bank->dirty = 1;
+        return;
+    }
 }
 
 /*
@@ -4078,6 +4131,40 @@ handle_chat_setmode(
 }
 
 /*
+ * WINDOW_STATUS: p1 clientMode (0/1/2), p2 width, p2 height.
+ * Drives ~gameframe_set_mode so the Display dropdown remounts 548/161/164.
+ */
+static void
+handle_window_status(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    int mode;
+    int width;
+    int height;
+    int32_t args[1];
+
+    (void)name;
+    if( !player || len < 5 )
+        return;
+    mode = payload[0];
+    width = (payload[1] << 8) | payload[2];
+    height = (payload[3] << 8) | payload[4];
+    (void)width;
+    (void)height;
+    if( mode < 0 || mode > 2 )
+        return;
+    if( player->client_layout_mode == mode )
+        return;
+    player->client_layout_mode = mode;
+    args[0] = mode;
+    mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
+}
+
+/*
  * MESSAGE_PRIVATE: p8 to37, then the wordpacked text over the rest of the
  * var-u8 frame.
  *
@@ -4233,6 +4320,7 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_IGNORELIST_DEL, handle_social_list },
     { PKTOUT_NAME_CHAT_SETMODE, handle_chat_setmode },
     { PKTOUT_NAME_MESSAGE_PRIVATE, handle_message_private },
+    { PKTOUT_NAME_WINDOW_STATUS, handle_window_status },
 };
 
 void
@@ -5096,39 +5184,12 @@ mock230_world_login(struct Mock230Player* player)
      *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
      *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
      *    overlay. */
-    mock230_send_if_opentop(player, ids->iface_gameframe);
-    {
-        /*
-         * What goes in which slot is content: the `gameframe` enum in
-         * content/scripts/player/configs/gameframe.enum, whose keys are
-         * gameframe components and whose values are interfaces. It used to be a
-         * 24-entry table of raw numbers here, which is the same list OpenRune's
-         * GameframeLoader carries — so it may as well be named on both sides
-         * and editable without a compiler.
-         *
-         * The key is a packed (interface << 16) | child uid; IF_OPENSUB wants
-         * the child on its own, so the low half is what goes on the wire.
-         * type 1 = overlay.
-         */
-        const struct Mock230EnumDef* frame = mock230_content_enum("toplevel_osrs_stretch");
-
-        if( !frame || frame->count == 0 )
-        {
-            /* Without the gameframe there is no chatbox and no sidebar, so the
-             * session is unusable rather than degraded — say so once rather
-             * than leaving a blank screen to be diagnosed. */
-            fprintf(stderr,
-                    "mock230: no `gameframe` enum in the content tree — the "
-                    "gameframe will be empty\n");
-        }
-        for( int i = 0; frame && i < frame->count; i++ )
-            mock230_send_if_opensub(
-                player,
-                ids->iface_gameframe,
-                frame->values[i].key & 0xffff,
-                frame->values[i].value,
-                1);
-    }
+    /* 2. Gameframe root + the HUD and sidebar panels mounted into it. Child
+     *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
+     *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
+     *    overlay. Mount table is content `gameframe.enum`. */
+    mock230_gameframe_opentop(player, ids->iface_gameframe);
+    player->client_layout_mode = 1; /* resizable classic */
 
     /*
      * 3. What the item containers permit is content's.
@@ -12094,10 +12155,11 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: inventory drag\n");
     {
-        uint8_t payload[9];
+        uint8_t payload[16];
         struct RSAreaBuf buf;
         int from_obj;
         int to_obj;
+        int com = mock230_ids()->com_inventory_items;
 
         /* Pick two occupied, distinct slots. */
         int from_slot = -1;
@@ -12115,11 +12177,14 @@ mock230_world_selftest(void)
         from_obj = player->inv[from_slot].obj_id;
         to_obj = player->inv[to_slot].obj_id;
 
+        /* Rev-230 IfButtonD dual-endpoint frame. */
         rsab_wrap(&buf, payload, sizeof(payload));
-        rsab_p4(&buf, mock230_ids()->com_inventory_items);
-        rsab_p2(&buf, from_slot);
-        rsab_p2(&buf, to_slot);
-        rsab_p1(&buf, 0);
+        rsab_p4_alt1(&buf, com);
+        rsab_p2_alt1(&buf, from_obj);
+        rsab_p2_alt3(&buf, from_slot);
+        rsab_p4(&buf, com);
+        rsab_p2_alt2(&buf, to_obj);
+        rsab_p2_alt2(&buf, to_slot);
         mock230_world_handle(player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
 
         SELFTEST_CHECK(player->inv[from_slot].obj_id == to_obj, "slots swapped (from)");

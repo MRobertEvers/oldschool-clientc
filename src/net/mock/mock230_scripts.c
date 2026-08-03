@@ -4385,6 +4385,28 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_IF_OPENTOP:
+    {
+        int32_t group;
+
+        if( !SSVM_PopInt(state, &group) )
+            return 1;
+        mock230_gameframe_opentop(srv->active_player, (int)group);
+        return 1;
+    }
+
+    case SS_OP_IF_MOVESUB:
+    {
+        int32_t dest;
+        int32_t source;
+
+        /* Declaration order is source, dest; stack pops reverse. */
+        if( !SSVM_PopInt(state, &dest) || !SSVM_PopInt(state, &source) )
+            return 1;
+        mock230_send_if_movesub(srv->active_player, (int)source, (int)dest);
+        return 1;
+    }
+
     case SS_OP_IF_CLOSE:
         /* Unmounting is the whole message: the same on_sub_change hook that
          * hid `chatbox:chatdisplay` on the way in brings it back when the

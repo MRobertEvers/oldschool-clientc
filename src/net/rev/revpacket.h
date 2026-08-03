@@ -396,6 +396,15 @@ struct PktIfCloseSub
     int target_uid; /* packed parent<<16 | child of the mount slot */
 };
 
+/* rev-230 IF_MOVESUB: move a mounted sub from source slot to destination slot.
+ * Wire (RSProt IfMoveSubEncoder): destinationCombinedId then sourceCombinedId,
+ * each as p4Alt1. */
+struct PktIfMoveSub
+{
+    int dest_uid;   /* packed dest parent<<16 | child */
+    int source_uid; /* packed source parent<<16 | child */
+};
+
 /* Always 6 bytes on the wire: p1 type + p2 + p2 + p1. Field meaning varies:
  * type 1 = npc slot in `id`; type 2-6 = tile target (id=x, z, height=y);
  * type 10 = player slot in `id`; type 255/-1 = clear. */
@@ -635,6 +644,7 @@ struct RevPacket
         struct PktIfOpenTop _if_opentop;
         struct PktIfOpenSub _if_opensub;
         struct PktIfCloseSub _if_closesub;
+        struct PktIfMoveSub _if_movesub;
         struct PktHintArrow _hint_arrow;
         struct PktUpdatePid _update_pid;
         struct PktUpdateRunWeight _update_runweight;

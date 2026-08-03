@@ -168,6 +168,21 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # same access if_opensub has.
     "IF_CLOSESUB": (11005, 1, 0, 0, 0),
 
+    # if_opentop(interface)
+    #
+    # Open a gameframe root (rev-230 IF_OPENTOP) and remount the HUD/tabs from
+    # the content `gameframe.enum` block named after that interface. LostCity
+    # has no equivalent — rev 254 is fixed-only. OpenRune's ifOpenTop +
+    # GameframeLoader.mount is the shape.
+    "IF_OPENTOP": (11006, 1, 0, 0, 0),
+
+    # if_movesub(component, component)
+    #
+    # Move a mounted sub from one gameframe slot to another (rev-230
+    # IF_MOVESUB). Args are source then destination (declaration order); the
+    # wire encodes destination then source.
+    "IF_MOVESUB": (11007, 2, 0, 0, 0),
+
     # runclientscript_ss(clientscript, string, string)
     #
     # Run a clientscript with two string arguments. The 2004 protocol has no

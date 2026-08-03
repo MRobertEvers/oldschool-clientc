@@ -13,8 +13,8 @@
 
 /* Wire opcodes of the authoritative LostCity_Server build (Engine-TS branch
  * 254; engine/src/network/game/server/ServerGameProt.ts + zone sub-packets
- * from ServerGameZoneProt.ts). VARP_SYNC is that server's name for
- * RESET_CLIENT_VARCACHE and P_LOCMERGE for LOC_MERGE. */
+ * from ServerGameZoneProt.ts). VARP_SYNC restores the client copy from the
+ * server-authoritative set; P_LOCMERGE is LOC_MERGE. */
 enum PacketInType_LC254
 {
     PKTIN_LC254_IF_OPENCHAT = 141,
@@ -153,7 +153,7 @@ static const struct PacketInDefinition g_packet_in_definitions_lc254[] = {
     PACKET_DEFINITION(PKT_NAME_REBUILD_NORMAL, PKTIN_LC254_REBUILD_NORMAL, 4),
     PACKET_DEFINITION(PKT_NAME_VARP_SMALL, PKTIN_LC254_VARP_SMALL, 3),
     PACKET_DEFINITION(PKT_NAME_VARP_LARGE, PKTIN_LC254_VARP_LARGE, 6),
-    PACKET_DEFINITION(PKT_NAME_RESET_CLIENT_VARCACHE, PKTIN_LC254_VARP_SYNC, 0),
+    PACKET_DEFINITION(PKT_NAME_VARP_SYNC, PKTIN_LC254_VARP_SYNC, 0),
     PACKET_DEFINITION(PKT_NAME_SYNTH_SOUND, PKTIN_LC254_SYNTH_SOUND, 5),
     PACKET_DEFINITION(PKT_NAME_MIDI_SONG, PKTIN_LC254_MIDI_SONG, 2),
     PACKET_DEFINITION(PKT_NAME_MIDI_JINGLE, PKTIN_LC254_MIDI_JINGLE, 4),

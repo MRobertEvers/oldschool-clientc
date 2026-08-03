@@ -88,13 +88,17 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     { PKTOUT_NAME_OPHELDT,             63,  12 },
     { PKTOUT_NAME_OPHELDU,             64,  16 },
 
-    /* Inventory-component ops + drag. INV_BUTTOND is p4 com, p2 from, p2 to, p1 mode. */
+    /* Inventory-component ops + drag. INV_BUTTOND is the rev-230 IfButtonD
+     * shape (real ClientProt 48): 16 bytes naming both endpoints
+     * (srcCom LE, srcObj LE, srcSlot LE+128, dstCom BE, dstObj BE+128,
+     * dstSlot BE+128). INV_BUTTON5 moved off 48 so the drag opcode can sit
+     * on the real number without colliding. */
     { PKTOUT_NAME_INV_BUTTON1,         44,  8 },
     { PKTOUT_NAME_INV_BUTTON2,         45,  8 },
     { PKTOUT_NAME_INV_BUTTON3,         46,  8 },
     { PKTOUT_NAME_INV_BUTTON4,         47,  8 },
-    { PKTOUT_NAME_INV_BUTTON5,         48,  8 },
-    { PKTOUT_NAME_INV_BUTTOND,         49,  9 },
+    { PKTOUT_NAME_INV_BUTTON5,         50,  8 },
+    { PKTOUT_NAME_INV_BUTTOND,         48,  16 },
 
     /* NPC ops: p2 npc slot. */
     { PKTOUT_NAME_OPNPC1,              9,   2 },
@@ -130,7 +134,7 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     /*
      * Social. Opcodes 3..8 are assigned here like most of this table — they
      * were free (the used set below 128 is 0,9..11,13,15..22,24..26,30..37,
-     * 40..49,54,55,57..59,61..64,71,75,76,86,90..100) and 14/16 are the login
+     * 40..48,50,54,55,57..59,61..64,71,75,76,86,90..100) and 14/16 are the login
      * driver's and deliberately avoided.
      *
      * All six builders already existed in net_out.c and had no rev-230 opcode,
@@ -149,6 +153,10 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
     { PKTOUT_NAME_IGNORELIST_DEL,      6,   8 },
     { PKTOUT_NAME_CHAT_SETMODE,        7,   3 },
     { PKTOUT_NAME_MESSAGE_PRIVATE,     8,   PKTOUT_LENGTH_VARU8 },
+
+    /* WINDOW_STATUS: p1 clientMode (0/1/2), p2 width, p2 height. Opcode 101 is
+     * mock-local — RSProt uses 10, which is OPNPC2 in this table. */
+    { PKTOUT_NAME_WINDOW_STATUS,       101, 5 },
 };
 /* clang-format on */
 

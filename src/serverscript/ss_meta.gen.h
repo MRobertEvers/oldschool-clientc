@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11006] = {
+static const char* const g_ss_opcode_names[11008] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -409,6 +409,8 @@ static const char* const g_ss_opcode_names[11006] = {
     [11003] = "RUNCLIENTSCRIPTVARARG",
     [11004] = "P_COUNTDIALOG_NOPROMPT",
     [11005] = "IF_CLOSESUB",
+    [11006] = "IF_OPENTOP",
+    [11007] = "IF_MOVESUB",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -418,7 +420,7 @@ static const char* const g_ss_opcode_names[11006] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11006] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11008] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -821,6 +823,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11006] = {
     [11003] = { 1, 0, 0, 0, 1, 1, 0, 0, 0x000, 0x000 }, /* RUNCLIENTSCRIPTVARARG */
     [11004] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_COUNTDIALOG_NOPROMPT */
     [11005] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_CLOSESUB */
+    [11006] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_OPENTOP */
+    [11007] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_MOVESUB */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

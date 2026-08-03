@@ -217,6 +217,16 @@ osrs230_parse(
             (data[4] << 24) | (data[3] << 16) | (data[6] << 8) | data[5];
         return 1;
 
+    /* IF_MOVESUB (op 42, 8 bytes): dest then source, each p4Alt1 (LE). */
+    case PKT_NAME_IF_MOVESUB:
+        if( len < 8 )
+            return 0;
+        out->_if_movesub.dest_uid =
+            data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
+        out->_if_movesub.source_uid =
+            data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+        return 1;
+
     /*
      * The IF_SET* family.
      *

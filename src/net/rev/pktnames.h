@@ -36,6 +36,8 @@ enum GameProtoPktName
     PKT_NAME_IF_OPENTOP,
     PKT_NAME_IF_OPENSUB,
     PKT_NAME_IF_CLOSESUB,
+    /** Move a mounted sub from one component slot to another (RSProt op 42). */
+    PKT_NAME_IF_MOVESUB,
 
     /* interface mutators */
     PKT_NAME_IF_SETCOLOUR,
@@ -105,7 +107,8 @@ enum GameProtoPktName
     PKT_NAME_REBUILD_NORMAL,
     PKT_NAME_VARP_SMALL,
     PKT_NAME_VARP_LARGE,
-    PKT_NAME_RESET_CLIENT_VARCACHE, /* aka VARP_SYNC */
+    PKT_NAME_VARP_SYNC,  /* restore client copy from server-authoritative set */
+    PKT_NAME_VARP_RESET, /* zero both copies (login / cache clear) */
     PKT_NAME_SYNTH_SOUND,
     PKT_NAME_MIDI_SONG,
     PKT_NAME_MIDI_JINGLE,
@@ -246,6 +249,11 @@ enum GameProtoPktOutName
     PKTOUT_NAME_MESSAGE_PRIVATE,
     PKTOUT_NAME_MESSAGE_PUBLIC,
     PKTOUT_NAME_CLIENT_CHEAT,
+
+    /** Client reports Display layout mode + canvas size (mock-local opcode;
+     *  RSProt WINDOW_STATUS is op 10, but that collides with OPNPC2 here).
+     *  mode is OpenRune clientMode 0/1/2, not just fixed/resizable. */
+    PKTOUT_NAME_WINDOW_STATUS,
 
     PKTOUT_NAME_COUNT
 };

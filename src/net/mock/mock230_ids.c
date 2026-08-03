@@ -31,6 +31,8 @@ mock230_ids(void)
  * bump is most likely to move. */
 static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_INTERFACE, "toplevel_osrs_stretch", &g_ids.iface_gameframe },
+        { MOCK230_PACK_INTERFACE, "toplevel", &g_ids.iface_toplevel },
+        { MOCK230_PACK_INTERFACE, "toplevel_pre_eoc", &g_ids.iface_toplevel_pre_eoc },
         { MOCK230_PACK_INTERFACE, "inventory", &g_ids.iface_inventory },
         { MOCK230_PACK_INTERFACE, "wornitems", &g_ids.iface_wornitems },
         { MOCK230_PACK_INTERFACE, "bankmain", &g_ids.iface_bankmain },

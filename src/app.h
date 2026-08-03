@@ -697,7 +697,9 @@ struct App
      * while armed, the armed slot renders trans-128 at the mouse delta, and
      * release routes to swap + INV_BUTTOND (real drag: moved >5px AND held
      * >= 5 cycles) or to the default menu row (short click).
-     * drag_com_id -1 = not armed. */
+     * drag_com_id -1 = not armed. CS1 release: optimistic swap + classic
+     * INV_BUTTOND. CS2 release: onDragComplete + dual-endpoint IfButtonD,
+     * no local item mutation (rev-230 deob). */
     int inv_drag_com_id;
     int inv_drag_can_drag; /* armed grid's objSwap||objReplace (drag allowed) */
     int inv_drag_from_slot;
@@ -708,6 +710,10 @@ struct App
     int inv_drag_threshold; /* moved >5px since arm (objGrabThreshold) */
     int inv_drag_dx;        /* emit offset for the armed slot (deadzoned) */
     int inv_drag_dy;
+
+    /** Re-entrancy guard for optimistic modal close (rev-230 field267): while
+     *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */
+    int closing_modals;
 };
 
 /** Smallest client canvas. The reference's resizable mode will not go below the
@@ -755,6 +761,16 @@ App_SetCanvasSize(
  */
 int
 App_TakeWindowModeChange(
+    struct App* app,
+    int* out_mode);
+
+/**
+ * Drain a Display-panel layout choice (0 Fixed / 1 Classic / 2 Modern) raised
+ * when settings_client_mode calls setwindowmode. Returns 1 when a choice is
+ * pending. The shell sends WINDOW_STATUS.
+ */
+int
+App_TakeClientLayoutChange(
     struct App* app,
     int* out_mode);
 
@@ -827,6 +843,13 @@ void
 App_CloseSubInterface(
     struct App* app,
     int target_uid);
+
+/** IF_MOVESUB: move the mounted sub at source_uid onto dest_uid. */
+void
+App_MoveSubInterface(
+    struct App* app,
+    int source_uid,
+    int dest_uid);
 
 /** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Enqueued
  *  on the same serial pipeline as everything else, so a script that seeds state

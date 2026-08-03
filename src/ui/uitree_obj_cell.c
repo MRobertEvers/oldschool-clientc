@@ -217,6 +217,34 @@ dynamic_child_at_slot(
 }
 
 bool
+UITree_ObjCellDynamicAtSlot(
+    struct UITree const* tree,
+    int parent_component_id,
+    int slot,
+    int32_t* out_node_index,
+    int* out_obj_id,
+    int* out_obj_count)
+{
+    int32_t parent_idx;
+    int32_t idx;
+
+    assert(tree);
+    parent_idx = UITree_FindByComponentId((struct UITree*)tree, parent_component_id);
+    if( parent_idx < 0 )
+        return false;
+    idx = dynamic_child_at_slot(tree, parent_idx, slot);
+    if( idx < 0 )
+        return false;
+    if( out_node_index )
+        *out_node_index = idx;
+    if( out_obj_id )
+        *out_obj_id = tree->components[idx].item_id;
+    if( out_obj_count )
+        *out_obj_count = tree->components[idx].item_count;
+    return true;
+}
+
+bool
 UITree_ObjCellDynamicSwap(
     struct UITree* tree,
     int parent_component_id,

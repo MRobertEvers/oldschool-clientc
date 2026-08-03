@@ -42,6 +42,17 @@ int
 net_out_map_build_complete(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);
 
+/** WINDOW_STATUS: Display layout mode 0/1/2 + canvas size. */
+int
+net_out_window_status(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int mode,
+    int width,
+    int height);
+
 /* -- interface ---------------------------------------------------------- */
 int
 net_out_if_button(
@@ -193,15 +204,25 @@ net_out_inv_button(
     int obj_id,
     int slot,
     int component_id);
+/**
+ * INV_BUTTOND / IfButtonD — drag release.
+ *
+ * Classic (lc254 / lc245_2): p{2|4} src_com, p2 from_slot, p2 to_slot, p1 mode.
+ * Rev-230: 16-byte dual-endpoint frame naming both widgets (see net_out.c);
+ * `mode` is unused there. Empty slots send obj_id = -1.
+ */
 int
 net_out_inv_buttond(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int component_id,
-    int from_slot,
-    int to_slot,
+    int src_com,
+    int src_obj,
+    int src_slot,
+    int dst_com,
+    int dst_obj,
+    int dst_slot,
     int mode);
 
 /* -- world entity ops --------------------------------------------------- */

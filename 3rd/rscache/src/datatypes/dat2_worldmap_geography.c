@@ -34,6 +34,27 @@ worldmap_decor_add(
     return true;
 }
 
+static bool
+worldmap_decor_copy(
+    struct RSCache_WorldMapDecorList* dst,
+    struct RSCache_WorldMapDecorList const* src)
+{
+    if( src->count <= 0 )
+        return true;
+    if( dst->capacity < src->count )
+    {
+        struct RSCache_WorldMapDecor* grown = (struct RSCache_WorldMapDecor*)realloc(
+            dst->items, (size_t)src->count * sizeof(*grown));
+        if( !grown )
+            return false;
+        dst->items = grown;
+        dst->capacity = src->count;
+    }
+    memcpy(dst->items, src->items, (size_t)src->count * sizeof(*dst->items));
+    dst->count = src->count;
+    return true;
+}
+
 /*
  * A tile is one flags byte then, depending on bit 0, a short form (an underlay
  * and optionally one overlay) or a long form (underlay, an overlay per plane,
@@ -132,6 +153,247 @@ worldmap_read_tile(
     return true;
 }
 
+static void
+worldmap_apply_planes(
+    struct RSCache_WorldMapGeography* out,
+    int planes)
+{
+    if( planes < 1 )
+        planes = 1;
+    if( planes > RSCACHE_WORLDMAP_MAX_PLANES )
+        planes = RSCACHE_WORLDMAP_MAX_PLANES;
+    if( planes > out->planes )
+        out->planes = planes;
+}
+
+bool
+RSCache_WorldMapGeographyBlitChunk(
+    struct RSCache_WorldMapGeography* dst,
+    struct RSCache_WorldMapGeography const* src,
+    int src_cx,
+    int src_cy,
+    int dst_cx,
+    int dst_cy)
+{
+    if( !dst || !src )
+        return false;
+    if( src_cx < 0 || src_cy < 0 || dst_cx < 0 || dst_cy < 0 )
+        return false;
+    if( src_cx >= RSCACHE_WORLDMAP_CHUNK_TILES || src_cy >= RSCACHE_WORLDMAP_CHUNK_TILES ||
+        dst_cx >= RSCACHE_WORLDMAP_CHUNK_TILES || dst_cy >= RSCACHE_WORLDMAP_CHUNK_TILES )
+        return false;
+
+    worldmap_apply_planes(dst, src->planes);
+
+    for( int tile_x = 0; tile_x < RSCACHE_WORLDMAP_CHUNK_TILES; tile_x++ )
+    {
+        for( int tile_y = 0; tile_y < RSCACHE_WORLDMAP_CHUNK_TILES; tile_y++ )
+        {
+            int src_index =
+                RSCache_WorldMapTileIndex(src_cx * 8 + tile_x, src_cy * 8 + tile_y);
+            int dst_index =
+                RSCache_WorldMapTileIndex(dst_cx * 8 + tile_x, dst_cy * 8 + tile_y);
+
+            dst->underlay[dst_index] = src->underlay[src_index];
+            if( src->has_ground )
+            {
+                dst->ground[dst_index] = src->ground[src_index];
+                dst->has_ground = true;
+            }
+            for( int plane = 0; plane < RSCACHE_WORLDMAP_MAX_PLANES; plane++ )
+            {
+                dst->overlay[plane][dst_index] = src->overlay[plane][src_index];
+                dst->overlay_shape[plane][dst_index] = src->overlay_shape[plane][src_index];
+                dst->overlay_rotation[plane][dst_index] =
+                    src->overlay_rotation[plane][src_index];
+                free(dst->decor[plane][dst_index].items);
+                dst->decor[plane][dst_index].items = NULL;
+                dst->decor[plane][dst_index].count = 0;
+                dst->decor[plane][dst_index].capacity = 0;
+                if( !worldmap_decor_copy(
+                        &dst->decor[plane][dst_index], &src->decor[plane][src_index]) )
+                    return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool
+worldmap_try_read_region_scan(
+    struct RSCache_WorldMapGeography* dest,
+    const void* data,
+    int data_size,
+    int* out_tile_count)
+{
+    struct RSCache_Buffer buf;
+    int tile_count = 0;
+
+    RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)data_size);
+    for( int tile_x = 0; tile_x < RSCACHE_WORLDMAP_TILE_COUNT; tile_x++ )
+    {
+        for( int tile_y = 0; tile_y < RSCACHE_WORLDMAP_TILE_COUNT; tile_y++ )
+        {
+            if( RSCache_BufferRemaining(&buf) < 1 )
+                goto done;
+            if( !worldmap_read_tile(dest, tile_x, tile_y, &buf) )
+                return false;
+            tile_count++;
+        }
+    }
+done:
+    if( RSCache_BufferRemaining(&buf) != 0 )
+        return false;
+    if( tile_count <= 0 || (tile_count % RSCACHE_WORLDMAP_TILE_COUNT) != 0 )
+        return false;
+    if( out_tile_count )
+        *out_tile_count = tile_count;
+    return true;
+}
+
+static bool
+worldmap_try_read_single_chunk(
+    struct RSCache_WorldMapGeography* dest,
+    const void* data,
+    int data_size)
+{
+    struct RSCache_Buffer buf;
+
+    RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)data_size);
+    for( int tile_x = 0; tile_x < RSCACHE_WORLDMAP_CHUNK_TILES; tile_x++ )
+    {
+        for( int tile_y = 0; tile_y < RSCACHE_WORLDMAP_CHUNK_TILES; tile_y++ )
+        {
+            if( !worldmap_read_tile(dest, tile_x, tile_y, &buf) )
+                return false;
+        }
+    }
+    return RSCache_BufferRemaining(&buf) == 0;
+}
+
+int
+RSCache_WorldMapGeographyDecodeHeaderlessFile(
+    struct RSCache_WorldMapGeography* out,
+    const void* data,
+    int data_size,
+    int planes,
+    bool* out_is_chunk)
+{
+    struct RSCache_WorldMapGeography* temp;
+    int tile_count = 0;
+
+    if( out_is_chunk )
+        *out_is_chunk = false;
+    if( !out || !data || data_size <= 0 )
+        return -1;
+
+    temp = calloc(1, sizeof(*temp));
+    if( !temp )
+        return -1;
+    worldmap_apply_planes(temp, planes);
+
+    /* 1) Full 64x64 region (exact 4096). */
+    if( worldmap_try_read_region_scan(temp, data, data_size, &tile_count) &&
+        tile_count == RSCACHE_WORLDMAP_TILE_AREA )
+    {
+        RSCache_WorldMapGeographyFreeInplace(out);
+        *out = *temp;
+        free(temp);
+        return tile_count;
+    }
+    RSCache_WorldMapGeographyFreeInplace(temp);
+    memset(temp, 0, sizeof(*temp));
+    worldmap_apply_planes(temp, planes);
+
+    /* 2) Lone 8x8 chunk. Must beat a 1-column "partial region" reading of the
+     * same 64 tiles — those layouts place the bytes differently. */
+    if( worldmap_try_read_single_chunk(temp, data, data_size) )
+    {
+        RSCache_WorldMapGeographyFreeInplace(out);
+        *out = *temp;
+        free(temp);
+        if( out_is_chunk )
+            *out_is_chunk = true;
+        return RSCACHE_WORLDMAP_CHUNK_TILES * RSCACHE_WORLDMAP_CHUNK_TILES;
+    }
+    RSCache_WorldMapGeographyFreeInplace(temp);
+    memset(temp, 0, sizeof(*temp));
+    worldmap_apply_planes(temp, planes);
+
+    /* 3) Truncated region in the same x-major order (128..4032 tiles). */
+    if( worldmap_try_read_region_scan(temp, data, data_size, &tile_count) &&
+        tile_count != RSCACHE_WORLDMAP_TILE_AREA &&
+        tile_count != RSCACHE_WORLDMAP_CHUNK_TILES * RSCACHE_WORLDMAP_CHUNK_TILES )
+    {
+        RSCache_WorldMapGeographyFreeInplace(out);
+        *out = *temp;
+        free(temp);
+        return tile_count;
+    }
+
+    RSCache_WorldMapGeographyFreeInplace(temp);
+    free(temp);
+    return -1;
+}
+
+static bool
+worldmap_headerless_chunk_into(
+    struct RSCache_WorldMapGeography* out,
+    const void* data,
+    int data_size,
+    int planes,
+    int src_chunk_x,
+    int src_chunk_y,
+    int dst_chunk_x,
+    int dst_chunk_y)
+{
+    struct RSCache_WorldMapGeography full;
+    bool is_chunk = false;
+    int tile_count;
+    int src_cx = src_chunk_x < 0 ? 0 : src_chunk_x;
+    int src_cy = src_chunk_y < 0 ? 0 : src_chunk_y;
+    int dst_cx = dst_chunk_x < 0 ? 0 : dst_chunk_x;
+    int dst_cy = dst_chunk_y < 0 ? 0 : dst_chunk_y;
+
+    memset(&full, 0, sizeof(full));
+    tile_count =
+        RSCache_WorldMapGeographyDecodeHeaderlessFile(&full, data, data_size, planes, &is_chunk);
+    if( tile_count < 0 )
+        return false;
+
+    if( is_chunk )
+    {
+        /* Single-chunk file: the only 8x8 is at (0,0) in `full`. */
+        bool ok = RSCache_WorldMapGeographyBlitChunk(out, &full, 0, 0, dst_cx, dst_cy);
+        RSCache_WorldMapGeographyFreeInplace(&full);
+        return ok;
+    }
+
+    /* Region-scan file (full or truncated). Chunk (cx,cy) needs columns
+     * cx*8 .. cx*8+7, i.e. tile_count/64 columns present. */
+    {
+        int columns = tile_count / RSCACHE_WORLDMAP_TILE_COUNT;
+        if( src_cx < 0 || src_cy < 0 || src_cx >= RSCACHE_WORLDMAP_CHUNK_TILES ||
+            src_cy >= RSCACHE_WORLDMAP_CHUNK_TILES )
+        {
+            RSCache_WorldMapGeographyFreeInplace(&full);
+            return false;
+        }
+        if( src_cx * RSCACHE_WORLDMAP_CHUNK_TILES + RSCACHE_WORLDMAP_CHUNK_TILES > columns )
+        {
+            RSCache_WorldMapGeographyFreeInplace(&full);
+            return false;
+        }
+    }
+
+    {
+        bool ok =
+            RSCache_WorldMapGeographyBlitChunk(out, &full, src_cx, src_cy, dst_cx, dst_cy);
+        RSCache_WorldMapGeographyFreeInplace(&full);
+        return ok;
+    }
+}
+
 bool
 RSCache_WorldMapGeographyDecodeInplace(
     struct RSCache_WorldMapGeography* out,
@@ -142,8 +404,10 @@ RSCache_WorldMapGeographyDecodeInplace(
     int planes,
     int expect_region_x,
     int expect_region_y,
-    int expect_chunk_x,
-    int expect_chunk_y)
+    int src_chunk_x,
+    int src_chunk_y,
+    int dst_chunk_x,
+    int dst_chunk_y)
 {
     struct RSCache_Buffer buffer;
     int marker;
@@ -151,15 +415,7 @@ RSCache_WorldMapGeographyDecodeInplace(
     if( !out || !data || data_size <= 0 )
         return false;
 
-    if( planes < 1 )
-        planes = 1;
-    if( planes > RSCACHE_WORLDMAP_MAX_PLANES )
-        planes = RSCACHE_WORLDMAP_MAX_PLANES;
-    /* Chunk records assemble into one struct, so the plane count is the widest
-     * any contributing record asked for. */
-    if( planes > out->planes )
-        out->planes = planes;
-
+    worldmap_apply_planes(out, planes);
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
 
     if( headerless )
@@ -168,30 +424,17 @@ RSCache_WorldMapGeographyDecodeInplace(
          * is addressed by (region_x << 8) | region_y instead (see
          * RSCache_WorldMapFlags), so the compositemap record's own kind and
          * destination coords are what place these tiles, not anything the file
-         * repeats about itself. `kind`/`expect_chunk_x/y` are the caller's, not
-         * validated against the stream — there is nothing left in it to check
-         * them against. */
+         * repeats about itself. */
         if( kind == WORLDMAP_GEOGRAPHY_MARKER_CHUNK )
         {
-            /* One 8x8 chunk at the record's own destination. Measured (EXCEPTIONS.md
-             * B21 / tools/cachepack/cp_decode.c's geo_decode survey): most of these
-             * files hold exactly one chunk's 64 tiles, but some hold more, bundled
-             * back to back with no per-chunk coords to say where the rest go. Read
-             * only this record's own chunk and stop — a sibling chunk's placement is
-             * not decidable from this call, and refusing the whole record over
-             * unread trailing bytes would throw away the one chunk we do know how to
-             * place. */
-            for( int tile_x = 0; tile_x < 8; tile_x++ )
-            {
-                for( int tile_y = 0; tile_y < 8; tile_y++ )
-                {
-                    if( !worldmap_read_tile(
-                            out, tile_x + expect_chunk_x * 8, tile_y + expect_chunk_y * 8,
-                            &buffer) )
-                        return false;
-                }
-            }
-            return true;
+            /* Compositemap kind=1 often points at a *full* 4096-tile region file
+             * (Ardent Ocean Underground, Ancient Cavern, …). Reading only the
+             * first 64 tiles and painting them at every dst_chunk produced a
+             * repeating 8x8 grid. Decode the stream properly and extract
+             * src_chunk → dst_chunk. */
+            return worldmap_headerless_chunk_into(
+                out, data, data_size, planes, src_chunk_x, src_chunk_y, dst_chunk_x,
+                dst_chunk_y);
         }
 
         /* Whole region, straight into its tiles from byte 0. */
@@ -259,18 +502,19 @@ RSCache_WorldMapGeographyDecodeInplace(
 
     int chunk_x = RSCache_BufferG1(&buffer);
     int chunk_y = RSCache_BufferG1(&buffer);
-    if( expect_chunk_x >= 0 && (chunk_x != expect_chunk_x || chunk_y != expect_chunk_y) )
+    /* Pre-238: the file names its own chunk; dst_chunk_* is the expected value
+     * when the caller wants a check (>= 0). Placement follows the file. */
+    if( dst_chunk_x >= 0 && (chunk_x != dst_chunk_x || chunk_y != dst_chunk_y) )
     {
         printf(
             "RSCache_WorldMapGeographyDecodeInplace: chunk %d,%d, expected %d,%d\n",
             chunk_x,
             chunk_y,
-            expect_chunk_x,
-            expect_chunk_y);
+            dst_chunk_x,
+            dst_chunk_y);
         return false;
     }
 
-    /* The file names the source chunk; the caller says where it lands. */
     for( int tile_x = 0; tile_x < 8; tile_x++ )
     {
         for( int tile_y = 0; tile_y < 8; tile_y++ )

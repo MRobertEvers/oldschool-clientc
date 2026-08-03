@@ -25,11 +25,18 @@
  * the loc id inside a tile widened from the older files' BigSmart to a plain
  * u32 (see EXCEPTIONS.md B21 and the decoder's own comments for how both were
  * measured, not guessed).
+ *
+ * Headerless kind-1 is not "the file is 64 tiles". Compositemap chunk records
+ * often point at a full 4096-tile region file (or a truncated multiple of 64 in
+ * the same x-major order); `src_chunk_x/y` selects which 8x8 to take from that
+ * stream and `dst_chunk_x/y` says where it lands in `out`. A true single-chunk
+ * file (exactly 64 tiles as an 8x8) ignores `src_chunk` and places at dest.
  */
 
 #define RSCACHE_WORLDMAP_TILE_COUNT 64
 #define RSCACHE_WORLDMAP_TILE_AREA (RSCACHE_WORLDMAP_TILE_COUNT * RSCACHE_WORLDMAP_TILE_COUNT)
 #define RSCACHE_WORLDMAP_MAX_PLANES 4
+#define RSCACHE_WORLDMAP_CHUNK_TILES 8
 
 /** One loc on a tile, reduced to what the map draws it as. */
 struct RSCache_WorldMapDecor
@@ -81,16 +88,14 @@ RSCache_WorldMapTileIndex(int tile_x, int tile_y)
  * **no marker and no region/chunk coords at all** — table 18 is addressed by
  * (region_x << 8) | region_y instead of an explicit group/file pair (see
  * RSCache_WorldMapFlags) — so there is nothing in the stream to check `kind` or
- * the destination against, and `expect_region_x/y` are unused. `kind` and
- * `expect_chunk_x/y` (for kind 1) are still required, and still real: the
- * compositemap record that led here always knows its own kind and destination,
- * addressing scheme aside, and headerless placement has no other source for
- * them. A headerless kind-1 file may bundle more than one chunk's tiles back to
- * back with no way to place the rest; only the record's own chunk is read.
+ * the destination against, and `expect_region_x/y` are unused. `kind` is still
+ * required. For kind 1, `src_chunk_x/y` select the 8x8 inside a full/partial
+ * region file; `dst_chunk_x/y` are where that 8x8 lands in `out`. A 64-tile
+ * single-chunk file places at dest and ignores src.
  *
  * `headerless` false is the OSRS <= 237 layout: marker + region/chunk coords
  * repeated in the file, checked against `expect_region_x/y` (and
- * `expect_chunk_x/y` for kind 1) when >= 0 — a mismatch means the compositemap
+ * `dst_chunk_x/y` for kind 1) when >= 0 — a mismatch means the compositemap
  * pointed at the wrong file, so the decode is refused rather than written into
  * the wrong tiles.
  *
@@ -108,8 +113,41 @@ RSCache_WorldMapGeographyDecodeInplace(
     int planes,
     int expect_region_x,
     int expect_region_y,
-    int expect_chunk_x,
-    int expect_chunk_y);
+    int src_chunk_x,
+    int src_chunk_y,
+    int dst_chunk_x,
+    int dst_chunk_y);
+
+/**
+ * Copy one 8x8 chunk (including decor) from `src` at (src_cx, src_cy) into
+ * `dst` at (dst_cx, dst_cy). Used when a headerless kind-1 record shares a
+ * full-region file with siblings — decode once, blit many.
+ */
+bool
+RSCache_WorldMapGeographyBlitChunk(
+    struct RSCache_WorldMapGeography* dst,
+    struct RSCache_WorldMapGeography const* src,
+    int src_cx,
+    int src_cy,
+    int dst_cx,
+    int dst_cy);
+
+/**
+ * Decode a headerless table-18 payload into `out` as an x-major region stream
+ * (up to 4096 tiles). Returns the tile count on success (multiple of 64, or
+ * exactly 64 when the file is a lone 8x8 chunk — then tiles land at 0..7,0..7
+ * and the count is 64 with shape "chunk"), or -1 on failure.
+ *
+ * `out_is_chunk` is set when the file was the 8x8 single-chunk layout rather
+ * than region-scan order.
+ */
+int
+RSCache_WorldMapGeographyDecodeHeaderlessFile(
+    struct RSCache_WorldMapGeography* out,
+    const void* data,
+    int data_size,
+    int planes,
+    bool* out_is_chunk);
 
 void
 RSCache_WorldMapGeographyFreeInplace(struct RSCache_WorldMapGeography* geography);

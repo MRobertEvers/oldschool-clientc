@@ -9,6 +9,7 @@
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
 #include "net/net.h"
+#include "net/net_out.h"
 #include "perf/torirs_perf.h"
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
@@ -1241,6 +1242,27 @@ frame_loop_step(void)
                 sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+        }
+        {
+            int layout_mode = 0;
+            if( App_TakeClientLayoutChange(&app, &layout_mode) )
+            {
+                fprintf(stderr, "client_layout: mode=%d\n", layout_mode);
+                if( app.net && app.net->state == TORIRS_NET_GAME )
+                {
+                    uint8_t nsbuf[32];
+                    int nslen = net_out_window_status(
+                        app.net->rev,
+                        app.net->random_out,
+                        nsbuf,
+                        (int)sizeof(nsbuf),
+                        layout_mode,
+                        UITREE_LAYOUT_ROOT_W,
+                        UITREE_LAYOUT_ROOT_H);
+                    if( nslen > 0 )
+                        ToriRS_Network_SendRaw(app.net, nsbuf, nslen);
+                }
+            }
         }
     }
 

@@ -42,8 +42,11 @@ struct Mock230Ids
 {
     /* --- Interfaces (pack/interface.pack) --- */
 
-    /** toplevel_osrs_stretch, the gameframe everything else mounts into. */
+    /** toplevel_osrs_stretch, the default gameframe at login. Session current
+     *  top lives on Mock230Player.gameframe_iface after if_opentop. */
     int iface_gameframe;
+    int iface_toplevel;
+    int iface_toplevel_pre_eoc;
     /** The sidebar's inventory tab and worn-equipment tab. */
     int iface_inventory;
     int iface_wornitems;

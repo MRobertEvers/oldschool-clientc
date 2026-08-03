@@ -651,6 +651,10 @@ RS_CS2Host_Init(
     host->window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
     host->default_window_mode = CS2VM_WINDOW_MODE_RESIZABLE;
     host->window_mode_dirty = false;
+    host->client_layout_mode = 1; /* resizable classic — matches stretch boot */
+    host->client_layout_dirty = false;
+    /* pack/12_clientscripts.pack: 3998=script_3998; decompile name settings_client_mode */
+    host->script_settings_client_mode = 3998;
     host->bridge = NULL;
     host->has_awaited = false;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
@@ -4493,6 +4497,23 @@ rs_cs2_host_exec_dispatch(
             host->window_mode = request->u.window_mode.mode;
             /* The canvas and the window are the App's; it drains this. */
             host->window_mode_dirty = true;
+        }
+        /* Display dropdown: settings_client_mode always reaches setwindowmode
+         * with $int0 = 0/1/2. Stash that so WINDOW_STATUS can tell Classic from
+         * Modern (both resizable). */
+        if( vm && vm->frame_sp > 0 )
+        {
+            struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
+            if( frame && frame->script &&
+                frame->script->script_id == host->script_settings_client_mode )
+            {
+                int layout = frame->int_locals[0];
+                if( layout >= 0 && layout <= 2 )
+                {
+                    host->client_layout_mode = layout;
+                    host->client_layout_dirty = true;
+                }
+            }
         }
         return CS2VM_EXECNO_OK;
 

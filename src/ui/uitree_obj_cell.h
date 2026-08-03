@@ -114,6 +114,10 @@ UITree_ObjCellDynamicSlotAt(
  * echo does. The CS2 inv-transmit repaint overwrites this a tick later; it
  * exists only to remove the 600 ms of the item sitting where it was dropped
  * from. Returns false if either slot has no child.
+ *
+ * CS1 / dat1 only — rev-230 does not mutate item fields on drag release
+ * (Deobfuscator class415.method9501); the onDragComplete hook + server echo
+ * own the repaint there.
  */
 bool
 UITree_ObjCellDynamicSwap(
@@ -121,5 +125,19 @@ UITree_ObjCellDynamicSwap(
     int parent_component_id,
     int slot_a,
     int slot_b);
+
+/**
+ * Look up a dynamic child of `parent_component_id` by slot index (including
+ * empty/hidden ones). Fills *out_node_index and optional item fields.
+ * Returns false when no child occupies that slot.
+ */
+bool
+UITree_ObjCellDynamicAtSlot(
+    struct UITree const* tree,
+    int parent_component_id,
+    int slot,
+    int32_t* out_node_index,
+    int* out_obj_id,
+    int* out_obj_count);
 
 #endif

@@ -1211,6 +1211,20 @@ task_cs2_run_new(
     }
 
     PT_INIT(&self->pt);
+    /* Display dropdown / server remount: settings_client_mode (script_3998) may
+     * early-out on setwindowmode when already in the same fixed/resizable class
+     * (Classic↔Modern). Stash the mode arg at dispatch so WINDOW_STATUS still
+     * fires. */
+    if( host->script_settings_client_mode > 0 &&
+        script_id == host->script_settings_client_mode && int_arg_count >= 1 && int_args )
+    {
+        int layout = int_args[0];
+        if( layout >= 0 && layout <= 2 )
+        {
+            host->client_layout_mode = layout;
+            host->client_layout_dirty = true;
+        }
+    }
     if( getenv("TORIRS_CC_DEBUG") )
         fprintf(
             stderr,

@@ -17,6 +17,7 @@
 #include "mock230.h"
 
 #include "mock230_content.h"
+#include "mock230_ids.h"
 #include "mock230_session.h"
 
 #include "net/isaac.h"
@@ -30,6 +31,7 @@
 
 #include <rsareabuf.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +61,7 @@ enum
     OP_IF_SETANIM = 97,
     OP_IF_SETHIDE = 98,
     OP_IF_CLOSESUB = 36,
+    OP_IF_MOVESUB = 42,
     OP_RUNCLIENTSCRIPT = 84,
     /* Assigned here, zero-length; see src/net/rev/osrs230/packetin.h. */
     OP_P_COUNTDIALOG = 128,
@@ -132,6 +135,8 @@ opcode_name(int op)
         return "RUNCLIENTSCRIPT";
     case OP_IF_OPENTOP:
         return "IF_OPENTOP";
+    case OP_IF_MOVESUB:
+        return "IF_MOVESUB";
     case OP_REBUILD_NORMAL:
         return "REBUILD_NORMAL";
     case OP_UPDATE_RUNENERGY:
@@ -368,6 +373,94 @@ mock230_send_if_opentop(
     open_packet(&buf, 8);
     rsab_p2_alt1(&buf, group);
     flush(player, &buf, OP_IF_OPENTOP, 0);
+}
+
+void
+mock230_send_if_movesub(
+    struct Mock230Player* player,
+    int source_uid,
+    int dest_uid)
+{
+    /* RSProt IfMoveSubEncoder: destinationCombinedId then sourceCombinedId,
+     * each p4Alt1 (little-endian). */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    rsab_p4_alt1(&buf, dest_uid);
+    rsab_p4_alt1(&buf, source_uid);
+    flush(player, &buf, OP_IF_MOVESUB, 0);
+}
+
+static void
+mock230_gameframe_bind_slots(
+    struct Mock230Player* player,
+    int group,
+    const char* top_name)
+{
+    char name[128];
+    int uid;
+
+    assert(player);
+    assert(top_name);
+    player->gameframe_iface = group;
+
+    snprintf(name, sizeof(name), "%s:mainmodal", top_name);
+    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    player->gameframe_mainmodal = uid;
+
+    snprintf(name, sizeof(name), "%s:sidemodal", top_name);
+    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    player->gameframe_sidemodal = uid;
+
+    snprintf(name, sizeof(name), "%s:floater", top_name);
+    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    player->gameframe_floater = uid;
+}
+
+void
+mock230_gameframe_opentop(
+    struct Mock230Player* player,
+    int group)
+{
+    const char* top_name;
+    const struct Mock230EnumDef* frame;
+    const struct Mock230Ids* ids = mock230_ids();
+
+    assert(player);
+    top_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, group);
+    if( !top_name )
+    {
+        fprintf(stderr, "mock230: if_opentop group=%d has no pack name\n", group);
+        return;
+    }
+
+    mock230_send_if_opentop(player, group);
+    mock230_gameframe_bind_slots(player, group, top_name);
+
+    /* Keep the static ids table's "current stretch" aliases pointed at the
+     * live top so C call sites that still read ids->com_gameframe_mainmodal
+     * see the right slots after a switch. */
+    if( ids )
+    {
+        /* iface_gameframe stays the stretch default for selftests that pin
+         * login; session state is player->gameframe_*. */
+        (void)ids;
+    }
+
+    frame = mock230_content_enum(top_name);
+    if( !frame || frame->count == 0 )
+    {
+        fprintf(stderr,
+                "mock230: no `%s` gameframe enum — HUD/tabs will be empty\n",
+                top_name);
+        return;
+    }
+    for( int i = 0; i < frame->count; i++ )
+        mock230_send_if_opensub(
+            player,
+            group,
+            frame->values[i].key & 0xffff,
+            frame->values[i].value,
+            1);
 }
 
 void

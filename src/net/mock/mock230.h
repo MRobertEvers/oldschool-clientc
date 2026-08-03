@@ -1565,6 +1565,14 @@ struct Mock230Player
      *  invisible to the server: the dialogue lived only as a parked script, so
      *  nothing — not Escape, not walking away — could take it off the screen. */
     int chatmodal_group;
+    /** Current gameframe root interface id and its modal/floater slots.
+     *  Updated by if_opentop; login starts on toplevel_osrs_stretch. */
+    int gameframe_iface;
+    int gameframe_mainmodal;
+    int gameframe_sidemodal;
+    int gameframe_floater;
+    /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS. */
+    int client_layout_mode;
     /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
      *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
     int run_energy_sent;
@@ -1927,6 +1935,41 @@ struct Mock230Hooks
     const struct SSVM_Script* friend_login_notification;
     const struct SSVM_Script* friend_logout_notification;
 };
+
+#include "mock230_ids.h"
+
+/** Session gameframe slots — prefer the player's live top after if_opentop. */
+static inline int
+mock230_player_gameframe_iface(struct Mock230Player const* player)
+{
+    if( player && player->gameframe_iface > 0 )
+        return player->gameframe_iface;
+    return mock230_ids()->iface_gameframe;
+}
+
+static inline int
+mock230_player_mainmodal(struct Mock230Player const* player)
+{
+    if( player && player->gameframe_mainmodal > 0 )
+        return player->gameframe_mainmodal;
+    return mock230_ids()->com_gameframe_mainmodal;
+}
+
+static inline int
+mock230_player_sidemodal(struct Mock230Player const* player)
+{
+    if( player && player->gameframe_sidemodal > 0 )
+        return player->gameframe_sidemodal;
+    return mock230_ids()->com_gameframe_sidemodal;
+}
+
+static inline int
+mock230_player_floater(struct Mock230Player const* player)
+{
+    if( player && player->gameframe_floater > 0 )
+        return player->gameframe_floater;
+    return mock230_ids()->com_gameframe_floater;
+}
 
 struct Mock230Server
 {
@@ -3657,6 +3700,21 @@ mock230_send_if_opensub(
     int child,
     int group,
     int type);
+/** IF_MOVESUB: move the sub at source_uid onto dest_uid. */
+void
+mock230_send_if_movesub(
+    struct Mock230Player* player,
+    int source_uid,
+    int dest_uid);
+/**
+ * Open `group` as the gameframe root and remount HUD/tabs from the content
+ * enum named after that interface (gameframe.enum). Updates the player's
+ * gameframe_* slot uids from `<name>:mainmodal` etc.
+ */
+void
+mock230_gameframe_opentop(
+    struct Mock230Player* player,
+    int group);
 void
 mock230_send_if_setevents(
     struct Mock230Player* player,

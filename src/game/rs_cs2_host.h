@@ -233,6 +233,14 @@ struct RS_CS2Host
     int window_mode;
     int default_window_mode;
     bool window_mode_dirty;
+    /** Display-panel client layout mode 0/1/2 (Fixed / Classic / Modern).
+     *  Stashed when [clientscript,settings_client_mode] (cache script_3998)
+     *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
+    int client_layout_mode;
+    bool client_layout_dirty;
+    /** Cache id of settings_client_mode (pack name script_3998). Dialect/cache
+     *  surface for observing the dropdown's mode arg on SETWINDOWMODE. */
+    int script_settings_client_mode;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
