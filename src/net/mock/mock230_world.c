@@ -17930,9 +17930,9 @@ mock230_world_selftest(void)
          *   - the text is the *engine's* old wording, built by content. The "+" on a
          *     non-negative bonus is the convention OldSchool prints and the one
          *     thing about these rows a player would notice immediately;
-         *   - the refresh is gated on the mount and not on a flag. Nothing repaints
-         *     while the screen is down, or it is eighteen IF_SETTEXTs to components
-         *     that do not exist.
+         *   - the refresh gate is content's (`if_getmain`). Nothing repaints
+         *     while the screen is down, or it is eighteen IF_SETTEXTs to
+         *     components that do not exist.
          *
          * Placed after the cook's assistant deliberately — see the note there
          * about anything inserted above it that ticks the world.
@@ -18017,6 +18017,113 @@ mock230_world_selftest(void)
             mock230_capture_end(&srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,
                            "a closed screen should paint nothing");
+
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: bank equipment bonus texts are content's\n");
+    {
+        /*
+         * Same discipline as the equipment screen: bankmain embeds eighteen
+         * empty text rows, and `~equipment_refresh` (gated on if_getmain =
+         * bankmain) must fill them on open. Without scripts the open still
+         * mounts; with scripts the IF_SETTEXTs follow.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture capture;
+            const struct Mock230Ids* ids = mock230_ids();
+            int stab_uid =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:stabatt");
+            int speed_uid = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "bankmain:attackspeedactual");
+            int settext = 0;
+            int stab_at = -1;
+            int speed_at = -1;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            mock230_capture_begin(&srv, &capture);
+            mock230_bank_open(&srv);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
+                           "bank open should leave bankmain mounted, got %d",
+                           player->mainmodal_group);
+            SELFTEST_CHECK(stab_uid > 0 && speed_uid > 0,
+                           "bankmain:stabatt / attackspeedactual should resolve");
+
+            for( int i = 0; i < capture.count; i++ )
+            {
+                if( capture.packets[i].opcode != 94 )
+                    continue;
+                settext++;
+                {
+                    const uint8_t* d = capture.packets[i].data;
+                    int uid = (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
+
+                    if( stab_at < 0 && uid == stab_uid )
+                        stab_at = i;
+                    if( speed_at < 0 && uid == speed_uid )
+                        speed_at = i;
+                }
+            }
+            SELFTEST_CHECK(settext == 18,
+                           "bank open should paint eighteen bonus rows, got %d",
+                           settext);
+            if( stab_at >= 0 )
+            {
+                const struct Mock230CapturedPacket* packet = &capture.packets[stab_at];
+                char text[64];
+                int n = packet->len - 4 - 1;
+
+                if( n < 0 )
+                    n = 0;
+                if( n > (int)sizeof(text) - 1 )
+                    n = (int)sizeof(text) - 1;
+                memcpy(text, packet->data + 4, (size_t)n);
+                text[n] = '\0';
+                SELFTEST_CHECK(strcmp(text, "Stab: +0") == 0,
+                               "bank stab bonus should read \"Stab: +0\", got \"%s\"",
+                               text);
+            }
+            else
+            {
+                SELFTEST_CHECK(0, "no IF_SETTEXT addressed bankmain:stabatt");
+            }
+            SELFTEST_CHECK(speed_at >= 0,
+                           "no IF_SETTEXT addressed bankmain:attackspeedactual");
+
+            /* Worn dirty while bank is up must repaint through the same gate. */
+            mock230_capture_reset(&capture);
+            mock230_capture_begin(&srv, &capture);
+            player->worn_dirty = 1u;
+            mock230_equipment_refresh_stats(&srv);
+            mock230_capture_end(&srv);
+            settext = 0;
+            for( int i = 0; i < capture.count; i++ )
+                if( capture.packets[i].opcode == 94 )
+                    settext++;
+            SELFTEST_CHECK(settext == 18,
+                           "worn dirty with bank open should repaint eighteen rows, got %d",
+                           settext);
+
+            mock230_bank_close(&srv);
+            mock230_capture_reset(&capture);
+            mock230_capture_begin(&srv, &capture);
+            mock230_equipment_refresh_stats(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,
+                           "closed bank should paint no bonus texts");
 
             mock230_scripts_free(&srv);
         }

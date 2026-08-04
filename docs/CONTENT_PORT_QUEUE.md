@@ -142,7 +142,15 @@ re-arm. Stop only when the user stops the loop.
 | 12b | hemenster thin fishermen | done | morris/bigdave/joshua + %fishingcompo clean-varp 11 + constants; deferred: full Fishing Contest |
 | 12c | grandpa_jack + sinister_stranger | done | story/hints + Vlad dialogue; deferred: bonzo/comp spots / my_spot arm |
 | 12d | poison_salesman | done | Murder Mystery arms; %murderquest clean-varp 192 + poisonproof authored 5760; deferred: full Murder Mystery, Fremennik beer keg |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Catherby (arhein/candle_maker/harry/hickton) or bonzo + hemenster_comp_stage / fishingcompo quest core or Merlin Crystal body; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 12e | arhein | done | Talk-to + Merlin fort arm; Trade stub; deferred: trail clue, openshop |
+| 12f | candle_maker | done | shop stub + black candle Merlin arms; %excalibur_components_progress authored 5761 + bit indices; deferred: openshop |
+| 12g | harry | done | fishing shop Talk-to + Trade stub; deferred: openshop |
+| 12h | hickton | done | archery shop Talk-to + Trade stub; deferred: openshop |
+| 12i | bonzo + hemenster_comp | done | competition entry/handover/champ; %hemenster_comp_stage 5762 + %hemenster_pipe_stashed 5763; deferred: spots |
+| 12j | tunnel_dwarf + fishingcompo complete | done | quest start/finish + pass; ~quest_complete(quest_fishingcontest); deferred: tunnel stairs |
+| 12k | garlicpipe + hemenster gate | done | stash + move_hemenster_pipe + pass gate walk-through + bonzo_quits; deferred: gate swing |
+| 12l | sir_mordred + thrantaxaltar | done | spare Merlin dialogue + chaos altar words; deferred: crate ship, Excalibur lake, bat-bones summon, crystal smash |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Merlin Crystal remainder (crate/Excalibur lake/crystal smash) or hemenster competition spots or Murder Mystery body; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -282,6 +290,14 @@ re-arm. Stop only when the user stops the loop.
 - slice 12b done: hemenster morris/bigdave/joshua + %fishingcompo; mock230_pack 0 errors (3150 scripts)
 - slice 12c done: grandpa_jack + sinister_stranger; mock230_pack 0 errors (3157 scripts)
 - slice 12d done: poison_salesman + %murderquest + murder_poisonproof_progress authored 5760; Fremennik/full Murder Mystery deferred; mock230_pack 0 errors (3158 scripts)
-- next pending: Catherby (arhein/candle_maker/harry/hickton) or bonzo + hemenster_comp_stage / fishingcompo quest core or Merlin Crystal body; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 12e done: arhein Talk-to + Merlin fort arm; Trade stub; mock230_pack 0 errors (3163 scripts)
+- slice 12f done: candle_maker + %excalibur_components_progress authored 5761 + bit indices; mock230_pack 0 errors (3165 scripts)
+- slice 12g done: harry fishing shop stub; mock230_pack 0 errors
+- slice 12h done: hickton archery shop stub; mock230_pack 0 errors (3169 scripts)
+- slice 12i done: bonzo + %hemenster_comp_stage 5762 + %hemenster_pipe_stashed 5763; mock230_pack 0 errors (3175 scripts)
+- slice 12j done: tunnel_dwarf + fishingcompo_quest_complete; mock230_pack 0 errors (3187 scripts)
+- slice 12k done: garlicpipe + hemenster gate walk-through + move_hemenster_pipe; mock230_pack 0 errors (3196 scripts)
+- slice 12l done: sir_mordred spare + thrantaxaltar; mock230_pack 0 errors (3204 scripts)
+- next pending: Merlin Crystal remainder (crate/Excalibur lake/crystal smash) or hemenster competition spots or Murder Mystery body; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    179  host commands
+ *    180  host commands
  *      9  host commands (db)
  *      5  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *      8  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    284  total, of 404 declared opcodes
+ *    285  total, of 413 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 284
-#define MOCK230_OPCODE_DECLARED_COUNT 404
+#define MOCK230_OPCODE_COVERAGE_COUNT 285
+#define MOCK230_OPCODE_DECLARED_COUNT 413
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11008
+#define MOCK230_OPCODE_VALUE_LIMIT 11009
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -79,10 +79,10 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1007, /* SS_OP_MAP_BLOCKED (host commands) */
     1008, /* SS_OP_MAP_CLOCK (host commands) */
     1009, /* SS_OP_MAP_FINDSQUARE (host commands) */
-    1013, /* SS_OP_MAP_MEMBERS (host commands) */
-    1015, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
-    1016, /* SS_OP_MOVECOORD (host commands) */
-    1021, /* SS_OP_WORLD_DELAY (host commands) */
+    1014, /* SS_OP_MAP_MEMBERS (host commands) */
+    1016, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
+    1017, /* SS_OP_MOVECOORD (host commands) */
+    1022, /* SS_OP_WORLD_DELAY (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
     2011, /* SS_OP_CLEARQUEUE (host commands) */
     2012, /* SS_OP_CLEARSOFTTIMER (host commands) */
@@ -120,48 +120,48 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2059, /* SS_OP_LAST_USESLOT (host commands) */
     2060, /* SS_OP_LONGQUEUE (host commands) */
     2063, /* SS_OP_MES (host commands) */
-    2069, /* SS_OP_P_ARRIVEDELAY (host commands) */
-    2071, /* SS_OP_P_COUNTDIALOG (host commands) */
-    2072, /* SS_OP_P_DELAY (host commands) */
-    2074, /* SS_OP_P_FINDUID (host commands) */
-    2075, /* SS_OP_P_LOCMERGE (host commands) */
-    2076, /* SS_OP_P_LOGOUT (host commands) */
-    2078, /* SS_OP_P_OPLOC (host commands (player)) */
-    2079, /* SS_OP_P_OPNPC (host commands) */
-    2081, /* SS_OP_P_OPOBJ (host commands (player)) */
-    2082, /* SS_OP_P_OPPLAYER (host commands (player)) */
-    2084, /* SS_OP_P_PAUSEBUTTON (host commands) */
-    2087, /* SS_OP_P_STOPACTION (host commands) */
-    2088, /* SS_OP_P_TELEJUMP (host commands) */
-    2089, /* SS_OP_P_TELEPORT (host commands) */
-    2090, /* SS_OP_P_WALK (host commands) */
-    2093, /* SS_OP_QUEUE (host commands) */
-    2095, /* SS_OP_READYANIM (host commands) */
-    2096, /* SS_OP_RUNANIM (host commands) */
-    2098, /* SS_OP_SAY (host commands) */
-    2099, /* SS_OP_SESSION_LOG (host commands) */
-    2104, /* SS_OP_SETTIMER (host commands) */
-    2105, /* SS_OP_SOFTTIMER (host commands) */
-    2106, /* SS_OP_SOUND_SYNTH (host commands) */
-    2107, /* SS_OP_SPOTANIM_PL (host commands) */
-    2110, /* SS_OP_STAT_ADVANCE (host commands) */
-    2111, /* SS_OP_STAT_BASE (host commands) */
-    2112, /* SS_OP_STAT_BOOST (host commands) */
-    2113, /* SS_OP_STAT_DRAIN (host commands) */
-    2114, /* SS_OP_STAT_HEAL (host commands) */
-    2115, /* SS_OP_STAT_RANDOM (host commands) */
-    2116, /* SS_OP_STAT_SUB (host commands) */
-    2117, /* SS_OP_STAT_TOTAL (host commands) */
-    2118, /* SS_OP_STAT (host commands) */
-    2119, /* SS_OP_STRONGQUEUE (host commands) */
-    2121, /* SS_OP_TURNANIM (host commands) */
-    2125, /* SS_OP_UID (host commands) */
-    2126, /* SS_OP_WALKANIM_B (host commands) */
-    2127, /* SS_OP_WALKANIM_L (host commands) */
-    2128, /* SS_OP_WALKANIM_R (host commands) */
-    2129, /* SS_OP_WALKANIM (host commands) */
-    2130, /* SS_OP_WALKTRIGGER (host commands) */
-    2131, /* SS_OP_WEAKQUEUE (host commands) */
+    2070, /* SS_OP_P_ARRIVEDELAY (host commands) */
+    2072, /* SS_OP_P_COUNTDIALOG (host commands) */
+    2073, /* SS_OP_P_DELAY (host commands) */
+    2075, /* SS_OP_P_FINDUID (host commands) */
+    2076, /* SS_OP_P_LOCMERGE (host commands) */
+    2077, /* SS_OP_P_LOGOUT (host commands) */
+    2079, /* SS_OP_P_OPLOC (host commands (player)) */
+    2080, /* SS_OP_P_OPNPC (host commands) */
+    2082, /* SS_OP_P_OPOBJ (host commands (player)) */
+    2083, /* SS_OP_P_OPPLAYER (host commands (player)) */
+    2085, /* SS_OP_P_PAUSEBUTTON (host commands) */
+    2089, /* SS_OP_P_STOPACTION (host commands) */
+    2090, /* SS_OP_P_TELEJUMP (host commands) */
+    2091, /* SS_OP_P_TELEPORT (host commands) */
+    2093, /* SS_OP_P_WALK (host commands) */
+    2096, /* SS_OP_QUEUE (host commands) */
+    2098, /* SS_OP_READYANIM (host commands) */
+    2099, /* SS_OP_RUNANIM (host commands) */
+    2101, /* SS_OP_SAY (host commands) */
+    2102, /* SS_OP_SESSION_LOG (host commands) */
+    2108, /* SS_OP_SETTIMER (host commands) */
+    2109, /* SS_OP_SOFTTIMER (host commands) */
+    2110, /* SS_OP_SOUND_SYNTH (host commands) */
+    2111, /* SS_OP_SPOTANIM_PL (host commands) */
+    2114, /* SS_OP_STAT_ADVANCE (host commands) */
+    2115, /* SS_OP_STAT_BASE (host commands) */
+    2116, /* SS_OP_STAT_BOOST (host commands) */
+    2117, /* SS_OP_STAT_DRAIN (host commands) */
+    2118, /* SS_OP_STAT_HEAL (host commands) */
+    2119, /* SS_OP_STAT_RANDOM (host commands) */
+    2120, /* SS_OP_STAT_SUB (host commands) */
+    2121, /* SS_OP_STAT_TOTAL (host commands) */
+    2122, /* SS_OP_STAT (host commands) */
+    2123, /* SS_OP_STRONGQUEUE (host commands) */
+    2125, /* SS_OP_TURNANIM (host commands) */
+    2129, /* SS_OP_UID (host commands) */
+    2130, /* SS_OP_WALKANIM_B (host commands) */
+    2131, /* SS_OP_WALKANIM_L (host commands) */
+    2132, /* SS_OP_WALKANIM_R (host commands) */
+    2133, /* SS_OP_WALKANIM (host commands) */
+    2134, /* SS_OP_WALKTRIGGER (host commands) */
+    2135, /* SS_OP_WEAKQUEUE (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
     2503, /* SS_OP_NPC_ATTACKRANGE (host commands) */
@@ -185,19 +185,19 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2523, /* SS_OP_NPC_HASOP (host commands (npc)) */
     2525, /* SS_OP_NPC_HUNT (host commands (npc)) */
     2526, /* SS_OP_NPC_HUNTALL (host commands (npc)) */
-    2528, /* SS_OP_NPC_NAME (host commands) */
-    2529, /* SS_OP_NPC_PARAM (host commands (npc)) */
-    2530, /* SS_OP_NPC_QUEUE (host commands) */
-    2531, /* SS_OP_NPC_RANGE (host commands) */
-    2532, /* SS_OP_NPC_SAY (host commands) */
-    2535, /* SS_OP_NPC_SETMODE (host commands) */
-    2536, /* SS_OP_NPC_SETTIMER (host commands) */
-    2537, /* SS_OP_NPC_STAT (host commands) */
-    2539, /* SS_OP_NPC_STATHEAL (host commands) */
-    2541, /* SS_OP_NPC_TELE (host commands) */
-    2542, /* SS_OP_NPC_TYPE (host commands) */
-    2543, /* SS_OP_NPC_UID (host commands) */
-    2547, /* SS_OP_SPOTANIM_NPC (host commands) */
+    2529, /* SS_OP_NPC_NAME (host commands) */
+    2530, /* SS_OP_NPC_PARAM (host commands (npc)) */
+    2531, /* SS_OP_NPC_QUEUE (host commands) */
+    2532, /* SS_OP_NPC_RANGE (host commands) */
+    2533, /* SS_OP_NPC_SAY (host commands) */
+    2536, /* SS_OP_NPC_SETMODE (host commands) */
+    2537, /* SS_OP_NPC_SETTIMER (host commands) */
+    2538, /* SS_OP_NPC_STAT (host commands) */
+    2540, /* SS_OP_NPC_STATHEAL (host commands) */
+    2542, /* SS_OP_NPC_TELE (host commands) */
+    2543, /* SS_OP_NPC_TYPE (host commands) */
+    2544, /* SS_OP_NPC_UID (host commands) */
+    2548, /* SS_OP_SPOTANIM_NPC (host commands) */
     3000, /* SS_OP_LOC_ADD (host commands) */
     3001, /* SS_OP_LOC_ANGLE (host commands) */
     3002, /* SS_OP_LOC_ANIM (host commands) */
@@ -324,6 +324,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11005, /* SS_OP_IF_CLOSESUB (host commands) */
     11006, /* SS_OP_IF_OPENTOP (host commands) */
     11007, /* SS_OP_IF_MOVESUB (host commands) */
+    11008, /* SS_OP_IF_GETMAIN (host commands) */
 };
 
 #endif

@@ -39,13 +39,11 @@ void
 mock230_equipment_open_stats(struct Mock230Server* srv);
 
 /**
- * Repaint the screen, but only while it is mounted: `[proc,equipment_refresh]`
- * is eighteen IF_SETTEXTs to components that do not exist otherwise.
+ * Ask content to repaint any open bonus view after the worn container changed.
  *
- * Called on the tick the worn container changed, because a bonus screen that
- * still shows the sword you just took off is worse than one that shows nothing.
- * Deciding *when* is the whole of the engine's share; what gets painted is the
- * proc's.
+ * `[proc,equipment_refresh]` reads `if_getmain` and paints the equipment
+ * screen, the bank's embedded rows, or nothing. Deciding *when* is the
+ * engine's share; which view and what gets painted is the proc's.
  */
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv);

@@ -304,7 +304,7 @@ server state behind it, and the varbit that hides it is pushed on open.
 | **Tabs** | The nine counters are transmitted and always zero. Assigning an item to a tab is a drag onto the tab strip, which arrives as a drag-complete the mock does not route yet. |
 | **Placeholders** | `bank_leaveplaceholders` is pushed to 0. A placeholder is a third slot state (obj, empty, remembered), and nothing else in the mock has one. |
 | **The incinerator** | `bank_showincinerator` pushed to 0. |
-| **Equipment-bonus panel, potion store, deposit box, bank pin** | Separate interfaces with their own containers. |
+| **Bank equipment wornslots / Remove ops, potion store, deposit box, bank pin** | Bonus *texts* on bankmain are painted by `~equipment_refresh` / `~bank_equipment_refresh` (same sum as the equipment screen). Wornslot icons, Remove ops, potion store, deposit box and PIN are separate. |
 | **Search** | Client-side filtering the server never sees. |
 | **Membership / capacity limits** | LostCity's `^bank_free_slots` gate. The mock has no membership flag, so every slot is free. |
 

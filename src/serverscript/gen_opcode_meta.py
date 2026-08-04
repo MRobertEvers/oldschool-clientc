@@ -250,6 +250,19 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Same require mask as 2071 (see EXTRA_POINTERS): it parks the active
     # player's script, so it needs protected access to that player.
     "P_COUNTDIALOG_NOPROMPT": (11004, 0, 0, 0, 0),
+
+    # if_getmain()(interface)
+    #
+    # Which interface is mounted in the gameframe mainmodal slot, or null.
+    # LostCity has no reader for this — its content never needed to ask which
+    # modal was up, only whether *a* modal was (`busy`). At rev 230 the bank
+    # embeds equipment-bonus rows inside bankmain while the worn tab opens a
+    # separate equipment interface; content that repaints those rows on a worn
+    # change has to know which view is mounted, and inventing a content-side
+    # flag beside the encoder's own `mainmodal_group` would drift. Returns the
+    # same id `if_openmain` / `if_openmain_side` wrote, or null when nothing is
+    # mounted (the encoder stores 0 on close; this maps that to null).
+    "IF_GETMAIN": (11008, 0, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------

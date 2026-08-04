@@ -4669,6 +4669,22 @@ mock230_script_command(
         return 1;
 
     /*
+     * if_getmain()(interface) — which interface occupies the gameframe
+     * mainmodal slot. See EXTRA_OPCODES in gen_opcode_meta.py.
+     *
+     * The encoder stores 0 when the slot is empty; content compares against
+     * `null` (−1), so map empty to null here rather than inventing a second
+     * sentinel content has to learn.
+     */
+    case SS_OP_IF_GETMAIN:
+    {
+        int group = player->mainmodal_group;
+
+        SSVM_PushInt(state, group > 0 ? group : -1);
+        return 1;
+    }
+
+    /*
      * `runclientscript_ss(clientscript, string, string)` — see the opcode's
      * entry in gen_opcode_meta.py for why it exists.
      *

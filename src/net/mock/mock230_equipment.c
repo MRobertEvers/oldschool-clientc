@@ -1,9 +1,7 @@
 #include "mock230_equipment.h"
 
 #include "mock230.h"
-#include "mock230_bank.h"
 #include "mock230_content.h"
-#include "mock230_ids.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -48,20 +46,11 @@ void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
 {
     /*
-     * The gate is the mount, not a flag of our own.
-     *
-     * `mainmodal_group` is maintained by the IF_OPENSUB / IF_CLOSESUB encoders
-     * for every mount the server makes, including the ones content drives
-     * through `if_openmain` — so it cannot drift the way the `equip_stats_open`
-     * bool beside it could, and did: three places cleared it and one set it.
-     *
-     * The gate belongs here rather than inside the proc, because the whole
-     * point of it is not to run the proc at all: `~equipment_refresh` is
-     * eighteen IF_SETTEXTs to components that do not exist while the screen is
-     * down.
+     * Content decides *whether* and *which* bonus view to paint:
+     * `[proc,equipment_refresh]` reads `if_getmain` and either paints the
+     * equipment screen, the bank's embedded rows, or nothing. The engine's
+     * share is only *when* — the tick the worn container changed.
      */
-    if( srv->active_player->mainmodal_group != mock230_ids()->iface_equipment_stats )
-        return;
     mock230_scripts_run_hook(srv, srv->hooks.equipment_refresh, NULL, 0);
 }
 

@@ -360,14 +360,14 @@ is the weapon's own `attackrate` param, likewise.
 
 The screen refreshes on any tick that dirtied the worn container, not the next
 time it is opened — a bonus screen still showing the sword you just took off is
-worse than one showing nothing. The gate is `mainmodal_group`, the record the
-IF_OPENSUB / IF_CLOSESUB encoders keep of what is mounted, rather than a flag of
-the screen's own: the old `equip_stats_open` bool had three places clearing it
-and one setting it.
+worse than one showing nothing. The gate is content's: `[proc,equipment_refresh]`
+reads `if_getmain` (the mainmodal interface the IF_OPENSUB encoder recorded) and
+paints either the equipment screen, the bank's embedded `bankmain:*` bonus rows,
+or nothing. The engine only decides *when* to call that proc.
 
 The mount, the eighteen rows, the "+0" wording and the gate are asserted in the
 `the equipment screen is content's` section of `--selftest`, off the captured
-wire.
+wire. Bank open paints the same numbers onto `bankmain:*` via the same hook.
 
 ### Honest gaps
 

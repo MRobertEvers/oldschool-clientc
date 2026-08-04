@@ -942,8 +942,7 @@ Ten call sites used to spell a script's name as a C string literal:
 mock230_combat.c      [proc,combat_levelup_message]  [proc,combat_defend_anim]
                       [proc,player_melee_swing]      [proc,npc_meleeattack]
                       [queue,player_death]
-mock230_equipment.c   [proc,equip_level_message]     [proc,equipment_refresh]
-                      [proc,equipment_open]
+mock230_equipment.c   [proc,equipment_refresh]       [proc,equipment_open]
 mock230_world.c       [proc,combat_weapon_type]
 ```
 
