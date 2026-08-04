@@ -690,7 +690,16 @@ mock230_combat_engage(
     {
         struct CollisionApproach approach;
         const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
-        mock230_scene_npc_approach(info ? info->size : 1, &approach);
+        int size = info ? info->size : 1;
+
+        /*
+         * Arm OPNPC2 so content owns the swing loop (LostCity: combat is the
+         * interaction). The engine clock no longer fires OPNPC2 — p_opnpc(2)
+         * re-arms this after each swing / action_delay wait.
+         */
+        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, slot, npc->type,
+                                      npc->x, npc->z, npc->level, size, size);
+        mock230_scene_npc_approach(size, &approach);
         mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
     }
 }
@@ -699,30 +708,11 @@ mock230_combat_engage(
 /* The tick                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Ticks between the player's swings: the weapon's attack rate, or 4 unarmed. */
-static int
-player_attack_rate(const struct Mock230Player* player)
-{
-    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-    const struct Mock230ObjInfo* info;
-
-    if( weapon < 0 )
-        return MOCK230_ATTACK_SPEED;
-    info = mock230_objinfo(weapon);
-    return info->has_params && info->attackrate > 0 ? info->attackrate
-                                                    : MOCK230_ATTACK_SPEED;
-}
-
 /*
- * The player's swing animation.
- *
- * Named through the content pack rather than hardcoded, but still one of two:
- * the cache says what a weapon's bonuses are, not which of the ten weapon
- * classes it belongs to, so an armed swing uses the sword set. That is a
- * simplification, and a visible one — an axe swings like a sword — but the
- * alternative is guessing a weapon class from its name.
+ * Player swing timing lives in content (`%action_delay` + `p_opnpc(2)`), not
+ * an engine attack_clock that fires OPNPC2. combat_player_tick only cleans up
+ * a dead target / finished death.
  */
-
 
 /*
  * Re-path to the target, every tick, *before* the player takes a step.
@@ -809,31 +799,12 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     }
 
     /* Facing is mock230_player_set_face_entity in phase_player (before
-     * approach / interaction), matching LostCity setFaceEntity. */
-
-    /* The approach happened before the player moved, in
-     * `mock230_combat_player_approach`. Out of range here means it has not
-     * arrived yet. */
-    if( !in_player_attack_range(player, npc) )
-        return;
-
-    if( player->attack_clock > 0 )
-    {
-        player->attack_clock--;
-        return;
-    }
-    player->attack_clock = player_attack_rate(player);
-
-    /*
-     * The swing is content's, all of it — [opnpc2,_] owns it via
-     * @player_combat_start. Fire the OPNPC2 trigger with this npc as subject
-     * so content's combat script runs and handles the swing.
-     */
-    {
-        int category = mock230_npc_category(npc->type);
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC2, npc->type, category,
-                                    player->combat_target);
-    }
+     * approach / interaction), matching LostCity setFaceEntity.
+     *
+     * Swings are content's via the OPNPC2 interaction (set by engage /
+     * p_opnpc(2)), not an engine attack_clock firing OPNPC2. Dead-target
+     * cleanup above is the only combat work left in this tick slot. */
+    (void)npc;
 }
 
 /*
@@ -1095,7 +1066,15 @@ mock230_combat_npc_tick(
      * npc_anim itself. Fire the trigger; content handles the animation, roll,
      * damage and retaliation queue.
      */
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
+    {
+        int protect = mock230_varbit_get(
+            player, mock230_content_symbol(MOCK230_PACK_VARBIT, "prayer_protectfrommelee"));
+        int before = player->hitpoints;
+        int tr = mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
+        fprintf(stderr,
+                "mock230 debug: AI_OPPLAYER2 slot=%d type=%d trigger=%d hp %d->%d clock=%d protect=%d\n",
+                slot, npc->type, tr, before, player->hitpoints, npc->attack_clock, protect);
+    }
 }
 
 void

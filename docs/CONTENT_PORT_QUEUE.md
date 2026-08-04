@@ -186,7 +186,11 @@ re-arm. Stop only when the user stops the loop.
 | 13t | crystal_chest/key | done | keyhalf join + chest unlock/loot table; deferred: sound_synth |
 | 13u | gaius | done | two-handed sword shop Talk-to + Trade stub; deferred: openshop, trail clue |
 | 13v | jatix | done | herblore shop Talk-to + Trade stub; deferred: openshop |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: taverly druid AI or boy (witch's house — ball constants defer-slice) or burthorpe/yanille thin NPCs; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 13w | taverly druid AI | done | entangle/snare dbrows + AP/OP entangle+melee; deferred: none |
+| 13x | boy (witch's house) | done | ballboy Talk-to + %ballquest + complete queue; deferred: house locs/journal |
+| 13y | yanille thin NPCs | done | sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard; deferred: shops, barcrawl |
+| 13z | burthorpe thin NPCs | done | citizens name-expand + cook/servant/WK/shop/barman/guards; ^death_complete; deferred: Death Plateau body, openshop |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: yanille shop stubs (frenita/magic_store/ogre traders) or witch house locs or death plateau quest NPCs; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -370,6 +374,11 @@ re-arm. Stop only when the user stops the loop.
 - slice 13t done: crystal_chest + crystal_key (join halves + loot); mock230_pack 0 errors (3441 scripts)
 - slice 13u done: gaius Talk-to + Trade stub; trail clue deferred; mock230_pack 0 errors (3443 scripts)
 - slice 13v done: jatix Talk-to + Trade stub; mock230_pack 0 errors (3445 scripts)
-- next pending: taverly druid AI or boy (witch's house — ball constants defer-slice) or burthorpe/yanille thin NPCs; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- worn-tab value checker + items kept on death (2026-08-03): pricechecker.rs2 (high-alch), deathkeep preview, on-death→gravestone, coffer/office; oc_cost/tradeable/members + inv_dropall/obj_addall; RCS arity 28; mock230_pack 0 errors
+- slice 13w done: taverly druid AI + snare/entangle dbrows; mock230_pack 0 errors
+- slice 13x done: ballboy + %ballquest constants/varp + complete; house locs deferred; mock230_pack 0 errors
+- slice 13y done: yanille thin NPCs (sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard); mock230_pack 0 errors
+- slice 13z done: burthorpe thin NPCs + ^death_complete/%death_equiproom; mock230_pack 0 errors (3543 scripts)
+- next pending: yanille shop stubs (frenita/magic_store/ogre traders) or witch house locs or death plateau quest NPCs; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

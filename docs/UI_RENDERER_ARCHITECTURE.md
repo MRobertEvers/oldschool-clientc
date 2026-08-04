@@ -741,6 +741,19 @@ middle followed `drag_visual` immediately. After intent dispatch, `App_RunOnce`
 drains the runner (bounded) before layout+emit
 ([app.c](src/app.c) — post-intent `TaskRunner_Step` loop).
 
+**Scrollbar `event_mouse` is track-relative, not bar-relative.**
+`~scrollbar_vertical` does `.cc_setdraggable(bar, 0)` — child 0 is the track
+(inset 16px from the bar top). Script 35 places caps at `event_mousey + 16` and
+maps that same value to scroll. If `event_mouse` is relative to the **bar**
+instead of the track, thumb-at-top yields `event_mousey == 16`, caps land at 32
+while `drag_visual` keeps the middle at 16 — a detached second rectangle once
+`on_drag` runs same-frame. The CS2 host resolves `cc_setdraggable` eagerly to
+the child's component id (reference WidgetOps / `method1418`);
+`UITree_ResolveDragRenderArea` still accepts the lazy `parent + child_index`
+form.
+([rs_cs2_host.c](src/game/rs_cs2_host.c) SETDRAGGABLE,
+[uitree_interact.c](src/ui/uitree_interact.c) on_drag event mouse).
+
 **IF1 scrollbars have no components, so they need an interception.**
 They are emit-drawn chrome, invisible to the generic hit test. `interact_scrollbars`
 runs *first*, and when it takes the press it forcibly clears

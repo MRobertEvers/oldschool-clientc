@@ -97,7 +97,8 @@ test_drag_composite(void)
  * Scrollbar-style drag (drag_behavior==1): InteractFrame must promote the drag
  * and emit on_drag while the button is merely held — not only after the input
  * layer's 5px IsDragging threshold. event_mouse is relative to the drag render
- * area (the track), matching ~scrollbar_vertical_drag's event_mousey math.
+ * area (the track = cc_setdraggable(bar, 0)), matching ~scrollbar_vertical_drag:
+ * caps use event_mousey+16, so bar-relative coords leave a detached +16px rect.
  */
 void
 test_drag_scrollbar_ondrag_held(void)
@@ -109,13 +110,19 @@ test_drag_scrollbar_ondrag_held(void)
     struct UITreeHost host;
     UITree_TestHostInit(&host, &hs);
 
-    /* Scrollbar layer parent (not the drag clamp area). */
+    /* Scrollbar bar (parent of track + thumb). Live CS2: cc_setdraggable(bar, 0). */
     int32_t bar = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 100, 100, 16, 100);
     tree->components[bar].if3 = 1;
 
-    /* Track = drag render area child 0; thumb clamps inside it. */
-    int32_t track = UITree_TestPushXy(tree, bar, UIELEM_RS_GRAPHIC, 901, 0, 16, 16, 68);
+    /* Track = dynamic child 0 (same encoding as ~scrollbar_vertical). */
+    int32_t track = UITree_CcCreate(tree, bar, 900, 5, 0);
+    TEST_ASSERT(track >= 0, "cc_create track as child 0");
+    TEST_ASSERT(tree->components[track].dynamic_child_index == 0, "track subid 0");
     tree->components[track].u.rs_graphic.scene_id = 1;
+    TEST_ASSERT(UITree_ApplyPosition(tree, tree->components[track].component_id, 0, 16),
+                "track y=16");
+    TEST_ASSERT(UITree_ApplySize(tree, tree->components[track].component_id, 16, 68),
+                "track size");
 
     /* Thumb at y=16 inside the bar (top of track). */
     struct UITreeNodeSpec thumb_spec;
@@ -132,11 +139,17 @@ test_drag_scrollbar_ondrag_held(void)
     tree->components[thumb].drag_behavior = 1;
     tree->components[thumb].drag_dead_zone = 0;
     tree->components[thumb].drag_dead_time = 0;
-    tree->components[thumb].drag_render_area_uid = 901; /* track */
-    tree->components[thumb].drag_render_area_child_index = -1;
+    /* Live CS2 encoding before/alongside host eager resolve. */
+    tree->components[thumb].drag_render_area_uid = 900; /* bar */
+    tree->components[thumb].drag_render_area_child_index = 0;
     UITree_HooksMut(&tree->components[thumb])->on_drag.script_id = 35;
 
     UITree_TestResolve(tree);
+
+    {
+        int32_t area = UITree_ResolveDragRenderArea(tree, &tree->components[thumb]);
+        TEST_ASSERT(area == track, "ResolveDragRenderArea is track (child 0), not bar");
+    }
 
     struct UIInteraction interact;
     UIInteraction_Init(&interact);
@@ -184,18 +197,140 @@ test_drag_scrollbar_ondrag_held(void)
                 continue;
             found = 1;
             TEST_ASSERT(out.intents[i].has_event_mouse, "on_drag carries event mouse");
-            /* Thumb top at drag_visual; track screen origin is bar.abs + 16.
-             * At rest-ish (+2px), event_mouse_y ≈ drag_visual_y - track_y. */
             int track_y = 0, track_x = 0, tw = 0, th = 0;
+            int bar_y = 0, bar_x = 0, bw = 0, bh = 0;
             UITree_LayoutGetBounds(
                 &tree->components[track].position, &track_x, &track_y, &tw, &th);
+            UITree_LayoutGetBounds(
+                &tree->components[bar].position, &bar_x, &bar_y, &bw, &bh);
             int expect_y = tree->components[thumb].drag_visual_y - track_y;
             TEST_ASSERT(
                 out.intents[i].event_mouse_y == expect_y,
                 "event_mouse_y is track-relative");
+            /* Near thumb-top (+2px): track-relative ≈ 2; bar-relative would be ≈ 18.
+             * Script 35 does cap_y = event + 16 — only track-relative aligns caps. */
+            TEST_ASSERT(
+                out.intents[i].event_mouse_y < 8,
+                "event_mouse_y near 0 at track top (not bar-relative ~16)");
+            TEST_ASSERT(
+                out.intents[i].event_mouse_y + 16 ==
+                    tree->components[thumb].drag_visual_y - bar_y,
+                "event+16 equals middle top in bar coords");
             break;
         }
         TEST_ASSERT(found, "on_drag intent targets thumb script 35");
+    }
+
+    UITree_Free(tree);
+}
+
+/*
+ * Scrollbar thumbs use drag_behavior==1 (in-place, opaque). Behavior 0 defers a
+ * translucent ghost on the drag pass while sibling caps stay on the normal pass
+ * — the "second rectangle" users saw when behavior/event_mouse were wrong.
+ * Caps positioned like script 35 (event_mousey+16 with track-relative event)
+ * must share the middle's drawn Y.
+ */
+void
+test_drag_scrollbar_inplace_emit(void)
+{
+    printf("TEST: scrollbar in-place emit (no deferred ghost)\n");
+
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    int32_t bar = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 100, 100, 16, 100);
+    tree->components[bar].if3 = 1;
+
+    int32_t track = UITree_CcCreate(tree, bar, 900, 5, 0);
+    TEST_ASSERT(track >= 0, "track child 0");
+    TEST_ASSERT(UITree_ApplyPosition(tree, tree->components[track].component_id, 0, 16),
+                "track pos");
+    TEST_ASSERT(UITree_ApplySize(tree, tree->components[track].component_id, 16, 68),
+                "track size");
+    tree->components[track].u.rs_graphic.scene_id = 1;
+
+    struct UITreeNodeSpec mid_spec;
+    memset(&mid_spec, 0, sizeof(mid_spec));
+    mid_spec.type = UIELEM_RS_GRAPHIC;
+    mid_spec.component_id = 902;
+    mid_spec.x = 0;
+    mid_spec.y = 16;
+    mid_spec.width = 16;
+    mid_spec.height = 24;
+    mid_spec.u.rs_graphic.scene_id = 2;
+    int32_t middle = UITree_Push(tree, bar, &mid_spec);
+
+    /* Sibling cap (not a child of the middle) — script 35 moves these. */
+    struct UITreeNodeSpec cap_spec;
+    memset(&cap_spec, 0, sizeof(cap_spec));
+    cap_spec.type = UIELEM_RS_GRAPHIC;
+    cap_spec.component_id = 903;
+    cap_spec.x = 0;
+    cap_spec.y = 16;
+    cap_spec.width = 16;
+    cap_spec.height = 5;
+    cap_spec.u.rs_graphic.scene_id = 3;
+    int32_t cap = UITree_Push(tree, bar, &cap_spec);
+    TEST_ASSERT(cap >= 0, "sibling cap");
+
+    UITree_TestResolve(tree);
+
+    int const drag_y = 100 + 16 + 20; /* middle top 20px down the track */
+    int track_y = 0, track_x = 0, tw = 0, th = 0;
+    int bar_y = 0, bar_x = 0, bw = 0, bh = 0;
+    UITree_LayoutGetBounds(&tree->components[track].position, &track_x, &track_y, &tw, &th);
+    UITree_LayoutGetBounds(&tree->components[bar].position, &bar_x, &bar_y, &bw, &bh);
+    int const event_y = drag_y - track_y; /* track-relative */
+    int const cap_bar_y = event_y + 16;   /* script 35 */
+
+    TEST_ASSERT(UITree_ApplyPosition(tree, 903, 0, cap_bar_y), "cap at event+16");
+    UITree_TestResolve(tree);
+
+    UITree_SetComponentDragActive(tree, middle, 1);
+    tree->components[middle].drag_behavior = 1;
+    tree->components[middle].drag_visual_x = 100;
+    tree->components[middle].drag_visual_y = drag_y;
+    tree->components[middle].drag_visual_trans = -1;
+
+    {
+        struct UITreeEmitBuffer buf;
+        UITree_EmitBufferInit(&buf);
+        UITree_EmitWalk(tree, &host, &buf, -1);
+        int mid_count = 0;
+        int mid_i = -1;
+        int cap_i = -1;
+        for( int i = 0; i < buf.count; i++ )
+        {
+            if( buf.cmds[i].component_id == 902 )
+            {
+                mid_count++;
+                mid_i = i;
+            }
+            if( buf.cmds[i].component_id == 903 )
+                cap_i = i;
+        }
+        TEST_ASSERT(mid_count == 1, "behavior 1 draws middle once (not deferred duplicate)");
+        TEST_ASSERT(mid_i >= 0 && cap_i >= 0, "middle + cap emitted");
+        TEST_ASSERT(buf.cmds[mid_i].y == drag_y, "middle at drag_visual");
+        TEST_ASSERT(buf.cmds[mid_i].trans != 128, "scrollbar middle not ghosted");
+        TEST_ASSERT(buf.cmds[cap_i].y == buf.cmds[mid_i].y, "cap Y matches middle (event+16)");
+        UITree_EmitBufferFree(&buf);
+    }
+
+    /* Control: deferred pickup ghosts the middle (trans 128). */
+    tree->components[middle].drag_behavior = 0;
+    tree->components[middle].drag_visual_trans = 128;
+    {
+        struct UITreeEmitBuffer buf;
+        UITree_EmitBufferInit(&buf);
+        UITree_EmitWalk(tree, &host, &buf, -1);
+        int mid_i = find_desc(&buf, 902);
+        TEST_ASSERT(mid_i >= 0, "deferred middle still emitted on drag pass");
+        TEST_ASSERT(buf.cmds[mid_i].trans == 128, "deferred middle is ghosted");
+        UITree_EmitBufferFree(&buf);
     }
 
     UITree_Free(tree);

@@ -3649,10 +3649,10 @@ UITree_ResolveDragRenderArea(
     parent_idx = UITree_FindByComponentId(tree, src->drag_render_area_uid);
     if( parent_idx < 0 )
         return -1;
-    /* cc_setdraggable(parentUid, childIndex): the render area is the child at
-     * childIndex within the parent (reference WidgetOps CC_SETDRAGGABLE — e.g.
-     * the scrollbar dragger clamps to child 0, the track, not the whole bar).
-     * Fall back to the parent when the child cannot be resolved. */
+    /* cc_setdraggable(parentUid, childIndex): host normally resolves to the
+     * child's uid at set time (child_index left -1). Lazy form still used by
+     * tests / older stores: render area is parent.children[childIndex]
+     * (scrollbar track = child 0), falling back to the parent if missing. */
     if( src->drag_render_area_child_index >= 0 )
     {
         int32_t child = UITree_FindChildBySubid(

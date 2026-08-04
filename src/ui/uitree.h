@@ -1641,8 +1641,10 @@ UITree_ClickMaskDragDepth(int32_t click_mask)
 
 /**
  * Node index of src's drag render area (clamp + script coordinate space), or
- * -1 when the widget drags freely. cc_setdraggable(parentUid, childIndex)
- * targets parent.children[childIndex]; falls back to the parent.
+ * -1 when the widget drags freely. cc_setdraggable(parentUid, childIndex) is
+ * resolved eagerly by the CS2 host to the child's component_id (child_index
+ * left -1). Lazy form (uid=parent, child_index>=0) still resolves
+ * parent.children[childIndex] and falls back to the parent if missing.
  */
 int32_t
 UITree_ResolveDragRenderArea(

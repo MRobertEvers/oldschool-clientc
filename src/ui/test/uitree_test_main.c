@@ -13,6 +13,7 @@ main(void)
     test_apply_object_silhouette();
     test_drag_composite();
     test_drag_scrollbar_ondrag_held();
+    test_drag_scrollbar_inplace_emit();
     test_scroll_hit();
     test_drag_scrolled();
     test_emit_icons();

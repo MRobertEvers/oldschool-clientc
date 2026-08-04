@@ -147,6 +147,7 @@ void test_mutate_emit(void);
 void test_apply_object_silhouette(void);
 void test_drag_composite(void);
 void test_drag_scrollbar_ondrag_held(void);
+void test_drag_scrollbar_inplace_emit(void);
 void test_scroll_hit(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);

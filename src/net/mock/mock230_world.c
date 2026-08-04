@@ -198,25 +198,32 @@ unequip_slot(
     struct Mock230Server* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->active_player;
-    int obj_id;
-    int dest;
+    int32_t arg;
 
+    /*
+     * Content's `[proc,unequip]` owns the move, the message, ~update_bas and
+     * ~combat_weapon_category_sync. The worn-tab click and the selftest both
+     * land here; naming the proc is the same debt as mock230_say — the worn
+     * path is still engine-entered until every client click is an IF_BUTTON.
+     */
     if( slot < 0 || slot >= MOCK230_WORN_SLOTS )
         return;
-    obj_id = player->worn[slot].obj_id;
-    if( obj_id < 0 )
-        return;
-    dest = inv_first_free(player);
-    if( dest < 0 )
+    arg = (int32_t)slot;
+    if( !mock230_scripts_run_proc(srv, "[proc,unequip]", &arg, 1) )
     {
-        mock230_say(srv, "equip_no_space_message", NULL);
-        return;
+        /* No content pack: keep the physical move so headless boots still work. */
+        struct Mock230Player* player = srv->active_player;
+        int obj_id = player->worn[slot].obj_id;
+        int dest;
+
+        if( obj_id < 0 )
+            return;
+        dest = inv_first_free(player);
+        if( dest < 0 )
+            return;
+        inv_set(player, dest, obj_id, player->worn[slot].count);
+        worn_set(player, slot, -1, 0);
     }
-    inv_set(player, dest, obj_id, player->worn[slot].count);
-    worn_set(player, slot, -1, 0);
-    mock230_say(srv, "unequip_message", mock230_objinfo(obj_id)->name);
-    /* Content's ~unequip calls ~update_bas — no engine hook needed. */
 }
 
 /* ------------------------------------------------------------------ */

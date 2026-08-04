@@ -4766,6 +4766,7 @@ mock230_script_command(
         int slot = (int)state->host_tag - 1;
         struct Mock230Npc* npc;
         const struct Mock230NpcInfo* info;
+        struct Mock230Player* player = srv->active_player;
 
         if( !SSVM_PopInt(state, &op_num) )
             return 1;
@@ -4782,13 +4783,15 @@ mock230_script_command(
         npc = &srv->npcs[slot];
         info = mock230_npcinfo(npc->type);
         /*
-         * All ops now re-dispatch like LostCity PlayerOps.ts — [opnpc2,_] owns
-         * Attack, and content calls p_opnpc(2) expecting the interaction path.
+         * LostCity PlayerOps.P_OPNPC: stopAction (clear interaction + walk) then
+         * setInteraction — not clearPendingAction's combat_stop. Clearing
+         * combat_target here aborted every melee loop the moment content called
+         * p_opnpc(2) after a swing.
          */
         if( !info->ops[op_num - 1] )
             return 1;
-        mock230_world_clear_pending_action(srv);
         mock230_world_interaction_clear(srv);
+        mock230_world_steps_clear(player);
         mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, (int)op_num, slot,
                                       npc->type, npc->x, npc->z, npc->level,
                                       info->size, info->size);
@@ -4797,6 +4800,9 @@ mock230_script_command(
             mock230_scene_npc_approach(info->size, &approach);
             mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
         }
+        /* Attack keeps the engine face/approach latch; other ops do not. */
+        if( strcmp(info->ops[op_num - 1], "Attack") == 0 )
+            player->combat_target = slot;
         return 1;
     }
 
@@ -4828,6 +4834,9 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
+        fprintf(stderr, "mock230 debug: damage uid=%d type=%d amt=%d hp=%d\n",
+                (int)values[0], (int)values[1], (int)values[2],
+                srv->active_player ? srv->active_player->hitpoints : -1);
         /* values[0] is the player uid, which the single-player mock ignores. */
         mock230_combat_hit_player(srv, values[1], values[2]);
         return 1;

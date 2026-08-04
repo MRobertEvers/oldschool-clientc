@@ -5509,9 +5509,31 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_draggable.component_id);
         if( node )
         {
+            int const parent_uid = request->u.cc_set_draggable.parent_uid;
+            int const child_index = request->u.cc_set_draggable.child_index;
+            int area_uid = parent_uid;
+            /* Resolve the render-area child at set time (reference WidgetOps /
+             * InterfaceList.method1418(parent, childIndex)). ~scrollbar_vertical
+             * does cc_setdraggable(bar, 0) so the area is the track, not the bar.
+             * Script 35 places caps at event_mousey+16 and converts scroll from
+             * the same value — that only works when event_mouse is track-relative
+             * (0 at thumb-top). Storing the child's uid (child_index=-1) keeps
+             * ResolveDragRenderArea on the track even if a later FindChildBySubid
+             * miss would otherwise fall back to the bar and offset caps by +16. */
+            if( tree && parent_uid >= 0 && child_index >= 0 )
+            {
+                int32_t const parent_idx = UITree_FindByComponentId(tree, parent_uid);
+                if( parent_idx >= 0 )
+                {
+                    int32_t const child = UITree_FindChildBySubid(
+                        tree, parent_idx, parent_uid, child_index);
+                    if( child >= 0 )
+                        area_uid = tree->components[child].component_id;
+                }
+            }
             node->draggable = 1;
-            node->drag_render_area_uid = request->u.cc_set_draggable.parent_uid;
-            node->drag_render_area_child_index = request->u.cc_set_draggable.child_index;
+            node->drag_render_area_uid = area_uid;
+            node->drag_render_area_child_index = -1;
             UITree_MarkNodeDirty(
                 tree, rs_cs2_find_node(host, request->u.cc_set_draggable.component_id));
         }
