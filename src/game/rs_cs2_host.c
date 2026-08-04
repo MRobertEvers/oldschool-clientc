@@ -197,6 +197,37 @@ rs_cs2_model_ready(
     return provider && CacheProvider_ModelHas(provider, model_id);
 }
 
+/* True when the npctype is resident and every non-negative chathead model id
+ * is resident. Empty/missing heads count as ready so we do not yield forever —
+ * EnsureNpcHead still returns -1 and the widget stays unchanged. */
+static bool
+rs_cs2_npc_head_ready(
+    struct RS_CS2Host* host,
+    int npc_id)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Npctype* npc;
+    int i;
+
+    if( npc_id < 0 )
+        return true;
+    if( !provider || !CacheProvider_NpctypeHas(provider, npc_id) )
+        return false;
+    npc = CacheProvider_NpctypeGet(provider, npc_id);
+    assert(npc);
+    if( !npc->heads || npc->heads_count <= 0 )
+        return true;
+    for( i = 0; i < npc->heads_count; i++ )
+    {
+        int mid = npc->heads[i];
+        if( mid < 0 )
+            continue;
+        if( !CacheProvider_ModelHas(provider, mid) )
+            return false;
+    }
+    return true;
+}
+
 static bool
 rs_cs2_resolve_obj_icon(
     struct RS_CS2Host* host,
@@ -2665,16 +2696,29 @@ exec_widget_set_model_kind(
         (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
     }
     /* NPC head (kind 2): request.model_id is the npc id. Composite the chathead
-     * (reference IfType.getModel type 2 / NpcType.getHead). Best-effort: applies
-     * once the npctype + its head models are resident; the compositor returns -1
-     * (widget unchanged) until then. */
+     * (reference IfType.getModel type 2 / NpcType.getHead / deob method3601).
+     * Yield until npctype + head models are resident (IF1 Task_AppIfHead parity);
+     * EnsureNpcHead returns -1 (widget unchanged) if composition still fails. */
     else if(
         request.model_kind == CS2VM_MODEL_KIND_NPC_HEAD && host->bridge && rs_cs2_tree(host) &&
         request.model_id >= 0 )
     {
-        int scene_model = UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
-        if( scene_model >= 0 )
-            (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+        if( !rs_cs2_npc_head_ready(host, request.model_id) )
+        {
+            struct CS2VM_HostRequest req = { 0 };
+            req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+            req.u.widget_set_model_kind = request;
+            if( !rs_cs2_await_spent(host, req.kind, request.model_id, -1) )
+                return rs_cs2_yield_load(host, &req, request.model_id, -1);
+            /* Npctype/heads still missing after load: leave the widget as it was. */
+            return CS2VM_EXECNO_OK;
+        }
+        {
+            int scene_model =
+                UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
+            if( scene_model >= 0 )
+                (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+        }
     }
     /* Player head/self/chathead (kinds 3/5/6): composite the local appearance
      * head (reference IfType.getModel type 3 / ClientPlayer.getHeadModel). */

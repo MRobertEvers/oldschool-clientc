@@ -592,6 +592,31 @@ run_script_id(
 /* Resuming                                                            */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Re-arm the VM's ACTIVE_NPC pointer bit from the slot parked in `host_tag`.
+ *
+ * LostCity keeps `_activeNpc` on the same ScriptState across p_pausebutton /
+ * p_delay; resume just re-executes that state. Here the durable identity is the
+ * slot in `host_tag` (a raw pointer would dangle if the npc despawned), and the
+ * bit the VM's require table checks is separate. Without this, a conversation
+ * that parks on ~chatplayer after a ~p_choice and then resumes into ~chatnpc
+ * aborts on NPC_TYPE even though the slot is still valid — the bit was set at
+ * trigger entry and is not guaranteed to still be set when the state wakes.
+ */
+static void
+rebind_active_npc(
+    struct Mock230Server* srv,
+    struct SSVM_State* state)
+{
+    int slot = (int)state->host_tag - 1;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    if( !srv->npcs[slot].active )
+        return;
+    SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+}
+
 void
 mock230_scripts_resume_player(struct Mock230Server* srv)
 {
@@ -606,6 +631,7 @@ mock230_scripts_resume_player(struct Mock230Server* srv)
     if( srv->tick < srv->active_player->delayed_until )
         return;
 
+    rebind_active_npc(srv, state);
     run_or_park(srv, state);
 }
 
@@ -824,6 +850,7 @@ mock230_scripts_resume_button(
             continue;
         player->last_com = component_uid;
         player->resume_button_count = 0;
+        rebind_active_npc(srv, state);
         return run_or_park(srv, state);
     }
     return 0;
@@ -6183,6 +6210,7 @@ mock230_scripts_resume_countdialog(
     if( state->execution != SSVM_COUNTDIALOG )
         return 0;
     srv->active_player->last_int = value;
+    rebind_active_npc(srv, state);
     return run_or_park(srv, state);
 }
 

@@ -430,9 +430,9 @@ naming those namespaces, *not* by widening the type list. So the economy lives i
 `slayer_unlock.enum`, generated, marked, and cross-checked by §7's selftest,
 which charges the cache's price for five named unlocks.
 
-**`<u=…>` is rendered literally.** The confirm dialog's title comes through as
-`<u=ff981f>Slug Salter</u>`. Cosmetic, client-side, and not slayer's — the same
-tag appears in several panels.
+**`<u=…>` underline markup** is handled in `toridraw_font.c` (same fix as the
+skill-guide Overview body). Confirm titles use `<u=ff981f>…</u>` for a colored
+underline without recoloring glyphs.
 
 **Ops 6..10 still cannot be picked** (`UITREE_MENU_OPTION_SLOTS` is 5,
 `docs/farming_tools.md` §6). Slayer does not use them.

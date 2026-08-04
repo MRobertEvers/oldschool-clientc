@@ -888,7 +888,7 @@ compute_normal_scenery_spans(
 }
 
 int
-painter_add_normal_scenery(
+painter_add_normal_scenery_ex(
     struct Painter* painter,
     int sx,
     int sz,
@@ -896,7 +896,8 @@ painter_add_normal_scenery(
     int entity,
     int size_x,
     int size_z,
-    int model_height)
+    int model_height,
+    uint8_t flags)
 {
     /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
      * word packs entity in 16 bits, so the full uint16 range is legal. */
@@ -929,9 +930,25 @@ painter_add_normal_scenery(
             .size_x = size_x,
             .size_z = size_z,
             .model_height = (uint16_t)model_height,
+            .flags = flags,
         },
     };
     return element;
+}
+
+int
+painter_add_normal_scenery(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int size_x,
+    int size_z,
+    int model_height)
+{
+    return painter_add_normal_scenery_ex(
+        painter, sx, sz, slevel, entity, size_x, size_z, model_height, 0);
 }
 
 void

@@ -166,4 +166,99 @@ painter_tile_ground_hidden(
     return 0;
 }
 
+/** True when el is RAISED ground-item scenery (emit at tile completion). */
+static inline int
+scenery_is_raised(const struct PaintersElement* el)
+{
+    return el->kind == PNTRELEM_SCENERY && (el->_scenery.flags & PNTR_SCENERY_RAISED) != 0;
+}
+
+/**
+ * True when outer's footprint strictly contains inner's (larger area, inner
+ * min/max inside outer). Used to defer stacked 1x1 locs behind multi-tile bases.
+ */
+static inline int
+scenery_footprint_contains(
+    const struct PaintersElement* outer,
+    const struct PaintersElement* inner)
+{
+    int o_area;
+    int i_area;
+    int o_max_x;
+    int o_max_z;
+    int i_max_x;
+    int i_max_z;
+
+    assert(outer && inner);
+    assert(outer->kind == PNTRELEM_SCENERY);
+    assert(inner->kind == PNTRELEM_SCENERY);
+    o_area = (int)outer->_scenery.size_x * (int)outer->_scenery.size_z;
+    i_area = (int)inner->_scenery.size_x * (int)inner->_scenery.size_z;
+    if( o_area <= i_area )
+        return 0;
+    o_max_x = (int)outer->sx + (int)outer->_scenery.size_x - 1;
+    o_max_z = (int)outer->sz + (int)outer->_scenery.size_z - 1;
+    i_max_x = (int)inner->sx + (int)inner->_scenery.size_x - 1;
+    i_max_z = (int)inner->sz + (int)inner->_scenery.size_z - 1;
+    return (int)inner->sx >= (int)outer->sx && (int)inner->sz >= (int)outer->sz &&
+           i_max_x <= o_max_x && i_max_z <= o_max_z;
+}
+
+/**
+ * True when any undrawn STACK_BASE scenery on this tile's chain has a footprint
+ * that strictly contains `el`. Chains are short (max ~5), so the walk is cheap.
+ */
+static inline int
+scenery_blocked_by_stack_base(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    const struct PaintersElement* el)
+{
+    assert(painter && tile && el);
+    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+    {
+        int si = painter->scenery_pool[sn].element_idx;
+        struct PaintersElement* other;
+        if( painter->element_paints[si].drawn )
+            continue;
+        other = &painter->elements[si];
+        if( other->kind != PNTRELEM_SCENERY )
+            continue;
+        if( other == el )
+            continue;
+        if( (other->_scenery.flags & PNTR_SCENERY_STACK_BASE) == 0 )
+            continue;
+        if( scenery_footprint_contains(other, el) )
+            return 1;
+    }
+    return 0;
+}
+
+/**
+ * Emit every undrawn RAISED scenery on this tile (Client-TS elevated
+ * GroundObject at tile completion). Marks them drawn.
+ */
+static inline void
+painter_emit_raised_scenery(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer,
+    struct PaintersTile* tile,
+    void (*emit_fn)(struct PaintersBuffer*, int))
+{
+    assert(painter && buffer && tile && emit_fn);
+    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+    {
+        int si = painter->scenery_pool[sn].element_idx;
+        struct ElementPaint* ep = &painter->element_paints[si];
+        struct PaintersElement* el;
+        if( ep->drawn )
+            continue;
+        el = &painter->elements[si];
+        if( !scenery_is_raised(el) )
+            continue;
+        ep->drawn = true;
+        emit_fn(buffer, el->_scenery.entity);
+    }
+}
+
 #endif

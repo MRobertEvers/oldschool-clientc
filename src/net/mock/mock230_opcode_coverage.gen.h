@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    172  host commands
+ *    179  host commands
  *      9  host commands (db)
  *      5  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *      8  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    277  total, of 404 declared opcodes
+ *    284  total, of 404 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 277
+#define MOCK230_OPCODE_COVERAGE_COUNT 284
 #define MOCK230_OPCODE_DECLARED_COUNT 404
 
 /*
@@ -136,6 +136,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2089, /* SS_OP_P_TELEPORT (host commands) */
     2090, /* SS_OP_P_WALK (host commands) */
     2093, /* SS_OP_QUEUE (host commands) */
+    2095, /* SS_OP_READYANIM (host commands) */
+    2096, /* SS_OP_RUNANIM (host commands) */
     2098, /* SS_OP_SAY (host commands) */
     2099, /* SS_OP_SESSION_LOG (host commands) */
     2104, /* SS_OP_SETTIMER (host commands) */
@@ -152,7 +154,12 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2117, /* SS_OP_STAT_TOTAL (host commands) */
     2118, /* SS_OP_STAT (host commands) */
     2119, /* SS_OP_STRONGQUEUE (host commands) */
+    2121, /* SS_OP_TURNANIM (host commands) */
     2125, /* SS_OP_UID (host commands) */
+    2126, /* SS_OP_WALKANIM_B (host commands) */
+    2127, /* SS_OP_WALKANIM_L (host commands) */
+    2128, /* SS_OP_WALKANIM_R (host commands) */
+    2129, /* SS_OP_WALKANIM (host commands) */
     2130, /* SS_OP_WALKTRIGGER (host commands) */
     2131, /* SS_OP_WEAKQUEUE (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */

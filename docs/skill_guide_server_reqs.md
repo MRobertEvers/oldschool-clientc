@@ -42,10 +42,9 @@ and the comment claiming otherwise was corrected rather than given a command.
 ## What was deliberately left
 
 - **The Overview tab.** Abort on the twelve missing CS2 opcodes is fixed
-  (remeasured 2026-08-03) — see `docs/skill_guide.md` §5. Content still opens
-  on `^skill_guide_tab_default = 1` because Overview layout (overlapping
-  panels / raw `<u=…>` tags; 211/215 stubbed) is not clean yet. Set the
-  default back to **0** when that lands.
+  (remeasured 2026-08-03) — see `docs/skill_guide.md` §5. Overlap (211/215)
+  and literal `<u=…>` (font markup) landed the same day; `^skill_guide_tab_default`
+  is **0** again.
 - **`cc_callonresize` (1927).** Its row in `cs2_command.gen.h` claims one
   argument, which no other `cc_*` component op takes, and no script in this
   cache calls it — nothing to verify an arity against, so it stays

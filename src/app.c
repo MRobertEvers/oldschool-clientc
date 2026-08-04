@@ -2097,6 +2097,8 @@ app_host_request(
             &app->bridge,
             req->u.get_obj_icon_bordered.obj_id,
             req->u.get_obj_icon_bordered.count > 0 ? req->u.get_obj_icon_bordered.count : 1);
+    case UITREE_HOST_GET_IF_EVENTS:
+        return (int)app_if_events_for_node(app, req->u.get_if_events.com_id);
     default:
         return 0;
     }

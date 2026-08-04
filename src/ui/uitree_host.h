@@ -204,6 +204,13 @@ enum UITreeHostRequestKind
      * Prefer over Soft3D draw-time outline for dense item grids.
      */
     UITREE_HOST_GET_OBJ_ICON_BORDERED,
+    /**
+     * Server IF_SETEVENTS mask for u.get_if_events.com_id, including a dynamic
+     * child's inheritance of its parent's armed sub range. Hit-test uses this
+     * so choice-menu rows (plain TEXT, no cache clickmask) are clickable once
+     * the server arms `chatmenu:options`.
+     */
+    UITREE_HOST_GET_IF_EVENTS,
 };
 
 /*
@@ -372,6 +379,10 @@ struct UITreeHostRequest
             int font_id;
             char const* text;
         } measure_text;
+        struct
+        {
+            int com_id;
+        } get_if_events;
     } u;
 };
 

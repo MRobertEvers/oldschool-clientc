@@ -70,6 +70,7 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_COMPONENT,
     TASK_CS2_YIELD_MODEL,
     TASK_CS2_YIELD_NPC,
+    TASK_CS2_YIELD_NPC_HEAD,
     TASK_CS2_YIELD_SETOBJECT,
     TASK_CS2_YIELD_SPRITE,
     TASK_CS2_YIELD_FONT,
@@ -131,6 +132,9 @@ struct Task_CS2Run
     int await_id2;
     int yield_obj_id;
     int yield_obj_count;
+    /* Persistent index for TASK_CS2_YIELD_NPC_HEAD head-model load loop
+     * (protothread-safe; mirrors Task_AppIfHead.model_i). */
+    int yield_i;
     int started;
 
     /*
@@ -559,7 +563,7 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
             return;
         }
         self->await_id = model_id;
-        self->yield_plan = TASK_CS2_YIELD_NPC;
+        self->yield_plan = TASK_CS2_YIELD_NPC_HEAD;
         return;
     }
     if( kind == CS2VM_MODEL_KIND_PLAYER_HEAD || kind == CS2VM_MODEL_KIND_PLAYER_SELF ||
@@ -639,6 +643,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->yield_plan = TASK_CS2_YIELD_NONE;
     self->await_id = -1;
     self->await_id2 = -1;
+    self->yield_i = 0;
 
     switch( self->pending.kind )
     {
@@ -1139,6 +1144,23 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_NPC )
         {
             TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
+        {
+            /* IF1 Task_AppIfHead parity: npctype first, then each chathead model.
+             * Re-fetch the npctype after every await — the pointer may move. */
+            TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            for( self->yield_i = 0;; self->yield_i++ )
+            {
+                struct ToriRS_Npctype* npc =
+                    CacheProvider_NpctypeGet(self->provider, self->await_id);
+                if( !npc || self->yield_i >= npc->heads_count )
+                    break;
+                if( npc->heads[self->yield_i] < 0 )
+                    continue;
+                TASK_AWAITSELF_IF(
+                    CreateTask_ModelLoad(self->provider, npc->heads[self->yield_i]));
+            }
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SETOBJECT )
         {

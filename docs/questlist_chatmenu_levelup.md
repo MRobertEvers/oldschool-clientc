@@ -95,6 +95,13 @@ def_component $component2 = interface_119:6;   // questjournal:textlayer
 ~script6949(7798791 /* scrollbar */, $component2, $line_count, ...);
 ```
 
+When `lines*20` fits the textlayer, script 6949 sets `scrollsize(0,0)` then still
+rebuilds the IF3 scrollbar chrome (`~scrollbar_vertical`) with a full-height
+grip — same pattern as the skill guide. Only IF1 layers auto-hide native
+scrollbars (`scrollHeight > height`); do not expect the journal bar to vanish
+on short journals. Journal line wraps are content `|` splits on height-20 `qj*`
+rows (client word-wrap is off for those widgets).
+
 No journal text lives in any dbtable — content paints the lines.
 
 ### 1.4 LostCity precedent

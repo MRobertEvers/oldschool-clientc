@@ -168,7 +168,22 @@ UITree_ComponentIsPassThrough(
     case UIELEM_RS_RECT:
     case UIELEM_RS_MODEL:
     case UIELEM_RS_LINE:
-        return rs_node_is_decorative_passthrough(component);
+        if( !rs_node_is_decorative_passthrough(component) )
+            return false;
+        /* Cache clickmask/ops make continue prompts live; choice rows are
+         * cc_created TEXT with neither. At rev 230 the server arms them via
+         * IF_SETEVENTS on the parent container (sub range) — without consulting
+         * that mask they stay decorative and every mouse click falls through. */
+        if( host )
+        {
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_IF_EVENTS,
+                .u.get_if_events.com_id = component->component_id,
+            };
+            if( UITree_Host(host, &req) != 0 )
+                return false;
+        }
+        return true;
     default:
         return false;
     }

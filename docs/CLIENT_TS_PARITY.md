@@ -1310,7 +1310,7 @@ clears them only on completion).
 
 ---
 
-## 20. Interface chathead models (chatbox NPC/player heads) — ✅ (npc via IF1)
+## 20. Interface chathead models (chatbox NPC/player heads) — ✅ (npc via IF1 + CS2)
 
 ### Client-TS
 Dialogue interfaces show a rotating NPC or player head in a MODEL widget. The
@@ -1318,10 +1318,14 @@ model is typed: `IfType.getModel` (`IfType.ts:396`) switches on `model1Type` —
 1 = archive model, **2 = `NpcType.list(id).getHead()`**, 3 =
 `localPlayer.getHeadModel()`, 4 = obj. `NpcType.getHead` (`NpcType.ts:233`)
 merges the npc's `head[]` models (`Model.combineForAnim`) and applies the npc
-recolours; `ClientPlayer.getHeadModel` (`ClientPlayer.ts:556`) merges the
-appearance slots' idk/obj head parts + body recolours. The server drives it
-with the IF1 packets `IF_SETNPCHEAD` / `IF_SETPLAYERHEAD` (set `model1Type`+id)
-and `IF_SETANIM` (talk/idle seq), resolved lazily by the synchronous cache.
+recolours; OSRS deob `class195.method3617` also applies retextures. Widget
+`getModel` case 2 then lights with fixed scene `(64, 768, -50, -10, -50)` —
+NPC ambient/contrast/resize are **not** used on IF heads.
+`ClientPlayer.getHeadModel` (`ClientPlayer.ts:556`) merges the appearance
+slots' idk/obj head parts + body recolours. The server drives it with the IF1
+packets `IF_SETNPCHEAD` / `IF_SETPLAYERHEAD` (set `model1Type`+id) and
+`IF_SETANIM` (talk/idle seq), resolved lazily by the synchronous cache. CS2
+uses `cc_setnpchead` / `if_setnpchead` for the same modelType=2 bind.
 
 ### torirs
 Root cause was three-fold: the head packets were parsed but never executed
@@ -1331,19 +1335,23 @@ Root cause was three-fold: the head packets were parsed but never executed
 - **Heads decode:** `ToriRS_Npctype.heads`/`heads_count`, copied from dat1
   `NpcType.heads` / dat2 `chathead_models` in `torirs_npctype_from_rscache.c`
   (mirrors the `models[]` copy; `ToriRS_Idk` already carried `heads[10]`).
+  Recolours and retextures are copied on the same type.
 - **Compositors** (`uitree_scene_bridge.c`, following `EnsurePlayerModel`):
-  `UITreeSceneBridge_EnsureNpcHead(npc_id)` merges the npc head models + npc
-  recolours (port of v0 `entity_scenebuild.c npc_head_model`), memoized by
-  npc_id in a new `npc_head_map` on the reserved id range
-  `UITREE_SCENE_NPC_HEAD_BASE | npc_id`. `EnsurePlayerHead` composites the head
-  from the **local player's real PLAYER_INFO appearance** (not a default-male
-  scan): `PlayerHeadModel_BuildFromAppearance` (`entity_model_build.c`) walks
-  the 12 appearance `slots[]`, merges each idk's `heads[]` and applies the
-  design colour palettes (`recol1d`/`recol2d`, shared with the body builder).
-  The idk head *models* are not loaded by `CreateTask_PlayerAppearanceLoad`
-  (which loads only body `model_ids[]`), so `Task_AppIfHead` first loads them
-  via `PlayerHeadModel_CollectHeadModelIds` + `CreateTask_ModelLoad`. The poll
-  reads `app_local_player(app)->appearance.slots/.colors/.gender`. (Worn-obj
+  `UITreeSceneBridge_EnsureNpcHead(npc_id)` merges the npc head models, applies
+  recolours then **retextures** (OSRS deob `method3617` order; world spawn
+  already did retex), memoized by npc_id in `npc_head_map` on
+  `UITREE_SCENE_NPC_HEAD_BASE | npc_id`. Default lighting is scene `(0,0)`
+  matching Client-TS/deob IF heads; Actor+type ambient/contrast only when
+  `npc_light_uses_type_ambient_contrast` (xrsps). `EnsurePlayerHead` composites
+  the head from the **local player's real PLAYER_INFO appearance** (not a
+  default-male scan): `PlayerHeadModel_BuildFromAppearance`
+  (`entity_model_build.c`) walks the 12 appearance `slots[]`, merges each
+  idk's `heads[]` and applies the design colour palettes (`recol1d`/`recol2d`,
+  shared with the body builder). The idk head *models* are not loaded by
+  `CreateTask_PlayerAppearanceLoad` (which loads only body `model_ids[]`), so
+  `Task_AppIfHead` first loads them via `PlayerHeadModel_CollectHeadModelIds` +
+  `CreateTask_ModelLoad`. The poll reads
+  `app_local_player(app)->appearance.slots/.colors/.gender`. (Worn-obj
   chatheads — helmets — are not composited yet; idk face/hair/jaw only.)
 - **IF1 exec** (`rs_gameproto_exec.c`, lc254 opcode 3 = `IF_SETNPCHEAD`):
   `IF_SETNPCHEAD` → `App_SetInterfaceNpcHead`, `IF_SETPLAYERHEAD` →
@@ -1360,10 +1368,13 @@ Root cause was three-fold: the head packets were parsed but never executed
     MODEL node with `UITree_ApplyModel` once it is mounted, tracking
     `applied_gen` so it re-binds on every remount/rebuild and applies the stored
     `IF_SETANIM` seq (`UITree_ApplyModelAnim`) with it.
-- **CS2** (`rs_cs2_host.c exec_widget_set_model_kind`): `NPC_HEAD` (kind 2) →
-  `EnsureNpcHead(model_id=npc_id)`, `PLAYER_HEAD/SELF/CHATHEAD` (3/5/6) →
-  `EnsurePlayerHead`; applies once assets are resident (previously it wrongly
-  applied the npc id as a raw archive model).
+- **CS2** (`rs_cs2_host.c exec_widget_set_model_kind` + `task_cs2_run.c`):
+  `NPC_HEAD` (kind 2) yields `TASK_CS2_YIELD_NPC_HEAD` — `NpcLoad` then each
+  chathead `ModelLoad` (IF1 load parity) — then `EnsureNpcHead` +
+  `UITree_ApplyModel`. `rs_cs2_npc_head_ready` gates the yield.
+  `PLAYER_HEAD/SELF/CHATHEAD` (3/5/6) → `EnsurePlayerHead` on cache hit only
+  (no CS2 appearance load yet). Collection Log left-list rows are text+rect
+  only and do not use this path.
 
 **Animation** (reference `animateInterface`, `Client.ts:10797`, ticks each
 type-6 MODEL child with `modelAnim`, advancing `animFrame` via
@@ -1383,13 +1394,17 @@ Drawing path (`soft3d_draw_model_widget`) was already correct once a head scene
 model exists.
 
 **Verify:** talk to an NPC whose dialogue sets a chatbox head (`IF_OPENCHAT` +
-`IF_SETNPCHEAD`) — the head model appears and animates in the chatback.
+`IF_SETNPCHEAD`) — the head model appears and animates in the chatback. CS2:
+open an interface that calls `cc_setnpchead` (e.g. champions log, adventure-path
+voucher, fossil driftnet).
 
 Deferred (documented): `ToriRS_Component.model_type` is decoded but not threaded
 to the MODEL node, so a *statically* type-2/3 component is not resolved at bake
 time — the dialogue path sets those heads at runtime via `IF_SETNPCHEAD`
 anyway, and a static bake would additionally need async head-asset preload to
-render. Distinct from §12 headicons / overhead chat, which remain unported.
+render. Morph/transform resolution on IF heads (deob `method3603`) is not
+ported — `cc_setnpchead` scripts pass concrete NPC ids. Distinct from §12
+headicons / overhead chat, which remain unported.
 
 ---
 

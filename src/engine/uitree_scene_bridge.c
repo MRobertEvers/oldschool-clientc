@@ -590,6 +590,9 @@ UITreeSceneBridge_EnsureNpcHead(
 
     for( int r = 0; r < npc->recolor_count; r++ )
         ToriDraw_ModelRecolor(merged, npc->recolors_from[r], npc->recolors_to[r]);
+    /* OSRS deob getHead (class195.method3617): recol then retex before light. */
+    for( int r = 0; r < npc->retexture_count; r++ )
+        ToriDraw_ModelRetexture(merged, npc->retextures_from[r], npc->retextures_to[r]);
 
     ToriDraw_ModelSetBoundsCylinder(merged);
     ToriDraw_ModelCaptureOriginalVertices(merged);

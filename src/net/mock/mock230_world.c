@@ -24,6 +24,8 @@
 #include "mock230_scene.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
+#include "ss_meta.h"
+#include "ssvm.h"
 #include "ssvm_provider.h"
 
 #include "net/jbase37.h"
@@ -8299,6 +8301,35 @@ mock230_world_selftest(void)
                         rows_uid);
                     SELFTEST_CHECK(mock230_capture_find(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
                                    "IF_BUTTON1 alone should draw branch 3's chatplayer");
+
+                    /*
+                     * The next continue must reach ~chatnpc with the active npc
+                     * still bound. Before resume re-armed ACTIVE_NPC from
+                     * host_tag, this page aborted on NPC_TYPE and left the
+                     * player staring at their own chatplayer line (Leela's
+                     * guards branch is the same shape).
+                     *
+                     * Clear the pointer bit here so this assert fails without
+                     * rebind — host_tag must still name Hans.
+                     */
+                    {
+                        int uid = player->resume_buttons[0];
+                        SSVM_PointerRemove(player->active_script, SSVM_PTR_ACTIVE_NPC);
+
+                        resume[0] = (uint8_t)(uid >> 24);
+                        resume[1] = (uint8_t)(uid >> 16);
+                        resume[2] = (uint8_t)(uid >> 8);
+                        resume[3] = (uint8_t)uid;
+                        mock230_capture_begin(&srv, &capture);
+                        mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
+                                             4);
+                        mock230_capture_end(&srv);
+                        SELFTEST_CHECK(player->active_script != NULL,
+                                       "chatnpc after the choice should park, not abort");
+                        SELFTEST_CHECK(
+                            mock230_capture_find(&capture, 95 /* IF_SETNPCHEAD */, 0) >= 0,
+                            "continuing past chatplayer must draw the npc head");
+                    }
                 }
                 /* Drain via whichever continue is registered — branch 3 arms
                  * chat_right:continue, not the chat_left uid in `resume`. */
@@ -9206,6 +9237,147 @@ mock230_world_selftest(void)
                                "configs/all.enum should load enum_4067 with 3 values");
                 SELFTEST_CHECK(easy && easy->count > 0,
                                "configs/all.enum should load CA tier enum_3981");
+            }
+
+            /*
+             * Collection Log category tabs (interface 621).
+             *
+             * Handlers `[if_button1,collection:*_tab]` already re-ran
+             * clientscript 7798, but ~collection_arm used to skip the tabs
+             * (baked clickmask is not the gate). Assert IF_SETEVENTS mask 2 on
+             * each tab at open, then IF_BUTTON1 on raid_tab pushes 7798 again.
+             */
+            {
+                static const char* const k_tabs[] = {
+                    "collection:boss_tab",
+                    "collection:raid_tab",
+                    "collection:clue_tab",
+                    "collection:minigame_tab",
+                    "collection:other_tab",
+                };
+                static struct Mock230Capture capture;
+                int armed = 0;
+                int run_at;
+                int raid_tab;
+                uint8_t button[6];
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_proc(&srv, "[proc,collection_open]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( size_t i = 0; i < sizeof(k_tabs) / sizeof(k_tabs[0]); i++ )
+                {
+                    int com = mock230_content_symbol(MOCK230_PACK_COMPONENT, k_tabs[i]);
+                    int mask = -1;
+
+                    SELFTEST_CHECK(com > 0, "the content pack should name %s", k_tabs[i]);
+                    if( com <= 0 )
+                        continue;
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf ev;
+
+                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            continue;
+                        rsab_wrap(&ev, capture.packets[p].data,
+                                  (size_t)capture.packets[p].len);
+                        if( rsab_g4_alt3(&ev) != com )
+                            continue;
+                        rsab_g2_alt2(&ev); /* from */
+                        mask = rsab_g4_alt1(&ev);
+                        break;
+                    }
+                    SELFTEST_CHECK(mask == 2 /* ^if_event_op1 */,
+                                   "%s should be armed for op 1 (mask 2) by ~collection_arm, "
+                                   "got %d",
+                                   k_tabs[i], mask);
+                    if( mask == 2 )
+                        armed++;
+                }
+                SELFTEST_CHECK(armed == (int)(sizeof(k_tabs) / sizeof(k_tabs[0])),
+                               "all %zu collection tabs should be armed at open, %d were",
+                               sizeof(k_tabs) / sizeof(k_tabs[0]), armed);
+
+                run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                SELFTEST_CHECK(run_at >= 0,
+                               "collection_open should push clientscript 7798 for body draw");
+                if( run_at >= 0 )
+                {
+                    struct RSAreaBuf run;
+                    char types[16];
+                    int argc = 0;
+                    int script_id;
+
+                    rsab_wrap(&run, capture.packets[run_at].data,
+                              (size_t)capture.packets[run_at].len);
+                    while( argc < (int)sizeof(types) - 1 )
+                    {
+                        int c = rsab_g1(&run);
+                        if( c == '\n' || !rsab_ok(&run) )
+                            break;
+                        types[argc++] = (char)c;
+                    }
+                    types[argc] = '\0';
+                    SELFTEST_CHECK(strcmp(types, "iiiiiii") == 0,
+                                   "clientscript 7798 takes seven ints, packet says \"%s\"",
+                                   types);
+                    for( int a = argc - 1; a >= 0; a-- )
+                        (void)rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    SELFTEST_CHECK(script_id == 7798,
+                                   "collection_open should run clientscript 7798, got %d",
+                                   script_id);
+                }
+
+                raid_tab = mock230_content_symbol(MOCK230_PACK_COMPONENT, "collection:raid_tab");
+                SELFTEST_CHECK(raid_tab > 0, "the content pack should name collection:raid_tab");
+                if( raid_tab > 0 )
+                {
+                    button[0] = (uint8_t)(raid_tab >> 24);
+                    button[1] = (uint8_t)(raid_tab >> 16);
+                    button[2] = (uint8_t)(raid_tab >> 8);
+                    button[3] = (uint8_t)raid_tab;
+                    button[4] = 0xff;
+                    button[5] = 0xff;
+
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_capture_end(&srv);
+
+                    run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    SELFTEST_CHECK(run_at >= 0,
+                                   "IF_BUTTON1 on raid_tab should re-push clientscript 7798");
+                    if( run_at >= 0 )
+                    {
+                        struct RSAreaBuf run;
+                        char types[16];
+                        int argc = 0;
+                        int argv[8];
+                        int script_id;
+
+                        rsab_wrap(&run, capture.packets[run_at].data,
+                                  (size_t)capture.packets[run_at].len);
+                        while( argc < (int)sizeof(types) - 1 )
+                        {
+                            int c = rsab_g1(&run);
+                            if( c == '\n' || !rsab_ok(&run) )
+                                break;
+                            types[argc++] = (char)c;
+                        }
+                        types[argc] = '\0';
+                        SELFTEST_CHECK(strcmp(types, "iiiiiii") == 0,
+                                       "raid_tab 7798 type string should be \"iiiiiii\", got \"%s\"",
+                                       types);
+                        for( int a = argc - 1; a >= 0; a-- )
+                            argv[a] = rsab_g4(&run);
+                        script_id = rsab_g4(&run);
+                        SELFTEST_CHECK(script_id == 7798,
+                                       "raid_tab should run clientscript 7798, got %d",
+                                       script_id);
+                        SELFTEST_CHECK(argv[0] == 1,
+                                       "raid_tab draw should pass tab index 1, got %d", argv[0]);
+                    }
+                }
             }
 
             mock230_scripts_free(&srv);
@@ -14126,6 +14298,46 @@ mock230_world_selftest(void)
                            "the bow went back to the backpack, through inv_moveitem's "
                            "worn->inv arm (it used to print `is not modelled` and do nothing)");
             unequip_slot(&srv, MOCK230_WEAR_SHIELD);
+        }
+
+        /*
+         * 3b. Stance BAS — wielding a spear applies LC *_baseanim overlays via
+         * ~update_bas / READYANIM…RUNANIM; unequip restores human_*.
+         */
+        {
+            int spear = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_spear");
+            int staffready = mock230_content_symbol(MOCK230_PACK_SEQ, "human_staffready");
+            int human_ready = mock230_content_symbol(MOCK230_PACK_SEQ, "human_ready");
+            int spear_slot;
+            const struct Mock230ObjParam* bas;
+
+            SELFTEST_CHECK(spear > 0 && staffready > 0 && human_ready > 0,
+                           "bronze_spear / human_staffready / human_ready resolve");
+            bas = mock230_obj_param(spear, mock230_content_symbol(MOCK230_PACK_PARAM,
+                                                                  "ready_baseanim"));
+            SELFTEST_CHECK(bas != NULL && bas->ival == staffready,
+                           "bronze_spear overlay carries ready_baseanim=human_staffready");
+            /* Put a spear in the backpack if the kit lacks one. */
+            if( selftest_find(player, spear) < 0 )
+            {
+                int free = inv_first_free(player);
+
+                SELFTEST_CHECK(free >= 0, "backpack has a free slot for the spear");
+                if( free >= 0 )
+                    inv_set(player, free, spear, 1);
+            }
+            spear_slot = selftest_find(player, spear);
+            SELFTEST_CHECK(spear_slot >= 0, "bronze spear is in the backpack");
+            selftest_opheld(&srv, 2, spear_slot);
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == spear,
+                           "bronze spear is wielded");
+            SELFTEST_CHECK(player->readyanim == staffready,
+                           "wielded spear sets readyanim to human_staffready (got %d want %d)",
+                           player->readyanim, staffready);
+            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+            SELFTEST_CHECK(player->readyanim == human_ready,
+                           "unequip restores human_ready (got %d want %d)",
+                           player->readyanim, human_ready);
         }
 
         /*

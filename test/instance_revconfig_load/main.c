@@ -3224,6 +3224,92 @@ test_toridraw_font_col_tag_draw(void)
 }
 
 static int
+test_toridraw_font_measure_u_tag(void)
+{
+    struct ToriDraw_Font font;
+    test_font_setup_measure(&font);
+
+    int const plain = ToriDraw2D_MeasureString(&font, "AB");
+    int const tagged = ToriDraw2D_MeasureString(&font, "A<u=ff981f>B</u>");
+    TEST_ASSERT(tagged == plain, "u tag measure skips markup");
+
+    fprintf(stderr, "ok: toridraw font measure u tag\n");
+    return 0;
+}
+
+static int
+test_toridraw_font_u_tag_draw(void)
+{
+    struct ToriDraw_Font font;
+    static uint8_t glyph_pixel = 255;
+
+    memset(&font, 0, sizeof(font));
+    ToriDraw_FontInitCharcodeset(&font);
+    font.charcodeset['A'] = 0;
+    font.charcodeset['B'] = 0;
+    font.glyph_alpha[0] = &glyph_pixel;
+    font.glyph_width[0] = 1;
+    font.glyph_height[0] = 1;
+    font.line_height = 1;
+    font.offset_x[0] = 0;
+    font.offset_y[0] = 0;
+    font.advance[0] = 2;
+    font.advance[8] = 2;
+    ToriDraw_FontFinishDrawWidths(&font);
+
+    int pixels[256];
+    memset(pixels, 0, sizeof(pixels));
+
+    struct ToriDraw_ViewPort vp = {
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = 32,
+        .clip_bottom = 8,
+        .stride = 32,
+    };
+
+    /* Public y is baseline; DrawString subtracts line_height so glyphs land at row 0.
+     * Underline is at y_internal + ascent + 1 = 0 + 1 + 1 = 2. */
+    ToriDraw2D_DrawString(
+        &font, &vp, 0, font.line_height, "A<u=ff981f>B</u>", WHITE, false, false, pixels);
+
+    int const glyph_row = 0;
+    int const underline_row = 2;
+    int const first = pixels[glyph_row * vp.stride + 0];
+    int const second = pixels[glyph_row * vp.stride + 2];
+    int const under_a = pixels[underline_row * vp.stride + 0];
+    int const under_b = pixels[underline_row * vp.stride + 2];
+    TEST_ASSERT(first == (int)(0xFF000000u | (uint32_t)WHITE), "A glyph stays default color");
+    TEST_ASSERT(second == (int)(0xFF000000u | (uint32_t)WHITE), "B glyph not recolored by u=");
+    TEST_ASSERT(under_a == 0, "A has no underline before u= opens");
+    TEST_ASSERT(
+        under_b == (int)(0xFF000000u | (uint32_t)0xFF981F), "B underline uses u= color");
+
+    memset(pixels, 0, sizeof(pixels));
+    ToriDraw2D_DrawString(
+        &font,
+        &vp,
+        0,
+        font.line_height,
+        "A<u=ff981f><col=00ffff>B</col></u>",
+        WHITE,
+        false,
+        false,
+        pixels);
+    int const nested_glyph = pixels[glyph_row * vp.stride + 2];
+    int const nested_under = pixels[underline_row * vp.stride + 2];
+    TEST_ASSERT(
+        nested_glyph == (int)(0xFF000000u | (uint32_t)0x00FFFF),
+        "nested col= recolors glyph inside u=");
+    TEST_ASSERT(
+        nested_under == (int)(0xFF000000u | (uint32_t)0xFF981F),
+        "nested col= leaves underline color alone");
+
+    fprintf(stderr, "ok: toridraw font u tag draw\n");
+    return 0;
+}
+
+static int
 test_toridraw_font_measure_gt_lt(void)
 {
     struct ToriDraw_Font font;
@@ -3726,6 +3812,12 @@ main(void)
         return 1;
 
     if( test_toridraw_font_col_tag_draw() != 0 )
+        return 1;
+
+    if( test_toridraw_font_measure_u_tag() != 0 )
+        return 1;
+
+    if( test_toridraw_font_u_tag_draw() != 0 )
         return 1;
 
     if( test_toridraw_font_measure_gt_lt() != 0 )

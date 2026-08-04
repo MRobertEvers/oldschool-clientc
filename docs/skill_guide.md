@@ -345,13 +345,16 @@ Exit **0**. No `unimplemented` / `Assertion failed` / `cs2-stub`. BMP title
 reads **Attack - Overview**; Overview tab selected; content draws (training
 blurb + Quest XP rows). Weapons→Overview content region ~31% pixel diff.
 
-### Still open (not abort)
+### Landed (2026-08-03) — overlap + `<u=…>`
 
-- **Layout overlap / raw `<u=…>` tags** on Overview body — two panels drawn on
-  top of each other. Likely unfinished 211/215 semantics (stubs keep the stack
-  honest but do not drive find/array state). Separate from the abort.
-- `^skill_guide_tab_default = 1` still opens on subsection 1 so first paint
-  stays the clean Weapons list. Set back to 0 when Overview layout is clean.
+- **211 / 215** implemented as `IF_CHILDREN_COLLECT` / `CHILDREN_ARRAY` in
+  `cs2vm2.c`: script 9181 walks `overview_tabs` children and `if_sethide`s the
+  non-selected content panel, so Overview and Quest XP no longer stack.
+- **`<u=RRGGBB>` / `</u>`** (colored underline only) in `toridraw_font.c`;
+  measure skips the same tokens. Shared with Slayer confirm titles.
+- `^skill_guide_tab_default` set back to **0** (Overview).
+
+Still stubbed, not required for the hide fix: **8012** (post-sort in 9194).
 
 ---
 

@@ -1,5 +1,13 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-03 — category tabs armed.** `~collection_arm` now
+> `if_setevents`s the five `collection:*_tab` comps (`^if_event_op1`). Handlers
+> and `~collection_draw` → 7798 were already present; baked clickmask alone does
+> not gate clicks on this client (`docs/mock230_player_systems.md` §0). Permanent
+> check: `mock230 --selftest` character-summary section asserts mask 2 on each
+> tab at open and `IF_BUTTON1` on `raid_tab` re-pushes clientscript 7798 with
+> tab index 1.
+>
 > **UPDATE 2026-08-03 — open lag fixed (client draw).** Dense sources
 > (`cc_setoutline(1)` + `cc_setobject` per catalog row, up to ~134 icons on Hard
 > Treasure Trails) were Soft3D-outlining every unique icon every frame against a
@@ -50,7 +58,7 @@
 
 | interface | id | status | what's missing |
 |---|---|---|---|
-| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close) | per-source kill-count/PB scratch; earn hooks beyond default death |
+| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close; tabs IF_SETEVENTS-armed) | per-source kill-count/PB scratch; earn hooks beyond default death |
 | `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts) | same |
 
 ---
@@ -65,9 +73,11 @@ with the selected tab's scroll/bg/text/scrollbar comps and the tab struct from
 
 `collection.if` `[tabs]` onload (`i:2388,i:0`) → `script_2388`
 (`collection_draw_tabs_all`) draws the 5 category tabs (Bosses/Raids/Clues/
-Minigames/Other). The body list/grid is **not** from that onload — it comes
-from 7798 → `collection_draw_list` (`script_2730`/`2731`), which for the
-selected source calls **`~collection_draw_log`** (`script_2732.cs2`).
+Minigames/Other). Tab clicks reach the server only after `~collection_arm`
+`if_setevents`s each `*_tab` for op 1; handlers re-run 7798. The body
+list/grid is **not** from that onload — it comes from 7798 →
+`collection_draw_list` (`script_2730`/`2731`), which for the selected source
+calls **`~collection_draw_log`** (`script_2732.cs2`).
 `collection_overview.if`'s onload (`script_7802`) is pure chrome (same
 drag-follow-toplevel/close-button pattern as the loot tracker's
 `script_7128`, `docs/chrome_panels_server_reqs.md` §3) and delegates to
@@ -146,9 +156,9 @@ container is no longer novel engine surface — see
 
 - **Landed**: container registry path for 620, open procs for 621/908, stretch
   body-draw bootstrap (`runclientscript*` 7798 + tab/list/close handlers),
-  aggregate varps, catalog-derived `%collection_count_max`, `~collection_earn` /
-  `::collect`, default-death catalog hook, Character Summary ops that mount
-  the panels.
+  category-tab `IF_SETEVENTS` arming in `~collection_arm`, aggregate varps,
+  catalog-derived `%collection_count_max`, `~collection_earn` / `::collect`,
+  default-death catalog hook, Character Summary ops that mount the panels.
 - **Gap, content**: earn hooks in every `drop_tables/` script; subsection
   counter bumps on first find; kill-count/PB mailbox; day-obtained ring half.
 - **Not new work**: per-source kill counts/PBs look collection-log-adjacent

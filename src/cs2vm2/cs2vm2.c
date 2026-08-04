@@ -314,6 +314,7 @@ CS2VM2_IsTargetingOpcode(int opcode)
     case CS2_OP__213:
     case CS2_OP_IF_CHILDREN_FIND:
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
+    case CS2_OP_IF_CHILDREN_COLLECT:
     case CS2_OP_CC_CREATE:
     case CS2_OP_CC_COPY:
     case CS2_OP_CC_CREATECHILD:
@@ -6614,6 +6615,112 @@ CS2VM2_Op_CC_ChildrenFindCount(
     return CS2VM2_PushInt(vm, vm->children_iter_count);
 }
 
+/*
+ * Opcode 211 — IF_CHILDREN_COLLECT(startIndex, componentUid, unused) -> count.
+ * Fills a new int-array with child subids from startIndex (same collect as
+ * IF_CHILDREN_FIND) and stashes the handle for CHILDREN_ARRAY (215). Script
+ * 9181 uses this to walk overview_tabs and if_sethide non-selected panels.
+ */
+int
+CS2VM2_Op_IF_ChildrenCollect(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    int unused;
+    int uid;
+    int start_index;
+    if( CS2VM2_PopInt(vm, &unused) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &uid) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    (void)unused;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_CHILDREN_FIND;
+    request.u.if_children_find.uid = uid;
+    request.u.if_children_find.start_index = start_index;
+    request.u.if_children_find.dot_operand = operand;
+
+    int rc = vm->vm->host_exec(vm, &request);
+    if( rc != CS2VM_EXECNO_OK )
+        return rc;
+
+    int count = vm->children_iter_count;
+    if( count < 0 )
+        count = 0;
+    if( count > CS2VM2_ARRAY_CAPACITY )
+        count = CS2VM2_ARRAY_CAPACITY;
+
+    if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
+    {
+        fprintf(
+            stderr,
+            "CS2VM2: array pool exhausted (%d) in script %d (IF_CHILDREN_COLLECT)\n",
+            CS2VM2_MAX_ARRAYS,
+            frame->script ? frame->script->script_id : -1);
+        vm->children_collect_handle = NULL;
+        return CS2VM2_PushInt(vm, 0);
+    }
+
+    struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
+    array->defined = 1;
+    array->size = count;
+    array->is_string = 0;
+    for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
+        array->cells.ints[i] = -1;
+    for( int i = 0; i < count; i++ )
+        array->cells.ints[i] = vm->children_iter_indices[i];
+
+    vm->children_collect_handle = (char*)array;
+    return CS2VM2_PushInt(vm, count);
+}
+
+/*
+ * Opcode 215 — CHILDREN_ARRAY() -> string handle.
+ * Pushes the int-array stashed by the last IF_CHILDREN_COLLECT (211). If none
+ * ran, allocates a length-0 int array so ARRAY_LENGTH / indexing stay safe.
+ */
+int
+CS2VM2_Op_ChildrenArray(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( vm->children_collect_handle )
+        return CS2VM2_PushStr(vm, vm->children_collect_handle);
+
+    if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
+    {
+        fprintf(
+            stderr,
+            "CS2VM2: array pool exhausted (%d) in script %d (CHILDREN_ARRAY)\n",
+            CS2VM2_MAX_ARRAYS,
+            frame->script ? frame->script->script_id : -1);
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+    }
+
+    struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
+    array->defined = 1;
+    array->size = 0;
+    array->is_string = 0;
+    for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
+        array->cells.ints[i] = -1;
+    vm->children_collect_handle = (char*)array;
+    return CS2VM2_PushStr(vm, (char*)array);
+}
+
 int
 CS2VM2_Op_SetBit(
     struct CS2VM2_Thread* vm,
@@ -9076,6 +9183,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_ChildrenFind(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
         return CS2VM2_Op_IF_ChildrenFindNextId(vm, frame, operand);
+    case CS2_OP_IF_CHILDREN_COLLECT:
+        return CS2VM2_Op_IF_ChildrenCollect(vm, frame, operand);
+    case CS2_OP_CHILDREN_ARRAY:
+        return CS2VM2_Op_ChildrenArray(vm, frame, operand);
     case CS2_OP_CC_SETPOSITION:
         return CS2VM2_Op_CC_SetPosition(vm, frame, operand);
     case CS2_OP_CC_SETSIZE:
@@ -10917,6 +11028,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
      * must therefore reset only between scripts, never mid-run. */
     CS2VM2_StrPool_Reset(&vm->str_pool);
     CS2VM2_ClearYieldHalt(vm);
+    vm->children_collect_handle = NULL;
 }
 
 /*
@@ -10974,6 +11086,7 @@ cs2vm2_thread_init(
 
     thread->children_iter_count = 0;
     thread->children_iter_index = 0;
+    thread->children_collect_handle = NULL;
 
     for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
     {

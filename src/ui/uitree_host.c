@@ -41,6 +41,8 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_OBJ_ICON_BORDERED:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
+    case UITREE_HOST_GET_WORLDMAP_TILES:
+    case UITREE_HOST_GET_IF_EVENTS:
         return 0;
     case UITREE_HOST_APPLY_BUTTON_CLICK:
     case UITREE_HOST_SET_SELECTED_TAB:

@@ -110,7 +110,23 @@ re-arm. Stop only when the user stops the loop.
 | 10v | cooking dough | done | pot_flour+water → bread/pastry/pizza/pitta; p_choice4_header; water empty switch; deferred: cake_tin, swamp_tar, murder_proofobj |
 | 10w | cooking wine | done | grapes+jug_water → ferment timer (bank+inv); login hook; modulo() for %; deferred: bad-wine polish, reverse Use |
 | 10x | dye cape mixing | done | primary dye mixes + cape all cape colours (switch maps); dye→goblin/wig reverse; deferred: crafting_capes_struct overlays |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: studded leather (crafting leftover) or glassblowing / necromancer AI / Taverley jail doors; skip: wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport |
+| 10y | studded leather | done | studs↔leather_armour/chaps → studded_body/chaps; switch maps (struct blocked); members gate |
+| 10z | glassblowing | done | sandpit fill + furnace soda_ash/sand→molten_glass + pipe p_choice beer/vial/orb; deferred: lens_mould/telescope, lantern glass, weakqueue batch |
+| 11a | necromancer AI | done | invrigar/necromancer summon+confuse/weaken/curse+melee; summonedzombie overlay; LC ^defence→^curse; deferred: .hunt, sound_synth, %npc_action_delay |
+| 11b | Taverley jail/prison doors | done | dungeonjail/deepdungeondoor key walk-through; cauldrondoor armour spawn+suit_of_armour; deferred: door swing, ctratgatea clock-tower, grate/iron_door synth |
+| 11c | snelm | done | chisel→shell name-expand; snelm_product switch; ~snelm_reduction proc; deferred: Mort Myre snail combat wiring |
+| 11d | battlestaves | done | orb+battlestaff Use; switch level/xp/product (struct blocked); members gate |
+| 11e | jewellery | done | furnace gold/silver p_choice + stringing switches; perfect gold ruby; deferred: IF1 jewelry UI, weakqueue batches, mm/regicide string |
+| 11f | crafting guild | done | craftingguilddoor level40+apron walk-through + master_crafter Talk-to; deferred: door swing |
+| 11g | dragonhide leather | done | coif+green/blue/red/black dhide body/vamb/chaps; leather count column; p_choice menus; deferred: weakqueue batch, leather_crafting IF |
+| 11h | enchanted jewellery | done | glory/dueling/games necklace Rub tele; forging charges+smelt; ring of life on hit; deferred: recoil (%aggressive_npc), modern multi-dest, pre_tele zones |
+| 11i | fountain + enchant5 | done | fountain_of_heroes recharge glory→(4); enchant_5 dragonstone→glory/wealth; deferred: ring-of-wealth Rub, objbox polish |
+| 11j | bones to bananas | done | magic_spellbook:bones_bananas + convert_bones; deferred: bones_to_peaches (absent LC) |
+| 11k | charge orb | done | oploct/aploct charge_*_orb + loc_type col + air/water/earth/fire rows; deferred: legends gate, charge_orb_name string param, afk/synth |
+| 11l | Thormac mystic staff | done | thankyou+makestaff via p_choice5 (air/water/earth/fire/lava); scorpcatcher quest gate deferred; modern IF extras deferred |
+| 11m | ring of recoil | done | %ring_of_recoil+%aggressive_npc authored; recoil on melee+magic damage; deferred: %npc_attacking_uid varn, PvP recoil |
+| 11n | Mage Arena charge | done | magic_spellbook:charge + timer; %magearena/%magearena_charge clean-varps; deferred: sound_synth, god-spell Charge consumers |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Seers leftovers (stankers poison chalice / foresters_bartender) / trollheim tele; skip: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport |
 
 
 
@@ -218,4 +234,22 @@ re-arm. Stop only when the user stops the loop.
 - slice 10v done: cooking dough — pot_flour + bucket/jug/bowl/vial_water → bread/pastry/pizza/pitta via p_choice4_header; empty switch; deferred: cake_tin, swamp_tar, murder_proofobj
 - slice 10w done: cooking wine — grapes+jug_water → jug_unfermented_wine + fermenting_wine timer (bank batches + inv); ~ferment_wines_login; deferred: bad-wine polish
 - slice 10x done: dye cape — mix primary dyes + dye capes (switch maps, no struct overlays); dye→goblin_armour / plainwig reverse; deferred: crafting_capes_struct .obj overlays
-- next pending: studded leather (or glassblowing / necromancer AI / Taverley jail doors); skip blocked: wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)
+- slice 10y done: studded leather — studs Use on leather_armour/chaps (switch maps; crafting_studded_struct blocked); members gate; mock230_pack 0 errors
+- slice 10z done: glassblowing — sandpit+bucket, furnace sand/soda_ash→molten_glass, pipe p_choice beer/vial/orb; furnace hook in smelting; deferred: telescope lens, lantern, weakqueue
+- slice 11a done: necromancer tower AI — invrigar/necromancer summon zombie + confuse/weaken/curse + melee + overlays; LC ^defence→^curse; deferred: .hunt, sound_synth
+- slice 11b done: Taverley jail/prison doors — dungeonjail+jail_key / deepdungeondoor+dusty_key walk-through; cauldrondoor suitofarmour→suit_of_armour; deferred: swing, clock-tower ctratgatea
+- slice 11c done: snelm — chisel↔shell name-expand + product switch; ~snelm_reduction; deferred: Mort Myre snail wiring, sound_synth
+- slice 11d done: battlestaves — air/fire/water/earth orb + battlestaff; switch data (crafting_staff_struct blocked); members gate; mock230_pack 0 errors
+- slice 11e done: jewellery — furnace gold/silver p_choice + wool stringing switches; perfect gold ruby; deferred: crafting_jewelry.if, weakqueue, mm/regicide
+- slice 11f done: crafting guild — craftingguilddoor (LC crafting_guild_door) lvl40+brown_apron walk-through + master_crafter Talk-to; deferred: door swing
+- slice 11g done: dragonhide leather — coif + green/blue/red/black body/vamb/chaps; leather namedobj,int count; members gate; p_choice (no leather_crafting IF); mock230_pack 0 errors (3028 scripts)
+- slice 11h done: enchanted jewellery — glory/dueling/games necklace Rub tele (charge switches); ring_of_forging varp+smelt; ring_of_life on melee/magic hit; deferred: recoil (%aggressive_npc), modern multi-dest, pre_tele zone tables; mock230_pack 0 errors (3060 scripts)
+- slice 11i done: fountain_of_heroes glory recharge + enchant_5 (dragonstone amulet→glory, ring→wealth); mock230_pack 0 errors (3062 scripts)
+- slice 11j done: bones to bananas (magic_spellbook:bones_bananas); peaches deferred (absent LC); mock230_pack 0 errors (3064 scripts)
+- slice 11k done: charge orb (oploct/aploct magic_spellbook:charge_*_orb + loc_type + 4 rows); deferred: legends gate, charge_orb_name string param, afk/synth; mock230_pack 0 errors (3073 scripts)
+- slice 11l done: Thormac mystic staff (p_choice5 air/water/earth/fire/lava); scorpcatcher quest gate deferred; mock230_pack 0 errors (3075 scripts)
+- slice 11m done: ring of recoil (%ring_of_recoil + %aggressive_npc authored; melee+magic damage wire); deferred: npc_attacking_uid varn, PvP; mock230_pack 0 errors (3077 scripts)
+- slice 11n done: Mage Arena charge (magic_spellbook:charge + timer; %magearena gate); deferred: sound_synth, god-spell consumers; mock230_pack 0 errors (3079 scripts)
+- next pending: Seers leftovers (stankers / foresters_bartender) / trollheim tele; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)
+
+- equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

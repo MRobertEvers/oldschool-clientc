@@ -199,6 +199,8 @@ font_try_consume_markup(
     int default_color,
     int* color_out,
     bool apply_color,
+    int* underline_out,
+    bool apply_underline,
     unsigned char* emit_char_out)
 {
     if( !text || i < 0 || i >= len )
@@ -241,6 +243,13 @@ font_try_consume_markup(
         return 6;
     }
 
+    if( text[i] == '<' && len - i >= 4 && strncmp(&text[i], "</u>", 4) == 0 )
+    {
+        if( apply_underline && underline_out )
+            *underline_out = -1;
+        return 4;
+    }
+
     if( text[i] == '<' && len - i >= 10 && strncmp(&text[i], "<col=", 5) == 0 )
     {
         int j = i + 5;
@@ -262,6 +271,37 @@ font_try_consume_markup(
         }
     }
 
+    /* Colored underline only — does not recolor glyphs (OSRS AbstractFont). */
+    if( text[i] == '<' && len - i >= 3 && text[i + 1] == 'u' )
+    {
+        if( text[i + 2] == '>' )
+        {
+            if( apply_underline && underline_out )
+                *underline_out = 0;
+            return 3;
+        }
+        if( text[i + 2] == '=' && len - i >= 10 )
+        {
+            int j = i + 3;
+            int hex_len = 0;
+            while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
+            {
+                j++;
+                hex_len++;
+            }
+            if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
+            {
+                if( apply_underline && underline_out )
+                {
+                    int const parsed = font_parse_hex_rgb(&text[i + 3], hex_len);
+                    if( parsed >= 0 )
+                        *underline_out = parsed;
+                }
+                return j - i + 1;
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -272,7 +312,8 @@ ToriDraw_FontMarkupTokenLength(
     int index,
     unsigned char* emit_char_out)
 {
-    return font_try_consume_markup(text, len, index, 0, NULL, false, emit_char_out);
+    return font_try_consume_markup(
+        text, len, index, 0, NULL, false, NULL, false, emit_char_out);
 }
 
 static int
@@ -461,7 +502,7 @@ font_measure_range(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -788,7 +829,7 @@ font_visit_glyphs_range(
     {
         unsigned char emit_char = 0;
         int const consumed = font_try_consume_markup(
-            text, len, i, default_color_rgb, &color, true, &emit_char);
+            text, len, i, default_color_rgb, &color, true, NULL, false, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -910,6 +951,33 @@ font_draw_mask(
     }
 }
 
+static void
+font_draw_underline_span(
+    int x,
+    int y,
+    int width,
+    int rgb,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    int* pixel_buffer)
+{
+    if( !pixel_buffer || width <= 0 || y < ct || y >= cb )
+        return;
+    int x0 = x < cl ? cl : x;
+    int x1 = x + width;
+    if( x1 > cr )
+        x1 = cr;
+    if( x0 >= x1 )
+        return;
+    int const argb = (int)(0xFF000000u | (uint32_t)(rgb & 0xFFFFFF));
+    int* row = pixel_buffer + y * stride;
+    for( int px = x0; px < x1; px++ )
+        row[px] = argb;
+}
+
 static int
 font_draw_string_range(
     struct ToriDraw_Font const* font,
@@ -929,19 +997,31 @@ font_draw_string_range(
 
     int pixels_written = 0;
     int current_color = color;
+    int underline = -1;
     int const space_adv = font_space_advance(font);
+    int const ascent = font->line_height > 0 ? font->line_height : 1;
+    int const underline_y = y + ascent + 1;
 
     for( int i = 0; i < len; i++ )
     {
         unsigned char emit_char = 0;
-        int const consumed =
-            font_try_consume_markup(text, len, i, color, &current_color, true, &emit_char);
+        int const consumed = font_try_consume_markup(
+            text,
+            len,
+            i,
+            color,
+            &current_color,
+            true,
+            &underline,
+            true,
+            &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
             {
                 int const gi = font_glyph_index(font, emit_char);
                 int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+                int const adv = font_glyph_advance(font, gi);
                 pixels_written += font_draw_glyph_pixels(
                     font,
                     gi,
@@ -954,18 +1034,25 @@ font_draw_string_range(
                     cb,
                     stride,
                     pixel_buffer);
-                x += font_glyph_advance(font, gi);
+                if( underline >= 0 )
+                    font_draw_underline_span(
+                        x, underline_y, adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
+                x += adv;
             }
             i += consumed - 1;
             continue;
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )
         {
+            if( underline >= 0 )
+                font_draw_underline_span(
+                    x, underline_y, space_adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
             x += space_adv;
             continue;
         }
         int const gi = font_glyph_index(font, (unsigned char)text[i]);
         int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+        int const adv = font_glyph_advance(font, gi);
         pixels_written += font_draw_glyph_pixels(
             font,
             gi,
@@ -978,7 +1065,10 @@ font_draw_string_range(
             cb,
             stride,
             pixel_buffer);
-        x += font_glyph_advance(font, gi);
+        if( underline >= 0 )
+            font_draw_underline_span(
+                x, underline_y, adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
+        x += adv;
     }
     return pixels_written;
 }
@@ -1007,7 +1097,7 @@ font_draw_string_shadow_range(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -1143,7 +1233,7 @@ font_line_vertical_extents(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -1304,7 +1394,7 @@ font_segment_has_visible_content(
 
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )

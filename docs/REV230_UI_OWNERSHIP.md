@@ -484,6 +484,15 @@ resumes with `last_slot=3`) and `mock230_pack --check-only` at 0 errors.
 Re-checked on a fresh TCP mock (`MOCK230_VERBOSE=1`): `RESUME_PAUSEBUTTON 231:5`
 then `IF_BUTTON1 219:1 sub=1`, no 4120 abort.
 
+**Mouse click (follow-up).** Digits worked while left-clicks still did nothing:
+choice rows are `cc_create`d TEXT with no cache `clickmask`/ops, so
+`UITree_ComponentIsPassThrough` treated them as decorative and the hit never
+reached the EVENT_CLICK → `IF_BUTTON1(parent,sub)` path. Continue prompts are
+fine because `chat_left:continue` authors `clickmask=1`. Hit-test now asks the
+host for the node's IF_SETEVENTS mask (including parent-range inheritance) via
+`UITREE_HOST_GET_IF_EVENTS`. Verified: `TORIRS_SIM_CLICK_AT` on row 1 →
+`IF_BUTTON1 219:1 sub=1`.
+
 **Live note.** `run-live.sh` runs the in-process server for osrs230
 (`EMBED_SERVER=1` + `TORIRS_TRANSPORT=embed`), so a client rebuild always
 includes the matching server — there is no stale TCP `mock230` left on the

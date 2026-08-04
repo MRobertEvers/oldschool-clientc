@@ -208,6 +208,22 @@ enum PaintersElementKind
     PNTRELEM_GROUND_OBJECT,
 };
 
+/** Flags on NormalScenery — draw-order hints for stacked locs / raised ground items. */
+enum PaintersSceneryFlags
+{
+    /**
+     * Ground item lifted onto a raiseobject loc (Client-TS GroundObject.height != 0).
+     * Skipped in the scenery pass; emitted at tile completion after all locs.
+     */
+    PNTR_SCENERY_RAISED = 1 << 0,
+    /**
+     * Multi-tile loc that can host stacked scenery on its footprint. Undrawn
+     * STACK_BASE elements block contained smaller locs (non-reference rule —
+     * see docs/painter_bucket_vs_world3d.md "Loc stacking").
+     */
+    PNTR_SCENERY_STACK_BASE = 1 << 1,
+};
+
 struct NormalScenery
 {
     uint16_t entity;
@@ -215,6 +231,8 @@ struct NormalScenery
     uint8_t size_z : 4;
     /** Reference Model.minY / bottomY — height above ground for spriteOccluded. */
     uint16_t model_height;
+    /** Bitfield of PaintersSceneryFlags. */
+    uint8_t flags;
 };
 
 struct GroundObject
@@ -640,6 +658,19 @@ painter_add_normal_scenery(
     int size_x,
     int size_y,
     int model_height);
+
+/** Like painter_add_normal_scenery, with PaintersSceneryFlags (e.g. RAISED, STACK_BASE). */
+int
+painter_add_normal_scenery_ex(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int size_x,
+    int size_y,
+    int model_height,
+    uint8_t flags);
 
 void
 painter_mark_static_count(struct Painter* painter);

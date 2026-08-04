@@ -116,6 +116,11 @@ struct CS2VM2_Array
  * the match count (call-site (1i->1i) in scripts 9179/9186). */
 #define CS2_OP_CC_CHILDREN_FIND_COUNT 212
 #define CS2_OP__213 213
+/* IF_CHILDREN_COLLECT (211) + CHILDREN_ARRAY (215): script 9181 gathers
+ * overview_tabs child subids into an int-array handle, then walks it to
+ * if_sethide the non-selected Overview content panel. */
+#define CS2_OP_IF_CHILDREN_COLLECT 211
+#define CS2_OP_CHILDREN_ARRAY 215
 /* Array-handle family used by the Overview widget library. Names from xrsps
  * where it has them; 8012/8023 are call-site arities only. */
 #define CS2_OP_ARRAY_LENGTH 8003
@@ -344,6 +349,10 @@ struct CS2VM2_Thread
     int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;
     int children_iter_index;
+
+    /* Handle from the last IF_CHILDREN_COLLECT (211); CHILDREN_ARRAY (215)
+     * pushes it. Raw pointer into arrays[], or NULL if none yet this run. */
+    char* children_collect_handle;
 
     /* Array pool. At this revision an array is a first-class object whose
      * HANDLE lives in a string local: DEFINE_ARRAY's operand names the string

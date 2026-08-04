@@ -82,8 +82,8 @@ discovery pass read that as UI polish and drew the opposite conclusion.
   generated transcription, marked, with the generator checked in, and the
   selftest charges the cache's price for five named unlocks as the
   cross-check.
-- Cosmetic and general, not slayer's: **`<u=…>` renders literally** in this
-  client — the confirm dialog's title arrives as `<u=ff981f>Slug Salter</u>`.
+- Cosmetic and general, not slayer's: confirm titles use `<u=ff981f>…</u>`
+  (colored underline); handled in `toridraw_font.c` with the skill-guide fix.
 - Untouched on purpose: `container_for`, `POP_VAR`/`POP_VARBIT`,
   `CS2VM2_OPCODE_STACK_MAX`.
 

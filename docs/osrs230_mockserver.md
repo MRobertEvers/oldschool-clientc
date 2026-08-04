@@ -586,6 +586,11 @@ traps that nothing else would catch:
 - **A parked script holds its npc by slot, not by pointer.** An npc can despawn
   or have its slot reused while a script waits on it, so `SSVM_State.host_tag`
   carries the slot and a resumed script either finds the same npc or finds none.
+  Resume (`mock230_scripts_resume_button` / `mock230_scripts_resume_player`)
+  re-arms `SSVM_PTR_ACTIVE_NPC` from that slot before `run_or_park`, matching
+  LostCity's "same ScriptState still has `_activeNpc`" across `p_pausebutton`.
+  Without the rebind, a `~chatplayer` page after `~p_choice` then a `~chatnpc`
+  aborted on `NPC_TYPE` even when the slot was still live.
 
 There is one parking slot per player, matching the reference. A second script
 suspending while one waits is refused rather than queued — two parked scripts
