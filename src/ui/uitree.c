@@ -1081,6 +1081,10 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "tab_icons";
     case UIELEM_BUILTIN_PLAYERMODEL:
         return "playermodel";
+    case UIELEM_BUILTIN_WORLDMAP:
+        return "worldmap";
+    case UIELEM_BUILTIN_WORLDMAP_OVERVIEW:
+        return "worldmap_overview";
     case UIELEM_RS_TEXT:
         return "rs_text";
     case UIELEM_RS_GRAPHIC:

@@ -226,6 +226,12 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_BUILTIN_WORLDMAP;
         memset(&spec.u, 0, sizeof(spec.u));
         break;
+    case UITREE_CLIENT_CODE_CONTENT_WORLDMAP_OVERVIEW:
+        /* Empty layer; the host scale-blits the area's compositetexture PNG.
+         * Red viewport rects are CS2 children of overview_overlay, not here. */
+        spec.type = UIELEM_BUILTIN_WORLDMAP_OVERVIEW;
+        memset(&spec.u, 0, sizeof(spec.u));
+        break;
     default:
         break;
     }

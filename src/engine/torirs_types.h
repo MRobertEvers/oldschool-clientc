@@ -634,6 +634,12 @@ struct ToriRS_WorldMapArea
     int region_high_x;
     int region_low_y;
     int region_high_y;
+    /* Overview pane (clientCode 1401): opaque ARGB from table 19's
+     * compositetexture PNG for this area id. NULL when the archive has no
+     * matching file. Owned here; freed with the areas object. */
+    uint32_t* overview_pixels;
+    int overview_width;
+    int overview_height;
 };
 
 /** Every world map area in the cache — one object, loaded once. */

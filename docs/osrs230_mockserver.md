@@ -591,6 +591,13 @@ traps that nothing else would catch:
   LostCity's "same ScriptState still has `_activeNpc`" across `p_pausebutton`.
   Without the rebind, a `~chatplayer` page after `~p_choice` then a `~chatnpc`
   aborted on `NPC_TYPE` even when the slot was still live.
+- **Opnpc entry must arm ACTIVE_NPC or refuse.** `run_trigger_script` only calls
+  `SSVM_SetActive` when the interaction slot is live. Starting `[opnpc1,joe]`
+  (and any other npc-family trigger) with `npc_slot == -1` or a dead slot used
+  to run anyway; the first `~chatnpc` then aborted on `NPC_TYPE` (Joe's
+  `joe_prequest` first page). Those triggers now return `MOCK230_TRIGGER_FAILED`
+  before the script starts — same rule as LostCity's
+  `ScriptRunner.init(opTrigger, player, targetNpc)`.
 
 There is one parking slot per player, matching the reference. A second script
 suspending while one waits is refused rather than queued — two parked scripts

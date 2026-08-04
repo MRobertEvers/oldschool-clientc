@@ -1,5 +1,13 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-03 — item-grid Check armed.** `~collection_arm` now
+> `if_setevents`s `collection:items_contents` (`0..512`, `^if_event_op1`) so
+> script_2732's CS2 `cc_setop(1, "Check")` survives the minimenu mask. Without
+> that arm the client fell back to ObjType Wear/Use/Drop
+> (`docs/mock230_player_systems.md` §1.3). Check itself stays client-only
+> (`cc_setonop` → `collection_item_click`). Permanent check: same
+> `collection_open` selftest asserts mask 2 on `items_contents`.
+>
 > **UPDATE 2026-08-03 — category tabs armed.** `~collection_arm` now
 > `if_setevents`s the five `collection:*_tab` comps (`^if_event_op1`). Handlers
 > and `~collection_draw` → 7798 were already present; baked clickmask alone does
@@ -58,7 +66,7 @@
 
 | interface | id | status | what's missing |
 |---|---|---|---|
-| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close; tabs IF_SETEVENTS-armed) | per-source kill-count/PB scratch; earn hooks beyond default death |
+| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close; tabs + items_contents IF_SETEVENTS-armed) | per-source kill-count/PB scratch; earn hooks beyond default death |
 | `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts) | same |
 
 ---

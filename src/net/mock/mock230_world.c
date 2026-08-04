@@ -5992,6 +5992,9 @@ mock230_world_player_init(struct Mock230Player* player)
     player->running = 0;
     player->run_energy_sent = -1;
     player->run_weight_sent = INT32_MIN;
+    /* Display-panel layout: Resizable Classic. The save overlays this; login
+     * must not reset it after load. */
+    player->client_layout_mode = 1;
 
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
     {
@@ -6136,16 +6139,28 @@ mock230_world_login(struct Mock230Player* player)
      *    world load, because the packet queue is serial. */
     mock230_send_rebuild_normal(player);
 
-    /* 2. Gameframe root + the HUD and sidebar panels mounted into it. Child
-     *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
-     *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
-     *    overlay. */
-    /* 2. Gameframe root + the HUD and sidebar panels mounted into it. Child
-     *    ids are RuneLite InterfaceID.ToplevelOsrsStretch.*; group ids are
-     *    InterfaceID.*, all verified present in cache.osrs230. type 1 =
-     *    overlay. Mount table is content `gameframe.enum`. */
-    mock230_gameframe_opentop(player, ids->iface_gameframe);
-    player->client_layout_mode = 1; /* resizable classic */
+    /* 2. Gameframe root + the HUD and sidebar panels mounted into it.
+     *    Mount table is content `gameframe.enum`. Open the top that matches the
+     *    saved Display-panel preference immediately (Fixed / Classic / Modern);
+     *    ~gameframe_set_mode then syncs the client canvas and queues the same
+     *    remount WINDOW_STATUS uses mid-session. Mode defaults to 1 in player
+     *    init; the save overlays it. Do not reset it here. */
+    {
+        int mode = player->client_layout_mode;
+        int iface = ids->iface_gameframe;
+        int32_t args[1];
+
+        if( mode < 0 || mode > 2 )
+            mode = 1;
+        player->client_layout_mode = mode;
+        if( mode == 0 )
+            iface = ids->iface_toplevel;
+        else if( mode == 2 )
+            iface = ids->iface_toplevel_pre_eoc;
+        mock230_gameframe_opentop(player, iface);
+        args[0] = mode;
+        mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
+    }
 
     /*
      * 3. What the item containers permit is content's.
@@ -8341,6 +8356,69 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: joe prequest dialogue arms ACTIVE_NPC\n");
+    {
+        static struct Mock230Capture capture;
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int joe_type = mock230_content_symbol(MOCK230_PACK_NPC, "joe");
+            int joe;
+            uint8_t payload[2];
+            static const int k_dialogue[] = { 95, 97, 94, 6 };
+
+            SELFTEST_CHECK(joe_type > 0, "npc joe should resolve by name");
+            joe = selftest_find_npc(&srv, joe_type);
+            if( joe < 0 )
+            {
+                joe = mock230_world_npc_spawn(
+                    &srv, joe_type, player->x + 1, player->z, player->level);
+            }
+            SELFTEST_CHECK(joe >= 0, "joe should be in the world or spawnable");
+
+            /* Slot -1 must not start [opnpc1,joe] — that is how NPC_TYPE
+             * abort spam happened: the script ran without ACTIVE_NPC. */
+            SELFTEST_CHECK(
+                mock230_scripts_run_trigger(
+                    &srv, SS_TRIGGER_OPNPC1, joe_type, -1, -1) == MOCK230_TRIGGER_FAILED,
+                "opnpc1 without a live npc must refuse, not abort mid-chatnpc");
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "refused opnpc leaves no parked script");
+
+            mock230_world_close_modal(&srv);
+            payload[0] = (uint8_t)(joe >> 8);
+            payload[1] = (uint8_t)(joe & 0xff);
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                           "the walk to Joe should complete");
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "[opnpc1,joe] → joe_prequest should park on chatnpc");
+            SELFTEST_CHECK(
+                player->active_script->host_tag == joe + 1,
+                "parked script should keep Joe's slot in host_tag, got %d",
+                (int)player->active_script->host_tag);
+            SELFTEST_CHECK(
+                (player->active_script->pointers & SSVM_PTR_ACTIVE_NPC) != 0,
+                "ACTIVE_NPC must be armed on the first joe_prequest page");
+            SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 4),
+                           "joe_prequest should set head, anim, text, then mount");
+
+            selftest_click_through(&srv, 8);
+            mock230_scripts_free(&srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: emotes\n");
     {
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
@@ -9324,12 +9402,16 @@ mock230_world_selftest(void)
             }
 
             /*
-             * Collection Log category tabs (interface 621).
+             * Collection Log category tabs + item grid (interface 621).
              *
              * Handlers `[if_button1,collection:*_tab]` already re-ran
              * clientscript 7798, but ~collection_arm used to skip the tabs
              * (baked clickmask is not the gate). Assert IF_SETEVENTS mask 2 on
              * each tab at open, then IF_BUTTON1 on raid_tab pushes 7798 again.
+             *
+             * items_contents must be armed too: script_2732 sets cc_setop(1,
+             * "Check") on dynamic children; without the mask the minimenu
+             * falls back to ObjType Wear/Use/Drop (mock230_player_systems §1.3).
              */
             {
                 static const char* const k_tabs[] = {
@@ -9343,6 +9425,8 @@ mock230_world_selftest(void)
                 int armed = 0;
                 int run_at;
                 int raid_tab;
+                int items_contents;
+                int items_mask = -1;
                 uint8_t button[6];
 
                 mock230_capture_begin(&srv, &capture);
@@ -9381,6 +9465,33 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(armed == (int)(sizeof(k_tabs) / sizeof(k_tabs[0])),
                                "all %zu collection tabs should be armed at open, %d were",
                                sizeof(k_tabs) / sizeof(k_tabs[0]), armed);
+
+                items_contents =
+                    mock230_content_symbol(MOCK230_PACK_COMPONENT, "collection:items_contents");
+                SELFTEST_CHECK(items_contents > 0,
+                               "the content pack should name collection:items_contents");
+                if( items_contents > 0 )
+                {
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf ev;
+
+                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            continue;
+                        rsab_wrap(&ev, capture.packets[p].data,
+                                  (size_t)capture.packets[p].len);
+                        if( rsab_g4_alt3(&ev) != items_contents )
+                            continue;
+                        rsab_g2_alt2(&ev); /* from */
+                        items_mask = rsab_g4_alt1(&ev);
+                        break;
+                    }
+                    SELFTEST_CHECK(
+                        items_mask == 2 /* ^if_event_op1 */,
+                        "collection:items_contents should be armed for op 1 (mask 2) by "
+                        "~collection_arm, got %d",
+                        items_mask);
+                }
 
                 run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
                 SELFTEST_CHECK(run_at >= 0,
@@ -11287,6 +11398,39 @@ mock230_world_selftest(void)
                                mock230_content_varp(com_mode)->transmit,
                            "com_mode should be declared transmit=yes");
         }
+    }
+
+    fprintf(stderr, "mock230 selftest: client layout persistence\n");
+    {
+        /*
+         * Display-panel Fixed / Classic / Modern must survive logout. The field
+         * used to be forced back to 1 at every login, so a Fixed choice was
+         * forgotten the moment the character left.
+         */
+        const char* path = mock230_save_path("layout_selftest");
+
+        mock230_world_set_display_name(player, "layout_selftest");
+        player->client_layout_mode = 0; /* Fixed – Classic */
+        remove(path);
+        SELFTEST_CHECK(mock230_save_player(player, path), "wrote layout save");
+        player->client_layout_mode = 1;
+        SELFTEST_CHECK(mock230_load_player(player, path), "read layout save");
+        SELFTEST_CHECK(player->client_layout_mode == 0,
+                       "Fixed layout should survive a save round-trip, got %d",
+                       player->client_layout_mode);
+
+        mock230_world_login(player);
+        SELFTEST_CHECK(player->client_layout_mode == 0,
+                       "login must keep the saved Fixed layout, got %d",
+                       player->client_layout_mode);
+        SELFTEST_CHECK(player->gameframe_iface == ids->iface_toplevel,
+                       "saved Fixed should open toplevel (%d) at login, got %d",
+                       ids->iface_toplevel, player->gameframe_iface);
+
+        /* Put later fixtures back on the stretch login default. */
+        player->client_layout_mode = 1;
+        mock230_gameframe_opentop(player, ids->iface_gameframe);
+        remove(path);
     }
 
     fprintf(stderr, "mock230 selftest: combat arithmetic\n");

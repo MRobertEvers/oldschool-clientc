@@ -349,6 +349,9 @@ struct CS2VM2_Thread
     int children_iter_indices[CS2VM2_CHILDREN_ITER_MAX];
     int children_iter_count;
     int children_iter_index;
+    /* Parent uid for the active children_iter_* (set by 203/205/212). Opcode
+     * 213 (boolean find-next) resolves each index under this parent. */
+    int children_iter_parent;
 
     /* Handle from the last IF_CHILDREN_COLLECT (211); CHILDREN_ARRAY (215)
      * pushes it. Raw pointer into arrays[], or NULL if none yet this run. */

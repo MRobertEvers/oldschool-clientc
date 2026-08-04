@@ -608,8 +608,17 @@ Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
   can never run — which is why the "Icon tooltips" toggle is also inert. It
   needs per-icon hit boxes plus a widened `RSCache_MapElement` (ops 10..14,
   target name 17, the visibility varbits 9/20 are parsed and discarded today).
-- **The overview panel is grey** because `overview_display` 595:12 declares
-  `clientcode=1401` and `uitree_build.c` maps only 1337/1338/1339/1400.
+- ~~**The overview panel is grey**~~ **Fixed** (`clientCode 1401` →
+  `UIELEM_BUILTIN_WORLDMAP_OVERVIEW`; table 19 `compositetexture` PNGs decode
+  into per-area opaque ARGB at worldmap load; emit scale-blits the current
+  area's texture into `overview_display`. Red viewport rects stay on CS2
+  `overview_overlay` / script 1750). Overview flash dots (official
+  `method5511` yellow markers) are still out of scope.
+  **Verified** (`manifest_osrs239_worldmap.ini`, headless Soft3D): after
+  `TORIRS_SIM_CLICK_AT` on overview_toggle (738,480), tree shows
+  `kind=worldmap_overview` on 595:12; the overview box samples thousands of
+  distinct colours (ocean/land), not a solid grey fill, with the red viewport
+  rect still present.
 - ~~**The whole gameframe sits 21px left**~~ **Fixed** (canvas-left clamp in
   `uitree_layout.c` for `xmode==1 && abs_x < 0`; relative IF3 centre overhang
   in `UITree_If3AxisFromPositionMode` unchanged so chat dialogues still work):

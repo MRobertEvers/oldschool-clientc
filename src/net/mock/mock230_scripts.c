@@ -447,7 +447,15 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         struct Mock230Player* owner = srv->active_player;
 
         if( status == SSVM_ABORTED )
+        {
             fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+            fprintf(
+                stderr,
+                "mock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
+                (int)state->host_tag,
+                (unsigned)state->pointers,
+                (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
+        }
         release_parked(srv, state);
         owner->resume_button_count = 0;
         if( owner->mainmodal_group <= 0 )
@@ -463,6 +471,12 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
 
     case SSVM_ABORTED:
         fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+        fprintf(
+            stderr,
+            "mock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
+            (int)state->host_tag,
+            (unsigned)state->pointers,
+            (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
         release_parked(srv, state);
         return 0;
 
@@ -1264,6 +1278,23 @@ trigger_is_player_initiated(int trigger)
            (trigger >= SS_TRIGGER_INV_BUTTON1 && trigger <= SS_TRIGGER_INV_BUTTOND);
 }
 
+/*
+ * Triggers whose subject is an npc and whose scripts expect ACTIVE_NPC armed
+ * (LostCity ScriptRunner.init(..., targetNpc)). Running without a live slot
+ * reaches ~chatnpc and aborts on NPC_TYPE — joe_prequest's first page was the
+ * loud case. Refuse at the door instead of starting a doomed script.
+ */
+static int
+trigger_requires_active_npc(int trigger)
+{
+    return (trigger >= SS_TRIGGER_APNPC1 && trigger <= SS_TRIGGER_OPNPCT) ||
+           (trigger >= SS_TRIGGER_AI_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
+           trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
+           trigger == SS_TRIGGER_AI_DESPAWN || trigger == SS_TRIGGER_AI_WALKTRIGGER ||
+           (trigger >= SS_TRIGGER_AI_QUEUE1 && trigger <= SS_TRIGGER_AI_QUEUE20) ||
+           (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
+}
+
 /** `[opnpc2,goblin]`, or `[opnpc2,3105]` when the id has no name. */
 static const char*
 trigger_label(
@@ -1410,6 +1441,25 @@ run_trigger_impl(
                     trigger_label(trigger, type, label, sizeof(label)));
         }
         return MOCK230_TRIGGER_NONE;
+    }
+
+    if( trigger_requires_active_npc(trigger) )
+    {
+        int live = npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+                   srv->npcs[npc_slot].active;
+
+        if( !live )
+        {
+            char label[192];
+
+            fprintf(
+                stderr,
+                "mock230: %s refused — no live npc (slot=%d script=%s)\n",
+                trigger_label(trigger, type, label, sizeof(label)),
+                npc_slot,
+                script->name ? script->name : "?");
+            return MOCK230_TRIGGER_FAILED;
+        }
     }
 
     return run_trigger_script(srv, script, npc_slot, loc_slot);

@@ -81,6 +81,10 @@ struct UITreeSceneBridge
  * decoded from the cache — see app_worldmap_flash_marker_scene. */
 #define UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID 0x40000004
 
+/* Reserved scene sprite id for the world map overview pane (clientCode 1401):
+ * the current area's compositetexture PNG, replaced on area switch. */
+#define UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID 0x40000005
+
 /* Reserved scene model id for the composited local-player chathead. */
 #define UITREE_SCENE_PLAYER_HEAD_ID 0x40000002
 

@@ -165,9 +165,10 @@ mock230_save_player(
             "z = %d\n"
             "level = %d\n"
             "run_energy = %d\n"
-            "run_toggle = %d\n",
+            "run_toggle = %d\n"
+            "client_layout_mode = %d\n",
             MOCK230_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
-            player->run_energy, player->run_toggle);
+            player->run_energy, player->run_toggle, player->client_layout_mode);
 
     fprintf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
@@ -388,6 +389,15 @@ mock230_load_player(
                 player->run_energy = atoi(value);
             else if( strcmp(key, "run_toggle") == 0 )
                 player->run_toggle = atoi(value);
+            else if( strcmp(key, "client_layout_mode") == 0 )
+            {
+                int mode = atoi(value);
+
+                /* Display-panel Fixed / Resizable Classic / Resizable Modern.
+                 * Out-of-range keeps the init default (resizable classic). */
+                if( mode >= 0 && mode <= 2 )
+                    player->client_layout_mode = mode;
+            }
             /* `prayer_active` was a saved bitmask until prayer became
              * content. The varbits carry it now and they ride the saved varps,
              * so an old save's line is ignored rather than migrated — reading

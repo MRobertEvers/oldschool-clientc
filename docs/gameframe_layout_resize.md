@@ -373,9 +373,11 @@ rev-230 gameframe child is authored as an inset off that box —
 produces zero-sized viewports rather than a smaller frame. The reference client
 has the same floor.
 
-**The window mode does not persist.** `default_window_mode` is stored and read
-back, and nothing writes it to a save. There is no LostCity precedent to follow
-(§1), so this is a fresh policy call and it is deliberately the minimal one.
+**The Display-panel layout preference persists across logouts.** Mode 0/1/2 is
+written on the player save and restored at login through `~gameframe_set_mode`
+(same path as `WINDOW_STATUS`). Boot `--windowmode` / manifest `windowmode` is
+still the process default until that restore runs; it is not a second saved
+preference.
 
 **The mode is boot config until content binds the dropdown** (§3A.2). A client
 that reports "resizable" to its scripts and letterboxes anyway is the bug this
@@ -451,8 +453,9 @@ from `gameframe.enum` block named after that toplevel.
   down the live forest first; `IF_OPENSUB` on the exec pipeline waits out
   `APP_STATE_BOOTING` so mount slots exist.
 - `IF_MOVESUB` (inbound op 42) + ServerScript `if_opentop` / `if_movesub`.
-- Ids resolve `toplevel` / `toplevel_pre_eoc` by name; login still opens stretch
-  (`ids->iface_gameframe` stays 161) until the first `WINDOW_STATUS`.
+- Ids resolve `toplevel` / `toplevel_pre_eoc` by name. Login opens the top that
+  matches the saved `client_layout_mode` (default stretch / mode 1); mid-session
+  changes still arrive as `WINDOW_STATUS`.
 
 ### 8.2 Verification (re-measured 2026-08-03)
 
@@ -553,7 +556,11 @@ tree that says `~script3998` while the bake still matches pristine is the same
 bug as before — only quieter.
 ### 8.3a Remaining gaps
 
-- **Persistence** of layout across logins — out of scope.
+- ~~**Persistence** of layout across logins~~ — **landed.** `client_layout_mode`
+  is written to / read from the player save (`[player] client_layout_mode`);
+  login keeps the loaded value (default 1), opens the matching toplevel
+  immediately, and calls `~gameframe_set_mode` so the client canvas matches
+  (same proc mid-session `WINDOW_STATUS` uses).
 - **OpenRune intermediate hop** (fixed→pre_eoc via stretch) — deferred unless a
   measured break needs it.
 - Content `.rs2` files may still *spell* `toplevel_osrs_stretch:mainmodal` /

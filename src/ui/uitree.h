@@ -58,6 +58,9 @@ enum UITreeComponentType
     /** World map surface (clientCode 1400): the baked map regions, panned and
      *  zoomed by the CS2 world map state. */
     UIELEM_BUILTIN_WORLDMAP = 25,
+    /** World map overview pane (clientCode 1401): scale-blit of the area's
+     *  compositetexture PNG. The red viewport rects are CS2 on overview_overlay. */
+    UIELEM_BUILTIN_WORLDMAP_OVERVIEW = 26,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -83,7 +86,7 @@ enum UITreeComponentType
  *   1400 CONTENT_WORLDMAP          layer     595
  *   1401 CONTENT_WORLDMAP_OVERVIEW layer     595
  *
- * The three that have a builtin behind them are mapped in uitree_build.c; the
+ * The four that have a builtin behind them are mapped in uitree_build.c; the
  * rest stay plain cache components until their builtin has somewhere to draw.
  */
 enum
@@ -105,6 +108,7 @@ enum
     UITREE_CLIENT_CODE_CONTENT_MINIMAP = 1338,
     UITREE_CLIENT_CODE_CONTENT_COMPASS = 1339,
     UITREE_CLIENT_CODE_CONTENT_WORLDMAP = 1400,
+    UITREE_CLIENT_CODE_CONTENT_WORLDMAP_OVERVIEW = 1401,
 };
 
 /**

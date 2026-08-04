@@ -985,6 +985,111 @@ app_worldmap_build_tiles(
 }
 
 /*
+ * Overview pane (clientCode 1401): scale-blit the current area's compositetexture
+ * into the widget box. Red viewport rects are CS2 on overview_overlay — not here.
+ * SpriteNewFromArgbOwned takes the pixel buffer, so each upload copies from the
+ * area-owned decode; SceneSpriteAdd frees the previous overview sprite.
+ */
+static int
+app_worldmap_ensure_overview_scene(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area)
+{
+    uint32_t* copy;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+    size_t nbytes;
+
+    assert(app);
+    assert(area);
+    assert(area->overview_pixels);
+    assert(area->overview_width > 0);
+    assert(area->overview_height > 0);
+
+    if( app->worldmap_overview_area_id == area->id &&
+        app->worldmap_overview_scene_id == UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID )
+        return app->worldmap_overview_scene_id;
+
+    nbytes = (size_t)area->overview_width * (size_t)area->overview_height * sizeof(*copy);
+    copy = malloc(nbytes);
+    if( !copy )
+        return -1;
+    memcpy(copy, area->overview_pixels, nbytes);
+
+    sprite = ToriDraw_SpriteNewFromArgbOwned(copy, area->overview_width, area->overview_height);
+    if( !sprite )
+    {
+        free(copy);
+        return -1;
+    }
+    sprites = malloc(sizeof(*sprites));
+    if( !sprites )
+    {
+        ToriDraw_SpriteFree(sprite);
+        return -1;
+    }
+    sprites[0] = sprite;
+    ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID, sprites, 1);
+    app->worldmap_overview_scene_id = UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID;
+    app->worldmap_overview_area_id = area->id;
+    return app->worldmap_overview_scene_id;
+}
+
+static int
+app_worldmap_build_overview(
+    struct App* app,
+    struct UITreeHostRequest* req)
+{
+    struct RS_WorldMapState* map;
+    struct ToriRS_WorldMapArea const* area;
+    int box_x;
+    int box_y;
+    int box_w;
+    int box_h;
+    int scene_id;
+
+    assert(app);
+    assert(req);
+    assert(req->u.get_worldmap_overview.out_items);
+
+    box_x = req->u.get_worldmap_overview.box_x;
+    box_y = req->u.get_worldmap_overview.box_y;
+    box_w = req->u.get_worldmap_overview.box_w;
+    box_h = req->u.get_worldmap_overview.box_h;
+
+    memset(&app->worldmap_overview_tile, 0, sizeof(app->worldmap_overview_tile));
+    *req->u.get_worldmap_overview.out_items = &app->worldmap_overview_tile;
+    if( req->u.get_worldmap_overview.out_background_rgb )
+        *req->u.get_worldmap_overview.out_background_rgb = 0;
+
+    map = app->host.worldmap;
+    if( !map || !RS_WorldMap_IsLoaded(map) )
+        return 0;
+    area = RS_WorldMap_CurrentArea(map);
+    if( !area )
+        return 0;
+
+    if( req->u.get_worldmap_overview.out_background_rgb )
+        *req->u.get_worldmap_overview.out_background_rgb = area->background_colour & 0xFFFFFF;
+
+    if( !area->overview_pixels || area->overview_width <= 0 || area->overview_height <= 0 )
+        return 0;
+
+    scene_id = app_worldmap_ensure_overview_scene(app, area);
+    if( scene_id <= 0 )
+        return 0;
+
+    app->worldmap_overview_tile.scene_id = scene_id;
+    app->worldmap_overview_tile.atlas_index = 0;
+    app->worldmap_overview_tile.x = box_x;
+    app->worldmap_overview_tile.y = box_y;
+    app->worldmap_overview_tile.w = box_w;
+    app->worldmap_overview_tile.h = box_h;
+    app->worldmap_overview_tile.scaled = 1;
+    return 1;
+}
+
+/*
  * Map element icons over the surface (banks, altars, shops, ...).
  *
  * The compositemap gives each icon a *source* world coord and a map element id;
@@ -1965,6 +2070,8 @@ app_host_request(
         return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
         return app_worldmap_build_tiles(app, req);
+    case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
+        return app_worldmap_build_overview(app, req);
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
         assert(req->u.get_inv_source_slot.out);
         if( !InvManager_GetSlot(
@@ -2754,6 +2861,8 @@ App_Init(
     app->world_hover_tile_level = 0;
     app->world_map_scene_id = -1;
     app->worldmap_render = RS_WorldMapRender_New();
+    app->worldmap_overview_scene_id = 0;
+    app->worldmap_overview_area_id = -1;
     app->minimap_flag_x = -1;
     app->minimap_flag_z = -1;
     app->rebuild_zone_x = -1;

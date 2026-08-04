@@ -133,6 +133,12 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_WORLDMAP_TILES,
     /**
+     * Overview pane (clientCode 1401): writes one scaled tile (the current
+     * area's compositetexture) to u.get_worldmap_overview.out_items and the
+     * area background colour. Returns the item count (0 or 1).
+     */
+    UITREE_HOST_GET_WORLDMAP_OVERVIEW,
+    /**
      * Returns nonzero when u.tab_enabled.tabno has an interface assigned
      * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
      */
@@ -345,6 +351,15 @@ struct UITreeHostRequest
             int box_h;
             int* out_background_rgb;
         } get_worldmap_tiles;
+        struct
+        {
+            struct UITreeWorldMapTile const** out_items;
+            int box_x;
+            int box_y;
+            int box_w;
+            int box_h;
+            int* out_background_rgb;
+        } get_worldmap_overview;
         struct
         {
             struct UITreeEntityOverlay const** out_items;

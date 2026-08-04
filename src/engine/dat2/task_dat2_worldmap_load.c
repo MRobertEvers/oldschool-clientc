@@ -1,6 +1,8 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/png_decode.h"
+#include "engine/torirs_types.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 
 #include "asyncio.h"
@@ -12,20 +14,24 @@
 #include <string.h>
 
 /*
- * The world map lives in two archives of table 19: "details" holds one file per
- * map area, "compositemap" holds that area's map element icons. Both list the
- * same file ids, so icons attach by id. Loading is all-or-nothing — the scripts
- * ask "is the world map loaded", not "is area N loaded".
+ * The world map lives in three archives of table 19: "details" holds one file
+ * per map area, "compositemap" holds that area's map element icons, and
+ * "compositetexture" holds the overview-pane PNG (clientCode 1401). Details and
+ * compositemap list the same file ids so icons attach by id; compositetexture
+ * uses those ids too. Loading is all-or-nothing — the scripts ask "is the world
+ * map loaded", not "is area N loaded".
  */
 struct Task_Dat2WorldMapLoad
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
-    /* Locals do not survive a protothread yield, so the details archive waits
-     * here while the compositemap archive loads. */
+    /* Locals do not survive a protothread yield, so earlier archives wait here
+     * while later ones load. */
     struct RSCache_Dat2DiskArchive* details;
+    struct RSCache_Dat2DiskArchive* composite;
     int composite_archive_id;
+    int texture_archive_id;
 };
 
 static int
@@ -44,7 +50,8 @@ task_dat2_worldmap_resolve_archive_id(
         if( table->archives[i].identifier == name_hash )
             return table->archives[i].index;
     }
-    /* OSRS 238+: details/compositemap may be unnamed; fall back to archive id. */
+    /* OSRS 238+: details/compositemap/compositetexture may be unnamed; fall
+     * back to archive id. */
     if( unnamed_fallback_id >= 0 && unnamed_fallback_id < table->archive_count &&
         table->archives[unnamed_fallback_id].index >= 0 )
         return table->archives[unnamed_fallback_id].index;
@@ -122,6 +129,67 @@ task_dat2_worldmap_decode(
     return areas;
 }
 
+/* Attach each compositetexture PNG to the matching area (same file id). The
+ * overview pane scale-blits these; missing textures leave overview_pixels NULL
+ * and the emit path falls back to the area background fill alone. */
+static void
+task_dat2_worldmap_attach_compositetextures(
+    struct ToriRS_WorldMapAreas* areas,
+    struct RSCache_Dat2DiskArchive* texture)
+{
+    struct RSCache_FileList* files = NULL;
+
+    assert(areas);
+    if( !texture || !texture->file_ids || texture->file_count <= 0 )
+        return;
+
+    files = RSCache_FileListNewFromDecode(texture->data, texture->data_size, texture->file_count);
+    if( !files || files->file_count <= 0 )
+    {
+        RSCache_FileListFree(files);
+        return;
+    }
+
+    for( int i = 0; i < files->file_count; i++ )
+    {
+        int file_id = texture->file_ids[i];
+        struct ToriRS_WorldMapArea* area;
+        int width = 0;
+        int height = 0;
+        uint32_t* rgb = NULL;
+        uint32_t* argb = NULL;
+        int pixel_count;
+
+        area = ToriRS_WorldMapAreasGet(areas, file_id);
+        if( !area )
+            continue;
+        if( !PngDecode_Rgb(files->files[i], files->file_sizes[i], &width, &height, &rgb) )
+        {
+            fprintf(stderr, "worldmap: compositetexture %d: PNG decode failed\n", file_id);
+            continue;
+        }
+        assert(width > 0 && height > 0 && rgb);
+        pixel_count = width * height;
+        argb = malloc((size_t)pixel_count * sizeof(*argb));
+        if( !argb )
+        {
+            free(rgb);
+            continue;
+        }
+        /* PngDecode_Rgb drops alpha to 0; overview sprites need opaque ARGB. */
+        for( int p = 0; p < pixel_count; p++ )
+            argb[p] = 0xFF000000u | (rgb[p] & 0xFFFFFFu);
+        free(rgb);
+
+        free(area->overview_pixels);
+        area->overview_pixels = argb;
+        area->overview_width = width;
+        area->overview_height = height;
+    }
+
+    RSCache_FileListFree(files);
+}
+
 static int
 Task_Dat2WorldMapLoad_Run(
     struct ToriRS_Task* task_base,
@@ -129,7 +197,7 @@ Task_Dat2WorldMapLoad_Run(
 {
     struct Task_Dat2WorldMapLoad* task = (struct Task_Dat2WorldMapLoad*)task_base;
     struct RSCache_ReferenceTable* table = NULL;
-    struct RSCache_Dat2DiskArchive* composite = NULL;
+    struct RSCache_Dat2DiskArchive* texture = NULL;
     struct ToriRS_WorldMapAreas* areas = NULL;
     int details_archive_id = -1;
 
@@ -168,6 +236,8 @@ Task_Dat2WorldMapLoad_Run(
         PT_EXIT(&task->pt);
     }
     task->composite_archive_id = task_dat2_worldmap_resolve_archive_id(table, "compositemap", 1);
+    task->texture_archive_id =
+        task_dat2_worldmap_resolve_archive_id(table, "compositetexture", 2);
 
     RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, details_archive_id);
     PT_YIELD(&task->pt);
@@ -184,14 +254,28 @@ Task_Dat2WorldMapLoad_Run(
     {
         RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, task->composite_archive_id);
         PT_YIELD(&task->pt);
-        composite = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
+        task->composite = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
+    }
+
+    /* Overview textures are optional the same way: the pane still opens and
+     * CS2 still draws the red viewport rects without them. */
+    if( task->texture_archive_id >= 0 )
+    {
+        RSCache_IO_Dat2WorldMapArchiveLoad(io, 0, task->texture_archive_id);
+        PT_YIELD(&task->pt);
+        texture = RSCache_IO_Dat2WorldMapArchiveDecode(io, 0);
     }
 
     areas = task_dat2_worldmap_decode(
         task->details,
-        composite,
+        task->composite,
         RSCache_WorldMapFlags(CacheProvider_Profile(&task->bc->base)));
-    RSCache_Dat2DiskArchiveFree(composite);
+    if( areas && texture )
+        task_dat2_worldmap_attach_compositetextures(areas, texture);
+
+    RSCache_Dat2DiskArchiveFree(texture);
+    RSCache_Dat2DiskArchiveFree(task->composite);
+    task->composite = NULL;
     RSCache_Dat2DiskArchiveFree(task->details);
     task->details = NULL;
 
@@ -211,8 +295,9 @@ Task_Dat2WorldMapLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2WorldMapLoad* task = (struct Task_Dat2WorldMapLoad*)task_base;
 
-    /* Only set when the task is killed between the two archive loads. */
+    /* Only set when the task is killed between archive loads. */
     RSCache_Dat2DiskArchiveFree(task->details);
+    RSCache_Dat2DiskArchiveFree(task->composite);
     free(task_base);
 }
 
@@ -237,6 +322,7 @@ CreateTask_Dat2WorldMapLoad(struct CacheProvider* provider)
     strcpy(task->task.name, "Dat2WorldMapLoad");
     task->bc = (struct Dat2BuildCache*)provider;
     task->composite_archive_id = -1;
+    task->texture_archive_id = -1;
     PT_INIT(&task->pt);
     return &task->task;
 }

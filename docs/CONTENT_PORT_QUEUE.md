@@ -126,7 +126,23 @@ re-arm. Stop only when the user stops the loop.
 | 11l | Thormac mystic staff | done | thankyou+makestaff via p_choice5 (air/water/earth/fire/lava); scorpcatcher quest gate deferred; modern IF extras deferred |
 | 11m | ring of recoil | done | %ring_of_recoil+%aggressive_npc authored; recoil on melee+magic damage; deferred: %npc_attacking_uid varn, PvP recoil |
 | 11n | Mage Arena charge | done | magic_spellbook:charge + timer; %magearena/%magearena_charge clean-varps; deferred: sound_synth, god-spell Charge consumers |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Seers leftovers (stankers poison chalice / foresters_bartender) / trollheim tele; skip: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport |
+| 11o | stankers + poison chalice | done | Talk-to + chalice gift; Drink random heal/drain/damage; deferred: none |
+| 11p | foresters_bartender | done | beer/stew/meat pie sales; deferred: barcrawl (%barcrawl / ^forestersarms_index) |
+| 11q | trollheim teleport | done | magic_spellbook:trollheim_teleport + dbrow + ^trollheim_teleport; deferred: Eadgar quest gate, sled unequip |
+| 11r | coal trucks | done | oploc1/u coal_truck + %coal_truck authored + ^coal_truck_max; deferred: sound_synth |
+| 11s | seer default | done | default Talk-to (Many greetings / knowledge+power); deferred: scorpcatcher quest arms |
+| 11t | bees / beehive wax | done | merlin_beehive + insect_repellent/bucket; %beehive_free authored 5759; deferred: none |
+| 11u | mcgrubors wood | done | gates name-expand + railing squeeze + _red_vine dig; deferred: sound_synth, mcgrubor_gate cat mint |
+| 11v | brother_galahad | done | Talk-to + tea/napkin; %grail clean-varp + quest_grail constants; deferred: full Holy Grail quest |
+| 11w | king_arthur + %arthur | done | Talk-to + Merlin Crystal start/grail arms; %arthur clean-varp 14 + constants; arthur/grail complete queues; deferred: full Merlin Crystal / Holy Grail bodies |
+| 11x | merlin / merlin2 | done | crystal rush-off npc_del + Holy Grail workshop tips (%grail_spoken_merlin); deferred: Merlin Crystal body |
+| 11y | sir_gawain + sir_lancelot | done | Talk-to + %arthur spoken_gawain/lancelot advances; deferred: Lefaye stronghold / crate quest |
+| 11z | sir_kay + sir_bedivere | done | Talk-to %arthur/%grail arms; deferred: trail clue on Kay |
+| 12a | lucan/palomedes/pelleas/tristram | done | remaining Round Table Talk-to stubs; deferred: Merlin Crystal body |
+| 12b | hemenster thin fishermen | done | morris/bigdave/joshua + %fishingcompo clean-varp 11 + constants; deferred: full Fishing Contest |
+| 12c | grandpa_jack + sinister_stranger | done | story/hints + Vlad dialogue; deferred: bonzo/comp spots / my_spot arm |
+| 12d | poison_salesman | done | Murder Mystery arms; %murderquest clean-varp 192 + poisonproof authored 5760; deferred: full Murder Mystery, Fremennik beer keg |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Catherby (arhein/candle_maker/harry/hickton) or bonzo + hemenster_comp_stage / fishingcompo quest core or Merlin Crystal body; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -250,6 +266,22 @@ re-arm. Stop only when the user stops the loop.
 - slice 11l done: Thormac mystic staff (p_choice5 air/water/earth/fire/lava); scorpcatcher quest gate deferred; mock230_pack 0 errors (3075 scripts)
 - slice 11m done: ring of recoil (%ring_of_recoil + %aggressive_npc authored; melee+magic damage wire); deferred: npc_attacking_uid varn, PvP; mock230_pack 0 errors (3077 scripts)
 - slice 11n done: Mage Arena charge (magic_spellbook:charge + timer; %magearena gate); deferred: sound_synth, god-spell consumers; mock230_pack 0 errors (3079 scripts)
-- next pending: Seers leftovers (stankers / foresters_bartender) / trollheim tele; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)
+- slice 11o done: stankers Talk-to + poison_chalice Drink (random heal/drain/damage → cocktail_glass_empty); mock230_pack 0 errors (3085 scripts)
+- slice 11p done: foresters_bartender beer/stew/meat_pie sales; barcrawl deferred; mock230_pack 0 errors (3103 scripts)
+- slice 11q done: trollheim teleport (IF + dbrow + constant); Eadgar gate + sled deferred; mock230_pack 0 errors (3104 scripts)
+- slice 11r done: coal trucks (%coal_truck authored varp 5758 + ^coal_truck_max); mock230_pack 0 errors (3106 scripts)
+- slice 11s done: seer default Talk-to (Many greetings / knowledge+power); scorpcatcher deferred; mock230_pack 0 errors (3109 scripts)
+- slice 11t done: bees / merlin_beehive wax (%beehive_free authored 5759); mock230_pack 0 errors (3113 scripts)
+- slice 11u done: mcgrubors wood (gates name-expand, railing, _red_vine dig); sound_synth + mcgrubor_gate cat deferred; mock230_pack 0 errors (3121 scripts)
+- slice 11v done: brother_galahad + %grail clean-varp + quest_grail constants; full Holy Grail quest deferred; mock230_pack 0 errors (3130 scripts)
+- slice 11w done: king_arthur + %arthur clean-varp 14 + constants + arthur/grail complete queues; Merlin Crystal / Holy Grail bodies deferred; mock230_pack 0 errors (3136 scripts)
+- slice 11x done: merlin + merlin2 Talk-to; mock230_pack 0 errors (3138 scripts)
+- slice 11y done: sir_gawain + sir_lancelot; mock230_pack 0 errors (3141 scripts)
+- slice 11z done: sir_kay + sir_bedivere; trail clue deferred; mock230_pack 0 errors (3143 scripts)
+- slice 12a done: sir_lucan/palomedes/pelleas/tristram; mock230_pack 0 errors (3147 scripts)
+- slice 12b done: hemenster morris/bigdave/joshua + %fishingcompo; mock230_pack 0 errors (3150 scripts)
+- slice 12c done: grandpa_jack + sinister_stranger; mock230_pack 0 errors (3157 scripts)
+- slice 12d done: poison_salesman + %murderquest + murder_poisonproof_progress authored 5760; Fremennik/full Murder Mystery deferred; mock230_pack 0 errors (3158 scripts)
+- next pending: Catherby (arhein/candle_maker/harry/hickton) or bonzo + hemenster_comp_stage / fishingcompo quest core or Merlin Crystal body; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

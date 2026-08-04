@@ -1667,7 +1667,8 @@ struct Mock230Player
     int gameframe_mainmodal;
     int gameframe_sidemodal;
     int gameframe_floater;
-    /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS. */
+    /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
+     *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
     /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
      *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */

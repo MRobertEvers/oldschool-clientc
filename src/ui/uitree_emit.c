@@ -535,6 +535,26 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_WORLDMAP_OVERVIEW:
+    {
+        /* Same emit kind as the main map: step 0 is the background fill, then
+         * one scaled compositetexture blit. Red viewport rects are CS2 on the
+         * sibling overview_overlay layer. */
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_WORLDMAP_OVERVIEW,
+            .u.get_worldmap_overview.out_items = &out->worldmap_tiles,
+            .u.get_worldmap_overview.box_x = out->x,
+            .u.get_worldmap_overview.box_y = out->y,
+            .u.get_worldmap_overview.box_w = out->w,
+            .u.get_worldmap_overview.box_h = out->h,
+            .u.get_worldmap_overview.out_background_rgb = &out->color,
+        };
+        out->kind = UITREE_EMIT_WORLDMAP;
+        out->worldmap_tile_count = UITree_Host(host, &req);
+        out->filled = 1;
+        return true;
+    }
+
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
     {
         /* Reference drawEntities runs inside the scene pass, so the overlay is

@@ -95,7 +95,9 @@ ToriDraw_FastCull(
     if( max_z < near_plane_z )
         return TORIDRAW_CULL_FAST;
 
-    if( mid_z > TORIDRAW_CYLINDER_FAR_PLANE_Z )
+    /* worldRender culls midZ>=3500; objRender / inventory icons do not.
+     * Icon cameras already use near_plane_z=1 (world uses 50). */
+    if( near_plane_z >= 50 && mid_z > TORIDRAW_CYLINDER_FAR_PLANE_Z )
         return TORIDRAW_CULL_FAST;
 
     int mid_x = projected_vertex->x;

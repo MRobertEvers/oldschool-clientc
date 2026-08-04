@@ -353,6 +353,14 @@ struct App
      * and a few hundred icons at the densest zoom. */
     struct UITreeWorldMapTile worldmap_tiles[512];
     int worldmap_tile_count;
+    /** Overview pane blit (clientCode 1401): one scaled compositetexture. */
+    struct UITreeWorldMapTile worldmap_overview_tile;
+    /** Scene id of the uploaded overview texture; 0 until first needed, -1 if
+     *  the last upload failed. Replaced when the current area changes. */
+    int worldmap_overview_scene_id;
+    /** Area id whose compositetexture is currently in the overview scene slot;
+     *  -1 when none. */
+    int worldmap_overview_area_id;
     /** Baked map-surface regions (src/game/rs_worldmap_render.h). */
     struct RS_WorldMapRender* worldmap_render;
     /* Scene id of the synthesised flash marker drawn behind a flashing icon;

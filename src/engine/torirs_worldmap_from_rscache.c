@@ -441,6 +441,7 @@ ToriRS_WorldMapAreasFree(struct ToriRS_WorldMapAreas* areas)
         free(areas->areas[i].sections);
         free(areas->areas[i].icons);
         free(areas->areas[i].region_sources);
+        free(areas->areas[i].overview_pixels);
     }
     free(areas->areas);
     free(areas);
