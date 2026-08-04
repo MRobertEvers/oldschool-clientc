@@ -5384,6 +5384,17 @@ mock230_world_npc_died(
 
     mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE3, npc->type,
                                 mock230_npc_category(npc->type), slot);
+    /*
+     * Slayer kill credit — always, after the drop table.
+     *
+     * `[ai_queue3]` is exclusive (type → category → `_`), so a drop-table bind
+     * suppresses `[ai_queue3,_]` and any credit hung only there would miss the
+     * npcs players actually kill. Same shape as `npc_default_chat` through
+     * `mock230_scripts_run_proc_on_npc`: content owns the policy
+     * (`[proc,slayer_on_npc_kill]`); the engine only promises the call. Missing
+     * the proc is a silent no-op (scripts not loaded / older packs).
+     */
+    mock230_scripts_run_proc_on_npc(srv, "[proc,slayer_on_npc_kill]", slot);
 }
 
 /*
@@ -16106,6 +16117,101 @@ mock230_world_selftest(void)
             }
         }
     bank_seeded_done:;
+    }
+
+    fprintf(stderr, "mock230 selftest: open bank deposit/withdraw UPDATE_INV_FULL\n");
+    {
+        /*
+         * The bank row sits in the registry with no listeners; its transmit is
+         * mock230_bank_flush. container_flush must not clear bank.dirty before
+         * that flush runs, or deposits leave bankmain stale until reopen.
+         */
+        static struct Mock230Capture capture;
+        struct Mock230Bank* bank = &player->bank;
+        const int inv_bank = ids->inv_bank;
+        int slot = -1;
+        int held;
+        int full_idx;
+
+        selftest_reset_world(&srv, player, 402, 402);
+        if( !selftest_seed_new_player(&srv) )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_open_flush_done;
+        }
+
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            if( player->inv[i].obj_id == 995 )
+                slot = i;
+        SELFTEST_CHECK(slot >= 0, "the starting kit should include coins");
+        held = slot >= 0 ? player->inv[slot].count : 0;
+
+        mock230_bank_open(&srv);
+        SELFTEST_CHECK(bank->open, "bank must be open for the flush path");
+        /* Open already transmitted; drain dirty so the deposit's flush is the
+         * one under test. */
+        bank->dirty = 0;
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_bank_deposit(&srv, slot, held);
+        SELFTEST_CHECK(bank->dirty, "a deposit with the bank open marks dirty");
+        mock230_world_tick(&srv);
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
+        SELFTEST_CHECK(!bank->dirty, "bank_flush clears dirty after transmit");
+
+        full_idx = -1;
+        for( int i = 0; i < capture.count; i++ )
+        {
+            if( capture.packets[i].opcode != 10 /* UPDATE_INV_FULL */ )
+                continue;
+            if( capture.packets[i].len < 8 )
+                continue;
+            if( ((capture.packets[i].data[4] << 8) | capture.packets[i].data[5]) != inv_bank )
+                continue;
+            SELFTEST_CHECK(full_idx < 0, "exactly one bank UPDATE_INV_FULL after deposit");
+            full_idx = i;
+        }
+        SELFTEST_CHECK(full_idx >= 0,
+                       "open-bank deposit must UPDATE_INV_FULL inv_bank (container_flush "
+                       "must not eat bank.dirty)");
+
+        /* Withdraw the same path: bankmain must repaint when a stack shrinks. */
+        {
+            int bank_slot = -1;
+
+            for( int i = 0; i < bank->size; i++ )
+                if( bank->slots[i].obj_id == 995 )
+                    bank_slot = i;
+            SELFTEST_CHECK(bank_slot >= 0, "coins should be in the bank after deposit");
+            bank->dirty = 0;
+            mock230_capture_begin(&srv, &capture);
+            mock230_bank_withdraw(&srv, bank_slot, 1);
+            SELFTEST_CHECK(bank->dirty, "a withdraw with the bank open marks dirty");
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
+
+            full_idx = -1;
+            for( int i = 0; i < capture.count; i++ )
+            {
+                if( capture.packets[i].opcode != 10 /* UPDATE_INV_FULL */ )
+                    continue;
+                if( capture.packets[i].len < 8 )
+                    continue;
+                if( ((capture.packets[i].data[4] << 8) | capture.packets[i].data[5]) !=
+                    inv_bank )
+                    continue;
+                SELFTEST_CHECK(full_idx < 0,
+                               "exactly one bank UPDATE_INV_FULL after withdraw");
+                full_idx = i;
+            }
+            SELFTEST_CHECK(full_idx >= 0,
+                           "open-bank withdraw must UPDATE_INV_FULL inv_bank");
+        }
+
+        mock230_bank_close(&srv);
+    bank_open_flush_done:;
     }
 
     fprintf(stderr, "mock230 selftest: bank content withdraw ladder\n");

@@ -1260,10 +1260,25 @@ cs2_cc_command_arguments(
  * id, the arguments, the watched ids and their count, then a descriptor naming
  * each argument's type — pushed in that order, with the target component last
  * for the `if_*` family.
+ *
+ * The `cc_*` family carries its target in the operand exactly as the basic
+ * commands do — 1 for the "." (dot) component, 0 for the active one — which is
+ * how `.cc_setondrag` binds the scrollbar's drag handlers to the dragger it
+ * just created rather than to the trough. `cs2_translate_clientscript` reads
+ * that operand back on the same rule, so the two must agree.
  */
 static void
-cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
+cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
 {
+    if( dot && opcode >= RSCACHE_CS2_OP_IF_HOOK_BASE )
+    {
+        cs2_cc_fail(
+            cc,
+            "'%s' names its target component explicitly and has no '.' form",
+            RSCache_CS2_CommandName(opcode));
+        return;
+    }
+
     if( !cs2_cc_expect_punct(cc, '(') )
         return;
 
@@ -1495,7 +1510,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode)
         cs2_cc_expression(cc, RSCACHE_CS2_TYPE_COMPONENT);
     }
     cs2_cc_expect_punct(cc, ')');
-    cs2_cc_emit(cc, opcode, 0);
+    cs2_cc_emit(cc, opcode, dot ? 1 : 0);
 }
 
 static void
@@ -1512,7 +1527,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
 
     if( info->kind == RSCACHE_CS2_CMD_CLIENTSCRIPT )
     {
-        cs2_cc_hook(cc, opcode);
+        cs2_cc_hook(cc, opcode, dot);
         return;
     }
     if( info->kind == RSCACHE_CS2_CMD_PARAM || info->kind == RSCACHE_CS2_CMD_ENUM )

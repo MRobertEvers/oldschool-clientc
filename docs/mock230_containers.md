@@ -155,6 +155,8 @@ full otherwise, trimmed to the used prefix (UPDATE_INV_FULL clears everything
 past the capacity it carries). Rows with no listeners still get cleaned, so a
 container written while its interface was closed does not re-transmit the
 moment something binds — the bind's own full update already covered it.
+Unbound rows that carry an external `dirty_ref` are left dirty: that flush
+owns the bit (`mock230_bank_flush` for the bank).
 
 **The bank is deliberately not bound through the registry.** Its transmit is
 gated on `bank.open` and carries tab bookkeeping the generic binding does not

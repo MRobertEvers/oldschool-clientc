@@ -214,7 +214,34 @@ re-arm. Stop only when the user stops the loop.
 | 14v | quest equip gates | done | heroes (dragon_mace/battleaxe) + dragon slayer (rune plate/green dhide body) in ~levelrequire_quest_gate; deferred: zanaris/legends/regicide equip siblings |
 | 14w | brimhaven thin | done | davon/alfonse Trade stubs + pirate_guard + pineapple name-expand; deferred: hajedy/kangai/barcrawl/clues |
 | 14x | deadmans bartender + platform fishermen | done | grog/rum sales (barcrawl deferred) + fishplatform1..4 Talk-to; deferred: Sea Slug body |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Sea Slug thin (bailey/kennith/kent/holgart) or brimhaven hajedy/kangai stubs or gnome thin; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 14y | Sea Slug thin NPCs | done | bailey/kennith/kent/holgart + %seaslugquest constants/coords; kennithwall; boat tele procs; deferred: Caroline, ladder/panel/crane/sticks body, journal |
+| 14z | brimhaven hajedy stub | done | cart Examine/Talk + ^zombiequeen_complete gate; trail clue deferred; Shilo quest body deferred |
+| 15a | brimhaven kangai stub | done | Tribal Totem start/hand-in + constants; trail/body/journal deferred |
+| 15b | gnome shop stubs | done | gulluck/hudo/rometti/heckelfunch Trade stubs; trail deferred |
+| 15c | brimstail + cave | done | essence tele + cave entrance/ladder; trail deferred |
+| 15d | gnome troop | done | gnomeknight/d_skingnomeknight Talk-to + ranged AI |
+| 15e | kalron + chantergnome | done | Tree Gnome Village thin + %treequest constants |
+| 15f | gnome waiter stub | done | Trade stub; dish sell/restaurant deferred |
+| 15g | aluft gianne stub | done | greeting only; restaurant progress unresolved |
+| 15h | remsai | done | Tree Gnome Village Talk-to arms |
+| 15i | bolkoy shop stub | done | treevillage_shopkeeper1 Trade stub + quest arms |
+| 15j | gnome trainer | done | agility trainer Talk-to; trail puzzle deferred |
+| 15k | Caroline (Sea Slug start) | done | start + complete queue + pearls/fishing XP; journal deferred |
+| 15l | gnome_gate | done | areagate+treedoors walk-through + grandtree constants; femi/swing deferred |
+| 15m | commander_montai | done | Tree Gnome Village Talk-to arms; ai_timer catapult deferred |
+| 15n | king_bolren | done | start/hand-in/complete + ceremony; trail deferred |
+| 15o | elkoy | done | maze guide Talk-to + telejumps (elkoy/elkoy_village) |
+| 15p | hazelmere | done | Grand Tree bark/scroll arms; trail deferred |
+| 15q | blurberrybarmen | done | Trade stub + lemon/orange/shaker sales; barcrawl/cocktail-sell deferred |
+| 15r | blurberry stub | done | greeting only; gnome_bar tutorial deferred (%gnome_bar_progress unresolved); barcrawl deferred |
+| 15s | gnome_glider | done | pilot_* name-expand + p_choice fly (IF1 glidermap deferred) + glider.constant; trail deferred |
+| 15t | spirit_tree | done | ent/stronghold_ent/spirittree_small teleports + spirit_tree.constant |
+| 15u | gnomevillage_fence | done | treegnomelooserailing squeeze via agility_exactmove |
+| 15v | Sea Slug locs | done | sticks dry/light + slugladder/loosepanel/fishingcrane + seaslug pickup |
+| 15w | seaslug_journal | done | journal + quest_seaslug dbrow wire |
+| 15x | gnomes Talk-to | done | gnome/female/child Talk-to + ranged AI; ~objbox→~mesbox |
+| 15y | gnome cook/cocktail book stubs | done | giannes_cook_book + cocktail_guide ~mesbox recipes; IF1 book UI deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: restaurant leftovers (%gnome_restaurant_progress authorable); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
 
 
 
@@ -427,6 +454,33 @@ re-arm. Stop only when the user stops the loop.
 - slice 14v done: quest equip gates (heroes + dragon slayer) via ~levelrequire_quest_gate; mock230_pack 0 errors
 - slice 14w done: brimhaven thin (davon/alfonse/pirate_guard/pineapple); mock230_pack 0 errors
 - slice 14x done: deadmans bartender drinks + fishplatform1..4 Talk-to; mock230_pack 0 errors (3772 scripts)
-- next pending: Sea Slug thin (bailey/kennith/kent/holgart) or brimhaven hajedy/kangai stubs or gnome thin; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 14y done: Sea Slug thin (bailey/kennith/kent/holgart + constants/coords + kennithwall + boat procs); Caroline/locs deferred; mock230_pack 0 errors (3800 scripts)
+- slice 14z done: hajedy cart stub + ^zombiequeen_complete; trail/Shilo body deferred; mock230_pack 0 errors (3805 scripts)
+- slice 15a done: kangai_mau Tribal Totem start/hand-in + constants; body/journal/trail deferred; mock230_pack 0 errors (3814 scripts)
+- slice 15b done: gnome shop stubs (gulluck/hudo/rometti/heckelfunch); mock230_pack 0 errors
+- slice 15c done: brimstail essence tele + cave locs; mock230_pack 0 errors
+- slice 15d done: gnome troop Talk-to + ranged AI; mock230_pack 0 errors
+- slice 15e done: kalron + chantergnome + treequest constants; mock230_pack 0 errors
+- slice 15f done: gnome_waiter Trade stub; mock230_pack 0 errors
+- slice 15g done: aluft_gianne greeting stub (restaurant deferred); mock230_pack 0 errors
+- slice 15h done: remsai Talk-to; mock230_pack 0 errors
+- slice 15i done: bolkoy Trade stub; mock230_pack 0 errors
+- slice 15j done: gnometrainer Talk-to; mock230_pack 0 errors (3848 scripts)
+- slice 15k done: Caroline Sea Slug start + complete queue; mock230_pack 0 errors (3861 scripts)
+- slice 15l done: gnome_gate walk-through + grandtree constants; mock230_pack 0 errors (3908 scripts)
+- slice 15m done: commander_montai Talk-to; mock230_pack 0 errors (3909 scripts)
+- slice 15n done: king_bolren start/complete + ceremony; mock230_pack 0 errors (3914 scripts)
+- slice 15o done: elkoy maze guide; mock230_pack 0 errors
+- slice 15p done: hazelmere bark/scroll; mock230_pack 0 errors (3946 scripts)
+- slice 15q done: blurberrybarmen Trade stub + ingredient sales; barcrawl deferred; mock230_pack 0 errors (3976 scripts)
+- slice 15r done: blurberry greeting stub (gnome_bar deferred); mock230_pack 0 errors
+- slice 15s done: gnome_glider pilot_* + p_choice fly + glider.constant; mock230_pack 0 errors (4050 scripts)
+- slice 15t done: spirit_tree teleports + spirit_tree.constant; mock230_pack 0 errors (4071 scripts)
+- slice 15u done: treegnomelooserailing squeeze; mock230_pack 0 errors (4081 scripts)
+- slice 15v done: Sea Slug sticks/ladder/panel/crane/pickup; mock230_pack 0 errors
+- slice 15w done: seaslug_journal + questlist wire; mock230_pack 0 errors
+- slice 15x done: gnomes Talk-to + ranged AI; mock230_pack 0 errors (4132 scripts)
+- slice 15y done: giannes_cook_book + cocktail_guide ~mesbox recipe stubs (IF1 deferred); mock230_pack 0 errors (4162 scripts)
+- next pending: restaurant leftovers (%gnome_restaurant_progress authorable); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

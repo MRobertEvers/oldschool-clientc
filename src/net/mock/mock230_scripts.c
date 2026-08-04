@@ -43,6 +43,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ------------------------------------------------------------------ */
 /* Coordinates                                                         */
@@ -5127,6 +5128,23 @@ mock230_script_command(
     case SS_OP_MAP_CLOCK:
         SSVM_PushInt(state, srv->tick);
         return 1;
+
+    /*
+     * Wall-clock minutes since the Unix epoch. LostCity NumberOps.ts:
+     * `Math.floor(currentMs / 60000)`. Farming crop growth (and Miscellania)
+     * persist deadlines across logout; softtimer alone is only while online.
+     */
+    case SS_OP_DATE_MINUTES:
+    {
+        struct timespec ts;
+        long long ms;
+
+        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
+            ts.tv_sec = 0, ts.tv_nsec = 0;
+        ms = (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL;
+        SSVM_PushInt(state, (int)(ms / 60000LL));
+        return 1;
+    }
 
     /*
      * `map_members` gates the members-only branches in LostCity's drop tables,

@@ -32,7 +32,8 @@ Four repositories:
 | this repo (`3draster`) | the client, the server (`src/net/mock/`, "mock230" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
 | `OSRS-Content/osrs239-content` (submodule) | **the content tree** — the destination for all ported content |
 | `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
-| `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-254 behaviour reference** (Java). Use when LostCity has no proc (farming, hunter, slayer, construction, barrows, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
+| `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/Summoning/RS2-only. Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
+| `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-2009 OSRS behaviour reference** (Java). Use when LostCity *and* 2009scape have no proc (Wintertodt, Motherlode, rooftops, Zulrah, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
 
 The reference content tree is 1,326 `.rs2` files / 113k lines / 9,376 script
 blocks, organized **by subject** (area, quest, skill, minigame) with configs
@@ -652,6 +653,33 @@ engine:
    content could have said once the opcode existed.
 5. Agent loop state: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md).
 
+### 4.5 2009scape → OSRS-Content (authentic mid-era)
+
+LostCity stops at Sept 2004. Farming, hunter, construction, slayer, and most
+2005–2009 quests/minigames live in 2009scape as Java/Kotlin. Port them as
+content, not as engine — and **prefer 2009scape over Kronos** for this era
+(authenticity-first remake vs private-server inventiveness):
+
+1. Confirm LostCity has no proc (§2.2). If it does, use
+   [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md) instead.
+2. Read 2009scape under
+   `2009scape/Server/src/main/content/{global/skill,minigame,region,global/activity}/`
+   for *policy* (growth rules, trap lifecycle, brother order, quest steps).
+   Cross-check the osrs239 cache (dbtables, varbits, CS2, enums) for the
+   *wire* — when they disagree, the cache wins. Classic farming varbits often
+   still share numeric ids with rev 530, but **measure** before binding;
+   never paste `FarmingPatch.kt` ints into authored content unchecked.
+3. Skip the custom / non-OSRS skip-list in
+   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md)
+   (bots, holiday events, Summoning, Fist of Guthix, While Guthix Sleeps, …).
+4. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
+   If a new Server VM opcode is required, add it to that queue's opcode-gap
+   log, implement it, then land the content — never a one-off C hook that
+   content could have said once the opcode existed.
+5. Agent loop state: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
+   Mid-era slices that also appear on the Kronos queue are owned here; Kronos
+   keeps post-2009-only content.
+
 ---
 
 ## 5. Decision four: modern features with no LostCity reference
@@ -1132,7 +1160,11 @@ For any substantial task, in this order:
      §1, §9, §10.1, §12,
      `LostCity_Server/content/scripts/README.md`, and
      [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md)
-   - content porting (Kronos / post-254) → this file §4.4, then
+   - content porting (2009scape / mid-era) → this file §4.5, then
+     [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md);
+     behaviour under `2009scape/Server/src/main/content/`; still grep
+     LostCity first (§2.2); prefer over Kronos for pre-2013 content
+   - content porting (Kronos / post-2009) → this file §4.4, then
      [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md); behaviour
      under `Kronos184-Fixed_2/.../io/ruin/`; still grep LostCity first (§2.2)
    - ServerScript → [`serverscript.md`](serverscript.md)

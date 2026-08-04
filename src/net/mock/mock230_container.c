@@ -606,15 +606,16 @@ mock230_container_flush(struct Mock230Player* player)
              * the moment something bound to it, at which point the bind's own
              * full update has already covered it.
              *
-             * The bank is deliberately one of these. Its row exists for resolve
-             * and dirty — which is what fixes `inv_del(bank,…)` marking a worn
-             * slot — but its *transmit* still runs through mock230_bank_flush,
-             * which gates on the interface being open and re-sends tab
-             * bookkeeping with it. Folding that in means moving `bank.open`
-             * into this binding table; it is a real simplification and it is
-             * not this stage's.
+             * Exception: an external dirty_ref means another flush owns the
+             * bit. The bank is the case — its row exists for resolve and dirty
+             * (so `inv_del(bank,…)` marks correctly) but transmit still runs
+             * through mock230_bank_flush, which gates on bank.open. Cleaning
+             * here would clear bank.dirty before that flush could send
+             * UPDATE_INV_FULL. Folding bank transmit into this table means
+             * moving bank.open onto the binding; that is a real simplification
+             * and not this stage's.
              */
-            if( dirty )
+            if( dirty && !row->dirty_ref )
                 mock230_container_clean(row);
             continue;
         }
