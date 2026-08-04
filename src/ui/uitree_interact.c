@@ -488,8 +488,12 @@ interact_drag(
     struct UIInteractOut* out)
 {
     struct UIInputState* st = &interact->input_state;
-    int left_held = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) ||
-                    LibToriRS_Input_IsDragging(input, TORIRSM_LEFT);
+    /* Hold, not press-edge or input-level IsDragging: the input layer's 5px
+     * deadzone must not gate UITree drag ticks. Scrollbar thumbs use
+     * drag_behavior==1 with their own (usually 0) deadzone/deadtime; waiting
+     * on IsDragging left on_drag silent while drag_visual still moved once
+     * the input threshold finally tripped. Same gate as interact_hold. */
+    int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
 
     if( !sb_owns_mouse && st->drag_source_idx >= 0 && left_held )
     {

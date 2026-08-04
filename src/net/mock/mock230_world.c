@@ -216,10 +216,7 @@ unequip_slot(
     inv_set(player, dest, obj_id, player->worn[slot].count);
     worn_set(player, slot, -1, 0);
     mock230_say(srv, "unequip_message", mock230_objinfo(obj_id)->name);
-    /* Worn-tab Remove is still engine-owned; content's ~equip path calls
-     * ~update_bas itself. Without this hook, taking off a spear would leave
-     * staff/halberd idle seqs on the appearance blob. */
-    mock230_scripts_run_hook(srv, srv->hooks.update_bas, NULL, 0);
+    /* Content's ~unequip calls ~update_bas — no engine hook needed. */
 }
 
 /* ------------------------------------------------------------------ */
@@ -3117,12 +3114,18 @@ handle_opheld(
 
     /* The equipment tab's own components send their ops through the same
      * packet, so a click there means "take it off" rather than "put it on".
-     * Which slot came off is in the component, not in `slot`. */
+     * Which slot came off is in the component, not in `slot`. Route through
+     * the INV_BUTTON trigger first so content can own it; fall back to the
+     * engine's unequip_slot only when no script binds. */
     {
         int worn = mock230_equipment_worn_slot(component);
         if( worn >= 0 )
         {
-            unequip_slot(srv, worn);
+            player->last_slot = worn;
+            player->last_com = component;
+            if( mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1, component, -1, -1)
+                    == MOCK230_TRIGGER_NONE )
+                unequip_slot(srv, worn);
             return;
         }
     }
@@ -4821,7 +4824,7 @@ social_broadcast_to_followers(
  * a login runs this with the *newcomer* active and a logout runs it with the
  * departing player already gone, and neither may leak into the next statement.
  *
- * Silence when the hook is unresolved is deliberate and is the whole content
+ * Silence when the proc is unresolved is deliberate and is the whole content
  * seam: whether a tree notifies at all is stated by whether it defines the proc.
  */
 static void
@@ -4829,7 +4832,7 @@ social_notify_followers(
     struct Mock230Server* srv,
     int64_t name37,
     const char* display_name,
-    const struct SSVM_Script* hook)
+    const char* proc_name)
 {
     int64_t followers[MOCK230_SOCIAL_FRIENDS_MAX];
     const int max = (int)(sizeof(followers) / sizeof(followers[0]));
@@ -4837,33 +4840,27 @@ social_notify_followers(
     const char* strv[1];
     int count;
 
-    if( !hook || name37 == 0 || !display_name || !display_name[0] )
+    if( !proc_name || name37 == 0 || !display_name || !display_name[0] )
         return;
 
     count = mock230_friends_followers(name37, followers, max);
     if( count > max )
-        count = max; /* social_broadcast_to_followers already said so, loudly. */
+        count = max;
 
     strv[0] = display_name;
     for( int i = 0; i < count; i++ )
     {
         struct Mock230Player* follower = social_player_by_name37(srv, followers[i]);
 
-        /* Not online here, so there is no chatbox to write to. */
         if( !follower )
             continue;
-        /* Telling you that you have logged in is not a thing any client does,
-         * and adding yourself as a friend is not refused anywhere. */
         if( follower->name37 == name37 )
             continue;
-        /* The same gate the world byte gets. Without it a player whose privacy
-         * is OFF still announces themselves to everyone who listed them, which
-         * is precisely the leak `isVisibleTo` exists to stop. */
         if( !mock230_friends_visible_to(followers[i], name37) )
             continue;
 
         mock230_world_set_active(srv, follower);
-        mock230_scripts_run_hook_sv(srv, hook, NULL, 0, strv, 1);
+        mock230_scripts_run_proc_sv(srv, proc_name, NULL, 0, strv, 1);
     }
     mock230_world_set_active(srv, was_active);
 }
@@ -4932,7 +4929,7 @@ mock230_world_social_login(struct Mock230Player* player)
      * the order the sentence describes.
      */
     social_notify_followers(srv, me, player->display_name,
-                            srv->hooks.friend_login_notification);
+                            "[proc,friend_login_notification]");
 }
 
 /** The name37 in an 8-byte social packet, or 0 if the frame is short. */
@@ -5382,46 +5379,21 @@ mock230_world_varp(const char* symbol)
 
 
 /*
- * The two varbits interface 593 builds itself from.
- *
- * `weapon_category` selects which of the button layouts the combat tab builds
- * — the tab's own CS2 (script 7593) hides every style button when it is 0,
- * which is why an unset one shows nothing but auto-retaliate. It carries a
- * weapon *type*, derived above from the worn weapon's cache category.
+ * The combat_level varbit interface 593 builds itself from.
  *
  * `combat_level` is the number printed above the buttons, by the same formula
  * the minimenu colours npc levels with.
  *
- * Both are written whenever their input changes — equipping, unequipping or
- * gaining a level — because a varbit the client is never told about reads as 0,
- * and 0 is a meaningful category.
+ * `combat_weapon_category` is no longer computed here — content writes
+ * %combat_weapon_category via ~combat_weapon_category_sync on equip/unequip.
+ *
+ * Level is written whenever its input changes — equipping, unequipping or
+ * gaining a level — because a varbit the client is never told about reads as 0.
  */
 void
 mock230_world_sync_combat_varbits(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->active_player;
-    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
-    /*
-     * Which button layout the tab draws is content's.
-     *
-     * `[proc,combat_weapon_type]` is a `switch_category` over the worn weapon,
-     * which is the shape the reference keeps it in
-     * (`~combat_get_weapon_style_data`). It was a 26-row C table here,
-     * transcribed from OpenRune's WeaponCategory.kt — a mapping between two id
-     * spaces the cache does not relate, which is precisely the kind of claim
-     * that belongs where someone can correct it.
-     *
-     * Falls back to 0 (unarmed) when content does not answer: an unknown weapon
-     * showing three styles and no autocast is the safe wrong answer, since the
-     * alternative promises buttons the server cannot handle.
-     */
-    int32_t weapon_arg = (int32_t)weapon;
-    int32_t resolved = 0;
-    int category = mock230_scripts_run_hook_int(srv, srv->hooks.combat_weapon_type,
-                                                &weapon_arg, 1, &resolved)
-                       ? (int)resolved
-                       : 0;
-    int category_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combat_weapon_category");
     int level_varbit = mock230_content_symbol(MOCK230_PACK_VARBIT, "combatlevel_transmit");
     int level = mock230_combat_level(player);
 
@@ -5429,14 +5401,11 @@ mock230_world_sync_combat_varbits(struct Mock230Server* srv)
      * Compared before writing, unlike an ordinary varp write.
      *
      * A varp assignment always transmits — that is the reference's rule and
-     * `[login] %com_mode = 0` depends on it. But these two are *derived*: they
-     * are recomputed every tick from the equipment and the stats, so writing
-     * unconditionally would put two varps on the wire fifty times a minute for
-     * a value that has not moved. Derived state compares; authored state does
-     * not.
+     * `[login] %com_mode = 0` depends on it. But this is *derived*: it is
+     * recomputed every tick from the stats, so writing unconditionally would put
+     * a varp on the wire fifty times a minute for a value that has not moved.
+     * Derived state compares; authored state does not.
      */
-    if( category_varbit >= 0 && mock230_varbit_get(player, category_varbit) != category )
-        mock230_varbit_set(srv, category_varbit, category);
     if( level_varbit >= 0 && mock230_varbit_get(player, level_varbit) != level )
         mock230_varbit_set(srv, level_varbit, level);
 }
@@ -5804,7 +5773,7 @@ mock230_world_remove_player(
      */
     social_broadcast_to_followers(srv, name37);
     social_notify_followers(srv, name37, display_name,
-                            srv->hooks.friend_logout_notification);
+                            "[proc,friend_logout_notification]");
 }
 
 /*
@@ -6899,11 +6868,9 @@ phase_client_out(struct Mock230Player* player)
      * tick behind the item that changed it. */
     run_energy_flush(srv);
 
-    /* Same argument for the bonus screen — it is a view of the worn container,
-     * so it repaints on the tick that container changed rather than the next
-     * time it is opened. No-op unless the screen is up. */
-    if( player->worn_dirty )
-        mock230_equipment_refresh_stats(srv);
+    /* Content refreshes the bonus screen on equip/unequip directly, so no
+     * engine-driven repaint is needed here any more. */
+    (void)player->worn_dirty;
 
     /*
      * Every bound container, in one loop.
@@ -11559,6 +11526,41 @@ mock230_world_selftest(void)
                            "orbs:xp_drops must not remap onto the HUD slot "
                            "(expected %d, got %d)",
                            orbs_xp, target);
+        }
+
+        /* End-to-end: orb Show/Hide under Fixed must mount into toplevel:xp_drops. */
+        {
+            uint8_t button[6];
+            int found = 0;
+
+            button[0] = (uint8_t)(orbs_xp >> 24);
+            button[1] = (uint8_t)(orbs_xp >> 16);
+            button[2] = (uint8_t)(orbs_xp >> 8);
+            button[3] = (uint8_t)orbs_xp;
+            button[4] = 0xff;
+            button[5] = 0xff;
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            mock230_capture_end(&srv);
+
+            for( int at = 0; (at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, at)) >= 0;
+                 at++ )
+            {
+                rsab_wrap(&mount, capture.packets[at].data, (size_t)capture.packets[at].len);
+                type = rsab_g1(&mount);
+                group = rsab_g2_alt2(&mount);
+                target = rsab_g4_alt3(&mount);
+                if( group == xp_drops_iface && target == fixed_xp && type == 1 )
+                {
+                    found = 1;
+                    break;
+                }
+            }
+            SELFTEST_CHECK(found,
+                           "Fixed orb Show/Hide must IF_OPENSUB xp_drops into "
+                           "toplevel:xp_drops (%d)",
+                           fixed_xp);
         }
 
         player->client_layout_mode = 1;
@@ -18209,9 +18211,47 @@ mock230_world_selftest(void)
                         speed_at = i;
                 }
             }
-            SELFTEST_CHECK(settext == 18,
-                           "bank open should paint eighteen bonus rows, got %d",
+            SELFTEST_CHECK(settext == 19,
+                           "bank open should paint eighteen bonus rows plus capacity, got %d",
                            settext);
+            {
+                int capacity_at = -1;
+
+                for( int i = 0; i < capture.count; i++ )
+                {
+                    if( capture.packets[i].opcode != 94 )
+                        continue;
+                    {
+                        const uint8_t* d = capture.packets[i].data;
+                        int uid = (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
+
+                        if( uid == ids->com_bankmain_capacity )
+                        {
+                            capacity_at = i;
+                            break;
+                        }
+                    }
+                }
+                SELFTEST_CHECK(capacity_at >= 0, "bank open should IF_SETTEXT bankmain:capacity");
+                if( capacity_at >= 0 )
+                {
+                    const struct Mock230CapturedPacket* packet = &capture.packets[capacity_at];
+                    char text[16];
+                    char want[16];
+                    int n = packet->len - 4 - 1;
+
+                    if( n < 0 )
+                        n = 0;
+                    if( n > (int)sizeof(text) - 1 )
+                        n = (int)sizeof(text) - 1;
+                    memcpy(text, packet->data + 4, (size_t)n);
+                    text[n] = '\0';
+                    snprintf(want, sizeof(want), "%d", player->bank.size);
+                    SELFTEST_CHECK(strcmp(text, want) == 0,
+                                   "capacity text should be inv size \"%s\", got \"%s\"", want,
+                                   text);
+                }
+            }
             if( stab_at >= 0 )
             {
                 const struct Mock230CapturedPacket* packet = &capture.packets[stab_at];

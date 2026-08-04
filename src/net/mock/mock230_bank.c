@@ -860,9 +860,10 @@ mock230_bank_open(struct Mock230Server* srv)
     }
 
     /* Bankmain embeds the same bonus rows the equipment screen paints; CS2
-     * toggles them behind wornitems_button. Content's ~equipment_refresh
-     * gates on if_getmain = bankmain and paints — same hook as worn-dirty. */
-    mock230_scripts_run_hook(srv, srv->hooks.equipment_refresh, NULL, 0);
+     * toggles them behind wornitems_button. Content's openbank also calls
+     * ~equipment_refresh after if_openmain_side; this covers ::bank / C open
+     * and the selftest that calls mock230_bank_open directly. */
+    mock230_scripts_run_proc(srv, "[proc,equipment_refresh]", NULL, 0);
 }
 
 void

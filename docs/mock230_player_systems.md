@@ -848,10 +848,18 @@ show/hide the XP drop widget on login and on clicking the orb").
 1. Arms **op1|op2** (`^xpdrops_orb_events`).
 2. On op1, toggles `%xpdrops_enabled` and calls `~xpdrops_sync_mount`
    (`if_opensub` / `if_closesub` on `toplevel_osrs_stretch:xp_drops`, type 1).
+   That stretch spelling is a **role alias**: `mock230_remap_gameframe_slot_uid`
+   rewrites any gameframe-top `:role` (not only `:mainmodal` / `:sidemodal` /
+   `:floater`) onto the live top, so under Fixed the mount lands on
+   `toplevel:xp_drops`. Nested panels like `orbs:xp_drops` are not rewritten.
 3. Keeps `xp_drops` **out of** `gameframe.enum` so the default (off) does not
    leave a live `if_setonstattransmit` listener drawing drops after Hide.
    `~xpdrops_sync_mount` also runs from `~orbs_login` and after
    `if_opentop` in `gameframe_apply_mode`.
+
+**Verified** (mock230 selftest, Fixed top 548): encoding
+`toplevel_osrs_stretch:xp_drops` remaps to `toplevel:xp_drops`; orb op1 under
+Fixed emits `IF_OPENSUB` into that live slot; `orbs:xp_drops` is left alone.
 
 ---
 

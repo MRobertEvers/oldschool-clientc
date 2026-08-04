@@ -1473,6 +1473,47 @@ mock230_scripts_run_trigger(
     return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 1, 1);
 }
 
+/*
+ * Trigger dispatch with string arguments — used by friend login/logout
+ * notifications that hand the display name to content (`[friendlogin,_]`).
+ */
+int
+mock230_scripts_run_trigger_sv(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    const char* const* strv,
+    int strc)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+
+    if( !srv->scripts_ok )
+        return MOCK230_TRIGGER_NONE;
+
+    script = SSVM_ProviderGetByTrigger(srv->scripts, trigger, type, category);
+    if( !script )
+        return MOCK230_TRIGGER_NONE;
+
+    state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, strv, strc);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s rejected string argument(s)\n",
+                script->name ? script->name : "?");
+        return MOCK230_TRIGGER_FAILED;
+    }
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    {
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
+        state->host_tag = npc_slot + 1;
+    }
+    return run_or_park(srv, state) ? MOCK230_TRIGGER_RAN : MOCK230_TRIGGER_FAILED;
+}
+
 int
 mock230_scripts_run_trigger_on_loc(
     struct Mock230Server* srv,
@@ -1997,14 +2038,9 @@ static const struct
           "mock230_world.c:2333-2364, whose greeting half is ALREADY content "
           "([proc,npc_default_chat], player/messages.rs2:137) — so what is left in C is "
           "a strcmp against the cache's own Attack verb and the FACE_ENTITY latch "
-          "before the proc, and nothing else. The reference states it "
-          "as [opnpc2,_] @player_combat_start "
-          "(skill_combat/scripts/player/player_combat.rs2:1). DO NOT write "
-          "[opnpc2,_] p_opnpc(2) to close this: SS_OP_P_OPNPC calls "
-          "mock230_combat_engage directly (mock230_scripts.c, `case SS_OP_P_OPNPC:`) "
-          "and does not re-dispatch, so the row would go and all 1,061 lines would "
-          "stay, now unreachable from this list. Blocked on porting player_combat "
-          "itself",
+          "before the proc, and nothing else. [opnpc2,_] now owns Attack for op 2 "
+          "and p_opnpc re-dispatches through the interaction path for all ops. "
+          "Blocked on the remaining combat_engage callers moving to content",
           k_blocked_opnpc },
     [MOCK230_FALLBACK_INV_BUTTON] =
         { "inv_button",
@@ -4823,20 +4859,9 @@ mock230_script_command(
         npc = &srv->npcs[slot];
         info = mock230_npcinfo(npc->type);
         /*
-         * Op 2 stays combat_engage: content's Attack bindings (`combat.rs2`)
-         * and auto-retaliate call `p_opnpc(2)` expecting that. LostCity
-         * re-issues APNPC2 into player_combat instead; until that content
-         * lands, the engage shortcut is the working path.
-         *
-         * Every other op re-issues like LostCity PlayerOps.ts — fishing's
-         * Light-style resume loops (`p_opnpc(4)` / `p_opnpc(5)` on saltfish
-         * and freshfish) need the dispatch, not a walk-and-stop.
+         * All ops now re-dispatch like LostCity PlayerOps.ts — [opnpc2,_] owns
+         * Attack, and content calls p_opnpc(2) expecting the interaction path.
          */
-        if( op_num == 2 )
-        {
-            mock230_combat_engage(srv, slot);
-            return 1;
-        }
         if( !info->ops[op_num - 1] )
             return 1;
         mock230_world_clear_pending_action(srv);

@@ -356,6 +356,26 @@ blurb + Quest XP rows). Weapons→Overview content region ~31% pixel diff.
 
 Still stubbed, not required for the hide fix: **8012** (post-sort in 9194).
 
+### Landed (2026-08-03) — Overview / Quest XP sub-tabs clickable
+
+Two CS2/host bugs left the sub-tabs looking live but doing nothing useful:
+
+1. **Opcode 211 pop order.** Script 9181 pushes `211(1, $tabs, -1)` (start on
+   top). The handler popped unused first, so `start` became `1` and skipped
+   tab sub-id `0` (Overview). Switching to Quest XP never hid Overview's
+   panel; switching back had nothing to re-arm.
+2. **`UITree_CollectDynamicChildIndices` exclusive bound.** `212(1)` in script
+   9179 walks tab chrome children whose sub-ids start at `1`. Filtering with
+   `i > start` dropped the first child and left the fifth `213` (the
+   `cc_setonop(9180)` arm) unreachable on the Overview tab. Inclusive
+   `i >= start` matches v1 and the call sites; Quest XP ↔ Overview both arm.
+
+Verified headless (embed Soft3D): open Attack Overview, click Quest XP at the
+hit target (`~353,67`), then Overview (`~233,67`) — content swaps both ways,
+each click resolves `View …` / script 9180. Title stays "Attack - Overview"
+until a left-rail rebuild (cache title script); the content chrome still draws
+through the tab labels (layout/z-order, separate from click arming).
+
 ---
 
 

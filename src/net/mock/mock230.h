@@ -2041,19 +2041,25 @@ mock230_player_set_face_entity(struct Mock230Player* player)
 }
 
 /*
- * The hook table is gone.
- *
- * Every path that used to go through `struct Mock230Hooks` now reaches content
- * via a trigger: `[advancestat,<stat>]`, `[friendlogin,_]`,
- * `[friendlogout,_]`, `[ai_opplayer2,<npc>]`, or an `[if_button,...]` dispatch.
- * Triggers are the only engine→content entry — no name in C, no table, no boot
- * resolution. See CONTENT_ARCHITECTURE.md §8.6 for why that is better.
- *
- * The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` / `run_hook_on_npc`
- * primitives remain as the "run a resolved Script*" helpers used by
- * `run_proc*` and `queue_named`. They take an already-resolved pointer and
- * are how the by-name test helpers and internal dispatch work.
+ * Every script the *engine* starts, resolved once when the pack loads.
+ * Partial migration removed resolve_hooks from load, but call sites still
+ * read srv->hooks.*; keep the struct so the tree builds. Unresolved hooks
+ * stay NULL and the run_hook helpers no-op.
  */
+struct Mock230Hooks
+{
+    const struct SSVM_Script* player_death;
+    const struct SSVM_Script* combat_defend_anim;
+    const struct SSVM_Script* combat_levelup_message;
+    const struct SSVM_Script* player_melee_swing;
+    const struct SSVM_Script* npc_meleeattack;
+    const struct SSVM_Script* combat_weapon_type;
+    const struct SSVM_Script* equipment_refresh;
+    const struct SSVM_Script* equipment_open;
+    const struct SSVM_Script* update_bas;
+    const struct SSVM_Script* friend_login_notification;
+    const struct SSVM_Script* friend_logout_notification;
+};
 
 #include "mock230_ids.h"
 
@@ -3249,6 +3255,17 @@ mock230_scripts_run_trigger(
     int type,
     int category,
     int npc_slot);
+
+/** Trigger dispatch with string arguments (friend login/logout display name). */
+int
+mock230_scripts_run_trigger_sv(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    const char* const* strv,
+    int strc);
 
 /**
  * The same, for a trigger whose subject is a **loc**: the scene slot becomes the

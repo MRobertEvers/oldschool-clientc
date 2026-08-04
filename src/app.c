@@ -11400,13 +11400,29 @@ App_RunOnce(
 
     if( ran_cs2 )
     {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        /* DispatchHook only enqueues. Drain so UI scripts (esp. on_drag →
+         * scrollbar_vertical_drag's if_setscrollpos / cap cc_setposition) apply
+         * before this frame's layout+emit. Reference runs ScriptEvents
+         * synchronously while dragging; without this the middle thumb moves via
+         * drag_visual while caps and the scroll layer stay a frame (or forever
+         * under a busy queue) behind. */
         {
-            UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+            int const budget = 64;
+            for( int i = 0; i < budget; i++ )
+            {
+                stat = TaskRunner_Step(&app->runner);
+                if( stat == TASK_RUNNER_IDLE )
+                    break;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+            {
+                UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            }
+            /* Yielding scripts still need a later refresh when the queue drains. */
+            if( stat != TASK_RUNNER_IDLE )
+                app->runner_had_work = 1;
         }
-        /* The dispatched scripts run asynchronously; refresh the tree again
-         * when the runner queue next drains so late mutations land. */
-        app->runner_had_work = 1;
     }
 
     if( app->need_redraw )

@@ -45,13 +45,10 @@
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
 {
-    /*
-     * Content decides *whether* and *which* bonus view to paint:
-     * `[proc,equipment_refresh]` reads `if_getmain` and either paints the
-     * equipment screen, the bank's embedded rows, or nothing. The engine's
-     * share is only *when* — the tick the worn container changed.
-     */
-    mock230_scripts_run_hook(srv, srv->hooks.equipment_refresh, NULL, 0);
+    /* Content owns the paint (`[proc,equipment_refresh]`); the engine owns
+     * *when* — worn_dirty flush and bank/equip open sites call here. By name
+     * rather than the unresolved hook table. */
+    mock230_scripts_run_proc(srv, "[proc,equipment_refresh]", NULL, 0);
 }
 
 void
@@ -59,8 +56,8 @@ mock230_equipment_open_stats(struct Mock230Server* srv)
 {
     /* The button is content's — `[if_button,wornitems:equipment]` — so this
      * seam exists only for the `::equipstats` cheat, which opens the screen
-     * without walking the sidebar. It runs the same proc the button does. */
-    mock230_scripts_run_hook(srv, srv->hooks.equipment_open, NULL, 0);
+     * without walking the sidebar. Fire the same if_button trigger. */
+    mock230_scripts_run_if_button(srv, mock230_ids()->com_worn_equipment_stats, 0);
 }
 
 int

@@ -723,7 +723,23 @@ horizontally at all ([uitree_input.c:459](src/ui/uitree_input.c#L459)).
 state machine: `drag_active` stayed set, `on_drag_complete` never fired, and the
 widget froze at its stale drag visual while the CS2 script moved the rest of the
 scrollbar. `bridge_input_to_uitree` now synthesises UP for `IsDragEnd` too
-([uitree_interact.c:247](src/ui/uitree_interact.c#L247)).
+([uitree_interact.c:313](src/ui/uitree_interact.c#L313)).
+
+**Drag ticks while the button is held, not only after input-level `IsDragging`.**
+`interact_drag` used `IsMouseDown || IsDragging`. The press edge is one frame, and
+`IsDragging` waits on the input layer's 5px deadzone — so UITree never ticked its
+own (usually 0) deadzone/deadtime for scrollbar thumbs until that threshold, and
+`on_drag` could stay silent while `drag_visual` eventually moved the middle alone.
+It now uses `IsMouseHeld`, same as `interact_hold`
+([uitree_interact.c:491](src/ui/uitree_interact.c#L491)).
+
+**`on_drag` CS2 must apply before emit in the same frame.**
+`RS_CS2_DispatchHook` only enqueues. The frame's TaskRunner pump ran *before*
+`InteractFrame`, so `scrollbar_vertical_drag`'s `if_setscrollpos` and cap
+`cc_setposition` landed next frame (or starved under a busy queue) while the
+middle followed `drag_visual` immediately. After intent dispatch, `App_RunOnce`
+drains the runner (bounded) before layout+emit
+([app.c](src/app.c) — post-intent `TaskRunner_Step` loop).
 
 **IF1 scrollbars have no components, so they need an interception.**
 They are emit-drawn chrome, invisible to the generic hit test. `interact_scrollbars`
@@ -731,7 +747,7 @@ runs *first*, and when it takes the press it forcibly clears
 `drag_source_idx`/`drag_source_id`/`pressed` so the press can never also become an
 object drag; while the bar owns the mouse, a fabricated empty `ui_result` keeps the
 generic hover/click/drag path from ever seeing it
-([uitree_interact.c:266](src/ui/uitree_interact.c#L266)).
+([uitree_interact.c:337](src/ui/uitree_interact.c#L337)).
 
 **Wheel dispatch has an order and a sign.**
 IF1 native scrolling runs first (innermost scrollable IF1 layer under the cursor, by
@@ -739,14 +755,14 @@ smallest area — the wheel must work over empty content, unlike a geometric lea
 test), then the innermost component with an `on_scroll_wheel` hook. Our wheel-up is
 positive; the reference's `wheelStep` is +1 for wheel-**down**, so the sign is
 inverted when building the script's event mouse Y
-([uitree_interact.c:327](src/ui/uitree_interact.c#L327)).
+([uitree_interact.c:422](src/ui/uitree_interact.c#L422)).
 
 **Script event coordinates are relative to the *drawn* position.**
 Every hook that carries mouse context (`hover`, `hold`, `wheel`) passes
 `mouse - (abs - scroll_off)`. For `on_drag` it is stranger still: the coordinate
 space is the drag render area, folded back into content space by adding that area's
 scroll — that is what makes a scrollbar dragger's script math come out right
-([uitree_interact.c:426](src/ui/uitree_interact.c#L426)).
+([uitree_interact.c:524](src/ui/uitree_interact.c#L524)).
 
 **Hover ids are not just "the node under the cursor".**
 IF1 redirects through `over_layer_id` / `over_color`; IF3 has no such fields, so
