@@ -1232,6 +1232,32 @@ forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
 - **When a mounted panel draws nothing, it is a client bug until proven
   otherwise** (`REV230_UI_BLANK_PANELS.md` §1): `TORIRS_DUMP_TREE_EXIT=1` →
   `TORIRS_DUMP_BOUNDS` → `TORIRS_DUMP_SETSIZE` → only then suspect a packet.
+- **A bare name in an argument is ambiguous until something says which namespace
+  it belongs to, and the wrong answer never fails.** This tree has hit it four
+  times now and the shape is always the same: the name resolves, the opcode is
+  legal, the write lands, and the damage is somewhere else. `stat_heal(hitpoints,
+  …)` took param 2100; `if_openmain_side(farming_tools, …)` took loc 7516;
+  `if ($stat = attack …)` took varp 259 and made 357 items wearable at level 1;
+  `settimer(poison, 30)` took **obj 273** and armed a timer on
+  `[label,woman_im_looking_for_a_lady]`, so a player in the volcano got a West
+  Ardougne dialogue box. See `serverscript.md` §The compiler for all four.
+
+  Three rules fall out, in order of preference. **(a) Put the name in data.** A
+  config key (`.enum` with `inputtype=stat`, a `.dbtable` column) is resolved by
+  the content loader against a declared type and cannot see the symbol table at
+  all — this is the only answer that also works outside an argument position,
+  e.g. in a comparison. **(b) If it must be an argument, state the namespace in
+  `parse_command`** (`arg_kind_hint`, `arg_is_script_name`) — and take
+  membership from the reference's typed signatures in
+  `LostCity_Server/content/scripts/engine.rs2`, **never from the command's
+  spelling**: `npc_settimer(int $interval)` takes no script despite the name, and
+  guessing from names is how the list got wrong the first time. **(c) Leave a
+  check that does not need the site to be reached.** A collision hides until the
+  timer fires or the quest completes — nine of the twenty-three `settimer`/`queue`
+  sites were once-per-account quest queues — so the check belongs at load over
+  the whole pack (`mock230_scripts_report_script_id_args`, selftest-pinned),
+  not only at the call. A compile-time `note:` on the ambiguity is the cheap
+  companion; silence is what let it live.
 - **Docs are part of done.** Every landed system above has a topic doc that
   self-corrects; keep that discipline. Update the triage's §10.1 running log
   when a slice lands.
@@ -1270,6 +1296,15 @@ For any substantial task, in this order:
      [`SKILLS_CONTENT_PORT_QUEUE.md`](SKILLS_CONTENT_PORT_QUEUE.md); wiki is
      gap authority; still grep LostCity then 2009scape then Kronos first
      (§2.2 / §4.7); do not steal slices owned on other queues
+   - weapon animations / swing + equip sounds / special attacks →
+     [`WEAPON_FX.md`](WEAPON_FX.md) (the measured findings), then
+     [`WEAPON_FX_PORT_QUEUE.md`](WEAPON_FX_PORT_QUEUE.md) (the lanes and the
+     bars). Its §1 is the trap: the anim params carry a `default=`, so an
+     unported weapon does not fail — it swings a bronze longsword, and 913 of
+     this cache's 1,083 combat weapons do. Sources are the cache (names), the
+     wiki (behaviour) and RuneLite `gameval/` (id↔name); the mapping itself
+     comes from rsmod's `objs.toml`, which states weapon FX as obj params the
+     way this tree already reads them
    - ServerScript → [`serverscript.md`](serverscript.md)
    - instanced maps / dynamic regions (POH, Pest Control island, private
      mazes, cutscene sets) → [`map_instances.md`](map_instances.md). Its §5 is

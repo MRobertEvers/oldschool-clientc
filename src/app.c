@@ -3799,6 +3799,45 @@ app_debug_log_position(struct App* app)
         app->world_camera_pos.z,
         app->world_camera.yaw,
         app->world_camera.pitch);
+    fprintf(stderr, "  varbit zuk_hp(5653)=%d zuk_base_hp(5654)=%d varp1575=%d\n",
+            VarPManager_GetVarbit(&app->varps, 5653), VarPManager_GetVarbit(&app->varps, 5654),
+            VarPManager_GetVarp(&app->varps, 1575));
+    {
+        struct World_EntityPool* pool = &app->world->entities.scenery;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
+            if( !sc || !sc->runtime_spawn )
+                continue;
+            fprintf(stderr, "  rtloc idx=%d loc=%d el=%d slot=%d,%d L%d shape=%d angle=%d wall_ab=%d\n",
+                    i, sc->loc_id, sc->element_id, sc->grid_position.x, sc->grid_position.z,
+                    sc->grid_position.level, sc->shape, sc->angle, sc->painter_wall_ab);
+        }
+    }
+    {
+        struct World_EntityPool* pool = &app->world->entities.npc;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_NPC* n = World_EntityPoolGet(pool, i);
+            if( !n )
+                continue;
+            struct ToriDraw_SceneElement* sel =
+                n->element_id >= 0 ? ToriDraw_SceneElementGet(app->scene, n->element_id) : NULL;
+            fprintf(
+                stderr,
+                "  npc slot=%d type=%d '%s' grid=%d,%d L%d draw=%d,%d elpos=%d,%d,%d yaw=%d "
+                "ground=%d size=%d\n",
+                n->server_slot, n->npc_id, n->name, n->grid_position.x, n->grid_position.z,
+                n->grid_position.level, (int)n->draw_position.x, (int)n->draw_position.z,
+                sel ? sel->world_position.x : -1, sel ? sel->world_position.y : -1,
+                sel ? sel->world_position.z : -1, sel ? sel->world_position.yaw : -1,
+                app_world_height(app, (int)n->draw_position.x, (int)n->draw_position.z,
+                                 app_cinema_level(app)),
+                n->size);
+        }
+    }
 }
 
 /* TORIRS_BRIDGE_DEBUG=1: list every LinkBelow column in the loaded scene with
@@ -5847,7 +5886,10 @@ app_world_paint(struct App* app)
         }
     }
 
-    painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+    if( getenv("TORIRS_PAINTER_W3D") )
+        painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+    else
+        painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;
     app->world_camera_pos.y = shake_y;

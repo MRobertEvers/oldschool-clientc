@@ -960,6 +960,67 @@ Things worth knowing:
   The general form, worth carrying to the next bare-name enumeration
   (`locshape`, `npc_stat`): **the compiler can only disambiguate a name it sees
   as an argument.** Everywhere else, put the name in data.
+- **A queue/timer argument names a script, and the script namespace is not in
+  the symbol table** — so it has to be consulted *before* the packs, not after.
+  It was after until 2026-08-04, and that is the same collision as the stat hint
+  above with a much worse landing. `settimer(poison, 30)` found **obj 273**
+  named `poison` and never reached `[timer,poison]`; the engine armed a timer
+  whose "script id" was an obj id and then ran whatever script happened to sit
+  at 273 — `[label,woman_im_looking_for_a_lady]`, whose first statement is a
+  `~chatplayer_anim`. The symptom was a stray dialogue box on a player nowhere
+  near West Ardougne, and **which line it was moved every time the tree grew**,
+  because the only thing choosing it was an unrelated namespace's allocation
+  order. Nothing failed anywhere: the name resolved, the opcode was legal, the
+  timer fired.
+
+  Measured at the fix: **23 call sites, 14 names**, and the largest group was
+  the quiet one — nine `queue(<quest>_complete, …)` sites where the collision
+  was a `.constant` of **value 0**, so every one of those quest completions
+  queued script id 0. The others were varps (`desert_heat` 5987, `frozen` 5754),
+  an interface (`trawler_start` 368) and the obj above.
+
+  `parse_command` states the script-naming commands the way it states `ENUM`'s
+  type positions — an explicit table, because `ss_meta.gen.h` carries argument
+  *counts*, not signatures, and the reference gets this from the declared
+  parameter type (`timer`, `queue`). The position also states *which* trigger it
+  wants, so `settimer(x)` cannot pick up a `[proc,x]` that shares the name — the
+  generic `proc, label, queue, softtimer, timer, walktrigger` order would hand
+  it the proc. A name that resolves both ways prints a `note:` naming the loser,
+  because `settimer(poison, …)` does not look ambiguous in the source.
+
+  **Membership in that table comes from `content/scripts/engine.rs2`, not from
+  the command's spelling.** Twelve commands take a typed script parameter
+  (`[command,settimer](timer $timer, int $interval)`); the three `npc_*`
+  lookalikes do **not** — `npc_settimer(int $interval)`,
+  `npc_queue(int $ai_queue, int $arg, int $delay)`,
+  `npc_walktrigger(int $ai_queue, int $arg)` name an `[ai_queue<n>]`/`[ai_timer]`
+  by *number*, keyed on the npc's own type. They were on the table for one
+  revision on the strength of their names, where hinting them would have read an
+  interval as a script — which is the same reasoning-from-the-name that caused
+  the bug the table exists to prevent. Read the signature.
+
+  **Three layers, and the third is the one that matters most.**
+  1. the compiler resolution above;
+  2. `script_kind_allowed` (`net/mock/mock230_scripts.c`) — a script started **by
+     id** must be of the kind whose slot held the id, and it refuses rather than
+     warns, because the id survives a recompile in a save or a fixture;
+  3. `mock230_scripts_report_script_id_args` — the same question asked of the
+     **pack**, at load, pinned by the selftest.
+
+  Layer 3 exists because 1 and 2 both need the site to be *reached*. Nine of the
+  twenty-three sites were `queue(<quest>_complete, …)` — fired once per account,
+  so no test run gets there. It reads the constant that supplied each argument
+  and names both ends: *"[opnpc1,hassan] passes [ai_queue1,al_kharid_warrior] to
+  QUEUE — that argument names a queue script"*. It can only read a
+  fully-constant argument list (the id is `int_in` instructions back, which is
+  only true if every argument compiled to exactly one push), so it reports the
+  skipped count under `MOCK230_VERBOSE` rather than implying it is total.
+
+  Mutation-checked, all three: reverting the compiler turns
+  `test_script_name_argument` (`serverscript/test/ssc_test.c`, fixture where
+  `coins` is also obj 995) red with *"got 995 want 1"*, makes the pack check
+  report **22 of the 23** sites, and leaves the runtime guard printing *"refusing
+  to start [label,woman_im_looking_for_a_lady] by id 273"*.
 
 ## Tests
 
@@ -979,7 +1040,12 @@ Nothing asserts a measured constant — the corpus is regenerated whenever the
 reference's content changes, so counts and byte totals are *printed for drift*
 and only self-consistency is asserted.
 
-Two of these are worth understanding rather than just running:
+Three of these are worth understanding rather than just running, and one lives
+outside this list: **`mock230 --selftest`** pins
+`mock230_scripts_report_script_id_args` at 0, which is the only check in the
+system that sees a `settimer`/`queue` argument pointing at the wrong script
+*without the site being triggered*. `test-ssc`'s `test_script_name_argument`
+pins the compiler half. Both are described under §The compiler.
 
 **`test-ss-roundtrip`** re-encodes every script and compares bytes. A decoder can
 pass every structural check and still be wrong — skip a field it does not model,

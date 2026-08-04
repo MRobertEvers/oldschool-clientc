@@ -99,6 +99,9 @@ enum
     OP_CAM_MOVETO = 67,
     OP_CAM_LOOKAT = 30,
     OP_CAM_SHAKE = 107,
+    /* SYNTH_SOUND — packetin.h:102, field order id g2 / loops g1 / delay g2
+     * matches gameproto_parse.c:706-710 (the client's own reader). */
+    OP_SYNTH_SOUND = 102,
 };
 
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -163,6 +166,8 @@ opcode_name(int op)
         return "CAM_LOOKAT";
     case OP_CAM_SHAKE:
         return "CAM_SHAKE";
+    case OP_SYNTH_SOUND:
+        return "SYNTH_SOUND";
     case OP_MESSAGE_GAME:
         return "MESSAGE_GAME";
     case OP_NPC_INFO:
@@ -1052,6 +1057,27 @@ mock230_send_cam_shake(
     rsab_p1(&buf, amplitude);
     rsab_p1(&buf, frequency);
     flush(player, &buf, OP_CAM_SHAKE, 0);
+}
+
+/*
+ * SYNTH_SOUND — WEAPON_FX.md §6. Field order is not a choice: it matches the
+ * client's own reader (gameproto_parse.c:706-710) exactly — id g2, loops g1,
+ * delay g2, 5 bytes total. lc254/packetin.h:157 and lc245_2/packetin.h:154
+ * carry the same shape.
+ */
+void
+mock230_send_synth_sound(
+    struct Mock230Player* player,
+    int id,
+    int loops,
+    int delay)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p2(&buf, id);
+    rsab_p1(&buf, loops);
+    rsab_p2(&buf, delay);
+    flush(player, &buf, OP_SYNTH_SOUND, 0);
 }
 
 void

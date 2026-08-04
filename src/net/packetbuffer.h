@@ -17,6 +17,8 @@
 enum PacketBufferState
 {
     PKTBUF_AWAITING_PACKET,
+    /** Second byte of a pSmart1Or2 opcode (revisions with `opcode_smart2`). */
+    PKTBUF_READ_OPCODE_LOW,
     PKTBUF_READ_VARLEN_U8,
     PKTBUF_READ_VARLEN_U16,
     PKTBUF_PREPARE_RECEIVE,
@@ -36,6 +38,8 @@ struct PacketBuffer
      *  first byte is stashed here rather than re-read. */
     int length_bytes_read;
     int length_partial;
+    /** High 7 bits of a two-byte opcode, held while its low byte is in flight. */
+    int opcode_high;
 
     uint8_t* data;
     int data_size;

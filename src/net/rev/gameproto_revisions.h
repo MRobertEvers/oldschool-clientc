@@ -30,6 +30,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_LC245_2 = 2,
     GAMEPROTO_REVISION_XRSPS233 = 3,
     GAMEPROTO_REVISION_OSRS230 = 4,
+    GAMEPROTO_REVISION_OSRS239 = 5,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -81,6 +82,20 @@ struct GameProtoRevTable
     int transport_kind;
     /** 1 = opcode byte is plaintext (no ISAAC subtract). 0 = ISAAC-scrambled. */
     int opcode_plaintext;
+    /**
+     * 1 = the server->client opcode is written in RSProt's `pSmart1Or2` form:
+     * one byte while the opcode is < 0x80, otherwise two, the first carrying
+     * `(op >> 8) | 0x80` and the second `op & 0xFF`. Both bytes go through the
+     * stream cipher individually.
+     *
+     * 0 = one byte always, the shape every revision below 239 in this tree uses
+     * because none of them has an opcode that reaches 0x80.
+     *
+     * This is not an optional refinement. A revision whose table goes past 127
+     * and leaves this at 0 does not drop the high packets — it reads the second
+     * byte of each one as the next opcode and never resynchronises.
+     */
+    int opcode_smart2;
     /** Server tick in ms (xrsps 600); 0 = revision has no explicit tick clock. */
     int server_tick_ms;
 
@@ -148,7 +163,11 @@ GameProtoRev_XRSPS233(void);
 struct GameProtoRevTable const*
 GameProtoRev_OSRS230(void);
 
-/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233", "osrs230"); NULL when unknown. */
+struct GameProtoRevTable const*
+GameProtoRev_OSRS239(void);
+
+/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233", "osrs230",
+ *  "osrs239"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 

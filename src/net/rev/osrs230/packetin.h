@@ -129,7 +129,17 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 56, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_FRIENDLIST },
     { 21, PKTIN_LENGTH_VARU16, PKT_NAME_UPDATE_IGNORELIST },
     { 20, 0, PKT_NAME_NONE },  /* LOGOUT */
-    { 102, 5, PKT_NAME_NONE }, /* SYNTH_SOUND */
+    /*
+     * SYNTH_SOUND — payload is id g2, loops g1, delay g2 (5 bytes), matching
+     * lc254/lc245_2 exactly (gameproto_parse.c:706-710 is the client's own
+     * reader and therefore the spec). The client half needs nothing further:
+     * rs_gameproto_exec.c already decodes this into App_PlaySound ->
+     * RS_Audio_Synth, and rs_audio_test.c already asserts a SYNTH_SOUND
+     * packet reaches the platform as audible PCM. Only the server-side
+     * encoder (mock230_encode.c) and the opcode body (mock230_scripts.c,
+     * SS_OP_SOUND_SYNTH) were missing (WEAPON_FX.md §6).
+     */
+    { 102, 5, PKT_NAME_SYNTH_SOUND }, /* SYNTH_SOUND */
     { 57, 10, PKT_NAME_NONE }, /* MIDI_SONG_V2 */
     /*
      * Zones and the sub-packets that follow them.

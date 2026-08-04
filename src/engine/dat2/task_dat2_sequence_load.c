@@ -117,6 +117,46 @@ seq_apply_meta(
     ToriDraw_AnimationSetSeqMeta(anim, &meta);
 }
 
+/* Copy frame sounds from the cache sequence definition to the animation.
+ * The animation owns the copy; the cache definition is freed after this
+ * registration returns. */
+static void
+seq_copy_frame_sounds(
+    struct ToriDraw_Animation* anim,
+    struct RSCache_Dat2ConfigSequence const* seq)
+{
+    if( !anim || !seq || seq->frame_sounds.count <= 0 )
+        return;
+
+    anim->frame_sounds.count = seq->frame_sounds.count;
+    anim->frame_sounds.frame_indices =
+        malloc((size_t)seq->frame_sounds.count * sizeof(int));
+    anim->frame_sounds.sounds = malloc(
+        (size_t)seq->frame_sounds.count * sizeof(struct ToriDraw_AnimFrameSound));
+
+    if( anim->frame_sounds.frame_indices && anim->frame_sounds.sounds )
+    {
+        memcpy(
+            anim->frame_sounds.frame_indices,
+            seq->frame_sounds.frames,
+            (size_t)seq->frame_sounds.count * sizeof(int));
+        for( int i = 0; i < seq->frame_sounds.count; i++ )
+        {
+            anim->frame_sounds.sounds[i].id = seq->frame_sounds.sounds[i].id;
+            anim->frame_sounds.sounds[i].loops = seq->frame_sounds.sounds[i].loops;
+        }
+    }
+    else
+    {
+        /* Allocation failed; clear the partial state */
+        free(anim->frame_sounds.frame_indices);
+        free(anim->frame_sounds.sounds);
+        anim->frame_sounds.frame_indices = NULL;
+        anim->frame_sounds.sounds = NULL;
+        anim->frame_sounds.count = 0;
+    }
+}
+
 /*
  * Register what was produced — or, when decode failed, an empty sentinel
  * animation. The sentinel makes ToriDraw_SceneAnimationGet non-NULL so the
@@ -150,7 +190,10 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             self->skeletal = NULL;
             anim->frame_count = play_frames > 0 ? play_frames : 1;
             if( self->seq )
+            {
                 seq_apply_meta(anim, self->seq);
+                seq_copy_frame_sounds(anim, self->seq);
+            }
             else
             {
                 anim->replaceheldleft = -1;
@@ -186,7 +229,10 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
      * SetSeqMeta deep-copies it onto anim->walkmerge for the masked draw path.
      * Decoder now applies RuneLite defaults so a full meta copy is safe. */
     if( anim && self->seq )
+    {
         seq_apply_meta(anim, self->seq);
+        seq_copy_frame_sounds(anim, self->seq);
+    }
     if( !anim )
     {
         anim = calloc(1, sizeof(*anim));

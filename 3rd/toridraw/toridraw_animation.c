@@ -71,6 +71,8 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 
     free(anim->walkmerge);
     ToriDraw_SkeletalAnimFree(anim->skeletal);
+    free(anim->frame_sounds.frame_indices);
+    free(anim->frame_sounds.sounds);
     free(anim);
 }
 

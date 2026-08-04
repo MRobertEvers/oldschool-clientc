@@ -902,6 +902,20 @@ painter_add_normal_scenery_ex(
     /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
      * word packs entity in 16 bits, so the full uint16 range is legal. */
     assert(entity >= 0 && entity <= UINT16_MAX);
+    /* Runtime loc spawn (WorldBuilder_ApplyLocChange): the build path is reused
+     * only for the model/orientation/size math — the painter registration is
+     * world_cycle's, once per cycle, because a runtime loc lives outside the
+     * baked static set. Registering here too gave the loc TWO painter elements
+     * over the same scene element, and the painter drew both: once at the
+     * footprint's own depth and once wherever the duplicate's tile chain
+     * reached it. Everything emitted between the two draws was overpainted by
+     * the second, which is what made the Inferno seal's rubble and flank rocks
+     * swap in front of and behind the ground rocks around them. The three
+     * exclusive-slot adders (wall / wall decor / ground decor) have honoured
+     * this flag since it was introduced; normal scenery was the one that did
+     * not. */
+    if( painter->suppress_slot_registration )
+        return -1;
     /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
     if( size_x < 1 )
         size_x = 1;
@@ -1023,6 +1037,50 @@ painter_release_wall(
         tile->wall_a = -1;
     if( tile->wall_b >= 0 && painter->elements[tile->wall_b]._wall.entity == entity )
         tile->wall_b = -1;
+}
+
+void
+painter_release_scenery(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
+{
+    struct PaintersTile* anchor = painter_tile_at(painter, sx, sz, slevel);
+    int matches[8];
+    int match_count = 0;
+
+    /* Collect first, unlink after: tile_remove_scenery_element rewrites the
+     * chain this walk stands in. The anchor tile is enough to find the element —
+     * a loc is registered on every tile of its footprint, so its own tile is
+     * always one of them — and the element then names the footprint the unlink
+     * has to cover. */
+    for( int32_t sn = anchor->scenery_head; sn != -1 && match_count < 8;
+         sn = painter->scenery_pool[sn].next )
+    {
+        int element = painter->scenery_pool[sn].element_idx;
+        struct PaintersElement const* el = &painter->elements[element];
+        if( el->kind == PNTRELEM_SCENERY && el->_scenery.entity == entity )
+            matches[match_count++] = element;
+    }
+
+    for( int m = 0; m < match_count; m++ )
+    {
+        struct PaintersElement const* el = &painter->elements[matches[m]];
+        for( int x = 0; x < (int)el->_scenery.size_x; x++ )
+        {
+            for( int z = 0; z < (int)el->_scenery.size_z; z++ )
+            {
+                int tx = (int)el->sx + x;
+                int tz = (int)el->sz + z;
+                if( tx < 0 || tz < 0 || tx >= painter->width || tz >= painter->height )
+                    continue;
+                tile_remove_scenery_element(
+                    painter, painter_tile_at(painter, tx, tz, el->source_level), matches[m]);
+            }
+        }
+    }
 }
 
 int

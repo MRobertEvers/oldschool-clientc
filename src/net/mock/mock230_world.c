@@ -2085,6 +2085,16 @@ mock230_world_npc_teleport(
     npc->tele = 1;
 }
 
+void
+mock230_world_npc_queue_waypoint(
+    struct Mock230Npc* npc,
+    int x,
+    int z)
+{
+    assert(npc);
+    npc_queue_waypoint(npc, x, z);
+}
+
 static int
 npc_spawn(
     struct Mock230Server* srv,
@@ -2782,7 +2792,26 @@ advance_npcs(struct Mock230Server* srv)
         if( npc_run_mode(srv, npc, slot) )
             continue;
         if( npc->mode != MOCK230_NPCMODE_WANDER )
+        {
+            /*
+             * Reference `Npc.noMode()` is `this.updateMovement()`, and
+             * `updateMovement` steps whenever `waypointIndex !== -1` — a
+             * targetless npc still walks a waypoint a script queued with
+             * `npc_walk`. Without this the opcode stores a destination nothing
+             * ever reads, which is indistinguishable from the opcode being
+             * missing: the Inferno's Ancestral Glyph stood in the lava and
+             * TzKal-Zuk never became ready, because "ready" is the glyph
+             * reaching the end of its row.
+             */
+            if( npc->waypoint_index >= 0 )
+            {
+                if( npc_take_step(npc) )
+                    npc->stuck_counter = 0;
+                else
+                    npc->stuck_counter++;
+            }
             continue;
+        }
         if( npc->wander_radius <= 0 )
             continue;
 
@@ -8146,6 +8175,17 @@ mock230_world_selftest(void)
              */
             SELFTEST_CHECK(mock230_scripts_report_gaps(&srv) == 0,
                            "the content tree should not use unimplemented opcodes");
+            /*
+             * And the same argument for a different failure: a `settimer`/`queue`
+             * argument whose id is not a script id runs *some other script*, and
+             * which one depends on an unrelated namespace's allocation order, so
+             * it moves every time the tree grows. Nine of the twenty-three sites
+             * this found were quest-completion queues — fired once per account,
+             * so no test run would have reached them. See
+             * docs/serverscript.md, "a queue/timer argument names a script".
+             */
+            SELFTEST_CHECK(mock230_scripts_report_script_id_args(&srv) == 0,
+                           "every script-id argument should name a script of that kind");
             uint8_t payload[2];
             int before;
             int hans;

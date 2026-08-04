@@ -702,6 +702,27 @@ painter_release_wall(
     int slevel,
     int entity);
 
+/** The normal-scenery counterpart of painter_release_wall: unlink every baked
+ *  static scenery element on `(sx, sz, slevel)`'s chain that renders `entity`
+ *  from its whole footprint, so a runtime loc change stops the dead loc being
+ *  drawn.
+ *
+ *  Not cosmetic bookkeeping. Scene element ids are recycled: when a `loc_del` /
+ *  `loc_change` frees the old loc's scene element and the replacement is
+ *  allocated the same id, the abandoned static painter element starts rendering
+ *  the NEW model — so the loc draws twice, once at the stale element's place in
+ *  the back-to-front order and once at its own, and everything emitted between
+ *  the two is overpainted by the second. `painter_reset_to_static` cannot help:
+ *  the stale element is below `static_element_count` and that is exactly the
+ *  range it preserves. */
+void
+painter_release_scenery(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
 int
 painter_add_wall(
     struct Painter* painter, //

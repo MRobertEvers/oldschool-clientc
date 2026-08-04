@@ -22,6 +22,19 @@ struct ToriDraw_AnimFrame
     int delay;
 };
 
+struct ToriDraw_AnimFrameSound
+{
+    int id;
+    int loops;
+};
+
+struct ToriDraw_AnimFrameSoundMap
+{
+    int* frame_indices;
+    struct ToriDraw_AnimFrameSound* sounds;
+    int count;
+};
+
 struct ToriDraw_Animation
 {
     struct ToriDraw_AnimBase* base;
@@ -63,6 +76,10 @@ struct ToriDraw_Animation
      * ToriDraw_ModelAnimateSkeletal instead. `frame_count` still bounds
      * playback so the frame steppers need no special case. Owned. */
     struct ToriDraw_SkeletalAnim* skeletal;
+    /** Frame sounds loaded from the sequence config (cache opcode 18 and per-frame
+     * sound= entries). The animation tick queues these through RS_Audio_Synth
+     * when each frame is stepped. Owned. */
+    struct ToriDraw_AnimFrameSoundMap frame_sounds;
 };
 
 /* Seq-config values to attach to an assembled animation. walkmerge (may be

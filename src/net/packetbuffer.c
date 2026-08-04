@@ -30,6 +30,7 @@ packetbuffer_init(
     packetbuffer->packet_length = 0;
     packetbuffer->length_bytes_read = 0;
     packetbuffer->length_partial = 0;
+    packetbuffer->opcode_high = 0;
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
 }
@@ -66,6 +67,22 @@ packetbuffer_read(
             packet_type = g1(&buffer);
             if( !packetbuffer->rev->opcode_plaintext )
                 packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
+            /*
+             * pSmart1Or2: a revision whose opcodes reach 0x80 writes the high
+             * ones as two cipher bytes. The first carries `(op >> 8) | 0x80`,
+             * so a decoded first byte with the top bit set means "one more
+             * byte to come" rather than "opcode 0x80..0xFF".
+             *
+             * The second byte may not have arrived yet, which is why this
+             * parks in its own state instead of reading ahead: the first
+             * byte's ISAAC step has already been taken and cannot be replayed.
+             */
+            if( packetbuffer->rev->opcode_smart2 && (packet_type & 0x80) )
+            {
+                packetbuffer->opcode_high = packet_type & 0x7f;
+                packetbuffer->state = PKTBUF_READ_OPCODE_LOW;
+                break;
+            }
             packet_size = packetbuffer->rev->packetin_size(packet_type);
             packetbuffer->packet_type = packet_type;
 
@@ -85,6 +102,24 @@ packetbuffer_read(
             }
             break;
         }
+        case PKTBUF_READ_OPCODE_LOW:
+            packet_type = g1(&buffer);
+            if( !packetbuffer->rev->opcode_plaintext )
+                packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
+            packet_type |= packetbuffer->opcode_high << 8;
+            packet_size = packetbuffer->rev->packetin_size(packet_type);
+            packetbuffer->packet_type = packet_type;
+            if( packet_size == PKTIN_LENGTH_VARU8 )
+                packetbuffer->state = PKTBUF_READ_VARLEN_U8;
+            else if( packet_size == PKTIN_LENGTH_VARU16 )
+                packetbuffer->state = PKTBUF_READ_VARLEN_U16;
+            else
+            {
+                packetbuffer->packet_length = packet_size;
+                packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
+                goto step;
+            }
+            break;
         case PKTBUF_READ_VARLEN_U8:
             varlength = g1(&buffer);
             packetbuffer->packet_length = varlength;
@@ -198,6 +233,8 @@ packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer)
     switch( packetbuffer->state )
     {
     case PKTBUF_AWAITING_PACKET:
+        return 1;
+    case PKTBUF_READ_OPCODE_LOW:
         return 1;
     case PKTBUF_READ_VARLEN_U8:
         return 1;

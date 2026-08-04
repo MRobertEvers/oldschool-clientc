@@ -45,6 +45,24 @@
 #include <string.h>
 #include <time.h>
 
+/*
+ * mock230_send_synth_sound is defined in mock230_encode.c (WEAPON_FX.md §6).
+ * It is declared here rather than in mock230.h because mock230.h is out of
+ * this lane's file ownership for the weapon-FX port
+ * (WEAPON_FX_PORT_QUEUE.md §1: lane C owns packetin.h, mock230_encode.c,
+ * mock230_scripts.c, embed_test.c — not mock230.h, which another lane has
+ * uncommitted changes in). Move this prototype into mock230.h next to its
+ * siblings (mock230_send_cam_shake, mock230_send_run_weight) the next time
+ * that file is touched for an unrelated reason.
+ */
+struct Mock230Player;
+void
+mock230_send_synth_sound(
+    struct Mock230Player* player,
+    int id,
+    int loops,
+    int delay);
+
 /* ------------------------------------------------------------------ */
 /* Coordinates                                                         */
 /* ------------------------------------------------------------------ */
@@ -163,6 +181,11 @@ mock230_scripts_load(
      * has not arrived. This is the opposite — content that arrived and took a
      * verb the engine still answers. See mock230_scripts_report_shadowed_ops. */
     mock230_scripts_report_shadowed_ops(srv);
+    /* And the fourth, which is about the pack rather than about the engine: a
+     * `settimer`/`queue` argument whose "script id" is not a script id. That one
+     * cannot wait for a session to notice it — the timer has to fire first, and
+     * a quest-completion queue does not fire until somebody finishes the quest. */
+    mock230_scripts_report_script_id_args(srv);
     return srv->scripts->loaded;
 }
 
@@ -298,6 +321,66 @@ mock230_scripts_free(struct Mock230Server* srv)
         srv->scripts = NULL;
     }
     srv->scripts_ok = 0;
+}
+
+/*
+ * A script the engine starts *by id* must be of the kind whose slot held the id.
+ *
+ * The number in a timer or queue slot is content's: it writes `settimer(poison,
+ * 30)` and the compiler turns the name into an id. That name is resolved against
+ * several namespaces, and when one of the others also spells it the wrong number
+ * used to be emitted with nothing to catch it — `poison` is obj 273 as well as
+ * `[timer,poison]`, so the engine armed a timer on script 273, which is
+ * `[label,woman_im_looking_for_a_lady]`, and every 30 ticks the player got a
+ * dialogue box from a quest they were nowhere near. Which line it was moved
+ * whenever the tree grew, because the only thing choosing it was an unrelated
+ * namespace's allocation order.
+ *
+ * `ssc_compile.c`'s `arg_is_script_name` is the fix; this is the guard, and it is
+ * here rather than only there because the id survives a recompile in a save, a
+ * test fixture or a hand-written packet, and because the failure is otherwise
+ * indistinguishable from content doing it on purpose. Refuse rather than warn:
+ * running an arbitrary script is the bug, not the report of it.
+ *
+ * `expect` is a comma-separated list of trigger words, matched against the word
+ * between the brackets in `"[timer,poison]"`.
+ */
+static int
+script_kind_matches(const struct SSVM_Script* script, const char* expect)
+{
+    const char* name = script->name;
+    const char* comma;
+    size_t word;
+
+    if( !name || name[0] != '[' )
+        return 1; /* nothing to check against */
+    comma = strchr(name, ',');
+    if( !comma )
+        return 1;
+    word = (size_t)(comma - (name + 1));
+
+    for( const char* p = expect; *p; )
+    {
+        const char* end = strchr(p, ',');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+
+        if( len == word && strncmp(p, name + 1, len) == 0 )
+            return 1;
+        p = end ? end + 1 : p + len;
+    }
+    return 0;
+}
+
+static int
+script_kind_allowed(const struct SSVM_Script* script, const char* expect)
+{
+    if( script_kind_matches(script, expect) )
+        return 1;
+    fprintf(stderr,
+            "mock230: refusing to start %s by id %d — the slot holds a %s script; "
+            "the id in it is not a script id\n",
+            script->name, script->id, expect);
+    return 0;
 }
 
 /* Release a state and clear whichever slot was holding it. */
@@ -490,12 +573,15 @@ run_script_id(
     int32_t arg,
     int has_arg,
     int npc_slot,
-    int protect)
+    int protect,
+    const char* expect)
 {
     const struct SSVM_Script* script = SSVM_ProviderGet(srv->scripts, script_id);
     struct SSVM_State* state;
 
     if( !script )
+        return 0;
+    if( !script_kind_allowed(script, expect) )
         return 0;
 
     /* `queue` always carries an argument, but a queued script only declares one
@@ -648,7 +734,7 @@ drain_queue(
         script_id = entry->script_id;
         arg = entry->arg;
         entry->active = 0;
-        run_script_id(srv, script_id, arg, 1, -1, 1);
+        run_script_id(srv, script_id, arg, 1, -1, 1, "queue");
     }
 }
 
@@ -738,7 +824,8 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
             if( type == MOCK230_TIMER_NORMAL && !player_can_access(srv) )
                 continue;
             timer->clock = srv->tick;
-            run_script_id(srv, timer->script_id, 0, 0, -1, type == MOCK230_TIMER_NORMAL);
+            run_script_id(srv, timer->script_id, 0, 0, -1, type == MOCK230_TIMER_NORMAL,
+                          "timer,softtimer");
         }
     }
 }
@@ -766,7 +853,7 @@ mock230_scripts_process_walktrigger(struct Mock230Server* srv)
 
     script_id = player->walktrigger;
     player->walktrigger = -1;
-    run_script_id(srv, script_id, 0, 0, -1, 1);
+    run_script_id(srv, script_id, 0, 0, -1, 1, "walktrigger");
 }
 
 int
@@ -828,7 +915,7 @@ mock230_scripts_run_script(
 {
     if( !srv->scripts_ok )
         return 0;
-    return run_script_id(srv, script_id, 0, 0, -1, 1);
+    return run_script_id(srv, script_id, 0, 0, -1, 1, "proc");
 }
 
 /*
@@ -1719,7 +1806,7 @@ mock230_scripts_process_engine_queue(struct Mock230Server* srv)
         script_id = entry->script_id;
         entry->active = 0;
         /* Protected, as `processEngineQueue`'s `executeScript(script, true)`. */
-        run_script_id(srv, script_id, 0, 0, -1, 1);
+        run_script_id(srv, script_id, 0, 0, -1, 1, "zone,zoneexit,mapzone,mapzoneexit");
     }
 }
 
@@ -2198,6 +2285,147 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
                 "job or means not to; this is a review list, not an error\n",
                 shadowed);
     return shadowed;
+}
+
+/*
+ * Every `settimer`/`queue`/`walktrigger` argument in the pack, checked against
+ * the script it actually points at.
+ *
+ * This is the static half of the `script_kind_allowed` guard, and it exists
+ * because the runtime half only fires when the timer does. `settimer(poison,
+ * 30)` compiled to `settimer(273, 30)` — obj 273 is also named `poison` — and
+ * the engine ran `[label,woman_im_looking_for_a_lady]` on a 30-tick timer. That
+ * one was loud because poison is common; the same mistake on a quest-completion
+ * queue sits unfired until somebody finishes the quest, and there were **nine**
+ * of those, all pointing at script id 0.
+ *
+ * So the question is asked of the pack rather than of a session: for each of the
+ * twelve commands whose first argument is a script (the reference's typed
+ * signatures in `content/scripts/engine.rs2` are the authority — `[command,
+ * settimer](timer $timer, int $interval)`), read the constant that supplied it
+ * and check the target's trigger word.
+ *
+ * **Only fully-constant argument lists are checked, and that is a real limit
+ * rather than a formality.** The script id is `int_in` instructions back from
+ * the command, which is only true if every argument in between compiled to
+ * exactly one push. `settimer(x, calc(...))` or `queue(x, 0, ~pick())` push a
+ * variable number, so the window is wrong and those are skipped rather than
+ * guessed at. In this tree that covers the overwhelming majority — a script
+ * name is a literal by construction — but a silent skip is still a hole, so the
+ * count of skipped sites is reported next to the count of checked ones.
+ *
+ * Returns the number of mismatches.
+ */
+int
+mock230_scripts_report_script_id_args(struct Mock230Server* srv)
+{
+    static const struct
+    {
+        int opcode;
+        const char* trigger;
+    } k_script_args[] = {
+        { SS_OP_QUEUE, "queue" },
+        { SS_OP_STRONGQUEUE, "queue" },
+        { SS_OP_WEAKQUEUE, "queue" },
+        { SS_OP_LONGQUEUE, "queue" },
+        { SS_OP_CLEARQUEUE, "queue" },
+        { SS_OP_GETQUEUE, "queue" },
+        { SS_OP_SETTIMER, "timer" },
+        { SS_OP_CLEARTIMER, "timer" },
+        { SS_OP_GETTIMER, "timer" },
+        { SS_OP_SOFTTIMER, "softtimer" },
+        { SS_OP_CLEARSOFTTIMER, "softtimer" },
+        { SS_OP_WALKTRIGGER, "walktrigger" },
+    };
+    int bad = 0;
+    int checked = 0;
+    int skipped = 0;
+
+    if( !srv->scripts_ok || !srv->scripts )
+        return 0;
+
+    for( int i = 0; i < srv->scripts->count; i++ )
+    {
+        const struct SSVM_Script* script = &srv->scripts->scripts[i];
+
+        if( script->op_count <= 0 || !script->opcodes )
+            continue;
+
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            const struct SSVM_OpcodeMeta* meta;
+            const struct SSVM_Script* target;
+            const char* want = NULL;
+            int argc;
+            int at;
+
+            for( size_t k = 0; k < sizeof(k_script_args) / sizeof(k_script_args[0]); k++ )
+            {
+                if( (int)script->opcodes[op] == k_script_args[k].opcode )
+                {
+                    want = k_script_args[k].trigger;
+                    break;
+                }
+            }
+            if( !want )
+                continue;
+
+            meta = SSVM_OpcodeMeta((int)script->opcodes[op]);
+            argc = meta ? (int)meta->int_in : 0;
+            at = op - argc;
+            if( argc <= 0 || at < 0 )
+            {
+                skipped++;
+                continue;
+            }
+            /* The window has to be one push per argument for the offset to
+             * mean anything. Anything else and we cannot see the constant. */
+            for( int w = at; w < op; w++ )
+            {
+                if( script->opcodes[w] != SS_OP_PUSH_CONSTANT_INT )
+                {
+                    at = -1;
+                    break;
+                }
+            }
+            if( at < 0 )
+            {
+                skipped++;
+                continue;
+            }
+
+            checked++;
+            target = SSVM_ProviderGet(srv->scripts, script->int_operands[at]);
+            if( !target )
+            {
+                fprintf(stderr,
+                        "mock230: %s passes %d to %s — no script has that id\n",
+                        script->name ? script->name : "?", script->int_operands[at],
+                        SSVM_OpcodeName((int)script->opcodes[op]));
+                bad++;
+                continue;
+            }
+            if( script_kind_matches(target, want) )
+                continue;
+            fprintf(stderr,
+                    "mock230: %s passes %s to %s — that argument names a %s script\n",
+                    script->name ? script->name : "?",
+                    target->name ? target->name : "?",
+                    SSVM_OpcodeName((int)script->opcodes[op]), want);
+            bad++;
+        }
+    }
+
+    if( bad )
+        fprintf(stderr,
+                "mock230: %d script-id argument(s) point at the wrong kind of script — a "
+                "name that resolved to a content id, not a script (docs/serverscript.md, "
+                "\"a queue/timer argument names a script\")\n",
+                bad);
+    if( srv->verbose )
+        fprintf(stderr, "mock230: %d script-id argument(s) checked, %d not constant\n",
+                checked, skipped);
+    return bad;
 }
 
 int
@@ -3824,6 +4052,30 @@ mock230_script_command(
          * imp left a blocked tile behind it and every observer kept drawing it
          * at the tile it teleported out of. */
         mock230_world_npc_teleport(npc, coord_x(coord), coord_z(coord), coord_level(coord));
+        return 1;
+    }
+
+    /*
+     * `npc_walk` is one line in the reference — `activeNpc.queueWaypoint(x, z)`
+     * (NpcOps.ts) — and deliberately not a route: the npc phase's stepper walks
+     * one tile a tick toward the waypoint, so a caller that wants a path
+     * re-queues every tick. The level is dropped exactly as the reference drops
+     * it ("level doesn't matter here" in PathingEntity.queueWaypoint); an npc
+     * changes plane through `npc_tele`, never by walking.
+     */
+    case SS_OP_NPC_WALK:
+    {
+        int32_t coord;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_walk with no active npc");
+            return 1;
+        }
+        mock230_world_npc_queue_waypoint(npc, coord_x(coord), coord_z(coord));
         return 1;
     }
 
@@ -6332,11 +6584,18 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        /* The encoder lands with the rest of the dialogue packets. Accepting
-         * the call now keeps content that uses it compiling and running. */
+        /* `[command,sound_synth](synth $sound, int $loops, int $delay)`
+         * (LostCity_Server/content/scripts/engine.rs2:205) — values[0] sound,
+         * values[1] loops, values[2] delay, the same order SYNTH_SOUND wants
+         * on the wire (WEAPON_FX.md §6). The encoder now exists
+         * (mock230_send_synth_sound, mock230_encode.c) and the packet is
+         * routed (packetin.h:102 -> PKT_NAME_SYNTH_SOUND); this used to be a
+         * stub that only printed under MOCK230_VERBOSE. */
         if( srv->verbose )
             fprintf(stderr, "mock230: sound_synth(%d, %d, %d)\n", values[0], values[1],
                     values[2]);
+        if( player != NULL )
+            mock230_send_synth_sound(player, values[0], values[1], values[2]);
         return 1;
     }
 

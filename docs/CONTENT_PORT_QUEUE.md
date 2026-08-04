@@ -662,7 +662,42 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 31s | Poison karambwan + slimey eel Eat | done | tbwt_poorly + mort_slimey_eel_cooked |
 | 31t | Strange fruit Eat | done | macro_triffidfruit; poison immunity |
 | 31u | Empty vial | done | opheld4 _potion + vial_water |
-| 8 | Outward areas / remaining quests / minigames | pending | After 31u: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 31v | Cooked snail Eat | done | snail_corpse_cooked1–3 name-bound |
+| 31w | Keg of beer Drink | done | + cr_queue cam_reset |
+| 31x | Cooking snail rows | done | cooking_generic thin/lean/fat |
+| 31y | Ogre arrow fletching | done | achey shafts + tips/feathers/heads |
+| 31z | Fight Arena journal | done | ~arena_journal + quest_fightarena wire |
+| 32a | Family Crest journal | done | ~crest_journal + quest_familycrest wire |
+| 32b | Lost City journal | done | ~zanaris_journal + quest_lostcity wire |
+| 32c | Plague City journal | done | ~elena_journal + quest_plaguecity wire |
+| 32d | Temple of Ikov journal | done | ~ikov_journal + quest_templeofikov wire |
+| 32e | Observatory journal | done | ~itgronigen_journal + quest_observatory wire |
+| 32f | Troll Romance journal | done | ~troll_love_journal + quest_trollromance wire |
+| 32g | Horror from the Deep journal | done | ~horror_journal + quest_horrorfromthedeep wire |
+| 32h | Dwarf Cannon journal | done | ~mcannon_journal + quest_dwarfcannon; railing varbits |
+| 32i | Tribal Totem journal | done | ~totem_journal + quest_tribaltotem; handelmort_traps_disabled authored |
+| 32j | Watchtower journal | done | ~itwatchtower_journal + quest_watchtower wire |
+| 32k | Troll Stronghold journal | done | ~troll_journal + quest_trollstronghold wire |
+| 32l | Elemental Workshop I journal | done | ~elemental_workshop_journal + quest_elementalworkshop1; named varbits |
+| 32m | Priest in Peril journal | done | ~priestperil_journal + quest_priestinperil; ^priestperil_* authored |
+| 32n | Biohazard journal | done | ~biohazard_journal + quest_biohazard wire |
+| 32o | Big Chompy Bird Hunting journal | done | ~chompybird_journal + quest_bigchompybirdhunting wire |
+| 32p | Regicide journal | done | ~regicide_journal + quest_regicide; chemist_chat varbit |
+| 32q | Tourist Trap journal | done | ~desertrescue_journal + quest_touristtrap wire |
+| 32r | Eadgar's Ruse journal | done | ~eadgar_journal + quest_eadgarsruse; %eadgar_bits/grain/chickens authored |
+| 32s | Heroes' Quest journal | done | ~hero_journal + quest_heroes wire |
+| 32t | Fremennik Trials journal | done | ~viking_journal + quest_fremenniktrials; %viking_bits + trial helpers; name stub |
+| 32u | Shades of Mort'ton journal | done | ~mortton_journal + quest_shadesofmortton; olive_oil/shade_remains/pyre_logs cats |
+| 32v | Nature Spirit journal | done | ~druidspirit_journal + quest_naturespirit; %druidspirit_bits; ^priestperil_complete |
+| 32w | Scorpion Catcher journal | done | ~scorpcatcher_journal + quest_scorpioncatcher; thin ^scorpcatcher_* (parallel) |
+| 32x | Throne of Miscellania journal | done | ~misc_journal + quest_throneofmiscellania; affection constants (parallel) |
+| 32y | Shilo Village journal | done | ~zombiequeen_journal + quest_shilovillage; %zq_map_mechanisms authored |
+| 32z | Monkey Madness journal | in_progress | ~mm_journal + quest_monkeymadness1; unnamed OSRS mm flag varbits |
+| 33a | Legends Quest journal | pending | ~legends_journal + quest_legends; %legends_bits |
+| 33b | In Search of the Myreque journal | pending | ~routequest_journal + quest_insearchofthemyreque |
+| 33c | outward leftover | pending | after journals |
+| 33d | outward leftover | pending | after journals |
+| 8 | Outward areas / remaining quests / minigames | pending | After 33d: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1430,3 +1465,62 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 31u done: opheld4 _potion + vial_water → vial_empty
 - final: 11297 scripts; mock230_pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 31v done: snail_corpse_cooked1–3 Eat (name-bound; slimey heal ranges)
+- slice 31w done: keg_of_beer Drink + cam_shake + cr_queue cam_reset
+- slice 31x done: cooking_generic snail thin/lean/fat rows
+- slice 31y done: ogre arrow fletching (achey shafts + wolf tips + feathers + heads); knife/chisel/feather BIM
+- slice 31z done: Fight Arena journal (~arena_journal + quest_fightarena wire)
+- slice 32a done: Family Crest journal (~crest_journal + quest_familycrest wire)
+- final: 11342 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32b done: Lost City journal (~zanaris_journal + quest_lostcity wire)
+- slice 32c done: Plague City journal (~elena_journal + quest_plaguecity wire)
+- slice 32d done: Temple of Ikov journal (~ikov_journal + quest_templeofikov wire)
+- slice 32e done: Observatory journal (~itgronigen_journal + quest_observatory wire)
+- slice 32f done: Troll Romance journal (~troll_love_journal + quest_trollromance wire)
+- slice 32g done: Horror from the Deep journal (~horror_journal + quest_horrorfromthedeep wire)
+- slice 32h done: Dwarf Cannon journal (~mcannon_journal + quest_dwarfcannon; railing bits → named varbits)
+- slice 32i done: Tribal Totem journal (~totem_journal + quest_tribaltotem; %handelmort_traps_disabled authored)
+- final: 11376 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32k done: Troll Stronghold journal (~troll_journal + quest_trollstronghold wire)
+- final: 11378 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32l done: Elemental Workshop I journal (~elemental_workshop_journal + quest_elementalworkshop1; LC bits → named varbits)
+- final: 11379 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32m done: Priest in Peril journal (~priestperil_journal + quest_priestinperil; ^priestperil_* authored; well/barrier/dog still deferred)
+- slice 32n done: Biohazard journal (~biohazard_journal + quest_biohazard wire)
+- slice 32o done: Big Chompy Bird Hunting journal (~chompybird_journal + quest_bigchompybirdhunting wire)
+- slice 32p done: Regicide journal (~regicide_journal + quest_regicide; LC chemist bit → %regicide_chemist_chat)
+- final: 11383 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32q done: Tourist Trap journal (~desertrescue_journal + quest_touristtrap wire)
+- final: 11387 scripts; mock230_pack 0 errors
+- next pending: eadgar / hero / viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32r done: Eadgar's Ruse journal (~eadgar_journal + quest_eadgarsruse; %eadgar_bits/%eadgar_grain/%eadgar_chickens authored)
+- final: 11388 scripts; mock230_pack 0 errors
+- next pending: hero / viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32s done: Heroes' Quest journal (~hero_journal + quest_heroes wire)
+- final: 11389 scripts; mock230_pack 0 errors
+- next pending: viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32t done: Fremennik Trials journal (~viking_journal + quest_fremenniktrials; %viking_bits + trial get/set helpers; ~get_viking_name stub)
+- final: 11406 scripts; mock230_pack 0 errors
+- next pending: mortton / remaining journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32u done: Shades of Mort'ton journal (~mortton_journal + quest_shadesofmortton; olive_oil/shade_remains/pyre_logs cats)
+- final: 11407 scripts; mock230_pack 0 errors
+- next pending: remaining journals (druidspirit/misc/mm/legends/zombiequeen); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 32v done: Nature Spirit journal (~druidspirit_journal + quest_naturespirit; %druidspirit_bits authored; ^priestperil_complete)
+- final: 11422 scripts; mock230_pack 0 errors
+- next pending: remaining journals (misc/mm/legends/zombiequeen/routequest); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend); scorpcatcher landed in parallel (leave alone)

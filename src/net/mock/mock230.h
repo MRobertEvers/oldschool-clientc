@@ -2993,6 +2993,23 @@ mock230_world_npc_teleport(
     int z,
     int level);
 
+/**
+ * Queue a single walk destination — `PathingEntity.queueWaypoint()`, which is
+ * all `npc_walk` is in the reference (`NpcOps.ts` NPC_WALK). The route is not
+ * computed here: the npc phase's greedy stepper advances one tile a tick toward
+ * the waypoint, so a script that wants a path re-queues each tick the way
+ * `[ai_timer,inferno_moving_safespot]` does.
+ *
+ * Distinct from `mock230_world_npc_walk_to`, which runs the naive pathfinder
+ * *and* takes a step immediately: that is the mode/chase mover, and calling it
+ * from a script would take two steps on the tick the script ran.
+ */
+void
+mock230_world_npc_queue_waypoint(
+    struct Mock230Npc* npc,
+    int x,
+    int z);
+
 void
 mock230_world_npc_died(
     struct Mock230Server* srv,
@@ -3224,6 +3241,27 @@ mock230_scripts_free(struct Mock230Server* srv);
  */
 int
 mock230_scripts_report_gaps(struct Mock230Server* srv);
+
+/**
+ * Check every `settimer`/`queue`/`walktrigger` argument in the pack against the
+ * script it points at, and report the ones that point at the wrong kind.
+ *
+ * The compiler resolves those arguments from a *name*, and the script namespace
+ * is not the only one that name could belong to — `settimer(poison, 30)` found
+ * obj 273 and armed a timer on `[label,woman_im_looking_for_a_lady]`, which then
+ * opened a quest's dialogue box on a player nowhere near it. `ssc_compile.c`'s
+ * `arg_is_script_name` is the fix and `script_kind_allowed` is the runtime
+ * guard; this is the *static* one, and it is the only one of the three that
+ * catches a site nobody happens to trigger. Nine of the twenty-three sites at
+ * the time of the fix were quest-completion queues that fire once per account.
+ *
+ * Only fully-constant argument lists can be read (see the definition); the
+ * skipped count is printed under `MOCK230_VERBOSE` so the hole is visible.
+ *
+ * Returns the number of mismatches; the selftest pins it at 0.
+ */
+int
+mock230_scripts_report_script_id_args(struct Mock230Server* srv);
 
 /**
  * What a trigger dispatch did — three answers where there used to be two.

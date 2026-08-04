@@ -1366,6 +1366,54 @@ try_emit_world_draw_model(
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);
 
+        /* TORIRS_DRAW_ORDER=N: dump frame N's whole emit sequence (= painter's
+         * back-to-front order) with each command resolved to a loc id. */
+        {
+            static long order_frame = -2;
+            static long seen_frames = -1;
+            static int in_frame = 0;
+            static int done_once = 0;
+            static int seq_no;
+            if( order_frame == -2 )
+            {
+                char const* env = getenv("TORIRS_DRAW_ORDER");
+                order_frame = env ? strtol(env, NULL, 0) : -1;
+            }
+            if( order_frame >= 0 )
+            {
+                static long last_index = -1;
+                if( (long)frame->painters_index <= last_index )
+                {
+                    seen_frames++;
+                    in_frame = (seen_frames >= order_frame) && !done_once;
+                    if( in_frame ) done_once = 1;
+                    seq_no = 0;
+                }
+                last_index = (long)frame->painters_index;
+                if( in_frame )
+                {
+                    struct WorldEntity_Scenery* sc =
+                        cmd->_bf_kind == PNTR_CMD_ELEMENT
+                            ? World_SceneryGetByElementId(frame->world, element_id)
+                            : NULL;
+                    fprintf(
+                        stderr,
+                        "order %4d %s el=%d loc=%d slot=%d,%d size=%dx%d pos=%d,%d,%d\n",
+                        seq_no++,
+                        cmd->_bf_kind == PNTR_CMD_TERRAIN ? "TERRAIN" : "ELEMENT",
+                        element_id,
+                        sc ? sc->loc_id : -1,
+                        sc ? sc->grid_position.x : -1,
+                        sc ? sc->grid_position.z : -1,
+                        sc ? sc->debug.draw_size_x : 0,
+                        sc ? sc->debug.draw_size_z : 0,
+                        el->world_position.x,
+                        el->world_position.y,
+                        el->world_position.z);
+                }
+            }
+        }
+
         memset(out, 0, sizeof(*out));
         out->kind = TORIRSRC_DRAW_MODEL;
         out->u.model.model = el->model;

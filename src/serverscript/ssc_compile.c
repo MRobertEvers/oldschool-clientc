@@ -134,6 +134,16 @@ struct SSC_Compiler
      *  enumeration the packs also use as data names — see parse_expression. */
     enum SSC_SymbolKind arg_kind_hint;
 
+    /** Set for the one argument position that names a *server script* rather
+     *  than a value — `settimer(<here>, 30)`. The script namespace is not in the
+     *  symbol table, so without this the generic lookup answers first and a
+     *  collision compiles to a content id. See parse_expression. */
+    int arg_is_script_name;
+    /** The trigger that position wants — "timer" for `settimer`, "queue" for the
+     *  queue family. Tried before the generic name-addressed order, so
+     *  `settimer(x)` cannot pick up a `[proc,x]` that happens to share the name. */
+    const char* arg_script_trigger;
+
     struct SSC_Build build;
     struct SSC_Lexer lexer;
     struct SSC_Diag* diag;
@@ -437,6 +447,20 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name)
                                               "softtimer", "timer", "walktrigger" };
     size_t i;
 
+    /* An argument position that states its trigger gets it first: `settimer(x)`
+     * means `[timer,x]` even in a tree that also has a `[proc,x]`, and the order
+     * below would otherwise hand it the proc. */
+    if( compiler->arg_script_trigger )
+    {
+        char full[SSC_MAX_NAME];
+        int id;
+
+        snprintf(full, sizeof(full), "[%s,%s]", compiler->arg_script_trigger, name);
+        id = script_id_for_name(compiler, full);
+        if( id >= 0 )
+            return id;
+    }
+
     for( i = 0; i < sizeof(k_triggers) / sizeof(k_triggers[0]); i++ )
     {
         char full[SSC_MAX_NAME];
@@ -472,6 +496,13 @@ parse_call(
      * its locals, which restores source order. */
     if( SSC_LexIsPunct(&compiler->lexer, "(") )
     {
+        /* A proc's own arguments are values, whatever position the *call* sits
+         * in — `settimer(~pick(poison), 5)` must not read `poison` as a script. */
+        int saved_script_arg = compiler->arg_is_script_name;
+        const char* saved_script_trigger = compiler->arg_script_trigger;
+
+        compiler->arg_is_script_name = 0;
+        compiler->arg_script_trigger = NULL;
         SSC_LexNext(&compiler->lexer);
         if( !SSC_LexIsPunct(&compiler->lexer, ")") )
         {
@@ -522,6 +553,8 @@ parse_call(
         if( !SSC_LexIsPunct(&compiler->lexer, ")") )
             return fail(compiler, "expected ')' to close the argument list");
         SSC_LexNext(&compiler->lexer);
+        compiler->arg_is_script_name = saved_script_arg;
+        compiler->arg_script_trigger = saved_script_trigger;
     }
 
     /*
@@ -635,6 +668,70 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
          */
         int type_args = 0;
         int arg_index = 0;
+        /*
+         * Leading arguments that name a *server script* rather than a value.
+         *
+         * Stated here for the same reason `type_args` is: `ss_meta.gen.h` carries
+         * argument counts, not signatures, and the reference's compiler gets this
+         * from the declared parameter type (`timer`, `queue`). Every one of these
+         * commands takes the script first and integers after, so the count is one.
+         *
+         * The list is explicit rather than a prefix match on purpose, and the
+         * reference's own signatures (`content/scripts/engine.rs2`) are the
+         * authority for both membership and the parameter's type — a prefix match
+         * sweeps in exactly the wrong ones. `GETWALKTRIGGER` takes nothing, and
+         * all three `npc_*` lookalikes take an **int**, not a script:
+         *
+         *   [command,npc_settimer](int $interval)
+         *   [command,npc_queue](int $ai_queue, int $arg, int $delay)
+         *   [command,npc_walktrigger](int $ai_queue, int $arg)
+         *
+         * Those name an `[ai_queue<n>]` / `[ai_timer]` by *number*, keyed on the
+         * npc's own type — so hinting them would read an interval as a script
+         * name. They were on this list for one revision on the strength of their
+         * spelling, which is the same reasoning-from-the-name that caused the bug
+         * this table exists to prevent.
+         */
+        static const struct
+        {
+            const char* op;
+            const char* trigger;
+        } k_script_arg_ops[] = {
+            { "QUEUE", "queue" },
+            { "QUEUEVARARG", "queue" },
+            { "STRONGQUEUE", "queue" },
+            { "STRONGQUEUEVARARG", "queue" },
+            { "WEAKQUEUE", "queue" },
+            { "WEAKQUEUEVARARG", "queue" },
+            { "LONGQUEUE", "queue" },
+            { "LONGQUEUEVARARG", "queue" },
+            { "CLEARQUEUE", "queue" },
+            { "GETQUEUE", "queue" },
+            { "SETTIMER", "timer" },
+            { "CLEARTIMER", "timer" },
+            { "GETTIMER", "timer" },
+            { "SOFTTIMER", "softtimer" },
+            { "CLEARSOFTTIMER", "softtimer" },
+            { "WALKTRIGGER", "walktrigger" },
+        };
+        int script_args = 0;
+        const char* script_trigger = NULL;
+        int saved_script_arg = compiler->arg_is_script_name;
+        const char* saved_script_trigger = compiler->arg_script_trigger;
+
+        if( op_name )
+        {
+            for( size_t k = 0; k < sizeof(k_script_arg_ops) / sizeof(k_script_arg_ops[0]);
+                 k++ )
+            {
+                if( strcmp(op_name, k_script_arg_ops[k].op) == 0 )
+                {
+                    script_args = 1;
+                    script_trigger = k_script_arg_ops[k].trigger;
+                    break;
+                }
+            }
+        }
 
         if( op_name && strcmp(op_name, "ENUM") == 0 )
             type_args = 2;
@@ -685,8 +782,13 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
 
                     compiler->arg_kind_hint =
                         arg_index < type_args ? SSC_SYM_TYPE : base_hint;
+                    compiler->arg_is_script_name = arg_index < script_args;
+                    compiler->arg_script_trigger =
+                        arg_index < script_args ? script_trigger : NULL;
                     if( !parse_expression(compiler, &arg_is_string) )
                         return 0;
+                    compiler->arg_is_script_name = 0;
+                    compiler->arg_script_trigger = NULL;
                     arg_index++;
                     if( SSC_LexIsPunct(&compiler->lexer, ",") )
                     {
@@ -701,6 +803,8 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
             SSC_LexNext(&compiler->lexer);
         }
         compiler->arg_kind_hint = saved_hint;
+        compiler->arg_is_script_name = saved_script_arg;
+        compiler->arg_script_trigger = saved_script_trigger;
     }
 
     /*
@@ -1168,6 +1272,50 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
             }
         }
 
+        /*
+         * A queue/timer/softtimer/walktrigger argument names a *script*, and the
+         * script namespace lives outside the symbol table — so it has to be
+         * consulted before the generic lookup, not after it.
+         *
+         * It used to be after, and that is the same collision class as the stat
+         * and interface hints above, with a worse landing. `settimer(poison, 30)`
+         * found obj 273 named `poison` and never reached `[timer,poison]`, so the
+         * engine armed a timer whose "script id" was an obj id and then ran
+         * whatever script happened to sit at script 273 —
+         * `[label,woman_im_looking_for_a_lady]`, whose first line is a
+         * `~chatplayer_anim`. The symptom was a stray dialogue box on a player
+         * nowhere near West Ardougne, and *which* line it was moved every time
+         * the tree grew, because the only thing choosing it was the allocation
+         * order of an unrelated namespace.
+         *
+         * Only the hinted position resolves this way. A bare name anywhere else
+         * still means what the packs say it means.
+         */
+        if( compiler->arg_is_script_name )
+        {
+            int script_id = script_id_for_bare_name(compiler, text);
+
+            if( script_id >= 0 )
+            {
+                /* Say so when the name was ambiguous: the script won, and the
+                 * reader of `settimer(poison, …)` cannot see that from the
+                 * source. Silence here is what let the bug above live. */
+                symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_UNKNOWN);
+                if( symbol )
+                {
+                    fprintf(stderr,
+                            "sscompile: %s:%d: note: '%s' names both a script and a "
+                            "symbol of kind %d (value %d); the script wins in this "
+                            "position\n",
+                            compiler->lexer.file, compiler->lexer.current.line, text,
+                            (int)symbol->kind, symbol->value);
+                }
+                emit(compiler, SS_OP_PUSH_CONSTANT_INT, script_id);
+                SSC_LexNext(lexer);
+                return 1;
+            }
+        }
+
         symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_UNKNOWN);
         if( symbol )
         {
@@ -1176,8 +1324,8 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
             return 1;
         }
 
-        /* A queue/timer/softtimer/walktrigger argument names a script, and its
-         * value is that script's id. */
+        /* Not a hinted position, but still a script name — `[if_button]`-style
+         * arguments and anything the hint table does not cover. */
         {
             int script_id = script_id_for_bare_name(compiler, text);
 

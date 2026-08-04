@@ -795,6 +795,74 @@ test_runclientscript_vararg(void)
  * which does not error anywhere — it draws the wrong panel.
  */
 /*
+ * A queue/timer argument names a script, even when a pack also spells the name.
+ *
+ * This is the same collision class as `test_param_type_shadowing` above and as
+ * the stat/interface hints in `parse_command`, and it is the one that got out.
+ * `settimer(poison, 30)` compiled to `settimer(273, 30)` because obj 273 is
+ * named `poison` and the script namespace was only consulted *after* the packs.
+ * The engine then armed a timer whose "script id" was an obj id and ran whatever
+ * script sat at 273 — a `[label,...]` from a quest, whose first statement is a
+ * `~chatplayer`. Nothing failed: the name resolved, the opcode was legal, the
+ * timer fired, and a player nowhere near that quest got its dialogue box.
+ *
+ * The fixture seeds `coins` as obj 995, so `[timer,coins]` reproduces it exactly:
+ * the operand must be the script's id and must not be 995.
+ */
+static void
+test_script_name_argument(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* arm;
+    const struct SSVM_Script* target;
+    int found = 0;
+
+    printf("a timer/queue argument that a pack also names\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,arm]\n"
+                         "settimer(coins, 30);\n"
+                         "\n"
+                         "[timer,coins]\n"
+                         "~noop;\n"
+                         "\n"
+                         "[proc,noop]()\n",
+                         "script name argument") )
+        return;
+
+    arm = SSVM_ProviderGetByName(&fixture.provider, "[proc,arm]");
+    target = SSVM_ProviderGetByName(&fixture.provider, "[timer,coins]");
+    if( !arm || !target )
+    {
+        printf("  FAIL script name argument: no script\n");
+        g_fail++;
+        fixture_close(&fixture);
+        return;
+    }
+
+    for( int i = 0; i < arm->op_count; i++ )
+    {
+        if( arm->opcodes[i] != SS_OP_SETTIMER )
+            continue;
+        found = 1;
+        /* settimer pushes (script, interval) then calls, so the script id is
+         * two instructions back. */
+        CHECK(i >= 2 && arm->opcodes[i - 2] == SS_OP_PUSH_CONSTANT_INT,
+              "the script argument is a constant push");
+        if( i >= 2 && arm->opcodes[i - 2] == SS_OP_PUSH_CONSTANT_INT )
+        {
+            CHECK_EQ(arm->int_operands[i - 2], target->id,
+                     "settimer's first argument is the timer script's id");
+            CHECK(arm->int_operands[i - 2] != 995,
+                  "and not the obj that shares the name");
+        }
+    }
+    CHECK(found, "the command compiled to SETTIMER");
+
+    fixture_close(&fixture);
+}
+
+/*
  * A header's declared types survive into `param_types`, even when the type name
  * is also a pack symbol.
  *
@@ -1010,6 +1078,7 @@ main(void)
     test_runclientscript_vararg();
     test_vararg_limits();
     test_param_type_shadowing();
+    test_script_name_argument();
     test_errors();
 
     if( g_fail )

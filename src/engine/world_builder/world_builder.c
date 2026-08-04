@@ -876,6 +876,14 @@ WorldBuilder_ApplyLocChange(
             if( old->shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
                 old->shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER && world->painter )
                 painter_release_wall(world->painter, scene_x, scene_z, level, old->element_id);
+            /* Same for a centrepiece/decoration: the baked static scenery element
+             * has to leave its tile chains, or it keeps drawing whatever scene
+             * element id it holds — and that id is handed straight back to the
+             * replacement loc below, so the new model draws twice at two
+             * different depths. See painter_release_scenery. */
+            if( world->painter )
+                painter_release_scenery(
+                    world->painter, scene_x, scene_z, level, old->element_id);
         }
         World_SceneryRemove(world, idx);
     }
