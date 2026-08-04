@@ -2748,22 +2748,32 @@ main(
          * `embed` is the one value a revision could never supply, because it is
          * not a protocol but a deployment: the server runs in this process and
          * the two ends trade bytes through a queue pair instead of a socket.
+         *
+         * TORIRS_TRANSPORT=embed|tcp|ws wins over the manifest — run-live.sh
+         * uses that to force the in-process server without rewriting INIs.
          */
         {
             int transport_kind = app.net ? app.net->rev->transport_kind : 0;
+            const char* transport_name = boot_manifest.transport[0]
+                                             ? boot_manifest.transport
+                                             : NULL;
+            const char* env_transport = getenv("TORIRS_TRANSPORT");
 
-            if( boot_manifest.transport[0] )
+            if( env_transport && env_transport[0] )
+                transport_name = env_transport;
+
+            if( transport_name )
             {
-                if( strcmp(boot_manifest.transport, "embed") == 0 )
+                if( strcmp(transport_name, "embed") == 0 )
                     transport_kind = NET_TRANSPORT_EMBED;
-                else if( strcmp(boot_manifest.transport, "ws") == 0 )
+                else if( strcmp(transport_name, "ws") == 0 )
                     transport_kind = NET_TRANSPORT_WS;
-                else if( strcmp(boot_manifest.transport, "tcp") == 0 )
+                else if( strcmp(transport_name, "tcp") == 0 )
                     transport_kind = NET_TRANSPORT_TCP;
                 else
-                    fprintf(stderr, "torirs: unknown [net:boot] transport=%s — using the "
-                                    "revision's\n",
-                            boot_manifest.transport);
+                    fprintf(stderr,
+                            "torirs: unknown transport=%s — using the revision's\n",
+                            transport_name);
             }
 
             sock = app.net ? NetTransport_New(transport_kind,

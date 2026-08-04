@@ -8,8 +8,8 @@
 #   make -C src release         native optimized -> src/torirs
 #   make -C src web             emscripten       -> build-web/torirs.js
 #   make -C src io-server       the web build's cache backend (always native)
-# Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE]) tuple owns its own OBJ_DIR,
-# so flavors never share .o's.
+# Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
+# own OBJ_DIR, so flavors never share .o's.
 #
 # TORIDRAW_OPT=1 compiles the Soft3D/ToriDraw unity at -O2 while the rest of
 # the client stays at OPT's level (default -O0). Same idea as COMPRESS_CFLAGS
@@ -30,6 +30,10 @@ MEMTRACE ?= 0
 # TORIDRAW_OPT=1: Soft3D/ToriDraw at -O2 regardless of OPT. Default 0.
 #   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
 TORIDRAW_OPT ?= 0
+# EMBED_SERVER=1 links the rev-230 server into the client. Its own OBJ_DIR
+# suffix (_es) so switching embed ↔ plain never reuses a net_transport_embed.o
+# compiled without -DTORIRS_EMBED_SERVER=1 (that symptom is a silent stub).
+EMBED_SERVER ?= 0
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
@@ -47,11 +51,16 @@ TORIDRAW_OPT_SUFFIX = _tdo
 else
 TORIDRAW_OPT_SUFFIX =
 endif
+ifeq ($(EMBED_SERVER),1)
+EMBED_SERVER_SUFFIX = _es
+else
+EMBED_SERVER_SUFFIX =
+endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
@@ -1446,6 +1455,8 @@ test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 clean:
 	rm -rf build build_opt build_web build_web_opt torirs .last_flavor
 	rm -rf build_mt build_opt_mt build_web_mt build_web_opt_mt torirs_mt
+	rm -rf build_es build_opt_es build_web_es build_web_opt_es
+	rm -rf build_tdo_es build_opt_tdo_es
 	# Only our own outputs: build-web/ is a plain output directory that other
 	# experiments have also written into.
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \

@@ -21,21 +21,19 @@ exercises the client's **server-driven** paths — the ones that never run
 offline, because offline the client has nothing to obey.
 
 ```
-./run-live.sh     manifest_osrs230.ini testc test   # native  — starts the mock
-./run-live.sh web manifest_osrs230.ini testc test   # browser — mock + IO server
+./run-live.sh     manifest_osrs230.ini testc test   # native  — in-process server
+./run-live.sh web manifest_osrs230.ini testc test   # browser — embed + IO server
 
 make -C src test-mock230     # game logic, no socket
 make -C src test-rsareabuf   # the wire buffer
 make -C src test-ws-frame    # the WebSocket frame codec
 ```
 
-`run-live.sh` starts the mock itself for any manifest whose `[net:boot]` names
-`osrs230` on localhost, and stops it on the way out. `TORIRS_NO_MOCK=1` opts
-out, and so does an instance already holding the port — one you started by hand
-with `MOCK230_VERBOSE=1` or under a debugger is never fought over. That last
-case is also how a **stale** `mock230` survives a client rebuild: the script
-does not replace the listener, so dialogue choice fixes (and anything else
-server-side) look dead until you kill the port and start a fresh binary. By hand:
+`run-live.sh` always uses the **in-process** server for osrs230 (builds with
+`EMBED_SERVER=1`, sets `TORIRS_TRANSPORT=embed`). There is no separate
+`mock230` child and no port to leave stale. Hand-start `src/build/mock230` + a
+TCP manifest yourself when you need a socket listener (debugger, multiplayer,
+`MOCK230_VERBOSE` against a live port). By hand:
 
 ```
 make -C src mock230 && src/build/mock230 &

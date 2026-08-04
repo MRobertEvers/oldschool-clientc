@@ -484,11 +484,11 @@ resumes with `last_slot=3`) and `mock230_pack --check-only` at 0 errors.
 Re-checked on a fresh TCP mock (`MOCK230_VERBOSE=1`): `RESUME_PAUSEBUTTON 231:5`
 then `IF_BUTTON1 219:1 sub=1`, no 4120 abort.
 
-**Live pitfall.** `run-live.sh` starts `src/build/mock230` only when the
-manifest port is free; if something already listens (often a stale pre-fix
-binary), it leaves that process alone. Choice clicks then look dead after a
-client rebuild. Kill the port listener (`lsof -iTCP:43595 -sTCP:LISTEN`),
-rebuild `mock230` + `torirs`, then restart.
+**Live note.** `run-live.sh` runs the in-process server for osrs230
+(`EMBED_SERVER=1` + `TORIRS_TRANSPORT=embed`), so a client rebuild always
+includes the matching server — there is no stale TCP `mock230` left on the
+port. For a socket server under a debugger, start `src/build/mock230` by hand
+against a TCP manifest.
 
 ## 6c. `chat_left` body text sits high — cache truth, not unpack loss
 

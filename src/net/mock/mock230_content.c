@@ -1379,39 +1379,63 @@ load_npc_config(const char* path)
 /* ------------------------------------------------------------------ */
 
 /*
- * Equipment requirements, and nothing else yet.
+ * Equipment requirements and authored obj params (BAS, attack anims, …).
  *
- * The same overlay contract the `.npc` grammar has: a block starts from what
- * `cache.osrs239` already says about the record and states only what a cache
- * cannot. For an obj that is a short list, because the cache is unusually
- * generous here — name, model, cost, weight, stackability, stack variants, the
- * wear positions, the category, the twelve combat bonuses and the attack rate
- * are all in the record already, and restating any of them in a config is how a
- * config comes to disagree with the client.
+ * The same overlay contract the `.npc` / `.loc` grammars have: a block starts
+ * from what `cache.osrs239` already says and states only what a cache cannot.
+ * Combat bonuses and attack rate are already in the record — restating them
+ * here is how a config comes to disagree with the client.
  *
- * What it cannot state is the level you need to *wear* the thing, except for a
- * subset and never more than two of them. See docs/mock230_content.md §5.
+ * Two `param=` shapes:
  *
- * The values were transcribed from a Kronos server dump by an importer that no
- * longer exists; they are authored content now and this tree is their home.
+ *     param=levelrequire,attack,20          # repeatable (stat, level) pair
+ *     param=ready_baseanim,human_staffready # ordinary typed param → oc_param
  *
- *     [mithril_scimitar]
- *     param=levelrequire,attack,20
- *
- *     [pest_void_knight_top]
- *     param=levelrequire,attack,42
- *     param=levelrequire,defence,42
- *     ...
- *
- * `levelrequire` is repeatable and its value is `<skill>,<level>`, which is a
- * deliberate departure from the cache's fixed 434/436 + 435/437 pair: the pair
- * is why an OldSchool cache cannot express Void knight gear at all, and there is
- * no reason for a config this server owns to inherit the limit. LostCity spells
- * its own single-requirement form `param=levelrequire,N`; this is that with the
- * skill named, because rev 230 has items requiring seven.
+ * `levelrequire` stays special: a param maps one id to one scalar, and this is
+ * a repeating pair (fields/obj.ini). Everything else goes through
+ * `mock230_objinfo_param_overlay` the way `.loc` uses
+ * `mock230_locinfo_param_overlay`.
  */
+static int
+obj_resolve_param_value(
+    int param_id,
+    const char* value,
+    int* out,
+    const char* where)
+{
+    char declared = mock230_content_param_type(param_id);
+
+    if( strcmp(value, "null") == 0 )
+    {
+        *out = -1;
+        return 1;
+    }
+    /* Server overlays declare type=seq/obj/…; cache all.param uses single
+     * letters. Either way an int-shaped value may be a symbol or a number. */
+    if( declared == 's' )
+    {
+        CONTENT_ERROR("%s: string obj params are not overlaid yet (got `%s`)\n", where, value);
+        return 0;
+    }
+    if( (value[0] >= '0' && value[0] <= '9') || (value[0] == '-' && value[1] >= '0') )
+    {
+        *out = atoi(value);
+        return 1;
+    }
+    /* Symbolic: try seq first (anims / baseanim), then obj / spotanim. */
+    if( mock230_content_symbol_checked(MOCK230_PACK_SEQ, value, out) )
+        return 1;
+    if( mock230_content_symbol_checked(MOCK230_PACK_OBJ, value, out) )
+        return 1;
+    if( mock230_content_symbol_checked(MOCK230_PACK_SPOTANIM, value, out) )
+        return 1;
+    CONTENT_ERROR("%s: cannot resolve param value `%s`\n", where, value);
+    return 0;
+}
+
 static void
 obj_config_key(
+    int obj_id,
     const char* key,
     const char* value,
     int* stats,
@@ -1421,8 +1445,11 @@ obj_config_key(
 {
     char param_name[64] = { 0 };
     char skill_name[64] = { 0 };
+    char value_name[128] = { 0 };
     int level = 0;
     int stat;
+    int param_id;
+    int resolved;
 
     if( strcmp(key, "param") != 0 )
     {
@@ -1432,15 +1459,41 @@ obj_config_key(
         CONTENT_ERROR("%s: obj key `%s` is the cache's to state, ignored\n", where, key);
         return;
     }
+
+    /* Ordinary `param=<name>,<value>` (two fields). */
+    if( sscanf(value, "%63[^,],%127s", param_name, value_name) == 2 &&
+        strchr(value_name, ',') == NULL )
+    {
+        if( strcmp(param_name, "levelrequire") == 0 )
+        {
+            CONTENT_ERROR("%s: `param=levelrequire,<skill>,<level>` needs three fields\n",
+                          where);
+            return;
+        }
+        if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, param_name, &param_id) )
+        {
+            CONTENT_ERROR("%s: obj param `%s` is not in configs/all.param.compack\n", where,
+                          param_name);
+            return;
+        }
+        if( !obj_resolve_param_value(param_id, value_name, &resolved, where) )
+            return;
+        mock230_objinfo_param_overlay(obj_id, param_id, resolved);
+        return;
+    }
+
+    /* `param=levelrequire,<skill>,<level>` (three fields). */
     if( sscanf(value, "%63[^,],%63[^,],%d", param_name, skill_name, &level) != 3 )
     {
-        CONTENT_ERROR("%s: `param=levelrequire,<skill>,<level>` is the shape, got `%s`\n",
+        CONTENT_ERROR("%s: `param=<name>,<value>` or `param=levelrequire,<skill>,<level>`, "
+                      "got `%s`\n",
                       where, value);
         return;
     }
     if( strcmp(param_name, "levelrequire") != 0 )
     {
-        CONTENT_ERROR("%s: obj param `%s` is not one this server reads\n", where, param_name);
+        CONTENT_ERROR("%s: three-field obj param must be levelrequire, got `%s`\n", where,
+                      param_name);
         return;
     }
     stat = mock230_content_symbol(MOCK230_PACK_STAT, skill_name);
@@ -1517,7 +1570,7 @@ load_obj_config(const char* path)
             continue;
         }
         snprintf(where, sizeof(where), "%s:%d", path, line_number);
-        obj_config_key(line, value, stats, levels, &count, where);
+        obj_config_key(obj_id, line, value, stats, levels, &count, where);
     }
     if( obj_id >= 0 && count )
         mock230_obj_require_set(obj_id, stats, levels, count);
@@ -2640,6 +2693,96 @@ load_param_types(const char* content_dir)
     return loaded;
 }
 
+/*
+ * Server overlay `.param` files (`bas.param`, `combat.param`, …) declare
+ * `type=` / `default=` with symbolic defaults (`default=human_ready`). The
+ * cache dump in configs/all.param never names these server-allocated params,
+ * so without this walk `oc_param` answers 0 for every absent row.
+ */
+static int
+load_server_param_defaults_file(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[512];
+    int current = -1;
+    int loaded = 0;
+    int line_number = 0;
+
+    if( !file )
+        return 0;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char* header;
+        char* value;
+        int resolved;
+
+        line_number++;
+        if( !*line )
+            continue;
+        header = mock230_content_section_header(line);
+        if( header )
+        {
+            if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, header, &current) )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
+                              line_number, header);
+                current = -1;
+            }
+            continue;
+        }
+        if( current < 0 || current >= g_param_type_count )
+            continue;
+        value = mock230_content_split_key_value(line);
+        if( !value )
+            continue;
+        if( strcmp(line, "type") == 0 )
+        {
+            /* Overlay words → cache letter. Everything but string is int-shaped. */
+            if( strcmp(value, "string") == 0 || strcmp(value, "s") == 0 )
+                g_param_types[current] = 's';
+            else
+                g_param_types[current] = 'i';
+            loaded++;
+            continue;
+        }
+        if( strcmp(line, "default") == 0 )
+        {
+            if( g_param_types[current] == 's' )
+                continue; /* defaultstr= not read yet; leave 0 */
+            if( strcmp(value, "null") == 0 )
+                g_param_defaults[current] = -1;
+            else if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 )
+                g_param_defaults[current] = 1;
+            else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 )
+                g_param_defaults[current] = 0;
+            else if( (value[0] >= '0' && value[0] <= '9') ||
+                     (value[0] == '-' && value[1] >= '0') )
+                g_param_defaults[current] = atoi(value);
+            else if( strchr(value, ' ') != NULL || value[0] == '^' )
+                continue; /* prose / constant — not a seq/obj id */
+            else if( mock230_content_symbol_checked(MOCK230_PACK_SEQ, value, &resolved) ||
+                     mock230_content_symbol_checked(MOCK230_PACK_OBJ, value, &resolved) ||
+                     mock230_content_symbol_checked(MOCK230_PACK_SPOTANIM, value, &resolved) ||
+                     mock230_content_symbol_checked(MOCK230_PACK_NPC, value, &resolved) )
+                g_param_defaults[current] = resolved;
+            /* else leave 0 — unknown symbolic defaults are not pack failures */
+        }
+    }
+    fclose(file);
+    return loaded;
+}
+
+/* walk_configs callback: server overlay `.param` type/default declarations. */
+static void
+load_server_param_file(const char* path)
+{
+    int n = load_server_param_defaults_file(path);
+
+    if( n > 0 )
+        fprintf(stderr, "mock230: %d server param type(s) from %s\n", n, path);
+}
+
 /* ------------------------------------------------------------------ */
 /* Walking the tree                                                    */
 /* ------------------------------------------------------------------ */
@@ -2852,6 +2995,9 @@ mock230_content_load(const char* dir)
     }
 
     snprintf(path, sizeof(path), "%s/server/scripts", dir);
+    /* Server `.param` overlays before configs that write `param=` rows, so
+     * defaults for ready_baseanim / slashattack_anim / … answer correctly. */
+    walk_configs(path, ".param", load_server_param_file);
     /* Constants first: every other grammar may write `^name` where a number
      * goes, and an unexpanded caret is a load error rather than a zero. */
     walk_configs(path, ".constant", load_constant_config);
