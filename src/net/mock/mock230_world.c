@@ -2420,9 +2420,11 @@ npc_run_mode(
             npc_walk_to_player(npc, player, 0);
             return 1;
         }
-        /* NOT cleared before the trigger — matching LostCity. Combat re-fires
-         * every tick from this mode; content rate-limits via attack_clock/delay.
-         * A script that wants to leave combat clears the mode itself. */
+        /* Cleared *before* the trigger runs, so a script that sets a new mode
+         * keeps it — the same ordering the player's interaction resolver uses
+         * and for the same reason. Continuous combat does not use this path:
+         * combat_npc_tick fires AI_OPPLAYER2 on the attack clock instead. */
+        npc->mode = MOCK230_NPCMODE_NONE;
         mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }
@@ -2443,7 +2445,7 @@ npc_run_mode(
             npc_walk_to_player(npc, player, 0);
             return 1;
         }
-        /* NOT cleared — same as OPPLAYER above. */
+        npc->mode = MOCK230_NPCMODE_NONE; /* see above */
         mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }
@@ -3114,16 +3116,33 @@ handle_opheld(
     /* The equipment tab's own components send their ops through the same
      * packet, so a click there means "take it off" rather than "put it on".
      * Which slot came off is in the component, not in `slot`. Route through
-     * the INV_BUTTON trigger first so content can own it; fall back to the
-     * engine's unequip_slot only when no script binds. */
+     * INV_BUTTON1 — by uid then by name, same pair as if_button — so content's
+     * [inv_button1,wornitems:slotN] can own it. Fall back to unequip_slot. */
     {
         int worn = mock230_equipment_worn_slot(component);
         if( worn >= 0 )
         {
+            const char* com_name;
+            int result;
+
             player->last_slot = worn;
             player->last_com = component;
-            if( mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1, component, -1, -1)
-                    == MOCK230_TRIGGER_NONE )
+            result = mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1, component, -1,
+                                                 -1);
+            if( result == MOCK230_TRIGGER_NONE &&
+                (com_name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, component)) )
+            {
+                char name[192];
+                const struct SSVM_Script* script;
+
+                snprintf(name, sizeof(name), "[inv_button1,%s]", com_name);
+                script = srv->scripts_ok ? SSVM_ProviderGetByName(srv->scripts, name) : NULL;
+                if( script )
+                    result = mock230_scripts_run_hook(srv, script, NULL, 0)
+                                 ? MOCK230_TRIGGER_RAN
+                                 : MOCK230_TRIGGER_FAILED;
+            }
+            if( result == MOCK230_TRIGGER_NONE )
                 unequip_slot(srv, worn);
             return;
         }
@@ -8812,6 +8831,110 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(mock230_capture_find(&capture, 84, 0) < 0,
                                "op 1 on stats:attack is unbound and must run nothing");
+            }
+
+            /*
+             * Quest XP View-journal: CS2 9189 → 2929 synthesizes IF_BUTTON1 on
+             * skill_guide_v2:quest_journal_button_trigger with sub = quest id.
+             * Content reuses ~quest_journal_open_by_id (same as questlist op2).
+             */
+            {
+                int trigger = mock230_content_symbol(
+                    MOCK230_PACK_COMPONENT, "skill_guide_v2:quest_journal_button_trigger");
+                int journal = mock230_content_symbol(MOCK230_PACK_INTERFACE, "questjournal");
+                int cook_row =
+                    mock230_content_symbol(MOCK230_PACK_DBROW, "quest_cooksassistant");
+                int latest =
+                    mock230_content_symbol(MOCK230_PACK_VARP, "latest_quest_journal");
+                static struct Mock230Capture arm;
+                static struct Mock230Capture capture;
+                int mask = -1;
+                int from = -1;
+                int to = -1;
+                uint8_t button[6];
+                int open_at;
+
+                SELFTEST_CHECK(trigger > 0,
+                               "the content pack should name "
+                               "skill_guide_v2:quest_journal_button_trigger");
+                SELFTEST_CHECK(journal > 0, "the content pack should name questjournal");
+                SELFTEST_CHECK(cook_row >= 0, "the pack should name quest_cooksassistant");
+
+                mock230_capture_begin(&srv, &arm);
+                mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( int p = 0; p < arm.count; p++ )
+                {
+                    struct RSAreaBuf ev;
+
+                    if( arm.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        continue;
+                    rsab_wrap(&ev, arm.packets[p].data, (size_t)arm.packets[p].len);
+                    if( rsab_g4_alt3(&ev) != trigger )
+                        continue;
+                    from = rsab_g2_alt2(&ev);
+                    mask = rsab_g4_alt1(&ev);
+                    to = rsab_g2(&ev);
+                    break;
+                }
+                SELFTEST_CHECK(mask == 2 /* ^if_event_op1 */,
+                               "quest_journal_button_trigger should be armed for op 1 only "
+                               "(mask 2), got %d",
+                               mask);
+                SELFTEST_CHECK(from == 1 && to >= 200,
+                               "quest_journal_button_trigger arming range should be 1..N "
+                               "(got %d..%d)",
+                               from, to);
+
+                button[0] = (uint8_t)(trigger >> 24);
+                button[1] = (uint8_t)(trigger >> 16);
+                button[2] = (uint8_t)(trigger >> 8);
+                button[3] = (uint8_t)trigger;
+                button[4] = 0;
+                button[5] = 1; /* Cook's Assistant quest:id */
+
+                if( latest > 0 )
+                    player->varps[latest] = -1;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(player->last_slot == 1,
+                               "View-journal should arrive as last_slot 1, got %d",
+                               player->last_slot);
+                if( latest > 0 )
+                {
+                    SELFTEST_CHECK(
+                        player->varps[latest] == cook_row,
+                        "View-journal should set %%latest_quest_journal to "
+                        "quest_cooksassistant (%d), got %d",
+                        cook_row,
+                        player->varps[latest]);
+                }
+
+                open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                SELFTEST_CHECK(open_at >= 0,
+                               "View-journal on the skill guide trigger should mount "
+                               "questjournal");
+                if( open_at >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int type;
+                    int group;
+
+                    rsab_wrap(&mount, capture.packets[open_at].data,
+                              (size_t)capture.packets[open_at].len);
+                    type = rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    SELFTEST_CHECK(group == journal,
+                                   "View-journal should mount questjournal (%d), got %d",
+                                   journal, group);
+                    SELFTEST_CHECK(type == 0,
+                                   "questjournal should mount as a modal (type 0), got %d",
+                                   type);
+                }
             }
 
             mock230_scripts_free(&srv);

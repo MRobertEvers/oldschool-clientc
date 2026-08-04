@@ -318,6 +318,10 @@ EXTRA_TRIGGERS: dict[str, int] = {
     # the event and content words it (`[friendlogin,_]` / `[friendlogout,_]`).
     "FRIENDLOGIN": 179,
     "FRIENDLOGOUT": 180,
+    # Engine detects HP hitting 0; content's [playerdeath,_] queues the
+    # sequence. LostCity has no death trigger — content wrappers queue after
+    # damage — but raw SS_OP_DAMAGE / C hit paths still need an event name.
+    "PLAYERDEATH": 181,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.

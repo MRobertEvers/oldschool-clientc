@@ -227,13 +227,13 @@ first guard, so a sweep is safe.
 
 ## 8. What is still capacity-limited, and what would need raising
 
-Four caps, measured:
+Four caps, measured (raised 2026-08-03 for `ge_pricechecker_prices`):
 
 | limit | value | where |
 |---|---|---|
-| compiler vararg list | 16 | `ssc.h:70` `SSC_MAX_VARARG_TYPES` |
-| mock host / encoder | 16 | `mock230.h:289` `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` (aborts above; deliberately not a truncate) |
-| **client wire parser** | **20** | `revpacket.h:517` `PKT_RUNCLIENTSCRIPT_ARG_MAX` |
+| compiler vararg list | **28** | `ssc.h` `SSC_MAX_VARARG_TYPES` |
+| mock host / encoder | **28** | `mock230.h` `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` |
+| **client wire parser** | **28** | `revpacket.h` `PKT_RUNCLIENTSCRIPT_ARG_MAX` |
 | hard ceiling | 32 | `str_mask` is `uint32_t`; ARG_MAX cannot exceed it without widening |
 
 Consumers, re-measured from each `.cs2`'s declaration line:
@@ -245,8 +245,8 @@ Consumers, re-measured from each `.cs2`'s declaration line:
 | `deathkeep_init` | 972 | 9 | 1 | yes |
 | `interface_inv_init` | 149 | 6 | 5 | yes |
 | `ge_history_addline` | 1645 | 6 | 0 | yes |
-| `ge_pricechecker_prices` | 785 | 28 | 0 | **no** |
-| `script1216` / `script1217` | 1216/1217 | 28 | 0 | **no** |
+| `ge_pricechecker_prices` | 785 | 28 | 0 | **yes** (as of 2026-08-03) |
+| `script1216` / `script1217` | 1216/1217 | 28 | 0 | yes |
 
 **All three over-cap consumers are int-only, and all three belong to GE or
 trading**, which no current lane is building. So raising the caps is capacity

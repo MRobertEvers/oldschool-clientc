@@ -235,7 +235,8 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_IF_OPEN, 178, "if_open is the open-side twin of if_close");
     CHECK_EQ(SS_TRIGGER_FRIENDLOGIN, 179, "friendlogin is rev-230 presence");
     CHECK_EQ(SS_TRIGGER_FRIENDLOGOUT, 180, "friendlogout");
-    CHECK_EQ(SS_TRIGGER_MAX, 181, "trigger table size");
+    CHECK_EQ(SS_TRIGGER_PLAYERDEATH, 181, "playerdeath when HP hits 0");
+    CHECK_EQ(SS_TRIGGER_MAX, 182, "trigger table size");
 
     /* The numbered form is a *different* trigger from the op-less click, not a
      * relabelling of it: `[if_button,x]` still answers a plain click and

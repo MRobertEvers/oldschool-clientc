@@ -640,7 +640,9 @@ mock230_combat_hit_player(
             if( srv->npcs[i].combat_target == player->pid )
                 mock230_combat_stop_npc(srv, i);
         }
-        /* Content's playerhit_n_melee / poison already queue(player_death). */
+        /* Content queues [queue,player_death] from wrappers; raw hit paths fire
+         * PLAYERDEATH so the sequence still starts. */
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_PLAYERDEATH, -1, -1, -1);
     }
 }
 
@@ -958,7 +960,6 @@ maybe_aggress(
 
     npc->combat_target = player->pid;
     npc->attack_clock = 0;
-    npc->mode = MOCK230_NPCMODE_OPPLAYER1 + 1; /* OPPLAYER2: Attack */
 }
 
 void

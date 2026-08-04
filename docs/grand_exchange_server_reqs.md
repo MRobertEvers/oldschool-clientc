@@ -224,7 +224,7 @@ didn't capture. **Flag as corpus gap — do not build against it.**
 | Abort/Modify/Item-picker | same "op + component, server infers meaning" idiom as shop | **not implemented** |
 | `IF_SETONSTOCKTRANSMIT` real listener model | §7 | **client bug**, not server — flag alongside the XP-drops class (`docs/PORTING_GUIDE.md` §5.2) |
 | `stockmarket_*` real host-op answers | §7 | **client gap** |
-| Guide-price table + update cadence (`ge_pricechecker`/`ge_pricelist`) | §5 | **not implemented**, likely wants its own content-side price-history record |
+| Guide-price table + update cadence (`ge_pricechecker`/`ge_pricelist`) | §5 | **pricechecker landed 2026-08-03** — worn-tab button opens `ge_pricechecker`+side; prices are **high alch** (`oc_cost * 60 / 100`), not GE history. `ge_pricelist` and real guide-price pipeline still not implemented. RUNCLIENTSCRIPT arity raised to 28 for script 785. |
 
 ## 9. LostCity precedent — confirmed absent, and why that's not a gap in the research
 

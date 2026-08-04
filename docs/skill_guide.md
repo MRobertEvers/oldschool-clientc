@@ -376,8 +376,31 @@ each click resolves `View …` / script 9180. Title stays "Attack - Overview"
 until a left-rail rebuild (cache title script); the content chrome still draws
 through the tab labels (layout/z-order, separate from click arming).
 
----
+### Landed (2026-08-03) — Quest XP View-journal
 
+Quest XP rows arm `View-journal` in clientscript 9195 with
+`cc_setonop("script9189(quest:id)")`. Script 9189 calls CS2 opcode **2929**
+(`IF_TRIGGEROPLOCAL`) on `skill_guide_v2:quest_journal_button_trigger`
+(860:17) with the quest id as a typed `"i"` arg.
+
+Real rev-239 wire for 2929 is `IF_SCRIPT_TRIGGER` (var-short; crc + component +
+typed args). This client still speaks rev-230, so 2929 adapts to
+**`IF_BUTTON1(component, sub=questId)`** — `last_slot` carries the quest id,
+same shape as questlist op 2.
+
+Content:
+
+- `~skill_guide_login` arms `quest_journal_button_trigger` for op 1 over
+  quest ids `1..N`.
+- `[proc,quest_journal_open_by_id]` is shared by
+  `[if_button2,questlist:list]` and
+  `[if_button1,skill_guide_v2:quest_journal_button_trigger]`.
+
+Verified: `make -C src test-cs2-triggerop` (2929 stack → host request);
+mock230 skill-guide selftest arms the trigger and opens Cook's Assistant
+journal via `IF_BUTTON1` on the trigger with `sub=1`.
+
+---
 
 ## 6. The permanent check
 

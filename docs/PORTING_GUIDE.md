@@ -735,7 +735,7 @@ absence). **They are server-requirements specs, not implementations** — per
 | [`grand_exchange_server_reqs.md`](grand_exchange_server_reqs.md) | ge_offers 465 + family | **largest feature**: 3 data idioms + a world-wide matching engine |
 | [`trading_server_reqs.md`](trading_server_reqs.md) | trademain 335, tradeside 336, tradeconfirm 334 | **most novel architecturally**: needs cross-player container read/write |
 | [`chrome_panels_server_reqs.md`](chrome_panels_server_reqs.md) | xptracker 729, hiscores 894, loottools 650 | xptracker needs ~nothing; hiscores is **out-of-band HTTP**, not a game packet |
-| [`death_mechanics_server_reqs.md`](death_mechanics_server_reqs.md) | deathkeep 4, gravestone_generic 672, death_coffer 670 | base death landed; item retention **deliberately** unbuilt (`death.rs2`'s own header) |
+| [`death_mechanics_server_reqs.md`](death_mechanics_server_reqs.md) | deathkeep 4, gravestone_generic 672, death_coffer 670 | preview + on-death + gravestone/coffer landed 2026-08-03 (high-alch fees) |
 | [`slayer_rewards_server_reqs.md`](slayer_rewards_server_reqs.md) | slayer_rewards 426, task_list 924 | greenfield; postdates LostCity |
 | [`farming_server_reqs.md`](farming_server_reqs.md) | farming_tools 125/126, farming_view 179 | greenfield; 107 tick-driven per-player patch records |
 | [`settings_panel_server_reqs.md`](settings_panel_server_reqs.md) | settings 134 | two real gameplay settings; the rest is chrome |
