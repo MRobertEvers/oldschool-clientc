@@ -150,9 +150,9 @@ filed under `helpers/quests/` are at the end.
 | 45 | Dragon Slayer II | `dragonslayerii` | 1782 | done | `%ds2`→215; Alec→Dallas/Crandor soft→Lithkren/Bob soft→Ungael/Galvek soft; `::ds2run` OK; pack 0 errors |
 | 46 | Monkey Madness II | `monkeymadnessii` | 3084 | done | `%mm2_progress`→195; Narnode→Glough/Anita soft→Garkor/Kruk soft→sabotage/lab soft→Nieve/Glough soft; `::mm2run` OK; pack 0 errors |
 | 47 | Song of the Elves | `songoftheelves` | 4285 | done | `%sote`→200; Edmond→Elena/Ardougne soft→Arianwyn/Bax/seals soft→Pass/final soft; `::soterun` OK; pack 0 errors |
-| 48 | Desert Treasure II | `deserttreasureii` | 5076 | in_progress | lane B |
-| M1 | Bear Your Soul | `bearyoursoul` | 144 | in_progress | miniquest |
-| M2 | Enter the Abyss | `entertheabyss` | 212 | pending | miniquest; deprioritised |
+| 48 | Desert Treasure II | `deserttreasureii` | 5076 | done | `%dt2`→118; vault/Asgarnia→Digsite soft→four medallions soft→finale soft; `::dt2run` OK; pack 0 errors |
+| M1 | Bear Your Soul | `bearyoursoul` | 144 | done | `%arceuus_soulbearer_story`→3; book/Aretha/dig/Key Master soft; `::bysrun` OK; pack 0 errors |
+| M2 | Enter the Abyss | `entertheabyss` | 212 | done | `%abyssal_miniquest`→4 (varp 492); wildy→Varrock orb→3 essence soft→reward; `::etarun` OK; pack 0 errors |
 
 ## Opcode gap log
 
@@ -457,6 +457,23 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   pack 0 errors; deferred house puzzle, agility dungeon, fights, sabotage
   pathing; next pending for lane B = #48 Desert Treasure II (#47 owned by
   primary)
+- slice 48 done (lane B): Desert Treasure II — `%dt2` on `dt2_primary`
+  (0..114→118); vault/Asgarnia→Digsite war room soft→four medallion soft-skips
+  →cell/Stranger/wights soft→finish; Ring of Shadows + 3 lamps; wiki
+  https://oldschool.runescape.wiki/w/Desert_Treasure_II_-_The_Fallen_Empire/Quick_guide;
+  `::deserttreasureii` / `::dt2run`; headless OK (`dt2run OK` payload=25);
+  pack 0 errors; deferred digsite puzzle, Forgotten Four fights/instances,
+  cell escape; next for lane B = miniquests M1/M2 (deprioritised) or idle
+  until #47 Song of the Elves frees / primary needs help
+- slice M2 done (lane B): Enter the Abyss — `%abyssal_miniquest` on
+  `abyssal_miniquest` (0..3→4); wildy Mage→Varrock→scrying orb + three
+  essence teleports (Aubury/Sedridor/Cromperty via `%rcu_essencespot_*` on
+  `abyssal_warp`)→reward (book+small pouch+1000 RC XP); TOE zammy gated;
+  wiki https://oldschool.runescape.wiki/w/Enter_the_Abyss/Quick_guide;
+  2009scape ZamorakMageDialogue ref; `::entertheabyss` / `::etarun`;
+  headless OK (`etarun OK` payload=23); pack 0 errors; deferred full refuse
+  trees, Wanted! branch, Abyss terrain/tele map; next for lane B = idle
+  (M1 Bear Your Soul owned elsewhere; main table clear)
 - slice 26 done: A Night at the Theatre — `%tobquest` on `tobquest_main` bits
   8..14 (0..80→86) + `%tobquest_done_tob`; stranger→crypt/head→spider cave/
   Daer→eggs→Hespori bark soft→ToB soft→finish; 2 QP + 4 antique lamps; wiki
@@ -555,3 +572,10 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   `::songoftheelves` / `::soterun`; headless OK (`soterun OK` payload=26); pack 0
   errors; also unblocked Inferno duplicate Zuk stub; deferred revolt/puzzles/
   fights; next = Desert Treasure II (#48) if lane B frees it, else miniquests M1/M2
+- slice M1 done: Bear Your Soul — `%arceuus_soulbearer_story` on `millcheck_multi`
+  (0..2→3); soft book→Aretha→dig damaged bearer→Key Master repair; Soul Bearer;
+  journal + spade `~bys_try_dig` + `keeper_of_keys` merge; LostCity none; wiki
+  https://oldschool.runescape.wiki/w/Bear_Your_Soul; `::bearyoursoul` / `::bysrun`;
+  headless OK (`bysrun OK` payload=23); pack 0 errors; deferred library bookcase
+  search, dig anim, dusty-key pathing; next = Enter the Abyss (M2) if lane B frees
+  it, else idle (main quest table complete through #48)

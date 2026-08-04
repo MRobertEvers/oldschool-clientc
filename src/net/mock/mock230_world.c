@@ -3251,35 +3251,39 @@ handle_opheld(
     }
 
     /* The equipment tab's own components send their ops through the same
-     * packet, so a click there means "take it off" rather than "put it on".
-     * Which slot came off is in the component, not in `slot`. Route through
-     * INV_BUTTON1 — by uid then by name, same pair as if_button — so content's
-     * [inv_button1,wornitems:slotN] can own it. Fall back to unequip_slot. */
+     * packet. Op 1 is Remove; higher ops are the worn item's param_451+ verbs
+     * (e.g. skillcape Boost). Route INV_BUTTON{n} by uid then by name — same
+     * pair as if_button — so content's [inv_button1,wornitems:slotN] /
+     * [inv_button2,…] can own them. Unequip is the op-1 fallback only. */
     {
         int worn = mock230_equipment_worn_slot(component);
         if( worn >= 0 )
         {
             const char* com_name;
             int result;
+            int trigger;
+
+            if( op_num < 1 || op_num > 5 )
+                return;
 
             player->last_slot = worn;
             player->last_com = component;
-            result = mock230_scripts_run_trigger(srv, SS_TRIGGER_INV_BUTTON1, component, -1,
-                                                 -1);
+            trigger = SS_TRIGGER_INV_BUTTON1 + (op_num - 1);
+            result = mock230_scripts_run_trigger(srv, trigger, component, -1, -1);
             if( result == MOCK230_TRIGGER_NONE &&
                 (com_name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, component)) )
             {
                 char name[192];
                 const struct SSVM_Script* script;
 
-                snprintf(name, sizeof(name), "[inv_button1,%s]", com_name);
+                snprintf(name, sizeof(name), "[inv_button%d,%s]", op_num, com_name);
                 script = srv->scripts_ok ? SSVM_ProviderGetByName(srv->scripts, name) : NULL;
                 if( script )
                     result = mock230_scripts_run_hook(srv, script, NULL, 0)
                                  ? MOCK230_TRIGGER_RAN
                                  : MOCK230_TRIGGER_FAILED;
             }
-            if( result == MOCK230_TRIGGER_NONE )
+            if( result == MOCK230_TRIGGER_NONE && op_num == 1 )
                 unequip_slot(srv, worn);
             return;
         }

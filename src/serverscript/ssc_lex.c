@@ -115,11 +115,12 @@ skip_trivia(struct SSC_Lexer* lexer)
  * Read a name, allowing the `interface:component` qualified form.
  *
  * Names may also contain `+` and `-`: 21 obj names look like
- * `premade_cheese+tom_batta`, and one midi is `music_Jolly-R`. Those are the
+ * `premade_cheese+tom_batta`, and godsword shards are `godwars_godsword_blade1+2`
+ * (digit after the sign). One midi is `music_Jolly-R`. Those are the
  * same characters `calc()` uses as operators, so the two are told apart by
- * spacing — a sign continues a name only when it is tight against a letter on
- * the far side. That is safe because no calc() expression in the whole corpus
- * writes an operator without surrounding whitespace, and a `$local` or a digit
+ * spacing — a sign continues a name only when it is tight against a letter or
+ * digit on the far side. That is safe because no calc() expression in the whole
+ * corpus writes an operator without surrounding whitespace, and a `$local`
  * after the sign never merges either way.
  */
 static void
@@ -135,7 +136,8 @@ read_ident(struct SSC_Lexer* lexer, struct SSC_Token* token)
 
         if( lexer->pos + 1 < lexer->length &&
             (lexer->source[lexer->pos] == '+' || lexer->source[lexer->pos] == '-') &&
-            is_ident_start(lexer->source[lexer->pos + 1]) )
+            (is_ident_start(lexer->source[lexer->pos + 1]) ||
+             is_digit(lexer->source[lexer->pos + 1])) )
         {
             lexer->pos++;
             continue;

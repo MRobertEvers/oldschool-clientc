@@ -353,6 +353,19 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # from where the player actually is. 2009scape asks it as
     # `RegionManager.forId(location.getRegionId()) instanceof DynamicRegion`.
     "MAP_INSTANCE_FIND": (11014, 1, 0, 1, 0),
+
+    # npc_setrespawn(int $delay)
+    #
+    # Arm (or clear) the active npc's respawn clock. LostCity has no command for
+    # this — God Wars minion sync is a 2009scape Java field write
+    # (`NPC.setRespawnTick`). Content needs it to say "this dead minion comes
+    # back with the boss", which is policy, not a C boss table.
+    #
+    # `$delay` is ticks from *now*: negative means "respawn on the next pass"
+    # (2009scape `setRespawnTick(-1)` when the boss returns). While the npc is
+    # still in its death animation, a pre-set clock survives the despawn step
+    # instead of being overwritten by `NpcType.respawnrate`.
+    "NPC_SETRESPAWN": (11015, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -468,6 +481,7 @@ POINTER_BITS = {
 # masks is a decision about opcodes this change does not touch.
 EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "P_COUNTDIALOG_NOPROMPT": (1 << POINTER_BITS["p_active_player"], 0),
+    "NPC_SETRESPAWN": (1 << POINTER_BITS["active_npc"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

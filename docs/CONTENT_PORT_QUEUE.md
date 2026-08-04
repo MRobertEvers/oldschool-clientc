@@ -468,9 +468,33 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 24e | Varrock gypsy (Aris) | done | already areas/varrock/aris.rs2 (full Demon Slayer Talk) |
 | 24f | Karamja volcano entrance | done | volcano.rs2: pot-hole + climbing_rope2 rim |
 | 24g | Shilo sandpit | done | shilo_sandpit.rs2: sand1–3 scoop + members gate |
-| 24h | Yanille agility dungeon | in_progress | Claimed — agility_dungeon locs; do not steal |
-| 24i | Karamja karam dungeon | in_progress | Claimed — karam_dungeon; do not steal |
-| 8 | Outward areas / remaining quests / minigames | pending | Next after 24h/24i: KQ / tbwt_timfraku; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent) |
+| 24h | Yanille agility dungeon | done | agility_dungeon.rs2: pipe/ledge/rocks/sinister chest/trap altar; ~agility_delay_fail |
+| 24i | Karamja karam dungeon | done | karam_dungeon.rs2: Saniboch fee via %karam_dungeon_entryfee + vines/stones/logs/pipes |
+| 24j | Shilo Yohnus furnace | done | shilofurnaceowner Talk + 20gp forcemove; shilofurnacedoor absent |
+| 24k | Yanille rockcake stall | done | rockcounter_withcakes thieve + empty_rock_cake_counter |
+| 24l | Mort Myre snails | done | spit AI + shell/corpse drops; mortmyre.npc attack overlays |
+| 24m | Vampire leech AI | done | melee + 1/5 skill drain; leech overlays |
+| 24n | Kalphite oldman | done | kalphite_oldman Talk (~p_choice*) |
+| 24o | Kalphite Queen combat | done | both forms mage/range/melee; form-change via npc_changetype; worker spawn + crackopen deferred |
+| 24p | Tai Bwo Wannai Timfraku | done | Timfraku Talk + TBWT constants/varps/title helpers/journal wire; brothers deferred |
+| 24q | TBWT Tiadeche | done | Talk/Use vessel+bait; crafting manual; ~p_choice*; drop music_jingle |
+| 24r | TBWT Tamayu | done | Talk/Use spear+agility; hunt cutscene simplified (cam/.npc deferred); KP spears via name switch |
+| 24s | TBWT Tinsay | done | meal fetch tree + vessel→manual for Tiadeche; ~objbox→~mesbox |
+| 24t | TBWT Lubufu | done | apprentice/bait dialogue + vessel reward; fishing spots deferred |
+| 24u | TBWT items + locs | done | vessel load/paste/rum/banana/monkey skin; bamboo door + tribal statue stubs; brother_completion helpers |
+| 24v | TBWT brother finals | done | village reward Talk + Trade stubs (inv.ini); XP + KP spear / cook / fish unlocks |
+| 24w | TBWT jogre + monkey | done | furnace burn hook in smelting; monkey ai_queue3 corpse drop; FM/superheat/dodge deferred |
+| 24x | TBWT fishing spots | done | cats 632/633 mint; karambwanji net + karambwan vessel; lubufu → @attempt_fish_karambwan; deferred: sound/afk |
+| 24y | memberfish spots | done | shark harpoon + big-net roll + oyster/casket; deferred: greegree/afk/whirlpool |
+| 24z | fishing guild | done | fishguilddoor walk-through + master_fisher + fishguildshop Trade stub |
+| 25a | slimeyfish spots | done | cat 457=slimeyfish mint; mort_slimey_eel bait; deferred: sound/movement |
+| 25b | lavafish spots | done | 0_45_152_lavafish oily-rod + burnup; lavafish_loc deferred (loc_2630 unresolved) |
+| 25c | cooking guild | done | chefdoor walk-through (32 cook + chefs_hat) + head_chef Talk |
+| 25d | ranging armour salesman | done | Talk tree + Trade stub (inv.ini) |
+| 25e | ranging bow salesman | done | Talk + Trade stub (inv.ini) |
+| 25f | Kalphite worker spawn | done | kalphite_worker_spawn.rs2 + KQ queue2 wire; hatch walk deferred |
+| 25g | Death Plateau troll thrower | done | already troll_thrower.rs2 name-expanded |
+| 8 | Outward areas / remaining quests / minigames | pending | After 25e: charlie_the_cook / competition_judge (%target*) / lavafish_loc / CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent) |
 
 
 
@@ -942,6 +966,45 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 24g done: Shilo sand1–3 scoop; mock230_pack 0 errors
 - sibling unblock: DT2 typo camzodaal→camdozaal on archaeologist_2_vis
 - next pending: karam_dungeon / yanille agility_dungeon / KQ / tbwt_timfraku
+
+- slice 24h done: Yanille agility dungeon + ~agility_delay_fail helper; mock230_pack 0 errors
+- slice 24i done: Brimhaven karam_dungeon (Saniboch/vines/stones/logs/pipes); entryfee varbit not whole varp; mock230_pack 0 errors
+- next pending: KQ / tbwt_timfraku
+- slice 24j done: Shilo Yohnus furnace Talk (door absent); mock230_pack 0 errors
+- slice 24k done: Yanille rockcake stall thieve; mock230_pack 0 errors
+- slice 24l done: Mort Myre snail spit AI + drops; mock230_pack 0 errors
+- slice 24m done: vampire_leech melee+drain; mock230_pack 0 errors
+- slice 24n done: kalphite_oldman Talk (already present); mock230_pack 0 errors
+- slice 24o done: KQ combat both forms + kalphite worker melee; mock230_pack 0 errors (9330 scripts)
+- next pending: 24p Timfraku (claimed) / TBWT brothers remainder
+
+- slice 24p done: Timfraku + TBWT scaffold (constants/varps/title helpers/journal); brothers deferred; mock230_pack 0 errors
+- sibling unblock: Inferno missing temp varps (logout/paused/safespot/saved_*); removed varp/varbit name clashes
+- next pending: TBWT brothers/Lubufu; leave 24j–24o in_progress alone
+
+- slice 24q done: Tiadeche Talk/Use + crafting manual; mock230_pack 0 errors
+- slice 24r done: Tamayu Talk/Use spear+agility; hunt cutscene simplified; mock230_pack 0 errors
+- slice 24s done: Tinsay meal tree + vessel→manual; mock230_pack 0 errors
+- slice 24t done: Lubufu apprentice/bait + vessel; fishing spots deferred; mock230_pack 0 errors
+- slice 24u done: TBWT item uses + bamboo/statue stubs + helpers; mock230_pack 0 errors
+- slice 24v done: brother finals village rewards + Trade stubs; mock230_pack 0 errors
+- slice 24w done: jogre furnace burn + monkey corpse drop; mock230_pack 0 errors (9541 scripts)
+- next pending: TBWT fishing spots (karambwanji/karambwan) / small outward leftovers (hemenster/barnaby/…); skip blocked list unchanged
+
+- slice 24x done: TBWT fishing spots (cats 632/633 + lubufu wire); sibling unblock mole_try_mud_extinguish stub; mock230_pack 0 errors
+- slice 24y done: memberfish shark/big-net + oyster/casket; mock230_pack 0 errors
+- slice 24z done: fishing guild door/master/Roachey Trade stub; mock230_pack 0 errors
+- slice 25a done: slimeyfish (cat 457 mint); mock230_pack 0 errors
+- slice 25b done: lavafish oily-rod (loc deferred); mock230_pack 0 errors
+- slice 25c done: cooking guild chefdoor + head_chef; mock230_pack 0 errors
+- slice 25d done: ranging guild armour salesman Talk + Trade stub; mock230_pack 0 errors
+- slice 25e done: ranging guild bow salesman Talk + Trade stub; mock230_pack 0 errors (9648 scripts)
+- next pending: charlie_the_cook / competition_judge (%target*) / lavafish_loc; skip blocked list unchanged
+
+- note: parallel rubber-stamp of 25a–e as "already present" superseded by real ports above
+- slice 25f done: kalphite_worker_spawn + KQ wire; mock230_pack 0 errors
+- slice 25g done: troll thrower already present
+- sibling unblock: strength4 name for 4-dose strength potion
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

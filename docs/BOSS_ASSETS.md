@@ -278,9 +278,17 @@ Level 1 is not scriptable at all — a zone update carries no plane, so a level-
 ## Re-running the export
 
 The full command is in
-`LostCity_Server/content/scripts/areas/area_inferno/README.md`. Run **all** of
-it — a partial run rewrites `inferno.loc` and `inferno.seq` with only the ids
-you passed, which is how 69 locs once became 2.
+`LostCity_Content2/scripts/areas/area_inferno/README.md` (not under
+`LostCity_Server` — that tree has no Inferno). This engine ports Zuk with
+**size 7** (cache) and `map_instance_from_square` isolation, so the shared-world
+seal reseal path is replaced by instance teardown; seal **break** still uses
+`loc_change` / `loc_anim` / angle-aware del+add. Soft gaps landed in
+`OSRS-Content/.../minigame_inferno/`: Jal-Zek corpse revive (type-code ring +
+half-HP `npc_add`), logout-pause between waves (perm `%inferno_paused` /
+saved wave+pillars; exit arms request mid-wave), Zuk-kill Jal-nib-rek pet
+roll (`infernopet`, 1/100) plus Ket-Keh cape exchange. Run **all** of the exporter
+command if re-exporting — a partial run rewrites `inferno.loc` and `inferno.seq`
+with only the ids you passed, which is how 69 locs once became 2.
 
 ---
 

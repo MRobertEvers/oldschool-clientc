@@ -5664,6 +5664,26 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_NPC_SETRESPAWN:
+    {
+        int32_t delay;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &delay) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setrespawn with no active npc");
+            return 1;
+        }
+        /* Negative → next respawn pass (2009scape setRespawnTick(-1)). */
+        if( delay < 0 )
+            npc->respawn_tick = srv->tick;
+        else
+            npc->respawn_tick = srv->tick + delay;
+        return 1;
+    }
+
     /*
      * A rectangle test, and the argument order is the trap.
      *

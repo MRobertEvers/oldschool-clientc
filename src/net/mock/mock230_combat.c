@@ -953,7 +953,10 @@ mock230_combat_npc_tick(
             mock230_world_npc_occupancy(npc, 0);
             npc->active = 0;
             npc->death_tick = -1;
-            npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
+            /* A script may have armed `npc_setrespawn` during [ai_queue3] (GWD
+             * minion sync). Keep that clock; otherwise use the def rate. */
+            if( npc->respawn_tick < 0 )
+                npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
         }
         return;
     }

@@ -19,10 +19,11 @@ Parallel to:
 
 Two phases:
 
-1. **Audit loop** (this file's Audit roster) — one skill per tick; wiki vs
-   in-tree; emit Finish-queue slices. **Does not port.**
-2. **Port loop** (later) — one pending Finish-queue slice per tick per
-   `docs/PORTING_GUIDE.md` §4 / §4.7.
+1. **Audit loop** — **complete** (23/23 skills). One skill per tick; wiki vs
+   in-tree; emit Finish-queue slices. **Does not port.** Do not re-arm.
+2. **Port loop** — **active**. One pending Finish-queue slice per tick per
+   `docs/PORTING_GUIDE.md` §4 / §4.7 / §7. Sentinel:
+   `AGENT_LOOP_WAKE_skills_port` (~90–120s).
 
 Status: `pending` | `in_progress` | `done` | `blocked`.
 
@@ -33,18 +34,22 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 `sscompile`. Fix your slice. See PORTING_GUIDE §7 and
 `.cursor/rules/no-park-sibling-content.mdc`.
 
-**Audit loop prompt:** read this file + PORTING_GUIDE §4.7 / §7; **immediately
-mark the next pending Audit roster skill `in_progress`**; fetch wiki skill +
-Training pages; inventory matching `skill_*` and harvest deferred Notes from
-CONTENT / SCAPE2009 / KRONOS; emit Finish-queue slices (or `blocked →`
-redirects); NEVER park sibling lanes; **do not port**; update this file; re-arm
-until the Audit roster is empty. Stop only when the user stops the loop or the
-roster is complete.
+**Audit loop prompt** (complete — do not re-arm): historical only.
 
-**Port loop prompt** (later): read this file + PORTING_GUIDE §4 / §4.7 / §7;
-claim next pending unblocked Finish-queue slice; Grep LostCity then 2009scape
-then Kronos; NEVER park sibling lanes; verify (`mock230_pack --check-only`,
-`make -C src mock230-scripts`); update this file; re-arm.
+**Port loop prompt** (active): read this file + PORTING_GUIDE §4 / §4.7 / §7;
+claim next pending unblocked Finish-queue slice per **Slice selection** below;
+Grep LostCity then 2009scape then Kronos; NEVER park sibling lanes; verify
+(`mock230_pack --check-only`, `make -C src mock230-scripts`); mark `done` +
+Log; re-arm `AGENT_LOOP_WAKE_skills_port` (~120s). **Stop re-arming** when no
+`pending` unblocked rows remain (only `blocked` / `done` left).
+
+### Slice selection (fixed)
+
+1. Lowest `#` with Status `pending` (skip `blocked` / `done` / `in_progress`).
+2. If that row’s Notes say it **needs** another pending slice (e.g. #18 → #1),
+   claim the dependency first instead.
+3. Mark claimed row `in_progress` immediately.
+4. Do **not** implement `blocked → other queue` rows here.
 
 ## Methodology (non-negotiable)
 
@@ -66,21 +71,27 @@ then Kronos; NEVER park sibling lanes; verify (`mock230_pack --check-only`,
    deferred bullets.
 6. Mark the skill’s Audit roster row `done`; append Log; re-arm.
 
-### Port ticks (later)
+### Port ticks (active)
 
-1. **Grep LostCity first** (`PORTING_GUIDE` §2.2). LC proc → CONTENT_PORT_QUEUE.
-2. **Grep 2009scape second.** Mid-era skill → SCAPE2009 (prefer over Kronos).
-3. **Kronos only for post-2009** skill gaps neither tree implements.
-4. **No game-facing strings / ids / config constants in C.** Express as `.rs2`
+1. Claim per **Slice selection** above.
+2. **Grep LostCity first** (`PORTING_GUIDE` §2.2). State in one sentence where
+   the behaviour lives. LC shape → port via pack names (this queue owns the
+   finish slice; do not bounce to CONTENT unless Notes already say
+   `blocked → CONTENT`).
+3. **Grep 2009scape second.** Mid-era skill → prefer 2009scape shape.
+4. **Kronos only for post-2009** skill gaps neither tree implements.
+5. **No game-facing strings / ids / config constants in C.** Express as `.rs2`
    + configs. New Server VM opcodes only when content cannot say it
    (`PORTING_GUIDE` §2.4 / §2.5) — plan + implement in the same slice (opcode
    gap log).
-5. **Resolve names through the pack** — never copy reference numeric ids.
-6. **Wiki for rates / unlocks / UI contracts** when refs disagree or are
+6. **Resolve names through the pack** — never copy reference numeric ids.
+7. **Wiki for rates / unlocks / UI contracts** when refs disagree or are
    stub-only. Do not invent training methods the cache cannot express.
-7. **Interfaces:** drive the rev-230 panel; do not invent IF1
+8. **Interfaces:** drive the rev-230 panel; do not invent IF1
    (`UI_ERA_PORTING_GUIDE.md`).
-8. **Never park sibling lanes** (PORTING_GUIDE §7).
+9. **Never park sibling lanes** (PORTING_GUIDE §7).
+10. Done = behaviour in tree, pack `--check-only` 0 errors, scripts green,
+    Finish row `done`, Log line appended.
 
 ## Skip list (out of scope)
 
@@ -132,27 +143,28 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 18 | Thieving | `skill_thieving/` | [Thieving](https://oldschool.runescape.wiki/w/Thieving) · [Training](https://oldschool.runescape.wiki/w/Thieving/Training) | done | Classic pickpocket/stalls/chests/doors live; finish #107–114; PP→SCAPE2009 |
 | 19 | Fletching | `skill_fletching/` | [Fletching](https://oldschool.runescape.wiki/w/Fletching) · [Training](https://oldschool.runescape.wiki/w/Fletching/Training) | done | F2P bows/arrows + darts + opal/pearl/barb bolts live; finish #115–122 |
 | 20 | Slayer | `skill_slayer/` | [Slayer](https://oldschool.runescape.wiki/w/Slayer) · [Training](https://oldschool.runescape.wiki/w/Slayer/Training) | done | Masters/assign/kill/points/ops/rewards IF live (KRONOS); finish #123–130 |
-| 21 | Farming | `skill_farming/` | [Farming](https://oldschool.runescape.wiki/w/Farming) · [Training](https://oldschool.runescape.wiki/w/Farming/Training) | pending | |
-| 22 | Construction | `skill_construction/` | [Construction](https://oldschool.runescape.wiki/w/Construction) · [Training](https://oldschool.runescape.wiki/w/Construction/Training) | pending | Live POH 4a+4b — do not park |
-| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | pending | |
+| 21 | Farming | `skill_farming/` | [Farming](https://oldschool.runescape.wiki/w/Farming) · [Training](https://oldschool.runescape.wiki/w/Farming/Training) | done | Classic patches (SCAPE2009 §1a–1g) live; finish #131–138 |
+| 22 | Construction | `skill_construction/` | [Construction](https://oldschool.runescape.wiki/w/Construction) · [Training](https://oldschool.runescape.wiki/w/Construction/Training) | done | Live POH 4a+4b; finish #139–145 redirects; do not park tree |
+| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | done | Snare/box/impling/falconry+Puro live (SCAPE2009); finish #146–153; **Audit roster complete** |
 
 ## Finish queue
 
-Slices emitted by audit ticks. Port loop (later) consumes one `pending`
+Slices emitted by audit ticks. Port loop (active) consumes one `pending`
+unblocked Finish-queue slice per tick (deps-first selection).
 unblocked row per tick.
 
 | # | Slice | Era ref | Status | Notes |
 |---|---|---|---|---|
 | 0 | Queue tracker | — | done | This file |
-| 1 | skill_combat: player special attacks (core) | LC | pending | Wiki Attack relies on specs for high-tier weapons; LC `player_special_attack.rs2` + `specs/`; `orbs.rs2` arms bar only (no spend model); Kronos §68 wildy specs blocked until this; equip `specwep` commented |
-| 2 | skill_combat: PvP melee | LC | pending | Deferred from CONTENT 8q/8u; LC `pvp/pvp_melee.rs2` + `pvp_special_attack`; Attack training in wild is PvP-capable |
-| 3 | Attack potion consume | LC | pending | Wiki temporary boosts (attack/super/combat/divine/zamorak brew…); herblore brew rows exist (`herblore_super_attack`); CONTENT 10d deferred full `_potion` consume — only antipoison Drink landed |
+| 1 | skill_combat: player special attacks (core) | LC | done | Energy model + toggle (`specwep.rs2`), combat hook, PvM dds/dlong/dmace/claws, instant dbaxe/Excalibur; ranged/spear/halberd → #18 / later; `sa_kind` for trailing-`+` poison names |
+| 2 | skill_combat: PvP melee | LC | blocked | Needs secondary-player dialect (`.stat` / `.%varp` / `p_opplayer`) + `MOCK230_PLAYER_MAX>1`; combat_stats.rs2 documents `.` variants deliberately not ported. Host gap — not a content-only finish. Re-open when multi-player active player lands. |
+| 3 | Attack potion consume | LC | done | Drink for 1–4dose attack + super attack (`attack_potion.rs2`); wiki +3/+10% and +5/+15%; dose switch ladder (anti_poison pattern). Combat/divine/zamorak → later slices |
 | 4 | Warriors' Guild Attack activities remainder | Kronos | blocked | → [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) §11 deferred: animator/dummy/catapult/token earn + basement dragon; cyclops core already done |
-| 5 | Attack cape perk | wiki+cache | pending | Wiki +1 visible boost on cape Activate; no skillcape Attack effect in tree |
-| 6 | Strength potion consume | LC | pending | Wiki Str boosts (strength/super/combat/divine/zam brew…); brew rows `herblore_strength`/`herblore_super_strength`; pairs with #3 — CONTENT 10d deferred full `_potion` Drink |
+| 5 | Attack cape perk | wiki+cache | done | Worn Boost (`param_451`) → +1 Attack; host routes worn op2 to `inv_button2`; `skillcape_attack.rs2` |
+| 6 | Strength potion consume | LC | done | `strength_potion.rs2` — strength4/+3/+10%, super +5/+15%; dose ladder (#3 pattern) |
 | 7 | Strength cape perk | wiki+cache | pending | Wiki +1 visible boost on cape Activate; no skillcape Strength effect in tree |
 | 8 | Non-combat Strength training | wiki+cache | pending | Wiki: barehand/heavy-rod fishing, forcing obstacles; no barb fishing / Str-obstacle procs in `skill_fishing`/`skill_agility`; Pyramid Plunder sarc XP already lands |
-| 9 | skill_combat: magic defence 7:3 blend | LC | pending | Wiki: magic defence = 70% Magic + 30% Defence; `combat_stats.rs2` comment defers blend — `%com_magicdef` uses Defence-only effective level |
+| 9 | skill_combat: magic defence 7:3 blend | LC | done | `%com_magicdef` uses LC `7*magic+3*defence)/10` effective level +8 (`combat_stats.rs2`) |
 | 10 | Defence potion consume | LC | pending | Wiki defence/super/saradomin brew/bastion/battlemage boosts; brew rows `herblore_defense`/`herblore_super_defense` exist; pairs with #3/#6 `_potion` Drink gap (CONTENT 10d) |
 | 11 | Defence cape perk | wiki+cache | pending | Wiki +1 visible boost on cape Activate; Excalibur +8 Def needs specials (#1) |
 | 12 | Hitpoints regen (Rapid Heal / cape / bracelet) | LC | pending | Wiki 1 HP/min; Rapid Heal + HP cape + regen bracelet double/stack; LC `timer,health_regen` + Rapid Heal interval — no `health_regen` in tree; Rapid Heal prayer toggles only |
@@ -274,6 +286,29 @@ unblocked row per tick.
 | 128 | Slayer equipment combat effects (helm/mask/boots) | wiki+cache | pending | Rewards IF exists; black mask/slayer helm on-task boosts + shop gear effects incomplete |
 | 129 | Slayer cape | wiki+cache | pending | Skillcape perk absent |
 | 130 | Mortimer / modern Slayer bosses polish | wiki → Kronos | blocked | Post-2009 master/boss remainder stays KRONOS (Cerberus/Kraken stubs already §24–25) |
+| 131 | Higher tree/fruit/crop tiers | SCAPE2009 | pending | Oak/apple/barley/redberry live; willow+ trees, higher fruit/hops/bushes deferred (§1f1 log) |
+| 132 | Disease / plant cure / gardener protect | SCAPE2009 | pending | Disease stubbed; check-health always healthy; gardener payments absent |
+| 133 | Zeah compost bins + dump/ultracompost | SCAPE2009 | pending | Classic bins 1–4 live; Zeah 5–7 + Dump/potion-convert deferred (§1e) |
+| 134 | Spirit / calquat / special patches | SCAPE2009 | pending | Patch registry rows exist; plant/grow scripts not wired like trees |
+| 135 | Geomancy / farming tools polish | SCAPE2009 | pending | farming_view live; Geomancy opener deferred; magic secateurs yield bonus absent |
+| 136 | Tool leprechaun note exchange | wiki+cache | pending | Wiki note-swap for harvest; store may be partial via tools IF |
+| 137 | Farming cape | wiki+cache | pending | Skillcape perk absent |
+| 138 | Farming Guild / Tithe / Hespori polish | wiki → Kronos | blocked | Hespori stub KRONOS §32; Tithe Farm + Guild remainder stay KRONOS |
+| 139 | Furniture creation menu IF | SCAPE2009 | blocked | → SCAPE2009 §4c / owner elsewhere; garden p_choice MVP live — do not edit `skill_construction/` from this lane |
+| 140 | Room editor / additional rooms | SCAPE2009 | blocked | Wiki parlour+rooms; default garden only in collage; room buy/viewer → §4c owner |
+| 141 | House state persistence | wiki+cache | pending | poh_build.rs2: built furniture session-only until house state persists |
+| 142 | Estate agent move / redecorate / cape | SCAPE2009 | pending | Buy Rimmington live; move/redecorate/cape deferred in poh_estate_agent.rs2 |
+| 143 | Servant / house party / visitor mode | wiki+cache | pending | Wiki servants + friend visits absent |
+| 144 | Gilded altar / POH prayer furniture | SCAPE2009 | blocked | Already Skills #25 → POH remainder; do not edit live tree from Prayer lane |
+| 145 | Construction training furniture (oak larders/mahogany tables/…) | SCAPE2009 | blocked | Beyond garden plants — furniture catalogue → §4c owner |
+| 146 | Expanded bird snare / box-trap prey | SCAPE2009 | pending | Crimson swift + grey chin first; other birds/chins/ferrets absent |
+| 147 | Butterfly netting / barehand | wiki+cache | pending | Wiki butterflies; net used for baby impling only |
+| 148 | Salamander / deadfall / tracking remainder | SCAPE2009 | pending | Salamander net deferred (2c); polar kebbit trails deferred (2d); deadfall absent |
+| 149 | Impling jar loot + higher implings | SCAPE2009 | pending | Baby catch live; jar loot stub; higher implings + Elnock shop deferred (Puro §8) |
+| 150 | Falconry polish (projectile / zone leave) | SCAPE2009 | pending | Catch+retrieve live; projectile visual + zone cleanup deferred |
+| 151 | Hunter cape / camouflage gear | wiki+cache | pending | Skillcape perk + gear catch-rate bonuses absent |
+| 152 | Bird houses / Herbiboar / Hunter Guild | wiki → Kronos | blocked | Post-2009 Fossil Island + Avium Savannah stay KRONOS lane |
+| 153 | Aerial / drift-net / crab trapping | wiki → Kronos | blocked | Post-2009 techniques stay KRONOS (also Fishing #70 overlap) |
 
 ## Opcode gap log
 
@@ -282,6 +317,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 | Slice | Opcode / surface | Why | Status |
 |---|---|---|---|
 | 17 | `inv_dropitem_delayed` | Ammo recovery after ranged shot | done (hosted) — content wire still pending on slice 17 |
+| 2 | secondary player (`.` dialect) + `MOCK230_PLAYER_MAX>1` | PvP melee/ranged/magic need `.stat` / `.queue` / `p_opplayer` against another player | blocked — host; content not ported |
 
 ## Log
 
@@ -306,3 +342,14 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - audit Thieving done: wiki [Thieving](https://oldschool.runescape.wiki/w/Thieving). In-tree: pickpocket man→hero, Ardougne stalls, trapped chests, locked doors (CONTENT 8n/8o); Pyramid Plunder (SCAPE2009 §7); Rogues' Castle chests (KRONOS §76). Gaps: expanded pickpockets, misc stalls, blackjack, Rogues' Den/outfit, retaliate, cape/gear, coin pouches. Emitted #107–114. Next audit = Fletching.
 - audit Fletching done: wiki [Fletching](https://oldschool.runescape.wiki/w/Fletching). In-tree: F2P cut/string/arrows (CONTENT 8r), darts+opal/pearl/barb bolts (13r). Gaps: maple+ bows, mithril+ arrows, crossbows, gem tips remainder, ogre/brutal, amethyst/dragon/javelins, broads, cape/spool. Emitted #115–122. Next audit = Slayer.
 - audit Slayer done: wiki [Slayer](https://oldschool.runescape.wiki/w/Slayer). In-tree: masters/assign/kill/points/cancel-block-store, rewards IF, rockslug/lizard specials, superior stub, imbued heart (KRONOS+SCAPE2009). Gaps: Konar areas, specials remainder, superior loot, category gaps, chest loot, helm effects, cape; Mortimer/boss polish→Kronos. Emitted #123–130. Next audit = Farming.
+- audit Farming done: wiki [Farming](https://oldschool.runescape.wiki/w/Farming). In-tree: classic herb/allot/flower/compost/tree/fruit/hops/bush + farming_view (SCAPE2009 §1a–1g). Gaps: higher tiers, disease/gardeners, Zeah compost, spirit/calquat, Geomancy/secateurs, leprechaun notes, cape; Guild/Tithe→Kronos. Emitted #131–138. Next audit = Construction.
+- audit Construction done: wiki [Construction](https://oldschool.runescape.wiki/w/Construction). In-tree: estate buy, enter/leave instance, garden hotspot Build/Remove (`::poh`/`::pohbuild`) — SCAPE2009 §4a+4b **live, do not park**. Gaps: furniture IF/rooms (§4c), persistence, move/redecorate/cape, servants, gilded altar (#25). Emitted #139–145. Next audit = Hunter.
+- audit Hunter done: wiki [Hunter](https://oldschool.runescape.wiki/w/Hunter). In-tree: bird snare, box chin, baby impling, falconry (SCAPE2009 §2a–2d), Puro-Puro enter (§8). Gaps: expanded prey, butterflies, salamander/deadfall/tracking, jar loot, falcon polish, cape; bird houses/Herbiboar/Guild/aerial→Kronos. Emitted #146–153.
+- **Audit roster complete** (23/23, Sailing skipped). Finish queue seeded #1–153. Stop re-arming audit sleeper. Port loop is separate work.
+- **Port loop armed** (skills_port). Selection: lowest pending, deps-first; stop when no actionable pending rows.
+- port #1 specials done: LC `skill_combat/scripts/player/{specwep,player_special_attack}.rs2` + `specs/pvm_*`. In-tree: `specwep`/`sa_energy`/`sa_kind` params, energy regen timer, `combat_interface:special_attack` + orb `@specbar_pressed`, combat-start divert, equip clears `%sa_attack`, PvM dds/dlong/dmace/claws + instant dbaxe/Excalibur. Era: drop sound_synth; ranged→#18; spear/halberd deferred. Verified pack 0 err + mock230-scripts. Next = #2 PvP melee.
+- port #2 PvP melee → blocked: LC `pvp/pvp_*.rs2` needs secondary-player dialect; `MOCK230_PLAYER_MAX` is 1 (combat_stats.rs2 documents `.` variants not ported). Opcode gap logged. Next = #3 Attack potion.
+- port #3 Attack potion done: LC consume_effect_stat shape via name-bound Drink (anti_poison pattern). `attack_potion.rs2` — attack +3/+10%, super +5/+15%, dose ladder. Verified pack 0 + scripts. Next = #4.
+- port #5 Attack cape done: wiki +1 Boost; worn op2 host fix in mock230_world.c; `skillcape_attack.rs2`. #4 stays Kronos-blocked.
+- port #6 Strength potion done: `strength_potion.rs2` (strength4 ladder). 
+- port #9 magic def 7:3 done: LC blend in `player_combat_stat`. Next = #7 Strength cape.
