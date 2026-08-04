@@ -90,6 +90,18 @@ mock239_playerinfo_write_init(
  * absolute 30-bit coord, otherwise the player is reported stationary. Both
  * forms carry the extended-info bit when `appearance` is non-NULL.
  *
+ * `low_res_inactive` selects WHICH low-resolution section the untracked players
+ * are skipped in, and it is not cosmetic. The client carries a per-player cycle
+ * bit (`unmodifiedFlags`) that it sets on anyone it skipped and shifts down
+ * each tick, and it reads section 3 for players whose bit is set and section 4
+ * for those whose is not. So on the first tick after the init block every slot
+ * is "active" and the run goes in section 4; on every tick after that the same
+ * slots have been skipped once and the run must move to section 3.
+ *
+ * Writing it in the wrong section does not desynchronise immediately -- tick 1
+ * is correct either way -- it desynchronises on tick 2, which reads as the
+ * client working briefly and then dropping back to the login screen.
+ *
  * `appearance` / `appearance_len` are the raw appearance block — the same bytes
  * the classic stream sends — which this wraps in the v5 extended-info framing.
  * NULL sends no extended info, which is correct for every tick after the first.
@@ -100,6 +112,7 @@ mock239_playerinfo_write(
     int local_index,
     int32_t coord,
     int teleported,
+    int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len);
 

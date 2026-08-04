@@ -3801,9 +3801,16 @@ app_debug_log_position(struct App* app)
         app->world_camera.pitch);
 }
 
-/* TEMP TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene
- * tiles, once per load. Flat terrain and correctly-varying terrain are
- * indistinguishable from a screenshot. */
+/* TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene tiles,
+ * once per load.
+ *
+ * Flat terrain and correctly-varying terrain are indistinguishable from a
+ * screenshot, and "the heights must be wrong" is the first thing anyone reaches
+ * for when scenery and ground intersect oddly. This settles it in one run: the
+ * Inferno arena reads a single height across 41x31 tiles and is *supposed* to —
+ * its depth is scenery, not relief — while Lumbridge over the same span ramps
+ * -464 to -240. Without the second half of that comparison the first half reads
+ * as a bug. */
 static void
 app_debug_height_profile(struct App* app)
 {
@@ -3815,14 +3822,15 @@ app_debug_height_profile(struct App* app)
     if( app->world->load_seq == logged )
         return;
     logged = app->world->load_seq;
-    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+    int lvl = 0;
+    if( sscanf(env, "%d,%d,%d,%d,%d", &x0, &x1, &z0, &z1, &lvl) < 4 )
         return;
     for( int z = z1; z >= z0; z-- )
     {
-        fprintf(stderr, "hprof z=%3d:", z);
+        fprintf(stderr, "hprof L%d z=%3d:", lvl, z);
         for( int x = x0; x <= x1; x++ )
             fprintf(stderr, " %5d",
-                    app_world_height(app, x * 128 + 64, z * 128 + 64, 0));
+                    app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
         fprintf(stderr, "\n");
     }
 }

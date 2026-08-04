@@ -103,6 +103,7 @@ mock239_playerinfo_write(
     int local_index,
     int32_t coord,
     int teleported,
+    int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len)
 {
@@ -154,45 +155,50 @@ mock239_playerinfo_write(
     rsab_bytes(buf);
 
     /*
-     * Sections 2 and 3 — high resolution inactive, low resolution inactive.
+     * Section 2 — high resolution, inactive this cycle. Always empty: the only
+     * high-resolution player is written above and is never skipped, so its
+     * cycle bit never sets.
      *
-     * Both empty: the only high-resolution player was written above, a player
-     * cannot be in both halves of one cycle, and nothing has dropped out of low
-     * resolution.
-     *
-     * They are written for symmetry with the client's loop, NOT because the
-     * wire needs them: an empty bit section emits zero bytes, since entering
-     * bit mode and leaving it round the same byte cursor to itself. Deleting
-     * these two lines produces an identical packet — a mutation test confirmed
-     * it, which is worth stating here because the obvious reading ("four
-     * sections, so four markers on the wire") is wrong and would send someone
-     * hunting for separators that do not exist.
+     * Note that an empty bit section emits ZERO bytes — entering bit mode and
+     * leaving it round the same byte cursor to itself. The four sections are
+     * not four markers on the wire, which is worth knowing before hunting for
+     * separators that do not exist.
      */
-    rsab_bits(buf);
-    rsab_bytes(buf);
     rsab_bits(buf);
     rsab_bytes(buf);
 
     /*
-     * Section 4 — low resolution, active: every index this server does not
-     * track, skipped in one run.
+     * Sections 3 and 4 — low resolution, inactive then active.
+     *
+     * The untracked crowd goes in exactly one of them, and which one changes
+     * after the first tick. See `low_res_inactive` in the header: the client
+     * sets a cycle bit on every player it skips and shifts it down each tick,
+     * reading section 3 for players whose bit is set. So the run starts in
+     * section 4 and moves to section 3 from the second tick onward.
      *
      * The list is indices 1..2047 (2047 of them) minus the local player, so
      * 2046 entries. One skip bit covers the first; the run then covers the
      * other 2045, because a run counts the players AFTER the one it follows.
-     *
-     * Neither off-by-one truncates the packet. Too small and the client's loop
-     * finds a bit run where it expected the end; too large and it exits with
-     * `skipped != 0`. Both throw inside the client, which is the good case —
-     * the bad case would be a stream that decodes into the wrong players.
      */
-    rsab_bits(buf);
     {
         int const low_res_count = MOCK239_PLAYER_SLOTS - 1 - 1;
-        rsab_pbit(buf, 1, 0);
-        write_stationary(buf, low_res_count - 1);
+
+        rsab_bits(buf);
+        if( low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
+
+        rsab_bits(buf);
+        if( !low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
     }
-    rsab_bytes(buf);
 
     /*
      * Extended info, byte-aligned, in the order the indices were flagged.
@@ -216,7 +222,23 @@ void
 mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
 {
     rsab_bits(buf);
-    rsab_pbit(buf, 8, 0);       /* no high-resolution npcs */
-    rsab_pbit(buf, 16, 0xffff); /* end of the low-resolution additions */
+    rsab_pbit(buf, 8, 0); /* no high-resolution npcs */
+    /*
+     * NO 0xFFFF TERMINATOR HERE, and that is the whole subtlety of the empty
+     * packet.
+     *
+     * The client's low-resolution loop only attempts to read an index when at
+     * least 16 + 12 bits remain; below that it stops. With no npcs and no
+     * extended info there is nothing after the count, so it stops immediately
+     * and consumes ONE byte. Writing the terminator anyway makes the packet
+     * three bytes that the client reads one of, and it reports the difference
+     * as `RuntimeException: 1,3` and drops the connection — which presents as
+     * the client returning to the login screen a second after logging in.
+     *
+     * The terminator is required once something follows: with additions or
+     * extended-info bytes in the buffer the loop has enough bits to keep going
+     * and would read them as npc indices. So it belongs in the populated
+     * writer, not here.
+     */
     rsab_bytes(buf);
 }

@@ -1667,6 +1667,16 @@ mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
 
 struct Mock230Player
 {
+    /**
+     * Has a v5 PLAYER_INFO gone out since the init block?
+     *
+     * Selects which low-resolution section the untracked crowd is skipped in:
+     * section 4 on the first tick, section 3 thereafter, because the client
+     * sets a cycle bit on everyone it skips. Per player rather than per world,
+     * since it is a fact about what one client has been told.
+     */
+    int v5_playerinfo_sent;
+
     /*
      * The world this player is in, and where its bytes go.
      *

@@ -370,6 +370,9 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
         mock239_playerinfo_write_init(&buf, mock230_wire_local_index(player->pid),
                                       coord);
         player->player_tracked[player->pid] = 1;
+        /* The init block resets the client's cycle bits, so the next
+         * PLAYER_INFO must place the crowd in section 4 again. */
+        player->v5_playerinfo_sent = 0;
     }
 
     /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
@@ -2067,8 +2070,9 @@ mock230_send_player_info(struct Mock230Player* player)
          * absolute coord cannot.
          */
         mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord, 1,
-                                 appearance,
+                                 player->v5_playerinfo_sent, appearance,
                                  (int)rsab_len(&ap));
+        player->v5_playerinfo_sent = 1;
         flush(player, &buf, OP_PLAYER_INFO, 2);
         return;
     }

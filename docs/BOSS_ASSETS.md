@@ -491,7 +491,7 @@ Yt-HurKot reads as a mismatch and is not: Kronos carries two stat blocks for it
 constant is the one to note — the other five (46, 70, 113, 10, 18) match Kronos
 exactly, which is what made the odd one out worth checking at all.
 
-## The orange ground over the wall — two explanations measured and killed
+## The orange ground over the wall — six explanations measured and killed
 
 Still open, but narrowed, and the two obvious answers are both **wrong**. Both
 were measured rather than argued, which is the only reason they are written down:
@@ -512,15 +512,59 @@ to the same Lumbridge tiles reproduces its relief exactly. The Inferno arena is
 *supposed* to be flat: its depth is scenery, not terrain, which is why the lava
 overlay and the rock locs share one plane.
 
-Which leaves the mechanism the emit order already shows and neither of those
-explains: terrain for a nearer tile is emitted after a loc anchored farther away
-(the tile immediately south of the seal wall's footprint is drawn at order 384
-against the wall's 379), and on a flat arena where the lava is an overlay on the
-same plane there is nothing in the geometry to keep the two apart. The next step
-is to identify *which* loc is being clipped — the two candidate classes are
-eliminated, so it is neither the wall nor the floor pieces — and the tools to do
-it are `TORIRS_DRAW_ORDER` for the sequence and `TORIRS_EMIT_LOC` for the
-extent.
+**Not the draw order.** `TORIRS_DRAW_ORDER` dumps the whole emit sequence. The
+traversal makes two waves — west of the camera column, then east — because the
+wave propagates *inward* and cannot cross the eye's column; that is the
+reference's own structure, not a defect. Within it: terrain-vs-terrain order has
+no occlusion-relevant inversion (the only same-column "violations" are the tiles
+*behind* the camera, where north is nearer, so they are correct), and
+terrain-vs-loc has **zero** strict violations — no terrain in a loc's own columns,
+three or more tiles farther, is ever drawn after it.
+
+**Not a missing or failed loc.** The square places all 2,850 loc instances:
+`no_config=0 no_resolve=0 oob=0 added=2850`, and none of the EMPTY-model
+warnings in the run belong to it.
+
+**Not level-1 bleed.** Every terrain command in the frame is L0.
+
+**Not the prison roof**, which was the one plausible suspect left: loc 30356 is
+9x4 and emits at order 1127, later than everything around it. `::roofhide 1`
+takes it out of the emit list entirely (`grep -c loc=30356` goes to 0) and the
+orange region is pixel-for-pixel unchanged.
+
+What is left is that the opening is *real map geometry* — a genuine gap in the
+rock scenery, the alcove TzKal-Zuk occupies — and the flat orange is the
+underlay legitimately visible through it, drawn in the right order by a painter
+with nothing to complain about. It reads as a bug because in a live fight that
+opening is filled by Zuk and by the seal, and because a bare underlay quad has
+no detail of its own: the arena's texture is ground-decor locs and the lava's
+glow is rock locs, so the one place with neither renders as flat colour.
+
+### The squares, and whether they are real
+
+Checked because "the map data is stale" is the other explanation that would
+survive indefinitely unexamined. It is not stale:
+
+- The 239 map pack contains, in the whole 34-37 x 82-85 block, **three** terrain
+  squares: `m34_85`, `m35_83` (group 9043 — the arena) and `m36_84` (9300). The
+  scene at the arena loads exactly the two of those it spans. Everything else
+  around the Inferno is genuinely absent, which is why the heightmap north of
+  z~71 is the allocator's zero-fill — and that void is never drawn (the furthest
+  tile emitted is z=67).
+- The pack lists **no `l` groups at all**; loc groups resolve by name hash at
+  runtime, which is why 2,850 locs load for a square whose loc group the pack
+  never names.
+- Cross-checked against `cache.osrs230` with `find_named`, which should and does
+  agree: loc 30356 is 9x4 with `transform_varbit 5652` and `transforms 30331,-1`
+  in **both** caches; 30337 is 5x2 in both; 30338 (Ancestral Glyph) is 6x3 in
+  both. Not a prior-revision artifact.
+- `m35_83` carries real terrain on levels 0 **and 1**, and level 1 sits at the
+  *same* height as level 0 (-240 both). Levels 2 and 3 read -480 and -720, the
+  synthetic 240-per-level stack a square with no data there produces. The
+  coincident L0/L1 plane is worth knowing: it is what lets the encounter spawn
+  the flank rocks on plane 1 "coexisting with the L0 collapsing rocks on the same
+  anchors", and it is a standing hazard — the day the level mask admits level 1
+  here, its terrain draws after level 0's scenery at identical height.
 
 ## Re-running the export
 

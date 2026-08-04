@@ -1366,12 +1366,22 @@ try_emit_world_draw_model(
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);
 
-        /* TEMP: TORIRS_ORDER2=N dumps frame N's emit sequence with each command
-         * resolved to a loc id and each terrain command to its tile. */
+        /* TORIRS_DRAW_ORDER=N: dump frame N's whole emit sequence — the
+         * painter's back-to-front order — with each element resolved to a loc
+         * id and footprint and each terrain command to its tile.
+         *
+         * The only tool that answers "what draws before what", which is the
+         * question every draw-order bug actually poses and the one a screenshot
+         * cannot settle. It found the recycled-scene-element defect (the same
+         * loc emitted at two different depths, 30340 at order 482 and again at
+         * 1341 in one frame) and it is what rules a draw-order explanation OUT,
+         * which is just as useful: pair it with TORIRS_EMIT_LOC's model-extent
+         * line to tell "drawn in the wrong order" from "the model overhangs its
+         * footprint" from "the terrain is where it says it is". */
         {
             static long want = -2; static long seen = -1; static int in_f = 0;
             static int once = 0; static long last_i = -1; static int seq = 0;
-            if( want == -2 ) { const char* e = getenv("TORIRS_ORDER2"); want = e ? strtol(e,NULL,0) : -1; }
+            if( want == -2 ) { const char* e = getenv("TORIRS_DRAW_ORDER"); want = e ? strtol(e,NULL,0) : -1; }
             if( want >= 0 )
             {
                 if( (long)frame->painters_index <= last_i )
@@ -1383,11 +1393,11 @@ try_emit_world_draw_model(
                         cmd->_bf_kind == PNTR_CMD_ELEMENT
                             ? World_SceneryGetByElementId(frame->world, element_id) : NULL;
                     if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
-                        fprintf(stderr, "o2 %4d TERRAIN tile=%d,%d L%d\n", seq++,
+                        fprintf(stderr, "order %4d TERRAIN tile=%d,%d L%d\n", seq++,
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
                     else
-                        fprintf(stderr, "o2 %4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
+                        fprintf(stderr, "order %4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
                                 sc ? sc->loc_id : -1, sc ? sc->grid_position.x : -1,
                                 sc ? sc->grid_position.z : -1,
                                 sc ? sc->debug.draw_size_x : 0, sc ? sc->debug.draw_size_z : 0);
