@@ -96,7 +96,7 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 2a | skill_hunter: bird snare | done | Crimson lay/catch/check; softtimer poll+expire; `::huntersnarebird`; scripts 4680; pack 0 errors |
 | 2b | skill_hunter: box trap (chins) | done | Grey chin lay/catch/check; shared trap cap; scripts 4703; pack 0 errors |
 | 2c | skill_hunter: net trap + implings | done | Baby impling catch (net+jar, BNetPulse success); jar loot + salamander net deferred; `::hunterbabyimp`; scripts 4720; pack 0 errors |
-| 2d | skill_hunter: falconry / kebbit tracking | done | Falconry spotted/dark/dashing catch+retrieve; Matthias Quick-falcon; polar trails deferred; `::hunterfalcon`; scripts 4782; pack 0 errors |
+| 2d | skill_hunter: falconry / kebbit tracking | done | Falconry spotted/dark/dashing catch+retrieve; Matthias Quick-falcon; polar trails →2f; `::hunterfalcon`; scripts 4782; pack 0 errors |
 | 3a | skill_slayer: Turael Assignment | done | Landed on Kronos lane (cache `slayer_master_task` + `%if1..if6`); cross-check 2009 `SlayerManager` only if policy drifts |
 | 3b | skill_slayer: kill credit + points | done | Landed on Kronos lane (`slayer_kill.rs2` + death hook) |
 | 3c | skill_slayer: remaining masters | done | Landed on Kronos lane (`slayer_masters.rs2`); combat gates from cache skill_features |
@@ -126,7 +126,7 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 11 | minigame: Castle Wars | lc | LostCity has full `minigames/game_castlewars` — port via CONTENT_PORT_QUEUE |
 | 12 | minigame: Barbarian Assault | skip | 2009scape only has custom torso-seller stub (not authentic BA) |
 | 13 | minigame: Blast Furnace | done | Stairs enter/leave + smith fee/Charos/60 free + fee softtimer kick; pump/ore →13b; `::blastfurnace`; scripts 5140; pack 0 errors |
-| 13b | minigame: Blast Furnace pump/ore | done | Pump/pedals/coke/stove/belt/dispenser cool+take; temp gauge IF; breakage/belt NPCs deferred; `::bfmachine`; scripts 8400; pack 0 errors |
+| 13b | minigame: Blast Furnace pump/ore | done | Pump/pedals/coke/stove/belt/dispenser cool+take; temp gauge IF; breakage/belt NPCs →13c; `::bfmachine`; scripts 8400; pack 0 errors |
 | 14 | minigame: Trouble Brewing | skip | 2009scape only empty MapArea zone stub |
 | 15 | minigame: All Fired Up | blocked | Cache: Blaze/Fyre NPCs unnamed/absent; beacon Add-logs locs not found; `varbit_5146` is 1-bit vs 2009 multi-state — re-measure wire |
 | 16 | activity: Shooting Stars | blocked | Needs world `loc_add` rotation; pack only has `osb10_clickzone_shootingstars` |
@@ -143,7 +143,10 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 20c | bosses: Giant Mole mud extinguish | done | Burrow `huntall` mud: extinguish open lights (candle/torch/oil lamp); closed lanterns OK; `darkness_medium` (not IF 226/`deadmanprotect`); `::molemud`; scripts 9576; pack 0 errors |
 | 7c | minigame: Pyramid Plunder snake charm | done | Check for Snakes→state2; Charm Snake (`snake_flute`)+state3; charmed Search easier roll+66% XP; bite dmg+poison; `::ntkcharm`; scripts 9739; pack 0 errors |
 | 8c | minigame: Puro-Puro storage/scroll | done | Scroll Toggle-view → `ii_tracker` overlay (maze-gated); Elnock Quick-withdraw → storage IF + `%ii_stored_*`; `::puroscroll`/`::purostore`; scripts 9867; pack 0 errors |
-| 8d | minigame: Puro-Puro imp steal | pending | Imp defender steals jarred implings (deferred from 8/8b) |
+| 8d | minigame: Puro-Puro imp steal | done | `imp_defender_no_patrol` AI: 1/10 near heroes; Thieving avoid + repellent; steals lowest jar → empty jar ground; `::puroimp`; scripts 9928; pack 0 errors |
+| 13c | minigame: Blast Furnace breakage/belt | done | 1/50 pipe/belt/cog break while pump/pedal; Repair Crafting30+hammer; stove multilocs; belt FIFO→`blast_furnace_*_ore` NPCs while pedaling; `::bfbreak`/`::bfbelt`; scripts 10177; pack 0 errors |
+| 2e | skill_hunter: salamander net + impling loot | done | Sapling net-trap swamp/orange/red/black; baby jar Loot weighted table; `::hunternet`/`::hunterbabyimp`; scripts 10296; pack 0 errors |
+| 2f | skill_hunter: polar kebbit trails | pending | Polar kebbit tracking trails (deferred from 2d) |
 | 21 | quest: Priest in Peril / Nature Spirit | lc | LC has `quest_priestperil` + `quest_druidspirit` — port via CONTENT_PORT_QUEUE |
 | 22 | quest: Recruitment Drive | done | Start: Amik→Tiffy (`rd_teleporter_guy`)→grounds (`m38_77`); quit portals; `%rd_main`; puzzles/shuffle deferred; `::rd`; scripts 5278; pack 0 errors |
 | 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; dig/brooch→23b; Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
@@ -198,6 +201,9 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 
 ## Log
 
+- slice 2e done (salamander net + baby jar loot): LC none; 2009scape NetTrapSetting/NetTrapNode + ImplingLoot.BABY; Set-trap on `hunting_sapling_up_*` needs `net`+`rope`; catch swamp/orange/red/black → salamander item; baby jar `opheld3` weighted loot + empty jar return; secondary net scenery + clues deferred; `::hunternet`/`::hunterbabyimp`; scripts 10296; pack 0 errors; next=2f polar kebbit trails
+- slice 13c done (BF breakage/belt): LC none; 2009scape BlastState/BFSceneryController/BFBeltOre; 1/50 pot|pump while pumping, belt then cog while pedaling; furnace heat gated on no breakage; Repair Crafting30+hammer 50xp; stove low/med/full loc_change; ore place→4-slot FIFO + `blast_furnace_*_ore` visuals; pedals advance/deposit; `::bfbreak`/`::bfbelt`; scripts 10177; pack 0 errors; next=2e salamander net + impling loot
+- slice 8d done (Puro imp steal): LC none; 2009scape ImpDefenderBehavior; `imp_defender_no_patrol` ai_timer 1/10 within 2 tiles; Thieving avoid (low35/high280 +20 repellent); steals lowest `ii_captured_impling_*` → `npc_say("Be free!")` + empty `ii_impling_jar` ground; cooldown 25–100t; `::puroimp`; scripts 9928; pack 0 errors; next=13c BF breakage/belt
 - slice 8c done (Puro storage/scroll): LC none; scroll Toggle-view maze-only → `ii_tracker` + CS2 1327 counts from jarred inv; Elnock Quick-withdraw opens `ii_elnock_storage`/`_side` with `%ii_stored_net`/`repellent`/`impling_jars` (enum_2850 caps); storage is post-2009 cache IF wired here; `::puroscroll`/`::purostore`; scripts 9867; pack 0 errors; next=8d Puro imp steal
 - slice 7c done (PP snake charm): LC none; Check for Snakes → `%ntk_urn*_state`=2; Charm Snake needs `snake_flute` →=3; Search closed/snake hard roll (room×4), charmed easier (room×2) + 66% XP; bite 1–4 + poison; slot via multi parent `loc_type`; `::ntkcharm`; scripts 9739; pack 0 errors; next=8c Puro-Puro storage/scroll
 - slice 6h done (pest barricade/splatter/shifter): LC none; ravager seeks 2009scape OBJECT_OFFSETS smashables (`loc_change` damage chain); splatter detonates beside barricade + on `ai_queue3` (GFX `splatter_exploding_spotanim*`, blast `huntall`/`npc_huntall`); shifter teleports beside hero when >5 tiles (`shifter_teleport_spotanim` + `pest_shifter_teleportattack`); scripts 9686; pack 0 errors; next=7c Pyramid Plunder snake charm

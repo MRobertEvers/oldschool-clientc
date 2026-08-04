@@ -177,21 +177,21 @@ unblocked row per tick.
 | 19 | Dwarf multicannon | LC | blocked | Setup/fire is a large LC `quest_mcannon` / cannon loc system; smithing cannonballs already noted CONTENT 7g deferred. → CONTENT_PORT_QUEUE when 7g opens; do not invent a thin stub. |
 | 20 | Ava's accumulator / ranging cape ammo-save | wiki+cache | done | `~avas_ammo_saved` in `ranged_dropammo_npc` — attractor/accumulator/assembler + ranging cape save rates (wiki). |
 | 21 | Ranging potion consume | LC | done | `ranging_potion.rs2` — `4doserangerspotion`… +3/+10% Ranged; dose ladder (#3 pattern). Bastion/divine deferred. |
-| 22 | Enchanted bolt tips effects | LC | pending | Wiki bolt enchant procs (opal…onyx); enchant spells may live in magic — combat proc on hit absent |
+| 22 | Enchanted bolt tips effects | SCAPE2009 | done | PvM procs from 2009scape `BoltEffect` (`enchanted_bolts.rs2`): opal/pearl/ruby/diamond/dragonstone/onyx. Jade/sapphire/topaz/emerald deferred (PvP / npc poison). |
 | 23 | Prayer bone XP table + ashes | LC | done | Expanded bury XP switch (dragon+/wyvern/lava/superior/dagannoth/zogre ancestral/wyrm…). Demonic ash scatter absent in this cache naming — deferred. |
-| 24 | Ectofuntus / Chaos altar bone offer | wiki+cache | pending | Wiki primary members training; no ectofuntus or wildy Chaos Temple offer scripts |
+| 24 | Ectofuntus / Chaos altar bone offer | wiki+cache | done | Ectofuntus worship 4× XP + grinder + slime fill (`ectofuntus.rs2`, 2009scape Phasmatys); Chaos Temple `chaosaltar` offer 350% + 50% save (`chaos_altar_offer.rs2`). Shared `bone_xp.rs2`. Disciple ectotokens deferred. |
 | 25 | Gilded altar / POH incense | 2009 | blocked | → SCAPE2009 Construction POH remainder (4c owned elsewhere); do not edit live `skill_construction/` from this lane |
 | 26 | Prayer potion / restore consume | LC | done | `prayer_potion.rs2` — prayer +7/+25%, super restore +8/+25% all skills; dose ladders. Sanfew → follow-up. |
-| 27 | Smite / Piety / Rigour combat effects | LC | pending | Prayers toggle in dbrow; `combat_stats` attack/str/def prayer checks lack Chivalry/Piety/Rigour/Augury; Smite opponent drain absent; Preserve→#12 boost drain |
+| 27 | Smite / Piety / Rigour combat effects | LC | done | Chivalry/Piety/Rigour/Augury (+ eagle/mystic ladder) wired in `combat_stats` prayer multipliers. Smite PvP drain still needs #2 multi-player. |
 | 28 | Retribution multi-target AoE | Kronos | pending | Kronos §23 single-target only; comment still says map_multiway deferred though opcode hosted — wire AoE |
 | 29 | Prayer cape / bones-to-peaches | wiki+cache | pending | Cape perk absent; CONTENT 11j bananas only — peaches deferred |
-| 30 | Magic autocast IF | LC | pending | CONTENT 8q deferred; `player_magic.rs2` stubs `player_autocast_*`; needs staff_spells / combat_staff IF + `p_opnpct` continue |
-| 31 | Ancient Magicks spellbook | 2009 | pending | Wiki ice/blood/smoke/shadow; SCAPE2009 DT deferred ancient book unlock; no ancient combat scripts; sceptre items on Kronos without spell passives |
-| 32 | Lunar / Arceuus spellbooks | wiki+cache | pending | Wiki utility/combat/reanim; no lunar/arceuus spellbook scripts (Geomancy opener deferred SCAPE2009 1g) |
-| 33 | God / Iban / Crumble Undead | LC | pending | CONTENT 8q deferred; LC spell scripts exist; player_magic notes crumble/god/iban deferred |
-| 34 | Magic utility remainder | LC | pending | CONTENT 8p deferred enchant5, trollheim tele, oc_cost/members runtime; charge/orb/bones files present — verify completeness vs wiki |
-| 35 | Magic potion consume | LC | pending | Wiki magic/battlemage/divine; brew `herblore_magic`; pairs `_potion` Drink (CONTENT 10d) |
-| 36 | Magic cape / surge spells | wiki+cache | pending | Cape perk absent; Wind/Water/Earth/Fire Surge (post-LC) absent from player_magic bindings |
+| 30 | Magic autocast IF | MAGIC | blocked | → [`MAGIC_CONTENT_PORT_PLAN.md`](MAGIC_CONTENT_PORT_PLAN.md) **M6** |
+| 31 | Ancient Magicks spellbook | MAGIC | blocked | → MAGIC **M7** |
+| 32 | Lunar / Arceuus spellbooks | MAGIC | blocked | → MAGIC **M8** / **M9** |
+| 33 | God / Iban / Crumble Undead | MAGIC | blocked | → MAGIC **M1**+**M3** done; **M4** pending |
+| 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** |
+| 35 | Magic potion consume | MAGIC | blocked | → MAGIC **M2** done (`magic_potion.rs2`); battlemage/divine deferred in plan |
+| 36 | Magic cape / surge spells | MAGIC | blocked | → MAGIC **M10** |
 | 37 | Runecraft tiara craft + pure essence | LC | pending | CONTENT 8k / runecraft.rs2 deferred tiara crafting + pure essence mining; tiara enter path partially live (`*_ruined_new`) |
 | 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood) |
 | 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree |
@@ -366,3 +366,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #18 MSB/MLB specs done. Thrownaxe/dark bow deferred. Next = #19 cannon / #20 Ava / #22 bolts / #23 bones.
 - port #19 multicannon → blocked CONTENT (7g).
 - port #20 Ava ammo-save done. #23 bone XP expanded. #26 prayer/super restore done. Next = #22/#24/#27.
+- port #27 Piety/Rigour/Augury combat multipliers done. Smite → #2. Next = #22/#24/#28.
+- port #22 enchanted bolts done (PvM opal…onyx). MAGIC slices #30–36 → blocked MAGIC plan. Next = #24 ectofuntus / #28 retribution.
+- magic lane: plan `MAGIC_CONTENT_PORT_PLAN.md` + loop `AGENT_LOOP_WAKE_magic_port`; M1–M3 done (members combat, magic potion, crumble).
+- port #24 ectofuntus/chaos offer done: LC has no worship/grind — 2009scape Phasmatys + wiki Chaos Temple. `ectofuntus.rs2` (worship 4×, hopper/wind/bin, slime→ectoplasm), `chaos_altar_offer.rs2` (350% + 50% save), `bone_xp.rs2` shared with bury. Verified pack 0 + mock230-scripts. Next = #28 Retribution AoE / #29 cape+peaches / #37 RC.

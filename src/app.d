@@ -175,9 +175,9 @@ app.o: app.c app.h asyncio.h \
   /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_vec.h \
   /Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw/toridraw_font.h \
   render/torirs_frame.h render/torirs_pick.h ui/uitree_layout.h \
-  ui/uitree_iface_stats.h world/world.h \
+  ui/uitree_iface_stats.h ui/uitree_obj_cell.h world/world.h \
   /Users/matthewevers/Documents/git_repos/3draster/3rd/bmp/bmp.h \
-  ui/uitree_inv_view.h ui/uitree_obj_cell.h
+  ui/uitree_inv_view.h
 app.h:
 asyncio.h:
 /Users/matthewevers/Documents/git_repos/3draster/3rd/minipt.h:
@@ -405,7 +405,7 @@ render/torirs_frame.h:
 render/torirs_pick.h:
 ui/uitree_layout.h:
 ui/uitree_iface_stats.h:
+ui/uitree_obj_cell.h:
 world/world.h:
 /Users/matthewevers/Documents/git_repos/3draster/3rd/bmp/bmp.h:
 ui/uitree_inv_view.h:
-ui/uitree_obj_cell.h:

@@ -45,6 +45,7 @@
 #include "toridraw.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_iface_stats.h"
+#include "ui/uitree_obj_cell.h"
 #include "world/world.h"
 
 #include "bmp.h"
@@ -9507,6 +9508,40 @@ app_minimenu_open(
     }
 }
 
+/* IF3 inventory paint (`interface_inv_draw_slot_big`) installs
+ * `cc_setonop(cc_settrans_temporarily(...))` — the modern stand-in for
+ * Client-TS `selectedArea` flash (transPlotSprite 128 for ~15 cycles). That
+ * flash is for Wear/Drop/INV_BUTTON/IF_BUTTON only: `OPHELDT_START` ("Use")
+ * arms useMode with a white outline and must stay opaque (Client.ts:9183 /
+ * TYPE_INV draw 9700 vs selectedArea branch 9752). */
+static void
+app_inv_cell_op_flash(
+    struct App* app,
+    int com_id,
+    int slot,
+    int op_index)
+{
+    int32_t idx = -1;
+    int hook_com_id = -1;
+    struct UITreeRuntimeScriptHook const* hook;
+    struct UITreeRuntimeScriptHook hook_copy;
+
+    assert(app);
+    if( !app->tree )
+        return;
+    if( !UITree_ObjCellDynamicAtSlot(app->tree, com_id, slot, &idx, NULL, NULL) )
+        idx = UITree_FindByComponentId(app->tree, com_id);
+    if( idx < 0 )
+        return;
+    hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
+    if( !hook || hook->script_id <= 0 )
+        return;
+    hook_copy = *hook;
+    RS_CS2_SetEventOp(&app->host, op_index > 0 ? op_index : 1, 0);
+    RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
+    RS_CS2_SetEventOp(&app->host, 1, 0);
+}
+
 /* Execute one selected (or defaulted) menu row: cross feedback + hook
  * dispatch with the row's op index (v1 ui_click_use_minimenu_option). The
  * cross colour comes from the action alone (RS_Minimenu_CrossModeForAction,
@@ -9536,6 +9571,7 @@ app_minimenu_inv_action(
                 obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
                 app->objsel.component_id));
         app->objsel.active = 0;
+        app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
 
@@ -9549,6 +9585,7 @@ app_minimenu_inv_action(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 obj_id, slot, com_id, app->targetsel.component_id));
         app->targetsel.active = 0;
+        app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
 
@@ -9564,6 +9601,8 @@ app_minimenu_inv_action(
             net_out_opheld(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, obj_id, slot, com_id));
+        /* selectedArea / cc_settrans_temporarily — not for Use (below). */
+        app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_INV_BUTTON1:
     case REVCONFIG_MINIMENU_INV_BUTTON2:
@@ -9575,6 +9614,7 @@ app_minimenu_inv_action(
             net_out_inv_button(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, obj_id, slot, com_id));
+        app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_IF_BUTTON:
         /* Component ops 1..10 on an inventory cell (bank withdraw ladder,
@@ -9586,10 +9626,12 @@ app_minimenu_inv_action(
             net_out_if_button_op(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, com_id, slot));
+        app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_OPHELDT_START:
     {
-        /* "Use <item>": enter selection mode; the next click targets it. */
+        /* "Use <item>": enter selection mode; the next click targets it.
+         * No selectedArea / settrans flash — white outline only. */
         struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
         app->objsel.active = 1;
         app->objsel.obj_id = obj_id;
@@ -9625,7 +9667,6 @@ app_minimenu_inv_action(
 }
 
 #include "ui/uitree_inv_view.h"
-#include "ui/uitree_obj_cell.h"
 #include "ui/uitree_scroll.h"
 
 /* Filled item cell under a canvas point, of either shape the tree can express
@@ -11288,6 +11329,26 @@ App_RunOnce(
         app->clicked_com_id = out.clicked_com_id;
     if( out.need_redraw )
         app->need_redraw = 1;
+
+    /* Inventory slot machine owns the press (reference freezes mouseLoop while
+     * objDragArea != 0). InteractFrame still emits a deferred-click on_op
+     * intent for IF3 cells that carry cc_setonop(cc_settrans_temporarily) —
+     * which would dim the icon even when the short-click default is "Use"
+     * (OPHELDT_START). Client-TS never sets selectedArea for Use. Drop those
+     * click intents here; the machine runs the default row itself, and
+     * OPHELD1-5 / INV_BUTTON / IF_BUTTON re-fire on_op from inv_action. */
+    if( app->inv_drag_com_id >= 0 )
+    {
+        int kept = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            struct UIIntent const* intent = &out.intents[i];
+            if( !intent->has_event_mouse && !intent->has_drag_target )
+                continue;
+            out.intents[kept++] = out.intents[i];
+        }
+        out.intent_count = kept;
+    }
 
     /* Snapshot hooks by value before dispatching anything: intent->hook points
      * into tree->components[], and an earlier intent's script can CC_CREATE

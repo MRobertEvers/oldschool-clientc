@@ -984,6 +984,14 @@ apply_param(
         resolved = def->damagetype = atoi(value);
     else if( strcmp(text, "huntrange") == 0 )
         resolved = def->huntrange = atoi(value);
+    else if( strcmp(text, "undead") == 0 )
+    {
+        /* Crumble Undead gate — combat.param int; overlays use 0/1 or ^true/^false. */
+        if( value[0] == '^' )
+            resolved = mock230_content_constant_int(value, 0);
+        else
+            resolved = atoi(value);
+    }
     /*
      * The four symbolic params, and the one place the two halves of this merge
      * had to be combined rather than chosen between.

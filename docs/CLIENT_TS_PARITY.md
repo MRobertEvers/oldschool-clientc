@@ -3081,8 +3081,19 @@ never disturbed. Verified end to end: pre-click `objsel=1` → post-click
 `objsel=0` on the `0xc8d` inventory click.
 
 Not ported (deliberate): re-rastering every frame (torirs caches — the outline is
-static per obj/count), and the `useMode` translucent `selectedArea` variant
-(`Client.ts:10253`, a separate older highlight torirs does not arm).
+static per obj/count).
+
+**Click flash vs Use.** Client-TS `selectedArea` (`Client.ts:9157` /
+TYPE_INV draw `:9752`) dims the slot for ~15 cycles after OPHELD1–5 /
+INV_BUTTON / use-on completion — **not** after `OPHELDT_START` ("Use"), which
+only arms `useMode` and the white outline. At rev 230 the backpack paint script
+installs `cc_setonop(cc_settrans_temporarily(...))` on every filled cell; the
+generic deferred-click intent path used to run that hook on every inventory
+left-click, so a short-click whose default row was Use dimmed the icon.
+Fixed: while `inv_drag` owns the press, click/`on_op` intents are dropped (the
+slot machine runs the default row); `app_minimenu_inv_action` re-fires `on_op`
+for OPHELD1–5 / INV_BUTTON / IF_BUTTON / use-on completion only — Use stays
+opaque with the outline.
 
 Verified: clean build (no warnings); `test-inv`, `test-uitree`, `test-ui-slots`,
 `test-uitree-builder-dat1`, `test-revconfig`, `test-net-exec` pass. The pixel pass

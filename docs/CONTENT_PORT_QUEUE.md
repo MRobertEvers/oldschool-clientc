@@ -521,7 +521,23 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 26h | Ghrim kingdom book | done | misc_ghrimbook ~mesbox pages |
 | 26i | Duel tomato crate + throw | done | crate Trade stub; throw (.coord) deferred |
 | 26j | Duel arena spectators | done | crowd Talk random lines; clue deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | After 26j: CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent), lavafish_loc (no eel loc) |
+| 26k | Party Room lever + knights | done | lever Pull + knight dance queue; balloons deferred |
+| 26l | Party Room chest open/close | done | open/shut chest; Deposit IF deferred |
+| 26m | Gnomeball referee Talk | done | Talk/rules; game start deferred (%gnomeball_progress) |
+| 26n | Mining Guild dwarf Talk | done | mguild_dwarf1/2 welcome + guild info |
+| 26o | Agility Arena Cap'n Izzy | done | Talk place/do; pay/enter deferred |
+| 26p | Agility Arena Jackie | done | Talk + Trade stub; ticket IF deferred |
+| 26q | Boot the Dwarf Talk | done | hello/why-Boot; crest gold deferred |
+| 26r | Derrik (misc_smithy) Talk | done | anvil yes; giant nib deferred |
+| 26s | Party Room balloons thin | done | Burst stamp→pop→del; chest loot deferred |
+| 26t | Duel tomato throw | blocked | Needs .coord / secondary player + splash (opplayeru) |
+| 26u | Duel forfeit flags stub | done | Choice + stub mes; duel_finish engine deferred |
+| 26v | Mcannon dwarf remains + book | done | remains pickup gate + mcannonbook mesbox pages |
+| 26w | Heroes oily fishing rod | done | blamish_oil + fishing_rod → oily_fishing_rod |
+| 26x | Chicken flavour squawk | done | _chicken timer squawk + egg; sound deferred |
+| 26y | Mcannon doors | done | walk-through gated on %mcannon |
+| 26z | Nulodion notes | in_progress | mesbox Read |
+| 8 | Outward areas / remaining quests / minigames | pending | After 26y: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw |
 
 
 
@@ -1044,7 +1060,7 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 25n done: ranging tower ladders + fill_towers + archer AI + advisors; mock230_pack 0 errors
 - slice 25o done: ticket_merchant Trade stub (IF deferred); mock230_pack 0 errors (9779 scripts)
 - slice 25p blocked: lavafish_loc — no eel loc in osrs239 (npc spot covers it)
-- next pending: leave 25w–26f in_progress alone; party chest/lever / tomato throw / CW/Trails; skip blocked list
+- next pending: party balloons / tomato throw / CW/Trails; skip blocked list
 
 - slice 25q done: wizard Fire Strike AI; mock230_pack 0 errors
 - slice 25r done: partyroom Megan Talk
@@ -1062,12 +1078,16 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 26d done: sheep flavour Baa ai_timer
 - slice 26e done: cow flavour Moo ai_timer
 - slice 26f done: mcannon cave/mudpile/guard + constants; remains deferred; mock230_pack 0 errors (9896 scripts)
-- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc
+- next pending: party balloons / tomato throw / CW/Trails; skip blocked list + lavafish_loc
 
 - slice 26g done: gnomecheerleader gnome_cl* timer; mock230_pack 0 errors
 - slice 26h done: misc_ghrimbook mesbox pages
 - slice 26i done: rotten_tomato_crate Trade stub; throw deferred
 - slice 26j done: duel crowd spectators Talk
+
+- slice 26k done: partyroom lever + knights dance; balloons deferred; mock230_pack 0 errors
+- slice 26l done: partyroom chest open/shut; Deposit deferred
+- sibling unblock: gauntlet_gather %gauntlet_run_corrupted (varbit name clash)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 
@@ -1084,3 +1104,21 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) records why
   the number in the `v0/osrs` table is the wrong revision and must not be copied.
   Full accounting of what each op needed: that queue's log, same date.
+
+- slice 26m done: gnomeball referee Talk/rules; game start deferred; mock230_pack 0 errors (10086 scripts)
+- slice 26n done: Mining Guild dwarf Talk (mguild_dwarf1/2); mock230_pack 0 errors (10124 scripts)
+- slice 26o done: Cap'n Izzy Talk place/do; pay/enter deferred
+- slice 26p done: Jackie Talk + Trade stub; ticket IF deferred
+- slice 26q done: Boot the Dwarf hello/why; crest gold deferred
+- slice 26r done: Derrik anvil Talk; giant nib deferred; mock230_pack 0 errors (10214 scripts)
+
+- slice 26s done: party balloon Burst (colour→pop); chest loot deferred; mock230_pack 0 errors
+- slice 26t blocked: rotten_tomato throw needs .coord / secondary player
+- slice 26u done: duel forfeit flags/trapdoor stub; duel engine deferred
+- sibling unblock: combat.param `undead` + param.server for crumble_undead overlays
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord)
+
+- slice 26v done: mcannonremains pickup + mcannonbook mesbox; mock230_pack 0 errors
+- slice 26w done: blamish_oil + fishing_rod → oily_fishing_rod
+- slice 26x done: chicken flavour squawk + egg; sound/%npc_attacking_uid deferred
+- next pending: leave 26p–r alone if still in_progress; skip blocked; CW/Trails deferred
