@@ -569,9 +569,8 @@ interact_drag_push_ondrag(
     out->need_redraw = 1;
 }
 
-/* Apply a CS2 cc/if_dragpickup that the host staged on the tree. Always emits
- * a one-shot on_drag + on_drag_complete (track jump); does not leave a live
- * drag while the button stays held. */
+/* Apply a CS2 cc/if_dragpickup that the host staged on the tree. Returns 1 if a
+ * pickup was consumed (an on_drag was pushed for it this frame). */
 static int
 interact_drag_consume_pending(
     struct UIInteraction* interact,
@@ -666,10 +665,11 @@ interact_drag_consume_pending(
             src->drag_visual_y);
     }
 
-    /* Track jump (`scrollbar_vertical_jump` → cc_dragpickup) is always a
-     * one-shot: apply scroll/caps once then complete. Continuing the drag
-     * while held made empty-track presses feel like "dragging the track";
-     * thumb presses arm the real drag source separately. */
+    /* Held is the normal case: `scrollbar_vertical_jump` picks the dragger up
+     * with the cursor at its centre and the gesture continues from there
+     * (reference setDragSource makes the picked-up widget the live drag
+     * source). Only a press already released this frame completes at once. */
+    if( !left_held )
     {
         struct UIIntent complete = {
             .component_id = st->drag_source_id,
@@ -692,7 +692,6 @@ interact_drag_consume_pending(
         st->drag_source_id = -1;
         st->drag_target_id = -1;
     }
-    (void)left_held;
     return 1;
 }
 
@@ -740,12 +739,13 @@ interact_drag(
      * on IsDragging left on_drag silent while drag_visual still moved once
      * the input threshold finally tripped. Same gate as interact_hold. */
     int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int picked_up = 0;
 
     if( !sb_owns_mouse )
-        (void)interact_drag_consume_pending(
+        picked_up = interact_drag_consume_pending(
             interact, tree, ui_host, input, left_held, out);
 
-    if( !sb_owns_mouse && st->drag_source_idx >= 0 && left_held )
+    if( !sb_owns_mouse && !picked_up && st->drag_source_idx >= 0 && left_held )
     {
         int drag_ch = UITree_InputDragTick(
             st, tree, ui_host, input->curr.mouse_x, input->curr.mouse_y, 1);

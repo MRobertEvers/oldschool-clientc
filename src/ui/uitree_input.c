@@ -37,8 +37,7 @@ collect_inv_grid_slot_hit(
     layout.offset_x = component->u.rs_inv.inv_slot_offset_x;
     layout.offset_y = component->u.rs_inv.inv_slot_offset_y;
 
-    return UITree_InvViewGridHitTest(
-               bx, by, &layout, px + scroll_off_x, py + scroll_off_y) >= 0;
+    return UITree_InvViewGridHitTest(bx, by, &layout, px + scroll_off_x, py + scroll_off_y) >= 0;
 }
 
 bool
@@ -292,9 +291,7 @@ hit_test_interactive_recursive(
     if( point_in_self && !blocks_world && component->parent >= 0 &&
         (uint32_t)component->parent < tree->component_count )
         blocks_world = UITree_ChildMountType(
-                           tree,
-                           tree->components[component->parent].component_id,
-                           component) == 0;
+                           tree, tree->components[component->parent].component_id, component) == 0;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -343,8 +340,16 @@ hit_test_interactive_recursive(
         int child_blocks = 0;
         int child_blocks_world = 0;
         int32_t child_hit = hit_test_interactive_recursive(
-            tree, host, child, px, py,
-            child_scroll_x, child_scroll_y, &child_clip, &child_surface, &child_blocks,
+            tree,
+            host,
+            child,
+            px,
+            py,
+            child_scroll_x,
+            child_scroll_y,
+            &child_clip,
+            &child_surface,
+            &child_blocks,
             &child_blocks_world);
         /* Later siblings render on top. A blocking child also discards this
          * node's own hit and earlier siblings. */
@@ -414,8 +419,7 @@ UITree_HitTest(
         return -1;
 
     int32_t hit = -1;
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int32_t root_hit;
         if( !UITree_RootIsDisplayable(tree, root) )
@@ -502,8 +506,7 @@ collect_nodes_recursive(
     bool const inv_slot_hit =
         collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
-    if( (point_in_self || inv_slot_hit) &&
-        UITree_ComponentHitTestVisibleHost(component, -1, host) )
+    if( (point_in_self || inv_slot_hit) && UITree_ComponentHitTestVisibleHost(component, -1, host) )
     {
         bool const inv_grid =
             component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
@@ -520,8 +523,7 @@ collect_nodes_recursive(
          * child — so every other test here calls it pass-through chrome and
          * drops it, and the equipment slots become unclickable. */
         bool const has_obj = component->item_id > 0;
-        if( (inv_grid || has_ops || has_obj ||
-             !UITree_ComponentIsPassThrough(component, host)) &&
+        if( (inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host)) &&
             ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;
     }
@@ -558,7 +560,15 @@ collect_nodes_recursive(
          child = tree->components[child].next_sibling )
     {
         collect_nodes_recursive(
-            tree, host, child, px, py, child_scroll_x, child_scroll_y, &child_clip, &child_surface,
+            tree,
+            host,
+            child,
+            px,
+            py,
+            child_scroll_x,
+            child_scroll_y,
+            &child_clip,
+            &child_surface,
             ctx);
     }
 }
@@ -577,8 +587,7 @@ UITree_CollectNodesAt(
     assert(tree);
     assert(out_nodes);
 
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         if( !UITree_RootIsDisplayable(tree, root) )
             continue;
@@ -612,8 +621,7 @@ UITree_HitTestInteractive(
         return -1;
 
     int32_t hit = -1;
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int root_blocks = 0;
         int32_t root_hit;
@@ -643,8 +651,7 @@ UITree_PointBlocksWorld(
     if( tree->root_index < 0 )
         return 0;
 
-    for( int32_t root = tree->root_index; root >= 0;
-         root = tree->components[root].next_sibling )
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
         int root_blocks = 0;
         int root_blocks_world = 0;
@@ -704,35 +711,6 @@ UITree_InputUpdate(
             struct UITreeComponent const* c = &tree->components[state->pressed];
             int bx = 0, by = 0, bw = 0, bh = 0;
             int offx = 0, offy = 0;
-            /* Reference dragTryPickup walks every widget under the cursor and
-             * starts a drag before onclick. Our hit test is topmost-only, so a
-             * full-size noclickthrough track (or decorative cap) sitting on the
-             * thumb steals the press and never arms the dragger. Prefer a
-             * draggable sibling that also contains the point (last = topmost). */
-            if( !tree->anti_drag && !UITree_ComponentIsDraggable(c) && c->parent >= 0 &&
-                (uint32_t)c->parent < tree->component_count )
-            {
-                int32_t prefer = -1;
-                int32_t sibling = tree->components[c->parent].first_child;
-                for( ; sibling >= 0; sibling = tree->components[sibling].next_sibling )
-                {
-                    struct UITreeComponent const* s = &tree->components[sibling];
-                    int sbx = 0, sby = 0, sbw = 0, sbh = 0;
-                    int soffx = 0, soffy = 0;
-                    if( !UITree_ComponentIsDraggable(s) || s->behavior.hide )
-                        continue;
-                    UITree_LayoutGetBounds(&s->position, &sbx, &sby, &sbw, &sbh);
-                    UITree_AccumScrollOffset(tree, sibling, &soffx, &soffy);
-                    if( UITree_PointInScrolledBounds(
-                            event.x, event.y, sbx, sby, sbw, sbh, soffx, soffy) )
-                        prefer = sibling;
-                }
-                if( prefer >= 0 )
-                {
-                    state->pressed = prefer;
-                    c = &tree->components[prefer];
-                }
-            }
             UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
             /* Pickup offset is against the DRAWN position: ancestor scroll
              * offsets shift the widget on screen while abs_* stays in content
@@ -753,11 +731,9 @@ UITree_InputUpdate(
             {
                 /* Non-draggable with on_click/on_op: fire on press (Jagex
                  * Client loopLayer field1871 / xrsps widgetClickInput).
-                 * Scrollbar tracks call cc_dragpickup from onclick on the
-                 * press edge so the jump can run this frame; continuous drag
-                 * from the track is not wanted — consume_pending one-shots.
-                 * Hold-only chrome (arrow on_hold) must not get a synthetic
-                 * click here. */
+                 * Scrollbar tracks call cc_dragpickup from onclick — that must
+                 * run while the button is still held. Hold-only chrome (arrow
+                 * on_hold) must not get a synthetic click here. */
                 struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
                 if( hooks->on_click.script_id > 0 || hooks->on_op.script_id > 0 )
                 {
@@ -928,8 +904,7 @@ UITree_InputDragTick(
     src->drag_visual_x = target_x;
     src->drag_visual_y = target_y;
 
-    state->drag_target_id =
-        UITree_FindDropTarget(tree, mouse_x, mouse_y, state->drag_source_id);
+    state->drag_target_id = UITree_FindDropTarget(tree, mouse_x, mouse_y, state->drag_source_id);
 
     return changed || state->drag_active;
 }

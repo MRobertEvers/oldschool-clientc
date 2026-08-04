@@ -281,9 +281,9 @@ window onto.
 | state | delivery | mock230 status |
 |---|---|---|
 | 107-row static location register | client cache, already generic | **landed** (cache content) |
-| Per-player, per-patch dynamic state (planted crop, growth clock, flags) × 107 | unknown wire shape — corpus gap on the caller | **entirely absent** — not a small varp gap, a structurally new per-player state surface |
+| Per-player, per-patch dynamic state (planted crop, growth clock, flags) × 107 | unknown wire shape — corpus gap on the caller | **partial** — mid-era sim patches paint via `~farming_view_refresh` → `farming_view_setpanel` (1119); Geomancy opener still deferred; unowned patches stay Loading… |
 | Selected tab (`%varbit4776`) | varbit transmit | not declared (trivial) |
-| The underlying crop-growth/disease/compost simulation this UI displays | — | **does not exist at all**, a much larger pre-existing dependency |
+| The underlying crop-growth/disease/compost simulation this UI displays | — | **mid-era core landed** (herbs/allot/flower/trees/fruit/hops/bushes/compost); disease/watering mostly stubbed |
 
 ---
 

@@ -78,18 +78,18 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 9 | minigame: Fight Caves | done | Wave table + shared-map enter/exit (`minigame_fightcave/`); Kronos/2009 remainder algorithm; Tz-Kek split; Jad reward cape+tokkul; Jad healers deferred; **instance/DynamicMap still needed for concurrent players** |
 | 10 | minigame: Pest Control | blocked | → SCAPE2009 §6 |
 | 11 | minigame: Warriors' Guild | done | `minigame_warriorsguild/`: entrance Att+Str≥130 or 99; cyclops door 100 tokens + Kamfreena entry dial; 10/min drain; 1/50 bronze→rune drop; stairs; policy 2009scape (LC none); animator/dummy/catapult/token earn + basement dragon deferred |
-| 12 | minigame: Wintertodt | pending | Post-2009; Kronos owns |
-| 13 | minigame: Motherlode Mine | pending | Post-2009; Kronos owns |
+| 12 | minigame: Wintertodt | done | `minigame_wintertodt/`: Ignisia unlock, Doors of Dinh (FM50), tool chests, chop/fletch/light/feed/fix + herb pot; points + debug crate; storm HP/cold/pyro heal/HUD/crate loot deferred; no new opcodes |
+| 13 | minigame: Motherlode Mine | done | `minigame_motherlode/`: enter/exit, mine→paydirt, hopper→`%motherlode_sack_transmit`, strut fix, sack ore table, rockfall; water NPC/upper floor/dark tunnel/HUD deferred; no new opcodes |
 | 14 | minigame: Pyramid Plunder | blocked | → SCAPE2009 §7 |
 | 15 | minigame: Puro-Puro | blocked | → SCAPE2009 §8 |
 | 16 | minigame: God Wars dungeon | blocked | → SCAPE2009 §19 |
-| 17 | minigame: Nightmare Zone | pending | Post-2009; Kronos owns |
-| 18 | clues: easy cryptic stubs | pending | Prefer SCAPE2009 §18 if trails land there first |
+| 17 | minigame: Nightmare Zone | done | `minigame_nightmarezone/`: Dominic dream buy, lobby/arena vials, 2-boss stub endurance, barrels, herb-box chest; Kronos was stub-only; full boss list/powerups/absorption/HUD/DynamicMap deferred |
+| 18 | clues: easy cryptic stubs | blocked | → SCAPE2009 §18 (still pending there) |
 | 19 | bosses: Giant Mole | blocked | → SCAPE2009 §20 |
-| 20 | bosses: KQ / DKS / Corp | pending | Vanilla only |
+| 20 | bosses: KQ / DKS / Corp | pending | KQ has LC proc → CONTENT_PORT_QUEUE; DKS/Corp prefer SCAPE2009 era — split or skip |
 | 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | pending | Post-2009; Kronos owns |
-| 22 | skill_agility: rooftops + shortcuts | pending | OSRS rooftops = Kronos; mid-era courses → SCAPE2009 §35 |
-| 23 | prayer: Redemption / Retribution | pending | Kronos small; check LC first |
+| 22 | skill_agility: rooftops + shortcuts | in_progress | Draynor→Canifis done; Falador/Seers/Rellekka/Ardougne + shortcuts remain |
+| 23 | prayer: Redemption / Retribution | done | `prayer_effects.rs2`: ≤10% HP → drain+heal+gfx; death → gfx+hit `%aggressive_npc` ≤1 tile; policy 2009scape (LC none); multi AoE deferred (no map_multiway data) |
 
 ## Opcode gap log
 
@@ -106,6 +106,12 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 7a | instance / dynamic map | POH | measure — may block |
 | 9 | instance / dynamic map | Fight Caves multiplayer isolation (shared map used for single-player) | soft — content landed on shared region 9551 |
 | 11 | (none) | Doors/tokens/drops/softtimer already expressible | confirmed — no new opcode |
+| 12 | (none) | Enter/actions expressible with loc_change + softtimer later | confirmed — no new opcode |
+| 13 | (none) | Hopper/sack/veins expressible via cache varbits + loc_change | confirmed — no new opcode |
+| 17 | instance / dynamic map | NMZ dream isolation (shared 35_73 used for single-player) | soft — same gap as Fight Caves |
+| 23 | (none) | Existing damage/death hooks + spotanim_pl | confirmed — no new opcode |
+| 23 | map_multiway zone data | Retribution multi AoE | deferred — opcode exists, no multi map |
+| 22 | (none) | Rooftop locs + existing agility helpers | confirmed — no new opcode |
 
 ## Log
 
@@ -117,3 +123,11 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 4 done: Cancel/Block/Store/Unblock — `~slayer_confirm` arms; blocked slots per master (CS2 8025); cancel 30pts; block prices from CS2 823; Store/Swap behind unlock 51; no new opcodes
 - slice 9 done: Fight Caves wave table + shared-map loop — enter/exit locs, remainder spawn algorithm, Tz-Kek split, Jad cape; healers + true instance deferred
 - slice 11 done: Warriors' Guild cyclops core — entrance gate, Kamfreena entry dial, token take/drain, defender progression drops, WG stairs; activities rooms + basement dragon deferred; `make mock230-scripts` 4132; pack 0 errors; no new opcodes
+- slice 12 done: Wintertodt core loop — Ignisia, doors, chests, bruma chop/fletch, brazier light/feed/fix, herb→potion; storm/cold/HUD deferred; scripts 4195; pack 0 errors; no new opcodes
+- slice 13 done: Motherlode Mine core — enter/exit, paydirt veins, hopper→sack varbit, strut repair, sack loot table, rockfall; water NPC path / upper floor deferred; scripts 4241; pack 0 errors; no new opcodes
+- slice 17 done: Nightmare Zone lobby+stub dream — Dominic purchase, vials, Count Draynor→Elvarg, barrels, herb box; full rumble/powerups/DynamicMap deferred; scripts 4378; pack 0 errors
+- slice 23 done: Redemption/Retribution procs — `~prayer_redemption_check` on melee/magic/poison damage; `~prayer_retribution_on_death` hits aggressive npc within 1; multi AoE deferred; scripts 4467; no new opcodes
+- slice 22 (partial): Draynor rooftop — `rooftop_draynor.rs2` all 7 obstacles via cache loc names; Kronos XP/policy; Mark of Grace/pet deferred; other rooftops remain; scripts 4504; pack 0 errors
+- slice 22 (partial): Al Kharid rooftop — `rooftop_alkharid.rs2` req 20, 8 obstacles; zip/bamboo simplified vs Kronos forces; scripts 4513; pack 0 errors
+- slice 22 (partial): Varrock rooftop — `rooftop_varrock.rs2` req 30, 9 obstacles; wall/balcony forces simplified; scripts 4528; pack 1 error is parallel farming bushes.dbrow (unrelated)
+- slice 22 (partial): Canifis rooftop — `rooftop_canifis.rs2` req 40, 8 obstacles; scripts 4592; unblocked parallel grandtree `gosub(npc_death)` compile break

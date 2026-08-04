@@ -11468,8 +11468,8 @@ App_RunOnce(
                     break;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
-             * the drain above. Consume it now as a one-shot jump (on_drag +
-             * complete); continuous drag is thumb-press only. */
+             * the drain above. Consume it in the same frame so the thumb jumps
+             * under the cursor now and keeps following it while held. */
             if( app->tree && app->tree->pending_drag_pickup )
             {
                 struct UIInteractOut pickup_out;

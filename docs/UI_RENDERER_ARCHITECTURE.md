@@ -738,19 +738,17 @@ Jagex `loopLayer` / xrsps `widgetClickInput` run onclick on mousedown for widget
 that are not drag sources. Our input path used to defer every click to mouseup, so
 a scrollbar track's `scrollbar_vertical_jump` → `cc_dragpickup` ran after the button
 was already up. Non-draggable nodes with `on_click`/`on_op` now set `result.clicked`
-on DOWN. If a **draggable sibling** also contains the press point (thumb under a
-full-size `noclickthrough` track, or under a decorative cap), the press retargets
-to that sibling and arms a real drag instead of firing the track's onclick —
-matching reference `dragTryPickup` before onclick
+on DOWN, so the jump runs on the press edge while the button is still held
 ([uitree_input.c](src/ui/uitree_input.c)).
 
-**`cc_dragpickup` is staged on the tree and consumed the same frame as a one-shot.**
+**`cc_dragpickup` is staged on the tree and consumed the same frame.**
 The host cannot touch `UIInputState`, so pickup parks on `tree->pending_drag_*`
 (like `anti_drag`). After the post-intent `TaskRunner` drain, App_RunOnce calls
-`UITree_InteractConsumePendingDragPickup`, which forces one `on_drag` +
-`on_drag_complete` then clears the source — track click jumps the list without
-starting a held drag. Continuous scrollbar dragging is only from pressing the
-thumb. Pickup refuses targets with no drag render area / clickmask depth
+`UITree_InteractConsumePendingDragPickup`, which seeds the picked-up widget under
+the cursor and emits `on_drag`. While the button stays held that widget remains
+the live drag source (reference `setDragSource`), so a track click jumps the thumb
+to the cursor and then keeps following it; a pickup whose button is already up
+completes immediately. Pickup refuses targets with no drag render area / clickmask depth
 (`Client.dragTryPickup` when `getDragLayer` is null)
 ([rs_cs2_host.c](src/game/rs_cs2_host.c), [app.c](src/app.c),
 [uitree_interact.c](src/ui/uitree_interact.c)).

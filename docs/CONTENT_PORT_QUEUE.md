@@ -241,7 +241,17 @@ re-arm. Stop only when the user stops the loop.
 | 15w | seaslug_journal | done | journal + quest_seaslug dbrow wire |
 | 15x | gnomes Talk-to | done | gnome/female/child Talk-to + ranged AI; ~objbox→~mesbox |
 | 15y | gnome cook/cocktail book stubs | done | giannes_cook_book + cocktail_guide ~mesbox recipes; IF1 book UI deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: restaurant leftovers (%gnome_restaurant_progress authorable); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
+| 15z | restaurant start + varp | done | %gnome_restaurant_progress authored 5803 + start dialogue + cookbook handoff; assigns/jobs deferred |
+| 16a | restaurant tutorial assigns | done | cheese+tom→toad crunchies tutorial + utensil replace + premade reject; jobs deferred |
+| 16b | restaurant jobs | done | job start/finish + dish_ok helpers + XP/coins; cooking skill deferred |
+| 16c | swamp_toad | done | opheld1 swamp_toad → toads_legs (restaurant fresh legs) |
+| 16d | cutting_fruit | done | knife↔lemon/orange/lime/pineapple ~p_choice2 slice/dice; cocktail-shaker deferred |
+| 16e | grandtree translation_book | done | grandtree_translationbook ~mesbox glossary; IF1 book deferred |
+| 16f | gloughs_journal stub | done | grandtree_journal ~mesbox pages; IF1 book deferred |
+| 16g | grandtree anita | done | Anita Talk-to key handoff; trail clue deferred |
+| 16h | grandtree charlie | done | Charlie Talk-to + jail release; narnode_trust_glough parked here until 16m |
+| 16i | grandtree femi | done | Femi Talk-to/boxes/sneak-in + %femi_help authored 5856; gnome_gate boxes wired |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: glough/foreman/shipyardworker/king_narnode or gnome cooking; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
 
 
 
@@ -481,6 +491,16 @@ re-arm. Stop only when the user stops the loop.
 - slice 15w done: seaslug_journal + questlist wire; mock230_pack 0 errors
 - slice 15x done: gnomes Talk-to + ranged AI; mock230_pack 0 errors (4132 scripts)
 - slice 15y done: giannes_cook_book + cocktail_guide ~mesbox recipe stubs (IF1 deferred); mock230_pack 0 errors (4162 scripts)
-- next pending: restaurant leftovers (%gnome_restaurant_progress authorable); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
+- slice 15z done: %gnome_restaurant_progress authored 5803 + restaurant start + aluft wire; mock230_pack 0 errors (4197 scripts)
+- slice 16a done: restaurant tutorial assigns through complete + utensil/premade helpers; mock230_pack 0 errors (4207 scripts)
+- slice 16b done: restaurant jobs start/finish + dish helpers; mock230_pack 0 errors (4336 scripts)
+- slice 16c done: swamp_toad → toads_legs; mock230_pack 0 errors (4337 scripts)
+- slice 16d done: fruit knife slice/dice via p_choice2; mock230_pack 0 errors (4418 scripts)
+- slice 16e done: grandtree_translationbook ~mesbox stub; mock230_pack 0 errors
+- slice 16f done: grandtree_journal ~mesbox stub; mock230_pack 0 errors (4420 scripts)
+- slice 16g done: grandtree anita Talk-to key handoff; mock230_pack 0 errors (4505 scripts)
+- slice 16h done: grandtree charlie Talk-to + jail release; mock230_pack 0 errors (4516 scripts)
+- slice 16i done: femi Talk-to/boxes + %femi_help authored 5856 + gnome_gate boxes; mock230_pack 0 errors (4528 scripts)
+- next pending: glough/foreman/shipyardworker/king_narnode or gnome cooking; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
