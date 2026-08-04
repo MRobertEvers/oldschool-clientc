@@ -764,6 +764,7 @@ bank_set_events(struct Mock230Server* srv)
     const int op_1 = 1 << 1;
     const int drag_depth_1 = 1 << 17;
     const int drag_target = 1 << 20;
+    const int useable_on = 1 << 21;
     const int k_buttons[] = {
         ids->com_bankmain_swap_insert, ids->com_bankmain_note,
         ids->com_bankmain_qty_1,       ids->com_bankmain_qty_5,
@@ -783,7 +784,7 @@ bank_set_events(struct Mock230Server* srv)
         ids->com_bankside_items,
         0,
         MOCK230_INV_SLOTS - 1,
-        ops_1_to_10 | drag_depth_1 | drag_target);
+        ops_1_to_10 | drag_depth_1 | drag_target | useable_on);
 
     for( size_t i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
         mock230_send_if_setevents(srv->active_player, k_buttons[i], 0, 0, op_1);

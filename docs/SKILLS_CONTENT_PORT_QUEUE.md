@@ -160,14 +160,14 @@ unblocked row per tick.
 | 2 | skill_combat: PvP melee | LC | blocked | Needs secondary-player dialect (`.stat` / `.%varp` / `p_opplayer`) + `MOCK230_PLAYER_MAX>1`; combat_stats.rs2 documents `.` variants deliberately not ported. Host gap — not a content-only finish. Re-open when multi-player active player lands. |
 | 3 | Attack potion consume | LC | done | Drink for 1–4dose attack + super attack (`attack_potion.rs2`); wiki +3/+10% and +5/+15%; dose switch ladder (anti_poison pattern). Combat/divine/zamorak → later slices |
 | 4 | Warriors' Guild Attack activities remainder | Kronos | blocked | → [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) §11 deferred: animator/dummy/catapult/token earn + basement dragon; cyclops core already done |
-| 5 | Attack cape perk | wiki+cache | done | Worn Boost (`param_451`) → +1 Attack; host routes worn op2 to `inv_button2`; `skillcape_attack.rs2` |
+| 5 | Attack cape perk | wiki+cache | done | Worn Boost via shared `skillcape_boost.rs2` (+1 Attack); host worn op2 routing |
 | 6 | Strength potion consume | LC | done | `strength_potion.rs2` — strength4/+3/+10%, super +5/+15%; dose ladder (#3 pattern) |
-| 7 | Strength cape perk | wiki+cache | pending | Wiki +1 visible boost on cape Activate; no skillcape Strength effect in tree |
-| 8 | Non-combat Strength training | wiki+cache | pending | Wiki: barehand/heavy-rod fishing, forcing obstacles; no barb fishing / Str-obstacle procs in `skill_fishing`/`skill_agility`; Pyramid Plunder sarc XP already lands |
+| 7 | Strength cape perk | wiki+cache | done | Shared `skillcape_boost.rs2` (+1 Strength); WG Teleport deferred |
+| 8 | Non-combat Strength training | SCAPE2009 | blocked | Barbarian/heavy-rod fishing is mid-era (`2009scape` `barbfishing/`); → SCAPE2009 fishing lane. Str door-forcing / barehand remains wiki+cache when locs identified — do not invent methods. |
 | 9 | skill_combat: magic defence 7:3 blend | LC | done | `%com_magicdef` uses LC `7*magic+3*defence)/10` effective level +8 (`combat_stats.rs2`) |
-| 10 | Defence potion consume | LC | pending | Wiki defence/super/saradomin brew/bastion/battlemage boosts; brew rows `herblore_defense`/`herblore_super_defense` exist; pairs with #3/#6 `_potion` Drink gap (CONTENT 10d) |
-| 11 | Defence cape perk | wiki+cache | pending | Wiki +1 visible boost on cape Activate; Excalibur +8 Def needs specials (#1) |
-| 12 | Hitpoints regen (Rapid Heal / cape / bracelet) | LC | pending | Wiki 1 HP/min; Rapid Heal + HP cape + regen bracelet double/stack; LC `timer,health_regen` + Rapid Heal interval — no `health_regen` in tree; Rapid Heal prayer toggles only |
+| 10 | Defence potion consume | LC | done | `defence_potion.rs2` — def +3/+10%, super +5/+15%; dose ladder |
+| 11 | Defence cape perk | wiki+cache | done | Shared `skillcape_boost.rs2` (+1 Defence); Excalibur +8 already in #1 |
+| 12 | Hitpoints regen (Rapid Heal / cape / bracelet) | LC | done | `health_regen.rs2` timer 100t / Rapid Heal 50t; cape/bracelet doubling → #15 |
 | 13 | Food consume remainder + overheal | LC | pending | `food.rs2` F2P categories + clamp-at-base heal; wiki angler/sara brew overheal + members foods + kebab effects; LC full `consume.rs2` effect scripts; pairs CONTENT 10d |
 | 14 | Life leech (Guthan's / blood / SGS) | LC | pending | Wiki leech table; needs specials (#1) + Ancient blood spells + Barrows set effect; no Guthan's heal proc on hit |
 | 15 | Hitpoints cape / desert heat / phoenix neck | wiki+cache | pending | Cape doubles regen (#12); desert heat DoT absent; phoenix necklace auto-heal absent; ring of life already landed |
@@ -353,3 +353,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #5 Attack cape done: wiki +1 Boost; worn op2 host fix in mock230_world.c; `skillcape_attack.rs2`. #4 stays Kronos-blocked.
 - port #6 Strength potion done: `strength_potion.rs2` (strength4 ladder). 
 - port #9 magic def 7:3 done: LC blend in `player_combat_stat`. Next = #7 Strength cape.
+- port #5/#7/#11 skillcape Boosts consolidated in `skillcape_boost.rs2` (Attack/Strength/Defence +1). Next = #8.
+- port #10 Defence potion done: `defence_potion.rs2`.
+- port #12 HP regen done: LC `health_regen` timer + Rapid Heal interval rearm in `prayer_toggle`. Cape/bracelet → #15. Next = #8.
+- port #8 Non-combat Str → blocked SCAPE2009 (barb fishing). Next = #13 food / #17 ammo.

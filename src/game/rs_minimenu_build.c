@@ -236,7 +236,7 @@ ensure_objtype(struct RS_MinimenuBuildCtx const* ctx, int obj_id)
  * slot while a select mode is armed (reference addComponentOptions useMode/
  * targetMode inv branch). Returns true when a mode was active (so the caller
  * skips the normal op rows). The reference skips the row for the very item that
- * armed use-mode. */
+ * armed use-mode, and for cells whose IF_SETEVENTS lack bit 21 (usable-on). */
 static bool
 add_inv_slot_select_row(
     struct RS_MinimenuSelection const* sel,
@@ -244,6 +244,7 @@ add_inv_slot_select_row(
     int com_id,
     int slot,
     char const* obj_name,
+    int events,
     struct UIMinimenu* menu)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
@@ -252,6 +253,10 @@ add_inv_slot_select_row(
     {
         if( com_id == sel->obj_com_id && slot == sel->obj_slot )
             return true; /* can't use an item on itself */
+        /* Deob method2195: (events >> 21 & 1) != 0. events < 0 means no
+         * IF_SETEVENTS store (CS1) — every cell is usable-on. */
+        if( events >= 0 && (events & UITREE_FLAG_USEABLE_ON) == 0 )
+            return true;
         snprintf(
             text,
             sizeof(text),
@@ -301,9 +306,12 @@ add_obj_cell_rows(
     char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     char suffix[UITREE_MINIMENU_OPTION_LEN];
     bool component_ops_armed = false;
+    int const events =
+        ctx->events_for_component ? ctx->events_for_component(ctx->events_user, cell->component_id)
+                                  : -1;
 
     if( add_inv_slot_select_row(
-            &ctx->selection, pick, cell->component_id, cell->slot, obj_name, menu) )
+            &ctx->selection, pick, cell->component_id, cell->slot, obj_name, events, menu) )
         return menu->option_count - before;
 
     /*
@@ -324,18 +332,17 @@ add_obj_cell_rows(
      */
     if( cell->kind == UITREE_OBJ_CELL_DYNAMIC )
     {
-        int const events =
-            ctx->events_for_component ? ctx->events_for_component(ctx->events_user, cell->component_id) : 0;
+        int const ev = events < 0 ? 0 : events;
         /* The three things that decide an item cell's rows, in one line —
          * which container the wire will name, and whether its verbs are live. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
             fprintf(
                 stderr, "objcell: com=%d|%d events=0x%x ops_node=%d\n",
-                (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, events,
+                (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, ev,
                 (int)cell->ops_node_index);
         for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
         {
-            if( (events & (1 << (i + 1))) == 0 )
+            if( (ev & (1 << (i + 1))) == 0 )
                 component_ops.ops[i][0] = '\0';
             else if( component_ops.ops[i][0] != '\0' )
                 component_ops_armed = true;

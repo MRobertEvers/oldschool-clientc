@@ -494,7 +494,13 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 25e | ranging bow salesman | done | Talk + Trade stub (inv.ini) |
 | 25f | Kalphite worker spawn | done | kalphite_worker_spawn.rs2 + KQ queue2 wire; hatch walk deferred |
 | 25g | Death Plateau troll thrower | done | already troll_thrower.rs2 name-expanded |
-| 8 | Outward areas / remaining quests / minigames | pending | After 25e: charlie_the_cook / competition_judge (%target*) / lavafish_loc / CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent) |
+| 25h | Charlie the cook (Heroes) | done | charlie_the_cook.rs2 Phoenix gherkin dialogue; secret door deferred |
+| 25i | Ranging guild competition judge | done | competition_judge.rs2 enter/rules/buy arrows/reward; targets deferred |
+| 25j | Ranging guild door + doorman | in_progress | Claimed — ranging_guild_door; do not steal |
+| 25k | Ranging guild guard + tribal | in_progress | Claimed with 25j batch |
+| 25l | Ranging leatherworker | in_progress | Claimed with 25j batch |
+| 25m | Ranging guild targets | in_progress | Claimed with 25j batch |
+| 8 | Outward areas / remaining quests / minigames | pending | After 25i: lavafish_loc / ranging targets / CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent) |
 
 
 
@@ -1005,6 +1011,10 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 25f done: kalphite_worker_spawn + KQ wire; mock230_pack 0 errors
 - slice 25g done: troll thrower already present
 - sibling unblock: strength4 name for 4-dose strength potion
+
+- slice 25h done: charlie_the_cook Phoenix dialogue; mock230_pack 0 errors
+
+- slice 25i done: competition_judge Talk + tickets; targets deferred; mock230_pack 0 errors
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

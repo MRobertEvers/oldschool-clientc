@@ -212,10 +212,12 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_sub_change;
 };
 
-/** click_mask / events bits (OSRS WidgetFlags). */
+/** click_mask / events bits (OSRS WidgetFlags / IF_SETEVENTS). */
 #define UITREE_FLAG_DRAG_DEPTH_SHIFT 17
 #define UITREE_FLAG_DRAG_DEPTH_MASK 0x7
 #define UITREE_FLAG_DRAG_ON (1 << 20)
+/** Bit 21: cell may be targeted by "Use X with Y" (deob method2195). */
+#define UITREE_FLAG_USEABLE_ON (1 << 21)
 
 #define UITREE_INTERFACE_PARENT_MAX 32
 /** parent_index for UITree_Push: allocate node without linking into the tree. */

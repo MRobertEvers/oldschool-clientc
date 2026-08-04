@@ -57,13 +57,28 @@ struct UITreeObjCell
     int obj_id;
     int obj_count;
     /** Grid flags (IfType objSwap/objOps/objUse). A CS2 cell has no such cache
-     *  record, so they are inferred: a container that names its own verbs owns
-     *  the menu (the worn tab offers "Remove", not "Wear"/"Drop"), and one that
-     *  names none falls back to the ObjType's inventory ops (the backpack). */
+     *  record: obj_ops/obj_use are inferred from whether the container named
+     *  its own verbs (backpack vs worn/bank), while can_drag / can_use_on come
+     *  from IF_SETEVENTS via UITree_ObjCellApplyEvents. */
     int can_drag;
     int obj_ops;
     int obj_use;
+    /** IF_SETEVENTS bit 21: valid "Use X with Y" target. */
+    int can_use_on;
+    /** IF_SETEVENTS bit 20: valid drag-drop target. */
+    int can_drop;
 };
+
+/**
+ * Apply a server IF_SETEVENTS mask to a cell.
+ *
+ * For DYNAMIC (CS2) cells: can_drag from drag-depth bits 17-19, can_drop from
+ * bit 20, can_use_on from bit 21. For GRID cells: keep cache can_drag/obj_*,
+ * but still set can_drop / can_use_on from the mask when provided (rev-230
+ * grids are rare; CS1 passes events=0 and leaves can_use_on/can_drop at 1).
+ */
+void
+UITree_ObjCellApplyEvents(struct UITreeObjCell* cell, int events);
 
 /**
  * Classify one already-hit node. `px`/`py` are canvas coords, needed only by
@@ -108,6 +123,18 @@ UITree_ObjCellDynamicSlotAt(
     int parent_component_id,
     int px,
     int py);
+
+/**
+ * Like UITree_ObjCellDynamicSlotAt, but also fills *out_node_index for the
+ * child under the point (hidden/empty included). Returns -1 when none.
+ */
+int
+UITree_ObjCellDynamicSlotNodeAt(
+    struct UITree const* tree,
+    int parent_component_id,
+    int px,
+    int py,
+    int32_t* out_node_index);
 
 /**
  * Swap two dynamic children's item fields, so a drag lands before the server's

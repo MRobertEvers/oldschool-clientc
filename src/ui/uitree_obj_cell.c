@@ -82,6 +82,9 @@ grid_cell(
     out->can_drag = node->u.rs_inv.can_drag;
     out->obj_ops = node->u.rs_inv.obj_ops;
     out->obj_use = node->u.rs_inv.obj_use;
+    /* CS1 grids: usable-on / drop until ApplyEvents overrides for rev-230. */
+    out->can_use_on = 1;
+    out->can_drop = 1;
     return true;
 }
 
@@ -136,20 +139,39 @@ UITree_ObjCellForNode(
     out->obj_id = node->item_id;
     out->obj_count = node->item_count > 0 ? node->item_count : 1;
     /*
-     * No IfType record exists for a script-created child, so the cache flags a
-     * grid would carry do not. What stands in for them is whether the
-     * container named verbs of its own:
-     *
-     *   149:0  (backpack)  no ops   -> the ObjType's Wear/Eat/Drop, plus Use
-     *   387:15 (worn head) "Remove" -> that, and nothing from the ObjType
-     *
-     * which is the same split the real client gets from the server's
-     * IF_SETEVENTS op mask, arrived at without one.
+     * ObjType vs component verbs: a container that named none of its own
+     * (backpack) falls back to Wear/Eat/Drop/Use; one that named some (worn
+     * "Remove", bank Withdraw) keeps those alone. can_drag / can_use_on /
+     * can_drop stay 0 until UITree_ObjCellApplyEvents reads IF_SETEVENTS —
+     * nothing at rev 230 is draggable or a Use target until the server arms it.
      */
-    out->can_drag = 1;
+    out->can_drag = 0;
     out->obj_ops = !menu_has_ops(&tree->components[out->ops_node_index].menu_options);
     out->obj_use = out->obj_ops;
+    out->can_use_on = 0;
+    out->can_drop = 0;
     return true;
+}
+
+void
+UITree_ObjCellApplyEvents(struct UITreeObjCell* cell, int events)
+{
+    assert(cell);
+    if( cell->kind == UITREE_OBJ_CELL_DYNAMIC )
+    {
+        cell->can_drag = UITree_ClickMaskDragDepth(events) != 0;
+        cell->can_drop = (events & UITREE_FLAG_DRAG_ON) != 0;
+        cell->can_use_on = (events & UITREE_FLAG_USEABLE_ON) != 0;
+        return;
+    }
+    if( cell->kind == UITREE_OBJ_CELL_GRID && events != 0 )
+    {
+        /* Rev-230 may also arm a rare TYPE_INV; depth still gates pickup. */
+        if( UITree_ClickMaskDragDepth(events) == 0 )
+            cell->can_drag = 0;
+        cell->can_drop = (events & UITREE_FLAG_DRAG_ON) != 0;
+        cell->can_use_on = (events & UITREE_FLAG_USEABLE_ON) != 0;
+    }
 }
 
 bool
@@ -180,6 +202,17 @@ UITree_ObjCellDynamicSlotAt(
     int px,
     int py)
 {
+    return UITree_ObjCellDynamicSlotNodeAt(tree, parent_component_id, px, py, NULL);
+}
+
+int
+UITree_ObjCellDynamicSlotNodeAt(
+    struct UITree const* tree,
+    int parent_component_id,
+    int px,
+    int py,
+    int32_t* out_node_index)
+{
     int32_t parent_idx;
 
     assert(tree);
@@ -194,7 +227,11 @@ UITree_ObjCellDynamicSlotAt(
         if( child->freed || !child->dynamic )
             continue;
         if( node_in_bounds(child, px, py) )
+        {
+            if( out_node_index )
+                *out_node_index = idx;
             return child->dynamic_child_index;
+        }
     }
     return -1;
 }

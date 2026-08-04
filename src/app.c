@@ -9652,6 +9652,9 @@ app_obj_cell_at(
         out->obj_id = inv_slot.obj_id;
         out->obj_count = inv_slot.obj_count;
     }
+    /* IF_SETEVENTS is the rev-230 authority for drag / drop / Use-target bits
+     * (deob method5697). Without this, CS2 cells kept a hardcoded can_drag=1. */
+    UITree_ObjCellApplyEvents(out, (int)app_if_events_for_node(app, out->component_id));
     return true;
 }
 
