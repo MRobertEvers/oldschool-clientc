@@ -11229,6 +11229,10 @@ mock230_world_selftest(void)
             /* Fight to the death. The cap is generous but finite: a combat loop
              * that never resolves is the failure worth catching here. */
             mock230_capture_begin(&srv, &capture);
+            /* Goblin maxhit is 1; randominc(1) is 0 or 1, so a fixed RNG seed can
+             * land only 0-damage hitsplats and leave HP unchanged. Retaliation is
+             * still real — content's damage() wrote a splat. Track that. */
+            player->damage_type = -1;
             while( npc->hitpoints > 0 && ticks < 200 )
             {
                 mock230_world_tick(&srv);
@@ -11249,10 +11253,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_capture_find(&capture, 104 /* NPC_INFO */, 0) >= 0,
                            "NPC_INFO should have been sent during the fight");
 
-            /* It retaliated rather than standing there. */
-            SELFTEST_CHECK(player->hitpoints < player->max_hitpoints,
-                           "the goblin should have hit back, player hp %d/%d",
-                           player->hitpoints, player->max_hitpoints);
+            /* It retaliated rather than standing there. HP may be unchanged when
+             * every successful roll still drew randominc(maxhit=1)=0. */
+            SELFTEST_CHECK(player->hitpoints < player->max_hitpoints ||
+                               player->damage_type >= 0,
+                           "the goblin should have hit back, player hp %d/%d splat_type %d",
+                           player->hitpoints, player->max_hitpoints, player->damage_type);
 
             /*
              * Damage dealt pays experience.

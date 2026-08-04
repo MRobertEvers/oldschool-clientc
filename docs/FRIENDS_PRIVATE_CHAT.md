@@ -233,13 +233,12 @@ set a name before you can chat."`). So content's share is small but real:
 >    flat table by component id and never clears an entry, so arming survives a
 >    mount and `ignore:friends` can be armed while 432 is mounted by nobody.
 >    Measured, and the embed test goes red if either line is dropped.
-> 3. **(c)'s two procs are now reached through `struct Mock230Hooks`**, not
->    `mock230_say` — resolved once at pack load, so an absent or misspelled name
->    is one line at boot instead of a feature that silently does not exist
->    (`CONTENT_ARCHITECTURE.md` §8.6). Their engine call site is
->    `social_notify_followers` in `mock230_world.c`, which also owns the three
->    rules content cannot express: who hears it, `isVisibleTo`, and not the
->    subject of the sentence.
+> 3. **(c)'s two presence lines are reached through `FRIENDLOGIN` /
+>    `FRIENDLOGOUT` triggers**, not a named-proc hook table — content binds
+>    `[friendlogin,_]` / `[friendlogout,_]` (`CONTENT_ARCHITECTURE.md` §8.6).
+>    Their engine call site is `social_notify_followers` in `mock230_world.c`,
+>    which also owns the three rules content cannot express: who hears it,
+>    `isVisibleTo`, and not the subject of the sentence.
 
 This lane does not own `OSRS-Content/`. The owning lane applies the following.
 
@@ -981,9 +980,9 @@ regardless. A varbit is not available: `[namespace:varbit] ids = cache`
 | `src/net/mock/mock230_world.c` | **LANDED** — six `k_packet_routes` rows + three handlers, the login dump, the follower broadcasts and the logout broadcast. **Does not touch** the trigger dispatch or the nine `run_trigger` call sites |
 | `src/makefile` | **LANDED** — `net/wordpack.c` into `MOCK230_SRCS` (§3.4) and `mock230_friends.c` into `MOCK230_CORE_SRCS` |
 | `src/net/mock/test/embed_test.c` | **LANDED** — `absorb_social` + the two-player routing assertions (§8.3), then the six content-seam assertions of §8.2c |
-| `src/net/mock/mock230.h` (hooks) | **LANDED, content stage** — `friend_login_notification` / `friend_logout_notification` in `struct Mock230Hooks`, so the two procs are resolved once at pack load rather than named at the call site (`CONTENT_ARCHITECTURE.md` §8.6) |
-| `src/net/mock/mock230_scripts.c` | **LANDED, content stage** — two rows in `k_hooks`. Nothing else; the trigger dispatch is untouched |
-| `src/net/mock/mock230_world.c` (`social_notify_followers`) | **LANDED, content stage** — the engine's three rules on this path (who hears it, `isVisibleTo`, not the subject) and the active-player switch that makes `mes` reach the right chatbox. Called from the end of `mock230_world_social_login` and the end of `mock230_world_remove_player` |
+| `src/net/mock/mock230.h` (triggers) | **LANDED** — `FRIENDLOGIN` / `FRIENDLOGOUT` in the trigger table; no `struct Mock230Hooks` (`CONTENT_ARCHITECTURE.md` §8.6) |
+| `src/net/mock/mock230_scripts.c` | **LANDED** — `run_trigger_sv` for string-arg friend notifications. Hook table rows removed |
+| `src/net/mock/mock230_world.c` (`social_notify_followers`) | **LANDED** — the engine's three rules on this path (who hears it, `isVisibleTo`, not the subject) and the active-player switch that makes `mes` reach the right chatbox. Called from the end of `mock230_world_social_login` and the end of `mock230_world_remove_player` |
 | `src/net/mock/mock230_embed.{c,h}` | **LANDED, content stage** — `mock230_embed_disconnect`, the socket server's close sequence in-process. There was no way to log a player out in-process before, so nothing that happens on a logout could be asserted |
 
 Not touched, by lane rule: `src/net/mock/mock230_ops_*.c` (per-domain opcode

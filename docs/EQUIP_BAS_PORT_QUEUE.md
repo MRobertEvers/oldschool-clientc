@@ -19,7 +19,7 @@ update this file; re-arm. Stop only when the user stops the loop.
 |---|---|---|---|
 | 0 | Queue tracker | done | This file |
 | 1 | Engine idle-anim path | done | Player fields + READYANIM…RUNANIM; put_appearance reads them; coverage regenerated |
-| 2 | `~update_bas` | done | appearance.rs2; equip/unequip/login; agility stubs removed; hooks.update_bas |
+| 2 | `~update_bas` | done | appearance.rs2; equip/unequip/login; content-owned (no engine hook) |
 | 3 | BAS overlays — spears | done | 21 objs in skill_combat/configs/bas/spears.obj |
 | 4 | BAS overlays — polearms | done | 8 objs in bas/polearms.obj |
 | 5 | BAS overlays — staves | done | 17 objs in bas/staves.obj |

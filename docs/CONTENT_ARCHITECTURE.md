@@ -986,9 +986,10 @@ already gets.
 is gone. Every path that used to go through it now reaches content via a trigger:
 `[advancestat,<stat>]` for level-ups, `[friendlogin,_]` / `[friendlogout,_]` for
 presence notifications, `[ai_opplayer2,<npc>]` for npc swings,
-`[opnpc2,<npc>]` for player swings, and `[if_button,...]` for equipment.
-Triggers are the only engine→content entry — no name in C, no table, no boot
-resolution. The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` /
+`[opnpc2,<npc>]` / `p_opnpc(2)` for player swings (interaction-owned loop),
+`[playerdeath,_]` when HP hits 0 on a raw damage path, and `[if_button,...]` for
+equipment. Triggers are the only engine→content entry — no name in C, no table,
+no boot resolution. The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` /
 `run_hook_on_npc` primitives remain as internal helpers used by `run_proc*` and
 `queue_named`, taking an already-resolved pointer from a by-name lookup.
 

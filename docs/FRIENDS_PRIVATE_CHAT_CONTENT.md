@@ -6,13 +6,12 @@
 > tree in a scratch directory, with `MOCK230_CONTENT` pointed at it. Nothing was
 > written to `OSRS-Content/` or `cache.osrs239/`.
 >
-> The engine half is already in the tree and is waiting for exactly these four
-> files. Until they land the feature degrades visibly and says so at boot:
+> The engine half is already in the tree. Friend presence notifications fire
+> `SS_TRIGGER_FRIENDLOGIN` / `SS_TRIGGER_FRIENDLOGOUT`; content binds
+> `[friendlogin,_]` / `[friendlogout,_]`. Cap constants still warn at boot if
+> missing:
 >
 > ```
-> mock230: engine hook [proc,friend_login_notification] is not in the pack
-> mock230: engine hook [proc,friend_logout_notification] is not in the pack
-> mock230: 2 engine hook(s) unresolved — the engine will fall back to doing nothing at each
 > mock230: 3 friend/ignore cap(s) are not in any .constant — the lists are limited
 > only by this server's array sizes. Content owns these: see
 > docs/FRIENDS_PRIVATE_CHAT.md §2.3.
@@ -240,8 +239,7 @@ field plus the parse fix is a small follow-up for whichever lane owns
 | `[if_button,friends:ignore]` / `[if_button,ignore:friends]` | `mock230_scripts_run_if_button_named`, from `handle_if_button_op` — no name in C | the click reaches the server and nothing answers it |
 | `^friend_max`, `^ignore_max` | `cap_resolve` in `mock230_friends.c`, once per process | one stderr line, then the storage ceilings (256 / 128) |
 | `^private_message_max_bytes` | same | one stderr line, then 255 — the var-u8 packet's own limit |
-| `[proc,friend_login_notification]` | `srv->hooks.friend_login_notification`, resolved at pack load, called from `social_notify_followers` at the end of `mock230_world_social_login` | one stderr line at boot, then silence on every login |
-| `[proc,friend_logout_notification]` | same hook table, called from the end of `mock230_world_remove_player` | one stderr line at boot, then silence on every logout |
+| `[friendlogin,_]` / `[friendlogout,_]` | `SS_TRIGGER_FRIENDLOGIN` / `SS_TRIGGER_FRIENDLOGOUT` from `social_notify_followers` (login) and `mock230_world_remove_player` (logout), with the display name as a string arg | trigger miss → silence on that event (no boot hook table) |
 
 The engine holds **no** player-facing string on this path. `grep` the social
 section of `mock230_world.c` and `mock230_friends.c` for `"` and every hit is a
@@ -399,13 +397,9 @@ living in C.
 
 ### 6.3 A trigger for "a friend's presence changed"
 
-`CONTENT_ARCHITECTURE.md` §8.6: *"the default is a trigger, not a name"* — the
-engine names an event and content names itself. There is no
-`[friendlogin]`/`[friendlogout]` trigger family, so this stage added two entries
-to `struct Mock230Hooks` and calls procs by name. That is the sanctioned
-fallback and it fails loudly at boot, but it is debt by §8.6's own account, and
-the reason it could not be a trigger is that a new trigger type needs sscompile
-support (the same reason nothing else has grown one).
+**Landed.** `SS_TRIGGER_FRIENDLOGIN` / `SS_TRIGGER_FRIENDLOGOUT` fire from
+`social_notify_followers` with the display name as a string arg; content binds
+`[friendlogin,_]` / `[friendlogout,_]` and `mes`es. No named-proc hook table.
 
 ### 6.4 Chat-mode opcodes, or a varp behind the chat modes
 

@@ -1066,15 +1066,7 @@ mock230_combat_npc_tick(
      * npc_anim itself. Fire the trigger; content handles the animation, roll,
      * damage and retaliation queue.
      */
-    {
-        int protect = mock230_varbit_get(
-            player, mock230_content_symbol(MOCK230_PACK_VARBIT, "prayer_protectfrommelee"));
-        int before = player->hitpoints;
-        int tr = mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
-        fprintf(stderr,
-                "mock230 debug: AI_OPPLAYER2 slot=%d type=%d trigger=%d hp %d->%d clock=%d protect=%d\n",
-                slot, npc->type, tr, before, player->hitpoints, npc->attack_clock, protect);
-    }
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
 }
 
 void

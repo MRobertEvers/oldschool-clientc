@@ -190,7 +190,11 @@ re-arm. Stop only when the user stops the loop.
 | 13x | boy (witch's house) | done | ballboy Talk-to + %ballquest + complete queue; deferred: house locs/journal |
 | 13y | yanille thin NPCs | done | sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard; deferred: shops, barcrawl |
 | 13z | burthorpe thin NPCs | done | citizens name-expand + cook/servant/WK/shop/barman/guards; ^death_complete; deferred: Death Plateau body, openshop |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: yanille shop stubs (frenita/magic_store/ogre traders) or witch house locs or death plateau quest NPCs; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 14a | yanille shop stubs | done | frenita/magic_store/ogre_merchant/ogre_trader1 Trade stubs + retaliate traders; deferred: openshop, rockcake stall |
+| 14b | witch house locs | done | pot/doors/cupboard/mouse/fountain/shed + experiment chain; coords landed; deferred: ball_irongate, diary, nora AI |
+| 14c | death plateau thin NPCs | done | IG soldiers/sergeants + archers Talk-to; deferred: ai_timer drill/eat, archer combat drops |
+| 14d | saba + eohric | done | hermit + headservant + %death_map authored + progress constants; deferred: Denulth/Tenzing/Dunstan/Harold, death_bits |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Death Plateau Denulth/Tenzing/Dunstan or witches_diary/nora AI; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -379,6 +383,10 @@ re-arm. Stop only when the user stops the loop.
 - slice 13x done: ballboy + %ballquest constants/varp + complete; house locs deferred; mock230_pack 0 errors
 - slice 13y done: yanille thin NPCs (sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard); mock230_pack 0 errors
 - slice 13z done: burthorpe thin NPCs + ^death_complete/%death_equiproom; mock230_pack 0 errors (3543 scripts)
-- next pending: yanille shop stubs (frenita/magic_store/ogre traders) or witch house locs or death plateau quest NPCs; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 14a done: yanille shop stubs (frenita/magic_store/ogre traders + retaliate); mock230_pack 0 errors (3555 scripts)
+- slice 14b done: witch house locs + experiment chain + witchrat/experiment coords; mock230_pack 0 errors (3578 scripts)
+- slice 14c done: death plateau thin soldiers/archers Talk-to; mock230_pack 0 errors (3595 scripts)
+- slice 14d done: saba + eohric + %death_map authored 5767 + progress constants; mock230_pack 0 errors (3603 scripts)
+- next pending: Death Plateau Denulth/Tenzing/Dunstan or witches_diary/nora AI; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

@@ -4834,9 +4834,6 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        fprintf(stderr, "mock230 debug: damage uid=%d type=%d amt=%d hp=%d\n",
-                (int)values[0], (int)values[1], (int)values[2],
-                srv->active_player ? srv->active_player->hitpoints : -1);
         /* values[0] is the player uid, which the single-player mock ignores. */
         mock230_combat_hit_player(srv, values[1], values[2]);
         return 1;

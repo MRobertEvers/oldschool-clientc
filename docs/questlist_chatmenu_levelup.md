@@ -260,27 +260,12 @@ this era, opening an interface is never a clientscript's job (§2.4 of
 Level-crossing detection is landed and correctly shaped:
 
 ```c
-// src/net/mock/mock230_combat.c:330-364
-before = player->stat_level[stat];
-...
-player->stat_level[stat] = mock230_combat_level_for_xp(...);
-if( player->stat_level[stat] != before )
-{
-    if( stat == MOCK230_STAT_HITPOINTS )
-        mock230_combat_sync_hitpoints(player);
-    mock230_scripts_run_hook(srv, srv->hooks.combat_levelup_message, NULL, 0);
-}
+// src/net/mock/mock230_combat.c — on skill level-up
+mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
 ```
 
-`combat_levelup_message` (`mock230.h:1301`, bound `mock230_scripts.c:200`)
-dispatches to
-`OSRS-Content/osrs239-content/server/scripts/skill_combat/combat.rs2:134-135`:
-
-```
-[proc,combat_levelup_message]
-mes("You feel yourself getting stronger.");
-```
-
+Content binds `[advancestat,<skill>]` (see `levelup/scripts/levelup.rs2`) and
+reaches `@levelup` / the combat tab message from there — no named-proc hook.
 ### 3.3 The gap
 
 The hook stops at a chat string. Nothing calls `if_opensub` for 233, nothing

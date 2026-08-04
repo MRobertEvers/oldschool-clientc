@@ -493,19 +493,12 @@ not.** The ten call sites that used to spell one — `"[queue,player_death]"`,
 `"[proc,npc_meleeattack]"` and eight more — are gone. The hook table
 (`struct Mock230Hooks`, `mock230_scripts_resolve_hooks`) was removed 2026-08-03;
 every path now reaches content via a trigger (advancestat, friendlogin/logout,
-ai_opplayer2, opnpc2, if_button). `docs/CONTENT_ARCHITECTURE.md` §8.6 has the
-rule and what is left (`mock230_say`'s message procs).
+ai_opplayer2, opnpc2 / p_opnpc, playerdeath, if_button). `docs/CONTENT_ARCHITECTURE.md`
+§8.6 has the rule and what is left (`mock230_say`'s message procs).
 
-"Attack" is engine *for now*. It reads the npc's own cache op list — the same
-five options the client built its right-click menu from, so anything OldSchool
-made attackable is attackable here with no per-npc script line. The reference
-says it in `[opnpc2,_] @player_combat_start`, and this is
-`MOCK230_FALLBACK_OPNPC`: one of **four** enumerated rows waiting on the opcode
-surface, not a design position (§3.18). It is also the one row whose blocker was
-never an opcode — its `blocked_ops` is empty and always has been.
-`MOCK230_FALLBACK_OPNPC`: one of five enumerated rows waiting on the opcode
-surface, not a design position (§3.18).
-
+"Attack" is content's `[opnpc2,_]` (with `MOCK230_FALLBACK_OPNPC` only when unbound).
+The cache's Attack verb still decides what is attackable; the swing loop is
+`p_opnpc(2)` + `%action_delay`.
 **The fallback contract is inverted, and §3.18 is the whole of it.** It used to
 read: no script pack, or no script for a trigger, means the call site does
 exactly what it did before scripts existed. It now reads: **a trigger with no
