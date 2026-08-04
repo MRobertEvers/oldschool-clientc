@@ -18,14 +18,16 @@ struct Task_GameProtoExec
     struct App* app;
     struct RevPacket packet; /* owned; heap fields freed on task free */
 
-    /* REBUILD_NORMAL: map squares covering the 104x104 scene. */
+    /* REBUILD_NORMAL: map squares covering the 104x104 scene (asset prefetch). */
     int chunks[18];
     int chunk_count;
     /* Scene base (absolute tiles) before the load — the entity-shift delta
-     * source (Client-TS mapBuildPrevBaseX/Z). */
+     * source (Client-TS mapBuildPrevBaseX/Z / deob method3310 var3/var4). */
     int prev_base_x;
     int prev_base_z;
     int had_world;
+    int zone_x;
+    int zone_z;
     /* Obj-load cursors (ground item models must be cached before exec). */
     int zone_i;
     int pending_obj_id;
@@ -72,19 +74,6 @@ rebuild_square_rect(
     *mz1 = (sw_tile_z + 103) >> 6;
 }
 
-int
-rebuild_squares_resident(
-    struct World const* world,
-    int mx0,
-    int mz0,
-    int mx1,
-    int mz1)
-{
-    assert(world);
-    return world->_chunk_sw_x <= mx0 && mx1 <= world->_chunk_ne_x &&
-           world->_chunk_sw_z <= mz0 && mz1 <= world->_chunk_ne_z;
-}
-
 /* REBUILD_NORMAL zone -> map-square list covering the 104x104 scene window.
  * Rect is at most 3x3 by construction; hitting the cap is a programming error. */
 static void
@@ -125,67 +114,36 @@ Task_GameProtoExec_Run(
      * packets holds. */
     if( self->packet.packet_type == PKT_NAME_REBUILD_NORMAL )
     {
-        /* Region-addressed world load. Serial-queue position gates every
-         * later packet (entity/zone updates for the new scene) until the
-         * load lands — the reference sceneState gate for free. Skip the
-         * refetch only when every map square covering the new 104-tile
-         * window is already resident (SW-only matching left the NE edge
-         * unloaded when the window slid into a new square). */
-        int mx0, mz0, mx1, mz1;
-        int squares_resident;
+        /* Client-TS / deob method3310: same-zone early-out when a world is
+         * already active. No ack on skip (Client.ts:2289 acks from mapBuild). */
+        self->zone_x = self->packet._map_rebuild.zonex;
+        self->zone_z = self->packet._map_rebuild.zonez;
+        if( !App_WorldRebuildBegin(app, self->zone_x, self->zone_z) )
+            PT_EXIT(&self->pt);
 
-        rebuild_square_rect(
-            self->packet._map_rebuild.zonex, self->packet._map_rebuild.zonez, &mx0, &mz0,
-            &mx1, &mz1);
         rebuild_compute_chunks(self);
-        squares_resident = app->world_active && app->world && app->world->load_complete &&
-                           rebuild_squares_resident(app->world, mx0, mz0, mx1, mz1);
-        if( !squares_resident )
-        {
-            /* Entities carry scene-local coords relative to the old base;
-             * capture it so they can be shifted onto the new one (Client-TS
-             * shifts by mapBuildBaseX - mapBuildPrevBaseX). */
-            self->had_world = app->world_active && app->world && app->world->load_complete;
-            self->prev_base_x = self->had_world ? app->world->_base_tile_x : 0;
-            self->prev_base_z = self->had_world ? app->world->_base_tile_z : 0;
-            app->world_load_attempted = 1;
-            app->world_load_inflight = 1;
-            app->world_load_server_driven = 1;
-            /* Drain EntityRemoved before the load's ResetSceneAlloc — it asserts
-             * the queue is empty so DYNAMIC scene elements are not orphaned. */
-            App_WorldDrainEntityRemoved(app);
-            /* on_done is NULL: we await the load and run the tail ourselves
-             * below, so the entity shift can land between the scene swap and
-             * App_WorldLoadFinish (which the shift must precede). */
-            TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-                app->provider, app->world_builder, self->chunks, self->chunk_count,
-                self->packet._map_rebuild.zonex, self->packet._map_rebuild.zonez,
-                NULL, NULL));
-            /* The load's final step swapped the scene synchronously (same
-             * task drain — no frame renders in between): relocate the kept
-             * entities before any later packet or frame reads them, then run
-             * the post-load wiring (camera, height fn, minimap bake,
-             * MAP_BUILD_COMPLETE ack). */
-            if( self->had_world && app->world->load_complete )
-                App_WorldRebuildShift(
-                    app,
-                    app->world->_base_tile_x - self->prev_base_x,
-                    app->world->_base_tile_z - self->prev_base_z);
-            App_WorldLoadFinish(app);
-        }
-        else
-        {
-            /* Reference always acks REBUILD_NORMAL (Client.ts:5373). */
-            App_SendMapBuildComplete(app);
-        }
-        /* Classic scene origin relative to OUR map-square-aligned base.
-         * Must follow the load/skip decision: the base can sit west/south
-         * of the window's own SW square when a prior larger rect is kept. */
-        assert(app->world);
-        app->scene_off_x =
-            ((self->packet._map_rebuild.zonex - 6) * 8) - app->world->_base_tile_x;
-        app->scene_off_z =
-            ((self->packet._map_rebuild.zonez - 6) * 8) - app->world->_base_tile_z;
+        /* Entities carry scene-local coords relative to the old base;
+         * capture it so they can be shifted onto the new one (Client-TS
+         * shifts by mapBuildBaseX - mapBuildPrevBaseX). */
+        self->had_world = app->world_active && app->world && app->world->load_complete;
+        self->prev_base_x = self->had_world ? app->world->_base_tile_x : 0;
+        self->prev_base_z = self->had_world ? app->world->_base_tile_z : 0;
+        /* on_done is NULL: we await the load and run the tail ourselves
+         * below, so the entity shift can land between the scene swap and
+         * App_WorldLoadFinish (which the shift must precede). */
+        TASK_AWAITSELF_IF(CreateTask_WorldLoad(
+            app->provider, app->world_builder, self->chunks, self->chunk_count,
+            self->zone_x, self->zone_z, NULL, NULL));
+        /* The load's final step swapped the scene synchronously (same
+         * task drain — no frame renders in between): relocate the kept
+         * entities before any later packet or frame reads them, then run
+         * the post-load wiring (height fn, minimap bake, MAP_BUILD_COMPLETE). */
+        if( self->had_world && app->world->load_complete )
+            App_WorldRebuildShift(
+                app,
+                app->world->_base_tile_x - self->prev_base_x,
+                app->world->_base_tile_z - self->prev_base_z);
+        App_WorldLoadFinish(app);
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||
              self->packet.packet_type == PKT_NAME_OBJ_REVEAL )

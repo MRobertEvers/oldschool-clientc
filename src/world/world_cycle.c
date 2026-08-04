@@ -11,6 +11,7 @@
 
 struct World_MoverInfo
 {
+    struct World* world;
     struct WorldEntityFacet_Pathing* pathing;
     struct WorldEntityFacet_DrawPosition* draw_position;
     struct WorldEntityFacet_GridPosition* grid_position;
@@ -22,6 +23,10 @@ struct World_MoverInfo
     int size_z;
 };
 
+static int anim_step_active(struct WorldEntityFacet_AnimationStep const* step);
+static int cycle_seq_preanim_move(struct World* world, int seq_id);
+static int cycle_seq_postanim_move(struct World* world, int seq_id);
+
 /**
  * Advances pathing draw position one tick and returns the secondary sequence id
  * to use (-1 means clear secondary).
@@ -32,7 +37,29 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     int seqId = info->idle->readyanim;
     int route_length = info->pathing->route_length;
     if( route_length == 0 )
+    {
+        info->animation->anim_delay_move = 0;
         goto yaw_turn;
+    }
+
+    /* PreanimMove/PostanimMove.DELAYMOVE: hold the route still while a
+     * non-merge primary action plays (Client.ts routeMove 3813-3823). */
+    if( anim_step_active(&info->animation->primary) && info->animation->primary.delay == 0 )
+    {
+        int seq = info->animation->primary.anim_id;
+        if( info->animation->preanim_route_length > 0 &&
+            cycle_seq_preanim_move(info->world, seq) == 0 )
+        {
+            info->animation->anim_delay_move++;
+            return seqId;
+        }
+        if( info->animation->preanim_route_length == 0 &&
+            cycle_seq_postanim_move(info->world, seq) == 0 )
+        {
+            info->animation->anim_delay_move++;
+            return seqId;
+        }
+    }
 
     int x = (int)info->draw_position->x;
     int z = (int)info->draw_position->z;
@@ -100,6 +127,14 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
 
     if( !info->pathing->route_run[route_length - 1] && moveSpeed > 4 )
         moveSpeed = 4;
+    /* Catch up after a DELAYMOVE hold: force walk-speed 8 for as many cycles
+     * as were spent held (Client.ts 3889-3892). After the non-run clamp so a
+     * held walk is not re-capped back to 4. */
+    if( info->animation->anim_delay_move > 0 && route_length > 1 )
+    {
+        moveSpeed = 8;
+        info->animation->anim_delay_move--;
+    }
     if( info->pathing->route_run[route_length - 1] )
         moveSpeed <<= 1;
 
@@ -202,15 +237,11 @@ World_EntityFace(
         }
     }
 
-    /* faceSquare is in absolute half-tiles; `- base - base` converts the
+    /* FaceSquare is in absolute half-tiles; `- base - base` converts the
      * doubled coordinate straight into fine units at 64 per half-tile.
-     *
-     * The reference also lets the square apply while `animDelayMove > 0` (a
-     * seq with PreanimMove/PostanimMove DELAYMOVE holding the route still).
-     * torirs does not model DELAYMOVE at all — routeMove never early-returns
-     * on it — so that counter would be permanently 0 and the clause is left
-     * out rather than faked with a lookalike field. */
-    if( (facing->square_x != 0 || facing->square_z != 0) && pathing->route_length == 0 )
+     * Applies while standing still OR held by DELAYMOVE (Client.ts 3966). */
+    if( (facing->square_x != 0 || facing->square_z != 0) &&
+        (pathing->route_length == 0 || animation->anim_delay_move > 0) )
     {
         dst_x = (int)draw_position->x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
@@ -294,6 +325,16 @@ cycle_seq_preanim_move(
 {
     if( world->seq_source.preanim_move )
         return world->seq_source.preanim_move(world->seq_source.userdata, seq_id);
+    return 0;
+}
+
+static int
+cycle_seq_postanim_move(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.postanim_move )
+        return world->seq_source.postanim_move(world->seq_source.userdata, seq_id);
     return 0;
 }
 
@@ -442,7 +483,7 @@ World_UpdateExactMove(
     struct WorldEntityFacet_ExactMove* exact,
     struct WorldEntityFacet_DrawPosition* draw_position,
     struct WorldEntityFacet_Orientation* orientation,
-    struct WorldEntityFacet_Animation const* anim,
+    struct WorldEntityFacet_Animation* anim,
     int size)
 {
     static const uint16_t k_facing_yaw[4] = { 1024, 1536, 0, 512 };
@@ -456,6 +497,9 @@ World_UpdateExactMove(
         exact->move_start = 0;
         return 0;
     }
+
+    /* Exact move clears the DELAYMOVE hold counter (Client.ts 3765 / 3790). */
+    anim->anim_delay_move = 0;
 
     if( exact->move_end > world->cycle )
     {
@@ -549,6 +593,7 @@ World_CycleUpdatePlayers(
             else
             {
                 struct World_MoverInfo info = {
+                    .world = world,
                     .pathing = &player->pathing,
                     .draw_position = &player->draw_position,
                     .grid_position = &player->grid_position,
@@ -614,6 +659,7 @@ World_CycleUpdateNpcs(
             else
             {
                 struct World_MoverInfo info = {
+                    .world = world,
                     .pathing = &npc->pathing,
                     .draw_position = &npc->draw_position,
                     .grid_position = &npc->grid_position,

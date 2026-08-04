@@ -53,7 +53,7 @@ typedef int (*World_HeightFn)(
  * the scene animation registry (ToriDraw_Animation carries the seq meta).
  * Getters return sane defaults for unknown/unloaded seq ids:
  *   frame_count 0, frame_duration 1, frame_step 0, max_loops 99,
- *   priority 5, duplicate_behavior -1, preanim_move 0.
+ *   priority 5, duplicate_behavior -1, preanim_move 0, postanim_move 0.
  */
 struct World_SeqSource
 {
@@ -65,6 +65,7 @@ struct World_SeqSource
     int (*priority)(void* userdata, int seq_id);
     int (*duplicate_behavior)(void* userdata, int seq_id);
     int (*preanim_move)(void* userdata, int seq_id);
+    int (*postanim_move)(void* userdata, int seq_id);
     /* Non-zero when the seq stretches the model along its motion (reference
      * SeqType.stretches). Drives the entity's forward draw-padding so a
      * stretching primary action registers with the painter over the tile ahead

@@ -88,8 +88,8 @@ local_player_pid(struct RS_EntitySync const* esync)
 }
 
 /* Local player's scene tile (fallback: classic scene center) for relative
- * adds. Server-local coords are classic-scene relative; scene_off maps them
- * into our map-square-aligned scene.
+ * adds. Server-local coords are classic-scene relative ((zone-6)*8), which
+ * matches our scene base after REBUILD_NORMAL.
  *
  * The tile is routeX[0]/routeZ[0], NOT grid_position: the reference bases
  * every relative add on `localPlayer.routeX[0] + dx` (Client.ts:8034, 8369),

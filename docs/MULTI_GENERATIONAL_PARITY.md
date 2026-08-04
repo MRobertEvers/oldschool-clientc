@@ -91,7 +91,7 @@ Identified gaps (all outside the rev table today):
 | Transport & framing | `src/net/net.c`, `packetbuffer.c` | raw TCP, ISAAC-encrypted opcode byte |
 | Appearance decode | `src/net/rev/pkt_player_appearance.c` | 254-era layout (12 slots, 5 colors, 7 anims, base37 name) |
 | PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec, NPC 14-bit slots |
-| Scene-origin math | `task_gameproto_exec.c` (`scene_off_x/z`) | `(zone-6)*8` local-coord base |
+| Scene-origin math | `task_gameproto_exec.c` / `World_ResetScene` | `(zone-6)*8` local-coord base (unified 2026-08-03; `scene_off` deleted) |
 | ClientCode constants | `src/game/rs_clientcode.h` | 254-era baked component behaviors (friends rows, bankmode, designer…) |
 | Minimenu action / button-type codes | `src/revconfig/revconfig.h` | 254-era action numbers (WALK=718, OPLOC1=625, …) |
 | CS1-vs-CS2 selection | `src/app.c` | keyed on `cache_kind` instead of explicit profile field |

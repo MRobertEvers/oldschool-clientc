@@ -150,7 +150,9 @@ World_ResetSceneAlloc(
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
-    world->loc_change_count = 0;
+    /* Loc-change records survive the scene reset and are shifted by
+     * World_ShiftEntities (Client-TS locChanges / deob field1353). The server
+     * re-sends zone state for anything that must reappear visually. */
     world->_scene_size = scene_size;
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);

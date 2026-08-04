@@ -1254,11 +1254,11 @@ put_player_extended(
  * it to whatever zone was last named, which is a wrong-place bug rather than a
  * decode failure.
  *
- * The base is in **classic scene-local tiles**: the client adds `scene_off_x`
- * (its own scene base is the 64-aligned map-square corner, the server's origin
- * is `(zone - 6) * 8`) and then `pos >> 4`. That is the same conversion every
- * entity coordinate goes through, so getting it wrong here shows up as loot
- * landing a few tiles from the corpse rather than as anything louder.
+ * The base is in **classic scene-local tiles**: the client's scene base is
+ * also `(zone - 6) * 8`, so those tiles need no further offset, and then
+ * `pos >> 4`. That is the same coordinate space every entity coordinate uses,
+ * so getting it wrong here shows up as loot landing a few tiles from the
+ * corpse rather than as anything louder.
  *
  * The header is the two base bytes and nothing else — real rev-230 carries a
  * level as well, which packetin.h deliberately drops (the mock is single-plane

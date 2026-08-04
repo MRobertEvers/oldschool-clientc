@@ -69,68 +69,61 @@ stages (cs2 inside logic) can make residual negative; read stage columns, not
 the residual, for attribution. Render is measured but not optimized
 algorithmically in this effort (see TORIDRAW_OPT).
 
-## Baseline (measured 2026-08-03)
+## Baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
 `manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
+CSV: `tools/perf/results/9175a425-idle.csv`. Flamegraph:
+`tools/perf/results/flame_now.svg` (30 s sample after 8 s warmup).
 
 ### idle
 
 | metric               |                 value |
 | -------------------- | --------------------: |
-| frame p50            |               7.05 ms |
-| frame p95            |           **8.25 ms** |
-| frames over 20 ms    | 15 / 900 (1.7%, boot) |
-| eff fps (1/mean)     |                  59.4 |
-| render p95           |               3.64 ms |
-| paint p95            |               0.92 ms |
-| emit p95             |               0.45 ms |
-| cs2 scripts/frame    |                 ~13.5 |
-| uitree find_id/frame |                  ~682 |
+| frame p50            |               4.13 ms |
+| frame p95            |           **7.16 ms** |
+| frames over 20 ms    | 14 / 900 (1.6%, boot) |
+| eff fps (1/mean)     |                 100.8 |
+| render p95           |               3.90 ms |
+| paint p95            |               0.89 ms |
+| emit p95             |               0.25 ms |
+| logic p95            |               0.59 ms |
+| cs2 scripts/frame    |                  ~9.9 |
+| cache_model_hit/miss |           13.5 / 2.4 |
+| painter_commands/fr  |                 ~4353 |
 
-### ui
+Gate: **PASS** (p95 ≪ 20 ms).
 
-| metric            |           value |
-| ----------------- | --------------: |
-| frame p50         |         7.36 ms |
-| frame p95         |     **8.21 ms** |
-| frames over 20 ms | 14 / 900 (1.6%) |
-| eff fps           |            59.2 |
+### Flamegraph hotspots (`flame_now`, main thread self %)
 
-Gate: **PASS**.
+| leaf | self % | ~ms @ p95 7.16 |
+| --- | ---: | ---: |
+| `raster_gouraud_screen_opaque_bary_branching_s4_ordered` | 10.9 | 0.78 |
+| `draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered` | 10.7 | 0.76 |
+| `ToriDraw2D_BlendArgbPixel` | 8.0 | 0.57 |
+| `ToriDraw_RenderModel2SortFaces` | 5.9 | 0.42 |
+| `ToriDraw_RenderModel1Project` | 3.9 | 0.28 |
+| `UITreeIfaceStats_SampleGauges` | 3.6 | 0.25 |
+| `scene_occluders_point_hidden` | 3.4 | 0.24 |
+| `UITree_LayoutResolve` | 3.3 | 0.24 |
+| `painter_paint_bucket` | 2.5 | 0.18 |
+| `World_EntityPoolNext` | 1.9 | 0.14 |
 
-### world
+Inclusive: `ToriRS_Soft3D_RenderFrame` **60.7%**, `soft3d_draw_model` **43.8%**,
+`App_BuildFrame`/`painter_paint_bucket` ~**12.8%**. Raster-ish self cluster
+(gouraud + texture scanlines + blend + sort/project/triangle/raster) ≈ **48%**.
 
-| metric            |                             value |
-| ----------------- | --------------------------------: |
-| frame p50         |                           7.07 ms |
-| frame p95         |                       **8.56 ms** |
-| frames over 20 ms | 14 / 600 (2.3%, boot-skewed mean) |
+Artifacts / tax (discount when ranking product opts):
 
-Gate: **PASS** on p95.
+- `UITreeIfaceStats_SampleGauges` — runs whenever `TORIRS_PERF=1` (full CC walk)
+- `Blit4to4MaskAlpha` / software SDL present — headless dummy only
+- `TorirsPerf_Count` ~1.4%
 
-## Planar occluders (2026-08-03)
+Earlier observations that still hold:
 
-Occlusion culling (`docs/OCCLUDER_SYSTEM.md`) is on by default. Kill switch
-`TORIRS_OCCLUDERS=0`.
-
-Headless Lumbridge (`tele 0,50,50,16,14`, pitch 167, steady frame):
-
-| | off | on |
-|---|---:|---:|
-| painter commands | 5853 | 5021 (−14%) |
-
-`tools/perf/run_perf.sh idle 300` with occluders on still clears the p95 < 20 ms
-gate (build `-O0` + `TORIDRAW_OPT=1`). Re-measure before claiming a paint-stage
-delta — outdoor frames often have `active_count == 0` and cost one load per
-emit site.
-
-
-- Soft3D render dominates attributed steady-state work (~3.6 ms p95).
-- UITree walks still visit every node twice per emit (normal + drag) plus
-  hit/hover; emit_skip is high — dirty filtering works, but the walk itself
-  still strides the array.
-- CS2 VM pool hits ~100% after warm-up (pool size raised 4 → 16).
+- Soft3D render dominates attributed steady-state work (~3.9 ms p95).
+- UITree emit_skip is high — dirty filtering works; walk still strides live nodes.
+- CS2 VM pool hits ~100% after warm-up (`cs2_vm_pool_hit` 6785 / miss 1).
 - Model/sprite provider caches hit well after boot; config caches remain
   session-unbounded by design (see `cache_provider.c` comment).
 
@@ -148,6 +141,24 @@ emit site.
    counters wired.
 6. **CacheProvider counters** — model/sprite hit/miss/evict on the derived
    caches; config caches documented as intentionally session-unbounded.
+
+## Planar occluders (2026-08-03)
+
+Occlusion culling (`docs/OCCLUDER_SYSTEM.md`) is on by default. Kill switch
+`TORIRS_OCCLUDERS=0`.
+
+Headless Lumbridge (`tele 0,50,50,16,14`, pitch 167, steady frame):
+
+| | off | on |
+|---|---:|---:|
+| painter commands | 5853 | 5021 (−14%) |
+
+`tools/perf/run_perf.sh idle 300` with occluders on still clears the p95 < 20 ms
+gate (build `-O0` + `TORIDRAW_OPT=1`). Re-measure before claiming a paint-stage
+delta — outdoor frames often have `active_count == 0` and cost one load per
+emit site. Flame_now (2026-08-03 evening) puts
+`scene_occluders_point_hidden` at **3.4% self** — the query cost is now visible
+even when command count drops.
 
 ## Attempt log
 
@@ -337,19 +348,28 @@ neither appears in the profile, and their hide rules are deliberately opposite:
 hover has to see hidden widgets that hit must not. Merging them buys nothing
 measurable and puts the same-frame reveal path at risk.
 
-## Not done / next candidates (ranked by counter evidence)
+## Not done / next candidates (ranked by `flame_now` + idle counters)
 
-1. Loc/npc/player instance caches on the same `TorirsModelInstCache` (spot done).
-   `cache_model_hit` 27.8/frame vs `cache_model_miss` 2.4/frame, so the win here
-   is in `RenderModel2SortFaces` (5.2%), not in decode.
-2. Enum/param host-op hash indexes — dropped: `rs_cs2_host` linear scans never
-   appeared in the profile under any scenario.
-3. `cs2vm2_thread_init` — **not a frame-time target, do not chase it on these
-   numbers.** It reads as 0.02–0.03% of samples in four of the five flamegraphs
-   and 0.75% in the fifth, and `cs2_vm_init_ns` puts it at 5.9 µs/frame over 8.3
-   acquires, i.e. ~0.1% of a 5.7 ms frame. An earlier revision of this section
-   claimed 4.8%; that was wrong. The lazy call stack below was done for the
-   memory footprint, not for the frame.
+1. **Loc/npc/player instance caches** on `TorirsModelInstCache` (spotanim done).
+   `cache_model_hit` 13.5/frame vs `cache_model_miss` 2.4/frame — decode is fine;
+   `RenderModel2SortFaces` (5.9%) + `RenderModel1Project` (3.9%) still pay every
+   draw. Highest non-raster structural win.
+2. **Occluder query cost** — `scene_occluders_point_hidden` 3.4% self (inclusive
+   via `scene_occluders_ground_tile_hidden` ~4.2%). Commands drop ~14% when
+   occluders are active, but the point test itself is now a leaf hotspot.
+   Profile `TORIRS_OCCLUDERS=0` A/B before investing; if off is faster on this
+   outdoor idle scene, gate denser queries or cache tile results per frame.
+3. **`UITreeIfaceStats_SampleGauges` under `TORIRS_PERF=1`** — 3.6% self, full
+   component_count walk every frame. Measurement tax, not product cost. Sample
+   every N frames or only when `TORIRS_STATS`/`TORIRS_IFACE_STATS` is set.
+4. **`World_EntityPoolNext` / paint registration** — 1.9% self (down from ~3%
+   on older flames). Keep watching under `world` scenario; live-chain work
+   already landed for animated elements.
+5. Soft3D scanline micro-opts — **do not chase** without a new leaf. Kernels are
+   already `-O2` via `TORIDRAW_OPT`; see `docs/TORIDRAW_RASTER_OPTIMIZATIONS.md`.
+6. Enum/param host-op hash indexes — dropped (never in profile).
+7. `cs2vm2_thread_init` — **not a frame-time target** on these numbers
+   (`cs2_vm_init_ns` ≈ 6.9 ms total over 900 frames ≈ 7.7 µs/frame).
 
 ### Done (round 3 painter / present) — attribution corrections
 

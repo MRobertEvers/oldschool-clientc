@@ -17,6 +17,7 @@
 #include "toridraw_scene.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -74,6 +75,46 @@ seq_file_pos_for_id(
         if( archive->file_ids[pos] == file_id )
             return pos;
     return -1;
+}
+
+/* Map dat2 SequenceDefinition fields onto ToriDraw_AnimSeqMeta (dat1 names).
+ * Opcode 3 is interleave_leave here / walkmerge on the animation; opcodes 9/10
+ * are precedence_animating / priority and default to MERGE when a mask exists
+ * (SeqType.ts:154-166). */
+static void
+seq_apply_meta(
+    struct ToriDraw_Animation* anim,
+    struct RSCache_Dat2ConfigSequence const* seq)
+{
+    int held_left;
+    int held_right;
+    struct ToriDraw_AnimSeqMeta meta;
+
+    assert(anim && seq);
+    held_left = seq->left_hand_item;
+    held_right = seq->right_hand_item;
+    /* A few records still encode the unsigned "no override" as 65535. */
+    if( held_left == 65535 )
+        held_left = -1;
+    if( held_right == 65535 )
+        held_right = -1;
+
+    meta = (struct ToriDraw_AnimSeqMeta){
+        .walkmerge = seq->interleave_leave,
+        .priority = seq->forced_priority,
+        .max_loops = seq->max_loops,
+        .preanim_move = seq->precedence_animating,
+        .postanim_move = seq->priority,
+        .duplicate_behavior = seq->reply_mode,
+        .replaceheldleft = held_left,
+        .replaceheldright = held_right,
+        .stretches = seq->stretches ? 1 : 0,
+    };
+    if( meta.preanim_move == -1 )
+        meta.preanim_move = meta.walkmerge ? 2 : 0;
+    if( meta.postanim_move == -1 )
+        meta.postanim_move = meta.walkmerge ? 2 : 0;
+    ToriDraw_AnimationSetSeqMeta(anim, &meta);
 }
 
 /*

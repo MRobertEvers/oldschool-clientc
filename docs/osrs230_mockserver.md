@@ -194,12 +194,12 @@ lc254 puts `OBJ_COUNT` on 98 and `MAP_ANIM` on 114, where rev 230 has
 `IF_SETHIDE` and `UPDATE_STAT`.
 
 The zone header is two bytes, not the three RSProt's table states: the payload
-is the zone's base as a pair of **classic scene-local tiles**, which the client
-converts by adding `scene_off_x` — its own scene base is the 64-aligned map
-square corner, the server's origin is `(zone - 6) * 8`. That is the same
-conversion every entity coordinate goes through, so getting it wrong shows up as
-loot landing a few tiles from the corpse rather than as anything louder. The
-shared parser asserts exact consumption, so a third byte aborts the client.
+is the zone's base as a pair of **classic scene-local tiles**. The client's
+scene base is now also `(zone - 6) * 8`, so those tiles need no further
+offset. That is the same coordinate space every entity coordinate uses, so
+getting it wrong shows up as loot landing a few tiles from the corpse rather
+than as anything louder. The shared parser asserts exact consumption, so a
+third byte aborts the client.
 
 All three are in use now (§3.17). `_PARTIAL_ENCLOSED` carries its sub-packets
 inside its own payload, opcodes and all, and those inner opcodes are **plain
@@ -418,13 +418,15 @@ them (§3.18).
 
 ### 3.8 Scene rebuild
 
-The client holds a 104×104 scene based at `(zone - 6) * 8`. Entity coordinates
-in the info streams are relative to that origin; the client adds its own
-`scene_off` (the offset from the map-square corner it actually loaded).
+The client holds a 104×104 scene based at `(zone - 6) * 8`
+(`WorldBuilder_RebuildCenterzone` via `Task_WorldLoad`'s zone-centre path).
+Entity coordinates in the info streams are relative to that origin — no
+separate `scene_off` window.
 
 Once the player is within 16 tiles of a scene edge the mock re-centres:
 `REBUILD_NORMAL` with the new origin zone, then an absolute placement (move op 3)
-on the next `PLAYER_INFO`.
+on the next `PLAYER_INFO`. Same-zone duplicates early-out without an ack
+(Client-TS / deob `method3310`).
 
 Tracked npcs deliberately **survive** a rebuild. The client shifts every kept
 entity by the base-tile delta (`App_WorldRebuildShift`), so their slots stay

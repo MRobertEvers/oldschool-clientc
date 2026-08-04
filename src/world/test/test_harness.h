@@ -77,6 +77,7 @@ void test_projectile_target(void);
 void test_spotanim(void);
 void test_scenery(void);
 void test_cycle_movers(void);
+void test_delaymove_gate(void);
 void test_entity_face(void);
 void test_try_route(void);
 void test_try_route_op(void);

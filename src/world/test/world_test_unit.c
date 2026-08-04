@@ -554,6 +554,64 @@ test_cycle_movers(void)
     World_Free(world);
 }
 
+/* PreanimMove.DELAYMOVE (0): routeMove holds the entity still while a primary
+ * action with preanim_route_length > 0 plays, then catches up at speed 8. */
+static int
+test_delaymove_preanim(void* userdata, int seq_id)
+{
+    (void)userdata;
+    return seq_id == 900 ? 0 : 2; /* DELAYMOVE for seq 900, MERGE otherwise */
+}
+
+static int
+test_delaymove_postanim(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 2; /* MERGE */
+}
+
+void
+test_delaymove_gate(void)
+{
+    printf("TEST: delaymove gate\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World_SeqSource seq = {
+        .userdata = NULL,
+        .preanim_move = test_delaymove_preanim,
+        .postanim_move = test_delaymove_postanim,
+    };
+    World_SetSeqSource(world, &seq);
+
+    int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    /* Build a multi-tile walk route east, then start a DELAYMOVE primary with
+     * the route still pending (preanim_route_length > 0). */
+    World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4); /* -> 41,40 */
+    World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4); /* -> 42,40 */
+    World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4); /* -> 43,40 */
+    World_PlayerSetPrimaryAnimation(world, pi, 900, 0);
+    TEST_ASSERT(player->animation.preanim_route_length > 0, "preanim route recorded");
+
+    int start_x = (int)player->draw_position.x;
+    World_Cycle(world, 1);
+    TEST_ASSERT((int)player->draw_position.x == start_x, "held still on delaymove");
+    TEST_ASSERT(player->animation.anim_delay_move == 1, "anim_delay_move incremented");
+    TEST_ASSERT(player->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "secondary stays ready while held");
+
+    /* Clear the primary so the hold lifts; catch-up should force speed 8. */
+    World_PlayerSetPrimaryAnimation(world, pi, -1, 0);
+    World_Cycle(world, 1);
+    TEST_ASSERT((int)player->draw_position.x == start_x + 8, "catch-up speed 8");
+    TEST_ASSERT(player->animation.anim_delay_move == 0, "anim_delay_move decremented");
+
+    World_Free(world);
+}
+
 /* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved
  * by (dx, dz) tiles; kept entities shift by the negation, out-of-scene ones
  * park on tile 255, and projectiles/spotanims clear at scene build. */
@@ -576,6 +634,12 @@ test_rebuild_shift(void)
     int si = World_SpotanimSpawn(world, 7, 0, 41 * 128, 41 * 128, 0, 0, 0, 100);
     TEST_ASSERT(pi >= 0 && ni >= 0 && near_ni >= 0 && oi >= 0 && far_oi >= 0 && pri >= 0 && si >= 0,
                 "spawns");
+
+    /* NPC exact-move (Actor fields shifted like players on rebuild). */
+    World_NpcSetExactMove(world, ni, 22, 32, 24, 34, 0, 10, 2);
+    World_LocChangePush(world, 0, 0, 50, 50, 100, 0, 0, 101, 1, 0, 0, -1);
+    World_LocChangePush(world, 0, 0, 2, 2, 200, 0, 0, -1, 0, 0, 0, -1);
+    TEST_ASSERT(world->loc_change_count == 2, "loc changes pushed");
     World_EventsClear(world);
 
     /* Base moved 8 tiles east, 16 north (a walk-driven recenter). */
@@ -592,6 +656,10 @@ test_rebuild_shift(void)
 
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
     TEST_ASSERT(npc->pathing.route_x[0] == 12 && npc->pathing.route_z[0] == 14, "npc shifted");
+    TEST_ASSERT(npc->exact_move.start_x == 14 && npc->exact_move.start_z == 16,
+                "npc exact-move start shifted");
+    TEST_ASSERT(npc->exact_move.end_x == 16 && npc->exact_move.end_z == 18,
+                "npc exact-move end shifted");
 
     /* 3 - 8 < 0: parked out-of-scene, still tracked, route dropped. */
     struct WorldEntity_NPC* parked = World_EntityPoolGet(&world->entities.npc, near_ni);
@@ -604,6 +672,12 @@ test_rebuild_shift(void)
     struct WorldEntity_ObjStack* far_stack = World_EntityPoolGet(&world->entities.obj_stack, far_oi);
     TEST_ASSERT(far_stack->grid_position.x == 255, "far stack parked for deletion");
 
+    /* Loc-change list: in-scene entry shifts; out-of-scene entry unlinks. */
+    TEST_ASSERT(world->loc_change_count == 1, "out-of-scene loc change unlinked");
+    TEST_ASSERT(world->loc_changes[0].x == 42 && world->loc_changes[0].z == 34,
+                "loc change shifted");
+    TEST_ASSERT(world->loc_changes[0].new_type == 101, "loc change payload kept");
+
     /* mapBuild parity: projectiles + spotanims die with the old scene. */
     World_ClearProjectilesAndSpotanims(world);
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.projectile) == 0, "projectiles gone");
@@ -611,15 +685,20 @@ test_rebuild_shift(void)
     TEST_ASSERT(World_TestDrainRemovedEvents(world) == 2, "transient removal events");
 
     /* Movers survive the scene reset itself; scenery records do not (their
-     * static elements are freed + reallocated by the builder). */
+     * static elements are freed + reallocated by the builder). Loc-change
+     * records also survive (Client-TS locChanges). */
     int sceneryidx =
         World_SceneryRegister(world, 70, 900, 4, 5, 0, 1, 1, 0, 0, 0, "Door", actions, 1);
     TEST_ASSERT(sceneryidx >= 0, "scenery register");
+    int loc_kept = world->loc_change_count;
     World_ResetScene(world, 51, 52, 104);
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.scenery) == 0, "scenery pool reset");
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.player) == 1, "players kept");
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.npc) == 2, "npcs kept");
     TEST_ASSERT(World_TestPoolIterateCount(&world->entities.obj_stack) == 2, "stacks kept");
+    TEST_ASSERT(world->loc_change_count == loc_kept, "loc changes survive reset");
+    TEST_ASSERT(world->_base_tile_x == (51 - 6) * 8 && world->_base_tile_z == (52 - 6) * 8,
+                "zone-centred base");
 
     World_Free(world);
 }

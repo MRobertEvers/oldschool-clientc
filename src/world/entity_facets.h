@@ -30,6 +30,9 @@ struct WorldEntityFacet_Animation
     /* Route length at the moment the primary seq was applied (reference
      * preanimRouteLength; drives the PreanimMove.DELAYANIM gate). */
     uint8_t preanim_route_length;
+    /* Cycles the route has been held still by a DELAYMOVE primary (reference
+     * ClientEntity.animDelayMove). Catch-up afterwards forces moveSpeed 8. */
+    uint8_t anim_delay_move;
     /* Set each cycle from the active primary seq's `stretches` flag (reference
      * ClientEntity.needsForwardDrawPadding). When set, the painter extends the
      * entity's tile footprint one tile forward along its yaw so a stretching

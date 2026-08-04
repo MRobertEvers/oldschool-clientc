@@ -17,6 +17,7 @@ main(void)
     test_spotanim();
     test_scenery();
     test_cycle_movers();
+    test_delaymove_gate();
     test_entity_face();
     test_try_route();
     test_try_route_op();

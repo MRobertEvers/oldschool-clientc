@@ -256,4 +256,63 @@ test_layout_build(void)
 
         UITree_Free(tree);
     }
+
+    /* IF3 centre (xmode=1): normal child stays centred; oversized child
+     * origin-aligns so a canvas-sized tracker in a canvas-42 gameframe sits at
+     * abs_x=0 instead of (723-765)/2 = -21. */
+    {
+        struct UITree* tree = UITree_New(4);
+        struct UITreeNodeSpec parent_spec;
+        struct UITreeNodeSpec child_spec;
+        int32_t parent;
+        int32_t child;
+
+        memset(&parent_spec, 0, sizeof(parent_spec));
+        parent_spec.type = UIELEM_RS_LAYER;
+        parent_spec.component_id = 34;
+        parent_spec.has_position = 1;
+        parent_spec.position.kind = UIPOS_XY;
+        parent_spec.position.width = 723;
+        parent_spec.position.height = 503;
+        parent_spec.position.x_mode = 0;
+        parent_spec.position.y_mode = 0;
+        parent_spec.position.width_mode = 0;
+        parent_spec.position.height_mode = 0;
+        parent = UITree_Push(tree, -1, &parent_spec);
+
+        memset(&child_spec, 0, sizeof(child_spec));
+        child_spec.type = UIELEM_RS_LAYER;
+        child_spec.component_id = 92;
+        child_spec.has_position = 1;
+        child_spec.position.kind = UIPOS_XY;
+        child_spec.position.width = 100;
+        child_spec.position.height = 50;
+        child_spec.position.x_mode = 1;
+        child_spec.position.y_mode = 1;
+        child_spec.position.width_mode = 0;
+        child_spec.position.height_mode = 0;
+        child = UITree_Push(tree, parent, &child_spec);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(
+            tree->components[child].position.abs_x == (723 - 100) / 2,
+            "centre mode centres undersized child");
+        TEST_ASSERT(
+            tree->components[child].position.abs_y == (503 - 50) / 2,
+            "centre mode centres undersized child y");
+
+        tree->components[child].position.width = 765;
+        tree->components[child].position.height = 503;
+        tree->components[child].position.layout_resolved = 0;
+        UITree_LayoutInvalidateBoxes(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(
+            tree->components[child].position.abs_x == 0,
+            "oversized centre child origin-aligns (not -21)");
+        TEST_ASSERT(
+            tree->components[child].position.abs_y == 0,
+            "oversized centre child origin-aligns y");
+        TEST_ASSERT(tree->components[child].position.abs_w == 765, "oversized centre keeps width");
+
+        UITree_Free(tree);
+    }
 }

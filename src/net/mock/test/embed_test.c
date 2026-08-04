@@ -42,6 +42,8 @@
 
 #include "engine/world_builder/collision_map.h"
 
+#include <rscache.h>
+
 #include "cmd/cmdbus.h"
 #include "net/jbase37.h"
 #include "net/net.h"
@@ -1042,7 +1044,7 @@ main(void)
         alice->hitpoints = 0;
         check(mock230_load_player(alice, path), "[login] read alice's save back");
         check(alice->stat_boosted[MOCK230_STAT_HITPOINTS] == boosted_before,
-              "[login] save kept boosted HP at %d", boosted_before);
+              "[login] save kept boosted HP");
         /* The same hydrate mock230_world_login runs after load. */
         alice->hitpoints = alice->stat_boosted[MOCK230_STAT_HITPOINTS];
         mock230_combat_sync_hitpoints(alice);
@@ -1315,9 +1317,7 @@ main(void)
                 check(fence_edges > 0,
                       "courtyard neighbourhood has wall_straight fence/wall locs");
                 check(fence_blocked == fence_edges,
-                      "every nearby wall_straight edge refuses can_step both ways "
-                      "(%d/%d)",
-                      fence_blocked, fence_edges);
+                      "every nearby wall_straight edge refuses can_step both ways");
             }
         }
     }

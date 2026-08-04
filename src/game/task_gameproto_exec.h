@@ -18,12 +18,11 @@
 
 struct App;
 struct ToriRS_Task;
-struct World;
 
 /**
  * Map-square rect covering the classic 104x104 scene for a REBUILD_NORMAL
  * center zone: scene sw tile = (zone - 6) * 8, squares covering [sw, sw+103].
- * Exposed for the residency unit test (test-net-exec).
+ * Exposed for the unit test (test-net-exec) and asset prefetch.
  */
 void
 rebuild_square_rect(
@@ -33,15 +32,6 @@ rebuild_square_rect(
     int* mz0,
     int* mx1,
     int* mz1);
-
-/** True when every square in [mx0..mx1] x [mz0..mz1] is already resident. */
-int
-rebuild_squares_resident(
-    struct World const* world,
-    int mx0,
-    int mz0,
-    int mx1,
-    int mz1);
 
 /** Takes ownership of the packet's heap fields (freed with the task). */
 struct ToriRS_Task*

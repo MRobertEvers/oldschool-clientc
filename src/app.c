@@ -3057,6 +3057,13 @@ app_seq_preanim_move(void* userdata, int seq_id)
 }
 
 static int
+app_seq_postanim_move(void* userdata, int seq_id)
+{
+    struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
+    return anim ? anim->postanim_move : 0;
+}
+
+static int
 app_seq_stretches(void* userdata, int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
@@ -3349,9 +3356,11 @@ app_world_load_begin(
     app->need_redraw = 1;
 }
 
-/* Post-load wiring, split from the old synchronous app_world_load: camera
- * placement, height fn, texture requests, minimap bake, and the server ack
- * when the load was REBUILD_NORMAL-driven. */
+/* Post-load wiring, split from the old synchronous app_world_load: height
+ * fn, texture requests, minimap bake, and the server ack when the load was
+ * REBUILD_NORMAL-driven. Camera placement is only for offline/hotkey loads —
+ * a server-driven rebuild shifts the existing camera (deob field3239 -= dx<<7)
+ * instead of resetting to scene-centre top-down. */
 void
 App_WorldLoadFinish(struct App* app)
 {
@@ -3359,6 +3368,8 @@ App_WorldLoadFinish(struct App* app)
 
     if( app->world->load_complete )
     {
+        int server_driven = app->world_load_server_driven;
+
         app->world_active = 1;
         World_SetHeightFn(app->world, app_world_height, app);
         {
@@ -3371,31 +3382,31 @@ App_WorldLoadFinish(struct App* app)
                 .priority = app_seq_priority,
                 .duplicate_behavior = app_seq_duplicate_behavior,
                 .preanim_move = app_seq_preanim_move,
+                .postanim_move = app_seq_postanim_move,
                 .stretches = app_seq_stretches,
                 .spotanim_seq = app_spotanim_seq,
             };
             World_SetSeqSource(app->world, &seq_source);
         }
-        /* v1 scene-reset camera: scene center, above ground, looking down. */
-        app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
-        app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
-        app->world_camera_pos.y = -2000;
-        app->world_camera.pitch = 450;
-        app->world_camera.yaw = 0;
-        /* TORIRS_WORLD_CAM=x,y,z,pitch,yaw: place the camera explicitly (scene coords, y negative
-         * above ground). The startup camera looks near-straight down, where same-tile locs barely
-         * overlap, so the headless BMP path cannot otherwise reproduce an oblique view — the sim
-         * harness only injects letters/digits and pitch is bound to the arrow keys. */
+        if( !server_driven )
         {
-            char const* cam = getenv("TORIRS_WORLD_CAM");
-            int cx, cy, cz, cpitch, cyaw;
-            if( cam && sscanf(cam, "%d,%d,%d,%d,%d", &cx, &cy, &cz, &cpitch, &cyaw) == 5 )
+            /* Offline/hotkey load: place the camera at scene centre. */
+            app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
+            app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
+            app->world_camera_pos.y = -2000;
+            app->world_camera.pitch = 450;
+            app->world_camera.yaw = 0;
             {
-                app->world_camera_pos.x = cx;
-                app->world_camera_pos.y = cy;
-                app->world_camera_pos.z = cz;
-                app->world_camera.pitch = cpitch;
-                app->world_camera.yaw = cyaw;
+                char const* cam = getenv("TORIRS_WORLD_CAM");
+                int cx, cy, cz, cpitch, cyaw;
+                if( cam && sscanf(cam, "%d,%d,%d,%d,%d", &cx, &cy, &cz, &cpitch, &cyaw) == 5 )
+                {
+                    app->world_camera_pos.x = cx;
+                    app->world_camera_pos.y = cy;
+                    app->world_camera_pos.z = cz;
+                    app->world_camera.pitch = cpitch;
+                    app->world_camera.yaw = cyaw;
+                }
             }
         }
         /* World scenery models reference textures; the bridge scan walks the
@@ -3418,7 +3429,7 @@ App_WorldLoadFinish(struct App* app)
             app_rebuild_world_map(app, local ? local->grid_position.level : 0);
         }
 
-        if( app->world_load_server_driven )
+        if( server_driven )
         {
             app->world_load_server_driven = 0;
             App_SendMapBuildComplete(app);
@@ -7422,6 +7433,36 @@ Task_AppSpawn_Run(
         }
         if( app->world_builder && app->world && app->world->load_complete )
         {
+            int old_type = -1;
+            int old_angle = 0;
+            int old_shape = -1;
+            int old_idx = World_SceneryFindAt(
+                app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+            if( old_idx >= 0 )
+            {
+                struct WorldEntity_Scenery* old =
+                    World_EntityPoolGet(&app->world->entities.scenery, old_idx);
+                if( old )
+                {
+                    old_type = old->loc_id;
+                    old_angle = old->angle;
+                    old_shape = old->shape;
+                }
+            }
+            World_LocChangePush(
+                app->world,
+                self->level,
+                World_LocShapeToLayer(self->loc_shape),
+                self->tile_x,
+                self->tile_z,
+                old_type,
+                old_angle,
+                old_shape,
+                self->loc_id,
+                self->loc_angle,
+                self->loc_shape,
+                app->world->cycle,
+                -1);
             WorldBuilder_ApplyLocChange(
                 app->world_builder,
                 self->tile_x,
@@ -11614,12 +11655,54 @@ App_WorldRebuildShift(
         }
     }
 
+    /* Camera position + orbit focus (deob field3239/field161/field1545/field73
+     * -= dx<<7). Fine coords move with the scene base. */
+    if( base_dx != 0 || base_dz != 0 )
+    {
+        app->world_camera_pos.x -= base_dx * 128;
+        app->world_camera_pos.z -= base_dz * 128;
+        app->orbit_x -= base_dx * 128;
+        app->orbit_z -= base_dz * 128;
+    }
+
+    /* Cutscene camera (deob field706 = false / Client-TS cinemaCam = false). */
+    app->cam_script.scripted = 0;
+    for( int i = 0; i < 5; i++ )
+        app->cam_script.shake[i] = 0;
+
+    /* Minimenu (deob field766 = 0). */
+    UIMinimenu_Reset(&app->interact.minimenu);
+
+    /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
+    app->world_map_level = -1;
+
     if( getenv("TORIRS_NET_DEBUG") )
         fprintf(stderr, "rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
     /* Projectiles/spotanims/far stacks queued EntityRemoved above — free their
      * DYNAMIC scene elements now so the next frame does not race a full queue. */
     App_WorldDrainEntityRemoved(app);
     app->need_redraw = 1;
+}
+
+int
+App_WorldRebuildBegin(
+    struct App* app,
+    int zone_x,
+    int zone_z)
+{
+    assert(app);
+
+    /* deob method3310 checkSame / Client-TS mapBuildCenterZone early-out. */
+    if( app->world_active && app->world && app->world->load_complete &&
+        app->rebuild_zone_x == zone_x && app->rebuild_zone_z == zone_z )
+        return 0;
+
+    app->rebuild_zone_x = zone_x;
+    app->rebuild_zone_z = zone_z;
+    app->world_load_attempted = 1;
+    app->world_load_inflight = 1;
+    app->world_load_server_driven = 1;
+    return 1;
 }
 
 void

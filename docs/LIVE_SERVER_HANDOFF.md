@@ -48,17 +48,15 @@ Each of these alone bricked the session; they were stacked:
    terminator 16383 (Client.ts `getNpcPosNewVis`), not v0-245_2's 13/8191.
    One bit off → garbage npc type ids + all NPCs on one tile. Fixed in
    `src/net/rev/pkt_npc_info.c` (+ `src/net/test/entity_decode_test.c`).
-5. **Scene coordinate spaces** — server "local" coords are relative to the
-   classic 104×104 scene origin `((zone>>3)-6)<<3` (CoordGrid.ts), but our
-   scene is map-square aligned (192×192 for a 3×3 load, base =
-   `world->_base_tile_*`). Fix: `app->scene_off_x/z = ((zonex-6)*8) & 63`,
-   set in the REBUILD_NORMAL branch of `src/game/task_gameproto_exec.c`,
-   applied at: LOCAL_XZLEVEL + EXACT_MOVE + local-tile fallbacks
-   (`src/game/task_exec_entity_info.c`), zone FOLLOWS/ENCLOSED base and
-   CAM_MOVETO/LOOKAT (`src/game/rs_gameproto_exec.c`). FACE_COORD wire is
-   absolute half-tiles `(tile<<1)+1`. Outbound MOVE_GAMECLICK / OPLOC / OPOBJ
-   send ABSOLUTE tiles (scene + `_base_tile`); OPNPC/OPPLAYER send server
-   slots. NPC add deltas are player-relative so they inherit the fix.
+5. **Scene coordinate spaces** — ~~server "local" coords are relative to the
+   classic 104×104 scene origin, but our scene was map-square aligned~~ —
+   **unified 2026-08-03.** `REBUILD_NORMAL` now builds a classic 104×104
+   scene via `WorldBuilder_RebuildCenterzone(zone, 104)` with
+   `_base_tile = (zone-6)*8` (Client-TS / deob `method3310`). `scene_off`
+   is gone; server-local tiles are our-scene tiles. FACE_COORD wire is
+   still absolute half-tiles `(tile<<1)+1`. Outbound MOVE_GAMECLICK /
+   OPLOC / OPOBJ send ABSOLUTE tiles (scene + `_base_tile`); OPNPC/OPPLAYER
+   send server slots.
 6. **Hover text ate world clicks** — `UIELEM_BUILTIN_HOVERTEXT` (full-canvas
    overlay, com id 0x7ffe0002) was missing from
    `UITree_ComponentIsPassThrough` (`src/ui/uitree_input.c`), so every world

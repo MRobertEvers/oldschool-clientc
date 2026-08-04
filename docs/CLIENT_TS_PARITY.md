@@ -67,8 +67,11 @@ walk anims were *selected* but frozen. Fix: seven `app_seq_*` getters in
 (frame_count/duration/step/max_loops/priority/duplicate_behavior/
 preanim_move), wired via `World_SetSeqSource` in `app_world_load_finish`.
 Value semantics verified: `PreanimMove` DELAYANIM=1 matches world_cycle's
-`== 1` gate; the dat1 seq loader defaults preanim/postanim to MERGE=2 when a
-walkmerge mask exists, exactly like `SeqType.ts:154-166`.
+`== 1` gate; both the dat1 and dat2 seq loaders default preanim/postanim to
+MERGE=2 when a walkmerge/`interleave_leave` mask exists, exactly like
+`SeqType.ts:154-166`. Dat2 maps opcode 3 (`interleave_leave`) onto
+`ToriDraw_Animation::walkmerge` via `SetSeqMeta` so the masked draw path in
+`toridraw_scene.c` actually runs on OSRS builds.
 
 **Second root cause (the "still frozen" follow-up):** the dat1 seq loader
 misread the frame addressing. dat1/225 `seq.dat` frame entries are **global
@@ -481,18 +484,15 @@ were already implemented (`uitree_hover.c` redirect + `VisibleById` unhide).
 
 - The painter sort origin and the 3D projection eye both already used the
   orbit camera (`world_camera_pos`) — no player/camera split existed. Two
-  real bugs: (1) `UPDATE_ZONE_PARTIAL_ENCLOSED` set `zone_base` **without**
-  the `scene_off` remap (unlike both FOLLOWS variants), so every enclosed
-  LOC/OBJ mutation landed up to 63 tiles off the REBUILD scenery (32 in
-  Lumbridge) — fixed in `rs_gameproto_exec.c`; (2) the painter origin used
-  `/128` (truncates toward zero) instead of `>>7` and was unclamped, mis-
-  seeding the bucket flood fill when the orbit eye crosses the scene edge —
-  fixed in `app_world_paint`, which also drops the dead `y/240` slevel
-  derivation (`painter_paint_bucket` ignores its level argument).
-- Rebasing the whole scene to the server's 104×104 build area was evaluated
-  and rejected: `_base_tile = (((zone-6)*8)>>6)*64` + `scene_off =
-  ((zone-6)*8)&63` already make server-local and scene tiles coincide; the
-  ENCLOSED line was the only site missing the offset.
+  real bugs of that session: (1) `UPDATE_ZONE_PARTIAL_ENCLOSED` set
+  `zone_base` without the then-`scene_off` remap (unlike both FOLLOWS
+  variants); (2) the painter origin used `/128` instead of `>>7` and was
+  unclamped.
+- **2026-08-03:** the map-square-aligned base + `scene_off` window was
+  removed entirely. `REBUILD_NORMAL` now builds a classic 104×104 scene at
+  `(zone-6)*8` (`WorldBuilder_RebuildCenterzone`), matching Client-TS /
+  deob `method3310`. Server-local tiles are our-scene tiles; `scene_off`
+  is gone.
 
 ---
 
@@ -936,84 +936,72 @@ actual call site; both verified to fail without the fix).
 
 ## 14. World rebuild: entity relocation + stable scene ids — ✅
 
-### Client-TS
+### Client-TS / deob
 
-Two-phase design. **At the REBUILD_NORMAL packet** (`Client.ts:7043`):
-compute `dx = mapBuildBaseX - mapBuildPrevBaseX` (and dz), then shift every
-tracked entity *without dropping any* — the server addresses its
-PLAYER/NPC_INFO lists by position, so client-side removal would desync them:
+Two-phase design. **At the REBUILD_NORMAL packet** (`Client.ts:7195`,
+deob `client.method3310`): early-out when the centre zone is unchanged;
+else set the scene base to `(zone-6)*8`, compute `dx/dz` against the
+previous base, then shift every tracked entity *without dropping any* —
+the server addresses its PLAYER/NPC_INFO lists by position, so client-side
+removal would desync them:
 
-- all 16384 npc slots + all player slots: `routeX[j] -= dx` (10 entries),
-  `x -= dx * 128` (fine);
+- all npc slots + all player slots: `routeX[j] -= dx` (10 entries),
+  `x -= dx * 128` (fine), exact-move start/end (Actor fields, both kinds);
 - the `groundObj[level][x][z]` grid is block-copied by (dx, dz) with
   direction-aware iteration; entries shifted off the grid become null;
 - `locChanges` entries shift and unlink when out of range;
-- `minimapFlagX/Z -= dx/dz`; `awaitingPlayerInfo = true` gates the scene
-  swap until the first post-rebuild PLAYER_INFO lands.
+- `minimapFlagX/Z -= dx/dz`; camera position/focus `-= dx<<7` (deob);
+  cutscene camera cleared; menu cleared; minimap plane invalidated;
+- `awaitingPlayerInfo = true` gates the scene swap until the first
+  post-rebuild PLAYER_INFO lands.
 
-**At scene build** (`mapBuild`, `Client.ts:5378`): `spotanims.clear()` +
+**At scene build** (`mapBuild`, `Client.ts:2289`): `spotanims.clear()` +
 `projectiles.clear()` (their trajectories are scene-local), map/loc state
-reset. Player/npc objects and their slots survive both phases untouched.
+reset, `MAP_BUILD_COMPLETE` ack. Player/npc objects and their slots survive
+both phases untouched. Same-zone skips do **not** ack.
 
-### torirs — the two root causes
+### torirs
 
-1. **Scene ids shuffled.** `WorldBuilder_Rebuild*Begin` called
-   `ToriDraw_SceneClear`, freeing *every* scene element — including entity
-   elements — onto the shared free list; the new terrain/scenery then reused
-   those ids, so every element id held by an entity/esync record silently
-   aliased a random wall. Fix: **scene element pools**
-   (`3rd/toridraw/toridraw_scene.h`): elements are tagged
-   `TORIDRAW_SCENE_POOL_STATIC` (builder terrain/scenery/batches — default)
-   or `TORIDRAW_SCENE_POOL_DYNAMIC` (`ToriDraw_SceneElementAddPool`, used by
-   `app_world_scene_element_create`, i.e. every entity element), and the
-   builder now clears with `ToriDraw_SceneClearPool(scene, STATIC)` — dynamic
-   ids survive a rebuild untouched, so the esync registry stays valid.
-   `World_ResetSceneAlloc` also resets the **scenery pool** (records mirror
-   static elements and are re-registered by the builder) — previously stale
-   records accumulated across rebuilds with dead element ids.
-2. **Nobody relocated entities.** `Task_GameProtoExec`'s REBUILD branch now
-   captures `world->_base_tile_x/z` before awaiting `Task_WorldLoad` and,
-   right after the load's synchronous scene swap (same task drain — no frame
-   renders in between), calls `App_WorldRebuildShift(app, dx, dz)`:
-   - `World_ShiftEntities` (`world/world.c`): players + npcs shift routes
-     (all 10 entries), grid, fine draw positions and active exact-moves;
-     obj stacks shift grid + draw. Entities that land outside the scene are
-     **parked on tile 255** rather than despawned (tracked-list parity, see
-     above) — route coords are `uint8_t`, so true negatives are saturated to
-     255, which every painter/pos-sync bounds check skips; the server's next
-     info packet removes them properly. `app_world_sync_positions` gained
-     the matching bounds guard (the heightmap has no data out there).
-   - `World_ClearProjectilesAndSpotanims` — the mapBuild parity clear.
-   - obj-stack elements get repositioned against the new heightmap;
-     out-of-scene stacks are deleted (`World_ObjStackDel`).
-   - `minimap_flag_x/z` shift (cleared when out of scene).
-   Face-coords (`facing.square_x/z`) intentionally do **not** shift — they
-   are stored in the wire's absolute half-tile form and converted against
-   the *current* base at consumption (`world_cycle.c:216`).
+1. **Scene ids shuffled** (fixed earlier): `ToriDraw_SceneClearPool(STATIC)`
+   so DYNAMIC entity elements survive a rebuild; scenery pool resets with
+   the builder.
+2. **Zone-centred 104×104 rebuild (2026-08-03):** `App_WorldRebuildBegin`
+   latches the centre zone and early-outs on duplicates;
+   `Task_WorldLoad(..., zone_x, zone_z)` calls
+   `WorldBuilder_RebuildCenterzone` so `_base_tile = (zone-6)*8`. The old
+   map-square-aligned base + `scene_off` window + resident-squares fast
+   path are gone. Offline/hotkey loads still use the chunk-list path.
+3. **Entity relocation:** after the load's synchronous scene swap,
+   `App_WorldRebuildShift(app, dx, dz)`:
+   - `World_ShiftEntities`: players + npcs (routes, grid, fine draw,
+     exact-move — NPCs carry an ExactMove facet now too), obj stacks,
+     loc-change list (shift + unlink out of window). Out-of-scene movers
+     park on tile 255.
+   - `World_ClearProjectilesAndSpotanims` — mapBuild parity.
+   - obj-stack elements repositioned against the new heightmap.
+   - `minimap_flag_x/z` shift; camera/`orbit` fine coords `-= dx*128`;
+     `cam_script.scripted` cleared; minimenu reset; `world_map_level = -1`
+     forces a rebake. Server-driven loads do **not** reset the camera to
+     scene-centre top-down (`App_WorldLoadFinish`).
+   - Face-coords intentionally do **not** shift — absolute half-tiles
+     converted against the current base at consumption.
 
-The serial packet FIFO stands in for `awaitingPlayerInfo`: every post-rebuild
-PLAYER/NPC_INFO is queued behind the rebuild task, so nothing reads the new
-scene before the shift runs. The load-completion frame poll keys off
-`world->load_seq` advancing past a sample taken when the load is queued
-(`world_load_seq_at_begin`) — `load_complete` alone stays true from the old
-scene during the whole asset-fetch phase; the REBUILD branch samples it too.
+The serial packet FIFO stands in for `awaitingPlayerInfo`. Ack only when a
+build ran (`Client.ts:2289`).
 
-Tests: `test_rebuild_shift` (`world/test/world_test_unit.c`, `make -C src
-test-world`) — in-scene shift of player/npc/stack routes+grid+draw, park-at-
-255 for out-of-scene entities (kept, route dropped), far-stack marked for
-deletion, projectile/spotanim clear events, scenery-pool reset with movers
-surviving `World_ResetScene`. Verified live (LostCity, `::tele 0,52,52,32,32`
-two regions away): `rebuild_shift: dx=128 dz=128` fires after the 9-chunk
-load, `TORIRS_POS_DEBUG` settles at `abs=3360,3360` = the tele target with a
-consistent scene tile, world + minimap render at the destination, zero
-error/dropped lines. The login rebuild (`dx=-64`) exercises the in-scene
-shift path on the boot world's entities.
+Tests: `test_rebuild_shift` (`make -C src test-world`) — player/npc/stack
+shift, npc exact-move shift, loc-change shift/unlink, park-at-255,
+projectile/spotanim clear, scenery-pool reset with movers + loc-changes
+surviving `World_ResetScene`, zone-centred base assertion.
+`test-net-exec` pins `rebuild_square_rect` and SET_MAP_FLAG without
+`scene_off`.
 
-Follow-ons: temporary loc changes (`locChanges` revert list) still have no
-torirs equivalent (LOC_ADD_CHANGE is remove-only, §9), and a mid-walk local
-player crossing the boundary keeps its interpolated draw position only when
-it stays in scene — the parked case relies on the immediate PLAYER_INFO
-teleport, same as the reference's awaitingPlayerInfo window.
+Follow-ons: a mid-walk local player crossing the boundary keeps its
+interpolated draw position only when it stays in scene — the parked case
+relies on the immediate PLAYER_INFO teleport, same as the reference's
+awaitingPlayerInfo window. Classic NPC_INFO has no exact-move mask (all 8
+bits used); the NPC ExactMove facet exists for rebuild-shift + cycle
+parity with Actor.
 
 ---
 
@@ -3420,14 +3408,12 @@ flag to ever trigger. Loading is idempotent, so re-issuing on every SEQ is cheap
 This is the reference-accurate dat1 (default-boot) path.
 
 For dat2, `Task_Dat2SequenceLoad` previously attached **no** seq metadata, so
-`replaceheld` was inert (always `-1`). It now sets the assembled animation's two
-`replaceheld*` fields **directly** from the decoded `left_hand_item`/`right_hand_item`
-— *not* via `ToriDraw_AnimationSetSeqMeta`, which would clobber `priority`/`max_loops`
-with the dat2 decoder's memset-`0` defaults instead of the reference `5`/`99` the
-constructor leaves in place. The dat2 decoder neither converts the `65535` sentinel
-nor defaults an absent opcode to `-1`, so both `<= 0` and `65535` map to `-1` (no
-override); this gives up the rare explicit "hide via 0", which the dat1 path still
-honours through its proper `-1` defaults. Full build clean.
+`replaceheld` was inert (always `-1`). It now goes through
+`ToriDraw_AnimationSetSeqMeta` like the dat1 path: the dat2 decoder applies
+RuneLite `SequenceDefinition` defaults (`forced_priority=5`, `max_loops=99`,
+hand items/`precedence`/`priority`=-1, `reply_mode=2`, `frame_step=-1`) before
+opcodes, so a full meta copy no longer clobbers constructor defaults. Hand-item
+`65535` still maps to `-1`. See § walkmerge/DELAYMOVE below.
 
 ## 46. Bridge tiles drew the water underneath on the minimap — push-down ran before the colours were set — ✅
 
@@ -3517,10 +3503,9 @@ extra tile.
 ### Fix — plumb `stretches` through and restore `forwardPadding`
 
 1. Carried `stretches` onto `ToriDraw_Animation` via `ToriDraw_AnimSeqMeta`
-   (`toridraw_animation.{h,c}`): set from `seq->stretches` at the dat1 seq-meta
-   site and directly on the dat2 path (which, like `replaceheld*`, bypasses
-   `SetSeqMeta` to avoid clobbering constructor defaults with the memset-0
-   config). Exposed it through `World_SeqSource.stretches` +
+   (`toridraw_animation.{h,c}`): set from `seq->stretches` at both the dat1 and
+   dat2 seq-meta sites (dat2 now uses `SetSeqMeta` once the decoder carries
+   RuneLite defaults). Exposed it through `World_SeqSource.stretches` +
    `app_seq_stretches`.
 2. Added `needs_forward_draw_padding` to the entity Animation facet.
    `World_StepEntityAnimation` now clears it at the top every cycle and
@@ -4329,3 +4314,51 @@ the dialogue and nothing else on every page; both the npc chathead (231:2) and
 the player chathead (217:2) animate, ~2.5k pixels of the head box changing
 between consecutive client ticks; and after `if_close` the scrollback, the
 filter tabs and the input line come back.
+
+
+## Dat2 walkmerge + DELAYMOVE + minimap flag (osrs230) — ✅
+
+### Walkmerge never blended on dat2
+
+Dat2 stores seq opcode 3 as `interleave_leave` (`dat2_config_sequence.c`).
+`Task_Dat2SequenceLoad` used to skip `ToriDraw_AnimationSetSeqMeta` entirely
+(to avoid clobbering priority/max_loops with the decoder's memset-0), so
+`anim->walkmerge` stayed NULL and `ToriDraw_SceneElementApplyAnimation` never
+took the masked path. Legs froze on a primary action even though the secondary
+walk track was bound.
+
+**Fix:**
+
+1. `RSCache_Dat2ConfigSequenceSetDefaults` applies RuneLite
+   `SequenceDefinition` defaults before opcodes (`forced_priority=5`,
+   `max_loops=99`, hands/`precedence`/`priority`=-1, `reply_mode=2`,
+   `frame_step=-1`). Encoder + `cp_seq` skip-default conditions match.
+2. Dat2 load path builds a full `ToriDraw_AnimSeqMeta` (mapping
+   `interleave_leave`→`walkmerge`, `forced_priority`→`priority`,
+   `precedence_animating`→`preanim_move`, `priority`→`postanim_move`,
+   `reply_mode`→`duplicate_behavior`) and calls `SetSeqMeta`, with the MERGE=2
+   fallback when the mask is present.
+
+### DELAYMOVE held the route still
+
+`Client.ts` `routeMove` early-returns on `PreanimMove`/`PostanimMove.DELAYMOVE`
+and later catches up at `moveSpeed=8`. torirs never modelled
+`animDelayMove`. With real preanim/postanim values on dat2 this became
+visible.
+
+**Fix:** `anim_delay_move` on the Animation facet; `World_SeqSource.postanim_move`
++ `app_seq_postanim_move`; early returns + catch-up in
+`World_UpdateMoverMovementAndAnimation`; exactMove zeroes the counter;
+`World_EntityFace` restores the `anim_delay_move > 0` faceSquare clause.
+Covered by `test_delaymove_gate` in `test-world`.
+
+### Minimap destination flag
+
+Under `SERVER_AUTHORITATIVE` pathing the flag comes only from `SET_MAP_FLAG`.
+The classic-centred scene rebuild (zone-6)*8 made wire local tiles equal our
+scene tiles, so the handler stores them as-is (`rs_gameproto_exec.c`). The
+older map-square-aligned base needed `scene_off`; that field is gone. Pin by
+`test-net-exec`'s SET_MAP_FLAG case.
+
+Verified: `test-walkmerge`, `test-world` (incl. delaymove), `test-net-exec`,
+`mock230_pack --check-only` at 0 errors.

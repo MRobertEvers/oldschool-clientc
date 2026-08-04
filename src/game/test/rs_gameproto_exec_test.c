@@ -140,44 +140,29 @@ main(void)
         printf("ok - MESSAGE_GAME applied\n");
     }
 
-    /* REBUILD_NORMAL residency: measured from the live void bug.
-     * zone 391,403 loads squares (48,49)-(49,51); zone 396,403 needs
-     * (48,49)-(50,51). A world resident at the former must NOT report the
-     * latter as covered (SW-only matching wrongly would). zone 392,403
-     * slides within the same squares and must still skip. */
+    /* REBUILD_NORMAL square rect: classic (zone-6)*8 scene covers at most 3x3
+     * map squares. Zone centre 50,50 -> base 352 -> squares 5..7. */
     {
         int mx0, mz0, mx1, mz1;
-        struct World world;
 
-        memset(&world, 0, sizeof(world));
-        world._chunk_sw_x = 48;
-        world._chunk_sw_z = 49;
-        world._chunk_ne_x = 49;
-        world._chunk_ne_z = 51;
+        rebuild_square_rect(50, 50, &mx0, &mz0, &mx1, &mz1);
+        assert(mx0 == 5 && mz0 == 5 && mx1 == 7 && mz1 == 7);
 
         rebuild_square_rect(391, 403, &mx0, &mz0, &mx1, &mz1);
         assert(mx0 == 48 && mz0 == 49 && mx1 == 49 && mz1 == 51);
-        assert(rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
 
         rebuild_square_rect(396, 403, &mx0, &mz0, &mx1, &mz1);
         assert(mx0 == 48 && mz0 == 49 && mx1 == 50 && mz1 == 51);
-        assert(!rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
 
-        rebuild_square_rect(392, 403, &mx0, &mz0, &mx1, &mz1);
-        assert(mx0 == 48 && mz0 == 49 && mx1 == 49 && mz1 == 51);
-        assert(rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
-
-        printf("ok - REBUILD_NORMAL square residency\n");
+        printf("ok - REBUILD_NORMAL square rect\n");
     }
 
-    /* SET_MAP_FLAG: wire tiles are classic-scene local; store our-scene. */
+    /* SET_MAP_FLAG: wire tiles are classic-scene local = our-scene tiles. */
     {
         struct App app;
         memset(&app, 0, sizeof(app));
         app.minimap_flag_x = -1;
         app.minimap_flag_z = -1;
-        app.scene_off_x = 32;
-        app.scene_off_z = 8;
         ctx.app = &app;
 
         {
@@ -188,8 +173,8 @@ main(void)
             p._set_map_flag.z = 50;
             p._set_map_flag.clear = 0;
             RS_GameProto_Exec(&ctx, &p);
-            assert(app.minimap_flag_x == 72);
-            assert(app.minimap_flag_z == 58);
+            assert(app.minimap_flag_x == 40);
+            assert(app.minimap_flag_z == 50);
             assert(app.need_redraw == 1);
         }
         {
@@ -204,7 +189,7 @@ main(void)
             assert(app.minimap_flag_z == -1);
         }
         ctx.app = NULL;
-        printf("ok - SET_MAP_FLAG applies scene_off\n");
+        printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
 
     UITree_Free(tree);
