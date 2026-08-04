@@ -453,6 +453,76 @@ mock230_zone_loc_changed(
 }
 
 void
+mock230_zone_loc_anim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int seq_id)
+{
+    struct Mock230Zone* zone;
+    struct Mock230ZoneEvent event;
+
+    assert(srv);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = MOCK230_ZONE_EV_LOC_ANIM;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.shape = shape;
+    event.angle = angle;
+    event.id = seq_id;
+    queue_event(srv, zone, &event);
+}
+
+void
+mock230_zone_loc_merge(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int start_cycle,
+    int end_cycle,
+    int player_pid,
+    int east,
+    int south,
+    int west,
+    int north)
+{
+    struct Mock230Zone* zone;
+    struct Mock230ZoneEvent event;
+
+    assert(srv);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = MOCK230_ZONE_EV_LOC_MERGE;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.shape = shape;
+    event.angle = angle;
+    event.id = loc_id;
+    event.start_cycle = start_cycle;
+    event.end_cycle = end_cycle;
+    event.player_pid = player_pid;
+    event.east = east;
+    event.south = south;
+    event.west = west;
+    event.north = north;
+    queue_event(srv, zone, &event);
+}
+
+void
 mock230_zone_locs_foreach(
     struct Mock230Server* srv,
     void (*fn)(struct Mock230ZoneLoc* loc, void* user),

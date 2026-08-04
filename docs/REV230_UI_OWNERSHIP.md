@@ -476,6 +476,12 @@ $char1)` with `$string0 = tostring(row)`).
    `IF_BUTTON1(parent, sub)`; `handle_if_button_op` latches `last_slot` then
    resumes (same as §3.11f in `osrs230_mockserver.md`).
 
+**Verified.** Headless embed: `TORIRS_NET_CHEAT="talk hans 1"`, `k83` into the
+choice menu, then `c49` (`'1'`): no `script 57 failed at opcode 4120`; Hans's
+branch-1 line (`I'm looking for whoever is in charge of this place.`) is set on
+the chatplayer. `mock230 --selftest` "npc chat dialogue" (IF_BUTTON1 alone
+resumes with `last_slot=3`) and `mock230_pack --check-only` at 0 errors.
+
 ## 7. Harness notes
 
 Everything above was found and checked with knobs that already existed

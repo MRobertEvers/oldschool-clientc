@@ -32,6 +32,16 @@ struct WorldEntity_Player
      * the model is rebuilt only when the effective override changes. */
     int held_left_applied;
     int held_right_applied;
+
+    /** P_LOCMERGE / LOC_MERGE (ClientPlayer.locStartCycle/locStopCycle): while
+     *  world->cycle is in [loc_start_cycle, loc_stop_cycle) the loc's model is
+     *  meant to ride with this player. loc_merge_id is the base loc type; -1 =
+     *  inactive. */
+    int loc_start_cycle;
+    int loc_stop_cycle;
+    int loc_merge_id;
+    int loc_merge_shape;
+    int loc_merge_angle;
 };
 
 #endif

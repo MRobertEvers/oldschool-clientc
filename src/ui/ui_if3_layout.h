@@ -39,9 +39,10 @@ UITree_If3AxisFromPositionMode(
     case 1:
         /* Arithmetic right-shift: when self_dim > parent_dim the offset is
          * negative and the child overhangs both sides. Chatbox dialogues rely
-         * on that (506x129 root centred in a 479x96 mount slot); do not clamp
-         * oversized children to the origin — that broke continue/choice hit
-         * testing by pushing them under chatbox:controls (noclickthrough). */
+         * on that (506x129 root centred in a 479x96 mount slot); do not
+         * origin-align here. Canvas-left overhang (viewport_tracker at
+         * abs_x=-21) is clamped in uitree_layout.c after abs is formed, so
+         * relative overhang for in-slot parents (chatmodal at x≥20) is kept. */
         return parent_origin + ((parent_dim - self_dim) >> 1) + base;
     case 2:
         return parent_origin + parent_dim - base - self_dim;

@@ -173,7 +173,7 @@ adjacency reads the **source** tile's facing wall bit plus rotated
 |---|---|---|---|---|
 | Click packet | target only | target only | waypoints (client BFS) | target only |
 | Server paths | yes, every click | yes, once at click | re-validates client path | yes |
-| Re-path moving NPC | every tick when ≤1 waypoint left | broken / none | every tick at last waypoint | every tick (`TargetRoute`) |
+| Re-path moving NPC | every tick when ≤1 waypoint left | broken / none | every tick at last waypoint (full path) | every tick (`TargetRoute`) |
 | op/ap processor | full | not implemented | full (`tryInteract`) | distance + LOS only |
 
 ### 3.3 Reach / approach

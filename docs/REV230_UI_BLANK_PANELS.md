@@ -635,10 +635,13 @@ intersects `chatbox:controls` at y≥119 inside a 142-tall chat panel.
 
 **Fix (engine).** Revert the oversized-child branches in
 `src/ui/ui_if3_layout.h` modes 1 and 4. The stretch gameframe's
-`viewport_tracker` at `abs_x=-21` (canvas-sized child in a canvas−42
-gameframe) is the *correct* reference result of the same math — see
-`gameframe_layout_resize.md` §5; do not paper over it on the shared IF3
-axis path. Pinned by the dialogue-chain case in
+`viewport_tracker` at relative `((723-765)>>1) = -21` (canvas-sized child in a
+canvas−42 gameframe) is the *correct* reference result of the same relative
+math — see `gameframe_layout_resize.md` §5; do not paper over it on the shared
+IF3 axis path. Canvas-left clipping of that overhang (stat boosts HUD, etc.)
+is handled separately in `uitree_layout.c` by clamping only
+`xmode==1 && abs_x < 0` after abs is formed — not by origin-aligning relative
+overhang. Pinned by the dialogue-chain case in
 `src/ui/test/uitree_test_layout_build.c` (content at `(19,11)`, continue at
 `(115,91)`, bottom ≤119).
 

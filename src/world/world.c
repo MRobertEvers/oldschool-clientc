@@ -1494,6 +1494,65 @@ World_LocChangesClear(struct World* world)
     world->loc_change_count = 0;
 }
 
+void
+World_LocChangesTick(
+    struct World* world,
+    int cycles_elapsed,
+    void (*apply)(void* user, int level, int x, int z, int loc_id, int shape, int angle),
+    void* user)
+{
+    int write;
+
+    assert(world);
+    assert(apply);
+    if( cycles_elapsed <= 0 || world->loc_change_count <= 0 )
+        return;
+
+    for( int c = 0; c < cycles_elapsed; c++ )
+    {
+        write = 0;
+        for( int i = 0; i < world->loc_change_count; i++ )
+        {
+            struct World_LocChange loc = world->loc_changes[i];
+
+            /* Permanent records (end_time < 0): keep, never countdown. */
+            if( loc.end_time < 0 )
+            {
+                world->loc_changes[write++] = loc;
+                continue;
+            }
+
+            if( loc.end_time > 0 )
+                loc.end_time--;
+
+            if( loc.end_time != 0 )
+            {
+                if( loc.start_time > 0 )
+                    loc.start_time--;
+                if( loc.start_time == 0 )
+                {
+                    apply(user, loc.level, loc.x, loc.z, loc.new_type, loc.new_shape,
+                          loc.new_angle);
+                    loc.start_time = -1;
+                    if( loc.old_type == loc.new_type && loc.old_type == -1 )
+                        continue;
+                    if( loc.old_type == loc.new_type && loc.old_angle == loc.new_angle &&
+                        loc.old_shape == loc.new_shape )
+                        continue;
+                }
+                world->loc_changes[write++] = loc;
+            }
+            else
+            {
+                apply(user, loc.level, loc.x, loc.z, loc.old_type, loc.old_shape,
+                      loc.old_angle);
+                /* Drop the entry (restored). */
+            }
+        }
+        world->loc_change_count = write;
+    }
+}
+
 static void
 world_set_entity_spotanim(
     struct World* world,

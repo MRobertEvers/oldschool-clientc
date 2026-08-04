@@ -805,7 +805,9 @@ World_ShiftEntities(
     int dz);
 
 /** Record a temporary loc change (Client-TS locChanges.push). old_* may be
- * -1 when unknown; end_time of -1 means "until replaced". */
+ * -1 when unknown; end_time of -1 means "permanent until replaced" (not
+ * countdown-ticked). end_time > 0 is a countdown (locChangeDoQueue): hide/apply
+ * new_type when start_time reaches 0, restore old_type when end_time reaches 0. */
 void
 World_LocChangePush(
     struct World* world,
@@ -825,6 +827,19 @@ World_LocChangePush(
 /** Clear every temporary loc-change record (scene rebuild). */
 void
 World_LocChangesClear(struct World* world);
+
+/**
+ * Advance countdown LocChanges (Client-TS locChangeDoQueue). Entries with
+ * end_time < 0 are permanent records and are skipped. For each elapsed cycle,
+ * decrements timers and invokes `apply` when start hits 0 (new_type) or end
+ * hits 0 (old_type, then removes the entry).
+ */
+void
+World_LocChangesTick(
+    struct World* world,
+    int cycles_elapsed,
+    void (*apply)(void* user, int level, int x, int z, int loc_id, int shape, int angle),
+    void* user);
 
 /** Despawn every projectile + spotanim (reference mapBuild clears both when
  * the new scene lands; their trajectories are scene-local). Emits

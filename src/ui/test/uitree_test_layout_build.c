@@ -257,9 +257,12 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
-    /* IF3 centre (xmode=1): undersized child centres; oversized child overhangs
-     * both sides via arithmetic right-shift — (723-765)>>1 == -21. Chatbox
-     * dialogues rely on that overhang; do not origin-align. */
+    /* IF3 centre (xmode=1): undersized child centres; oversized child would
+     * overhang both sides via ((parent-self)>>1). When that lands abs_x<0
+     * (viewport_tracker in a canvas−42 gameframe), layout clamps to 0 so
+     * left-edge HUDs stay on-canvas — right overhang under the popout kept.
+     * Relative overhang math in UITree_If3AxisFromPositionMode is unchanged;
+     * chat dialogues (slot abs_x≥20) still resolve with abs_x≥0. */
     {
         struct UITree* tree = UITree_New(4);
         struct UITreeNodeSpec parent_spec;
@@ -306,8 +309,8 @@ test_layout_build(void)
         UITree_LayoutInvalidateBoxes(tree);
         UITree_TestResolve(tree);
         TEST_ASSERT(
-            tree->components[child].position.abs_x == ((723 - 765) >> 1),
-            "oversized centre child overhangs (abs_x=-21)");
+            tree->components[child].position.abs_x == 0,
+            "oversized centre child clamps canvas-left overhang to abs_x=0");
         TEST_ASSERT(
             tree->components[child].position.abs_y == ((503 - 503) >> 1),
             "oversized centre child y when equal height is 0");

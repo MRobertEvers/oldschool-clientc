@@ -91,6 +91,8 @@ enum Mock230ZoneEventKind
     MOCK230_ZONE_EV_OBJ_ADD,
     MOCK230_ZONE_EV_OBJ_DEL,
     MOCK230_ZONE_EV_OBJ_COUNT,
+    MOCK230_ZONE_EV_LOC_ANIM,
+    MOCK230_ZONE_EV_LOC_MERGE,
 };
 
 /**
@@ -107,10 +109,14 @@ struct Mock230ZoneEvent
     /** Pid this event is for, or -1 for everyone (the shared buffer). */
     int receiver_pid;
     int pos;
-    /** loc id or obj id. */
+    /** loc id, obj id, or (for LOC_ANIM) seq id. */
     int id;
     int shape, angle;
     int count, old_count;
+    /** LOC_MERGE: start/end cycles, player slot, AABB offsets from the loc tile. */
+    int start_cycle, end_cycle;
+    int player_pid;
+    int east, south, west, north;
 };
 
 /**
@@ -229,6 +235,42 @@ mock230_zone_loc_changed(
     int angle,
     int base_loc_id,
     int base_angle);
+
+/**
+ * Queue LOC_ANIM for the loc at (x,z,level) with the given shape/angle and seq.
+ * Does not mutate zone loc records — animation is ephemeral.
+ */
+void
+mock230_zone_loc_anim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int seq_id);
+
+/**
+ * Queue LOC_MERGE (P_LOCMERGE): temporarily hide the loc and attach its model to
+ * `player_pid` for [start_cycle, end_cycle) client ticks. AABB offsets are
+ * relative to the loc tile (east/south/west/north as LostCity mergeLoc args).
+ */
+void
+mock230_zone_loc_merge(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int angle,
+    int loc_id,
+    int start_cycle,
+    int end_cycle,
+    int player_pid,
+    int east,
+    int south,
+    int west,
+    int north);
 
 /** The loc record at this key, or NULL. */
 struct Mock230ZoneLoc*

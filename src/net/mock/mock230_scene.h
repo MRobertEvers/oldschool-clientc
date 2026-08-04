@@ -26,6 +26,7 @@
 
 struct CollisionMap;
 struct ToriRS_FeatureTable;
+struct Mock230Player;
 
 /* ------------------------------------------------------------------ */
 /* Locs                                                                */
@@ -77,6 +78,20 @@ const char*
 mock230_scene_loc_op(
     int loc_id,
     int op_num);
+
+/**
+ * Multiloc resolve for a player's current varbits (OpenRS2 LocType.getMultiLoc /
+ * LostCity OpLocHandler remap). Returns the active child loc id. When the base
+ * has no transform table, returns `base_loc_id`. When the selected slot (or the
+ * last-entry fallback) is -1, returns -1 (hidden / no ops).
+ *
+ * The scene loc entity stays the BASE id; callers use this only for op
+ * validation and trigger type/category lookup.
+ */
+int
+mock230_loc_resolve_transform(
+    struct Mock230Player* player,
+    int base_loc_id);
 
 /** Replace a loc with another id (a door opening), moving collision with it.
  *  An inactive static slot is revived rather than refused, which is what puts a

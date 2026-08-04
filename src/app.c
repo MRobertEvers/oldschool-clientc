@@ -2344,6 +2344,118 @@ app_sync_textures_poll(struct App* app)
 }
 
 /*
+ * Live multiloc remorph (Java ClientLocAnim / OpenRS2 Loc.getMultiLoc): when a
+ * varp that drives a LocType transform table changes, re-apply each matching
+ * scenery instance so the model/name/ops track the new child without a zone
+ * LOC packet or a full chunk rebuild. Queues App_WorldLocChange (async model
+ * wait) with the same BASE loc_id the map placed.
+ */
+static int
+app_loc_transform_depends_on_varp(
+    struct App* app,
+    struct ToriRS_Location const* loc,
+    int varp_id)
+{
+    if( !loc || loc->transform_count <= 0 || !loc->transforms )
+        return 0;
+    if( loc->transform_varp == varp_id )
+        return 1;
+    if( loc->transform_varbit >= 0 && loc->transform_varbit < app->varps.varbit_count )
+    {
+        struct VarBitType const* vb = &app->varps.varbit_types[loc->transform_varbit];
+        if( vb->basevar == varp_id )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+app_varp_refresh_loc_transforms(
+    struct App* app,
+    int varp_id)
+{
+    struct World_EntityPool* pool;
+    enum
+    {
+        MAX_REFRESH = 256
+    };
+    struct
+    {
+        int x, z, level, loc_id, shape, angle;
+    } pending[MAX_REFRESH];
+    int n = 0;
+
+    if( !app || !app->world || !app->world->load_complete || !app->provider )
+        return;
+    if( varp_id < 0 )
+        return;
+
+    pool = &app->world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
+        struct ToriRS_Location* loc;
+        int x, z, level, shape, angle, loc_id;
+        int dup;
+
+        if( !sc )
+            continue;
+        loc = CacheProvider_LocationGet(app->provider, sc->loc_id);
+        if( !app_loc_transform_depends_on_varp(app, loc, varp_id) )
+            continue;
+
+        x = sc->grid_position.x;
+        z = sc->grid_position.z;
+        level = sc->grid_position.level;
+        loc_id = sc->loc_id;
+        shape = sc->shape;
+        angle = sc->angle;
+
+        /* L-walls register two pool halves on the same tile+shape — one refresh. */
+        dup = 0;
+        for( int j = 0; j < n; j++ )
+        {
+            if( pending[j].x == x && pending[j].z == z && pending[j].level == level &&
+                pending[j].shape == shape )
+            {
+                dup = 1;
+                break;
+            }
+        }
+        if( dup )
+            continue;
+        if( n >= MAX_REFRESH )
+            break;
+        pending[n].x = x;
+        pending[n].z = z;
+        pending[n].level = level;
+        pending[n].loc_id = loc_id;
+        pending[n].shape = shape;
+        pending[n].angle = angle;
+        n++;
+    }
+
+    for( int i = 0; i < n; i++ )
+        App_WorldLocChange(
+            app, pending[i].x, pending[i].z, pending[i].level, pending[i].loc_id,
+            pending[i].shape, pending[i].angle);
+}
+
+/*
+ * Plain value-change callback: loc transforms + anything else that must react
+ * to optimistic CS2/IF1 writes as well as server VARP packets. Must NOT feed
+ * the CS2 var-transmit ring (that is app_varp_server_update only).
+ */
+static void
+app_varp_change(void* userdata, int varp_id)
+{
+    struct App* app = (struct App*)userdata;
+
+    app_varp_refresh_loc_transforms(app, varp_id);
+}
+
+/*
  * Server varp update -> CS2 host, so the tick's var-transmit pump re-dispatches
  * the hooks that list this varp as a trigger. Userdata is the app, not the host,
  * because the same callback routes client-code varps (the sound volume setting)
@@ -2361,6 +2473,9 @@ app_sync_textures_poll(struct App* app)
  * the 161|36 listener from scratch every ~8 frames, and it is why the hovered
  * component id climbed without end: every rebuild hands the same three popout
  * icons brand-new dynamic uids.
+ *
+ * Loc remorph runs from ChangeFn (also fired by ApplySmall/Large when the value
+ * actually changes), so this path only adds CS2 transmit + clientcode audio.
  */
 static void
 app_varp_server_update(void* userdata, int varp_id)
@@ -2628,7 +2743,9 @@ App_Init(
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
      * and not only to unhide. See app_varp_server_update for why script-side
-     * writes and varcs stay out. */
+     * writes and varcs stay out of the transmit ring. ChangeFn remorphs
+     * multilocs for both optimistic and server value changes. */
+    VarPManager_SetChangeCallback(&app->varps, app_varp_change, app);
     VarPManager_SetServerUpdateCallback(&app->varps, app_varp_server_update, app);
     RS_PlayerStats_Init(&app->stats);
     RS_CS1Host_Init(&app->cs1_host, app->tree, app->provider, &app->invs, &app->varps, &app->stats);

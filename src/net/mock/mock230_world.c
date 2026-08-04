@@ -933,18 +933,24 @@ run_interaction_trigger(
     const struct Mock230Interaction* interaction,
     int trigger)
 {
-    int category = interaction_category(interaction);
-
     if( interaction->kind == MOCK230_INTERACT_LOC )
     {
         int slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
                                         interaction->target_id);
+        int type = mock230_loc_resolve_transform(srv->active_player, interaction->target_id);
+        int category;
 
-        return mock230_scripts_run_trigger_on_loc(srv, trigger, interaction->target_id,
-                                                  category, slot);
+        if( type < 0 )
+            type = interaction->target_id;
+        category = mock230_loc_category(type);
+        return mock230_scripts_run_trigger_on_loc(srv, trigger, type, category, slot);
     }
-    return mock230_scripts_run_trigger(srv, trigger, interaction->target_id, category,
-                                       interaction->npc_slot);
+    {
+        int category = interaction_category(interaction);
+
+        return mock230_scripts_run_trigger(srv, trigger, interaction->target_id, category,
+                                           interaction->npc_slot);
+    }
 }
 
 /**
@@ -1241,10 +1247,24 @@ interaction_try(
         int loc_z = interaction->z;
         int loc_level = interaction->level;
         int use_on = interaction->use_on;
+        int loc_trigger_type = target_id;
 
-        /* Read before the clear below, with everything else the dispatch needs:
-         * the interaction it is derived from does not survive to the switch. */
-        category = interaction_category(interaction);
+        /* Multiloc: scene entity / find stays BASE; trigger type+category use
+         * the varbit-resolved child (LostCity OpLocHandler + getOpTrigger gap
+         * filled for osrs239 child-bound scripts like [oploc1,ernest_doorajar]). */
+        if( kind == MOCK230_INTERACT_LOC )
+        {
+            loc_trigger_type = mock230_loc_resolve_transform(player, target_id);
+            if( loc_trigger_type < 0 )
+                loc_trigger_type = target_id;
+            category = mock230_loc_category(loc_trigger_type);
+        }
+        else
+        {
+            /* Read before the clear below, with everything else the dispatch needs:
+             * the interaction it is derived from does not survive to the switch. */
+            category = interaction_category(interaction);
+        }
 
         /*
          * Clear *before* running, not after. A script is allowed to start a new
@@ -1280,8 +1300,9 @@ interaction_try(
         if( use_on )
         {
             int ap = interaction_ap_trigger(kind, op_num, 1);
+            int trigger_type = kind == MOCK230_INTERACT_LOC ? loc_trigger_type : target_id;
 
-            if( ap < 0 || mock230_scripts_run_trigger(srv, ap + 7, target_id, category, slot) ==
+            if( ap < 0 || mock230_scripts_run_trigger(srv, ap + 7, trigger_type, category, slot) ==
                               MOCK230_TRIGGER_NONE )
                 mock230_say(srv, "nothing_interesting_message", NULL);
             return 1;
@@ -1304,7 +1325,7 @@ interaction_try(
              * `FAILED` deliberately says nothing: a script that aborted has
              * already had its turn. */
             if( mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1 + (op_num - 1),
-                                                   target_id, category,
+                                                   loc_trigger_type, category,
                                                    find_interaction_loc(loc_x, loc_z, loc_level,
                                                                         target_id)) ==
                 MOCK230_TRIGGER_NONE )
@@ -3514,6 +3535,8 @@ handle_oploc(
     struct Mock230SceneLoc* loc;
     int size_x = 1;
     int size_z = 1;
+    int resolved;
+    const char* op;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
     tile_x = rsab_g2(&buf);
@@ -3523,6 +3546,15 @@ handle_oploc(
         return;
 
     mock230_world_clear_pending_action(srv);
+
+    /* LostCity OpLocHandler: validate ops against the multiloc-resolved child
+     * before latching. Hidden / missing ops are a lagging client — drop. */
+    resolved = mock230_loc_resolve_transform(srv->active_player, loc_id);
+    if( resolved < 0 )
+        return;
+    op = mock230_scene_loc_op(resolved, op_num);
+    if( !op || strcmp(op, "hidden") == 0 )
+        return;
 
     /* The footprint decides what counts as "beside it": a two-tile gate is
      * reachable from tiles a one-tile door is not. */

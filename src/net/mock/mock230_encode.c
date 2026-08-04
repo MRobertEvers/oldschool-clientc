@@ -84,6 +84,8 @@ enum
     OP_UPDATE_ZONE_PARTIAL_ENCLOSED = 38,
     OP_LOC_ADD_CHANGE = 70,
     OP_LOC_DEL = 71,
+    OP_LOC_ANIM = 72,
+    OP_LOC_MERGE = 126,
     OP_OBJ_ADD = 120,
     OP_OBJ_DEL = 121,
     OP_OBJ_COUNT = 122,
@@ -163,6 +165,10 @@ opcode_name(int op)
         return "LOC_ADD_CHANGE";
     case OP_LOC_DEL:
         return "LOC_DEL";
+    case OP_LOC_ANIM:
+        return "LOC_ANIM";
+    case OP_LOC_MERGE:
+        return "LOC_MERGE";
     case OP_OBJ_ADD:
         return "OBJ_ADD";
     case OP_OBJ_DEL:
@@ -1399,6 +1405,10 @@ zone_sub_opcode(int kind)
         return OP_LOC_ADD_CHANGE;
     case MOCK230_ZONE_EV_LOC_DEL:
         return OP_LOC_DEL;
+    case MOCK230_ZONE_EV_LOC_ANIM:
+        return OP_LOC_ANIM;
+    case MOCK230_ZONE_EV_LOC_MERGE:
+        return OP_LOC_MERGE;
     case MOCK230_ZONE_EV_OBJ_ADD:
         return OP_OBJ_ADD;
     case MOCK230_ZONE_EV_OBJ_DEL:
@@ -1432,6 +1442,23 @@ zone_sub_payload(
     case MOCK230_ZONE_EV_LOC_DEL:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        return 1;
+    case MOCK230_ZONE_EV_LOC_ANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        return 1;
+    case MOCK230_ZONE_EV_LOC_MERGE:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, event->start_cycle);
+        rsab_p2(buf, event->end_cycle);
+        rsab_p2(buf, event->player_pid);
+        rsab_p1(buf, (uint8_t)event->east);
+        rsab_p1(buf, (uint8_t)event->south);
+        rsab_p1(buf, (uint8_t)event->west);
+        rsab_p1(buf, (uint8_t)event->north);
         return 1;
     case MOCK230_ZONE_EV_OBJ_ADD:
         rsab_p1(buf, event->pos);

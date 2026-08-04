@@ -226,6 +226,37 @@ mock230_scene_loc_op(
     return config->actions[op_num - 1];
 }
 
+int
+mock230_loc_resolve_transform(
+    struct Mock230Player* player,
+    int base_loc_id)
+{
+    const struct RSCache_Dat2ConfigLoc* cfg;
+    int index = -1;
+    int last;
+
+    assert(player);
+    cfg = loc_config(base_loc_id);
+    if( !cfg || cfg->transform_count <= 0 || !cfg->transforms )
+        return base_loc_id;
+
+    if( cfg->transform_varbit != -1 )
+        index = mock230_varbit_get(player, cfg->transform_varbit);
+    else if( cfg->transform_varp != -1 )
+    {
+        if( cfg->transform_varp >= 0 && cfg->transform_varp < MOCK230_VARP_COUNT )
+            index = (int)player->varps[cfg->transform_varp];
+    }
+
+    /* Same rule as VarPManager_ResolveTransform / OpenRS2 getMultiLoc: a valid
+     * in-range non-hide slot wins; otherwise the last entry (often -1). */
+    if( index >= 0 && index < cfg->transform_count - 1 && cfg->transforms[index] != -1 )
+        return cfg->transforms[index];
+
+    last = cfg->transforms[cfg->transform_count - 1];
+    return last;
+}
+
 /* ------------------------------------------------------------------ */
 /* Building collision                                                  */
 /* ------------------------------------------------------------------ */

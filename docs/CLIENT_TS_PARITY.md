@@ -4401,3 +4401,23 @@ older map-square-aligned base needed `scene_off`; that field is gone. Pin by
 
 Verified: `test-walkmerge`, `test-world` (incl. delaymove), `test-net-exec`,
 `mock230_pack --check-only` at 0 errors.
+
+---
+
+## Stat boosts HUD (interface 708) — ✅
+
+Modern client feature (PORTING_GUIDE §5): LostCity has no equivalent. Interface
+`stat_boosts_hud` mounts on `viewport_tracker_back` via `gameframe.enum`; CS2
+4130 → 4514/7629 → 4515 builds one 35×35 tile per boosted≠base skill
+(tradebacking 297 tiled/trans100, skill icon from `enum_255`, tint bar, dual
+outline rects). Server obligation is mount + real `UPDATE_STAT` — repro cheat
+`::boost` / `::drain` in `cheat_stat.rs2`.
+
+**Gap:** emit of all six script4515 children was already correct. The tile sat
+at `abs_x≈-8` because `viewport_tracker` centre-overhung the canvas−42
+gameframe (`abs_x=-21`), so canvas clip ate the left ~8px (looked like a flat
+dark square). **Fix:** `uitree_layout.c` clamps `xmode==1 && abs_x < 0` to 0
+after abs is formed — not origin-align in `UITree_If3AxisFromPositionMode`
+(that broke chat; see `gameframe_layout_resize.md` §5 / `REV230_UI_BLANK_PANELS.md`
+§5). Verified: `TORIRS_NET_CHEAT="boost attack 10 0"` → content `abs=2,301`,
+full `35×35` emit clip; `make -C src test-uitree` green.

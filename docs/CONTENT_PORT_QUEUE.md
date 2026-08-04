@@ -98,7 +98,11 @@ re-arm. Stop only when the user stops the loop.
 | 10j | shadow_spider combat AI | done | prayer-halve drain on queue1 + melee; spider_update_* anims; deferred: op drain via ~npc_retal_ready varn, sound_synth, .hunt cowardly |
 | 10k | skeletonmage combat AI | done | ^skeleton_mage_attack=105 + magic_spell_skeleton_mage dbrow (skeleton cast anims; sound dropped) + AI + overlay; deferred: undead param, attack_sound |
 | 10l | cow milking | done | opnpcu cow/cow2/cow_beef + bucket_empty → bucket_milk; combat overlay already lumbridge.npc |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: barbarian combat YEARGH AI (barbarian/fai_*); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player), chaos_druid (freeze), pirate (_pirate orphan — name-expand), imp teleport (%npc_lastcombat/%npc_aggressive_player) |
+| 10m | barbarian YEARGH combat AI | done | 1/4 YEARGH + melee; fai_barbarian_* name-expand + anim overlays; deferred: barbarian_woman (absent), %npc_action_delay, gunthor YEARGH (none in LC) |
+| 10n | pirate Talk-to dialogue | done | _pirate orphan → pirate1/2/2_aggressive/3_aggressive/lady_pirate; deferred: category mint, pickpocketable variants |
+| 10o | chaos_druid combat AI | done | AP/OP bind+confuse + melee; overlay; deferred: %frozen freeze walktrigger, .hunt ranged, wilderness_chaos_druid / warrior AI |
+| 10p | al_kharid_warrior pack AI | done | ai_queue1 retaliate + huntall pack say; overlay; deferred: %npc_aggressive_player exact target wiring |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: freeze (%frozen author + walktrigger — unblocks chaos_druid/KBD/bind); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (%npc_lastcombat/%npc_aggressive_player) |
 
 
 ## Log
@@ -193,4 +197,8 @@ re-arm. Stop only when the user stops the loop.
 - slice 10j done: shadow_spider AI — prayer-halve on queue1 + melee; spider_update_* anims; deferred: op ~npc_retal_ready drain, sound_synth, .hunt cowardly
 - slice 10k done: skeletonmage AI — ^skeleton_mage_attack=105 + magic_spell_skeleton_mage (skeleton_update_mage_casting / skeleton_weaken_casting; sound dropped) + ai_opplayer2 rot/melee + combat overlay; deferred: undead param, attack_sound
 - slice 10l done: cow milking — opnpcu cow/cow2/cow_beef bucket_empty→bucket_milk; deferred: Milk right-click op (LC Use-with only)
-- next pending: barbarian combat YEARGH AI (barbarian + fai_barbarian_*); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, freeze, guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack, chaos_druid (freeze), pirate (_pirate orphan), imp teleport (varns)
+- slice 10m done: barbarian YEARGH AI — 1/4 say + melee on barbarian + fai_barbarian_1..8/10..14 + females; anim overlays; deferred: barbarian_woman, %npc_action_delay, gunthor YEARGH
+- slice 10n done: pirate Talk-to — name-expand pirate1/2/2_aggressive/3_aggressive/lady_pirate (29-line table); deferred: _pirate category mint, pickpocketable
+- slice 10o done: chaos_druid AI — AP/OP bind+confuse + melee + overlay; deferred: %frozen freeze, .hunt ranged, wilderness/warrior variants
+- slice 10p done: al_kharid_warrior pack AI — ai_queue1 setmode + huntall "Brother…" + overlay; deferred: %npc_aggressive_player exact
+- next pending: freeze (%frozen author + walktrigger); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)

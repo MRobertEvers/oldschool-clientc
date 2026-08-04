@@ -258,13 +258,21 @@ after:  BOUNDS (161|92) abs=0,0  1024x768     BOUNDS (161|94) abs=0,0  1024x768
 (Earlier dumps showed `abs=-21` here. That was not authored on 161:1 — it
 fell out of script 5355 shrinking `gameframe` to canvas−42 for the popout
 strip while script 909 sizes the viewport trackers to full canvas with
-authored `xmode=1` (centre): `(723−765)>>1 = −21`. That overhang is the
-reference IF3 centre arithmetic and is correct: the tracker bleeds 21px off
-the left of the gameframe and 21px under the popout on the right. A global
-"origin-align oversized centred children" guard was briefly added to force
-`abs_x=0` and broke every chatbox dialogue whose root is larger than
-`chatbox:chatmodal` — see `REV230_UI_BLANK_PANELS.md` §5. Do not reinstate
-it on `UITree_If3AxisFromPositionMode`.)
+authored `xmode=1` (centre): `(723−765)>>1 = −21`. That **relative** overhang
+is the reference IF3 centre arithmetic and must stay in
+`UITree_If3AxisFromPositionMode` — a global "origin-align oversized centred
+children" guard briefly forced relative `0` and broke every chatbox dialogue
+whose root is larger than `chatbox:chatmodal` (see `REV230_UI_BLANK_PANELS.md`
+§5).
+
+The left 21px of that overhang sits off the canvas and clipped left-edge
+overlays (`stat_boosts_hud` 708, `buff_bar`). `uitree_layout.c` now clamps
+**only** `xmode==1 && abs_x < 0` up to `abs_x=0` after abs is formed: the
+tracker keeps its right overhang under the popout, chat dialogues (slot
+`abs_x≥20` → child still `abs_x≥0`) are untouched, and `abs_y` is never
+clamped (`chat_left` universe uses `abs_y=-6`). Measured with
+`TORIRS_NET_CHEAT="boost attack 10 0"` + `TORIRS_DUMP_BOUNDS=708`: content at
+`abs=2,301`, tile tradebacking at `abs=13,301` with full `35×35` emit clip.)
 
 **A live resize reflows.** `TORIRS_SIM_RESIZE="200,1024x768" TORIRS_CS2_TRACE=1`:
 script 909 runs a fourth time after the injected event, and

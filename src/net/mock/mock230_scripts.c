@@ -3843,6 +3843,23 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_LOC_ANIM:
+    {
+        int32_t seq_id;
+        struct Mock230SceneLoc* loc = script_active_loc(state);
+
+        if( !SSVM_PopInt(state, &seq_id) )
+            return 1;
+        if( !loc )
+        {
+            SSVM_Abort(state, "loc_anim with no active loc");
+            return 1;
+        }
+        mock230_zone_loc_anim(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
+                              (int)seq_id);
+        return 1;
+    }
+
     case SS_OP_LOC_DEL:
     {
         int32_t duration;
@@ -5898,6 +5915,43 @@ mock230_script_command(
     case SS_OP_P_STOPACTION:
         mock230_combat_stop_player(srv);
         return 1;
+
+    case SS_OP_P_LOCMERGE:
+    {
+        /* LostCity PlayerOps: pop start, end, se, nw; mergeLoc(loc, player,
+         * start, end, se.z, se.x, nw.z, nw.x) → wire offsets from loc tile. */
+        int32_t start_cycle;
+        int32_t end_cycle;
+        int32_t se;
+        int32_t nw;
+        struct Mock230SceneLoc* loc = script_active_loc(state);
+        int east;
+        int south;
+        int west;
+        int north;
+
+        if( !SSVM_PopInt(state, &nw) )
+            return 1;
+        if( !SSVM_PopInt(state, &se) )
+            return 1;
+        if( !SSVM_PopInt(state, &end_cycle) )
+            return 1;
+        if( !SSVM_PopInt(state, &start_cycle) )
+            return 1;
+        if( !loc )
+        {
+            SSVM_Abort(state, "p_locmerge with no active loc");
+            return 1;
+        }
+        east = coord_x(se) - loc->x;
+        south = coord_z(se) - loc->z;
+        west = coord_x(nw) - loc->x;
+        north = coord_z(nw) - loc->z;
+        mock230_zone_loc_merge(
+            srv, loc->x, loc->z, loc->level, loc->shape, loc->angle, loc->loc_id,
+            (int)start_cycle, (int)end_cycle, player->pid, east, south, west, north);
+        return 1;
+    }
 
     /*
      * The overhead icons, as an int content owns outright.
