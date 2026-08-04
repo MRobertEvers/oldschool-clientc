@@ -9712,22 +9712,92 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
 }
 
 /*
- * A real drag was released at (mx, my): find the destination slot in the
- * container the drag started from, and tell the server.
+ * A real drag was released at (mx, my): find the destination slot — any
+ * container that IF_SETEVENTS armed as a drag target (bit 20), not only the
+ * source — and tell the server (deob field804 / method1239 IfButtonD).
  *
- * The destination lookup is NOT app_obj_cell_at. An empty slot is a legal
- * drop target and is exactly what a hit-test cannot see: a TYPE_INV grid has
- * no obj there, and rev 230's paint script hides the child of an empty cell
- * outright. Each shape therefore resolves its own way — the grid by its slot
- * geometry, the CS2 container by walking its (laid-out, possibly hidden)
- * children.
+ * An empty slot is a legal drop target and is exactly what a filled-cell
+ * hit-test cannot see: a TYPE_INV grid has no obj there, and rev 230's paint
+ * script hides the child of an empty cell outright. Filled cells go through
+ * UITree_ObjCellAt; empty CS2 slots walk each drag-target parent's children.
  *
  * CS1 / dat1 (2004 Client.ts): optimistic InvManager swap then classic
- * INV_BUTTOND with a mode byte. CS2 / rev-230 (Deobfuscator class415): no
- * local item mutation — fire onDragComplete, then the dual-endpoint
- * IfButtonD packet; the server UPDATE_INV (or the hook's own paint) moves
- * the pixels.
+ * INV_BUTTOND with a mode byte (same-container only). CS2 / rev-230
+ * (Deobfuscator class415): no local item mutation — fire onDragComplete, then
+ * the dual-endpoint IfButtonD packet; the server UPDATE_INV (or the hook's own
+ * paint) moves the pixels.
  */
+static int
+app_inv_resolve_drop(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int* out_com,
+    int* out_slot,
+    int* out_obj,
+    int32_t* out_node)
+{
+    struct UITreeObjCell dest;
+    int i;
+
+    *out_com = -1;
+    *out_slot = -1;
+    *out_obj = -1;
+    *out_node = -1;
+
+    /* Filled cell under the cursor (any container). */
+    if( UITree_ObjCellAt(app->tree, &app->ui_host, mouse_x, mouse_y, &dest) )
+    {
+        int events = (int)app_if_events_for_node(app, dest.component_id);
+        UITree_ObjCellApplyEvents(&dest, events);
+        /* CS1 / no events: can_drop stays 1 from the grid default. */
+        if( dest.can_drop )
+        {
+            *out_com = dest.component_id;
+            *out_slot = dest.slot;
+            *out_node = dest.node_index;
+            if( dest.kind == UITREE_OBJ_CELL_GRID )
+            {
+                struct InvSlot inv_slot;
+                if( InvManager_GetSlot(&app->invs, dest.inv_source_id, dest.slot, &inv_slot) &&
+                    inv_slot.obj_id > 0 )
+                    *out_obj = inv_slot.obj_id;
+            }
+            else if( dest.obj_id > 0 )
+            {
+                *out_obj = dest.obj_id;
+            }
+            return 1;
+        }
+    }
+
+    /* Empty CS2 slots: walk every IF_SETEVENTS entry with bit 20. */
+    for( i = 0; i < app->if_event_count; i++ )
+    {
+        int com = app->if_events[i].com_id;
+        int events = app->if_events[i].events;
+        int32_t node = -1;
+        int slot;
+
+        if( (events & UITREE_FLAG_DRAG_ON) == 0 )
+            continue;
+        slot = UITree_ObjCellDynamicSlotNodeAt(app->tree, com, mouse_x, mouse_y, &node);
+        if( slot < 0 )
+            continue;
+        /* from/to of -1 mean a plain widget (not a sub-id range). */
+        if( app->if_events[i].from >= 0 && app->if_events[i].to >= 0 &&
+            (slot < app->if_events[i].from || slot > app->if_events[i].to) )
+            continue;
+        *out_com = com;
+        *out_slot = slot;
+        *out_node = node;
+        if( node >= 0 && app->tree->components[node].item_id > 0 )
+            *out_obj = app->tree->components[node].item_id;
+        return 1;
+    }
+    return 0;
+}
+
 static void
 app_inv_drag_drop(
     struct App* app,
@@ -9737,64 +9807,53 @@ app_inv_drag_drop(
     int to_slot = -1;
     int src_obj = -1;
     int dst_obj = -1;
-    int dst_com = app->inv_drag_com_id;
+    int dst_com = -1;
     int32_t src_node = -1;
     int32_t dst_node = -1;
 
     if( app->inv_drag_source_id >= 0 )
     {
-        struct UITreeObjCell dest;
         struct InvSlot inv_slot;
-        if( UITree_ObjCellAt(app->tree, &app->ui_host, mouse_x, mouse_y, &dest) &&
-            dest.kind == UITREE_OBJ_CELL_GRID && dest.inv_source_id == app->inv_drag_source_id )
-            to_slot = dest.slot;
         if( InvManager_GetSlot(
                 &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, &inv_slot) &&
             inv_slot.obj_id > 0 )
             src_obj = inv_slot.obj_id;
-        if( to_slot >= 0 &&
-            InvManager_GetSlot(&app->invs, app->inv_drag_source_id, to_slot, &inv_slot) &&
-            inv_slot.obj_id > 0 )
-            dst_obj = inv_slot.obj_id;
     }
     else
     {
         int obj = 0;
-        to_slot =
-            UITree_ObjCellDynamicSlotAt(app->tree, app->inv_drag_com_id, mouse_x, mouse_y);
         if( UITree_ObjCellDynamicAtSlot(
                 app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, &src_node, &obj, NULL) &&
             obj > 0 )
             src_obj = obj;
-        if( to_slot >= 0 &&
-            UITree_ObjCellDynamicAtSlot(
-                app->tree, app->inv_drag_com_id, to_slot, &dst_node, &obj, NULL) )
-        {
-            dst_obj = obj > 0 ? obj : -1;
-            /* Packet names the static parent (rsprot IfButtonD combinedId);
-             * the drag-target event below uses the child node. */
-            dst_com = app->inv_drag_com_id;
-        }
     }
 
-    if( to_slot < 0 || to_slot == app->inv_drag_from_slot )
+    if( !app_inv_resolve_drop(app, mouse_x, mouse_y, &dst_com, &to_slot, &dst_obj, &dst_node) )
+        return;
+
+    /* Same cell: not a drop. Cross-container with the same slot index is fine. */
+    if( dst_com == app->inv_drag_com_id && to_slot == app->inv_drag_from_slot )
         return;
 
     if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
     {
         /* 2004 Client.ts: apply locally so the drag feels instant; the
-         * server's UPDATE_INV echo repaints either way. */
-        if( app->inv_drag_source_id >= 0 )
+         * server's UPDATE_INV echo repaints either way. Same-container only —
+         * cross-container waits on the server. */
+        if( dst_com == app->inv_drag_com_id )
         {
-            InvManager_SwapSlots(
-                &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
-            RS_CS2Host_NotifyInvChanged(
-                &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
-        }
-        else
-        {
-            UITree_ObjCellDynamicSwap(
-                app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+            if( app->inv_drag_source_id >= 0 )
+            {
+                InvManager_SwapSlots(
+                    &app->invs, app->inv_drag_source_id, app->inv_drag_from_slot, to_slot);
+                RS_CS2Host_NotifyInvChanged(
+                    &app->host, InvManager_ContainerForSource(&app->invs, app->inv_drag_source_id));
+            }
+            else
+            {
+                UITree_ObjCellDynamicSwap(
+                    app->tree, app->inv_drag_com_id, app->inv_drag_from_slot, to_slot);
+            }
         }
         APP_NET_SEND(
             app,
@@ -9806,7 +9865,7 @@ app_inv_drag_drop(
                 app->inv_drag_com_id,
                 src_obj,
                 app->inv_drag_from_slot,
-                app->inv_drag_com_id,
+                dst_com,
                 dst_obj,
                 to_slot,
                 0));
@@ -9853,7 +9912,7 @@ app_inv_drag_drop(
         if( hook && hook->script_id > 0 )
         {
             struct UITreeRuntimeScriptHook hook_copy = *hook;
-            int target_id = app->inv_drag_com_id;
+            int target_id = dst_com;
             if( dst_node >= 0 )
                 target_id = app->tree->components[dst_node].component_id;
             RS_CS2_SetEventOp(&app->host, 1, 0);
@@ -9886,8 +9945,9 @@ app_inv_drag_drop(
 static int
 app_inv_drag_promoted(struct App const* app)
 {
+    int dead_time = app->inv_drag_dead_time > 0 ? app->inv_drag_dead_time : 5;
     return app->inv_drag_can_drag && app->inv_drag_threshold &&
-           app->inv_drag_cycles >= 5;
+           app->inv_drag_cycles >= dead_time;
 }
 
 /* Whether emit should ghost the armed slot at trans 128.
@@ -9938,6 +9998,10 @@ app_inv_drag_tick(
         struct UITreeObjCell cell;
         if( app_obj_cell_at(app, mx, my, &cell) )
         {
+            struct UITreeComponent const* node =
+                (cell.node_index >= 0 && (uint32_t)cell.node_index < app->tree->component_count)
+                    ? &app->tree->components[cell.node_index]
+                    : NULL;
             app->inv_drag_com_id = cell.component_id;
             app->inv_drag_can_drag = cell.can_drag;
             app->inv_drag_from_slot = cell.slot;
@@ -9946,6 +10010,8 @@ app_inv_drag_tick(
             app->inv_drag_grab_x = mx;
             app->inv_drag_grab_y = my;
             app->inv_drag_threshold = 0;
+            app->inv_drag_dead_zone = (node && node->drag_dead_zone) ? node->drag_dead_zone : 5;
+            app->inv_drag_dead_time = (node && node->drag_dead_time) ? node->drag_dead_time : 5;
             app->inv_drag_dx = 0;
             app->inv_drag_dy = 0;
             /* CS1 ghosts from arm; IF3 waits for promotion — no pixels change
@@ -9969,28 +10035,27 @@ app_inv_drag_tick(
     {
         int dx = mx - app->inv_drag_grab_x;
         int dy = my - app->inv_drag_grab_y;
+        int zone = app->inv_drag_dead_zone > 0 ? app->inv_drag_dead_zone : 5;
+        int dead_time = app->inv_drag_dead_time > 0 ? app->inv_drag_dead_time : 5;
         int was_promoted;
 
-        /* Non-draggable grid (equipment/worn: objSwap && objReplace both
-         * false): the press still counts as a click on release, but it never
-         * promotes to a drag — no threshold, no offset, no swap. IF1/CS1 still
-         * fades in place from arm (GET_INV_DRAG reports while ghosting); IF3
-         * does not ghost a non-promoted press. */
+        /* Non-draggable (IF_SETEVENTS drag-depth 0): the press still counts as
+         * a click on release, but it never promotes to a drag. */
         if( !app->inv_drag_can_drag )
             return;
 
         was_promoted = app_inv_drag_promoted(app);
         app->inv_drag_cycles++;
-        if( dx > 5 || dx < -5 || dy > 5 || dy < -5 )
+        if( dx > zone || dx < -zone || dy > zone || dy < -zone )
             app->inv_drag_threshold = 1;
 
-        /* Visual offset: reference zeroes each axis inside +-5px and both
-         * until the 5-cycle dead time passes. */
-        if( dx < 5 && dx > -5 )
+        /* Visual offset: reference zeroes each axis inside the dead zone and
+         * both until the dead-time cycles pass. */
+        if( dx < zone && dx > -zone )
             dx = 0;
-        if( dy < 5 && dy > -5 )
+        if( dy < zone && dy > -zone )
             dy = 0;
-        if( app->inv_drag_cycles < 5 )
+        if( app->inv_drag_cycles < dead_time )
         {
             dx = 0;
             dy = 0;

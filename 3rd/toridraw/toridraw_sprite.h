@@ -176,7 +176,8 @@ ToriDraw2D_BlitSpriteMasked(
     int y,
     int* pixel_buffer);
 
-/** RS UI graphic outline (CC_SETOUTLINE). Returns new owned buffer or NULL. */
+/** RS UI graphic outline (CC_SETOUTLINE / deob SpritePixels.method9420).
+ *  Same size as src; outline>=1 black edge, outline>=2 also white. Owned. */
 uint32_t*
 ToriDraw_SpriteNewGraphicOutline(
     uint32_t const* src,

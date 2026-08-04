@@ -6,6 +6,7 @@
 #include "uitree_scroll.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 #define UITREE_OBJ_CELL_HIT_MAX 16
 
@@ -154,7 +155,9 @@ UITree_ObjCellForNode(
 }
 
 void
-UITree_ObjCellApplyEvents(struct UITreeObjCell* cell, int events)
+UITree_ObjCellApplyEvents(
+    struct UITreeObjCell* cell,
+    int events)
 {
     assert(cell);
     if( cell->kind == UITREE_OBJ_CELL_DYNAMIC )

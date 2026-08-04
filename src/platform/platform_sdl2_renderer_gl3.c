@@ -1577,8 +1577,6 @@ gl3_sprite_ensure_variant(
             spr_px = outlined;
             sw = sw2;
             sh = sh2;
-            ox -= cmd->outline;
-            oy -= cmd->outline;
         }
     }
     if( cmd->graphic_shadow != 0 )

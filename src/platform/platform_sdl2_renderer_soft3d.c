@@ -422,17 +422,12 @@ soft3d_draw_sprite(
         {
             int cox = ox;
             int coy = oy;
-            if( cmd->outline > 0 )
-            {
-                cox -= cmd->outline;
-                coy -= cmd->outline;
-            }
             if( cmd->if3 )
             {
                 int draw_w = cmd->w > 0 ? cmd->w : nominal_w;
                 int draw_h = cmd->h > 0 ? cmd->h : nominal_h;
-                /* Scale the nominal box; crop/outline offset is already baked
-                 * into the cached image size relative to the original. */
+                /* Outline is now same-size as the source (deob method9420);
+                 * no pad offset to compensate. */
                 if( cox == 0 && coy == 0 && cw == nominal_w && ch == nominal_h )
                 {
                     ToriDraw2D_BlitArgbScaled(
@@ -477,11 +472,6 @@ soft3d_draw_sprite(
                 spr_px = copy;
                 sw = sw2;
                 sh = sh2;
-                if( cmd->outline > 0 )
-                {
-                    ox -= cmd->outline;
-                    oy -= cmd->outline;
-                }
             }
         }
     }

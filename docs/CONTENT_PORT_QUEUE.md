@@ -496,11 +496,17 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 25g | Death Plateau troll thrower | done | already troll_thrower.rs2 name-expanded |
 | 25h | Charlie the cook (Heroes) | done | charlie_the_cook.rs2 Phoenix gherkin dialogue; secret door deferred |
 | 25i | Ranging guild competition judge | done | competition_judge.rs2 enter/rules/buy arrows/reward; targets deferred |
-| 25j | Ranging guild door + doorman | in_progress | Claimed — ranging_guild_door; do not steal |
-| 25k | Ranging guild guard + tribal | in_progress | Claimed with 25j batch |
-| 25l | Ranging leatherworker | in_progress | Claimed with 25j batch |
-| 25m | Ranging guild targets | in_progress | Claimed with 25j batch |
-| 8 | Outward areas / remaining quests / minigames | pending | After 25i: lavafish_loc / ranging targets / CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent) |
+| 25j | Ranging guild door + doorman | done | ranging_guild_door walk-through + doorman Talk |
+| 25k | Ranging guild guard + tribal | done | ranging_guild_npcs.rs2 Talk + Trade stub + ranged AI |
+| 25l | Ranging leatherworker | done | leatherworker Talk + @tan_leather_choices reuse |
+| 25m | Ranging guild targets | done | ranging_target Fire-at + score UI; projectile visual deferred |
+| 25n | Ranging guild tower | done | ladders + fill_towers + archer AI + advisor Talk; .npc timer refill deferred |
+| 25o | Ranging ticket exchange | done | ticket_merchant Trade stub (rangingguild_ticketexchange IF deferred) |
+| 25p | lavafish_loc | blocked | no lava-eel loc in osrs239 (npc 0_45_152_lavafish covers baiting); loc_2630 was rev254-only |
+| 25q | Wizard Tower wizards AI | done | wizard.rs2 Fire Strike AI; Grayzag deferred |
+| 25r | Party Room Megan | done | partyroom_megan beer/dance/news Talk |
+| 25s | Duel Arena Mubariz | done | mubariz info dialogue; duel engine deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | After 25s: CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent), lavafish_loc (no eel loc) |
 
 
 
@@ -1015,6 +1021,19 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 25h done: charlie_the_cook Phoenix dialogue; mock230_pack 0 errors
 
 - slice 25i done: competition_judge Talk + tickets; targets deferred; mock230_pack 0 errors
+
+- slice 25j done: ranging_guild_door walk-through + doorman; mock230_pack 0 errors
+- slice 25k done: ranging guard + tribal salesman Trade stub
+- slice 25l done: ranging leatherworker → tan_leather_choices
+- slice 25m done: ranging_target Fire-at + score; projectile deferred
+- slice 25n done: ranging tower ladders + fill_towers + archer AI + advisors; mock230_pack 0 errors
+- slice 25o done: ticket_merchant Trade stub (IF deferred); mock230_pack 0 errors (9779 scripts)
+- slice 25p blocked: lavafish_loc — no eel loc in osrs239 (npc spot covers it)
+- next pending: Grayzag / CW/Trails / remaining outward thin NPCs; skip blocked list + lavafish_loc
+
+- slice 25q done: wizard Fire Strike AI; mock230_pack 0 errors
+- slice 25r done: partyroom Megan Talk
+- slice 25s done: duel Mubariz Talk; duel engine deferred
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

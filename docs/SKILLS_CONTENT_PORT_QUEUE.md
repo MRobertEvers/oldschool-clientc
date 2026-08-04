@@ -168,11 +168,11 @@ unblocked row per tick.
 | 10 | Defence potion consume | LC | done | `defence_potion.rs2` — def +3/+10%, super +5/+15%; dose ladder |
 | 11 | Defence cape perk | wiki+cache | done | Shared `skillcape_boost.rs2` (+1 Defence); Excalibur +8 already in #1 |
 | 12 | Hitpoints regen (Rapid Heal / cape / bracelet) | LC | done | `health_regen.rs2` timer 100t / Rapid Heal 50t; cape/bracelet doubling → #15 |
-| 13 | Food consume remainder + overheal | LC | pending | `food.rs2` F2P categories + clamp-at-base heal; wiki angler/sara brew overheal + members foods + kebab effects; LC full `consume.rs2` effect scripts; pairs CONTENT 10d |
-| 14 | Life leech (Guthan's / blood / SGS) | LC | pending | Wiki leech table; needs specials (#1) + Ancient blood spells + Barrows set effect; no Guthan's heal proc on hit |
+| 13 | Food consume remainder + overheal | LC | done | Kebab random table (`kebab.rs2`); anglerfish + Sara brew overheal via `stat_boost(hitpoints,…)` (heal clamps at base). Members heal-amount table still sparse in `food.rs2` — expand as wiki rates measured. |
+| 14 | Life leech (Guthan's / blood / SGS) | SCAPE2009+Kronos | done | Guthan's 25% heal-on-hit (`guthan_set.rs2`, mid-era ArmourSet); SGS Healing Blade `sa_kind=5` (`pvm_sgs.rs2`). Ancient blood spells → #31. |
 | 15 | Hitpoints cape / desert heat / phoenix neck | wiki+cache | pending | Cape doubles regen (#12); desert heat DoT absent; phoenix necklace auto-heal absent; ring of life already landed |
 | 16 | skill_combat: crossbow / thrown / chinchompa | LC | pending | Wiki heavy/light ammo; CONTENT 8u deferred; `player_ranged.rs2` has ammo-cat checks but notes Crossbow/thrown/PvP/specs deferred; chin multi-target absent |
-| 17 | Ranged ammo ground recovery | LC | pending | Ammo consume-only in `player_ranged.rs2`; `inv_dropitem_delayed` now hosted (SCAPE2009 opcode log) — wire content drop; CONTENT 8u deferred |
+| 17 | Ranged ammo ground recovery | LC | done | `ranged_dropammo_npc` wired to `inv_dropitem_delayed` + `^dropammo_chance` (LC `player_ranged.rs2`). Holy water / PvP deferred with #16. |
 | 18 | Ranged specials (MSB/MLB/dark bow/…) | LC | pending | LC `pvm_magic_shortbow`/`longbow`/`rune_thrownaxe`; needs #1 special-attack model; Kronos §68 wildy bow specs blocked on same |
 | 19 | Dwarf multicannon | LC | pending | Wiki supplementary Ranged weapon; CONTENT 7g deferred cannonballs; no cannon setup/fire scripts in tree |
 | 20 | Ava's accumulator / ranging cape ammo-save | wiki+cache | pending | Wiki cape grants Ava's effect when equipped; no Ava device / ammo-save proc |
@@ -316,7 +316,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 
 | Slice | Opcode / surface | Why | Status |
 |---|---|---|---|
-| 17 | `inv_dropitem_delayed` | Ammo recovery after ranged shot | done (hosted) — content wire still pending on slice 17 |
+| 17 | `inv_dropitem_delayed` | Ammo recovery after ranged shot | done (hosted + content wire #17) |
 | 2 | secondary player (`.` dialect) + `MOCK230_PLAYER_MAX>1` | PvP melee/ranged/magic need `.stat` / `.queue` / `p_opplayer` against another player | blocked — host; content not ported |
 
 ## Log
@@ -357,3 +357,6 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #10 Defence potion done: `defence_potion.rs2`.
 - port #12 HP regen done: LC `health_regen` timer + Rapid Heal interval rearm in `prayer_toggle`. Cape/bracelet → #15. Next = #8.
 - port #8 Non-combat Str → blocked SCAPE2009 (barb fishing). Next = #13 food / #17 ammo.
+- port #17 ammo recovery done: LC `ranged_dropammo_npc` → `inv_dropitem_delayed`. Sibling fix: ranging_guild_guard `npc_setmode(applayer2)`.
+- port #13 food/overheal done: kebab + angler `stat_boost` + Sara brew (`4dosepotionofsaradomin`). Next = #14 leech.
+- port #14 leech done: Guthan's set + SGS Healing Blade. Blood → #31. Next = #15 HP cape/desert/phoenix.

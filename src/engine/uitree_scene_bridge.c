@@ -797,8 +797,8 @@ bridge_rasterize_obj_icon(
         ToriDraw_SpritePostprocessObjIconOutlineColor(
             sprite->pixels_argb, sprite->width, sprite->height, 0xFFFFFFFFu);
 
-    /* Match Soft3D's draw-time outline=1: pad + black neighbour dilate. Bake
-     * once so dense grids (collection log) skip per-frame calloc/outline. */
+    /* Match Soft3D's draw-time outline=1: in-place black neighbour dilate
+     * (deob method9420). Bake once so dense grids skip per-frame outline. */
     if( sprite && outline == BRIDGE_ICON_OUTLINE_BLACK )
     {
         int ow = 0;

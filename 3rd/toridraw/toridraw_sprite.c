@@ -713,70 +713,62 @@ ToriDraw_SpriteNewGraphicOutline(
     int* out_w,
     int* out_h)
 {
-    if( outline <= 0 || !src )
+    /* Match deob SpritePixels.method9420 (in-place, same size, 4-connected):
+     * outline>=1 paints nearly-black (colour 1); outline>=2 then paints white.
+     * Do NOT expand the buffer — Soft3D/GL3 scale the result into the widget
+     * rect, and an expanded pad shrinks the art into a false white/black ring
+     * (MTA chrome / shop icons). Widget.method6533's pad(borderType) is a
+     * separate within-canvas margin step the cache already baked when needed. */
+    uint32_t* dst;
+    int pass;
+    int passes;
+
+    if( outline <= 0 || !src || sw <= 0 || sh <= 0 )
         return NULL;
 
-    int pad = outline;
-    int dw = sw + pad * 2;
-    int dh = sh + pad * 2;
-    uint32_t* dst = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
+    dst = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
     if( !dst )
         return NULL;
+    memcpy(dst, src, (size_t)sw * (size_t)sh * sizeof(uint32_t));
 
-    for( int y = 0; y < dh; y++ )
+    passes = outline >= 2 ? 2 : 1;
+    for( pass = 0; pass < passes; pass++ )
     {
-        for( int x = 0; x < dw; x++ )
-        {
-            int sx = x - pad;
-            int sy = y - pad;
-            if( sx >= 0 && sx < sw && sy >= 0 && sy < sh &&
-                toridraw_sprite_pixel_opaque(src[sy * sw + sx]) )
-                dst[y * dw + x] = src[sy * sw + sx];
-        }
-    }
+        /* Deob: method9420(1) then method9420(16777215). Colour 1 is nearly
+         * black in the RS palette; keep opaque ARGB for our blitter. */
+        uint32_t outline_rgb = pass == 0 ? 0xFF000001u : 0xFFFFFFFFu;
+        uint32_t* next = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
+        int y;
+        int x;
 
-    for( int pass = 0; pass < (outline >= 2 ? 2 : 1); pass++ )
-    {
-        uint32_t outline_rgb = pass == 0 ? 0xFF000000u : 0xFFFFFFFFu;
-        uint32_t* next = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
         if( !next )
-            break;
-        memcpy(next, dst, (size_t)dw * (size_t)dh * sizeof(uint32_t));
-
-        for( int y = 0; y < dh; y++ )
         {
-            for( int x = 0; x < dw; x++ )
+            free(dst);
+            return NULL;
+        }
+        memcpy(next, dst, (size_t)sw * (size_t)sh * sizeof(uint32_t));
+
+        for( y = 0; y < sh; y++ )
+        {
+            for( x = 0; x < sw; x++ )
             {
-                if( toridraw_sprite_pixel_opaque(dst[y * dw + x]) )
+                int idx = y * sw + x;
+                if( toridraw_sprite_pixel_opaque(dst[idx]) )
                     continue;
-                bool neighbor = false;
-                for( int oy = -1; oy <= 1 && !neighbor; oy++ )
-                {
-                    for( int ox = -1; ox <= 1; ox++ )
-                    {
-                        if( ox == 0 && oy == 0 )
-                            continue;
-                        int nx = x + ox;
-                        int ny = y + oy;
-                        if( nx < 0 || ny < 0 || nx >= dw || ny >= dh )
-                            continue;
-                        if( toridraw_sprite_pixel_opaque(dst[ny * dw + nx]) )
-                        {
-                            neighbor = true;
-                            break;
-                        }
-                    }
-                }
-                if( neighbor )
-                    next[y * dw + x] = outline_rgb;
+                /* 4-connected only (deob method9420). */
+                if( (x > 0 && toridraw_sprite_pixel_opaque(dst[idx - 1])) ||
+                    (y > 0 && toridraw_sprite_pixel_opaque(dst[idx - sw])) ||
+                    (x < sw - 1 && toridraw_sprite_pixel_opaque(dst[idx + 1])) ||
+                    (y < sh - 1 && toridraw_sprite_pixel_opaque(dst[idx + sw])) )
+                    next[idx] = outline_rgb;
             }
         }
         free(dst);
         dst = next;
     }
 
-    *out_w = dw;
-    *out_h = dh;
+    *out_w = sw;
+    *out_h = sh;
     return dst;
 }
 

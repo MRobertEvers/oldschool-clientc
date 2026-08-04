@@ -117,7 +117,7 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 5c | minigame: Barrows puzzle/overlay | done | Overlay IF 24 on tunnel enter; puzzle IF 25 on chest-ring doors; wrong→shuffle `%barrows`; `::barrowspuzzle`; scripts 7789; pack 0 errors |
 | 6g | minigame: Pest Control AI | done | Idle pests path+hit Void Knight; spinners heal nearest portal; zeal on any pest/portal hit; cats `pest_*`; barricade/splatter/shifter→6h; scripts 7914; pack 0 errors |
 | 6h | minigame: Pest Control pest specials | done | Ravager smash via OBJECT_OFFSETS+`loc_change`; splatter explode on barricade/`ai_queue3`; shifter tele when >5 from target; `pest_specials.rs2`; scripts 9686; pack 0 errors |
-| 7b | minigame: Pyramid Plunder rooms | done | Overlay IF 428; spears Pass; doors Pick-lock→rooms 2–8; sarcophagus Open; grand gold chest Search; urn artifacts by room; snake charm deferred; `::ntkplunder`/`::ntkroom`; scripts 8056; pack 0 errors |
+| 7b | minigame: Pyramid Plunder rooms | done | Overlay IF 428; spears Pass; doors Pick-lock→rooms 2–8; sarcophagus Open; grand gold chest Search; urn artifacts by room; snake charm→7c; `::ntkplunder`/`::ntkroom`; scripts 8056; pack 0 errors |
 | 7 | minigame: Pyramid Plunder | done | Entrance + mummy join + 5-min timer + leave + room1 urns; spears/doors 2–8/chest/overlay IF →7b; `::ntkplunder`; scripts 5028; pack 0 errors |
 | 8 | minigame: Puro-Puro | done | Zanaris enter/leave + wheat push (Hunter 17); crop-circle/wilt/Elnock →8b; `::puropuro`/`::puromaze`; scripts 5075; pack 0 errors |
 | 8b | minigame: Puro-Puro crop-circle/Elnock | done | Rotating Gielinor circles (`loc_add`); maze wilt pulse; Elnock dialogue+exchange+jar gen; storage/scroll overlay deferred; `::purocircle`; scripts 8203; pack 0 errors |
@@ -141,7 +141,8 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 20 | bosses: Giant Mole | done | Park dig (6 hills) + light gate + rope exit; mole AI/drops/Wyson deferred; `::giantmole`; scripts 5176; pack 0 errors |
 | 20b | bosses: Giant Mole AI/drops | done | Burrow dig on hit (24% HP 6–99); always claw/skin/big bones + main table; Wyson nest trade; mud extinguish deferred→20c; `::moleboss`; scripts 8728; pack 0 errors |
 | 20c | bosses: Giant Mole mud extinguish | done | Burrow `huntall` mud: extinguish open lights (candle/torch/oil lamp); closed lanterns OK; `darkness_medium` (not IF 226/`deadmanprotect`); `::molemud`; scripts 9576; pack 0 errors |
-| 7c | minigame: Pyramid Plunder snake charm | pending | Snake charm on urns (deferred from 7b) |
+| 7c | minigame: Pyramid Plunder snake charm | done | Check for Snakes→state2; Charm Snake (`snake_flute`)+state3; charmed Search easier roll+66% XP; bite dmg+poison; `::ntkcharm`; scripts 9739; pack 0 errors |
+| 8c | minigame: Puro-Puro storage/scroll | pending | Impling storage / scroll overlay (deferred from 8b) |
 | 21 | quest: Priest in Peril / Nature Spirit | lc | LC has `quest_priestperil` + `quest_druidspirit` — port via CONTENT_PORT_QUEUE |
 | 22 | quest: Recruitment Drive | done | Start: Amik→Tiffy (`rd_teleporter_guy`)→grounds (`m38_77`); quit portals; `%rd_main`; puzzles/shuffle deferred; `::rd`; scripts 5278; pack 0 errors |
 | 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; dig/brooch→23b; Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
@@ -196,6 +197,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 
 ## Log
 
+- slice 7c done (PP snake charm): LC none; Check for Snakes → `%ntk_urn*_state`=2; Charm Snake needs `snake_flute` →=3; Search closed/snake hard roll (room×4), charmed easier (room×2) + 66% XP; bite 1–4 + poison; slot via multi parent `loc_type`; `::ntkcharm`; scripts 9739; pack 0 errors; next=8c Puro-Puro storage/scroll
 - slice 6h done (pest barricade/splatter/shifter): LC none; ravager seeks 2009scape OBJECT_OFFSETS smashables (`loc_change` damage chain); splatter detonates beside barricade + on `ai_queue3` (GFX `splatter_exploding_spotanim*`, blast `huntall`/`npc_huntall`); shifter teleports beside hero when >5 tiles (`shifter_teleport_spotanim` + `pest_shifter_teleportattack`); scripts 9686; pack 0 errors; next=7c Pyramid Plunder snake charm
 - slice 3f done (slayer mirror/gargoyle/banshee): LC none; basilisk/cockatrice need `slayer_mirror_shield` else 0 player dmg + NPC force-11 + 25% combat drains; banshee need earmuffs/helm else 0 player dmg + force-8 + 50% drains + 40% stun; gargoyle finisher `slayer_rock_hammer` HP≤10; hooks in `slayer_cap_finish_damage` / `slayer_on_npc_hit_player` / `slayer_after_player_hit`; `::slayergarg`/`::slayermirror`/`::slayerbanshee`; scripts 9636; pack 0 errors; next=6h pest AI specials
 - slice 20c done (mole mud extinguish): LC none; 2009scape `GiantMoleNPC.splatterMud` + `LightSource.open`; burrow `huntall` → extinguish open candle/torch/oil lamp (`inv_del`+`inv_add`); closed lanterns skip; no light → `if_openoverlay(darkness_medium)` (cache IF 226 is `deadmanprotect`, not mud splash); `::molemud`; scripts 9576; pack 0 errors; next=3f slayer mirror/gargoyle/banshee

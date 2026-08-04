@@ -710,13 +710,15 @@ struct App
      * INV_BUTTOND. CS2 release: onDragComplete + dual-endpoint IfButtonD,
      * no local item mutation (rev-230 deob). */
     int inv_drag_com_id;
-    int inv_drag_can_drag; /* armed grid's objSwap||objReplace (drag allowed) */
+    int inv_drag_can_drag; /* armed cell's IF_SETEVENTS drag-depth != 0 */
     int inv_drag_from_slot;
     int inv_drag_source_id; /* inv container source id */
     int inv_drag_cycles;
     int inv_drag_grab_x; /* mouse at arm time (reference objGrabX/Y) */
     int inv_drag_grab_y;
-    int inv_drag_threshold; /* moved >5px since arm (objGrabThreshold) */
+    int inv_drag_threshold; /* moved past dead zone since arm (objGrabThreshold) */
+    int inv_drag_dead_zone; /* px; from widget, else 5 */
+    int inv_drag_dead_time; /* cycles; from widget, else 5 */
     int inv_drag_dx;        /* emit offset for the armed slot (deadzoned) */
     int inv_drag_dy;
 
