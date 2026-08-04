@@ -303,10 +303,10 @@ invented. Tables: `local_commands.py` → `cs2_command.gen.h`, and
 
 | Op | Arity | Source | Runtime |
 |---|---|---|---|
-| 211 | `(3i)->(1i)` | script 9181 decompile survivors | StackMetaStub (known) |
+| 211 | `(3i)->(1i)` | script 9181 | **real** — `IF_CHILDREN_COLLECT` |
 | 212 | `(1i)->(1i)` | 9179/9186 after `.cc_find` | real — children-find + count |
 | 213 | `()->(1i)` | same as FINDNEXTID 204/206 | real — alias |
-| 215 | `()->(1s)` | 9181 → array handle for 8003 | StackMetaStub (known) |
+| 215 | `()->(1s)` | 9181 → array handle for 8003 | **real** — `CHILDREN_ARRAY` |
 | 4036 | `(1s)->(1i)` | xrsps `STRING_TO_INT` | real |
 | 8003 | `(1s)->(1i)` | xrsps `ARRAY_LENGTH` | real |
 | 8012 | `(1s)->()` | 9194 after sort; meaning unknown | StackMetaStub (known) |

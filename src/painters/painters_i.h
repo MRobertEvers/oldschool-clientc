@@ -234,31 +234,4 @@ scenery_blocked_by_stack_base(
     return 0;
 }
 
-/**
- * Emit every undrawn RAISED scenery on this tile (Client-TS elevated
- * GroundObject at tile completion). Marks them drawn.
- */
-static inline void
-painter_emit_raised_scenery(
-    struct Painter* painter,
-    struct PaintersBuffer* buffer,
-    struct PaintersTile* tile,
-    void (*emit_fn)(struct PaintersBuffer*, int))
-{
-    assert(painter && buffer && tile && emit_fn);
-    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
-    {
-        int si = painter->scenery_pool[sn].element_idx;
-        struct ElementPaint* ep = &painter->element_paints[si];
-        struct PaintersElement* el;
-        if( ep->drawn )
-            continue;
-        el = &painter->elements[si];
-        if( !scenery_is_raised(el) )
-            continue;
-        ep->drawn = true;
-        emit_fn(buffer, el->_scenery.entity);
-    }
-}
-
 #endif

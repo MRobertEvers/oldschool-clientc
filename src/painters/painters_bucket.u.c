@@ -683,6 +683,10 @@ painter_paint_bucket(
             struct PaintersElement* element = &elements[si];
             assert(element->kind == PNTRELEM_SCENERY);
 
+            /* RAISED ground items emit at tile completion, not here. */
+            if( scenery_is_raised(element) )
+                continue;
+
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
             int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -723,6 +727,9 @@ painter_paint_bucket(
                 if( !all_base )
                     break;
             }
+
+            if( all_base && scenery_blocked_by_stack_base(painter, tile, element) )
+                all_base = 0;
 
             if( all_base && n_visit < (int)(sizeof(visit_sc) / sizeof(visit_sc[0])) )
                 visit_sc[n_visit++] = si;
@@ -780,10 +787,32 @@ painter_paint_bucket(
         }
         /* Emitting scenery defers near-wall completion until a later visit (world3d parity). */
         if( some_drawn || n_visit > 0 )
+        {
+            /* Containment: if a STACK_BASE was drawn but a contained loc remains
+             * blocked, ensure this tile is revisited (footprint push usually
+             * covers it; push explicitly when nothing was footprint-pushed). */
+            if( blocked_undrawn && !some_drawn )
+                bucket_push_if_active(w, paints, e_tile, tile_dist);
             continue;
+        }
 
         if( blocked_undrawn )
             continue;
+
+        /* Elevated ground items (RAISED) before near walls — Client-TS parity. */
+        for( int32_t sn = tile->scenery_head; sn != -1; sn = scenery_pool[sn].next )
+        {
+            int si = scenery_pool[sn].element_idx;
+            struct ElementPaint* ep = &element_paints[si];
+            struct PaintersElement* el;
+            if( ep->drawn )
+                continue;
+            el = &elements[si];
+            if( !scenery_is_raised(el) )
+                continue;
+            ep->drawn = true;
+            bucket_emit_entity(&cmd_cur, cmd_end, el->_scenery.entity);
+        }
 
         {
             struct SceneOccluders* occ = painter->occluders;

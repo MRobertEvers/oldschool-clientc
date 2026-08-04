@@ -1537,6 +1537,23 @@ UITree_InterfaceParentIsMountedGroup(
     int group_id);
 
 /**
+ * Reclaim every root of interface `group_id` (and its subtree).
+ *
+ * Used when closing or replacing a mount in `chatbox:chatmodal`: dialogue
+ * packs (chat_left / chat_right / chatmenu / …) must not linger as hidden
+ * nodes, or the next IF_SETTEXT can update a shadowed copy while a remount
+ * reuses the bake and draws a previous conversation's string. Inventory
+ * panels keep the hide-and-reuse path; only chatmodal calls this.
+ *
+ * Same root selection as the hide-on-close loop: a node whose parent is also
+ * in `group_id` is pack-internal and is reclaimed with its ancestor.
+ */
+void
+UITree_ReclaimInterfaceGroup(
+    struct UITree* tree,
+    int group_id);
+
+/**
  * Mount type of `child` when it is the root of a sub-interface mounted under
  * `container_uid` (0 modal, 1 overlay, 3 tab/sidemodal — IF_OPENSUB's own
  * argument), or -1 when it is an ordinary child.

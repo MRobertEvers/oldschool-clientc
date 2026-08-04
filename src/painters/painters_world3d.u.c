@@ -601,6 +601,7 @@ painter_paint_world3d(
             wp->draw_primaries = 0;
             int buf_si[100];
             int buf_n = 0;
+            int some_drawn = 0;
 
             for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
             {
@@ -611,6 +612,11 @@ painter_paint_world3d(
 
                 element = &painter->elements[si];
                 assert(element->kind == PNTRELEM_SCENERY);
+
+                /* RAISED ground items emit at tile completion (Client-TS
+                 * GroundObject.height != 0), not in the scenery pass. */
+                if( scenery_is_raised(element) )
+                    continue;
 
                 int blocked = 0;
                 int fp_min_x = element->sx;
@@ -648,15 +654,13 @@ painter_paint_world3d(
                         }
                     }
                 }
+                if( !blocked && scenery_blocked_by_stack_base(painter, tile, element) )
+                {
+                    wp->draw_primaries = 1;
+                    blocked = 1;
+                }
                 if( !blocked )
                 {
-                    int dist_x = (eye_ix - fp_min_x) > (fp_max_x - eye_ix) ? (eye_ix - fp_min_x)
-                                                                           : (fp_max_x - eye_ix);
-                    int dz_a = eye_iz - fp_min_z;
-                    int dz_b = fp_max_z - eye_iz;
-                    int dz = dz_a > dz_b ? dz_a : dz_b;
-                    (void)dist_x;
-                    (void)dz;
                     if( buf_n < 100 )
                     {
                         buf_si[buf_n] = si;
@@ -669,25 +673,47 @@ painter_paint_world3d(
             {
                 int best_i = -1;
                 int best_d = -999999;
+                int best_dsq = -1;
                 for( int i = 0; i < buf_n; i++ )
                 {
                     int si = buf_si[i];
-                    element = &painter->elements[si];
-                    int min_x = element->sx;
-                    int min_z = element->sz;
-                    int max_x = min_x + element->_scenery.size_x - 1;
-                    int max_z = min_z + element->_scenery.size_z - 1;
-                    int dist_x =
-                        (eye_ix - min_x) > (max_x - eye_ix) ? (eye_ix - min_x) : (max_x - eye_ix);
-                    int dz_a = eye_iz - min_z;
-                    int dz_b = max_z - eye_iz;
-                    int dz = dz_a > dz_b ? dz_a : dz_b;
-                    int d = dist_x + dz;
+                    int min_x;
+                    int min_z;
+                    int max_x;
+                    int max_z;
+                    int dist_x;
+                    int dz_a;
+                    int dz_b;
+                    int dz;
+                    int d;
+                    int mid_x;
+                    int mid_z;
+                    int dx;
+                    int dz_w;
+                    int dsq;
                     if( painter->element_paints[si].drawn )
                         continue;
-                    if( d > best_d )
+                    element = &painter->elements[si];
+                    min_x = element->sx;
+                    min_z = element->sz;
+                    max_x = min_x + element->_scenery.size_x - 1;
+                    max_z = min_z + element->_scenery.size_z - 1;
+                    dist_x =
+                        (eye_ix - min_x) > (max_x - eye_ix) ? (eye_ix - min_x) : (max_x - eye_ix);
+                    dz_a = eye_iz - min_z;
+                    dz_b = max_z - eye_iz;
+                    dz = dz_a > dz_b ? dz_a : dz_b;
+                    d = dist_x + dz;
+                    /* Modern deob tie-break: equal key → larger squared XZ dist. */
+                    mid_x = min_x + max_x;
+                    mid_z = min_z + max_z;
+                    dx = mid_x - 2 * eye_ix;
+                    dz_w = mid_z - 2 * eye_iz;
+                    dsq = dx * dx + dz_w * dz_w;
+                    if( d > best_d || (d == best_d && dsq > best_dsq) )
                     {
                         best_d = d;
+                        best_dsq = dsq;
                         best_i = i;
                     }
                 }
@@ -699,6 +725,7 @@ painter_paint_world3d(
 
                 element_paint = &painter->element_paints[si];
                 element_paint->drawn = true;
+                some_drawn = 1;
                 element = &painter->elements[si];
                 assert(element->kind == PNTRELEM_SCENERY);
                 if( !(painter->occluders &&
@@ -747,7 +774,14 @@ painter_paint_world3d(
             }
 
             if( wp->draw_primaries )
+            {
+                /* Containment deferral: a STACK_BASE drawn on this tile does not
+                 * re-queue tile_idx itself. Push so the blocked contained loc
+                 * retries in the same wave. */
+                if( some_drawn )
+                    w3d_link_push(painter, tile_idx);
                 continue;
+            }
         }
 
         if( !wp->draw_back )
@@ -780,6 +814,21 @@ painter_paint_world3d(
 
         wp->draw_back = 0;
         tiles_remaining--;
+
+        /* Elevated ground items (RAISED): after all locs, before near walls —
+         * Client-TS World.fill elevated GroundObject at tile completion. */
+        for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+        {
+            int si = painter->scenery_pool[sn].element_idx;
+            element_paint = &painter->element_paints[si];
+            if( element_paint->drawn )
+                continue;
+            element = &painter->elements[si];
+            if( !scenery_is_raised(element) )
+                continue;
+            element_paint->drawn = true;
+            push_command_entity(buffer, element->_scenery.entity);
+        }
 
         painter_w3d_emit_near_wall_pass(painter, buffer, tile, camera_sx, camera_sz, tile_paint);
         tile_paint->step = PAINT_STEP_DONE;
