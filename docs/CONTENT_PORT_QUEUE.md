@@ -8,6 +8,11 @@ Loop prompt: read this file + PORTING_GUIDE §4; port the next pending unblocked
 slice; verify (`mock230_pack --check-only`, scripts build); update this file;
 re-arm. Stop only when the user stops the loop.
 
+**Do not park sibling lanes.** Never rename `skill_construction/` →
+`skill_construction.skip`, `*.rs2.skip` POH/MTA scripts, or delete another
+queue's tree to green your compile. Fix your slice. See `CLAUDE.md`,
+PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
+
 | # | Slice | Status | Notes |
 |---|---|---|---|
 | 0 | Queue tracker | done | This file |
@@ -332,7 +337,33 @@ re-arm. Stop only when the user stops the loop.
 | 19j | Chadwell (W. Ardougne) | done | chadwell Talk + Trade stub |
 | 19k | West Ardougne recruiter | done | recruiter + citizen npc_say; .npc→finduid restore |
 | 19l | Zanaris thin NPCs | done | fairy_queen + jakut/irksol Trade stubs |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers / CW / Trails; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large) |
+| 19m | Miscellania veg monger | done | misc_veg_monger Trade stub |
+| 19n | Miscellania fish monger | done | misc_fish_monger Trade stub |
+| 19o | W. Ardougne priest | done | w_ardoungepriest Talk-to |
+| 19p | W. Ardougne child | done | w_ardoungechild1 + dskin Talk-to |
+| 19q | Canifis Fidelio | done | werewolfshopkeeper3 Trade stub |
+| 19r | Canifis Rufus | done | werewolfshopkeeper1 Trade stub |
+| 19s | Zanaris Lunderwin | done | fairy_lunderwin cabbage buy |
+| 19t | Zanaris ladder exit | done | fairy_ladder_attendant + zanarisladderout |
+| 19u | Karamja Jiminua | done | jiminua Trade stub |
+| 19v | Shilo Obli | done | shilogeneralstore Trade stub |
+| 19w | Shilo Fernahei | done | shilofishowner Trade stub |
+| 19x | Velrak (Taverley dung.) | done | velrak_the_explorer dusty_key |
+| 19y | Kalphite old man | done | kalphite_oldman Talk-to |
+| 19z | W. Ardougne Carla | done | carla Talk-to plague dialogue |
+| 20a | Miscellania flower girl | done | misc_flowergirl 15gp→flowers_waterfall_quest |
+| 20b | Canifis Sbott tanner | done | werewolftanner Talk + shared tan labels @ 2/5/45gp |
+| 20c | Bedabin nomad | done | bedabin Talk + Trade stub; pineapple arm on %desertrescue |
+| 20d | Misc approval dialogue | done | ^misc_complete + approval % dialogue + man_misc_chatanim |
+| 20e | Gardener Gunnhild | done | misc_gardener Talk + iron sickle sale; weeding intercept deferred |
+| 20f | Lumberjack Leif | done | misc_lumberjack Talk; woodcut intercept deferred |
+| 20g | Miner Magnus | done | misc_miner Talk; mining intercept deferred |
+| 20h | Fisherman Frodi | done | misc_fisherman Talk; fishing intercept deferred |
+| 20i | Misc/Etceteria people | done | misc_man/woman + etc Talk/Attack; approval drain on kill |
+| 20j | Seravel ship tickets | done | shiloshiptickets 25gp→shiloshipticket |
+| 20k | Canifis building stairs | done | building_steps_up/down telejump by angle |
+| 20l | Gunnjorn (Barb. Outpost) | done | gunnjorn course greeting; Horror key arms deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers (W. Ardougne man/weed_herbs/bedabin_guard…); CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms |
 
 
 
@@ -671,6 +702,47 @@ re-arm. Stop only when the user stops the loop.
 - slice 19j done: Chadwell W. Ardougne Trade stub; mock230_pack 0 errors (6035 scripts)
 - slice 19k done: recruiter + citizen npc_say (finduid restore); mock230_pack 0 errors (6035 scripts)
 - slice 19l done: Zanaris fairy_queen + jakut/irksol Trade stubs; mock230_pack 0 errors (6035 scripts)
-- next pending: outward leftovers / CW / Trails (large); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large)
+- slice 19m done: Miscellania misc_veg_monger Trade stub; mock230_pack 0 errors
+- slice 19n done: Miscellania misc_fish_monger Trade stub; mock230_pack 0 errors
+- slice 19o done: W. Ardougne priest; mock230_pack 0 errors
+- slice 19p done: W. Ardougne child Talk-to; mock230_pack 0 errors
+- slice 19q done: Canifis Fidelio Trade stub; mock230_pack 0 errors
+- slice 19r done: Canifis Rufus Trade stub; mock230_pack 0 errors
+- slice 19s done: Zanaris Lunderwin cabbage buy; mock230_pack 0 errors
+- slice 19t done: Zanaris ladder attendant + exit; mock230_pack 0 errors
+- slice 19u done: Karamja Jiminua Trade stub; mock230_pack 0 errors
+- slice 19v done: Shilo Obli Trade stub; mock230_pack 0 errors
+- slice 19w done: Shilo Fernahei Trade stub; mock230_pack 0 errors
+- slice 19x done: Velrak dusty_key; mock230_pack 0 errors
+- slice 19y done: Kalphite old man; mock230_pack 0 errors
+- slice 19z done: W. Ardougne Carla; mock230_pack 0 errors (6282 scripts)
+- note: CW/Trails deferred (large IF1/minigame); concurrent MTA/construction WIP kept .skip to unblock compile; stripped transient MTA hooks from alchemy/enchant/convert_bones
+- slice 20a done: Miscellania flower_girl 15gp→flowers_waterfall_quest; mock230_pack 0 errors (6452 scripts)
+- slice 20b done: Canifis Sbott werewolftanner + shared tan @ 2/5/45gp; mock230_pack 0 errors (6458 scripts)
+- slice 20c done: bedabin Talk + Trade stub + pineapple arm; ferox_upgrades.rs2.skip (concurrent WIP missing const); mock230_pack 0 errors (6477 scripts)
+- slice 20d done: misc approval dialogue + ^misc_complete + man_misc_chatanim; mock230_pack 0 errors (6518 scripts)
+- slice 20e done: Gardener Gunnhild Talk + iron sickle; mock230_pack 0 errors (6526 scripts)
+- slice 20f done: Lumberjack Leif Talk; mock230_pack 0 errors (6529 scripts)
+- slice 20g done: Miner Magnus Talk; mock230_pack 0 errors (6546 scripts)
+- slice 20h done: Fisherman Frodi Talk; mock230_pack 0 errors (6586 scripts)
+- slice 20i done: Misc/Etceteria people Talk/Attack; mock230_pack 0 errors (6632 scripts)
+- slice 20j done: Seravel shiloshiptickets 25gp sale; mock230_pack 0 errors (6635 scripts)
+- slice 20k done: Canifis building_steps telejump; mock230_pack 0 errors (6637 scripts)
+- slice 20l done: Gunnjorn course greeting (Horror key deferred); mock230_pack 0 errors (6642 scripts)
+- next pending: outward leftovers (W. Ardougne man/weed_herbs/bedabin_guard…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
+
+- **eight opcodes this queue deferred slices on are now hosted** (2026-08-04):
+  `projanim_pl` (8k, 9o), `projanim_npc` + `npc_statsub` + `p_opnpct` (8q),
+  `inv_dropitem_delayed` (8u ammo recovery), `set_player_op` (9i wilderness
+  overlay), `stat_add` (9e), `obj_find` (14m, 16y pickup clears). Plus `busy`,
+  `npc_sethuntmode` and `map_multiway`, named on the other queues. Each of those
+  slices stays as landed — the *content* is still deferred — but none of them is
+  blocked on the engine any more, so re-reading a "deferred: <opcode>" note here
+  should now mean "not written yet", never "cannot be written". The one still
+  genuinely blocked is **`cam_shake`** (19c Dig Site winch), which needs the
+  rev-230 wire opcode measured; the gap-log row in
+  [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) records why
+  the number in the `v0/osrs` table is the wrong revision and must not be copied.
+  Full accounting of what each op needed: that queue's log, same date.

@@ -700,15 +700,34 @@ Helper. Port them as content, not as engine:
    lowercased pack names). Cross-check the osrs239 cache (`quest_*` dbrow,
    varbit basevars, CS2) for the *wire* — when they disagree, the cache wins.
    Run `tools/questhelper_extract.py <dir> --check` before writing scripts.
-4. Skip the skip-list in
+4. **Verify dialogue against the OSRS wiki**, not only the helper. Quest Helper
+   marks the critical path (`addDialogStep`, panel text); it often omits
+   refuse/busy branches, mid-quest re-talks, post-quest chatter, item-loss
+   replacements, and NPC-specific side trees. Before writing scripts, open the
+   wiki pages below (title casing matches the wiki; spaces → `_`). The helper's
+   article URL is also in
+   `quest-helper/.../questinfo/ExternalQuestResources.java`.
+
+   | What | Wiki URL pattern |
+   |---|---|
+   | Quest article / quick guide | `https://oldschool.runescape.wiki/w/<Quest_Name>` and `…/<Quest_Name>/Quick_guide` |
+   | **Full dialogue trees** | `https://oldschool.runescape.wiki/w/Transcript:<Quest_Name>` |
+   | Journal text | `https://oldschool.runescape.wiki/w/Transcript:<Quest_Name>/Journal` |
+   | Per-NPC / item side trees | `https://oldschool.runescape.wiki/w/Transcript:<Npc_or_Item>` (and any "Dialogue for …" pages linked from the quest transcript) |
+
+   Port those trees when they gate progress or players will hit them; defer only
+   with an explicit queue-log note that names the deferred transcript section.
+   When marking a slice `done`, cite the transcript URL(s) used in the queue
+   Notes / log.
+5. Skip the skip-list in
    [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md)
    (diaries, combat tasks, League variants, unresolved gamevals).
-5. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
+6. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
    Depth-first: finish every `steps.put` value before marking the slice done.
    If a new Server VM opcode is required, add it to that queue's opcode-gap
    log, implement it, then land the content — never a one-off C hook that
    content could have said once the opcode existed.
-6. Agent loop state: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md).
+7. Agent loop state: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md).
 
 ---
 
@@ -1140,6 +1159,15 @@ double misnomer; cheapest while consumers are few.
 ---
 
 ## 7. Guardrails and verification
+
+**Do not `.rs2.skip` / `dirname.skip` / delete / park another lane's landed
+content to green your compile.** That includes renaming a whole directory
+(`skill_construction` → `skill_construction.skip`) and per-file `*.rs2.skip`.
+Queues already mark live trees (`minigame_mta/`, `skill_construction/` for POH
+4a+4b). If `sscompile` fails, fix the broken file in *your* slice — silencing a
+sibling lane drops their debugprocs and op binds from `script.dat`. Parallel
+agents have repeatedly undone POH this way; it is forbidden. Cursor rule:
+`.cursor/rules/no-park-sibling-content.mdc` (alwaysApply).
 
 - **Build:** `make -C src` (plain make, not CMake). Script pack:
   `make -C src mock230-scripts`. Agents sharing the repo must set a private

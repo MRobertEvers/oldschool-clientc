@@ -8,8 +8,10 @@ Quest Helper
 (`/Users/matthewevers/Documents/git_repos/quest-helper/src/main/java/com/questhelper`)
 is the **state-machine / test guide**: each helper's `steps.put(N, …)` is the
 quest varbit progression a `.rs2` port must reproduce. It does **not** define
-implementation — dialogue trees, dig rewards, and combat come from wiki /
-cache / play, guided by the helper's step map and gameval names.
+implementation — dialogue trees (including branches the helper never lists),
+dig rewards, and combat come from the OSRS wiki transcript / cache / play,
+guided by the helper's step map and gameval names. See methodology step 5 and
+`PORTING_GUIDE` §4.6 step 4.
 
 Gameval constants (`NpcID.FOO` → `foo` in `configs/all.*.compack`) are the
 cache's own names — **no id remapping**. When the helper and the osrs239 cache
@@ -50,7 +52,24 @@ re-arm. Stop only when the user stops the loop.
 4. **Resolve names through the pack** — gameval lowercased; never copy numeric
    ids. Run `tools/questhelper_extract.py <helper-dir> --check` before writing
    scripts; unresolved names → `blocked` with the failing name, not workarounds.
-5. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
+5. **Wiki transcripts for dialogue (not just the helper).** Quest Helper is the
+   state machine / critical-path guide; it does **not** enumerate every dialogue
+   tree. Before writing scripts, open these pages (spaces → `_`; see also
+   `ExternalQuestResources.java` for the quest article URL):
+
+   | What | Wiki URL |
+   |---|---|
+   | Quest / quick guide | `https://oldschool.runescape.wiki/w/<Quest_Name>` · `…/Quick_guide` |
+   | **Dialogue trees** | `https://oldschool.runescape.wiki/w/Transcript:<Quest_Name>` |
+   | Journal | `https://oldschool.runescape.wiki/w/Transcript:<Quest_Name>/Journal` |
+   | NPC / item side trees | `https://oldschool.runescape.wiki/w/Transcript:<Name>` (follow links from the quest transcript) |
+
+   Cover refuse options, re-talks, post-quest lines, lost-item replacements, and
+   other branches the helper never `addDialogStep`s. Port when players can hit
+   them; defer only with a queue-log note naming the deferred transcript
+   section. Cite the transcript URL(s) in the row Notes / log when marking
+   `done` (`PORTING_GUIDE` §4.6 step 4).
+6. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
    `UI_ERA_PORTING_GUIDE.md`.
 
 ## Skip list (out of scope)
@@ -75,11 +94,11 @@ filed under `helpers/quests/` are at the end.
 |---|---|---|---:|---|---|
 | 0 | Queue tracker | — | — | done | This file + PORTING_GUIDE §4.6 + `tools/questhelper_extract.py` |
 | 1 | X Marks the Spot | `xmarksthespot` | 204 | done | `%cluequest` / `quest_xmarksthespot`; Veos + 4 digs + casket; `::xmarksrun` OK; scripts 6221; pack 0 errors |
-| 2 | Ribbiting Tale of a Lily Pad Labour Dispute | `theribbitingtaleofalilypadlabourdispute` | 220 | pending | |
-| 3 | Prying Times | `pryingtimes` | 247 | pending | |
-| 4 | Client of Kourend | `clientofkourend` | 257 | pending | needs #1 |
-| 5 | The Queen of Thieves | `thequeenofthieves` | 259 | pending | needs #1 |
-| 6 | The Depths of Despair | `thedepthsofdespair` | 267 | pending | needs #1 |
+| 2 | Ribbiting Tale of a Lily Pad Labour Dispute | `theribbitingtaleofalilypadlabourdispute` | 220 | done | `%frog_quest` / `quest_ribbitingtale`; Marcellus↔frogs, chop/sabotage/chest NALIA/plushy/Cuthbert; `::ribbitrun` OK; scripts 6168; pack 0 errors; deferred iface 809 dial + hop-off cutscene |
+| 3 | Prying Times | `pryingtimes` | 247 | done | `%quest_pry` / `quest_pryingtimes`; Steve+Thurgo crowbar+stout+crate; `::pryrun` OK; soft port-task/sail; sailing XP deferred; pack 0 errors |
+| 4 | Client of Kourend | `clientofkourend` | 257 | done | `%veos_progress`; houses+quill+orb; `::cokrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:Client_of_Kourend); deferred ship/lamp Rub/tele |
+| 5 | The Queen of Thieves | `thequeenofthieves` | 259 | done | `%piscquest`; Lawry→stew→Devan→Conrad→Queen→chest→Shauna; `::qotrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Queen_of_Thieves); deferred full refuse trees / shared stairs climb |
+| 6 | The Depths of Despair | `thedepthsofdespair` | 267 | done | `%hosidiusquest`; Kandur→Olivia→Galana→envoy→caves→Artur→snake→chest; `::dodrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Depths_of_Despair); deferred bookshelf RNG / fail rolls / instance / favour UI |
 | 7 | A Porcine of Interest | `aporcineofinterest` | 275 | pending | |
 | 8 | The Ascent of Arceuus | `theascentofarceuus` | 310 | pending | needs #1 |
 | 9 | Ethically Acquired Antiquities | `ethicallyacquiredantiquities` | 313 | pending | |
@@ -133,6 +152,8 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | Slice | Opcode / surface | Why | Status |
 |---|---|---|---|
 | 1 | (none) | Dig/talk/inv/varbit already expressible | confirmed — no new opcode |
+| 2 | (none) | Chest letter-dial is client iface 809; interim `mes`+letter gate | deferred UI polish, no new opcode |
+| 3 | `sailing` skill / port-task | Prying Times needs Sailing XP+level + PortTaskStep cargo | deferred — soft-skip delivery/sail; smithing XP awarded |
 
 ## Log
 
@@ -147,3 +168,35 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   MESSAGE_GAME payloads match dig→complete→OK; no new opcodes; scripts 6221;
   `mock230_pack --check-only` 0 errors; next = Ribbiting Tale (#2)
 - loop armed: AGENT_LOOP_TICK_questhelper_port every ~180s
+- slice 2 done: Ribbiting Tale — `%frog_quest` on `frog_quest_primary`,
+  Marcellus/Sue/Gary/Dave/Jane/Cuthbert dialogue, axe log + orange tree chop +
+  lily sabotage + bed letter + chest NALIA (interim) + plushy plant + Cuthbert
+  kill + rewards (1 QP, 2000 WC XP, `%frog_quest_patch_unlocked`); journal wire;
+  `::ribbitingtale` / `::ribbitrun`; headless `::ribbitrun` MESSAGE_GAME payloads
+  match chop→sabotage→chest→plant→complete→OK; pack 0 errors; next = Prying Times (#3)
+- slice 3 done: Prying Times — `%quest_pry` on `pry_main` (0/5..30→35), Steve
+  Beanie + Thurgo crowbar + sea crate stout + bar crate unlock; rewards smithing
+  1000 XP + 25 oak sawmill coupons; soft port-task/sail + Pandemonium prereq;
+  sailing XP deferred (skill not in pack/stat.pack); `::pryingtimes` / `::pryrun`;
+  headless OK; pack 0 errors; next = Client of Kourend (#4)
+- slice 4 done: Client of Kourend — `%veos_progress` on `veos_quest` (0..6→7),
+  feather→quill, five house interviews, Dark Altar orb, memoirs + 2 lamps;
+  Port Sarim Veos gate after X Marks; `::clientofkourend` / `::cokrun`; headless
+  OK; pack 0 errors; deferred ship cutscene / lamp Rub / Kourend Castle Teleport;
+  next = Queen of Thieves (#5)
+- slice 5 done: Queen of Thieves — `%piscquest` on `piscquest_main` (0..12→13);
+  Tomas Lawry / poor woman / O'Reilly stew / Warrens Devan / Murder Conrad /
+  Queen / Hughes chest letter / Shauna finish; rewards 2000 thieving XP, 2000
+  coins, `veos_memoirs_pisc_page`; wiki
+  https://oldschool.runescape.wiki/w/Transcript:The_Queen_of_Thieves + Quick_guide;
+  `::queenofthieves` / `::qotrun`; headless OK; pack 0 errors; deferred full
+  refuse/post-quest trees + Kingstown stairs (shared `fai_varrock_stairs`);
+  next = Depths of Despair (#6)
+- slice 6 done: Depths of Despair — `%hosidiusquest` on `hosidiusquest_main`
+  (0..4,6..10→11); Lord Kandur / Olivia / Galana / Varlamore envoy / Crabclaw
+  caves (crevice→stones→rocks→rope) / Artur / Sand Snake / Accord chest /
+  return; rewards 1500 agility XP, 4000 coins, `veos_memoirs_hos_page`; wiki
+  https://oldschool.runescape.wiki/w/Transcript:The_Depths_of_Despair + Quick_guide;
+  `::depthsofdespair` / `::dodrun`; headless OK; pack 0 errors; deferred
+  random library bookshelf, stone/rock fail rolls, snake instance, Butler/Elena
+  trees, favour/graceful recolour; next = Porcine of Interest (#7)

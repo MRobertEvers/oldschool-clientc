@@ -1,0 +1,139 @@
+// Mage Training Arena — Creature Graveyard.
+// Policy: 2009scape GraveyardZone / BoneType / ModernListeners.boneConvert.
+
+[proc,mta_grave_on_enter]
+%mta_grave_amt = 0;
+softtimer(mta_grave_hazard, ^mta_grave_pulse_ticks);
+
+[softtimer,mta_grave_hazard]
+if (%mta_room ! ^mta_room_grave) {
+    return;
+}
+// Falling bones: gfx at player + 2 damage (2009scape; dialogue skip deferred).
+spotanim_map(magictraining_bone_drop1, coord, 0, 0);
+damage(uid, hitsplat_damage, 2);
+softtimer(mta_grave_hazard, calc(6 + random(6)));
+
+[proc,mta_grave_bone_for_pile](loc $type)(namedobj)
+if ($type = magictraining_bones_pile1) {
+    return(magictraining_bones1);
+}
+if ($type = magictraining_bones_pile2) {
+    return(magictraining_bones2);
+}
+if ($type = magictraining_bones_pile3) {
+    return(magictraining_bones3);
+}
+if ($type = magictraining_bones_pile4) {
+    return(magictraining_bones4);
+}
+return(null);
+
+[proc,mta_grave_grab](loc $type)
+def_namedobj $bone = ~mta_grave_bone_for_pile($type);
+if ($bone = null) {
+    return;
+}
+if (inv_freespace(inv) < 1) {
+    mes("You have no free space!");
+    return;
+}
+anim(human_pickupfloor, 0);
+inv_add(inv, $bone, 1);
+
+[oploc1,magictraining_bones_pile1]
+~mta_grave_grab(loc_type);
+
+[oploc1,magictraining_bones_pile2]
+~mta_grave_grab(loc_type);
+
+[oploc1,magictraining_bones_pile3]
+~mta_grave_grab(loc_type);
+
+[oploc1,magictraining_bones_pile4]
+~mta_grave_grab(loc_type);
+
+[proc,mta_grave_bone_mult](obj $item)(int)
+if ($item = magictraining_bones1) {
+    return(1);
+}
+if ($item = magictraining_bones2) {
+    return(2);
+}
+if ($item = magictraining_bones3) {
+    return(3);
+}
+if ($item = magictraining_bones4) {
+    return(4);
+}
+return(0);
+
+[proc,mta_grave_convert](namedobj $product)
+// Convert all MTA bones (+ ordinary bones) to fruit. Returns 1 if any converted.
+def_int $total = 0;
+def_int $n;
+$n = inv_total(inv, magictraining_bones1);
+if ($n > 0) {
+    inv_del(inv, magictraining_bones1, $n);
+    $total = calc($total + calc($n * 1));
+}
+$n = inv_total(inv, magictraining_bones2);
+if ($n > 0) {
+    inv_del(inv, magictraining_bones2, $n);
+    $total = calc($total + calc($n * 2));
+}
+$n = inv_total(inv, magictraining_bones3);
+if ($n > 0) {
+    inv_del(inv, magictraining_bones3, $n);
+    $total = calc($total + calc($n * 3));
+}
+$n = inv_total(inv, magictraining_bones4);
+if ($n > 0) {
+    inv_del(inv, magictraining_bones4, $n);
+    $total = calc($total + calc($n * 4));
+}
+$n = inv_total(inv, bones);
+if ($n > 0) {
+    inv_del(inv, bones, $n);
+    $total = calc($total + $n);
+}
+if ($total < 1) {
+    return;
+}
+inv_add(inv, $product, $total);
+
+[oploc1,magictraining_grave_foodshute]
+if (%mta_room ! ^mta_room_grave) {
+    return;
+}
+def_int $bananas = inv_total(inv, banana);
+def_int $peaches = inv_total(inv, peach);
+if ($bananas < 1 & $peaches < 1) {
+    ~mesbox("You don't have any bananas or peaches to deposit.");
+    return;
+}
+def_int $total = %mta_grave_amt;
+if ($bananas > 0) {
+    inv_del(inv, banana, $bananas);
+    $total = calc($total + $bananas);
+}
+if ($peaches > 0) {
+    inv_del(inv, peach, $peaches);
+    $total = calc($total + $peaches);
+}
+if ($total >= ^mta_grave_fruit_need) {
+    $total = calc($total - ^mta_grave_fruit_need);
+    def_int $roll = random(3);
+    def_namedobj $rune = naturerune;
+    if ($roll = 1) {
+        $rune = waterrune;
+    } else if ($roll = 2) {
+        $rune = earthrune;
+    }
+    inv_add(inv, $rune, 1);
+    ~mta_add_points(^mta_room_grave, 1);
+    // 50 Magic XP → 500 tenths.
+    stat_advance(magic, 500);
+    ~mesbox("Congratulations - you've been awarded a <oc_name($rune)> and extra|magic XP.");
+}
+%mta_grave_amt = $total;

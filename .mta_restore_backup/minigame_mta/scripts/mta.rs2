@@ -1,0 +1,363 @@
+// Mage Training Arena — LIVE. DO NOT .rs2.skip / park this tree for other-lane compiles.
+// Mage Training Arena — shared lobby, points, overlays, enter/leave.
+// Policy: 2009scape MageTrainingArenaPlugin / MTAZone / EntranceGuardianDialogue.
+
+[proc,mta_has_hat]()(int)
+if (inv_total(inv, magictraining_proghat_dull) > 0) {
+    return(1);
+}
+if (inv_total(inv, magictraining_proghat_energised) > 0) {
+    return(1);
+}
+if (inv_total(inv, magictraining_proghat_full) > 0) {
+    return(1);
+}
+if (inv_total(worn, magictraining_proghat_dull) > 0) {
+    return(1);
+}
+if (inv_total(worn, magictraining_proghat_energised) > 0) {
+    return(1);
+}
+if (inv_total(worn, magictraining_proghat_full) > 0) {
+    return(1);
+}
+return(0);
+
+[proc,mta_give_hat]
+if (~mta_has_hat = 1) {
+    return;
+}
+if (inv_freespace(inv) < 1) {
+    mes("You need some free inventory space for a Progress hat.");
+    return;
+}
+%magictraining_entra_noob = 1;
+inv_add(inv, magictraining_proghat_dull, 1);
+
+[proc,mta_pizazz](int $room)(int)
+if ($room = ^mta_room_tele) {
+    return(%mta_pizazz_tele);
+}
+if ($room = ^mta_room_alchem) {
+    return(%mta_pizazz_alch);
+}
+if ($room = ^mta_room_enchant) {
+    return(%mta_pizazz_enchant);
+}
+if ($room = ^mta_room_grave) {
+    return(%mta_pizazz_grave);
+}
+return(0);
+
+[proc,mta_pizazz_cap](int $room)(int)
+if ($room = ^mta_room_tele) {
+    return(^mta_cap_tele);
+}
+if ($room = ^mta_room_alchem) {
+    return(^mta_cap_alch);
+}
+if ($room = ^mta_room_enchant) {
+    return(^mta_cap_enchant);
+}
+if ($room = ^mta_room_grave) {
+    return(^mta_cap_grave);
+}
+return(0);
+
+[proc,mta_set_pizazz](int $room, int $value)
+if ($room = ^mta_room_tele) {
+    %mta_pizazz_tele = $value;
+} else if ($room = ^mta_room_alchem) {
+    %mta_pizazz_alch = $value;
+} else if ($room = ^mta_room_enchant) {
+    %mta_pizazz_enchant = $value;
+} else if ($room = ^mta_room_grave) {
+    %mta_pizazz_grave = $value;
+}
+
+[proc,mta_add_points](int $room, int $n)
+if ($n < 1) {
+    return;
+}
+def_int $cap = ~mta_pizazz_cap($room);
+def_int $cur = ~mta_pizazz($room);
+def_int $next = calc($cur + $n);
+if ($next > $cap) {
+    $next = $cap;
+}
+~mta_set_pizazz($room, $next);
+~mta_overlay_update;
+
+[proc,mta_sub_points](int $room, int $n)
+def_int $cur = ~mta_pizazz($room);
+if ($n >= $cur) {
+    ~mta_set_pizazz($room, 0);
+} else {
+    ~mta_set_pizazz($room, calc($cur - $n));
+}
+~mta_overlay_update;
+
+[proc,mta_overlay_open]
+if (%mta_room = ^mta_room_tele) {
+    if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_tele, 1);
+} else if (%mta_room = ^mta_room_alchem) {
+    if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_alchem, 1);
+} else if (%mta_room = ^mta_room_enchant) {
+    if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_encha, 1);
+} else if (%mta_room = ^mta_room_grave) {
+    if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_grave, 1);
+}
+~mta_overlay_update;
+
+[proc,mta_overlay_close]
+if_closesub(toplevel_osrs_stretch:overlay_hud);
+
+[proc,mta_overlay_update]
+if (%mta_room = ^mta_room_tele) {
+    if_settext(magictraining_tele:magictrain_tele_pts, tostring(%mta_pizazz_tele));
+    if_settext(magictraining_tele:magictrain_maze_number, tostring(%magictraining_mazesolved));
+} else if (%mta_room = ^mta_room_alchem) {
+    if_settext(magictraining_alchem:magictrain_alchem_pts, tostring(%mta_pizazz_alch));
+    if_settext(magictraining_alchem:magictrain_alchem_cost1, tostring(%mta_alch_cost1));
+    if_settext(magictraining_alchem:magictrain_alchem_cost2, tostring(%mta_alch_cost2));
+    if_settext(magictraining_alchem:magictrain_alchem_cost3, tostring(%mta_alch_cost3));
+    if_settext(magictraining_alchem:magictrain_alchem_cost4, tostring(%mta_alch_cost4));
+    if_settext(magictraining_alchem:magictrain_alchem_cost5, tostring(%mta_alch_cost5));
+} else if (%mta_room = ^mta_room_enchant) {
+    if_settext(magictraining_encha:magictrain_encha_pts, tostring(%mta_pizazz_enchant));
+} else if (%mta_room = ^mta_room_grave) {
+    if_settext(magictraining_grave:magictrain_grave_pts, tostring(%mta_pizazz_grave));
+}
+
+[proc,mta_strip_inv](obj $item)
+def_int $n = inv_total(inv, $item);
+if ($n > 0) {
+    inv_del(inv, $item, $n);
+}
+
+[proc,mta_strip_room_items]
+if (%mta_room = ^mta_room_alchem) {
+    ~mta_strip_inv(magictraining_coins);
+    ~mta_strip_inv(magictraining_leather_boots);
+    ~mta_strip_inv(magictraining_adamant_kiteshield);
+    ~mta_strip_inv(magictraining_adamant_med_helm);
+    ~mta_strip_inv(magictraining_emerald);
+    ~mta_strip_inv(magictraining_rune_longsword);
+} else if (%mta_room = ^mta_room_enchant) {
+    ~mta_strip_inv(magictraining_enchan_cube);
+    ~mta_strip_inv(magictraining_enchan_cylinder);
+    ~mta_strip_inv(magictraining_enchan_icosahendron);
+    ~mta_strip_inv(magictraining_enchan_pentamid);
+    ~mta_strip_inv(magictraining_enchan_shapeorb);
+    ~mta_strip_inv(magictraining_dragonstone);
+} else if (%mta_room = ^mta_room_grave) {
+    ~mta_strip_inv(magictraining_bones1);
+    ~mta_strip_inv(magictraining_bones2);
+    ~mta_strip_inv(magictraining_bones3);
+    ~mta_strip_inv(magictraining_bones4);
+    ~mta_strip_inv(banana);
+    ~mta_strip_inv(peach);
+}
+
+[proc,mta_enter_room](int $room, coord $start)
+if (%magictraining_entra_noob = 0 | ~mta_has_hat = 0) {
+    ~mesbox("You need a Pizazz Progress Hat in order to enter. Talk to the|Entrance Guardian if you don't have one.");
+    return;
+}
+%mta_room = $room;
+p_teleport($start);
+~mta_overlay_open;
+mes("You've entered the training arena.");
+
+[proc,mta_leave_room]
+def_coord $pad = ^mta_lobby;
+if (%mta_room = ^mta_room_enchant) {
+    $pad = ^mta_exit_enchant;
+    clearsofttimer(mta_enchant_bonus);
+} else if (%mta_room = ^mta_room_alchem) {
+    $pad = ^mta_exit_alchem;
+    clearsofttimer(mta_alchem_pulse);
+    // Bank reward coins earned while depositing (2009scape MTAType.ALCHEMISTS.exit).
+    def_int $earn = %magictraining_alchem_coinreward;
+    if ($earn > 0) {
+        inv_add(bank, coins, $earn);
+        ~mesbox("You've been awarded <tostring($earn)> coins straight into your bank as a reward!");
+        %magictraining_alchem_coinreward = 0;
+    }
+} else if (%mta_room = ^mta_room_grave) {
+    $pad = ^mta_exit_grave;
+    clearsofttimer(mta_grave_hazard);
+} else if (%mta_room = ^mta_room_tele) {
+    $pad = ^mta_exit_tele;
+    ~mta_tele_clear_nodes;
+}
+~mta_strip_room_items;
+~mta_overlay_close;
+def_int $was_tele = 0;
+def_int $tele_handle = %mta_tele_handle;
+if (%mta_room = ^mta_room_tele) {
+    $was_tele = 1;
+}
+%mta_room = ^mta_room_none;
+p_teleport($pad);
+if ($was_tele = 1 & $tele_handle ! ^map_instance_none) {
+    map_instance_free($tele_handle);
+    if (%map_instance_handle = $tele_handle) {
+        %map_instance_handle = ^map_instance_none;
+    }
+    %mta_tele_handle = ^map_instance_none;
+    %mta_tele_sliding = 0;
+}
+
+// --- Guild doorway (Magic 7) ---
+
+[oploc1,magictraining_temple_door]
+if (stat(magic) < ^mta_magic_guild) {
+    ~mesbox("You need a Magic level of at least <tostring(^mta_magic_guild)> to enter the guild.");
+    return;
+}
+def_int $dir = ~coord_direction(coord, loc_coord);
+p_teleport(~movecoord_indirection(coord, $dir, 2));
+
+// --- Room portals ---
+
+[oploc1,magictraining_teledoor]
+if (%magictraining_entra_noob = 0 | ~mta_has_hat = 0) {
+    ~mesbox("You need a Pizazz Progress Hat in order to enter. Talk to the|Entrance Guardian if you don't have one.");
+    return;
+}
+if (stat(magic) < ^mta_magic_tele) {
+    ~mesbox("You need to be able to cast the Telekinetic Grab spell in order to|enter.");
+    return;
+}
+~mta_tele_enter;
+
+[oploc1,magictraining_enchantdoor]
+if (stat(magic) < ^mta_magic_enchant) {
+    ~mesbox("You need to be able to cast the Lvl-1 Enchant spell in order to|enter.");
+    return;
+}
+~mta_enter_room(^mta_room_enchant, ^mta_start_enchant);
+~mta_enchant_on_enter;
+
+[oploc1,magictraining_alchemdoor]
+if (stat(magic) < ^mta_magic_alchem) {
+    ~mesbox("You need to be able to cast the Low Level Alchemy spell in order to|enter.");
+    return;
+}
+if (inv_total(inv, coins) > 0) {
+    ~mesbox("You cannot take money into the Alchemists' Playground.");
+    return;
+}
+~mta_enter_room(^mta_room_alchem, ^mta_start_alchem);
+~mta_alchem_on_enter;
+
+[oploc1,magictraining_gravedoor]
+if (stat(magic) < ^mta_magic_grave) {
+    ~mesbox("You need to be able to cast the Bones to Bananas spell in order to|enter.");
+    return;
+}
+if (inv_total(inv, banana) > 0 | inv_total(inv, peach) > 0) {
+    ~mesbox("You can't take bananas or peaches into the arena.");
+    return;
+}
+~mta_enter_room(^mta_room_grave, ^mta_start_grave);
+~mta_grave_on_enter;
+
+[oploc1,magictraining_returndoor]
+~mta_leave_room;
+
+// --- Entrance Guardian ---
+
+[opnpc1,magictraining_guard_entrance]
+~chatplayer("Hi.");
+~chatnpc("Greetings. What wisdom do you seek?");
+if (%magictraining_entra_noob = 1) {
+    @mta_entrance_menu;
+    return;
+}
+def_int $opt = ~p_choice2("I'm new to this place. Where am I?", 1, "None, I don't really care.", 2);
+if ($opt = 2) {
+    return;
+}
+~chatplayer("I'm new to this place. Where am I?");
+~chatnpc("Well young one, you have entered the Magic Training Arena.");
+~chatnpc("You may train through the portals at the back of this hall and earn Pizazz Points.");
+~chatnpc("You will need a special Pizazz Progress Hat! I can give you one if you wish to train here.");
+~chatplayer("Yes please!");
+~mta_give_hat;
+~chatnpc("Here you go. Talk to the hat to find out your current Pizazz Points totals.");
+~chatplayer("Talk to it?");
+~chatnpc("Well of course, it's a magic Pizazz Progress Hat! Mind your manners though, hats have feelings too!");
+
+[label,mta_entrance_menu]
+def_int $choice = ~p_choice4("Can you tell me about this place again?", 1, "Can you explain the different portals?", 2, "About the progress hat...", 3, "Thanks, bye!", 4);
+if ($choice = 4) {
+    return;
+}
+if ($choice = 1) {
+    ~chatnpc("This is the Magic Training Arena. Portals lead to four practice rooms.");
+    @mta_entrance_menu;
+    return;
+}
+if ($choice = 2) {
+    ~chatnpc("They lead to the Telekinetic Theatre, Alchemists' Playground, Enchanting Chamber, and Creature Graveyard.");
+    @mta_entrance_menu;
+    return;
+}
+if (~mta_has_hat = 0) {
+    ~chatnpc("You want another one don't you.");
+    ~chatplayer("Sorry, can I?");
+    ~mta_give_hat;
+    ~chatnpc("Here you go. Talk to the hat to find out your current Pizazz Point totals.");
+} else {
+    ~chatnpc("Which you have stored somewhere I'm sure. Collect Pizazz Points and talk to the Rewards Guardian upstairs.");
+}
+@mta_entrance_menu;
+
+// --- Progress hat ---
+
+[opheld1,magictraining_proghat_dull]
+[opheld1,magictraining_proghat_energised]
+[opheld1,magictraining_proghat_full]
+~mesbox("Telekinetic: <tostring(%mta_pizazz_tele)>|Alchemist: <tostring(%mta_pizazz_alch)>|Enchantment: <tostring(%mta_pizazz_enchant)>|Graveyard: <tostring(%mta_pizazz_grave)>");
+
+[opheld5,magictraining_proghat_dull]
+[opheld5,magictraining_proghat_energised]
+[opheld5,magictraining_proghat_full]
+def_int $d = ~p_choice2("Yes, destroy it.", 1, "No, keep it.", 2);
+if ($d = 1) {
+    inv_del(inv, last_item, 1);
+    mes("You destroy the Progress hat.");
+}
+
+[debugproc,mta]
+%magictraining_entra_noob = 1;
+if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
+    inv_add(inv, magictraining_proghat_dull, 1);
+}
+p_teleport(^mta_lobby);
+mes("MTA lobby — portals + Entrance Guardian + Rewards upstairs.");
+
+[debugproc,mta_shop]
+%magictraining_entra_noob = 1;
+if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
+    inv_add(inv, magictraining_proghat_dull, 1);
+}
+// Upstairs beside Rewards Guardian / bank chest (wiki 3363,3318,1).
+p_teleport(0_52_51_35_54);
+mes("MTA upstairs — Rewards Guardian + bank chest.");
+
+[debugproc,mta_tele]
+%magictraining_entra_noob = 1;
+if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
+    inv_add(inv, magictraining_proghat_dull, 1);
+}
+~mta_tele_enter;
+
+[debugproc,mta_points]
+%mta_pizazz_tele = 500;
+%mta_pizazz_alch = 500;
+%mta_pizazz_enchant = 6000;
+%mta_pizazz_grave = 500;
+mes("Granted shop-ready Pizazz totals.");

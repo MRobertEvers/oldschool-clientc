@@ -11,3 +11,9 @@ this work; follow the section it names for your task, and read the docs its
 - Re-measure instead of trusting numbers in prose (§7).
 - Done means: verified in the headless client, mock230_pack --check-only at
   0 errors, existing tests green, and the topic doc updated.
+- **Never park/delete sibling content to green your compile.** Do not rename
+  another lane's tree to `*.skip` / `*.rs2.skip`, delete it, or strip its
+  hooks from shared files. Live examples that must stay as normal paths:
+  `skill_construction/` (POH 4a/4b — `::poh` / `::pohbuild`), `minigame_mta/`.
+  If `sscompile` fails, fix *your* file. See PORTING_GUIDE §7 and
+  `.cursor/rules/no-park-sibling-content.mdc`.

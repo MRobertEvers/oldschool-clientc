@@ -1,0 +1,160 @@
+// Mage Training Arena — Enchanting Chamber.
+// Policy: 2009scape EnchantingZone / EnchantSpell MTA block.
+
+[proc,mta_enchant_on_enter]
+%mta_ench_bonus = calc(1 + random(4));
+%magictraining_ench_convcount = 0;
+%magictraining_enchan_orbtotal = 0;
+softtimer(mta_enchant_bonus, ^mta_enchant_pulse_ticks);
+// Seed dragonstones at fixed tiles (2009scape EnchantingZone.STONES).
+obj_add(0_52_150_26_45, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_25_35, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_31_32, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_47_33, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_46_43, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_45_51, magictraining_dragonstone, 1, 800);
+
+[softtimer,mta_enchant_bonus]
+if (%mta_room ! ^mta_room_enchant) {
+    return;
+}
+def_int $next = calc(1 + random(4));
+if ($next = %mta_ench_bonus) {
+    $next = calc(1 + modulo($next, 4));
+}
+%mta_ench_bonus = $next;
+def_string $name = "cube";
+if ($next = 2) {
+    $name = "cylinder";
+} else if ($next = 3) {
+    $name = "icosahedron";
+} else if ($next = 4) {
+    $name = "pentamid";
+}
+mes("The bonus shape has changed to the <$name>.");
+softtimer(mta_enchant_bonus, ^mta_enchant_pulse_ticks);
+
+[proc,mta_enchant_shape_for_pile](loc $type)(namedobj)
+if ($type = magictraining_enchan_shapepile1) {
+    return(magictraining_enchan_cube);
+}
+if ($type = magictraining_enchan_shapepile2) {
+    return(magictraining_enchan_cylinder);
+}
+if ($type = magictraining_enchan_shapepile3) {
+    return(magictraining_enchan_icosahendron);
+}
+if ($type = magictraining_enchan_shapepile4) {
+    return(magictraining_enchan_pentamid);
+}
+return(null);
+
+[proc,mta_enchant_shape_bonus_id](obj $item)(int)
+if ($item = magictraining_enchan_cube) {
+    return(1);
+}
+if ($item = magictraining_enchan_cylinder) {
+    return(2);
+}
+if ($item = magictraining_enchan_icosahendron) {
+    return(3);
+}
+if ($item = magictraining_enchan_pentamid) {
+    return(4);
+}
+return(0);
+
+[proc,mta_enchant_take](loc $type)
+def_namedobj $shape = ~mta_enchant_shape_for_pile($type);
+if ($shape = null) {
+    return;
+}
+if (inv_freespace(inv) < 1) {
+    mes("You have no free space!");
+    return;
+}
+anim(human_pickupfloor, 0);
+inv_add(inv, $shape, 1);
+
+[oploc1,magictraining_enchan_shapepile1]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile2]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile3]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile4]
+~mta_enchant_take(loc_type);
+
+[proc,mta_enchant_spell_tier](int $spell)(int)
+if ($spell = ^enchant_lvl1) {
+    return(1);
+}
+if ($spell = ^enchant_lvl2) {
+    return(2);
+}
+if ($spell = ^enchant_lvl3) {
+    return(3);
+}
+if ($spell = ^enchant_lvl4) {
+    return(4);
+}
+if ($spell = ^enchant_lvl5) {
+    return(5);
+}
+return(6);
+
+[proc,mta_enchant_is_shape](obj $item)(int)
+if ($item = magictraining_enchan_cube | $item = magictraining_enchan_cylinder | $item = magictraining_enchan_icosahendron | $item = magictraining_enchan_pentamid | $item = magictraining_dragonstone) {
+    return(1);
+}
+return(0);
+
+[proc,mta_enchant_score](obj $item, int $spell)
+def_int $tier = ~mta_enchant_spell_tier($spell);
+def_int $pizazz = 0;
+if ($item = magictraining_dragonstone) {
+    $pizazz = calc($tier * 2);
+} else {
+    %magictraining_ench_convcount = calc(%magictraining_ench_convcount + 1);
+    if (%magictraining_ench_convcount >= 10) {
+        $pizazz = $tier;
+        %magictraining_ench_convcount = 0;
+    }
+    if (~mta_enchant_shape_bonus_id($item) = %mta_ench_bonus) {
+        $pizazz = calc($pizazz + 1);
+        mes("You get <tostring($pizazz)> bonus point!");
+    }
+}
+if ($pizazz > 0) {
+    ~mta_add_points(^mta_room_enchant, $pizazz);
+}
+
+[oploc1,magictraining_encha_hole]
+if (%mta_room ! ^mta_room_enchant) {
+    return;
+}
+def_int $amount = inv_total(inv, magictraining_enchan_shapeorb);
+if ($amount < 1) {
+    mes("You don't have any orbs to deposit.");
+    return;
+}
+anim(human_pickupfloor, 0);
+inv_del(inv, magictraining_enchan_shapeorb, $amount);
+def_int $prev = %magictraining_enchan_orbtotal;
+$prev = calc($prev + $amount);
+if ($prev >= ^mta_enchant_orb_need) {
+    $prev = 0;
+    def_int $roll = random(3);
+    if ($roll = 0) {
+        inv_add(inv, deathrune, 3);
+    } else if ($roll = 1) {
+        inv_add(inv, bloodrune, 3);
+    } else {
+        inv_add(inv, cosmicrune, 3);
+    }
+    ~mesbox("Congratulations! You've been rewarded with an item for your efforts.");
+}
+%magictraining_enchan_orbtotal = $prev;

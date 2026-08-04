@@ -1,0 +1,288 @@
+// Mage Training Arena — Telekinetic Theatre.
+// Policy: 2009scape TelekineticZone (DynamicRegion 13463 + Maze enum).
+
+[proc,mta_tele_coord](int $lx, int $lz, int $level)(coord)
+return(map_instance_coord(%mta_tele_handle, $lx, $lz, $level));
+
+[proc,mta_tele_maze_base](int $maze)(int, int, int)
+switch_int ($maze) {
+    case 1 : return(8, 54, 0);
+    case 2 : return(34, 49, 1);
+    case 3 : return(54, 34, 1);
+    case 4 : return(50, 42, 1);
+    case 5 : return(46, 32, 0);
+    case 6 : return(26, 26, 0);
+    case 7 : return(51, 52, 0);
+    case 8 : return(31, 37, 2);
+    case 9 : return(40, 16, 2);
+    case 10 : return(27, 29, 1);
+}
+return(8, 54, 0);
+
+[proc,mta_tele_maze_statue](int $maze)(int, int, int)
+switch_int ($maze) {
+    case 1 : return(15, 41, 0);
+    case 2 : return(22, 53, 1);
+    case 3 : return(48, 22, 1);
+    case 4 : return(46, 49, 1);
+    case 5 : return(45, 14, 0);
+    case 6 : return(15, 16, 0);
+    case 7 : return(40, 48, 0);
+    case 8 : return(18, 54, 2);
+    case 9 : return(20, 10, 2);
+    case 10 : return(23, 20, 1);
+}
+return(15, 41, 0);
+
+[proc,mta_tele_maze_guardian](int $maze)(int, int, int)
+switch_int ($maze) {
+    case 1 : return(8, 39, 0);
+    case 2 : return(26, 48, 1);
+    case 3 : return(45, 15, 1);
+    case 4 : return(57, 41, 1);
+    case 5 : return(45, 23, 0);
+    case 6 : return(23, 24, 0);
+    case 7 : return(55, 50, 0);
+    case 8 : return(28, 41, 2);
+    case 9 : return(34, 15, 2);
+    case 10 : return(31, 25, 1);
+}
+return(8, 39, 0);
+
+[proc,mta_tele_maze_end](int $maze)(int, int, int)
+switch_int ($maze) {
+    case 1 : return(19, 50, 0);
+    case 2 : return(13, 44, 1);
+    case 3 : return(57, 22, 1);
+    case 4 : return(55, 49, 1);
+    case 5 : return(47, 18, 0);
+    case 6 : return(14, 20, 0);
+    case 7 : return(39, 56, 0);
+    case 8 : return(17, 54, 2);
+    case 9 : return(11, 19, 2);
+    case 10 : return(25, 16, 1);
+}
+return(19, 50, 0);
+
+// Wall thresholds: northZ, southZ, westX, eastX (2009scape Maze.data).
+[proc,mta_tele_maze_bounds](int $maze)(int, int, int, int)
+switch_int ($maze) {
+    case 1 : return(51, 40, 9, 20);
+    case 2 : return(54, 43, 12, 23);
+    case 3 : return(23, 12, 47, 58);
+    case 4 : return(59, 48, 45, 56);
+    case 5 : return(19, 8, 40, 51);
+    case 6 : return(21, 10, 9, 10);
+    case 7 : return(57, 46, 37, 48);
+    case 8 : return(55, 44, 14, 25);
+    case 9 : return(20, 9, 10, 21);
+    case 10 : return(26, 15, 17, 28);
+}
+return(51, 40, 9, 20);
+
+[proc,mta_tele_place_statue](int $lx, int $lz, int $level)
+def_coord $old = ~mta_tele_coord(%mta_tele_statue_lx, %mta_tele_statue_lz, %mta_tele_statue_level);
+if (obj_find($old, magictraining_guardianstatue) = true) {
+    obj_del;
+}
+%mta_tele_statue_lx = $lx;
+%mta_tele_statue_lz = $lz;
+%mta_tele_statue_level = $level;
+obj_add(~mta_tele_coord($lx, $lz, $level), magictraining_guardianstatue, 1, 0);
+
+[proc,mta_tele_clear_statue]
+def_coord $at = ~mta_tele_coord(%mta_tele_statue_lx, %mta_tele_statue_lz, %mta_tele_statue_level);
+if (obj_find($at, magictraining_guardianstatue) = true) {
+    obj_del;
+}
+
+[proc,mta_tele_clear_npcs]
+def_coord $base = ~mta_tele_coord(32, 32, 0);
+npc_findallany($base, 64, 0);
+while (npc_findnext = true) {
+    if (npc_type = magictraining_guard_tele | npc_type = magictraining_guard_maze_complete | npc_type = magictraining_guard_maze_incomplete | npc_type = magictraining_guard_maze_moving) {
+        npc_del;
+    }
+}
+
+[proc,mta_tele_clear_nodes]
+~mta_tele_clear_statue;
+~mta_tele_clear_npcs;
+%mta_tele_sliding = 0;
+
+[proc,mta_tele_pick_maze]()(int)
+def_int $maze = calc(1 + random(^mta_tele_maze_count));
+if ($maze = %mta_tele_maze & ^mta_tele_maze_count > 1) {
+    $maze = calc(1 + modulo(calc($maze), ^mta_tele_maze_count));
+}
+return($maze);
+
+[proc,mta_tele_setup_maze]
+def_int $maze = ~mta_tele_pick_maze;
+%mta_tele_maze = $maze;
+~mta_tele_clear_statue;
+~mta_tele_clear_npcs;
+def_int $bx;
+def_int $bz;
+def_int $bl;
+def_int $sx;
+def_int $sz;
+def_int $sl;
+def_int $gx;
+def_int $gz;
+def_int $gl;
+$bx, $bz, $bl = ~mta_tele_maze_base($maze);
+$sx, $sz, $sl = ~mta_tele_maze_statue($maze);
+$gx, $gz, $gl = ~mta_tele_maze_guardian($maze);
+~mta_tele_place_statue($sx, $sz, $sl);
+npc_add(~mta_tele_coord($gx, $gz, $gl), magictraining_guard_tele, 0);
+p_teleport(~mta_tele_coord($bx, $bz, $bl));
+~mta_overlay_update;
+
+[proc,mta_tele_enter]
+def_int $handle = ~map_instance_from_square(^mta_tele_template);
+if ($handle = ^map_instance_none) {
+    ~mesbox("The Telekinetic Theatre is full right now. Try again later.");
+    return;
+}
+%mta_tele_handle = $handle;
+%map_instance_handle = $handle;
+%mta_room = ^mta_room_tele;
+%mta_tele_maze = 0;
+~mta_overlay_open;
+~mta_tele_setup_maze;
+mes("You've entered the Telekinetic Theatre.");
+
+[proc,mta_tele_get_dir]()(int)
+def_int $lx = modulo(coordx(coord), 64);
+def_int $lz = modulo(coordz(coord), 64);
+def_int $north;
+def_int $south;
+def_int $west;
+def_int $east;
+$north, $south, $west, $east = ~mta_tele_maze_bounds(%mta_tele_maze);
+if ($lz >= $north) {
+    return(^mta_dir_north);
+}
+if ($lz <= $south) {
+    return(^mta_dir_south);
+}
+if ($lx <= $west) {
+    return(^mta_dir_west);
+}
+if ($lx >= $east) {
+    return(^mta_dir_east);
+}
+return(^mta_dir_none);
+
+[proc,mta_tele_win]
+~mta_tele_clear_statue;
+def_int $points = 2;
+~mesbox("Congratulations! You have received two Telekinetic Pizazz Points!");
+%magictraining_mazesolved = calc(%magictraining_mazesolved + 1);
+if (%magictraining_mazesolved >= 5) {
+    %magictraining_mazesolved = 0;
+    $points = calc($points + 8);
+    // LostCity XP units are tenths: 1000 Magic XP → 10000.
+    stat_advance(magic, 10000);
+    inv_add(inv, lawrune, 10);
+    ~mesbox("Congratulations on solving five mazes in a row, have 8 bonus points,|10 law runes and extra magic XP!");
+}
+~mta_add_points(^mta_room_tele, $points);
+def_int $ex;
+def_int $ez;
+def_int $el;
+$ex, $ez, $el = ~mta_tele_maze_end(%mta_tele_maze);
+npc_add(~mta_tele_coord($ex, $ez, $el), magictraining_guard_maze_complete, 0);
+
+[proc,mta_tele_slide]
+if (%mta_tele_sliding = 1) {
+    return;
+}
+def_int $dir = ~mta_tele_get_dir;
+if ($dir = ^mta_dir_none) {
+    mes("Invalid move!");
+    return;
+}
+%mta_tele_sliding = 1;
+def_int $dx = 0;
+def_int $dz = 0;
+if ($dir = ^mta_dir_north) {
+    $dz = 1;
+} else if ($dir = ^mta_dir_south) {
+    $dz = -1;
+} else if ($dir = ^mta_dir_west) {
+    $dx = -1;
+} else if ($dir = ^mta_dir_east) {
+    $dx = 1;
+}
+def_int $ex;
+def_int $ez;
+def_int $el;
+$ex, $ez, $el = ~mta_tele_maze_end(%mta_tele_maze);
+def_int $sliding = 1;
+def_int $nx;
+def_int $nz;
+def_int $nl;
+def_coord $next;
+while ($sliding = 1) {
+    $nx = calc(%mta_tele_statue_lx + $dx);
+    $nz = calc(%mta_tele_statue_lz + $dz);
+    $nl = %mta_tele_statue_level;
+    $next = ~mta_tele_coord($nx, $nz, $nl);
+    if (map_blocked($next) = true) {
+        %mta_tele_sliding = 0;
+        return;
+    }
+    ~mta_tele_place_statue($nx, $nz, $nl);
+    if ($nx = $ex & $nz = $ez & $nl = $el) {
+        %mta_tele_sliding = 0;
+        ~mta_tele_win;
+        return;
+    }
+    p_delay(1);
+}
+
+[proc,mta_tele_reset]
+def_int $sx;
+def_int $sz;
+def_int $sl;
+$sx, $sz, $sl = ~mta_tele_maze_statue(%mta_tele_maze);
+~mta_tele_place_statue($sx, $sz, $sl);
+mes("The statue returns to its starting position.");
+
+// Maze Guardian — New-maze after a win.
+[opnpc1,magictraining_guard_maze_complete]
+if (%mta_room ! ^mta_room_tele) {
+    return;
+}
+def_int $opt = ~p_choice2("Yes, please.", 1, "No thanks.", 2);
+if ($opt = 1) {
+    ~mta_tele_setup_maze;
+}
+
+[opnpc3,magictraining_guard_maze_complete]
+~mta_tele_setup_maze;
+
+// Telekinetic Guardian — Reset help.
+[opnpc1,magictraining_guard_tele]
+if (%mta_room ! ^mta_room_tele) {
+    return;
+}
+~chatnpc("I can reset the statue if you get stuck.");
+def_int $c = ~p_choice2("Please reset the statue.", 1, "Never mind.", 2);
+if ($c = 1) {
+    ~mta_tele_reset;
+}
+
+[opobj3,magictraining_guardianstatue]
+if (%mta_room = ^mta_room_tele) {
+    ~mta_tele_reset;
+}
+
+[debugproc,mta_tele]
+%magictraining_entra_noob = 1;
+if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
+    inv_add(inv, magictraining_proghat_dull, 1);
+}
+~mta_tele_enter;

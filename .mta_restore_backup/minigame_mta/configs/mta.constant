@@ -1,0 +1,99 @@
+// Mage Training Arena — lobby, rooms, telekinetic mazes, shop prices.
+// Policy: 2009scape MTAType / TelekineticZone / MTAShop / room zones.
+// Telekinetic template = region 13463 = map square 52_135.
+
+^mta_magic_guild = 7
+^mta_magic_enchant = 7
+^mta_magic_grave = 15
+^mta_magic_alchem = 21
+^mta_magic_tele = 33
+
+^mta_room_none = 0
+^mta_room_enchant = 1
+^mta_room_alchem = 2
+^mta_room_grave = 3
+^mta_room_tele = 4
+
+// 2009scape ActivityData caps (pre-2024).
+^mta_cap_tele = 4000
+^mta_cap_alch = 4000
+^mta_cap_enchant = 16000
+^mta_cap_grave = 4000
+
+// Lobby / temple (3363,3302,0).
+^mta_lobby = 0_52_51_35_38
+^mta_exit_enchant = 0_52_51_33_54
+^mta_exit_alchem = 0_52_51_35_56
+^mta_exit_grave = 0_52_51_37_54
+^mta_exit_tele = 0_52_51_35_52
+^mta_start_enchant = 0_52_150_35_49
+^mta_start_alchem = 2_52_150_38_23
+^mta_start_grave = 1_52_150_35_39
+
+// Telekinetic template square SW (region 13463).
+^mta_tele_template = 0_52_135_0_0
+
+^mta_tele_maze_count = 10
+^mta_dir_none = 0
+^mta_dir_north = 1
+^mta_dir_south = 2
+^mta_dir_west = 3
+^mta_dir_east = 4
+
+^mta_alch_pulse_ticks = 53
+^mta_enchant_pulse_ticks = 36
+^mta_grave_pulse_ticks = 6
+^mta_alch_eject_coins = 12000
+^mta_enchant_orb_need = 20
+^mta_grave_fruit_need = 16
+^mta_grave_death_penalty = 10
+
+// Shop prices [tele, alch, enchant, grave] — MTAShop.PRICES order.
+^mta_shop_wand_beg_t = 30
+^mta_shop_wand_beg_a = 30
+^mta_shop_wand_beg_e = 300
+^mta_shop_wand_beg_g = 30
+^mta_shop_wand_appr_t = 60
+^mta_shop_wand_appr_a = 60
+^mta_shop_wand_appr_e = 600
+^mta_shop_wand_appr_g = 60
+^mta_shop_wand_teach_t = 150
+^mta_shop_wand_teach_a = 200
+^mta_shop_wand_teach_e = 1500
+^mta_shop_wand_teach_g = 150
+^mta_shop_wand_master_t = 240
+^mta_shop_wand_master_a = 240
+^mta_shop_wand_master_e = 2400
+^mta_shop_wand_master_g = 240
+^mta_shop_inf_top_t = 400
+^mta_shop_inf_top_a = 450
+^mta_shop_inf_top_e = 4000
+^mta_shop_inf_top_g = 400
+^mta_shop_inf_hat_t = 350
+^mta_shop_inf_hat_a = 400
+^mta_shop_inf_hat_e = 3000
+^mta_shop_inf_hat_g = 350
+^mta_shop_inf_boots_t = 120
+^mta_shop_inf_boots_a = 120
+^mta_shop_inf_boots_e = 1200
+^mta_shop_inf_boots_g = 120
+^mta_shop_inf_gloves_t = 175
+^mta_shop_inf_gloves_a = 225
+^mta_shop_inf_gloves_e = 1500
+^mta_shop_inf_gloves_g = 175
+^mta_shop_inf_bottom_t = 450
+^mta_shop_inf_bottom_a = 500
+^mta_shop_inf_bottom_e = 5000
+^mta_shop_inf_bottom_g = 450
+^mta_shop_book_t = 500
+^mta_shop_book_a = 550
+^mta_shop_book_e = 6000
+^mta_shop_book_g = 500
+^mta_shop_peach_t = 200
+^mta_shop_peach_a = 300
+^mta_shop_peach_e = 2000
+^mta_shop_peach_g = 200
+^mta_shop_combo_t = 1
+^mta_shop_combo_a = 1
+^mta_shop_combo_e = 15
+^mta_shop_combo_g = 1

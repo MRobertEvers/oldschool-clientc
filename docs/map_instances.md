@@ -8,8 +8,10 @@ taken from anywhere in the cache. It is the thing a player-owned house, the Pest
 Control island, a Barrows tunnel and a cutscene set all are, and until this
 landed the engine could not express any of them: `SCAPE2009_CONTENT_PORT_QUEUE`
 rows 4a and 4b were **blocked** on the surface, not on the content. Slice 4a
-(house enter/leave) now lives in `skill_construction/`; 4b (hotspot build) is
-still pending.
+(house enter/leave) now lives in `skill_construction/` (`poh_*.rs2` — **do not
+`.rs2.skip` or delete for other-lane compiles**; see
+[`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) log). 4b
+(hotspot build) is still pending.
 
 Source, in the order it is easiest to read:
 
@@ -194,10 +196,17 @@ TORIRS_NET_CHEAT="mapinstance_turn"   # ... same otherwise
 ```
 
 `::mapinstance` copies *the square you are standing on*, and the save keeps you
-where the last run left you — so run `::tele 3222 3218` in a preceding session (or
-`::mapinstance_leave`) before comparing, or you will be copying the pool square
-and looking at void. `::mapinstance_turn` has no such dependency; its source zone
-is fixed, which is why it is written that way.
+where the last run left you — so run `::mapinstance_leave` in a preceding session
+before comparing, or you will be copying the pool square and looking at void.
+`::mapinstance_turn` has no such dependency; its source zone is fixed, which is
+why it is written that way.
+
+`::mapinstance_leave` sends you home whether or not the registry still knows the
+instance, because the case that most needs a way out is the one where it does
+not: your coord is saved and the registry is not, so logging back in leaves you
+on a pool square that no reservation covers, surrounded by void, with nothing to
+walk to. (Using a fresh `--user` is the other way out, and it is the cleaner one
+for a measurement, since a fresh account also has fresh stats and inventory.)
 
 `[debugproc,mapinstance]` copies the square you are standing on and lands you on
 the matching local tile of the copy. **The proof is that nothing looks

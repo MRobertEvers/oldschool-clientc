@@ -22,6 +22,12 @@ Loop prompt: read this file + PORTING_GUIDE §4 / §4.4; port the next pending
 unblocked slice; verify (`mock230_pack --check-only`, `make -C src mock230-scripts`);
 update this file; re-arm. Stop only when the user stops the loop.
 
+**Do not park sibling lanes.** Never rename `skill_construction/` →
+`skill_construction.skip`, `*.rs2.skip` POH/MTA scripts, or delete another
+queue's tree to green your compile. Fix your slice. See `CLAUDE.md`,
+PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
+SCAPE2009 4a/4b POH is live under `skill_construction/`.
+
 ## Methodology (non-negotiable)
 
 1. **Grep LostCity first** (`PORTING_GUIDE` §2.2). If LC has the proc, it belongs
@@ -72,8 +78,8 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 6a | skill_hunter: bird snare | blocked | → SCAPE2009 §2a |
 | 6b | skill_hunter: box trap (chins) | blocked | → SCAPE2009 §2b |
 | 6c | skill_hunter: net trap + implings | blocked | → SCAPE2009 §2c |
-| 7a | skill_construction: house enter/leave | blocked | → SCAPE2009 §4a |
-| 7b | skill_construction: build hotspot core | blocked | → SCAPE2009 §4b |
+| 7a | skill_construction: house enter/leave | done | → SCAPE2009 §4a (live — do not `.rs2.skip`) |
+| 7b | skill_construction: build hotspot core | pending | → SCAPE2009 §4b |
 | 8 | minigame: Barrows | blocked | → SCAPE2009 §5 |
 | 9 | minigame: Fight Caves | done | Wave table + shared-map enter/exit (`minigame_fightcave/`); Kronos/2009 remainder algorithm; Tz-Kek split; Jad reward cape+tokkul; Jad healers deferred; **instance/DynamicMap still needed for concurrent players** |
 | 10 | minigame: Pest Control | blocked | → SCAPE2009 §6 |
@@ -89,7 +95,7 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 20 | bosses: KQ / DKS / Corp | blocked | KQ → CONTENT_PORT_QUEUE (LC has proc); DKS/Corp → SCAPE2009 era |
 | 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | done | stubs: Zulrah/Vorkath/Hydra/Inferno/ToB (Maiden solo); phases/loot/party/DynamicMap deferred |
 | 22 | skill_agility: rooftops + shortcuts | done | 8 rooftops + MoG roll + Falador wall + GE tunnels; mid-era shortcuts → LC/SCAPE2009; grapples/pet deferred |
-| 23 | prayer: Redemption / Retribution | done | `prayer_effects.rs2`: ≤10% HP → drain+heal+gfx; death → gfx+hit `%aggressive_npc` ≤1 tile; policy 2009scape (LC none); multi AoE deferred (no map_multiway data) |
+| 23 | prayer: Redemption / Retribution | done | `prayer_effects.rs2`: ≤10% HP → drain+heal+gfx; death → gfx+hit `%aggressive_npc` ≤1 tile; policy 2009scape (LC none); multi AoE now unblocked — `map_multiway` hosted with the reference's zone data (see the gap log) |
 | 24 | bosses: Cerberus | done | `minigame_cerberus/`: Taverley crawl, Slayer 91 winch, 3 lairs, portcullis exit; souls/lava/loot/DynamicMap deferred |
 | 25 | bosses: Kraken / Thermonuclear Smoke Devil | done | `minigame_kraken/` + `minigame_thermy/`: cave enter, Slayer 87/93 boss rooms, whirlpool Disturb→boss; tentacles/face-mask dmg/loot/DynamicMap deferred |
 | 26 | bosses: Abyssal Sire | done | `minigame_sire/`: wake sleeping→awake, exit appendage→nexus, Overseer stub; phases/lungs/Unsired font/fairy DIP/DynamicMap deferred |
@@ -124,7 +130,24 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 55 | skill: Ancient sceptre combine | done | Eblis (`fd_elder_*`) opnpcu: `ancient_icon`+`staff_of_zaros`→`ancient_sceptre` (DT complete); SotN wield gate + elemental variants deferred |
 | 56 | skill: Accursed / Webweaver / Ursine | done | `wildy_upgrades.rs2`: Crafting/Fletching/Smithing 85 combines (skull/fang/claws); charge stubs on upgraded weapons; Ferox NPCs/dismantle/swap/specials deferred |
 | 57 | wilderness: Callisto / Venenatis / Vet'ion dens | done | `boss_dens.rs2`: Enter+Peek+Check-Fee; shared 50k fee; medium diary gate; den land/exit coords from map; KC peek / slayer alternate / tele delay deferred |
-| 58 | skill: Ferox Enclave upgrade NPCs | pending | Phabelle/Andros/Derse 500k fee combines when under skill req |
+| 58 | skill: Ferox Enclave upgrade NPCs | done | `ferox_upgrades.rs2`: Phabelle/Derse/Andros Talk-to + opnpcu; 500k fee bypasses skill-85; bank fee / full dialogue deferred |
+| 59 | wilderness: Hunter's End / Skeletal Tomb | done | singles dens Artio/Spindel/Calvar'ion — Enter+Peek+Check-Fee; hard diary; shared fee; exit branch on template locs; slayer alternate deferred |
+| 60 | skill: Ancient sceptre elemental variants | done | `ancient_sceptre_elemental.rs2`: quartz attach/swap/dismantle → `ancient_sceptre_{blood,ice,smoke,shadow}`; DT2 gate + spell passives deferred |
+| 61 | skill: SotN / DT2 sceptre gates | blocked | SotN + DT2 quest progress not authored → QUESTHELPER; skill_features cite quest dbrows 2338/2343 |
+| 62 | wilderness: Ferox Enclave bank fee | blocked | wiki: no bank fee; real fee is Ferox 5M respawn → slice 65 |
+| 63 | skill: Wildy weapon dismantle / swap | done | `wildy_weapons.rs2`: base Dismantle→7500 ether; Accursed/Webweaver/Ursine reverse; sceptre Swap ↔ `*_recol` (a)/(au); charge on recol |
+| 64 | wilderness: Boss den Peek KC | done | 20 KC via `%total_{callisto,venenatis,vetion,artio,spindel,calvarion}_kills`; occupancy = `npc_find` at den spawn; kill credit on ai_queue3 (incl. singles) |
+| 65 | wilderness: Ferox Enclave respawn | blocked | 5M to Ferox NPC; needs player respawn coord (death.rs2 hardcodes `^respawn_coord`) |
+| 66 | skill: Bracelet of ethereum absorb | done | 75% rev dmg reduce (`~ethereum_reduce_damage` in melee + `combat_damage_player`); category `1189=revenant`; kill absorb stub 15 ether; aggression tolerance / full drop tables deferred |
+| 67 | wilderness: Rev caves prayer drain | done | withdrawn — wiki + Kronos RevCaves.java: no cave-specific prayer drain / dark drain; normal prayer only |
+| 68 | skill: Wildy weapon specials | blocked | Accursed/Webweaver/Ursine specs need special-attack combat model (`orbs.rs2`: arms bar only; LC `player_special_attack` not ported) |
+| 69 | wilderness: Cave fee clear on death | done | `~revcave_fees_on_death` clears `%revcave_fee_paid` + `%wildy_boss_fee_paid`; PKer 100k loot drop deferred |
+| 70 | skill: Wildy weapon wilderness passives | done | `wildy_passives.rs2`: +50% accuracy/damage in Wildy when charged; 1 ether/attack; Craw's/Webweaver ammo-free; powered-staff built-in spell path deferred |
+| 71 | skill: Ethereum aggression tolerance | blocked | charged bracelet → tolerant; needs `.hunt` `check_inv` (LC HuntType) — `nearest_victim` is placeholder |
+| 72 | wilderness: Fountain of Rune | done | `minigame_fountain_of_rune/`: oplocu glory/wealth/skills/combat → max (6)/(5); 1/25000 `amulet_of_glory_inf`; desktop op1 overlay |
+| 73 | wilderness: Wilderness Sword teleports | done | `minigame_wilderness_sword/`: sword 3 daily FoR + sword 4 unlimited; Kronos coords; worn op / web-slash deferred |
+| 74 | skill: Imbued heart | pending | create/boost combat stats |
+| 75 | wilderness: Supply / Bloody chest stubs | pending | wildy loot chests if cache-named; skip Kronos custom loot |
 
 ## Opcode gap log
 
@@ -145,7 +168,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 13 | (none) | Hopper/sack/veins expressible via cache varbits + loc_change | confirmed — no new opcode |
 | 17 | instance / dynamic map | NMZ dream isolation (shared 35_73 used for single-player) | soft — same gap as Fight Caves |
 | 23 | (none) | Existing damage/death hooks + spotanim_pl | confirmed — no new opcode |
-| 23 | map_multiway zone data | Retribution multi AoE | deferred — opcode exists, no multi map |
+| 23 | `map_multiway` (1015) + zone data | Retribution multi AoE | **done** — the earlier "opcode exists" was wrong: 1015 was *declared* and never hosted, so it fell through to the VM's stub and returned 0, which is indistinguishable from an empty zone set. Both halves landed: `maps/multiway.csv` ported from the reference verbatim (4,697 zones — coordinates, not ids, so nothing needs re-resolving) and a host over a sorted zone set in `mock230_content.c`. Measured in the headless client: `::multiway` reads 0 in Lumbridge and 1 at 2984,3912 |
 | 22 | (none) | Rooftop locs + existing agility helpers | confirmed — no new opcode |
 | 22 | (none) | MoG `obj_add` + GE/Falador shortcut locs | confirmed — no new opcode |
 | 21 | instance / dynamic map | Zulrah shrine isolation (shared 35_47/48) | soft — same gap as Fight Caves / NMZ |
@@ -204,6 +227,11 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 56 | (none) | Trophy combine + charge stubs | confirmed — no new opcode |
 | 56 | inv_setvar / inv_getvar | Per-item charges on upgraded weapons | deferred — player `%accursed/webweaver/ursine_charges` stubs |
 | 57 | (none) | Den enter/exit + shared fee + diary gate | confirmed — no new opcode |
+| 58 | (none) | Talk-to / opnpcu + coin fee | confirmed — no new opcode |
+| 59 | (none) | Singles dens enter/exit + hard diary | confirmed — no new opcode |
+| 71 | `.hunt` + `check_inv` (HuntType) | Charged ethereum → skip player in aggro | blocked — `nearest_victim` is nearest-only placeholder; inventing `aggro_immune` C flag would be a content hook |
+| 72 | (none) | oplocu recharge + random(25000) eternal | confirmed — inventory ops |
+| 73 | (none) | opheld3 + date_minutes daily gate | confirmed — no new opcode |
 
 ## Log
 
@@ -267,10 +295,40 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 51 done: Bracelet of ethereum — charge/check/toggle/uncharge/dismantle; inv_setvar gap noted; scripts 5896; pack 0 errors
 - 2026-08-04: extended queue with 52 wildy weapons / 53 rev stairs exits
 - slice 52 done: wildy weapons charge stubs — Thammaron's / Craw's / Viggora's; inv_setvar gap noted; combat/dismantle/swap/ancient sceptre deferred; scripts 5981; pack 0 errors
-- slice 53 done: rev stairs exits — `wild_cave_exit_low/high` → surface trapdoor tiles; surface trapdoors op-less (one-way); scripts 5997 (excl. unrelated POH WIP compile break); pack 0 errors
+- slice 53 done: rev stairs exits — `wild_cave_exit_low/high` → surface trapdoor tiles; surface trapdoors op-less (one-way); scripts 5997; pack 0 errors
 - 2026-08-04: extended queue with 54 fee caves / 55 ancient sceptre / 56 upgraded wildy weapons
 - slice 54 done: Escape Caves (`wild_cave_exit01`) 50k fee enter/exit + Check-Fee; rev low/high also fee-gated; scripts 6021; pack 0 errors
 - slice 55 done: Ancient sceptre — Eblis combines icon+`staff_of_zaros` (queue note was wrong vs wiki); SotN/elementals deferred; scripts 6035; pack 0 errors
 - slice 56 done: Accursed/Webweaver/Ursine — skill-85 trophy combines + ether charge stubs; Ferox/specials deferred; scripts 6198; pack 0 errors
 - 2026-08-04: extended queue with 57 boss dens / 58 Ferox upgrade NPCs
 - slice 57 done: Callisto/Venenatis/Vet'ion dens — Enter/Peek/Check-Fee + shared fee + medium diary; scripts 6106; pack 0 errors
+- slice 58 done: Ferox upgrade NPCs — Phabelle/Derse/Andros 500k fee combines; scripts 6120; pack 0 errors
+- 2026-08-04: extended queue with 59 remaining dens / 60 elemental sceptres
+- slice 59 done: Hunter's End / Web Chasm / Skeletal Tomb (Artio/Spindel/Calvar'ion); hard diary; scripts 6132; pack 0 errors
+- slice 60 done: elemental ancient sceptres — quartz attach/swap/dismantle; DT2/passives deferred; scripts 6175; pack 0 errors
+- 2026-08-04: queue idle after 60; extended with 61 SotN/DT2 gates / 62 Ferox bank fee / 63 wildy dismantle / 64 Peek KC
+- slice 61 blocked: SotN/DT2 quests not authored
+- slice 62 blocked: no Ferox bank fee (wiki); respawn fee → 65
+- slice 63 done: wildy dismantle (7500 ether / reverse upgrades) + sceptre Swap (a); scripts 6242; pack 0 errors
+- 2026-08-04: added 65 Ferox respawn (blocked on death.rs2 respawn coord)
+- 2026-08-04: extended with 66 ethereum absorb / 67 rev prayer drain / 68 wildy specials
+- slice 64 done: Peek 20 KC + den occupancy stub + kill credit varps; scripts 6245; pack 0 errors
+- slice 66 done: ethereum 75% absorb + charge consume + kill auto-collect stub; `1189=revenant`; scripts 6304; pack 0 errors
+- slice 67 done (withdrawn): no rev-cave prayer/dark drain in wiki or Kronos
+- slice 68 blocked: special-attack combat model missing
+- slice 69 done: clear rev/escape cave fees on death; scripts 6302; pack 0 errors; PKer fee loot deferred
+- 2026-08-04: extended with 70 wildy passives / 71 ethereum tolerance
+- slice 70 done: wildy weapon +50% acc/dmg in Wildy + ether consume + bow ammo-free; scripts 6340; pack 1 unrelated (`^qot_chest` dup)
+- slice 71 blocked: ethereum tolerance needs LC `.hunt` `check_inv`; engine hunt is nearest placeholder — no bracelet ids in C
+- 2026-08-04: extended with 72 Fountain of Rune / 73 Wilderness Sword / 74 Imbued heart / 75 supply chests
+- slice 72 done: Fountain of Rune recharge + eternal glory 1/25000 (wiki); scripts 6586; pack 0 errors
+- slice 73 done: Wilderness sword 3 daily / 4 unlimited FoR tele; scripts 6642; pack 0 errors
+- 2026-08-04: `map_multiway` (1015) hosted, so slice 23's Retribution multi AoE is
+  unblocked — the gap-log row above was wrong to say "opcode exists": it was
+  declared and never hosted, which from content is indistinguishable from an
+  empty zone set, since both answer 0. Data (`maps/multiway.csv`, 4,697 zones)
+  ported verbatim from the reference; measured 0 in Lumbridge, 1 at 2984,3912.
+  Landed as part of a sweep of all eleven queue-named unhosted opcodes — full
+  accounting in [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md),
+  same date. `npc_sethuntmode` and `busy` from that sweep also matter here: the
+  boss dens and wildy specials both wanted per-npc aggression
