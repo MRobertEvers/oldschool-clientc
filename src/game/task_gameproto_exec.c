@@ -151,6 +151,9 @@ Task_GameProtoExec_Run(
             app->world_load_attempted = 1;
             app->world_load_inflight = 1;
             app->world_load_server_driven = 1;
+            /* Drain EntityRemoved before the load's ResetSceneAlloc — it asserts
+             * the queue is empty so DYNAMIC scene elements are not orphaned. */
+            App_WorldDrainEntityRemoved(app);
             /* on_done is NULL: we await the load and run the tail ourselves
              * below, so the entity shift can land between the scene swap and
              * App_WorldLoadFinish (which the shift must precede). */

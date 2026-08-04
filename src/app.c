@@ -3339,6 +3339,7 @@ app_world_load_begin(
 
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
+    App_WorldDrainEntityRemoved(app);
     task = CreateTask_WorldLoad(
         app->provider, app->world_builder, chunks_xz, chunk_pair_count,
         app_world_load_finish_cb, app);
@@ -8636,6 +8637,35 @@ app_world_camera_follow(struct App* app)
     app->world_camera.yaw = yaw;
 }
 
+/* Apply queued WorldEventKind_EntityRemoved: free the DYNAMIC scene element.
+ * Must run before World_ResetSceneAlloc (which asserts the queue is empty) and
+ * after bulk despawns in App_WorldRebuildShift — silent drops used to orphan
+ * elements across ClearPool(STATIC) and climb the scene id high-water mark. */
+void
+App_WorldDrainEntityRemoved(struct App* app)
+{
+    struct World* world;
+    int count;
+
+    assert(app);
+    world = app->world;
+    if( !world )
+        return;
+
+    count = World_EventsCount(world);
+    for( int i = 0; i < count; i++ )
+    {
+        const struct World_Event* ev = World_EventsPeek(world, i);
+        if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
+        {
+            app_entity_spotanim_drop(app, ev->element_id);
+            if( app->scene )
+                ToriDraw_SceneElementRemove(app->scene, ev->element_id);
+        }
+    }
+    World_EventsClear(world);
+}
+
 static void
 app_world_frame(
     struct App* app,
@@ -8651,22 +8681,7 @@ app_world_frame(
     world->local_pid = app->esync.local_pid;
 
     World_Cycle(world, cycles);
-
-    {
-        int count = World_EventsCount(world);
-        for( int i = 0; i < count; i++ )
-        {
-            const struct World_Event* ev = World_EventsPeek(world, i);
-            if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
-            {
-                /* Free any attached-graphic combine snapshots keyed to this
-                 * element before the element (and its model) goes away. */
-                app_entity_spotanim_drop(app, ev->element_id);
-                ToriDraw_SceneElementRemove(app->scene, ev->element_id);
-            }
-        }
-        World_EventsClear(world);
-    }
+    App_WorldDrainEntityRemoved(app);
 
     app_world_sync_positions(app);
     /* Exactly one of these does anything: the follow cam returns early while a
@@ -11599,6 +11614,9 @@ App_WorldRebuildShift(
 
     if( getenv("TORIRS_NET_DEBUG") )
         fprintf(stderr, "rebuild_shift: dx=%d dz=%d\n", base_dx, base_dz);
+    /* Projectiles/spotanims/far stacks queued EntityRemoved above — free their
+     * DYNAMIC scene elements now so the next frame does not race a full queue. */
+    App_WorldDrainEntityRemoved(app);
     app->need_redraw = 1;
 }
 

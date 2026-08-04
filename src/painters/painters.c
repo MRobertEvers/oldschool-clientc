@@ -876,7 +876,9 @@ painter_add_normal_scenery(
     int size_x,
     int size_z)
 {
-    assert(entity >= 0 && entity < UINT16_MAX);
+    /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
+     * word packs entity in 16 bits, so the full uint16 range is legal. */
+    assert(entity >= 0 && entity <= UINT16_MAX);
     /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
     if( size_x < 1 )
         size_x = 1;

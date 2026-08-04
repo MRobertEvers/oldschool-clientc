@@ -11,7 +11,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define WORLD_MAX_EVENTS 256
+/* Sized for a rebuild's bulk despawn (projectiles + spotanims + out-of-scene
+ * stacks) plus a frame of NPC/player churn. Overflow is a programming error —
+ * silently dropping EntityRemoved orphans DYNAMIC scene elements across the
+ * next ClearPool(STATIC) and starves the element free list. */
+#define WORLD_MAX_EVENTS 8192
 #define WORLD_SCENERY_PICK_MAX 4096
 
 #define WORLD_MAP_TERRAIN_X 64

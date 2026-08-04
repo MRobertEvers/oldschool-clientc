@@ -145,7 +145,9 @@ World_ResetSceneAlloc(
      * relocates them (Client-TS keeps entity slots across a rebuild). */
     World_EntityPoolReset(&world->entities.scenery);
     world->scenery_pick_count = 0;
-    world->event_count = 0;
+    /* Pending EntityRemoved must be drained (SceneElementRemove) before a
+     * scene reset — wiping the queue here would orphan DYNAMIC elements. */
+    assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
     world->_scene_size = scene_size;
@@ -322,8 +324,9 @@ World_EmitEntityRemoved(
     struct World* world,
     int element_id)
 {
-    if( element_id < 0 || world->event_count >= WORLD_MAX_EVENTS )
+    if( element_id < 0 )
         return;
+    assert(world->event_count < WORLD_MAX_EVENTS && "EntityRemoved queue full — raise WORLD_MAX_EVENTS");
     world->events[world->event_count++] = (struct World_Event){
         .kind = WorldEventKind_EntityRemoved,
         .element_id = element_id,

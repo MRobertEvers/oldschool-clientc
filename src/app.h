@@ -1019,6 +1019,12 @@ App_WorldRebuildShift(
     int base_dx,
     int base_dz);
 
+/** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
+ *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue
+ *  is empty) and after bulk despawns. */
+void
+App_WorldDrainEntityRemoved(struct App* app);
+
 /** Post-load wiring (camera, height fn, texture sync, minimap bake, and the
  * server ack for a REBUILD_NORMAL-driven load). Runs at the tail of the world
  * load: the fire-and-forget path wires it as Task_WorldLoad's on_done; the

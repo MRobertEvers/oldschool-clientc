@@ -64,6 +64,93 @@ world_builder_free_transient_maps(struct WorldBuilder* builder)
     builder->occluder_buildmap = NULL;
 }
 
+/* After ClearPool(STATIC), only DYNAMIC elements should remain. Orphans —
+ * DYNAMIC elements whose world entity was released without a drained
+ * EntityRemoved — survive ClearPool, stay off the free list, and force the
+ * high-water mark up on every denser rebuild until the uint16 entity id
+ * space is exhausted. Reclaim them before the new static build allocates. */
+static void
+world_builder_mark_element_keep(
+    uint8_t* keep,
+    int element_id)
+{
+    if( element_id >= 0 && element_id < TORIDRAW_SCENE_MAX_ELEMENTS )
+        keep[element_id] = 1;
+}
+
+static void
+world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
+{
+    struct World* world;
+    struct ToriDraw_Scene* scene;
+    uint8_t* keep;
+    struct World_EntityPool* pool;
+    int id;
+    int next;
+
+    assert(builder);
+    world = builder->world;
+    scene = builder->scene;
+    assert(world && scene);
+
+    keep = (uint8_t*)calloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS, 1);
+    assert(keep && "world_builder_reconcile_dynamic_elements: keep bitmap");
+
+    pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* p = World_EntityPoolGet(pool, i);
+        if( p )
+            world_builder_mark_element_keep(keep, p->element_id);
+    }
+    pool = &world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* n = World_EntityPoolGet(pool, i);
+        if( n )
+            world_builder_mark_element_keep(keep, n->element_id);
+    }
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack* s = World_EntityPoolGet(pool, i);
+        if( s )
+            world_builder_mark_element_keep(keep, s->element_id);
+    }
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
+        if( p )
+            world_builder_mark_element_keep(keep, p->element_id);
+    }
+    pool = &world->entities.spotanim;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, i);
+        if( s )
+            world_builder_mark_element_keep(keep, s->element_id);
+    }
+
+    for( id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL; id = next )
+    {
+        struct ToriDraw_SceneElement* el;
+
+        next = scene->elements.nodes[id].next;
+        el = ToriDraw_SceneElementGet(scene, id);
+        if( !el || el->pool != (uint8_t)TORIDRAW_SCENE_POOL_DYNAMIC )
+            continue;
+        if( !keep[id] )
+            ToriDraw_SceneElementRemove(scene, id);
+    }
+    free(keep);
+}
+
 struct WorldBuilder*
 WorldBuilder_New(
     struct World* world,
@@ -110,6 +197,7 @@ WorldBuilder_RebuildCenterzoneBegin(
     /* Static pool only: entity elements (players/npcs/objs) keep their ids
      * across a rebuild — the REBUILD_NORMAL shift relocates them instead. */
     ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    world_builder_reconcile_dynamic_elements(builder);
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
     builder->overlaymap = overlaymap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -503,6 +591,7 @@ WorldBuilder_RebuildChunklistBegin(
     World_ResetSceneChunkList(world, chunks_xz, count);
 
     ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    world_builder_reconcile_dynamic_elements(builder);
 
     int scene_size = world->_scene_size;
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
