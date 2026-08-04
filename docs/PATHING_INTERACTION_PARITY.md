@@ -452,16 +452,17 @@ Op handlers route to the **target** with its approach — they never call
 
 ### 7.2 Movement model
 
-Players store at most 25 dest-first waypoints (`PathingEntity.waypoints`) and
-advance with a greedy `takeStep` that re-validates `mock230_scene_can_step_extra`
-(with NPC/BLOCK occupancy) and stalls instead of clearing the route. Interaction
-recovery re-floods when the corner queue is empty or a post-move step is blocked,
-and queues the **full** approach path (`queue_path_as_waypoints` / LostCity
-`pathToTarget`) — not a single adjacent tile. Truncating a fresh
-`walk_to_approach` on the packet-handler call (`steps_taken == 0` alone) forced
-`move_count == 1` on every op approach and ignored run mode. When an npc target
-moves at the last waypoint, the engine re-aims with one adjacent tile so chase
-stays sticky without that truncate.
+Players store at most 25 dest-first **corner** waypoints (`PathingEntity.waypoints`)
+— the last tile of each straight BFS run, matching LostCity `PathFinder` /
+`collision_route_backtrace` — and advance with a greedy `takeStep` that
+re-validates `mock230_scene_can_step_extra` (with NPC/BLOCK occupancy) and stalls
+instead of clearing the route. Interaction recovery re-floods when the corner
+queue is empty or a post-move step is blocked, and queues the **full** approach
+path (`queue_path_as_waypoints` / LostCity `pathToTarget`) — not a single
+adjacent tile. Truncating a fresh `walk_to_approach` on the packet-handler call
+(`steps_taken == 0` alone) forced `move_count == 1` on every op approach and
+ignored run mode. When an npc target moves at the last waypoint, the engine
+re-aims with one adjacent tile so chase stays sticky without that truncate.
 
 NPCs never flood: `mock230_world_npc_walk_to` queues one tile from
 `collision_map_naive_path` (via `mock230_scene_naive_path`) and advances with the
@@ -493,3 +494,4 @@ npc APPLAYER casts the reverse).
 | P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
 | P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |
 | P6 | op-approach recovery kept one BFS tile → run never took 2 steps | full-path re-flood; stall only when next step blocked; npc movers re-aimed one tile at last waypoint |
+| P7 | `queue_path_as_waypoints` stored **run-start** tiles, so greedy `takeStep` cut unvalidated diagonals past corners and stuck on walls; >25-turn cap overwrote the last turn with the raw destination | record run-**end** corners (LostCity backtrace); cap drops destination-end turns (`pop()`) |

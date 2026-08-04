@@ -4286,7 +4286,7 @@ exec_loot(
         return CS2VM2_PushInt(vm, LootStore_SourceItemCount(loot, req->name));
 
     case CS2_OP_LOOT_SOURCE_TOTALVAL:
-        return CS2VM2_PushInt(vm, LootStore_SourceTotalValue(loot, req->name));
+        return CS2VM2_PushInt(vm, LootStore_SourceKillCount(loot, req->name));
 
     case CS2_OP_LOOT_BEGIN_QUERY:
         return CS2VM2_PushInt(vm, LootStore_BeginQuery(
@@ -4406,6 +4406,7 @@ exec_loot(
     case CS2_OP_LOOT_ADD:
     {
         /* int_args: [0]=event_id, [1]=qty, [2]=obj (pop order from 7192). */
+        int event_id = req->int_args[0];
         int obj_id = req->int_args[2];
         int qty = req->int_args[1];
         int cost = 1;
@@ -4416,7 +4417,7 @@ exec_loot(
         if( obj )
             cost = obj->cost;
         LootStore_AddKillLoot(
-            loot, req->name ? req->name : "", obj_id, qty, cost);
+            loot, req->name ? req->name : "", obj_id, qty, cost, event_id);
         if( getenv("TORIRS_LOOT_TRACE") )
         {
             fprintf(
@@ -4425,7 +4426,7 @@ exec_loot(
                 req->name ? req->name : "",
                 obj_id,
                 qty,
-                req->int_args[0]);
+                event_id);
         }
         return CS2VM_EXECNO_OK;
     }

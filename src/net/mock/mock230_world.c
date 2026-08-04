@@ -487,9 +487,14 @@ player_waypoint_step_blocked(struct Mock230Player const* player)
  * waypoint_index counts down from the tile nearest the player toward the
  * destination.
  *
- * Only turn points are stored — subsample every tile into at most
- * MOCK230_WAYPOINT_MAX by keeping direction changes plus the final tile. The
- * greedy stepper fills the gaps.
+ * Only corner tiles are stored — the last tile of each straight run, matching
+ * LostCity PathFinder's backtrace and collision_route_backtrace. The greedy
+ * stepper fills the gaps; aiming at a run-start instead would hand it a
+ * mixed-axis delta past the corner and let it cut an unvalidated diagonal.
+ *
+ * Cap at MOCK230_WAYPOINT_MAX by dropping destination-end corners (the
+ * reference pop()), so an over-long route stops short rather than beelining
+ * through walls to the raw destination.
  */
 static void
 queue_path_as_waypoints(
@@ -501,8 +506,6 @@ queue_path_as_waypoints(
     int turn_x[MOCK230_WAYPOINT_MAX];
     int turn_z[MOCK230_WAYPOINT_MAX];
     int turns = 0;
-    int prev_dx = 0;
-    int prev_dz = 0;
 
     player->waypoint_index = -1;
     if( steps <= 0 )
@@ -514,25 +517,27 @@ queue_path_as_waypoints(
         int from_z = i == 0 ? player->z : path_z[i - 1];
         int dx = path_x[i] - from_x;
         int dz = path_z[i] - from_z;
-        int is_turn = (i == 0) || (dx != prev_dx || dz != prev_dz);
-        int is_last = (i == steps - 1);
+        int is_corner;
 
-        if( !is_turn && !is_last )
+        if( i == steps - 1 )
+            is_corner = 1;
+        else
+        {
+            int next_from_x = path_x[i];
+            int next_from_z = path_z[i];
+            int next_dx = path_x[i + 1] - next_from_x;
+            int next_dz = path_z[i + 1] - next_from_z;
+
+            is_corner = (next_dx != dx || next_dz != dz);
+        }
+
+        if( !is_corner )
             continue;
         if( turns >= MOCK230_WAYPOINT_MAX )
-        {
-            /* Cap: overwrite the last turn with the destination so we still
-             * finish at the right tile. */
-            turn_x[MOCK230_WAYPOINT_MAX - 1] = path_x[steps - 1];
-            turn_z[MOCK230_WAYPOINT_MAX - 1] = path_z[steps - 1];
-            turns = MOCK230_WAYPOINT_MAX;
             break;
-        }
         turn_x[turns] = path_x[i];
         turn_z[turns] = path_z[i];
         turns++;
-        prev_dx = dx;
-        prev_dz = dz;
     }
 
     /* Reverse into dest-first storage: waypoints[0] = destination,
@@ -14799,75 +14804,60 @@ mock230_world_selftest(void)
     bank_seeded_done:;
     }
 
-    fprintf(stderr, "mock230 selftest: bank op ladder\n");
+    fprintf(stderr, "mock230 selftest: bank content withdraw ladder\n");
     {
         struct Mock230Bank* bank = &player->bank;
+        int loaded;
 
         selftest_reset_world(&srv, player, 402, 402);
+        loaded = mock230_scripts_load(
+            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_ladder_done;
+        }
 
-        /*
-         * Fixed sparse indices from CS2 script_5272 / Kronos bankmain_drawitem.
-         * Omitting a duplicate default leaves a hole in the menu; it does not
-         * renumber later ops. Withdraw-X is always op 6, All always op 7.
-         */
-        bank->quantity_mode = ids->bank_qty_1;
-        bank->requested_quantity = 0;
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 1,
-                       "op 1 is the default quantity");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,
-                       "op 2 is Withdraw-1 (sparse; unused when default is 1)");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 0) == 5,
-                       "op 3 is Withdraw-5");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 4, 100, 0) == 10,
-                       "op 4 is Withdraw-10");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 0,
-                       "op 5 is last-X only when set");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == MOCK230_BANK_ASK,
-                       "op 6 is always Withdraw-X");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 7, 100, 0) == 100,
-                       "op 7 is Withdraw-All");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 0) == 99,
-                       "op 8 is All-but-1");
-
-        bank->quantity_mode = ids->bank_qty_all;
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 100,
-                       "op 1 is still the default, which is now All");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,
-                       "Withdraw-1 stays at op 2");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 7, 100, 0) == 100,
-                       "op 7 is still All (CS2 omits the label; index fixed)");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 0) == 99,
-                       "All-but-1 stays at op 8");
-
-        bank->requested_quantity = 42;
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 42,
-                       "op 5 is last-X when set");
-
-        /* The side panel numbers its rows with constants, so it does not move. */
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 1) == 1,
-                       "side op 3 is always Deposit-1");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 1) == 100,
-                       "side op 8 is always Deposit-All");
-    }
-
-    fprintf(stderr, "mock230 selftest: bank Withdraw-X persists last-X\n");
-    {
-        struct Mock230Bank* bank = &player->bank;
-
-        selftest_reset_world(&srv, player, 402, 402);
-        bank->slots[0].obj_id = 995; /* coins — same fixture id as the deposit tests */
+        bank->slots[0].obj_id = 995;
         bank->slots[0].count = 500;
-        bank->pending_kind = MOCK230_BANK_PENDING_WITHDRAW;
-        bank->pending_slot = 0;
-        bank->requested_quantity = 0;
-        SELFTEST_CHECK(mock230_bank_resume_countdialog(&srv, 77) == 1,
-                       "resume Withdraw-X succeeds");
-        SELFTEST_CHECK(bank->requested_quantity == 77, "last-X remembered");
+        mock230_bank_open(&srv);
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_requestedquantity, 0);
+
+        player->last_slot = 0;
         SELFTEST_CHECK(
-            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 77,
-            "last-X varbit written");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 500, 0) == 77,
-                       "op 5 now withdraws last-X");
+            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 3) ==
+                MOCK230_TRIGGER_RAN,
+            "if_button3 Withdraw-5 should bind");
+        SELFTEST_CHECK(bank->slots[0].count == 495, "Withdraw-5 should leave 495, got %d",
+                       bank->slots[0].count);
+
+        player->last_slot = 0;
+        SELFTEST_CHECK(
+            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 7) ==
+                MOCK230_TRIGGER_RAN,
+            "if_button7 Withdraw-All should bind");
+        SELFTEST_CHECK(bank->slots[0].obj_id < 0 || bank->slots[0].count == 0,
+                       "Withdraw-All should empty the stack");
+
+        bank->slots[0].obj_id = 995;
+        bank->slots[0].count = 100;
+        bank->dirty = 1;
+        player->last_slot = 0;
+        SELFTEST_CHECK(
+            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 6) ==
+                MOCK230_TRIGGER_RAN,
+            "if_button6 Withdraw-X should bind and park");
+        SELFTEST_CHECK(mock230_scripts_resume_countdialog(&srv, 40) == 1,
+                       "resume Withdraw-X amount");
+        SELFTEST_CHECK(
+            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 40,
+            "last-X varbit written by content");
+        SELFTEST_CHECK(bank->slots[0].count == 60, "Withdraw-X 40 should leave 60, got %d",
+                       bank->slots[0].count);
+
+        mock230_bank_close(&srv);
+    bank_ladder_done:;
     }
 
     fprintf(stderr, "mock230 selftest: bank open sends both halves\n");
@@ -14894,13 +14884,13 @@ mock230_world_selftest(void)
             int second = player->bank.slots[1].obj_id;
             int third = player->bank.slots[2].obj_id;
 
-            player->bank.insert_mode = 1;
+            mock230_bank_set_varbit(&srv, ids->varbit_bank_insertmode, 1);
             mock230_bank_move_slot(&srv, 0, 2);
             SELFTEST_CHECK(player->bank.slots[0].obj_id == second &&
                                player->bank.slots[1].obj_id == third &&
                                player->bank.slots[2].obj_id == first,
                            "insert should shuffle, not swap");
-            player->bank.insert_mode = 0;
+            mock230_bank_set_varbit(&srv, ids->varbit_bank_insertmode, 0);
             mock230_bank_move_slot(&srv, 2, 0);
             SELFTEST_CHECK(player->bank.slots[0].obj_id == first &&
                                player->bank.slots[2].obj_id == second,

@@ -14,6 +14,8 @@
  * Data model (scripts 7166, 7179, 7199, 1791, 1792, 7200, debug 1223-1228):
  *
  *   Sources       — keyed by (auto-id, name). Rows of (obj_id, qty, value).
+ *                   kill_count bumped once per distinct LOOT_ADD event_id.
+ *                   Opcode 7604 returns kill_count (UI "Name x N"), not GP.
  *   Aux lists     — scratch string lists kinds 0..4 (7400-family). Scripts
  *                   1792/7200 rebuild kinds 1/2 from the persistent ignore
  *                   lists; Ground Items highlight/filter use kinds 3/4.
@@ -42,6 +44,10 @@ struct LootSource
     struct LootRow* rows;
     int row_count;
     int row_cap;
+    /* Kill count for opcode 7604 / "Name x N". Bumped once per distinct
+     * event_id so multi-item drops from one death count as one kill. */
+    int kill_count;
+    int last_event_id;
 };
 
 struct LootAuxList
@@ -73,6 +79,10 @@ struct LootStore
     int* query_ids;
     int query_count;
     int query_cap;
+
+    /* Monotonic ids for debug/seed paths that call AddKillLoot without a
+     * server event_id (App_LootNotifyKill). */
+    int next_event_id;
 };
 
 void
@@ -87,14 +97,17 @@ LootStore_ResetAll(struct LootStore* store);
 /* --- Populate hook (server/engine side) --------------------------------- */
 
 /** Record one loot drop. Creates the source group if it does not exist;
- *  appends or merges a row for obj_id. Does not consult ignore lists. */
+ *  appends or merges a row for obj_id. Increments kill_count when event_id
+ *  differs from the source's last seen event (multi-item kills share one id).
+ *  Does not consult ignore lists. */
 void
 LootStore_AddKillLoot(
     struct LootStore* store,
     const char* source_name,
     int obj_id,
     int qty,
-    int value);
+    int value,
+    int event_id);
 
 /* --- Source queries (backing ops 7601..7606, 7630) ----------------------- */
 
@@ -114,9 +127,10 @@ LootStore_SourceItemCount(
     const struct LootStore* store,
     const char* source_name);
 
-/** Source name → total value aggregate (op 7604). */
+/** Source name → kill count (op 7604). Scripts 7166/7160 store this as the
+ *  component scroll height that becomes "Name x N" / Total count. */
 int
-LootStore_SourceTotalValue(
+LootStore_SourceKillCount(
     const struct LootStore* store,
     const char* source_name);
 

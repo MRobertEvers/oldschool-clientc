@@ -4125,10 +4125,11 @@ App_LootNotifyKill(
 
     /*
      * Script 7166 only mounts a source into the Drops-mode info slots when
-     * _7604(name) != 0. Dat2 objtypes default cost to 1; when the type is not
-     * yet resident (common right after login for a lootkill cheat) treat the
-     * value the same way and queue the load so later OC_* ops see the real
-     * record.
+     * _7604(name) != 0. That opcode is the per-source kill count; seed one
+     * kill via a fresh event_id. Dat2 objtypes default cost to 1; when the
+     * type is not yet resident (common right after login for a lootkill
+     * cheat) treat value the same way and queue the load so later OC_* ops
+     * see the real record.
      */
     int cost = 1;
     struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
@@ -4143,18 +4144,20 @@ App_LootNotifyKill(
             ToriRS_TaskQueue_Add(app->runner.queue, load);
     }
 
-    LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost);
+    int event_id = app->loot.next_event_id++;
+    LootStore_AddKillLoot(&app->loot, source_name, obj_id, qty, cost, event_id);
 
     /*
-     * Clientscript 7159: the decompiled signature is (int objId, int qty,
-     * string sourceName). The engine fills the store FIRST, then pushes 7159
-     * so CS2 can read it back.
+     * Clientscript 7159: (int killDelta, int qty, string sourceName).
+     * The engine fills the store FIRST, then pushes 7159 so CS2 can read it
+     * back. 7159 → 7162 adds killDelta onto the source's scroll height
+     * ("Name x N"); pass 1 per kill, never the obj id.
      *
-     * Argument layout: intv[0] = objId, intv[1] = qty; str_mask bit 2 marks
-     * argument 2 as a string; str_args[0] = sourceName (compacted).
+     * Argument layout: intv[0] = killDelta, intv[1] = qty; str_mask bit 2
+     * marks argument 2 as a string; str_args[0] = sourceName (compacted).
      */
     {
-        int intv[3] = { obj_id, qty, 0 };
+        int intv[3] = { 1, qty, 0 };
         char const* str_args[1] = { source_name };
         uint64_t str_mask = 1u << 2;
 
@@ -9033,9 +9036,8 @@ app_minimenu_inv_action(
                 opt->action_index + 1, obj_id, slot, com_id));
         return 1;
     case REVCONFIG_MINIMENU_IF_BUTTON:
-        /* Component ops 6..10 on an inventory cell (bank Withdraw-X/All,
-         * farming tools op9/10, …). INV_BUTTON only goes to 5 on the wire;
-         * IF_BUTTON1..10 carry (component, sub=slot). */
+        /* Component ops 1..10 on an inventory cell (bank withdraw ladder,
+         * farming tools, …). IF_BUTTON1..10 carry (component, sub=slot). */
         if( opt->action_index < 0 || opt->action_index >= 10 )
             return 0;
         APP_NET_SEND(

@@ -2783,6 +2783,9 @@
 #define CS2_OP_LOOT_SOURCE_COUNT     7601
 #define CS2_OP_LOOT_SOURCE_NAME      7602
 #define CS2_OP_LOOT_SOURCE_ITEMCOUNT 7603
+/* 7604: per-source kill count. Scripts 7166/7160 write it into the source
+ * component's scroll height; 7133/2907/7175 format that as "Name x N" and
+ * sum it into Total count. GP totals come from item widgets, not this op. */
 #define CS2_OP_LOOT_SOURCE_TOTALVAL  7604
 #define CS2_OP_LOOT_BEGIN_QUERY      7605
 #define CS2_OP_LOOT_QUERY_ID         7606
@@ -2808,8 +2811,8 @@
  * str stack in:   source_name
  * int/str out:    -
  * notes: Clientscript 7192 (LOOTTRACKER_ADD_LOOT) is the only caller. The
- *        event_id batches multi-item kills for the UI refresh (7158); the
- *        store merges by source name and does not keep it. */
+ *        event_id batches multi-item kills: one kill_count bump per distinct
+ *        id; the store also merges rows by (source name, obj_id). */
 #define CS2_OP_LOOT_ADD              7628
 #define CS2_OP_LOOT_SOURCE_NAME2     7630
 

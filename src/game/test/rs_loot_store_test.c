@@ -3,8 +3,9 @@
  *
  * Mirrors varc_manager_test.c: standalone, no cache, no server. The assertions
  * reproduce the read loop in decompiled script 7166: AddKillLoot feeds the
- * store, then BeginQuery + QueryId + SourceName + SourceTotalValue must return
- * non-zero rows.
+ * store, then BeginQuery + QueryId + SourceName + SourceKillCount must return
+ * non-zero rows. Opcode 7604 is kill count (scroll height → "Name x N"), not
+ * total GP value.
  */
 
 #include "game/rs_loot_store.h"
@@ -55,27 +56,32 @@ test_add_kill_loot(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
+    /* One kill, two items — same event_id → kill_count == 1 */
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "one source");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Goblin") == 1, "first kill");
 
-    LootStore_AddKillLoot(&store, "Goblin", 101, 3, 10);
+    LootStore_AddKillLoot(&store, "Goblin", 101, 3, 10, 1);
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "still one source");
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Goblin") == 2, "two rows");
-    TEST_ASSERT(LootStore_SourceTotalValue(&store, "Goblin") == 5 + 30, "value aggregate");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Goblin") == 1, "same event: still 1 kill");
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 2, 5);
+    /* Same obj, new event → merge qty and bump kills */
+    LootStore_AddKillLoot(&store, "Goblin", 100, 2, 5, 2);
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Goblin") == 2, "merge same obj_id");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Goblin") == 2, "new event: 2 kills");
 
     int obj, qty;
     TEST_ASSERT(LootStore_RowByName(&store, "Goblin", 1, &obj, &qty), "row 1 exists");
     TEST_ASSERT(obj == 100, "row 0 obj");
     TEST_ASSERT(qty == 3, "row 0 merged qty");
 
-    LootStore_AddKillLoot(&store, "Imp", 200, 1, 20);
+    LootStore_AddKillLoot(&store, "Imp", 200, 1, 20, 10);
     TEST_ASSERT(LootStore_SourceCount(&store) == 2, "two sources");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "Imp one kill");
 
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Unknown") == 0, "unknown source: 0 items");
-    TEST_ASSERT(LootStore_SourceTotalValue(&store, "Unknown") == 0, "unknown source: 0 value");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Unknown") == 0, "unknown source: 0 kills");
 
     LootStore_Free(&store);
 }
@@ -92,9 +98,9 @@ test_begin_query(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
-    LootStore_AddKillLoot(&store, "Imp", 200, 2, 10);
-    LootStore_AddKillLoot(&store, "Guard", 300, 1, 50);
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    LootStore_AddKillLoot(&store, "Imp", 200, 2, 10, 2);
+    LootStore_AddKillLoot(&store, "Guard", 300, 1, 50, 3);
 
     /* Script 7166 line: _7605(0, min(source_count, 10), 1) */
     int n = LootStore_BeginQuery(&store, 0, 10, 1);
@@ -113,9 +119,9 @@ test_begin_query(void)
     const char* name0 = LootStore_SourceName(&store, id0);
     TEST_ASSERT(strcmp(name0, "Goblin") == 0, "id → name roundtrip");
 
-    /* _7604(name) → value */
-    int val = LootStore_SourceTotalValue(&store, "Imp");
-    TEST_ASSERT(val == 20, "Imp total value");
+    /* _7604(name) → kill count */
+    int kills = LootStore_SourceKillCount(&store, "Imp");
+    TEST_ASSERT(kills == 1, "Imp kill count");
 
     /* out of range */
     TEST_ASSERT(LootStore_QueryId(&store, -1) == -1, "negative index → -1");
@@ -157,10 +163,11 @@ test_row_access(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 5, 2);
-    LootStore_AddKillLoot(&store, "Goblin", 101, 3, 7);
+    LootStore_AddKillLoot(&store, "Goblin", 100, 5, 2, 1);
+    LootStore_AddKillLoot(&store, "Goblin", 101, 3, 7, 1);
 
     TEST_ASSERT(LootStore_RowCountByName(&store, "Goblin") == 2, "2 rows by name");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Goblin") == 1, "one kill two rows");
 
     int n = LootStore_BeginQuery(&store, 0, 10, 1);
     TEST_ASSERT(n == 1, "one source");
@@ -296,8 +303,8 @@ test_clear_and_remove(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
-    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 2);
     TEST_ASSERT(LootStore_SourceCount(&store) == 2, "two sources");
 
     /* 7614 clear-source-by-name (NOT ignore-add) */
@@ -307,7 +314,7 @@ test_clear_and_remove(void)
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Imp") == 1, "Imp remains");
 
     /* Script 7179 Clear-data sequence: 7614 then kind-2 query + 7615 */
-    LootStore_AddKillLoot(&store, "Guard", 300, 1, 50);
+    LootStore_AddKillLoot(&store, "Guard", 300, 1, 50, 3);
     LootStore_ClearSourceByName(&store, "Guard");
     int n = LootStore_BeginQuery(&store, 0, LootStore_AuxCountTotal(&store) + 10, 2);
     for( int i = 0; i < n; i++ )
@@ -324,7 +331,7 @@ test_clear_and_remove(void)
     LootStore_RemoveById(&store, id0);
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "last source removed");
 
-    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);
+    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 4);
     LootStore_RemoveById(&store, 9999);
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "remove bad id: no effect");
 
@@ -346,7 +353,7 @@ test_reset_all(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
     LootStore_AuxUpsert(&store, 1, "SrcName", 0);
     LootStore_ItemIgnoreAdd(&store, "Bones");
     LootStore_SourceIgnoreAdd(&store, "Goblin");
@@ -359,8 +366,9 @@ test_reset_all(void)
     TEST_ASSERT(!LootStore_IsSourceIgnored(&store, "Goblin"), "source ignore cleared");
 
     /* Usable after reset */
-    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10);
+    LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 1);
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "usable after reset");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "kill after reset");
 
     LootStore_Free(&store);
 }
@@ -377,10 +385,12 @@ test_script_7166_loop(void)
     struct LootStore store;
     LootStore_Init(&store);
 
-    /* Simulate NPC kills feeding the store */
-    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5);
-    LootStore_AddKillLoot(&store, "Goblin", 101, 2, 3);
-    LootStore_AddKillLoot(&store, "Guard", 300, 1, 100);
+    /* Goblin: two items, one kill (event 1); then second kill (event 2).
+     * Guard: one kill. */
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    LootStore_AddKillLoot(&store, "Goblin", 101, 2, 3, 1);
+    LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 2);
+    LootStore_AddKillLoot(&store, "Guard", 300, 1, 100, 3);
 
     /* Script 7166 line 1: $int0 = _7601 */
     int source_count = LootStore_SourceCount(&store);
@@ -391,8 +401,8 @@ test_script_7166_loop(void)
     int n = LootStore_BeginQuery(&store, 0, limit, 1);
     TEST_ASSERT(n == 2, "query returns 2");
 
-    /* The read loop: while ($int2 < $int5) */
-    int total_value = 0;
+    /* The read loop: while ($int2 < $int5) — _7604 is kill count */
+    int total_kills = 0;
     for( int i = 0; i < n; i++ )
     {
         int id = LootStore_QueryId(&store, i);            /* _7606(i) */
@@ -401,11 +411,13 @@ test_script_7166_loop(void)
         const char* name = LootStore_SourceName(&store, id); /* _7602(id) */
         TEST_ASSERT(strlen(name) > 0, "non-empty name");
 
-        int val = LootStore_SourceTotalValue(&store, name);  /* _7604(name) */
-        TEST_ASSERT(val > 0, "positive value");
-        total_value += val;
+        int kills = LootStore_SourceKillCount(&store, name); /* _7604(name) */
+        TEST_ASSERT(kills > 0, "positive kill count");
+        total_kills += kills;
     }
-    TEST_ASSERT(total_value == (5 + 6 + 100), "aggregate value correct");
+    TEST_ASSERT(total_kills == 3, "Goblin x2 + Guard x1");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Goblin") == 2, "Goblin kills");
+    TEST_ASSERT(LootStore_SourceKillCount(&store, "Guard") == 1, "Guard kills");
 
     LootStore_Free(&store);
 }

@@ -1,6 +1,7 @@
 #include "rs_loot_store.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -251,6 +252,7 @@ LootStore_Init(struct LootStore* store)
     assert(store);
     memset(store, 0, sizeof(*store));
     store->next_source_id = 1;
+    store->next_event_id = 1;
 }
 
 void
@@ -298,7 +300,8 @@ LootStore_AddKillLoot(
     const char* source_name,
     int obj_id,
     int qty,
-    int value)
+    int value,
+    int event_id)
 {
     assert(store);
     assert(source_name);
@@ -316,6 +319,16 @@ LootStore_AddKillLoot(
             store->source_count--;
             return;
         }
+        /* calloc leaves last_event_id at 0; use a sentinel so a real event_id
+         * of 0 still counts as the first kill. */
+        src->last_event_id = INT_MIN;
+        src->kill_count = 0;
+    }
+
+    if( event_id != src->last_event_id )
+    {
+        src->kill_count++;
+        src->last_event_id = event_id;
     }
 
     for( int i = 0; i < src->row_count; i++ )
@@ -370,7 +383,7 @@ LootStore_SourceItemCount(
 }
 
 int
-LootStore_SourceTotalValue(
+LootStore_SourceKillCount(
     const struct LootStore* store,
     const char* source_name)
 {
@@ -378,12 +391,7 @@ LootStore_SourceTotalValue(
     if( !source_name )
         return 0;
     const struct LootSource* src = find_source_by_name(store, source_name);
-    if( !src )
-        return 0;
-    int total = 0;
-    for( int i = 0; i < src->row_count; i++ )
-        total += src->rows[i].value;
-    return total;
+    return src ? src->kill_count : 0;
 }
 
 int

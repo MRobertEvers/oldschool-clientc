@@ -418,6 +418,12 @@ control binary built with all bridged rows flipped back to `known = 0`
   and non-zero tracker totals (`tmp_panel_shots/after_kill_loot.png`).
   Deob `method10020` (7600–7699) is a stub; arities from 7192 disassembly +
   RuneLite `ScriptPreFired` args, not the deob.
+- **Kill-count mapping fixed 2026-08-03.** Opcode 7604 was wrongly returning
+  per-source total GP value; scripts 7166/7160 store it as scroll height and
+  7133/7175 format that as `"Name x N"` / Total count (GP comes from item
+  widgets). `LootStore` now keeps `kill_count`, bumped once per distinct
+  `event_id` on 7628 so multi-item deaths count as one kill. Debug 7159
+  passes kill delta `1` (not obj id) into 7162.
 - **XP skill rows** still empty after `::xp attack N` in the same
   `TORIRS_NET_CHEAT` batch as `xptracker` (chat shows the gain; overview stays
   at 0). Not a mount bug; baseline/stat-transmit timing.
@@ -566,6 +572,8 @@ Combat deaths credit via clientscript 7192 → opcode 7628 (see §7.6); debug
 `lootkill` still works via `App_LootNotifyKill`. Re-measured 2026-08-03:
 `TORIRS_NET_CHEAT='fight;loottools'` with `TORIRS_NET_CHEAT_EVERY=500` →
 tracker shows non-zero totals (`tmp_panel_shots/after_kill_loot.png`).
+`"Name x N"` / Total count read opcode 7604 as kill count (event_id-batched),
+not total GP — see §7.6 kill-count mapping note.
 
 ### 8.4 Verified by clicking
 

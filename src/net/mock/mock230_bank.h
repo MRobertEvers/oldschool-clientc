@@ -247,38 +247,9 @@ mock230_bank_count(
     struct Mock230Server* srv,
     int obj_id);
 
-/** Returned by mock230_bank_quantity_for_op when the row was "Withdraw-X" /
- *  "Deposit-X": the amount is not known until the player types it. */
-#define MOCK230_BANK_ASK (-1)
-
 /**
- * The quantity an op index means.
- *
- * This is the fiddliest thing in the file and it is not the mock's invention.
- * The bank's own CS2 builds the item's right-click rows *conditionally* — the
- * row matching the current default quantity is omitted, because it would
- * duplicate the first one — so the op index a click arrives with depends on
- * the settings at the time it was drawn. Script 669 is the ladder for the main
- * panel; `bankside_drawitem` uses fixed indices for the side panel, which is
- * why `side` is a parameter rather than an offset.
- *
- * Returns the quantity, 0 for a row the mock does not implement, or
- * MOCK230_BANK_ASK when the row was the "-X" prompt.
- */
-int
-mock230_bank_quantity_for_op(
-    struct Mock230Server* srv,
-    int op,
-    int available,
-    int side);
-
-/**
- * The engine's own click router, for when no script pack is loaded.
- *
- * Returns 1 when the click was a bank click and was acted on. Content that
- * binds `[if_button,…]` sees the click first; this is the fallback that keeps
- * the bank usable with no content at all, the same contract every other
- * trigger site in the mock has.
+ * Former click-router stub. Item withdraw/deposit and settings are content
+ * (`[if_buttonN,bankmain:items]` / armed settings comps). Always returns 0.
  */
 int
 mock230_bank_handle_button(
@@ -288,9 +259,7 @@ mock230_bank_handle_button(
     int obj,
     int op);
 
-/** Finish whatever "-X" row is waiting on a number. Returns 1 when one was.
- *  Called from the RESUME_P_COUNTDIALOG handler, after the script VM has had
- *  its chance — a parked script owns the answer if there is one. */
+/** No C pending-X path — content parks on p_countdialog. Always returns 0. */
 int
 mock230_bank_resume_countdialog(
     struct Mock230Server* srv,

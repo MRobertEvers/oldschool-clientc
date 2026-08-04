@@ -1645,9 +1645,9 @@ struct Mock230Player
      *
      * waypoints[waypoint_index] is the tile currently being walked toward;
      * the index counts down to 0 (the final destination). -1 means idle.
-     * At most MOCK230_WAYPOINT_MAX entries; each is a turn point, not every
-     * tile — advance_player greedily steps toward the current one and
-     * re-validates collision each tick.
+     * At most MOCK230_WAYPOINT_MAX entries; each is a corner (last tile of a
+     * straight BFS run), not every tile — advance_player greedily steps toward
+     * the current one and re-validates collision each tick.
      */
     struct Mock230Step waypoints[MOCK230_WAYPOINT_MAX];
     int waypoint_index;

@@ -425,8 +425,8 @@ from `gameframe.enum` block named after that toplevel.
 
 **Content**
 
-- `script_3967.cs2` / `script_4569.cs2`: case 12 calls `~settings_client_mode`
-  and sets `%varbit4607` (1 iff modern).
+- `script_3967.cs2` / `script_4569.cs2`: case 12 calls `~script3998` (not
+  `~settings_client_mode` — see §8.3) and sets `%varbit4607` (1 iff modern).
 - `gameframe.enum`: `[toplevel]`, `[toplevel_osrs_stretch]`,
   `[toplevel_pre_eoc]` mount blocks (same HUD/tab set, different slot names).
 - `gameframe_layout.rs2`: `[proc,gameframe_set_mode]` /
@@ -451,17 +451,19 @@ Embed client (`make -C src torirs EMBED_SERVER=1`,
 (`make -C src mock230-cache`, §8.3):
 
 ```
-TORIRS_SIM_RUNSCRIPT="300,3967,12,0;800,3967,12,2;1300,3967,12,1"
+TORIRS_SIM_RUNSCRIPT="400,3967,12,0;1000,3967,12,2;1600,3967,12,1"
 → windowmode: fixed      if-opentop: 161→548
 → windowmode: resizable  if-opentop: 548→164
 →                        if-opentop: 164→161
 ```
 
-The entry point is **3967 case 12** — `[clientscript,settings_set_dropdown]`,
+The entry point is **3967 case 12** — `[proc,settings_set_dropdown]`,
 what the Display panel's layout row actually runs — not 3998 forced by hand. It
 is the difference between testing the mechanism and testing the feature: against
 pristine `cache.osrs239` this same command does nothing at all, because the arm
-that calls 3998 is not in that cache.
+that calls 3998 is not in that cache. After a bake that *silently declined*
+3967/4569 (see §8.3), the same command again does nothing even though the tree
+looks correct — always re-measure the baked archive, not the `.cs2` alone.
 
 `TORIRS_DUMP_BOUNDS` + `TORIRS_EXIT_BMP` after each remount:
 
@@ -520,11 +522,25 @@ table to call the target a `proc`, and 3998 is a `clientscript`. A trigger is a
 fact about the table and not about the bytecode — `gosub_with_params` takes an
 id and a script record has no trigger field — and `cs2_write_call_target` had
 already decided this same disagreement the other way for years, writing the bare
-id because "the call site is evidence". `RSCache_CS2_NamesScriptId` now falls
-back across triggers when exactly one script carries the name, which keeps the
-ambiguity guard (`1v1arena_hud_toggle` is clientscript 2716 *and* proc 2717)
-intact. `cs2 roundtrip` went 9,433 → 9,507 decompiled of 9,725.
+id because "the call site is evidence". `RSCache_CS2_NamesScriptId` falls back
+across triggers when exactly one script carries the name, **except**
+PROC→CLIENTSCRIPT: that fallback was later excluded so a trampoline's sole
+clientscript alias cannot GOSUB-self while the real proc lives only as `.cs2b`.
 
+That exclusion is what made a later bake drop the layout dropdown again.
+Hand-writing `~settings_client_mode(...)` in case 12 looks right and compiles
+nowhere — pack declines 3967/4569, keeps pristine bytes, and the label still
+updates (the `cc_settext` before the switch) while remount never runs. The
+durable spelling is the decompiler's own escape hatch for this mismatch:
+`~script3998(...)` (id path in `cs2_cc_resolve_script`, same as `~script753`
+calling `[clientscript,script753]`). Measured 2026-08-03: after that spelling
+change, baked idx12 archives 3967/4569 differ from pristine and contain
+`GOSUB_WITH_PARAMS 3998`; the §8.2 sim then remounts 161→548→164→161.
+
+**Hard rule when editing these two scripts:** after `mock230-cache`, confirm the
+baked archive MD5 changed (or that decompressed bytecode contains id 3998). A
+tree that says `~script3998` while the bake still matches pristine is the same
+bug as before — only quieter.
 ### 8.3a Remaining gaps
 
 - **Persistence** of layout across logins — out of scope.

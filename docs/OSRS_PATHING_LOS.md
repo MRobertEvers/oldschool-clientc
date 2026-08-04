@@ -338,6 +338,7 @@ Those bits collide with rsmod's route-blocker tier (bits 22–30). See §7.3.
 | Shape-keyed `exitStrategy` + exclusive rectangle | `collision_map.c` |
 | Scene world-coord wrappers + `checkvis` | `mock230_scene.c` |
 | Naive NPC movement (no flood), waypoints, stuck counters | `mock230_world.c` |
+| Player BFS → **corner** waypoints (max 25) + greedy `takeStep` | `mock230_world.c` `queue_path_as_waypoints` |
 | `last_step` / `follow`, occupancy on step/spawn/death | `mock230_world.c`, `mock230_combat.c` |
 | AP LoS gate (npc casts backwards) | `mock230_world_process_interaction` |
 | Symmetric PvP AP | `mock230_world.c`, `mock230_ops_player.c` |
@@ -359,6 +360,26 @@ The window is a property of the **router**, not of the loaded scene:
 
 At `MOCK230_SCENE_TILES = 104` the two agree until a map wider than 128
 exists; `test_route_window` builds a 300-tile map to exercise the clamp.
+
+### 7.1b Corner waypoints (not run-starts)
+
+The BFS (`collision_map_route_tiles`) emits every tile. The server then
+subsamples into ≤25 dest-first **corner** waypoints — the last tile of each
+straight run — matching LostCity `PathFinder`'s backtrace and this tree's
+own `collision_route_backtrace`. The greedy `takeStep` fills the gaps; a
+pure cardinal/diagonal delta from a run's start to its corner reproduces the
+BFS exactly.
+
+An earlier `queue_path_as_waypoints` recorded the **first** tile of each run
+instead. That handed `takeStep` a mixed-axis aim past the corner, so it tried
+an unvalidated diagonal shortcut, fell through to the wrong cardinal, and
+could walk into a dead-end alcove with no ground-click re-path — the
+"stuck on a wall with a way round a few tiles away" symptom. The 25-turn cap
+also used to overwrite the last stored turn with the raw destination (a
+beeline through walls); it now drops destination-end corners like the
+reference `pop()`.
+
+Pinned by the `mock230 --selftest` movement L-corridor leg.
 
 ### 7.2 `moverestrict` → `CollisionType`
 
