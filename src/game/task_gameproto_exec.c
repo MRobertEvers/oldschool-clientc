@@ -18,8 +18,10 @@ struct Task_GameProtoExec
     struct App* app;
     struct RevPacket packet; /* owned; heap fields freed on task free */
 
-    /* REBUILD_NORMAL: map squares covering the 104x104 scene (asset prefetch). */
-    int chunks[18];
+    /* Map squares to prefetch: the 3x3 under the scene for REBUILD_NORMAL, the
+     * distinct source squares the descriptors name for REBUILD_REGION (which is
+     * why this is larger than the 9 pairs the normal path needs). */
+    int chunks[32 * 2];
     int chunk_count;
     /* Scene base (absolute tiles) before the load — the entity-shift delta
      * source (Client-TS mapBuildPrevBaseX/Z / deob method3310 var3/var4). */
@@ -96,6 +98,47 @@ rebuild_compute_chunks(struct Task_GameProtoExec* self)
         }
 }
 
+/*
+ * REBUILD_REGION descriptors -> the distinct *source* map squares to prefetch.
+ *
+ * Not the squares under the scene: those are the instance's own reserved
+ * coordinates, which by construction have no archives at all. The load has to
+ * fetch what the descriptors point at instead, and duplicates matter — a house
+ * is dozens of zones out of one or two squares, so the same square appears over
+ * and over.
+ *
+ * Squares past the cap are dropped rather than asserted. An instance is allowed
+ * to name more than a scene-sized rebuild ever would, and the failure mode of
+ * dropping one is a missing zone, not a corrupt scene.
+ */
+static void
+rebuild_region_compute_chunks(struct Task_GameProtoExec* self)
+{
+    const int32_t* zones = self->packet._map_rebuild.zones;
+    int cap = (int)(sizeof(self->chunks) / sizeof(self->chunks[0])) / 2;
+
+    self->chunk_count = 0;
+    for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )
+    {
+        int mx;
+        int mz;
+        int seen = 0;
+
+        if( zones[i] == 0 )
+            continue;
+        mx = ((zones[i] >> 14) & 0x3ff) >> 3;
+        mz = ((zones[i] >> 3) & 0x7ff) >> 3;
+        for( int c = 0; c < self->chunk_count && !seen; c++ )
+            if( self->chunks[c * 2] == mx && self->chunks[c * 2 + 1] == mz )
+                seen = 1;
+        if( seen || self->chunk_count >= cap )
+            continue;
+        self->chunks[self->chunk_count * 2] = mx;
+        self->chunks[self->chunk_count * 2 + 1] = mz;
+        self->chunk_count++;
+    }
+}
+
 static int
 Task_GameProtoExec_Run(
     struct ToriRS_Task* base,
@@ -112,16 +155,23 @@ Task_GameProtoExec_Run(
      * synchronously; handlers that mutate interfaces enqueue slot-mount
      * tasks BEHIND this one on the same serial queue, so ordering with later
      * packets holds. */
-    if( self->packet.packet_type == PKT_NAME_REBUILD_NORMAL )
+    if( self->packet.packet_type == PKT_NAME_REBUILD_NORMAL ||
+        self->packet.packet_type == PKT_NAME_REBUILD_REGION )
     {
         /* Client-TS / deob method3310: same-zone early-out when a world is
-         * already active. No ack on skip (Client.ts:2289 acks from mapBuild). */
+         * already active. No ack on skip (Client.ts:2289 acks from mapBuild).
+         * REBUILD_REGION forces past it — see App_WorldRebuildBegin. */
         self->zone_x = self->packet._map_rebuild.zonex;
         self->zone_z = self->packet._map_rebuild.zonez;
-        if( !App_WorldRebuildBegin(app, self->zone_x, self->zone_z) )
+        if( !App_WorldRebuildBegin(
+                app, self->zone_x, self->zone_z,
+                self->packet.packet_type == PKT_NAME_REBUILD_REGION) )
             PT_EXIT(&self->pt);
 
-        rebuild_compute_chunks(self);
+        if( self->packet._map_rebuild.zones )
+            rebuild_region_compute_chunks(self);
+        else
+            rebuild_compute_chunks(self);
         /* Entities carry scene-local coords relative to the old base;
          * capture it so they can be shifted onto the new one (Client-TS
          * shifts by mapBuildBaseX - mapBuildPrevBaseX). */
@@ -133,7 +183,7 @@ Task_GameProtoExec_Run(
          * App_WorldLoadFinish (which the shift must precede). */
         TASK_AWAITSELF_IF(CreateTask_WorldLoad(
             app->provider, app->world_builder, self->chunks, self->chunk_count,
-            self->zone_x, self->zone_z, NULL, NULL));
+            self->zone_x, self->zone_z, self->packet._map_rebuild.zones, NULL, NULL));
         /* The load's final step swapped the scene synchronously (same
          * task drain — no frame renders in between): relocate the kept
          * entities before any later packet or frame reads them, then run

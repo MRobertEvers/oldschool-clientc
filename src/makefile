@@ -256,6 +256,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
+	net/rev/packets/pkt_rebuild_region.c \
 	net/rev/gameproto_rev_params.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	bootmanifest/bootmanifest.c features/features.c \
@@ -307,7 +308,8 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
 	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	net/mock/mock230_scene.c net/mock/mock230_zone.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+	net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
+	net/mock/mock230_zone.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 
@@ -756,7 +758,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
-	$(OBJ_DIR)/pkt_rebuild_normal.o \
+	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -871,7 +873,8 @@ test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test \
 		net/test/runclientscript_test.c net/rev/osrs230/osrs230_parse.c \
-		net/rev/packets/pkt_rebuild_normal.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/rev/packets/pkt_rebuild_normal.c net/rev/packets/pkt_rebuild_region.c \
+		$(RSAREABUF_DIR)/rsareabuf.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/runclientscript_test

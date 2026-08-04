@@ -5,6 +5,7 @@
 #include "contour_ground_queue.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct CacheProvider;
 struct ToriDraw_Scene;
@@ -162,5 +163,145 @@ WorldBuilder_RebuildChunklistBegin(
     struct WorldBuilder* builder,
     const int* chunks_xz,
     int count);
+
+/* ------------------------------------------------------------------ */
+/* Instanced scenes                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Zones per axis in a REBUILD_REGION descriptor grid. 13, because that is a
+ *  104-tile scene in 8-tile zones — the same 13 as PKT_MAP_REBUILD_ZONES, which
+ *  is the wire's count of the same grid. */
+#define WORLD_INSTANCE_ZONES 13
+
+/**
+ * Rebuild the scene from a REBUILD_REGION descriptor grid rather than from the
+ * map squares under it.
+ *
+ * `zones` is PKT_MAP_REBUILD_ZONES ints indexed
+ * `[level * 13 * 13 + zone_x * 13 + zone_z]`, each 0 (void) or the client's
+ * packed template-chunk form — see struct PktMapRebuild. The scene base is
+ * `(zone_center - 6) * 8` exactly as in the ordinary rebuild, so everything
+ * downstream (entity coords, the minimap, the shift on the next rebuild) is
+ * unchanged; only where the tiles come from differs.
+ */
+void
+WorldBuilder_RebuildInstance(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones);
+
+/** One zone's terrain, copied from `src_zone_*` with `rotation` quarter-turns.
+ *  Destination zone coords are scene-relative (0..12). */
+void
+WorldBuilder_RebuildInstanceZoneTerrain(
+    struct WorldBuilder* builder,
+    int dst_zone_x,
+    int dst_zone_z,
+    int dst_level,
+    int src_zone_x,
+    int src_zone_z,
+    int src_level,
+    int rotation);
+
+/** One zone's scenery, same arguments. Must run after every zone's terrain: the
+ *  loc placement reads heights the terrain pass writes. */
+void
+WorldBuilder_RebuildInstanceZoneScenery(
+    struct WorldBuilder* builder,
+    int dst_zone_x,
+    int dst_zone_z,
+    int dst_level,
+    int src_zone_x,
+    int src_zone_z,
+    int src_level,
+    int rotation);
+
+/**
+ * Where in a source zone the destination tile (dx, dz) comes from.
+ *
+ * The terrain copy's direction: it walks the destination and reads the source.
+ * For rotation r and local coords in 0..7,
+ *
+ *     r=0  (dx, dz)        r=1  (dz, 7-dx)
+ *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
+ *
+ * This is `mock230_mapinstance_rotate_to_src`'s twin, and the two must agree or
+ * the server's collision and the client's geometry describe mirrored rooms.
+ */
+static inline void
+world_instance_rotate_to_src(
+    int rotation,
+    int dx,
+    int dz,
+    int* out_sx,
+    int* out_sz)
+{
+    switch( rotation & 3 )
+    {
+    case 1:
+        *out_sx = dz;
+        *out_sz = 7 - dx;
+        break;
+    case 2:
+        *out_sx = 7 - dx;
+        *out_sz = 7 - dz;
+        break;
+    case 3:
+        *out_sx = 7 - dz;
+        *out_sz = dx;
+        break;
+    default:
+        *out_sx = dx;
+        *out_sz = dz;
+        break;
+    }
+}
+
+/**
+ * Where a source tile lands in the destination zone — the inverse, and the
+ * scenery copy's direction (it walks the source's locs).
+ *
+ * `size_x`/`size_z` are the loc's footprint as placed, already swapped for its
+ * own odd angle. The subtraction is why a 1x2 table stays over the tiles it was
+ * drawn on: a quarter-turn moves its south-west corner to a different corner of
+ * the rectangle, and the extent that now runs backwards has to come off.
+ */
+static inline void
+world_instance_rotate_to_dst(
+    int rotation,
+    int sx,
+    int sz,
+    int size_x,
+    int size_z,
+    int* out_dx,
+    int* out_dz)
+{
+    if( size_x < 1 )
+        size_x = 1;
+    if( size_z < 1 )
+        size_z = 1;
+
+    switch( rotation & 3 )
+    {
+    case 1:
+        *out_dx = 7 - sz - (size_z - 1);
+        *out_dz = sx;
+        break;
+    case 2:
+        *out_dx = 7 - sx - (size_x - 1);
+        *out_dz = 7 - sz - (size_z - 1);
+        break;
+    case 3:
+        *out_dx = sz;
+        *out_dz = 7 - sx - (size_x - 1);
+        break;
+    default:
+        *out_dx = sx;
+        *out_dz = sz;
+        break;
+    }
+}
 
 #endif

@@ -758,11 +758,15 @@ gameproto_free(struct RevPacket* p)
         p->_player_info.length = 0;
         break;
     case PKT_NAME_REBUILD_NORMAL:
-        /* dat2/osrs230 XTEA keys (NULL on the lc254 path). */
+    case PKT_NAME_REBUILD_REGION:
+        /* dat2/osrs230 XTEA keys (NULL on the lc254 path), and the instanced
+         * descriptor grid (NULL for REBUILD_NORMAL). */
         free(p->_map_rebuild.region_ids);
         free(p->_map_rebuild.region_keys);
+        free(p->_map_rebuild.zones);
         p->_map_rebuild.region_ids = NULL;
         p->_map_rebuild.region_keys = NULL;
+        p->_map_rebuild.zones = NULL;
         p->_map_rebuild.region_count = 0;
         break;
     case PKT_NAME_UPDATE_INV_FULL:

@@ -1,5 +1,6 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/packets/pkt_rebuild_normal.h"
+#include "net/rev/packets/pkt_rebuild_region.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 
@@ -118,6 +119,9 @@ osrs230_parse(
     {
     case PKT_NAME_REBUILD_NORMAL:
         return pkt_rebuild_normal_read(data, len, out);
+
+    case PKT_NAME_REBUILD_REGION:
+        return pkt_rebuild_region_read(data, len, out);
 
     /*
      * RUNCLIENTSCRIPT (op 84). Reference layout: a newline-terminated string of

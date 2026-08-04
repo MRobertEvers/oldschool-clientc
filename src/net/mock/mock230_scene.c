@@ -24,6 +24,7 @@
 #include "mock230_scene.h"
 
 #include "mock230.h"
+#include "mock230_mapinstance.h"
 
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
@@ -59,6 +60,10 @@ static struct ToriRS_FeatureTable const* g_features;
  * shift (Client-TS / LostCity). Map-square terrain buffers are freed per
  * square, so this has to be persisted for locs in the same build pass. */
 static unsigned char g_link_below[SCENE_TILES][SCENE_TILES];
+
+/* The scene's raw tile settings bytes, gathered before the collision rules run.
+ * See gather_terrain_square for why the two are separate passes. */
+static uint8_t g_settings[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
 
 static struct Mock230SceneLoc* g_locs;
 static int g_loc_count;
@@ -377,16 +382,24 @@ apply_loc_collision(
     }
 }
 
+/*
+ * Record one loc at an absolute tile.
+ *
+ * The tile, level and angle are arguments rather than read off `map_loc`
+ * because the instanced build passes a *transformed* placement: the same cache
+ * record lands on a different tile, on a different plane, turned by the zone's
+ * rotation. The cache path passes the record's own values.
+ */
 static void
-record_loc(
+record_loc_at(
     const struct RSCache_MapLoc* map_loc,
-    int map_x,
-    int map_z)
+    int abs_x,
+    int abs_z,
+    int level,
+    int angle)
 {
     const struct RSCache_Dat2ConfigLoc* config = loc_config(map_loc->loc_id);
     struct Mock230SceneLoc* loc;
-    int abs_x = map_x * 64 + map_loc->chunk_pos_x;
-    int abs_z = map_z * 64 + map_loc->chunk_pos_z;
 
     if( !config )
         return;
@@ -407,10 +420,10 @@ record_loc(
     loc = &g_locs[g_loc_count++];
     loc->loc_id = map_loc->loc_id;
     loc->shape = map_loc->shape_select;
-    loc->angle = map_loc->orientation;
+    loc->angle = angle & 3;
     loc->x = abs_x;
     loc->z = abs_z;
-    loc->level = map_loc->chunk_pos_level;
+    loc->level = level;
     /* Rotated footprint. An odd angle turns the loc a quarter turn, which
      * swaps its extents; getting this wrong is silent for every square loc and
      * wrong for every other one. */
@@ -432,6 +445,55 @@ record_loc(
     apply_loc_collision(loc, 1);
 }
 
+static void
+record_loc(
+    const struct RSCache_MapLoc* map_loc,
+    int map_x,
+    int map_z)
+{
+    record_loc_at(map_loc, map_x * 64 + map_loc->chunk_pos_x,
+                  map_z * 64 + map_loc->chunk_pos_z, map_loc->chunk_pos_level,
+                  map_loc->orientation);
+}
+
+/*
+ * Gather a map square's tile settings into the scene's settings buffer.
+ *
+ * Gathering and *applying* are two passes rather than one, which they were until
+ * map instances existed. The reason is LINK_BELOW: it is a property of the
+ * column, read at level 1 and applied to every level of that column. In a
+ * cache-built scene a column never crosses a map square, so reading it while
+ * walking one square was safe. In an *instanced* scene each plane of a
+ * destination zone has its own source descriptor, so the four levels of one
+ * column can come from four different places and the column is not complete
+ * until every plane has been copied. Splitting the passes is what lets both
+ * builds share one copy of the rules below.
+ */
+static void
+gather_terrain_square(
+    const struct RSCache_MapTerrain* terrain,
+    int map_x,
+    int map_z)
+{
+    for( int local_x = 0; local_x < 64; local_x++ )
+    {
+        for( int local_z = 0; local_z < 64; local_z++ )
+        {
+            int scene_x = map_x * 64 + local_x - g_base_x;
+            int scene_z = map_z * 64 + local_z - g_base_z;
+
+            if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
+                scene_z >= SCENE_TILES )
+                continue;
+
+            for( int level = 0; level < SCENE_LEVELS; level++ )
+                g_settings[level][scene_x][scene_z] =
+                    terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)]
+                        .settings;
+        }
+    }
+}
+
 /*
  * Terrain: a tile whose settings carry BLOCK is not walkable.
  *
@@ -443,36 +505,21 @@ record_loc(
  * Roof bits stay on the raw cache level (LostCity changeRoofCollision).
  */
 static void
-apply_terrain(
-    const struct RSCache_MapTerrain* terrain,
-    int map_x,
-    int map_z)
+apply_terrain_rules(void)
 {
-    for( int local_x = 0; local_x < 64; local_x++ )
+    for( int scene_x = 0; scene_x < SCENE_TILES; scene_x++ )
     {
-        for( int local_z = 0; local_z < 64; local_z++ )
+        for( int scene_z = 0; scene_z < SCENE_TILES; scene_z++ )
         {
-            int abs_x = map_x * 64 + local_x;
-            int abs_z = map_z * 64 + local_z;
-            int scene_x = abs_x - g_base_x;
-            int scene_z = abs_z - g_base_z;
-            int link_below;
+            int link_below = (g_settings[1][scene_x][scene_z] &
+                              RSCACHE_FLOFLAG_LINK_BELOW) != 0;
 
-            if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
-                scene_z >= SCENE_TILES )
-                continue;
-
-            link_below =
-                (terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, 1)].settings &
-                 RSCACHE_FLOFLAG_LINK_BELOW) != 0;
             if( link_below )
                 g_link_below[scene_x][scene_z] = 1;
 
             for( int level = 0; level < SCENE_LEVELS; level++ )
             {
-                uint8_t settings =
-                    terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)]
-                        .settings;
+                uint8_t settings = g_settings[level][scene_x][scene_z];
                 int true_level = level;
 
                 if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 )
@@ -530,27 +577,33 @@ open_disk(
     return disk != NULL;
 }
 
-int
-mock230_scene_build(
+/*
+ * Everything both builds do before they diverge: throw the old scene away, set
+ * the origin, open the cache and its keys, allocate collision, decode the loc
+ * configs. Returns the opened disk, or NULL — in which case the scene is empty
+ * and every tile stays walkable, which is the announced fallback.
+ */
+static struct RSCache_Dat2Disk*
+scene_build_begin(
     const char* cache_dir,
     int zone_x,
-    int zone_z)
+    int zone_z,
+    struct RSCache* profile)
 {
-    struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
     char resolved[512];
     char keys[600];
-    int square_x0, square_x1, square_z0, square_z1;
-    int locs_before;
 
+    assert(profile);
     mock230_scene_free();
 
     g_base_x = (zone_x - 6) * 8;
     g_base_z = (zone_z - 6) * 8;
 
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    *profile = RSCache_ProfileZero();
+    profile->game = RSCACHE_GAME_OLDSCHOOL;
+    profile->epoch = RSCACHE_EPOCH_DAT2;
+    profile->revision = MOCK230_CACHE_REVISION;
 
     if( !open_disk(cache_dir, &disk, resolved, sizeof(resolved)) )
     {
@@ -558,9 +611,9 @@ mock230_scene_build(
                 "mock230: no cache at %s — collision disabled (walk through walls)\n",
                 cache_dir);
         g_base_x = g_base_z = -1;
-        return 0;
+        return NULL;
     }
-    RSCache_Dat2DiskSetProfile(disk, &profile);
+    RSCache_Dat2DiskSetProfile(disk, profile);
 
     /* The map archives are encrypted at this revision; the keys sit beside the
      * cache, in the file the client reads. Loading them is global state in
@@ -582,8 +635,25 @@ mock230_scene_build(
                                        mock230_scene_features()->route_window_tiles);
     }
     memset(g_link_below, 0, sizeof(g_link_below));
+    memset(g_settings, 0, sizeof(g_settings));
 
-    load_loc_configs(disk, &profile);
+    load_loc_configs(disk, profile);
+    return disk;
+}
+
+int
+mock230_scene_build(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z)
+{
+    struct RSCache profile;
+    struct RSCache_Dat2Disk* disk = scene_build_begin(cache_dir, zone_x, zone_z, &profile);
+    int square_x0, square_x1, square_z0, square_z1;
+    int locs_before;
+
+    if( !disk )
+        return 0;
 
     square_x0 = g_base_x >> 6;
     square_x1 = (g_base_x + SCENE_TILES - 1) >> 6;
@@ -596,15 +666,23 @@ mock230_scene_build(
         {
             struct RSCache_MapTerrain* terrain =
                 RSCache_MapTerrainNewFromCache(disk, map_x, map_z);
-            struct RSCache_MapLocs* locs;
 
-            if( terrain )
-            {
-                apply_terrain(terrain, map_x, map_z);
-                RSCache_MapTerrainFree(terrain);
-            }
+            if( !terrain )
+                continue;
+            gather_terrain_square(terrain, map_x, map_z);
+            RSCache_MapTerrainFree(terrain);
+        }
+    }
+    apply_terrain_rules();
 
-            locs = RSCache_MapLocsNewFromCache(disk, map_x, map_z);
+    /* Locs after every column's terrain, because apply_loc_collision reads
+     * g_link_below to decide which collision level a loc lands on. */
+    for( int map_x = square_x0; map_x <= square_x1; map_x++ )
+    {
+        for( int map_z = square_z0; map_z <= square_z1; map_z++ )
+        {
+            struct RSCache_MapLocs* locs = RSCache_MapLocsNewFromCache(disk, map_x, map_z);
+
             if( !locs )
                 continue;
             for( int i = 0; i < locs->locs_count; i++ )
@@ -619,6 +697,250 @@ mock230_scene_build(
     RSCache_Dat2DiskFree(disk);
     fprintf(stderr, "mock230: scene built at zone %d,%d (base %d,%d — %d locs)\n", zone_x,
             zone_z, g_base_x, g_base_z, locs_before);
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Instanced build                                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Copy one source zone's tile settings into one destination zone, turned.
+ *
+ * Walks the *destination* and asks where each tile came from, which is why this
+ * uses `mock230_mapinstance_rotate_to_src` and the loc pass below uses the other
+ * one. Only the settings byte is copied: collision is all the server wants from
+ * terrain. Heights, overlays and tile shapes matter to the client and travel
+ * over the wire as a descriptor for it to resolve itself.
+ */
+static void
+gather_terrain_zone(
+    const struct RSCache_MapTerrain* terrain,
+    const struct Mock230MapInstanceZone* zone,
+    int dst_level,
+    int dst_zone_x,
+    int dst_zone_z)
+{
+    int src_local_zone_x = zone->src_zone_x & 7;
+    int src_local_zone_z = zone->src_zone_z & 7;
+
+    for( int dx = 0; dx < 8; dx++ )
+    {
+        for( int dz = 0; dz < 8; dz++ )
+        {
+            int scene_x = dst_zone_x * 8 + dx;
+            int scene_z = dst_zone_z * 8 + dz;
+            int sx;
+            int sz;
+
+            if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
+                scene_z >= SCENE_TILES )
+                continue;
+            mock230_mapinstance_rotate_to_src(zone->rotation, dx, dz, &sx, &sz);
+            g_settings[dst_level][scene_x][scene_z] =
+                terrain
+                    ->tiles_xyz[RSCACHE_MAP_TILE_COORD(src_local_zone_x * 8 + sx,
+                                                       src_local_zone_z * 8 + sz,
+                                                       zone->src_level)]
+                    .settings;
+        }
+    }
+}
+
+/*
+ * Copy one source zone's locs into one destination zone, turned.
+ *
+ * Walks the source's records — the other direction from the terrain pass — so
+ * the transform is `_to_dst`, and it takes the loc's footprint because a
+ * quarter-turn moves a multi-tile loc's south-west corner to a different corner
+ * of its own rectangle.
+ *
+ * The loc's angle gains the zone's rotation. That is the whole of "the building
+ * is turned": every wall, door and stair inside it turns with it, and a wall
+ * whose angle did not follow would end up facing out of the room.
+ */
+static void
+record_locs_zone(
+    const struct RSCache_MapLocs* locs,
+    const struct Mock230MapInstanceZone* zone,
+    int dst_level,
+    int dst_zone_x,
+    int dst_zone_z)
+{
+    int src_tile_x0 = (zone->src_zone_x & 7) * 8;
+    int src_tile_z0 = (zone->src_zone_z & 7) * 8;
+
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        const struct RSCache_MapLoc* map_loc = &locs->locs[i];
+        const struct RSCache_Dat2ConfigLoc* config = loc_config(map_loc->loc_id);
+        int sx = map_loc->chunk_pos_x - src_tile_x0;
+        int sz = map_loc->chunk_pos_z - src_tile_z0;
+        int size_x;
+        int size_z;
+        int dx;
+        int dz;
+        int angle;
+
+        if( map_loc->chunk_pos_level != zone->src_level )
+            continue;
+        if( sx < 0 || sx >= 8 || sz < 0 || sz >= 8 )
+            continue;
+        if( !config )
+            continue;
+
+        /* The footprint as placed, i.e. after the loc's own angle has had its
+         * say — the same swap record_loc_at applies. The rotation correction
+         * needs the extents that actually run along each axis. */
+        if( (map_loc->orientation & 1) != 0 )
+        {
+            size_x = config->size_z;
+            size_z = config->size_x;
+        }
+        else
+        {
+            size_x = config->size_x;
+            size_z = config->size_z;
+        }
+
+        mock230_mapinstance_rotate_to_dst(zone->rotation, sx, sz, size_x, size_z, &dx, &dz);
+        angle = (map_loc->orientation + zone->rotation) & 3;
+        record_loc_at(map_loc, g_base_x + dst_zone_x * 8 + dx,
+                      g_base_z + dst_zone_z * 8 + dz, dst_level, angle);
+    }
+}
+
+/*
+ * The distinct source map squares a window references.
+ *
+ * Both instanced passes are grouped by source square rather than by destination
+ * zone: a house is dozens of destination zones pointing at a handful of source
+ * squares — often one — and each `RSCache_MapTerrainNewFromCache` decrypts and
+ * decodes a whole 64x64x4 square. Walking destinations in the obvious order
+ * would decode the same square up to 676 times.
+ *
+ * Returns the count written to `out_x`/`out_z`, capped at `capacity`.
+ */
+static int
+window_source_squares(
+    const struct Mock230MapInstanceWindow* window,
+    int* out_x,
+    int* out_z,
+    int capacity)
+{
+    int count = 0;
+
+    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+        {
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            {
+                const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+                int map_x;
+                int map_z;
+                int seen = 0;
+
+                if( !zone->set )
+                    continue;
+                map_x = zone->src_zone_x >> 3;
+                map_z = zone->src_zone_z >> 3;
+                for( int i = 0; i < count && !seen; i++ )
+                {
+                    if( out_x[i] == map_x && out_z[i] == map_z )
+                        seen = 1;
+                }
+                if( seen || count >= capacity )
+                    continue;
+                out_x[count] = map_x;
+                out_z[count] = map_z;
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+int
+mock230_scene_build_instance(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    const struct Mock230MapInstanceWindow* window)
+{
+    struct RSCache profile;
+    struct RSCache_Dat2Disk* disk;
+    /* One per descriptor is the ceiling: every zone could name a different
+     * square. In practice this is 1 to 4. */
+    int square_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
+                 MOCK230_MAPINSTANCE_ZONES];
+    int square_z[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
+                 MOCK230_MAPINSTANCE_ZONES];
+    int square_count;
+    int locs_before;
+
+    assert(window);
+    disk = scene_build_begin(cache_dir, zone_x, zone_z, &profile);
+    if( !disk )
+        return 0;
+
+    square_count =
+        window_source_squares(window, square_x, square_z, (int)(sizeof(square_x) / sizeof(*square_x)));
+
+    for( int s = 0; s < square_count; s++ )
+    {
+        struct RSCache_MapTerrain* terrain =
+            RSCache_MapTerrainNewFromCache(disk, square_x[s], square_z[s]);
+
+        if( !terrain )
+            continue;
+        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+                {
+                    const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+
+                    if( !zone->set || (zone->src_zone_x >> 3) != square_x[s] ||
+                        (zone->src_zone_z >> 3) != square_z[s] )
+                        continue;
+                    gather_terrain_zone(terrain, zone, level, zx, zz);
+                }
+        RSCache_MapTerrainFree(terrain);
+    }
+    apply_terrain_rules();
+
+    /* Locs after every column's terrain — apply_loc_collision reads
+     * g_link_below, and in an instanced scene a column's four planes can come
+     * from four different source squares. */
+    for( int s = 0; s < square_count; s++ )
+    {
+        struct RSCache_MapLocs* locs =
+            RSCache_MapLocsNewFromCache(disk, square_x[s], square_z[s]);
+
+        if( !locs )
+            continue;
+        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+                {
+                    const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+
+                    if( !zone->set || (zone->src_zone_x >> 3) != square_x[s] ||
+                        (zone->src_zone_z >> 3) != square_z[s] )
+                        continue;
+                    record_locs_zone(locs, zone, level, zx, zz);
+                }
+        RSCache_MapLocsFree(locs);
+    }
+
+    apply_bridges();
+
+    locs_before = g_loc_count;
+    RSCache_Dat2DiskFree(disk);
+    fprintf(stderr,
+            "mock230: instanced scene built at zone %d,%d (base %d,%d — %d source zones, %d "
+            "locs)\n",
+            zone_x, zone_z, g_base_x, g_base_z, window->set_count, locs_before);
     return 1;
 }
 

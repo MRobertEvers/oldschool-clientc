@@ -23,7 +23,30 @@ struct PktMapRebuild
     int region_count;
     int* region_ids;
     int32_t* region_keys;
+
+    /*
+     * REBUILD_REGION only: the template-chunk descriptor grid, which is what
+     * makes a scene instanced.
+     *
+     * `PKT_NAME_REBUILD_REGION` reuses this struct rather than getting its own
+     * because everything above is identical between the two packets and the
+     * world-load path wants one shape, not two. `zones` is NULL for
+     * REBUILD_NORMAL and that is the test for "build from the cache the ordinary
+     * way".
+     *
+     * PKT_MAP_REBUILD_ZONES ints, indexed
+     * `[level * 13 * 13 + zone_x * 13 + zone_z]` with zone_x/zone_z relative to
+     * the scene's south-west zone. 0 means the destination zone has no source
+     * and stays void; otherwise it is the client's own packed form —
+     * `rotation = v >> 1 & 0x3`, `srcZoneZ = v >> 3 & 0x7ff`,
+     * `srcZoneX = v >> 14 & 0x3ff`, `srcLevel = v >> 24 & 0x3`. Heap-allocated,
+     * freed by gameproto_free.
+     */
+    int32_t* zones;
 };
+
+/** Descriptors in a REBUILD_REGION grid: 4 levels x 13 x 13 zones. */
+#define PKT_MAP_REBUILD_ZONES (4 * 13 * 13)
 
 // Player info packet is more of a command stream
 // than a fixed format packet

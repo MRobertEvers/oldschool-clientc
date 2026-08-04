@@ -251,7 +251,51 @@ re-arm. Stop only when the user stops the loop.
 | 16g | grandtree anita | done | Anita Talk-to key handoff; trail clue deferred |
 | 16h | grandtree charlie | done | Charlie Talk-to + jail release; narnode_trust_glough parked here until 16m |
 | 16i | grandtree femi | done | Femi Talk-to/boxes/sneak-in + %femi_help authored 5856; gnome_gate boxes wired |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: glough/foreman/shipyardworker/king_narnode or gnome cooking; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
+| 16j | grandtree glough | done | Glough Talk-to + arrest→jail; MM/cutscene/demon deferred |
+| 16k | grandtree foreman | done | Foreman quiz + order + death drop; MM arm deferred |
+| 16l | shipyardworker Talk-to | done | shipyardworker1/2 name-expand chatter; gate password deferred |
+| 16m | king_narnode | done | Full Talk-to + quest start/complete + %daconia_rock_root 5869; MM deferred |
+| 16n | gnome cooking dough | done | param/constant/struct/tray overlays + gianne_dough → raw tin |
+| 16o | gnome seasoning | done | Ingredient int-param overlays + spice/equa seasoning Use-with |
+| 16p | grandtree scrolls | done | scroll/order/invasionplans ~mesbox stubs; IF1 scroll deferred |
+| 16q | gnome crunchies | done | bits varps + add/bake + raw→half_baked dbrows + cook_item hook + string_procs; finish deferred 16t |
+| 16r | gnome battas | done | bits varps + add/bake + raw dbrows + cook_item; finish deferred 16t |
+| 16s | gnome bowls | done | bits varps + add/bake + raw dbrows + cook_item; finish deferred 16t |
+| 16t | gnome food finish | done | topping finish name-expand + seasoning finish arms |
+| 16u | cocktail shaker | done | bits varps + mix/pour + inspect display |
+| 16v | cocktail finish | done | garnish finish name-expand + oven warm dbrows |
+| 16w | gnome ingredient reverse Use | done | ingredient→half_baked/shaker reverse binds |
+| 16x | grandtree climb/trapdoors | done | climbtree/downtree + trapdoorunder/closed teleports; cutscene stub |
+| 16y | grandtree chest/cupboard/pillars | done | key chest + journal cupboard + twig pillars (obj_find deferred) |
+| 16z | grandtree roots/rootdoor | done | daconia root search + rootdoor forcemove |
+| 17a | shipyard gate + password | done | fencegate walk-through + Ka-Lu-Min password quiz |
+| 17b | hazelmere Talk-to | done | bark sample → scroll; trail clue deferred |
+| 17c | grandtree black demon | done | ai_timer/death + glough cutscene spawn; Attack/%npc_aggressive_player/cam_* deferred |
+| 17d | grandtree journal | done | ~grandtree_journal + quest_grandtree dbrow wire |
+| 17e | tree tracker gnomes | done | tracker1/2/3 Talk-to + coords |
+| 17f | khazard warlord | done | Talk-to + death orbs drop; bones after-quest |
+| 17g | tree battlefield locs | done | ballista/door/wall/chest; coord_projectile/door swing deferred |
+| 17h | tree journal | done | ~tree_journal + quest_treegnomevillage dbrow wire |
+| 17i | waterfall almera + constants | done | start Talk-to + quest_waterfall.constant; %waterfall_quest clean-varp 65 |
+| 17j | waterfall hudon | done | island apnpc1 Talk-to + progress to spoken |
+| 17k | waterfall gerald | done | riverside Talk-to + fishsize anim |
+| 17l | waterfall golrie | done | pebble handoff + %waterfall_golrie_and_puzzle authored; door label |
+| 17m | waterfall hadley | done | tourist guide Talk-to + ~p_choice menus |
+| 17n | waterfall baxtorian book | done | Read → progress + ~mesbox pages; IF1 book deferred |
+| 17o | waterfall locs | done | raft/tomb/rope/doors/chalice + complete; armour cats deferred |
+| 17p | waterfall journal | done | ~waterfall_journal + quest_waterfall dbrow wire |
+| 17q | waterfall pillars | done | rune-on-pillar puzzle bits 1–18 |
+| 17r | jungle potion constants | done | quest_junglepotion.constant; %junglepotion clean-varp 175 |
+| 17s | jungle potion locs | done | herb pick + cave enter/exit + complete queue |
+| 17t | jungle potion journal | done | ~junglepotion_journal + quest_junglepotion dbrow wire |
+| 17u | jungle potion trufitus | done | Talk-to + Use herb; ZQ/TBWT arms deferred |
+| 17v | clock tower kojo + helpers | done | brother_kojo Talk-to + %cogquest bitfield helpers; trail deferred |
+| 17w | clock tower locs/cogs/journal | done | cogs+spindles+gates/levers+trough/rats + %cog_bits + journal wire; loc_1541→prisondooropen; cat cog/spindle name-expand |
+| 18a | minigame: Fishing Trawler | pending | LC `minigames/game_trawler` (from SCAPE2009 #10) |
+| 18b | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (from SCAPE2009 #11) |
+| 18c | minigame: Treasure Trails | pending | LC `minigames/game_trail` (from SCAPE2009 #18) |
+| 18d | quest: Dig Site (itexam) | pending | LC `quests/quest_itexam` (from SCAPE2009 #24) |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: hazeelcult / sheepherder / ardougne leftovers; also 18a–18d; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
 
 
 
@@ -501,6 +545,49 @@ re-arm. Stop only when the user stops the loop.
 - slice 16g done: grandtree anita Talk-to key handoff; mock230_pack 0 errors (4505 scripts)
 - slice 16h done: grandtree charlie Talk-to + jail release; mock230_pack 0 errors (4516 scripts)
 - slice 16i done: femi Talk-to/boxes + %femi_help authored 5856 + gnome_gate boxes; mock230_pack 0 errors (4528 scripts)
-- next pending: glough/foreman/shipyardworker/king_narnode or gnome cooking; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
+- slice 16j done: glough Talk-to + arrest jail; mock230_pack 0 errors (4573 scripts)
+- slice 16k done: foreman quiz/order/death drop; mock230_pack 0 errors (4592 scripts)
+- slice 16l done: shipyardworker1/2 Talk-to name-expand; mock230_pack 0 errors (4607 scripts)
+- slice 16m done: king_narnode Talk-to + quest complete + %daconia_rock_root 5869; mock230_pack 0 errors (4636 scripts)
+- slice 16n done: gnome cooking param/struct/tray + gianne_dough; mock230_pack 0 errors (4644 scripts)
+- slice 16o done: gnome ingredient seasoning Use-with; mock230_pack 0 errors (4680 scripts)
+- slice 16p done: grandtree scroll/order/invasionplans ~mesbox stubs; mock230_pack 0 errors (4687 scripts)
+- slice 16q done: gnome crunchies bits+add/bake + raw dbrows + cook_item + string_procs; mock230_pack 0 errors (4733 scripts)
+- slice 16r done: gnome battas bits+add/bake + raw dbrows + cook_item; mock230_pack 0 errors (4752 scripts)
+- slice 16s done: gnome bowls bits+add/bake + raw dbrows + cook_item; mock230_pack 0 errors (4782 scripts)
+- slice 16t done: gnome food topping finish + seasoning finish arms; mock230_pack 0 errors (4826 scripts)
+- slice 16u done: cocktail shaker mix/pour + bits varps; mock230_pack 0 errors (4834 scripts)
+- slice 16v done: cocktail garnish finish + oven warm rows; mock230_pack 0 errors (4875 scripts)
+- slice 16w done: ingredient→half_baked/shaker reverse Use; mock230_pack 0 errors (4893 scripts)
+- slice 16x done: grandtree climb/trapdoors; mock230_pack 0 errors (~4936 scripts)
+- slice 16y done: grandtree chest/cupboard/pillars; mock230_pack 0 errors (~4976 scripts)
+- slice 16z done: grandtree roots/rootdoor; mock230_pack 0 errors (4980 scripts)
+- slice 17a done: shipyard gate walk-through + Ka-Lu-Min password; mock230_pack 0 errors (4988 scripts)
+- slice 17b done: hazelmere bark sample → scroll; mock230_pack 0 errors (5000 scripts)
+- slice 17c done: grandtree black demon death/timer + glough cutscene spawn; mock230_pack 0 errors (5075 scripts)
+- slice 17d done: grandtree journal + questlist wire; mock230_pack 0 errors (5084 scripts)
+- slice 17e done: tree tracker1/2/3 Talk-to; mock230_pack 0 errors (~5108 scripts)
+- slice 17f done: khazard warlord Talk-to + orbs death; mock230_pack 0 errors
+- slice 17g done: tree ballista/door/wall/chest; mock230_pack 0 errors (5132 scripts)
+- slice 17h done: tree journal + questlist wire; mock230_pack 0 errors
+- slice 17i done: waterfall almera + constants; mock230_pack 0 errors
+- slice 17j done: waterfall hudon Talk-to; mock230_pack 0 errors
+- slice 17k done: waterfall gerald Talk-to; mock230_pack 0 errors
+- slice 17l done: waterfall golrie pebble + authored bitfield varp; mock230_pack 0 errors
+- slice 17m done: waterfall hadley tourist guide; mock230_pack 0 errors
+- slice 17n done: waterfall baxtorian book ~mesbox stub; mock230_pack 0 errors (5166 scripts)
+- queue: added 18a Fishing Trawler + 18b Castle Wars (LC-owned; measured off SCAPE2009 10/11)
+- slice 17o done: waterfall locs (raft/tomb/rope/doors/chalice/complete); mock230_pack 0 errors (5227 scripts)
+- queue: added 18c Treasure Trails (LC `game_trail`; measured off SCAPE2009 #18)
+- slice 17p done: waterfall journal + questlist wire; mock230_pack 0 errors (5228 scripts)
+- slice 17q done: waterfall pillars rune puzzle; mock230_pack 0 errors (5232 scripts)
+- slice 17r done: jungle potion constants; mock230_pack 0 errors
+- slice 17s done: jungle potion locs + complete; mock230_pack 0 errors
+- slice 17t done: jungle potion journal + questlist wire; mock230_pack 0 errors
+- slice 17u done: trufitus Jungle Potion Talk-to/Use; mock230_pack 0 errors
+- slice 17v done: brother_kojo + cog helpers/complete; mock230_pack 0 errors (5311 scripts)
+- queue: added 18d Dig Site / quest_itexam (LC-owned; measured off SCAPE2009 #24)
+- slice 17w done: clock tower locs/cogs/journal — %cog_bits authored; cogs+spindles+gates/levers+trough/rats; ~cog_journal+quest_clocktower wire; loc_1541→prisondooropen; mock230_pack 0 errors (5359 scripts)
+- next pending: hazeelcult / sheepherder / ardougne leftovers; also 18a–18d; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

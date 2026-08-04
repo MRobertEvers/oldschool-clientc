@@ -2589,6 +2589,18 @@ mock230_world_loc_set(
 void
 mock230_world_locs_reapply(struct Mock230Server* srv);
 
+/** Build the server's collision window for the world's current zone, choosing
+ *  the cache or the map-instance descriptors by where that zone is. */
+void
+mock230_world_scene_rebuild(struct Mock230Server* srv);
+
+/** Re-show an instance whose zones just changed to the players inside it. The
+ *  `map_instance_build` half that belongs to the world rather than the registry. */
+void
+mock230_world_mapinstance_built(
+    struct Mock230Server* srv,
+    int handle);
+
 /** Put the player on an absolute tile, clearing the walk and rebuilding the
  *  scene if the destination left the current one. */
 void
@@ -3860,6 +3872,13 @@ mock230_send(
 
 void
 mock230_send_rebuild_normal(struct Mock230Player* player);
+/** REBUILD_REGION: the instanced scene, built from the map-instance descriptor
+ *  window rather than from the squares under it. */
+void
+mock230_send_rebuild_region(struct Mock230Player* player);
+/** Whichever of the two the player's current tile calls for. Prefer this. */
+void
+mock230_send_rebuild(struct Mock230Player* player);
 void
 mock230_send_if_opentop(
     struct Mock230Player* player,

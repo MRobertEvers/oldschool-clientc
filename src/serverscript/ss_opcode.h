@@ -435,10 +435,16 @@
 #define SS_OP_IF_OPENTOP 11006
 #define SS_OP_IF_MOVESUB 11007
 #define SS_OP_IF_GETMAIN 11008
+#define SS_OP_MAP_INSTANCE_ALLOC 11009
+#define SS_OP_MAP_INSTANCE_SETCHUNK 11010
+#define SS_OP_MAP_INSTANCE_BUILD 11011
+#define SS_OP_MAP_INSTANCE_COORD 11012
+#define SS_OP_MAP_INSTANCE_FREE 11013
+#define SS_OP_MAP_INSTANCE_FIND 11014
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11009
+#define SS_OPCODE_MAX 11015
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 413
+#define SS_OPCODE_COUNT 419
 
 #endif

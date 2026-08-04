@@ -525,12 +525,14 @@ RS_GameProto_Exec(
 
     /* ---- world rebuild ---- */
     case PKT_NAME_REBUILD_NORMAL:
+    case PKT_NAME_REBUILD_REGION:
         /* Handled inside Task_GameProtoExec (world-load await + MAP_BUILD_
          * COMPLETE ack); reaching here means no app context. */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
-                "gameproto_exec: REBUILD_NORMAL zone=%d,%d (no app ctx)\n",
+                "gameproto_exec: %s zone=%d,%d (no app ctx)\n",
+                packet->_map_rebuild.zones ? "REBUILD_REGION" : "REBUILD_NORMAL",
                 packet->_map_rebuild.zonex,
                 packet->_map_rebuild.zonez);
         break;

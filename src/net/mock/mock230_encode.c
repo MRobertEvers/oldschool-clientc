@@ -18,6 +18,7 @@
 
 #include "mock230_content.h"
 #include "mock230_ids.h"
+#include "mock230_mapinstance.h"
 #include "mock230_session.h"
 
 #include "net/isaac.h"
@@ -67,6 +68,7 @@ enum
     OP_P_COUNTDIALOG = 128,
     OP_IF_OPENTOP = 60,
     OP_REBUILD_NORMAL = 68,
+    OP_REBUILD_REGION = 59,
     OP_UPDATE_RUNENERGY = 77,
     OP_MESSAGE_GAME = 90,
     OP_NPC_INFO = 104,
@@ -141,6 +143,8 @@ opcode_name(int op)
         return "IF_MOVESUB";
     case OP_REBUILD_NORMAL:
         return "REBUILD_NORMAL";
+    case OP_REBUILD_REGION:
+        return "REBUILD_REGION";
     case OP_UPDATE_RUNENERGY:
         return "UPDATE_RUNENERGY";
     case OP_MESSAGE_GAME:
@@ -364,6 +368,137 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
             base_x,
             base_z,
             count);
+}
+
+/*
+ * REBUILD_REGION — the instanced scene.
+ *
+ * The same header as REBUILD_NORMAL, then a 4 x 13 x 13 grid of template-chunk
+ * descriptors, then the keys. One bit per destination zone says whether it has a
+ * source; when it does, 26 bits say which:
+ *
+ *     bits  1..2   rotation, quarter-turns clockwise
+ *     bits  3..13  source zone z   (11 bits)
+ *     bits 14..23  source zone x   (10 bits)
+ *     bits 24..25  source plane    (2 bits)
+ *
+ * That layout is the client's own, not this server's invention — it is what
+ * every OSRS-era client reads out of `instanceTemplateChunks` (`rotation = z >> 1
+ * & 0x3`, `chunkY = z >> 3 & 0x7FF`, `chunkX = z >> 14 & 0x3FF`, `plane = z >> 24
+ * & 0x3`), and 2009scape's `BuildDynamicScene` and Kronos's `sendRegion` both
+ * write exactly it.
+ *
+ * Note the asymmetry the 10-bit source-x field creates: a *source* zone must
+ * have x < 1024, i.e. map square x < 128. Destinations are the loop position and
+ * carry no such limit, which is why the instance pool can sit at map x >= 100
+ * while every source it copies from is real map (all of this cache's squares are
+ * within x 15..98).
+ *
+ * Keys are zeros, for the same reason REBUILD_NORMAL's are: this client reads
+ * its XTEA keys from xteas.json beside the cache.
+ */
+void
+mock230_send_rebuild_region(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+    struct RSAreaBuf buf;
+    struct Mock230MapInstanceWindow window;
+    int key_count = 0;
+
+    mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
+
+    open_packet(&buf, 8192);
+    rsab_p2(&buf, 0);
+    rsab_p2_alt2(&buf, srv->zone_x);
+    rsab_p2(&buf, srv->zone_z);
+
+    rsab_bits(&buf);
+    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+        {
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            {
+                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+        }
+    }
+    rsab_bytes(&buf);
+
+    /* One key block per source square the descriptors name, which is what the
+     * client would need if it were taking keys off the wire. Counted from the
+     * window so the two never disagree about how many follow. */
+    {
+        int seen_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
+                   MOCK230_MAPINSTANCE_ZONES];
+        int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
+
+        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+                {
+                    const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+                    int map_x;
+                    int map_z;
+                    int dup = 0;
+
+                    if( !zone->set )
+                        continue;
+                    map_x = zone->src_zone_x >> 3;
+                    map_z = zone->src_zone_z >> 3;
+                    for( int i = 0; i < key_count && !dup; i++ )
+                    {
+                        if( seen_x[i] == map_x && seen_z[i] == map_z )
+                            dup = 1;
+                    }
+                    if( dup )
+                        continue;
+                    seen_x[key_count] = map_x;
+                    seen_z[key_count] = map_z;
+                    key_count++;
+                }
+    }
+    rsab_p2(&buf, key_count);
+    for( int i = 0; i < key_count * 4; i++ )
+        rsab_p4(&buf, 0);
+
+    flush(player, &buf, OP_REBUILD_REGION, 2);
+    if( srv->verbose )
+        fprintf(
+            stderr,
+            "mock230: rebuild region zone=%d,%d source zones=%d squares=%d\n",
+            srv->zone_x,
+            srv->zone_z,
+            window.set_count,
+            key_count);
+}
+
+/*
+ * Which rebuild the player is owed.
+ *
+ * The choice is made from where the player *is* rather than from a flag, because
+ * that is the one thing that cannot go stale: an instance is a region of
+ * coordinate space, and standing in it is what makes the scene instanced. Every
+ * caller wants this rather than either encoder directly.
+ */
+void
+mock230_send_rebuild(struct Mock230Player* player)
+{
+    if( mock230_mapinstance_find(player->x, player->z) >= 0 )
+        mock230_send_rebuild_region(player);
+    else
+        mock230_send_rebuild_normal(player);
 }
 
 /* ------------------------------------------------------------------ */

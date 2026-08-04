@@ -1,6 +1,8 @@
 #ifndef TASK_WORLD_LOAD_H
 #define TASK_WORLD_LOAD_H
 
+#include <stdint.h>
+
 struct CacheProvider;
 struct WorldBuilder;
 struct ToriRS_Task;
@@ -18,6 +20,11 @@ struct ToriRS_Task;
  * zone_center_x < 0: rebuild via WorldBuilder_RebuildChunklist (offline /
  * hotkey loads that name an explicit square list).
  *
+ * zones (non-NULL): rebuild via WorldBuilder_RebuildInstance instead — the
+ * REBUILD_REGION path. PKT_MAP_REBUILD_ZONES descriptors, copied into the task.
+ * chunks_xz then names the *source* squares the descriptors read from, since the
+ * destination squares are unused map and have nothing to prefetch.
+ *
  * on_done (may be NULL) is invoked once, synchronously, at the tail of the load
  * — after the rebuild and load-complete, before the task frees. It is how a
  * caller runs "the load landed" work without polling: the fire-and-forget path
@@ -32,6 +39,7 @@ CreateTask_WorldLoad(
     int chunk_count,
     int zone_center_x,
     int zone_center_z,
+    const int32_t* zones,
     void (*on_done)(void*),
     void* on_done_ud);
 

@@ -86,10 +86,24 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 17 | minigame: Nightmare Zone | done | `minigame_nightmarezone/`: Dominic dream buy, lobby/arena vials, 2-boss stub endurance, barrels, herb-box chest; Kronos was stub-only; full boss list/powerups/absorption/HUD/DynamicMap deferred |
 | 18 | clues: easy cryptic stubs | blocked | → SCAPE2009 §18 (still pending there) |
 | 19 | bosses: Giant Mole | blocked | → SCAPE2009 §20 |
-| 20 | bosses: KQ / DKS / Corp | pending | KQ has LC proc → CONTENT_PORT_QUEUE; DKS/Corp prefer SCAPE2009 era — split or skip |
-| 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | pending | Post-2009; Kronos owns |
-| 22 | skill_agility: rooftops + shortcuts | in_progress | Draynor→Canifis done; Falador/Seers/Rellekka/Ardougne + shortcuts remain |
+| 20 | bosses: KQ / DKS / Corp | blocked | KQ → CONTENT_PORT_QUEUE (LC has proc); DKS/Corp → SCAPE2009 era |
+| 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | done | stubs: Zulrah/Vorkath/Hydra/Inferno/ToB (Maiden solo); phases/loot/party/DynamicMap deferred |
+| 22 | skill_agility: rooftops + shortcuts | done | 8 rooftops + MoG roll + Falador wall + GE tunnels; mid-era shortcuts → LC/SCAPE2009; grapples/pet deferred |
 | 23 | prayer: Redemption / Retribution | done | `prayer_effects.rs2`: ≤10% HP → drain+heal+gfx; death → gfx+hit `%aggressive_npc` ≤1 tile; policy 2009scape (LC none); multi AoE deferred (no map_multiway data) |
+| 24 | bosses: Cerberus | done | `minigame_cerberus/`: Taverley crawl, Slayer 91 winch, 3 lairs, portcullis exit; souls/lava/loot/DynamicMap deferred |
+| 25 | bosses: Kraken / Thermonuclear Smoke Devil | done | `minigame_kraken/` + `minigame_thermy/`: cave enter, Slayer 87/93 boss rooms, whirlpool Disturb→boss; tentacles/face-mask dmg/loot/DynamicMap deferred |
+| 26 | bosses: Abyssal Sire | done | `minigame_sire/`: wake sleeping→awake, exit appendage→nexus, Overseer stub; phases/lungs/Unsired font/fairy DIP/DynamicMap deferred |
+| 27 | bosses: Skotizo / Demonic Gorilla / Lizardman Shaman | done | `minigame_skotizo/` totem altar; `minigame_gorilla/` crash cavern; `minigame_shaman/` lair; specials/loot/DynamicMap deferred |
+| 28 | raid: Chambers of Xeric stub | done | `minigame_cox/`: mountain enter→solo Tekton staging, exit steps, board stub; party/chambers/Olm/DynamicMap deferred |
+| 29 | bosses: Obor / Bryophyta | done | `minigame_obor/` giant key chest; `minigame_bryophyta/` mossy key chest; growthlings/loot/DynamicMap deferred |
+| 30 | bosses: Callisto / Venenatis / Vetion / Scorpia | done | `minigame_wildy_bosses/`: Scorpia 3-cave enter/exit+spawn; outdoor Callisto/Venenatis/Vet'ion kill stubs; specials/hellhounds/singles/loot deferred |
+| 31 | bosses: Chaos Fanatic / Crazy Archaeologist | done | kill stubs + debugprocs in `minigame_wildy_bosses/`; specials/loot deferred; Chaos Elemental → SCAPE2009/classic |
+| 32 | bosses: Hespori / Sarachnis | done | `minigame_hespori/` Farming Guild cave; `minigame_sarachnis/` Forthos crypt; healers/spawns/loot/DynamicMap deferred |
+| 33 | bosses: Grotesque Guardians | done | `minigame_grotesque/`: brittle key Unlock→roof, Cloister Bell spawns Dawn+Dusk; phases/spheres/loot/DynamicMap deferred |
+| 34 | wilderness: Revenant caves | in_progress | Kronos `RevCaves.java` enter/exit + agility pillars; LC none; 2009scape has outdoor revs only |
+| 35 | wilderness: Larran's chest | pending | Kronos `LarranChest.java`; cache `slayer_larran_*` + `slayer_wilderness_key` |
+| 36 | bosses: Mage Arena II | pending | Kronos magearena Derwen/Porazdir/Zachariah; cache `ma2_boss_*`; LC none |
+| 37 | wilderness: Resource Area gate | blocked | → SCAPE2009 (mid-era wilderness hut) |
 
 ## Opcode gap log
 
@@ -112,6 +126,33 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 23 | (none) | Existing damage/death hooks + spotanim_pl | confirmed — no new opcode |
 | 23 | map_multiway zone data | Retribution multi AoE | deferred — opcode exists, no multi map |
 | 22 | (none) | Rooftop locs + existing agility helpers | confirmed — no new opcode |
+| 22 | (none) | MoG `obj_add` + GE/Falador shortcut locs | confirmed — no new opcode |
+| 21 | instance / dynamic map | Zulrah shrine isolation (shared 35_47/48) | soft — same gap as Fight Caves / NMZ |
+| 21 | (none) | Boat/plaque + npc_add expressible | confirmed — no new opcode |
+| 21 | instance / dynamic map | Vorkath Ungael isolation (shared 35_63) | soft — same gap |
+| 21 | (none) | Ice chunks + poke + npc_changetype | confirmed — no new opcode |
+| 21 | instance / dynamic map | Hydra / Inferno shared maps | soft — same gap |
+| 21 | (none) | Hydra climb/door + Inferno entrance | confirmed — no new opcode |
+| 21 | instance / dynamic map | ToB Theatre isolation (shared 49_69) | soft — same gap |
+| 21 | (none) | Surface enter + barrier + Maiden kill | confirmed — no new opcode |
+| 24 | (none) | Crawl/winch/portcullis + npc_add | confirmed — no new opcode |
+| 24 | instance / dynamic map | Cerberus lair isolation | soft — same gap |
+| 25 | (none) | Cave/crevice enter + disturb/changetype | confirmed — no new opcode |
+| 25 | instance / dynamic map | Kraken / Thermy isolation | soft — same gap |
+| 26 | (none) | Wake changetype + lever exit | confirmed — no new opcode |
+| 26 | instance / dynamic map | Sire chamber isolation | soft — same gap |
+| 27 | (none) | Altar/cavern/lair enter + npc_add | confirmed — no new opcode |
+| 27 | instance / dynamic map | Skotizo / gorilla isolation | soft — same gap |
+| 28 | (none) | Mountain enter/exit + Tekton npc_add | confirmed — no new opcode |
+| 28 | instance / dynamic map | CoX chamber layout | deferred — required for real raid |
+| 29 | (none) | Key chest Open + gate/rock exit | confirmed — no new opcode |
+| 29 | instance / dynamic map | Obor / Bryophyta isolation | soft — same gap |
+| 30 | (none) | Scorpia crawl + outdoor kill hooks | confirmed — no new opcode |
+| 31 | (none) | Outdoor kill hooks | confirmed — no new opcode |
+| 32 | (none) | Cave/crypt enter + npc_add | confirmed — no new opcode |
+| 32 | instance / dynamic map | Hespori / Sarachnis isolation | soft — same gap |
+| 33 | (none) | Roof Unlock/bell + dual kill | confirmed — no new opcode |
+| 33 | instance / dynamic map | Grotesque Guardians isolation | soft — same gap |
 
 ## Log
 
@@ -131,3 +172,22 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 22 (partial): Al Kharid rooftop — `rooftop_alkharid.rs2` req 20, 8 obstacles; zip/bamboo simplified vs Kronos forces; scripts 4513; pack 0 errors
 - slice 22 (partial): Varrock rooftop — `rooftop_varrock.rs2` req 30, 9 obstacles; wall/balcony forces simplified; scripts 4528; pack 1 error is parallel farming bushes.dbrow (unrelated)
 - slice 22 (partial): Canifis rooftop — `rooftop_canifis.rs2` req 40, 8 obstacles; scripts 4592; unblocked parallel grandtree `gosub(npc_death)` compile break
+- slice 22 (partial): Falador+Seers+Rellekka+Ardougne rooftops — `rooftop_{falador,seers,rellekka,ardougne}.rs2`; all 8 OSRS courses now present; MoG/pet/shortcuts deferred; scripts 4663; pack errors are parallel farming (unrelated)
+- slice 22 done: MoG `~agility_mark_of_grace` on all finishers; Falador crumbling wall + GE underwall tunnels in `agility_shortcuts_osrs.rs2`; grapples/pet deferred; mid-era stiles → LC; scripts 4687
+- slice 21 (partial): Zulrah shrine stub — `minigame_zulrah/`: boat board, spawn `snakeboss_boss_ranged`, exit plaque; phases/fumes/snakelings/loot/DynamicMap deferred; scripts 4713
+- slice 21 (partial): Vorkath stub — `minigame_vorkath/`: Ungael boat, ice-chunk enter/exit, poke `vorkath_sleeping`→`vorkath`; specials/loot/DynamicMap deferred; scripts 4727
+- slice 21 (partial): Hydra + Inferno stubs — `minigame_hydra/` climb+door+`hydraboss`; `minigame_inferno/` jump-in wave-1 nibblers; ToB remain; scripts 4776
+- slice 21 done: ToB Maiden solo stub — `minigame_tob/`: surface enter, barrier start, `tob_maiden_100` kill→exit; party/Bloat→Verzik/loot/DynamicMap deferred; scripts 4794
+- 2026-08-04: queue was idle; extended with slices 24–28 (Cerberus / Kraken+Thermy / Sire / Skotizo+Gorilla+Shaman / CoX stub)
+- slice 24 done: Cerberus stub — `minigame_cerberus/`: Taverley crawl ↔ lobby, Slayer 91 winch→3 lairs, portcullis exit, `cerberus_attacking` kill; souls/lava/loot deferred; scripts 4932; pack 0 errors
+- slice 25 done: Kraken + Thermy stubs — `minigame_kraken/` cove+Disturb whirlpool; `minigame_thermy/` smoky cave+boss crevice; tentacles/face-mask dmg/loot deferred; scripts 4964; pack 0 errors
+- slice 26 done: Abyssal Sire stub — `minigame_sire/`: Attack wake 5886→5887 names, exit lever→nexus, Overseer mes; phases/Unsired/fairy DIP deferred; scripts 5000; pack 0 errors
+- slice 27 done: Skotizo/Gorilla/Shaman stubs — `minigame_skotizo/` `cata_totem` altar; `minigame_gorilla/` mm2 cavern; `minigame_shaman/` lizardman lair; specials/loot deferred; scripts 5050; pack 0 errors
+- slice 28 done: CoX solo Tekton stub — `minigame_cox/`: `raids_entrance_steps` warning→staging+Tekton, exit steps, recruiting board mes; party/chambers/Olm/DynamicMap deferred; scripts 5083; pack 0 errors
+- 2026-08-04: extended queue with 29 Obor/Bryophyta + 30 wildy bosses (Callisto/Venenatis/Vetion/Scorpia)
+- slice 29 done: Obor + Bryophyta stubs — key chests consume `hillgiant_boss_key` / `mossy_key`; exit gates/rocks; scripts 5126; pack 0 errors
+- slice 30 done: Wildy demi-bosses — `minigame_wildy_bosses/`: Scorpia caverns; Callisto/Venenatis/Vet'ion kill stubs; specials/loot deferred; scripts 5166; pack 0 errors
+- slice 31 done: Chaos Fanatic + Crazy archaeologist kill stubs in `minigame_wildy_bosses/`; Chaos Elemental left for SCAPE2009/classic; scripts 5170; pack 0 errors
+- slice 32 done: Hespori + Sarachnis stubs — `minigame_hespori/` guild cave; `minigame_sarachnis/` Forthos web; healers/spawns/loot deferred; scripts 5227; pack 0 errors
+- slice 33 done: Grotesque Guardians stub — `minigame_grotesque/`: `slayer_roof_key` Unlock, Cloister Bell→Dawn+Dusk, both-dead exit; phases deferred; scripts 5278; pack 0 errors (also unblocked parallel RD journal/`%rd_main` compile)
+- 2026-08-04: **queue idle** — no pending unblocked Kronos slices after 33

@@ -5157,6 +5157,114 @@ mock230_script_command(
         SSVM_PushInt(state, 0);
         return 1;
 
+    /* ---- map instances -------------------------------------------- */
+
+    /*
+     * The six map-instance commands. What each one is for, and why there are six
+     * rather than one, is argued in gen_opcode_meta.py beside their declarations
+     * and in mock230_mapinstance.h; this is only the host side.
+     *
+     * They are thin on purpose. Every one of them is "pop the arguments, call the
+     * registry, push what it said" — the registry owns the pool, the rotation
+     * arithmetic and the descriptor window, and the scene owns the copy. What is
+     * *not* here is any policy: no opcode decides which zones a house has, where
+     * the player lands, or when the instance ends. That was the condition for
+     * these existing at all (PORTING_GUIDE §2.4): the engine gets the mechanism,
+     * content keeps the decisions.
+     */
+    case SS_OP_MAP_INSTANCE_ALLOC:
+    {
+        int32_t zone_w;
+        int32_t zone_h;
+
+        if( !SSVM_PopInt(state, &zone_h) || !SSVM_PopInt(state, &zone_w) )
+            return 1;
+        SSVM_PushInt(state,
+                     mock230_mapinstance_alloc(mock230_world_cache_dir(), zone_w, zone_h));
+        return 1;
+    }
+
+    /*
+     * `map_instance_setchunk(handle, level, zone_x, zone_z, src, rotation)`.
+     *
+     * `src` is a coord rather than three ints so content can name a source zone
+     * off a landmark — `movecoord(0_50_50_32_16, ...)` — instead of shifting
+     * tiles into zones by hand. Any tile inside the zone names it; the registry
+     * floors it.
+     */
+    case SS_OP_MAP_INSTANCE_SETCHUNK:
+    {
+        int32_t values[6];
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_mapinstance_setchunk(values[0], values[1], values[2], values[3],
+                                     coord_x(values[4]), coord_z(values[4]),
+                                     coord_level(values[4]), values[5]);
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_BUILD:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        if( mock230_mapinstance_build(handle) )
+            mock230_world_mapinstance_built(srv, handle);
+        return 1;
+    }
+
+    /*
+     * The instance-relative offset as an absolute coord — the only way content
+     * can address a tile inside something the allocator placed. A dead handle
+     * gives back coord 0, which is the same "nowhere" the reference's null
+     * Location is, and is what `map_instance_alloc` returning -1 turns into if
+     * content forgot to check it.
+     */
+    case SS_OP_MAP_INSTANCE_COORD:
+    {
+        int32_t values[4];
+        int base_x;
+        int base_z;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !mock230_mapinstance_base(values[0], &base_x, &base_z) )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, coord_pack(values[3], base_x + values[1], base_z + values[2]));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_FREE:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        mock230_mapinstance_free(handle);
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_FIND:
+    {
+        int32_t coord;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_find(coord_x(coord), coord_z(coord)));
+        return 1;
+    }
+
     /*
      * A rectangle test, and the argument order is the trap.
      *

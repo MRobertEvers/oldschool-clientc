@@ -263,6 +263,96 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # same id `if_openmain` / `if_openmain_side` wrote, or null when nothing is
     # mounted (the encoder stores 0 on close; this maps that to null).
     "IF_GETMAIN": (11008, 0, 0, 1, 0),
+
+    # ---- map instances (11009..11014) -------------------------------------
+    #
+    # A private copy of a piece of the map, assembled out of 8x8 zones taken
+    # from anywhere in the cache: the POH, the Pest Control island, a Barrows
+    # tunnel, a cutscene set. Six commands, and the reason there are six rather
+    # than one is that both behaviour references agree on the same four steps
+    # plus two queries — 2009scape `DynamicRegion` and Kronos `DynamicMap`:
+    #
+    #   allocate            reserveArea(8,8) / new DynamicMap()
+    #   fill, zone by zone  replaceChunk(z,x,y,chunk,from) / DynamicChunk.pos()
+    #   commit + show       spec.build() + updateSceneGraph() / map.build()
+    #   address a tile      base.transform(dx,dz) / map.convertX/convertY
+    #   release             flagInactive() / map.destroy()
+    #   which instance?     RegionManager.forId(id) is DynamicRegion
+    #
+    # LostCity has NONE of this, and that is measured rather than assumed:
+    # `engine.rs2` declares no map-allocation command (its only near misses are
+    # the commented-out `region_findbycoord` / `controller_*` block at
+    # engine.rs2:1051-1060, wired to nothing in Engine-TS), `BuildArea.ts`
+    # always writes RebuildNormal, and there is no construction content in the
+    # tree at all. So there is no reference name to port and no reference
+    # signature to copy — which is exactly why these sit in the EXTRA band
+    # rather than being invented into the reference's own 1000+ map band.
+    #
+    # PORTING_GUIDE §2.4 item 4 is the whole justification for the shape: the
+    # 2009scape port of the POH and of Pest Control cannot be written as content
+    # without a way to *say* "give me a private map", and the alternative on the
+    # table was a C house-builder. The engine gets the mechanism (reserve, copy
+    # zones, encode the scene), content keeps the policy (which zones, which
+    # rotation, where the player lands, when it is released).
+
+    # map_instance_alloc(int $zone_w, int $zone_h)(int)
+    #
+    # Reserve an unused rectangle of the map, `$zone_w` x `$zone_h` zones, and
+    # return a handle — or -1 when the pool is exhausted, which content must
+    # check (an instance is a resource, not a coordinate). Zones rather than
+    # tiles or map squares because a zone is the unit the fill step and the wire
+    # both work in; the allocator rounds up to whole map squares itself, since
+    # that is the granularity the cache's own archives come in.
+    "MAP_INSTANCE_ALLOC": (11009, 2, 0, 1, 0),
+
+    # map_instance_setchunk(int $handle, int $level, int $zone_x, int $zone_z,
+    #                       coord $src, int $rotation)
+    #
+    # Copy one 8x8 zone of the cache into one zone of the instance, turned
+    # `$rotation` quarter-turns clockwise. `$level`/`$zone_x`/`$zone_z` are
+    # instance-relative (0-based); `$src` is any coord inside the source zone
+    # and its plane is the source plane, so content can name a source with
+    # `movecoord` off a landmark instead of doing shift arithmetic.
+    #
+    # A zone nothing sets stays void, which is what makes an empty house floor
+    # empty rather than a copy of whatever the pool's previous tenant put there.
+    "MAP_INSTANCE_SETCHUNK": (11010, 6, 0, 0, 0),
+
+    # map_instance_build(int $handle)
+    #
+    # Commit the zones set so far: rebuild the server's collision over the
+    # instance and re-send the scene to anyone standing in it. Separate from
+    # setchunk because a house is dozens of zones and rebuilding collision
+    # per zone would be quadratic — and because a half-assembled instance is
+    # not a thing a player should ever be shown.
+    "MAP_INSTANCE_BUILD": (11011, 1, 0, 0, 0),
+
+    # map_instance_coord(int $handle, int $dx, int $dz, int $level)(coord)
+    #
+    # The instance-relative offset as an absolute coord. Content cannot compute
+    # this: the base is whatever the allocator handed out. Kronos spells the
+    # same thing `map.convertX(absX)` / `convertY`, 2009scape
+    # `region.getBaseLocation().transform(dx, dz, 0)`. Returns null for a dead
+    # handle rather than a coord in the void.
+    "MAP_INSTANCE_COORD": (11012, 4, 0, 1, 0),
+
+    # map_instance_free(int $handle)
+    #
+    # Release the reservation. Not automatic on the last player leaving —
+    # 2009scape's 50-tick `checkInactive` pulse is a *policy* about when a
+    # minigame is over, and policy is content's (a Pest Control lander that
+    # empties for one tick has not ended). Freeing an instance a player is
+    # still standing in is content's bug and the engine will not cover it.
+    "MAP_INSTANCE_FREE": (11013, 1, 0, 0, 0),
+
+    # map_instance_find(coord $coord)(int)
+    #
+    # The handle of the instance containing `$coord`, or -1. This is the query
+    # that makes a handle in a varp safe to distrust: a handle is per-session,
+    # a varp outlives the session, and "am I in a house?" has to be answerable
+    # from where the player actually is. 2009scape asks it as
+    # `RegionManager.forId(location.getRegionId()) instanceof DynamicRegion`.
+    "MAP_INSTANCE_FIND": (11014, 1, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------

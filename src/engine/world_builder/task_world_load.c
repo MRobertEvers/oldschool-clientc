@@ -3,6 +3,7 @@
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "engine/world_builder/world_builder.h"
+#include "net/rev/revpacket.h"
 #include "world/world.h"
 
 #include "asyncio.h"
@@ -73,6 +74,11 @@ struct Task_WorldLoad
     /* >= 0: RebuildCenterzone(zone, 104). < 0: RebuildChunklist. */
     int zone_center_x;
     int zone_center_z;
+    /* Non-zero `have_zones`: RebuildInstance from `zones` instead. Copied rather
+     * than borrowed because the packet that carried them frees on task teardown,
+     * and this task outlives the parse. */
+    int have_zones;
+    int32_t zones[PKT_MAP_REBUILD_ZONES];
 
     /* Invoked once at the synchronous tail (see CreateTask_WorldLoad). */
     void (*on_done)(void*);
@@ -365,7 +371,10 @@ Task_WorldLoad_Run(
     /* 5. Synchronous rebuild: world + scene elements from the loaded assets.
      * REBUILD_NORMAL passes the zone centre so the scene base is (zone-6)*8
      * (Client-TS / deob method3310); offline loads keep the chunk-list path. */
-    if( self->zone_center_x >= 0 )
+    if( self->have_zones )
+        WorldBuilder_RebuildInstance(
+            self->builder, self->zone_center_x, self->zone_center_z, 104, self->zones);
+    else if( self->zone_center_x >= 0 )
         WorldBuilder_RebuildCenterzone(
             self->builder, self->zone_center_x, self->zone_center_z, 104);
     else
@@ -407,6 +416,7 @@ CreateTask_WorldLoad(
     int chunk_count,
     int zone_center_x,
     int zone_center_z,
+    const int32_t* zones,
     void (*on_done)(void*),
     void* on_done_ud)
 {
@@ -415,7 +425,11 @@ CreateTask_WorldLoad(
     assert(provider);
     assert(builder);
     assert(chunks_xz);
-    assert(chunk_count > 0 && chunk_count <= WORLD_LOAD_MAX_CHUNKS);
+    /* Zero squares is legal, and only for an instance: a house with no rooms
+     * built is an all-void scene with nothing to prefetch. Every other caller
+     * names at least one square. */
+    assert(chunk_count >= 0 && chunk_count <= WORLD_LOAD_MAX_CHUNKS);
+    assert((chunk_count > 0 || zones) && "a non-instanced load with no squares");
 
     task = calloc(1, sizeof(*task));
     assert(task);
@@ -425,6 +439,11 @@ CreateTask_WorldLoad(
     task->builder = builder;
     task->zone_center_x = zone_center_x;
     task->zone_center_z = zone_center_z;
+    if( zones )
+    {
+        task->have_zones = 1;
+        memcpy(task->zones, zones, sizeof(task->zones));
+    }
     memcpy(task->chunks_xz, chunks_xz, (size_t)chunk_count * 2 * sizeof(int));
     task->chunk_count = chunk_count;
     task->on_done = on_done;

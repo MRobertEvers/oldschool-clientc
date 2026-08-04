@@ -186,58 +186,53 @@ map_terrain_dump(
     }
 }
 
-void
-WorldBuilder_RebuildCenterzoneChunkTerrain(
+/*
+ * One tile of a loaded map square, applied at one scene tile.
+ *
+ * Split out of the square loop below so the instanced build can use it too: an
+ * instanced scene copies terrain a zone at a time, from a source tile that is
+ * neither at the same local position (rotation) nor necessarily on the same plane
+ * as where it lands. Those are exactly the three things this takes separately —
+ * source (`tile_x`, `tile_z`, `src_level`) and destination (`offset_x`,
+ * `offset_z`, `dst_level`). The square path passes them equal-and-derived, so
+ * nothing about it changes.
+ */
+static void
+world_terrain_apply_tile(
     struct WorldBuilder* builder,
-    int mapx,
-    int mapz)
+    struct ToriRS_MapTerrain* map_terrain,
+    int tile_x,
+    int tile_z,
+    int src_level,
+    int offset_x,
+    int offset_z,
+    int dst_level)
 {
     struct World* world = builder->world;
-    int map_id = CacheProvider_MapId(mapx, mapz);
-    struct ToriRS_MapTerrain* map_terrain = CacheProvider_MapTerrainGet(builder->cache, map_id);
-    /* A map square can be legitimately absent (void/unreleased square, or an
-     * xtea-locked one the loader already warned about). The loader tolerates it
-     * and continues; match that here — leave the square flat void (the heightmap
-     * is zeroed on scene reset) rather than aborting the whole rebuild. */
-    if( !map_terrain )
-        return;
-
-    if( getenv("TORIRS_MAP_DUMP") )
-        map_terrain_dump(builder, map_terrain, mapx, mapz);
-
     int scene_size = world->_scene_size;
+    int chunk_index = World_MapTileCoord(tile_x, tile_z, src_level);
+    struct ToriRS_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
 
-    /* ---- Heightmap + flag_map ---- */
-
-    for( int tile_x = 0; tile_x < WORLD_MAP_TERRAIN_X; tile_x++ )
     {
-        for( int tile_z = 0; tile_z < WORLD_MAP_TERRAIN_Z; tile_z++ )
+        int level = dst_level;
+
+        if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
+            offset_z <= scene_size )
         {
-                int offset_x = World_ToSceneX(world, mapx, tile_x);
-                int offset_z = World_ToSceneZ(world, mapz, tile_z);
+            heightmap_set(world->heightmap, offset_x, offset_z, level, tile->height);
+        }
 
-            for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
-            {
-                int chunk_index = World_MapTileCoord(tile_x, tile_z, level);
-                struct ToriRS_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
+        if( offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
+            offset_z < scene_size )
+        {
+            flag_map_set(builder->flag_map, offset_x, offset_z, level, tile->settings);
+        }
 
-                if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
-                    offset_z <= scene_size )
-                {
-                    heightmap_set(world->heightmap, offset_x, offset_z, level, tile->height);
-                }
-
-                if( offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
-                    offset_z < scene_size )
-                {
-                    flag_map_set(builder->flag_map, offset_x, offset_z, level, tile->settings);
-                }
-
-                if( !(offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
-                      offset_z < scene_size) )
-                {
-                    continue;
-                }
+        if( !(offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
+              offset_z < scene_size) )
+        {
+            return;
+        }
 
                 int overlay_id = tile->overlay_id - 1;
                 int underlay_id = tile->underlay_id - 1;
@@ -338,7 +333,92 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
                         occluder_buildmap_set_floor_opacity(
                             builder->occluder_buildmap, offset_x, offset_z, level, 1);
                 }
-            }
+    }
+}
+
+void
+WorldBuilder_RebuildCenterzoneChunkTerrain(
+    struct WorldBuilder* builder,
+    int mapx,
+    int mapz)
+{
+    struct World* world = builder->world;
+    int map_id = CacheProvider_MapId(mapx, mapz);
+    struct ToriRS_MapTerrain* map_terrain = CacheProvider_MapTerrainGet(builder->cache, map_id);
+    /* A map square can be legitimately absent (void/unreleased square, or an
+     * xtea-locked one the loader already warned about). The loader tolerates it
+     * and continues; match that here — leave the square flat void (the heightmap
+     * is zeroed on scene reset) rather than aborting the whole rebuild. */
+    if( !map_terrain )
+        return;
+
+    if( getenv("TORIRS_MAP_DUMP") )
+        map_terrain_dump(builder, map_terrain, mapx, mapz);
+
+    for( int tile_x = 0; tile_x < WORLD_MAP_TERRAIN_X; tile_x++ )
+    {
+        for( int tile_z = 0; tile_z < WORLD_MAP_TERRAIN_Z; tile_z++ )
+        {
+            int offset_x = World_ToSceneX(world, mapx, tile_x);
+            int offset_z = World_ToSceneZ(world, mapz, tile_z);
+
+            for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+                world_terrain_apply_tile(
+                    builder, map_terrain, tile_x, tile_z, level, offset_x, offset_z, level);
+        }
+    }
+}
+
+/*
+ * One 8x8 zone of an instanced scene's terrain.
+ *
+ * Walks the *destination* and asks where each tile came from, which is why the
+ * rotation here is the inverse of the one the scenery pass uses. `src_zone_x` /
+ * `src_zone_z` are absolute zone units, so the map square and the local tile both
+ * fall out of them.
+ *
+ * Heights are written for the zone's own 8x8 only, so the column east and the row
+ * north of the scene stay at 0 rather than being borrowed from a neighbour that,
+ * in an instance, is a different piece of map entirely. That is the reference
+ * behaviour, not a shortcut: the client's own instanced loader is an 8x8 loop per
+ * zone for the same reason.
+ */
+void
+WorldBuilder_RebuildInstanceZoneTerrain(
+    struct WorldBuilder* builder,
+    int dst_zone_x,
+    int dst_zone_z,
+    int dst_level,
+    int src_zone_x,
+    int src_zone_z,
+    int src_level,
+    int rotation)
+{
+    int map_id = CacheProvider_MapId(src_zone_x >> 3, src_zone_z >> 3);
+    struct ToriRS_MapTerrain* map_terrain = CacheProvider_MapTerrainGet(builder->cache, map_id);
+    int src_tile_x = (src_zone_x & 7) * 8;
+    int src_tile_z = (src_zone_z & 7) * 8;
+
+    if( !map_terrain )
+        return;
+
+    for( int dx = 0; dx < 8; dx++ )
+    {
+        for( int dz = 0; dz < 8; dz++ )
+        {
+            int sx;
+            int sz;
+
+            world_instance_rotate_to_src(rotation, dx, dz, &sx, &sz);
+            world_terrain_apply_tile(
+                builder,
+                map_terrain,
+                src_tile_x + sx,
+                src_tile_z + sz,
+                src_level,
+                dst_zone_x * 8 + dx,
+                dst_zone_z * 8 + dz,
+                dst_level);
         }
     }
 }

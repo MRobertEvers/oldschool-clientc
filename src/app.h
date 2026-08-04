@@ -1063,12 +1063,19 @@ App_WorldRebuildShift(
  * and finishes. Returns 1 when a load was started, 0 on same-zone skip
  * (reference does not ack a skipped rebuild — Client.ts:2289 acks from
  * mapBuild only).
+ *
+ * `force` suppresses that early-out, and REBUILD_REGION always passes it. The
+ * skip is sound for a cache-built scene, where the same centre zone means the
+ * same 104x104 tiles; it is wrong for an instanced one, where the zones can be
+ * repointed underneath an unmoved player — which is exactly what happens when a
+ * room is added to a house the player is standing in.
  */
 int
 App_WorldRebuildBegin(
     struct App* app,
     int zone_x,
-    int zone_z);
+    int zone_z,
+    int force);
 
 /** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
  *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue

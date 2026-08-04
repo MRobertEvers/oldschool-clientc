@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11009] = {
+static const char* const g_ss_opcode_names[11015] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -420,6 +420,12 @@ static const char* const g_ss_opcode_names[11009] = {
     [11006] = "IF_OPENTOP",
     [11007] = "IF_MOVESUB",
     [11008] = "IF_GETMAIN",
+    [11009] = "MAP_INSTANCE_ALLOC",
+    [11010] = "MAP_INSTANCE_SETCHUNK",
+    [11011] = "MAP_INSTANCE_BUILD",
+    [11012] = "MAP_INSTANCE_COORD",
+    [11013] = "MAP_INSTANCE_FREE",
+    [11014] = "MAP_INSTANCE_FIND",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -429,7 +435,7 @@ static const char* const g_ss_opcode_names[11009] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11009] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11015] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -843,6 +849,12 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11009] = {
     [11006] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_OPENTOP */
     [11007] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_MOVESUB */
     [11008] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* IF_GETMAIN */
+    [11009] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_ALLOC */
+    [11010] = { 6, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_SETCHUNK */
+    [11011] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_BUILD */
+    [11012] = { 4, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_COORD */
+    [11013] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FREE */
+    [11014] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FIND */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

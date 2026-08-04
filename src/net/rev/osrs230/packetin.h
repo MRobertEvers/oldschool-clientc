@@ -41,7 +41,7 @@ struct Osrs230PacketInDef
 /* clang-format off */
 static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 68, PKTIN_LENGTH_VARU16, PKT_NAME_REBUILD_NORMAL }, /* also carries REBUILD_LOGIN */
-    { 59, PKTIN_LENGTH_VARU16, PKT_NAME_NONE }, /* REBUILD_REGION */
+    { 59, PKTIN_LENGTH_VARU16, PKT_NAME_REBUILD_REGION },
     { 23, PKTIN_LENGTH_VARU16, PKT_NAME_PLAYER_INFO }, /* GPI (classic/Kronos-style bitstream) */
     { 104, PKTIN_LENGTH_VARU16, PKT_NAME_NPC_INFO }, /* NPC_INFO_SMALL_V5 (see note above) */
     { 12, PKTIN_LENGTH_VARU16, PKT_NAME_NONE }, /* NPC_INFO_LARGE_V5 */

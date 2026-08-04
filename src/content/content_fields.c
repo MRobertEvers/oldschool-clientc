@@ -115,6 +115,11 @@ static const struct FieldDefault k_defaults[] = {
      * patching the cache. */
     { "loc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
     { "loc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
 };
 
 static void

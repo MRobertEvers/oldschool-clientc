@@ -169,6 +169,21 @@ dat2_map_resolve(
     return -1;
 }
 
+bool
+RSCache_MapSquareExists(
+    struct RSCache_Dat2Disk* cache,
+    int map_x,
+    int map_z)
+{
+    int file_index;
+
+    assert(cache);
+    if( map_x < 0 || map_z < 0 || map_x > 0xff || map_z > 0xff )
+        return false;
+    return dat2_map_resolve(cache, map_x, map_z, false, &file_index) >= 0 ||
+           dat2_map_resolve(cache, map_x, map_z, true, &file_index) >= 0;
+}
+
 /** Borrow terrain/locs bytes from a loaded maps archive (named or region-grouped). */
 static bool
 dat2_map_payload(

@@ -105,6 +105,11 @@ enum GameProtoPktName
 
     /* maps / vars / audio */
     PKT_NAME_REBUILD_NORMAL,
+    /* REBUILD_REGION: the same scene rebuild, but built out of copied zones
+     * instead of the map squares under it — the POH, Pest Control, a Barrows
+     * tunnel. Its payload shares struct PktMapRebuild with REBUILD_NORMAL and
+     * adds the per-zone descriptor grid. */
+    PKT_NAME_REBUILD_REGION,
     PKT_NAME_VARP_SMALL,
     PKT_NAME_VARP_LARGE,
     PKT_NAME_VARP_SYNC,  /* restore client copy from server-authoritative set */

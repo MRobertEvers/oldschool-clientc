@@ -180,6 +180,25 @@ RSCache_MapTerrainNewFromCache(
     int map_x,
     int map_z);
 
+/**
+ * Does this cache ship the map square at (map_x, map_z)?
+ *
+ * A reference-table lookup only — nothing is loaded or decrypted, so this is
+ * cheap enough to sweep the whole 256x256 grid. Answers for either layout (a
+ * named `mX_Z`/`lX_Z` pair or a rev-239 region-grouped archive) and reports
+ * present when *either* half is, so a square with terrain and no locs still
+ * counts as occupied.
+ *
+ * Exists for callers that need to find unused coordinate space — a server
+ * allocating map instances outside the real map cannot ask "did the load fail"
+ * without also swallowing a missing XTEA key as an empty square.
+ */
+bool
+RSCache_MapSquareExists(
+    struct RSCache_Dat2Disk* cache,
+    int map_x,
+    int map_z);
+
 struct RSCache_Dat2DiskArchive*
 RSCache_MapTerrainArchiveNewLoad(
     struct RSCache_Dat2Disk* cache,

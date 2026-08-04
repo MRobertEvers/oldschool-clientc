@@ -1818,6 +1818,71 @@ advance_player(struct Mock230Server* srv)
 }
 
 /*
+ * Build the server's collision window for the world's current zone.
+ *
+ * The instance check is here, in one place, rather than at each of the callers:
+ * whether a scene is instanced is a property of *where* it is, and both the
+ * login build and every re-centre want the same answer. Reading it from the
+ * coordinate — rather than from a flag someone has to remember to set — is what
+ * keeps the server's collision and the client's REBUILD_REGION descriptors from
+ * disagreeing about which map the scene is.
+ */
+void
+mock230_world_scene_rebuild(struct Mock230Server* srv)
+{
+    struct Mock230MapInstanceWindow window;
+
+    if( mock230_mapinstance_find(mock230_scene_origin(srv->zone_x) + MOCK230_SCENE_TILES / 2,
+                                 mock230_scene_origin(srv->zone_z) + MOCK230_SCENE_TILES / 2) < 0 )
+    {
+        mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
+        return;
+    }
+    mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
+    mock230_scene_build_instance(mock230_world_cache_dir(), srv->zone_x, srv->zone_z, &window);
+}
+
+/*
+ * An instance has just been assembled: show it to whoever is standing in it.
+ *
+ * Nothing happens for the ordinary case, which is content building a house
+ * *before* teleporting anyone into it — the teleport rebuilds the scene anyway.
+ * This is for the other case, which construction needs: adding a room to a house
+ * the player is already inside. The zones changed under them, so their collision
+ * and their client's scene are both stale, and only a rebuild fixes it.
+ */
+void
+mock230_world_mapinstance_built(
+    struct Mock230Server* srv,
+    int handle)
+{
+    int rebuilt = 0;
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        if( mock230_mapinstance_find(player->x, player->z) != handle )
+            continue;
+        if( !rebuilt )
+        {
+            mock230_world_scene_rebuild(srv);
+            mock230_world_locs_reapply(srv);
+            world_occupancy_restamp(srv);
+            rebuilt = 1;
+        }
+        player->rebuild_pending = 1;
+        player->place_dirty = 1;
+        /* Same reason as maybe_rebuild: the client's scene is being replaced, so
+         * it holds no zones and phase 10 re-states each one. */
+        mock230_zone_player_reset(player);
+        player->move_count = 0;
+    }
+}
+
+/*
  * Re-centre the scene when a player nears its edge.
  *
  * The client holds a 104x104 scene based at (zone - 6) * 8. Once a player is
@@ -1890,7 +1955,7 @@ maybe_rebuild(struct Mock230Server* srv)
      * now, and re-applying it is what puts collision back where the clients
      * believe it is.
      */
-    mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
+    mock230_world_scene_rebuild(srv);
     mock230_world_locs_reapply(srv);
     /* And the entities' own collision, which the rebuilt map does not carry —
      * see world_occupancy_restamp. */
@@ -5878,7 +5943,7 @@ mock230_world_init(
     /* Collision before anything is placed: a spawn on a blocked tile is worth
      * knowing about, and the walk helpers consult the scene from their first
      * call. */
-    mock230_scene_build(mock230_world_cache_dir(), zone_x, zone_z);
+    mock230_world_scene_rebuild(srv);
 
     mock230_world_build_entities(srv);
 }
@@ -5893,6 +5958,11 @@ mock230_world_reset(struct Mock230Server* srv)
      * surviving map would replay the previous world's doors into the next
      * one's. */
     mock230_zone_free(srv);
+    /* Instance handles are the world's too: the selftest runs many worlds in one
+     * process, and a surviving allocation would both leak its map squares out of
+     * the pool and leave the next world's scene reading a previous world's
+     * descriptors. */
+    mock230_mapinstance_reset();
     srv->npc_slot_max = 0;
 }
 
@@ -6173,7 +6243,7 @@ mock230_world_login(struct Mock230Player* player)
 
     /* 1. The scene. Everything after this is applied by the client behind the
      *    world load, because the packet queue is serial. */
-    mock230_send_rebuild_normal(player);
+    mock230_send_rebuild(player);
 
     /* 2. Gameframe root + the HUD and sidebar panels mounted into it.
      *    Mount table is content `gameframe.enum`. Open the top that matches the
@@ -6890,7 +6960,7 @@ phase_client_out(struct Mock230Player* player)
      * the world load finishes — so ordering here is simply "rebuild first". */
     if( player->rebuild_pending )
     {
-        mock230_send_rebuild_normal(player);
+        mock230_send_rebuild(player);
         player->rebuild_pending = 0;
         /* Doors. REBUILD_NORMAL rebuilds the client's scene from the cache,
          * which puts every opened door back the way the map square has it. The

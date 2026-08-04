@@ -324,6 +324,168 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
     }
 }
 
+/*
+ * One 8x8 zone of an instanced scene's scenery.
+ *
+ * Walks the *source*'s locs and asks where each goes — the opposite direction
+ * from the terrain pass, because a loc is a sparse list entry rather than a grid
+ * cell. Three things change per loc and nothing else does: the tile it lands on,
+ * its angle (turned by the same quarter-turns), and its level (the destination
+ * plane, which need not be the source's).
+ *
+ * The map-loc is copied rather than mutated. The cache hands out one shared
+ * ToriRS_MapLocs per square, and a house can point three zones at that same
+ * square with three different rotations — writing the turned angle back would
+ * corrupt the second and third.
+ *
+ * The minimap wall/mapfunction passes the square path runs are deliberately not
+ * called here: both take a whole map square and paint it at its own scene offset,
+ * which for a copied zone is the wrong place. An instanced minimap is its own
+ * problem; the terrain colours it gets from the terrain pass are correct.
+ */
+void
+WorldBuilder_RebuildInstanceZoneScenery(
+    struct WorldBuilder* builder,
+    int dst_zone_x,
+    int dst_zone_z,
+    int dst_level,
+    int src_zone_x,
+    int src_zone_z,
+    int src_level,
+    int rotation)
+{
+    int mapx = src_zone_x >> 3;
+    int mapz = src_zone_z >> 3;
+    int map_id = CacheProvider_MapId(mapx, mapz);
+    struct ToriRS_MapLocs* map_locs = CacheProvider_MapSceneryGet(builder->cache, map_id);
+    int src_tile_x = (src_zone_x & 7) * 8;
+    int src_tile_z = (src_zone_z & 7) * 8;
+
+    if( !map_locs )
+        return;
+
+    for( int i = 0; i < map_locs->locs_count; i++ )
+    {
+        struct ToriRS_MapLoc placed = map_locs->locs[i];
+        struct ToriRS_Location* config_loc;
+        struct ToriRS_Location resolved_loc;
+        int sx = placed.chunk_pos_x - src_tile_x;
+        int sz = placed.chunk_pos_z - src_tile_z;
+        int size_x;
+        int size_z;
+        int dx;
+        int dz;
+        int scene_x;
+        int scene_z;
+
+        if( placed.chunk_pos_level != src_level )
+            continue;
+        if( sx < 0 || sx > 7 || sz < 0 || sz > 7 )
+            continue;
+
+        config_loc = CacheProvider_LocationGet(builder->cache, placed.loc_id);
+        if( !config_loc )
+            continue;
+        config_loc = world_builder_resolve_loc_for_place(builder, config_loc, &resolved_loc);
+        if( !config_loc )
+            continue;
+
+        /* Footprint as placed in the source, which is what the corner correction
+         * needs — an odd angle has already swapped the config's own extents. */
+        size_x = config_loc->size_x > 0 ? config_loc->size_x : 1;
+        size_z = config_loc->size_z > 0 ? config_loc->size_z : 1;
+        if( (placed.orientation & 1) != 0 )
+        {
+            int tmp = size_x;
+            size_x = size_z;
+            size_z = tmp;
+        }
+
+        world_instance_rotate_to_dst(rotation, sx, sz, size_x, size_z, &dx, &dz);
+        scene_x = dst_zone_x * 8 + dx;
+        scene_z = dst_zone_z * 8 + dz;
+        if( !scene_in_bounds(builder, scene_x, scene_z) )
+            continue;
+
+        placed.orientation = (placed.orientation + rotation) & 3;
+        placed.chunk_pos_level = dst_level;
+
+        builder->scenery_mapx = mapx;
+        builder->scenery_mapz = mapz;
+        builder->scenery_base_loc_id = placed.loc_id;
+
+        world_collision_add_loc(builder, &placed, config_loc, scene_x, scene_z);
+        scenery_add(builder, &placed, config_loc, scene_x, scene_z);
+    }
+}
+
+/*
+ * The instanced rebuild, in the same three movements as the ordinary one:
+ * everything's terrain, then everything's scenery, then End.
+ *
+ * The two passes cannot be interleaved per zone even though it would read better:
+ * a loc's placement samples the heightmap under its whole footprint, and a
+ * footprint can cross into the next zone. Terrain first for the whole scene is
+ * what makes a table at a zone boundary sit on the floor.
+ */
+void
+WorldBuilder_RebuildInstance(
+    struct WorldBuilder* builder,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size,
+    const int32_t* zones)
+{
+    int zone_count = scene_size / 8;
+
+    assert(zones && "WorldBuilder_RebuildInstance: no descriptor grid");
+    assert(zone_count <= WORLD_INSTANCE_ZONES);
+
+    WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
+
+    ToriDraw_SceneBatchBegin(builder->scene);
+
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+        {
+            for( int zx = 0; zx < zone_count; zx++ )
+            {
+                for( int zz = 0; zz < zone_count; zz++ )
+                {
+                    int32_t v =
+                        zones[level * WORLD_INSTANCE_ZONES * WORLD_INSTANCE_ZONES +
+                              zx * WORLD_INSTANCE_ZONES + zz];
+                    int rotation;
+                    int src_zone_z;
+                    int src_zone_x;
+                    int src_level;
+
+                    if( v == 0 )
+                        continue;
+                    rotation = (v >> 1) & 0x3;
+                    src_zone_z = (v >> 3) & 0x7ff;
+                    src_zone_x = (v >> 14) & 0x3ff;
+                    src_level = (v >> 24) & 0x3;
+
+                    if( pass == 0 )
+                        WorldBuilder_RebuildInstanceZoneTerrain(
+                            builder, zx, zz, level, src_zone_x, src_zone_z, src_level,
+                            rotation);
+                    else
+                        WorldBuilder_RebuildInstanceZoneScenery(
+                            builder, zx, zz, level, src_zone_x, src_zone_z, src_level,
+                            rotation);
+                }
+            }
+        }
+    }
+
+    WorldBuilder_RebuildCenterzoneEnd(builder);
+
+    ToriDraw_SceneBatchEnd(builder->scene);
+}
+
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
  * LinkBelow bridge column, shift the baked minimap tiles down a plane so the
  * deck (cache level 1) lands at paint level 0. Mirrors World.pushDown; the

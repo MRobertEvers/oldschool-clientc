@@ -23,6 +23,7 @@
 #include <stdint.h>
 
 #include "engine/world_builder/collision_map.h"
+#include "mock230_mapinstance.h"
 
 struct CollisionMap;
 struct ToriRS_FeatureTable;
@@ -158,6 +159,25 @@ mock230_scene_build(
     const char* cache_dir,
     int zone_x,
     int zone_z);
+
+/**
+ * The same build, but for a **map instance**: every zone of the scene comes from
+ * the `window` descriptor rather than from the square under it.
+ *
+ * A zone the window does not set stays void — no cache square is read at the
+ * destination at all, which is both what makes an instance private and what the
+ * wire means (a REBUILD_REGION descriptor bit of 0 is "no source"). The window
+ * is the same structure `mock230_send_rebuild_region` encodes, so the collision
+ * the server routes on and the map the client draws come from one description.
+ *
+ * Returns 1 on success, 0 when the cache is unavailable — same fallback as above.
+ */
+int
+mock230_scene_build_instance(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    const struct Mock230MapInstanceWindow* window);
 
 void
 mock230_scene_free(void);

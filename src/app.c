@@ -3654,7 +3654,7 @@ app_world_load_begin(
     App_WorldDrainEntityRemoved(app);
     task = CreateTask_WorldLoad(
         app->provider, app->world_builder, chunks_xz, chunk_pair_count,
-        -1, -1, app_world_load_finish_cb, app);
+        -1, -1, NULL, app_world_load_finish_cb, app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     app->need_redraw = 1;
 }
@@ -12370,12 +12370,14 @@ int
 App_WorldRebuildBegin(
     struct App* app,
     int zone_x,
-    int zone_z)
+    int zone_z,
+    int force)
 {
     assert(app);
 
-    /* deob method3310 checkSame / Client-TS mapBuildCenterZone early-out. */
-    if( app->world_active && app->world && app->world->load_complete &&
+    /* deob method3310 checkSame / Client-TS mapBuildCenterZone early-out. See
+     * app.h on why an instanced rebuild opts out of it. */
+    if( !force && app->world_active && app->world && app->world->load_complete &&
         app->rebuild_zone_x == zone_x && app->rebuild_zone_z == zone_z )
         return 0;
 
