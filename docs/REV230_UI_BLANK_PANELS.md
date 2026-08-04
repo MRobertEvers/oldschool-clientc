@@ -669,3 +669,15 @@ origin; only in-box row pitch changes (5-option last row bottom 456).
 **Also found and fixed in passing (earlier):** `make -C src test-chat-widgets`
 failed to *link* (`_strtobase37` undefined) — `src/makefile` had
 `game/rs_social.c` but not `net/jbase37.c`. One line added; the test passes.
+
+## 5b. Live choice verification pitfall + `chat_left` valign
+
+After the §5 layout fix and the §6b engine fixes in
+[`REV230_UI_OWNERSHIP.md`](REV230_UI_OWNERSHIP.md), live choice clicks can still
+look dead if `run-live.sh` left a **stale** `mock230` on the port (it never
+replaces an existing listener). Kill `43595`, rebuild `mock230` + `torirs`,
+restart; `MOCK230_VERBOSE=1` should show `IF_BUTTON1 219:1 sub=N`.
+
+Separately: short Hans body text sitting high in the parchment is **not** a
+blank-panel / unpack bug. Deob + pristine cache encode `chat_left` body
+`valign=0` (top); do not overlay `valign=1`. Details in ownership §6c.

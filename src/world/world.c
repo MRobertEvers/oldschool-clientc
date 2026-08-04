@@ -136,10 +136,10 @@ World_ObjRaiseSetMax(
 
     assert(world);
     assert(world->obj_raise);
-    assert(x >= 0 && z >= 0 && level >= 0);
-    assert(x < world->_scene_size && z < world->_scene_size);
-    assert(level < WORLD_MAP_TERRAIN_LEVELS);
-    if( raise <= 0 )
+    /* Footprints of edge locs can spill past the scene — same skip as Get. */
+    if( x < 0 || z < 0 || level < 0 || raise <= 0 ||
+        x >= world->_scene_size || z >= world->_scene_size ||
+        level >= WORLD_MAP_TERRAIN_LEVELS )
         return;
     idx = world_obj_raise_idx(world, x, z, level);
     cur = world->obj_raise[idx];

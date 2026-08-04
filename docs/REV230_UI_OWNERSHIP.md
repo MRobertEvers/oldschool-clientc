@@ -481,6 +481,28 @@ choice menu, then `c49` (`'1'`): no `script 57 failed at opcode 4120`; Hans's
 branch-1 line (`I'm looking for whoever is in charge of this place.`) is set on
 the chatplayer. `mock230 --selftest` "npc chat dialogue" (IF_BUTTON1 alone
 resumes with `last_slot=3`) and `mock230_pack --check-only` at 0 errors.
+Re-checked on a fresh TCP mock (`MOCK230_VERBOSE=1`): `RESUME_PAUSEBUTTON 231:5`
+then `IF_BUTTON1 219:1 sub=1`, no 4120 abort.
+
+**Live pitfall.** `run-live.sh` starts `src/build/mock230` only when the
+manifest port is free; if something already listens (often a stale pre-fix
+binary), it leaves that process alone. Choice clicks then look dead after a
+client rebuild. Kill the port listener (`lsof -iTCP:43595 -sTCP:LISTEN`),
+rebuild `mock230` + `torirs`, then restart.
+
+## 6c. `chat_left` body text sits high — cache truth, not unpack loss
+
+**Report.** Hans's short NPC line sits near the top of the parchment with a
+large gap above "Click here to continue."
+
+**Verdict.** Do **not** author `valign=1` into `chat_left.if`. Deob IF3 type-4
+(`Widget.method6525`) stores y-text-alignment as a u8 defaulting to **0**
+(top). Pristine `cache.osrs239` / content / baked omit `valign` on
+`chat_left` `[text]` (= 0); `chat_right` / `chat_both` emit `valign=1`.
+Unpack only writes `valign` when ≠ 0 (`cp_decode.c`). Engine top-align
+(`ToriDraw2D_DrawStringBox` `y_align==0` → `base_y0 = max_ascent`) matches
+deob `class439.method7680` `arg9==0` → `field4805 + arg2`. Short lines high
+in the 67px body box are what Jagex encoded for 231.
 
 ## 7. Harness notes
 

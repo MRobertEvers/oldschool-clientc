@@ -603,6 +603,14 @@ struct Mock230ObjParam
 const struct Mock230ObjParam*
 mock230_obj_param(int obj_id, int param_id);
 
+/**
+ * Overlay one int param onto an obj (rank-1 `.obj` `param=<name>,<value>`).
+ * Same contract as `mock230_locinfo_param_overlay` — replaces any prior row
+ * for (obj_id, param_id) and re-sorts so `oc_param` can find it.
+ */
+void
+mock230_objinfo_param_overlay(int obj_id, int param_id, int value);
+
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 

@@ -393,6 +393,29 @@ mock230_obj_param(
     return NULL;
 }
 
+void
+mock230_objinfo_param_overlay(
+    int obj_id,
+    int param_id,
+    int value)
+{
+    const struct Mock230ObjParam* existing;
+
+    if( obj_id < 0 || param_id < 0 )
+        return;
+    existing = mock230_obj_param(obj_id, param_id);
+    if( existing )
+    {
+        /* Replace in place — ObjParam layout matches Mock230ObjParam. */
+        ((struct ObjParam*)existing)->ival = value;
+        free(((struct ObjParam*)existing)->sval);
+        ((struct ObjParam*)existing)->sval = NULL;
+        return;
+    }
+    add_param(obj_id, param_id, value, NULL);
+    qsort(g_obj_params, (size_t)g_obj_param_count, sizeof(*g_obj_params), compare_obj_param);
+}
+
 static void
 record(
     int obj_id,

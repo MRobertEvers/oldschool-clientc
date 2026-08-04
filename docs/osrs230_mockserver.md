@@ -32,7 +32,10 @@ make -C src test-ws-frame    # the WebSocket frame codec
 `run-live.sh` starts the mock itself for any manifest whose `[net:boot]` names
 `osrs230` on localhost, and stops it on the way out. `TORIRS_NO_MOCK=1` opts
 out, and so does an instance already holding the port — one you started by hand
-with `MOCK230_VERBOSE=1` or under a debugger is never fought over. By hand:
+with `MOCK230_VERBOSE=1` or under a debugger is never fought over. That last
+case is also how a **stale** `mock230` survives a client rebuild: the script
+does not replace the listener, so dialogue choice fixes (and anything else
+server-side) look dead until you kill the port and start a fresh binary. By hand:
 
 ```
 make -C src mock230 && src/build/mock230 &

@@ -174,7 +174,7 @@ Historical pre-parity baseline (before mesh_level / model_height / footprint-arg
 | built planes (top=3) | — | 38 wall + 116 floor |
 | active planes this eye | 0 | 10 |
 
-Re-measure with `TORIRS_PAINT_DEBUG` / `TORIRS_OCCLUDERS_DEBUG` after the 2026-08-03 modern-deob parity pass. Correctness gates: `make -C src test-painters-occluders` (includes footprint size-arg coverage) and the fuzz subsequence check (`scripts/painter/c/fuzz_real.c`). Headless BMPs are **not** frame-deterministic (~1.3% pixel churn from water/NPC/UI animation).
+Re-measure with `TORIRS_PAINT_DEBUG` / `TORIRS_OCCLUDERS_DEBUG` after the 2026-08-03 modern-deob parity pass (footprint size-args, L-wall 0x249, raw eye for spreads, runtime draw distance). Correctness gates: `make -C src test-painters-occluders` (includes footprint size-arg coverage) and the fuzz subsequence check (`scripts/painter/c/fuzz_real.c`). Headless BMPs are **not** frame-deterministic (~1.3% pixel churn from water/NPC/UI animation).
 
 ## Summary
 
