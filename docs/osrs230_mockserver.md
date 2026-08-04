@@ -860,6 +860,55 @@ Three things about the implementation:
 `nomove` of that family and nothing else, so declaring it would be a claim the
 collision map does not enforce. The route stays outside on its own.
 
+### The teleport nobody was told about
+
+Patrol carries the reference's stuck-teleport: 32 ticks without reaching the
+waypoint (or a waypoint on another level) and the npc is put on it. The move
+happened on the server and **was never encoded**, so Hans was the npc this cost
+the most — his route rounds the castle wall, so he is the one who stalls.
+
+NPC_INFO's tracked section has four movement ops: nothing, one step, two steps,
+and remove. None of them says "is now over there". The player section already
+knew this — `place_dirty` makes a teleporting player a *remove* in every
+observer's stream and the entering-view loop re-adds them at their new tile, in
+the same packet — and the npc section had no equivalent. So every client that
+already held the npc kept drawing it where it used to be, indefinitely: nothing
+in the stream ever contradicted the stale tile.
+
+That is what "Hans is not patrolling correctly" actually was, and why it
+presented as an *identity* bug. The click path resolves a scene element to
+`server_slot` and sends OPNPC with it, so the slot was always right; the server
+then routed the player to the tile Hans was really standing on. Clicking the man
+standing by the courtyard door walked you across the grounds — he answered from
+somewhere other than where he was drawn.
+
+The fix is `Mock230Npc.tele`, the npc half of `place_dirty`, set by the one
+chokepoint every discontinuous move now goes through:
+
+```c
+mock230_world_npc_teleport(npc, x, z, level);   /* PathingEntity.teleport() */
+```
+
+It does the four things the open-coded sites kept getting partly right — moves
+the collision stamp with the npc, abandons the route, clears `step_dir` (a
+teleport is not a step; leaving it set makes the client glide the npc across the
+map), and raises `tele`. Three callers: patrol's stuck-teleport, wander's
+500-tick walk home, and the `npc_tele` opcode — which previously moved the npc
+without moving its occupancy at all, so the imp left a blocked tile behind it on
+every hop.
+
+`tele` is cleared in phase 11 beside `masks`, and for the same reason: every
+observer's NPC_INFO has to have been written before it is dropped, or whoever is
+encoded first consumes it and everyone else sees an npc that did not move. Zone
+membership is refiled in phase 8, before anything is encoded, so the re-add finds
+the npc at its new tile.
+
+The selftest (`a teleported npc is re-added, not left behind`) checks the
+client's list order rather than the flag: a kept npc holds its index and a
+re-added one is appended after every kept npc, so an npc that was first and is no
+longer first was removed and re-added. Reverting the encoder's one-term change
+turns it red.
+
 ## 3.11c `[ai_spawn]`, and the imp
 
 Phase 3 was an empty named phase. It now dispatches `[ai_spawn,<npc>]` for every

@@ -18,7 +18,7 @@ re-arm. Stop only when the user stops the loop.
 | 5a | general_use batch: barrels, bookcases, chests, coffins, cupboards | done | barrels/bookcases/coffins; chests+cupboards deferred (orphan cats) |
 | 5b | general_use batch: drawers, fence, findsomethingnice, gangplank, hammer | done | sacks/manholes/hammer/spade; drawers/fence/findsomethingnice/gangplank deferred |
 | 5c | general_use batch: hat_stand, locked_doors, locked_gates, manholes, mithril_seeds | done | hatstand/lockeddoor1/metal gates/mithril seeds; manholes already in 5b |
-| 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | done | tables/trapdoors/wardrobes/web/windmills/organs; sacks+spade already 5b; newcomer_map deferred (playermap_east + newcomers_pos) |
+| 5d | general_use batch: newcomer_map, organs, sacks, spade, tables, trapdoors, wardrobes, web, windmills | done | tables/trapdoors/wardrobes/web/windmills/organs; sacks+spade already 5b; newcomer_map → 9m |
 | 6a | F2P quest: Rune Mysteries | done | Duke+Sedridor+Aubury+journal; essence teleport/shop stubbed |
 | 6b | F2P quest: Imp Catcher | done | Mizgog + journal + quest_impcatcher; beads already on imp drop table |
 | 6c | F2P quest: Doric's Quest | done | full dialogue + journal + quest_dorics |
@@ -72,7 +72,9 @@ re-arm. Stop only when the user stops the loop.
 | 9j | Lava ladders / Mage Arena stubs | done | wildymirrorladder* name-remap teleports + Mage Arena NPC/loc stubs (lundail/gundai/kolodion/guardian + ladders/pool/barrier/statues/god cape drop); constants landed; deferred: kolodion fight/AI, battle_mage, openshop, armour cats, pool exactmove, god equip |
 | 9k | KBD lever stubs + entrance ladder | done | dragonkingin/outlever teleports + wildymirrorladdertop1 switch (Monk's Friend + KBD + lava 62,16); constants landed; deferred: king_dragon AI/breaths/drops/hunt, bandit_camp_guards AI |
 | 9l | armourmaking_wizard (Wizards' Tower) | done | Talk-to + splitbark craft (bark/cloth/coins); skill_multi→p_choice5; deferred: wizard/wizard_grayzag AI (summonedimp absent), hollow-tree bark gather, Mort'ton fine_cloth |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: newcomer_map; guard2 unresolved; ditch (no LC); shops blocked on inv.ini; bandit_camp_guards AI; wizard/wizard_grayzag AI |
+| 9m | newcomer_map (general_use, deferred from 5d) | done | Read mes-stub; full IF blocked (playermap_east + newcomers_pos + era IF1 model absent); ~mapsquare not needed for stub |
+| 9n | bandit_camp_guards AI (+ combat overlays) | done | ai_applayer2 say+opplayer2; ai_queue1→applayer2 (retaliate_ap simplified); combat overlays guard/brawling+leaders; huntmode=aggressive approx; deferred: .hunt ranged/cowardly, ~npc_default_retaliate_ap, attackbonus/sounds |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: guard2 unresolved; ditch (no LC); shops blocked on inv.ini; wizard/wizard_grayzag AI (summonedimp); king_dragon combat AI |
 
 
 ## Log
@@ -141,4 +143,6 @@ re-arm. Stop only when the user stops the loop.
 - slice 9j done: Lava Maze wildymirrorladder1/2 + top1/2 teleports (LC loc_1766/1768 remapped by name) + Mage Arena stubs — lundail Trade, gundai ~openbank, kolodion Talk-to (duel mes-stub), chamber guardian + statues + god cape drop/pickup, cellar ladders + pool/barrier stubs; mage_arena.constant landed; deferred: kolodion_fight/battle_mage AI, openshop, armour inv_totalcat gate, pool exactmove, god opheld2 equip
 - slice 9k done: KBD stubs — dragonkinginlever/dragonkingoutlever (~player_teleport_normal to lair/exit) + king_black_dragon.constant; fixed wildymirrorladdertop1 to loc_coord switch (Monk's Friend 0_40_50_1_22, KBD 0_47_60_9_9, lava 62,16); deferred: king_dragon combat AI/breaths/drops/hunt/freeze, bandit_camp_guards AI, trail clues
 - slice 9l done: armourmaking_wizard — Talk-to dialogue + splitbark helm/body/legs/gauntlets/greaves craft (hollow_bark+fine_cloth+coins); skill_multi5→~p_choice5 one-at-a-time; deferred: wizard/wizard_grayzag combat AI (summonedimp absent), hollow-tree bark, Mort'ton fine_cloth drops
-- next pending: newcomer_map; guard2 unresolved; ditch (no LC); shops blocked on inv.ini; bandit_camp_guards AI; wizard/wizard_grayzag AI
+- slice 9m done: newcomer_map — Read → ~mesbox stub; playermap_east IF / newcomers_pos varp / if_playermap_east model still absent (era IF1); full mapsquare→marker UI deferred
+- slice 9n done: bandit_camp_guards — AI (say+mode) + bandit_camp.npc combat overlays (guard/brawling hunt + leaders HP/stats); drops already 9f/drop_tables; deferred: .hunt ranged/cowardly profiles, ~npc_default_retaliate_ap (varns), attackbonus/attack_sound
+- next pending: guard2 unresolved; ditch (no LC); shops blocked on inv.ini; wizard/wizard_grayzag AI (summonedimp); king_dragon combat AI

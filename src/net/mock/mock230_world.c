@@ -13903,6 +13903,54 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: a teleported npc is re-added, not left behind\n");
+    {
+        /*
+         * NPC_INFO's tracked section has no op for "is now over there", so a
+         * teleport has to be a remove plus a re-add in one packet — the npc half
+         * of the player section's `place_dirty`, and the reason
+         * `Mock230Npc.tele` exists. Patrol's stuck-teleport fires on Hans, whose
+         * route rounds the castle wall, so without this the greeter stood in one
+         * place on every client while the server answered clicks from the tile
+         * he had actually reached.
+         *
+         * The observable is the client's list order: a kept npc holds its place,
+         * and a re-added one is appended after every kept npc. So the check is
+         * that the npc which was *first* is no longer first, which no amount of
+         * other npcs walking in or out of view on the same tick can fake.
+         */
+        int hans = selftest_find_npc(&srv, 3105);
+
+        SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
+        if( hans >= 0 )
+        {
+            selftest_park_player(&srv, srv.npcs[hans].x + 1, srv.npcs[hans].z);
+            player->level = srv.npcs[hans].level;
+        }
+        mock230_world_tick(&srv); /* one tick to establish a tracked list */
+        SELFTEST_CHECK(player->tracked_count >= 2,
+                       "the courtyard should have the client tracking several npcs, got %d",
+                       player->tracked_count);
+        if( player->tracked_count >= 2 )
+        {
+            int slot = player->tracked[0];
+            struct Mock230Npc* npc = &srv.npcs[slot];
+
+            mock230_world_npc_teleport(npc, player->x + 2, player->z + 2, player->level);
+            SELFTEST_CHECK(npc->tele == 1, "the chokepoint raises the flag the encoder reads");
+            SELFTEST_CHECK(npc->step_dir == -1,
+                           "and a teleport is not a step, or the client glides him there");
+
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->npc_tracked[slot],
+                           "the same packet re-adds him, so the client still holds him");
+            SELFTEST_CHECK(player->tracked_count >= 1 && player->tracked[0] != slot,
+                           "and he leaves the place he held in the client's list");
+            SELFTEST_CHECK(npc->tele == 0,
+                           "phase 11 clears it, once every observer has been told");
+        }
+    }
+
     /*
      * Aggression, pursuit and the leash — the three halves of "a monster
      * fights you", and each of them was broken in a way the other two hid.
