@@ -4076,6 +4076,13 @@ mock230_send_cam_lookat(
     int rate,
     int rate2);
 void
+mock230_send_cam_shake(
+    struct Mock230Player* player,
+    int axis,
+    int jitter,
+    int amplitude,
+    int frequency);
+void
 mock230_send_if_closesub(
     struct Mock230Player* player,
     int uid);

@@ -127,6 +127,7 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; dig/brooch→23b; Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
 | 23b | quest: Lost Tribe dig/brooch | done | Pickaxe on `lost_tribe_cellar_hole_blocking`→`%lost_tribe_quest`=4 + floor brooch; Squeeze-through; Duke brooch→`%lost_tribe_contact`=3 librarian; Reldo/Mistag deferred; `::losttribedig`; scripts 6822; pack preexisting ascentofarceuus dupes |
 | 23c | quest: Lost Tribe Reldo/book | done | Reldo brooch→`%lost_tribe_bookmark`=1; bookcase→book; Read→Dorgeshuun ID (`bookmark`=2); Duke/Sigmund symbol talk; generals/Mistag deferred; book IF page-turn deferred; `::losttribebook`; scripts 6915; pack 0 errors |
+| 23d | quest: Lost Tribe goblin generals | pending | Wartface/Bentnoze Dorgeshuun briefing → Duke war prep; Mistag/HAM deferred |
 | 24 | quest: Dig Site / The Golem | done | Dig Site → LC `quest_itexam` (CONTENT_PORT_QUEUE **18d**); Golem: talk+softclay×4 repair→task; portal/museum deferred; `::golem`; scripts 5326; pack 0 errors |
 | 25 | quest: Animal Magnetism | done | Ava start (prereqs+skills) → fetch chickens; `%anma_main`; farm/witch/device deferred; `::anma`; scripts 5359; pack 0 errors |
 | 26 | quest: A Soul's Bane | done | Launa start → rope on rift → enter anger; `%soulbane_prog`/`%soulbane_riftrope_pres`; rooms deferred; `::soulsbane`; scripts 5437; pack 0 errors |

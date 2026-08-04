@@ -5197,6 +5197,55 @@ mock230_script_command(
             player->run_energy = MOCK230_RUN_ENERGY_MAX;
         if( player->run_energy < 0 )
             player->run_energy = 0;
+        /* Force the next run_energy_flush to re-send — content that restores a
+         * full bar mid-session must not wait for a coincidental drift. */
+        player->run_energy_sent = -1;
+        return 1;
+    }
+
+    /*
+     * Camera family — LostCity PlayerOps CAM_* (coord → scene-local via the
+     * current rebuild base). Wire opcodes measured from RSProt osrs-230
+     * GameServerProtId: CAM_LOOKAT=30, CAM_RESET=65, CAM_MOVETO=67, CAM_SHAKE=107.
+     */
+    case SS_OP_CAM_LOOKAT:
+    case SS_OP_CAM_MOVETO:
+    {
+        int32_t values[4];
+        int local_x;
+        int local_z;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        local_x = coord_x(values[0]) - mock230_scene_base_x();
+        local_z = coord_z(values[0]) - mock230_scene_base_z();
+        if( opcode == SS_OP_CAM_MOVETO )
+            mock230_send_cam_moveto(player, local_x, local_z, (int)values[1],
+                                    (int)values[2], (int)values[3]);
+        else
+            mock230_send_cam_lookat(player, local_x, local_z, (int)values[1],
+                                    (int)values[2], (int)values[3]);
+        return 1;
+    }
+
+    case SS_OP_CAM_RESET:
+        mock230_send_cam_reset(player);
+        return 1;
+
+    case SS_OP_CAM_SHAKE:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_cam_shake(player, (int)values[0], (int)values[1],
+                               (int)values[2], (int)values[3]);
         return 1;
     }
 

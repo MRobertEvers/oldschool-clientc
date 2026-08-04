@@ -113,8 +113,8 @@ filed under `helpers/quests/` are at the end.
 | 8 | The Ascent of Arceuus | `theascentofarceuus` | 310 | done | `%arcquest`; Mori→Andrews→tower souls→Kaal→grave trail→Trapped Soul→rocks→Trobin; `::aoarun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Ascent_of_Arceuus); deferred instance/trail strictness |
 | 9 | Ethically Acquired Antiquities | `ethicallyacquiredantiquities` | 313 | done | `%eaa`; museum→crew→Betty→Haig shame→Herminius; `::eaarun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/Ethically_Acquired_Antiquities/Quick_guide); COTS soft-skip; deferred charter/shame matrix |
 | 10 | The Ides of Milk | `theidesofmilk` | 316 | done | `%cowquest`; Cassius→Gillie/Seth→milk→Duke→Brutus→finish; `::iomrun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/The_Ides_of_Milk/Quick_guide); deferred Brutus specials / lamp Rub |
-| 11 | In Search of Knowledge | `insearchofknowledge` | 317 | pending | miniquest-ish |
-| 12 | Bone Voyage | `bonevoyage` | 320 | pending | |
+| 11 | In Search of Knowledge | `insearchofknowledge` | 317 | done | `%hosdun_knowledge_search`; Aimeri→tomes→Logosia; `::isokrun` OK; pack 0 errors; deferred combat pages/web/lamp Rub |
+| 12 | Bone Voyage | `bonevoyage` | 320 | in_progress | `%fossilquest_progress` endstate 50 |
 | 13 | Children of the Sun | `childrenofthesun` | 337 | pending | |
 | 14 | The Garden of Death | `thegardenofdeath` | 346 | pending | |
 | 15 | At First Light | `atfirstlight` | 348 | pending | |
@@ -240,3 +240,10 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   bull / finish; post-quest Gillie cowbell+lamp; wiki Quick_guide;
   `::idesofmilk` / `::iomrun`; headless OK; pack 0 errors; deferred Brutus
   specials/dodge, lamp Rub skill picker; next = In Search of Knowledge (#11)
+- slice 11 done: In Search of Knowledge — `%hosdun_knowledge_search` on
+  `hosdun_status` (0/1/2→3); Aimeri feed / Forthos shelves / pages soft /
+  Logosia tomes / `thosf_reward_lamp`; wiki
+  https://oldschool.runescape.wiki/w/In_Search_of_Knowledge/Quick_guide;
+  `::insearchofknowledge` / `::isokrun`; headless OK (`isokrun OK` payload);
+  pack 0 errors; deferred Forthos combat page drops, knife web, Protect Magic,
+  lamp Rub; next = Bone Voyage (#12)

@@ -154,6 +154,14 @@ opcode_name(int op)
         return "REBUILD_REGION";
     case OP_UPDATE_RUNENERGY:
         return "UPDATE_RUNENERGY";
+    case OP_CAM_RESET:
+        return "CAM_RESET";
+    case OP_CAM_MOVETO:
+        return "CAM_MOVETO";
+    case OP_CAM_LOOKAT:
+        return "CAM_LOOKAT";
+    case OP_CAM_SHAKE:
+        return "CAM_SHAKE";
     case OP_MESSAGE_GAME:
         return "MESSAGE_GAME";
     case OP_NPC_INFO:
@@ -1026,6 +1034,23 @@ mock230_send_cam_lookat(
     rsab_p1(&buf, rate);
     rsab_p1(&buf, rate2);
     flush(player, &buf, OP_CAM_LOOKAT, 0);
+}
+
+void
+mock230_send_cam_shake(
+    struct Mock230Player* player,
+    int axis,
+    int jitter,
+    int amplitude,
+    int frequency)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p1(&buf, axis);
+    rsab_p1(&buf, jitter);
+    rsab_p1(&buf, amplitude);
+    rsab_p1(&buf, frequency);
+    flush(player, &buf, OP_CAM_SHAKE, 0);
 }
 
 void
