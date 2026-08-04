@@ -736,6 +736,14 @@ painter_add_ground_decor(
 #define GROUND_OBJECT_MIDDLE 1
 #define GROUND_OBJECT_TOP 2
 
+/**
+ * Register a ground-object slot on a tile (bottom / middle / top).
+ *
+ * Production obj stacks go through painter_add_normal_scenery_ex with
+ * PNTR_SCENERY_RAISED when lifted onto a raiseobject loc — see
+ * docs/painter_bucket_vs_world3d.md "Loc stacking". This API remains for the
+ * painter fuzzer and for flat (height==0) piles; middle/top are unused.
+ */
 int
 painter_add_ground_object(
     struct Painter* painter, //

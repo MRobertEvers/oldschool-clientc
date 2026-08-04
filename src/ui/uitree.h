@@ -216,6 +216,11 @@ struct UITreeRuntimeHooks
 #define UITREE_INTERFACE_PARENT_MAX 32
 /** parent_index for UITree_Push: allocate node without linking into the tree. */
 #define UITREE_PARENT_UNLINKED (-2)
+/* Structural uid for chatbox:chatmodal (client gameframe slot). Dialogue
+ * packs mount here; close/replace reclaim the outgoing group rather than
+ * hide-reuse (see UITree_ReclaimInterfaceGroup). Same id as
+ * uitree_test_layout_build.c — not a content string. */
+#define UITREE_CHATBOX_CHATMODAL_UID ((162 << 16) | 567)
 
 struct UITreeInterfaceParent
 {

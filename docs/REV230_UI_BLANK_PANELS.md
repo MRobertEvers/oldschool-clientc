@@ -662,6 +662,13 @@ chatmodal stays at `20,361`. Last 3-option row ends at abs y 450 — 30px clear
 of the mode bar at 480. 2-/4-/5-option branches keep the same container
 origin; only in-box row pitch changes (5-option last row bottom 456).
 
+**Sticky leftover dialogue text (engine, not layout).** Alternating
+`chat_left` / `chat_right` in `chatbox:chatmodal` used to leave the outgoing
+pack hidden in the uitree. Remount reused the bake while IF_SETTEXT could
+hit a shadowed node — leftover name/body from a prior page. Close/replace
+into chatmodal now calls `UITree_ReclaimInterfaceGroup` (see
+`CLIENT_TS_PARITY.md` §6 item 3); mainmodal/sidemodal still hide-reuse.
+
 **Diff discipline note.** 2-/4-/5-option runs still need a temporary
 `hans.rs2` swap of `~p_choice3` → `~p_choice2`/`4`/`5` plus
 `make -C src mock230-scripts`; revert and confirm the diff is empty afterward.

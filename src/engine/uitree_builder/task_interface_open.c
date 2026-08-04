@@ -612,20 +612,29 @@ Task_InterfaceOpen_Run(
                 {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
                     UITreeIfaceStats_NoteClose(old_group);
-                    for( uint32_t i = 0; i < self->tree->component_count; i++ )
+                    if( self->target_uid == UITREE_CHATBOX_CHATMODAL_UID )
                     {
-                        struct UITreeComponent* c = &self->tree->components[i];
-                        if( c->freed || c->component_id < 0 )
-                            continue;
-                        if( ((c->component_id >> 16) & 0xffff) != old_group )
-                            continue;
-                        if( c->parent >= 0 &&
-                            ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
-                                old_group )
-                            continue;
-                        if( !c->behavior.hide )
-                            c->behavior.hide_unmounted = 1;
-                        c->behavior.hide = 1;
+                        /* Same reclaim path as IF_CLOSESUB for chatmodal:
+                         * dialogue packs have no cc_create kids to reuse. */
+                        UITree_ReclaimInterfaceGroup(self->tree, old_group);
+                    }
+                    else
+                    {
+                        for( uint32_t i = 0; i < self->tree->component_count; i++ )
+                        {
+                            struct UITreeComponent* c = &self->tree->components[i];
+                            if( c->freed || c->component_id < 0 )
+                                continue;
+                            if( ((c->component_id >> 16) & 0xffff) != old_group )
+                                continue;
+                            if( c->parent >= 0 &&
+                                ((self->tree->components[c->parent].component_id >> 16) &
+                                 0xffff) == old_group )
+                                continue;
+                            if( !c->behavior.hide )
+                                c->behavior.hide_unmounted = 1;
+                            c->behavior.hide = 1;
+                        }
                     }
                     RS_CS2Host_ClearHooksForInterfaceGroup(self->host, old_group);
                 }

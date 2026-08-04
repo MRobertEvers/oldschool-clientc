@@ -24,6 +24,7 @@ main(void)
     test_component_params();
     test_open_close_steady();
     test_clear_hooks_preserves_sibling_on_op();
+    test_chatmodal_reclaim_no_shadow_text();
     test_live_node_sets();
 
     if( g_failures )

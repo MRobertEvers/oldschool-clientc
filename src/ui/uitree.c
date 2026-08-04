@@ -3460,6 +3460,78 @@ UITree_InterfaceParentIsMountedGroup(
 }
 
 void
+UITree_ReclaimInterfaceGroup(
+    struct UITree* tree,
+    int group_id)
+{
+    struct UITreeNodeSet const* gset;
+    enum
+    {
+        UITREE_RECLAIM_ROOTS_STACK = 256
+    };
+    int32_t stack_roots[UITREE_RECLAIM_ROOTS_STACK];
+    int32_t* roots;
+    int32_t* heap_roots = NULL;
+    int root_n = 0;
+    int gi;
+    int i;
+
+    assert(tree);
+    if( group_id < 0 )
+        return;
+
+    gset = UITree_GroupNodes(tree, group_id);
+    if( !gset || gset->count <= 0 )
+        return;
+
+    if( gset->count > UITREE_RECLAIM_ROOTS_STACK )
+    {
+        heap_roots = (int32_t*)malloc((size_t)gset->count * sizeof(int32_t));
+        if( !heap_roots )
+            return;
+        roots = heap_roots;
+    }
+    else
+    {
+        roots = stack_roots;
+    }
+
+    /* Snapshot roots first: reclaim mutates the group node set. Same selection
+     * as the hide-on-close loop — pack-internal nodes ride with their root. */
+    for( gi = 0; gi < gset->count; gi++ )
+    {
+        int32_t idx = gset->slots[gi];
+        struct UITreeComponent* c;
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+        c = &tree->components[idx];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( ((c->component_id >> 16) & 0xffff) != group_id )
+            continue;
+        if( c->parent >= 0 &&
+            ((tree->components[c->parent].component_id >> 16) & 0xffff) == group_id )
+            continue;
+        roots[root_n++] = idx;
+    }
+
+    for( i = 0; i < root_n; i++ )
+    {
+        int32_t idx = roots[i];
+        struct UITreeComponent* c = &tree->components[idx];
+        if( c->freed )
+            continue;
+        if( c->parent >= 0 )
+            UITree_UnlinkChild(tree, c->parent, idx);
+        else
+            UITree_UnlinkFromRootList(tree, idx);
+        uitree_reclaim_subtree(tree, idx);
+    }
+
+    free(heap_roots);
+    tree->generation++;
+}
+
+void
 UITree_SetComponentDragActive(
     struct UITree* tree,
     int32_t idx,

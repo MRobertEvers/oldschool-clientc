@@ -48,7 +48,7 @@ hint was removed in `ssc_compile.c`.
 | Quest points / completed / total | varp `qp` (101), `qp_total` (904), `qp_total2` (2920) | `quests/scripts/questpoints.rs2` — denominators from dbtable `quest`; `~quest_complete` |
 | Combat Achievements | 21× `ca_task_completed_*` (`wholewrite=allow`), tier counts, `ca_points`, tier status | `interface_combat_achievements/` — `~ca_task_complete` / `::catask` |
 | Collection Log | container 620 `collection_transmit`; counts 2943/2944/4612 + subsection + ring | `interface_collection/` — `~collection_earn`, catalog max from enums 2102–2107; death-drop hook in `npc_default_death` |
-| Achievement Diaries | 10 diary count carriers (varbits summed by CS2 4072) | `interface_diaries/` — `~diary_task_complete` |
+| Achievement Diaries | 10 diary count carriers (varbits summed by CS2 4072) | `interface_diaries/` — `~diary_task_complete`; list rows arm + `~diary_journal_open` → `journalscroll` |
 | Time Played | `%playtime_minutes` (server-only) + `%account_summary_display_playtime` | `player/scripts/playtime.rs2` timer @ 100 ticks; redraw via CS2 3970 |
 
 Awarding CA/diary tasks from live gameplay, and wiring every drop table into
@@ -67,6 +67,8 @@ truths stay 0 until that content exists.
    interface (questlist / area_task / ca_* / collection*).
 3. Time Played pushes `RUNCLIENTSCRIPT` 3970 with type string `iii`.
 4. Cache enums `enum_4067` and `enum_3981` resolve from `configs/all.enum`.
+5. `[if_open,area_task]` emits `IF_SETEVENTS` mask 6 for `area_task:taskbox`
+   sub-ids 0..11; `IF_BUTTON1` sub=0 mounts `journalscroll` on `mainmodal`.
 
 ## 3.1 Headless client (2026-08-03)
 
@@ -89,9 +91,27 @@ mock230: -> RUNCLIENTSCRIPT    op=84  payload=20   # iii + 3970
 Overview) are covered by the selftest's numbered `IF_BUTTON2..4` injection;
 right-click menu selection in the headless harness was not re-driven here.
 
+### 3.2 Diary list rows (2026-08-03)
+
+Before arming, a click on an `area_task` row (e.g. `(590,270)` after diaries
+mount) was Cancel-only: CS2 709 labels op1/op2 with no `cc_setonop`, and
+without `IF_SETEVENTS` the minimenu strips those ops — no `IF_BUTTON` leaves
+the client. After `[if_open,area_task]` arms `taskbox` 0..11 with mask 6:
+
+```
+clickdbg: … 'Open … Journal' … events=0x6 net=1
+mock230: <- IF_BUTTON1 259:2 sub=N
+mock230: -> IF_OPENSUB … journalscroll
+```
+
+Wiki op2 is ignored server-side (client browser in OSRS). Full per-task diary
+text is still out of scope; the scroll paints Easy/Medium/Hard/Elite progress
+from count/complete varbits.
+
 ## 4. LostCity
 
-No Character Summary / Combat Achievements / Collection Log precedent
-(post-date rev 254). Quest-point accumulation follows LostCity's
-`send_quest_complete` *intent* (bump QP + completion), not its per-quest `if`
-chain — see `questpoints.rs2`.
+No Character Summary / Combat Achievements / Collection Log / Achievement
+Diaries UI precedent (post-date rev 254). Quest-point accumulation follows
+LostCity's `send_quest_complete` *intent* (bump QP + completion), not its
+per-quest `if` chain — see `questpoints.rs2`. Diary list open follows xrsps
+`VanillaUiController` + `diaryJournalWidgets`.

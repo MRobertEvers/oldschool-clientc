@@ -4099,14 +4099,16 @@ Task_OpenSubRefresh_Run(
     }
     else
     {
-        /* IF_CLOSESUB: hide the outgoing group the way a replacing mount does
-         * (hide + hide_unmounted on its roots — task_interface_open step 4,
-         * which the next mount of that group knows how to undo), then drop the
-         * mount record. Hiding the SLOT here was wrong: nothing ever un-hides
-         * a slot, so after one close every later mount into it — the same
-         * panel reopened, or a different one — laid out and never drew. The
-         * mount task asserts interface_id>0, so a close never routes through
-         * it. */
+        /* IF_CLOSESUB: for most slots, hide the outgoing group the way a
+         * replacing mount does (hide + hide_unmounted on its roots —
+         * task_interface_open step 4, which the next mount of that group
+         * knows how to undo), then drop the mount record. chatbox:chatmodal
+         * is the exception — dialogue packs reclaim instead of hide so
+         * alternating chat_left/chat_right cannot leave shadowed text.
+         * Hiding the SLOT here was wrong: nothing ever un-hides a slot, so
+         * after one close every later mount into it — the same panel
+         * reopened, or a different one — laid out and never drew. The mount
+         * task asserts interface_id>0, so a close never routes through it. */
         {
             struct timespec close_t0;
             struct timespec close_t1;
@@ -4118,6 +4120,15 @@ Task_OpenSubRefresh_Run(
             {
                 int old_group = app->tree->interface_parents[rec].group_id;
                 UITreeIfaceStats_NoteClose(old_group);
+                if( self->target_uid == UITREE_CHATBOX_CHATMODAL_UID )
+                {
+                    /* Dialogue packs alternate in chatmodal (chat_left /
+                     * chat_right). Hide-reuse leaves baked strings that
+                     * shadow FindByComponentId / remount. Reclaim so the
+                     * next open fresh-bakes; App_IfTextSet reapplies. */
+                    UITree_ReclaimInterfaceGroup(app->tree, old_group);
+                }
+                else
                 {
                     struct UITreeNodeSet const* gset =
                         UITree_GroupNodes(app->tree, old_group);

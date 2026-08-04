@@ -1128,7 +1128,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        painter_add_normal_scenery(
+        painter_add_normal_scenery_ex(
             world->painter,
             grid_x,
             grid_z,
@@ -1136,7 +1136,9 @@ World_CycleRegisterPainterDynamics(struct World* world)
             stack->element_id,
             1,
             1,
-            ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id));
+            ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id),
+            World_ObjRaiseGet(world, grid_x, grid_z, local_level) > 0 ? (uint8_t)PNTR_SCENERY_RAISED
+                                                                     : 0);
     }
 
     world_dyn_register_players(world, /*only_local=*/true, local_level);

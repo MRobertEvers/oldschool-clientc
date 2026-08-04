@@ -9240,6 +9240,90 @@ mock230_world_selftest(void)
             }
 
             /*
+             * Achievement Diary list rows (area_task 259:taskbox).
+             *
+             * CS2 709 labels op1/op2 with no cc_setonop; without IF_SETEVENTS
+             * the client strips those ops and left-click is Cancel-only. Arm
+             * on [if_open,area_task] (mask 6, slots 0..11), then op1 mounts
+             * journalscroll on mainmodal.
+             */
+            {
+                int taskbox = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                                     "area_task:taskbox");
+                int journalscroll =
+                    mock230_content_symbol(MOCK230_PACK_INTERFACE, "journalscroll");
+                static struct Mock230Capture capture;
+                int mask = -1;
+                int from = -1;
+                int to = -1;
+                uint8_t button[6];
+                int open_at;
+
+                SELFTEST_CHECK(taskbox > 0, "area_task:taskbox should resolve by name");
+                SELFTEST_CHECK(journalscroll > 0, "journalscroll should resolve by name");
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_scripts_run_proc(&srv, "[if_open,area_task]", NULL, 0);
+                mock230_capture_end(&srv);
+
+                for( int p = 0; p < capture.count; p++ )
+                {
+                    struct RSAreaBuf ev;
+
+                    if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        continue;
+                    rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
+                    if( rsab_g4_alt3(&ev) != taskbox )
+                        continue;
+                    from = rsab_g2_alt2(&ev);
+                    mask = rsab_g4_alt1(&ev);
+                    to = rsab_g2(&ev);
+                    break;
+                }
+                SELFTEST_CHECK(mask == 6 /* op1|op2 */,
+                               "area_task:taskbox should arm ops 1-2 (mask 6), got %d", mask);
+                SELFTEST_CHECK(from == 0 && to == 11,
+                               "area_task:taskbox should arm sub-ids 0..11, got %d..%d", from,
+                               to);
+
+                button[0] = (uint8_t)(taskbox >> 24);
+                button[1] = (uint8_t)(taskbox >> 16);
+                button[2] = (uint8_t)(taskbox >> 8);
+                button[3] = (uint8_t)taskbox;
+                button[4] = 0;
+                button[5] = 0; /* Karamja */
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                mock230_capture_end(&srv);
+
+                SELFTEST_CHECK(player->last_slot == 0,
+                               "diary row click: last_slot should be 0, got %d",
+                               player->last_slot);
+
+                open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+                SELFTEST_CHECK(open_at >= 0, "diary op1 should mount journalscroll");
+                if( open_at >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int group;
+                    int target;
+
+                    rsab_wrap(&mount, capture.packets[open_at].data,
+                              (size_t)capture.packets[open_at].len);
+                    (void)rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    target = rsab_g4_alt3(&mount);
+                    SELFTEST_CHECK(group == journalscroll,
+                                   "diary op1 should mount journalscroll (%d), got %d",
+                                   journalscroll, group);
+                    SELFTEST_CHECK(target == slot,
+                                   "diary op1 should mount into mainmodal (%d), got %d", slot,
+                                   target);
+                }
+            }
+
+            /*
              * Collection Log category tabs (interface 621).
              *
              * Handlers `[if_button1,collection:*_tab]` already re-ran

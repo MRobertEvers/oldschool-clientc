@@ -6,10 +6,10 @@
 #include "painters.h"
 #include "scene_occluders.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
 
 enum TilePaintStep
 {
@@ -84,7 +84,8 @@ struct Painter
      */
     int draw_distance;
 
-    /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
+    /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default
+     * 0xF. */
     uint8_t level_mask;
     /** Lowest set bit in level_mask; 0 when mask is all bits or unset. */
     uint8_t min_level;

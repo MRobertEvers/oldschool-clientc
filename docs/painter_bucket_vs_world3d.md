@@ -52,6 +52,79 @@ neighbour must already be in `PAINT_STEP_GROUND` or later before this tile may p
 unless the tile has an active span flag in that direction (meaning it is the "outer" tile of
 the object and the span exception applies).
 
+### Loc stacking and draw order
+
+Both Client-TS (`World.fill` / `setSprite`) and the modern deob (`Scene.drawTile`) use the
+same per-tile loc algorithm:
+
+1. A loc is registered on **every** tile of its footprint, each with an edge bitmask
+   (`spriteSpan` / `field2575`). The tile OR of those masks (`spriteSpans` / `field2576`)
+   is our `PaintersTile::spans`.
+2. During the loc pass, a loc is **blocked** if any footprint tile still has `drawFront`
+   (our `draw_front` / `step < PAINT_STEP_GROUND`). Blocked locs retry later.
+3. Unblocked locs are drawn **farthest-first** by
+   `max(|cam−minX|, |maxX−cam|) + max(|cam−minZ|, |maxZ−cam|)`, stamped so a multi-tile
+   loc draws once (`cycle` / our `ElementPaint.drawn`).
+4. Drawing a loc re-queues its whole footprint so blocked tiles wake up.
+
+A 1×1 loc inside a larger footprint always has a **smaller or equal** distance key, so
+when both are ready the sort prefers the large loc. The modern deob adds a tie-break the
+old client lacks: on equal keys, pick the larger squared XZ distance from the camera
+(world3d ports this; bucket does not sort within a tile).
+
+#### How the reference puts bowls on tables
+
+Not through the loc sort. Items on tables are **ground items** with a lift amount:
+
+- `LocType.raiseobject == 1` stamps `model.objRaise = model.minY`.
+- `setObj` takes the max `objRaise` on the tile as `GroundObject.height` (deob
+  `field2480` / our `World_ObjRaiseSetMax`).
+- Draw split: `height === 0` piles draw in the **ground pass**; `height !== 0` piles draw
+  at **tile completion**, after every loc on the tile (Client-TS ~1896,
+  `objs.y - objs.height`).
+
+That completion-time draw is what guarantees a bowl lands on top of a 3×1 table from
+every camera angle.
+
+#### Bugs this port had (and the fix)
+
+Production registered obj stacks as ordinary 1×1 scenery via
+`painter_add_normal_scenery` in `world_cycle.c`. The lift was applied to world Y, but the
+item competed in the same scenery pass as the table:
+
+```
+Table at x=10..12, z=5; camera east at x=15.
+Tile (10,5) runs first → table blocked (11,12 still have draw_front)
+                       → bowl 1×1 unblocked → EMITTED
+Tile (12,5) later      → table EMITTED over the bowl
+```
+
+Only an item on the camera-nearest table tile survived. The same failure hits a genuine
+1×1 loc sitting on a table (broken in the reference clients too — they have no
+loc-on-loc rule beyond the distance sort).
+
+**Fixes (flags on `NormalScenery`):**
+
+| Flag | Set where | Painter behaviour |
+|---|---|---|
+| `PNTR_SCENERY_RAISED` | `world_cycle` when `World_ObjRaiseGet > 0` | Skip in scenery pass; emit at tile completion before near walls (reference parity). |
+| `PNTR_SCENERY_STACK_BASE` | `world_scenery.u.c` for real locs with `size_x * size_z > 1` only — **not** mover/projectile padded footprints | Undrawn STACK_BASE with a strictly containing footprint blocks the smaller loc until the base is drawn (non-reference rule). |
+
+Anti-stranding: when a STACK_BASE is drawn on the current tile but a contained loc
+remains blocked, the tile is re-queued so the contained loc retries in the same wave
+(world3d / distancemetric; bucket's footprint push usually covers this).
+
+#### `painter_add_ground_object` (dead production path)
+
+The reference keeps bottom/middle/top ground-item models in a dedicated tile slot. This
+port's production path creates one scene element per `WorldEntity_ObjStack` and registers
+it as scenery (`PNTR_SCENERY_RAISED` when lifted). `painter_add_ground_object` remains for
+the painter fuzzer and still emits `ground_object_bottom` in the ground pass; `middle` /
+`top` slots are never filled or emitted. Wiring a three-model pile would need the zone
+protocol to feed all three models into one tile slot — out of scope here.
+
+---
+
 ### Cullmap / cullspan
 
 `painter_cullmap_tile_visible` (and the inlined setup path in

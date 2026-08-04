@@ -652,6 +652,10 @@ painter_paint_distancemetric(
                 element = &painter->elements[scenery_element];
                 assert(element->kind == PNTRELEM_SCENERY);
 
+                /* RAISED ground items emit at tile completion, not here. */
+                if( scenery_is_raised(element) )
+                    continue;
+
                 int min_tile_x = element->sx;
                 int min_tile_z = element->sz;
                 int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -680,6 +684,12 @@ painter_paint_distancemetric(
                             goto step_scenery;
                         }
                     }
+                }
+
+                if( scenery_blocked_by_stack_base(painter, tile, element) )
+                {
+                    waiting_spanning_scenery = true;
+                    goto step_scenery;
                 }
 
                 scenery_queue[scenery_queue_length++] = scenery_element;
@@ -782,6 +792,10 @@ painter_paint_distancemetric(
 
             if( scenery_queue_length != 0 )
             {
+                /* Re-queue self when containment left a blocked loc behind a
+                 * STACK_BASE that was just drawn on this tile. */
+                if( waiting_spanning_scenery )
+                    painter_push_queue_dist(painter, tile_idx);
                 tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
                 goto done;
             }
@@ -848,6 +862,20 @@ painter_paint_distancemetric(
 
         if( tile_paint->step == PAINT_STEP_NEAR_WALL )
         {
+            /* Elevated ground items (RAISED) before near walls — Client-TS parity. */
+            for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+            {
+                int si = painter->scenery_pool[sn].element_idx;
+                element_paint = &painter->element_paints[si];
+                if( element_paint->drawn )
+                    continue;
+                element = &painter->elements[si];
+                if( !scenery_is_raised(element) )
+                    continue;
+                element_paint->drawn = true;
+                push_command_entity(buffer, element->_scenery.entity);
+            }
+
             struct SceneOccluders* occ = painter->occluders;
             int decor_hidden = 0;
             if( tile->wall_decor_a != -1 )

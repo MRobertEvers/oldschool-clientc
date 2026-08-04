@@ -302,3 +302,119 @@ test_clear_hooks_preserves_sibling_on_op(void)
 
     UITree_Free(tree);
 }
+
+static int
+count_live_with_component_id(
+    struct UITree const* tree,
+    int component_id)
+{
+    int n = 0;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].freed )
+            continue;
+        if( tree->components[i].component_id == component_id )
+            n++;
+    }
+    return n;
+}
+
+/* chatmodal close/replace must reclaim dialogue packs so remount cannot
+ * keep a hidden copy whose string shadows FindByComponentId / ApplyText. */
+void
+test_chatmodal_reclaim_no_shadow_text(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t slot;
+    int32_t root_a;
+    int32_t text_a;
+    int32_t root_b;
+    int const group_a = 231;
+    int const group_b = 217;
+    int const text_cid = (group_a << 16) | 4;
+
+    printf("TEST: chatmodal reclaim — no shadowed dialogue text\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = UITREE_CHATBOX_CHATMODAL_UID;
+    spec.width = 479;
+    spec.height = 96;
+    slot = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(slot >= 0, "chatmodal slot");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (group_a << 16) | 0;
+    spec.width = 479;
+    spec.height = 96;
+    root_a = UITree_Push(tree, slot, &spec);
+    TEST_ASSERT(root_a >= 0, "dialogue A root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = text_cid;
+    spec.width = 100;
+    spec.height = 20;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.text = "old-name";
+    text_a = UITree_Push(tree, root_a, &spec);
+    TEST_ASSERT(text_a >= 0, "dialogue A name text");
+    TEST_ASSERT(UITree_ApplyText(tree, text_cid, "stuck-name"), "set stuck text");
+    TEST_ASSERT(
+        tree->components[text_a].u.rs_text.text &&
+            strcmp(tree->components[text_a].u.rs_text.text, "stuck-name") == 0,
+        "stuck text applied");
+    TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "one live A name");
+
+    /* Replace A with B under chatmodal — reclaim A (not hide). */
+    UITree_ReclaimInterfaceGroup(tree, group_a);
+    TEST_ASSERT(!UITree_GroupPresent(tree, group_a), "group A gone after reclaim");
+    TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 0, "no live A name");
+    TEST_ASSERT(UITree_FindByComponentId(tree, text_cid) < 0, "FindById misses A");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (group_b << 16) | 0;
+    spec.width = 479;
+    spec.height = 96;
+    root_b = UITree_Push(tree, slot, &spec);
+    TEST_ASSERT(root_b >= 0, "dialogue B root");
+    TEST_ASSERT(UITree_GroupPresent(tree, group_b), "group B present");
+
+    /* Remount A: fresh bake must start empty until ApplyText. */
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (group_a << 16) | 0;
+    spec.width = 479;
+    spec.height = 96;
+    root_a = UITree_Push(tree, slot, &spec);
+    TEST_ASSERT(root_a >= 0, "dialogue A remount root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = text_cid;
+    spec.width = 100;
+    spec.height = 20;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.text = "";
+    text_a = UITree_Push(tree, root_a, &spec);
+    TEST_ASSERT(text_a >= 0, "dialogue A remount text");
+    TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "single live A name");
+    TEST_ASSERT(
+        UITree_FindByComponentId(tree, text_cid) == text_a,
+        "FindById hits remounted node");
+    {
+        char const* t = tree->components[text_a].u.rs_text.text;
+        TEST_ASSERT(!t || t[0] == '\0', "remount text empty until ApplyText");
+    }
+    TEST_ASSERT(UITree_ApplyText(tree, text_cid, "fresh-name"), "apply fresh");
+    TEST_ASSERT(
+        tree->components[text_a].u.rs_text.text &&
+            strcmp(tree->components[text_a].u.rs_text.text, "fresh-name") == 0,
+        "ApplyText lands on remounted node");
+    TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "still one live A name");
+
+    UITree_Free(tree);
+}

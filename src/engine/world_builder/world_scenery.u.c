@@ -1665,7 +1665,7 @@ scenery_add_normal(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
 
-    painter_add_normal_scenery(
+    painter_add_normal_scenery_ex(
         world->painter,
         scene_x,
         scene_z,
@@ -1673,7 +1673,8 @@ scenery_add_normal(
         element_id,
         size_x,
         size_z,
-        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id),
+        (size_x * size_z > 1) ? (uint8_t)PNTR_SCENERY_STACK_BASE : 0);
     int shade = size_x * size_z * 11;
     if( shade > 30 )
         shade = 30;

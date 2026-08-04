@@ -414,6 +414,13 @@ came from four infrastructure bugs:
    the detached nodes kept their component_ids and shadowed the remounted
    nodes in `FindByComponentId`. Fix: reclaim the subtree
    (`uitree_reclaim_subtree`) in `src/ui/uitree.c`.
+   The same class of bug hit **chat dialogue** when `chat_left` / `chat_right`
+   alternated in `chatbox:chatmodal` (`UITREE_CHATBOX_CHATMODAL_UID`):
+   IF_CLOSESUB / replace-mount only hid the outgoing pack, remount reused the
+   bake with old strings, and IF_SETTEXT could update a shadowed copy. Fix:
+   `UITree_ReclaimInterfaceGroup` on chatmodal close/replace (inventory
+   mainmodal/sidemodal still hide-reuse). Covered by
+   `test_chatmodal_reclaim_no_shadow_text`.
 4. **Stale cache** (→ quest journal click "did nothing"). The click actually
    sent IF_BUTTON and the server answered with SETTEXTs + IF_OPENMAIN 8134,
    but the repo's `cache254` interfaces archive predates the server's
