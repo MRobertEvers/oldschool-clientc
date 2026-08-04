@@ -11,9 +11,16 @@ LC overlays keep param defaults.
 Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4.
 Status: `pending` | `in_progress` | `done` | `blocked`.
 
-Loop prompt: read this file + PORTING_GUIDE §4; port the next pending unblocked
-slice; verify (`mock230_pack --check-only`, `make -C src mock230-scripts`);
-update this file; re-arm. Stop only when the user stops the loop.
+## Shared tree — never silence another lane
+
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+to green `sscompile`. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §7; if any slice is
+pending/unblocked, port it; NEVER park sibling lanes; verify
+(`mock230_pack --check-only`, `make -C src mock230-scripts`); update this file;
+re-arm. Stop only when the user stops the loop.
 
 | # | Slice | Status | Notes |
 |---|---|---|---|

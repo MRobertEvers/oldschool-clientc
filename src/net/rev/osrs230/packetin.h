@@ -102,7 +102,13 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 75, PKTIN_LENGTH_VARU8, PKT_NAME_SET_PLAYER_OP },
     { 76, 6, PKT_NAME_NONE },  /* HINT_ARROW */
     { 73, 1, PKT_NAME_NONE },  /* MINIMAP_TOGGLE */
-    { 65, 0, PKT_NAME_NONE },  /* CAM_RESET */
+    /* Camera family — RSProt osrs-230 GameServerProtId (payload = classic
+     * 6-byte CAM_MOVETO/LOOKAT: p1 localX, p1 localZ, p2 height, p1 rate,
+     * p1 rate2). Client already executes these via gameproto_parse. */
+    { 65, 0, PKT_NAME_CAM_RESET },
+    { 67, 6, PKT_NAME_CAM_MOVETO },
+    { 30, 6, PKT_NAME_CAM_LOOKAT },
+    { 107, 4, PKT_NAME_CAM_SHAKE },
     { 108, 0, PKT_NAME_NONE }, /* SERVER_TICK_END */
     { 103, 2, PKT_NAME_NONE }, /* UPDATE_REBOOT_TIMER */
     /*

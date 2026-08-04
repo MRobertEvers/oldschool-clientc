@@ -178,15 +178,19 @@ return(^mta_dir_none);
 [proc,mta_tele_win]
 ~mta_tele_clear_statue;
 def_int $points = 2;
-~mesbox("Congratulations! You have received two Telekinetic Pizazz Points!");
+// Wiki May 2024: +250 Magic XP per maze (stacks with telegrab XP).
+stat_advance(magic, ^mta_tele_maze_xp);
+~mesbox("Congratulations! You have received two Telekinetic Pizazz Points|and 250 Magic experience!");
 %magictraining_mazesolved = calc(%magictraining_mazesolved + 1);
 if (%magictraining_mazesolved >= 5) {
     %magictraining_mazesolved = 0;
     $points = calc($points + 8);
-    // LostCity XP units are tenths: 1000 Magic XP → 10000.
-    stat_advance(magic, 10000);
+    // 1000 Magic XP → 10000 tenths.
+    stat_advance(magic, ^mta_tele_bonus_xp);
     inv_add(inv, lawrune, 10);
-    ~mesbox("Congratulations on solving five mazes in a row, have 8 bonus points,|10 law runes and extra magic XP!");
+    // Run energy restore: getter-only opcode — mes until set-runenergy exists.
+    mes("Your run energy has been replenished.");
+    ~mesbox("Congratulations on solving five mazes in a row! You receive 8 bonus|points, 10 law runes, 1,000 Magic XP, and restored run energy.");
 }
 ~mta_add_points(^mta_room_tele, $points);
 def_int $ex;
@@ -256,6 +260,7 @@ mes("The statue returns to its starting position.");
 if (%mta_room ! ^mta_room_tele) {
     return;
 }
+~chatnpc("Well done on releasing me. Would you like to try another maze?");
 def_int $opt = ~p_choice2("Yes, please.", 1, "No thanks.", 2);
 if ($opt = 1) {
     ~mta_tele_setup_maze;
@@ -264,16 +269,36 @@ if ($opt = 1) {
 [opnpc3,magictraining_guard_maze_complete]
 ~mta_tele_setup_maze;
 
-// Telekinetic Guardian — Reset help.
+// Telekinetic Guardian — full wiki/2009scape tree.
 [opnpc1,magictraining_guard_tele]
 if (%mta_room ! ^mta_room_tele) {
     return;
 }
-~chatnpc("I can reset the statue if you get stuck.");
-def_int $c = ~p_choice2("Please reset the statue.", 1, "Never mind.", 2);
-if ($c = 1) {
-    ~mta_tele_reset;
+~chatplayer("Hi.");
+@mta_tele_menu;
+
+[label,mta_tele_menu]
+def_int $c = ~p_choice4("What do I have to do in this room?", 1, "What are the rewards?", 2, "Got any tips that may help me?", 3, "Thanks, bye!", 4);
+if ($c = 4) {
+    return;
 }
+if ($c = 1) {
+    ~chatplayer("What do I have to do in this room?");
+    ~chatnpc("A fellow Guardian has been turned to stone inside the maze. Cast Telekinetic Grab on the statue while standing on a side of the maze to slide it toward you.");
+    ~chatnpc("Move it to the exit square to bring the Guardian back to life. Use Observe on the statue for an overhead view, or Reset if things aren't going well.");
+    @mta_tele_menu;
+    return;
+}
+if ($c = 2) {
+    ~chatplayer("What are the rewards?");
+    ~chatnpc("You earn Telekinetic Pizazz Points for each maze solved, plus bonus points, law runes, Magic experience, and restored run energy for five mazes in a row.");
+    @mta_tele_menu;
+    return;
+}
+~chatplayer("Got any tips that may help me?");
+~chatnpc("Study the maze before you cast — every maze can be solved in ten moves or less. Wrong moves still grant Magic XP but won't progress your Pizazz Points.");
+~chatplayer("I see.");
+@mta_tele_menu;
 
 [opobj3,magictraining_guardianstatue]
 if (%mta_room = ^mta_room_tele) {

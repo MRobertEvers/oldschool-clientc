@@ -3,16 +3,20 @@ description: Never park/delete sibling content trees to green a compile
 alwaysApply: true
 ---
 
-# Do not park sibling content
+# Do not park or skip sibling lanes
 
-**Non-negotiable.** Parallel lanes share one `OSRS-Content/.../server/scripts` tree.
+**Non-negotiable.** Parallel content-port lanes (LostCity, 2009scape, Kronos,
+Quest Helper, equip BAS) share one `OSRS-Content/.../server/scripts` tree.
+Your lane must **never** mute another lane to green `sscompile` / pack.
 
-## Forbidden (to silence compile errors in another lane)
+## Forbidden
 
-- Renaming a **directory** to `*.skip` (e.g. `skill_construction` → `skill_construction.skip`)
+- Renaming a **directory** to `*.skip` (e.g. `skill_construction` → `skill_construction.skip`, `minigame_mta` → `minigame_mta.skip`)
 - Renaming landed scripts to `*.rs2.skip`
-- Deleting or moving another lane's `configs/` or `scripts/` for "temporary" compile green
+- Moving trees under `/tmp`, `.mta_restore_backup`, or any “temporary park” for compile
+- Deleting or emptying another lane's `configs/` or `scripts/`
 - Stripping sibling hooks from shared spell/combat/skill files so your lane alone builds
+- Instructing “park POH/MTA WIP before compile” in summaries, todos, or loop prompts
 
 ## Live trees — leave them alone
 
@@ -21,8 +25,14 @@ These are **done / in-tree** and must stay as normal paths (not `*.skip`):
 - `skill_construction/` — POH 4a/4b (`poh_*.rs2`, `construction.constant` / `.varp`). Proofs: `::poh`, `::pohleave`, `::pohbuy`, `::pohbuild`
 - `minigame_mta/` — Mage Training Arena (see SCAPE2009 queue MTA live note)
 
+## Lane routing ≠ parking
+
+Routing a slice to another queue (“LC has this → `CONTENT_PORT_QUEUE`”) is
+correct ownership. **Silencing** that lane's files so yours compile is not.
+
 ## If your lane fails `sscompile`
 
-Fix **your** broken file (missing constant, unknown proc, bad symbol). Do not mute a sibling. If a sibling is genuinely broken, report it — do not park it.
+Fix **your** broken file (missing constant, unknown proc, bad symbol). Do not
+mute a sibling. If a sibling is genuinely broken, report it — do not park it.
 
-See `PORTING_GUIDE.md` §7 and `CLAUDE.md`.
+See `PORTING_GUIDE.md` §7, `CLAUDE.md`, and every `*_CONTENT_PORT_QUEUE.md`.

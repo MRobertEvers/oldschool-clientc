@@ -33,10 +33,18 @@ and §4.6. Status: `pending` | `in_progress` | `done` | `blocked`.
 **Depth-first:** a row stays `in_progress` until every `steps.put` value is
 playable end-to-end. It only becomes `done` when the whole quest is.
 
-Loop prompt: read this file + PORTING_GUIDE §4 / §4.6; run
-`tools/questhelper_extract.py --check` on the next pending row; port it; verify
-(`mock230_pack --check-only`, `make -C src mock230-scripts`); update this file;
-re-arm. Stop only when the user stops the loop.
+## Shared tree — never silence another lane
+
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+(`skill_construction/`, `minigame_mta/`, or any other live tree) to green
+`sscompile`. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §4.6 / §7; run
+`tools/questhelper_extract.py --check` on the next pending row; port it; NEVER
+park sibling lanes; verify (`mock230_pack --check-only`,
+`make -C src mock230-scripts`); update this file; re-arm. Stop only when the
+user stops the loop.
 
 ## Methodology (non-negotiable)
 
@@ -71,6 +79,8 @@ re-arm. Stop only when the user stops the loop.
    `done` (`PORTING_GUIDE` §4.6 step 4).
 6. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
    `UI_ERA_PORTING_GUIDE.md`.
+7. **Never park sibling lanes** — no `*.skip`, no moving live trees aside for
+   compile. Fix your own errors (PORTING_GUIDE §7).
 
 ## Skip list (out of scope)
 
@@ -99,10 +109,10 @@ filed under `helpers/quests/` are at the end.
 | 4 | Client of Kourend | `clientofkourend` | 257 | done | `%veos_progress`; houses+quill+orb; `::cokrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:Client_of_Kourend); deferred ship/lamp Rub/tele |
 | 5 | The Queen of Thieves | `thequeenofthieves` | 259 | done | `%piscquest`; Lawry→stew→Devan→Conrad→Queen→chest→Shauna; `::qotrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Queen_of_Thieves); deferred full refuse trees / shared stairs climb |
 | 6 | The Depths of Despair | `thedepthsofdespair` | 267 | done | `%hosidiusquest`; Kandur→Olivia→Galana→envoy→caves→Artur→snake→chest; `::dodrun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Depths_of_Despair); deferred bookshelf RNG / fail rolls / instance / favour UI |
-| 7 | A Porcine of Interest | `aporcineofinterest` | 275 | pending | |
-| 8 | The Ascent of Arceuus | `theascentofarceuus` | 310 | pending | needs #1 |
-| 9 | Ethically Acquired Antiquities | `ethicallyacquiredantiquities` | 313 | pending | |
-| 10 | The Ides of Milk | `theidesofmilk` | 316 | pending | |
+| 7 | A Porcine of Interest | `aporcineofinterest` | 275 | done | `%porcine`; notice→Sarah→rope→cave→Spria→Sourhog→foot→Sarah→Spria; `::poirun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:A_Porcine_of_Interest); deferred tracking/cutscene/slash matrix |
+| 8 | The Ascent of Arceuus | `theascentofarceuus` | 310 | done | `%arcquest`; Mori→Andrews→tower souls→Kaal→grave trail→Trapped Soul→rocks→Trobin; `::aoarun` OK; wiki [Transcript](https://oldschool.runescape.wiki/w/Transcript:The_Ascent_of_Arceuus); deferred instance/trail strictness |
+| 9 | Ethically Acquired Antiquities | `ethicallyacquiredantiquities` | 313 | done | `%eaa`; museum→crew→Betty→Haig shame→Herminius; `::eaarun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/Ethically_Acquired_Antiquities/Quick_guide); COTS soft-skip; deferred charter/shame matrix |
+| 10 | The Ides of Milk | `theidesofmilk` | 316 | done | `%cowquest`; Cassius→Gillie/Seth→milk→Duke→Brutus→finish; `::iomrun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/The_Ides_of_Milk/Quick_guide); deferred Brutus specials / lamp Rub |
 | 11 | In Search of Knowledge | `insearchofknowledge` | 317 | pending | miniquest-ish |
 | 12 | Bone Voyage | `bonevoyage` | 320 | pending | |
 | 13 | Children of the Sun | `childrenofthesun` | 337 | pending | |
@@ -200,3 +210,33 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   `::depthsofdespair` / `::dodrun`; headless OK; pack 0 errors; deferred
   random library bookshelf, stone/rock fail rolls, snake instance, Butler/Elena
   trees, favour/graceful recolour; next = Porcine of Interest (#7)
+- slice 7 done: Porcine of Interest — `%porcine` on `porcine_main`
+  (0/5/10/15/20/25/30/35→40); notice board / Sarah bounty / rope on hole /
+  skeleton soft-cutscene / Spria goggles / Sourhog kill / foot / Sarah coins /
+  Spria finish; rewards 1000 slayer XP, 5000 coins, 30 slayer points; wiki
+  https://oldschool.runescape.wiki/w/Transcript:A_Porcine_of_Interest + Quick_guide;
+  `::porcineofinterest` / `::poirun`; headless OK; pack 0 errors; deferred
+  tracking cabbage/cart trees, full Pig Thing cutscene, slash-weapon matrix,
+  Sarah shop, Spria task/helmet upgrade; next = Ascent of Arceuus (#8)
+- slice 8 done: Ascent of Arceuus — `%arcquest` on `arcquest_main` (0..13→14);
+  Mori / Councillor Andrews / Tower souls / Trobin / Kaal-Ket-Jor / grave +
+  hunting trail / Trapped Soul / Dark Altar rocks / finish; rewards 1500 hunter
+  XP, 500 runecraft XP, 2000 coins, `veos_memoirs_arc_page`; wiki
+  https://oldschool.runescape.wiki/w/Transcript:The_Ascent_of_Arceuus + Quick_guide;
+  `::ascentofarceuus` / `::aoarun`; headless OK; pack 0 errors; deferred tower
+  instance soul count, strict trail multilocs, Tower Mage gate, favour/graceful,
+  Asteros/Kaal sibling polish; next = Ethically Acquired Antiquities (#9)
+- slice 9 done: Ethically Acquired Antiquities — `%eaa` on `eaa_primary`
+  (0..36→38); empty display / Herminius / tools+case / visitors / Regulus /
+  crew sails / Artima / Stan / Betty notes / Haig pickpocket+crate / shame /
+  return; rewards 6000 thieving XP, 5000 coins; wiki Quick_guide (+ Transcript
+  deferred full shame matrix); `::ethicallyacquiredantiquities` / `::eaarun`;
+  headless OK; pack 0 errors; Children of the Sun soft-skipped (#13 pending);
+  deferred charter sail, full shame options, Haig cutscene; next = Ides of Milk (#10)
+- loop aborted (user/system): AGENT_LOOP_TICK_questhelper_port stopped after tick 11
+- loop re-armed (2026-08-04): AGENT_LOOP_TICK_questhelper_port every ~180s
+- slice 10 done: Ides of Milk — `%cowquest` on `cowquest_main` (0..21→22);
+  Cassius / Gillie / Seth shelves book / milk samples / Duke Horacio / Brutus
+  bull / finish; post-quest Gillie cowbell+lamp; wiki Quick_guide;
+  `::idesofmilk` / `::iomrun`; headless OK; pack 0 errors; deferred Brutus
+  specials/dodge, lamp Rub skill picker; next = In Search of Knowledge (#11)

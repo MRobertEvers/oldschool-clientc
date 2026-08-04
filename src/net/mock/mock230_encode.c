@@ -93,6 +93,11 @@ enum
     OP_OBJ_COUNT = 122,
     OP_MAP_PROJANIM = 125,
     OP_SET_PLAYER_OP = 75,
+    /* RSProt osrs-230 camera opcodes (see packetin.h). */
+    OP_CAM_RESET = 65,
+    OP_CAM_MOVETO = 67,
+    OP_CAM_LOOKAT = 30,
+    OP_CAM_SHAKE = 107,
 };
 
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -975,6 +980,52 @@ mock230_send_run_energy(
     open_packet(&buf, 8);
     rsab_p2(&buf, percent * 100);
     flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
+}
+
+void
+mock230_send_cam_reset(struct Mock230Player* player)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    flush(player, &buf, OP_CAM_RESET, 0);
+}
+
+void
+mock230_send_cam_moveto(
+    struct Mock230Player* player,
+    int local_x,
+    int local_z,
+    int height,
+    int rate,
+    int rate2)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    rsab_p1(&buf, local_x);
+    rsab_p1(&buf, local_z);
+    rsab_p2(&buf, height);
+    rsab_p1(&buf, rate);
+    rsab_p1(&buf, rate2);
+    flush(player, &buf, OP_CAM_MOVETO, 0);
+}
+
+void
+mock230_send_cam_lookat(
+    struct Mock230Player* player,
+    int local_x,
+    int local_z,
+    int height,
+    int rate,
+    int rate2)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    rsab_p1(&buf, local_x);
+    rsab_p1(&buf, local_z);
+    rsab_p2(&buf, height);
+    rsab_p1(&buf, rate);
+    rsab_p1(&buf, rate2);
+    flush(player, &buf, OP_CAM_LOOKAT, 0);
 }
 
 void

@@ -18,15 +18,21 @@ already started here).
 Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4
 and §4.4. Status: `pending` | `in_progress` | `done` | `blocked`.
 
-Loop prompt: read this file + PORTING_GUIDE §4 / §4.4; port the next pending
-unblocked slice; verify (`mock230_pack --check-only`, `make -C src mock230-scripts`);
-update this file; re-arm. Stop only when the user stops the loop.
+## Shared tree — never silence another lane
 
-**Do not park sibling lanes.** Never rename `skill_construction/` →
-`skill_construction.skip`, `*.rs2.skip` POH/MTA scripts, or delete another
-queue's tree to green your compile. Fix your slice. See `CLAUDE.md`,
-PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
-SCAPE2009 4a/4b POH is live under `skill_construction/`.
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+(`skill_construction/`, `minigame_mta/`, or any other live tree) to green
+`sscompile`. Lane routing (“LC has it → CONTENT_PORT_QUEUE”) is fine; muting
+those files is not. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §4.4 / §7; port the next pending
+unblocked Kronos→OSRS-Content slice (custom skip-list only); NEVER park sibling
+lanes; Grep LostCity first — if LC has it, route to CONTENT_PORT_QUEUE (do not
+touch its tree); Measure opcode gaps; implement any new Server VM opcode before
+inventing C hooks; Resolve names never copy Kronos ids; Verify with
+`make -C src mock230-scripts` and `mock230_pack --check-only`; update this file;
+re-arm. Stop only when the user stops the loop.
 
 ## Methodology (non-negotiable)
 
@@ -44,6 +50,8 @@ SCAPE2009 4a/4b POH is live under `skill_construction/`.
    tables from the cache).
 5. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
    `UI_ERA_PORTING_GUIDE.md` (Kronos answers *wire minimum*, not content shape).
+6. **Never park sibling lanes** — no `*.skip`, no moving `skill_construction/` /
+   `minigame_mta/` aside for compile. Fix your own errors (PORTING_GUIDE §7).
 
 ## Skip list (custom / out of scope)
 
@@ -79,7 +87,7 @@ SCAPE2009 4a/4b POH is live under `skill_construction/`.
 | 6b | skill_hunter: box trap (chins) | blocked | → SCAPE2009 §2b |
 | 6c | skill_hunter: net trap + implings | blocked | → SCAPE2009 §2c |
 | 7a | skill_construction: house enter/leave | done | → SCAPE2009 §4a (live — do not `.rs2.skip`) |
-| 7b | skill_construction: build hotspot core | pending | → SCAPE2009 §4b |
+| 7b | skill_construction: build hotspot core | done | → SCAPE2009 §4b (live — do not edit/park from Kronos) |
 | 8 | minigame: Barrows | blocked | → SCAPE2009 §5 |
 | 9 | minigame: Fight Caves | done | Wave table + shared-map enter/exit (`minigame_fightcave/`); Kronos/2009 remainder algorithm; Tz-Kek split; Jad reward cape+tokkul; Jad healers deferred; **instance/DynamicMap still needed for concurrent players** |
 | 10 | minigame: Pest Control | blocked | → SCAPE2009 §6 |
@@ -323,6 +331,9 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - 2026-08-04: extended with 72 Fountain of Rune / 73 Wilderness Sword / 74 Imbued heart / 75 supply chests
 - slice 72 done: Fountain of Rune recharge + eternal glory 1/25000 (wiki); scripts 6586; pack 0 errors
 - slice 73 done: Wilderness sword 3 daily / 4 unlimited FoR tele; scripts 6642; pack 0 errors
+- 2026-08-04: **policy:** never park/silence sibling lanes (`*.skip`,
+  `skill_construction`/`minigame_mta` moves) — all queues + PORTING_GUIDE §7 +
+  loop prompts updated; Kronos agents must not mute POH/MTA to compile
 - 2026-08-04: `map_multiway` (1015) hosted, so slice 23's Retribution multi AoE is
   unblocked — the gap-log row above was wrong to say "opcode exists": it was
   declared and never hosted, which from content is indistinguishable from an

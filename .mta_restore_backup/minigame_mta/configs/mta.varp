@@ -114,3 +114,14 @@ scope=temp
 protect=no
 transmit=no
 scope=temp
+
+// Pending leave-room rune rewards (wiki May 2024: claim on exit).
+[mta_ench_rune_pending]
+protect=no
+transmit=no
+scope=temp
+
+[mta_grave_rune_pending]
+protect=no
+transmit=no
+scope=temp

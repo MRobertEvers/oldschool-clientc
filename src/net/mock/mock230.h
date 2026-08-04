@@ -4058,6 +4058,24 @@ mock230_send_if_sethide(
     int uid,
     int hide);
 void
+mock230_send_cam_reset(struct Mock230Player* player);
+void
+mock230_send_cam_moveto(
+    struct Mock230Player* player,
+    int local_x,
+    int local_z,
+    int height,
+    int rate,
+    int rate2);
+void
+mock230_send_cam_lookat(
+    struct Mock230Player* player,
+    int local_x,
+    int local_z,
+    int height,
+    int rate,
+    int rate2);
+void
 mock230_send_if_closesub(
     struct Mock230Player* player,
     int uid);

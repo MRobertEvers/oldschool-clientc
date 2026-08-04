@@ -1,15 +1,17 @@
 // Mage Training Arena — Creature Graveyard.
-// Policy: 2009scape GraveyardZone / BoneType / ModernListeners.boneConvert.
+// Authority: OSRS wiki Mage_Training_Arena/Creature_Graveyard (May 2024).
+// Cache overlay: magictraining_grave (IF 196).
 
 [proc,mta_grave_on_enter]
 %mta_grave_amt = 0;
+%mta_grave_rune_pending = 0;
 softtimer(mta_grave_hazard, ^mta_grave_pulse_ticks);
 
 [softtimer,mta_grave_hazard]
 if (%mta_room ! ^mta_room_grave) {
     return;
 }
-// Falling bones: gfx at player + 2 damage (2009scape; dialogue skip deferred).
+// Wiki: only take damage from falling bones (2).
 spotanim_map(magictraining_bone_drop1, coord, 0, 0);
 damage(uid, hitsplat_damage, 2);
 softtimer(mta_grave_hazard, calc(6 + random(6)));
@@ -53,23 +55,7 @@ inv_add(inv, $bone, 1);
 [oploc1,magictraining_bones_pile4]
 ~mta_grave_grab(loc_type);
 
-[proc,mta_grave_bone_mult](obj $item)(int)
-if ($item = magictraining_bones1) {
-    return(1);
-}
-if ($item = magictraining_bones2) {
-    return(2);
-}
-if ($item = magictraining_bones3) {
-    return(3);
-}
-if ($item = magictraining_bones4) {
-    return(4);
-}
-return(0);
-
 [proc,mta_grave_convert](namedobj $product)
-// Convert all MTA bones (+ ordinary bones) to fruit. Returns 1 if any converted.
 def_int $total = 0;
 def_int $n;
 $n = inv_total(inv, magictraining_bones1);
@@ -102,6 +88,8 @@ if ($total < 1) {
 }
 inv_add(inv, $product, $total);
 
+// Wiki: banana = 1 fruit, peach = 2; 16 fruit → 1 point; remainder % chance; max 3 pts/deposit.
+// XP: 5 Magic per banana, 10 per peach. Runes stored for leave.
 [oploc1,magictraining_grave_foodshute]
 if (%mta_room ! ^mta_room_grave) {
     return;
@@ -112,28 +100,84 @@ if ($bananas < 1 & $peaches < 1) {
     ~mesbox("You don't have any bananas or peaches to deposit.");
     return;
 }
-def_int $total = %mta_grave_amt;
 if ($bananas > 0) {
     inv_del(inv, banana, $bananas);
-    $total = calc($total + $bananas);
+    stat_advance(magic, calc($bananas * ^mta_grave_banana_xp));
 }
 if ($peaches > 0) {
     inv_del(inv, peach, $peaches);
-    $total = calc($total + $peaches);
+    stat_advance(magic, calc($peaches * ^mta_grave_peach_xp));
 }
-if ($total >= ^mta_grave_fruit_need) {
-    $total = calc($total - ^mta_grave_fruit_need);
-    def_int $roll = random(3);
-    def_namedobj $rune = naturerune;
+def_int $fruit = calc($bananas + calc($peaches * 2));
+def_int $total = calc(%mta_grave_amt + $fruit);
+def_int $points = divide($total, ^mta_grave_fruit_need);
+def_int $rem = modulo($total, ^mta_grave_fruit_need);
+// Fractional remainder: rem/16 chance of +1 (wiki).
+if ($rem > 0 & random(^mta_grave_fruit_need) < $rem) {
+    $points = calc($points + 1);
+    $rem = 0;
+}
+if ($points > ^mta_grave_deposit_cap) {
+    $points = ^mta_grave_deposit_cap;
+}
+%mta_grave_amt = $rem;
+if ($points > 0) {
+    ~mta_add_points(^mta_room_grave, $points);
+    %mta_grave_rune_pending = calc(%mta_grave_rune_pending + $points);
+    ~mesbox("You deposit the fruit and earn <tostring($points)> Graveyard Pizazz Point(s).|Rune rewards will be claimed when you leave.");
+} else {
+    mes("You deposit the fruit.");
+}
+
+[proc,mta_grave_claim_runes]
+def_int $n = %mta_grave_rune_pending;
+if ($n < 1) {
+    return;
+}
+%mta_grave_rune_pending = 0;
+def_int $i = 0;
+while ($i < $n) {
+    def_int $roll = random(5);
+    def_namedobj $rune = waterrune;
     if ($roll = 1) {
-        $rune = waterrune;
-    } else if ($roll = 2) {
         $rune = earthrune;
+    } else if ($roll = 2) {
+        $rune = naturerune;
+    } else if ($roll = 3) {
+        $rune = deathrune;
+    } else if ($roll = 4) {
+        $rune = bloodrune;
     }
     inv_add(inv, $rune, 1);
-    ~mta_add_points(^mta_room_grave, 1);
-    // 50 Magic XP → 500 tenths.
-    stat_advance(magic, 500);
-    ~mesbox("Congratulations - you've been awarded a <oc_name($rune)> and extra|magic XP.");
+    $i = calc($i + 1);
 }
-%mta_grave_amt = $total;
+~mesbox("You claim your Creature Graveyard rune rewards.");
+
+// --- Graveyard Guardian ---
+
+[opnpc1,magictraining_guard_grave]
+~chatplayer("Hello.");
+@mta_grave_menu;
+
+[label,mta_grave_menu]
+def_int $c = ~p_choice4("What do I have to do in this room?", 1, "What are the rewards?", 2, "Got any tips that may help me?", 3, "Thanks, bye!", 4);
+if ($c = 4) {
+    return;
+}
+if ($c = 1) {
+    ~chatplayer("What do I have to do in this room?");
+    ~chatnpc("Bones are teleported here from all over Gielinor. Convert them with Bones to Bananas or Bones to Peaches, then place the fruit in the wall holes.");
+    ~chatnpc("Falling bones will hit you, so you may want to eat some fruit to stay alive. Peaches count as two portions of fruit when deposited.");
+    @mta_grave_menu;
+    return;
+}
+if ($c = 2) {
+    ~chatplayer("What are the rewards?");
+    ~chatnpc("You earn Magic experience for depositing fruit and Graveyard Pizazz Points for every sixteen fruit portions. Bonus runes are claimed when you leave the room.");
+    @mta_grave_menu;
+    return;
+}
+~chatplayer("Got any tips that may help me?");
+~chatnpc("Different bones yield different amounts of fruit. Collect enough points upstairs to buy Bones to Peaches — peaches restore more health and count as two fruit!");
+~chatplayer("I see.");
+@mta_grave_menu;

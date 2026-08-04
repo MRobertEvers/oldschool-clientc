@@ -653,6 +653,8 @@ engine:
    log, implement it, then land the content — never a one-off C hook that
    content could have said once the opcode existed.
 5. Agent loop state: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md).
+6. **Never park sibling lanes** (§7) — do not `.skip` / move `skill_construction/`
+   or `minigame_mta/` (or any other live tree) to green your compile.
 
 ### 4.5 2009scape → OSRS-Content (authentic mid-era)
 
@@ -680,6 +682,8 @@ content, not as engine — and **prefer 2009scape over Kronos** for this era
 5. Agent loop state: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
    Mid-era slices that also appear on the Kronos queue are owned here; Kronos
    keeps post-2009-only content.
+6. **Never park sibling lanes** (§7) — do not `.skip` / move `skill_construction/`
+   or `minigame_mta/` (or any other live tree) to green your compile.
 
 ### 4.6 Quest Helper → OSRS-Content (post-2009 / no LC / no 2009scape)
 
@@ -728,10 +732,8 @@ Helper. Port them as content, not as engine:
    log, implement it, then land the content — never a one-off C hook that
    content could have said once the opcode existed.
 7. Agent loop state: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md).
-
----
-
-## 5. Decision four: modern features with no LostCity reference
+8. **Never park sibling lanes** (§7) — do not `.skip` / move other lanes' trees
+   to green your compile.
 
 This is the clan-chat / stat-orbs / XP-drops class: features of the modern
 client that a 2004 engine never drove.
@@ -1160,14 +1162,16 @@ double misnomer; cheapest while consumers are few.
 
 ## 7. Guardrails and verification
 
-**Do not `.rs2.skip` / `dirname.skip` / delete / park another lane's landed
-content to green your compile.** That includes renaming a whole directory
-(`skill_construction` → `skill_construction.skip`) and per-file `*.rs2.skip`.
-Queues already mark live trees (`minigame_mta/`, `skill_construction/` for POH
-4a+4b). If `sscompile` fails, fix the broken file in *your* slice — silencing a
-sibling lane drops their debugprocs and op binds from `script.dat`. Parallel
-agents have repeatedly undone POH this way; it is forbidden. Cursor rule:
-`.cursor/rules/no-park-sibling-content.mdc` (alwaysApply).
+**Do not ever skip / silence / park another lane** to green your compile.
+Forbidden: `*.rs2.skip`, `dirname.skip`, moving trees aside (`skill_construction`
+→ `skill_construction.skip` or `/tmp/…`), wiping configs, or stripping sibling
+hooks from shared spell/combat files. Live trees that must stay normal paths:
+`minigame_mta/`, `skill_construction/` (POH 4a+4b). Routing a slice to the right
+queue is fine; muting that queue's files is not. If `sscompile` fails, fix the
+broken file in *your* slice — silencing a sibling drops their binds from
+`script.dat`. Parallel agents have repeatedly undone POH/MTA this way; it is
+forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
+(alwaysApply). Every `*_CONTENT_PORT_QUEUE.md` loop prompt must restate this.
 
 - **Build:** `make -C src` (plain make, not CMake). Script pack:
   `make -C src mock230-scripts`. Agents sharing the repo must set a private

@@ -1,5 +1,6 @@
 // Mage Training Arena — Alchemists' Playground.
-// Policy: 2009scape AlchemistZone (simplified 6-cupboard map for osrs239).
+// Authority: OSRS wiki Mage_Training_Arena/Alchemist's_Playground (May 2024).
+// Cache overlay: magictraining_alchem (IF 194). Cupboard op2=Take-5.
 
 [proc,mta_alchem_item](int $idx)(namedobj)
 switch_int ($idx) {
@@ -48,45 +49,40 @@ if ($item = magictraining_rune_longsword) {
 return(0);
 
 [proc,mta_alchem_shuffle_costs]
-// Costs permute {1,5,8,10,15,20,30} — five of six used for the five items.
-def_int $a = 1;
-def_int $b = 5;
-def_int $c = 8;
-def_int $d = 10;
-def_int $e = 15;
+// Wiki: values 1, 5, 8, 15, 30 (one each for the five items).
 def_int $r = random(5);
 if ($r = 0) {
-    %mta_alch_cost1 = $a;
-    %mta_alch_cost2 = $b;
-    %mta_alch_cost3 = $c;
-    %mta_alch_cost4 = $d;
+    %mta_alch_cost1 = 1;
+    %mta_alch_cost2 = 5;
+    %mta_alch_cost3 = 8;
+    %mta_alch_cost4 = 15;
     %mta_alch_cost5 = 30;
 } else if ($r = 1) {
     %mta_alch_cost1 = 30;
-    %mta_alch_cost2 = $a;
-    %mta_alch_cost3 = $b;
-    %mta_alch_cost4 = $c;
-    %mta_alch_cost5 = 20;
+    %mta_alch_cost2 = 1;
+    %mta_alch_cost3 = 5;
+    %mta_alch_cost4 = 8;
+    %mta_alch_cost5 = 15;
 } else if ($r = 2) {
-    %mta_alch_cost1 = 20;
+    %mta_alch_cost1 = 15;
     %mta_alch_cost2 = 30;
-    %mta_alch_cost3 = $a;
-    %mta_alch_cost4 = $b;
-    %mta_alch_cost5 = $e;
+    %mta_alch_cost3 = 1;
+    %mta_alch_cost4 = 5;
+    %mta_alch_cost5 = 8;
 } else if ($r = 3) {
-    %mta_alch_cost1 = $e;
-    %mta_alch_cost2 = 20;
+    %mta_alch_cost1 = 8;
+    %mta_alch_cost2 = 15;
     %mta_alch_cost3 = 30;
-    %mta_alch_cost4 = $a;
-    %mta_alch_cost5 = $d;
+    %mta_alch_cost4 = 1;
+    %mta_alch_cost5 = 5;
 } else {
-    %mta_alch_cost1 = $d;
-    %mta_alch_cost2 = $e;
-    %mta_alch_cost3 = 20;
+    %mta_alch_cost1 = 5;
+    %mta_alch_cost2 = 8;
+    %mta_alch_cost3 = 15;
     %mta_alch_cost4 = 30;
-    %mta_alch_cost5 = $c;
+    %mta_alch_cost5 = 1;
 }
-if (random(3) < 3) {
+if (random(3) = 0) {
     %mta_alch_free = calc(1 + random(5));
 } else {
     %mta_alch_free = 0;
@@ -129,52 +125,82 @@ if ($type = magictraining_alchem_cupboard5 | $type = magictraining_alchem_cupboa
 }
 return(-1);
 
-[proc,mta_alchem_search](loc $type)
+[proc,mta_alchem_search](loc $type, int $qty)
 def_int $cup = ~mta_alchem_cupboard_index($type);
 if ($cup < 0) {
     return;
 }
 anim(human_pickuptable, 0);
-if (inv_freespace(inv) < 1) {
-    mes("You have no free space to hold any more items.");
-    return;
-}
-// Map cupboard → item via rotation; one slot empty.
 def_int $slot = calc(modulo(calc(%mta_alch_indexer + $cup), 6));
 if ($slot = 5) {
     mes("The cupboard is empty.");
     return;
 }
 def_namedobj $item = ~mta_alchem_item(calc($slot + 1));
-inv_add(inv, $item, 1);
-mes("You found: <oc_name($item)>.");
+def_int $taken = 0;
+while ($taken < $qty & inv_freespace(inv) > 0) {
+    inv_add(inv, $item, 1);
+    $taken = calc($taken + 1);
+}
+if ($taken < 1) {
+    mes("You have no free space to hold any more items.");
+    return;
+}
+if ($taken = 1) {
+    mes("You found: <oc_name($item)>.");
+} else {
+    mes("You take <tostring($taken)> x <oc_name($item)>.");
+}
 
 [oploc1,magictraining_alchem_cupboard0]
 [oploc1,magictraining_alchem_cupboard0_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
 
 [oploc1,magictraining_alchem_cupboard1]
 [oploc1,magictraining_alchem_cupboard1_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
 
 [oploc1,magictraining_alchem_cupboard2]
 [oploc1,magictraining_alchem_cupboard2_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
 
 [oploc1,magictraining_alchem_cupboard3]
 [oploc1,magictraining_alchem_cupboard3_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
 
 [oploc1,magictraining_alchem_cupboard4]
 [oploc1,magictraining_alchem_cupboard4_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
 
 [oploc1,magictraining_alchem_cupboard5]
 [oploc1,magictraining_alchem_cupboard5_open]
-~mta_alchem_search(loc_type);
+~mta_alchem_search(loc_type, 1);
+
+[oploc2,magictraining_alchem_cupboard0]
+[oploc2,magictraining_alchem_cupboard0_open]
+~mta_alchem_search(loc_type, 5);
+
+[oploc2,magictraining_alchem_cupboard1]
+[oploc2,magictraining_alchem_cupboard1_open]
+~mta_alchem_search(loc_type, 5);
+
+[oploc2,magictraining_alchem_cupboard2]
+[oploc2,magictraining_alchem_cupboard2_open]
+~mta_alchem_search(loc_type, 5);
+
+[oploc2,magictraining_alchem_cupboard3]
+[oploc2,magictraining_alchem_cupboard3_open]
+~mta_alchem_search(loc_type, 5);
+
+[oploc2,magictraining_alchem_cupboard4]
+[oploc2,magictraining_alchem_cupboard4_open]
+~mta_alchem_search(loc_type, 5);
+
+[oploc2,magictraining_alchem_cupboard5]
+[oploc2,magictraining_alchem_cupboard5_open]
+~mta_alchem_search(loc_type, 5);
 
 [proc,mta_alchem_try_alch](obj $item)(int)
-// Returns 1 if handled as MTA alch (caller must not do normal alch).
 if (%mta_room ! ^mta_room_alchem) {
     return(0);
 }
@@ -191,9 +217,7 @@ if (calc(inv_total(inv, magictraining_coins) + $cost) > 10000) {
     mes("You can't hold that many arena coins.");
     return(1);
 }
-def_int $code = calc(2 + $free);
-return($code);
-// 2 = paid convert, 3 = free convert — caller consumes runes only for 2.
+return(calc(2 + $free));
 
 [proc,mta_alchem_finish_alch](obj $item, int $free)
 def_int $idx = ~mta_alchem_item_index($item);
@@ -204,6 +228,27 @@ if ($free = 1) {
     mes("You convert the item for free!");
 }
 
+// Wiki: 1 pt / 100 coins; remainder % chance of +1; 2 Magic XP / coin; bank 10 coins / point.
+[proc,mta_alchem_deposit](int $deposit)
+if ($deposit < 1) {
+    return;
+}
+inv_del(inv, magictraining_coins, $deposit);
+def_int $earn = divide($deposit, 100);
+def_int $rem = modulo($deposit, 100);
+if ($rem > 0 & random(100) < $rem) {
+    $earn = calc($earn + 1);
+}
+def_int $exp = calc($deposit * 2);
+def_int $taking = %magictraining_alchem_coinreward;
+if ($earn > 0) {
+    $taking = calc($taking + calc($earn * 10));
+    %magictraining_alchem_coinreward = $taking;
+    ~mta_add_points(^mta_room_alchem, $earn);
+}
+stat_advance(magic, calc($exp * 10));
+~mesbox("You've just deposited <tostring($deposit)> coins, earning you <tostring($earn)> Alchemist Pizazz|Points and <tostring($exp)> magic XP. So far you're taking <tostring($taking)> coins as a|reward when you leave!");
+
 [oploc1,magictraining_coin_collector]
 if (%mta_room ! ^mta_room_alchem) {
     return;
@@ -213,13 +258,20 @@ if ($deposit < 1) {
     ~mesbox("You don't have any coins to deposit.");
     return;
 }
-if ($deposit >= ^mta_alch_eject_coins) {
-    ~mta_leave_room;
-    ~mesbox("You have been ejected from the arena! You were warned|not to deposit more than 12000 coins at once.");
+~mta_alchem_deposit($deposit);
+
+// Auto-deposit remaining arena coins on leave (wiki) — silent (no mesbox).
+[proc,mta_alchem_leave_deposit]
+def_int $deposit = inv_total(inv, magictraining_coins);
+if ($deposit < 1) {
     return;
 }
 inv_del(inv, magictraining_coins, $deposit);
 def_int $earn = divide($deposit, 100);
+def_int $rem = modulo($deposit, 100);
+if ($rem > 0 & random(100) < $rem) {
+    $earn = calc($earn + 1);
+}
 def_int $exp = calc($deposit * 2);
 def_int $taking = %magictraining_alchem_coinreward;
 if ($earn > 0) {
@@ -227,6 +279,33 @@ if ($earn > 0) {
     %magictraining_alchem_coinreward = $taking;
     ~mta_add_points(^mta_room_alchem, $earn);
 }
-// Tenths: deposit*2 Magic XP → deposit*20 units.
 stat_advance(magic, calc($exp * 10));
-~mesbox("You've just deposited <tostring($deposit)> coins, earning you <tostring($earn)> Alchemist Pizazz|Points and <tostring($exp)> magic XP. So far you're taking <tostring($taking)> coins as a|reward when you leave!");
+
+// --- Alchemy Guardian ---
+
+[opnpc1,magictraining_guard_alchem]
+~chatplayer("Hi.");
+@mta_alchem_menu;
+
+[label,mta_alchem_menu]
+def_int $c = ~p_choice4("What do I have to do in this room?", 1, "What are the rewards?", 2, "Got any tips that may help me?", 3, "Thanks, bye!", 4);
+if ($c = 4) {
+    return;
+}
+if ($c = 1) {
+    ~chatplayer("What do I have to do in this room?");
+    ~chatnpc("Search the cupboards for items, then convert them to gold with Low or High Level Alchemy. Deposit the coins in the collector for Alchemist Pizazz Points.");
+    ~chatnpc("Keep an eye on each item's value — costs and cupboard positions change every minute. Occasionally an item converts for free.");
+    @mta_alchem_menu;
+    return;
+}
+if ($c = 2) {
+    ~chatplayer("What are the rewards?");
+    ~chatnpc("You get Magic experience from alchemy spells, 1 Alchemist Pizazz Point per 100 coins deposited, and 10% of deposited coins paid into your bank when you leave.");
+    @mta_alchem_menu;
+    return;
+}
+~chatplayer("Got any tips that may help me?");
+~chatnpc("Watch the costs carefully. Right-click Take-5 to grab several items at once. If you have 190 coins, why not get an extra 10?");
+~chatplayer("I see.");
+@mta_alchem_menu;

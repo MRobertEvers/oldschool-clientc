@@ -23,9 +23,18 @@ authenticity-first remake; Kronos carries private-server inventiveness.
 Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4
 and §4.5. Status: `pending` | `in_progress` | `done` | `blocked`.
 
-Loop prompt: read this file + PORTING_GUIDE §4 / §4.5; port the next pending
-unblocked slice; verify (`mock230_pack --check-only`, `make -C src mock230-scripts`);
-update this file; re-arm. Stop only when the user stops the loop.
+## Shared tree — never silence another lane
+
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+(`skill_construction/`, `minigame_mta/`, or any other live tree) to green
+`sscompile`. `skill_construction/` is live (4a+4b); `minigame_mta/` is live.
+Fix your slice. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §4.5 / §7; port the next pending
+unblocked slice; NEVER park sibling lanes; verify (`mock230_pack --check-only`,
+`make -C src mock230-scripts`); update this file; re-arm. Stop only when the
+user stops the loop.
 
 ## Methodology (non-negotiable)
 
@@ -44,6 +53,8 @@ update this file; re-arm. Stop only when the user stops the loop.
 5. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
    `UI_ERA_PORTING_GUIDE.md`. Tools IF already landed (`interface_farming/`,
    `farming_server_reqs.md`).
+6. **Never park sibling lanes** — no `*.skip`, no moving live trees aside for
+   compile. Fix your own errors (PORTING_GUIDE §7).
 
 ## Skip list (custom / out of scope)
 
@@ -96,10 +107,10 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 4c | skill_construction: build IF + rooms | done | Owned elsewhere / out of this lane — do not extend `skill_construction/` from SCAPE2009 ticks |
 | 5 | minigame: Barrows | done | Crypt dig/stairs/sarcophagus spawn+kill flags; tunnel/chest/drain/puzzle deferred; `::barrowscrypt`; scripts 4936; pack 0 errors |
 | 6 | minigame: Pest Control | done | Lander board/leave (nov/int/vet combat gates); island→6b; `::pestlander`; scripts 4976; pack 0 errors |
-| 6b | minigame: Pest Control island | pending | `map_instance_from_square` voyage + portals/void knights; reward shop deferred |
+| 6b | minigame: Pest Control island | done | `map_instance_from_square(10536)` voyage from lander wait; spawn shielded portals + void knight + leave squire; `::pestisland`; shield drops/zeal/overlay/pests/rewards deferred; scripts 6678; pack 3 errors (preexisting `ascentofarceuus.constant` dupes, not this slice) |
 | 7 | minigame: Pyramid Plunder | done | Entrance + mummy join + 5-min timer + leave + room1 urns; spears/doors 2–8/chest/overlay IF deferred; `::ntkplunder`; scripts 5028; pack 0 errors |
 | 8 | minigame: Puro-Puro | done | Zanaris enter/leave + wheat push (Hunter 17); crop-circle rotate / wilt / Elnock shop deferred; `::puropuro`/`::puromaze`; scripts 5075; pack 0 errors |
-| 9 | minigame: Mage Training Arena | done | Lobby+hat+all four rooms (Telekinetic via `map_instance_from_square`); pizazz scoring; alchemy/enchant/bones hooks; Rewards Guardian shop; `::mta`/`::mta_tele`/`::mta_points`; scripts 6273; pack 0 errors |
+| 9 | minigame: Mage Training Arena | done | Wiki+cache IFs/dialogs/rooms (May 2024) (Telekinetic via `map_instance_from_square`); pizazz scoring; alchemy/enchant/bones hooks; Rewards Guardian shop; `::mta`/`::mta_tele`/`::mta_points`; scripts 6273; pack 0 errors |
 | 10 | minigame: Fishing Trawler | lc | LostCity has full `minigames/game_trawler` — port via CONTENT_PORT_QUEUE |
 | 11 | minigame: Castle Wars | lc | LostCity has full `minigames/game_castlewars` — port via CONTENT_PORT_QUEUE |
 | 12 | minigame: Barbarian Assault | skip | 2009scape only has custom torso-seller stub (not authentic BA) |
@@ -113,7 +124,9 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 20 | bosses: Giant Mole | done | Park dig (6 hills) + light gate + rope exit; mole AI/drops/Wyson deferred; `::giantmole`; scripts 5176; pack 0 errors |
 | 21 | quest: Priest in Peril / Nature Spirit | lc | LC has `quest_priestperil` + `quest_druidspirit` — port via CONTENT_PORT_QUEUE |
 | 22 | quest: Recruitment Drive | done | Start: Amik→Tiffy (`rd_teleporter_guy`)→grounds (`m38_77`); quit portals; `%rd_main`; puzzles/shuffle deferred; `::rd`; scripts 5278; pack 0 errors |
-| 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; `%lost_tribe_quest`+`%lost_tribe_contact`; dig/brooch/Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
+| 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; dig/brooch→23b; Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
+| 23b | quest: Lost Tribe dig/brooch | done | Pickaxe on `lost_tribe_cellar_hole_blocking`→`%lost_tribe_quest`=4 + floor brooch; Squeeze-through; Duke brooch→`%lost_tribe_contact`=3 librarian; Reldo/Mistag deferred; `::losttribedig`; scripts 6822; pack preexisting ascentofarceuus dupes |
+| 23c | quest: Lost Tribe Reldo/book | done | Reldo brooch→`%lost_tribe_bookmark`=1; bookcase→book; Read→Dorgeshuun ID (`bookmark`=2); Duke/Sigmund symbol talk; generals/Mistag deferred; book IF page-turn deferred; `::losttribebook`; scripts 6915; pack 0 errors |
 | 24 | quest: Dig Site / The Golem | done | Dig Site → LC `quest_itexam` (CONTENT_PORT_QUEUE **18d**); Golem: talk+softclay×4 repair→task; portal/museum deferred; `::golem`; scripts 5326; pack 0 errors |
 | 25 | quest: Animal Magnetism | done | Ava start (prereqs+skills) → fetch chickens; `%anma_main`; farm/witch/device deferred; `::anma`; scripts 5359; pack 0 errors |
 | 26 | quest: A Soul's Bane | done | Launa start → rope on rift → enter anger; `%soulbane_prog`/`%soulbane_riftrope_pres`; rooms deferred; `::soulsbane`; scripts 5437; pack 0 errors |
@@ -153,7 +166,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 4a | instance / dynamic map | POH | done — see the row below; measured, not blocking |
 | 4a | `map_instance_alloc/setchunk/build/coord/free/find` (11009..11014) | HouseManager.enter/construct (2009scape) | **done** — full slice: measured free pool (2,934 squares all in map x 15..98, so x ≥ 100 is the pool), server registry + instanced collision build, `REBUILD_REGION` (wire 59) encode **and** client decode + per-zone terrain/scenery rebuild with rotation, six EXTRA-band ops, content helpers. LC still has none of it (`engine.rs2` declares no map-alloc command), so these are engine-only rather than ports — [`map_instances.md`](map_instances.md). Proved by `::mapinstance` / `::mapinstance_turn` in the headless client |
 | 4b | (same) + hotspot build IF | BuildHotspot / BuildOptionPlugin | **done** for this lane (garden Build/Remove + XP); further IF/rooms owned elsewhere — hands off |
-| 6 | `DynamicRegion.create(10536)` | PestControlActivityPlugin.start / PestControlSession | unblocked by 4a — `~map_instance_from_square` is the island voyage's missing half; lander board/leave already landed |
+| 6 | `DynamicRegion.create(10536)` | PestControlActivityPlugin.start / PestControlSession | **done** — `~map_instance_from_square(^pest_island_template)` voyage + portal/knight/squire spawn; lander softtimer launches; Leave on `pest_squire_instance` |
 | 9 | `DynamicRegion` (Telekinetic maze) | TelekineticZone.start / private maze instance | unblocked by 4a — a maze is per-zone `map_instance_setchunk`; Enchant/Alchem/Grave static rooms already entered without it |
 | — | the eleven declared-but-unhosted ops named across all four queues | Clearing every "deferred: *opcode*" in the queues at once rather than one slice at a time | **done** — `busy` (2005), `p_opnpct` (2081), `projanim_pl` (2095), `set_player_op` (2103), `stat_add` (2113), `npc_sethuntmode` (2535), `npc_statsub` (2541), `projanim_npc` (2547), `obj_find` (3505), `inv_dropitem_delayed` (4310), `map_multiway` (1015). All eleven are LostCity `engine.rs2` commands, so each is a port and not a design. Coverage 297 → 308 of 419 declared. See the log entry below for what each needed and how it was measured |
 | — | `cam_shake` (2010) | Dig Site winch (19c) and any screen-shake effect | **blocked on a protocol measurement, not on design.** The client is complete for it — `gameproto_parse.c` decodes `PKT_NAME_CAM_SHAKE` and `rs_gameproto_exec.c` drives five independent jitter axes — but `net/rev/osrs230/packetin.h` has no row mapping a rev-230 wire opcode to it, and the number is not derivable here. The `v0/osrs` table's 35 is a *different revision*: it disagrees with osrs230 on every packet the two both name (CAM_RESET 107 vs 65, OBJ_ADD 44 vs 120, SET_PLAYER_OP 104 vs 75). Inventing the byte would silently drive whatever else lives at that opcode, so it stays unhosted until the rev-230 number is measured from a deob or a capture |
@@ -179,6 +192,9 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 4a/4b were blocked on map-instance opcodes (superseded — surface landed; content 4a done below). Historical note kept for chronology. Next at the time = 5 Barrows
 - slice 5 done (crypt core): dig on mounds → crypt teleport; stairs → mound; sarcophagus Search spawns brother + kill varbits on `barrows_kills`; tunnel entrance / reward chest / prayer drain / overlay IF / puzzle deferred; `::barrowscrypt`; scripts 4936; pack 0 errors; next = 6 Pest Control
 - slice 6 done (lander only): pest lander Cross/Climb for novice/intermediate/veteran (combat 40/70/100); wait softtimer; island voyage blocked on `DynamicRegion.create(10536)` (opcode gap, same as POH); bots skipped; reward shop / Port Sarim sail deferred; `::pestlander`; scripts 4976; pack 0 errors; next = 7 Pyramid Plunder
+- slice 6b done (island voyage): lander wait → `~map_instance_from_square(^pest_island_template)` (region 10536); spawn 4 shielded portals + void knight + `pest_squire_instance`; Leave returns to boat pier; `::pestisland`; shield-drop timer / zeal overlay / pest waves / rewards deferred; scripts 6678; pack 3 errors (preexisting ascentofarceuus.constant dups elsewhere); next = deferred arms or blocked 15–17
+- slice 23b done (dig/brooch): pickaxe on cellar rubble (Mining 13) → `%lost_tribe_quest`=4 + `obj_add` brooch; Squeeze-through hole; Duke+Sigmund brooch dialogue → `%lost_tribe_contact`=3 (librarian); Look-at → `brooch_closeup`; Reldo/book/goblins/Mistag/HAM deferred; `::losttribedig`; scripts 6822; transcript https://oldschool.runescape.wiki/w/Transcript:The_Lost_Tribe
+- slice 23c done (Reldo/book): Reldo brooch option → `%lost_tribe_bookmark`=1; Search `lost_tribe_bookcase` → book; Read opens `lost_tribe_symbol_book` + Dorgeshuun recognition (`bookmark`=2); Duke/Sigmund "I found out about the symbol..."; page-turn IF / generals / Mistag deferred; `::losttribebook`; scripts 6915; pack 0 errors
 - slice 7 done (entrance + room1): Tarik stub unlocks doors; Search N/E/S/W → guardian vs empty; mummy Talk/Start → room1 + softtimer (500 ticks); leave tomb / timer expel; room1 closed urns → ivory comb or poison bite; spears / room doors 2–8 / sarcophagus / chest / `ntk_overlay` IF deferred; `::ntkplunder`; scripts 5028; pack 0 errors; next = 8 Puro-Puro
 - slice 8 done (enter/leave + wheat): Zanaris `ii_magic_wheat_m_zanaris` Enter → maze; exit portal returns to saved tile; Push-through wheat (Hunter 17, imp-box gate); Fairy Aeryka + Elnock talk stubs; rotating Gielinor crop circles / wilt pulse / Elnock shop / jar gen deferred; `::puropuro`/`::puromaze`; scripts 5075; pack 0 errors; next = 9 Mage Training Arena
 - slice 9 done (lobby + static rooms): temple door Magic 7; Entrance Guardian → `%magictraining_entra_noob` + Progress hat; Enchant/Alchem/Grave portals (magic + item gates) enter/leave via `magictraining_returndoor`; Telekinetic blocked on DynamicRegion; shop/scoring/room gameplay deferred; `::mta`; scripts 5108; pack 0 errors; next = 10 Fishing Trawler
@@ -221,7 +237,11 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 34b done (barricade+crypt clues): LC none; `zogre_ogre_guard`→`%thzfe_blocking_barricade`/`%zogre`=`^zfe_crypt`; climb `ogre_barricade_collapsed*`; stairs; coffin/knife→prism; lectern→page; Brentle→backpack/tankard; Sithik/Slash Bash→34c; `::zogre`; scripts 6416; pack 0 errors; next = 34c or 4b or 35
 - slice 34c done (Sithik/Slash Bash finish): LC none; bell/`zogre_human_zavistic_rarve` prism+page→3; `ogre_bedman_loc`→4; drawers/cupboard/wardrobe + portrait + `dragon_bartender` → potion; tea pour→6; `yanillestairsup`→`%thzfe_sithik_transformed`/7; Grish key→8; `zogre_stand`/`zogre_slash_bash`→artifact/9; return→14 + Ranged/Fletching/Herblore 2000; Relicym/brutal arrows deferred; `::zogre`→bell; scripts 6477; pack 0 errors; next = 4b POH hotspot or 35 Agility
 - slice 35 → lc: LostCity already has `skill_agility` barbarian + wilderness courses (deferred from CONTENT_PORT_QUEUE 8s); next SCAPE2009 pending = 4b POH hotspot build IF
+- slice 9 wiki interfaces+rooms: cache IFs `magictraining_{alchem,encha,grave,tele,shop,main}` (194–198,553) + CS2 `magic_training_*`; lobby HUD + room overlays; shop IF via `%if1..4`+`enum_2753`; full guardian dialogues; May 2024 caps/hat-optional/enchant+grave+alch+tele scoring; scripts 6794; pack 0 errors; deferred: Observe camera, bone-pile cycle, set-runenergy opcode, GE Collect
 - slice 9 lobby upstairs: OSRS wiki coords — spawn `magictraining_guard_entrance` 3363,3305,0 + `magictraining_guard_rewards` 3363,3318,1; bind `magictraining_bankchest` Use→`~openbank` (May 2024 chest in cache); Trade-with=`opnpc4`; `::mta_shop`
+- 2026-08-04: **policy restated everywhere:** never park/silence sibling lanes
+  (`*.skip`, `skill_construction`/`minigame_mta` moves); all port queues +
+  PORTING_GUIDE §4.4–§4.6 / §7 + loop prompts + `.cursor/rules/no-park-sibling-content.mdc`
 - **MTA is live — do not `.rs2.skip` / park `minigame_mta/` or strip MTA branches from alchemy/telegrab/enchant/convert_bones for other-lane compiles** (2026-08-04)
 - slice 9 MTA finished (was parallel WIP): unskipped `minigame_mta/*.rs2`; removed `_mta_scripts_wip_skip/`; enchant/alchemy/telegrab/convert_bones hooks live; see log "slice 9 unblocked"
 - **POH / `skill_construction/` is live (4a+4b) — do not `.rs2.skip`, rename the directory to `skill_construction.skip`, delete, or park `poh_*.rs2` / `construction.{constant,varp}` for other-lane compiles** (2026-08-04). Parallel agents repeatedly: (1) renamed scripts to `.rs2.skip`, (2) wiped the tree, (3) renamed the **whole directory** to `skill_construction.skip` mid-compile. That drops `::poh` / `::pohbuild` / portal / estate-agent bindings from `script.dat`. If your lane fails to compile, fix your lane — do not silence construction. Style origin is **m29_110** (m29_89 absent). Also in `CLAUDE.md`, `PORTING_GUIDE` §7, `.cursor/rules/no-park-sibling-content.mdc`.

@@ -8,10 +8,12 @@ taken from anywhere in the cache. It is the thing a player-owned house, the Pest
 Control island, a Barrows tunnel and a cutscene set all are, and until this
 landed the engine could not express any of them: `SCAPE2009_CONTENT_PORT_QUEUE`
 rows 4a and 4b were **blocked** on the surface, not on the content. Slice 4a
-(house enter/leave) now lives in `skill_construction/` (`poh_*.rs2` — **do not
-`.rs2.skip` or delete for other-lane compiles**; see
-[`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) log). 4b
-(hotspot build) is still pending.
+(house enter/leave + garden hotspot build) now lives in `skill_construction/`
+(`poh_*.rs2` — **do not** rename the directory to `skill_construction.skip`,
+`.rs2.skip` files, or delete for other-lane compiles; see
+[`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) log,
+`CLAUDE.md`, `.cursor/rules/no-park-sibling-content.mdc`). 4c (build IF +
+rooms) is still pending.
 
 Source, in the order it is easiest to read:
 

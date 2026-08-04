@@ -1,5 +1,20 @@
-// Mage Training Arena — Rewards Guardian shop.
-// Policy: 2009scape MTAShop (dialogue buy — ~openshop deferred on inv.ini).
+// Mage Training Arena — Rewards Guardian + magictraining_shop (IF 197).
+// Authority: OSRS wiki rewards table + cache enum_2753..2759 / CS2 magic_training_*.
+// Client reads %if1=tele %if2=alch %if3=enchant %if4=grave, %makexcrafting=qty,
+// %magictraining_shop=selected slot (63 = none).
+
+[proc,mta_shop_sync_points]
+// CS2 magic_training_costs: if1 tele, if2 alch, if3 enchant, if4 grave.
+%if1 = %mta_pizazz_tele;
+%if2 = %mta_pizazz_alch;
+%if3 = %mta_pizazz_enchant;
+%if4 = %mta_pizazz_grave;
+
+[proc,mta_shop_open]
+~mta_shop_sync_points;
+%magictraining_shop = ^mta_shop_none;
+%makexcrafting = 1;
+if_openmain(magictraining_shop);
 
 [proc,mta_shop_can_afford](int $t, int $a, int $e, int $g)(int)
 if (%mta_pizazz_tele < $t) {
@@ -21,32 +36,52 @@ return(1);
 ~mta_sub_points(^mta_room_alchem, $a);
 ~mta_sub_points(^mta_room_enchant, $e);
 ~mta_sub_points(^mta_room_grave, $g);
+~mta_shop_sync_points;
 
-[proc,mta_shop_buy_item](namedobj $item, int $t, int $a, int $e, int $g)
+[proc,mta_shop_prices](namedobj $item)(int, int, int, int)
+// enum_2755 tele, 2758 alch, 2757 enchant, 2756 grave (CS2 labels).
+return(enum(obj, int, enum_2755, $item), enum(obj, int, enum_2758, $item), enum(obj, int, enum_2757, $item), enum(obj, int, enum_2756, $item));
+
+[proc,mta_shop_buy_one](namedobj $item)
+if ($item = null) {
+    return;
+}
+def_int $t;
+def_int $a;
+def_int $e;
+def_int $g;
+$t, $a, $e, $g = ~mta_shop_prices($item);
 if (~mta_shop_can_afford($t, $a, $e, $g) = 0) {
     mes("You can't afford that.");
     return;
 }
-if (inv_freespace(inv) < 1) {
-    mes("You don't have enough inventory space.");
+// Bones to Peaches unlock (cache obj magictraining_peachspell).
+if ($item = magictraining_peachspell) {
+    if (%magictraining_bonespeaches = 1) {
+        mes("You already know Bones to Peaches.");
+        return;
+    }
+    ~mta_shop_pay($t, $a, $e, $g);
+    %magictraining_bonespeaches = 1;
+    ~mesbox("The guardian teaches you how to use the Bones to Peaches spell!");
     return;
 }
-~mta_shop_pay($t, $a, $e, $g);
-inv_add(inv, $item, 1);
-mes("You buy a <oc_name($item)>.");
-
-[proc,mta_shop_buy_wand](namedobj $item, namedobj $prev, int $t, int $a, int $e, int $g)
-if (~mta_shop_can_afford($t, $a, $e, $g) = 0) {
-    mes("You can't afford that.");
-    return;
+// Rune pouch (enum slot 11 → bh_rune_pouch).
+if ($item = bh_rune_pouch) {
+    if (inv_total(inv, bh_rune_pouch) > 0 | inv_total(bank, bh_rune_pouch) > 0) {
+        mes("You already own a rune pouch.");
+        return;
+    }
 }
+// Wand upgrades require previous tier (enum_2759).
+def_namedobj $prev = enum(obj, namedobj, enum_2759, $item);
 if ($prev ! null) {
     if (inv_total(inv, $prev) < 1 & inv_total(inv, magictraining_wand_master) < 1) {
         mes("You need a <oc_name($prev)> to upgrade.");
         return;
     }
 }
-if (inv_freespace(inv) < 1 & inv_total(inv, $prev) < 1) {
+if (inv_freespace(inv) < 1 & ($prev = null | inv_total(inv, $prev) < 1)) {
     mes("You don't have enough inventory space.");
     return;
 }
@@ -57,21 +92,75 @@ if ($prev ! null & inv_total(inv, $prev) > 0) {
 inv_add(inv, $item, 1);
 mes("You buy a <oc_name($item)>.");
 
-[proc,mta_shop_buy_peach]
-if (%magictraining_bonespeaches = 1) {
-    mes("You already know Bones to Peaches.");
+[proc,mta_shop_confirm]
+def_int $slot = %magictraining_shop;
+if ($slot = ^mta_shop_none | $slot < 0) {
+    mes("Select a reward first.");
     return;
 }
-if (~mta_shop_can_afford(^mta_shop_peach_t, ^mta_shop_peach_a, ^mta_shop_peach_e, ^mta_shop_peach_g) = 0) {
-    mes("You can't afford that.");
+def_namedobj $item = enum(int, namedobj, enum_2753, $slot);
+if ($item = null) {
+    mes("Select a reward first.");
     return;
 }
-~mta_shop_pay(^mta_shop_peach_t, ^mta_shop_peach_a, ^mta_shop_peach_e, ^mta_shop_peach_g);
-%magictraining_bonespeaches = 1;
-mes("You learn the Bones to Peaches spell.");
+def_int $qty = %makexcrafting;
+if ($qty < 1) {
+    $qty = 1;
+}
+def_int $i = 0;
+while ($i < $qty) {
+    ~mta_shop_buy_one($item);
+    $i = calc($i + 1);
+}
 
-// Cache ops: op1=Talk-to, op4=Trade-with (wiki: Talk-to / Trade-with).
+[if_button1,magictraining_shop:make1]
+%makexcrafting = 1;
+~mta_shop_sync_points;
+
+[if_button1,magictraining_shop:make5]
+%makexcrafting = 5;
+~mta_shop_sync_points;
+
+[if_button1,magictraining_shop:make10]
+%makexcrafting = 10;
+~mta_shop_sync_points;
+
+[if_button1,magictraining_shop:makeall]
+%makexcrafting = 28;
+~mta_shop_sync_points;
+
+[if_button1,magictraining_shop:confirm]
+~mta_shop_confirm;
+
+// Talk-to: dialogue then open shop. Trade-with: open shop directly.
 [opnpc1,magictraining_guard_rewards]
+if (%magictraining_entra_noob = 0) {
+    ~chatnpc("Greetings. Have you spoken to my fellow Guardian downstairs?");
+    ~chatplayer("Nope.");
+    ~chatnpc("Well, you need to talk to him first.");
+    return;
+}
+~chatplayer("Hi.");
+~chatnpc("Greetings. What wisdom do you seek?");
+def_int $c = ~p_choice3("Who are you?", 1, "Can I trade my Pizazz Points please?", 2, "Thanks, bye!", 3);
+if ($c = 3) {
+    return;
+}
+if ($c = 1) {
+    ~chatplayer("Who are you?");
+    ~chatnpc("Me? I'm here to grant you rewards for any of the Pizazz Points you may have earned in this training arena.");
+    ~chatplayer("I see.");
+    ~chatnpc("Would you like to trade your Pizazz Points?");
+    def_int $t = ~p_choice2("Yes please.", 1, "No thanks.", 2);
+    if ($t = 1) {
+        ~mta_shop_open;
+    }
+    return;
+}
+~chatplayer("Can I trade my Pizazz Points please?");
+~chatnpc("Why of course.");
+~mta_shop_open;
+
 [opnpc4,magictraining_guard_rewards]
 if (%magictraining_entra_noob = 0) {
     ~chatnpc("Greetings. Have you spoken to my fellow Guardian downstairs?");
@@ -79,152 +168,4 @@ if (%magictraining_entra_noob = 0) {
     ~chatnpc("Well, you need to talk to him first.");
     return;
 }
-~chatnpc("Welcome. What would you like to buy with your Pizazz Points?");
-@mta_shop_menu;
-
-[label,mta_shop_menu]
-def_int $c = ~p_choice5("Wands.", 1, "Infinity robes.", 2, "Mage's book / Bones to Peaches.", 3, "Runes.", 4, "Never mind.", 5);
-if ($c = 5) {
-    return;
-}
-if ($c = 1) {
-    @mta_shop_wands;
-    return;
-}
-if ($c = 2) {
-    @mta_shop_infinity;
-    return;
-}
-if ($c = 3) {
-    @mta_shop_special;
-    return;
-}
-@mta_shop_runes;
-
-[label,mta_shop_wands]
-def_int $w = ~p_choice5("Beginner wand.", 1, "Apprentice wand.", 2, "Teacher wand.", 3, "Master wand.", 4, "Back.", 5);
-if ($w = 5) {
-    @mta_shop_menu;
-    return;
-}
-if ($w = 1) {
-    ~mta_shop_buy_item(magictraining_wand_beg, ^mta_shop_wand_beg_t, ^mta_shop_wand_beg_a, ^mta_shop_wand_beg_e, ^mta_shop_wand_beg_g);
-} else if ($w = 2) {
-    ~mta_shop_buy_wand(magictraining_wand_appr, magictraining_wand_beg, ^mta_shop_wand_appr_t, ^mta_shop_wand_appr_a, ^mta_shop_wand_appr_e, ^mta_shop_wand_appr_g);
-} else if ($w = 3) {
-    ~mta_shop_buy_wand(magictraining_wand_teach, magictraining_wand_appr, ^mta_shop_wand_teach_t, ^mta_shop_wand_teach_a, ^mta_shop_wand_teach_e, ^mta_shop_wand_teach_g);
-} else {
-    ~mta_shop_buy_wand(magictraining_wand_master, magictraining_wand_teach, ^mta_shop_wand_master_t, ^mta_shop_wand_master_a, ^mta_shop_wand_master_e, ^mta_shop_wand_master_g);
-}
-@mta_shop_menu;
-
-[label,mta_shop_infinity]
-def_int $i = ~p_choice5("Hat / top / bottoms.", 1, "Boots.", 2, "Gloves.", 3, "Back.", 4, "Never mind.", 5);
-if ($i = 4) {
-    @mta_shop_menu;
-    return;
-}
-if ($i = 5) {
-    return;
-}
-if ($i = 2) {
-    ~mta_shop_buy_item(magictraining_infinityboots, ^mta_shop_inf_boots_t, ^mta_shop_inf_boots_a, ^mta_shop_inf_boots_e, ^mta_shop_inf_boots_g);
-    @mta_shop_menu;
-    return;
-}
-if ($i = 3) {
-    ~mta_shop_buy_item(magictraining_infinitygloves, ^mta_shop_inf_gloves_t, ^mta_shop_inf_gloves_a, ^mta_shop_inf_gloves_e, ^mta_shop_inf_gloves_g);
-    @mta_shop_menu;
-    return;
-}
-def_int $j = ~p_choice4("Infinity hat.", 1, "Infinity top.", 2, "Infinity bottoms.", 3, "Back.", 4);
-if ($j = 4) {
-    @mta_shop_infinity;
-    return;
-}
-if ($j = 1) {
-    ~mta_shop_buy_item(magictraining_infinityhat, ^mta_shop_inf_hat_t, ^mta_shop_inf_hat_a, ^mta_shop_inf_hat_e, ^mta_shop_inf_hat_g);
-} else if ($j = 2) {
-    ~mta_shop_buy_item(magictraining_infinitytop, ^mta_shop_inf_top_t, ^mta_shop_inf_top_a, ^mta_shop_inf_top_e, ^mta_shop_inf_top_g);
-} else {
-    ~mta_shop_buy_item(magictraining_infinitybottom, ^mta_shop_inf_bottom_t, ^mta_shop_inf_bottom_a, ^mta_shop_inf_bottom_e, ^mta_shop_inf_bottom_g);
-}
-@mta_shop_menu;
-
-[label,mta_shop_special]
-def_int $s = ~p_choice3("Mage's book.", 1, "Bones to Peaches.", 2, "Back.", 3);
-if ($s = 3) {
-    @mta_shop_menu;
-    return;
-}
-if ($s = 1) {
-    ~mta_shop_buy_item(magictraining_bookofmagic, ^mta_shop_book_t, ^mta_shop_book_a, ^mta_shop_book_e, ^mta_shop_book_g);
-} else {
-    ~mta_shop_buy_peach;
-}
-@mta_shop_menu;
-
-[label,mta_shop_runes]
-def_int $r = ~p_choice5("Combination runes.", 1, "Cosmic / Chaos / Nature.", 2, "Death / Law / Soul / Blood.", 3, "Back.", 4, "Never mind.", 5);
-if ($r = 4) {
-    @mta_shop_menu;
-    return;
-}
-if ($r = 5) {
-    return;
-}
-if ($r = 1) {
-    def_int $cr = ~p_choice5("Mist.", 1, "Dust.", 2, "Smoke / Mud.", 3, "Steam / Lava.", 4, "Back.", 5);
-    if ($cr = 5) {
-        @mta_shop_runes;
-        return;
-    }
-    if ($cr = 1) {
-        ~mta_shop_buy_item(mistrune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-    } else if ($cr = 2) {
-        ~mta_shop_buy_item(dustrune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-    } else if ($cr = 3) {
-        def_int $sm = ~p_choice2("Smoke rune.", 1, "Mud rune.", 2);
-        if ($sm = 1) {
-            ~mta_shop_buy_item(smokerune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-        } else {
-            ~mta_shop_buy_item(mudrune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-        }
-    } else {
-        def_int $sl = ~p_choice2("Steam rune.", 1, "Lava rune.", 2);
-        if ($sl = 1) {
-            ~mta_shop_buy_item(steamrune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-        } else {
-            ~mta_shop_buy_item(lavarune, ^mta_shop_combo_t, ^mta_shop_combo_a, ^mta_shop_combo_e, ^mta_shop_combo_g);
-        }
-    }
-} else if ($r = 2) {
-    def_int $ba = ~p_choice4("Cosmic (5E).", 1, "Chaos (1A/5E/1G).", 2, "Nature (1A/1G).", 3, "Back.", 4);
-    if ($ba = 4) {
-        @mta_shop_runes;
-        return;
-    }
-    if ($ba = 1) {
-        ~mta_shop_buy_item(cosmicrune, 0, 0, 5, 0);
-    } else if ($ba = 2) {
-        ~mta_shop_buy_item(chaosrune, 0, 1, 5, 1);
-    } else {
-        ~mta_shop_buy_item(naturerune, 0, 1, 0, 1);
-    }
-} else {
-    def_int $hi = ~p_choice5("Death.", 1, "Law.", 2, "Soul.", 3, "Blood.", 4, "Back.", 5);
-    if ($hi = 5) {
-        @mta_shop_runes;
-        return;
-    }
-    if ($hi = 1) {
-        ~mta_shop_buy_item(deathrune, 2, 1, 20, 1);
-    } else if ($hi = 2) {
-        ~mta_shop_buy_item(lawrune, 2, 0, 0, 0);
-    } else if ($hi = 3) {
-        ~mta_shop_buy_item(soulrune, 2, 2, 25, 2);
-    } else {
-        ~mta_shop_buy_item(bloodrune, 2, 2, 25, 2);
-    }
-}
-@mta_shop_menu;
+~mta_shop_open;

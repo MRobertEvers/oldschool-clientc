@@ -4,9 +4,16 @@ Agent-loop state for the LostCity → OSRS-Content forward port.
 Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4.
 Status: `pending` | `in_progress` | `done` | `blocked`.
 
-Loop prompt: read this file + PORTING_GUIDE §4; port the next pending unblocked
-slice; verify (`mock230_pack --check-only`, scripts build); update this file;
-re-arm. Stop only when the user stops the loop.
+## Shared tree — never silence another lane
+
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+(`skill_construction/`, `minigame_mta/`, or any other live tree) to green
+`sscompile`. Fix your own errors. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §7; port the next pending
+unblocked slice; NEVER park sibling lanes; verify (`mock230_pack --check-only`,
+scripts build); update this file; re-arm. Stop only when the user stops the loop.
 
 **Do not park sibling lanes.** Never rename `skill_construction/` →
 `skill_construction.skip`, `*.rs2.skip` POH/MTA scripts, or delete another
@@ -355,7 +362,7 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 20b | Canifis Sbott tanner | done | werewolftanner Talk + shared tan labels @ 2/5/45gp |
 | 20c | Bedabin nomad | done | bedabin Talk + Trade stub; pineapple arm on %desertrescue |
 | 20d | Misc approval dialogue | done | ^misc_complete + approval % dialogue + man_misc_chatanim |
-| 20e | Gardener Gunnhild | done | misc_gardener Talk + iron sickle sale; weeding intercept deferred |
+| 20e | Gardener Gunnhild | done | misc_gardener Talk + iron sickle sale; weeding → 20n |
 | 20f | Lumberjack Leif | done | misc_lumberjack Talk; woodcut intercept deferred |
 | 20g | Miner Magnus | done | misc_miner Talk; mining intercept deferred |
 | 20h | Fisherman Frodi | done | misc_fisherman Talk; fishing intercept deferred |
@@ -363,7 +370,21 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 20j | Seravel ship tickets | done | shiloshiptickets 25gp→shiloshipticket |
 | 20k | Canifis building stairs | done | building_steps_up/down telejump by angle |
 | 20l | Gunnjorn (Barb. Outpost) | done | gunnjorn course greeting; Horror key arms deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers (W. Ardougne man/weed_herbs/bedabin_guard…); CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms |
+| 20m | W. Ardougne man/woman | done | man+woman Talk-to + %elenaquest/%elena_* stubs; shared plague dialogue |
+| 20n | Miscellania weed_herbs | done | misc_heather sickle weeding + approval; sound_synth dropped |
+| 20o | Bedabin nomad guard | done | tent door + plans gate; %desertrescue_map_mechanisms; desertrescue stages expanded |
+| 20p | Dark mage (upassmage) | done | Talk-to + Iban staff fix; %upass stub; ~objbox→~mesbox |
+| 20q | E. Ardougne citizens | done | ardougnian_male1/female1 random Talk-to + flier |
+| 20r | Zoo keeper | done | Talk-to; greegree/trail deferred |
+| 20s | Ardougne monk | done | monk_ardougne %drunkmonkquest lines |
+| 20t | W. Ardougne civilians | done | wantcat1–3 mice Talk + cat→100 deathrune; cat/overgrown cats named |
+| 20u | W. Ardougne clerk | done | civic office Talk + plague-house arms; ~quest_elena_set_progress stub |
+| 20v | Canifis Roavar | done | werewolfinnkeeper beer/gossip/story; trail deferred |
+| 20w | Shantay chest + kebab instr | done | thbankchest→~openbank; thkebabinstructs Read→~mesbox |
+| 20x | Kharidian cactus | done | Cut/Use waterskin fill + next_loc_stage; sound_synth dropped |
+| 20y | Canifis citizens | done | Talk-to + wolfbane transform + drops; ~canafis_werewolf_type; death_drop overlay |
+| 20z | Plague manhole | done | plaguemanhole open/cover/climb; loc_findallzone→loc_find; sewer telejump |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers (mourner, shantay*, desert_heat, doors…); rpdt_employee already 17z; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms |
 
 
 
@@ -716,10 +737,14 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 19x done: Velrak dusty_key; mock230_pack 0 errors
 - slice 19y done: Kalphite old man; mock230_pack 0 errors
 - slice 19z done: W. Ardougne Carla; mock230_pack 0 errors (6282 scripts)
-- note: CW/Trails deferred (large IF1/minigame); concurrent MTA/construction WIP kept .skip to unblock compile; stripped transient MTA hooks from alchemy/enchant/convert_bones
+- note: CW/Trails deferred (large IF1/minigame). **SUPERSEDED habit:** do **not**
+  park MTA/construction with `.skip` to unblock compile — that practice is
+  forbidden (PORTING_GUIDE §7). MTA + POH are live; fix your lane instead.
 - slice 20a done: Miscellania flower_girl 15gp→flowers_waterfall_quest; mock230_pack 0 errors (6452 scripts)
 - slice 20b done: Canifis Sbott werewolftanner + shared tan @ 2/5/45gp; mock230_pack 0 errors (6458 scripts)
-- slice 20c done: bedabin Talk + Trade stub + pineapple arm; ferox_upgrades.rs2.skip (concurrent WIP missing const); mock230_pack 0 errors (6477 scripts)
+- slice 20c done: bedabin Talk + Trade stub + pineapple arm; mock230_pack 0 errors
+  (6477 scripts). **Note:** parking `ferox_upgrades.rs2.skip` for a concurrent
+  WIP was a lane-silence anti-pattern — do not repeat (PORTING_GUIDE §7).
 - slice 20d done: misc approval dialogue + ^misc_complete + man_misc_chatanim; mock230_pack 0 errors (6518 scripts)
 - slice 20e done: Gardener Gunnhild Talk + iron sickle; mock230_pack 0 errors (6526 scripts)
 - slice 20f done: Lumberjack Leif Talk; mock230_pack 0 errors (6529 scripts)
@@ -729,7 +754,21 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 20j done: Seravel shiloshiptickets 25gp sale; mock230_pack 0 errors (6635 scripts)
 - slice 20k done: Canifis building_steps telejump; mock230_pack 0 errors (6637 scripts)
 - slice 20l done: Gunnjorn course greeting (Horror key deferred); mock230_pack 0 errors (6642 scripts)
-- next pending: outward leftovers (W. Ardougne man/weed_herbs/bedabin_guard…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int)
+- slice 20m done: W. Ardougne man/woman + elenaquest carriers; mock230_pack 0 errors (6772 scripts)
+- slice 20n done: misc_heather weed_herbs sickle loop; mock230_pack 0 errors
+- slice 20o done: bedabin_guard + tent door + desertrescue_map_mechanisms; mock230_pack 0 errors (6787 scripts)
+- slice 20p done: upassmage Talk + Iban staff fix + %upass stub; mock230_pack 0 errors
+- slice 20q done: E. Ardougne citizen Talk-to; mock230_pack 0 errors
+- slice 20r done: zoo_keeper Talk-to (greegree/trail deferred); mock230_pack 0 errors
+- slice 20s done: monk_ardougne drunkmonkquest lines; mock230_pack 0 errors
+- slice 20t done: wantcat civilians + cat/overgrown category names; mock230_pack 0 errors
+- slice 20u done: clerk civic office + elena set_progress stub; mock230_pack 0 errors
+- slice 20v done: werewolfinnkeeper Roavar beer/gossip/story; mock230_pack 0 errors
+- slice 20w done: thbankchest + thkebabinstructs; mock230_pack 0 errors
+- slice 20x done: kharidian cactus Cut/waterskin; mock230_pack 0 errors (6890 scripts)
+- slice 20y done: canafis_citizen Talk/transform/drops; mock230_pack 0 errors (6919 scripts)
+- slice 20z done: plague manhole open/cover/climb; mock230_pack 0 errors (~6947 scripts)
+- next pending: outward leftovers (mourner, shantay*, desert_heat, doors…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

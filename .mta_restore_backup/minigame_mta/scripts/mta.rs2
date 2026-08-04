@@ -1,6 +1,7 @@
 // Mage Training Arena — LIVE. DO NOT .rs2.skip / park this tree for other-lane compiles.
-// Mage Training Arena — shared lobby, points, overlays, enter/leave.
-// Policy: 2009scape MageTrainingArenaPlugin / MTAZone / EntranceGuardianDialogue.
+// Shared lobby, points, overlays, enter/leave.
+// Authority: OSRS wiki Mage_Training_Arena (+ May 2024). Cache IFs 194–198 + 553.
+// LostCity: none (post-2004). Dialogue trees from 2009scape, rules from wiki.
 
 [proc,mta_has_hat]()(int)
 if (inv_total(inv, magictraining_proghat_dull) > 0) {
@@ -97,6 +98,7 @@ if ($n >= $cur) {
 }
 ~mta_overlay_update;
 
+// Room overlays 194–198; lobby HUD 553 (wiki May 2024).
 [proc,mta_overlay_open]
 if (%mta_room = ^mta_room_tele) {
     if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_tele, 1);
@@ -106,6 +108,8 @@ if (%mta_room = ^mta_room_tele) {
     if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_encha, 1);
 } else if (%mta_room = ^mta_room_grave) {
     if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_grave, 1);
+} else {
+    if_opensub(toplevel_osrs_stretch:overlay_hud, magictraining_main, 1);
 }
 ~mta_overlay_update;
 
@@ -125,8 +129,14 @@ if (%mta_room = ^mta_room_tele) {
     if_settext(magictraining_alchem:magictrain_alchem_cost5, tostring(%mta_alch_cost5));
 } else if (%mta_room = ^mta_room_enchant) {
     if_settext(magictraining_encha:magictrain_encha_pts, tostring(%mta_pizazz_enchant));
+    ~mta_enchant_bonus_hide;
 } else if (%mta_room = ^mta_room_grave) {
     if_settext(magictraining_grave:magictrain_grave_pts, tostring(%mta_pizazz_grave));
+} else {
+    if_settext(magictraining_main:magictrain_tele_points, tostring(%mta_pizazz_tele));
+    if_settext(magictraining_main:magictrain_alch_points, tostring(%mta_pizazz_alch));
+    if_settext(magictraining_main:magictrain_ench_points, tostring(%mta_pizazz_enchant));
+    if_settext(magictraining_main:magictrain_grave_points, tostring(%mta_pizazz_grave));
 }
 
 [proc,mta_strip_inv](obj $item)
@@ -159,11 +169,15 @@ if (%mta_room = ^mta_room_alchem) {
     ~mta_strip_inv(peach);
 }
 
-[proc,mta_enter_room](int $room, coord $start)
-if (%magictraining_entra_noob = 0 | ~mta_has_hat = 0) {
-    ~mesbox("You need a Pizazz Progress Hat in order to enter. Talk to the|Entrance Guardian if you don't have one.");
-    return;
+[proc,mta_cap_warn](int $room)
+def_int $cap = ~mta_pizazz_cap($room);
+if (~mta_pizazz($room) >= $cap) {
+    ~mesbox("You have the maximum Pizazz Points for this room.|You may still enter, but you will not earn more points.");
 }
+
+// Wiki May 2024: progress hat no longer required to enter rooms.
+[proc,mta_enter_room](int $room, coord $start)
+~mta_cap_warn($room);
 %mta_room = $room;
 p_teleport($start);
 ~mta_overlay_open;
@@ -174,10 +188,11 @@ def_coord $pad = ^mta_lobby;
 if (%mta_room = ^mta_room_enchant) {
     $pad = ^mta_exit_enchant;
     clearsofttimer(mta_enchant_bonus);
+    ~mta_enchant_claim_runes;
 } else if (%mta_room = ^mta_room_alchem) {
     $pad = ^mta_exit_alchem;
     clearsofttimer(mta_alchem_pulse);
-    // Bank reward coins earned while depositing (2009scape MTAType.ALCHEMISTS.exit).
+    ~mta_alchem_leave_deposit;
     def_int $earn = %magictraining_alchem_coinreward;
     if ($earn > 0) {
         inv_add(bank, coins, $earn);
@@ -187,6 +202,7 @@ if (%mta_room = ^mta_room_enchant) {
 } else if (%mta_room = ^mta_room_grave) {
     $pad = ^mta_exit_grave;
     clearsofttimer(mta_grave_hazard);
+    ~mta_grave_claim_runes;
 } else if (%mta_room = ^mta_room_tele) {
     $pad = ^mta_exit_tele;
     ~mta_tele_clear_nodes;
@@ -200,6 +216,7 @@ if (%mta_room = ^mta_room_tele) {
 }
 %mta_room = ^mta_room_none;
 p_teleport($pad);
+~mta_overlay_open;
 if ($was_tele = 1 & $tele_handle ! ^map_instance_none) {
     map_instance_free($tele_handle);
     if (%map_instance_handle = $tele_handle) {
@@ -218,18 +235,17 @@ if (stat(magic) < ^mta_magic_guild) {
 }
 def_int $dir = ~coord_direction(coord, loc_coord);
 p_teleport(~movecoord_indirection(coord, $dir, 2));
+%mta_room = ^mta_room_none;
+~mta_overlay_open;
 
 // --- Room portals ---
 
 [oploc1,magictraining_teledoor]
-if (%magictraining_entra_noob = 0 | ~mta_has_hat = 0) {
-    ~mesbox("You need a Pizazz Progress Hat in order to enter. Talk to the|Entrance Guardian if you don't have one.");
-    return;
-}
 if (stat(magic) < ^mta_magic_tele) {
     ~mesbox("You need to be able to cast the Telekinetic Grab spell in order to|enter.");
     return;
 }
+~mta_cap_warn(^mta_room_tele);
 ~mta_tele_enter;
 
 [oploc1,magictraining_enchantdoor]
@@ -267,7 +283,7 @@ if (inv_total(inv, banana) > 0 | inv_total(inv, peach) > 0) {
 [oploc1,magictraining_returndoor]
 ~mta_leave_room;
 
-// --- Entrance Guardian ---
+// --- Entrance Guardian (2009scape EntranceGuardianDialogue + wiki hat-optional) ---
 
 [opnpc1,magictraining_guard_entrance]
 ~chatplayer("Hi.");
@@ -281,14 +297,20 @@ if ($opt = 2) {
     return;
 }
 ~chatplayer("I'm new to this place. Where am I?");
-~chatnpc("Well young one, you have entered the Magic Training Arena.");
-~chatnpc("You may train through the portals at the back of this hall and earn Pizazz Points.");
-~chatnpc("You will need a special Pizazz Progress Hat! I can give you one if you wish to train here.");
+~chatnpc("Well young one, you have entered the Magic Training Arena. It was built at the start of the Fifth Age, when runestones were first discovered.");
+~chatnpc("It was made because of the many pointless accidents caused by inexperienced mages.");
+~chatplayer("Who created it?");
+~chatnpc("It was originally made by the ancestors of the wizards in the Wizards' Tower. Warriors destroyed it; recently the Tower resurrected the arena and its Guardians.");
+~chatplayer("Interesting. So what can I do here?");
+~chatnpc("Train through the portals at the back of this hall. Each room awards unique Pizazz Points you can spend upstairs with the Rewards Guardian.");
+~chatplayer("How do you record the points I have earned?");
+~chatnpc("You can take a Pizazz Progress Hat if you wish — talk to it for your totals. The hat is optional to enter the rooms.");
 ~chatplayer("Yes please!");
 ~mta_give_hat;
 ~chatnpc("Here you go. Talk to the hat to find out your current Pizazz Points totals.");
 ~chatplayer("Talk to it?");
 ~chatnpc("Well of course, it's a magic Pizazz Progress Hat! Mind your manners though, hats have feelings too!");
+~chatnpc("Should you leave a room by any method other than the exit portals, room items will be removed.");
 
 [label,mta_entrance_menu]
 def_int $choice = ~p_choice4("Can you tell me about this place again?", 1, "Can you explain the different portals?", 2, "About the progress hat...", 3, "Thanks, bye!", 4);
@@ -296,13 +318,15 @@ if ($choice = 4) {
     return;
 }
 if ($choice = 1) {
-    ~chatnpc("This is the Magic Training Arena. Portals lead to four practice rooms.");
+    ~chatplayer("Can you tell me about this place again?");
+    ~chatnpc("This is the Magic Training Arena. Portals lead to four practice rooms that award Pizazz Points for the Rewards Guardian upstairs.");
     @mta_entrance_menu;
     return;
 }
 if ($choice = 2) {
-    ~chatnpc("They lead to the Telekinetic Theatre, Alchemists' Playground, Enchanting Chamber, and Creature Graveyard.");
-    @mta_entrance_menu;
+    ~chatplayer("Can you explain the different portals?");
+    ~chatnpc("They lead to four areas: The Telekinetic Theatre, The Alchemists' Playground, The Enchanting Chamber, and The Creature Graveyard.");
+    @mta_portal_detail;
     return;
 }
 if (~mta_has_hat = 0) {
@@ -314,6 +338,22 @@ if (~mta_has_hat = 0) {
     ~chatnpc("Which you have stored somewhere I'm sure. Collect Pizazz Points and talk to the Rewards Guardian upstairs.");
 }
 @mta_entrance_menu;
+
+[label,mta_portal_detail]
+def_int $p = ~p_choice5("What's the Telekinetic Theatre?", 1, "What's the Alchemists' Playground?", 2, "What's the Enchanting Chamber?", 3, "What's the Creature Graveyard?", 4, "Thanks, bye!", 5);
+if ($p = 5) {
+    return;
+}
+if ($p = 1) {
+    ~chatnpc("Use Telekinetic Grab to slide a stone Guardian through a maze to the exit square. Each maze awards Telekinetic Pizazz Points.");
+} else if ($p = 2) {
+    ~chatnpc("Search cupboards for items, alchemise them into arena coins, and deposit them for Alchemist Pizazz Points.");
+} else if ($p = 3) {
+    ~chatnpc("Enchant shapes into orbs and deposit them in the centre hole for Enchantment Pizazz Points.");
+} else {
+    ~chatnpc("Convert bones into fruit and deposit them in the wall holes for Graveyard Pizazz Points. Watch out for falling bones!");
+}
+@mta_portal_detail;
 
 // --- Progress hat ---
 
@@ -336,7 +376,9 @@ if ($d = 1) {
 if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
     inv_add(inv, magictraining_proghat_dull, 1);
 }
+%mta_room = ^mta_room_none;
 p_teleport(^mta_lobby);
+~mta_overlay_open;
 mes("MTA lobby — portals + Entrance Guardian + Rewards upstairs.");
 
 [debugproc,mta_shop]
@@ -344,9 +386,9 @@ mes("MTA lobby — portals + Entrance Guardian + Rewards upstairs.");
 if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
     inv_add(inv, magictraining_proghat_dull, 1);
 }
-// Upstairs beside Rewards Guardian / bank chest (wiki 3363,3318,1).
 p_teleport(0_52_51_35_54);
 mes("MTA upstairs — Rewards Guardian + bank chest.");
+~mta_shop_open;
 
 [debugproc,mta_tele]
 %magictraining_entra_noob = 1;
@@ -360,4 +402,5 @@ if (~mta_has_hat = 0 & inv_freespace(inv) > 0) {
 %mta_pizazz_alch = 500;
 %mta_pizazz_enchant = 6000;
 %mta_pizazz_grave = 500;
+~mta_overlay_update;
 mes("Granted shop-ready Pizazz totals.");
