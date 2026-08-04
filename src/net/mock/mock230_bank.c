@@ -859,11 +859,7 @@ mock230_bank_open(struct Mock230Server* srv)
         mock230_send_if_settext(srv->active_player, ids->com_bankmain_capacity, capacity);
     }
 
-    /* Bankmain embeds the same bonus rows the equipment screen paints; CS2
-     * toggles them behind wornitems_button. Content's openbank also calls
-     * ~equipment_refresh after if_openmain_side; this covers ::bank / C open
-     * and the selftest that calls mock230_bank_open directly. */
-    mock230_scripts_run_proc(srv, "[proc,equipment_refresh]", NULL, 0);
+    /* Bonus rows: [if_open,bankmain] ~equipment_refresh (IF_OPENSUB fires it). */
 }
 
 void

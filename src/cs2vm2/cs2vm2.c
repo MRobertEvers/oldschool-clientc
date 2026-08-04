@@ -1956,6 +1956,73 @@ CS2VM2_Op_CC_TriggerOp(
     return vm->vm->host_exec(vm, &request);
 }
 
+/*
+ * IF_TRIGGEROPLOCAL(crc, component, childIndex, typed..., signature) —
+ * notify the server of a synthetic button click with typed args.
+ *
+ * Stack shape from local_commands.py (`"_2929": (["INT","INT","INT","INT",
+ * "STRING"], [], False)` for the common "i" signature) and xrsps's
+ * forwardIfTriggerOpLocal: pop signature, then typed args per char, then
+ * childIndex / component / crc (top to bottom). crc is the IF_SCRIPT_TRIGGER
+ * script key on real rev-239 wire; ignored here. sub for the packet is
+ * childIndex when set, else the first typed int (Quest XP View-journal).
+ */
+int
+CS2VM2_Op_IF_TriggerOpLocal(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    char* signature = NULL;
+    if( CS2VM2_PopStr(vm, &signature) != CS2VM_EXECNO_OK || !signature )
+        return CS2VM_EXECNO_ERROR;
+
+    int typed0 = -1;
+    int argc = (int)strlen(signature);
+    for( int i = argc - 1; i >= 0; i-- )
+    {
+        if( signature[i] == 'i' )
+        {
+            int v;
+            if( CS2VM2_PopInt(vm, &v) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+            if( i == 0 )
+                typed0 = v;
+        }
+        else
+        {
+            char* ignored = NULL;
+            if( CS2VM2_PopStr(vm, &ignored) != CS2VM_EXECNO_OK )
+                return CS2VM_EXECNO_ERROR;
+        }
+    }
+
+    int child_index;
+    int component_id;
+    int crc;
+    if( CS2VM2_PopInt(vm, &child_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &crc) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    (void)crc;
+
+    int sub = (child_index != -1) ? child_index : typed0;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
+    request.u.if_triggeroplocal.component_id = component_id;
+    request.u.if_triggeroplocal.sub = sub;
+
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_SetTrans(
     struct CS2VM2_Thread* vm,
@@ -9785,6 +9852,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnResize(vm, frame, operand);
     case CS2_OP_IF_CALLONRESIZE:
         return CS2VM2_Op_IF_CallOnResize(vm, frame, operand);
+    case CS2_OP_IF_TRIGGEROPLOCAL:
+        return CS2VM2_Op_IF_TriggerOpLocal(vm, frame, operand);
     case CS2_OP_IF_SETDRAGGABLE:
         return CS2VM2_Op_IF_SetDraggable(vm, frame, operand);
     case CS2_OP_IF_SETDRAGGABLEBEHAVIOR:

@@ -6,8 +6,9 @@
  * respawn. Every number a swing is made of — the effective levels, the attack
  * and defence rolls, the max hit, the accuracy, the experience, the animations,
  * the protection prayers — is content, in
- * `skill_combat/combat_stats.rs2`, and this file calls into it twice:
- * `[proc,player_melee_swing]` and `[proc,npc_meleeattack]`.
+ * `skill_combat/combat_stats.rs2`, and this file fires into it via triggers:
+ * `[opnpc2,<npc>]` for the player's swing, `[ai_opplayer2,<npc>]` for the
+ * npc's swing, and `[advancestat,<stat>]` for level-up messages.
  *
  * That is the reference's division. LostCity's engine has no combat formulas at
  * all; `[label,player_melee_attack]` and `[proc,npc_meleeattack]` are content,
@@ -219,12 +220,6 @@ static void
 play_npc_seq(struct Mock230Npc* npc, int seq_id)
 {
     mock230_anim_play_npc(npc, seq_id, 0);
-}
-
-static void
-play_player_seq(struct Mock230Player* player, int seq_id)
-{
-    mock230_anim_play_player(player, seq_id, 0);
 }
 
 
@@ -445,7 +440,7 @@ mock230_combat_add_xp(
          * surprise someone mid-fight. */
         if( stat == MOCK230_STAT_HITPOINTS )
             mock230_combat_sync_hitpoints(player);
-        mock230_scripts_run_hook(srv, srv->hooks.combat_levelup_message, NULL, 0);
+        mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
     }
     if( player->stat_boosted[stat] < player->stat_level[stat] &&
         stat != MOCK230_STAT_HITPOINTS )
@@ -614,22 +609,9 @@ mock230_combat_hit_player(
     mock230_combat_sync_hitpoints(player);
 
     /*
-     * The block animation is content's answer, not a param read.
-     *
-     * `[proc,combat_defend_anim](obj $weapon, obj $shield)(seq)` is a priority
-     * chain — shield, then weapon, then unarmed — so the engine hands it both
-     * hands and takes what it returns. Reading `defend_anim` off the weapon
-     * here (which is what this did) meant a kiteshield never blocked with,
-     * because the off-hand was never consulted at all.
+     * The block animation is content's — [ai_opplayer2,_] plays
+     * anim(%com_defendanim). The engine no longer drives it.
      */
-    {
-        int32_t hands[2] = { (int32_t)player->worn[MOCK230_WEAR_WEAPON].obj_id,
-                             (int32_t)player->worn[MOCK230_WEAR_SHIELD].obj_id };
-        int32_t block = -1;
-
-        if( mock230_scripts_run_hook_int(srv, srv->hooks.combat_defend_anim, hands, 2, &block) )
-            play_player_seq(player, block);
-    }
 
     if( player->hitpoints == 0 && !player->dying )
     {
@@ -658,7 +640,7 @@ mock230_combat_hit_player(
             if( srv->npcs[i].combat_target == player->pid )
                 mock230_combat_stop_npc(srv, i);
         }
-        mock230_scripts_queue_hook(srv, srv->hooks.player_death, 0, 0);
+        /* Content's playerhit_n_melee / poison already queue(player_death). */
     }
 }
 
@@ -1106,23 +1088,13 @@ mock230_combat_npc_tick(
         return;
     }
     npc->attack_clock = npc_def(npc)->attackrate;
-    play_npc_seq(npc, npc->attack_seq);
 
     /*
-     * The npc's swing is content's, the same way the player's is.
-     *
-     * `[proc,npc_meleeattack]` rolls the accuracy against the player's
-     * `%com_*def`, rolls the damage off the npc's own cache params, applies the
-     * protection prayer, lands the splat and queues the retaliation — which is
-     * the reference's `[proc,npc_meleeattack]` plus `[proc,playerhit_n_melee]`,
-     * and the same list.
-     *
-     * Retaliation is queued inside that proc, at the point the npc commits to a
-     * swing rather than where damage lands: being attacked is what provokes it,
-     * so a miss and a protected hit have to provoke it too. That used to be a
-     * comment here explaining why the queue call came before two early returns.
+     * The npc's swing is content's — [ai_opplayer2,<npc>] owns it and does
+     * npc_anim itself. Fire the trigger; content handles the animation, roll,
+     * damage and retaliation queue.
      */
-    mock230_scripts_run_hook_on_npc(srv, srv->hooks.npc_meleeattack, slot);
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
 }
 
 void

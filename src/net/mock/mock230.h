@@ -310,14 +310,14 @@ enum
      * Arguments `runclientscript*` will carry.
      *
      * Three numbers bound this and they are not the same number: the compiler
-     * builds at most SSC_MAX_VARARG_TYPES (16) of them, the wire reader stops
-     * at PKT_RUNCLIENTSCRIPT_ARG_MAX (20, `src/net/rev/revpacket.h`), and this
-     * is the one in the middle. It is set to the compiler's, so a call that
-     * compiles always fits — and the host case *aborts* on a longer type
+     * builds at most SSC_MAX_VARARG_TYPES of them, the wire reader stops at
+     * PKT_RUNCLIENTSCRIPT_ARG_MAX (`src/net/rev/revpacket.h`), and this is the
+     * one in the middle. All three are 28 so `ge_pricechecker_prices` (28 ints)
+     * compiles and arrives intact. The host case *aborts* on a longer type
      * string rather than truncating, because a clientscript run with three of
      * its four arguments does not fail, it draws the wrong panel.
      */
-    MOCK230_RUNCLIENTSCRIPT_ARG_MAX = 16,
+    MOCK230_RUNCLIENTSCRIPT_ARG_MAX = 28,
 
     /*
      * Combat: the unarmed attack interval, and nothing else.
@@ -517,6 +517,14 @@ struct Mock230ObjInfo
      *  with an empty backpack really does run twice as far as a fully kitted
      *  one. Signed: weight-reducing items are negative. */
     int weight;
+    /** Store value — obj config opcode 12. `oc_cost` returns this; high alch
+     *  is content's `calc(oc_cost($obj) * 60 / 100)`. Default 1 when absent. */
+    int cost;
+    /** 1 when the item is members-only (config opcode 16). */
+    int members;
+    /** 1 when players may trade it (config opcode 15 clears; defaults true).
+     *  Distinct from GE listing — `oc_tradeable` reads this. */
+    int tradeable;
     /*
      * Bank notes ("certificates"), both directions.
      *
@@ -2040,27 +2048,6 @@ mock230_player_set_face_entity(struct Mock230Player* player)
     player->masks |= MOCK230_PMASK_FACE_ENTITY;
 }
 
-/*
- * Every script the *engine* starts, resolved once when the pack loads.
- * Partial migration removed resolve_hooks from load, but call sites still
- * read srv->hooks.*; keep the struct so the tree builds. Unresolved hooks
- * stay NULL and the run_hook helpers no-op.
- */
-struct Mock230Hooks
-{
-    const struct SSVM_Script* player_death;
-    const struct SSVM_Script* combat_defend_anim;
-    const struct SSVM_Script* combat_levelup_message;
-    const struct SSVM_Script* player_melee_swing;
-    const struct SSVM_Script* npc_meleeattack;
-    const struct SSVM_Script* combat_weapon_type;
-    const struct SSVM_Script* equipment_refresh;
-    const struct SSVM_Script* equipment_open;
-    const struct SSVM_Script* update_bas;
-    const struct SSVM_Script* friend_login_notification;
-    const struct SSVM_Script* friend_logout_notification;
-};
-
 #include "mock230_ids.h"
 
 /** Session gameframe slots — prefer the player's live top after if_opentop. */
@@ -2276,8 +2263,6 @@ struct Mock230Server
     /** 0 when no script pack loaded. Every trigger site falls back to its
      *  hardcoded C behaviour, so the mock stays usable without content. */
     int scripts_ok;
-    /** Resolved once when that pack loads. See struct Mock230Hooks. */
-    struct Mock230Hooks hooks;
 
     /*
      * Kill-drop credit for the client's loot tracker.
@@ -3701,19 +3686,12 @@ mock230_scripts_queue_named(
     int32_t arg);
 
 /* ------------------------------------------------------------------ */
-/* Engine hooks (mock230_scripts.c)                                    */
+/* Script primitives (mock230_scripts.c)                               */
 /* ------------------------------------------------------------------ */
 
 /*
- * The same six calls, addressed by a resolved hook instead of by a name.
- *
- * These are what the *engine* uses; the by-name forms above are for tests,
- * which name the script they are testing on purpose. `struct Mock230Hooks` has
- * the argument for the split, and the practical difference is that a hook that
- * does not resolve is reported once at boot rather than doing nothing forever.
- *
- * A NULL hook is a no-op with the same return as a missing name, so a tree that
- * ships without one still runs.
+ * Run a resolved Script* — the building block for `run_proc*`, `queue_named`,
+ * and trigger dispatch. A NULL script is a no-op returning 0.
  */
 int
 mock230_scripts_run_hook(
@@ -3761,11 +3739,6 @@ mock230_scripts_queue_hook(
     const struct SSVM_Script* script,
     int delay,
     int32_t arg);
-
-/** Fill `srv->hooks` from the loaded pack, reporting every name that is not
- *  there. Called by mock230_scripts_load; returns the number missing. */
-int
-mock230_scripts_resolve_hooks(struct Mock230Server* srv);
 
 /** The host command seam: every opcode the VM does not implement itself. */
 int

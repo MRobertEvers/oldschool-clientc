@@ -982,35 +982,15 @@ the other direction. Resolving names once, at boot, against the pack turns every
 one of these from a silent no-op into the loud failure a missing interface id
 already gets.
 
-**Landed 2026-08-01.** `struct Mock230Hooks` (mock230.h) holds the ten,
-`mock230_scripts_resolve_hooks` fills it from the pack at load time beside
-`mock230_scripts_report_gaps` — same reasoning, names instead of opcodes — and
-the engine calls through `mock230_scripts_run_hook*` / `mock230_scripts_queue_hook`,
-which take a resolved script. The by-name helpers stay for tests, because a test
-naming the script it tests is stating its subject.
-
-**It is still ten and it is not the same ten** — worth saying, because "ten"
-looks like a number that has not moved. `equipment_open` was added on 2026-08-01
-making eleven, and `equip_level_message` was deleted on 2026-08-02 along with
-`mock230_equipment_may_wear`, when the wield gate stopped being an engine
-decision at all (`osrs230_mockserver.md` §3.18). That is the first time this list
-has ever gone **down**, and it is the direction it is meant to go: a hook is the
-engine naming a piece of content, so the way one stops being needed is that the
-engine stops making the decision that called it — not that the name gets tidier.
-The block above is the original ten, kept as the historical record; the live list
-is `mock230_scripts.c:203-212`.
-
-A miss now says so once, at boot:
-
-```
-mock230: engine hook [queue,player_deth] is not in the pack
-mock230: 1 engine hook(s) unresolved — the engine will fall back to doing nothing at each
-```
-
-Two properties are worth keeping if this is ever reworked. `mock230_scripts_free`
-zeroes the table, because the hooks point into the provider it just released.
-And a NULL hook is still a no-op rather than a crash — running without content is
-a supported mode; what changed is that it is no longer a *silent* one.
+**Landed 2026-08-01, removed 2026-08-03.** The hook table (`struct Mock230Hooks`)
+is gone. Every path that used to go through it now reaches content via a trigger:
+`[advancestat,<stat>]` for level-ups, `[friendlogin,_]` / `[friendlogout,_]` for
+presence notifications, `[ai_opplayer2,<npc>]` for npc swings,
+`[opnpc2,<npc>]` for player swings, and `[if_button,...]` for equipment.
+Triggers are the only engine→content entry — no name in C, no table, no boot
+resolution. The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` /
+`run_hook_on_npc` primitives remain as internal helpers used by `run_proc*` and
+`queue_named`, taking an already-resolved pointer from a by-name lookup.
 
 Still by name, and the next thing to move: `mock230_say`'s seventeen message
 procs (`mock230_say(srv, "drop_message", …)`). Same class, and the same fix.

@@ -166,77 +166,6 @@ mock230_scripts_load(
 }
 
 /* ------------------------------------------------------------------ */
-/* Engine hooks                                                        */
-/* ------------------------------------------------------------------ */
-
-/*
- * The scripts the engine starts, resolved at load time rather than at call time.
- *
- * Same argument as `mock230_scripts_report_gaps` above it, one level up: a name
- * this tree does not define is a fact about the tree, and waiting for a player
- * to trigger it is waiting for a silent no-op nobody attributes to a rename.
- * `struct Mock230Hooks` has the rest of the reasoning.
- *
- * Missing is reported and left NULL — the run helpers treat a NULL hook exactly
- * as they treated an absent name, so a tree that does not want a hook still
- * runs. What changes is that it says so once, at boot, with every other
- * unresolved symbol, instead of never.
- */
-int
-mock230_scripts_resolve_hooks(struct Mock230Server* srv)
-{
-    /*
-     * `offsetof` into the hook table for the same reason `mock230_servercodec.c`
-     * uses it: a row is `name -> field`, and writing this as a switch or as ten
-     * assignments is how a name comes to be resolved into the wrong field. The
-     * struct is all one pointer type, so the offsets are uniform.
-     */
-    static const struct
-    {
-        const char* name;
-        size_t offset;
-    } k_hooks[] = {
-#define HOOK(field, script_name) { script_name, offsetof(struct Mock230Hooks, field) }
-        HOOK(player_death, "[queue,player_death]"),
-        HOOK(combat_defend_anim, "[proc,combat_defend_anim]"),
-        HOOK(combat_levelup_message, "[proc,combat_levelup_message]"),
-        HOOK(player_melee_swing, "[proc,player_melee_swing]"),
-        HOOK(npc_meleeattack, "[proc,npc_meleeattack]"),
-        HOOK(combat_weapon_type, "[proc,combat_weapon_type]"),
-        HOOK(equipment_refresh, "[proc,equipment_refresh]"),
-        HOOK(equipment_open, "[proc,equipment_open]"),
-        HOOK(update_bas, "[proc,update_bas]"),
-        HOOK(friend_login_notification, "[proc,friend_login_notification]"),
-        HOOK(friend_logout_notification, "[proc,friend_logout_notification]"),
-#undef HOOK
-    };
-    int missing = 0;
-
-    memset(&srv->hooks, 0, sizeof(srv->hooks));
-    if( !srv->scripts_ok )
-        return (int)(sizeof(k_hooks) / sizeof(k_hooks[0]));
-
-    for( size_t i = 0; i < sizeof(k_hooks) / sizeof(k_hooks[0]); i++ )
-    {
-        const struct SSVM_Script* script =
-            SSVM_ProviderGetByName(srv->scripts, k_hooks[i].name);
-
-        memcpy((char*)&srv->hooks + k_hooks[i].offset, &script, sizeof(script));
-        if( !script )
-        {
-            fprintf(stderr, "mock230: engine hook %s is not in the pack\n", k_hooks[i].name);
-            missing++;
-        }
-    }
-    if( missing )
-        fprintf(stderr,
-                "mock230: %d engine hook(s) unresolved — the engine will fall back to "
-                "doing nothing at each\n",
-                missing);
-    return missing;
-}
-
-/* ------------------------------------------------------------------ */
 /* Coverage                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -927,9 +856,9 @@ mock230_scripts_run_hook_sv(
 {
     struct SSVM_State* state;
 
-    /* NULL is an unresolved hook, which `mock230_scripts_resolve_hooks` has
-     * already named at boot. Doing nothing here is the same fallback an absent
-     * name got, minus the silence. */
+    /* A NULL script is a no-op — used by the by-name helpers when a name is
+     * not in the pack, and by internal callers that may pass a resolved pointer
+     * that legitimately came back empty. */
     if( !srv->scripts_ok || !script )
         return 0;
 
@@ -949,7 +878,7 @@ mock230_scripts_run_hook_sv(
  *
  * A test naming the script it tests is stating its subject; the engine naming
  * one is authoring content (§8.6). So the lookup lives here rather than at the
- * call sites, and the engine goes through `srv->hooks`.
+ * call sites, and the engine goes through triggers.
  */
 int
 mock230_scripts_run_proc_sv(
@@ -1118,13 +1047,8 @@ mock230_scripts_run_hook_int(
  * case that needs it: the npc's swing happens in C, and the response is
  * content.
  *
- * An unresolved hook queues nothing. That used to be an *absent name*, silent
- * except under MOCK230_VERBOSE, and it was described here as the documented
- * fallback for this server — which it should not have been. A queue that never
- * fires is not a graceful degradation when the queue is `[queue,player_death]`:
- * it is a player who dies and stays a corpse. The name is resolved at load now
- * (`mock230_scripts_resolve_hooks`), so the miss is reported once, at boot,
- * whether or not anyone dies afterwards.
+ * A NULL script queues nothing — used by the by-name form when a name is
+ * absent, and by internal callers whose pointer may legitimately be empty.
  */
 int
 mock230_scripts_queue_hook(
@@ -3224,11 +3148,10 @@ mock230_script_command(
      *
      * Every one of these is a read off a table the boot loaders already decoded
      * — `Mock230ObjInfo`, `Mock230NpcInfo`, the content packs — which is the
-     * reason this batch is safe to add in bulk. `oc_cost`, `oc_members`,
-     * `oc_tradeable` and `nc_desc` are still absent — simply not decoded; a
-     * dat2 npc record has no description at all (it is server-driven at this
-     * revision). `oc_desc` was in that list until the case above: the obj
-     * record does carry one, it was just being thrown away at load.
+     * reason this batch is safe to add in bulk. `nc_desc` is still absent —
+     * a dat2 npc record has no description at all (it is server-driven at this
+     * revision). `oc_cost` / `oc_members` / `oc_tradeable` / `oc_desc` land in
+     * mock230_ops_obj.c / the cases above once their fields are kept at load.
      *
      * An opcode that cannot be answered from real data is better left to the
      * VM's loud stub than implemented with a plausible guess: the stub says so,

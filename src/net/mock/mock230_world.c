@@ -4823,15 +4823,15 @@ social_broadcast_to_followers(
  * a login runs this with the *newcomer* active and a logout runs it with the
  * departing player already gone, and neither may leak into the next statement.
  *
- * Silence when the proc is unresolved is deliberate and is the whole content
- * seam: whether a tree notifies at all is stated by whether it defines the proc.
+ * Silence when the trigger is unbound is deliberate and is the whole content
+ * seam: whether a tree notifies at all is stated by whether it defines the trigger.
  */
 static void
 social_notify_followers(
     struct Mock230Server* srv,
     int64_t name37,
     const char* display_name,
-    const char* proc_name)
+    int trigger)
 {
     int64_t followers[MOCK230_SOCIAL_FRIENDS_MAX];
     const int max = (int)(sizeof(followers) / sizeof(followers[0]));
@@ -4839,7 +4839,7 @@ social_notify_followers(
     const char* strv[1];
     int count;
 
-    if( !proc_name || name37 == 0 || !display_name || !display_name[0] )
+    if( name37 == 0 || !display_name || !display_name[0] )
         return;
 
     count = mock230_friends_followers(name37, followers, max);
@@ -4859,7 +4859,7 @@ social_notify_followers(
             continue;
 
         mock230_world_set_active(srv, follower);
-        mock230_scripts_run_proc_sv(srv, proc_name, NULL, 0, strv, 1);
+        mock230_scripts_run_trigger_sv(srv, trigger, -1, -1, -1, strv, 1);
     }
     mock230_world_set_active(srv, was_active);
 }
@@ -4928,7 +4928,7 @@ mock230_world_social_login(struct Mock230Player* player)
      * the order the sentence describes.
      */
     social_notify_followers(srv, me, player->display_name,
-                            "[proc,friend_login_notification]");
+                            SS_TRIGGER_FRIENDLOGIN);
 }
 
 /** The name37 in an 8-byte social packet, or 0 if the frame is short. */
@@ -5772,7 +5772,7 @@ mock230_world_remove_player(
      */
     social_broadcast_to_followers(srv, name37);
     social_notify_followers(srv, name37, display_name,
-                            "[proc,friend_logout_notification]");
+                            SS_TRIGGER_FRIENDLOGOUT);
 }
 
 /*
@@ -18274,7 +18274,8 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(speed_at >= 0,
                            "no IF_SETTEXT addressed bankmain:attackspeedactual");
 
-            /* Worn dirty while bank is up must repaint through the same gate. */
+            /* Worn dirty while bank is up: content refreshes on equip/unequip
+             * directly now, so mock230_equipment_refresh_stats is a no-op. */
             mock230_capture_reset(&capture);
             mock230_capture_begin(&srv, &capture);
             player->worn_dirty = 1u;
@@ -18284,8 +18285,8 @@ mock230_world_selftest(void)
             for( int i = 0; i < capture.count; i++ )
                 if( capture.packets[i].opcode == 94 )
                     settext++;
-            SELFTEST_CHECK(settext == 18,
-                           "worn dirty with bank open should repaint eighteen rows, got %d",
+            SELFTEST_CHECK(settext == 0,
+                           "equipment_refresh_stats is a no-op now (content drives it), got %d",
                            settext);
 
             mock230_bank_close(&srv);

@@ -65,6 +65,10 @@ enum RS_CS2SocialSendKind
  * RS_CS2_HOST_CALL_ON_RESIZE_MAX above — one queued pair per call site. */
 #define RS_CS2_HOST_TRIGGER_OP_MAX 16
 
+/* Pending IF_TRIGGEROPLOCAL → IF_BUTTON1 sends. One click synthesizes one
+ * packet; 16 matches the other deferred queues. */
+#define RS_CS2_HOST_TRIGGEROPLOCAL_MAX 16
+
 struct RS_CS2SocialSend
 {
     int kind; /* enum RS_CS2SocialSendKind */
@@ -82,6 +86,13 @@ struct RS_CS2TriggerOp
 {
     int component_id;
     int op_index;
+};
+
+/** An IF_TRIGGEROPLOCAL request: IF_BUTTON1(component, sub) to send. */
+struct RS_CS2TriggerOpLocal
+{
+    int component_id;
+    int sub;
 };
 
 /*
@@ -464,6 +475,12 @@ struct RS_CS2Host
     struct RS_CS2TriggerOp trigger_op[RS_CS2_HOST_TRIGGER_OP_MAX];
     int trigger_op_count;
     int trigger_op_head;
+
+    /** (component, sub) pairs IF_TRIGGEROPLOCAL asked to send as IF_BUTTON1,
+     *  drained by the App's tick through RS_CS2Host_TakeTriggerOpLocal. */
+    struct RS_CS2TriggerOpLocal triggeroplocal[RS_CS2_HOST_TRIGGEROPLOCAL_MAX];
+    int triggeroplocal_count;
+    int triggeroplocal_head;
 };
 
 void
@@ -540,6 +557,14 @@ bool
 RS_CS2Host_TakeTriggerOp(
     struct RS_CS2Host* host,
     struct RS_CS2TriggerOp* out);
+
+/** Pop the oldest queued IF_TRIGGEROPLOCAL request, FIFO. Returns false when
+ *  the queue is empty. The App drains this once per tick and sends
+ *  IF_BUTTON1(component, sub); nothing else may consume it. */
+bool
+RS_CS2Host_TakeTriggerOpLocal(
+    struct RS_CS2Host* host,
+    struct RS_CS2TriggerOpLocal* out);
 
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change

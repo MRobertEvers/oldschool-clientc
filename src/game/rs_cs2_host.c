@@ -953,6 +953,46 @@ RS_CS2Host_TakeTriggerOp(
     return true;
 }
 
+static void
+rs_cs2_triggeroplocal_push(
+    struct RS_CS2Host* host,
+    int component_id,
+    int sub)
+{
+    int slot;
+
+    assert(host);
+    if( host->triggeroplocal_count >= RS_CS2_HOST_TRIGGEROPLOCAL_MAX )
+    {
+        fprintf(
+            stderr,
+            "cs2: if_triggeroplocal queue full (%d), dropped component 0x%08x sub %d\n",
+            RS_CS2_HOST_TRIGGEROPLOCAL_MAX,
+            (unsigned)component_id,
+            sub);
+        return;
+    }
+    slot = (host->triggeroplocal_head + host->triggeroplocal_count) %
+           RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+    host->triggeroplocal[slot].component_id = component_id;
+    host->triggeroplocal[slot].sub = sub;
+    host->triggeroplocal_count++;
+}
+
+bool
+RS_CS2Host_TakeTriggerOpLocal(
+    struct RS_CS2Host* host,
+    struct RS_CS2TriggerOpLocal* out)
+{
+    if( !host || !out || host->triggeroplocal_count <= 0 )
+        return false;
+    *out = host->triggeroplocal[host->triggeroplocal_head];
+    host->triggeroplocal_head =
+        (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
+    host->triggeroplocal_count--;
+    return true;
+}
+
 void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
@@ -5762,6 +5802,14 @@ rs_cs2_host_exec_dispatch(
             host,
             request->u.cc_trigger_op.component_id,
             request->u.cc_trigger_op.op_index);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:
+        /* Queued so the App can turn it into IF_BUTTON1 on the wire. */
+        rs_cs2_triggeroplocal_push(
+            host,
+            request->u.if_triggeroplocal.component_id,
+            request->u.if_triggeroplocal.sub);
         return CS2VM_EXECNO_OK;
 
     /* ---- SetOn (hooks / no-ops) ---- */

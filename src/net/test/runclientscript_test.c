@@ -281,9 +281,10 @@ test_argument_overflow(void)
              1000 + PKT_RUNCLIENTSCRIPT_ARG_MAX - 1, "and the last one intact");
     CHECK_EQ(pkt._runclientscript.script_id, 785, "and the script id after them");
 
-    /* `ge_pricechecker_prices` (script 785) really does take 28 ints; this is
-     * the packet a server that implemented it would send. */
-    len = write_runclientscript(bytes, sizeof(bytes), 785, types, intv, NULL, 28);
+    /* `ge_pricechecker_prices` (script 785) takes 28 ints — now within the
+     * raised PKT_RUNCLIENTSCRIPT_ARG_MAX. One beyond the cap must still fail. */
+    len = write_runclientscript(bytes, sizeof(bytes), 785, types, intv, NULL,
+                                PKT_RUNCLIENTSCRIPT_ARG_MAX + 1);
     CHECK_EQ(parse(bytes, len, &pkt), 0,
              "one more than the cap is REJECTED, not truncated to garbage");
 

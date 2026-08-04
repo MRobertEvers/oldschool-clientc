@@ -45,10 +45,9 @@
 void
 mock230_equipment_refresh_stats(struct Mock230Server* srv)
 {
-    /* Content owns the paint (`[proc,equipment_refresh]`); the engine owns
-     * *when* — worn_dirty flush and bank/equip open sites call here. By name
-     * rather than the unresolved hook table. */
-    mock230_scripts_run_proc(srv, "[proc,equipment_refresh]", NULL, 0);
+    /* No-op. Content paints via ~equipment_refresh from equip/unequip/openbank
+     * and [if_open,bankmain]. Kept so call sites and selftests compile. */
+    (void)srv;
 }
 
 void

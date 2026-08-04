@@ -4953,6 +4953,34 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /*
+     * if_triggeroplocal — CS2 asked the client to notify the server of a
+     * synthetic button click (skill-guide Quest XP View-journal). Real
+     * rev-239 wire is IF_SCRIPT_TRIGGER; over rev-230 this is IF_BUTTON1
+     * with the typed arg (quest id) in the sub field → last_slot.
+     */
+    {
+        struct RS_CS2TriggerOpLocal trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGEROPLOCAL_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOpLocal(&app->host, &trig) )
+        {
+            if( !app->net )
+                continue;
+            APP_NET_SEND(
+                app,
+                net_out_if_button_op(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    1,
+                    trig.component_id,
+                    trig.sub));
+        }
+    }
+
     /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
      * Early-outs unless a widget was unhidden this tick; per-hook serial gating
      * means already-fired hooks run nothing. */

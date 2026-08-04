@@ -531,8 +531,11 @@ struct PktSetPlayerOp
 /** RUNCLIENTSCRIPT: a clientscript id plus its arguments. Strings are heap and
  *  owned by the packet; `str_mask` bit i marks argument i as the string in
  *  `strv[i]` rather than the int in `intv[i]`, the same convention the CS2
- *  hook-argument plumbing already uses. */
-#define PKT_RUNCLIENTSCRIPT_ARG_MAX 20
+ *  hook-argument plumbing already uses.
+ *
+ *  28 matches `ge_pricechecker_prices` (script 785) and the compiler / mock
+ *  host caps. `str_mask` is uint32_t so the hard ceiling is 32. */
+#define PKT_RUNCLIENTSCRIPT_ARG_MAX 28
 /*
  * 128 was not enough, and the way it was not enough is worth recording: a
  * RUNCLIENTSCRIPT string argument is not a label, it is a *payload*.

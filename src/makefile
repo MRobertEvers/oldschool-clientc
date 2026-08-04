@@ -526,6 +526,9 @@ test-cs2-triggerop: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_trigger_op_test \
 		cs2vm2/test/trigger_op_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_trigger_op_test
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_triggeroplocal_test \
+		cs2vm2/test/triggeroplocal_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_triggeroplocal_test
 
 test-cs2-dialect: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_dialect_test \

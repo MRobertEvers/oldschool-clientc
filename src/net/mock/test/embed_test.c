@@ -1840,23 +1840,23 @@ main(void)
          * ── the sentence, which is content's ──
          *
          * The engine decides who hears it and hands over the name; the wording
-         * is `[proc,friend_logout_notification]` in the content tree. So this
-         * check is really two: that the engine reached content at all, and that
-         * it reached it with the right player active — a `mes` inside that proc
-         * writes to whoever the engine made active, and getting that wrong sends
-         * bob's logout line to bob.
+         * is `[friendlogout,_]` in the content tree. So this check is really
+         * two: that the engine reached content at all, and that it reached it
+         * with the right player active — a `mes` inside that trigger writes to
+         * whoever the engine made active, and getting that wrong sends bob's
+         * logout line to bob.
          *
-         * Skipped, loudly, when the proc is absent: this lane specified the
+         * Skipped, loudly, when scripts are absent: this lane specified the
          * content diff (docs/FRIENDS_PRIVATE_CHAT_CONTENT.md) but does not own
          * the content tree, so a tree without it must not fail here. Run with
          * MOCK230_CONTENT pointed at a tree that has it and the check is real.
          */
-        if( world->hooks.friend_logout_notification )
+        if( world->scripts_ok )
             check(peer_saw_game(&peers[0], "bob has logged out."),
                   "alice is told bob logged out, in content's words");
         else
             printf("embed: SKIP  the logout notification — "
-                   "[proc,friend_logout_notification] is not in this content tree\n");
+                   "[friendlogout,_] trigger is not in this content tree\n");
 
         /* ── and back again ──
          *
@@ -1886,12 +1886,12 @@ main(void)
                 check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
                           peers[0].saw_friend_world != 0,
                       "bob logging back in reaches alice as a non-zero world");
-                if( world->hooks.friend_login_notification )
+                if( world->scripts_ok )
                     check(peer_saw_game(&peers[0], "bob has logged in."),
                           "and alice is told so, in content's words");
                 else
                     printf("embed: SKIP  the login notification — "
-                           "[proc,friend_login_notification] is not in this content tree\n");
+                           "[friendlogin,_] trigger is not in this content tree\n");
 
                 /* Nobody is told about their own login, which is the one branch
                  * in social_notify_followers that is not the reference's — a

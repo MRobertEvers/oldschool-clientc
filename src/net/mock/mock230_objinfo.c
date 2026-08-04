@@ -30,6 +30,9 @@ static const struct Mock230ObjInfo k_unknown = {
     .wearpos_2 = -1,
     .wearpos_3 = -1,
     .stackable = 0,
+    .cost = 1,
+    .members = 0,
+    .tradeable = 1,
     .noted_id = -1,
     .noted_template = -1,
     .cert_id = -1,
@@ -440,6 +443,9 @@ record(
      * of 20 noted swordfish occupies 20 backpack slots. */
     entry->stackable = obj->stacking_behaviour == 1 || obj->noted_template >= 0;
     entry->weight = obj->weight;
+    entry->cost = obj->cost;
+    entry->members = obj->is_members ? 1 : 0;
+    entry->tradeable = obj->tradeable ? 1 : 0;
     /*
      * Notes, both directions, out of the same two fields.
      *
@@ -560,6 +566,9 @@ mock230_objinfo_load(const char* cache_dir)
         g_objs[i].wearpos = -1;
         g_objs[i].wearpos_2 = -1;
         g_objs[i].wearpos_3 = -1;
+        g_objs[i].cost = 1;
+        g_objs[i].members = 0;
+        g_objs[i].tradeable = 1;
         g_objs[i].noted_id = -1;
         g_objs[i].noted_template = -1;
         g_objs[i].cert_id = -1;

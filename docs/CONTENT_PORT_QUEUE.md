@@ -166,7 +166,27 @@ re-arm. Stop only when the user stops the loop.
 | 12z | murder window/flour/sacks | done | kr_mansion_window_multi thread + flourbarrel + sacks flypaper + dog gates; deferred: Break op |
 | 13a | flour prints + murder_journal | done | name-expand flour/print switches + quest_murdermystery journal wire; deferred: category overlays |
 | 13b | arthur_journal | done | Merlin's Crystal journal + quest_merlinscrystal wire; deferred: none |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: fishingcompo_journal or sinclair_guard_dog or cake_tin dough arm; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 13c | fishingcompo_journal | done | Fishing Contest journal + quest_fishingcontest wire; deferred: none |
+| 13d | sinclair_guard_dog | done | murder_mystery_guarddog ai_timer BARK; deferred: none |
+| 13e | cake_tin dough arm | done | pot_flour↔cake_tin + egg/milk → uncooked_cake; deferred: gnome/cocktail |
+| 13f | chocolate cake | done | cake+chocolate_bar/dust → chocolate_cake (lvl 50); herblore grind/brew arms extended |
+| 13g | chocolate milk + hangover | done | dust+milk → chocolaty_milk; snape_grass → hangover_cure; ~objbox→~mesbox |
+| 13h | swamp paste | done | swamp_tar+pot_flour → rawswamppaste (Sea Slug label); deferred: seaslug body |
+| 13i | white_wolf rockslide | done | herorockslide mine+forcemove; mining_anim switch; deferred: sound_synth |
+| 13j | grail realm thin NPCs | done | fisherman/maiden/king_percival/peasants Talk-to; deferred: none |
+| 13k | fisher_king | done | Talk-to tree + %grail→finding_percival; deferred: none |
+| 13l | grail_crone + Entrana priest | done | crone dialogue + high_priest grail arm; deferred: heroquest firebird |
+| 13m | sir_percival | done | sack rescue + whistle handoff; deferred: none |
+| 13n | grail_journal | done | Holy Grail journal + quest_holygrail wire; deferred: none |
+| 13o | black_knight_titan | done | Talk-to + Excalibur death gate + drops; deferred: none |
+| 13p | kaqemeex + quest_druid | done | Druidic Ritual start/complete + cauldron dip; %druidquest clean-varp 80; deferred: journal |
+| 13q | sanfew | done | Ritual arms only; deferred: Eadgar/goutweed |
+| 13r | fletching bolts/darts | done | cat 530/969 + tip cut + tip+bolt/feather; deferred: ogre/crossbow gem tips beyond opal/pearl/barb |
+| 13s | druid_journal | done | Druidic Ritual journal + quest_druidicritual wire; deferred: none |
+| 13t | crystal_chest/key | done | keyhalf join + chest unlock/loot table; deferred: sound_synth |
+| 13u | gaius | done | two-handed sword shop Talk-to + Trade stub; deferred: openshop, trail clue |
+| 13v | jatix | done | herblore shop Talk-to + Trade stub; deferred: openshop |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: taverly druid AI or boy (witch's house — ball constants defer-slice) or burthorpe/yanille thin NPCs; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -330,6 +350,26 @@ re-arm. Stop only when the user stops the loop.
 - slice 12z done: murder window/flour/sacks/dog gates (loc_2666→kr_mansion_window_multi_*); mock230_pack 0 errors
 - slice 13a done: flour prints (switch maps) + murder_journal; mock230_pack 0 errors
 - slice 13b done: arthur_journal + quest_merlinscrystal wire; mock230_pack 0 errors (3357 scripts)
-- next pending: fishingcompo_journal or sinclair_guard_dog or cake_tin dough arm; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 13c done: fishingcompo_journal + quest_fishingcontest wire; mock230_pack 0 errors
+- slice 13d done: sinclair_guard_dog ai_timer; mock230_pack 0 errors
+- slice 13e done: cake_tin → uncooked_cake (+ dough arm); mock230_pack 0 errors
+- slice 13f done: chocolate cake; mock230_pack 0 errors
+- slice 13g done: chocolaty_milk + hangover_cure; mock230_pack 0 errors
+- slice 13h done: swamp_tar+flour → rawswamppaste; mock230_pack 0 errors
+- slice 13i done: herorockslide mine+forcemove; mock230_pack 0 errors
+- slice 13j done: grail realm thin NPCs (fisherman/maiden/percival/peasants); mock230_pack 0 errors
+- slice 13k done: fisher_king Talk-to; mock230_pack 0 errors
+- slice 13l done: grail_crone + high_priest grail arm; mock230_pack 0 errors
+- slice 13m done: sir_percival; mock230_pack 0 errors
+- slice 13n done: grail_journal + quest_holygrail wire; mock230_pack 0 errors (3400 scripts)
+- slice 13o done: black_knight_titan Talk-to + Excalibur death gate + drops; mock230_pack 0 errors (3404 scripts)
+- slice 13p done: kaqemeex + %druidquest + quest_druid complete/cauldron; mock230_pack 0 errors (3419 scripts)
+- slice 13q done: sanfew Druidic Ritual arms (Eadgar deferred); mock230_pack 0 errors (3427 scripts)
+- slice 13r done: fletching bolts/darts (cat 530=bolttips, 969=dart_tips); mock230_pack 0 errors (3433 scripts)
+- slice 13s done: druid_journal + quest_druidicritual wire; mock230_pack 0 errors (3434 scripts)
+- slice 13t done: crystal_chest + crystal_key (join halves + loot); mock230_pack 0 errors (3441 scripts)
+- slice 13u done: gaius Talk-to + Trade stub; trail clue deferred; mock230_pack 0 errors (3443 scripts)
+- slice 13v done: jatix Talk-to + Trade stub; mock230_pack 0 errors (3445 scripts)
+- next pending: taverly druid AI or boy (witch's house — ball constants defer-slice) or burthorpe/yanille thin NPCs; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

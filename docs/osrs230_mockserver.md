@@ -394,8 +394,8 @@ The **wield requirement** was "the engine's to enforce and content's to
 describe" until 2026-08-02, and it is content's on both halves now.
 `mock230_equipment_may_wear` and the `equip_level_message` hook are deleted;
 `~levelrequire_check` (`skill_combat/scripts/levelrequire.rs2`) decides and
-speaks, from `[opheld2,_]`, and the sanctioned-hook list went **11 → 10** with
-it — the first time it has gone down (§3.18).
+speaks, from `[opheld2,_]`, and the hook table is now gone entirely (removed
+2026-08-03) — triggers are the only engine→content entry.
 
 What survives from that paragraph is the half that was already right: the words
 are content's. `[proc,equip_level_message]` takes the `stat` id rather than its
@@ -490,12 +490,10 @@ compiles twice and `find_by_key` resolves by `bsearch` (triage §16.11).
 
 **A trigger is how the engine should reach content, and a script name in C is
 not.** The ten call sites that used to spell one — `"[queue,player_death]"`,
-`"[proc,npc_meleeattack]"` and eight more — go through `srv->hooks` now, a table
-`mock230_scripts_resolve_hooks` fills from the pack when it loads. An unresolved
-hook is reported at boot instead of doing nothing forever, which is what an
-unknown name used to do in every `run_proc` helper: renaming a script deleted a
-feature without failing a build, a test or a log line outside `--verbose`. The
-by-name helpers remain for tests. `docs/CONTENT_ARCHITECTURE.md` §8.6 has the
+`"[proc,npc_meleeattack]"` and eight more — are gone. The hook table
+(`struct Mock230Hooks`, `mock230_scripts_resolve_hooks`) was removed 2026-08-03;
+every path now reaches content via a trigger (advancestat, friendlogin/logout,
+ai_opplayer2, opnpc2, if_button). `docs/CONTENT_ARCHITECTURE.md` §8.6 has the
 rule and what is left (`mock230_say`'s message procs).
 
 "Attack" is engine *for now*. It reads the npc's own cache op list — the same
@@ -3458,8 +3456,7 @@ exactly what it says. Twenty-six objs; the exhaustive leg found every one.
 `MOCK230_VERB_WEAR` / `WIELD` / `DROP` **and `k_engine_held_verbs`**, the
 `[opheld<n>]` arm of `mock230_world_engine_claimed_verb`,
 `mock230_equipment_may_wear` (45 lines) with the `equip_level_message` hook —
-the sanctioned-hook list is **10** now, and this is the first time it has ever
-gone down — the `::equip` C cheat branch, `MOCK230_FALLBACK_OPHELD`, its
+the hook table is gone now (removed 2026-08-03) — the `::equip` C cheat branch, `MOCK230_FALLBACK_OPHELD`, its
 `k_engine_fallbacks` row and `k_blocked_opheld`. The count assertion went
 **5 → 4**.
 

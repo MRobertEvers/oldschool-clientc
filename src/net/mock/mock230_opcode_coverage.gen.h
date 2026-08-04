@@ -12,13 +12,13 @@
  *     63  VM core
  *    180  host commands
  *      9  host commands (db)
- *      5  host commands (inv)
+ *      6  host commands (inv)
  *      8  host commands (loc)
  *      7  host commands (npc)
- *      8  host commands (obj)
+ *     12  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    285  total, of 413 declared opcodes
+ *    290  total, of 413 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 285
+#define MOCK230_OPCODE_COVERAGE_COUNT 290
 #define MOCK230_OPCODE_DECLARED_COUNT 413
 
 /*
@@ -213,6 +213,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     3012, /* SS_OP_LOC_SHAPE (host commands) */
     3013, /* SS_OP_LOC_TYPE (host commands) */
     3500, /* SS_OP_OBJ_ADD (host commands) */
+    3501, /* SS_OP_OBJ_ADDALL (host commands (obj)) */
     3502, /* SS_OP_OBJ_COORD (host commands (obj)) */
     3503, /* SS_OP_OBJ_COUNT (host commands (obj)) */
     3504, /* SS_OP_OBJ_DEL (host commands (obj)) */
@@ -233,11 +234,14 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4107, /* SS_OP_LC_WIDTH (host commands (loc)) */
     4200, /* SS_OP_OC_CATEGORY (host commands) */
     4201, /* SS_OP_OC_CERT (host commands) */
+    4202, /* SS_OP_OC_COST (host commands (obj)) */
     4203, /* SS_OP_OC_DEBUGNAME (host commands) */
     4204, /* SS_OP_OC_DESC (host commands) */
+    4206, /* SS_OP_OC_MEMBERS (host commands (obj)) */
     4207, /* SS_OP_OC_NAME (host commands) */
     4209, /* SS_OP_OC_PARAM (host commands) */
     4210, /* SS_OP_OC_STACKABLE (host commands) */
+    4211, /* SS_OP_OC_TRADEABLE (host commands (obj)) */
     4212, /* SS_OP_OC_UNCERT (host commands) */
     4213, /* SS_OP_OC_WEARPOS (host commands (obj)) */
     4214, /* SS_OP_OC_WEARPOS2 (host commands (obj)) */
@@ -247,6 +251,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4306, /* SS_OP_INV_DEBUGNAME (host commands) */
     4307, /* SS_OP_INV_DEL (host commands) */
     4308, /* SS_OP_INV_DELSLOT (host commands) */
+    4309, /* SS_OP_INV_DROPALL (host commands (inv)) */
     4312, /* SS_OP_INV_DROPSLOT (host commands (inv)) */
     4313, /* SS_OP_INV_FREESPACE (host commands) */
     4314, /* SS_OP_INV_GETNUM (host commands) */

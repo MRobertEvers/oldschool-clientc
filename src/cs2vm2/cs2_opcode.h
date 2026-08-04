@@ -1526,6 +1526,11 @@
 #define CS2_OP_IF_GETOPBASE 2802
 #define CS2_OP_IF_CALLONRESIZE 2927
 #define CS2_OP_IF_TRIGGEROP 2928
+/* IF_TRIGGEROPLOCAL — synthesize a server button click with typed args.
+ * int stack in:   crc, component, childIndex, typedInts...
+ * str stack in:   signature ("i" / "s" / …)
+ * Real rev-239 wire is IF_SCRIPT_TRIGGER; this client adapts to IF_BUTTON1. */
+#define CS2_OP_IF_TRIGGEROPLOCAL 2929
 #define CS2_OP_MES 3100
 #define CS2_OP_ANIM 3101
 #define CS2_OP_IF_CLOSE 3103

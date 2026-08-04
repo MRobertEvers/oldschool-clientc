@@ -134,6 +134,11 @@ enum CS2VM_HostRequestKind
      *  (shift-click inventory options) — verified one INT in, nothing out via
      *  local_commands.py's witness table, not guessed. */
     CS2VM_HOST_REQUEST_CC_TRIGGEROP,
+    /** IF_TRIGGEROPLOCAL (2929): CS2 asked the client to notify the server of a
+     *  synthetic button click with typed args (skill-guide Quest XP
+     *  View-journal → script9189). Real rev-239 wire is IF_SCRIPT_TRIGGER;
+     *  over rev-230 this becomes IF_BUTTON1(component, sub). */
+    CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL,
     // IF Interfaces
     CS2VM_HOST_REQUEST_IF_GETWIDTH,
     CS2VM_HOST_REQUEST_IF_GETHEIGHT,
@@ -827,6 +832,14 @@ struct CS2VM_HostRequest_CC_TriggerOp
     int op_index;
 };
 
+/** IF_TRIGGEROPLOCAL — component to click and the sub-id that becomes
+ *  last_slot (quest id when childIndex was -1 and the signature carried "i"). */
+struct CS2VM_HostRequest_IF_TriggerOpLocal
+{
+    int component_id;
+    int sub;
+};
+
 struct CS2VM_HostRequest_IF_ClearOpSubmenu
 {
     int component_id;
@@ -1460,6 +1473,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
         struct CS2VM_HostRequest_IF_CallOnResize if_call_on_resize;
         struct CS2VM_HostRequest_CC_TriggerOp cc_trigger_op;
+        struct CS2VM_HostRequest_IF_TriggerOpLocal if_triggeroplocal;
         struct CS2VM_HostRequest_IF_ClearOpSubmenu if_clear_op_submenu;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;
         struct CS2VM_HostRequest_IF_SetScrollPos cc_set_scroll_pos;

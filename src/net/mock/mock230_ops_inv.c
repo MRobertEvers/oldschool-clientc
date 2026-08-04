@@ -282,6 +282,53 @@ mock230_ops_inv(
     }
 
     /*
+     * `[command,inv_dropall](inv $inv, coord $coord, int $duration)` —
+     * engine.rs2:929. `InvOps.ts` INV_DROPALL: empty every occupied slot onto
+     * the floor at `$coord`. Wealth logging is omitted (no wealth log here).
+     */
+    case SS_OP_INV_DROPALL:
+    {
+        int32_t inv_id;
+        int32_t coord;
+        int32_t duration;
+        struct Mock230Container* row;
+        int last = -1;
+
+        if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &coord) ||
+            !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        row = container(state, inv_id, opcode);
+        if( !row )
+            return 1;
+        for( int slot = 0; slot < row->slots; slot++ )
+        {
+            int obj_id = row->items[slot].obj_id;
+            int count = row->items[slot].count;
+
+            if( obj_id < 0 || count <= 0 )
+                continue;
+            mock230_container_set(row, slot, -1, 0);
+            if( !mock230_objinfo(obj_id)->stackable && count > 1 )
+            {
+                for( int i = 0; i < count; i++ )
+                    last = mock230_world_obj_add(srv, obj_id, 1, mock230_coord_x(coord),
+                                                 mock230_coord_z(coord),
+                                                 mock230_coord_level(coord), (int)duration);
+            }
+            else
+            {
+                last = mock230_world_obj_add(srv, obj_id, count, mock230_coord_x(coord),
+                                             mock230_coord_z(coord), mock230_coord_level(coord),
+                                             (int)duration);
+            }
+        }
+        if( last >= 0 )
+            SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
+                           (void*)mock230_world_obj_handle(srv, last));
+        return 1;
+    }
+
+    /*
      * inv_moveitem / _cert / _uncert — engine.rs2:873, :869, :871.
      * `(inv $from, inv $to, obj $obj, int $count)`, nothing out.
      *

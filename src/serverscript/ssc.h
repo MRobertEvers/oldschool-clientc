@@ -66,8 +66,10 @@ enum
      * thirteen in one assignment. A round number chosen without a corpus to
      * check it against, in other words, and it rejected a verbatim port. */
     SSC_MAX_ASSIGN_TARGETS = 32,
-    /* Values in a `queue*(...)(a, b, c)` vararg block. */
-    SSC_MAX_VARARG_TYPES = 16,
+    /* Values in a `queue*(...)(a, b, c)` / `runclientscript*(...)(…)` vararg
+     * block. 28 covers `ge_pricechecker_prices` (script 785); keep in lockstep
+     * with MOCK230_RUNCLIENTSCRIPT_ARG_MAX and PKT_RUNCLIENTSCRIPT_ARG_MAX. */
+    SSC_MAX_VARARG_TYPES = 28,
 };
 
 /* ------------------------------------------------------------------ */

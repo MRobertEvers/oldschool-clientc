@@ -273,6 +273,87 @@ mock230_ops_obj(
         return 1;
     }
 
+    /*
+     * `[command,oc_cost](obj $obj)(int)` — engine.rs2:803.
+     * `ObjConfigOps.ts` `OC_COST` → `ObjType.cost`. Store value, not high alch.
+     */
+    case SS_OP_OC_COST:
+    {
+        int32_t obj_id;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->cost);
+        return 1;
+    }
+
+    /*
+     * `[command,oc_members](obj $obj)(boolean)` — engine.rs2:793.
+     */
+    case SS_OP_OC_MEMBERS:
+    {
+        int32_t obj_id;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->members);
+        return 1;
+    }
+
+    /*
+     * `[command,oc_tradeable](obj $obj)(boolean)` — engine.rs2:805.
+     */
+    case SS_OP_OC_TRADEABLE:
+    {
+        int32_t obj_id;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->tradeable);
+        return 1;
+    }
+
+    /*
+     * `[command,obj_addall](coord $coord, namedobj $obj, int $count, int $duration)`
+     * — engine.rs2:727. `ObjOps.ts` OBJ_ADDALL: like obj_add but always public
+     * (no receiver). Used for death bones.
+     */
+    case SS_OP_OBJ_ADDALL:
+    {
+        int32_t values[4];
+        int last = -1;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[1] < 0 || values[2] <= 0 )
+            return 1;
+        {
+            int obj_id = (int)values[1];
+            int count = (int)values[2];
+            int duration = values[3] > 0 ? (int)values[3] : -1;
+            int x = mock230_coord_x(values[0]);
+            int z = mock230_coord_z(values[0]);
+            int level = mock230_coord_level(values[0]);
+
+            if( !mock230_objinfo(obj_id)->stackable || count == 1 )
+            {
+                for( int i = 0; i < count; i++ )
+                    last = mock230_world_obj_add(srv, obj_id, 1, x, z, level, duration);
+            }
+            else
+            {
+                last = mock230_world_obj_add(srv, obj_id, count, x, z, level, duration);
+            }
+            if( last >= 0 )
+                SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
+                               (void*)mock230_world_obj_handle(srv, last));
+        }
+        return 1;
+    }
+
     default:
         return 0;
     }
