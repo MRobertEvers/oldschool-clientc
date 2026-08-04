@@ -587,7 +587,10 @@ grid path that rev 230 does not have.
 **Report.** Screenshots showed the multi-option dialogue ("Select an Option",
 `chatbox_multi_init` script 58, interface 219) rendering too low: a large gap
 above the header, and the block crowding the chatbox mode-button row
-(`All`/`Game`/`Public`/...) at abs y 480.
+(`All`/`Game`/`Public`/...) at abs y 480. The same class of bug later
+resurfaced for `chat_left` (231) / `chat_right` (217): the whole dialogue sat
+too low, the chathead clipped the mode bar, and "Click here to continue"
+neither hovered nor clicked.
 
 **What the earlier investigation got right.** Driving Hans's
 `[opnpc1,hans]` → `~p_choice3` headlessly (`TORIRS_DUMP_BOUNDS=219`), the
@@ -596,9 +599,9 @@ above the header, and the block crowding the chatbox mode-button row
 swaps). `ToriDraw2D_DrawStringBox` / `gl3_draw_font_box` match the reference
 `Font.renderParagraphAlpha` vertical formulas. The boxes were never the bug.
 
-**What it missed.** Those boxes were measured against a wrong parent origin.
-`chatmenu` mounts into `chatbox:chatmodal` (`162:567`, 479×96, centred in the
-519×142 chat area → abs `20,361`). The authored `options` layer was
+**What it missed (round 1).** Those boxes were measured against a wrong parent
+origin. `chatmenu` mounts into `chatbox:chatmodal` (`162:567`, 479×96, centred
+in the 519×142 chat area → abs `20,361`). The authored `options` layer was
 `x=20 y=12 width=479 height=122` with no position modes — margins of the
 *519×142 chat area*, applied on top of a parent that already centres itself.
 Result: abs `40,373`, 20px right of centre and ~25px too low. Pristine
@@ -606,14 +609,41 @@ Result: abs `40,373`, 20px right of centre and ~25px too low. Pristine
 layout; sibling `chat_left` (231) mounts into the same slot with
 `xmode=1 ymode=1` instead.
 
-**Fix.** In `OSRS-Content/osrs239-content/interfaces/chatmenu.if`, drop
-`x=20`/`y=12` on `[options]` and add `xmode=1 ymode=1` (keep 479×122), so the
-layer centres in chatmodal the way 231's root does. Re-pack interfaces into
-the boot cache (or a verify out-dir such as `cache.osrs239.chatfix`) before
-measuring — the pristine cache still has the old offsets.
+**Fix (content).** In `OSRS-Content/osrs239-content/interfaces/chatmenu.if`,
+drop `x=20`/`y=12` on `[options]` and add `xmode=1 ymode=1` (keep 479×122),
+so the layer centres in chatmodal the way 231's root does. Re-pack interfaces
+into the boot cache before measuring — the pristine cache still has the old
+offsets. Kept after the round-2 re-measure below.
 
-**Re-measured (post-fix).** Same Hans path, space (`k83`) past the greeting,
-`TORIRS_DUMP_BOUNDS=219`:
+**What broke it again (round 2, 2026-08-03).** Commit `cf4fcf3e` added a
+global IF3 centre-mode guard in `UITree_If3AxisFromPositionMode`: when
+`self_dim > parent_dim`, centre became origin-align instead of overhanging.
+Every chatbox dialogue root is deliberately *larger* than `chatmodal`
+(231/217/229/60/923 are 506×129 in a 479×96 slot; 219 is 479×122) and relies
+on that overhang so the inner `safezone`/`content` re-centrings land content
+exactly on the slot. With the guard, `chat_left` shifted **+14 x, +17 y**:
+continue moved from abs `(115,91)` to `(129,108)` and straddled
+`chatbox:controls` (`ymode=2` at y 119, `noclickthrough=yes`) — no hover, no
+click. `chatmenu` options pinned at y=+11 instead of y=−13 and the lower
+choice rows sat under the same bar.
+
+**Tell.** A dialogue root whose declared size is larger than its mount slot
+must overhang under IF3 centre arithmetic
+(`(parent_dim - self_dim) >> 1`). If continue/choices refuse hover, dump
+bounds for 231/219 and check whether `continue` (or the last choice row)
+intersects `chatbox:controls` at y≥119 inside a 142-tall chat panel.
+
+**Fix (engine).** Revert the oversized-child branches in
+`src/ui/ui_if3_layout.h` modes 1 and 4. The stretch gameframe's
+`viewport_tracker` at `abs_x=-21` (canvas-sized child in a canvas−42
+gameframe) is the *correct* reference result of the same math — see
+`gameframe_layout_resize.md` §5; do not paper over it on the shared IF3
+axis path. Pinned by the dialogue-chain case in
+`src/ui/test/uitree_test_layout_build.c` (content at `(19,11)`, continue at
+`(115,91)`, bottom ≤119).
+
+**Re-measured (post content fix).** Same Hans path, space (`k83`) past the
+greeting, `TORIRS_DUMP_BOUNDS=219`:
 
 ```
 BOUNDS (219|0)  type=18 abs=20,348 479x122   <- universe (fills options)

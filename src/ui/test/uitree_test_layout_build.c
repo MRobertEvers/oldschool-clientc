@@ -257,9 +257,9 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
-    /* IF3 centre (xmode=1): normal child stays centred; oversized child
-     * origin-aligns so a canvas-sized tracker in a canvas-42 gameframe sits at
-     * abs_x=0 instead of (723-765)/2 = -21. */
+    /* IF3 centre (xmode=1): undersized child centres; oversized child overhangs
+     * both sides via arithmetic right-shift — (723-765)>>1 == -21. Chatbox
+     * dialogues rely on that overhang; do not origin-align. */
     {
         struct UITree* tree = UITree_New(4);
         struct UITreeNodeSpec parent_spec;
@@ -306,12 +306,114 @@ test_layout_build(void)
         UITree_LayoutInvalidateBoxes(tree);
         UITree_TestResolve(tree);
         TEST_ASSERT(
-            tree->components[child].position.abs_x == 0,
-            "oversized centre child origin-aligns (not -21)");
+            tree->components[child].position.abs_x == ((723 - 765) >> 1),
+            "oversized centre child overhangs (abs_x=-21)");
         TEST_ASSERT(
-            tree->components[child].position.abs_y == 0,
-            "oversized centre child origin-aligns y");
+            tree->components[child].position.abs_y == ((503 - 503) >> 1),
+            "oversized centre child y when equal height is 0");
         TEST_ASSERT(tree->components[child].position.abs_w == 765, "oversized centre keeps width");
+
+        UITree_Free(tree);
+    }
+
+    /* chat_left (231) mount chain into chatbox:chatmodal (479x96 at 20,11).
+     * Universe 506x129 centres with overhang; safezone and content re-centre
+     * so content lands exactly on the slot and continue stays clear of the
+     * noclickthrough chatbox:controls bar at y=119. */
+    {
+        struct UITree* tree = UITree_New(8);
+        struct UITreeNodeSpec spec;
+        int32_t slot;
+        int32_t universe;
+        int32_t safezone;
+        int32_t content;
+        int32_t cont;
+        int32_t head;
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (162 << 16) | 567;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.x = 20;
+        spec.position.y = 11;
+        spec.position.width = 479;
+        spec.position.height = 96;
+        slot = UITree_Push(tree, -1, &spec);
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (231 << 16) | 0;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.x = 1;
+        spec.position.width = 506;
+        spec.position.height = 129;
+        spec.position.x_mode = 1;
+        spec.position.y_mode = 1;
+        universe = UITree_Push(tree, slot, &spec);
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (231 << 16) | 1;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.x = -1;
+        spec.position.y = 1;
+        spec.position.width = 481;
+        spec.position.height = 110;
+        spec.position.x_mode = 1;
+        spec.position.y_mode = 1;
+        safezone = UITree_Push(tree, universe, &spec);
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_LAYER;
+        spec.component_id = (231 << 16) | 3;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.width = 479;
+        spec.position.height = 96;
+        spec.position.x_mode = 1;
+        spec.position.y_mode = 1;
+        content = UITree_Push(tree, safezone, &spec);
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_TEXT;
+        spec.component_id = (231 << 16) | 5;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.x = 96;
+        spec.position.y = 80;
+        spec.position.width = 380;
+        spec.position.height = 17;
+        cont = UITree_Push(tree, content, &spec);
+
+        memset(&spec, 0, sizeof(spec));
+        spec.type = UIELEM_RS_MODEL;
+        spec.component_id = (231 << 16) | 2;
+        spec.has_position = 1;
+        spec.position.kind = UIPOS_XY;
+        spec.position.x = 35;
+        spec.position.y = 43;
+        spec.position.width = 32;
+        spec.position.height = 32;
+        head = UITree_Push(tree, safezone, &spec);
+
+        UITree_TestResolve(tree);
+
+        TEST_ASSERT(tree->components[universe].position.abs_x == 7, "chat_left universe abs_x");
+        TEST_ASSERT(tree->components[universe].position.abs_y == -6, "chat_left universe abs_y");
+        TEST_ASSERT(tree->components[safezone].position.abs_x == 18, "chat_left safezone abs_x");
+        TEST_ASSERT(tree->components[safezone].position.abs_y == 4, "chat_left safezone abs_y");
+        TEST_ASSERT(tree->components[content].position.abs_x == 19, "chat_left content abs_x");
+        TEST_ASSERT(tree->components[content].position.abs_y == 11, "chat_left content abs_y");
+        TEST_ASSERT(tree->components[cont].position.abs_x == 115, "chat_left continue abs_x");
+        TEST_ASSERT(tree->components[cont].position.abs_y == 91, "chat_left continue abs_y");
+        TEST_ASSERT(
+            tree->components[cont].position.abs_y + tree->components[cont].position.abs_h <= 119,
+            "continue clears chatbox:controls at y=119");
+        TEST_ASSERT(tree->components[head].position.abs_x == 53, "chat_left head abs_x");
+        TEST_ASSERT(tree->components[head].position.abs_y == 47, "chat_left head abs_y");
 
         UITree_Free(tree);
     }

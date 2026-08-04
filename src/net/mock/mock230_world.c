@@ -3897,21 +3897,15 @@ handle_cheat(
     if( strncmp(text, "setlevel", 8) == 0 )
     {
         /* `::setlevel <stat> <level>` — the combat formulas are only
-         * interesting if the inputs can be moved. */
+         * interesting if the inputs can be moved. XP is set to the threshold
+         * for that level so base survives logout (LostCity setLevel). */
         int stat = 0;
         int level = 1;
 
         if( sscanf(text, "setlevel %d %d", &stat, &level) == 2 && stat >= 0 &&
             stat < MOCK230_STAT_COUNT && level >= 1 && level <= 99 )
         {
-            player->stat_level[stat] = level;
-            player->stat_boosted[stat] = level;
-            if( stat == MOCK230_STAT_HITPOINTS )
-            {
-                player->hitpoints = level;
-                mock230_combat_sync_hitpoints(player);
-            }
-            mock230_combat_stat_mark(player, stat);
+            mock230_combat_set_level(player, stat, level);
             say(srv, "Set stat %d to %d.", stat, level);
         }
         return;
@@ -6217,6 +6211,14 @@ phase_npcs(struct Mock230Server* srv)
         mock230_combat_npc_tick(srv, slot);
     }
     advance_npcs(srv);
+    /* After combat and modes have claimed facing: clear idle latches
+     * (LostCity setFaceEntity with no pathing target). */
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        if( !srv->npcs[slot].active )
+            continue;
+        mock230_npc_face_clear_if_idle(&srv->npcs[slot]);
+    }
 }
 
 /*
@@ -6282,6 +6284,13 @@ phase_player(struct Mock230Player* player)
      * one tick after the crossing, before this tick's movement rather than
      * after it. */
     mock230_scripts_process_engine_queue(srv);
+
+    /*
+     * Face the interaction / combat target before approach can return early
+     * and before process_interaction can clear it — LostCity
+     * PathingEntity.setFaceEntity in processPlayers, before processInteraction.
+     */
+    mock230_player_set_face_entity(player);
 
     /* Movement is the tail of the interaction step in the reference, between
      * the pre-move and post-move interaction attempts. Combat brackets it the
@@ -10508,11 +10517,12 @@ mock230_world_selftest(void)
             player->hitpoints = player->max_hitpoints;
 
             /*
-             * Snapshot, never zero. `stat_xp_tenths` is what `level_for_xp`
-             * derives the level from, so zeroing hitpoints xp drops the player
-             * to level 1 hitpoints the next time any xp lands — max_hitpoints
-             * follows, and a one-hitpoint player loses every fight after. The
-             * first version of this check did exactly that and produced
+             * Snapshot, never zero. `stat_xp_tenths` is what
+             * `mock230_combat_level_for_xp` derives the level from, so zeroing
+             * hitpoints xp drops the player to level 1 hitpoints the next time
+             * any xp lands — max_hitpoints follows, and a one-hitpoint player
+             * loses every fight after. The first version of this check did
+             * exactly that and produced
              * thirteen failures in five unrelated sections.
              */
             xp_before[MOCK230_STAT_ATTACK] = player->stat_xp_tenths[MOCK230_STAT_ATTACK];
@@ -10693,9 +10703,11 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: facing clears\n");
     {
         /*
-         * FACE_ENTITY is a latch. Every path that drops a target has to send
-         * -1, and "the player clicked somewhere else" is one of those paths —
-         * it is the one that produced "facing never clears", because the other
+         * FACE_ENTITY is a latch. LostCity PathingEntity.setFaceEntity drives it
+         * every turn from the interaction / combat target — including during
+         * walk-to-attack, before engage. Every path that drops a target has to
+         * send -1, and "the player clicked somewhere else" is one of those paths
+         * — it is the one that produced "facing never clears", because the other
          * three end a fight and this one just leaves.
          */
         int goblin = selftest_find_npc(&srv, 3028);
@@ -10704,8 +10716,24 @@ mock230_world_selftest(void)
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
+            const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
             uint8_t move[7];
 
+            /* Approach-before-engage: face from the pending interaction alone. */
+            selftest_park_player(&srv, npc->x + 8, npc->z);
+            player->level = npc->level;
+            mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, goblin, npc->type,
+                                          npc->x, npc->z, npc->level, info->size, info->size);
+            SELFTEST_CHECK(player->combat_target < 0,
+                           "approach starts without a combat target");
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->combat_target < 0,
+                           "still approaching after one tick (not yet engaged)");
+            SELFTEST_CHECK(player->face_entity == goblin,
+                           "approach faces the npc before engage, got %d",
+                           player->face_entity);
+
+            mock230_world_clear_pending_action(&srv);
             selftest_park_player(&srv, npc->x + 1, npc->z);
             player->level = npc->level;
             mock230_combat_engage(&srv, goblin);

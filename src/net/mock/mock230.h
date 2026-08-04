@@ -1550,6 +1550,25 @@ mock230_npc_face_player(
     npc->masks |= MOCK230_NMASK_FACE_ENTITY;
 }
 
+/*
+ * LostCity setFaceEntity else-branch for npcs: drop the latch when neither
+ * combat nor a player-facing mode is holding a target. Talk-to and similar
+ * one-shot faces then clear on the next npc turn instead of sticking forever.
+ */
+static inline void
+mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
+{
+    assert(npc);
+    if( npc->combat_target >= 0 )
+        return;
+    if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
+        return;
+    if( npc->face_entity == -1 )
+        return;
+    npc->face_entity = -1;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+}
+
 struct Mock230Player
 {
     /*
@@ -1965,6 +1984,32 @@ struct Mock230Player
     int gender;
 
 };
+
+/*
+ * LostCity PathingEntity.setFaceEntity for players.
+ *
+ * Face the current pathing target every turn: combat first, else a pending
+ * npc/player interaction (so walk-to-attack faces during approach), else
+ * clear. Mask only on change — FACE_ENTITY is a latch.
+ */
+static inline void
+mock230_player_set_face_entity(struct Mock230Player* player)
+{
+    int want = -1;
+
+    assert(player);
+    if( player->combat_target >= 0 )
+        want = player->combat_target;
+    else if( player->interaction.kind == MOCK230_INTERACT_NPC )
+        want = player->interaction.npc_slot;
+    else if( player->interaction.kind == MOCK230_INTERACT_PLAYER )
+        want = MOCK230_FACE_PLAYER_BASE + player->interaction.npc_slot;
+
+    if( player->face_entity == want )
+        return;
+    player->face_entity = want;
+    player->masks |= MOCK230_PMASK_FACE_ENTITY;
+}
 
 /*
  * Every script the *engine* starts, resolved once when the pack loads.

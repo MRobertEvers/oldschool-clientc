@@ -369,6 +369,9 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
  * Display has remounted Fixed/Modern. Those are role aliases for the live
  * gameframe's matching slot — rewrite by the `:role` suffix using the uids
  * if_opentop already bound on the player. No list of tops, no numeric ids.
+ *
+ * Only rewrite when the named component lives on a *different* interface than
+ * the session's live top; same-top spellings are already correct.
  */
 static int
 mock230_remap_gameframe_slot_uid(
@@ -379,9 +382,13 @@ mock230_remap_gameframe_slot_uid(
     const char* colon;
     const char* role;
     int live;
+    int live_iface;
 
     assert(player);
     if( uid <= 0 )
+        return uid;
+    live_iface = mock230_player_gameframe_iface(player);
+    if( live_iface > 0 && MOCK230_COM_GROUP(uid) == live_iface )
         return uid;
     name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
     if( !name )
@@ -1223,7 +1230,13 @@ put_player_extended(
      * reads as a rendering problem.
      */
     if( force_appearance )
+    {
         mask |= MOCK230_PMASK_APPEARANCE;
+        /* LostCity PlayerInfoEncoder.lowdefinition: re-emit a latched
+         * FACE_ENTITY on enter-view even when the per-tick mask was cleared. */
+        if( player->face_entity != -1 )
+            mask |= MOCK230_PMASK_FACE_ENTITY;
+    }
 
     if( mask >= 0x100 )
     {
@@ -1743,13 +1756,20 @@ npc_extended_pending(const struct Mock230Npc* npc)
  * The npc mask is a single byte — unlike the player's, there is no widening
  * bit, so the eight fields below are all there is room for. Fields go in
  * ascending bit order, matching the reader's test order.
+ *
+ * `force_face_latch`: LostCity NpcInfoEncoder.lowdefinition — on enter-view,
+ * re-emit a latched FACE_ENTITY even when the per-tick mask bit was cleared.
  */
 static void
 put_npc_extended(
     struct RSAreaBuf* buf,
-    struct Mock230Npc* npc)
+    struct Mock230Npc* npc,
+    int force_face_latch)
 {
     uint32_t mask = npc->masks & 0xff;
+
+    if( force_face_latch && npc->face_entity != -1 )
+        mask |= MOCK230_NMASK_FACE_ENTITY;
 
     rsab_p1(buf, (int32_t)mask);
 
@@ -1830,8 +1850,10 @@ mock230_send_npc_info(struct Mock230Player* player)
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
-     * so remember that order while writing the bits. */
+     * so remember that order while writing the bits. queued_force_face marks
+     * enter-view slots that must re-emit a latched FACE_ENTITY. */
     int queued[MOCK230_TRACKED_NPC_MAX];
+    int queued_force_face[MOCK230_TRACKED_NPC_MAX];
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
@@ -1902,7 +1924,10 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 0);
         }
         if( extended )
+        {
+            queued_force_face[queued_count] = 0;
             queued[queued_count++] = slot;
+        }
     }
 
     /*
@@ -1940,13 +1965,21 @@ mock230_send_npc_info(struct Mock230Player* player)
          * MOCK230_NPC_TYPE_BITS. Then 5-bit signed deltas from the local
          * player and 1-bit "extended info follows". No jump bit — unlike the
          * player stream's new-entity record. */
-        rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
-        rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc->type);
-        rsab_pbit(&buf, 5, dx & 0x1f);
-        rsab_pbit(&buf, 5, dz & 0x1f);
-        rsab_pbit(&buf, 1, npc_extended_pending(npc));
-        if( npc_extended_pending(npc) )
-            queued[queued_count++] = slot;
+        {
+            int force_face = npc->face_entity != -1;
+            int extended = npc_extended_pending(npc) || force_face;
+
+            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
+            rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc->type);
+            rsab_pbit(&buf, 5, dx & 0x1f);
+            rsab_pbit(&buf, 5, dz & 0x1f);
+            rsab_pbit(&buf, 1, extended);
+            if( extended )
+            {
+                queued_force_face[queued_count] = force_face;
+                queued[queued_count++] = slot;
+            }
+        }
         player->npc_tracked[slot] = 1;
         kept[kept_count++] = slot;
     }
@@ -1955,7 +1988,7 @@ mock230_send_npc_info(struct Mock230Player* player)
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
-        put_npc_extended(&buf, &srv->npcs[queued[i]]);
+        put_npc_extended(&buf, &srv->npcs[queued[i]], queued_force_face[i]);
 
     flush(player, &buf, OP_NPC_INFO, 2);
 

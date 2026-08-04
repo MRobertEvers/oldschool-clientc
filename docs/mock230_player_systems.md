@@ -590,6 +590,7 @@ deactivates everything and then calls it once per selected bit.
 |---|---|---|
 | orb armed, both ops | right-click 160:20 | menu reads *Activate / Setup / Cancel* |
 | panel opens where it belongs | click Setup | 29 slots + Done, filling the sidebar |
+| panel opens under Fixed (548) | Display → Fixed, then Setup | mounts into live `toplevel:sidemodal` (engine rewrites the stretch role alias); no `if-opensub: target 0x00a1004a … skip` |
 | a slot is armed and addressed | click | `IF_BUTTON1 77:4 sub=3` |
 | **the bit→prayer map is the cache's** | prayer level **9**, click sub 3 | *"You need a Prayer level of 10 to use Rock Skin."* — the naive `^prayer_*` map makes bit 3 Sharp Eye, level 8, and accepts silently |
 | the same, other direction | level 9, click sub 18 and 19 | accepted (Sharp Eye 8, Mystic Will 9); the naive map makes 18 Protect from Melee, level 43, and refuses |

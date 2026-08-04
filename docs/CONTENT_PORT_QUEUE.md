@@ -88,7 +88,11 @@ re-arm. Stop only when the user stops the loop.
 | 9z | chromatic dragon combat AI | done | green/blue/red/black OP AI (1/4 breath + melee) + combat overlays; drops already present; deferred: antifire, .hunt cowardly, sound_synth, babydragon AP |
 | 10a | Mort'ton shade AI | done | `_shade` cat 345; shadow→shade rise + melee + str drain; overlays L1–5; deferred: quest/flamtaer/%morttonmulti/timer-reset/.hunt; next_npc_type via type-switch (apply_param no type=npc) |
 | 10b | player poison system | done | poison.rs2 (%poison varp 102, hitsplat_poison); melee/magic/KBD toxic wire; login+death; deferred: npc_poison varn, weapon_poison, antipoison consume |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: babydragon combat AI; skip: Mort'ton lair (%morttonmulti + key cats + metal_gate), pyre (struct loader), kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn |
+| 10c | babydragon combat AI | done | babybluedragon(+2,+3) OP melee + bdrag overlays + babydragon_bones; LC babydragon absent; deferred: AP/fire, .hunt cowardly, sound_synth |
+| 10d | antipoison consume | done | Drink labels + dose switch ladder (obj next_obj_stage overlays blocked); deferred: full _potion consume, consume_messages.dbrow, sound_synth |
+| 10e | weapon_poison | done | Use→poison for daggers/spears/arrows/bolts/darts/knives/javelins via switches; deferred: cleaning cloth, karambwan paste, combat poison_severity |
+| 10f | highwayman combat AI | done | Stand and deliver! AP + overlays + highwayman2 drop bind; deferred: .hunt ranged, attack_sound |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: chaosmonk combat AI (npc_zap_attack ready); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player) |
 
 
 ## Log
@@ -173,4 +177,8 @@ re-arm. Stop only when the user stops the loop.
 - slice 9z done: chromatic dragon AI — green/blue/red/black OP (1/4 ~dragon_fire + ~dragon_melee) + dragon.npc overlays (aggressive approx for cowardly); drops already in drop_tables/; deferred: antifire (%dragonresist), .hunt cowardly, sound_synth, babydragon
 - slice 10a done: Mort'ton shade AI — category shade=345; mortton_shades.rs2 (ai_queue1/2/13 + opplayer2 rise + melee + 1/20 str drain + shade_attack spotanim) + mortton_shades.npc L1–5 overlays; transform via ~shade_risen_type (apply_param lacks type=npc for next_npc_type); deferred: quest kills, flamtaer, %morttonmulti, timer reset-to-shadow, .hunt shades, undead param, sounds
 - slice 10b done: player poison — poison.rs2 (%poison clean-varp 102; hitsplat_poison; timer/damage/clear/login); ~npc_poison_player on melee hit + magic success; KBD toxic queue(poison_player,36); death+login hooks; deferred: %npc_poison varn, weapon_poison ops, antipoison consume labels, sound_synth
-- next pending: babydragon combat AI (9z leftover; names likely resolve); skip blocked: Mort'ton lair (%morttonmulti + key cats + metal_gate), pyre (struct loader blocked), kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn
+- slice 10c done: babydragon AI — babybluedragon(+2,+3) OP melee (~babydragon_melee + bdrag_attack) + combat overlays (death_drop babydragon_bones); LC babydragon absent (names.map); deferred: commented LC AP/fire path, .hunt cowardly, sound_synth
+- slice 10d done: antipoison consume — anti_poison.rs2 Drink for 1–4dose antipoison + super; %poison=min(-5/-20); dose ladder via switch (obj next_obj_stage overlays blocked); deferred: full _potion dispatch, consume_messages.dbrow, sound_synth
+- slice 10e done: weapon_poison — Use weapon_poison on daggers/spears/arrows/bolts/darts/knives/javelins (switch maps; cat weapon_stab→weapon_stab_sword); deferred: tbwt_cleaning_cloth/karambwan, combat poison_severity on hit
+- slice 10f done: highwayman AI — "Stand and deliver!" applayer2 + overlays + highwayman2 drop bind; deferred: .hunt ranged, attack_sound
+- next pending: chaosmonk combat AI (chaosmonk1/2/3; npc_zap_attack already in melzar); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, freeze, guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player)

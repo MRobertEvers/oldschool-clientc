@@ -258,11 +258,13 @@ after:  BOUNDS (161|92) abs=0,0  1024x768     BOUNDS (161|94) abs=0,0  1024x768
 (Earlier dumps showed `abs=-21` here. That was not authored on 161:1 — it
 fell out of script 5355 shrinking `gameframe` to canvas−42 for the popout
 strip while script 909 sizes the viewport trackers to full canvas with
-authored `xmode=1` (centre): `(723−765)/2 = −21`. IF3 centre modes now
-origin-align when the child is larger than the parent
-(`UITree_If3AxisFromPositionMode`), so the tracker sits at abs_x=0 and still
-bleeds right under the popout. That also stops stat-boost / worldmap chrome
-from clipping on the left edge.)
+authored `xmode=1` (centre): `(723−765)>>1 = −21`. That overhang is the
+reference IF3 centre arithmetic and is correct: the tracker bleeds 21px off
+the left of the gameframe and 21px under the popout on the right. A global
+"origin-align oversized centred children" guard was briefly added to force
+`abs_x=0` and broke every chatbox dialogue whose root is larger than
+`chatbox:chatmodal` — see `REV230_UI_BLANK_PANELS.md` §5. Do not reinstate
+it on `UITree_If3AxisFromPositionMode`.)
 
 **A live resize reflows.** `TORIRS_SIM_RESIZE="200,1024x768" TORIRS_CS2_TRACE=1`:
 script 909 runs a fourth time after the injected event, and
@@ -546,11 +548,24 @@ bug as before — only quieter.
 - **Persistence** of layout across logins — out of scope.
 - **OpenRune intermediate hop** (fixed→pre_eoc via stretch) — deferred unless a
   measured break needs it.
-- Many content `.rs2` files still hardcode `toplevel_osrs_stretch:mainmodal`;
-  after a switch to 548/164 those call sites should use the live gameframe
-  slots (or `if_gettop`) rather than the stretch name.
+- Content `.rs2` files may still *spell* `toplevel_osrs_stretch:mainmodal` /
+  `:sidemodal` / `:floater`. That is fine: `mock230_send_if_opensub` /
+  `closesub` / `movesub` rewrite those role suffixes to the live top's matching
+  slot (bound by `if_opentop` on the player) whenever the named component's
+  interface differs from the session gameframe. No per-call-site mode table.
 - Talking to a real Old School server: local `WINDOW_STATUS` opcode 101 is a
   mock convention (rev-230 RSProt op 10 collides with `OPNPC2` here).
+
+### 8.3b Fixed mode and the popout strip
+
+Script 5355 carves `strip_w` (42 collapsed, 312 with a panel open) out of the
+canvas and docks the popout on the right. In fixed mode the classic frame is
+authored for 765×503, so a canvas pinned at exactly 765 put the strip on top of
+the stone edge. The shell now measures the right-docked full-height strip after
+layout (`App_MeasureRightChromeStripWidth`) and grows the fixed canvas to
+`765 + strip_w` (`App_SyncFixedChromeInset`), so the gameframe lays out at 765
+and the strip sits outside it. Resizable mode is unchanged — it already carves
+from a larger window.
 
 ### 8.4 The popout strip is gated on toplevel *identity*, not geometry
 

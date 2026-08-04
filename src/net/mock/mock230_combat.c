@@ -822,19 +822,8 @@ mock230_combat_player_tick(struct Mock230Server* srv)
         return;
     }
 
-    /*
-     * Face the target for the whole engagement, before the approach can return
-     * early — same fix as the npc side. Face-entity ids below 32768 are npc
-     * slots; the player's own index would be 32768 + slot.
-     *
-     * Only on change: FACE_ENTITY is a latch, so re-asserting it every tick is
-     * wire noise the client does nothing with.
-     */
-    if( player->face_entity != player->combat_target )
-    {
-        player->face_entity = player->combat_target;
-        player->masks |= MOCK230_PMASK_FACE_ENTITY;
-    }
+    /* Facing is mock230_player_set_face_entity in phase_player (before
+     * approach / interaction), matching LostCity setFaceEntity. */
 
     /* The approach happened before the player moved, in
      * `mock230_combat_player_approach`. Out of range here means it has not

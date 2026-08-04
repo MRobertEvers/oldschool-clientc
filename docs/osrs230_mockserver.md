@@ -2115,23 +2115,10 @@ assertion that catches it is `npc_huntall` at distance 0 collecting *nothing*.
 ## 3.15 Player persistence is an ini per player
 
 `src/net/mock/mock230_save.c`. One file per player under `saves/`
-(`MOCK230_SAVES=dir` overrides).
-
-> **It is not wired.** `mock230_save_player` and `mock230_load_player` have no
-> callers — `grep -rn 'mock230_save_player\|mock230_load_player' src/` finds
-> the definitions and the two prototypes and nothing else — and they have had
-> none since the commit that added the file. Everything below describes a
-> format that round-trips when called directly and is called by nothing, so
-> every session still starts from the defaults. Written as intent and read as
-> fact once already, which is why this paragraph is here.
->
-> What that costs is a *case*: "a returning player" cannot be tested. It is why
-> `[proc,newplayer_setup]` (player/newplayer.rs2) gates on a `scope=perm` varp
-> even though nothing yet makes a perm varp outlive anything — an ungated seed
-> is correct exactly until the day this file is connected.
-
-The intended order is: read at login, over the defaults `mock230_world_init`
-and `[login,_]` have already put down.
+(`MOCK230_SAVES=dir` overrides). Loaded at login
+(`mock230_world_login`) and written on logout
+(`mock230_world_remove_player`), over the defaults
+`mock230_world_player_init` and `[login,_]` have already put down.
 
 ```ini
 [player]
@@ -2139,19 +2126,28 @@ version = 1
 name = embed
 x = 3222
 [stats]
-; <stat> = <level> <boosted> <xp_tenths>
-3 = 10 10 11540
+; <stat> = <boosted> <xp_tenths>
+3 = 10 11540
 [inv]
 ; <slot> = <obj> <count>
 4 = 1321 1
 ```
+
+Base level is not stored: on load it is
+`mock230_combat_level_for_xp(xp_tenths / 10)`, matching LostCity's
+`getLevelByExp`. Boosted is still written so potions, drains, and
+current HP survive logout. A legacy three-field line
+(`<level> <boosted> <xp_tenths>`) still loads; the stored level is
+ignored. `::setlevel` sets XP to the threshold for that level so the
+cheat survives the next save.
 
 Ini rather than a binary blob because a save is content a human has to be able
 to read and fix: a corrupt binary save is a bug report with no evidence in it. It
 also means a save survives a struct change — an unknown key is skipped and a
 missing one keeps its default, so adding a field does not invalidate every
 existing save. `version` is bumped only when a key changes *meaning*, which is
-the one case a reader cannot detect for itself.
+the one case a reader cannot detect for itself. The stats field-count change
+does not bump version: two ints vs three is self-describing.
 
 Three things about it are load-bearing:
 

@@ -168,14 +168,26 @@ correctly still has no suffix.
 the entity turned that way until told otherwise. There is no timeout and no
 implicit clear. `65535` on the wire is "face nothing".
 
-**The gap.** The mock set the mask when a fight started and never cleared it.
-Every path that drops a target — the target dies, the player dies, the player
-walks away, the player does something else — left the entity staring at where
-the fight used to be.
+LostCity drives the latch every entity turn via `PathingEntity.setFaceEntity()`
+from the current pathing interaction target (and combat keeps that target alive
+with `p_opnpc` / `npc_setmode`). The client then turns toward that id every
+cycle. This server mirrors that with `mock230_player_set_face_entity` in the
+player phase **before** approach / `process_interaction`: prefer `combat_target`,
+else a pending npc/player interaction, else clear. That is what makes walk-to-
+attack face the npc during approach, not only after engage. NPCs clear idle
+latches with `mock230_npc_face_clear_if_idle` when neither combat nor a
+player-facing mode holds a target. Enter-view re-emits a latched `FACE_ENTITY`
+(LostCity info `lowdefinition`).
 
-**The fix (server).** `mock230_combat_stop_player` / `_stop_npc` do both halves
-together: drop `combat_target` *and* raise `FACE_ENTITY` with −1. Every drop
-site now goes through them, including the ones that are not about combat at all:
+**The older gap.** The mock set the mask when a fight started and never cleared
+it. Every path that drops a target — the target dies, the player dies, the
+player walks away, or the player does something else — left the entity staring
+at where the fight used to be.
+
+**The clear fix (server).** `mock230_combat_stop_player` / `_stop_npc` do both
+halves together: drop `combat_target` *and* raise `FACE_ENTITY` with −1. Every
+drop site now goes through them, including the ones that are not about combat
+at all:
 
 - `MOVE_*` — walking somewhere is a new interaction, which is what "clicking
   away" means

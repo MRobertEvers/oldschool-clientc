@@ -253,7 +253,7 @@ Level-crossing detection is landed and correctly shaped:
 // src/net/mock/mock230_combat.c:330-364
 before = player->stat_level[stat];
 ...
-player->stat_level[stat] = level_for_xp(...);
+player->stat_level[stat] = mock230_combat_level_for_xp(...);
 if( player->stat_level[stat] != before )
 {
     if( stat == MOCK230_STAT_HITPOINTS )

@@ -399,17 +399,33 @@ mock230_load_player(
         case SAVE_STATS:
         {
             int stat = atoi(key);
-            int level = 1;
-            int boosted = 1;
-            int xp = 0;
+            int a = 1;
+            int b = 1;
+            int c = 0;
+            int boosted;
+            int xp;
+            int n;
 
             if( stat < 0 || stat >= MOCK230_STAT_COUNT )
                 break;
-            if( sscanf(value, "%d %d %d", &level, &boosted, &xp) != 3 )
+            n = sscanf(value, "%d %d %d", &a, &b, &c);
+            if( n == 3 )
+            {
+                /* Legacy `<level> <boosted> <xp_tenths>` — ignore stored level;
+                 * base is derived from XP (LostCity PlayerLoading). */
+                boosted = b;
+                xp = c;
+            }
+            else if( n == 2 )
+            {
+                boosted = a;
+                xp = b;
+            }
+            else
                 break;
-            player->stat_level[stat] = level;
-            player->stat_boosted[stat] = boosted;
             player->stat_xp_tenths[stat] = xp;
+            player->stat_level[stat] = mock230_combat_level_for_xp(xp / 10);
+            player->stat_boosted[stat] = boosted;
             break;
         }
 

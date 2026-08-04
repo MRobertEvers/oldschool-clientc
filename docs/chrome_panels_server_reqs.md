@@ -590,6 +590,16 @@ toggle (open then click 744,21): unmount 0x02d80009; 728:9 collapses to -6x491
 bank while popout open: iface=12 -> 161:16 (mainmodal); 729 stays in 728:9
 ```
 
+### 8.6 Fixed mode — strip outside the classic frame
+
+Under Fixed the canvas used to stay at 765×503 while script 5355 still carved
+`strip_w` from it, so the launcher sat on the stone edge. The client now
+measures that right-docked full-height strip after layout and grows the fixed
+canvas to `765 + strip_w` (see `App_SyncFixedChromeInset` /
+`docs/gameframe_layout_resize.md` §8.3b). Collapsed strip → canvas 807×503;
+panel open → 1077×503. Click centres move with the strip (right edge of the
+new canvas), not the old x≈744 on a 765 canvas.
+
 `TORIRS_NET_CHEAT=loottools` is the same open path (debugproc →
 `~chrome_loottools_open`) and also exits 0 with mount iface=650 under 728:9.
 ### 8.5 Two traps this cost time on, worth writing down

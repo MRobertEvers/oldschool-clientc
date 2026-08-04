@@ -200,12 +200,11 @@ deleting C.
 Two things the first batch turned up, both worth knowing before the next one:
 **a move is a test**. Seeding hitpoints as xp instead of as a level made the
 engine compute the level for the first time and it came out 9, because
-`level_for_xp` summed the xp formula's terms without the reference's per-term
-`floor` — 94 of the 98 thresholds were one xp too high, invisible for as long
-as the only caller stated the level and the xp as two independent literals.
-And `mock230_save.c`'s `mock230_save_player`/`mock230_load_player` have **no
-callers anywhere** — persistence has been dead code since it was written, so
-"a returning player" is not yet a case any of this can be tested against.
+`level_for_xp` (now `mock230_combat_level_for_xp`) summed the xp formula's
+terms without the reference's per-term `floor` — 94 of the 98 thresholds were
+one xp too high, invisible for as long as the only caller stated the level and
+the xp as two independent literals. Player saves store boosted + xp only and
+derive base on load; `::setlevel` writes the matching XP threshold.
 
 - ~~starting inventory `kit[]`~~ — **moved**, `[proc,newplayer_inv]`
 - ~~starting bank stock `stock[]`~~ — **moved**, `[proc,newplayer_bank]`; the
@@ -216,8 +215,7 @@ callers anywhere** — persistence has been dead code since it was written, so
   it is the floor, not a starting state, and the reference agrees
   (`PlayerLoading.load()`). All three are seeded from `[login,_]` via
   `~newplayer_setup`, behind a `%newplayer_seeded` perm varp so the script is
-  idempotent — see `player/newplayer.rs2` on why the gate exists before
-  persistence does.
+  idempotent — see `player/newplayer.rs2`.
 - ~~fallback NPC greeting~~ — **moved**, `[proc,npc_default_chat]`, and now
   visible: the C set only the SAY mask, which this client stores and never
   draws.
