@@ -171,9 +171,10 @@ Repo: `~/Documents/git_repos/xrsps-typescript`
 
 1. Dual-tile wall stamp in `collision_map_wall_apply`.
 2. Destination-only `collision_map_can_step_*` / `can_travel_typed`.
-3. Server scene apply must mirror Client-TS / LostCity **place-time** bridge
-   level shift when stamping collision (not a post-hoc whole-flag-word
-   overwrite of one column — that splits wall edges and creates orphans).
+3. Server / client scene apply use Client-TS / LostCity **place-time** bridge
+   level shift when stamping collision (`LINK_BELOW` → collision `level - 1`,
+   skip if `< 0`). Do **not** reinstate a post-hoc whole-flag-word column
+   overwrite — that splits wall edges and creates one-way orphans.
 4. Refuse XRSPS both-tiles walk checks.
 5. Symmetry is a **data invariant**, enforced by tests.
 
@@ -192,7 +193,7 @@ same for land and locs.
 | Cause | Why one-way |
 |---|---|
 | One-sided `flags[i] \|= WALL_*` (test / bug) | Dest-only check sees only one face |
-| Post-hoc bridge **column overwrite** of one tile of an edge | Mirror bit stays on the un-copied neighbor level |
+| Post-hoc bridge **column overwrite** of one tile of an edge | Mirror bit stays on the un-copied neighbor level — **removed**; use place-time LinkBelow shift |
 | OOB neighbor silent skip in `collision_map_add` | Scene-border walls stamp one side only (same as client) |
 | Runtime add/del with mismatched shape/angle | Clears one geometry, leaves the other |
 

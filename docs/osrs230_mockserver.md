@@ -976,8 +976,13 @@ LostCity's `IfButtonHandler`). A resume without a row leaves `last_slot` at its
 memset 0, and `~p_choice*` treats every non-`1..(N-1)` value as the last option —
 which is how Leela's dialogue kept answering every choice with "I will go and get
 the rest of the escape equipment." The client maps EVENT_CLICK on a dynamic child
-of the armed container to that `IF_BUTTON1`; a plain `IF_BUTTON` with the child's
-runtime id never matches the registered resume uid.
+of the armed container to that `IF_BUTTON1` (`app_send_if_button` via
+`app_if_button_target`); a plain `IF_BUTTON` with the child's runtime id never
+matches the registered resume uid. Number-key selection goes through script 57 →
+`cc_resume_pausebutton` on the found child; that path remaps the same way
+(`app_send_resume_pausebutton`), because `RESUME_PAUSEBUTTON` carries no sub-id.
+Script 57's digit branch also needs a correct `STRING_INDEXOF_CHAR` (string +
+char only — see `REV230_UI_OWNERSHIP.md` §6b).
 
 ### The three caps
 

@@ -452,6 +452,30 @@ misses script 57's code branch).
 per press (`MOCK230_VERBOSE=1`), interface 219 opens. Chat typing via character
 events still inserts once.
 
+## 6b. Chatmenu digits and clicks (script 57 + dynamic rows)
+
+**Symptom.** "Select an Option" (`chatmenu` 219) rendered, but neither mouse
+clicks nor number keys selected a row. Terminal spam:
+
+`Task_CS2Run: script 57 failed at opcode 4120 pc 33` (`STRING_INDEXOF_CHAR`).
+
+**Who owns what.** LostCity's engine `string_indexof_char(string, char)(int)` is
+the CS2/SSVM surface; content's `~p_choice*` answers via `last_slot`. Digit
+matching is script 57's character branch (`string_indexof_char($string0,
+$char1)` with `$string0 = tostring(row)`).
+
+**Root cause — two engine breaks.**
+
+1. **`STRING_INDEXOF_CHAR` arity.** The handler popped a start index the
+   bytecode never pushes (only char + string). Script 57 aborted before matching
+   a digit. Fixed to match LostCity/`ssvm.c` / `cs2_command.gen.h` `(1,1,1,0)`.
+2. **Dynamic-child addressing.** EVENT_CLICK and `cc_resume_pausebutton` sent
+   the child's runtime uid. The server only resumes on registered
+   `chatmenu:options`, and needs the row as `last_slot`. `app_send_if_button` /
+   `app_send_resume_pausebutton` now remap via `app_if_button_target` to
+   `IF_BUTTON1(parent, sub)`; `handle_if_button_op` latches `last_slot` then
+   resumes (same as §3.11f in `osrs230_mockserver.md`).
+
 ## 7. Harness notes
 
 Everything above was found and checked with knobs that already existed
