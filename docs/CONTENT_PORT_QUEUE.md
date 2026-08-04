@@ -698,14 +698,14 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 33c | Ogre bow Check kills | done | ogre_bow opheld3 + ~get_chompy_rank; ~objbox→~mesbox |
 | 33d | Swamp toad inflate | done | opnpcu toad + ai_timer; synth/sound_area dropped |
 | 33e | Chompy bloated toad release/place | done | bloated_toad release/place + bait roll; thin ~spawn_chompy_bird; full AI deferred |
-| 33f | Cannonballs smelting | in_progress | steel_bar+ammo_mould → mcannonball×4 |
-| 33g | Dragon sq anvil repair | in_progress | @make_dragon_sq via oplocu anvil |
-| 33h | Crest Boot gold branch | in_progress | boot_the_dwarf ^crest_spoken_* arms |
-| 33i | Holiday scythe/bunnyears pickup | in_progress | opobj3 one-owned; authored unlock varps |
-| 33j | MM talk helpers + padulah | in_progress | ~mm_wearing_greegree / monkeyspeak + padulah Talk |
-| 33k | MM temple priests | in_progress | hafuba/lofu/denadu Talk |
-| 33l | MM sleeping monkey guard Talk | in_progress | opnpc1 mesbox; ai_timer (%npc_int) deferred |
-| 33m | Dragon spear Shove special | in_progress | sa_kind=8 + pvm_dragon_spear_sa |
+| 33f | Cannonballs smelting | done | steel_bar+ammo_mould → mcannonball×4; furnace Use hook |
+| 33g | Dragon sq anvil repair | done | @make_dragon_sq via oplocu anvil; halves Use hint kept |
+| 33h | Crest Boot gold branch | done | boot_the_dwarf ^crest_spoken_* arms |
+| 33i | Holiday scythe/bunnyears pickup | done | opobj3 one-owned; %scythe_unlocked/%bunny_ears_unlocked authored |
+| 33j | MM talk helpers + padulah | done | ~mm_wearing_greegree (cat 95) / monkeyspeak + padulah Talk |
+| 33k | MM temple priests | done | hafuba/lofu/denadu Talk |
+| 33l | MM sleeping monkey guard Talk | done | opnpc1 mesbox; ai_timer (%npc_int) deferred |
+| 33m | Dragon spear Shove special | done | sa_kind=8 + pvm_dragon_spear_sa; CW barricade gate deferred |
 | 8 | Outward areas / remaining quests / minigames | pending | After 33m: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
@@ -1544,5 +1544,16 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 - slice 33e done: Chompy bloated toad release/place (~release_toad, Drop→place bait, ai_queue4 explode/spawn thin); chompybird via names.map; %npc_attacking_uid/huntmode deferred
 - final: 11500 scripts; mock230_pack 66 errors (all special_attack.obj unknown objs — pre-existing, not 33e)
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 33f done: cannonballs (steel_bar+ammo_mould → mcannonball×4; furnace Use hook)
+- slice 33g done: dragon sq anvil repair (@make_dragon_sq via oplocu anvil)
+- slice 33h done: crest Boot gold branch (^crest_spoken_* arms)
+- slice 33i done: holiday scythe/bunnyears opobj3 one-owned; %scythe_unlocked/%bunny_ears_unlocked authored
+- slice 33j done: MM talk helpers (cat 95=mm_greegree) + padulah Talk
+- slice 33k done: MM temple priests (hafuba/lofu/denadu)
+- slice 33l done: MM sleeping monkey guard Talk; ai_timer deferred
+- slice 33m done: dragon spear Shove (sa_kind=8); also stripped 22 unresolved special_attack.obj names → pack 0
+- final: 11567 scripts; mock230_pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 

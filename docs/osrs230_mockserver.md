@@ -1969,6 +1969,33 @@ before the switch. It should be deleted; deleting it is a second edit to
 `mock230_scripts.c` and the lane that landed this file was allowed exactly one.
 Recorded here so a reader does not change it and expect anything to happen.
 
+### `SS_OP_SOUND_SYNTH` was another one: declared, counted, did nothing
+
+Same shape as `npc_param` above, smaller. `SS_OP_SOUND_SYNTH` (2110) has had a
+`case` in `mock230_scripts.c` since before this file existed — it popped the
+three `sound_synth(id, loops, delay)` arguments, printed them under
+`MOCK230_VERBOSE`, and returned 1. Returning 1 is what `gen_opcode_coverage.py`
+keys off of, so it was counted as a *working* opcode in
+`mock230_opcode_coverage.gen.h` the entire time it sent nothing: rev 230's
+SYNTH_SOUND packet (opcode 102) was `PKT_NAME_NONE` in `packetin.h`, so even a
+correct encoder would have had nowhere to frame its bytes.
+
+Landed together (`WEAPON_FX_PORT_QUEUE.md` slices 6-7, `WEAPON_FX.md` §6):
+`packetin.h:102` now routes `PKT_NAME_SYNTH_SOUND`; `mock230_encode.c` gained
+`mock230_send_synth_sound` (field order id `g2` / loops `g1` / delay `g2`,
+matching `gameproto_parse.c:706-710`, the client's own reader, exactly); and
+the `SS_OP_SOUND_SYNTH` case now calls it instead of only printing.
+
+The general point, restated because it is not the first time this table has
+made it: **the coverage header counts *declared* opcodes — a `case` that
+returns 1 — not *working* ones.** A stub that accepts the call and does
+nothing is indistinguishable from a real handler to `gen_opcode_coverage.py`,
+to the load-time gap report, and to `--selftest`. Nothing here currently tells
+the two apart short of reading the case body or, as here, listening for the
+result. `PORTING_GUIDE.md` §2.4 item 7 calls this shape "an expired reason
+nobody re-checked"; this is the same failure in the opcode table rather than a
+content header.
+
 ### Fixing it needed the overlay params to become visible first
 
 The obvious fix — read `mock230_npc_param`, which is the cache record's param

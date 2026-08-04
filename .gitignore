@@ -63,6 +63,8 @@ test/ui_tree/output/
 
 # Compiled editor binary + BMP snapshots (rebuilt in place)
 /src/torirs
+/src/torirs_*
+/src/build_*/
 /src/torirs_mt
 /interfacex_*.bmp
 

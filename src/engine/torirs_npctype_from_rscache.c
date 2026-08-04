@@ -182,8 +182,13 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->walkanim_b = src->rotate180_animation > 0 ? src->rotate180_animation : -1;
     npctype->walkanim_r = src->rotate_right_animation > 0 ? src->rotate_right_animation : -1;
     npctype->walkanim_l = src->rotate_left_animation > 0 ? src->rotate_left_animation : -1;
-    /* dat2 npc configs carry no turnspeed field; the reference default is 32. */
-    npctype->turn_speed = 32;
+    /* They do carry it: opcode 103, decoded as `rotation_speed`, defaulted to 32
+     * by the decoder itself — this line used to say dat2 had no such field and
+     * pinned 32, which silently overrode every record that states one. `0` means
+     * "never turns", and it is how a loc-like npc keeps a fixed facing: the
+     * Inferno's Ancestral Glyph states 0 so it slides along its row still facing
+     * the arena, and with 32 forced it swung to face east and west as it walked. */
+    npctype->turn_speed = src->rotation_speed;
     /* The dat2 decoder calloc's its struct, so an absent opcode 97/98 reads 0, not the
      * 128 the reference defaults to — map it here or every unscaled npc collapses. */
     npctype->width_scale = src->width_scale > 0 ? src->width_scale : 128;

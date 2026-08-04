@@ -902,20 +902,6 @@ painter_add_normal_scenery_ex(
     /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
      * word packs entity in 16 bits, so the full uint16 range is legal. */
     assert(entity >= 0 && entity <= UINT16_MAX);
-    /* Runtime loc spawn (WorldBuilder_ApplyLocChange): the build path is reused
-     * only for the model/orientation/size math — the painter registration is
-     * world_cycle's, once per cycle, because a runtime loc lives outside the
-     * baked static set. Registering here too gave the loc TWO painter elements
-     * over the same scene element, and the painter drew both: once at the
-     * footprint's own depth and once wherever the duplicate's tile chain
-     * reached it. Everything emitted between the two draws was overpainted by
-     * the second, which is what made the Inferno seal's rubble and flank rocks
-     * swap in front of and behind the ground rocks around them. The three
-     * exclusive-slot adders (wall / wall decor / ground decor) have honoured
-     * this flag since it was introduced; normal scenery was the one that did
-     * not. */
-    if( painter->suppress_slot_registration )
-        return -1;
     /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
     if( size_x < 1 )
         size_x = 1;
