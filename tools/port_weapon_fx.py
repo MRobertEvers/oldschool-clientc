@@ -276,13 +276,13 @@ def load_runelite_anims(path):
 
 
 class Sources:
-    def __init__(self):
+    def __init__(self, exclude_overlay=None):
         self.objs = load_config(os.path.join(TREE, "configs/all.obj"))
         self.seq_names = load_seq_names(os.path.join(TREE, "configs/all.seq"))
         self.synth_ids = load_synth_names(
             os.path.join(TREE, "pack/4_soundeffects.pack")
         )
-        self.overlays = load_overlays()
+        self.overlays = load_overlays(exclude_overlay)
         self.rsmod = load_objs_toml(OBJS_TOML) if os.path.exists(OBJS_TOML) else {}
         self.seq_sym = load_seq_sym(SEQ_SYM) if os.path.exists(SEQ_SYM) else {}
         self.rl_anims = load_runelite_anims(RL_ANIM)
@@ -651,7 +651,9 @@ def main():
     # error and must not print a traceback that looks like one.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-    src = Sources()
+    # A `--write` run must not read its own target as a pre-existing overlay, or
+    # the second run emits nothing and the first run's coverage is silently lost.
+    src = Sources(exclude_overlay=args.write if args.write else None)
     if args.sources:
         return cmd_sources(src, args.sources)
     if args.write:

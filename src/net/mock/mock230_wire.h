@@ -139,6 +139,23 @@ struct Mock230Wire
      */
     int (*zone_sub_code)(int pkt_name);
 
+    /*
+     * The INBOUND table: what the client sends us.
+     *
+     * Separate slots because it is a separate table with its own numbering —
+     * MOVE_GAMECLICK is opcode 86 at revision 230 and 114 at 239 — and because
+     * forgetting it is a silent, total failure rather than a partial one. The
+     * outbound path was made revision-driven first and this was left reading
+     * the 230 table; every packet a 239 client sent was then framed with the
+     * wrong length, so the inbound stream desynchronised on the client's first
+     * word and the server misread everything after it. Nothing logs an error:
+     * unknown opcodes frame as zero-length by design.
+     */
+    /** Wire opcode -> payload size: >=0 fixed, -1 var-u8, -2 var-u16. */
+    int (*packetout_size)(int wire_opcode);
+    /** Wire opcode -> canonical PKTOUT_NAME_*, or PKTOUT_NAME_NONE. */
+    int (*packetout_name)(int wire_opcode);
+
     /**
      * 1 = opcodes >= 0x80 are written as TWO stream-cipher bytes
      * (`(op >> 8) | 0x80`, then `op & 0xFF`) -- RSProt's pSmart1Or2Enc.

@@ -175,7 +175,24 @@ osrs239_parse(
     case PKT_NAME_REBUILD_NORMAL:
     {
         struct PktMapRebuild* p = &out->_map_rebuild;
+
         memset(p, 0, sizeof(*p));
+        /*
+         * The six fields are at the END of the payload, not the start.
+         *
+         * RSProt's RebuildLogin and RebuildNormal share opcode 49 and share an
+         * encoder; the login variant simply writes the GPI init block FIRST and
+         * then the same three shorts. There is no discriminator on the wire —
+         * the length is the discriminator, because the init block is
+         * 30 + 2046*18 bits and the fields are always the last six bytes.
+         *
+         * Reading from the front instead recovers a zone from the init block's
+         * leading coordinate bits: a plausible number, a scene built somewhere
+         * else or not at all, and nothing malformed to notice.
+         */
+        if( len < 6 )
+            return -1;
+        c.pos = len - 6;
         (void)g2_alt1(&c); /* worldArea */
         p->zonez = g2_alt2(&c);
         p->zonex = g2_alt2(&c);

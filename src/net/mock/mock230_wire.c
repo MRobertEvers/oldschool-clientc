@@ -1,7 +1,9 @@
 #include "mock230_wire.h"
 
 #include "net/rev/osrs230/packetin.h"
+#include "net/rev/osrs230/packetout.h"
 #include "net/rev/osrs239/packetin.h"
+#include "net/rev/osrs239/packetout.h"
 #include "net/rev/osrs239/zoneprot.h"
 
 #include <rsareabuf.h>
@@ -37,6 +39,30 @@ osrs230_size(int wire_opcode)
  * Revision 230 addresses a zone sub-packet by its top-level opcode -- the
  * client resolves it in the same table -- so this is the same lookup.
  */
+static int
+osrs230_out_size(int wire_opcode)
+{
+    return osrs230_packetout_size(wire_opcode);
+}
+
+static int
+osrs230_out_name(int wire_opcode)
+{
+    return osrs230_packetout_name(wire_opcode);
+}
+
+static int
+osrs239_out_size(int wire_opcode)
+{
+    return osrs239_packetout_size(wire_opcode);
+}
+
+static int
+osrs239_out_name(int wire_opcode)
+{
+    return osrs239_packetout_name(wire_opcode);
+}
+
 static int
 osrs230_zone_sub(int pkt_name)
 {
@@ -299,6 +325,8 @@ static const struct Mock230Wire k_wire_osrs230 = {
     .payload_size = osrs230_size,
     .prot_name = NULL,
     .zone_sub_code = osrs230_zone_sub,
+    .packetout_size = osrs230_out_size,
+    .packetout_name = osrs230_out_name,
     .opcode_smart2 = 0, /* no opcode in this table reaches 0x80 */
     .payload = NULL,    /* the lc254-shaped set mock230_encode.c writes */
 };
@@ -310,6 +338,8 @@ static const struct Mock230Wire k_wire_osrs239 = {
     .payload_size = osrs239_size,
     .prot_name = osrs239_prot_name,
     .zone_sub_code = osrs239_zone_sub,
+    .packetout_size = osrs239_out_size,
+    .packetout_name = osrs239_out_name,
     .opcode_smart2 = 1,
     .payload = &k_payload_osrs239,
     .transcribed = k_transcribed_osrs239,

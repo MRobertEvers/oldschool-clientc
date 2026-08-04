@@ -678,6 +678,10 @@ step_online(
     struct Mock230Server* srv)
 {
     int progressed = 0;
+    /* Which revision's client-prot table frames what arrives. See
+     * `packetout_size` in mock230_wire.h for why this is not the 230 one. */
+    const struct Mock230Wire* wire =
+        (srv && srv->wire) ? srv->wire : mock230_wire_default();
 
     for( ;; )
     {
@@ -695,7 +699,7 @@ step_online(
             consume(session, 1);
         }
 
-        size = osrs230_packetout_size(session->pending_opcode);
+        size = wire->packetout_size(session->pending_opcode);
         if( size == PKTOUT_LENGTH_VARU8 )
             len_bytes = 1;
         else if( size == PKTOUT_LENGTH_VARU16 )
@@ -716,7 +720,7 @@ step_online(
         if( session->in_len < len_bytes + payload_len )
             break; /* body still in flight; nothing consumed */
 
-        name = osrs230_packetout_name(session->pending_opcode);
+        name = wire->packetout_name(session->pending_opcode);
         if( name == PKTOUT_NAME_NONE )
         {
             if( session->verbose )

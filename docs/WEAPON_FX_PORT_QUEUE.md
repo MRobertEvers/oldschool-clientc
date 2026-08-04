@@ -285,7 +285,14 @@ A **new file**, never appended to `attack_anims.obj`, so the LostCity-sourced
 and rsmod-sourced sets stay separately attributable. The header the writer emits
 already names the source and the method; do not edit it.
 
-> **BLOCKED as of 2026-08-04 — do not re-run `--write` until this is decided.**
+> **SPLIT as of 2026-08-04. Anims landed; sounds blocked.** Use
+> `--families anims` (now the working command) — the unqualified `--write` emits
+> sound params that cannot validate. The anim half is in the tree and green:
+> `swing the param default today` **913 → 246**.
+>
+> **Do not shard this slice** — see §1.1's correction in the Log.
+>
+> The sound half stays blocked. Original diagnosis:
 >
 > The 667 rows write and `--check` passes, but `mock230_pack --check-only` then
 > reports **2,821 errors**, all of the form
