@@ -735,6 +735,39 @@ Helper. Port them as content, not as engine:
 8. **Never park sibling lanes** (§7) — do not `.skip` / move other lanes' trees
    to green your compile.
 
+### 4.7 Skills wiki-finish queue
+
+Skill trees in OSRS-Content are mostly **started** (LostCity F2P cores,
+2009scape mid-era farming/hunter/construction, Kronos slayer/rooftops/…).
+Finishing them means closing gaps against **what OSRS actually has**, not
+re-porting cores already `done` on another queue.
+
+1. **Wiki is the gap authority.** Skill article + `/Training` on
+   `https://oldschool.runescape.wiki` define which methods / unlocks / systems
+   exist. Cite URLs when marking an audit row or finish slice.
+2. **Era refs remain the implementation shape.** Grep LostCity first (§2.2),
+   then 2009scape, then Kronos. Route LC-owned gaps to
+   [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md); mid-era to
+   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md);
+   post-2009 to [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md).
+   Do not steal slices already owned elsewhere — use
+   `blocked → <queue> §N`. When refs and the osrs239 cache disagree, the cache
+   wins for wire/ids.
+3. **Two phases.** An **audit loop** walks one skill per tick (Sailing
+   excluded), inventories `skill_*`, harvests deferred Notes from the other
+   queues, and emits method-sized finish slices. A **port loop** (later)
+   consumes one pending finish slice per tick with the normal §4.1 verify
+   (`mock230_pack --check-only`, `make -C src mock230-scripts`).
+4. Attack / Strength / Defence / Hitpoints / Ranged audit as separate skills
+   but live under `skill_combat/`. Magic splits non-combat (`skill_magic/`)
+   and combat casting (`skill_combat/`).
+5. Agent loop state: [`SKILLS_CONTENT_PORT_QUEUE.md`](SKILLS_CONTENT_PORT_QUEUE.md).
+6. **Never park sibling lanes** (§7) — do not `.skip` / move
+   `skill_construction/` or `minigame_mta/` (or any other live tree) to green
+   your compile.
+
+## 5. Modern client features LostCity never drove
+
 This is the clan-chat / stat-orbs / XP-drops class: features of the modern
 client that a 2004 engine never drove.
 
@@ -1233,6 +1266,10 @@ For any substantial task, in this order:
      [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md);
      guides under `quest-helper/.../helpers/quests/`; still grep LostCity then
      2009scape first (§2.2 / §4.6)
+   - skill finish / wiki-gap audit → this file §4.7, then
+     [`SKILLS_CONTENT_PORT_QUEUE.md`](SKILLS_CONTENT_PORT_QUEUE.md); wiki is
+     gap authority; still grep LostCity then 2009scape then Kronos first
+     (§2.2 / §4.7); do not steal slices owned on other queues
    - ServerScript → [`serverscript.md`](serverscript.md)
    - instanced maps / dynamic regions (POH, Pest Control island, private
      mazes, cutscene sets) → [`map_instances.md`](map_instances.md). Its §5 is

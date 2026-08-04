@@ -101,7 +101,7 @@ re-arm. Stop only when the user stops the loop.
 | 18 | clues: easy cryptic stubs | blocked | → SCAPE2009 §18 (still pending there) |
 | 19 | bosses: Giant Mole | blocked | → SCAPE2009 §20 |
 | 20 | bosses: KQ / DKS / Corp | blocked | KQ → CONTENT_PORT_QUEUE (LC has proc); DKS/Corp → SCAPE2009 era |
-| 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | done | stubs: Zulrah/Vorkath/Hydra/Inferno/ToB (Maiden solo); phases/loot/party/DynamicMap deferred |
+| 21 | bosses: Zulrah / Vorkath / Hydra / ToB / Inferno | done | stubs: Zulrah/Vorkath/Hydra/ToB (Maiden solo); **Inferno full 1–69** (`minigame_inferno/`: waves, pillars, Jad, Zuk via `map_instance_from_square`); party/ToB rest deferred |
 | 22 | skill_agility: rooftops + shortcuts | done | 8 rooftops + MoG roll + Falador wall + GE tunnels; mid-era shortcuts → LC/SCAPE2009; grapples/pet deferred |
 | 23 | prayer: Redemption / Retribution | done | `prayer_effects.rs2`: ≤10% HP → drain+heal+gfx; death → gfx+hit `%aggressive_npc` ≤1 tile; policy 2009scape (LC none); multi AoE now unblocked — `map_multiway` hosted with the reference's zone data (see the gap log) |
 | 24 | bosses: Cerberus | done | `minigame_cerberus/`: Taverley crawl, Slayer 91 winch, 3 lairs, portcullis exit; souls/lava/loot/DynamicMap deferred |
@@ -193,7 +193,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 21 | (none) | Boat/plaque + npc_add expressible | confirmed — no new opcode |
 | 21 | instance / dynamic map | Vorkath Ungael isolation (shared 35_63) | soft — same gap |
 | 21 | (none) | Ice chunks + poke + npc_changetype | confirmed — no new opcode |
-| 21 | instance / dynamic map | Hydra / Inferno shared maps | soft — same gap |
+| 21 | instance / dynamic map | Hydra shared maps | soft — Inferno unblocked via `map_instance_from_square` |
 | 21 | (none) | Hydra climb/door + Inferno entrance | confirmed — no new opcode |
 | 21 | instance / dynamic map | ToB Theatre isolation (shared 49_69) | soft — same gap |
 | 21 | (none) | Surface enter + barrier + Maiden kill | confirmed — no new opcode |
@@ -281,6 +281,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 21 (partial): Vorkath stub — `minigame_vorkath/`: Ungael boat, ice-chunk enter/exit, poke `vorkath_sleeping`→`vorkath`; specials/loot/DynamicMap deferred; scripts 4727
 - slice 21 (partial): Hydra + Inferno stubs — `minigame_hydra/` climb+door+`hydraboss`; `minigame_inferno/` jump-in wave-1 nibblers; ToB remain; scripts 4776
 - slice 21 done: ToB Maiden solo stub — `minigame_tob/`: surface enter, barrier start, `tob_maiden_100` kill→exit; party/Bloat→Verzik/loot/DynamicMap deferred; scripts 4794
+- 2026-08-04: Inferno full encounter — `minigame_inferno/`: fire-cape gate, `map_instance_from_square(35_83)`, waves 1–66 budget + pillars/nibblers, 67–68 Jad, 69 Zuk (Content2 seal/`loc_change`/glyph/adds remapped); soft: Zek revive, logout-pause, pet; scripts 9159; pack 0 errors
 - 2026-08-04: queue was idle; extended with slices 24–28 (Cerberus / Kraken+Thermy / Sire / Skotizo+Gorilla+Shaman / CoX stub)
 - slice 24 done: Cerberus stub — `minigame_cerberus/`: Taverley crawl ↔ lobby, Slayer 91 winch→3 lairs, portcullis exit, `cerberus_attacking` kill; souls/lava/loot deferred; scripts 4932; pack 0 errors
 - slice 25 done: Kraken + Thermy stubs — `minigame_kraken/` cove+Disturb whirlpool; `minigame_thermy/` smoky cave+boss crevice; tentacles/face-mask dmg/loot deferred; scripts 4964; pack 0 errors

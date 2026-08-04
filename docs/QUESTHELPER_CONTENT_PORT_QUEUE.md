@@ -122,36 +122,36 @@ filed under `helpers/quests/` are at the end.
 | 17 | Getting Ahead | `gettingahead` | 361 | done | `%ga`→34; Gordon→beast soft→head mount; `::garun` OK; pack 0 errors |
 | 18 | The Corsair Curse | `thecorsaircurse` | 376 | done | `%corscurs_progress`→60; Tock→crew soft→Ithoi; `::ccrun` OK; pack 0 errors |
 | 19 | Below Ice Mountain | `belowicemountain` | 377 | done | `%bim`→45; Willow→Checkal/Atlas→Marley sandwich→Burntof RPS soft→guardian; `::bimrun` OK; pack 0 errors |
-| 20 | Shadows of Custodia | `shadowsofcustodia` | 406 | in_progress | |
-| 21 | Current Affairs | `currentaffairs` | 407 | pending | |
-| 22 | Twilight's Promise | `twilightspromise` | 433 | pending | |
-| 23 | Sleeping Giants | `sleepinggiants` | 438 | pending | |
-| 24 | Meat and Greet | `meatandgreet` | 478 | pending | |
-| 25 | Pandemonium | `pandemonium` | 485 | pending | |
-| 26 | A Night at the Theatre | `anightatthetheatre` | 490 | pending | |
-| 27 | The Red Reef | `theredreef` | 559 | pending | |
-| 28 | Misthalin Mystery | `misthalinmystery` | 564 | pending | |
-| 29 | The Fremennik Exiles | `thefremennikexiles` | 573 | pending | |
-| 30 | A Taste of Hope | `atasteofhope` | 629 | pending | |
-| 31 | Making Friends with My Arm | `makingfriendswithmyarm` | 640 | pending | |
-| 32 | Temple of the Eye | `templeoftheeye` | 662 | pending | |
-| 33 | Perilous Moons | `perilousmoon` | 688 | pending | |
-| 34 | Troubled Tortugans | `troubledtortugans` | 803 | pending | |
-| 35 | Death on the Isle | `deathontheisle` | 827 | pending | |
-| 36 | Scrambled! | `scrambled` | 840 | pending | |
-| 37 | Beneath Cursed Sands | `beneathcursedsands` | 859 | pending | |
-| 38 | The Final Dawn | `thefinaldawn` | 1274 | pending | |
-| 39 | Secrets of the North | `secretsofthenorth` | 1293 | pending | |
-| 40 | The Forsaken Tower | `theforsakentower` | 1353 | pending | needs #1 |
-| 41 | A Kingdom Divided | `akingdomdivided` | 1560 | pending | |
-| 42 | The Heart of Darkness | `theheartofdarkness` | 1582 | pending | |
-| 43 | The Curse of Arrav | `thecurseofarrav` | 1665 | pending | |
-| 44 | Sins of the Father | `sinsofthefather` | 1668 | pending | |
-| 45 | Dragon Slayer II | `dragonslayerii` | 1782 | pending | |
-| 46 | Monkey Madness II | `monkeymadnessii` | 3084 | pending | |
-| 47 | Song of the Elves | `songoftheelves` | 4285 | pending | |
-| 48 | Desert Treasure II | `deserttreasureii` | 5076 | pending | |
-| M1 | Bear Your Soul | `bearyoursoul` | 144 | pending | miniquest; deprioritised |
+| 20 | Shadows of Custodia | `shadowsofcustodia` | 406 | done | `%soc`→24; noticeboard→citizens→trail soft→Antos; `::socrun` OK; pack 0 errors |
+| 21 | Current Affairs | `currentaffairs` | 407 | done | `%current_affairs`→45; Arhein→Catherine form→mayor fish soft→audit→duck chart soft; `::carun` OK; sailing XP deferred; pack 0 errors |
+| 22 | Twilight's Promise | `twilightspromise` | 433 | done | `%vmq2`→50; Regulus→knights soft→letter→Renu→cultists; `::tprun` OK; pack 0 errors |
+| 23 | Sleeping Giants | `sleepinggiants` | 438 | done | `%sleeping_giants`→30; Kovac→repairs soft→commission/mould/preform soft; `::sgrun` OK; pack 0 errors |
+| 24 | Meat and Greet | `meatandgreet` | 478 | done | `%mag`→26; Emelio→supply soft→recipe→Lelia/minotaur soft; `::mgrun` OK; pack 0 errors |
+| 25 | Pandemonium | `pandemonium` | 485 | done | `%sailing_intro`→50; Will/Anne→wreck soft→Pandemonium raft/cargo soft→courier; `::pandrun` OK; sailing XP deferred; pack 0 errors |
+| 26 | A Night at the Theatre | `anightatthetheatre` | 490 | done | `%tobquest`→86; stranger→crypt/eggs/Hespori/ToB soft; `::nattrun` OK; pack 0 errors |
+| 27 | The Red Reef | `theredreef` | 559 | done | `%trr`→42; Raley→Finn/Katt/Floopa→Red Rock cases→Bethel soft→Zenith dive soft; `::rrrun` OK; sailing XP deferred; pack 0 errors |
+| 28 | Misthalin Mystery | `misthalinmystery` | 564 | done | `%mistmyst_progress`→135; Abigale→manor puzzles soft→Abigale reveal; `::mmrun` OK; pack 0 errors |
+| 29 | The Fremennik Exiles | `thefremennikexiles` | 573 | done | `%vikingexile`→130; Brundt→Freygerd/letter soft→shield soft→basilisk/Isle soft; `::fxrun` OK; pack 0 errors |
+| 30 | A Taste of Hope | `atasteofhope` | 629 | done | `%myq4`→165; Garth→spy/Serafina/abom/Ranis soft; `::tohrun` OK; pack 0 errors |
+| 31 | Making Friends with My Arm | `makingfriendswithmyarm` | 640 | done | `%my2arm_status`→200; Burntmeat→Larry/Weiss soft→WOM/coffin soft→Mother soft→Snowflake; `::mfrun` OK; pack 0 errors |
+| 32 | Temple of the Eye | `templeoftheeye` | 662 | done | `%tote`→130; Persten→Abyss/Traiborn/GoTR soft; `::toerun` OK; pack 0 errors |
+| 33 | Perilous Moons | `perilousmoon` | 688 | done | `%pmoon_quest`→36; Attala→nagua soft→Neypotzli camps soft→Eyatlalli/Moons soft; `::pmrun` OK; pack 0 errors |
+| 34 | Troubled Tortugans | `troubledtortugans` | 803 | done | `%tt`→44; Blunn→bandage/Conch soft→repairs/gryphon soft; `::ttrun` OK; sailing XP deferred; pack 0 errors |
+| 35 | Death on the Isle | `deathontheisle` | 827 | done | `%doti`→50; Patzi→butler/villa soft→murder clues soft→Adala/Naiatli soft; `::dirun` OK; pack 0 errors |
+| 36 | Scrambled! | `scrambled` | 840 | done | `%scrambled`→30; Alan→egg/King→men/eggs soft→put together; `::scrun` OK; pack 0 errors |
+| 37 | Beneath Cursed Sands | `beneathcursedsands` | 859 | done | `%bcs`→108; Jamila→Maisa/Necropolis soft→tomb/Champion soft→Zahur/Akh soft; `::bcsrun` OK; pack 0 errors |
+| 38 | The Final Dawn | `thefinaldawn` | 1274 | done | `%vmq4`→68; Servius→temple/Vibia/Janus soft→Cam Torum/keystone soft→Tonali soft; `::tfdrun` OK; pack 0 errors |
+| 39 | Secrets of the North | `secretsofthenorth` | 1293 | done | `%sotn`→90; guard→crime/trail/Evelot soft→Hazeel/crest soft→Weiss/Ghorrock/Muspah soft; `::snrun` OK; pack 0 errors |
+| 40 | The Forsaken Tower | `theforsakentower` | 1353 | done | `%lovaquest`→11; Vulcana→Undor→tower puzzles soft→hammer→finish; `::ftrun` OK; pack 0 errors |
+| 41 | A Kingdom Divided | `akingdomdivided` | 1560 | done | `%akd`→150; Martin→Fullore/Yama soft→Rose trail soft→Kaht/Xamphur soft→Lookout soft; `::akdrun` OK; pack 0 errors |
+| 42 | The Heart of Darkness | `theheartofdarkness` | 1582 | done | `%vmq3`→76; Itzla→Gorge/tower trials soft→temple/ruins soft→Amoxliatl soft; `::hodrun` OK; pack 0 errors |
+| 43 | The Curse of Arrav | `thecurseofarrav` | 1665 | done | `%coa`→60; Elias→mastaba soft→Trollweiss/fort soft→base heist soft; `::coarun` OK; pack 0 errors |
+| 44 | Sins of the Father | `sinsofthefather` | 1668 | done | `%myq5`→138; Veliaf→Slepe/Kroy soft→trek soft→Vanescula/lab/Damien soft→Darkmeyer/flail/Vanstrom soft; `::softrun` OK; pack 0 errors |
+| 45 | Dragon Slayer II | `dragonslayerii` | 1782 | done | `%ds2`→215; Alec→Dallas/Crandor soft→Lithkren/Bob soft→Ungael/Galvek soft; `::ds2run` OK; pack 0 errors |
+| 46 | Monkey Madness II | `monkeymadnessii` | 3084 | done | `%mm2_progress`→195; Narnode→Glough/Anita soft→Garkor/Kruk soft→sabotage/lab soft→Nieve/Glough soft; `::mm2run` OK; pack 0 errors |
+| 47 | Song of the Elves | `songoftheelves` | 4285 | done | `%sote`→200; Edmond→Elena/Ardougne soft→Arianwyn/Bax/seals soft→Pass/final soft; `::soterun` OK; pack 0 errors |
+| 48 | Desert Treasure II | `deserttreasureii` | 5076 | in_progress | lane B |
+| M1 | Bear Your Soul | `bearyoursoul` | 144 | in_progress | miniquest |
 | M2 | Enter the Abyss | `entertheabyss` | 212 | pending | miniquest; deprioritised |
 
 ## Opcode gap log
@@ -164,6 +164,9 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 1 | (none) | Dig/talk/inv/varbit already expressible | confirmed — no new opcode |
 | 2 | (none) | Chest letter-dial is client iface 809; interim `mes`+letter gate | deferred UI polish, no new opcode |
 | 3 | `sailing` skill / port-task | Prying Times needs Sailing XP+level + PortTaskStep cargo | deferred — soft-skip delivery/sail; smithing XP awarded |
+| 21 | `sailing` skill | Current Affairs rewards 1400 Sailing XP | deferred — soft-skip mes; fishing XP + coupons awarded |
+| 25 | `sailing` skill | Pandemonium rewards 300 Sailing XP + unlock | deferred — soft-skip mes; coupons/kits/spyglass awarded |
+| 27 | `sailing` skill | The Red Reef rewards 15000 Sailing XP | deferred — soft-skip mes; smithing XP + schematic awarded |
 
 ## Log
 
@@ -309,3 +312,246 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   payload); pack 0 errors; deferred Atlas workout, Charlie tramp, full RPS,
   dungeon instance, mining pillars, Ramarno post-quest, QP16 hard gate; next =
   Shadows of Custodia (#20)
+- lane B loop armed (2026-08-04): AGENT_LOOP_TICK_questhelper_port_b every ~180s;
+  claimed #21 Current Affairs (`in_progress`, lane B) — #20 Shadows left to
+  primary lane
+- slice 21 done (lane B): Current Affairs — `%current_affairs` on
+  `current_affairs_main` (0..40→45) + form Q bits; Arhein / Catherine form
+  soft / Harry mayorfish / audit soft / form 7r4-5h sign / duck chart soft;
+  fishing 1000 XP + 25 oak sawmill coupons + duck/mayor; sailing XP deferred;
+  wiki https://oldschool.runescape.wiki/w/Current_Affairs/Quick_guide;
+  `::currentaffairs` / `::carun`; headless OK (`carun OK` payload); pack 0
+  errors; deferred Pandemonium/Sailing22 gates, form IF, boat sail, duck path;
+  next pending for lane B = #22 Twilight's Promise (skip #20 if still
+  in_progress on primary)
+- slice 20 done: Shadows of Custodia — `%soc` on `soc_main` (0..22→24) + citizen /
+  wall / bow / stalker side bits; noticeboard / four citizens / parents / wall→
+  puddle→plank cloth / cave boys soft / reinforce+bows / Etz / Antos stalkers
+  soft / Captain finish; 2 QP + slayer 10000 + hunter 4000 + fishing 3000 +
+  construction 3000 XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Shadows_of_Custodia/Quick_guide (+ Transcript);
+  `::shadowsofcustodia` / `::socrun`; headless OK (`socrun OK` payload=24); pack 0
+  errors; deferred full refuse trees, fishing anim, stalker combat, dungeon UI;
+  next = Twilight's Promise (#22) if #21 still lane B, else Current Affairs (#21)
+- slice 22 done: Twilight's Promise — `%vmq2` on `vmq2_primary` (0..48→50) +
+  knight side bits / crest / letter / feed / first travel; Regulus→Ennius→
+  Metzli/crypt→four knights soft→HQ letter→Renu→Teomat cultists soft→finish;
+  1 QP + thieving 3000 XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Twilight%27s_Promise/Quick_guide (+ Transcript);
+  `::twilightspromise` / `::tprun`; headless OK (`tprun OK` payload=23); pack 0
+  errors; deferred knight matrices, HQ stairs, Quetzal UI, cultist instance;
+  next = Sleeping Giants (#23)
+- slice 23 done (lane B): Sleeping Giants — `%sleeping_giants` on
+  `giants_foundry_main` (0..25→30) + repair/tutorial bits; Kovac start /
+  polish+grind+hammer repairs soft / commission crate→crucible→mould→preform
+  soft / hand-in; smithing 6000 XP; wiki
+  https://oldschool.runescape.wiki/w/Sleeping_Giants/Quick_guide;
+  `::sleepinggiants` / `::sgrun`; headless OK (`sgrun OK` payload); pack 0
+  errors; deferred mould IF 718, heat/temp loop, supply matrix, Smithing 15
+  hard gate; next = Meat and Greet (#24)
+- slice 24 done: Meat and Greet — `%mag` on `mag_primary` (0..24→26) + spice/meat
+  supply + portion bits; Emelio→spice soft→Alba/direwolf soft→recipe 4/2/1/3→
+  Renata soft→Lelia→minotaur soft→finish; 1 QP + cooking 8000 XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Meat_and_Greet/Quick_guide (+ Transcript);
+  `::meatandgreet` / `::mgrun`; headless OK (`mgrun OK` payload=23); pack 0
+  errors; also unblocked barrows_puzzle (`:1`/`:2`/`:3` → `puzzle_q*`); deferred
+  pin-pad IF, wolf den, connoisseur matrix, minotaur combat, shop UI; next =
+  Pandemonium (#25)
+- slice 25 done (lane B): Pandemonium — `%sailing_intro` on `sailing_intro_primary`
+  (0..48→50) + wreck/cargo bits; Will/Anne→board/nav/salvage soft→Ribs/Steve/Jim
+  raft+cargo-hold soft→courier deposit soft→finish; coupons/kits/spyglass;
+  sailing XP deferred; wiki
+  https://oldschool.runescape.wiki/w/Pandemonium/Quick_guide;
+  `::pandemonium` / `::pandrun`; headless OK (`pandrun OK` payload=25); pack 0
+  errors; deferred helm/sail, salvage cutscene, shipyard portal, cargo IF,
+  port-task UI; next pending for lane B = The Red Reef (#27) (#26 owned by
+  primary)
+- slice 27 done (lane B): The Red Reef — `%trr` on `trr_primary` (0..40→42) +
+  display-case bits; Raley→Finn→Katt→Floopa→Red Rock receptionist/cases→Paxton
+  →Bethel soft→Zenith dive/dredger soft→Floopa finish; smithing 5000 XP
+  (tenths) + bosun schematic; sailing XP deferred; wiki
+  https://oldschool.runescape.wiki/w/The_Red_Reef/Quick_guide;
+  `::redreef` / `::rrrun`; headless OK (`rrrun OK` payload=23); pack 0 errors;
+  deferred Tortugans/Sailing52/Smithing48 gates, ship combat, Last Light fights,
+  dive instance, lobster; next pending for lane B = #29 Fremennik Exiles (#28
+  owned by primary)
+- slice 29 done (lane B): The Fremennik Exiles — `%vikingexile` on
+  `quest_vikingexile` (0..125→130) + letter/shield bits; Brundt kegs→Freygerd
+  investigate soft→letter→SE shield soft→defence/Isle/Typhor/Jorm soft→finish;
+  slayer+crafting 50000 + runecraft 30000 XP (tenths) + V's shield; wiki
+  https://oldschool.runescape.wiki/w/The_Fremennik_Exiles/Quick_guide;
+  `::fremennikexiles` / `::fxrun`; headless OK (`fxrun OK` payload=24); pack 0
+  errors; deferred hard gates, shield craft matrix, basilisk wave, puzzle IF,
+  boss fights; next pending for lane B = #31 Making Friends with My Arm (#30
+  done by primary)
+- slice 31 done (lane B): Making Friends with My Arm — `%my2arm_status` on
+  `my2arm_perm_1` (0..196→200); Burntmeat→My Arm→Larry/Weiss soft→Mother→WOM
+  coffin/apothecary soft→prison bosses soft→Snowflake dung/notes; con 10k +
+  FM 40k + mining/agility 50k XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Making_Friends_with_My_Arm/Quick_guide;
+  `::makingfriendswithmyarm` / `::mfrun`; headless OK (`mfrun OK` payload=24);
+  pack 0 errors; deferred boat/cliff/cave pathing, coffin IF, boss fights,
+  fire-pit unlock; next pending for lane B = #33 Perilous Moons (#32 owned by
+  primary)
+- slice 33 done (lane B): Perilous Moons — `%pmoon_quest` on `pmoon_main`
+  (0..31→36) + camp/boss bits; Attala→nagua soft→Jessamine→Neypotzli camps
+  soft→Nahta/smith→Eyatlalli items soft→three Moons soft→finish; slayer 40k +
+  RC/hunter/fish 5k XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Perilous_Moons/Quick_guide;
+  `::perilousmoons` / `::pmrun`; headless OK (`pmrun OK` payload=23); pack 0
+  errors; deferred nagua combat, camp construction, talisman matrix, gather
+  loops, Moon bosses; next pending for lane B = #35 Death on the Isle (#34
+  owned by primary)
+- slice 35 done (lane B): Death on the Isle — `%doti` on `doti_main` (0..49→50)
+  + guest/clue bits; Patzi→butler uniform soft→intros→cellar murder soft→
+  guards/evidence soft→Adala soft→theatre/Naiatli soft→finish; thieving 10k +
+  agility 7.5k + crafting 5k XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Death_on_the_Isle/Quick_guide;
+  `::deathontheisle` / `::dirun`; headless OK (`dirun OK` payload=23); pack 0
+  errors; deferred steal/equip checks, clue matrix, pickpockets, boss fights;
+  next pending for lane B = #37 Beneath Cursed Sands (#36 owned by primary)
+- slice 37 done (lane B): Beneath Cursed Sands — `%bcs` on `bcs_primary`
+  (0..106→108); Jamila message→Maisa→Necropolis/guard soft→furnace/emblem/
+  tomb soft→Champion soft→Zahur cure soft→Akh/Osman→finish; agility 50k XP
+  (tenths) + Keris partisan + water circlet; wiki
+  https://oldschool.runescape.wiki/w/Beneath_Cursed_Sands/Quick_guide;
+  `::beneathcursedsands` / `::bcsrun`; headless OK (`bcsrun OK` payload=25);
+  pack 0 errors; deferred guard/scarab/Champion/Akh fights, riddle/chemistry
+  IF; next pending for lane B = #39 Secrets of the North (#38 owned by
+  primary)
+- slice 39 done (lane B): Secrets of the North — `%sotn` on `sotn_primary`
+  (0..88→90) + inspect/trail/ghorrock bits; Carnillean guard→crime scene/
+  hunter trail/Evelot soft→Hazeel cult/crest soft→Weiss/Snowflake/assassin
+  soft→Ghorrock puzzle/Muspah soft→Jhallan→finish; agility 60k + thieving 50k
+  + hunter 40k XP (tenths); wiki
+  https://oldschool.runescape.wiki/w/Secrets_of_the_North/Quick_guide;
+  `::secretsofthenorth` / `::snrun`; headless OK (`snrun OK` payload=23);
+  pack 0 errors; deferred explain matrix, hunter trail, Evelot/assassin/
+  Muspah fights, cult Q&A, brazier puzzle; next pending for lane B = #42
+  Heart of Darkness (#41 owned by primary)
+- slice 42 done (lane B): The Heart of Darkness — `%vmq3` on `vmq3_primary`
+  (0..74→76) + recruit/trial/ruins bits; Itzla→Gorge pub/shop soft→tower
+  recruits/trials soft→temple/Fides→ruins mine/levers/statues soft→Amoxliatl
+  soft→Servius; mining/thieving/slayer/agility 8k XP each (tenths); wiki
+  https://oldschool.runescape.wiki/w/The_Heart_of_Darkness/Quick_guide;
+  `::heartofdarkness` / `::hodrun`; headless OK (`hodrun OK` payload=24);
+  pack 0 errors; deferred tower puzzles/combat, robes equip, ice statue
+  matrix, Amoxliatl fight; next pending for lane B = #44 Sins of the Father
+  (#43 owned by primary)
+- slice 44 done (lane B): Sins of the Father — `%myq5` on `myq5_primary`
+  (0..136→138) + team/lab bits; Veliaf→Slepe/Kroy soft→Pater/Ivan trek soft→
+  Vanescula/lab/Damien soft→Darkmeyer valves/flail soft→Vanstrom soft; blisterwood
+  flail + 6 lamps + Drakan's medallion; wiki
+  https://oldschool.runescape.wiki/w/Sins_of_the_Father/Quick_guide;
+  `::sinsofthefather` / `::softrun`; headless OK (`softrun OK` payload=26);
+  pack 0 errors; deferred Carl follow, temple trek instance, door puzzle,
+  boss fights, craft IF; next pending for lane B = #46 Monkey Madness II
+  (#45 owned by primary)
+- slice 46 done (lane B): Monkey Madness II — `%mm2_progress` on `mm2_primary`
+  (0..190→195) + sabotage/breach bits; Narnode→Glough/Anita/Entrana soft→
+  Garkor/Kruk greegree soft→Kob/Keef/sabotage/lab soft→Nieve/Stronghold/
+  Glough soft; slayer 80k + agility 60k + thieving/hunter 50k XP (tenths) +
+  royal seed pod; wiki
+  https://oldschool.runescape.wiki/w/Monkey_Madness_II/Quick_guide;
+  `::monkeymadnessii` / `::mm2run`; headless OK (`mm2run OK` payload=26);
+  pack 0 errors; deferred house puzzle, agility dungeon, fights, sabotage
+  pathing; next pending for lane B = #48 Desert Treasure II (#47 owned by
+  primary)
+- slice 26 done: A Night at the Theatre — `%tobquest` on `tobquest_main` bits
+  8..14 (0..80→86) + `%tobquest_done_tob`; stranger→crypt/head→spider cave/
+  Daer→eggs→Hespori bark soft→ToB soft→finish; 2 QP + 4 antique lamps; wiki
+  https://oldschool.runescape.wiki/w/A_Night_at_the_Theatre/Quick_guide (+ Transcript);
+  `::nightatthetheatre` / `::nattrun`; headless OK (`nattrun OK` payload=25);
+  pack 0 errors; deferred crypt puzzle, araxyte pathing, Hespori fight, ToB
+  raid, lamp Rub; next = Misthalin Mystery (#28) if #27 still lane B, else
+  The Red Reef (#27)
+- slice 28 done: Misthalin Mystery — `%mistmyst_progress` on `mistmyst_main`
+  (0..130→135); Abigale→barrel/key→manor doors soft→candles/fuse/piano/
+  fireplace soft→Abigale fight soft→Mandy finish; 1 QP + crafting 600 XP
+  (tenths); wiki
+  https://oldschool.runescape.wiki/w/Misthalin_Mystery/Quick_guide (+ Transcript);
+  `::misthalinmystery` / `::mmrun`; headless OK (`mmrun OK` payload=24); pack 0
+  errors; deferred manor instance, candle/piano/switch puzzles, boss fight;
+  next = The Fremennik Exiles (#29) if #27 still lane B, else The Red Reef (#27)
+- slice 30 done: A Taste of Hope — `%myq4` on `myq4_main` (0..160→165); Garth→
+  Safalaan/spy soft→Flaygian→Serafina potion soft→abomination soft→flail→
+  Ranis soft→finish; 1 QP + Ivandis flail + Drakan's medallion + 3 tomes; wiki
+  https://oldschool.runescape.wiki/w/A_Taste_of_Hope/Quick_guide (+ Transcript);
+  `::tasteofhope` / `::tohrun`; headless OK (`tohrun OK` payload=25); pack 0
+  errors; deferred rooftop spy, potion matrix, abom/Ranis fights, tome Rub;
+  next = Making Friends with My Arm (#31) if #29 still lane B, else Fremennik
+  Exiles (#29)
+- slice 32 done: Temple of the Eye — `%tote` on `tote_primary` (0..125→130);
+  Persten→Zamorak mage/tea→Abyss energies soft→Sedridor/Traiborn puzzle soft→
+  temple/GoTR tutorial soft→finish; 1 QP + runecraft 9210 XP (tenths) + medium
+  pouch + amulet; wiki
+  https://oldschool.runescape.wiki/w/Temple_of_the_Eye/Quick_guide (+ Transcript);
+  `::templeoftheeye` / `::toerun`; headless OK (`toerun OK` payload=25); pack 0
+  errors; deferred Abyss touch matrix, Traiborn IF, GoTR instance; next =
+  Perilous Moons (#33) if #31 still lane B, else Making Friends with My Arm (#31)
+- slice 34 done: Troubled Tortugans — `%tt` on `tt_primary` (0..42→44) + repair
+  bits; Blunn→bandage Floopa→sail soft→elders→town repair soft→trail/cave/
+  gryphon soft→Shellbane soft→finish; 1 QP + slayer 8000 XP (tenths); sailing
+  XP deferred; wiki
+  https://oldschool.runescape.wiki/w/Troubled_Tortugans/Quick_guide (+ Transcript);
+  `::troubledtortugans` / `::ttrun`; headless OK (`ttrun OK` payload=23); pack 0
+  errors; also unblocked puropuro (`%` → `modulo`); deferred sail matrix, hunt
+  trail, gryphon fights; next = Death on the Isle (#35) if #33 still lane B,
+  else Perilous Moons (#33)
+- slice 36 done: Scrambled! — `%scrambled` on `scrambled_primary` (0..28→30) +
+  kings-men bits; Alan→inspect egg→King→gather men→sample eggs soft→judge/
+  panic soft→put Humpty together soft→finish; 1 QP + construction/cooking/
+  smithing 50000 XP each (tenths); wiki
+  https://oldschool.runescape.wiki/w/Scrambled!/Quick_guide (+ Transcript);
+  `::scrambled` / `::scrun`; headless OK (`scrun OK` payload=23); pack 0
+  errors; deferred egg side-tasks (axe/tea/jaguar), judge IF, pet-egg unlock;
+  next = The Final Dawn (#38) while #37 Beneath Cursed Sands is lane B
+- slice 38 done: The Final Dawn — `%vmq4` on `vmq4_primary` (0..67→68); Servius
+  → Twilight Temple soft → Queen/Vibia → Janus house/dog/hideout soft → Attala/
+  Cam Torum soft → keystone/cultists soft → Tal Teklan → Crypt of Tonali soft
+  (Ennius/Metzli/final) → chamber inspect → finish; 3 QP + thieving 550000 +
+  fletching/runecraft 250000 XP each (tenths) + Arkan blade + lamp; wiki
+  https://oldschool.runescape.wiki/w/The_Final_Dawn/Quick_guide (+ Transcript);
+  `::finaldawn` / `::tfdrun`; headless OK (`tfdrun OK` payload=24); pack 0
+  errors; deferred basement combat, Janus puzzles, Neypotzli sun/moon, boss
+  fights, lamp Rub; next = The Forsaken Tower (#40) while #39 Secrets is lane B
+- slice 40 done: The Forsaken Tower — `%lovaquest` on `lovaquest_main` (0..10→11)
+  + furnace/electricity/refinery/altar bits; Vulcana→Undor→tower entry→four
+  puzzle soft-skips→Dinh's hammer→Undor→Vulcana; 1 QP + mining/smithing 5000
+  XP each (tenths) + 6000 coins + memoirs page; wiki
+  https://oldschool.runescape.wiki/w/The_Forsaken_Tower/Quick_guide (+ Transcript);
+  `::forsakentower` / `::ftrun`; headless OK (`ftrun OK` payload=23); pack 0
+  errors; deferred jug/power-grid/fluid/pylon puzzles, Ignisia gate; next =
+  A Kingdom Divided (#41) while #39 Secrets is lane B
+- slice 41 done: A Kingdom Divided — `%akd` on `akd_primary` (0..148→150) +
+  house-help bits; Martin→Fullore→Hughes/Herbert soft→Yama soft→Rose trail/
+  Forthos/Settlement/Faun soft→Kaht egg→Xamphur soft→burial→Lookout house
+  help soft→finish; 2 QP + Book of the Dead + lamp; wiki
+  https://oldschool.runescape.wiki/w/A_Kingdom_Divided/Quick_guide (+ Transcript);
+  `::kingdomdivided` / `::akdrun`; headless OK (`akdrun OK` payload=25); pack 0
+  errors; deferred house search, fights, puzzles, house side-quests, lamp Rub;
+  next = The Curse of Arrav (#43) while #42 Heart of Darkness is lane B
+- slice 43 done: The Curse of Arrav — `%coa` on `coa_primary` (0..58→60);
+  Elias→mastaba doors/golem/tile soft→canopic→Trollweiss soft→fort key soft→
+  base heist/Arrav soft→finish; 2 QP + mining/thieving/agility 400000 XP each
+  (tenths); wiki
+  https://oldschool.runescape.wiki/w/The_Curse_of_Arrav/Quick_guide (+ Transcript);
+  `::curseofarrav` / `::coarun`; headless OK (`coarun OK` payload=24); pack 0
+  errors; also unblocked giantmole (`%` → `modulo`); deferred levers, golem,
+  tiles, cave pathing, fights; next = Dragon Slayer II (#45) while #44 Sins is lane B
+- slice 45 done: Dragon Slayer II — `%ds2` on `dragonslayer2_main` (0..210→215);
+  Alec→Dallas Crandor soft→Fossil map/boat soft→Lithkren diary soft→Bob/Sphinx/
+  dream/key soft→Roald allies soft→Ungael/Galvek soft→finish; 5 QP + smithing
+  800000 + mining 600000 + agility/thieving 500000 XP (tenths) + orb + 4 lamps;
+  wiki https://oldschool.runescape.wiki/w/Dragon_Slayer_II/Quick_guide (+ Transcript);
+  `::dragonslayer2` / `::ds2run`; headless OK (`ds2run OK` payload=25); pack 0
+  errors; deferred mural/spawn/map IF/boat build/dream fight/ship combat/Galvek
+  phases/lamp Rub; next = Song of the Elves (#47) while #46 Monkey Madness II is lane B
+- slice 47 done: Song of the Elves — `%sote` on `sote_primary` (0..192→200);
+  Edmond→Lathas/Alrena soft→Elena free/revolt soft→Arianwyn/Baxtorian/clans/
+  seals soft→orb/Lletya/Pass/Essyllt/final soft→finish; 4 QP + 8×400000 XP
+  (tenths); wiki
+  https://oldschool.runescape.wiki/w/Song_of_the_Elves/Quick_guide (+ Transcript);
+  `::songoftheelves` / `::soterun`; headless OK (`soterun OK` payload=26); pack 0
+  errors; also unblocked Inferno duplicate Zuk stub; deferred revolt/puzzles/
+  fights; next = Desert Treasure II (#48) if lane B frees it, else miniquests M1/M2

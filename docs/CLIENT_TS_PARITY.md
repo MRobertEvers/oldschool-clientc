@@ -1016,19 +1016,33 @@ both phases untouched. Same-zone skips do **not** ack.
 The serial packet FIFO stands in for `awaitingPlayerInfo`. Ack only when a
 build ran (`Client.ts:2289`).
 
+4. **Edge rebuild is not a teleport (2026-08-04):** LostCity
+   `BuildArea.rebuildNormal` sends `REBUILD_NORMAL` without `player.tele`.
+   Mock `maybe_rebuild` therefore sets `rebuild_pending` + zone reset only —
+   **not** `place_dirty`. Walk/run bits survive the tick (`move_count` is
+   kept). The post-rebuild PLAYER_INFO no longer force-snaps mid-tile draw
+   via jump=1. Real teleports / login / plane change / instance room-add
+   still set `place_dirty`.
+5. **Loading overlay (deob gameState 25):** while
+   `world_load_server_driven && world_load_inflight`, `app_world_drawable`
+   is false and Soft3D `App_Render` fills the world viewport with
+   "Loading - please wait." (p12), matching deob `method5761` / Client-TS
+   `p12.centreString`. The sync `WorldBuilder_RebuildCenterzone` stall
+   remains; the overlay makes it intentional rather than a frozen pop.
+
 Tests: `test_rebuild_shift` (`make -C src test-world`) — player/npc/stack
 shift, npc exact-move shift, loc-change shift/unlink, park-at-255,
 projectile/spotanim clear, scenery-pool reset with movers + loc-changes
 surviving `World_ResetScene`, zone-centred base assertion.
 `test-net-exec` pins `rebuild_square_rect` and SET_MAP_FLAG without
-`scene_off`.
+`scene_off`. Mock selftest `rebuild on scene edge` asserts
+`place_dirty == 0` after an edge rebuild.
 
-Follow-ons: a mid-walk local player crossing the boundary keeps its
-interpolated draw position only when it stays in scene — the parked case
-relies on the immediate PLAYER_INFO teleport, same as the reference's
-awaitingPlayerInfo window. Classic NPC_INFO has no exact-move mask (all 8
-bits used); the NPC ExactMove facet exists for rebuild-shift + cycle
-parity with Actor.
+Follow-ons: early shift at packet time (deob `method3310` order) once
+draw is gated; Client-TS `awaitingPlayerInfo` scene-swap reorder; yielding
+`WorldBuilder_RebuildCenterzone` across frames. Classic NPC_INFO has no
+exact-move mask (all 8 bits used); the NPC ExactMove facet exists for
+rebuild-shift + cycle parity with Actor.
 
 ---
 

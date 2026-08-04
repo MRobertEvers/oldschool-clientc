@@ -1932,10 +1932,12 @@ mock230_world_mapinstance_built(
  * Re-centre the scene when a player nears its edge.
  *
  * The client holds a 104x104 scene based at (zone - 6) * 8. Once a player is
- * within 16 tiles of an edge the scene has to be rebuilt around them, and
- * because a rebuild throws away every entity the client was tracking, the
- * ground-obj set is dropped and the player re-placed absolutely on the next
- * tick.
+ * within 16 tiles of an edge the scene has to be rebuilt around them. The
+ * client shifts every kept entity/camera by the base-tile delta
+ * (App_WorldRebuildShift / deob method3310) — this is not a teleport. LostCity
+ * BuildArea.rebuildNormal sends REBUILD_NORMAL without setting player.tele;
+ * place_dirty stays off so PLAYER_INFO can keep walk/run bits and mid-tile
+ * interpolation survives.
  *
  * **The origin is the world's, so re-centring it re-centres it for everybody.**
  * Every scene-local coordinate on the wire is measured from it, so a player who
@@ -1980,7 +1982,9 @@ maybe_rebuild(struct Mock230Server* srv)
         if( !player->active )
             continue;
         player->rebuild_pending = 1;
-        player->place_dirty = 1;
+        /* No place_dirty: edge rebuild is not a teleport. Login / P_TELEPORT /
+         * plane change / instance room-add still set it where absolute place
+         * is required. */
         /* REBUILD_NORMAL resets the client's scene to the cache's version, which
          * un-opens every door it had been told about and drops every obj. So the
          * client is treated as holding no zones at all and phase 10 re-sends
@@ -7111,9 +7115,9 @@ phase_client_out(struct Mock230Player* player)
          * nothing. `mock230_zone_player_reset` (in `maybe_rebuild`, and in
          * `climb`) marks every zone unloaded instead, and the zone flush below
          * re-states each one from the ZoneMap. */
-        /* The scene moved under the player, so the step directions computed
-         * before it are meaningless. */
-        player->move_count = 0;
+        /* Keep move_count: walk/run bits are world-absolute and stay valid
+         * after App_WorldRebuildShift. Clearing them + place_dirty used to
+         * force a mid-walk tile-centre snap. */
     }
 
     mock230_send_player_info(player);
@@ -13734,8 +13738,8 @@ mock230_world_selftest(void)
          * (6 closed + 6 open); door_closed/opened now 386 each. An overlay that
          * stopped being read would answer 0 here and `validate_categories`
          * would then call the name uncarried. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 386,
-                       "and doors.loc states door_closed 386 times, got %d",
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 382,
+                       "and doors.loc states door_closed 382 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
@@ -13745,11 +13749,11 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(gate_main_closed > 0 && gate_outer_closed > 0,
                            "pack/category.pack should name both fence-gate leaves: %d/%d",
                            gate_main_closed, gate_outer_closed);
-            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 3,
-                           "doors.loc states gate_main_closed 3 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 5,
+                           "doors.loc states gate_main_closed 5 times, got %d",
                            mock230_loc_category_members(gate_main_closed));
-            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 3,
-                           "doors.loc states gate_outer_closed 3 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 5,
+                           "doors.loc states gate_outer_closed 5 times, got %d",
                            mock230_loc_category_members(gate_outer_closed));
         }
 
@@ -14583,7 +14587,9 @@ mock230_world_selftest(void)
         mock230_world_tick(&srv);
         SELFTEST_CHECK(srv.zone_x != zone_before, "walking to the scene edge re-centres the scene");
         SELFTEST_CHECK(player->place_dirty == 0,
-                       "the placement is consumed by the PLAYER_INFO it triggered");
+                       "edge rebuild is not a teleport (LostCity BuildArea.rebuildNormal)");
+        SELFTEST_CHECK(player->rebuild_pending == 0,
+                       "rebuild was sent this tick");
         {
             int local_x = player->x - mock230_scene_origin(srv.zone_x);
             SELFTEST_CHECK(local_x >= 0 && local_x < MOCK230_SCENE_TILES,

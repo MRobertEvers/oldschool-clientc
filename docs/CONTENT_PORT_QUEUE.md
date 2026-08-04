@@ -11,8 +11,9 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 `sscompile`. Fix your own errors. See PORTING_GUIDE §7 and
 `.cursor/rules/no-park-sibling-content.mdc`.
 
-Loop prompt: read this file + PORTING_GUIDE §4 / §7; port the next pending
-unblocked slice; NEVER park sibling lanes; verify (`mock230_pack --check-only`,
+Loop prompt: read this file + PORTING_GUIDE §4 / §7; **immediately mark the
+chosen slice `in_progress`** (other lanes share this tree — claim before
+measure/port); NEVER park sibling lanes; verify (`mock230_pack --check-only`,
 scripts build); update this file; re-arm. Stop only when the user stops the loop.
 
 **Do not park sibling lanes.** Never rename `skill_construction/` →
@@ -75,7 +76,7 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 9a | Rimmington done + Edgeville dungeon + Karamja F2P ferry/trees + general shops | done | Rimmington LC already complete (rommik/hetty); edgeville_dungeon brasskey+oddwall walk-through; customs_officer rum search+telejump; banana trees+plantation.loc; F2P generalshop 2..7 Trade stubs; deferred: openshop, set_sail IF, door swing, zambo (absent), jiminua/shanks/members |
 | 9b | Barbarian Village (F2P) | done | peksa/gunthor/barbarian(+fai_*) + beer barrel beatdown; Trade-stubbed; spinning already in 3; drop table fai expand; deferred: openshop, scorpcatcher arm, barbarian_woman, outpost/agility/fishing/herblore, fai_barbarian_barrel ops, Hunding |
 | 9c | F2P quest: Gertrude's Cat (quest_fluffs) | done | Gertrude+kids+Fluffs+fence+journal quest_gertrudescat; %fluffs=180; fluffs_crate+fence timer server varps; deferred: pet.rs2 growth/follower, trail clues, lostkitten cinematic (.npc_*), chompy doogle use |
-| 9d | general_use gates/fence/gangplank (+findsomethingnice) | done | fencegate/farming/rustic via gate_main/gate_outer pair swing; metalgate still door_closed; memberfencegate walk-through; mournerstewfence; ship planks (not dragonship*); findsomethingnice+wire; deferred: board_message param, duel arena, ~open_and_close_metal_gate, doubledoors.rs2 |
+| 9d | general_use gates/fence/gangplank (+findsomethingnice) | done | wooden double fence via gate_main/gate_outer (fencegate/farming/rustic/plaguesheep/pvpa_access_gate); metalgate still door_closed; memberfencegate walk-through; mournerstewfence; ship planks (not dragonship*); findsomethingnice+wire; deferred: board_message param, duel arena, ~open_and_close_metal_gate, doubledoors.rs2 |
 | 9e | Monastery (+ Varrock palace plaque) | done | Varrock leftovers thin (east_gate biohazard); Abbot/Jered/monk Talk-to + ladder guild gate + monks_altar +2; %prayer_guild authored; plaque_zamorak_monk; altar.rs2 amount arg; deferred: east_gate, trail clue, monk AI heal, sound_synth, ~objbox |
 | 9f | Wilderness F2P stubs | done | Fat Tony/Noterazzo Trade stubs + bandit leaders Talk-to expand + muddy chest; deferred: openshop, wild warning/levels/overlays, wild levers, lava ladders (orphan locs), ditch (no LC script), bandit drops/AI, Mage Arena |
 | 9g | Wilderness levers (Ardougne) | done | wildinlever/wildoutlever + hauntedleverdown + warning varp + p_choice3_header; coords from LC; deferred: Entrana cave_monk/high_priest, guard2 (unresolved), wild warning/levels/overlays, lava ladders, ditch |
@@ -418,7 +419,58 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 22f | Biohazard Chemist Talk | done | touch paper / sample arms; Regicide still deferred |
 | 22g | Biohazard Guidor Talk | done | analyse sample → ^biohazard_found_secret; wife/door deferred |
 | 22h | UPass area-1 obstacles | done | rockslide/swamp/mudpile/pipes + %upass_area1_pipe_used; rope swings deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: biohazard leftovers (jerico cupboard/pigeons/watchtower/ladder, guidor door/wife, errand boys), UPass dungeon remainder (rope swings/bridge/grid/slave), …; rpdt_employee already 17z; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent) |
+| 22i | Biohazard loc leftovers | done | jerico cupboard/birdfeed/pigeons/watchtower + climb_ladder label + cauldron/nurse cupboard/HQ gate/crate; omart/kilron still deferred |
+| 22j | Guidor door + wife | done | guidordoor walk-through + guidors_wife Talk; priest gown/robe gate |
+| 22k | Biohazard errand boys | done | hops/chancy/devinci + %bioerrand + ^hops_*/^chancy_*/^devinci_* |
+| 22l | UPass rope swings | done | rock/swamp swings; LC loc_2276→norope, 2273→withrope, 2274→withrope2; traps deferred |
+| 22m | UPass old bridge | done | damp_cloth→unlit/lit arrows + guiderope shot + lever; FM tinderbox hook |
+| 22n | UPass grid + slaves | done | portcullis lever + grilltrap zones/timer + %upass_grid_pattern (not ibanmulti 22-31) + cave_slave1–7; Lathas ~setupassgrilltrap; sound dropped |
+| 22o | UPass speartrap | done | disarm + mapzone trap timer (LC music.rs2); springtrap timer branch included |
+| 22p | UPass springtrap plank | done | double_springtrap_trigger Examine + woodplank→crossing_plank |
+| 22q | UPass logtrap + orb | done | logtrap disarm + caveorb1; %upass_caveorb_1 (not ibanmulti); orboflight trap |
+| 22r | UPass ledge | done | sidestep ledge + rat-pit fail |
+| 22s | UPass walkway | done | walkway_upass_narrow_mid_top rock bridge balance |
+| 22t | UPass pipe6 | done | area-2 pipe crawl + %upass_area2_pipe_used; unicorn gate tele |
+| 22u | UPass collapsed bridge | done | bridgecollapsed1/2 jump; fail→caveguide4 + %upass_koftik_chat |
+| 22v | UPass Niloof | done | upassdwarf1 Talk (Well of Voyage / doll arms) |
+| 22w | UPass Klank | done | upassdwarf2 Talk + gauntlets gift/sale + tinderbox; ~p_choice2 |
+| 22x | UPass Kamen | done | upassdwarf3 drunk brew Talk; damage on refuse path |
+| 22y | UPass journals (Randas + Iban history) | done | upass_journal + old_journal Read; IF1 book→mesbox; %upass_read_journal / %upass_read_iban_book; ~p_choice4_header chapters |
+| 22z | UPass paladins (Jerro/Carl/Harry) | done | upass_paladin1–3 Talk + badge drops; %upass_paladin_food; ~paladin_drops; hostile after main area |
+| 23a | UPass Iban disciple | done | ibanmonk Talk (robe disguise) + robe/broken-staff drops; hostile without robes |
+| 23b | UPass Kalrag | done | kill→blessed spider aggro + %upass_venom_on_doll (LC blood_on_doll); custom spider AI deferred |
+| 23c | UPass Lord Iban | done | [ai_spawn]/[ai_timer,iban] bolt storm; sound dropped; damage(); timer via spawn overlay |
+| 23d | UPass entrance + exit | done | upass_caveentrance2 + cave_exit_upass; biohazard/%upass_lathas_met gates |
+| 23e | UPass orbs destroy + pickup | done | furnace_upass destroy + caveorb1–4 pickup; %upass_caveorb_* |
+| 23f | UPass cave well + mudpile | done | cave_well climb/use + mudpile_upass exit |
+| 23g | UPass witch (Kardia) | done | door/cat/chest; %upass_gavecat; doll loot |
+| 23h | UPass bloodwell + temple doors | done | inscription mesbox + badge/horn offer; cavetempledoor2; staff charge deferred |
+| 23i | UPass unicorn area (boulder/railings/cage) | done | thieving railings + boulder rail + unicorncage horn |
+| 23j | UPass mud dig + unicorn tunnels | done | upass_mud dig + unicorn doorl/r tele |
+| 23k | UPass area-2 food crate | done | cavefood1 + %upass_crate_food |
+| 23l | UPass tomb + doll + Iban altar | done | brew barrel + tomb burn/ashes + doll smear/search + temple doors + altar defeat; %upass_brew_tomb; Regicide shortcut + staff charges deferred |
+| 23m | UPass cages + shadow chest | done | soulless cages dove + amulet chest → ibansshadow |
+| 23n | UPass tablets + quest complete | done | tablets→mesbox; caveguide5 exit; Lathas complete queue + agility/attack XP |
+| 23o | UPass voice + cavewall tunnels | done | iban_say zone voices + cavewalltunnel up/down (Koftik spawn) |
+| 23p | UPass demon drops (Doomion trio) | done | already in upass_demon_drops.rs2 (LC files are ai_queue3 drops only; no Talk) |
+| 23q | UPass quest journal | done | ~upass_journal + dbrow wire; ^journal_* colours; fire-arrow parts helper |
+| 23r | Zanaris camp adventurers | done | monk/archer/wizard/warrior; %zanaris start via warrior; drop send_quest_progress |
+| 23s | Zanaris doorman + market door | done | diamond tax + zanarismarketdoor; walk-through |
+| 23t | Kalphite larva + locs | done | larva flee + rope burrow/chamber; coords landed; chamber_entrance→norope |
+| 23u | Shilo Vigroy cart | done | shilocart/shilocartdriver → Brimhaven; ~calc_shilocart_cost |
+| 23v | Shilo Paramaya inn | done | shiloinnowner drinks/tickets + dorm ladders |
+| 23w | Shilo Yanni antiques | done | quote + opnpcu sell zq* quest leftovers |
+| 23x | Dragon Inn bartender | done | Dragon Bitter / Greenman's Ale; barcrawl deferred |
+| 24a | Varrock tramp | done | tramppg Talk + Black Arm tip; ~p_choice*; drop send_quest_progress |
+| 24b | Lumbridge cook (area) | done | post-quest ~p_choice4 restored in quest_cook; trails clue deferred |
+| 24c | Varrock east gate | done | bioguard1 + guidor gate Open; Biohazard vial search; sound dropped |
+| 24d | Draynor Joe guard | done | already in areas/draynor/joe.rs2 (~p_choice* beer distract) |
+| 24e | Varrock gypsy (Aris) | done | already areas/varrock/aris.rs2 (full Demon Slayer Talk) |
+| 24f | Karamja volcano entrance | done | volcano.rs2: pot-hole + climbing_rope2 rim |
+| 24g | Shilo sandpit | done | shilo_sandpit.rs2: sand1–3 scoop + members gate |
+| 24h | Yanille agility dungeon | in_progress | Claimed — agility_dungeon locs; do not steal |
+| 24i | Karamja karam dungeon | in_progress | Claimed — karam_dungeon; do not steal |
+| 8 | Outward areas / remaining quests / minigames | pending | Next after 24h/24i: KQ / tbwt_timfraku; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent) |
 
 
 
@@ -479,7 +531,7 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 9a done: Rimmington LC complete (rommik/hetty already present); Edgeville dungeon brasskeydoor+oddwall walk-through; Karamja customs_officer (rum search, Port Sarim/Ardougne telejump) + banana trees (name-expanded + plantation.loc); F2P generalshopkeeper/assistant 2..7 Trade stubs (Rimmington/Edgeville/Karamja included); deferred: ~openshop, ~set_sail IF, door swing/inviswall, zambo (absent), jiminua/captain_shanks/members
 - slice 9b done: Barbarian Village — peksa (Trade stub), gunthor_the_brave, barbarian Talk-to expanded to fai_barbarian_1..8/10..14 + females, beer_barrel beatdown at re-measured 0_48_53_26_41, drop table fai expand; spinning already slice 3; deferred: ~openshop, scorpcatcher hint, barbarian_woman (absent), outpost/agility/fishing/herblore, fai_barbarian_barrel (no Use op), Hunding (fai_barbarian_9)
 - slice 9c done: Gertrude's Cat (quest_fluffs) — Gertrude full dialogue, shilop/wilough → fluffs_boy_dialogue, Fluffs milk/sardine/kitten, gertrudefence + empty barrel/crate, doogle+sardine, journal quest_gertrudescat; %fluffs varp 180 + fluffs_crate/lumberyard_fence_used server; deferred: pet.rs2 growth/follower (reward is kittenobject), trail clues, lostkitten .npc_* cinematic, chompy doogle
-- slice 9d done: general_use gates/fence/gangplank + findsomethingnice — fencegate/farming/rustic on gate_main/gate_outer (pair swing in gates.rs2); metalgate still door_closed; memberfencegate walk-through; mournerstewfence squeeze; sarim/karamja/brimhaven/ardougne/entrana planks (not dragonship*); findsomethingnice + wire into chests/drawers/crates/sacks/wardrobes; deferred: board_message param, duel arena, ~open_and_close_metal_gate, doubledoors.rs2
+- slice 9d done: general_use gates/fence/gangplank + findsomethingnice — wooden double fence on gate_main/gate_outer (fencegate/farming/rustic/plaguesheep/pvpa_access_gate — MTA desert approach uses pvpa_access_gate_* model 966); metalgate still door_closed; memberfencegate walk-through; mournerstewfence squeeze; sarim/karamja/brimhaven/ardougne/entrana planks (not dragonship*); findsomethingnice + wire into chests/drawers/crates/sacks/wardrobes; deferred: board_message param, duel arena, ~open_and_close_metal_gate, doubledoors.rs2
 - slice 9e done: Varrock leftovers thin → monastery F2P (Abbot Langley heal/join, Brother Jered bless stringstar→blessedstar, monk Talk-to heal, monasteryladder %prayer_guild gate via ~climb, monks_altar +2 via pray_at_altar amount) + varrock_palace plaque_zamorak_monk; altar.rs2 restored amount arg + stat_add; deferred: east_gate (biohazard), trail clue on Abbot, monk ai_opplayer2 self-heal, sound_synth, ~objbox
 - slice 9f done: Wilderness F2P — fat_tony/noterazzo Talk-to+Trade stubs, bandit_camp_leaders (black_heather/donny_the_lad/speedy_keith), muddy_chestclosed key loot; deferred: ~openshop, wilderness warning/levels/overlays, wildin/out lever, lava maze ladders, ditch, bandit drops/AI, Mage Arena
 - slice 9g done: Wilderness levers — wildinlever/wildoutlever Pull + warning mesbox/p_choice3_header + %warning_wilderness_teleport_lever server varp + ~player_teleport_normal; p_choice3_header added to chat.rs2; drop sound_synth; deferred: Entrana cave_monk/entranaladdertop/zanarismagicdoor/high_priest, guard2 (unresolved), wilderness warning/levels/overlays, lava ladders, ditch
@@ -837,8 +889,59 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 22f done: chemist Talk (biohazard arms; Regicide deferred); mock230_pack 0 errors
 - slice 22g done: guidor Talk analyse→found_secret; mock230_pack 0 errors
 - slice 22h done: UPass area-1 obstacles (rockslide/swamp/mudpile/pipes); mock230_pack 0 errors (7503 scripts)
-- next pending: biohazard leftovers (jerico cupboard/pigeons/watchtower/ladder, guidor door/wife, errand boys), UPass dungeon remainder (rope swings/bridge/grid/slave), …; skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent)
+- slice 22i done: biohazard loc leftovers (cupboard/pigeons/watchtower/ladder/HQ); mock230_pack 0 errors (7584 scripts)
+- slice 22j done: guidordoor + guidors_wife; mock230_pack 0 errors (7608 scripts)
+- slice 22k done: errand boys hops/chancy/devinci + %bioerrand; mock230_pack 0 errors (7623 scripts)
+- slice 22l done: UPass rope swings (rock/swamp); mock230_pack 0 errors (7627 scripts)
+- slice 22m done: UPass old bridge + cloth/lit arrows + FM hook; mock230_pack 0 errors (7634 scripts)
+- slice 22n done: UPass grid (portcullis lever + zone timer arming + %upass_grid_pattern) + cave_slave1–7 Talk-to + Lathas ~setupassgrilltrap; mock230_pack 0 errors (7814 scripts)
+- slice 22o done: UPass speartrap + mapzone trap timer; mock230_pack 0 errors (7820 scripts)
+- slice 22p done: UPass double springtrap + woodplank cross; mock230_pack 0 errors (7914 scripts)
+- slice 22q done: UPass logtrap + orboflight + caveorb1; %upass_caveorb_1; mock230_pack 0 errors (7917 scripts)
+- slice 22r done: UPass ledge sidestep; mock230_pack 0 errors (7918 scripts)
+- slice 22s done: UPass narrow walkway; mock230_pack 0 errors (7960 scripts)
+- slice 22t done: UPass pipe6 + %upass_area2_pipe_used; mock230_pack 0 errors (7991 scripts)
+- slice 22u done: UPass collapsed bridge + caveguide4 insane Koftik; %upass_koftik_chat; mock230_pack 0 errors (7996 scripts)
+- slice 22v done: UPass Niloof (upassdwarf1) Talk; mock230_pack 0 errors
+- slice 22w done: UPass Klank (upassdwarf2) Talk + gauntlets; mock230_pack 0 errors (8092 scripts)
+- slice 22x done: UPass Kamen (upassdwarf3) drunk brew Talk; mock230_pack 0 errors (8091 scripts)
+- slice 22y done: UPass journals (Randas upass_journal + Iban old_journal); IF1→mesbox; %upass_read_journal/%upass_read_iban_book; mock230_pack 0 errors (8101 scripts)
+- slice 22z done: UPass paladins Jerro/Carl/Harry Talk + badge drops; %upass_paladin_food; mock230_pack 0 errors (8203 scripts)
+- slice 23a done: UPass ibanmonk Talk + robe/staff drops; mock230_pack 0 errors (8205 scripts)
+- slice 23b done: UPass Kalrag kill → %upass_venom_on_doll; mock230_pack 0 errors (8269 scripts)
+- slice 23c done: lord_iban ai_timer bolt storm + ai_spawn timer; scripts+pack 0 errors
+- slice 23d done: UPass entrance + exit; mock230_pack 0 errors (8400 scripts)
+- slice 23e done: UPass orb destroy/pickup + furnace_upass hook; %upass_caveorb_*; mock230_pack 0 errors
+- slice 23f done: UPass cave_well + mudpile_upass; mock230_pack 0 errors
+- slice 23g done: UPass witch Kardia (door/cat/chest); %upass_gavecat; mock230_pack 0 errors
+- slice 23h done: UPass bloodwell + temple doors; staff charge deferred; mock230_pack 0 errors
+- slice 23i done: UPass boulder/railings/unicorncage; mock230_pack 0 errors
+- slice 23j done: UPass mud dig + unicorn tunnels; mock230_pack 0 errors
+- slice 23k done: UPass cavefood1 crate; %upass_crate_food; mock230_pack 0 errors
+- slice 23l done: UPass tomb/doll/temple climax; mock230_pack 0 errors
+- slice 23m done: UPass soulless cages + shadow chest; mock230_pack 0 errors
+- slice 23n done: UPass tablets + caveguide5 + complete XP; mock230_pack 0 errors
+- slice 23o done: UPass voice zones + cavewall tunnels; mock230_pack 0 errors (8629 scripts)
+- slice 23p done: demon drops already present; slice 23q done: upass_journal + questlist wire; mock230_pack 0 errors
+- slice 23r done: Zanaris camp adventurers (monk/archer/wizard/warrior); mock230_pack 0 errors
+- slice 23s done: Zanaris doorman + market door; mock230_pack 0 errors
+- slice 23t done: Kalphite larva + rope locs + coords landed; mock230_pack 0 errors
+- slice 23u done: Shilo Vigroy cart → Brimhaven; mock230_pack 0 errors
+- slice 23v done: Shilo Paramaya inn + dorm ladders; mock230_pack 0 errors
+- slice 23w done: Shilo Yanni antiques quote/sell; mock230_pack 0 errors
+- slice 23x done: Dragon Inn bartender drinks (barcrawl deferred); mock230_pack 0 errors (9045 scripts)
+- slice 24a done: Varrock tramppg Talk; mock230_pack 0 errors
+- slice 24b done: cook post-quest ~p_choice4; trails deferred
+- slice 24c done: Varrock east gate + bioguard; mock230_pack 0 errors
+- multi-lane: claim slices as `in_progress` before porting (loop prompt updated)
+- next pending: outward leftovers (gypsy/joe_guard/volcano_entrance/…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent)
 - sibling unblock (not LC slices): pestcontrol missing temp/perm varps + wave constants; BIM constant aliases (^bim_recruited/^bim_willow/^bim_checkal/^bim_golem/^bim_willow_coord)
+
+- slice 24e done: Aris already present (areas/varrock/aris.rs2)
+- slice 24f done: Karamja volcano_entrance + climbing_rope2; mock230_pack 0 errors
+- slice 24g done: Shilo sand1–3 scoop; mock230_pack 0 errors
+- sibling unblock: DT2 typo camzodaal→camdozaal on archaeologist_2_vis
+- next pending: karam_dungeon / yanille agility_dungeon / KQ / tbwt_timfraku
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

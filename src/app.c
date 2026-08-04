@@ -3149,6 +3149,9 @@ enum
      * dat2 fonts table keeps them adjacent with b12 at 496. */
     APP_FONT_P11_CACHE_ID = 494,
     APP_FONT_P11_DAT1_SLOT = 0,
+    /* Rebuild loading overlay (deob / Client-TS `p12.centreString`). */
+    APP_FONT_P12_CACHE_ID = 495,
+    APP_FONT_P12_DAT1_SLOT = 1,
 };
 
 static int
@@ -5275,9 +5278,99 @@ static int
 app_world_drawable(struct App* app)
 {
     /* world_view_valid == a WORLD desc survived the last emit walk, so a hidden
-     * or absent viewport component costs nothing: no paint, no 3D, no pick. */
+     * or absent viewport component costs nothing: no paint, no 3D, no pick.
+     * During a server-driven rebuild (deob gameState 25 / Client-TS sceneState
+     * 1) suppress the world so mid-load frames are not a frozen wrong scene —
+     * App_Render draws the "Loading - please wait." overlay instead. */
     return app->world_view_valid && app->world && app->world->load_complete &&
-           app->world->painter && app->painter_buffer;
+           app->world->painter && app->painter_buffer &&
+           !(app->world_load_server_driven && app->world_load_inflight);
+}
+
+/* deob method5761 / Client-TS REBUILD_NORMAL: black fill of the game area plus
+ * centred "Loading - please wait." while maps rebuild. */
+static void
+app_draw_rebuild_loading_overlay(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height)
+{
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ViewPort vp;
+    int font_cache_id;
+    int scene_id;
+    int vx, vy, vw, vh;
+    int cx, cy;
+    static char const* const k_msg = "Loading - please wait.";
+
+    assert(app);
+    assert(pixels);
+    if( width <= 0 || height <= 0 )
+        return;
+
+    if( app->world_view_valid )
+    {
+        vx = app->world_emit_desc.x;
+        vy = app->world_emit_desc.y;
+        vw = app->world_emit_desc.w;
+        vh = app->world_emit_desc.h;
+    }
+    else
+    {
+        vx = 0;
+        vy = 0;
+        vw = width;
+        vh = height;
+    }
+    if( vw <= 0 || vh <= 0 )
+        return;
+
+    for( int y = vy; y < vy + vh; y++ )
+    {
+        if( y < 0 || y >= height )
+            continue;
+        for( int x = vx; x < vx + vw; x++ )
+        {
+            if( x < 0 || x >= width )
+                continue;
+            pixels[y * width + x] = 0x000000;
+        }
+    }
+
+    font_cache_id =
+        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT : APP_FONT_P12_CACHE_ID;
+    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    if( scene_id < 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        scene_id = app_minimenu_font_scene_id(app);
+    }
+    if( scene_id < 0 )
+        return;
+    font = ToriDraw_SceneFontGet(app->scene, scene_id);
+    if( !font )
+        return;
+
+    vp.width = width;
+    vp.height = height;
+    vp.stride = width;
+    vp.x_center = width / 2;
+    vp.y_center = height / 2;
+    vp.clip_left = vx < 0 ? 0 : vx;
+    vp.clip_top = vy < 0 ? 0 : vy;
+    vp.clip_right = (vx + vw > width) ? width : (vx + vw);
+    vp.clip_bottom = (vy + vh > height) ? height : (vy + vh);
+
+    cx = vx + vw / 2;
+    cy = vy + vh / 2;
+    /* Shadow then white — matches deob black+white centreString pair. */
+    (void)ToriDraw2D_DrawString(
+        font, &vp, cx + 1, cy + 1, k_msg, 0x000000, true, false, pixels);
+    (void)ToriDraw2D_DrawString(
+        font, &vp, cx, cy, k_msg, 0xffffff, true, false, pixels);
 }
 
 /* Reference roofCheck (Client.ts 4713): walk the camera->player tile line;
@@ -11580,7 +11673,12 @@ App_RunOnce(
         {
             UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
         }
-        app->need_redraw = 0;
+        /* Keep painting while a server-driven rebuild is in flight so the
+         * loading overlay refreshes (and picks up p12 once FontLoad lands). */
+        if( app->world_load_server_driven && app->world_load_inflight )
+            app->need_redraw = 1;
+        else
+            app->need_redraw = 0;
         return 1;
     }
     return 0;
@@ -12386,6 +12484,7 @@ App_WorldRebuildBegin(
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
     app->world_load_server_driven = 1;
+    app->need_redraw = 1;
     return 1;
 }
 
@@ -12750,6 +12849,11 @@ App_Render(
     {
         ToriRS_Soft3D_RenderFrame(&soft, &frame);
     }
+
+    /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
+     * the game area shows "Loading - please wait." instead of the world. */
+    if( app->world_load_server_driven && app->world_load_inflight )
+        app_draw_rebuild_loading_overlay(app, pixels, width, height);
 
     if( getenv("TORIRS_FRAME_DEBUG") )
         fprintf(
