@@ -11443,6 +11443,48 @@ App_RunOnce(
                 if( stat == TASK_RUNNER_IDLE )
                     break;
             }
+            /* Press-time track onclick → cc_dragpickup stages pending during
+             * the drain above. Consume it now while the button is still held
+             * so the thumb drag continues this frame (xrsps setDragSource is
+             * synchronous inside the opcode). */
+            if( app->tree && app->tree->pending_drag_pickup )
+            {
+                struct UIInteractOut pickup_out;
+                int n = UITree_InteractConsumePendingDragPickup(
+                    &app->interact, app->tree, &app->ui_host, input, &pickup_out);
+                if( n > 0 )
+                {
+                    struct UITreeRuntimeScriptHook hook_copies[UI_INTENT_MAX];
+                    for( int i = 0; i < pickup_out.intent_count; i++ )
+                        if( pickup_out.intents[i].hook )
+                            hook_copies[i] = *pickup_out.intents[i].hook;
+                    for( int i = 0; i < pickup_out.intent_count; i++ )
+                    {
+                        struct UIIntent const* intent = &pickup_out.intents[i];
+                        RS_CS2_SetEventOp(
+                            &app->host, intent->op_index > 0 ? intent->op_index : 1, 0);
+                        if( intent->has_event_mouse )
+                            RS_CS2_SetEventMouse(
+                                &app->host, intent->event_mouse_x, intent->event_mouse_y);
+                        if( intent->has_drag_target )
+                            RS_CS2_SetEventDragTarget(
+                                &app->host, app->tree, intent->drag_target_id);
+                        RS_CS2_DispatchHook(
+                            &app->host,
+                            &app->runner,
+                            intent->component_id,
+                            intent->hook ? &hook_copies[i] : NULL);
+                    }
+                    for( int i = 0; i < budget; i++ )
+                    {
+                        stat = TaskRunner_Step(&app->runner);
+                        if( stat == TASK_RUNNER_IDLE )
+                            break;
+                    }
+                    if( pickup_out.need_redraw )
+                        app->need_redraw = 1;
+                }
+            }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
             {
                 UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);

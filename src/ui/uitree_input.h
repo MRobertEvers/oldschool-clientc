@@ -23,6 +23,9 @@ struct UIInputState
     int drag_click_y;
     int drag_duration;
     int deferred_click; /* 1 = fire click on mouseup if drag never started */
+    /* Non-draggable press already fired result.clicked (Jagex/xrsps onclick on
+     * mousedown). Suppress the matching release so on_click runs once. */
+    int release_click_suppressed;
     int thresholds_set;
 };
 
@@ -54,6 +57,9 @@ struct UIInputResult
     int drag_source_id;
     int drag_target_id;
     int deferred_click_fired;
+    /* 1 = clicked was armed on the press edge (non-draggable). interact_click
+     * must use the current pointer, not last_click_* (set only on release). */
+    int press_click;
 };
 
 bool

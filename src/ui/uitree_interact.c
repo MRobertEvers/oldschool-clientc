@@ -585,6 +585,9 @@ interact_drag_consume_pending(
     struct UITreeComponent* src;
     int mx;
     int my;
+    int pending_id;
+    int pending_x;
+    int pending_y;
 
     assert(interact);
     assert(tree);
@@ -593,26 +596,48 @@ interact_drag_consume_pending(
 
     if( !tree->pending_drag_pickup )
         return 0;
-    tree->pending_drag_pickup = 0;
+
+    /* Snapshot then clear only after accept — a refuse must not drop the
+     * request when a live drag blocks it (next frame may be free). */
+    pending_id = tree->pending_drag_pickup_id;
+    pending_x = tree->pending_drag_pickup_x;
+    pending_y = tree->pending_drag_pickup_y;
 
     /* Reference dragTryPickup refuses when a drag is already live or anti_drag
-     * is set. An already-active source from a real press wins. */
+     * is set. An already-active source from a real press wins. Drop the pending
+     * — retrying mid-drag would stomp the live gesture. */
     st = &interact->input_state;
     if( tree->anti_drag || st->drag_active )
+    {
+        tree->pending_drag_pickup = 0;
         return 0;
+    }
 
-    idx = UITree_FindByComponentId(tree, tree->pending_drag_pickup_id);
+    idx = UITree_FindByComponentId(tree, pending_id);
     if( idx < 0 )
+    {
+        tree->pending_drag_pickup = 0;
         return 0;
+    }
 
     src = &tree->components[idx];
+    /* getDragLayer null → no-op (Client.dragTryPickup). Without a render area
+     * the track/list itself must not become a drag source. */
+    if( src->drag_render_area_uid < 0 &&
+        UITree_ClickMaskDragDepth(src->behavior.click_mask) == 0 )
+    {
+        tree->pending_drag_pickup = 0;
+        return 0;
+    }
+
+    tree->pending_drag_pickup = 0;
     mx = input->curr.mouse_x;
     my = input->curr.mouse_y;
 
     st->drag_source_idx = idx;
     st->drag_source_id = src->component_id;
-    st->drag_pickup_x = tree->pending_drag_pickup_x;
-    st->drag_pickup_y = tree->pending_drag_pickup_y;
+    st->drag_pickup_x = pending_x;
+    st->drag_pickup_y = pending_y;
     st->drag_click_x = mx;
     st->drag_click_y = my;
     st->drag_duration = 0;
@@ -634,17 +659,17 @@ interact_drag_consume_pending(
             stderr,
             "TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
             src->component_id,
-            tree->pending_drag_pickup_x,
-            tree->pending_drag_pickup_y,
+            pending_x,
+            pending_y,
             left_held,
             src->drag_visual_y);
     }
 
     if( !left_held )
     {
-        /* onclick fires on mouseup here, so the jump is a one-shot: fire
-         * on_drag (above) then end the gesture so the next press starts clean.
-         * Reference fires onclick on mousedown and keeps the drag while held. */
+        /* onclick used to fire on mouseup here, so the jump was a one-shot.
+         * Press-time onclick keeps the drag while held; a same-frame
+         * press+release still ends immediately after the jump. */
         struct UIIntent complete = {
             .component_id = st->drag_source_id,
             .hook = &UITree_Hooks(src)->on_drag_complete,
@@ -668,6 +693,45 @@ interact_drag_consume_pending(
         return 1;
     }
     return 0;
+}
+
+int
+UITree_InteractConsumePendingDragPickup(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int left_held;
+
+    assert(interact);
+    assert(tree);
+    assert(input);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->hover_com_id = -1;
+    out->clicked_com_id = -1;
+    out->minimenu_select = -1;
+
+    left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    (void)interact_drag_consume_pending(interact, tree, ui_host, input, left_held, out);
+    /* While held, also tick once so the jump frame's on_drag matches the
+     * pointer after pickup offsets are applied. */
+    if( left_held && interact->input_state.drag_source_idx >= 0 &&
+        interact->input_state.drag_active )
+    {
+        (void)UITree_InputDragTick(
+            &interact->input_state,
+            tree,
+            ui_host,
+            input->curr.mouse_x,
+            input->curr.mouse_y,
+            1);
+        /* consume_pending already pushed one on_drag; avoid a duplicate. */
+    }
+    return out->intent_count;
 }
 
 /* Drag tick while held (deadzone+deadtime); emits onDrag / onDragComplete
@@ -927,8 +991,19 @@ interact_click(
     if( ui_result->clicked < 0 || (uint32_t)ui_result->clicked >= tree->component_count )
         return;
 
-    click_x = input->last_click_x[TORIRSM_LEFT];
-    click_y = input->last_click_y[TORIRSM_LEFT];
+    /* Press-edge clicks happen before last_click_* is written (that is set on
+     * release). Use the live pointer so hit re-tests and chrome gestures land
+     * on the press position. */
+    if( ui_result->press_click )
+    {
+        click_x = input->curr.mouse_x;
+        click_y = input->curr.mouse_y;
+    }
+    else
+    {
+        click_x = input->last_click_x[TORIRSM_LEFT];
+        click_y = input->last_click_y[TORIRSM_LEFT];
+    }
     ihit = UITree_HitTestInteractive(tree, ui_host, click_x, click_y);
 
     /* Gameframe chrome gestures resolve here, before hooks: a click on a tab

@@ -694,6 +694,7 @@ UITree_InputUpdate(
         state->drag_source_id = -1;
         state->drag_target_id = -1;
         state->deferred_click = 0;
+        state->release_click_suppressed = 0;
         state->drag_duration = 0;
         state->drag_click_x = event.x;
         state->drag_click_y = event.y;
@@ -718,6 +719,21 @@ UITree_InputUpdate(
                 state->deferred_click = 1;
                 state->drag_source_idx = state->pressed;
                 state->drag_source_id = c->component_id;
+            }
+            else
+            {
+                /* Non-draggable with on_click/on_op: fire on press (Jagex
+                 * Client loopLayer field1871 / xrsps widgetClickInput).
+                 * Scrollbar tracks call cc_dragpickup from onclick — that must
+                 * run while the button is still held. Hold-only chrome (arrow
+                 * on_hold) must not get a synthetic click here. */
+                struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
+                if( hooks->on_click.script_id > 0 || hooks->on_op.script_id > 0 )
+                {
+                    result.clicked = state->pressed;
+                    result.press_click = 1;
+                    state->release_click_suppressed = 1;
+                }
             }
         }
         break;
@@ -747,14 +763,21 @@ UITree_InputUpdate(
             result.clicked = up_hit;
             result.deferred_click_fired = 1;
         }
-        else if( !state->deferred_click && state->pressed >= 0 && state->pressed == up_hit )
+        else if(
+            !state->deferred_click && !state->release_click_suppressed && state->pressed >= 0 &&
+            state->pressed == up_hit )
         {
             result.clicked = up_hit;
         }
         state->pressed = -1;
         state->deferred_click = 0;
+        state->release_click_suppressed = 0;
         state->drag_active = 0;
         state->drag_duration = 0;
+        /* End of gesture: drop the source so a stale idx cannot resume drag. */
+        state->drag_source_idx = -1;
+        state->drag_source_id = -1;
+        state->drag_target_id = -1;
         break;
     }
     }

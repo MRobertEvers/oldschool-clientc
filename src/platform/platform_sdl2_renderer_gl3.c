@@ -148,9 +148,21 @@ struct GL3SpriteVariant
 /* Ephemeral arena key for UI MODEL widgets. The DYNAMIC group is reset before
  * each widget bake, so this never collides with world element ids. */
 #define GL3_WIDGET_ARENA_ELEMENT_ID 0
-/* Compass + minimap both rotmask-blit in one frame; ring avoids GPU texture
- * aliasing when the second upload would overwrite the first draw's source. */
-#define GL3_ROTMASK_TEX_RING 4
+/* Stable slots so compass and minimap never share a GL texture. Keyed by
+ * (scene_id, mask_scene_id, dst size); content is rewritten every draw. */
+#define GL3_ROTMASK_DEDICATED_CAP 8
+
+struct GL3RotmaskDedicated
+{
+    int scene_id;
+    int mask_scene_id;
+    int dst_w;
+    int dst_h;
+    GLuint texture;
+    int tex_w;
+    int tex_h;
+    bool used;
+};
 
 struct GL3FontSlot
 {
@@ -266,14 +278,10 @@ struct ToriRS_GL3
     struct TRSPK_Atlas sprite_atlas;
     GLuint sprite_atlas_texture;
     GLuint white_texture;
-    /* Ring of reusable destinations for rotated+masked blits (minimap + compass).
-     * A single texture is unsafe: the second upload can overwrite texels before
-     * the GPU has sampled the first draw. Soft3D reblits every frame into the
-     * framebuffer; we alternate distinct GL textures instead. */
-    GLuint rotmask_textures[GL3_ROTMASK_TEX_RING];
-    int rotmask_tex_w[GL3_ROTMASK_TEX_RING];
-    int rotmask_tex_h[GL3_ROTMASK_TEX_RING];
-    int rotmask_tex_cursor;
+    /* Dedicated GL textures for rotated+masked chrome (minimap, compass).
+     * Soft3D reblits into the framebuffer every frame; we keep one texture per
+     * (scene, mask, size) and rewrite it each draw so the two never alias. */
+    struct GL3RotmaskDedicated rotmask_slots[GL3_ROTMASK_DEDICATED_CAP];
     GLuint rotmask_last_texture;
     struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
@@ -553,15 +561,12 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
         glDeleteProgram(renderer->program2d);
     if( renderer->sprite_atlas_texture )
         glDeleteTextures(1, &renderer->sprite_atlas_texture);
-    for( int i = 0; i < GL3_ROTMASK_TEX_RING; i++ )
+    for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
     {
-        if( renderer->rotmask_textures[i] )
-            glDeleteTextures(1, &renderer->rotmask_textures[i]);
-        renderer->rotmask_textures[i] = 0u;
-        renderer->rotmask_tex_w[i] = 0;
-        renderer->rotmask_tex_h[i] = 0;
+        if( renderer->rotmask_slots[i].texture )
+            glDeleteTextures(1, &renderer->rotmask_slots[i].texture);
+        memset(&renderer->rotmask_slots[i], 0, sizeof(renderer->rotmask_slots[i]));
     }
-    renderer->rotmask_tex_cursor = 0;
     renderer->rotmask_last_texture = 0u;
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
@@ -1649,37 +1654,69 @@ gl3_sprite_ensure_variant(
     return true;
 }
 
-static bool
-gl3_rotmask_upload(
+static struct GL3RotmaskDedicated*
+gl3_rotmask_dedicated_slot(
     struct ToriRS_GL3* renderer,
+    int scene_id,
+    int mask_scene_id,
+    int dst_w,
+    int dst_h)
+{
+    int free_i = -1;
+    for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
+    {
+        struct GL3RotmaskDedicated* s = &renderer->rotmask_slots[i];
+        if( s->used && s->scene_id == scene_id && s->mask_scene_id == mask_scene_id &&
+            s->dst_w == dst_w && s->dst_h == dst_h )
+            return s;
+        if( free_i < 0 && !s->used )
+            free_i = i;
+    }
+    if( free_i < 0 )
+    {
+        /* Table full: steal slot 0. Compass + minimap only need two; this is
+         * a backstop so a size change cannot permanently drop a draw. */
+        free_i = 0;
+        if( renderer->rotmask_slots[0].texture )
+            glDeleteTextures(1, &renderer->rotmask_slots[0].texture);
+    }
+    {
+        struct GL3RotmaskDedicated* s = &renderer->rotmask_slots[free_i];
+        memset(s, 0, sizeof(*s));
+        s->scene_id = scene_id;
+        s->mask_scene_id = mask_scene_id;
+        s->dst_w = dst_w;
+        s->dst_h = dst_h;
+        s->used = true;
+        return s;
+    }
+}
+
+static bool
+gl3_rotmask_upload_to_slot(
+    struct GL3RotmaskDedicated* slot,
     uint8_t const* rgba,
     int w,
-    int h,
-    GLuint* out_texture)
+    int h)
 {
-    int slot;
-    GLuint* tex;
-    if( !renderer || !rgba || w <= 0 || h <= 0 || !out_texture )
+    if( !slot || !rgba || w <= 0 || h <= 0 )
         return false;
-    slot = renderer->rotmask_tex_cursor % GL3_ROTMASK_TEX_RING;
-    renderer->rotmask_tex_cursor = (slot + 1) % GL3_ROTMASK_TEX_RING;
-    tex = &renderer->rotmask_textures[slot];
-    if( !*tex )
-        glGenTextures(1, tex);
-    if( !*tex )
+    if( !slot->texture )
+        glGenTextures(1, &slot->texture);
+    if( !slot->texture )
         return false;
-    glBindTexture(GL_TEXTURE_2D, *tex);
+    glBindTexture(GL_TEXTURE_2D, slot->texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    if( renderer->rotmask_tex_w[slot] != w || renderer->rotmask_tex_h[slot] != h )
+    if( slot->tex_w != w || slot->tex_h != h )
     {
         glTexImage2D(
             GL_TEXTURE_2D, 0, TORIRS_GL_TEX_RGBA, (GLsizei)w, (GLsizei)h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
             rgba);
-        renderer->rotmask_tex_w[slot] = w;
-        renderer->rotmask_tex_h[slot] = h;
+        slot->tex_w = w;
+        slot->tex_h = h;
     }
     else
     {
@@ -1687,9 +1724,7 @@ gl3_rotmask_upload(
             GL_TEXTURE_2D, 0, 0, 0, (GLsizei)w, (GLsizei)h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
-    *out_texture = *tex;
-    renderer->rotmask_last_texture = *tex;
-    return gl3_check_error("rotmask upload");
+    return true;
 }
 
 static bool
@@ -1697,15 +1732,16 @@ gl3_sprite_ensure_rotated_masked(
     struct ToriRS_GL3* renderer,
     struct ToriRS_RenderCommand_Sprite const* cmd,
     struct ToriDraw_Sprite* sp,
-    float* out_uv)
+    float* out_uv,
+    GLuint* out_texture)
 {
     struct ToriDraw_Sprite* mask_sp = NULL;
+    struct GL3RotmaskDedicated* slot;
     int dst_w;
     int dst_h;
     uint32_t* scratch = NULL;
     struct ToriDraw_ViewPort vp = { 0 };
-    GLuint uploaded = 0u;
-    if( cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene || !sp )
+    if( !out_texture || cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene || !sp )
         return false;
     dst_w = cmd->w > 0 ? cmd->w : sp->width;
     dst_h = cmd->h > 0 ? cmd->h : sp->height;
@@ -1720,6 +1756,10 @@ gl3_sprite_ensure_rotated_masked(
         mask_sp = mask_sprites[cmd->mask_atlas_index];
     }
     if( !mask_sp || !mask_sp->pixels_argb )
+        return false;
+    slot = gl3_rotmask_dedicated_slot(
+        renderer, cmd->scene_id, cmd->mask_scene_id, dst_w, dst_h);
+    if( !slot )
         return false;
     scratch = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
     if( !scratch )
@@ -1750,19 +1790,19 @@ gl3_sprite_ensure_rotated_masked(
      * conversion every other upload gets. Without it the minimap's ground is
      * transparent and its colours are channel-swapped. */
     gl3_argb_to_rgba(scratch, scratch, (size_t)dst_w * (size_t)dst_h);
-    if( !gl3_rotmask_upload(renderer, (uint8_t const*)scratch, dst_w, dst_h, &uploaded) )
+    if( !gl3_rotmask_upload_to_slot(slot, (uint8_t const*)scratch, dst_w, dst_h) )
     {
         free(scratch);
         return false;
     }
     free(scratch);
-    (void)uploaded;
-    /* Dedicated texture is filled edge-to-edge. */
     out_uv[0] = 0.0f;
     out_uv[1] = 0.0f;
     out_uv[2] = 1.0f;
     out_uv[3] = 1.0f;
-    return true;
+    *out_texture = slot->texture;
+    renderer->rotmask_last_texture = slot->texture;
+    return gl3_check_error("rotmask upload");
 }
 
 static bool
@@ -2724,40 +2764,26 @@ gl3_ev_sprite(
         int dst_w;
         int dst_h;
         float mask_uv[4];
-        if( !gl3_sprite_ensure_base(renderer, spr_cmd->scene_id, spr_cmd->atlas_index, &sp, mask_uv) )
+        GLuint rotmask_tex = 0u;
+        int spr_count = 0;
+        struct ToriDraw_Sprite** sprites;
+        /* Do not ensure_base/atlas-upload the source: the minimap pixmap is
+         * enormous and must not compete for the shared 2D atlas. Soft3D only
+         * needs the live pixel pointer for the CPU blit; so do we. */
+        sprites = ToriDraw_SceneSpriteGet(renderer->scene, spr_cmd->scene_id, &spr_count);
+        if( !sprites || spr_cmd->atlas_index < 0 || spr_cmd->atlas_index >= spr_count )
+            return;
+        sp = sprites[spr_cmd->atlas_index];
+        if( !sp || !sp->pixels_argb )
             return;
         dst_w = spr_cmd->w > 0 ? spr_cmd->w : sp->width;
         dst_h = spr_cmd->h > 0 ? spr_cmd->h : sp->height;
-        if( !gl3_sprite_ensure_rotated_masked(renderer, spr_cmd, sp, mask_uv) )
+        if( !gl3_sprite_ensure_rotated_masked(renderer, spr_cmd, sp, mask_uv, &rotmask_tex) )
             return;
-        /* TORIRS_GL_SPRITE_DEBUG=1: the rotated+masked path is the minimap and
-         * the compass, and it is the only 2D draw that carries uv_clamp. When
-         * one backend renders it and another does not, these are the numbers
-         * that differ. */
-        {
-            static int dbg = -1;
-            static int printed = 0;
-            if( dbg < 0 )
-                dbg = getenv("TORIRS_GL_SPRITE_DEBUG") != NULL;
-            if( dbg && printed < 12 )
-            {
-                printed++;
-                fprintf(
-                    stderr,
-                    "SPRITE rotmask scene=%d idx=%d mask=%d/%d rot=%d dst=%dx%d "
-                    "src=%dx%d uv=%.6f,%.6f..%.6f,%.6f at %d,%d\n",
-                    spr_cmd->scene_id, spr_cmd->atlas_index,
-                    spr_cmd->mask_scene_id, spr_cmd->mask_atlas_index,
-                    spr_cmd->rotation_r2pi2048, dst_w, dst_h,
-                    sp ? sp->width : -1, sp ? sp->height : -1,
-                    mask_uv[0], mask_uv[1], mask_uv[2], mask_uv[3],
-                    spr_cmd->x, spr_cmd->y);
-            }
-        }
         gl3_flush_2d_batch(renderer);
         gl3_draw_textured_quad(
             renderer,
-            renderer->rotmask_last_texture,
+            rotmask_tex,
             0,
             true,
             mask_uv,
@@ -2770,8 +2796,7 @@ gl3_ev_sprite(
             mask_uv[2],
             mask_uv[3],
             rgba);
-        /* Flush immediately so the next rotmask upload cannot race this draw's
-         * texture (compass + minimap share the ring within one frame). */
+        /* Commit before the next rotmask rewrite of another dedicated slot. */
         gl3_flush_2d_batch(renderer);
         return;
     }
@@ -4144,18 +4169,24 @@ gl3_bake_widget_model(
     vertices_x = ToriDraw_ModelGetVerticesX(model_handle);
     vertices_y = ToriDraw_ModelGetVerticesY(model_handle);
     vertices_z = ToriDraw_ModelGetVerticesZ(model_handle);
-    for( int i = 0; i < vc; i++ )
+    /* Soft3D objRender: midZ = (eyeY*sinPitch + eyeZ*cosPitch) >> 16. Averaging
+     * visible cz diverges for chatheads and makes relative depth noisy. */
+    if( !xf->orthographic )
+        mid_z = (xf->var6 * xf->var16 + xf->var7 * xf->var17) >> 16;
+    else
     {
-        int cx;
-        int cy;
-        int cz;
-        gl3_widget_model_transform_vertex(xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
-        if( !xf->orthographic && cz <= GL3_WIDGET_MODEL_NEAR )
-            continue;
-        z_sum += cz;
-        z_count++;
+        for( int i = 0; i < vc; i++ )
+        {
+            int cx;
+            int cy;
+            int cz;
+            gl3_widget_model_transform_vertex(
+                xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
+            z_sum += cz;
+            z_count++;
+        }
+        mid_z = z_count > 0 ? z_sum / z_count : 0;
     }
-    mid_z = z_count > 0 ? z_sum / z_count : 0;
 
     {
         uint32_t const vert_count = (uint32_t)face_count_faces * 3u;
@@ -4179,6 +4210,10 @@ gl3_bake_widget_model(
             assert(ctx);
             if( !trspk_toridraw_bake_face_handle(
                     model_handle, face_index, NULL, ctx, true, &face) )
+                continue;
+            /* Soft3D never rasterizes HIDDEN / fully-transparent faces. Leave
+             * the slot zeroed (alpha 0) so painter order cannot punch holes. */
+            if( face.color_a[3] <= (1.0f / 255.0f) )
                 continue;
 
             {

@@ -5962,11 +5962,12 @@ rs_cs2_host_exec_dispatch(
             node = rs_cs2_node(host, cid);
             if( node )
             {
-                /* Reference refuses when a drag is already live or the target
-                 * has no drag render layer. We still require a resolvable
-                 * node; anti_drag / an already-active source is enforced when
-                 * InteractFrame consumes the pending. */
-                node->draggable = 1;
+                /* getDragLayer null → no-op. A resolvable render area (or
+                 * clickmask drag depth) is required; otherwise track/list
+                 * clicks would stage a pickup on the wrong node. */
+                if( node->drag_render_area_uid < 0 &&
+                    UITree_ClickMaskDragDepth(node->behavior.click_mask) == 0 )
+                    return CS2VM_EXECNO_OK;
                 tree->pending_drag_pickup = 1;
                 tree->pending_drag_pickup_id = cid;
                 tree->pending_drag_pickup_x = request->u.drag_pickup.pickup_x;

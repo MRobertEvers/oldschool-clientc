@@ -335,3 +335,200 @@ test_drag_scrollbar_inplace_emit(void)
 
     UITree_Free(tree);
 }
+
+/*
+ * Real XP-drops setup scrollbar geometry (iface 137): bar 165, track inset 16
+ * with height 133, thumb ~35, list visible 165 / scroll_height 625.
+ * event_mouse_y must span ~0..98 (travel) and map to scroll ~0..460.
+ */
+void
+test_drag_scrollbar_137_geometry(void)
+{
+    printf("TEST: scrollbar 137 geometry event_mouse → scroll\n");
+
+    int const bar_h = 165;
+    int const track_h = bar_h - 32; /* 133 */
+    int const thumb_h = 35;
+    int const travel = track_h - thumb_h; /* 98 */
+    int const list_h = 165;
+    int const scroll_h = 625;
+    int const scroll_range = scroll_h - list_h; /* 460 */
+
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    int32_t bar = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 100, 100, 16, bar_h);
+    tree->components[bar].if3 = 1;
+
+    int32_t track = UITree_CcCreate(tree, bar, 900, 5, 0);
+    TEST_ASSERT(track >= 0, "track");
+    TEST_ASSERT(UITree_ApplyPosition(tree, tree->components[track].component_id, 0, 16),
+                "track y");
+    TEST_ASSERT(UITree_ApplySize(tree, tree->components[track].component_id, 16, track_h),
+                "track size");
+
+    struct UITreeNodeSpec thumb_spec;
+    memset(&thumb_spec, 0, sizeof(thumb_spec));
+    thumb_spec.type = UIELEM_RS_GRAPHIC;
+    thumb_spec.component_id = 902;
+    thumb_spec.x = 0;
+    thumb_spec.y = 16;
+    thumb_spec.width = 16;
+    thumb_spec.height = thumb_h;
+    thumb_spec.u.rs_graphic.scene_id = 2;
+    int32_t thumb = UITree_Push(tree, bar, &thumb_spec);
+    tree->components[thumb].draggable = 1;
+    tree->components[thumb].drag_behavior = 1;
+    tree->components[thumb].drag_dead_zone = 0;
+    tree->components[thumb].drag_dead_time = 0;
+    tree->components[thumb].drag_render_area_uid = tree->components[track].component_id;
+    tree->components[thumb].drag_render_area_child_index = -1;
+    UITree_HooksMut(&tree->components[thumb])->on_drag.script_id = 35;
+
+    UITree_TestResolve(tree);
+
+    struct UIInteraction interact;
+    UIInteraction_Init(&interact);
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&storage, 0);
+    LibToriRS_Input_SetDragThresholds(input, 100, 0);
+
+    int const press_x = 108;
+    int const press_y = 100 + 16 + 1; /* near thumb top → pickup ≈ 0 */
+
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, press_x, press_y);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, press_x, press_y);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+    }
+
+    /* Mouse at track bottom: with top grab, thumb top reaches travel. */
+    int const move_y = 100 + 16 + travel + 1;
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, press_x, move_y);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        TEST_ASSERT(interact.input_state.drag_active, "drag active at travel end");
+        int found = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( !out.intents[i].has_event_mouse || !out.intents[i].hook ||
+                out.intents[i].hook->script_id != 35 )
+                continue;
+            found = 1;
+            int ey = out.intents[i].event_mouse_y;
+            TEST_ASSERT(ey >= travel - 2 && ey <= travel + 2, "event_y near travel 98");
+            int scroll = ey * scroll_range / (travel > 0 ? travel : 1);
+            TEST_ASSERT(
+                scroll >= scroll_range - 5 && scroll <= scroll_range + 5,
+                "derived scroll near 460");
+            break;
+        }
+        TEST_ASSERT(found, "on_drag at bottom");
+    }
+
+    UITree_Free(tree);
+}
+
+/*
+ * cc_dragpickup seeds UIInputState like scrollbar_vertical_jump: force
+ * drag_active, pickup offsets, and an on_drag intent while the button is held.
+ */
+void
+test_drag_cc_dragpickup_seeds(void)
+{
+    printf("TEST: cc_dragpickup seeds drag while held\n");
+
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    int32_t bar = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 100, 100, 16, 100);
+    tree->components[bar].if3 = 1;
+
+    int32_t track = UITree_CcCreate(tree, bar, 900, 5, 0);
+    TEST_ASSERT(UITree_ApplyPosition(tree, tree->components[track].component_id, 0, 16),
+                "track pos");
+    TEST_ASSERT(UITree_ApplySize(tree, tree->components[track].component_id, 16, 68),
+                "track size");
+
+    struct UITreeNodeSpec thumb_spec;
+    memset(&thumb_spec, 0, sizeof(thumb_spec));
+    thumb_spec.type = UIELEM_RS_GRAPHIC;
+    thumb_spec.component_id = 902;
+    thumb_spec.x = 0;
+    thumb_spec.y = 16;
+    thumb_spec.width = 16;
+    thumb_spec.height = 20;
+    thumb_spec.u.rs_graphic.scene_id = 2;
+    int32_t thumb = UITree_Push(tree, bar, &thumb_spec);
+    tree->components[thumb].draggable = 1;
+    tree->components[thumb].drag_behavior = 1;
+    tree->components[thumb].drag_render_area_uid = tree->components[track].component_id;
+    UITree_HooksMut(&tree->components[thumb])->on_drag.script_id = 35;
+    UITree_HooksMut(&tree->components[thumb])->on_drag_complete.script_id = 35;
+    UITree_HooksMut(&tree->components[track])->on_click.script_id = 34;
+
+    UITree_TestResolve(tree);
+
+    struct UIInteraction interact;
+    UIInteraction_Init(&interact);
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&storage, 0);
+
+    int const mx = 108;
+    int const my = 100 + 16 + 40;
+
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, mx, my);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, mx, my);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        TEST_ASSERT(out.intent_count >= 1, "press-click intent");
+        int found_click = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 34 )
+                found_click = 1;
+        }
+        TEST_ASSERT(found_click, "track on_click on press");
+        TEST_ASSERT(!interact.input_state.drag_active, "no drag yet before pickup");
+    }
+
+    tree->pending_drag_pickup = 1;
+    tree->pending_drag_pickup_id = 902;
+    tree->pending_drag_pickup_x = 0;
+    tree->pending_drag_pickup_y = 10;
+
+    {
+        struct UIInteractOut out;
+        int n = UITree_InteractConsumePendingDragPickup(
+            &interact, tree, &host, input, &out);
+        TEST_ASSERT(n >= 1, "pickup produced intents");
+        TEST_ASSERT(interact.input_state.drag_active, "pickup forces drag_active");
+        TEST_ASSERT(interact.input_state.drag_source_idx == thumb, "source is thumb");
+        TEST_ASSERT(interact.input_state.drag_pickup_y == 10, "pickup_y from script");
+        TEST_ASSERT(LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "still held");
+        int found_drag = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 35 &&
+                out.intents[i].has_event_mouse )
+                found_drag = 1;
+        }
+        TEST_ASSERT(found_drag, "on_drag from pickup while held");
+        TEST_ASSERT(!tree->pending_drag_pickup, "pending cleared");
+    }
+
+    UITree_Free(tree);
+}

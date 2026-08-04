@@ -731,7 +731,26 @@ scrollbar. `bridge_input_to_uitree` now synthesises UP for `IsDragEnd` too
 own (usually 0) deadzone/deadtime for scrollbar thumbs until that threshold, and
 `on_drag` could stay silent while `drag_visual` eventually moved the middle alone.
 It now uses `IsMouseHeld`, same as `interact_hold`
-([uitree_interact.c:491](src/ui/uitree_interact.c#L491)).
+([uitree_interact.c](src/ui/uitree_interact.c)).
+
+**Non-draggable `on_click` fires on press, not release.**
+Jagex `loopLayer` / xrsps `widgetClickInput` run onclick on mousedown for widgets
+that are not drag sources. Our input path used to defer every click to mouseup, so
+a scrollbar track's `scrollbar_vertical_jump` → `cc_dragpickup` ran after the button
+was already up: the pending pickup became a one-shot `on_drag`+complete that jerked
+the list. Non-draggable nodes with `on_click`/`on_op` now set `result.clicked` on
+DOWN; draggable nodes still defer until release if no drag started
+([uitree_input.c](src/ui/uitree_input.c)).
+
+**`cc_dragpickup` is staged on the tree and consumed the same frame.**
+The host cannot touch `UIInputState`, so pickup parks on `tree->pending_drag_*`
+(like `anti_drag`). After the post-intent `TaskRunner` drain, App_RunOnce calls
+`UITree_InteractConsumePendingDragPickup` while the button is still held — matching
+xrsps `setDragSource` inside the opcode — then dispatches the resulting `on_drag`
+and drains again. Pickup refuses targets with no drag render area / clickmask depth
+(`Client.dragTryPickup` when `getDragLayer` is null)
+([rs_cs2_host.c](src/game/rs_cs2_host.c), [app.c](src/app.c),
+[uitree_interact.c](src/ui/uitree_interact.c)).
 
 **`on_drag` CS2 must apply before emit in the same frame.**
 `RS_CS2_DispatchHook` only enqueues. The frame's TaskRunner pump ran *before*
@@ -750,7 +769,8 @@ while `drag_visual` keeps the middle at 16 — a detached second rectangle once
 `on_drag` runs same-frame. The CS2 host resolves `cc_setdraggable` eagerly to
 the child's component id (reference WidgetOps / `method1418`);
 `UITree_ResolveDragRenderArea` still accepts the lazy `parent + child_index`
-form.
+form. A resolve miss must not wipe the widget parent to `-1` (absolute screen
+`event_mousey` pins scroll to max).
 ([rs_cs2_host.c](src/game/rs_cs2_host.c) SETDRAGGABLE,
 [uitree_interact.c](src/ui/uitree_interact.c) on_drag event mouse).
 

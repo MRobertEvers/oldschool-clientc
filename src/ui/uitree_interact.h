@@ -159,4 +159,17 @@ UITree_ResolveClickHook(
     int32_t leaf_index,
     int* out_component_id);
 
+/**
+ * Apply a host-staged cc/if_dragpickup after CS2 has run in the same frame
+ * (press-time track onclick → pending → consume while still held). Returns the
+ * number of intents written to out.
+ */
+int
+UITree_InteractConsumePendingDragPickup(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out);
+
 #endif
