@@ -60,12 +60,21 @@ same rank, named `*_manual.obj`. See the `exporter-owns-generated-configs` rule.
 cd /Users/matthewevers/Documents/git_repos/3draster
 python3 tools/port_weapon_fx.py --check          # must print "0 problem(s)"
 make -C src mock230-scripts                      # must succeed
-./build/mock230_pack --check-only                # must report 0 errors
+make -C src mock230-pack && "$OBJ_DIR"/mock230_pack --check-only   # 0 errors
 ```
 
+`mock230_pack` is **not** at `./build/` — that path in this file was wrong and
+never existed. `make -C src mock230-pack` writes it to `$(OBJ_DIR)/mock230_pack`;
+the default-objdir copy is `./src/build/mock230_pack`.
+
 If a slice touched C: `make -C src`. Agents sharing this repo **must** set a
-private objdir (`PLATFORM_OBJ_BASE=/tmp/objdir-<lane>`) — stale-`.o` races are
-real (`embed-binary-build-isolation`).
+private objdir (`PLATFORM_OBJ_BASE=build_wfx_<lane>`) — stale-`.o` races are
+real (`embed-binary-build-isolation`). Prefer a **relative** objdir: an absolute
+one (`/tmp/objdir-<lane>`) breaks every recipe that does `./src/$(OBJ_DIR)/...`,
+which includes `test-mock230-embed:1478` and `test-content:1289`. If a lane also
+links the client, override the target too (`PLATFORM_TARGET=torirs_<lane>`, with
+`torirs_<lane>` as the make goal) — `make -C src` otherwise links one shared
+`src/torirs` and two lanes will race it.
 
 `pkill -f build/mock230` also kills `mock230_dev` — match tighter.
 
@@ -87,7 +96,7 @@ file it does not own must stop and report instead.
 |---|---|---|---|
 | **A — resolver** | 1 | `skill_combat/configs/combat.param`, `skill_combat/combat_stats.rs2` | C, D, E (not B) |
 | **B — data** | 2, 3, 4, 5 | `skill_combat/configs/bas/attack_anims_modern*.obj`, `.../attack_anims_bycategory.obj`, `.../attack_anims_manual.obj` | C, D, E (needs A done) |
-| **C — sound wire** | 6, 7 | `src/net/rev/osrs230/packetin.h`, `src/net/mock/mock230_encode.c`, `src/net/mock/mock230_scripts.c`, `src/embed/embed_test.c` | A, B, D, E |
+| **C — sound wire** | 6, 7 | `src/net/rev/osrs230/packetin.h`, `src/net/mock/mock230_encode.c`, `src/net/mock/mock230_scripts.c`, `src/net/mock/test/embed_test.c` | A, B, D, E |
 | **D — client audio** | 9 | `src/engine/dat2/task_dat2_sequence_load.c`, `src/game/rs_audio.c`, the anim tick | A, B, C, E |
 | **E — specials data** | 10 | `skill_combat/configs/special_attack.obj` | A, B, C, D |
 | **F — sound content** | 8 | the `skill_combat/**/*.rs2` files listed in slice 8 | B, D, E (needs A, C done) |
@@ -137,7 +146,7 @@ wave 3 (sharded)    G(11), then G(12) one weapon per agent
 | 5 | BAS + equip sound | B | pending | 3 |
 | 6 | `SYNTH_SOUND` wire | C | done | — |
 | 7 | `sound_synth` opcode body | C | done | 6 |
-| 8 | Swing sounds through content | F | in_progress | 1, 7 |
+| 8 | Swing sounds through content | F | blocked | 1, 7, **3 or 5** (bar only) |
 | 9 | Seq frame sounds (client) | D | done | — |
 | 10 | Special attack obj table | E | in_progress | — |
 | 11 | Special attack FX | G | pending | 8, 10 |
@@ -339,7 +348,7 @@ Small and fully specified. `WEAPON_FX.md` §6 has the chain with file:line.
 
 **Bar.** `make -C src` with a private objdir; `rs_audio_test` still green; and a
 packet sent from the server produces audible PCM in the embedded client —
-extend `src/embed/embed_test.c` **against the client's own decoder**, the way
+extend `src/net/mock/test/embed_test.c` **against the client's own decoder**, the way
 the multiplayer and zone work did. Socket RSA is broken; use `embed_test`
 (`mock230-persistence-and-xp-table`).
 
@@ -385,6 +394,15 @@ Needs slices 1 and 7.
 
 **Bar.** Attack with an `abyssal_whip` in the headless client and hear
 `synth_2720`. State how you confirmed audibility, not that you assume it.
+
+> **This bar depends on slices 3/5, which the "Blocked on" column does not
+> name.** Slice 8 wires the *call*; the *value* it passes comes from an
+> `attack_sound_stanceN` overlay, and those live in lane B's
+> `bas/attack_anims_modern*.obj`. With no overlay authored, the swing correctly
+> emits `sound_synth(0, 1, 0)` — `combat.param`'s declared default, the "nothing
+> plays" convention. So slice 8 is completable and provable on its own, but this
+> bar's *specific id* is not reachable until slice 3 or 5 has written data.
+> Measured 2026-08-04; see the Log.
 
 ---
 
@@ -516,3 +534,170 @@ cited in the log, and `--check` is still 0.
   One doc correction: `combat.param:116`'s "the cache's own `attack_anim` (param
   2635)" is wrong — this cache has no param 2635, and no obj param of any number
   carries an animation.
+
+- **2026-08-04** — orchestrated multi-lane run. Wave 1 (slices 1, 6, 7, 9, 10)
+  was dispatched against this file's Status column and **four of the five were
+  already done**, so most of that wave was wasted. Verified against the
+  session-start commit `194aafa4` / submodule `a5f23f2765`, not against prose:
+
+  | slice | table said | tree said |
+  |---|---|---|
+  | 1 | pending | done — `attack_anim_stance1` + `equipment_sound` in `combat.param`; `[proc,combat_attack_sound]` at `combat_stats.rs2:447` |
+  | 6 | pending | done — `packetin.h:142` is `{ 102, 5, PKT_NAME_SYNTH_SOUND }` |
+  | 7 | pending | done — `mock230_send_synth_sound` at `mock230_encode.c:1107`, opcode case wired |
+  | 9 | pending | done — `app_play_frame_sounds` `src/app.c:5204`, `seq_copy_frame_sounds` `task_dat2_sequence_load.c:124` |
+  | 10 | pending, "12 rows" | 97 rows, clean in git |
+
+  **Slice 9's premise is stated as a measurement and is false in the tree it was
+  written against**: it says ``grep -rn "frame_sounds" src/ | grep -v /build`` is
+  empty. It is not, and was not. Slice 1's completion even left a comment at
+  `combat_stats.rs2:438` reading "slice 8 wires it into the swing" — whoever did
+  it was reading this queue and did not update it. **The lesson is §0.7 applied
+  to this file itself: a status is a claim and needs a command behind it.**
+
+  **A second writer was active in this tree throughout the run.** Commit
+  `1db3f5e4` "239 impls" (256 files) landed mid-run and moved the `OSRS-Content`
+  pointer `a5f23f2765` → `c3a103eeed`. `make -C src mock230-scripts` drifted
+  `12206` → `12246` → `12319` scripts across three measurements taken hours
+  apart, none of it from these lanes. §1's guarantee ("no two concurrently-
+  running lanes write the same file") holds only over lanes one orchestrator
+  controls; it says nothing about a second session. **If you run this queue in
+  parallel, establish first that you are the only writer.**
+
+  **Slice 2 — verdicts on the six REVIEW shapes.** Measured
+  `403 agree / 46 REVIEW`, matching the queue exactly; `--diff` md5
+  `ea5473f9a993aa14a506d22005457858` identical across three runs straddling the
+  other writer's commits, which is the proof nothing was edited.
+
+  | n | shape | verdict | evidence |
+  |---:|---|---|---|
+  | 20 | `rangeattack_anim` `human_stake2`→`human_stake2_pvn` | era-drift, **left undecided** | rsmod re-animates the whole `weapon_category='Thrown'` group to one modern id — category-wide, not a one-off |
+  | 14 | `rangeattack_anim` `human_stake2`→`ii_human_dart_throw_pvn` | era-drift, **left undecided** | rsmod gives darts a dedicated throw (`bronze_dart anim_stance1=7554`), split out even from other thrown weapons; the 2004 tree lumps knives/darts/axes under one anim |
+  | 7 | `defend_anim` `human_sword_def`→`human_dhsword_block` | **tree-wrong** | same-file self-contradiction: all 7 `*_2h_sword` tiers already use `human_dhsword_slash`/`_chop` for attack (in the agree bucket) but were left on the 1h block; rsmod is `dhsword` end-to-end |
+  | 2 | `defend_anim` `human_staff_block`→`human_stafforb_block` | era-drift, **left undecided** | cache geometry: `plainstaff`/`battlestaff` carry only `manwear`, orb staves also carry `manwear2`; LostCity tracks the distinction, the modern client unified the grip |
+  | 2 | `crushattack_anim` `human_staff_pummel`→`human_stafforb_pummel` | era-drift, **left undecided** | same two objs, same id pair, same reasoning |
+  | 1 | `rangeattack_anim` `human_crossbow`→`xbows_human_fire_and_reload_pvn` | era-drift, **left undecided** | dedicated modern id, same re-animation wave as the thrown shapes |
+
+  Per slice 2's own rule the five era-drift shapes are **reported, not decided** —
+  whether this project wants the 2004 animation is not a call the port makes
+  silently. The one `tree-wrong` shape becomes slice 2a below rather than being
+  fixed in place.
+
+  **Three corrections to this queue, measured:**
+  - §0.6's `./build/mock230_pack` does not exist. `make -C src mock230-pack`
+    puts it at `$(OBJ_DIR)/mock230_pack`; the default-objdir copy is
+    `./src/build/mock230_pack`.
+  - §1 lane C's `src/embed/embed_test.c` does not exist. It is
+    `src/net/mock/test/embed_test.c`.
+  - §0.6 recommends `PLATFORM_OBJ_BASE=/tmp/objdir-<lane>`. An **absolute**
+    objdir breaks any recipe that does `./src/$(OBJ_DIR)/...` — it renders as
+    `./src//tmp/...`. `test-mock230-embed:1478` and `test-content:1289` are both
+    that shape. Use a **relative** private objdir (`build_wfx_<lane>`) for those
+    targets.
+
+  **One bug found that is not this port's**: `src/Makefile:1471-1478`
+  (`test-mock230-embed`) cannot link for anyone — line 1474 compiles
+  `net/bitbuffer.c` from source while line 1477 links `$(OBJ_DIR)/bitbuffer.o`
+  out of `NET_CORE_OBJS` (line 772). Duplicate symbol on Apple's linker,
+  reproduced from a clean objdir, so it is deterministic rather than a stale-`.o`
+  race. Left unfixed: no lane in §1 owns `src/Makefile`.
+
+---
+
+### Slice 2a — the seven 2h-sword `defend_anim` rows  *(lane B, blocked on 2)*
+
+From slice 2's one `tree-wrong` verdict. Seven `*_2h_sword` records
+(adamant/black/bronze/iron/mithril/rune/steel) in
+`skill_combat/configs/bas/attack_anims.obj` set
+`param=defend_anim,human_sword_def` — the 1h-sword block — while their own
+`slashattack_anim`/`crushattack_anim` on the same records already use the
+`human_dhsword_*` family. Every genuine 1h sword/dagger/longsword in the same
+file uses `human_sword_def` correctly, so this is the tree contradicting itself
+on one weapon class, not an era question.
+
+**Before writing, resolve one thing this queue has not decided:**
+`attack_anims.obj` is **not** in lane B's exclusive-write list in §1 (which names
+only `attack_anims_modern*.obj`, `attack_anims_bycategory.obj` and
+`attack_anims_manual.obj`). Confirm it is hand-authored and not tool-regenerated
+(§0.5). If it is generated, the fix belongs in `attack_anims_manual.obj` instead,
+and §1 needs a row for this slice either way.
+
+**Bar.** Standing bar (§0.6); the 7 rows move REVIEW → agree in
+`tools/port_weapon_fx.py --diff`; headless, one tier (e.g. `rune_2h_sword`)
+blocks with `human_dhsword_block` and not `human_sword_def`.
+
+---
+
+- **2026-08-04** — slice 8, lane F. **Content wiring landed and proven; the
+  bar's specific id is not yet reachable.**
+
+  `%com_attacksound = ~combat_attack_sound($weapon, %damagestyle)` at
+  `combat_stats.rs2:380` and `sound_synth(%com_attacksound, 1, 0)` beside
+  `anim(%com_attackanim, 0)` at `:524` in `[proc,player_melee_swing]`; the same
+  call at `scripts/player/player_ranged.rs2:53`, mirroring LostCity's own
+  `player_ranged.rs2:67`. Upstream shape cited:
+  `LostCity_Server/content/scripts/skill_combat/scripts/combat.rs2:64`
+  returns `(seq, synth)` from one proc; this tree had already split that into
+  `~combat_attack_anim` / `~combat_attack_sound` in slice 1, so slice 8 was only
+  the second half plus the callers.
+
+  Proven from a **real combat swing**, not an opcode bypass — headless
+  `torirs_F` (`EMBED_SERVER=1`, banner verified as
+  `mock230: features era=osrs …`, not the no-embed stub), driven by
+  `::container inv 0 abyssal_whip 1; ::equip 0; ::tele 3263 3232; ::fight`:
+
+  ```
+  mock230: no trigger for [apnpc2,goblin]      <- op-2 Attack on a goblin
+  mock230: sound_synth(0, 1, 0)                <- the new line in player_melee_swing fired
+  mock230: -> SYNTH_SOUND  op=102 payload=5    <- encoded and sent, length matches packetin.h:102
+  ```
+
+  The `sound_synth(...)` print is `SS_OP_SOUND_SYNTH`'s own host handler
+  (`mock230_scripts.c:6757`) and fires only when a **compiled script** executes
+  the opcode — which is what distinguishes this from `embed_test.c`, which
+  dispatches the opcode directly.
+
+  **The id is `0`, and that is correct, not a bug.** No weapon in the tree
+  carries an authored `attack_sound_stanceN` value —
+  `grep -rn "attack_sound_stance" …/server/scripts/` finds only `combat.param`'s
+  declarations and this new read, and
+  `port_weapon_fx.py --sources abyssal_whip` prints
+  `overlay <none — swings the param default>`. Lane B's
+  `bas/attack_anims_modern*.obj` do not exist on disk yet. So the swing passes
+  `combat.param`'s `default=0`. **Slice 8's "Blocked on 1, 7" is incomplete: its
+  bar also needs 3 or 5.** Noted at the slice.
+
+  **Scope correction.** The `drop sound_synth` marker count of 145 is
+  **tree-wide**; §1 restricts lane F to `skill_combat/**`, which is **12**, of
+  which **4** are lane G's `scripts/player/specs/pvm_*.rs2`. Real lane-F scope
+  was 8 files plus `combat_stats.rs2` (a caller site, unmarked). In-scope count
+  went 12 → 11; tree-wide went 145 → 147 because the concurrent actor added new
+  marked files elsewhere mid-run.
+
+  **Four restorations stopped rather than decided** — each needs a call this
+  queue has not made:
+  - `npc_combat_magic.rs2`, `player_magic.rs2`, `crumble_undead.rs2`,
+    `god_iban.rs2` read `magic_spell_table:sound_success` / `sound_fail`.
+    **Those columns do not exist** in `skill_magic/configs/magic.dbtable`, which
+    is outside lane F and not a `.rs2` file.
+  - `npc_combat_ranged.rs2` reads `npc_param(rangeattack_sound)`, **undeclared**;
+    the only places to declare it are `npc_combat.param` / `combat.param`
+    (lane A's).
+  - `specwep.rs2` needs literal synth ids (`rampage`, `sanctuary`).
+    `port_weapon_fx.py` resolves only stance-keyed swing sounds from
+    `objs.toml`; `rampage` appears in rsmod's `synth.sym` as 2538 and `sanctuary`
+    is absent entirely. §0.3 forbids hand-copying the integer past the tool, so
+    this stopped — per PORTING_GUIDE §2.4, the missing surface *is* the bug.
+  - `player_special_attack.rs2` carries the marker but **LostCity's own file has
+    zero `sound_synth` calls** — it is a pure dispatcher. Nothing to restore; the
+    marker is wrong. Left untouched rather than editing a header for a
+    restoration that does not exist.
+
+  **A transient failure worth recording.** Mid-run,
+  `make -C src mock230-scripts` failed on
+  `quests/quest_legends/scripts/irvig_senay.rs2:20: unknown variable
+  '%lastcombat'` — the concurrent actor's in-flight file, not this port's. It
+  self-resolved. The lane correctly refused to park or silence it (§0.1) and
+  reported the bar as failed instead of working around it. Re-measured after:
+  `compiled 12368 scripts`, `--check` 0 problems, pack `0 error(s), 17
+  warning(s)`.

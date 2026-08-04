@@ -719,3 +719,19 @@ ever matters.
     content submodule is being edited concurrently. A 3-run union is not enough
     to separate a regression from a flake; a back-to-back 5-run union against
     the same HEAD is. Measured that way, the whole change set is 13 vs 13.
+
+- **2026-08-04 — which RuneLite is the rev-239 client, and NPC_INFO v5's shape.**
+  - **1.12.33.** Both 1.12.34 and 1.12.34.1 ship a rev-**240** injected client,
+    including the 1.12.34 tag whose own commits say `rev239` — those are content
+    data updates, not the client revision. RuneLite republishes
+    `injected-client` at the same coordinates when the game updates, so a source
+    build at an old tag still pulls the current client. The only reliable way to
+    learn a client's revision is to ask one; our JS5 server logs it.
+  - 1.12.33 passes the revision gate (`JS5 session opened at revision 239`) and
+    then crashes in its own init before any request (`cq.gh is null`). Ruled
+    out: plugin-hub plugins, and a cache written by the 240 client.
+  - `mock239_npcinfo_write_empty` — NPC_INFO v5 is ONE bit section, not four:
+    8-bit high-resolution count, then 16-bit npc indices terminated by 0xFFFF.
+    The index widened from 14 to 16 bits at this revision. The terminator is not
+    optional when extended info follows: the client's loop consumes indices
+    while the bit reader has bits, and that reader spans the rest of the packet.

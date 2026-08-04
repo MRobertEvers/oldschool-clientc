@@ -2359,6 +2359,23 @@ mock230_send_npc_info(struct Mock230Player* player)
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
 
+        /*
+     * Revision 239's npc stream is its own codec, like PLAYER_INFO's — one bit
+     * section rather than the classic terminator-delimited list, and 16-bit npc
+     * indices rather than 14.
+     *
+     * The empty form is what is written today: no npcs. That is not parity, but
+     * it is the difference between a client that is told "no npcs this tick"
+     * and one that is told nothing at all — and a client that receives no
+     * NPC_INFO does not simply see an empty world, it waits.
+     */
+    if( wire_is_v5(player) )
+    {
+        open_packet(&buf, 64);
+        mock239_npcinfo_write_empty(&buf);
+        flush(player, &buf, OP_NPC_INFO, 2);
+        return;
+    }
     open_packet(&buf, 8192);
     rsab_bits(&buf);
 

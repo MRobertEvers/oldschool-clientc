@@ -333,6 +333,54 @@ reached the same place: `client connected` -> `JS5 session opened at revision
 240` -> the client crashes in its own decode. The server now survives the
 disconnect cleanly rather than dying on SIGPIPE.
 
+### Which RuneLite is the rev-239 client
+
+**1.12.33.** Not what the source history suggests, and the difference matters:
+
+| RuneLite | injected-client revision |
+|---|---|
+| 1.12.34.1 (installed) | 240 |
+| 1.12.34 (tag, "rev239" commits) | **240** |
+| 1.12.33 | **239** |
+
+The commits reading `Update GameVals to 2026-07-29-rev239` are *content data*
+updates — item and npc ids — not the client revision. `injected-client` is
+`runtimeOnly("net.runelite:injected-client:${project.version}")`, and RuneLite
+**republishes that artifact at the same coordinates** when Jagex updates the
+game. So building from the 1.12.34 tag pulls a rev-**240** client: the source
+tag's era does not determine the client's revision, and the only reliable way
+to find out is to ask one. Our JS5 server logs the revision a client announces,
+which is what settled it.
+
+Two smaller findings from the same exercise:
+
+- The jav_config **host allowlist does not exist at 1.12.34** — it was added
+  after. `runelite_patch.py` refuses to patch what it cannot find rather than
+  guessing, which is how this was noticed.
+- RuneLite builds its own client jar **unsigned** (`jarSign SKIPPED`), so a
+  source build needs no unsigning step; only the published jars do.
+
+`tools/runelite_patch.py` now takes `--jar` and `--client-jar`, so it can patch
+an arbitrary pair rather than only the installed RuneLite.
+
+### Where 1.12.33 stops
+
+It passes the revision gate — `mock230: JS5 session opened at revision 239` —
+and then crashes inside its own initialisation before issuing a single JS5
+request:
+
+```
+java.lang.NullPointerException: Cannot read field "ap" because "cq.gh" is null
+    at dl.al(dl.java:89) ... at client.ia(client.java:8272)
+```
+
+Zero requests reached the server, so this is not a response we got wrong. Ruled
+out: plugin-hub plugins built against a newer API (`--safe-mode`, same crash)
+and a `jagexcache` written by the rev-240 client (fresh `cachedir`, same crash).
+What is not ruled out is running a 1.12.33 client jar beside the 1.12.34.1-era
+dependency jars and on-disk RuneLite profile state — the next thing to try is a
+full source build at the 1.12.33 tag with its own dependency set.
+
 Not done, in the order that unblocks the most:
 
 1. **NPC_INFO v5 is not written**, and PLAYER_INFO v5 carries only the local

@@ -275,6 +275,8 @@ static const int k_transcribed_osrs239[] = {
      * forks to before writing a bit. It is listed here so the send is allowed;
      * NPC_INFO is deliberately still absent. */
     PKT_NAME_PLAYER_INFO,
+    /* Empty form only — mock239_npcinfo_write_empty. */
+    PKT_NAME_NPC_INFO,
 
     /*
      * Payload-free packets. A packet with no body has no layout to get wrong,

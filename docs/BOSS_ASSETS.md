@@ -491,6 +491,37 @@ Yt-HurKot reads as a mismatch and is not: Kronos carries two stat blocks for it
 constant is the one to note — the other five (46, 70, 113, 10, 18) match Kronos
 exactly, which is what made the odd one out worth checking at all.
 
+## The orange ground over the wall — two explanations measured and killed
+
+Still open, but narrowed, and the two obvious answers are both **wrong**. Both
+were measured rather than argued, which is the only reason they are written down:
+each is the kind of explanation that survives indefinitely if nobody checks it.
+
+**Not an overhanging model.** `TORIRS_EMIT_LOC=<id>` prints the model's own
+vertex extent beside its registered footprint. The seal wall (30337) reports
+`extent x[-128..128] z[-320..320]` at a 2x5 footprint — 256 by 640 units, which
+is exactly 2 by 5 tiles. The lava-edge floor pieces (30347/30348/30349) report
+`x[-64..64] z[-64..64]` at 1x1. Every one fills its footprint precisely, so no
+loc is sticking out past the tiles it waits for.
+
+**Not flattened terrain.** `TORIRS_HPROF` reads a single height (-240) across
+41x31 tiles of the arena, and the first instinct — "the rebuild flattened the
+heightmap" — is wrong twice over. The profile that appeared to disagree was
+Lumbridge, printed on the initial load before the teleport, and teleporting back
+to the same Lumbridge tiles reproduces its relief exactly. The Inferno arena is
+*supposed* to be flat: its depth is scenery, not terrain, which is why the lava
+overlay and the rock locs share one plane.
+
+Which leaves the mechanism the emit order already shows and neither of those
+explains: terrain for a nearer tile is emitted after a loc anchored farther away
+(the tile immediately south of the seal wall's footprint is drawn at order 384
+against the wall's 379), and on a flat arena where the lava is an overlay on the
+same plane there is nothing in the geometry to keep the two apart. The next step
+is to identify *which* loc is being clipped — the two candidate classes are
+eliminated, so it is neither the wall nor the floor pieces — and the tools to do
+it are `TORIRS_DRAW_ORDER` for the sequence and `TORIRS_EMIT_LOC` for the
+extent.
+
 ## Re-running the export
 
 The full command is in

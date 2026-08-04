@@ -1366,6 +1366,35 @@ try_emit_world_draw_model(
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             emit_loc_debug(frame, el, &rel, element_id);
 
+        /* TEMP: TORIRS_ORDER2=N dumps frame N's emit sequence with each command
+         * resolved to a loc id and each terrain command to its tile. */
+        {
+            static long want = -2; static long seen = -1; static int in_f = 0;
+            static int once = 0; static long last_i = -1; static int seq = 0;
+            if( want == -2 ) { const char* e = getenv("TORIRS_ORDER2"); want = e ? strtol(e,NULL,0) : -1; }
+            if( want >= 0 )
+            {
+                if( (long)frame->painters_index <= last_i )
+                { seen++; in_f = (seen >= want) && !once; if( in_f ) once = 1; seq = 0; }
+                last_i = (long)frame->painters_index;
+                if( in_f )
+                {
+                    struct WorldEntity_Scenery* sc =
+                        cmd->_bf_kind == PNTR_CMD_ELEMENT
+                            ? World_SceneryGetByElementId(frame->world, element_id) : NULL;
+                    if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
+                        fprintf(stderr, "o2 %4d TERRAIN tile=%d,%d L%d\n", seq++,
+                                (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
+                                (int)cmd->_terrain._bf_terrain_y);
+                    else
+                        fprintf(stderr, "o2 %4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
+                                sc ? sc->loc_id : -1, sc ? sc->grid_position.x : -1,
+                                sc ? sc->grid_position.z : -1,
+                                sc ? sc->debug.draw_size_x : 0, sc ? sc->debug.draw_size_z : 0);
+                }
+            }
+        }
+
         memset(out, 0, sizeof(*out));
         out->kind = TORIRSRC_DRAW_MODEL;
         out->u.model.model = el->model;

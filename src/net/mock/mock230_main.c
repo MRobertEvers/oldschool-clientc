@@ -35,6 +35,7 @@
 
 #include <arpa/inet.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -244,6 +245,9 @@ main(
      * looks like from outside, and it looks exactly like a crash.
      */
     signal(SIGPIPE, SIG_IGN);
+    /* JS5 connections are served by forked children; without this each one
+     * leaves a zombie for the lifetime of the process. */
+    signal(SIGCHLD, SIG_IGN);
 
     mock230_boot_defaults(&config);
 
@@ -298,9 +302,47 @@ main(
 
     for( ;; )
     {
+        uint8_t first = 0;
         int fd = accept(listener, NULL, NULL);
         if( fd < 0 )
             continue;
+
+        /*
+         * JS5 and the game are two SEPARATE, CONCURRENT connections.
+         *
+         * This loop used to serve one connection to completion before
+         * accepting the next, which is fine while a client only ever holds one.
+         * An OldSchool client holds both: it opens JS5, keeps it open for
+         * on-demand archive loads for the whole session, and opens a second
+         * socket for the game. Serially, the game connection sits in the
+         * backlog forever — the client reaches its login screen (JS5 answered)
+         * and then hangs on login with no error at either end, because nothing
+         * ever accepts it.
+         *
+         * Peeking the first byte says which this is (15 JS5, 14 game). A JS5
+         * connection is handed to a forked child: it shares nothing mutable —
+         * read-only cache file handles and a computed master index — so a
+         * process is a legitimate way to hold it, and it costs none of the
+         * restructuring a multi-session select loop would.
+         */
+        if( recv(fd, &first, 1, MSG_PEEK) == 1 && first == 15 )
+        {
+            pid_t child = fork();
+            if( child == 0 )
+            {
+                close(listener);
+                fprintf(stderr, "mock230: JS5 connection\n");
+                if( mock230_conn_open(&conn, fd) )
+                    serve(&srv, &conn, &config, wire);
+                close(fd);
+                _exit(0);
+            }
+            close(fd);
+            if( child < 0 )
+                perror("fork");
+            continue;
+        }
+
         fprintf(stderr, "mock230: client connected\n");
         if( mock230_conn_open(&conn, fd) )
             serve(&srv, &conn, &config, wire);

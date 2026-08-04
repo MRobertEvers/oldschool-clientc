@@ -211,3 +211,12 @@ mock239_playerinfo_write(
             rsab_p1(buf, (appearance[i] + 128) & 0xff);
     }
 }
+
+void
+mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
+{
+    rsab_bits(buf);
+    rsab_pbit(buf, 8, 0);       /* no high-resolution npcs */
+    rsab_pbit(buf, 16, 0xffff); /* end of the low-resolution additions */
+    rsab_bytes(buf);
+}

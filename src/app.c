@@ -3801,6 +3801,32 @@ app_debug_log_position(struct App* app)
         app->world_camera.pitch);
 }
 
+/* TEMP TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene
+ * tiles, once per load. Flat terrain and correctly-varying terrain are
+ * indistinguishable from a screenshot. */
+static void
+app_debug_height_profile(struct App* app)
+{
+    static unsigned logged = (unsigned)-1;
+    const char* env = getenv("TORIRS_HPROF");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete )
+        return;
+    if( app->world->load_seq == logged )
+        return;
+    logged = app->world->load_seq;
+    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+        return;
+    for( int z = z1; z >= z0; z-- )
+    {
+        fprintf(stderr, "hprof z=%3d:", z);
+        for( int x = x0; x <= x1; x++ )
+            fprintf(stderr, " %5d",
+                    app_world_height(app, x * 128 + 64, z * 128 + 64, 0));
+        fprintf(stderr, "\n");
+    }
+}
+
 /* TORIRS_BRIDGE_DEBUG=1: list every LinkBelow column in the loaded scene with
  * the level-0/level-1 ground heights the getAvH bump chooses between. The
  * "am I standing on the deck or under it" one-liner. Prints once per load. */
@@ -3844,6 +3870,7 @@ app_update_world_viewport(struct App* app)
 {
     app_debug_log_position(app);
     app_debug_log_bridges(app);
+    app_debug_height_profile(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     if( getenv("TORIRS_WORLD_VIEW_DEBUG") )

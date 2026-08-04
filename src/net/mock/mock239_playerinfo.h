@@ -103,4 +103,30 @@ mock239_playerinfo_write(
     const uint8_t* appearance,
     int appearance_len);
 
+/**
+ * One tick of NPC_INFO v5 carrying no npcs.
+ *
+ * A far simpler codec than PLAYER_INFO: ONE bit section, not four.
+ *
+ *     8 bits    how many high-resolution npcs follow
+ *     ...       one update per high-resolution npc
+ *     16 bits   an index per npc entering view, terminated by 0xFFFF
+ *
+ * The index is 16 bits at this revision — the classic stream's is 14 — which is
+ * the same id-space widening that moved the npc type field, and a decoder built
+ * for the narrow form reads two npcs where there is one.
+ *
+ * The 0xFFFF terminator is not optional whenever extended info follows. The
+ * client's low-resolution loop keeps consuming 16-bit indices while the bit
+ * reader has bits left, and the bit reader spans the rest of the packet — so
+ * without it the extended-info bytes are read as npc indices.
+ *
+ * This writes the empty case only: no high-resolution npcs, no additions. That
+ * is what the server needs to be able to SEND the packet at all rather than
+ * refuse it; populating it is the next step and is a smaller job than
+ * PLAYER_INFO was.
+ */
+void
+mock239_npcinfo_write_empty(struct RSAreaBuf* buf);
+
 #endif
