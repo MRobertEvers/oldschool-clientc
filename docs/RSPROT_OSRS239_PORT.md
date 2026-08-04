@@ -246,7 +246,14 @@ Not done, in the order that unblocks the most:
    the client driver already writes it; the server half is a transcription.
 3. **The 239 payload writer set covers 10 packets.** What is missing is listed
    in `k_transcribed_osrs239` and refused at send.
-4. **The client's own 239 parse is partial.** `osrs239_parse.c` delegates to the
+4. **The selftest cannot reach the 239 writers.** `--rev` / `MOCK230_REV` is
+   read in `mock230_main`'s accept loop, and `mock230_world_selftest()` builds
+   its own server without one, so `MOCK230_REV=osrs239 --selftest` still
+   exercises the 230 path. The 239 writers are therefore verified by
+   transcription against RSProt and by the length check, not by a test. Giving
+   the selftest the selector is the cheapest next guard, and it is what would
+   have caught the three wrong writers automatically instead of by reading.
+5. **The client's own 239 parse is partial.** `osrs239_parse.c` delegates to the
    230 parser and explicitly refuses the eight packets whose layout moved,
    rather than decoding them wrongly. Filling those in is client parity, not a
    blocker for the above.

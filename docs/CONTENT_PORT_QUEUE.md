@@ -746,7 +746,13 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 34y | MM amulet smith firewall | done | enchanted gold → unstrung speak amulet; zenyte hook |
 | 34z | MM aa_summon_guards | done | ~aa_summon_guards + aa_guards_queue; %mm_guards_cooldown temp |
 | 35a | MM summon shop/uncle/advisors | done | shopkeepers + uncle + uwogo/murowoi → ~aa_summon_guards |
-| 8 | Outward areas / remaining quests / minigames | pending | After 35a: aunt/dugopul/throne summon; thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 35b | MM summon aunt/dugopul/throne | done | aunt+dugopul queue aa_guards; throne human path |
+| 35c | MM thin chapter cards | done | mm_ch1 + ch2/ch3/ch4 mesbox cards; IF1 deferred |
+| 35d | MM supply crates | done | iron/bronze scimitar + tinderbox/thread/needle/chisel/hammer |
+| 35e | MM quest crates+pineapple | done | denture/mould/eye crates + bookcase + pineapple plant |
+| 35f | MM warehouse hole+ropes | done | crate hole tele/damage + ropes + trapdoor + locked door |
+| 35g | MM bridge+jump+gold bar | done | bridge ladders + jumping square + enchanted gold Examine |
+| 8 | Outward areas / remaining quests / minigames | pending | After 35g: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1675,4 +1681,19 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 35a done: wire aa_summon into shopkeepers/uncle/uwogo/murowoi
 - final: 12000 scripts; mock230_pack 0 errors
 - next pending: aunt/dugopul/throne summon; thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35b done: aunt/dugopul/throne → aa_guards_queue
+- final: 12001 scripts; mock230_pack 0 errors
+- next pending: thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35c done: thin mm_ch1 + ch2/ch3/ch4 chapter mesbox cards
+- final: 12002 scripts; mock230_pack 0 errors
+- next pending: MM loc leftovers (crates/warehouse/bridge); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35d done: MM supply crates (scimitars + tools)
+- slice 35e done: MM denture/mould/eye crates + bookcase + pineapple
+- slice 35f done: MM warehouse hole/ropes/trapdoor/locked door
+- slice 35g done: MM bridge ladders + jumping square + enchanted gold Examine
+- final: 12031 scripts; mock230_pack 0 errors
+- next pending: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
