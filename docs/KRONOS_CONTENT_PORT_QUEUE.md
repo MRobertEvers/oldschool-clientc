@@ -155,7 +155,17 @@ re-arm. Stop only when the user stops the loop.
 | 72 | wilderness: Fountain of Rune | done | `minigame_fountain_of_rune/`: oplocu glory/wealth/skills/combat → max (6)/(5); 1/25000 `amulet_of_glory_inf`; desktop op1 overlay |
 | 73 | wilderness: Wilderness Sword teleports | done | `minigame_wilderness_sword/`: sword 3 daily FoR + sword 4 unlimited; Kronos coords; worn op / web-slash deferred |
 | 74 | skill: Imbued heart | done | `skill_slayer/imbued_heart.rs2`: Invigorate `stat_boost(magic,1,10)` + 700t CD; saturated upgrade 150k essence + `(4,10)`/500t; death clears CD; non-drain / Ferox pool reset deferred |
-| 75 | wilderness: Supply / Bloody chest stubs | pending | wildy loot chests if cache-named; skip Kronos custom loot |
+| 75 | wilderness: Supply / Bloody chest stubs | done | withdrawn — Kronos SupplyChest/BloodyChest are private-server (blood money / bloody keys); Deadman supply chests skip-listed; muddy chest already LC CONTENT_PORT 9f |
+| 76 | wilderness: Rogues' Castle chests | done | `areas/wilderness/rogue_chests.rs2`: Search for traps 84 / 701.7 XP / 34t restock; Open trap 16–43; medium diary loot table + hard qty bump; `wilderness_rogue` aggro; clue/RoW(i)/looting-bag deferred; skipped Kronos PVP/CB87 |
+| 77 | wilderness: Lava Dragon / Lava Maze shortcuts | done | `agility_shortcuts_osrs.rs2`: Cross stepping stones req 74/82; relative `p_telejump`; diary gate removed (wiki May 2024); 0 XP |
+| 78 | bosses: Corporeal Beast cave | blocked | → SCAPE2009 (2008 Corp handlers exist there); Kronos instance dialogue is custom |
+| 79 | wilderness: Obelisks | blocked | → SCAPE2009 `WildernessObeliskPlugin`; hard-diary destination picker is OSRS follow-up after mid-era land |
+| 80 | wilderness: Axe / Pirate hut lockpick | blocked | → SCAPE2009 / classic thieving doors (pre-2009) |
+| 81 | wilderness: Active volcano / Hotspot / Staff bounty | done | withdrawn — Kronos private-server events (blood fragment / hotspot rotation / staff PK) |
+| 82 | wilderness: Deep Wilderness crevice | done | `agility_shortcuts_osrs.rs2`: Use `wilderness_deep_crevice` Agility 46 + medium diary; Kronos dests; stairs enter/exit deferred (generic `stairs_cellar`) |
+| 83 | skill: Woodcutting Guild | done | `skill_woodcutting/woodcutting_guild.rs2`: WC60 gates + Bone Voyage hand-in; rope ladders; dungeon; shrine eggs → seed nest + 100 Prayer XP; redwood plane / +2 boost deferred |
+| 84 | skill: Mining Guild expansion ladders | done | withdrawn — LC `areas/.../mining_guild.rs2` already gates Mining 60 on `mguild_ladder`/`mguild_door`; Kronos coord-specific teleports are the same +6400 cellar offset |
+| 85 | skill: WC Guild bird-egg shrine | done | folded into slice 83 (`oplocu,wcguild_shrine`) |
 
 ## Opcode gap log
 
@@ -241,6 +251,11 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 72 | (none) | oplocu recharge + random(25000) eternal | confirmed — inventory ops |
 | 73 | (none) | opheld3 + date_minutes daily gate | confirmed — no new opcode |
 | 74 | (none) | opheld1 + map_clock CD + death reset | confirmed — inventory ops |
+| 76 | (none) | oploc + loc_change + npc_findallany aggro | confirmed — no new opcode |
+| 76 | clue / looting bag / RoW(i) | hard clue + auto-store on loot | deferred |
+| 77 | (none) | oploc Cross + p_telejump | confirmed — no new opcode |
+| 82 | (none) | oploc Use + p_teleport + diary gate | confirmed — no new opcode |
+| 83 | (none) | oploc Open + walk-through + teleports | confirmed — no new opcode |
 
 ## Log
 
@@ -345,3 +360,10 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   accounting in [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md),
   same date. `npc_sethuntmode` and `busy` from that sweep also matter here: the
   boss dens and wildy specials both wanted per-npc aggression
+- slice 76 done: Rogues' Castle chests — trap Open, Search for traps 84/701.7/34t, medium diary loot + hard qty, rogue aggro; clue/RoW deferred; scripts 7266→7365 (parallel PC); pack 0 errors; no sibling park (fixed PC duplicate constants/varps to compile)
+- slice 77 done: Lava Dragon (74) + Lava Maze (82) stepping stones in `agility_shortcuts_osrs.rs2`; pack 0 errors
+- slice 82 done: Deep Wilderness crevice Agility 46 + medium diary; stairs enter deferred; scripts 7365; pack 0 errors
+- 2026-08-04: queue idle after Misc.java shortcuts; extended with 83 WC Guild / 84 Mining Guild / 85 shrine
+- slice 83 done: Woodcutting Guild gates WC60 + BV hand-in moved off bonevoyage oploc; ropes + dungeon; scripts 7395; pack 0 errors
+- slice 85 done (in 83): shrine bird eggs → `bird_nest_seeds` + 100 Prayer XP; scripts 7396; pack 0 errors
+- slice 84 withdrawn: Mining Guild already LC-ported

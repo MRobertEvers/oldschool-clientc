@@ -1079,7 +1079,8 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
 
-        if( npc->active || npc->respawn_tick < 0 || srv->tick < npc->respawn_tick )
+        if( npc->active || !npc->def || npc->respawn_tick < 0 ||
+            srv->tick < npc->respawn_tick )
             continue;
 
         npc->active = 1;

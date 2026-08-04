@@ -3790,8 +3790,11 @@ mock230_script_command(
                                        coord_level(coord));
         if( slot < 0 )
         {
-            SSVM_Abort(state, "npc_add %d at %d,%d found no free slot", npc_type,
-                       coord_x(coord), coord_z(coord));
+            /* Soft-fail: aborting mid-enter (e.g. Telekinetic maze setup) leaves
+             * the player in a half-built instance with a parked script. Content
+             * can retry; the loud stderr line from npc_spawn already says why. */
+            fprintf(stderr, "mock230: npc_add %d at %d,%d found no free slot\n",
+                    npc_type, coord_x(coord), coord_z(coord));
             return 1;
         }
         /* 0 is "stays until something removes it", matching the reference and
@@ -4528,6 +4531,26 @@ mock230_script_command(
          * delay in the low. */
         player->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
         player->masks |= MOCK230_PMASK_SPOTANIM;
+        return 1;
+    }
+
+    /*
+     * spotanim_map(spotanim, coord, height, delay) — engine.rs2. LostCity
+     * World.animMap → MAP_ANIM zone sub-packet. The client already decodes it
+     * (App_WorldSpotanimSpawn); this is the host that was missing.
+     */
+    case SS_OP_SPOTANIM_MAP:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_zone_mapanim(srv, mock230_coord_x(values[1]), mock230_coord_z(values[1]),
+                             mock230_coord_level(values[1]), (int)values[0], (int)values[2],
+                             (int)values[3]);
         return 1;
     }
 

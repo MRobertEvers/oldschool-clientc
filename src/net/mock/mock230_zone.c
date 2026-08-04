@@ -520,6 +520,34 @@ mock230_zone_projanim(
 }
 
 void
+mock230_zone_mapanim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int spotanim,
+    int height,
+    int delay)
+{
+    struct Mock230Zone* zone;
+    struct Mock230ZoneEvent event;
+
+    assert(srv);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = MOCK230_ZONE_EV_MAPANIM;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.id = spotanim;
+    event.src_height = height;
+    event.start_delay = delay;
+    queue_event(srv, zone, &event);
+}
+
+void
 mock230_zone_loc_merge(
     struct Mock230Server* srv,
     int x,

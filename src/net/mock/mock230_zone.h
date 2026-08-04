@@ -103,6 +103,12 @@ enum Mock230ZoneEventKind
      * boundary looks right to a bystander on either side.
      */
     MOCK230_ZONE_EV_PROJANIM,
+    /**
+     * Free-standing spotanim at a tile — `spotanim_map`. Wire MAP_ANIM (124).
+     * Height/delay ride in `src_height` / `start_delay` (same widths as the
+     * packet); nothing else on this event is meaningful.
+     */
+    MOCK230_ZONE_EV_MAPANIM,
 };
 
 /**
@@ -328,6 +334,20 @@ mock230_zone_projanim(
     int end_delay,
     int peak,
     int arc);
+
+/**
+ * Queue MAP_ANIM: free-standing spotanim at (x,z,level). Filed in that tile's
+ * zone so everyone who can see the tile gets it (LostCity `World.animMap`).
+ */
+void
+mock230_zone_mapanim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int spotanim,
+    int height,
+    int delay);
 
 /** The loc record at this key, or NULL. */
 struct Mock230ZoneLoc*

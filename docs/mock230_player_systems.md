@@ -286,6 +286,25 @@ server `%option_run` write or the icon moves and the player still walks.
 `~settings_side_login` arms the Controls button the same way `~orbs_login`
 arms the orb.
 
+The rest of the Controls tab is the same shape — OpenRune's
+`ControlSettingsEvents` / `SettingsSideScript` is the behaviour reference
+(LostCity's flat `interface_controls` has no equivalent for these rows):
+
+| component | server write / action |
+|---|---|
+| `skull_prevention` | toggle `%skull_prevent_enabled` |
+| `attack_priority_player_buttons` | `%option_attackpriority = last_slot - 1` (0..4) |
+| `attack_priority_npc_buttons` | `%option_attackpriority_npc = last_slot - 1` (0..3) |
+| `acceptaid` | toggle `%option_acceptaid` (refuses ON while `%ironman`) |
+| `houseoptions` | `if_opensub(…:sidemodal, poh_options, 1)` |
+| `bondoptions` | `if_opensub(…:mainmodal, bond_main, 0)` |
+| `settings_open` | `if_opensub(…:mainmodal, settings, 0)` + arm `settings:close` |
+| `settings_tab` / `audio_tab` / `display_tab` | `%settings_side_panel_tab` 0/1/2 |
+
+Attack-option CS2 (`settings_side_dropdown_op`) does **not** write the
+varps — only the server does (clientcode 18 / 22). Carriers live in
+`interface_settings_side/configs/settings_side.varp`.
+
 Two client-side gaps had to be closed for any of it to be visible:
 
 - **`RUNENERGY_VISIBLE` (3321) had no handler.** It was in the opcode metadata

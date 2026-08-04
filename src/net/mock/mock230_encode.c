@@ -92,6 +92,7 @@ enum
     OP_OBJ_DEL = 121,
     OP_OBJ_COUNT = 122,
     OP_MAP_PROJANIM = 125,
+    OP_MAP_ANIM = 124,
     OP_SET_PLAYER_OP = 75,
     /* RSProt osrs-230 camera opcodes (see packetin.h). */
     OP_CAM_RESET = 65,
@@ -1689,6 +1690,8 @@ zone_sub_opcode(int kind)
         return OP_OBJ_COUNT;
     case MOCK230_ZONE_EV_PROJANIM:
         return OP_MAP_PROJANIM;
+    case MOCK230_ZONE_EV_MAPANIM:
+        return OP_MAP_ANIM;
     default:
         return -1;
     }
@@ -1772,6 +1775,13 @@ zone_sub_payload(
         rsab_p2(buf, event->end_delay);
         rsab_p1(buf, event->peak);
         rsab_p1(buf, event->arc);
+        return 1;
+    /* Six bytes; client asserts exactly that (`gameproto_parse.c` MAP_ANIM). */
+    case MOCK230_ZONE_EV_MAPANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p1(buf, event->src_height);
+        rsab_p2(buf, event->start_delay);
         return 1;
     default:
         return 0;

@@ -116,13 +116,13 @@ filed under `helpers/quests/` are at the end.
 | 11 | In Search of Knowledge | `insearchofknowledge` | 317 | done | `%hosdun_knowledge_search`; Aimeri→tomes→Logosia; `::isokrun` OK; pack 0 errors; deferred combat pages/web/lamp Rub |
 | 12 | Bone Voyage | `bonevoyage` | 320 | done | `%fossilquest_progress`→50; Haig→foreman→sawmills→navigators→sail soft; `::bvrun` OK; pack 0 errors |
 | 13 | Children of the Sun | `childrenofthesun` | 337 | done | `%vmq1`→24; Alina→follow soft→door→Tobyn→mark→roof; `::cotsrun` OK; pack 0 errors |
-| 14 | The Garden of Death | `thegardenofdeath` | 346 | in_progress | `%tgod` endstate 56 |
-| 15 | At First Light | `atfirstlight` | 348 | pending | |
-| 16 | Tale of the Righteous | `taleoftherighteous` | 353 | pending | needs #1 |
-| 17 | Getting Ahead | `gettingahead` | 361 | pending | |
-| 18 | The Corsair Curse | `thecorsaircurse` | 376 | pending | |
-| 19 | Below Ice Mountain | `belowicemountain` | 377 | pending | |
-| 20 | Shadows of Custodia | `shadowsofcustodia` | 406 | pending | |
+| 14 | The Garden of Death | `thegardenofdeath` | 346 | done | `%tgod`→56; gardens+translate soft; `::godrun` OK; pack 0 errors |
+| 15 | At First Light | `atfirstlight` | 348 | done | `%afl`→12; Apatura→fox→Atza soft; `::aflrun` OK; pack 0 errors |
+| 16 | Tale of the Righteous | `taleoftherighteous` | 353 | done | `%shayzienquest`→17; Phileas→library soft→Shiro→cave; `::torrun` OK |
+| 17 | Getting Ahead | `gettingahead` | 361 | done | `%ga`→34; Gordon→beast soft→head mount; `::garun` OK; pack 0 errors |
+| 18 | The Corsair Curse | `thecorsaircurse` | 376 | done | `%corscurs_progress`→60; Tock→crew soft→Ithoi; `::ccrun` OK; pack 0 errors |
+| 19 | Below Ice Mountain | `belowicemountain` | 377 | done | `%bim`→45; Willow→Checkal/Atlas→Marley sandwich→Burntof RPS soft→guardian; `::bimrun` OK; pack 0 errors |
+| 20 | Shadows of Custodia | `shadowsofcustodia` | 406 | in_progress | |
 | 21 | Current Affairs | `currentaffairs` | 407 | pending | |
 | 22 | Twilight's Promise | `twilightspromise` | 433 | pending | |
 | 23 | Sleeping Giants | `sleepinggiants` | 438 | pending | |
@@ -262,3 +262,50 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   `::childrenofthesun` / `::cotsrun`; headless OK (`cotsrun OK` payload); pack 0
   errors; deferred stealth tiles, house cutscene, wrong-guard overlay puzzle,
   Quetzal first-travel (VMQ2); next = The Garden of Death (#14)
+- slice 14 done: The Garden of Death — `%tgod` on `tgod_primary` (0..54→56);
+  tent journal / secateurs / four garden tablets / vines / translate soft /
+  warning note; farming 10000 XP; wiki
+  https://oldschool.runescape.wiki/w/The_Garden_of_Death/Quick_guide (+ Transcript);
+  `::gardenofdeath` / `::godrun`; headless OK (`godrun OK` payload); pack 0 errors;
+  deferred IF 804 puzzle, Boaty matrix, poison, farming 20 hard gate; next =
+  At First Light (#15)
+- slice 15 done: At First Light — `%afl` on `afl_main` (0..11→12); Apatura /
+  Verity / Wolf+Kiko soft / fox poultice / Atza trim / report+bed / finish;
+  hunter 4500 + construction 800 + herblore 500 XP; wiki
+  https://oldschool.runescape.wiki/w/At_First_Light/Quick_guide (+ Transcript);
+  `::atfirstlight` / `::aflrun`; headless OK (`aflrun OK` payload); pack 0 errors;
+  deferred COTS hard gate, jerboa rolls, equipment pile IF, Master Rumours;
+  next = Tale of the Righteous (#16)
+- slice 16 done: Tale of the Righteous — `%shayzienquest` on `shayzienquest_main`
+  (0..16→17); Phileas / library puzzle soft / Shiro / Duffy rope / altar soft /
+  Gnosi / finish; wiki
+  https://oldschool.runescape.wiki/w/Tale_of_the_Righteous/Quick_guide (+ Transcript);
+  `::taleoftherighteous` / `::torrun`; headless OK (`torrun OK` payload); pack 0
+  errors; deferred library puzzle, lizardman boss, CoK favour hard gate; next =
+  Getting Ahead (#17)
+- slice 17 done: Getting Ahead — `%ga` on `ga_main` (0..32→34); Gordon / Mary /
+  flour lure soft / beast kill soft / clay→fur→dye head / mount; crafting 4000 +
+  construction 3200 XP; wiki
+  https://oldschool.runescape.wiki/w/Getting_Ahead/Quick_guide (+ Transcript);
+  `::gettingahead` / `::garun`; headless OK (`garun OK` payload); pack 0 errors;
+  also unblocked pestcontrol (shield-drop varps + deduped constants); deferred
+  beast combat, tannery UI; next = The Corsair Curse (#18)
+- lane B claimed (2026-08-04): parallel Quest Helper worker takes #19 Below Ice
+  Mountain (`in_progress`); leaves #18 Corsair Curse for the primary lane —
+  plan `questhelper_port_lane_b_bim.plan.md`
+- slice 18 done: The Corsair Curse — `%corscurs_progress` on `corscurs`
+  (0..55→60) + crew curse bits; Tock / sail / four crew soft / food→Ithoi burn
+  soft / kill soft / finish; 2 QP; wiki
+  https://oldschool.runescape.wiki/w/The_Corsair_Curse/Quick_guide (+ Transcript);
+  `::corsaircurse` / `::ccrun`; headless OK (`ccrun OK` payload); pack 0 errors;
+  deferred per-crew investigations, Ithoi combat, Yusuf bank UI; next =
+  Below Ice Mountain (#19)
+- slice 19 done (lane B): Below Ice Mountain — `%bim` on `bim_main` (0..40→45)
+  + `%bim_checkal`/`%bim_marley`/`%bim_burntof` on `bim_extra`; Willow / Checkal
+  + Atlas flex soft / Marley steak sandwich / Burntof ale+RPS soft / dungeon
+  soft / Ancient Guardian soft / finish; 1 QP + 2000 coins + flex emote bit;
+  wiki https://oldschool.runescape.wiki/w/Transcript:Below_Ice_Mountain +
+  Quick_guide; `::belowicemountain` / `::bimrun`; headless OK (`bimrun OK`
+  payload); pack 0 errors; deferred Atlas workout, Charlie tramp, full RPS,
+  dungeon instance, mining pillars, Ramarno post-quest, QP16 hard gate; next =
+  Shadows of Custodia (#20)

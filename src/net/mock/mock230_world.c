@@ -2166,7 +2166,18 @@ npc_spawn(
         return slot;
     }
 
-    fprintf(stderr, "mock230: no free npc slot for type %d at %d,%d\n", type, x, z);
+    {
+        int active = 0;
+
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            if( srv->npcs[slot].active )
+                active++;
+        }
+        fprintf(stderr,
+                "mock230: no free npc slot for type %d at %d,%d (active=%d/%d slot_max=%d)\n",
+                type, x, z, active, MOCK230_NPC_MAX, srv->npc_slot_max);
+    }
     return -1;
 }
 
@@ -6203,6 +6214,16 @@ mock230_world_build_entities(struct Mock230Server* srv)
      * would pop into being with full hitpoints in front of you.
      */
     memset(srv->npcs, 0, sizeof(srv->npcs));
+    /* memset leaves death/respawn/despawn at 0. Respawn treats `respawn_tick < 0`
+     * as "not scheduled", so a zeroed slot would be revived on tick 0 as a
+     * ghost and fill the whole pool before content ever npc_adds. */
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        srv->npcs[i].death_tick = -1;
+        srv->npcs[i].respawn_tick = -1;
+        srv->npcs[i].despawn_tick = -1;
+        srv->npcs[i].anim_id = -1;
+    }
     {
         int count = 0;
         const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&count);
@@ -6217,6 +6238,8 @@ mock230_world_build_entities(struct Mock230Server* srv)
              * rather than dead, the same way the script fallbacks do. */
             npc_spawn(srv, 3105, g_home_x + 2, g_home_z + 1, 0);
         }
+        fprintf(stderr, "mock230: npc roster %d spawn(s), slot_max=%d\n", count,
+                srv->npc_slot_max);
     }
 
     /* Ground objs, from the same map squares. Duration -1 marks them spawns,
@@ -13707,12 +13730,28 @@ mock230_world_selftest(void)
                        "poordooropen reads door_opened (%d), got %d", door_opened,
                        mock230_loc_category(1536));
         /* Both halves of `doors.loc`, counted the way `mock230_pack` counts them.
-         * 388 is the pair count the importer wrote and the door validator
-         * reports; an overlay that stopped being read would answer 0 here and
-         * `validate_categories` would then call the name uncarried. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 388,
-                       "and doors.loc states door_closed 388 times, got %d",
+         * Fencegate / farming / rustic pairs moved to gate_main_* / gate_outer_*
+         * (6 closed + 6 open); door_closed/opened now 386 each. An overlay that
+         * stopped being read would answer 0 here and `validate_categories`
+         * would then call the name uncarried. */
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 386,
+                       "and doors.loc states door_closed 386 times, got %d",
                        mock230_loc_category_members(door_closed));
+        {
+            int gate_main_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_main_closed");
+            int gate_outer_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_outer_closed");
+            SELFTEST_CHECK(gate_main_closed > 0 && gate_outer_closed > 0,
+                           "pack/category.pack should name both fence-gate leaves: %d/%d",
+                           gate_main_closed, gate_outer_closed);
+            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 3,
+                           "doors.loc states gate_main_closed 3 times, got %d",
+                           mock230_loc_category_members(gate_main_closed));
+            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 3,
+                           "doors.loc states gate_outer_closed 3 times, got %d",
+                           mock230_loc_category_members(gate_outer_closed));
+        }
 
         /* --- source 2, the cache's own config opcode 61 -------------------- */
         SELFTEST_CHECK(booth > 0, "pack/loc.pack should name bankbooth, got %d", booth);
