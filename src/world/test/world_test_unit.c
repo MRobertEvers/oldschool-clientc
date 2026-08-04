@@ -702,3 +702,25 @@ test_rebuild_shift(void)
 
     World_Free(world);
 }
+
+void
+test_obj_raise(void)
+{
+    printf("TEST: obj raise map\n");
+
+    struct World* world = World_TestMakeReady(104);
+
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 0, "fresh tile is flat");
+    World_ObjRaiseSetMax(world, 10, 20, 0, 128);
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 128, "set raise");
+    World_ObjRaiseSetMax(world, 10, 20, 0, 64);
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 128, "set_max keeps larger");
+    World_ObjRaiseSetMax(world, 10, 20, 0, 200);
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 200, "set_max takes larger");
+    World_ObjRaiseSetMax(world, 10, 20, 1, 50);
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 200, "level 0 unchanged");
+    TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 1) == 50, "level 1 independent");
+    TEST_ASSERT(World_ObjRaiseGet(world, -1, 0, 0) == 0, "OOB is flat");
+
+    World_Free(world);
+}

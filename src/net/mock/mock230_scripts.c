@@ -4161,8 +4161,10 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        player->face_x = coord_x(coord);
-        player->face_z = coord_z(coord);
+        /* Absolute half-tiles (LostCity faceSquare → fine(x,1)); the client
+         * treats faceSquareX/Z as (tile<<1)+1 and 0,0 is the "none" sentinel. */
+        player->face_x = mock230_coord_fine(coord_x(coord), 1);
+        player->face_z = mock230_coord_fine(coord_z(coord), 1);
         player->masks |= MOCK230_PMASK_FACE_COORD;
         return 1;
     }
@@ -4179,8 +4181,8 @@ mock230_script_command(
             SSVM_Abort(state, "npc_facesquare with no active npc");
             return 1;
         }
-        npc->face_x = coord_x(coord);
-        npc->face_z = coord_z(coord);
+        npc->face_x = mock230_coord_fine(coord_x(coord), 1);
+        npc->face_z = mock230_coord_fine(coord_z(coord), 1);
         npc->masks |= MOCK230_NMASK_FACE_COORD;
         return 1;
     }

@@ -1392,6 +1392,11 @@ RSCache_Dat2ConfigLocFinish(struct RSCache_Dat2ConfigLoc* loc, unsigned flags)
         if( loc->_actions_seen > 0 )
             loc->is_interactive = true;
     }
+
+    /* LocType.raiseobject (opcode 75): Client-TS defaults -1 → blockwalk ? 1 : 0.
+     * When set, ground stacks on the loc's tile render at the model height. */
+    if( loc->support_items == -1 )
+        loc->support_items = loc->blocks_walk ? 1 : 0;
 }
 
 static void

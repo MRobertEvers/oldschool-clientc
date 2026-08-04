@@ -92,6 +92,7 @@ void test_route_coordinate_coincidence(void);
 void test_tile_stack_dedup(void);
 void test_minusedlevel_entity_draw(void);
 void test_rebuild_shift(void);
+void test_obj_raise(void);
 void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);
 void test_naive_path_safespot(void);

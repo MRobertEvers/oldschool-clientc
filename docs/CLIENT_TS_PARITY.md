@@ -695,6 +695,11 @@ half-speed only applies when `faceEntity === -1 && turnspeed !== 0`.
 and are converted at use time — `(faceSquareX - mapBuildBaseX*2) * 64` — which
 is why `0,0` works as the "no target" sentinel.
 
+**mock230 facesquare:** `SS_OP_FACESQUARE` / `SS_OP_NPC_FACESQUARE` write
+`mock230_coord_fine(tile, 1)` (= `(tile<<1)+1`), matching LostCity
+`CoordGrid.fine`. Writing raw tiles made `atan2` land near yaw 256
+(southwest) for every dialogue `~chatnpc` turn — fixed 2026-08-03.
+
 ### torirs
 
 The facing facet was stored but never consumed: `WorldEntityFacet_Facing` was
@@ -1771,6 +1776,21 @@ Now it mirrors the reference exactly:
   split by tier), then projectiles, then spotanims. The local player is found by
   `player->server_pid == world->local_pid`; `local_pid` is mirrored from
   `app->esync.local_pid` in `app_world_frame` each frame (`app.c`).
+
+### LocType.raiseobject / table ground stacks — ✅
+
+Client-TS: LocType opcode 75 `raiseobject` (default `-1 → blockwalk ? 1 : 0`);
+model build stamps `objRaise = minY` (`max(-vertexY)`); `World.setObj` takes
+the max raise across loc sprites on the tile; raised stacks draw at
+`y - height` (world Y is negative-up).
+
+torirs: rscache `support_items` finishes the same default; copied to
+`ToriRS_Location.raiseobject`. At loc place (`scenery_load_model`), when
+raiseobject==1, `World_ObjRaiseSetMax` stores max(-vy) on the anchor tile
+(`World.obj_raise`, scene_size² × levels — persists after decor_buildmap is
+freed). `App_WorldObjStackAdd` / rebuild-shift apply
+`ground_y - World_ObjRaiseGet(...)`. Painter early/late ground-object split
+is still a follow-up; height alone puts items on the table.
 - **`minusedlevel` plane (reference `Client.minusedlevel`)**: movers have no
   independent plane on the wire. `world_local_level` resolves the local player's
   `grid_position.level`, and every player/NPC registers through

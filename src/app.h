@@ -750,6 +750,35 @@ App_SetCanvasSize(
     int height);
 
 /**
+ * Width of the right-docked chrome strip (popout launcher / open panel) after
+ * the live layout pass. Measured from the UITree: the widest full-height
+ * component whose right edge is the canvas right edge. 0 when absent.
+ *
+ * Script 5355 carves this strip out of the canvas. In fixed mode the classic
+ * frame is authored for APP_CANVAS_MIN_W, so the shell must grow the canvas by
+ * this amount (see App_SyncFixedChromeInset) or the strip covers the stone edge.
+ */
+int
+App_MeasureRightChromeStripWidth(struct App const* app);
+
+/**
+ * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and
+ * parks the chrome strip outside it: MIN_W + measured strip. Resizable callers
+ * should not use this — they carve from whatever window size they already have.
+ */
+int
+App_FixedCanvasWidth(struct App const* app);
+
+/**
+ * When window_mode is fixed, grow/shrink the canvas to App_FixedCanvasWidth so
+ * the gameframe lays out at APP_CANVAS_MIN_W with the popout strip outside.
+ * Returns 1 if the canvas size changed. The shell must also snap the SDL window
+ * to the new size (App has no platform).
+ */
+int
+App_SyncFixedChromeInset(struct App* app);
+
+/**
  * Take a pending SETWINDOWMODE, if a clientscript issued one since the last
  * call. Writes the new mode (enum CS2VM_WindowMode) to *out_mode and returns 1;
  * returns 0 when nothing changed.

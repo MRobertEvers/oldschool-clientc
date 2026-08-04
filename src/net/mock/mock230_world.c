@@ -711,7 +711,10 @@ mock230_world_interaction_set(
     int size_x,
     int size_z)
 {
-    struct Mock230Interaction* interaction = &srv->active_player->interaction;
+    struct Mock230Player* player = srv->active_player;
+    struct Mock230Interaction* interaction = &player->interaction;
+    int sx = size_x > 0 ? size_x : 1;
+    int sz = size_z > 0 ? size_z : 1;
 
     interaction->kind = kind;
     interaction->op = op;
@@ -720,9 +723,18 @@ mock230_world_interaction_set(
     interaction->x = tile_x;
     interaction->z = tile_z;
     interaction->level = level;
-    interaction->size_x = size_x > 0 ? size_x : 1;
-    interaction->size_z = size_z > 0 ? size_z : 1;
+    interaction->size_x = sx;
+    interaction->size_z = sz;
     interaction->ap_tried = 0;
+
+    /* LostCity PathingEntity.setInteraction: only NonPathingEntity (loc/obj)
+     * records targetX/Z for reorient() to consume after movement. Pathing
+     * targets use FACE_ENTITY; leave any prior face_target stash alone. */
+    if( kind == MOCK230_INTERACT_LOC || kind == MOCK230_INTERACT_OBJ )
+    {
+        player->face_target_x = mock230_coord_fine(tile_x, sx);
+        player->face_target_z = mock230_coord_fine(tile_z, sz);
+    }
 }
 
 /**
@@ -4343,16 +4355,19 @@ mock230_note_modal_mount(
     int uid,
     int group)
 {
-    const struct Mock230Ids* ids = mock230_ids();
+    struct Mock230Player* player;
 
     if( !srv || !srv->active_player )
         return;
-    if( uid == ids->com_gameframe_mainmodal )
-        srv->active_player->mainmodal_group = group;
-    else if( uid == ids->com_gameframe_sidemodal )
-        srv->active_player->sidemodal_group = group;
-    else if( uid == ids->com_chatbox_modal )
-        srv->active_player->chatmodal_group = group;
+    player = srv->active_player;
+    /* Compare against the live top's slots (bound by if_opentop), not the
+     * stretch-only ids table — after a Display remount those diverge. */
+    if( uid == mock230_player_mainmodal(player) )
+        player->mainmodal_group = group;
+    else if( uid == mock230_player_sidemodal(player) )
+        player->sidemodal_group = group;
+    else if( uid == mock230_ids()->com_chatbox_modal )
+        player->chatmodal_group = group;
 }
 
 /*
@@ -5755,6 +5770,10 @@ mock230_world_player_init(struct Mock230Player* player)
      * this as the animation already queued for the tick. */
     player->anim_id = -1;
     player->face_entity = -1;
+    /* LostCity targetX/Z sentinel: memset leaves 0, which is a real half-tile
+     * face point (scene origin), so reorient would fire a spurious FACE_COORD. */
+    player->face_target_x = -1;
+    player->face_target_z = -1;
     /* The memset above leaves this 0, which is a real dbtable id — so a
      * `db_findnext` with no query would iterate table 0 instead of reporting
      * that nothing was selected. Same class as `session->pending_opcode`. */
@@ -6220,6 +6239,30 @@ phase_npcs(struct Mock230Server* srv)
         }                                                                                          \
         else
 
+/*
+ * LostCity PathingEntity.reorient(): after movement, face a pending loc/obj
+ * fine target if we held still this tick. Pathing targets (npc/player) use
+ * FACE_ENTITY and are skipped here. MUST run after advance_player so
+ * steps_taken reflects this tick; client=true FACE_COORD is the only path
+ * that ships loc/obj facing to watchers.
+ */
+static void
+player_reorient(struct Mock230Player* player)
+{
+    enum Mock230InteractionKind kind = player->interaction.kind;
+
+    if( kind == MOCK230_INTERACT_NPC || kind == MOCK230_INTERACT_PLAYER )
+        return;
+    if( player->face_target_x == -1 || player->steps_taken != 0 )
+        return;
+
+    player->face_x = player->face_target_x;
+    player->face_z = player->face_target_z;
+    player->masks |= MOCK230_PMASK_FACE_COORD;
+    player->face_target_x = -1;
+    player->face_target_z = -1;
+}
+
 /** 5. The player: delays, resumes, queues, timers, then interaction. */
 static void
 phase_player(struct Mock230Player* player)
@@ -6254,6 +6297,11 @@ phase_player(struct Mock230Player* player)
      * packet handler tried once when the click arrived, and this is every tick
      * of the walk that followed. */
     mock230_world_process_interaction(srv);
+    /* After movement: face a loc/obj target if we walked over and held still
+     * (LostCity reorient(); needs this-tick steps_taken). The face_target
+     * stash survives interaction_clear, so FACE_COORD ships on the same tick
+     * the op fires. */
+    player_reorient(player);
     /* Energy is spent on the steps that were actually taken, so a route that
      * ran out of tiles this tick regenerates instead of draining. */
     run_energy_tick(srv, player->running ? player->move_count : 0);
@@ -7957,6 +8005,33 @@ mock230_world_selftest(void)
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                 SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
                 mock230_capture_end(&srv);
+
+                /* chatnpc facesquare/npc_facesquare must ship absolute half-tiles
+                 * (LostCity CoordGrid.fine). Tile coords made atan2 land on yaw
+                 * 256 (southwest) for every dialogue. */
+                {
+                    struct Mock230Npc* hans = &srv.npcs[hans_slot];
+                    int want_player_face_x = mock230_coord_fine(hans->x, 1);
+                    int want_player_face_z = mock230_coord_fine(hans->z, 1);
+                    int want_npc_face_x = mock230_coord_fine(player->x, 1);
+                    int want_npc_face_z = mock230_coord_fine(player->z, 1);
+
+                    SELFTEST_CHECK(
+                        player->face_x == want_player_face_x &&
+                            player->face_z == want_player_face_z,
+                        "facesquare is Hans's fine centre, got %d,%d want %d,%d",
+                        player->face_x,
+                        player->face_z,
+                        want_player_face_x,
+                        want_player_face_z);
+                    SELFTEST_CHECK(
+                        hans->face_x == want_npc_face_x && hans->face_z == want_npc_face_z,
+                        "npc_facesquare is the player's fine centre, got %d,%d want %d,%d",
+                        hans->face_x,
+                        hans->face_z,
+                        want_npc_face_x,
+                        want_npc_face_z);
+                }
 
                 /* Page one is an ordinary chatnpc; clicking through it is what
                  * runs `~p_choice3`, so the capture has to wrap the RESUME —
@@ -11853,6 +11928,59 @@ mock230_world_selftest(void)
                        "and the obj is taken on arrival");
         SELFTEST_CHECK(player->x == obj_x && player->z == obj_z,
                        "standing on the tile it was on, got %d,%d", player->x, player->z);
+
+        /*
+         * Loc/obj FACE_COORD (LostCity reorient): ships when steps_taken==0.
+         * mock230 can run the op on the arrival step (steps_taken>0), so the
+         * face lands on the next still tick — one more tick if the stash is
+         * still pending. face_x/z survive phase_cleanup; the mask does not.
+         */
+        if( player->face_target_x != -1 )
+            mock230_world_tick(&srv);
+        SELFTEST_CHECK(player->face_x == mock230_coord_fine(obj_x, 1) &&
+                           player->face_z == mock230_coord_fine(obj_z, 1),
+                       "FACE_COORD is the obj's fine centre, got %d,%d want %d,%d",
+                       player->face_x, player->face_z, mock230_coord_fine(obj_x, 1),
+                       mock230_coord_fine(obj_z, 1));
+        SELFTEST_CHECK(player->face_target_x == -1 && player->face_target_z == -1,
+                       "face_target stash is consumed by reorient");
+
+        /*
+         * Same-tick face when already on the pile: interaction_set stashes fine
+         * coords, clear leaves them, phase_player reorient ships FACE_COORD
+         * because advance took no steps.
+         */
+        {
+            int free2 = inv_first_free(player);
+            int want_x = mock230_coord_fine(obj_x, 1);
+            int want_z = mock230_coord_fine(obj_z, 1);
+
+            selftest_park_player(&srv, obj_x, obj_z);
+            mock230_world_obj_add(&srv, 526, 1, obj_x, obj_z, 0,
+                                  mock230_ids()->lootdrop_duration);
+            player->face_x = 0;
+            player->face_z = 0;
+            player->face_target_x = -1;
+            player->face_target_z = -1;
+            {
+                uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
+                                       (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
+                                       (uint8_t)(526 >> 8),   (uint8_t)526 };
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+            }
+            SELFTEST_CHECK(player->face_target_x == want_x && player->face_target_z == want_z,
+                           "interaction_set stashes fine face target across clear, "
+                           "got %d,%d",
+                           player->face_target_x, player->face_target_z);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(player->face_x == want_x && player->face_z == want_z,
+                           "still-tick reorient faces the obj, got %d,%d", player->face_x,
+                           player->face_z);
+            SELFTEST_CHECK(player->face_target_x == -1,
+                           "and consumes the stash");
+            SELFTEST_CHECK(free2 < 0 || player->inv[free2].obj_id == 526,
+                           "and the on-tile take still runs");
+        }
 
         /*
          * Changing your mind cancels it: a ground click must not leave an op

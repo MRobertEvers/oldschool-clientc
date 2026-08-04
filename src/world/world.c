@@ -39,6 +39,7 @@ World_Free(struct World* world)
     if( world->painter )
         painter_free(world->painter);
     free(world->tile_flags);
+    free(world->obj_raise);
     free(world->tile_last_occupied_cycle);
     free(world->mapscenes);
     World_EntityListFree(&world->entities);
@@ -88,6 +89,53 @@ World_TileFlagGet(
         x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
         return 0;
     return world->tile_flags[x + z * world->_scene_size + level * world->_scene_size * world->_scene_size];
+}
+
+static int
+world_obj_raise_idx(
+    struct World const* world,
+    int x,
+    int z,
+    int level)
+{
+    return x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
+}
+
+int
+World_ObjRaiseGet(
+    struct World const* world,
+    int x,
+    int z,
+    int level)
+{
+    if( !world || !world->obj_raise || x < 0 || z < 0 || level < 0 ||
+        x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
+        return 0;
+    return world->obj_raise[world_obj_raise_idx(world, x, z, level)];
+}
+
+void
+World_ObjRaiseSetMax(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int raise)
+{
+    int idx;
+    int16_t cur;
+
+    assert(world);
+    assert(world->obj_raise);
+    assert(x >= 0 && z >= 0 && level >= 0);
+    assert(x < world->_scene_size && z < world->_scene_size);
+    assert(level < WORLD_MAP_TERRAIN_LEVELS);
+    if( raise <= 0 )
+        return;
+    idx = world_obj_raise_idx(world, x, z, level);
+    cur = world->obj_raise[idx];
+    if( raise > cur )
+        world->obj_raise[idx] = (int16_t)raise;
 }
 
 void
@@ -163,6 +211,10 @@ World_ResetSceneAlloc(
     free(world->tile_flags);
     world->tile_flags =
         (uint8_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), 1);
+
+    free(world->obj_raise);
+    world->obj_raise =
+        (int16_t*)calloc((size_t)(scene_size * scene_size * WORLD_MAP_TERRAIN_LEVELS), sizeof(int16_t));
 
     /* Per-tile occupancy stamp (reference tileLastOccupiedCycle). calloc's 0
      * can never equal scene_cycle once it starts at 1, so a fresh scene reads

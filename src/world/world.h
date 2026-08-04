@@ -176,6 +176,13 @@ struct World
      * camera->player (Client-TS roofCheck). scene_size^2 per level. */
     uint8_t* tile_flags;
 
+    /** Per-tile ground-stack raise height (Client-TS Model.objRaise / LocType
+     * raiseobject). Written at loc place when raiseobject==1 as max(-vy);
+     * App_WorldObjStackAdd subtracts it from ground Y so items sit on tables.
+     * scene_size^2 per level; 0 = flat ground. Survives after the builder's
+     * decor_buildmap is freed. */
+    int16_t* obj_raise;
+
     /** Per-tile "last frame a stationary 1x1 entity claimed this square"
      *  stamp (reference Client.tileLastOccupiedCycle) — scene_size^2, compared
      *  against `scene_cycle`. The dynamic-registration pass draws at most one
@@ -257,6 +264,23 @@ World_TileFlagGet(
     int x,
     int z,
     int level);
+
+/** Ground-stack raise height for a scene tile (0 if none / out of range). */
+int
+World_ObjRaiseGet(
+    struct World const* world,
+    int x,
+    int z,
+    int level);
+
+/** Keep the max raise height on a tile (Client-TS setObj takes max objRaise). */
+void
+World_ObjRaiseSetMax(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int raise);
 
 static inline int
 World_MapTileCoord(

@@ -37,21 +37,17 @@ UITree_If3AxisFromPositionMode(
     case 0:
         return parent_origin + base;
     case 1:
-        /* Oversized centred children left/top-align instead of overhanging the
-         * origin side. Stretch gameframe: canvas-sized viewport_tracker inside
-         * canvas-42 gameframe would otherwise sit at abs_x=-21 and clip HUDs
-         * (stat boosts, worldmap) at the screen edge; right bleed under the
-         * popout strip is preserved. */
-        if( self_dim > parent_dim )
-            return parent_origin + base;
+        /* Arithmetic right-shift: when self_dim > parent_dim the offset is
+         * negative and the child overhangs both sides. Chatbox dialogues rely
+         * on that (506x129 root centred in a 479x96 mount slot); do not clamp
+         * oversized children to the origin — that broke continue/choice hit
+         * testing by pushing them under chatbox:controls (noclickthrough). */
         return parent_origin + ((parent_dim - self_dim) >> 1) + base;
     case 2:
         return parent_origin + parent_dim - base - self_dim;
     case 3:
         return parent_origin + UITree_MulShift14(parent_dim, base);
     case 4:
-        if( self_dim > parent_dim )
-            return parent_origin + UITree_MulShift14(parent_dim, base);
         return parent_origin + ((parent_dim - self_dim) >> 1) +
                UITree_MulShift14(parent_dim, base);
     case 5:

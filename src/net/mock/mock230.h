@@ -143,6 +143,16 @@ mock230_coord_z(int32_t coord)
     return (int)((uint32_t)coord & 0x3fff);
 }
 
+/**
+ * LostCity CoordGrid.fine(pos, size) — half-tile face point for FACE_COORD.
+ * A 1×1 tile at `pos` centres at `2*pos+1`; a WxL loc centres at `2*pos+W`.
+ */
+static inline int
+mock230_coord_fine(int pos, int size)
+{
+    return pos * 2 + size;
+}
+
 /* ------------------------------------------------------------------ */
 /* Limits                                                              */
 /* ------------------------------------------------------------------ */
@@ -1681,6 +1691,15 @@ struct Mock230Player
     int face_entity;
     int face_x;
     int face_z;
+    /**
+     * Pending loc/obj face point in absolute half-tiles (LostCity targetX/Z).
+     * Set by interaction_set for NonPathingEntity targets; consumed by
+     * reorient after movement when steps_taken==0. Survives interaction_clear
+     * so FACE_COORD can ship on the same tick the op clears the interaction.
+     * -1 when idle.
+     */
+    int face_target_x;
+    int face_target_z;
     char say[80];
     int spotanim_id;
     int spotanim_height_delay;
@@ -2737,6 +2756,21 @@ mock230_combat_stat_mark(
  *  change to either; they are one number in two places. */
 void
 mock230_combat_sync_hitpoints(struct Mock230Player* player);
+
+/** Base level for a whole-XP total (LostCity `getLevelByExp`). */
+int
+mock230_combat_level_for_xp(int experience);
+
+/** Whole XP at the start of `level` (LostCity `getExpByLevel`). Level 1 is 0. */
+int
+mock230_combat_xp_for_level(int level);
+
+/** Set base, boosted, and XP for a skill to a clean level (cheat / ::setlevel). */
+void
+mock230_combat_set_level(
+    struct Mock230Player* player,
+    int stat,
+    int level);
 
 /** Award experience, in tenths of a point. Levels up and marks the stat. */
 void

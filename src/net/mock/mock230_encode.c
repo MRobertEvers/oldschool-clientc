@@ -364,6 +364,43 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
 /* Interfaces                                                          */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Content often names `toplevel_osrs_stretch:sidemodal` (etc.) even after
+ * Display has remounted Fixed/Modern. Those are role aliases for the live
+ * gameframe's matching slot — rewrite by the `:role` suffix using the uids
+ * if_opentop already bound on the player. No list of tops, no numeric ids.
+ */
+static int
+mock230_remap_gameframe_slot_uid(
+    struct Mock230Player* player,
+    int uid)
+{
+    const char* name;
+    const char* colon;
+    const char* role;
+    int live;
+
+    assert(player);
+    if( uid <= 0 )
+        return uid;
+    name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+    if( !name )
+        return uid;
+    colon = strrchr(name, ':');
+    if( !colon || colon[1] == '\0' )
+        return uid;
+    role = colon + 1;
+    if( strcmp(role, "mainmodal") == 0 )
+        live = mock230_player_mainmodal(player);
+    else if( strcmp(role, "sidemodal") == 0 )
+        live = mock230_player_sidemodal(player);
+    else if( strcmp(role, "floater") == 0 )
+        live = mock230_player_floater(player);
+    else
+        return uid;
+    return live > 0 ? live : uid;
+}
+
 void
 mock230_send_if_opentop(
     struct Mock230Player* player,
@@ -384,6 +421,8 @@ mock230_send_if_movesub(
     /* RSProt IfMoveSubEncoder: destinationCombinedId then sourceCombinedId,
      * each p4Alt1 (little-endian). */
     struct RSAreaBuf buf;
+    source_uid = mock230_remap_gameframe_slot_uid(player, source_uid);
+    dest_uid = mock230_remap_gameframe_slot_uid(player, dest_uid);
     open_packet(&buf, 16);
     rsab_p4_alt1(&buf, dest_uid);
     rsab_p4_alt1(&buf, source_uid);
@@ -475,13 +514,17 @@ mock230_send_if_opensub(
      * p4Alt3 destinationCombinedId (parent << 16 | child). */
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
+    int uid = mock230_remap_gameframe_slot_uid(player, (parent << 16) | (child & 0xffff));
+
+    parent = (uid >> 16) & 0xffff;
+    child = uid & 0xffff;
 
     open_packet(&buf, 16);
     rsab_p1(&buf, type);
     rsab_p2_alt2(&buf, group);
-    rsab_p4_alt3(&buf, (parent << 16) | child);
+    rsab_p4_alt3(&buf, uid);
     flush(player, &buf, OP_IF_OPENSUB, 0);
-    mock230_note_modal_mount(srv, (parent << 16) | child, group);
+    mock230_note_modal_mount(srv, uid, group);
     /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
      * here so their IF_OPENSUB is encoded immediately after the parent's on
      * the wire. Subject is the interface id, same shape as IF_CLOSE. */
@@ -644,6 +687,8 @@ mock230_send_if_closesub(
 {
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
+
+    uid = mock230_remap_gameframe_slot_uid(player, uid);
 
     open_packet(&buf, 8);
     rsab_p4(&buf, uid);

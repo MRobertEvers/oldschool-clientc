@@ -609,6 +609,10 @@ add_component_rows(
     struct UIMinimenuPick const pick = pick_ui(node->component_id);
     int ops_added;
     char const* label = NULL;
+    int events = 0;
+    int has_local_hook = 0;
+    struct UITreeMenuOptions filtered;
+    struct UITreeMenuOptions const* rows = opts;
 
     if( add_social_rows(node, menu) )
         return menu->option_count - before;
@@ -619,10 +623,45 @@ add_component_rows(
     if( select_mode == RS_MINIMENU_SELECT_NONE && add_target_button_row(node, menu) )
         return menu->option_count - before;
 
-    ops_added = add_menu_ops_rows(
-        menu, opts, pick, opts->option[0] != '\0' ? opts->option : NULL);
-    if( ops_added > 0 )
-        return menu->option_count - before;
+    /* At rev 230 an op string is not enough: either the server armed that op
+     * (IF_SETEVENTS) or a local on_op/on_click handles it (XP-orb Show/Hide).
+     * Ops with neither produce "minimenu: no hook" and steal the default click
+     * from a real control underneath (fixed-mode gameframe dynamics). */
+    {
+        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(node);
+        has_local_hook =
+            hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0;
+    }
+    if( ctx->events_for_component )
+        events = ctx->events_for_component(ctx->events_user, node->component_id);
+
+    if( !has_local_hook )
+    {
+        int any = 0;
+        filtered = *opts;
+        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+        {
+            if( (events & (1 << (i + 1))) == 0 )
+                filtered.ops[i][0] = '\0';
+            else if( filtered.ops[i][0] != '\0' )
+                any = 1;
+        }
+        if( !any )
+        {
+            /* No armed op rows — fall through to CONTINUE / label paths. */
+            rows = NULL;
+        }
+        else
+            rows = &filtered;
+    }
+
+    if( rows )
+    {
+        ops_added = add_menu_ops_rows(
+            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL);
+        if( ops_added > 0 )
+            return menu->option_count - before;
+    }
 
     if( opts->option[0] != '\0' )
         label = opts->option;
@@ -647,22 +686,17 @@ add_component_rows(
      * anything a script drives — a dialogue's continue prompt carries
      * button_type 0 and no menu ops, and is live only because IF_SETEVENTS said
      * so. The component's own text is the label the player already sees. */
-    if( ctx->events_for_component )
+    if( events & RS_MINIMENU_EVENT_CLICK )
     {
-        int events = ctx->events_for_component(ctx->events_user, node->component_id);
+        /* A text component's own string is the label the player is
+         * already reading ("Click here to continue"); anything else falls
+         * back to a generic verb. */
+        char const* text = (node->type == UIELEM_RS_TEXT && node->u.rs_text.text &&
+                            node->u.rs_text.text[0] != '\0')
+                               ? node->u.rs_text.text
+                               : "Continue";
 
-        if( events & RS_MINIMENU_EVENT_CLICK )
-        {
-            /* A text component's own string is the label the player is
-             * already reading ("Click here to continue"); anything else falls
-             * back to a generic verb. */
-            char const* text = (node->type == UIELEM_RS_TEXT && node->u.rs_text.text &&
-                                node->u.rs_text.text[0] != '\0')
-                                   ? node->u.rs_text.text
-                                   : "Continue";
-
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IF_BUTTON, 0, pick);
-        }
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IF_BUTTON, 0, pick);
     }
 
     return menu->option_count - before;

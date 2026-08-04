@@ -169,16 +169,16 @@ mock230_save_player(
             MOCK230_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
             player->run_energy, player->run_toggle);
 
-    fprintf(file, "\n[stats]\n; <stat> = <level> <boosted> <xp_tenths>\n");
+    fprintf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
     for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
     {
-        /* Skip the untouched majority: 23 stats of `1 1 0` is noise in a file
-         * whose whole point is being readable. */
-        if( player->stat_level[stat] <= 1 && player->stat_xp_tenths[stat] == 0 &&
-            player->stat_boosted[stat] <= 1 )
+        /* Skip the untouched majority: 23 stats of `1 0` is noise in a file
+         * whose whole point is being readable. Base level is derived from XP
+         * on load, so it is not written. */
+        if( player->stat_xp_tenths[stat] == 0 && player->stat_boosted[stat] <= 1 )
             continue;
-        fprintf(file, "%d = %d %d %d\n", stat, player->stat_level[stat],
-                player->stat_boosted[stat], player->stat_xp_tenths[stat]);
+        fprintf(file, "%d = %d %d\n", stat, player->stat_boosted[stat],
+                player->stat_xp_tenths[stat]);
     }
 
     write_items(file, "inv", player->inv, MOCK230_INV_SLOTS);

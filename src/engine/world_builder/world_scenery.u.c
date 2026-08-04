@@ -838,6 +838,21 @@ scenery_load_model(
     };
     ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
+    /* LocType.raiseobject: stamp model minY (max of -vy) onto the anchor tile
+     * so later zone OBJ_ADD stacks can sit on the table (Client-TS objRaise). */
+    if( config_loc->raiseobject == 1 )
+    {
+        int raise = 0;
+        for( int v = 0; v < model->vertex_count; v++ )
+        {
+            int h = -(int)model->vertices_y[v];
+            if( h > raise )
+                raise = h;
+        }
+        World_ObjRaiseSetMax(
+            world, scene_x, scene_z, map_tile->chunk_pos_level, raise);
+    }
+
     if( config_loc->contour_ground_type != 0 )
     {
         contour_ground_q_push(

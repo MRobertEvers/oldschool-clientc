@@ -1222,6 +1222,22 @@ frame_loop_step(void)
         }
     }
 
+    /* Fixed mode: script 5355 carves the popout strip from the canvas. Grow the
+     * canvas by the measured strip so the classic frame stays APP_CANVAS_MIN_W
+     * and the strip sits outside it. Must run after App_RunOnce so open/close
+     * layout (5354) has already widened/collapsed the strip. The next frame's
+     * drain/resize/present picks up the new size. */
+    if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
+        App_SyncFixedChromeInset(&app) )
+    {
+        int const fw = UITREE_LAYOUT_ROOT_W;
+        int const fh = UITREE_LAYOUT_ROOT_H;
+        PlatformSDL2_SetWindowSize(sdl, fw, fh);
+        PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
+        if( getenv("TORIRS_RESIZE_DEBUG") )
+            fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+    }
+
     /*
      * A clientscript changed the window mode (the Display panel's client-mode
      * dropdown is [clientscript,settings_client_mode], and its whole body is
@@ -1247,6 +1263,7 @@ frame_loop_step(void)
                 sdl, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+            /* Strip inset is applied next frame once layout has measured it. */
         }
         {
             int layout_mode = 0;

@@ -237,6 +237,10 @@ struct ToriRS_Location
     /** LocType.active: 0 = the reference never picks this loc (see
      *  torirs_location_from_rscache.c). */
     int is_interactive;
+    /** LocType.raiseobject (config opcode 75 / rscache support_items): when 1,
+     *  ground item stacks on this loc's tile are drawn raised by the model
+     *  height (Client-TS objRaise = minY). Defaulted in Dat2ConfigLocFinish. */
+    int raiseobject;
 };
 
 struct ToriRS_Npctype

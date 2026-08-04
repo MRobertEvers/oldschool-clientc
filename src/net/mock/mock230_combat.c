@@ -34,6 +34,7 @@
 #include "mock230_content.h"
 #include "mock230_scene.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -338,36 +339,76 @@ mock230_combat_sync_hitpoints(struct Mock230Player* player)
  * xp independently, so the table was never consulted and the two could not
  * disagree. Moving the seed into content, where only the xp is stated and the
  * level has to follow from it, is what turned the discrepancy into a failure.
+ *
+ * `table[i]` is the experience at which level `i + 2` begins — the reference's
+ * indexing (`getExpByLevel(level)` reads `[level - 2]`).
  */
-static int
-level_for_xp(int experience)
+static int g_xp_table[99];
+static int g_xp_table_built;
+
+static void
+ensure_xp_table(void)
 {
-    /* `table[i]` is the experience at which level `i + 2` begins, which is the
-     * reference's indexing (`getExpByLevel(level)` reads `[level - 2]`). */
-    static int table[99];
-    static int built;
+    long long accumulated;
 
-    if( !built )
+    if( g_xp_table_built )
+        return;
+    accumulated = 0;
+    for( int i = 0; i < 99; i++ )
     {
-        long long accumulated = 0;
+        int level = i + 1;
 
-        for( int i = 0; i < 99; i++ )
-        {
-            int level = i + 1;
-
-            accumulated +=
-                (long long)floor((double)level + pow(2.0, (double)level / 7.0) * 300.0);
-            table[i] = (int)(accumulated / 4);
-        }
-        built = 1;
+        accumulated +=
+            (long long)floor((double)level + pow(2.0, (double)level / 7.0) * 300.0);
+        g_xp_table[i] = (int)(accumulated / 4);
     }
+    g_xp_table_built = 1;
+}
 
+int
+mock230_combat_level_for_xp(int experience)
+{
+    ensure_xp_table();
     for( int i = 98; i >= 0; i-- )
     {
-        if( experience >= table[i] )
+        if( experience >= g_xp_table[i] )
             return i + 2 < 99 ? i + 2 : 99;
     }
     return 1;
+}
+
+int
+mock230_combat_xp_for_level(int level)
+{
+    if( level <= 1 )
+        return 0;
+    if( level > 99 )
+        level = 99;
+    ensure_xp_table();
+    return g_xp_table[level - 2];
+}
+
+void
+mock230_combat_set_level(
+    struct Mock230Player* player,
+    int stat,
+    int level)
+{
+    assert(player);
+    assert(stat >= 0 && stat < MOCK230_STAT_COUNT);
+    if( level < 1 )
+        level = 1;
+    if( level > 99 )
+        level = 99;
+    player->stat_level[stat] = level;
+    player->stat_boosted[stat] = level;
+    player->stat_xp_tenths[stat] = mock230_combat_xp_for_level(level) * 10;
+    if( stat == MOCK230_STAT_HITPOINTS )
+    {
+        player->hitpoints = level;
+        mock230_combat_sync_hitpoints(player);
+    }
+    mock230_combat_stat_mark(player, stat);
 }
 
 void
@@ -393,7 +434,8 @@ mock230_combat_add_xp(
                tenths % 10,
                tenths);
     player->stat_xp_tenths[stat] += tenths;
-    player->stat_level[stat] = level_for_xp(player->stat_xp_tenths[stat] / 10);
+    player->stat_level[stat] =
+        mock230_combat_level_for_xp(player->stat_xp_tenths[stat] / 10);
     if( player->stat_level[stat] != before )
     {
         /* A hitpoints level-up raises the ceiling but does not heal, which is

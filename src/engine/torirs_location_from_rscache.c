@@ -136,5 +136,8 @@ ToriRS_LocationFromRSCacheDat2(
     loc->transform_count = src->transform_count;
     loc->transforms = torirs_dup_int_array(src->transforms, src->transform_count);
 
+    /* LocType.raiseobject (opcode 75). Finish has already defaulted -1. */
+    loc->raiseobject = src->support_items;
+
     return loc;
 }

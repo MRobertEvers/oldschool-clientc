@@ -1500,6 +1500,18 @@ Three things worth knowing:
   click, a teleport, `p_stopaction`. A pending op that survives is one that
   fires whenever the player next wanders into range.
 
+**Facing a loc or obj** is engine behaviour, not content. LostCity's
+`PathingEntity.setInteraction` records a fine face point
+(`CoordGrid.fine(x, width)` / `fine(z, length)` = `pos*2+size`) for non-pathing
+targets; `clearInteraction` leaves that stash alone. After movement in the
+player phase, `reorient()` ships `FACE_COORD` when `stepsTaken === 0` and
+consumes the stash. Content (`pickup.rs2`, `tables.rs2`) never calls
+`facesquare` for ordinary take/put — the engine turns the player. Here that is
+`face_target_x/z` on the player, set by `mock230_world_interaction_set` for
+`LOC`/`OBJ`, and `player_reorient` after `advance_player` +
+`mock230_world_process_interaction`. Scripted `facesquare` / `npc_facesquare`
+emit the same absolute half-tiles (`(tile<<1)+1`); yaw is client `atan2`.
+
 One deliberate behaviour change came with it: the door swap used to run *before*
 the script trigger, making a door the one thing content could not override. It
 is now behind the trigger like everything else. Nothing in the tree binds a door
