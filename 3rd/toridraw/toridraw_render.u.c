@@ -18,7 +18,8 @@
 // clang-format on
 
 /** Far plane for bounding-cylinder frustum cull. */
-#define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
+// #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
+#define TORIDRAW_CYLINDER_FAR_PLANE_Z 6000
 
 static inline int
 div3_fast_fixedpoint(int z_sum)

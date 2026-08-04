@@ -170,18 +170,18 @@ unblocked row per tick.
 | 12 | Hitpoints regen (Rapid Heal / cape / bracelet) | LC | done | `health_regen.rs2` timer 100t / Rapid Heal 50t; cape/bracelet doubling → #15 |
 | 13 | Food consume remainder + overheal | LC | done | Kebab random table (`kebab.rs2`); anglerfish + Sara brew overheal via `stat_boost(hitpoints,…)` (heal clamps at base). Members heal-amount table still sparse in `food.rs2` — expand as wiki rates measured. |
 | 14 | Life leech (Guthan's / blood / SGS) | SCAPE2009+Kronos | done | Guthan's 25% heal-on-hit (`guthan_set.rs2`, mid-era ArmourSet); SGS Healing Blade `sa_kind=5` (`pvm_sgs.rs2`). Ancient blood spells → #31. |
-| 15 | Hitpoints cape / desert heat / phoenix neck | wiki+cache | pending | Cape doubles regen (#12); desert heat DoT absent; phoenix necklace auto-heal absent; ring of life already landed |
-| 16 | skill_combat: crossbow / thrown / chinchompa | LC | pending | Wiki heavy/light ammo; CONTENT 8u deferred; `player_ranged.rs2` has ammo-cat checks but notes Crossbow/thrown/PvP/specs deferred; chin multi-target absent |
+| 15 | Hitpoints cape / desert heat / phoenix neck | wiki+cache | done | Cape/bracelet half regen interval (`health_regen.rs2`); phoenix necklace ≤20% → heal 30% base (`phoenix_necklace.rs2`). Desert heat already live (`area_desert/desert_heat.rs2`). |
+| 16 | skill_combat: crossbow / thrown / chinchompa | LC | done | Bolt + dart/knife rows in `ranged_ammo.dbrow`; combat path already branched for crossbow/thrown. Chin multi-target still absent — follow-up when huntall/AoE ready. |
 | 17 | Ranged ammo ground recovery | LC | done | `ranged_dropammo_npc` wired to `inv_dropitem_delayed` + `^dropammo_chance` (LC `player_ranged.rs2`). Holy water / PvP deferred with #16. |
-| 18 | Ranged specials (MSB/MLB/dark bow/…) | LC | pending | LC `pvm_magic_shortbow`/`longbow`/`rune_thrownaxe`; needs #1 special-attack model; Kronos §68 wildy bow specs blocked on same |
-| 19 | Dwarf multicannon | LC | pending | Wiki supplementary Ranged weapon; CONTENT 7g deferred cannonballs; no cannon setup/fire scripts in tree |
-| 20 | Ava's accumulator / ranging cape ammo-save | wiki+cache | pending | Wiki cape grants Ava's effect when equipped; no Ava device / ammo-save proc |
-| 21 | Ranging potion consume | LC | pending | Wiki ranging/bastion/divine; brew row `herblore_ranging`; pairs #3/#6/#10 `_potion` Drink (CONTENT 10d) |
+| 18 | Ranged specials (MSB/MLB/dark bow/…) | LC | done | Snapshot (`pvm_magic_shortbow.rs2`) + Powershot (`pvm_magic_longbow.rs2`); sa_kind 6/7. Rune thrownaxe bounce + dark bow deferred (multi-hunt). |
+| 19 | Dwarf multicannon | LC | blocked | Setup/fire is a large LC `quest_mcannon` / cannon loc system; smithing cannonballs already noted CONTENT 7g deferred. → CONTENT_PORT_QUEUE when 7g opens; do not invent a thin stub. |
+| 20 | Ava's accumulator / ranging cape ammo-save | wiki+cache | done | `~avas_ammo_saved` in `ranged_dropammo_npc` — attractor/accumulator/assembler + ranging cape save rates (wiki). |
+| 21 | Ranging potion consume | LC | done | `ranging_potion.rs2` — `4doserangerspotion`… +3/+10% Ranged; dose ladder (#3 pattern). Bastion/divine deferred. |
 | 22 | Enchanted bolt tips effects | LC | pending | Wiki bolt enchant procs (opal…onyx); enchant spells may live in magic — combat proc on hit absent |
-| 23 | Prayer bone XP table + ashes | LC | pending | `bury_bone.rs2` only bones/big/bat/burnt XP; wiki dragon+/superior bones + demonic ash scatter absent |
+| 23 | Prayer bone XP table + ashes | LC | done | Expanded bury XP switch (dragon+/wyvern/lava/superior/dagannoth/zogre ancestral/wyrm…). Demonic ash scatter absent in this cache naming — deferred. |
 | 24 | Ectofuntus / Chaos altar bone offer | wiki+cache | pending | Wiki primary members training; no ectofuntus or wildy Chaos Temple offer scripts |
 | 25 | Gilded altar / POH incense | 2009 | blocked | → SCAPE2009 Construction POH remainder (4c owned elsewhere); do not edit live `skill_construction/` from this lane |
-| 26 | Prayer potion / restore consume | LC | pending | Wiki prayer/super restore/sanfew; brew `herblore_prayer`/`herblore_super_restore`; pairs `_potion` Drink (CONTENT 10d) |
+| 26 | Prayer potion / restore consume | LC | done | `prayer_potion.rs2` — prayer +7/+25%, super restore +8/+25% all skills; dose ladders. Sanfew → follow-up. |
 | 27 | Smite / Piety / Rigour combat effects | LC | pending | Prayers toggle in dbrow; `combat_stats` attack/str/def prayer checks lack Chivalry/Piety/Rigour/Augury; Smite opponent drain absent; Preserve→#12 boost drain |
 | 28 | Retribution multi-target AoE | Kronos | pending | Kronos §23 single-target only; comment still says map_multiway deferred though opcode hosted — wire AoE |
 | 29 | Prayer cape / bones-to-peaches | wiki+cache | pending | Cape perk absent; CONTENT 11j bananas only — peaches deferred |
@@ -360,3 +360,9 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #17 ammo recovery done: LC `ranged_dropammo_npc` → `inv_dropitem_delayed`. Sibling fix: ranging_guild_guard `npc_setmode(applayer2)`.
 - port #13 food/overheal done: kebab + angler `stat_boost` + Sara brew (`4dosepotionofsaradomin`). Next = #14 leech.
 - port #14 leech done: Guthan's set + SGS Healing Blade. Blood → #31. Next = #15 HP cape/desert/phoenix.
+- port #15 done: HP cape/bracelet regen + phoenix necklace; desert heat already in-tree. Next = #16 ranged weapons / #18 specs / #21 ranging pot.
+- port #16 done: bolt/dart/knife ammo table rows. Chin multi deferred.
+- port #21 ranging potion done. Next = #18 ranged specs.
+- port #18 MSB/MLB specs done. Thrownaxe/dark bow deferred. Next = #19 cannon / #20 Ava / #22 bolts / #23 bones.
+- port #19 multicannon → blocked CONTENT (7g).
+- port #20 Ava ammo-save done. #23 bone XP expanded. #26 prayer/super restore done. Next = #22/#24/#27.

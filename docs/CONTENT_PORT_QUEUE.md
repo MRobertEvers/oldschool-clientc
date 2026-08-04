@@ -506,7 +506,22 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 25q | Wizard Tower wizards AI | done | wizard.rs2 Fire Strike AI; Grayzag deferred |
 | 25r | Party Room Megan | done | partyroom_megan beer/dance/news Talk |
 | 25s | Duel Arena Mubariz | done | mubariz info dialogue; duel engine deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | After 25s: CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent), lavafish_loc (no eel loc) |
+| 25t | Party Pete + Lucy | done | party_pete Talk + Lucy beer; chest AI deferred |
+| 25u | Duel Arena Fadli + Jaraah | done | Fadli bank/Trade stub + Jaraah/nurses heal |
+| 25v | Duel Arena Hamid + Zahwa | done | duel_monk + duel_injured1 Talk; clues deferred |
+| 25w | Games Room barmaid | done | Talk + Trade stub; boardgames.rs2 challenge/IF deferred |
+| 25x | Observatory Scorpius | done | scorpiusgrave mesbox + zamorakghost retaliate |
+| 26a | Heroes kitchen locs | done | herokitchendoor/panel walk-through gated on heroquest |
+| 26b | Heroes grubor + HQ door | done | grubor Talk + clover password + grubordoor walk-through |
+| 26c | Heroes fire feather | done | hot_feather ice_gloves gate + damage; @pickup_obj |
+| 26d | Sheep flavour Baa | done | ai_timer sheepsheered/unsheered |
+| 26e | Cow flavour Moo | done | ai_timer cow/cow2/cow_beef |
+| 26f | Mcannon cave + guard | done | cave/mudpile tele + guard Talk + constants; remains/doors deferred |
+| 26g | Gnomeball cheerleader | done | gnome_cl1..8 idle AI timer |
+| 26h | Ghrim kingdom book | done | misc_ghrimbook ~mesbox pages |
+| 26i | Duel tomato crate + throw | done | crate Trade stub; throw (.coord) deferred |
+| 26j | Duel arena spectators | done | crowd Talk random lines; clue deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | After 26j: CW/Trails deferred; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent), shilofurnacedoor (absent), lavafish_loc (no eel loc) |
 
 
 
@@ -1029,11 +1044,30 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 25n done: ranging tower ladders + fill_towers + archer AI + advisors; mock230_pack 0 errors
 - slice 25o done: ticket_merchant Trade stub (IF deferred); mock230_pack 0 errors (9779 scripts)
 - slice 25p blocked: lavafish_loc — no eel loc in osrs239 (npc spot covers it)
-- next pending: Grayzag / CW/Trails / remaining outward thin NPCs; skip blocked list + lavafish_loc
+- next pending: leave 25w–26f in_progress alone; party chest/lever / tomato throw / CW/Trails; skip blocked list
 
 - slice 25q done: wizard Fire Strike AI; mock230_pack 0 errors
 - slice 25r done: partyroom Megan Talk
 - slice 25s done: duel Mubariz Talk; duel engine deferred
+
+- slice 25t done: Party Pete + Lucy; mock230_pack 0 errors
+- slice 25u done: Fadli/Jaraah/nurses bank+heal
+- slice 25v done: Hamid + Zahwa Talk
+
+- slice 25w done: Games Room barmaid Talk + Trade stub; boardgames.rs2 deferred
+- slice 25x done: Observatory scorpiusgrave + zamorakghost
+- slice 26a done: Heroes herokitchendoor/panel walk-through
+- slice 26b done: Heroes grubor + blackarm HQ door
+- slice 26c done: Heroes hot_feather ice_gloves pickup
+- slice 26d done: sheep flavour Baa ai_timer
+- slice 26e done: cow flavour Moo ai_timer
+- slice 26f done: mcannon cave/mudpile/guard + constants; remains deferred; mock230_pack 0 errors (9896 scripts)
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc
+
+- slice 26g done: gnomecheerleader gnome_cl* timer; mock230_pack 0 errors
+- slice 26h done: misc_ghrimbook mesbox pages
+- slice 26i done: rotten_tomato_crate Trade stub; throw deferred
+- slice 26j done: duel crowd spectators Talk
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 
