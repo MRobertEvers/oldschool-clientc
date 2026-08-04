@@ -409,6 +409,88 @@ Two things the test got wrong first, both worth copying rather than repeating:
   prints four passes and then simply stops — which is indistinguishable from a
   pass. It tops the runner's hitpoints up every tick.
 
+## The damage that never landed (2026-08-04, third pass)
+
+Four defects, and three of them were engine-wide rather than Inferno's. They are
+grouped here because they had one symptom — "the mobs do no damage" — and four
+independent causes, each of which alone was enough to produce it.
+
+1. **`last_int` was a property of the player, not of the script state.** The
+   reference pushes `state.lastInt` and the npc queue seeds it per request
+   (`Npc.ts`: `state.lastInt = request.lastInt`). Ours read `player->last_int`,
+   which is correct for every player-context reader and returns 0 for the one
+   context with no player value to read: an `[ai_queue<n>]` on an npc. That is
+   where `npc_queue(2, $damage, $delay)` delivers its damage, so **every
+   npc-to-npc hit in the tree landed for zero**. `state->last_int` had been
+   declared for this and read by nothing.
+
+2. **`npc_setmode(none)` did not clear the target.** `NPC_SETMODE` in the
+   reference is `clearInteraction()` for the targetless modes, and
+   `clearInteraction` sets `target = null`. Ours set the mode field only, and
+   the npc phase skips any npc with a combat target ("combat and death own the
+   npc's movement") — so a script-driven npc that anything hit once stopped
+   walking permanently. The Ancestral Glyph binds `[ai_queue1] npc_setmode(none)`
+   precisely so being attacked does not stop its sweep, and it froze on the
+   first hit anyway.
+
+3. **The compiler never checked command arity.** `queue` states three arguments
+   (`[command,queue](queue $queue, int $delay, int $arg)`); ten sites passed
+   four. Four pushes into a three-value pop does not fail — it *shifts*, so the
+   script id came out of the delay slot and each of those queued a garbage id.
+   `QUEUEVARARG` — the reference's `queue*(script, delay)(args…)`, which is what
+   those sites actually wanted — was unhosted.
+
+4. **The projectile left from the wrong tile.** Kronos `Projectile.send` offsets
+   the source by `size / 2`; `npc_coord` is the south-west tile, so TzKal-Zuk
+   (size 7) threw from three tiles off his own middle.
+   `[proc,npc_projectile_source]` is that offset, over `nc_size` — which was
+   implemented and documented in content as "absent".
+
+### What the arity check found
+
+Adding it turned up ~160 sites, none of them theoretical:
+
+| command | sites | what was wrong |
+|---|---:|---|
+| `obj_add` | 120 | the DURATION was in the count slot, so every drop spawned 200 items |
+| `npc_del` | 19 | called with an argument; the command declares none |
+| `queue` | 10 | four arguments to a three-argument command (defect 3) |
+| `npc_changetype` | 4 | no duration |
+| `stat` | 3 | `mes("::boost <stat> …")` — see below |
+| others | 4 | `damage`, `map_findsquare`, `movecoord`, `map_playercount` |
+
+Two of those are worth reading past the count. `mes("::boost <stat> <constant>
+<percent>")` is a usage line, and `<stat>` compiled to a `stat` **call**: the
+interpolation test asked whether the name was a command and not whether the
+command took arguments, so `<displayname>` (which takes none) and `<stat>`
+(which takes one) were indistinguishable. And the first fix for `obj_add` was
+itself wrong at 107 of the 120 sites, because they pass `~randomherb` — a proc
+returning `(namedobj, int)` — which already supplies the count. **A check that
+only warned would not have caught that**; the count went back up and said so.
+
+The check is fatal now. It has two verdicts and only two, because only two are
+sound: more arguments than slots is always wrong (every expression pushes at
+least one value), and fewer is wrong only when nothing in the list could have
+pushed extra — a multi-return proc or a `db_getfield` on a `coord,coord` column
+legitimately fills several slots from one expression.
+
+### Stats, audited
+
+Every inferno npc against `kronos-server/data/npcs/combat/*.json`
+(attack/strength/defence/hitpoints/ranged/magic + `max_damage`). Three records
+and one constant disagreed:
+
+| record | field | was | Kronos |
+|---|---|---:|---:|
+| `inferno_creature_ranger` / `inferno_ranger_finalwave` | hitpoints | 125 | 130 |
+| `inferno_zuk_healer` | hitpoints | 75 | 80 |
+| `^inferno_zuk_maxhit` | — | 148 | 251 |
+
+Yt-HurKot reads as a mismatch and is not: Kronos carries two stat blocks for it
+(hp 60 and 90) and both of this tree's records use the 90 one. The max-hit
+constant is the one to note — the other five (46, 70, 113, 10, 18) match Kronos
+exactly, which is what made the odd one out worth checking at all.
+
 ## Re-running the export
 
 The full command is in

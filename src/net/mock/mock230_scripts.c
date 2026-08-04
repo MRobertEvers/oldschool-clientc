@@ -2597,6 +2597,8 @@ debugproc_arg_type(
     case 83: /* stat */
         *out_kind = MOCK230_PACK_STAT;
         return 2;
+    case 99: /* coord */
+        return 3;
     default:
         return 0;
     }
@@ -2649,6 +2651,19 @@ mock230_scripts_run_debugproc(
             strv[strc++] = word;
         else if( form == 2 )
             argv[argc++] = taken ? mock230_content_symbol(kind, word) : -1;
+        else if( form == 3 )
+        {
+            /* `level_mx_mz_lx_lz`, the coord literal's own spelling — the
+             * reference parses one here too (ClientCheatHandler's
+             * ScriptVarType.COORD arm) and it is the argument a test debugproc
+             * most wants, because every other way of naming a tile means
+             * hardcoding one in the script. */
+            int lvl = 0, mx = 0, mz = 0, lx = 0, lz = 0;
+            if( taken && sscanf(word, "%d_%d_%d_%d_%d", &lvl, &mx, &mz, &lx, &lz) == 5 )
+                argv[argc++] = mock230_coord_pack(lvl, mx * 64 + lx, mz * 64 + lz);
+            else
+                argv[argc++] = -1;
+        }
         else
             argv[argc++] = taken ? (int32_t)strtol(word, NULL, 10) : 0;
     }

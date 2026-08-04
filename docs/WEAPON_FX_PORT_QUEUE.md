@@ -130,18 +130,24 @@ wave 3 (sharded)    G(11), then G(12) one weapon per agent
 | # | Slice | Lane | Status | Blocked on |
 |---|---|---|---|---|
 | 0 | Findings catalog + audit tool | — | done | — |
-| 1 | Stance params + resolver | A | pending | — |
-| 2 | Cross-check the overlap | B | pending | 1 |
-| 3 | The 667 rsmod-sourced weapons | B | pending | 1, 2 |
+| 1 | Stance params + resolver | A | done | — |
+| 2 | Cross-check the overlap | B | done | 1 |
+| 3 | The 667 rsmod-sourced weapons | B | in_progress | 1, 2 |
 | 4 | The 246 with no direct row | B | pending | 3 |
 | 5 | BAS + equip sound | B | pending | 3 |
-| 6 | `SYNTH_SOUND` wire | C | pending | — |
-| 7 | `sound_synth` opcode body | C | pending | 6 |
-| 8 | Swing sounds through content | F | pending | 1, 7 |
-| 9 | Seq frame sounds (client) | D | pending | — |
-| 10 | Special attack obj table | E | pending | — |
+| 6 | `SYNTH_SOUND` wire | C | done | — |
+| 7 | `sound_synth` opcode body | C | done | 6 |
+| 8 | Swing sounds through content | F | in_progress | 1, 7 |
+| 9 | Seq frame sounds (client) | D | done | — |
+| 10 | Special attack obj table | E | in_progress | — |
 | 11 | Special attack FX | G | pending | 8, 10 |
 | 12 | Special attack behaviour | G | pending | 11 |
+
+**Statuses above were re-derived from the tree on 2026-08-04, not carried
+forward.** Slices 1, 6, 7 and 9 had been completed by an earlier run that did
+not update this table; see the Log. Do not trust a status here without
+`git show <rev>:<path>` behind it — that stale column cost a whole wave of
+agents on this port.
 
 ---
 
