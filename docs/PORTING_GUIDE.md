@@ -1168,6 +1168,10 @@ For any substantial task, in this order:
      [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md); behaviour
      under `Kronos184-Fixed_2/.../io/ruin/`; still grep LostCity first (§2.2)
    - ServerScript → [`serverscript.md`](serverscript.md)
+   - instanced maps / dynamic regions (POH, Pest Control island, private
+     mazes, cutscene sets) → [`map_instances.md`](map_instances.md). Its §5 is
+     the trap: the copy is written twice (server collision, client scenery) and
+     the two halves walk the rotation in opposite directions
    - pathfinding / LoS / NPC movement →
      [`COLLISION_MAP.md`](COLLISION_MAP.md) (wall flags / directionality),
      [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md), then

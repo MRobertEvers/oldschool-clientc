@@ -1833,7 +1833,7 @@ mock230_world_scene_rebuild(struct Mock230Server* srv)
     struct Mock230MapInstanceWindow window;
 
     if( mock230_mapinstance_find(mock230_scene_origin(srv->zone_x) + MOCK230_SCENE_TILES / 2,
-                                 mock230_scene_origin(srv->zone_z) + MOCK230_SCENE_TILES / 2) < 0 )
+                                 mock230_scene_origin(srv->zone_z) + MOCK230_SCENE_TILES / 2) == 0 )
     {
         mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
         return;

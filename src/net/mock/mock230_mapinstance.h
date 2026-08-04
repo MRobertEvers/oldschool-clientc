@@ -110,10 +110,11 @@ mock230_mapinstance_reset(void);
 /**
  * Reserve `zone_w` x `zone_h` zones of unused map and return a handle.
  *
- * Returns -1 when the arguments are out of range or the pool is exhausted;
- * content is expected to check, because an instance is a resource rather than a
- * coordinate. `cache_dir` is where the free-square sweep reads its reference
- * table (once per process).
+ * Handles are 1-based; 0 is the surface's only "no instance" value, and it is
+ * what this returns when the arguments are out of range or the pool is
+ * exhausted. Content is expected to check, because an instance is a resource
+ * rather than a coordinate. `cache_dir` is where the free-square sweep reads its
+ * reference table (once per process).
  *
  * The reservation is rounded up to whole map squares, so two instances never
  * share a square and a square is never half free.
@@ -162,7 +163,7 @@ mock230_mapinstance_base(
 int
 mock230_mapinstance_free(int handle);
 
-/** The handle whose reserved area contains this absolute tile, or -1. */
+/** The handle whose reserved area contains this absolute tile, or 0. */
 int
 mock230_mapinstance_find(
     int x,

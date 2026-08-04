@@ -5222,8 +5222,8 @@ mock230_script_command(
      * The instance-relative offset as an absolute coord — the only way content
      * can address a tile inside something the allocator placed. A dead handle
      * gives back coord 0, which is the same "nowhere" the reference's null
-     * Location is, and is what `map_instance_alloc` returning -1 turns into if
-     * content forgot to check it.
+     * Location is, and is what an unchecked `map_instance_alloc` failure turns
+     * into — a teleport to 0,0 rather than a teleport into someone else's house.
      */
     case SS_OP_MAP_INSTANCE_COORD:
     {

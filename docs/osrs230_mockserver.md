@@ -434,6 +434,13 @@ entity by the base-tile delta (`App_WorldRebuildShift`), so their slots stay
 valid; dropping and re-adding them would re-spawn into slots the client still
 holds.
 
+A scene whose centre falls inside a map instance is sent as **`REBUILD_REGION`**
+(wire 59) instead, carrying a 4×13×13 grid of per-zone source descriptors rather
+than an origin to read the cache at. `mock230_send_rebuild` picks between the
+two, and the same-zone early-out above is *skipped* for the instanced path —
+adding a room to a house changes the scene without moving the player, so "same
+zone" stops implying "same scene". See [`map_instances.md`](map_instances.md).
+
 ---
 
 ## 3.9 The tick runs LostCity's eleven phases

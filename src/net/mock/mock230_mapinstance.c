@@ -243,14 +243,22 @@ mock230_mapinstance_reset(void)
     memset(g_instances, 0, sizeof(g_instances));
 }
 
+/*
+ * Handles are 1-based, and 0 is the only "no instance" value the whole surface
+ * uses — alloc failure, find miss and a dead handle all read as 0.
+ *
+ * That is for content's sake rather than C's: a handle lives in a varp between
+ * the tick that allocates a house and the tick that enters it, varps start at 0,
+ * and a 0-based handle would make "slot 0" and "never allocated" the same int.
+ */
 static struct Mock230MapInstance*
 mapinstance_get(int handle)
 {
-    if( handle < 0 || handle >= MOCK230_MAPINSTANCE_MAX )
+    if( handle < 1 || handle > MOCK230_MAPINSTANCE_MAX )
         return NULL;
-    if( !g_instances[handle].active )
+    if( !g_instances[handle - 1].active )
         return NULL;
-    return &g_instances[handle];
+    return &g_instances[handle - 1];
 }
 
 /** Does a live instance already hold this square? The cache bitmap cannot say —
@@ -306,7 +314,7 @@ mock230_mapinstance_alloc(
     assert(cache_dir);
     if( zone_w < 1 || zone_h < 1 || zone_w > MOCK230_MAPINSTANCE_ZONES ||
         zone_h > MOCK230_MAPINSTANCE_ZONES )
-        return -1;
+        return 0;
 
     for( int i = 0; i < MOCK230_MAPINSTANCE_MAX && slot < 0; i++ )
     {
@@ -314,7 +322,7 @@ mock230_mapinstance_alloc(
             slot = i;
     }
     if( slot < 0 )
-        return -1;
+        return 0;
 
     mapinstance_scan_pool(cache_dir);
 
@@ -345,11 +353,11 @@ mock230_mapinstance_alloc(
                 fprintf(stderr,
                         "mock230: map instance %d reserved %dx%d zones at %d,%d "
                         "(map square %d,%d)\n",
-                        slot, zone_w, zone_h, inst->base_x, inst->base_z, x, z);
-            return slot;
+                        slot + 1, zone_w, zone_h, inst->base_x, inst->base_z, x, z);
+            return slot + 1;
         }
     }
-    return -1;
+    return 0;
 }
 
 int
@@ -444,9 +452,9 @@ mock230_mapinstance_find(
          * demonstrably not in the ordinary world. */
         if( x >= inst->base_x && x < inst->base_x + inst->square_w * 64 &&
             z >= inst->base_z && z < inst->base_z + inst->square_h * 64 )
-            return i;
+            return i + 1;
     }
-    return -1;
+    return 0;
 }
 
 int

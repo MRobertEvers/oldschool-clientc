@@ -100,10 +100,19 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 31 | bosses: Chaos Fanatic / Crazy Archaeologist | done | kill stubs + debugprocs in `minigame_wildy_bosses/`; specials/loot deferred; Chaos Elemental → SCAPE2009/classic |
 | 32 | bosses: Hespori / Sarachnis | done | `minigame_hespori/` Farming Guild cave; `minigame_sarachnis/` Forthos crypt; healers/spawns/loot/DynamicMap deferred |
 | 33 | bosses: Grotesque Guardians | done | `minigame_grotesque/`: brittle key Unlock→roof, Cloister Bell spawns Dawn+Dusk; phases/spheres/loot/DynamicMap deferred |
-| 34 | wilderness: Revenant caves | in_progress | Kronos `RevCaves.java` enter/exit + agility pillars; LC none; 2009scape has outdoor revs only |
-| 35 | wilderness: Larran's chest | pending | Kronos `LarranChest.java`; cache `slayer_larran_*` + `slayer_wilderness_key` |
-| 36 | bosses: Mage Arena II | pending | Kronos magearena Derwen/Porazdir/Zachariah; cache `ma2_boss_*`; LC none |
+| 34 | wilderness: Revenant caves | done | `minigame_revcaves/`: south/north enter + `wild_cave_exit_mid` Exit overlay, pillars 65/75/89; mid crevice/combat/ethereum/loot deferred |
+| 35 | wilderness: Larran's chest | done | `minigame_larran/`: Unlock big+small with `slayer_wilderness_key`; Check mes; Kronos vesta loot skipped; loot table deferred |
+| 36 | bosses: Mage Arena II | done | `minigame_magearena2/`: `ma2_symbol` Activate→spawn choice, kill→hearts + component varbits; hot/cold/imbue/Kolodion hand-in deferred |
 | 37 | wilderness: Resource Area gate | blocked | → SCAPE2009 (mid-era wilderness hut) |
+| 38 | wilderness: Wilderness Slayer Cave | done | `minigame_wildyslayer/`: north/south Walk-down ↔ Exit; shortcuts deferred |
+| 39 | skill: Karuulm dungeon stubs | done | `minigame_karuulm/`: elevator, stepover warn, lava gap, tunnel, stairs; boot burn/slayer-only deferred; Hydra → slice 21 |
+| 40 | skill_slayer: superior encounter stub | done | `slayer_superior.rs2`: bit 35 roll 1/200→spawn by category; superior kill credit; loot/full map deferred |
+| 41 | skill: Chasm of Fire | done | `minigame_chasm_of_fire/`: surface rope enter/exit + gibbet lifts ±1 plane; combat deferred |
+| 42 | skill: Kourend Catacombs entrances | done | `minigame_catacombs/`: statue enter, 4 vines unlock `%cata_hole*`, hole/passage enter, totem combine; Skotizo → slice 27; shortcuts/drops deferred |
+| 43 | skill: Brimstone / Konar chest | done | `minigame_brimstone/`: Unlock with `konar_key` + Check; loot deferred (Kronos had ObjectID only) |
+| 44 | skill: Lithkren vault | done | `minigame_lithkren/`: vault/lab doors, barrier pass, stairs/trapdoor links; mural kill counters + dragons deferred |
+| 45 | skill: Smoke Devil dungeon | pending | enter/exit stubs; Thermy → slice 25 |
+| 46 | bosses: Mage Arena II follow-ups | pending | Kolodion hand-in / hot-cold / imbue from slice 36 |
 
 ## Opcode gap log
 
@@ -153,6 +162,18 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 32 | instance / dynamic map | Hespori / Sarachnis isolation | soft — same gap |
 | 33 | (none) | Roof Unlock/bell + dual kill | confirmed — no new opcode |
 | 33 | instance / dynamic map | Grotesque Guardians isolation | soft — same gap |
+| 34 | (none) | Cave enter/exit + pillar telejump | confirmed — no new opcode |
+| 34 | loc.op1..op5 field register | Restate Exit on `wild_cave_exit_mid` | confirmed — client-native keys |
+| 35 | (none) | Key Unlock + Check | confirmed — no new opcode |
+| 36 | (none) | Symbol Activate + kill hearts | confirmed — no new opcode |
+| 38 | (none) | Stairs enter/exit teleports | confirmed — no new opcode |
+| 39 | (none) | Elevator + shortcuts expressible | confirmed — no new opcode |
+| 39 | softtimer / zone burn | Karuulm hot floor without boots | deferred |
+| 40 | (none) | Unlock bit + npc_add + kill credit | confirmed — no new opcode |
+| 41 | (none) | Rope teleports + plane movecoord | confirmed — no new opcode |
+| 42 | (none) | Entrances + varbit unlock + opheldu | confirmed — no new opcode |
+| 43 | (none) | Key Unlock + Check | confirmed — no new opcode |
+| 44 | (none) | Doors/stairs/barrier teleports | confirmed — no new opcode |
 
 ## Log
 
@@ -190,4 +211,18 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 31 done: Chaos Fanatic + Crazy archaeologist kill stubs in `minigame_wildy_bosses/`; Chaos Elemental left for SCAPE2009/classic; scripts 5170; pack 0 errors
 - slice 32 done: Hespori + Sarachnis stubs — `minigame_hespori/` guild cave; `minigame_sarachnis/` Forthos web; healers/spawns/loot deferred; scripts 5227; pack 0 errors
 - slice 33 done: Grotesque Guardians stub — `minigame_grotesque/`: `slayer_roof_key` Unlock, Cloister Bell→Dawn+Dusk, both-dead exit; phases deferred; scripts 5278; pack 0 errors (also unblocked parallel RD journal/`%rd_main` compile)
-- 2026-08-04: **queue idle** — no pending unblocked Kronos slices after 33
+- 2026-08-04: queue was idle after 33; extended with 34 Rev caves / 35 Larran's chest / 36 Mage Arena II; Resource Area → SCAPE2009
+- slice 34 done: Revenant caves stub — `minigame_revcaves/`: south/north enter, `wild_cave_exit_mid` Exit (map truth vs Kronos 31557), pillars via skill_features reqs; declared `loc.op1..op5` client-native; mid/combat deferred; scripts 5325; pack 0 errors
+- slice 35 done: Larran's chest stub — `minigame_larran/`: Unlock big+small consume `slayer_wilderness_key`; skipped Kronos private-server loot; scripts 5401; pack 0 errors
+- slice 36 done: Mage Arena II stub — `minigame_magearena2/`: symbol Activate choice→spawn, kill→hearts + `%ma2_*_component`; hot/cold/imbue deferred; scripts 5461; pack 0 errors
+- 2026-08-04: queue idle after 36; extended with 38 Wildy Slayer Cave / 39 Karuulm stubs / 40 superior slayer
+- slice 38 done: Wilderness Slayer Cave — `minigame_wildyslayer/` north+south enter/exit from map coords; scripts 5475; pack 0 errors
+- slice 39 done: Karuulm dungeon stubs — `minigame_karuulm/`: brimstone elevator, stepover, gap, tunnel, stairs; burn softtimer deferred; scripts 5503; pack 0 errors
+- slice 40 done: Superior Slayer stub — bit 35 Bigger and Badder 1/200 spawn by category; superior kill task credit; loot deferred; scripts 5549; pack 0 errors
+- 2026-08-04: **queue idle** — no pending unblocked Kronos slices after 40
+- 2026-08-04: queue idle after 40; extended with 41 Chasm of Fire / 42 Kourend Catacombs / 43 Brimstone chest
+- slice 41 done: Chasm of Fire stub — `minigame_chasm_of_fire/`: `cof_over_falloff2_rope`/`cof_rope_up` + gibbet lifts via `movecoord(…,±1 plane)`; scripts 5581; pack 0 errors
+- slice 42 done: Kourend Catacombs entrances — `minigame_catacombs/`: statue + 4 vine unlocks + hole enter + totem combine; main `cata_exit` kept in skotizo; shortcuts deferred; scripts 5624; pack 0 errors
+- slice 43 done: Brimstone chest — `minigame_brimstone/`: Unlock with `konar_key` + Check; loot deferred; scripts 5642; pack 0 errors
+- 2026-08-04: extended queue with 44 Lithkren / 45 Smoke Devil dungeon / 46 MA2 follow-ups
+- slice 44 done: Lithkren vault — `minigame_lithkren/`: doors, barrier, stairs/trapdoor; mural counters deferred; scripts 5677; pack 0 errors

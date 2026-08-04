@@ -114,14 +114,16 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; `%lost_tribe_quest`+`%lost_tribe_contact`; dig/brooch/Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
 | 24 | quest: Dig Site / The Golem | done | Dig Site → LC `quest_itexam` (CONTENT_PORT_QUEUE **18d**); Golem: talk+softclay×4 repair→task; portal/museum deferred; `::golem`; scripts 5326; pack 0 errors |
 | 25 | quest: Animal Magnetism | done | Ava start (prereqs+skills) → fetch chickens; `%anma_main`; farm/witch/device deferred; `::anma`; scripts 5359; pack 0 errors |
-| 26 | quest: A Soul's Bane | pending | |
-| 27 | quest: Creature of Fenkenstrain | pending | |
-| 28 | quest: Icthlarin's Little Helper | pending | |
-| 29 | quest: Shadow of the Storm | pending | |
-| 30 | quest: What Lies Below | pending | |
-| 31 | quest: Tears of Guthix | pending | |
-| 32 | quest: Rag and Bone Man | pending | |
-| 33 | quest: Desert Treasure | pending | Large; split when reached |
+| 26 | quest: A Soul's Bane | done | Launa start → rope on rift → enter anger; `%soulbane_prog`/`%soulbane_riftrope_pres`; rooms deferred; `::soulsbane`; scripts 5437; pack 0 errors |
+| 27 | quest: Creature of Fenkenstrain | done | Signpost+interview (Braindead/Grave-digging) → hire/`%creatureoffenkenstrain`=2; graves/parts deferred; `::fenkenstrain`; scripts 5461; pack 0 errors |
+| 28 | quest: Icthlarin's Little Helper | done | Wanderer+cat+tinderbox+waterskin(4) → hypnosis/`%ics_little_var`=2 Sophanem; pyramid deferred; `::icthlarin`; scripts 5487; pack 0 errors |
+| 29 | quest: Shadow of the Storm | done | Reen→Badden infiltrate brief; `%agrith_quest`; dye/ritual/Agrith-Naar deferred; `::shadowstorm`; scripts 5515; pack 0 errors |
+| 30 | quest: What Lies Below | done | Rat Burgiss start → empty folder/`%surok_quest`=10; outlaw papers/Surok deferred; `::whatliesbelow`; scripts 5564; pack 0 errors |
+| 31 | quest: Tears of Guthix | done | Juna story → chisel `tog_stone` → bowl turn-in complete; `%tog_juna_bowl`; lantern/minigame deferred; `::tearsofguthix`; scripts 5590; pack 0 errors |
+| 32 | quest: Rag and Bone Man | done | Odd Old Man start → `%rag_quest`=1; vinegar/boiler/bones deferred; `::ragandboneman`; scripts 5633; pack 0 errors |
+| 33 | quest: Desert Treasure | done | Split: 33a Asgarnia+Terry→Bandit (`%deserttreasure`≤5); diamonds/Eblis deferred; Dig Site `%itexam` gate deferred (LC); `::deserttreasure`; scripts 5682; pack 0 errors |
+| 33b | quest: Desert Treasure Bandit/Eblis | done | Bartender brew+diamonds rumour→6; Eblis ask→gather mirrors=7; materials/mirrors deferred; `::deserttreasure`→bandit; scripts 5692; pack 0 errors |
+| 33c | quest: Desert Treasure diamonds | pending | Eblis materials/mirrors + blood/smoke/ice/shadow + pyramid |
 | 34 | quest: Zogre Flesh Eaters | pending | |
 | 35 | skill_agility: Barbarian / Wilderness courses | pending | LC gnome already on LC queue; 2009 for remaining mid-era |
 
@@ -136,11 +138,11 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 1a | `%varbit` / perm scope | Per-patch state | done — carriers varp_501..516/830/… scope=perm+transmit; helpers switch on loc |
 | 1b | `date_minutes` (4629) | Offline growth deadlines | done — host op in `mock230_scripts.c` (LC NumberOps wall-clock minutes) |
 | 1g | `runclientscript*` / farming_view_setpanel | Patch grid populate | done — `~farming_view_refresh` drives 1119 from sim; Geomancy access still deferred |
-| 4a | instance / dynamic map | POH | measure — may block |
-| 4a | `DynamicRegion.reserveArea` / chunk fill | HouseManager.enter/construct (2009scape) | **blocked** — LC `engine.rs2` has no instance/map-alloc opcodes; this engine `ss_opcode.h` only has map_clock/blocked/findsquare/live/…; inventing C house hooks violates PORTING_GUIDE §2.4. Unblock when a map-instance opcode surface is designed + hosted |
-| 4b | (same) + hotspot build IF | BuildHotspot / BuildOptionPlugin | **blocked** on 4a |
-| 6 | `DynamicRegion.create(10536)` | PestControlActivityPlugin.start / PestControlSession | **blocked** — same map-instance gap as 4a; lander board/leave landed without island voyage |
-| 9 | `DynamicRegion` (Telekinetic maze) | TelekineticZone.start / private maze instance | **blocked** — same map-instance gap as 4a; Enchant/Alchem/Grave static rooms entered without it |
+| 4a | instance / dynamic map | POH | done — see the row below; measured, not blocking |
+| 4a | `map_instance_alloc/setchunk/build/coord/free/find` (11009..11014) | HouseManager.enter/construct (2009scape) | **done** — full slice: measured free pool (2,934 squares all in map x 15..98, so x ≥ 100 is the pool), server registry + instanced collision build, `REBUILD_REGION` (wire 59) encode **and** client decode + per-zone terrain/scenery rebuild with rotation, six EXTRA-band ops, content helpers. LC still has none of it (`engine.rs2` declares no map-alloc command), so these are engine-only rather than ports — [`map_instances.md`](map_instances.md). Proved by `::mapinstance` / `::mapinstance_turn` in the headless client |
+| 4b | (same) + hotspot build IF | BuildHotspot / BuildOptionPlugin | unblocked by 4a — the remaining gap is the build interface, not the map |
+| 6 | `DynamicRegion.create(10536)` | PestControlActivityPlugin.start / PestControlSession | unblocked by 4a — `~map_instance_from_square` is the island voyage's missing half; lander board/leave already landed |
+| 9 | `DynamicRegion` (Telekinetic maze) | TelekineticZone.start / private maze instance | unblocked by 4a — a maze is per-zone `map_instance_setchunk`; Enchant/Alchem/Grave static rooms already entered without it |
 
 ## Log
 
@@ -182,3 +184,13 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 23 done (start arc): Sigmund (`lost_tribe_sigmund_there`) start (Rune Mysteries+Goblin Diplomacy) → cook witness → Duke investigation permit; `%lost_tribe_quest` multilocs + `%lost_tribe_contact` early milestones; cellar dig/brooch/librarian/Mistag/HAM/treaty deferred; `::losttribe`; scripts 5299; pack 0 errors; next = 24 Dig Site / The Golem
 - slice 24: Dig Site → lc (`quest_itexam` → CONTENT_PORT_QUEUE 18d); Golem done (repair): `golem_broken_golem` Talk (Crafting 20/Thieving 25) → `%golem_a` offered; softclay×4 → `%golem_clay` + repaired → tasked; letter/museum/portal/program deferred; `::golem`; scripts 5326; pack 0 errors; next = 25 Animal Magnetism
 - slice 25 done (Ava start): `anma_assistant` Talk if Restless Ghost+Ernest+`%priestperil`≥61+skills → `%anma_main`=10 fetch chickens; Alice/Malcolm/witch/trees/notes/device deferred; PiP body remains LC queue; `::anma`; scripts 5359; pack 0 errors; next = 26 Soul's Bane
+- slice 26 done (Launa+rope+enter): `soulbane_launa` → `%soulbane_prog`=1; Use `rope` on falloffs → `%soulbane_riftrope_pres`; Enter → anger `m47_81`; climb-up/`void_exit` → surface; rooms/Tolna deferred; `::soulsbane`; scripts 5437; pack 0 errors; next = 27 Creature of Fenkenstrain
+- slice 27 done (sign+hire): `fenk_signpost` Read (Craft 20/Thieve 25/PiP gate/Restless) → `%creatureoffenkenstrain`=1; interview Braindead+Grave-digging →=2 fetch parts; graves/sewing/lightning/creature/Charos deferred; `::fenkenstrain`; scripts 5461; pack 0 errors; next = 28 Icthlarin's Little Helper
+- slice 28 done (Wanderer start): cat (inv proxy) → supplies → hypnosis takes tinderbox+`water_skin4`, gives canopic jar, `%ics_little_var`=2 + Sophanem tele; open rock Enter; pyramid/embalm/sphinx deferred; 2009scape stub so wiki/cache; `::icthlarin`; scripts 5487; pack 0 errors; next = 29 Shadow of the Storm
+- slice 29 done (Reen+Badden): Demon Slayer+Golem → `agrith_reen` gives Silverlight if needed → `%agrith_quest`=1 Uzer; Badden infiltrate brief →=2; dye/dungeon/ritual deferred; 2009scape dye-only stub so wiki/cache; `::shadowstorm`; scripts 5515; pack 0 errors; next = 30 What Lies Below
+- slice 30 done (Rat start): RC 35+Rune Mysteries → `surok_rat` gives `surok_rat_emptyfolder`, `%surok_quest`=10 collect papers; outlaw drops/Surok/Zaff/Roald deferred; `::whatliesbelow`; scripts 5564; pack 0 errors; next = 31 Tears of Guthix
+- slice 31 done (Juna+bowl): QP43/FM49/Craft20/Mine20 → story → `%tog_juna_bowl`=1; chisel `tog_stone`→`tog_bowl` → turn-in complete=2 + Craft XP; sapphire lantern/light-creature/minigame deferred; `::tearsofguthix`; scripts 5590; pack 0 errors; next = 32 Rag and Bone Man
+- slice 32 done (Odd Old Man start): LC none; `rag_odd_old_man` → `%rag_quest`=1 collect/polish list; journal `quest_ragandboneman1`; vinegar/boiler/bone drops/wishlist (II) deferred; `::ragandboneman`; scripts 5633; pack 0 errors; next = 33 Desert Treasure (split)
+- slice 33a done (Asgarnia+Terry): LC none (Tourist Trap=`quest_desertrescue`); `fourdiamonds_indiana_vis` start (skills+Tourist/Ikov/PiP/Waterfall/Troll) → etchings/`%deserttreasure`=1; `archaeological_expert` → translation → return → bandit=5; Dig Site `%itexam` gate deferred (LC CONTENT_PORT_QUEUE); Eblis/diamonds→33b; `::deserttreasure`; scripts 5682; pack 0 errors; next = 33b or 34 Zogre
+- slice 33b done (Bandit+Eblis ask): `fourdiamonds_bartender` 650gp→`bandit_brew`/`%dt_bought_beer` → four diamonds rumour=`%deserttreasure`=6; `fd_elder_village` → gather mirrors=7; material hand-in/mirrors/diamonds→33c; `::deserttreasure`→bandit; scripts 5692; pack 0 errors; next = 33c or 34 Zogre
+- **map-instance surface done — 4a/4b/6/9 unblocked** (2026-08-04): six EXTRA-band ops 11009..11014 (`alloc`/`setchunk`/`build`/`coord`/`free`/`find`), 1-based handles with 0 = none so a handle survives in a varp. Pool **measured** off the cache's maps table (2,934 squares, all map x 15..98 → x ≥ 100 free, same band Kronos gates on) rather than hardcoded. Server: `mock230_mapinstance.{c,h}` registry + `mock230_scene_build_instance` per-zone collision/loc copy with rotation; `REBUILD_REGION` wire 59 encode. Client was missing the whole decode path — added `PKT_NAME_REBUILD_REGION` + parser, `App_WorldRebuildBegin(force)` (an instance rebuild is same-zone but not same-scene), source-square prefetch, `WorldBuilder_RebuildInstance` per-zone terrain + scenery with rotation. Content: `~map_instance_copy_area/copy_square/from_square`, `%map_instance_handle`, `::mapinstance` / `::mapinstance_turn` / `::mapinstance_leave`. Proved headless: whole-square copy is **1.08% of viewport pixels** off a control at the same tile (NPCs, animated locs, player anim frame — no terrain or static scenery), four turns render as four quarter-turns. Doc [`map_instances.md`](map_instances.md); scripts 5638; pack 0 errors. Known limit: one collision scene per world, so one instance at a time can be walked in. Next = 4b POH hotspot IF, or 6 Pest Control island voyage

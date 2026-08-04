@@ -291,11 +291,32 @@ re-arm. Stop only when the user stops the loop.
 | 17u | jungle potion trufitus | done | Talk-to + Use herb; ZQ/TBWT arms deferred |
 | 17v | clock tower kojo + helpers | done | brother_kojo Talk-to + %cogquest bitfield helpers; trail deferred |
 | 17w | clock tower locs/cogs/journal | done | cogs+spindles+gates/levers+trough/rats + %cog_bits + journal wire; loc_1541→prisondooropen; cat cog/spindle name-expand |
-| 18a | minigame: Fishing Trawler | pending | LC `minigames/game_trawler` (from SCAPE2009 #10) |
-| 18b | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (from SCAPE2009 #11) |
-| 18c | minigame: Treasure Trails | pending | LC `minigames/game_trail` (from SCAPE2009 #18) |
-| 18d | quest: Dig Site (itexam) | pending | LC `quests/quest_itexam` (from SCAPE2009 #24) |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: hazeelcult / sheepherder / ardougne leftovers; also 18a–18d; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
+| 17x | Ardougne east shops | done | aemad/kortan/baker/zenesha/fur/gem/silver/spice/fionella/siegfried Trade stubs + silk buy; openshop deferred |
+| 17y | Ardougne east thin NPCs | done | bartender beer/zoo/horacio/monk/citizens/barnaby sail/archer AI; barcrawl+trail deferred |
+| 17z | Cromperty + RPDT + guide | done | wizard_cromperty+rpdt_employee totem/essence; ardougne_book→~mesbox; IF1 book deferred |
+| 18a | Hazeel Cult constants + Ceril | done | quest_hazeelcult.constant/varp + complete queues + sir_ceril_carnillean |
+| 18b | Hazeel Cult Clivet | done | clivet_hazeel_cultist Talk-to + side choice |
+| 18c | Hazeel Cult journal | done | ~hazeelcult_journal + quest_hazeelcult dbrow wire |
+| 18d | Hazeel Cult cave/valves | done | cave/stairs/raft/valves; ~hazeel_valve_idx; Turn→p_choice2 L/R |
+| 18e | Sheep Herder start + Halgrive | done | constants/varp/complete + councillor_halgrive; sheep varbits for incinerate check |
+| 18f | Sheep Herder Doctor Orbon | done | doctor_orbon plague outfit buy + ~has_plague_outfit |
+| 18g | Sheep Herder diseased sheep | done | herder_plaguesheep prod/poison + sheep_table zones; death→sheep_death |
+| 18h | Sheep Herder furnace | done | plaguesheep_furnace incinerate bones |
+| 18i | Sheep Herder gate | done | plaguesheep_gatel/r walk-through |
+| 18j | Sheep Herder journal | done | ~sheepherder_journal + questlist wire |
+| 18k | Sheep Herder farmer_brumty | done | Talk-to progress branches |
+| 18l | Hazeel Cult Alomone | done | alomone Talk-to + defeat + hazeel cutscene |
+| 18m | Hazeel Cult butler Jones | done | butler_jones Talk-to |
+| 18n | Hazeel Cult Claus + range | done | claus + carnilleanrange poison |
+| 18o | Hazeel Cult house locs | done | cupboard/chest/crate + carnilleanbookcase_knock |
+| 18p | Hazeel Cult guard + Philipe | done | guard_carnillean + philipe_carnillean |
+| 18q | Hazeel Cult cultist | done | hazeel_cultist Talk-to |
+| 18r | Dig Site constants + helpers | done | quest_itexam.constant/varp + progress helpers + complete |
+| 18s | minigame: Fishing Trawler | pending | LC `minigames/game_trawler` (from SCAPE2009 #10; was 18g) |
+| 18t | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (from SCAPE2009 #11; was 18h) |
+| 18u | minigame: Treasure Trails | pending | LC `minigames/game_trail` (from SCAPE2009 #18; was 18i) |
+| 18v | Dig Site NPCs / locs / journal | pending | LC `quests/quest_itexam` remainder (examiner/students/…) |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Dig Site examiner/students / Trawler Murphy; also 18s–18u; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
 
 
 
@@ -588,6 +609,29 @@ re-arm. Stop only when the user stops the loop.
 - slice 17v done: brother_kojo + cog helpers/complete; mock230_pack 0 errors (5311 scripts)
 - queue: added 18d Dig Site / quest_itexam (LC-owned; measured off SCAPE2009 #24)
 - slice 17w done: clock tower locs/cogs/journal — %cog_bits authored; cogs+spindles+gates/levers+trough/rats; ~cog_journal+quest_clocktower wire; loc_1541→prisondooropen; mock230_pack 0 errors (5359 scripts)
-- next pending: hazeelcult / sheepherder / ardougne leftovers; also 18a–18d; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
+- slice 17x done: Ardougne east shops Trade stubs + silk buy dialogue; mock230_pack 0 errors (5382 scripts)
+- slice 17y done: Ardougne east thin NPCs (bartender/zoo/horacio/monk/citizens/barnaby/archer); barcrawl+trail deferred; mock230_pack 0 errors (~5401 scripts)
+- slice 17z done: wizard_cromperty + rpdt_employee + ardougne_book~mesbox; mock230_pack 0 errors (~5470 scripts)
+- slice 18a done: Hazeel Cult constants/varp/complete + Ceril; mock230_pack 0 errors (~5487 scripts)
+- slice 18b done: Clivet; mock230_pack 0 errors (~5503 scripts)
+- slice 18c done: Hazeel Cult journal + questlist wire; mock230_pack 0 errors (~5515 scripts)
+- slice 18d done: Hazeel Cult cave/stairs/raft/valves; mock230_pack 0 errors (~5526 scripts)
+- queue: renumbered Fishing Trawler/Castle Wars/Trails/Dig Site → 18g–18j (hazeel took 18a–18d)
+- slice 18e done: Sheep Herder constants/varp/complete + councillor_halgrive; mock230_pack 0 errors (5564 scripts)
+- slice 18f done: doctor_orbon plague outfit; mock230_pack 0 errors (5576 scripts)
+- queue: renumbered Fishing Trawler/Castle Wars/Trails/Dig Site → 18s–18v (sheepherder/hazeel leftovers took 18g–18r)
+- slice 18g done: herder_plaguesheep prod/poison; mock230_pack 0 errors (5606 scripts)
+- slice 18h done: plaguesheep_furnace incinerate; mock230_pack 0 errors
+- slice 18i done: plaguesheep_gatel/r walk-through; mock230_pack 0 errors (5611 scripts)
+- slice 18j done: ~sheepherder_journal + questlist wire; mock230_pack 0 errors
+- slice 18k done: farmer_brumty Talk-to; mock230_pack 0 errors (5633 scripts)
+- slice 18l done: alomone Talk-to/defeat/hazeel cutscene; mock230_pack 0 errors (5642 scripts)
+- slice 18m done: butler_jones Talk-to; mock230_pack 0 errors
+- slice 18n done: claus + carnilleanrange poison; mock230_pack 0 errors (5648 scripts)
+- slice 18o done: hazeel house cupboard/chest/crate + bookcase wall; mock230_pack 0 errors
+- slice 18p done: guard_carnillean + philipe_carnillean; mock230_pack 0 errors
+- slice 18q done: hazeel_cultist Talk-to; mock230_pack 0 errors (5664 scripts)
+- slice 18r done: Dig Site constants/varp/helpers/complete; mock230_pack 0 errors (5690 scripts)
+- next pending: Dig Site examiner/students / Trawler Murphy; also 18s–18u; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

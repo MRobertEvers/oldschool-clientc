@@ -495,7 +495,7 @@ mock230_send_rebuild_region(struct Mock230Player* player)
 void
 mock230_send_rebuild(struct Mock230Player* player)
 {
-    if( mock230_mapinstance_find(player->x, player->z) >= 0 )
+    if( mock230_mapinstance_find(player->x, player->z) != 0 )
         mock230_send_rebuild_region(player);
     else
         mock230_send_rebuild_normal(player);
