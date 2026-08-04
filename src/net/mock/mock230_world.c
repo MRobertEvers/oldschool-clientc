@@ -735,6 +735,13 @@ mock230_world_interaction_set(
     interaction->size_x = sx;
     interaction->size_z = sz;
     interaction->ap_tried = 0;
+    /* Cleared here for the same reason `ap_tried` is: this call establishes a
+     * *new* interaction, and the two form flags select which trigger family it
+     * resolves to. Both callers that want a form set it immediately after this
+     * returns, so clearing costs them nothing — and an op interaction that
+     * inherited a previous cast's `spell` would run `[apnpct]` for a click. */
+    interaction->use_on = 0;
+    interaction->spell = 0;
 
     /* LostCity PathingEntity.setInteraction: only NonPathingEntity (loc/obj)
      * records targetX/Z for reorient() to consume after movement. Pathing
@@ -957,8 +964,12 @@ run_interaction_trigger(
     }
     {
         int category = interaction_category(interaction);
+        /* A cast is keyed by the spell, not by what it is aimed at — the
+         * reference writes one `[apnpct,magic:<spell>]` per spell and matches no
+         * npc. See `Mock230Interaction.spell`. */
+        int type = interaction->spell ? interaction->spell : interaction->target_id;
 
-        return mock230_scripts_run_trigger(srv, trigger, interaction->target_id, category,
+        return mock230_scripts_run_trigger(srv, trigger, type, category,
                                            interaction->npc_slot);
     }
 }
@@ -981,17 +992,30 @@ static int
 interaction_ap_trigger(
     enum Mock230InteractionKind kind,
     int op,
-    int use_on)
+    int use_on,
+    int spell)
 {
+    /* The `t` form outranks the `u` form because nothing sets both: a cast is
+     * started by `p_opnpct` and a use-on by the use-on handler, and neither
+     * clears the other's field on an interaction it did not create. Testing
+     * `spell` first means a leftover `use_on` cannot steer a cast. */
     switch( kind )
     {
     case MOCK230_INTERACT_NPC:
+        if( spell )
+            return SS_TRIGGER_APNPCT;
         return use_on ? SS_TRIGGER_APNPCU : SS_TRIGGER_APNPC1 + (op - 1);
     case MOCK230_INTERACT_LOC:
+        if( spell )
+            return SS_TRIGGER_APLOCT;
         return use_on ? SS_TRIGGER_APLOCU : SS_TRIGGER_APLOC1 + (op - 1);
     case MOCK230_INTERACT_OBJ:
+        if( spell )
+            return SS_TRIGGER_APOBJT;
         return use_on ? SS_TRIGGER_APOBJU : SS_TRIGGER_APOBJ1 + (op - 1);
     case MOCK230_INTERACT_PLAYER:
+        if( spell )
+            return SS_TRIGGER_APPLAYERT;
         return use_on ? SS_TRIGGER_APPLAYERU : SS_TRIGGER_APPLAYER1 + (op - 1);
     default:
         return -1;
@@ -1205,8 +1229,8 @@ interaction_try(
         if( ap_ok )
         {
             interaction->ap_tried = 1;
-            trigger =
-                interaction_ap_trigger(interaction->kind, interaction->op, interaction->use_on);
+            trigger = interaction_ap_trigger(interaction->kind, interaction->op,
+                                             interaction->use_on, interaction->spell);
             /* A miss here has no fallback and needs none: "nothing bound at range"
              * is the ordinary case for almost every interaction in the game, and
              * what it means is "keep walking". It still reports once per
@@ -1257,6 +1281,7 @@ interaction_try(
         int loc_z = interaction->z;
         int loc_level = interaction->level;
         int use_on = interaction->use_on;
+        int spell = interaction->spell;
         int loc_trigger_type = target_id;
 
         /* Multiloc: scene entity / find stays BASE; trigger type+category use
@@ -1307,9 +1332,30 @@ interaction_try(
          * npc or obj the interaction is against; the item reaches content only
          * as `last_useitem`/`last_useslot`.
          */
+        /*
+         * A cast takes the same shape of arm as a use-on and for the same
+         * reason — there is no engine behaviour to fall back to — but the
+         * trigger type is the *spell*, not the target. `[opnpct]` is what runs
+         * when the caster is already adjacent; the reference notes its own
+         * osrs-era `opnpct` triggers are unused and puts every spell on
+         * `[apnpct]`, which the ap rung above has already tried by the time a
+         * walk reaches here, so this is the melee-range case and the miss is the
+         * common one.
+         */
+        if( spell )
+        {
+            int ap = interaction_ap_trigger(kind, op_num, 0, spell);
+
+            if( ap < 0 ||
+                mock230_scripts_run_trigger(srv, ap + 7, spell, category, slot) ==
+                    MOCK230_TRIGGER_NONE )
+                mock230_say(srv, "nothing_interesting_message", NULL);
+            return 1;
+        }
+
         if( use_on )
         {
-            int ap = interaction_ap_trigger(kind, op_num, 1);
+            int ap = interaction_ap_trigger(kind, op_num, 1, 0);
             int trigger_type = kind == MOCK230_INTERACT_LOC ? loc_trigger_type : target_id;
 
             if( ap < 0 || mock230_scripts_run_trigger(srv, ap + 7, trigger_type, category, slot) ==
@@ -2079,6 +2125,10 @@ npc_spawn(
         npc->base_hitpoints = def->hitpoints > 0 ? def->hitpoints : 1;
         npc->hitpoints = npc->base_hitpoints;
         npc->max_hitpoints = npc->base_hitpoints;
+        /* Explicit, because the memset above makes it 0 and 0 is
+         * MOCK230_HUNT_NONE: every aggressive npc in the world would spawn
+         * passive. See the field. */
+        npc->huntmode = def->huntmode;
         npc->combat_target = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
@@ -6838,8 +6888,76 @@ mock230_world_loc_revert_queue(
     return 0;
 }
 
+/*
+ * Drop the objs whose flight time has run out.
+ *
+ * The reference's `objDelayedQueue`, which it drains in the same phase. Splitting
+ * a non-stackable pile into singles is `mock230_world_obj_add`'s caller's job
+ * everywhere else in this server, and it is not done here for one reason: the
+ * only thing that arms an entry is ammo, `inv_dropitem_delayed` is always called
+ * with a count the reference has already decided is one pile, and a stack of ten
+ * arrows on the floor is one pile in the reference too.
+ */
+void
+mock230_world_obj_delayed(struct Mock230Server* srv)
+{
+    for( int i = 0; i < MOCK230_OBJ_DELAYED_MAX; i++ )
+    {
+        struct Mock230ObjDelayed* entry = &srv->obj_delayed[i];
+
+        if( !entry->active )
+            continue;
+        if( --entry->delay > 0 )
+            continue;
+        entry->active = 0;
+        mock230_world_obj_add(srv, entry->obj_id, entry->count, entry->x, entry->z,
+                              entry->level, entry->duration);
+    }
+}
+
+int
+mock230_world_obj_delayed_queue(
+    struct Mock230Server* srv,
+    int delay,
+    int duration,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level)
+{
+    assert(srv);
+
+    if( delay <= 0 )
+    {
+        mock230_world_obj_add(srv, obj_id, count, x, z, level, duration);
+        return 1;
+    }
+    for( int i = 0; i < MOCK230_OBJ_DELAYED_MAX; i++ )
+    {
+        struct Mock230ObjDelayed* entry = &srv->obj_delayed[i];
+
+        if( entry->active )
+            continue;
+        entry->active = 1;
+        /* +1 for the same reason a loc revert has one: the rest of this tick
+         * plus `delay` more (docs/osrs230_mockserver.md §3.10). */
+        entry->delay = delay + 1;
+        entry->duration = duration;
+        entry->obj_id = obj_id;
+        entry->count = count;
+        entry->x = x;
+        entry->z = z;
+        entry->level = level;
+        return 1;
+    }
+    fprintf(stderr, "mock230: the delayed-drop table is full; %d x%d never lands\n",
+            obj_id, count);
+    return 0;
+}
+
 /**
- * 8. Loc reverts, obj respawns, and the zone membership reconcile.
+ * 8. Loc reverts, delayed drops, obj respawns, and the zone membership reconcile.
  *
  * The reference's zone phase, in its order: the world's own timers first, then
  * the zones are brought into agreement with where everything now stands. What it
@@ -6851,6 +6969,7 @@ static void
 phase_zones(struct Mock230Server* srv)
 {
     mock230_world_loc_reverts(srv);
+    mock230_world_obj_delayed(srv);
     ground_tick(srv);
     mock230_zone_sync_npcs(srv);
     mock230_zone_sync_objs(srv);

@@ -271,6 +271,15 @@ enum
     /** Loc mutations that can be waiting to revert at once. Generous: a busy
      *  mining site is a dozen, and the cost is 40 bytes each. */
     MOCK230_LOC_REVERT_MAX = 128,
+    /**
+     * Drops waiting for their delay to run out (`inv_dropitem_delayed`).
+     *
+     * Smaller than the revert table because the delays are short — the one
+     * caller is ranged ammo landing a tick or two after the shot, so an entry
+     * lives about as long as an arrow is in the air. A stray-arrow volley is a
+     * handful in flight at once, not a mining site's worth.
+     */
+    MOCK230_OBJ_DELAYED_MAX = 32,
     /* `MOCK230_LOOT_TICKS` was here — 200 ticks on the floor, annotated
      * "LostCity's ^lootdrop_duration", beside a content tree already stating
      * `^lootdrop_duration = 200`. Naming the constant you are duplicating does
@@ -1350,6 +1359,23 @@ struct Mock230Interaction
      * `mock230_scripts_run_opheldu`.
      */
     int use_on;
+
+    /**
+     * "Cast <this spell> at it" — the `t` form, `[apnpct]`/`[opnpct]`. The spell's
+     * component uid, or 0 for an interaction that is not a cast.
+     *
+     * The spell *is* here, where `use_on`'s item deliberately is not, and the
+     * difference is which one the trigger is keyed by. A use-on resolves against
+     * the target (`[aplocu,door]`), so the item is only ever data the script
+     * reads. A cast resolves against the **spell**: the reference writes
+     * `[apnpct,magic:wind_strike]`, one script per spell, and never matches on
+     * the npc at all. So this is the trigger's subject, and it has to travel with
+     * the interaction rather than sit in a `last_*` latch that the walk could
+     * outlive.
+     *
+     * `op` is meaningless while it is set, as with `use_on`.
+     */
+    int spell;
 };
 
 enum
@@ -1446,6 +1472,39 @@ struct Mock230Npc
     int damage_type;
     int hitpoints;
     int max_hitpoints;
+
+    /**
+     * How much a script has drained each stat below the level the content block
+     * authored — `npc_statsub`, and nothing else, writes it.
+     *
+     * A *delta* rather than a copy of the levels, because the authored level is
+     * already the base and duplicating it would give an npc two answers to
+     * "what is your defence". Zero for every stat on a fresh npc, which is what
+     * the spawn memset makes it and which is why an npc nothing has drained
+     * reads exactly as it did before this existed.
+     *
+     * Hitpoints are **not** in here even though they are a stat: they already
+     * have `hitpoints` / `base_hitpoints`, which is where every hit lands, and a
+     * second place to record hitpoint loss is a second place to forget. The
+     * `npc_stat*` opcodes route the hitpoints index to that pair instead.
+     */
+    int stat_drain[MOCK230_STAT_COUNT];
+
+    /**
+     * Whether this npc hunts, as `npc_sethuntmode` last left it — seeded from
+     * `def->huntmode` at spawn.
+     *
+     * Per-npc rather than read off `def` because content turns aggression on and
+     * off for one npc at a time: the reference's chompy bird is spawned docile
+     * and given a hunt mode when it notices you, and a gnome baller has its
+     * cleared so it stops chasing during a match. Both are the same npc type as
+     * their calm counterparts, so a def field cannot express it.
+     *
+     * Seeded *explicitly* at spawn and not left to the memset, because 0 is
+     * `MOCK230_HUNT_NONE`: taking the default would quietly make every
+     * aggressive npc in the world passive.
+     */
+    int huntmode;
 
     /* `tracked` was here — one flag saying "the client knows about this npc",
      * which with two clients is two different answers. It is
@@ -2247,6 +2306,36 @@ struct Mock230Server
         int angle;
         int x, z, level;
     } loc_reverts[MOCK230_LOC_REVERT_MAX];
+
+    /**
+     * Drops that have left an inventory but have not landed yet.
+     *
+     * `inv_dropitem_delayed` is the only thing that arms one, and the delay is
+     * the point: an arrow that misses is removed from the quiver on the tick it
+     * is fired and appears on the floor on the tick it arrives. Dropping it
+     * immediately would put it under the target before the projectile got
+     * there, which is visible — the pile appears, *then* the arrow flies to it.
+     *
+     * The obj is described here rather than held as a ground obj with a "not yet
+     * visible" flag, because a ground obj is filed in a zone and everything that
+     * reads a zone would then need to know about the flag. Nothing exists until
+     * the timer fires and `mock230_world_obj_add` is called for real.
+     *
+     * Drained in phase 8 beside the loc reverts, for the same ordering reason:
+     * the reference's `objDelayedQueue` runs in its zone phase, so the drop is
+     * on the floor before phase 10 describes the zone that holds it.
+     */
+    struct Mock230ObjDelayed
+    {
+        int active;
+        /** Ticks until it lands. */
+        int delay;
+        /** Ticks it then lives on the floor, as `mock230_world_obj_add` means it. */
+        int duration;
+        int obj_id;
+        int count;
+        int x, z, level;
+    } obj_delayed[MOCK230_OBJ_DELAYED_MAX];
 
     /** Scripts parked by world_delay, drained by phase 1. */
     struct
@@ -4160,6 +4249,30 @@ mock230_world_loc_revert_queue(
     int loc_id,
     int shape,
     int angle,
+    int x,
+    int z,
+    int level);
+
+/** Phase 8: drop the objs whose flight time has run out. */
+void
+mock230_world_obj_delayed(struct Mock230Server* srv);
+
+/**
+ * Schedule a drop `delay` ticks out, to then live `duration` ticks.
+ *
+ * `delay <= 0` drops it now rather than next tick, so a caller that computed a
+ * zero delay does not get a one-tick pause it did not ask for. Returns 0 with
+ * nothing scheduled when the table is full — the obj is *lost* in that case,
+ * which is the honest failure: the caller has already taken it out of the
+ * inventory, and there is no way back into a container from here.
+ */
+int
+mock230_world_obj_delayed_queue(
+    struct Mock230Server* srv,
+    int delay,
+    int duration,
+    int obj_id,
+    int count,
     int x,
     int z,
     int level);

@@ -481,6 +481,54 @@ mock230_zone_loc_anim(
 }
 
 void
+mock230_zone_projanim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc)
+{
+    struct Mock230Zone* zone;
+    struct Mock230ZoneEvent event;
+
+    assert(srv);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = MOCK230_ZONE_EV_PROJANIM;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.id = spotanim;
+    /*
+     * The destination travels as an offset from the source because that is what
+     * the wire carries — one signed byte each. A shot from further than 127
+     * tiles away cannot be described, and nothing can produce one: the source is
+     * the caster and the target is something it can see.
+     */
+    event.dx_offset = dst_x - x;
+    event.dz_offset = dst_z - z;
+    event.target = target;
+    event.src_height = src_height;
+    event.dst_height = dst_height;
+    event.start_delay = start_delay;
+    event.end_delay = end_delay;
+    event.peak = peak;
+    event.arc = arc;
+    queue_event(srv, zone, &event);
+}
+
+void
 mock230_zone_loc_merge(
     struct Mock230Server* srv,
     int x,

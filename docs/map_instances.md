@@ -191,6 +191,12 @@ SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 TORIRS_MAX_FRAMES=1400 \
 TORIRS_NET_CHEAT="mapinstance_turn"   # ... same otherwise
 ```
 
+`::mapinstance` copies *the square you are standing on*, and the save keeps you
+where the last run left you — so run `::tele 3222 3218` in a preceding session (or
+`::mapinstance_leave`) before comparing, or you will be copying the pool square
+and looking at void. `::mapinstance_turn` has no such dependency; its source zone
+is fixed, which is why it is written that way.
+
 `[debugproc,mapinstance]` copies the square you are standing on and lands you on
 the matching local tile of the copy. **The proof is that nothing looks
 different**: the same floor, the same walls, the same scenery, but `::coord`

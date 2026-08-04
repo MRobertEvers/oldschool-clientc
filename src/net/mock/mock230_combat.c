@@ -904,7 +904,10 @@ maybe_aggress(
     struct Mock230Player* player;
     int npc_level;
 
-    if( !npc->def || npc->def->huntmode != MOCK230_HUNT_AGGRESSIVE )
+    /* `npc->huntmode`, not `npc->def->huntmode`: the def seeds it at spawn and
+     * `npc_sethuntmode` overrides it per npc. Reading the def here would make
+     * that opcode a no-op for the one thing content uses it for. */
+    if( !npc->def || npc->huntmode != MOCK230_HUNT_AGGRESSIVE )
         return;
     if( npc->def->huntrange <= 0 || npc->combat_target >= 0 )
         return;

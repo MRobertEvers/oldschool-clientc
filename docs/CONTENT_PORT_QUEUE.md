@@ -312,11 +312,27 @@ re-arm. Stop only when the user stops the loop.
 | 18p | Hazeel Cult guard + Philipe | done | guard_carnillean + philipe_carnillean |
 | 18q | Hazeel Cult cultist | done | hazeel_cultist Talk-to |
 | 18r | Dig Site constants + helpers | done | quest_itexam.constant/varp + progress helpers + complete |
-| 18s | minigame: Fishing Trawler | pending | LC `minigames/game_trawler` (from SCAPE2009 #10; was 18g) |
-| 18t | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (from SCAPE2009 #11; was 18h) |
-| 18u | minigame: Treasure Trails | pending | LC `minigames/game_trail` (from SCAPE2009 #18; was 18i) |
-| 18v | Dig Site NPCs / locs / journal | pending | LC `quests/quest_itexam` remainder (examiner/students/…) |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Dig Site examiner/students / Trawler Murphy; also 18s–18u; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
+| 18s | Dig Site examiner + curator stamp | done | examiner exams + curator letter/certificate arms; trail puzzle deferred |
+| 18t | Dig Site student1 | done | rock_sample1 errand + exam tips |
+| 18u | Dig Site student3 (LC student2.rs2) | done | rock_sample2 errand + exam tips |
+| 18v | Dig Site student2 (LC student3.rs2) | done | rock_sample3/opal errands + exam tips |
+| 18w | Dig Site archaeological expert | done | Terry Balando Talk/Use; DT etchings arms merged here |
+| 18x | Dig Site panning guide | done | tea invite + tool tips; intervene label for later digsite locs |
+| 18y | Dig Site workmen | done | digworkman1/2 Talk + Steal-from + invite scroll + cave key beg |
+| 18z | Dig Site exam centre locs | done | sample cupboard + digbookcase; digsitebook→~mesbox |
+| 19a | Dig Site chemistry | done | nitrate/nitro/charcoal/arcenia → digcompound |
+| 19b | Dig Site journal | done | ~itexam_journal + quest_digsite questlist wire |
+| 19c | Dig Site area locs | done | panning/soil/winch/shaft/chest/barrel; cam_shake deferred |
+| 19d | Trawler Murphy (dock) | done | murphy Talk-to + constants; %trawler→%trawler_status; trail deferred |
+| 19e | Trawler at sea / gangplank | done | zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred |
+| 19f | Trawler gameplay core | pending | LC trawler.rs2 + flood/net/control/bail/winch |
+| 19g | Trawler start/win/sink | pending | LC trawler_start/win/sink + configs |
+| 19h | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (was 18t) |
+| 19i | minigame: Treasure Trails | pending | LC `minigames/game_trail` (was 18u) |
+| 19j | Outward leftover A | pending | next resolvable area/quest leftover |
+| 19k | Outward leftover B | pending | next resolvable area/quest leftover |
+| 19l | Outward leftover C | pending | next resolvable area/quest leftover |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Trawler Murphy (19d); also 19e–19l; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
 
 
 
@@ -632,6 +648,21 @@ re-arm. Stop only when the user stops the loop.
 - slice 18p done: guard_carnillean + philipe_carnillean; mock230_pack 0 errors
 - slice 18q done: hazeel_cultist Talk-to; mock230_pack 0 errors (5664 scripts)
 - slice 18r done: Dig Site constants/varp/helpers/complete; mock230_pack 0 errors (5690 scripts)
-- next pending: Dig Site examiner/students / Trawler Murphy; also 18s–18u; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
+- queue: renumbered Dig Site examiner…journal → 18s–19b; Trawler/CW/Trails → 19d–19f; area_digsite → 19c
+- slice 18s done: Dig Site examiner + curator stamp/cert arms; trail deferred; mock230_pack 0 errors (5713 scripts)
+- slice 18t done: student1 errand/tips; mock230_pack 0 errors (5720 scripts)
+- slice 18u done: student3 (LC student2.rs2); mock230_pack 0 errors (5727 scripts)
+- slice 18v done: student2 (LC student3.rs2); mock230_pack 0 errors (5734 scripts)
+- slice 18w done: archaeological_expert + DT etchings merge; mock230_pack 0 errors (5752 scripts)
+- slice 18x done: panning_guide; mock230_pack 0 errors (5756 scripts)
+- slice 18y done: digworkman1/2 Talk/Steal/invite/cave key; mock230_pack 0 errors (5779 scripts)
+- slice 18z done: exam centre cupboard/bookcase + digsitebook~mesbox; mock230_pack 0 errors (5786 scripts)
+- slice 19a done: itexam chemistry mixes → digcompound; mock230_pack 0 errors (5802 scripts)
+- slice 19b done: ~itexam_journal + questlist wire; mock230_pack 0 errors (5813 scripts)
+- slice 19c done: Dig Site area locs (panning/soil/winch/shaft/chest/barrel); cam_shake deferred; mock230_pack 0 errors (5867 scripts)
+- queue: subdivided Trawler→19d–19g; CW→19h; Trails→19i; outward leftovers→19j–19l
+- slice 19d done: Murphy dock + trawler.constant; %trawler→%trawler_status; trail sextant deferred; mock230_pack 0 errors (5882 scripts)
+- slice 19e done: zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred; mock230_pack 0 errors (5935 scripts)
+- next pending: Trawler gameplay core (19f); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

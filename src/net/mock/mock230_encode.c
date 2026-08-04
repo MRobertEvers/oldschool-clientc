@@ -91,6 +91,7 @@ enum
     OP_OBJ_ADD = 120,
     OP_OBJ_DEL = 121,
     OP_OBJ_COUNT = 122,
+    OP_MAP_PROJANIM = 125,
 };
 
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -1577,6 +1578,8 @@ zone_sub_opcode(int kind)
         return OP_OBJ_DEL;
     case MOCK230_ZONE_EV_OBJ_COUNT:
         return OP_OBJ_COUNT;
+    case MOCK230_ZONE_EV_PROJANIM:
+        return OP_MAP_PROJANIM;
     default:
         return -1;
     }
@@ -1636,6 +1639,30 @@ zone_sub_payload(
         rsab_p2(buf, event->id);
         rsab_p2(buf, clamp16(event->old_count));
         rsab_p2(buf, clamp16(event->count));
+        return 1;
+    /*
+     * Fifteen bytes, and the client asserts it consumed exactly that
+     * (`gameproto_parse.c` MAP_PROJANIM), so the order below is the whole
+     * contract. Three of the fields are *signed* on the wire — the two tile
+     * offsets and the target — and every one of them is routinely negative: a
+     * shot to the west has a negative dx, and a projectile aimed at a player
+     * carries `-slot - 1`. `rsab_p1`/`rsab_p2` write the low bits either way, so
+     * the sign survives as two's complement and the client's `g1b`/`g2b` read it
+     * back; the masks are here to say that is deliberate rather than to fix
+     * anything.
+     */
+    case MOCK230_ZONE_EV_PROJANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, event->dx_offset & 0xff);
+        rsab_p1(buf, event->dz_offset & 0xff);
+        rsab_p2(buf, event->target & 0xffff);
+        rsab_p2(buf, event->id);
+        rsab_p1(buf, event->src_height);
+        rsab_p1(buf, event->dst_height);
+        rsab_p2(buf, event->start_delay);
+        rsab_p2(buf, event->end_delay);
+        rsab_p1(buf, event->peak);
+        rsab_p1(buf, event->arc);
         return 1;
     default:
         return 0;

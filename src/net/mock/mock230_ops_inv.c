@@ -282,6 +282,61 @@ mock230_ops_inv(
     }
 
     /*
+     * `[command,inv_dropitem_delayed](inv $inv, coord $coord, obj $obj,
+     * int $count, int $duration, int $delay)` — engine.rs2:847. Six ints in,
+     * nothing out. `InvOps.ts:188`.
+     *
+     * Take the obj out of the container now, put it on the floor `$delay` ticks
+     * from now, and let it lie there for `$duration`. The delay is the whole
+     * reason the opcode exists: `player_ranged.rs2` fires it on the tick the
+     * shot is loosed with the projectile's own flight time, so the arrow that
+     * missed appears under the target as the arrow arrives. `inv_dropitem` would
+     * put it there first and the projectile would then fly to a pile already
+     * lying on the ground.
+     *
+     * Removing it now and landing it later is the reference's order too, and it
+     * is what makes the quiver read correctly to a script running in between.
+     *
+     * Three differences from the reference, all the pre-existing gaps its
+     * neighbours above already name: no `wealth_event`, no `invType.protect` /
+     * scope check (no `fields/inv.ini`), and no receiver on the resulting pile
+     * (`mock230_world_obj_add` has no receiver, so the drop is public — the same
+     * gap `obj_find` states).
+     *
+     * Unlike `inv_dropslot` this does *not* make the pile the active obj: the
+     * reference cannot, because at the point it returns there is no pile yet.
+     */
+    case SS_OP_INV_DROPITEM_DELAYED:
+    {
+        int32_t values[6];
+        struct Mock230Container* row;
+        int removed;
+
+        for( int i = 5; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        row = container(state, values[0], opcode);
+        if( !row )
+            return 1;
+        if( values[2] < 0 || values[3] <= 0 )
+            return 1;
+
+        /* Nothing is scheduled for an obj the container did not have. The
+         * reference returns on `completed == 0` for the same reason: the drop
+         * describes items that left an inventory, and none did. */
+        removed = container_del(row, (int)values[2], (int)values[3]);
+        if( removed <= 0 )
+            return 1;
+        mock230_world_obj_delayed_queue(srv, (int)values[5], (int)values[4], (int)values[2],
+                                        removed, mock230_coord_x(values[1]),
+                                        mock230_coord_z(values[1]),
+                                        mock230_coord_level(values[1]));
+        return 1;
+    }
+
+    /*
      * `[command,inv_dropall](inv $inv, coord $coord, int $duration)` —
      * engine.rs2:929. `InvOps.ts` INV_DROPALL: empty every occupied slot onto
      * the floor at `$coord`. Wealth logging is omitted (no wealth log here).

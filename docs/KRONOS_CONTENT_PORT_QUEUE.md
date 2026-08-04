@@ -111,8 +111,15 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 42 | skill: Kourend Catacombs entrances | done | `minigame_catacombs/`: statue enter, 4 vines unlock `%cata_hole*`, hole/passage enter, totem combine; Skotizo → slice 27; shortcuts/drops deferred |
 | 43 | skill: Brimstone / Konar chest | done | `minigame_brimstone/`: Unlock with `konar_key` + Check; loot deferred (Kronos had ObjectID only) |
 | 44 | skill: Lithkren vault | done | `minigame_lithkren/`: vault/lab doors, barrier pass, stairs/trapdoor links; mural kill counters + dragons deferred |
-| 45 | skill: Smoke Devil dungeon | pending | enter/exit stubs; Thermy → slice 25 |
-| 46 | bosses: Mage Arena II follow-ups | pending | Kolodion hand-in / hot-cold / imbue from slice 36 |
+| 45 | skill: Smoke Devil dungeon | done | enter/exit already in `minigame_thermy/` (slice 25); added facemask/slayer-helm worn gate; smoke softtimer deferred |
+| 46 | bosses: Mage Arena II follow-ups | done | Kolodion gives symbol + imbues god cape↔`ma2_*_cape` for 3 hearts; hot/cold locate deferred |
+| 47 | skill: Brimstone ring combine | done | `minigame_brimstone/brimstone_ring.rs2`: eye+fang+heart → `brimstone_ring` |
+| 48 | skill: Zenyte forge (Temple cave) | done | `minigame_zenyte/`: trapdoor/rope + shard+`onyx`→`uncut_zenyte` on wall of flame; furnace alternate deferred |
+| 49 | wilderness: Rev caves mid crevice | done | `wild_cave_entrance_mid` Jump-Down + 100k fee (`%revcave_fee_paid`); bank fee / death clear / ethereum deferred; surface coords re-measure when map dump available |
+| 50 | skill: Catacombs shortcuts | done | `catacombs_shortcuts.rs2`: stepstones (28) + cracks (17/34 from skill_features); Kronos dest coords |
+| 51 | skill: Bracelet of ethereum | done | `ethereum.rs2`: charge/check/toggle/uncharge/dismantle; `%ethereum_charges` stub (inv_setvar gap); combat absorb/auto-collect deferred |
+| 52 | skill: Ancient sceptre / wilderness weapons | done | `wildy_weapons.rs2`: Thammaron's / Craw's / Viggora's charge/check/uncharge (1000 activate, max 16000); `%thammaron/craws/viggoras_charges` stubs; combat/dismantle/swap/ancient sceptre deferred |
+| 53 | wilderness: Rev caves stairs exits | pending | `wild_cave_exit_low/high` + surface trapdoors (one-way 2022 layout) |
 
 ## Opcode gap log
 
@@ -174,6 +181,18 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 42 | (none) | Entrances + varbit unlock + opheldu | confirmed — no new opcode |
 | 43 | (none) | Key Unlock + Check | confirmed — no new opcode |
 | 44 | (none) | Doors/stairs/barrier teleports | confirmed — no new opcode |
+| 45 | (none) | Face-mask worn check on enter | confirmed — no new opcode |
+| 45 | softtimer / zone damage | Smoke without mask | deferred |
+| 46 | (none) | Kolodion chat + cape swap | confirmed — no new opcode |
+| 46 | hot/cold distance mes | Enchanted symbol locate | deferred |
+| 47 | (none) | opheldu combine | confirmed — no new opcode |
+| 48 | (none) | Trapdoor loc_change + oplocu forge | confirmed — no new opcode |
+| 49 | (none) | Jump-Down + coin fee | confirmed — no new opcode |
+| 50 | (none) | Stepstone jump + crack teleports | confirmed — no new opcode |
+| 51 | inv_setvar / inv_getvar | Per-item ether charges on bracelet | deferred — player `%ethereum_charges` stub |
+| 51 | (none) | Charge/check/toggle/dismantle expressible | confirmed — inventory ops |
+| 52 | inv_setvar / inv_getvar | Per-item ether charges on wildy weapons | deferred — player `%thammaron/craws/viggoras_charges` stubs |
+| 52 | (none) | Charge/check/uncharge expressible | confirmed — inventory ops |
 
 ## Log
 
@@ -226,3 +245,14 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 43 done: Brimstone chest — `minigame_brimstone/`: Unlock with `konar_key` + Check; loot deferred; scripts 5642; pack 0 errors
 - 2026-08-04: extended queue with 44 Lithkren / 45 Smoke Devil dungeon / 46 MA2 follow-ups
 - slice 44 done: Lithkren vault — `minigame_lithkren/`: doors, barrier, stairs/trapdoor; mural counters deferred; scripts 5677; pack 0 errors
+- slice 45 done: Smoke Devil dungeon face-mask gate on `minigame_thermy/` enter (slice 25 already had locs); softtimer damage deferred; scripts 5694; pack 0 errors
+- slice 46 done: MA2 Kolodion follow-ups — symbol grant + god-cape imbue hand-in; hot/cold deferred; scripts 5737; pack 0 errors
+- 2026-08-04: extended queue with 47 Brimstone ring / 48 Zenyte forge / 49 Rev mid crevice
+- slice 47 done: Brimstone ring combine — eye+fang+heart → `brimstone_ring`; scripts 5743; pack 0 errors
+- slice 48 done: Zenyte forge — `minigame_zenyte/`: temple trapdoor/rope + wall-of-flame fuse; scripts 5802; pack 0 errors
+- slice 49 done: Rev caves mid crevice — Jump-Down + 100k fee; coords approximate; scripts 5815; pack 0 errors
+- 2026-08-04: extended queue with 50 Catacombs shortcuts / 51 ethereum bracelet
+- slice 50 done: Catacombs shortcuts — stepstones + cracks; skill_features reqs; scripts 5871; pack 0 errors
+- slice 51 done: Bracelet of ethereum — charge/check/toggle/uncharge/dismantle; inv_setvar gap noted; scripts 5896; pack 0 errors
+- 2026-08-04: extended queue with 52 wildy weapons / 53 rev stairs exits
+- slice 52 done: wildy weapons charge stubs — Thammaron's / Craw's / Viggora's; inv_setvar gap noted; combat/dismantle/swap/ancient sceptre deferred; scripts 5981; pack 0 errors

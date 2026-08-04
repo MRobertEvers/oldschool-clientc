@@ -93,6 +93,16 @@ enum Mock230ZoneEventKind
     MOCK230_ZONE_EV_OBJ_COUNT,
     MOCK230_ZONE_EV_LOC_ANIM,
     MOCK230_ZONE_EV_LOC_MERGE,
+    /**
+     * A projectile in flight — `projanim_pl` / `projanim_npc`.
+     *
+     * A zone event rather than a per-player send, even though it is aimed at one
+     * entity, because everybody standing near the shot has to see it: the
+     * reference's `World.mapProjAnim` writes it to the zone the arrow *leaves*,
+     * not to the zone the target is in, which is why a fight across a zone
+     * boundary looks right to a bystander on either side.
+     */
+    MOCK230_ZONE_EV_PROJANIM,
 };
 
 /**
@@ -117,6 +127,25 @@ struct Mock230ZoneEvent
     int start_cycle, end_cycle;
     int player_pid;
     int east, south, west, north;
+
+    /*
+     * PROJANIM. The spotanim rides in `id` with every other config id this
+     * struct carries; the rest is the shot's own geometry and needs its own
+     * names — `start_cycle`/`end_cycle` above are *cycles* the client counts a
+     * merged loc for, and the two delays here are the tick the arrow leaves and
+     * the tick it arrives, which is a different quantity that happens to be two
+     * ints wide.
+     */
+    /** Destination tile relative to the source, which is where `pos` points. */
+    int dx_offset, dz_offset;
+    /** Whom it homes on, in the wire's encoding: `slot + 1` for an npc,
+     *  `-slot - 1` for a player, 0 for a shot that just lands on a tile. */
+    int target;
+    int src_height, dst_height;
+    int start_delay, end_delay;
+    /** Client-TS `angle` and `startpos` — how high the arc goes and how far
+     *  along it the projectile is drawn at spawn. */
+    int peak, arc;
 };
 
 /**
@@ -271,6 +300,34 @@ mock230_zone_loc_merge(
     int south,
     int west,
     int north);
+
+/**
+ * Queue MAP_PROJANIM: a projectile leaving (x,z,level) for (dst_x,dst_z).
+ *
+ * Filed in the *source* tile's zone, so it reaches whoever can see the shooter.
+ * The reference does the same, and it is what makes the arrow visible to a
+ * bystander when the target is in the next zone over.
+ *
+ * `target` is the wire encoding — `slot + 1` for an npc, `-slot - 1` for a
+ * player, 0 for a shot at nothing — and it is what the client re-aims the arc at
+ * every cycle, so a moving target is followed rather than led.
+ */
+void
+mock230_zone_projanim(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc);
 
 /** The loc record at this key, or NULL. */
 struct Mock230ZoneLoc*

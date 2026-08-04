@@ -354,6 +354,62 @@ mock230_ops_obj(
         return 1;
     }
 
+    /*
+     * `[command,obj_find](coord $coord, obj $obj)(boolean)` — engine.rs2:743.
+     * `ObjOps.ts` OBJ_FIND: look for that obj on that tile, make it active on a
+     * hit, and push whether there was one.
+     *
+     * This is the *other* way an obj becomes active. Every existing route is a
+     * side effect of putting one there (`obj_add`, `obj_addall`, `inv_drop*`) or
+     * of a player clicking one (`pending_active_obj`), so a script could only
+     * ever act on an obj it had just created or been handed. `obj_find` is how
+     * content asks about an obj that was already lying there — which is what
+     * every caller in the reference wants: `quest_death.rs2` reads five tiles it
+     * never dropped anything on to see which cannonball is on each.
+     *
+     * Two differences from the reference, both because its extra state does not
+     * exist here rather than because a decision was made:
+     *
+     * 1. No receiver filter. `World.getObj(..., player.hash64)` skips a pile
+     *    that is still private to somebody else; `mock230_world_ground_find` has
+     *    no receiver to compare against (mock230_zone.h names that gap), so a
+     *    drop is visible to every script the tick it lands. Content cannot tell
+     *    the difference yet because nothing in this tree drops privately.
+     * 2. No `ObjTypeValid` / `CoordValid` aborts. A bad obj id or a tile off the
+     *    map simply does not match, and "not there" is the honest answer to
+     *    "is there one there" — where an abort would turn a content typo in a
+     *    five-way `|` chain into a dead script.
+     *
+     * On a miss the active obj is deliberately left alone rather than cleared.
+     * That is the reference's behaviour (it returns before `pointerAdd`) and it
+     * is what makes `if (obj_find(...) = false) { ... }` safe to write after an
+     * earlier find — a failed lookup is not allowed to steal the obj a previous
+     * one established.
+     */
+    case SS_OP_OBJ_FIND:
+    {
+        int32_t coord;
+        int32_t obj_id;
+        int slot;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        slot = mock230_world_ground_find(srv, mock230_coord_x(coord), mock230_coord_z(coord),
+                                        mock230_coord_level(coord), (int)obj_id);
+        if( slot < 0 )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
+                       (void*)mock230_world_obj_handle(srv, slot));
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
     default:
         return 0;
     }

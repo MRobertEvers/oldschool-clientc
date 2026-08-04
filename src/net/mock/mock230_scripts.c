@@ -2421,6 +2421,40 @@ active_npc(struct SSVM_State* state)
 }
 
 /*
+ * The level the content block authored for this npc's stat — its *base*, before
+ * anything a script has drained.
+ *
+ * A rev-230 npc record carries no levels at all (§3.12), so the block is the
+ * only source and there is nothing to fall back to. Hitpoints are absent on
+ * purpose: they live on `npc->base_hitpoints`, which the callers route to first.
+ * 0 for a stat this engine does not model, which is the same answer the read
+ * gave before it was a function.
+ */
+static int
+npc_base_stat(
+    const struct Mock230Npc* npc,
+    int stat)
+{
+    assert(npc && npc->def);
+
+    switch( stat )
+    {
+    case MOCK230_STAT_ATTACK:
+        return npc->def->attack;
+    case MOCK230_STAT_STRENGTH:
+        return npc->def->strength;
+    case MOCK230_STAT_DEFENCE:
+        return npc->def->defence;
+    case MOCK230_STAT_RANGED:
+        return npc->def->ranged;
+    case MOCK230_STAT_MAGIC:
+        return npc->def->magic;
+    default:
+        return 0;
+    }
+}
+
+/*
  * The container the *active* player means by `inv_id`.
  *
  * The registry (mock230_container.h) is what actually resolves this, and it
@@ -3814,11 +3848,15 @@ mock230_script_command(
             return 1;
         }
         /*
-         * Hitpoints is the only npc stat that *moves*, so it is the only one
-         * where base and current differ — everything else is the content
-         * block's authored level either way. That is not a simplification: a
-         * rev-230 npc record carries no levels at all (§3.12), so the config is
-         * the sole source and nothing drains it.
+         * Hitpoints keep their own pair, because that is where every hit lands.
+         *
+         * What was here said hitpoints were "the only npc stat that *moves*",
+         * and that a rev-230 npc record carries no levels so "the config is the
+         * sole source and nothing drains it". The first half is still true of the
+         * *config*; the second stopped being true when `npc_statsub` landed. A
+         * script can now drain the other five, and `npc->stat_drain[]` records
+         * how far — so base is the authored level and current is that minus the
+         * drain, which is the same base/current split the player has.
          */
         if( stat == MOCK230_STAT_HITPOINTS )
         {
@@ -3826,18 +3864,115 @@ mock230_script_command(
                                                          : npc->base_hitpoints);
             return 1;
         }
-        if( stat == MOCK230_STAT_ATTACK )
-            SSVM_PushInt(state, npc->def->attack);
-        else if( stat == MOCK230_STAT_STRENGTH )
-            SSVM_PushInt(state, npc->def->strength);
-        else if( stat == MOCK230_STAT_DEFENCE )
-            SSVM_PushInt(state, npc->def->defence);
-        else if( stat == MOCK230_STAT_RANGED )
-            SSVM_PushInt(state, npc->def->ranged);
-        else if( stat == MOCK230_STAT_MAGIC )
-            SSVM_PushInt(state, npc->def->magic);
-        else
-            SSVM_PushInt(state, 0);
+        {
+            int level = npc_base_stat(npc, stat);
+
+            if( opcode == SS_OP_NPC_STAT )
+            {
+                level -= npc->stat_drain[stat];
+                if( level < 0 )
+                    level = 0;
+            }
+            SSVM_PushInt(state, level);
+        }
+        return 1;
+    }
+
+    /*
+     * npc_statsub(stat, constant, percent) — `NpcOps.ts` NPC_STATSUB. The npc
+     * twin of `stat_sub`, and the same formula against the same base:
+     *
+     *     level = max(current - (constant + base * percent / 100), 0)
+     *
+     * This is what makes a magic debuff mean anything: `player_magic.rs2` casts
+     * confuse as `npc_statsub($npc_stat, abs($constant), abs($percent))`, and
+     * `player_ranged.rs2` shaves defence with `npc_statsub(defence, 0, 5)`. With
+     * the opcode stubbed those spells landed, played their animation, and left
+     * the target exactly as strong as before.
+     *
+     * Recorded as a drain below the authored level rather than by writing a
+     * level, for the reason `Mock230Npc.stat_drain` gives. Hitpoints route to
+     * `npc->hitpoints` instead — the reference writes `levels[stat]` for every
+     * stat including that one, so `npc_statsub(hitpoints, …)` is damage with no
+     * hitsplat, and content that wants the splat calls `npc_damage`.
+     *
+     * Nothing here marks the npc dead. `npc_statsub(hitpoints, …)` in the
+     * reference does not either — death is noticed by the combat path that
+     * reads hitpoints, and this deliberately stays a stat write so that draining
+     * a target to 0 and killing it are distinguishable.
+     */
+    case SS_OP_NPC_STATSUB:
+    {
+        int32_t values[3];
+        struct Mock230Npc* npc = active_npc(state);
+        int step;
+        int i;
+
+        for( i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_statsub with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "npc_statsub %d is not a skill", values[0]);
+            return 1;
+        }
+
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+        {
+            step = values[1] + (npc->base_hitpoints * values[2]) / 100;
+            npc->hitpoints -= step;
+            if( npc->hitpoints < 0 )
+                npc->hitpoints = 0;
+            return 1;
+        }
+        step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
+        npc->stat_drain[values[0]] += step;
+        /* A negative step is a *restore*, and it must not push the level above
+         * the authored one — the reference's `max(subbed, 0)` clamps the level,
+         * which over a drain is a clamp at no drain at all. */
+        if( npc->stat_drain[values[0]] < 0 )
+            npc->stat_drain[values[0]] = 0;
+        return 1;
+    }
+
+    /*
+     * npc_sethuntmode(hunt) — `NpcOps.ts` NPC_SETHUNTMODE. Turn this npc's
+     * hunting on or off, `null` being off.
+     *
+     * The reference stores a `HuntType` **id**, because it has `.hunt` config
+     * files describing who a npc notices, how far, and through what. This tree
+     * has no hunt configs: `Mock230NpcDef.huntmode` is a two-value enum, and
+     * aggression is `huntrange` plus nearest-player (`mock230_combat.c`
+     * `maybe_aggress`). So the port collapses to the one bit that survives —
+     * `null` stops it hunting, any hunt id starts it — and the *profile* named by
+     * that id is dropped.
+     *
+     * That reduction is exactly what content asks for at both reference call
+     * sites: the chompy bird is given `chompybird` to make it notice you and
+     * `null` to make it stop, and the gnome baller is only ever passed `null`.
+     * Neither depends on which profile. A tree that grows `.hunt` files will
+     * find this opcode is where the id has to start being kept.
+     */
+    case SS_OP_NPC_SETHUNTMODE:
+    {
+        int32_t hunt;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &hunt) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_sethuntmode with no active npc");
+            return 1;
+        }
+        npc->huntmode = hunt < 0 ? MOCK230_HUNT_NONE : MOCK230_HUNT_AGGRESSIVE;
         return 1;
     }
 
@@ -4767,6 +4902,32 @@ mock230_script_command(
         SSVM_PushInt(state, player->last_com);
         return 1;
 
+    /*
+     * `[command,busy]()(boolean)` — `PlayerOps.ts` BUSY:
+     * `activePlayer.busy() || activePlayer.loggingOut`, where `Player.busy()` is
+     * `this.delayed || this.containsModalInterface()`.
+     *
+     * `player_can_access` above is already that predicate, negated: same
+     * `delayed_until` test and the same main-or-chat modal test (the reference's
+     * `containsModalInterface` checks MAIN | CHAT and not the side slot, which is
+     * why a script can run with the backpack tab replaced). Sharing it is the
+     * point — this opcode is content asking the question the engine asks itself
+     * before it hands over a script, and two spellings of it would drift.
+     *
+     * `loggingOut` has no term here and does not need one: the reference has a
+     * window between "asked to log out" and "gone", and this server does not —
+     * `p_logout` kills the session and `logout_action` is stored but never read
+     * (mock230.h). So there is no tick on which a script could observe it.
+     *
+     * What content uses it for is refusing to start something on top of a
+     * dialogue: `if (busy() = true) return;` at the top of a trigger, which is
+     * how the reference guards an npc's `[ai_opplayer]` self-heal against firing
+     * mid-conversation.
+     */
+    case SS_OP_BUSY:
+        SSVM_PushInt(state, !player_can_access(srv));
+        return 1;
+
     /* ---- combat ---------------------------------------------------- */
 
     case SS_OP_P_OPNPC:
@@ -4812,6 +4973,61 @@ mock230_script_command(
         /* Attack keeps the engine face/approach latch; other ops do not. */
         if( strcmp(info->ops[op_num - 1], "Attack") == 0 )
             player->combat_target = slot;
+        return 1;
+    }
+
+    /*
+     * `[command,p_opnpct](component $spell)` — engine.rs2:183. `PlayerOps.ts`
+     * P_OPNPCT: `stopAction()` then `setInteraction(SCRIPT, activeNpc, APNPCT,
+     * spellId)`.
+     *
+     * The spell half of `p_opnpc` above, and the same three steps: clear what the
+     * player was doing, latch the npc, walk to it. What differs is only which
+     * trigger the arrival resolves to — `[apnpct,magic:<spell>]` keyed by the
+     * spell rather than `[opnpc<n>]` keyed by the npc — which is why the spell
+     * goes on the interaction (see `Mock230Interaction.spell`) instead of being
+     * turned into an op number here.
+     *
+     * No `info->ops` check, unlike `p_opnpc`. A spell is not one of the npc's
+     * five right-click options and an npc does not have to advertise anything to
+     * be castable at; the reference checks `NumberNotNull` on the spell and
+     * nothing about the npc.
+     *
+     * `combat_target` is deliberately not set. It is the melee approach latch,
+     * and a cast is resolved by the ap rung at spell range — latching it would
+     * make the caster walk in to touch a target it can already hit.
+     */
+    case SS_OP_P_OPNPCT:
+    {
+        int32_t spell;
+        int slot = (int)state->host_tag - 1;
+        struct Mock230Npc* npc;
+        const struct Mock230NpcInfo* info;
+
+        if( !SSVM_PopInt(state, &spell) )
+            return 1;
+        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+        {
+            SSVM_Abort(state, "p_opnpct with no active npc");
+            return 1;
+        }
+        if( spell <= 0 )
+        {
+            SSVM_Abort(state, "p_opnpct: %d is not a spell component", (int)spell);
+            return 1;
+        }
+        npc = &srv->npcs[slot];
+        info = mock230_npcinfo(npc->type);
+        mock230_world_interaction_clear(srv);
+        mock230_world_steps_clear(player);
+        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, slot, npc->type, npc->x,
+                                      npc->z, npc->level, info->size, info->size);
+        player->interaction.spell = (int)spell;
+        {
+            struct CollisionApproach approach;
+            mock230_scene_npc_approach(info->size, &approach);
+            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        }
         return 1;
     }
 
@@ -5596,11 +5812,13 @@ mock230_script_command(
      * boost that computes a smaller target; a drain may take it below and must
      * not go under zero. stat_heal restores toward base and clamps at it.
      *
-     * `stat_add` and `stat_sub` are deliberately NOT here despite the identical
-     * arity. Their reference semantics — whether they move the base level or the
-     * boosted one — is not something this repo pins down, and an opcode
-     * implemented from a guess is silent when it is wrong, where the VM's stub
-     * is loud.
+     * What was here said `stat_add` and `stat_sub` were deliberately absent
+     * because "whether they move the base level or the boosted one is not
+     * something this repo pins down". `PlayerOps.ts` pins it down for all four:
+     * every one of them reads `baseLevels[stat]` only to compute the step and
+     * writes `levels[stat]`, so *none* of them touches the base level. The four
+     * differ solely in which way the result is clamped, which is the table in
+     * SS_OP_STAT_ADD below.
      */
     case SS_OP_STAT_BOOST:
     /* `stat_sub` and `stat_drain` are the same operation: subtract a flat
@@ -5645,6 +5863,62 @@ mock230_script_command(
         player->stat_boosted[values[0]] = target;
         /* Hitpoints are two views of one number — the stat the skills tab
          * prints and the health orb's `hitpoints`. */
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+            player->hitpoints = target;
+        mock230_combat_stat_mark(player, values[0]);
+        return 1;
+    }
+
+    /*
+     * stat_add(stat, constant, percent) — engine.rs2, `PlayerOps.ts` STAT_ADD.
+     *
+     * The unclamped member of the family. All four compute the same step
+     * `d = constant + base * percent / 100` against the boosted level; they part
+     * company on the ceiling:
+     *
+     *   stat_add    current + d,                       capped at 255
+     *   stat_sub    current - d,                       floored at 0
+     *   stat_boost  max(min(current + d, base + d), current), capped at 255
+     *   stat_heal   max(min(current + d, base), current)
+     *
+     * So `stat_add` is not a spelling of `stat_boost`: boost's inner `min` caps
+     * the result at one boost's worth above base, which is what stops a second
+     * dose of the same potion stacking, while add just adds. That is why the
+     * reference uses add for the places a level is being *set up* rather than
+     * temporarily improved — `appearance.rs2` builds a max-stat dummy with
+     * `stat_add(attack, 255 - stat(attack), 0)`, which boost would refuse to
+     * take past `base + d`.
+     *
+     * 255 is the ceiling rather than some multiple of the base because the wire
+     * field is a byte: `changeStat` writes the boosted level as u8, so a level
+     * of 256 arrives as 0 and the skills tab reads it as a drained stat.
+     */
+    case SS_OP_STAT_ADD:
+    {
+        int32_t values[3];
+        int target;
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_add %d is not a skill", values[0]);
+            return 1;
+        }
+
+        target = player->stat_boosted[values[0]] +
+                 (values[1] + player->stat_level[values[0]] * values[2] / 100);
+        if( target > 255 )
+            target = 255;
+        if( target < 0 )
+            target = 0;
+        if( target == player->stat_boosted[values[0]] )
+            return 1;
+
+        player->stat_boosted[values[0]] = target;
         if( values[0] == MOCK230_STAT_HITPOINTS )
             player->hitpoints = target;
         mock230_combat_stat_mark(player, values[0]);
