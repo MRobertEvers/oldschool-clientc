@@ -382,6 +382,84 @@ test_flag_count_pinned(void)
         cases);
 }
 
+/* ==========================================================================
+ * Part 5 — ClearHooks keeps gameframe on_op when a sibling pack closes
+ * ========================================================================== */
+
+static void
+test_clear_hooks_preserves_compass_on_op(void)
+{
+    struct Fixture fx;
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t compass_parent;
+    int32_t compass;
+    int32_t panel;
+    int32_t leaf;
+    struct UITreeRuntimeHooks* hooks;
+
+    printf("pump: ClearHooksForInterfaceGroup preserves sibling on_op\n");
+
+    fixture_init(&fx);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 0;
+    root = UITree_Push(fx.tree, -1, &spec);
+    CHECK(root >= 0, "gameframe root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 31;
+    compass_parent = UITree_Push(fx.tree, root, &spec);
+    CHECK(compass_parent >= 0, "compassclick");
+
+    CHECK(
+        UITree_CcCreate(fx.tree, compass_parent, (161 << 16) | 31, 4, 0) >= 0,
+        "compass active");
+    compass = UITree_CcCreate(fx.tree, compass_parent, (161 << 16) | 31, 4, 1);
+    CHECK(compass >= 0, "compass dot");
+    CHECK(
+        fx.tree->components[compass].component_id == ((161 << 16) | 0x8001),
+        "id 0xa18001");
+    hooks = UITree_HooksMut(&fx.tree->components[compass]);
+    hooks->on_op.script_id = 1050;
+    UITree_SyncHookMembership(fx.tree, compass);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (12 << 16) | 0;
+    panel = UITree_Push(fx.tree, root, &spec);
+    CHECK(panel >= 0, "bank");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (12 << 16) | 1;
+    leaf = UITree_Push(fx.tree, panel, &spec);
+    CHECK(leaf >= 0, "bank leaf");
+    hooks = UITree_HooksMut(&fx.tree->components[leaf]);
+    hooks->on_timer.script_id = 99;
+    hooks->on_click.script_id = 88;
+    UITree_SyncHookMembership(fx.tree, leaf);
+
+    RS_CS2Host_ClearHooksForInterfaceGroup(&fx.host, 12);
+
+    CHECK(
+        fx.tree->components[compass].runtime_hooks &&
+            fx.tree->components[compass].runtime_hooks->on_op.script_id == 1050,
+        "compass on_op survives ClearHooks(bank)");
+    CHECK(
+        fx.tree->components[leaf].runtime_hooks &&
+            fx.tree->components[leaf].runtime_hooks->on_click.script_id == 88,
+        "bank on_click kept");
+    CHECK(
+        fx.tree->components[leaf].runtime_hooks->on_timer.script_id == 0,
+        "bank on_timer cleared");
+    CHECK(fx.tree->timer_hooks.count == 0, "timer live set empty");
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -391,6 +469,7 @@ main(void)
     test_each_flag_alone();
     test_stat_notify_reaches_a_dispatch();
     test_flag_count_pinned();
+    test_clear_hooks_preserves_compass_on_op();
 
     if( g_fail )
     {

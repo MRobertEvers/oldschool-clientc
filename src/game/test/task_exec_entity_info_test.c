@@ -24,8 +24,10 @@ run_task_to_done(struct ToriRS_Task* task)
     int st;
     do
         st = task_run(task, io);
-    while( st == TORIRS_ASYNCIO_STAT_YIELD );
-    TEST_ASSERT(st == TORIRS_ASYNCIO_STAT_DONE, "entity-info task completes");
+    while( st == PT_WAITING || st == PT_YIELDED );
+    /* Protothread completion is PT_ENDED (or PT_EXITED); the queue maps those
+     * to TORIRS_ASYNCIO_STAT_DONE — call task_run directly here. */
+    TEST_ASSERT(st == PT_ENDED || st == PT_EXITED, "entity-info task completes");
     task_free(task);
     ToriRS_IO_Free(io);
 }
@@ -45,6 +47,23 @@ register_npc(
     npc->server_slot = server_slot;
     RS_EntitySync_RegisterNpc(&app->esync, server_slot, element_id, idx);
     app->esync.active_npcs[app->esync.active_npc_count++] = server_slot;
+}
+
+static void
+register_local_player(
+    struct App* app,
+    int element_id,
+    int server_pid,
+    int tile_x,
+    int tile_z)
+{
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int idx = World_PlayerSpawn(app->world, element_id, 0, tile_x, tile_z, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&app->world->entities.player, idx);
+    player->server_pid = server_pid;
+    app->esync.local_pid = server_pid;
+    app->world->local_pid = server_pid;
+    RS_EntitySync_RegisterPlayer(&app->esync, server_pid, element_id, idx);
 }
 
 static void
@@ -135,8 +154,10 @@ test_player_info_count_zero_despawns_others(void)
     memset(&app, 0, sizeof(app));
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
-    app.esync.local_pid = -1;
 
+    /* Local must already exist so SET_LOCAL does not try to spawn (needs a
+     * provider). It is not in active_players — count-shrink only trims that. */
+    register_local_player(&app, 300, 7, 39, 40);
     register_other_player(&app, 301, 8, 40, 40);
     register_other_player(&app, 302, 9, 41, 40);
     TEST_ASSERT(app.esync.active_player_count == 2, "two other players tracked");
@@ -146,11 +167,12 @@ test_player_info_count_zero_despawns_others(void)
     run_task_to_done(CreateTask_ExecPlayerInfo(&app, packet, (int)sizeof(packet)));
 
     TEST_ASSERT(app.esync.active_player_count == 0, "active player list empty");
+    TEST_ASSERT(RS_EntitySync_FindPlayer(&app.esync, 7, NULL, NULL), "local player kept");
     TEST_ASSERT(!RS_EntitySync_FindPlayer(&app.esync, 8, NULL, NULL), "pid 8 gone");
     TEST_ASSERT(!RS_EntitySync_FindPlayer(&app.esync, 9, NULL, NULL), "pid 9 gone");
     TEST_ASSERT(
-        World_TestPoolIterateCount(&app.world->entities.player) == 0,
-        "player pool empty after count=0");
+        World_TestPoolIterateCount(&app.world->entities.player) == 1,
+        "only local player left in pool");
 
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);

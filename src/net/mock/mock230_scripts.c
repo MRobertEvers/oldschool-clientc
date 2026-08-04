@@ -1912,18 +1912,16 @@ static const struct
           "NOT 'the bank, 1,370 lines'. The bank is 1,395 (`wc -l "
           "net/mock/mock230_bank.c`) and its RULES are already sayable — the container "
           "is script-addressable and every inv_/varbit op they need is implemented. "
-          "This row is ADDRESSING, and it is 107 lines: mock230_bank_quantity_for_op "
-          "(mock230_bank.c:1059-1165) rebuilds the client's row ladder because CS2 "
-          "script 669 SKIPS whichever quantity row duplicates the current default, so "
-          "Withdraw-All arrives as op 6, 7 or 8 depending on a varbit. "
-          "SS_TRIGGER_INV_BUTTON1..5 are 149-153 (ss_trigger.h) and physically cannot "
-          "name op 6+; those ops arrive as IF_BUTTON6..10 (all ten routed to "
-          "handle_if_button_op, mock230_world.c) and reach [if_button], which has no op "
-          "rung. So this row and if_button share ONE blocker: a last_verb reader. The "
-          "engine already latches the verb (player->last_verb = op_num, two sites); "
-          "nothing declares SS_OP_LAST_VERB. The reference does not hit this — its bank "
-          "has five fixed rows and binds [inv_button1..5,bank_main:inv] "
-          "(interface_bank/scripts/bank.rs2:1-5)",
+          "This row is ADDRESSING, and it is the quantity map: mock230_bank_quantity_for_op "
+          "(mock230_bank.c) reads CS2 script_5272's fixed sparse indices (Withdraw-X is "
+          "always op 6, All always op 7). SS_TRIGGER_INV_BUTTON1..5 are 149-153 "
+          "(ss_trigger.h) and physically cannot name op 6+; those ops arrive as "
+          "IF_BUTTON6..10 (all ten routed to handle_if_button_op, mock230_world.c) and "
+          "reach [if_button], which has no op rung. So this row and if_button share ONE "
+          "blocker: a last_verb reader. The engine already latches the verb "
+          "(player->last_verb = op_num, two sites); nothing declares SS_OP_LAST_VERB. "
+          "The reference does not hit this — its bank has five fixed rows and binds "
+          "[inv_button1..5,bank_main:inv] (interface_bank/scripts/bank.rs2:1-5)",
           k_blocked_inv_button },
     [MOCK230_FALLBACK_IF_BUTTON] =
         { "if_button",

@@ -21,10 +21,39 @@ free_list_len(struct UITree const* tree)
     return n;
 }
 
-/* Simulate IF_CLOSESUB's hook teardown: free every runtime_hooks block in
- * group. Remount's onLoad reallocates them; closed panels must not retain them. */
+static int
+hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
+{
+    return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
+           hooks->on_hold.script_id > 0 || hooks->on_drag.script_id > 0 ||
+           hooks->on_drag_complete.script_id > 0;
+}
+
+/* Mirror RS_CS2Host_ClearHooksForInterfaceGroup's per-node policy: clear
+ * reactive slots, keep click/op/drag, free the block only when nothing
+ * interactive remains. */
 static void
-free_hooks_for_group(struct UITree* tree, int group_id)
+clear_reactive_hooks_at(struct UITree* tree, int32_t idx)
+{
+    struct UITreeRuntimeHooks* hooks = tree->components[idx].runtime_hooks;
+    if( !hooks )
+        return;
+    memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
+    memset(&hooks->on_key, 0, sizeof(hooks->on_key));
+    memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
+    memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
+    memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
+    memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
+    memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
+    memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
+    if( !hooks_have_interaction(hooks) )
+        UITree_FreeHooksAt(tree, idx);
+    else
+        UITree_SyncHookMembership(tree, idx);
+}
+
+static void
+clear_reactive_hooks_for_group(struct UITree* tree, int group_id)
 {
     struct UITreeNodeSet const* gset = UITree_GroupNodes(tree, group_id);
     int gi;
@@ -33,8 +62,11 @@ free_hooks_for_group(struct UITree* tree, int group_id)
     for( gi = 0; gi < gset->count; gi++ )
     {
         int32_t idx = gset->slots[gi];
+        int cid = tree->components[idx].component_id;
+        if( cid < 0 || ((cid >> 16) & 0xffff) != group_id )
+            continue;
         if( tree->components[idx].runtime_hooks )
-            UITree_FreeHooksAt(tree, idx);
+            clear_reactive_hooks_at(tree, idx);
     }
 }
 
@@ -105,11 +137,14 @@ test_open_close_steady(void)
     baseline_hooks = count_hook_blocks(tree);
     TEST_ASSERT(baseline_hooks == 20, "hook blocks allocated");
 
-    /* Open/close cycle: free hooks on "close", re-allocate on "open". */
+    /* Open/close cycle: clear reactive hooks on "close"; interaction (on_click)
+     * keeps the block. Remount re-arms timers. */
     for( cycle = 0; cycle < 8; cycle++ )
     {
-        free_hooks_for_group(tree, 12);
-        TEST_ASSERT(count_hook_blocks(tree) == 0, "close frees all group hook blocks");
+        clear_reactive_hooks_for_group(tree, 12);
+        TEST_ASSERT(
+            count_hook_blocks(tree) == baseline_hooks,
+            "close keeps interaction hook blocks");
         TEST_ASSERT(tree->timer_hooks.count == 0, "close drops timer live set");
 
         for( uint32_t i = 0; i < tree->component_count; i++ )
@@ -139,6 +174,26 @@ test_open_close_steady(void)
             "hide-reuse keeps component_count flat across open/close");
     }
 
+    /* Purely reactive leaf: close must free the block. */
+    {
+        int32_t idx;
+        struct UITreeRuntimeHooks* hooks;
+        memset(&leaf_spec, 0, sizeof(leaf_spec));
+        leaf_spec.type = UIELEM_RS_RECT;
+        leaf_spec.component_id = (12 << 16) | 99;
+        leaf_spec.width = 8;
+        leaf_spec.height = 8;
+        idx = UITree_Push(tree, panel, &leaf_spec);
+        TEST_ASSERT(idx >= 0, "reactive-only leaf");
+        hooks = UITree_HooksMut(&tree->components[idx]);
+        hooks->on_timer.script_id = 42;
+        UITree_SyncHookMembership(tree, idx);
+        clear_reactive_hooks_for_group(tree, 12);
+        TEST_ASSERT(
+            tree->components[idx].runtime_hooks == NULL,
+            "reactive-only block freed on close");
+    }
+
     /* CC_DELETEALL + CC_CREATE rebuild: free-list recycles, count stays flat. */
     {
         uint32_t after_rebuild;
@@ -163,6 +218,87 @@ test_open_close_steady(void)
             after_rebuild == before_dyn,
             "rebuild reuses free-list slots (component_count flat)");
     }
+
+    UITree_Free(tree);
+}
+
+/* Compass-shaped case: gameframe dynamic child keeps on_op when a sibling
+ * pack (bank) is cleared — the live failure was menu ops without on_op. */
+void
+test_clear_hooks_preserves_sibling_on_op(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t compass_parent;
+    int32_t compass;
+    int32_t panel;
+    int32_t leaf;
+    struct UITreeRuntimeHooks* hooks;
+
+    printf("TEST: clear hooks preserves sibling on_op\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 0;
+    root = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(root >= 0, "gameframe root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 31;
+    compass_parent = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(compass_parent >= 0, "compassclick");
+
+    /* script7560 creates sub 0 then sub 1; Look North lives on the dot (sub 1
+     * → packed 161:0x8001). */
+    TEST_ASSERT(
+        UITree_CcCreate(tree, compass_parent, (161 << 16) | 31, 4, 0) >= 0,
+        "compass active child");
+    compass = UITree_CcCreate(tree, compass_parent, (161 << 16) | 31, 4, 1);
+    TEST_ASSERT(compass >= 0, "compass dot child");
+    TEST_ASSERT(
+        tree->components[compass].component_id == ((161 << 16) | 0x8001),
+        "compass id is 161:0x8001");
+    hooks = UITree_HooksMut(&tree->components[compass]);
+    hooks->on_op.script_id = 1050;
+    strncpy(tree->components[compass].menu_options.ops[0], "Look North",
+            UITREE_MENU_OPTION_LEN - 1);
+    UITree_SyncHookMembership(tree, compass);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (12 << 16) | 0;
+    panel = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(panel >= 0, "bank root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (12 << 16) | 1;
+    leaf = UITree_Push(tree, panel, &spec);
+    TEST_ASSERT(leaf >= 0, "bank leaf");
+    hooks = UITree_HooksMut(&tree->components[leaf]);
+    hooks->on_timer.script_id = 99;
+    hooks->on_click.script_id = 88;
+    UITree_SyncHookMembership(tree, leaf);
+
+    clear_reactive_hooks_for_group(tree, 12);
+
+    TEST_ASSERT(
+        tree->components[compass].runtime_hooks != NULL &&
+            tree->components[compass].runtime_hooks->on_op.script_id == 1050,
+        "compass on_op survives sibling pack clear");
+    TEST_ASSERT(
+        tree->components[compass].menu_options.ops[0][0] != '\0',
+        "compass Look North op text still present");
+    TEST_ASSERT(
+        tree->components[leaf].runtime_hooks != NULL &&
+            tree->components[leaf].runtime_hooks->on_click.script_id == 88,
+        "bank on_click kept");
+    TEST_ASSERT(
+        tree->components[leaf].runtime_hooks->on_timer.script_id == 0,
+        "bank on_timer cleared");
+    TEST_ASSERT(tree->timer_hooks.count == 0, "timer live set empty after clear");
 
     UITree_Free(tree);
 }

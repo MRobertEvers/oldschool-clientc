@@ -143,43 +143,45 @@ Two things about note records bit during this work, both silent:
 
 ---
 
-## 4. The op index is not fixed, and that is a port decision
+## 4. The op index is sparse and fixed
 
 LostCity binds five handlers, `[inv_button1..5,bank_main:inv]`, one per withdraw
 amount. Its interface always offers the same five rows in the same order.
 
-rev 230's bank builds its rows **conditionally**. `~script669` omits the row
-that would duplicate the current default quantity:
+rev 230's bank builds its rows in CS2 (`script_5272` / Kronos `bankmain_drawitem`)
+with **fixed sparse indices**. Omitting the row that would duplicate the current
+default leaves a hole in the menu — it does not renumber later ops:
 
 ```
-                        Withdraw-<default>          always
-    if quantity != 1    Withdraw-1
-    if quantity != 5    Withdraw-5
-    if quantity != 10   Withdraw-10
-    if quantity != X    Withdraw-<X>                and only when X is set
-                        Withdraw-X                  always (the prompt)
-    if quantity != All  Withdraw-All
-                        Withdraw-All-but-1          always
+op 1                    Withdraw-<default>          always
+op 2  if quantity != 1  Withdraw-1
+op 3  if quantity != 5  Withdraw-5
+op 4  if quantity != 10 Withdraw-10
+op 5  if quantity != X  Withdraw-<X>                and only when X is set
+op 6                    Withdraw-X                  always (the prompt)
+op 7  if quantity != All Withdraw-All
+op 8                    Withdraw-All-but-1          always
+op 10                   Examine
 ```
 
-So "Withdraw-All" is op 5 with the default on 1 and op 6 with it on All, and the
-op index alone does not say what was clicked. Reconstructing the ladder needs
-the same varbits the client drew it from, so it lives in the engine
-(`mock230_bank_quantity_for_op`) and the item rows are **deliberately not bound
-in content**. Binding them would mean writing the ladder twice.
+So Withdraw-X is always op 6 and Withdraw-All is always op 7 when shown. The
+engine maps those indices in `mock230_bank_quantity_for_op` and the item rows
+are **deliberately not bound in content** — binding them would mean writing the
+ladder twice, and `[inv_button1..5]` cannot name ops 6+.
 
-The side panel is the other way round: `bankside_drawitem` uses constants, so op
-3 is Deposit-1 whether or not it is on the menu. Hence the `side` parameter
+The side panel is the same shape with shifted constants (`bankside_drawitem`):
+op 3 is Deposit-1 whether or not it is on the menu. Hence the `side` parameter
 rather than an offset.
 
 `Withdraw-X` / `Deposit-X` return `MOCK230_BANK_ASK`, which opens the count
 prompt and parks the slot in `bank.pending_slot` until `RESUME_P_COUNTDIALOG`
-arrives.
+arrives. A successful amount is written to `bank_requestedquantity` (varbit
+3960) so the next menu can offer Withdraw-`<N>` at op 5.
 
-**Only five of the ten rows reach the player.** `UITREE_MENU_OPTION_SLOTS` is 5,
-so Withdraw-All-but-1 and Placeholder are dropped by the client's menu. The
-server implements them anyway, because the cut is the client's and moving it
-does not need a server change.
+`UITREE_MENU_OPTION_SLOTS` is **10**, so the full CS2 ladder reaches the player.
+Ops 1..5 emit `INV_BUTTON1..5`; ops 6..10 emit `IF_BUTTON6..10` (the classic
+inventory-button family stops at five on the wire). Both paths reach
+`mock230_bank_handle_button`.
 
 ---
 

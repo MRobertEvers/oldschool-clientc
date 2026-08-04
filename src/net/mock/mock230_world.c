@@ -12597,6 +12597,149 @@ mock230_world_selftest(void)
                 steps_clear(player);
             }
         }
+
+        /*
+         * Corner waypoints, not run-starts (LostCity PathFinder backtrace /
+         * collision_route_backtrace). An L-corridor forces one east run then
+         * one north run; the queued turn points must be the corner and the
+         * destination. Recording the first tile of each run instead lets the
+         * greedy stepper aim past the corner on a mixed-axis delta and walk
+         * itself into a dead-end alcove with no re-path.
+         *
+         * Geometry (S = start, D = dest, # = floor-blocked, A = open alcove):
+         *
+         *     . # D
+         *     A # .
+         *     S . .
+         *
+         * BFS path: east along the bottom, north up the right column. The
+         * alcove at (sx, sz+1) is open but not on the route — the buggy
+         * run-start waypoints make takeStep try the diagonal into it.
+         */
+        {
+            struct CollisionMap* cm = mock230_scene_collision(0);
+            int base_x = mock230_scene_base_x();
+            int base_z = mock230_scene_base_z();
+            int sx = -1;
+            int sz = -1;
+            int blocked[6][2];
+            int n_blocked = 0;
+
+            SELFTEST_CHECK(cm && base_x >= 0, "scene collision is loaded for corner-waypoint check");
+            for( int ox = -20; ox <= 20 && sx < 0; ox++ )
+            {
+                for( int oz = -20; oz <= 20; oz++ )
+                {
+                    int cx = 3222 + ox;
+                    int cz = 3218 + oz;
+                    int clear = 1;
+
+                    if( !mock230_scene_contains(cx + 3, cz + 3) )
+                        continue;
+                    /* Bottom row east, right column north, and the alcove
+                     * tile north of S must all be open before we stamp. */
+                    for( int step = 0; step < 3; step++ )
+                    {
+                        if( !mock230_scene_can_step(0, cx + step, cz, 0 /* east */) )
+                            clear = 0;
+                    }
+                    for( int step = 0; step < 3; step++ )
+                    {
+                        if( !mock230_scene_can_step(0, cx + 3, cz + step, 1 /* north */) )
+                            clear = 0;
+                    }
+                    if( !mock230_scene_can_step(0, cx, cz, 1 /* north */) )
+                        clear = 0;
+                    if( clear )
+                    {
+                        sx = cx;
+                        sz = cz;
+                        break;
+                    }
+                }
+            }
+            SELFTEST_CHECK(sx >= 0, "Lumbridge should have a clear L-corridor footprint");
+            if( sx >= 0 && cm )
+            {
+                /* Interior of the L + the tiles that close the diagonal cut. */
+                int stamps[][2] = {
+                    { sx + 1, sz + 1 },
+                    { sx + 1, sz + 2 },
+                    { sx + 1, sz + 3 },
+                    { sx + 2, sz + 1 },
+                    { sx + 2, sz + 2 },
+                    { sx + 2, sz + 3 },
+                };
+
+                selftest_park_player(&srv, sx, sz);
+                /* Park may rebuild the scene; re-read the origin and map. */
+                cm = mock230_scene_collision(0);
+                base_x = mock230_scene_base_x();
+                base_z = mock230_scene_base_z();
+                SELFTEST_CHECK(cm && base_x >= 0, "collision still loaded after park");
+                for( int i = 0; i < 6; i++ )
+                {
+                    int lx = stamps[i][0] - base_x;
+                    int lz = stamps[i][1] - base_z;
+
+                    collision_map_add_floor(cm, lx, lz);
+                    blocked[n_blocked][0] = lx;
+                    blocked[n_blocked][1] = lz;
+                    n_blocked++;
+                }
+
+                steps_clear(player);
+                player->run_toggle = 0;
+                mock230_world_walk_to(&srv, sx + 3, sz + 3);
+                SELFTEST_CHECK(player->waypoint_index >= 0,
+                               "L-corridor walk queues waypoints, idx=%d",
+                               player->waypoint_index);
+                /*
+                 * Correct: two corners (turn at (sx+3,sz), dest at (sx+3,sz+3))
+                 * → index 1. Buggy run-start recording yields three
+                 * ((sx+1,sz), (sx+3,sz+1), dest) → index 2.
+                 */
+                SELFTEST_CHECK(player->waypoint_index == 1,
+                               "L-corridor stores corner waypoints not run-starts, idx=%d",
+                               player->waypoint_index);
+                SELFTEST_CHECK(player->waypoints[0].x == sx + 3 &&
+                                   player->waypoints[0].z == sz + 3,
+                               "waypoints[0] is the destination %d,%d got %d,%d",
+                               sx + 3, sz + 3, player->waypoints[0].x,
+                               player->waypoints[0].z);
+                SELFTEST_CHECK(player->waypoints[1].x == sx + 3 &&
+                                   player->waypoints[1].z == sz,
+                               "waypoints[1] is the corner %d,%d got %d,%d",
+                               sx + 3, sz, player->waypoints[1].x,
+                               player->waypoints[1].z);
+
+                {
+                    int arrived = 0;
+
+                    for( int t = 0; t < 20; t++ )
+                    {
+                        mock230_world_tick(&srv);
+                        if( player->x == sx + 3 && player->z == sz + 3 )
+                        {
+                            arrived = 1;
+                            break;
+                        }
+                        if( player->waypoint_index < 0 )
+                            break;
+                    }
+                    SELFTEST_CHECK(arrived,
+                                   "player reaches L-corridor dest via corner waypoints, "
+                                   "stopped at %d,%d wpi=%d",
+                                   player->x, player->z, player->waypoint_index);
+                }
+
+                for( int i = 0; i < n_blocked; i++ )
+                    collision_map_del_floor(cm, blocked[i][0], blocked[i][1]);
+                steps_clear(player);
+                player->dest_x = -1;
+                player->dest_z = -1;
+            }
+        }
     }
 
     fprintf(stderr, "mock230 selftest: prayer\n");
@@ -14663,37 +14806,68 @@ mock230_world_selftest(void)
         selftest_reset_world(&srv, player, 402, 402);
 
         /*
-         * The conditional row list from script 669. With the default quantity
-         * on "1", the row that would say Withdraw-1 is omitted, so the ladder
-         * runs Default, 5, 10, X, All, All-but-1 — and "All" is op 5.
+         * Fixed sparse indices from CS2 script_5272 / Kronos bankmain_drawitem.
+         * Omitting a duplicate default leaves a hole in the menu; it does not
+         * renumber later ops. Withdraw-X is always op 6, All always op 7.
          */
         bank->quantity_mode = ids->bank_qty_1;
         bank->requested_quantity = 0;
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 1,
                        "op 1 is the default quantity");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 5, "then 5");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 0) == 10, "then 10");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 4, 100, 0) == MOCK230_BANK_ASK,
-                       "then the X prompt");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 100, "then All");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == 99,
-                       "then All-but-1");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,
+                       "op 2 is Withdraw-1 (sparse; unused when default is 1)");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 0) == 5,
+                       "op 3 is Withdraw-5");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 4, 100, 0) == 10,
+                       "op 4 is Withdraw-10");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 0,
+                       "op 5 is last-X only when set");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == MOCK230_BANK_ASK,
+                       "op 6 is always Withdraw-X");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 7, 100, 0) == 100,
+                       "op 7 is Withdraw-All");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 0) == 99,
+                       "op 8 is All-but-1");
 
-        /* Switch the default to All and the ladder shifts: the All row is the
-         * one omitted now, and Withdraw-1 reappears at op 2. */
         bank->quantity_mode = ids->bank_qty_all;
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 1, 100, 0) == 100,
                        "op 1 is still the default, which is now All");
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 2, 100, 0) == 1,
-                       "and Withdraw-1 is back at op 2");
-        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 6, 100, 0) == 99,
-                       "All-but-1 stays last");
+                       "Withdraw-1 stays at op 2");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 7, 100, 0) == 100,
+                       "op 7 is still All (CS2 omits the label; index fixed)");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 0) == 99,
+                       "All-but-1 stays at op 8");
+
+        bank->requested_quantity = 42;
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 100, 0) == 42,
+                       "op 5 is last-X when set");
 
         /* The side panel numbers its rows with constants, so it does not move. */
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 3, 100, 1) == 1,
                        "side op 3 is always Deposit-1");
         SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 8, 100, 1) == 100,
                        "side op 8 is always Deposit-All");
+    }
+
+    fprintf(stderr, "mock230 selftest: bank Withdraw-X persists last-X\n");
+    {
+        struct Mock230Bank* bank = &player->bank;
+
+        selftest_reset_world(&srv, player, 402, 402);
+        bank->slots[0].obj_id = 995; /* coins — same fixture id as the deposit tests */
+        bank->slots[0].count = 500;
+        bank->pending_kind = MOCK230_BANK_PENDING_WITHDRAW;
+        bank->pending_slot = 0;
+        bank->requested_quantity = 0;
+        SELFTEST_CHECK(mock230_bank_resume_countdialog(&srv, 77) == 1,
+                       "resume Withdraw-X succeeds");
+        SELFTEST_CHECK(bank->requested_quantity == 77, "last-X remembered");
+        SELFTEST_CHECK(
+            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 77,
+            "last-X varbit written");
+        SELFTEST_CHECK(mock230_bank_quantity_for_op(&srv, 5, 500, 0) == 77,
+                       "op 5 now withdraws last-X");
     }
 
     fprintf(stderr, "mock230 selftest: bank open sends both halves\n");

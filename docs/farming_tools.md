@@ -361,19 +361,12 @@ right nor obviously wrong.
 
 ## 6. Still open
 
-**Ops 6..10 cannot be picked in this client.** `UITREE_MENU_OPTION_SLOTS` is 5,
-so `rs_cs2_apply_op` drops any `if_setop(index > 5)` on the floor and the
-component never carries the label. The wire and the dispatch are already ready
-for all ten — `app_minimenu_dispatch` sends `IF_BUTTON<n>` for
-`action_index < 10`, and `SS_TRIGGER_IF_BUTTON1..10` exist — so this is a
-data-width gap in the component's op table, not a protocol one. It is not a
-farming problem: **916 `op6..op10` declarations across 35 interface files** in
-`cache.osrs239` are invisible for the same reason, including 13 plain
-`op10=Examine`. Widening `ops[5]` → `ops[10]` touches `uitree.h`,
-`uitree_build.h`, the minimenu builder's `k_inv_button_action[]` and the emit
-path. This feature's "Banknotes" (op 9) and "Examine" (op 10) bindings are
-written and armed and will start working the day it lands; they are the cheapest
-test case for it.
+**Ops 6..10 are pickable.** `UITREE_MENU_OPTION_SLOTS` is 10; CS2 `cc_setop`
+writes through, the minimenu builder emits `INV_BUTTON1..5` for slots 0..4 and
+`IF_BUTTON` (ops 6..10 on the wire) for slots 5..9. Bank Withdraw-X/All and the
+farming tools' "Banknotes" (op 9) / "Examine" (op 10) labels now appear. The
+remaining farming gap for those two is behaviour (how much "Banknotes"
+withdraws), not visibility.
 
 **"Banknotes" has no source.** Clientscript 1060 gives op 9 a label and no
 number, and nothing in the cache or the reference says how much it withdraws.

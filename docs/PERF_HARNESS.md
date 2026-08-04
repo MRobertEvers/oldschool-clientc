@@ -227,9 +227,12 @@ strips `::`). With a real bank open/close cycle:
   `var_hooks` sawtoothed 220→512→220 every few minutes of open/close. Fixed in
   two layers: (1) compact dead inv/var/stat hooks before every append;
   (2) `RS_CS2Host_ClearHooksForInterfaceGroup` on IF_CLOSESUB / replacing
-  mount drops host inv/var/stat entries and **frees** the component
-  `runtime_hooks` blocks for that pack (onload re-registers click/op as well
-  as reactive listeners). Misc/friend transmit walks also skip hidden ancestors.
+  mount drops host inv/var/stat entries and clears *reactive* component
+  listeners (timer/key/*transmit/resize/sub_change) for that pack, including
+  same-group dynamic children. Interaction hooks (click/op/drag) stay on the
+  reused bake — the compass `on_op` is installed once by gameframe onload and
+  is not rebuilt when a sidebar closes. A block with no interaction slots left
+  is still freed. Misc/friend transmit walks also skip hidden ancestors.
 - `onTimer` did not skip hidden ancestors (inv/var/stat already did). Closed
   panels' timers kept firing; gated with `UITree_ComponentOrAncestorHidden`.
 
@@ -247,7 +250,7 @@ sidebar F-keys interleaved. Diagnosis from the new counters:
 | `uitree_anim_model_nodes` / window | ~800 | ~650–950 | now equals scan (live model set) |
 | `uitree_hook_index_rebuild_nodes` | present | **0** (omitted) | no lazy rebuild path left |
 | `iface_group_scan_nodes` / 3k frames | n/a (full tree ×4) | ~16k total | open/close proportional to group size |
-| `uitree_hook_blocks` | ~2872 | ~844 | close frees `runtime_hooks` |
+| `uitree_hook_blocks` | ~2872 | ~844 | close clears reactive hooks; interaction blocks may remain |
 
 Fixes that landed:
 
@@ -257,12 +260,14 @@ Fixes that landed:
    `Ensure*Index` rebuild; consumers drop per-entry `FindByComponentId`.
    Open/close group walks are O(group) via `UITree_GroupNodes`
    (`iface_group_scan_nodes` counter).
-2. **Free `runtime_hooks` on unmount** — `ClearHooksForInterfaceGroup` frees
-   the block via the group set + subtree; remount onLoad reallocates. Bank alone
-   had been retaining ~1500 blocks ≈ 15 MB while closed.
+2. **Clear reactive `runtime_hooks` on unmount** — `ClearHooksForInterfaceGroup`
+   zeros timer/key/transmit/resize/sub_change and frees the block only when no
+   interaction slots remain. Click/op/drag stay so reused gameframe chrome
+   (compass `on_op`) still responds; remount onLoad re-arms reactive listeners.
 3. **Telemetry** — `iface_open/close/bake/reuse`, hitch ns, growth gauges,
    scan-cost counters, and `TORIRS_IFACE_STATS=1` per-group ledger.
-4. **Guard** — `test-uitree` `test_open_close_steady` + `test_live_node_sets`;
+4. **Guard** — `test-uitree` `test_open_close_steady` +
+   `test_clear_hooks_preserves_sibling_on_op` + `test_live_node_sets`;
    soak-ui under `compare.py --drift`.
 
 Pack residency (destroying hidden groups) was **not** required for frame

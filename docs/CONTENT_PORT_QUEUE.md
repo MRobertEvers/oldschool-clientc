@@ -81,7 +81,10 @@ re-arm. Stop only when the user stops the loop.
 | 9s | Mort'ton fine_cloth (shade chests) | done | chest open+drop tables (steel/black/silver roll fine_cloth); names resolve; deferred: lair doors/entrance, shade AI, pyre→keys, flamtaer, quest, trail clues |
 | 9t | Melzar AI (Dragon Slayer maze) | done | melzar_the_mad AI (ap/op casts+cabbage+zap+say) + combat overlay; maze critters default melee (drops already 8j); deferred: weaken/curse stat_sub, .hunt aggressive_melee, sound_synth, Elvarg fire-breath |
 | 9u | Elvarg fire-breath combat AI | done | ai_ap/op fire+melee + maxhit (shield/Protect Magic) + elvarg/elvarg_alive overlays; deferred: antifire potion, .hunt elvarg_hunt, sound_synth, %npc_aggressive_player last-hit, gosub(npc_death) |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: guard2 unresolved; ditch (no LC); shops blocked on inv.ini |
+| 9v | npc_stat_change_effect (weaken/confuse/curse) | done | NPC→player drain + debuff_allowed gate in npc_combat_magic; unlocks dark_wizard/Melzar casts; deferred: god-spell exclusion keys, freeze walktrigger, poison |
+| 9w | metal-dragon drop tables | done | bronze/iron/steel_dragon ai_queue3 drops + rare platelegs; names resolve; deferred: metal_dragon combat AI, trail clues, Mort'ton lair, Mage Arena god-spell keys |
+| 9x | metal-dragon combat AI | done | bronze/iron/steel ai_ap/op + close/far breath + maxhit (shield; no Protect Magic) + combat overlays; deferred: antifire potion, .hunt cowardly, sound_synth, trail clues |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Mort'ton lair doors (%morttonmulti); Mage Arena god-spell NPC keys; skip: guard2, ditch, shops inv.ini |
 
 
 ## Log
@@ -159,4 +162,7 @@ re-arm. Stop only when the user stops the loop.
 - slice 9s done: Mort'ton fine_cloth — shade chest oploc1/u + open_shade_chest + bronze/steel/black/silver drop tables (fine_cloth on steel/black/silver); constants; deferred: lair entrance/doors, shade combat, pyre keys, flamtaer, quest, trail clues
 - slice 9t done: Melzar the Mad combat AI (ai_queue1/ap/op + cabbage/zap procs + say lines) + quest_dragon.npc overlay (aggressive hunt approx); maze critters use default melee (key drops already 8j); deferred: weaken/curse npc_stat_change_effect, .hunt aggressive_melee, sound_synth, Elvarg fire-breath
 - slice 9u done: Elvarg fire-breath combat AI — ai_queue1/ap/op (AP↔OP mode rolls + close/far breath + melee) + ~elvarg_max_hit (shield/Protect Magic) + quest_dragon.npc overlays (elvarg + elvarg_alive, aggressive hunt approx); deferred: antifire potion (%dragonresist false-friend), .hunt elvarg_hunt, sound_synth, %npc_aggressive_player last-hit, gosub(npc_death)
-- next pending: guard2 unresolved; ditch (no LC); shops blocked on inv.ini
+- slice 9v done: npc_stat_change_effect — NPC→player confuse/weaken/curse via magic_spell_table:stat_change + ~npc_debuff_allowed (already-below-base gate); dark_wizard/Melzar comments updated; deferred: god-spell exclusion (^flames/^claws/^strike still defer-table), freeze/%frozen, poison
+- slice 9w done: metal-dragon drops — bronze_dragon/iron_dragon/steel_dragon ai_queue3 (bars + rare platelegs + 128-table); shared edits (no gosub death, no trail_hardcluedrop); deferred: metal_dragon.rs2 combat AI, Mort'ton lair (%morttonmulti + key cats + open_and_close_metal_gate), Mage Arena god-spell _npc keys (player keys still defer-table)
+- slice 9x done: metal-dragon combat AI — bronze/iron/steel ai_queue1/ap/op (melee-in-AP + 1/4 close breath + far projectile) + ~metal_dragon_breath_maxhit (shield; Protect Magic ignored per LC) + metal_dragon.npc overlays (aggressive hunt approx for cowardly); deferred: antifire potion (%dragonresist), .hunt cowardly, sound_synth, trail clues, strongholdcave variants
+- next pending: Mort'ton lair doors (%morttonmulti) / Mage Arena god-spell NPC keys; skip blocked: guard2 unresolved, ditch (no LC), shops inv.ini

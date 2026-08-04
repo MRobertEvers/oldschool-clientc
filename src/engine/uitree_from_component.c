@@ -223,11 +223,18 @@ UITree_FillBuildFromToriRS(
     }
 
     dst->hide = src->hide;
+    /* Torirs carries 5 op slots; the live tree has 10 (IF3). Copy what the
+     * cache decoded and clear the unused high slots. */
     _Static_assert(
-        sizeof(dst->option) == sizeof(src->option) && sizeof(dst->ops) == sizeof(src->ops),
+        sizeof(dst->option) == sizeof(src->option),
         "ui menu option mirrors out of sync with torirs");
+    _Static_assert(
+        sizeof(src->ops) <= sizeof(dst->ops),
+        "torirs op slots must fit in uitree op slots");
     memcpy(dst->option, src->option, sizeof(dst->option));
-    memcpy(dst->ops, src->ops, sizeof(dst->ops));
+    memcpy(dst->ops, src->ops, sizeof(src->ops));
+    if( sizeof(dst->ops) > sizeof(src->ops) )
+        memset((char*)dst->ops + sizeof(src->ops), 0, sizeof(dst->ops) - sizeof(src->ops));
     _Static_assert(
         sizeof(dst->target_verb) == sizeof(src->target_verb) &&
             sizeof(dst->target_base) == sizeof(src->target_base),

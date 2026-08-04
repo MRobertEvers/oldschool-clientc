@@ -1780,6 +1780,15 @@ Now it mirrors the reference exactly:
   `level !== local_level`; obj-stacks only register when their stored level
   matches (reference `objStacks[minusedlevel]`). Stored entity levels still
   drive minimap dots and pick filtering.
+- **NPC_INFO / PLAYER_INFO count-shrinkage despawn** (reference
+  `getNpcPosOldVis` / `getPlayerPosOldVis`): when the wire 8-bit tracked
+  count is less than the client's previous list length, indices
+  `[count, oldCount)` must be removed from the world pool — not only dropped
+  from `esync.active_*`. Plane-change zeros the server's `tracked_count` and
+  sends `count=0`; without the trailing despawn, old-floor NPCs linger,
+  paint on `minusedlevel`, and fail pick (`Walk here` only). Handled in
+  `PKT_*_OPBITS_COUNT_RESET` (`task_exec_entity_info.c`). Covered by
+  `make -C src test-entity-info-shrink`.
 - **`alwaysontop`** (NpcType opcode 99) was undecoded — added to
   `ToriRS_Npctype` (from both the dat1 `alwaysontop` and dat2
   `has_render_priority` rscache fields), plumbed onto `WorldEntity_NPC.alwaysontop`
@@ -1826,7 +1835,9 @@ projectiles/spotanims/obj-stacks are skipped. `make -C src test-minimenu-world`
 — local player pick expands stacked NPC options with zero local OPPLAYER rows;
 other players on the same tile get Follow/Trade rows; solo local yields none;
 ground items on the tile appear from a player pick and from an obj sibling
-expansion.
+expansion. `make -C src test-entity-info-shrink` — NPC_INFO/PLAYER_INFO
+count < old_count despawns truncated trailing entities from the world pool
+(plane-change `count=0` orphans).
 
 ---
 

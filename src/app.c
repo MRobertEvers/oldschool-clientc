@@ -9032,6 +9032,18 @@ app_minimenu_inv_action(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 opt->action_index + 1, obj_id, slot, com_id));
         return 1;
+    case REVCONFIG_MINIMENU_IF_BUTTON:
+        /* Component ops 6..10 on an inventory cell (bank Withdraw-X/All,
+         * farming tools op9/10, …). INV_BUTTON only goes to 5 on the wire;
+         * IF_BUTTON1..10 carry (component, sub=slot). */
+        if( opt->action_index < 0 || opt->action_index >= 10 )
+            return 0;
+        APP_NET_SEND(
+            app,
+            net_out_if_button_op(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                opt->action_index + 1, com_id, slot));
+        return 1;
     case REVCONFIG_MINIMENU_OPHELDT_START:
     {
         /* "Use <item>": enter selection mode; the next click targets it. */

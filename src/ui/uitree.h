@@ -9,7 +9,7 @@
 /* UITreeComponent::child_key_max sentinels (below any real sub-id key). */
 #define UITREE_CHILD_KEY_UNKNOWN INT32_MIN
 #define UITREE_CHILD_KEY_NONE (INT32_MIN + 1)
-#define UITREE_MENU_OPTION_SLOTS 5
+#define UITREE_MENU_OPTION_SLOTS 10
 /* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
 #define UITREE_MENU_OPTION_LEN 64
 #define UITREE_SUBMENU_OP_SLOTS 10

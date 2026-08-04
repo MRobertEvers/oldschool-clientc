@@ -549,11 +549,12 @@ remount can reuse the bake (baking a second copy renders blank). That is
 intentional. What was not: (1) `UITreeAnim_*` and wheel/opkey walks strode the
 whole array every tick looking for ~800 model nodes among ~10k; fixed with
 **live node sets** (`tree->models`, `tree->timer_hooks`, …) maintained at Push /
-reclaim / predicate writers — no lazy full-array rebuild. (2) `runtime_hooks`
-blocks (~10 KB each) survived close — bank alone retained ~1500 while hidden;
-`RS_CS2Host_ClearHooksForInterfaceGroup` now frees them via the per-group live
-set (onload reallocates). (3) Open/close used to scan all ~10k components four
-times for group membership; `UITree_GroupNodes` is O(group size).
+reclaim / predicate writers — no lazy full-array rebuild. (2) reactive
+`runtime_hooks` (timer/transmit/…) survived close and kept firing —
+`RS_CS2Host_ClearHooksForInterfaceGroup` clears those via the per-group live
+set and frees the block when no click/op/drag remains (interaction hooks stay
+on reused bakes such as the compass). (3) Open/close used to scan all ~10k
+components four times for group membership; `UITree_GroupNodes` is O(group size).
 Measure with `./tools/perf/run_perf.sh soak-ui` and `TORIRS_IFACE_STATS=1`;
 `drift-ui` only remounts one pack and will not show residency growth.
 See [PERF_HARNESS.md](PERF_HARNESS.md) § Multi-panel soak.

@@ -1065,8 +1065,6 @@ mock230_bank_quantity_for_op(
     int side)
 {
     struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
-    int mode = bank->quantity_mode;
     int requested = bank->requested_quantity;
 
     if( available <= 0 )
@@ -1103,66 +1101,33 @@ mock230_bank_quantity_for_op(
     }
 
     /*
-     * The main panel does not. Script 669 builds its rows with a running
-     * counter and *skips* the one that duplicates the current default, so the
-     * index of "Withdraw-All" moves with the settings. Rebuilding the same
-     * ladder is the only way to read the index the client sent — a fixed table
-     * is right for exactly one combination of them.
+     * The main panel uses the same fixed sparse indices as CS2 script_5272 /
+     * Kronos bankmain_drawitem: omitting a duplicate default leaves a hole in
+     * the menu, it does not renumber later ops. Withdraw-X is always op 6,
+     * Withdraw-All always op 7 (when shown). A dense rebuild mis-mapped
+     * "Withdraw-5" (op 3) to 10 when default was 1.
      */
+    switch( op )
     {
-        enum
-        {
-            ROW_DEFAULT,
-            ROW_ONE,
-            ROW_FIVE,
-            ROW_TEN,
-            ROW_REQUESTED,
-            ROW_ASK,
-            ROW_ALL,
-            ROW_ALL_BUT_ONE,
-        };
-        int rows[8];
-        int count = 0;
-
-        rows[count++] = ROW_DEFAULT;
-        if( mode != ids->bank_qty_1 )
-            rows[count++] = ROW_ONE;
-        if( mode != ids->bank_qty_5 )
-            rows[count++] = ROW_FIVE;
-        if( mode != ids->bank_qty_10 )
-            rows[count++] = ROW_TEN;
-        if( mode != ids->bank_qty_x && requested > 0 )
-            rows[count++] = ROW_REQUESTED;
-        rows[count++] = ROW_ASK;
-        if( mode != ids->bank_qty_all )
-            rows[count++] = ROW_ALL;
-        rows[count++] = ROW_ALL_BUT_ONE;
-
-        /* Past the ladder are Configure-Charges and Placeholder, neither of
-         * which the mock models. */
-        if( op < 1 || op > count )
-            return 0;
-
-        switch( rows[op - 1] )
-        {
-        case ROW_DEFAULT:
-            return default_quantity(bank, available);
-        case ROW_ONE:
-            return at_most(1, available);
-        case ROW_FIVE:
-            return at_most(5, available);
-        case ROW_TEN:
-            return at_most(10, available);
-        case ROW_REQUESTED:
-            return at_most(requested, available);
-        case ROW_ASK:
-            return MOCK230_BANK_ASK;
-        case ROW_ALL:
-            return available;
-        case ROW_ALL_BUT_ONE:
-        default:
-            return available > 1 ? available - 1 : 0;
-        }
+    case 1:
+        return default_quantity(bank, available);
+    case 2:
+        return at_most(1, available);
+    case 3:
+        return at_most(5, available);
+    case 4:
+        return at_most(10, available);
+    case 5:
+        return requested > 0 ? at_most(requested, available) : 0;
+    case 6:
+        return MOCK230_BANK_ASK;
+    case 7:
+        return available;
+    case 8:
+        return available > 1 ? available - 1 : 0;
+    default:
+        /* 9 Placeholder, 10 Examine — neither moves objs here. */
+        return 0;
     }
 }
 
@@ -1326,6 +1291,11 @@ mock230_bank_resume_countdialog(
     bank->pending_slot = -1;
     if( kind == MOCK230_BANK_PENDING_NONE || amount <= 0 )
         return kind != MOCK230_BANK_PENDING_NONE;
+
+    /* Kronos BANK_LAST_X: remember the typed amount for Withdraw/Deposit-N. */
+    bank->requested_quantity = amount;
+    mock230_bank_set_varbit(
+        srv, mock230_ids()->varbit_bank_requestedquantity, amount);
 
     if( kind == MOCK230_BANK_PENDING_WITHDRAW )
         mock230_bank_withdraw(srv, slot, amount);
