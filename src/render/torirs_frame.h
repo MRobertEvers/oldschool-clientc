@@ -54,6 +54,8 @@ struct ToriRS_Frame
     bool in_world;
     bool world_begun;
     bool has_queued;
+    /** Cursor into ToriDraw_SceneEvents for unload/clear → TORIRSRC_* drain. */
+    int event_index;
     struct ToriRS_RenderCommand queued;
     struct ToriRS_RenderCommand_Begin3D pending_begin_3d;
 };

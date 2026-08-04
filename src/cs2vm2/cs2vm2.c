@@ -4161,15 +4161,36 @@ CS2VM2_Op_DragPickup(
     int operand,
     enum CS2VM_HostRequestKind kind)
 {
+    int pickup_x;
+    int pickup_y;
+    int component_id;
+
     assert(vm);
     assert(frame);
     (void)frame;
 
+    /* IF_DRAGPICKUP stack (bottom→top): [x, y, component]
+     * CC_DRAGPICKUP stack (bottom→top): [x, y] — target is active/dot.
+     * Reference ScriptRunner 3108/3109. */
+    if( kind == CS2VM_HOST_REQUEST_IF_DRAGPICKUP )
+    {
+        if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    else
+        component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+
+    if( CS2VM2_PopInt(vm, &pickup_y) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &pickup_x) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = kind;
-    request.u.widget_set_int.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    request.u.widget_set_int.value = 1;
+    request.u.drag_pickup.component_id = component_id;
+    request.u.drag_pickup.pickup_x = pickup_x;
+    request.u.drag_pickup.pickup_y = pickup_y;
     return vm->vm->host_exec(vm, &request);
 }
 

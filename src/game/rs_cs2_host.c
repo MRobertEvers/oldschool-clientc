@@ -31,6 +31,18 @@
 #define UITREE_CLICK_DEBUG 0
 #endif
 
+static int
+torirs_trace_drag(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* e = getenv("TORIRS_TRACE_DRAG");
+        cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
 /** UIZOOM_RESET / UIZOOM_GETDEFAULT constant (1000 = 100%, reference scheme). */
 #define RS_CS2_UIZOOM_DEFAULT 1000
 
@@ -5150,8 +5162,13 @@ rs_cs2_host_exec_dispatch(
             vm, tree ? UITree_GetLayoutWidth(tree, request->u.if_get_width.component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
-        return CS2VM2_PushInt(
-            vm, tree ? UITree_GetLayoutHeight(tree, request->u.if_get_height.component_id) : 0);
+    {
+        int cid = request->u.if_get_height.component_id;
+        int h = tree ? UITree_GetLayoutHeight(tree, cid) : 0;
+        if( torirs_trace_drag() )
+            fprintf(stderr, "TORIRS_TRACE_DRAG if_getheight id=%d -> %d\n", cid, h);
+        return CS2VM2_PushInt(vm, h);
+    }
 
     case CS2VM_HOST_REQUEST_IF_GETX:
         return CS2VM2_PushInt(
@@ -5180,9 +5197,21 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, node ? node->scroll_y : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
-        node = rs_cs2_node(host, request->u.if_get_scroll_height.component_id);
-        return CS2VM2_PushInt(
-            vm, (node && node->type == UIELEM_RS_LAYER) ? node->u.rs_layer.scroll_height : 0);
+    {
+        int cid = request->u.if_get_scroll_height.component_id;
+        int sh = 0;
+        node = rs_cs2_node(host, cid);
+        if( node && node->type == UIELEM_RS_LAYER )
+            sh = node->u.rs_layer.scroll_height;
+        if( torirs_trace_drag() )
+            fprintf(
+                stderr,
+                "TORIRS_TRACE_DRAG if_getscrollheight id=%d type=%d -> %d\n",
+                cid,
+                node ? (int)node->type : -1,
+                sh);
+        return CS2VM2_PushInt(vm, sh);
+    }
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
         node = rs_cs2_node(host, request->u.if_getscrollwidth.component_id);
@@ -5354,6 +5383,7 @@ rs_cs2_host_exec_dispatch(
         int cid = request->u.if_set_scroll_pos.component_id;
         int sx = request->u.if_set_scroll_pos.scroll_x;
         int sy = request->u.if_set_scroll_pos.scroll_y;
+        int req_sy = sy;
         node = rs_cs2_node(host, cid);
         if( node && node->type == UIELEM_RS_LAYER )
         {
@@ -5370,7 +5400,28 @@ rs_cs2_host_exec_dispatch(
                 sy = 0;
             if( sy > max_y )
                 sy = max_y;
+            if( torirs_trace_drag() )
+                fprintf(
+                    stderr,
+                    "TORIRS_TRACE_DRAG setscrollpos id=%d req_sy=%d max_y=%d applied_sy=%d "
+                    "scroll_h=%d abs_h=%d\n",
+                    cid,
+                    req_sy,
+                    max_y,
+                    sy,
+                    node->u.rs_layer.scroll_height,
+                    node->position.abs_h);
             (void)UITree_ApplyScrollPos(tree, cid, sx, sy);
+        }
+        else if( torirs_trace_drag() )
+        {
+            fprintf(
+                stderr,
+                "TORIRS_TRACE_DRAG setscrollpos SKIP id=%d node=%p type=%d req_sy=%d\n",
+                cid,
+                (void*)node,
+                node ? (int)node->type : -1,
+                req_sy);
         }
         return CS2VM_EXECNO_OK;
     }
@@ -5902,15 +5953,25 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_IF_DRAGPICKUP:
     case CS2VM_HOST_REQUEST_CC_DRAGPICKUP:
-        /* Demo: mark component drag_active; full pickup offsets applied by input loop. */
-        node = rs_cs2_node(host, request->u.widget_set_int.component_id);
-        if( node )
+        /* Stage for InteractFrame — reference Client.dragTryPickup. The host
+         * has the tree but not UIInteraction::input_state, so we park the
+         * request here the same way SETANTIDRAG parks anti_drag. */
+        if( tree )
         {
-            int32_t const drag_idx =
-                rs_cs2_find_node(host, request->u.widget_set_int.component_id);
-            node->draggable = 1;
-            UITree_SetComponentDragActive(tree, drag_idx, 1);
-            UITree_MarkNodeDirty(tree, drag_idx);
+            int const cid = request->u.drag_pickup.component_id;
+            node = rs_cs2_node(host, cid);
+            if( node )
+            {
+                /* Reference refuses when a drag is already live or the target
+                 * has no drag render layer. We still require a resolvable
+                 * node; anti_drag / an already-active source is enforced when
+                 * InteractFrame consumes the pending. */
+                node->draggable = 1;
+                tree->pending_drag_pickup = 1;
+                tree->pending_drag_pickup_id = cid;
+                tree->pending_drag_pickup_x = request->u.drag_pickup.pickup_x;
+                tree->pending_drag_pickup_y = request->u.drag_pickup.pickup_y;
+            }
         }
         return CS2VM_EXECNO_OK;
 

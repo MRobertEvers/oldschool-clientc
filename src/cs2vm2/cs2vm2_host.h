@@ -972,6 +972,15 @@ struct CS2VM_HostRequest_CC_SetDraggable
     int child_index;
 };
 
+/** IF/CC_DRAGPICKUP — start (or re-target) a component drag with an explicit
+ *  grab offset inside the widget. Reference Client.dragTryPickup. */
+struct CS2VM_HostRequest_DragPickup
+{
+    int component_id;
+    int pickup_x;
+    int pickup_y;
+};
+
 struct CS2VM_HostRequest_CC_SetDraggableBehavior
 {
     int component_id;
@@ -1480,6 +1489,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetScrollSize cc_set_scroll_size;
         struct CS2VM_HostRequest_WidgetSetInt widget_set_int;
         struct CS2VM_HostRequest_WidgetSetInt2 widget_set_int2;
+        struct CS2VM_HostRequest_DragPickup drag_pickup;
         struct CS2VM_HostRequest_WidgetSetModelAngle widget_set_model_angle;
         struct CS2VM_HostRequest_WidgetSetArc widget_set_arc;
         struct CS2VM_HostRequest_WidgetSetModel widget_set_model;

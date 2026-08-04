@@ -191,10 +191,18 @@ re-arm. Stop only when the user stops the loop.
 | 13y | yanille thin NPCs | done | sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard; deferred: shops, barcrawl |
 | 13z | burthorpe thin NPCs | done | citizens name-expand + cook/servant/WK/shop/barman/guards; ^death_complete; deferred: Death Plateau body, openshop |
 | 14a | yanille shop stubs | done | frenita/magic_store/ogre_merchant/ogre_trader1 Trade stubs + retaliate traders; deferred: openshop, rockcake stall |
-| 14b | witch house locs | done | pot/doors/cupboard/mouse/fountain/shed + experiment chain; coords landed; deferred: ball_irongate, diary, nora AI |
+| 14b | witch house locs | done | pot/doors/cupboard/mouse/fountain/shed + experiment chain; coords landed; deferred: ball_irongate |
 | 14c | death plateau thin NPCs | done | IG soldiers/sergeants + archers Talk-to; deferred: ai_timer drill/eat, archer combat drops |
 | 14d | saba + eohric | done | hermit + headservant + %death_map authored + progress constants; deferred: Denulth/Tenzing/Dunstan/Harold, death_bits |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Death Plateau Denulth/Tenzing/Dunstan or witches_diary/nora AI; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 14e | Denulth | done | death_ig_commander + %death_bits 5768 + complete; deferred: troll_quest arms |
+| 14f | Tenzing | done | death_sherpa Death Plateau arms + boots shop post-quest; deferred: troll_love/Trollweiss |
+| 14g | Dunstan | done | death_smithy Death Plateau arms + spike/anvil/son; deferred: troll_quest/sled/law tali/repair |
+| 14h | Harold | done | death_guard_equiproom drink/duty/combo + inline gamble; deferred: death_dice IF1 |
+| 14i | witches_diary | done | opheld mesbox pages + mouse-door varp advance; deferred: IF1 book UI |
+| 14j | nora AI | done | ai_spawn+ai_timer hunt/LOS curse + patrol overlay; deferred: sound_synth |
+| 14k | death IOU + scout | done | death_iou→combination + combination mesbox + secret-path zone; deferred: doors/mechanism/rocks |
+| 14l | death + ball journals | done | death_journal + ball_journal wired to quest_deathplateau/quest_witchshouse |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Death Plateau doors/stone mechanism or burthorpe leftovers; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -387,6 +395,14 @@ re-arm. Stop only when the user stops the loop.
 - slice 14b done: witch house locs + experiment chain + witchrat/experiment coords; mock230_pack 0 errors (3578 scripts)
 - slice 14c done: death plateau thin soldiers/archers Talk-to; mock230_pack 0 errors (3595 scripts)
 - slice 14d done: saba + eohric + %death_map authored 5767 + progress constants; mock230_pack 0 errors (3603 scripts)
-- next pending: Death Plateau Denulth/Tenzing/Dunstan or witches_diary/nora AI; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 14e done: Denulth + %death_bits authored 5768 + death_quest_complete; troll_quest deferred; mock230_pack 0 errors (3618 scripts)
+- slice 14f done: Tenzing Death Plateau arms + post-quest boots; troll_love deferred; mock230_pack 0 errors
+- slice 14g done: Dunstan Death Plateau arms; troll/sled/law tali deferred; mock230_pack 0 errors (3632 scripts)
+- slice 14h done: Harold drink/duty/combo + inline gamble (no death_dice IF1); mock230_pack 0 errors
+- slice 14i done: witches_diary mesbox pages + mouse-door varp; IF1 book deferred; mock230_pack 0 errors (3642 scripts)
+- slice 14j done: nora_t_hagg ai_spawn/ai_timer + patrol overlay; mock230_pack 0 errors (3644 scripts)
+- slice 14k done: death_iou→combination + scout zone; doors/mechanism deferred; mock230_pack 0 errors
+- slice 14l done: death_journal + ball_journal questlist wires; mock230_pack 0 errors (3649 scripts)
+- next pending: Death Plateau doors/stone mechanism or burthorpe leftovers; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

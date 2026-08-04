@@ -808,6 +808,13 @@ struct UITree
     int interface_parent_count;
     /** SETANTIDRAG — suppress new drag initiation while set. */
     uint8_t anti_drag;
+    /** CC/IF_DRAGPICKUP staged for the input loop (reference dragTryPickup).
+     *  The CS2 host cannot reach UIInteraction::input_state, so it writes
+     *  these and InteractFrame consumes them into a live drag source. */
+    uint8_t pending_drag_pickup;
+    int pending_drag_pickup_id;
+    int pending_drag_pickup_x;
+    int pending_drag_pickup_y;
     /** Set when any node's layout is invalidated (position/size/topology
      *  mutation); cleared by UITree_LayoutResolve. Lets CS2 geometry getters
      *  lazily re-resolve mid-script (reference WidgetManager.ensureLayout —

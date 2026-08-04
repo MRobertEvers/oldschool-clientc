@@ -5,7 +5,21 @@
 #include "uitree_layout.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+static int
+torirs_trace_drag(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* e = getenv("TORIRS_TRACE_DRAG");
+        cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
 
 void
 UIInteraction_Init(struct UIInteraction* interact)
@@ -475,6 +489,181 @@ interact_wheel(
     }
 }
 
+/* Emit one on_drag intent for the current drag source. */
+static void
+interact_drag_push_ondrag(
+    struct UITree* tree,
+    struct UIInputState* st,
+    struct UIInteractOut* out)
+{
+    struct UITreeComponent* src;
+    int parent_x = 0, parent_y = 0, parent_w = 0, parent_h = 0;
+    int32_t parent_idx;
+    struct UIIntent intent;
+
+    assert(tree);
+    assert(st);
+    assert(out);
+    assert(st->drag_source_idx >= 0);
+    assert((uint32_t)st->drag_source_idx < tree->component_count);
+
+    src = &tree->components[st->drag_source_idx];
+    parent_idx = src->parent;
+    intent = (struct UIIntent){
+        .component_id = st->drag_source_id,
+        .hook = &UITree_Hooks(src)->on_drag,
+        .has_drag_target = 1,
+        .drag_target_id = st->drag_target_id,
+    };
+    if( src->drag_render_area_uid >= 0 )
+        parent_idx = UITree_ResolveDragRenderArea(tree, src);
+    if( parent_idx >= 0 )
+    {
+        int poffx = 0, poffy = 0;
+        UITree_LayoutGetBounds(
+            &tree->components[parent_idx].position,
+            &parent_x,
+            &parent_y,
+            &parent_w,
+            &parent_h);
+        /* Screen-space origin of the coordinate space: the area may
+         * itself sit inside a scrolled layer (reference uses the
+         * render area's _absX/_absY). */
+        UITree_AccumScrollOffset(tree, parent_idx, &poffx, &poffy);
+        parent_x -= poffx;
+        parent_y -= poffy;
+    }
+    /* Script-space mouse: drag visual relative to the drag render
+     * area (the track for a scrollbar dragger), folded back into
+     * content space via the area's scroll. */
+    intent.has_event_mouse = 1;
+    intent.event_mouse_x = src->drag_visual_x - parent_x +
+                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
+    intent.event_mouse_y = src->drag_visual_y - parent_y +
+                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
+    if( torirs_trace_drag() )
+    {
+        fprintf(
+            stderr,
+            "TORIRS_TRACE_DRAG on_drag src=%d area=%d area_uid=%d area_xywh=%d,%d,%d,%d "
+            "visual_y=%d parent_y=%d event_y=%d hook=%d\n",
+            st->drag_source_id,
+            parent_idx >= 0 ? tree->components[parent_idx].component_id : -1,
+            src->drag_render_area_uid,
+            parent_x,
+            parent_y,
+            parent_w,
+            parent_h,
+            src->drag_visual_y,
+            parent_y,
+            intent.event_mouse_y,
+            intent.hook ? intent.hook->script_id : -1);
+    }
+    intent_push(out, &intent);
+    out->need_redraw = 1;
+}
+
+/* Apply a CS2 cc/if_dragpickup that the host staged on the tree. Returns 1 if
+ * a one-shot on_drag was emitted (mouse already up — track jump). */
+static int
+interact_drag_consume_pending(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    int left_held,
+    struct UIInteractOut* out)
+{
+    struct UIInputState* st;
+    int32_t idx;
+    struct UITreeComponent* src;
+    int mx;
+    int my;
+
+    assert(interact);
+    assert(tree);
+    assert(input);
+    assert(out);
+
+    if( !tree->pending_drag_pickup )
+        return 0;
+    tree->pending_drag_pickup = 0;
+
+    /* Reference dragTryPickup refuses when a drag is already live or anti_drag
+     * is set. An already-active source from a real press wins. */
+    st = &interact->input_state;
+    if( tree->anti_drag || st->drag_active )
+        return 0;
+
+    idx = UITree_FindByComponentId(tree, tree->pending_drag_pickup_id);
+    if( idx < 0 )
+        return 0;
+
+    src = &tree->components[idx];
+    mx = input->curr.mouse_x;
+    my = input->curr.mouse_y;
+
+    st->drag_source_idx = idx;
+    st->drag_source_id = src->component_id;
+    st->drag_pickup_x = tree->pending_drag_pickup_x;
+    st->drag_pickup_y = tree->pending_drag_pickup_y;
+    st->drag_click_x = mx;
+    st->drag_click_y = my;
+    st->drag_duration = 0;
+    st->drag_target_id = -1;
+    st->deferred_click = 0;
+    /* Force active immediately: scripted pickup (scrollbar track jump) has
+     * already chosen the grab offset; there is no deadzone to wait out. */
+    st->drag_active = 1;
+    UITree_SetComponentDragActive(tree, idx, 1);
+    src->drag_visual_trans = (src->drag_behavior == 1) ? -1 : 128;
+
+    /* Seed visual + clamp via the normal tick path. */
+    (void)UITree_InputDragTick(st, tree, ui_host, mx, my, 1);
+    interact_drag_push_ondrag(tree, st, out);
+
+    if( torirs_trace_drag() )
+    {
+        fprintf(
+            stderr,
+            "TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
+            src->component_id,
+            tree->pending_drag_pickup_x,
+            tree->pending_drag_pickup_y,
+            left_held,
+            src->drag_visual_y);
+    }
+
+    if( !left_held )
+    {
+        /* onclick fires on mouseup here, so the jump is a one-shot: fire
+         * on_drag (above) then end the gesture so the next press starts clean.
+         * Reference fires onclick on mousedown and keeps the drag while held. */
+        struct UIIntent complete = {
+            .component_id = st->drag_source_id,
+            .hook = &UITree_Hooks(src)->on_drag_complete,
+            .has_drag_target = 1,
+            .drag_target_id = st->drag_target_id,
+            .has_event_mouse = 1,
+            .event_mouse_x = 0,
+            .event_mouse_y = 0,
+        };
+        if( out->intent_count > 0 )
+        {
+            complete.event_mouse_x = out->intents[out->intent_count - 1].event_mouse_x;
+            complete.event_mouse_y = out->intents[out->intent_count - 1].event_mouse_y;
+        }
+        intent_push(out, &complete);
+        UITree_SetComponentDragActive(tree, idx, 0);
+        st->drag_active = 0;
+        st->drag_source_idx = -1;
+        st->drag_source_id = -1;
+        st->drag_target_id = -1;
+        return 1;
+    }
+    return 0;
+}
+
 /* Drag tick while held (deadzone+deadtime); emits onDrag / onDragComplete
  * intents with drag-target and script-space mouse context. */
 static void
@@ -495,49 +684,16 @@ interact_drag(
      * the input threshold finally tripped. Same gate as interact_hold. */
     int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
 
+    if( !sb_owns_mouse )
+        (void)interact_drag_consume_pending(
+            interact, tree, ui_host, input, left_held, out);
+
     if( !sb_owns_mouse && st->drag_source_idx >= 0 && left_held )
     {
         int drag_ch = UITree_InputDragTick(
             st, tree, ui_host, input->curr.mouse_x, input->curr.mouse_y, 1);
         if( st->drag_active )
-        {
-            struct UITreeComponent* src = &tree->components[st->drag_source_idx];
-            int parent_x = 0, parent_y = 0, parent_w = 0, parent_h = 0;
-            int32_t parent_idx = src->parent;
-            struct UIIntent intent = {
-                .component_id = st->drag_source_id,
-                .hook = &UITree_Hooks(src)->on_drag,
-                .has_drag_target = 1,
-                .drag_target_id = st->drag_target_id,
-            };
-            if( src->drag_render_area_uid >= 0 )
-                parent_idx = UITree_ResolveDragRenderArea(tree, src);
-            if( parent_idx >= 0 )
-            {
-                int poffx = 0, poffy = 0;
-                UITree_LayoutGetBounds(
-                    &tree->components[parent_idx].position,
-                    &parent_x, &parent_y, &parent_w, &parent_h);
-                /* Screen-space origin of the coordinate space: the area may
-                 * itself sit inside a scrolled layer (reference uses the
-                 * render area's _absX/_absY). */
-                UITree_AccumScrollOffset(tree, parent_idx, &poffx, &poffy);
-                parent_x -= poffx;
-                parent_y -= poffy;
-            }
-            /* Script-space mouse: drag visual relative to the drag render
-             * area (the track for a scrollbar dragger), folded back into
-             * content space via the area's scroll. */
-            intent.has_event_mouse = 1;
-            intent.event_mouse_x =
-                src->drag_visual_x - parent_x +
-                (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
-            intent.event_mouse_y =
-                src->drag_visual_y - parent_y +
-                (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
-            intent_push(out, &intent);
-            out->need_redraw = 1;
-        }
+            interact_drag_push_ondrag(tree, st, out);
         else if( drag_ch )
             out->need_redraw = 1;
     }

@@ -6,6 +6,7 @@
 #include "world/world.h"
 
 #include "toridraw_scene.h"
+#include "toridraw_types.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -36,6 +37,57 @@ frame_take_queued(
     *out = frame->queued;
     frame->has_queued = false;
     return true;
+}
+
+/** Translate a ToriDraw scene event into a retained-mode unload/clear command.
+ * Load events are skipped: GL3 lazy-bakes on DRAW; Soft3D ignores loads. */
+static bool
+frame_translate_scene_event(
+    struct ToriDraw_Event const* ev,
+    struct ToriRS_RenderCommand* out)
+{
+    assert(ev);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    switch( ev->kind )
+    {
+    case TORIDRAW_EVENT_MODEL_UNLOAD:
+        out->kind = TORIRSRC_MODEL_UNLOAD;
+        out->u.model_load.element_id = ev->element_id;
+        return true;
+    case TORIDRAW_EVENT_ANIM_UNLOAD:
+        out->kind = TORIRSRC_ANIM_UNLOAD;
+        out->u.anim_load.element_id = ev->element_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_CLEAR:
+    case TORIDRAW_EVENT_SCENE_RESET:
+        out->kind = TORIRSRC_BATCH3D_CLEAR;
+        out->u.batch.batch_id = ev->batch_id;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool
+frame_take_scene_event(
+    struct ToriRS_Frame* frame,
+    struct ToriRS_RenderCommand* out)
+{
+    struct ToriDraw_EventQueue* eq;
+    assert(frame);
+    assert(out);
+    assert(frame->scene);
+    eq = ToriDraw_SceneEvents(frame->scene);
+    if( !eq )
+        return false;
+    while( frame->event_index < eq->count )
+    {
+        struct ToriDraw_Event const* ev = &eq->events[frame->event_index++];
+        if( frame_translate_scene_event(ev, out) )
+            return true;
+    }
+    return false;
 }
 
 static void
@@ -1434,6 +1486,7 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->emit_index = 0;
     frame->painters_index = 0;
     frame->scrollbar_step = 0;
+    frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
@@ -1451,6 +1504,11 @@ ToriRS_FrameNextCommand(
     assert(frame->scene);
 
     if( frame_take_queued(frame, out) )
+        return true;
+
+    /* Drain scene unload/clear events before any DRAW_MODEL so GL3's pose
+     * table does not serve stale verts after element-id reuse. */
+    if( frame_take_scene_event(frame, out) )
         return true;
 
 again:
@@ -1584,10 +1642,13 @@ void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame)
 {
     assert(frame);
+    if( frame->scene )
+        ToriDraw_SceneFrameEnd(frame->scene);
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
     frame->scrollbar_step = 0;
+    frame->event_index = 0;
     frame->in_world = false;
     frame->world_begun = false;
     frame->has_queued = false;
