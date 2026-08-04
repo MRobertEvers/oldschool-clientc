@@ -494,8 +494,8 @@ mock230_mapinstance_window(
 
                     if( !inst->zones[level][zx][zz].set )
                         continue;
-                    if( wx < 0 || wx >= MOCK230_MAPINSTANCE_ZONES || wz < 0 ||
-                        wz >= MOCK230_MAPINSTANCE_ZONES )
+                    if( wx < 0 || wx >= MOCK230_MAPINSTANCE_SCENE_ZONES ||
+                        wz < 0 || wz >= MOCK230_MAPINSTANCE_SCENE_ZONES )
                         continue;
                     out->zones[level][wx][wz] = inst->zones[level][zx][zz];
                     out->set_count++;

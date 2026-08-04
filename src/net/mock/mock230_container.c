@@ -7,9 +7,71 @@
 #include "mock230.h"
 #include "mock230_bank.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* ------------------------------------------------------------------ */
+/* Per-slot vars                                                       */
+/* ------------------------------------------------------------------ */
+
+static void
+item_clear_vars(struct Mock230Item* item)
+{
+    int i;
+
+    assert(item);
+    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    {
+        item->var_key[i] = -1;
+        item->var_val[i] = 0;
+    }
+}
+
+int
+mock230_item_get_var(
+    const struct Mock230Item* item,
+    int key_obj)
+{
+    int i;
+
+    if( !item || item->obj_id < 0 )
+        return 0;
+    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    {
+        if( item->var_key[i] == key_obj )
+            return item->var_val[i];
+    }
+    return 0;
+}
+
+void
+mock230_item_set_var(
+    struct Mock230Item* item,
+    int key_obj,
+    int value)
+{
+    int i;
+    int free_i = -1;
+
+    assert(item);
+    if( item->obj_id < 0 )
+        return;
+    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    {
+        if( item->var_key[i] == key_obj )
+        {
+            item->var_val[i] = value;
+            return;
+        }
+        if( free_i < 0 && item->var_key[i] < 0 )
+            free_i = i;
+    }
+    assert(free_i >= 0 && "Mock230Item var table full");
+    item->var_key[free_i] = key_obj;
+    item->var_val[free_i] = value;
+}
 
 /* ------------------------------------------------------------------ */
 /* Scope                                                               */
@@ -157,6 +219,7 @@ mock230_container_resolve(
     {
         row->items[i].obj_id = -1;
         row->items[i].count = 0;
+        item_clear_vars(&row->items[i]);
     }
     return row;
 }
@@ -330,12 +393,26 @@ mock230_container_set(
     int obj_id,
     int count)
 {
+    struct Mock230Item* item;
+
     if( !container || !container->used || !container->items )
         return;
     if( slot < 0 || slot >= container->slots )
         return;
-    container->items[slot].obj_id = obj_id < 0 ? -1 : obj_id;
-    container->items[slot].count = obj_id < 0 ? 0 : count;
+    item = &container->items[slot];
+    if( obj_id < 0 )
+    {
+        item->obj_id = -1;
+        item->count = 0;
+        item_clear_vars(item);
+    }
+    else
+    {
+        if( item->obj_id != obj_id )
+            item_clear_vars(item);
+        item->obj_id = obj_id;
+        item->count = count;
+    }
     mock230_container_mark(container, slot);
 }
 

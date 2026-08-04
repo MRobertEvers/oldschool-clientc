@@ -44,7 +44,7 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 | M3 | Crumble Undead | LC | #33 | done | Script + dbrow + undead param host + seed npc overlays |
 | M4 | God spells + Iban Blast | LC | #33 | done | `god_iban.rs2` + dbrows; `%iban_staff_charges`; Mage Arena cast unlock; npc_statsub deferred |
 | M5 | Utility remainder + spellbook leftovers | LC+wiki | #34 | done | oc_cost/oc_members hosted; bones_peaches + Magic Dart; teleother/teleblock + post-LC teles deferred |
-| M6 | Autocast IF + continue | LC+cache | #30 | in_progress | Modern staff autocast surface (not LC `staff_spells.if`); host `P_OPNPCT` if still unhosted; replace stubs |
+| M6 | Autocast IF + continue | LC+cache | #30 | done | Modern `combat_interface`+`autocast` IF; `p_opnpct` continue; OSRS index→LC table key map for strike→wave |
 | M7 | Ancient Magicks | 2009 | #31 | pending | Ice/blood/smoke/shadow + ancient teles; DT unlock; 2009scape `ancient/` |
 | M8 | Lunar spellbook | 2009 | #32 | pending | Utility+Vengeance+heal; Lunar Diplomacy unlock; 2009scape `lunar/` |
 | M9 | Arceuus spellbook | wiki+cache | #32 | pending | Reanimation / thralls / death charge — post-2009; no LC |
@@ -54,7 +54,7 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 
 | Gap | Blocks | Disposition |
 |---|---|---|
-| `P_OPNPCT` declared 2081, may be unhosted | M6 autocast continue | Implement host in same slice if content cannot delay-reclick forever |
+| `P_OPNPCT` declared 2081, may be unhosted | M6 autocast continue | done — hosted in `mock230_scripts.c` (M6 wires continue) |
 | `oc_members` / `oc_cost` runtime | M5 alchemy/staff F2P filter | done — hosted in `mock230_ops_obj.c` |
 | `%npc_stunned` / `npc_statsub` / freeze walktrigger | Bind family effects | Soft-defer effect body; casts still spend runes/XP (status quo) |
 | Multi-player / PvP magic | teleblock PvP, ancient multi | blocked → skills #2 host |
@@ -75,3 +75,4 @@ Verify `mock230_pack --check-only` + `make -C src mock230-scripts`. Mark slice
 - M3 done: LC `crumble_undead.rs2` → `spells/crumble_undead.rs2` + combat dbrow; `undead` in `combat.param`; `apply_param` hosts `undead`; seed `undead.npc` overlays. Scripts green; pack 0 errors. Next = M4 god/iban.
 - M4 done: LC god/iban → `spells/god_iban.rs2` + combat dbrows; `%iban_staff_charges` authored; Arena unlock via `%saramage`/`%guthmage`/`%zamomage` + `mage_arena` zone; charge cape ×1.5; npc_statsub deferred. Next = M5 utility.
 - M5 done: `oc_cost`/`oc_members` already hosted (`mock230_ops_obj.c`). Bones to Peaches as `^bones_to_peaches` + `magic_spellbook:bones_peaches` (MTA unlock gate); Magic Dart (`^magic_dart=54`, Slayer 55 / slayer staff, maxhit floor(Magic/10)+10). Deferred: teleother/teleblock (PvP/#2), house/ape/kourend/fortis teles, enchant6/xbow. Scripts green; pack 0 errors. Sibling: stub `[softtimer,gauntlet_floor_tick]` (not parked). Next = M6 autocast.
+- M6 done: LC autocast shape on modern IF — `auto_cast.rs2` (`combat_interface:autocast_*` → `autocast` IF 201 sidemodal); `%autocast_spell`/`%autocast_defmode`; OSRS index→LC table key map (1→^wind_strike=51, 2..16→1..15); `p_opnpct` continue + delay resume; combat start → `@player_magic_attack`; style slots reset autocast. Deferred: staff-set gating (`autocast_set`/worn enum), ancient/bladed grids, equip-change reset, headless Choose-spell click. Scripts green; pack 0 errors. Next = M7 Ancient.

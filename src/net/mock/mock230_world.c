@@ -152,8 +152,29 @@ inv_set(
 {
     if( slot < 0 || slot >= MOCK230_INV_SLOTS )
         return;
-    player->inv[slot].obj_id = obj_id;
-    player->inv[slot].count = count;
+    if( obj_id < 0 )
+    {
+        player->inv[slot].obj_id = -1;
+        player->inv[slot].count = 0;
+        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        {
+            player->inv[slot].var_key[v] = -1;
+            player->inv[slot].var_val[v] = 0;
+        }
+    }
+    else
+    {
+        if( player->inv[slot].obj_id != obj_id )
+        {
+            for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+            {
+                player->inv[slot].var_key[v] = -1;
+                player->inv[slot].var_val[v] = 0;
+            }
+        }
+        player->inv[slot].obj_id = obj_id;
+        player->inv[slot].count = count;
+    }
     player->inv_dirty |= 1u << slot;
 }
 
@@ -166,8 +187,29 @@ worn_set(
 {
     if( slot < 0 || slot >= MOCK230_WORN_SLOTS )
         return;
-    player->worn[slot].obj_id = obj_id;
-    player->worn[slot].count = count;
+    if( obj_id < 0 )
+    {
+        player->worn[slot].obj_id = -1;
+        player->worn[slot].count = 0;
+        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        {
+            player->worn[slot].var_key[v] = -1;
+            player->worn[slot].var_val[v] = 0;
+        }
+    }
+    else
+    {
+        if( player->worn[slot].obj_id != obj_id )
+        {
+            for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+            {
+                player->worn[slot].var_key[v] = -1;
+                player->worn[slot].var_val[v] = 0;
+            }
+        }
+        player->worn[slot].obj_id = obj_id;
+        player->worn[slot].count = count;
+    }
     player->worn_dirty |= 1u << slot;
     player->masks |= MOCK230_PMASK_APPEARANCE;
 }
@@ -3553,17 +3595,23 @@ handle_opnpc(
 }
 
 /*
- * The player's plane changed — forget everything that was on the old one.
+ * The player's plane changed — drop entity/zone tracking for the old plane.
  *
  * Split out of `climb` (below) 2026-08-02 so that `p_teleport` can call it too.
  * That is not tidying: `SS_OP_P_TELEPORT` moved x/z/level and set `place_dirty`
  * and nothing else, so a script that teleported a player up a floor left the
  * client holding a level's worth of npcs, players and zone state that it had no
  * way to learn about. `maybe_rebuild` does not cover it — it fires on the scene
- * *window* moving, and a ladder does not move the window at all. Every ladder
- * and staircase in this tree becomes content in the same pass, so a content
- * `~climb` that reaches this through `p_teleport` and the engine's own `climb`
- * have to do the same thing or the two are not comparable.
+ * *window* moving, and a ladder does not move the window at all.
+ *
+ * Do **not** set `rebuild_pending`. The wire's LOC_ADD_CHANGE has no plane —
+ * the client applies it to `minusedlevel` (the player's current plane) — so
+ * content that must edit another plane (Kronos Inferno: tele to z1, spawn
+ * flanks, tele back) relies on those locs surviving the return trip. A
+ * REBUILD_* reloads scenery from the cache and would wipe them; LostCity's
+ * `PathingEntity.teleport` only sets jump/INSTANT on a plane change for the
+ * same reason. Entity lists and zone catch-up still reset so the new plane's
+ * NPCs and ZoneMap state are re-sent without touching other levels' scenery.
  *
  * Not the caller's steps or destination: `mock230_world_process_interaction`
  * has already cleared both before any `[oploc]` script runs, and a teleport that
@@ -3573,20 +3621,12 @@ void
 mock230_world_player_level_changed(struct Mock230Player* player)
 {
     player->place_dirty = 1;
-    /* Every npc and ground obj *this* client holds is on the old level, and it
-     * has no way to know they left. A rebuild is heavy-handed but it is exactly
-     * what the reference does when a player changes plane — and it is this
-     * player's rebuild, not the world's: nobody else moved. */
-    player->rebuild_pending = 1;
     memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
     player->tracked_count = 0;
     /* The zones on the new level are different zones — a zone key carries the
      * level — so this is not only "forget what you were told", it is what makes
      * the next flush compute a new active window. */
     mock230_zone_player_reset(player);
-    /* The players on the old level go the same way. `player_in_view` would drop
-     * them next tick anyway, but a rebuild has already thrown the client's list
-     * away, so a remove op would name a slot it no longer holds. */
     memset(player->player_tracked, 0, sizeof(player->player_tracked));
     player->tracked_player_count = 0;
 }
@@ -6174,11 +6214,21 @@ mock230_world_player_init(struct Mock230Player* player)
     {
         player->inv[i].obj_id = -1;
         player->inv[i].count = 0;
+        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        {
+            player->inv[i].var_key[v] = -1;
+            player->inv[i].var_val[v] = 0;
+        }
     }
     for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
     {
         player->worn[i].obj_id = -1;
         player->worn[i].count = 0;
+        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        {
+            player->worn[i].var_key[v] = -1;
+            player->worn[i].var_val[v] = 0;
+        }
     }
 
     /*
@@ -13546,8 +13596,15 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->tracked_count == 0 && player->tracked_player_count == 0,
                            "and forgets the entities on the old plane, got %d npc / %d player",
                            player->tracked_count, player->tracked_player_count);
-            SELFTEST_CHECK(player->rebuild_pending == 1 || player->place_dirty == 1,
-                           "and queues this player's own scene rebuild");
+            /* Plane change must not REBUILD_* — that reloads scenery from the
+             * cache and would wipe other-level dynamic locs (Inferno flanks).
+             * Zone catch-up resets so the new plane is FULL_FOLLOWSed. */
+            SELFTEST_CHECK(player->rebuild_pending == 0,
+                           "plane change must not queue a scene rebuild");
+            SELFTEST_CHECK(player->zone_index < 0,
+                           "and drops zone catch-up for the new plane");
+            SELFTEST_CHECK(player->place_dirty == 1,
+                           "and still forces an absolute PLAYER_INFO placement");
 
             /* And the same ladder's other half. `laddertop` is filed under
              * `climb_down` even though the cache states category 553 on it —

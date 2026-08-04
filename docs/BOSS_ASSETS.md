@@ -266,14 +266,12 @@ rocks flanking Zuk), 30356 (the multiloc marker Kronos removes). Map square
 `35_83`.
 
 The flanking rocks 30345/30346 are **not in the map square's loc data** — Kronos
-spawns them when it builds the arena, on level 1. The port raises them from
-`[queue,inferno_seal_clear]`, the tick the falling seal rocks are removed and
-their tiles come free: a simulated multiloc transform, and the only ordering
-that works. Added earlier they replace the standing rocks (rotated 2x5, south
-ends on the rocks' own tiles) and the collapse never plays; placed statically
-they stand from tick zero and hide the topple inside their own geometry.
-Level 1 is not scriptable at all — a zone update carries no plane, so a level-1
-`loc_add` lands on the player's own level. See the inferno README.
+spawns them when it builds the arena, on level 1, after teleporting the player
+onto that plane (zone LOC_* packets apply to the player's current level only).
+The port mirrors that: `p_teleport` to plane 1 → `~inferno_spawn_flanks` →
+`p_delay(1)` → back to plane 0 → then the L0 seal collapse. Plane changes must
+**not** REBUILD the scene (that would wipe the L1 flanks); see
+`mock230_world_player_level_changed`. Do not bake flanks into the client cache.
 
 ## Re-running the export
 

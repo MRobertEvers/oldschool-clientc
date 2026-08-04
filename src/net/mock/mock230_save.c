@@ -130,6 +130,34 @@ write_items(
     }
 }
 
+static void
+write_item_vars(
+    FILE* file,
+    const char* section,
+    const struct Mock230Item* slots,
+    int slot_count)
+{
+    int any = 0;
+
+    for( int slot = 0; slot < slot_count; slot++ )
+    {
+        if( slots[slot].obj_id < 0 )
+            continue;
+        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        {
+            if( slots[slot].var_key[v] < 0 )
+                continue;
+            if( !any )
+            {
+                fprintf(file, "\n[%s]\n; <slot> <key_obj> = <value>\n", section);
+                any = 1;
+            }
+            fprintf(file, "%d %d = %d\n", slot, slots[slot].var_key[v],
+                    slots[slot].var_val[v]);
+        }
+    }
+}
+
 int
 mock230_save_player(
     const struct Mock230Player* player,
@@ -183,9 +211,14 @@ mock230_save_player(
     }
 
     write_items(file, "inv", player->inv, MOCK230_INV_SLOTS);
+    write_item_vars(file, "inv_var", player->inv, MOCK230_INV_SLOTS);
     write_items(file, "worn", player->worn, MOCK230_WORN_SLOTS);
+    write_item_vars(file, "worn_var", player->worn, MOCK230_WORN_SLOTS);
     if( player->bank.slots && player->bank.size > 0 )
+    {
         write_items(file, "bank", player->bank.slots, player->bank.size);
+        write_item_vars(file, "bank_var", player->bank.slots, player->bank.size);
+    }
 
     /*
      * Everything else the registry holds, keyed by inv id.
@@ -210,6 +243,8 @@ mock230_save_player(
             continue;
         snprintf(section, sizeof(section), "container.%d", (int)row->inv_id);
         write_items(file, section, row->items, row->slots);
+        snprintf(section, sizeof(section), "container_var.%d", (int)row->inv_id);
+        write_item_vars(file, section, row->items, row->slots);
     }
 
     /*
@@ -258,9 +293,14 @@ enum SaveSection
     SAVE_INV,
     SAVE_WORN,
     SAVE_BANK,
+    SAVE_INV_VAR,
+    SAVE_WORN_VAR,
+    SAVE_BANK_VAR,
     SAVE_VARPS,
     /** A `[container.<inv>]` section; the id is in `section_inv`. */
     SAVE_CONTAINER,
+    /** A `[container_var.<inv>]` section; same `section_inv` / `section_row`. */
+    SAVE_CONTAINER_VAR,
 };
 
 static void
@@ -282,6 +322,25 @@ load_item(
         return;
     slots[slot].obj_id = obj_id;
     slots[slot].count = count;
+}
+
+static void
+load_item_var(
+    struct Mock230Item* slots,
+    int slot_count,
+    const char* key,
+    const char* value)
+{
+    int slot = -1;
+    int key_obj = -1;
+    int val = 0;
+
+    if( sscanf(key, "%d %d", &slot, &key_obj) != 2 )
+        return;
+    if( slot < 0 || slot >= slot_count || key_obj < 0 )
+        return;
+    val = atoi(value);
+    mock230_item_set_var(&slots[slot], key_obj, val);
 }
 
 int
@@ -342,8 +401,21 @@ mock230_load_player(
                 section = SAVE_WORN;
             else if( strcmp(element._section.name, "bank") == 0 )
                 section = SAVE_BANK;
+            else if( strcmp(element._section.name, "inv_var") == 0 )
+                section = SAVE_INV_VAR;
+            else if( strcmp(element._section.name, "worn_var") == 0 )
+                section = SAVE_WORN_VAR;
+            else if( strcmp(element._section.name, "bank_var") == 0 )
+                section = SAVE_BANK_VAR;
             else if( strcmp(element._section.name, "varps") == 0 )
                 section = SAVE_VARPS;
+            else if( strncmp(element._section.name, "container_var.", 14) == 0 )
+            {
+                section = SAVE_CONTAINER_VAR;
+                section_inv = atoi(element._section.name + 14);
+                section_row =
+                    mock230_container_resolve(player->world, player, (int32_t)section_inv);
+            }
             else if( strncmp(element._section.name, "container.", 10) == 0 )
             {
                 /*
@@ -449,10 +521,24 @@ mock230_load_player(
             if( player->bank.slots && player->bank.size > 0 )
                 load_item(player->bank.slots, player->bank.size, key, value);
             break;
+        case SAVE_INV_VAR:
+            load_item_var(player->inv, MOCK230_INV_SLOTS, key, value);
+            break;
+        case SAVE_WORN_VAR:
+            load_item_var(player->worn, MOCK230_WORN_SLOTS, key, value);
+            break;
+        case SAVE_BANK_VAR:
+            if( player->bank.slots && player->bank.size > 0 )
+                load_item_var(player->bank.slots, player->bank.size, key, value);
+            break;
 
         case SAVE_CONTAINER:
             if( section_row && section_row->items )
                 load_item(section_row->items, section_row->slots, key, value);
+            break;
+        case SAVE_CONTAINER_VAR:
+            if( section_row && section_row->items )
+                load_item_var(section_row->items, section_row->slots, key, value);
             break;
 
         case SAVE_VARPS:

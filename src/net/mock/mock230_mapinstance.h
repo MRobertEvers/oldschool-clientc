@@ -58,15 +58,21 @@
 #define MOCK230_MAPINSTANCE_MAX 8
 
 /**
- * Zones per axis in one instance.
- *
- * 13, because that is the scene the wire can describe (REBUILD_REGION carries a
- * 4 x 13 x 13 descriptor grid) and therefore the largest instance a client can
- * be shown at once. Both known consumers want less: 2009scape's POH and its
- * Pest Control island are `reserveArea(8, 8)` and `create(10536)`, one region
- * each, which is 8.
+ * Zones per axis the *scene* can show (REBUILD_REGION is a 4 x 13 x 13 grid).
+ * Encode / collision window / client rebuild all walk this size.
  */
-#define MOCK230_MAPINSTANCE_ZONES 13
+#define MOCK230_MAPINSTANCE_SCENE_ZONES 13
+
+/**
+ * Zones per axis one *reservation* may hold.
+ *
+ * Larger than the scene window so a sliding 13-zone view can walk a bigger
+ * instance (The Gauntlet's 7×7 of 16-tile rooms is 14×14 zones). Storage and
+ * `map_instance_alloc` use this; the wire still only ever describes
+ * SCENE_ZONES around the player. Raised from 13 when Gauntlet needed a full
+ * 7×7 of 16-tile rooms (docs/GAUNTLET.md).
+ */
+#define MOCK230_MAPINSTANCE_ZONES 16
 #define MOCK230_MAPINSTANCE_LEVELS 4
 
 /** Zones per axis in a map square — the granularity the cache's archives, and
@@ -97,7 +103,8 @@ struct Mock230MapInstanceZone
 struct Mock230MapInstanceWindow
 {
     struct Mock230MapInstanceZone
-        zones[MOCK230_MAPINSTANCE_LEVELS][MOCK230_MAPINSTANCE_ZONES][MOCK230_MAPINSTANCE_ZONES];
+        zones[MOCK230_MAPINSTANCE_LEVELS][MOCK230_MAPINSTANCE_SCENE_ZONES]
+             [MOCK230_MAPINSTANCE_SCENE_ZONES];
     /** How many entries are set. 0 means "not an instanced scene". */
     int set_count;
 };

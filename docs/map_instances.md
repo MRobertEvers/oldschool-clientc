@@ -115,6 +115,12 @@ square and a square is never half free. `map_instance_find` answers over the
 owns its whole square, and a player who walks off the assembled edge into void is
 still inside the instance rather than mysteriously nowhere.
 
+`map_instance_alloc` may reserve up to **16×16 zones**
+(`MOCK230_MAPINSTANCE_ZONES`) — enough for The Gauntlet's 7×7 of 16-tile rooms
+(14×14). The client's scene is still a sliding **13×13** window
+(`MOCK230_MAPINSTANCE_SCENE_ZONES`); REBUILD_REGION never describes more than
+that around the player.
+
 ## 4. The wire: REBUILD_REGION
 
 Wire opcode **59**, `PKT_NAME_REBUILD_REGION`, var-short. Same three header

@@ -366,6 +366,21 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # still in its death animation, a pre-set clock survives the despawn step
     # instead of being overwritten by `NpcType.respawnrate`.
     "NPC_SETRESPAWN": (11015, 1, 0, 0, 0),
+
+    # ---- inv slot vars (11016..11017) ------------------------------------
+    #
+    # Per-item ints on an inventory slot, keyed by an obj id. LostCity declares
+    # both signatures commented-out in engine.rs2 (same band as region_find /
+    # controller_* — never wired in Engine-TS). OSRS content needs them for
+    # crystal / ethereum / wilderness weapon charges: a player-scoped varp
+    # cannot track two bracelets. Shape is transcription of the LC comments:
+    #
+    #   inv_setvar(inv, slot, obj, value)
+    #   inv_getvar(inv, slot, obj)(int)
+    #
+    # Empty slot or missing key → get returns 0. Clearing the slot clears vars.
+    "INV_SETVAR": (11016, 4, 0, 0, 0),
+    "INV_GETVAR": (11017, 3, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------

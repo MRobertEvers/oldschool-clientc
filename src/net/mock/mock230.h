@@ -1062,10 +1062,19 @@ mock230_capture_has_sequence(
 /* Game state                                                          */
 /* ------------------------------------------------------------------ */
 
+/** Per-slot keyed ints for `inv_setvar` / `inv_getvar` (LostCity commented
+ *  signatures). Key is an obj id; empty keys are -1. Cleared when the slot is. */
+enum
+{
+    MOCK230_ITEM_VAR_MAX = 4
+};
+
 struct Mock230Item
 {
     int obj_id; /* -1 = empty slot */
     int count;
+    int32_t var_key[MOCK230_ITEM_VAR_MAX];
+    int32_t var_val[MOCK230_ITEM_VAR_MAX];
 };
 
 /*
@@ -3061,9 +3070,11 @@ mock230_world_ground_slot(
 void
 mock230_world_steps_clear(struct Mock230Player* player);
 
-/** The player's plane changed: forget every entity and zone on the old one and
- *  queue this player's own scene rebuild. Called by `p_teleport` when the level
- *  moved, and by the engine's `climb`. */
+/** The player's plane changed: drop entity/zone tracking for the old plane so
+ *  the new one is FULL_FOLLOWSed. Does **not** queue a scene rebuild — LOC_*
+ *  packets carry no plane, so other-level dynamic locs must survive the return
+ *  trip (Kronos Inferno flank spawn). Called by `p_teleport` when the level
+ *  moved. */
 void
 mock230_world_player_level_changed(struct Mock230Player* player);
 

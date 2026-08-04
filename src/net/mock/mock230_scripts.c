@@ -5670,6 +5670,63 @@ mock230_script_command(
     }
 
     /*
+     * inv_setvar / inv_getvar — per-slot ints keyed by obj (LC engine.rs2
+     * comments; never wired there). Crystal / ethereum charges need this
+     * rather than a player-scoped varp.
+     */
+    case SS_OP_INV_SETVAR:
+    {
+        int32_t values[4];
+        struct Mock230Container* row;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        row = container_row(srv, values[0]);
+        if( !row )
+        {
+            SSVM_Abort(state, "inv_setvar on unknown container %d", values[0]);
+            return 1;
+        }
+        if( values[1] < 0 || values[1] >= row->slots )
+        {
+            SSVM_Abort(state, "inv_setvar slot %d outside container %d (%d slots)",
+                       values[1], values[0], row->slots);
+            return 1;
+        }
+        mock230_item_set_var(&row->items[values[1]], (int)values[2], (int)values[3]);
+        mock230_container_mark(row, (int)values[1]);
+        return 1;
+    }
+
+    case SS_OP_INV_GETVAR:
+    {
+        int32_t inv_id;
+        int32_t slot;
+        int32_t key_obj;
+        struct Mock230Container* row;
+
+        if( !SSVM_PopInt(state, &key_obj) || !SSVM_PopInt(state, &slot) ||
+            !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        row = container_row(srv, inv_id);
+        if( !row )
+        {
+            SSVM_Abort(state, "inv_getvar on unknown container %d", inv_id);
+            return 1;
+        }
+        if( slot < 0 || slot >= row->slots )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, mock230_item_get_var(&row->items[slot], (int)key_obj));
+        return 1;
+    }
+
+    /*
      * A rectangle test, and the argument order is the trap.
      *
      * `inzone(from, to, pos)` pushes three coords, so they pop in reverse: pos

@@ -166,7 +166,7 @@ re-arm. Stop only when the user stops the loop.
 | 83 | skill: Woodcutting Guild | done | `skill_woodcutting/woodcutting_guild.rs2`: WC60 gates + Bone Voyage hand-in; rope ladders; dungeon; shrine eggs → seed nest + 100 Prayer XP; redwood plane / +2 boost deferred |
 | 84 | skill: Mining Guild expansion ladders | done | withdrawn — LC `areas/.../mining_guild.rs2` already gates Mining 60 on `mguild_ladder`/`mguild_door`; Kronos coord-specific teleports are the same +6400 cellar offset |
 | 85 | skill: WC Guild bird-egg shrine | done | folded into slice 83 (`oplocu,wcguild_shrine`) |
-| 86 | minigame: The Gauntlet + Corrupted Gauntlet + crystal equipment | done | wiki session+boss (prayer disable, protect swap, tornadoes, floor), sceptre node lighting, SotE gate, Ilfeen/Conwenna/Reese, rewards; inv_setvar + true procedural rooms still deferred; docs/GAUNTLET.md |
+| 86 | minigame: The Gauntlet + Corrupted Gauntlet + crystal equipment | done | procedural 7×7 (`map_instance` 14×14), `inv_setvar`/`inv_getvar` 11016/17, floor pattern sets, WP hard diary Ilfeenhalberd, crystal tool drain; docs/GAUNTLET.md |
 
 ## Opcode gap log
 
@@ -236,15 +236,15 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 48 | (none) | Trapdoor loc_change + oplocu forge | confirmed — no new opcode |
 | 49 | (none) | Jump-Down + coin fee | confirmed — no new opcode |
 | 50 | (none) | Stepstone jump + crack teleports | confirmed — no new opcode |
-| 51 | inv_setvar / inv_getvar | Per-item ether charges on bracelet | deferred — player `%ethereum_charges` stub |
+| 51 | inv_setvar / inv_getvar | Per-item ether charges on bracelet | opcode **landed** (11016/17); ethereum content still on `%ethereum_charges` |
 | 51 | (none) | Charge/check/toggle/dismantle expressible | confirmed — inventory ops |
-| 52 | inv_setvar / inv_getvar | Per-item ether charges on wildy weapons | deferred — player `%thammaron/craws/viggoras_charges` stubs |
+| 52 | inv_setvar / inv_getvar | Per-item ether charges on wildy weapons | opcode **landed**; wildy content still on player charge stubs |
 | 52 | (none) | Charge/check/uncharge expressible | confirmed — inventory ops |
 | 53 | (none) | Stairs Climb-up teleports (named override of climb_up) | confirmed — no new opcode |
 | 54 | (none) | Fee enter/exit + Check-Fee mes | confirmed — no new opcode |
 | 55 | (none) | Eblis opnpcu combine | confirmed — no new opcode |
 | 56 | (none) | Trophy combine + charge stubs | confirmed — no new opcode |
-| 56 | inv_setvar / inv_getvar | Per-item charges on upgraded weapons | deferred — player `%accursed/webweaver/ursine_charges` stubs |
+| 56 | inv_setvar / inv_getvar | Per-item charges on upgraded weapons | opcode **landed**; upgrade content still on player stubs |
 | 57 | (none) | Den enter/exit + shared fee + diary gate | confirmed — no new opcode |
 | 58 | (none) | Talk-to / opnpcu + coin fee | confirmed — no new opcode |
 | 59 | (none) | Singles dens enter/exit + hard diary | confirmed — no new opcode |
@@ -258,7 +258,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 82 | (none) | oploc Use + p_teleport + diary gate | confirmed — no new opcode |
 | 83 | (none) | oploc Open + walk-through + teleports | confirmed — no new opcode |
 | 86 | (none) | Gauntlet session + crystal sing expressible via instance/inv/locs | confirmed — no new opcode |
-| 86 | inv_setvar / inv_getvar | Per-item crystal charges | deferred — player `%crystal_*_charges` + combat drain; opcode still absent |
+| 86 | inv_setvar / inv_getvar | Per-item crystal charges | **done** — EXTRA 11016/11017; crystal uses item-obj keys |
 
 ## Log
 
@@ -287,7 +287,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - 2026-08-04: Inferno full encounter — `minigame_inferno/`: fire-cape gate, `map_instance_from_square(35_83)`, waves 1–66 budget + pillars/nibblers, 67–68 Jad, 69 Zuk (Content2 seal/`loc_change`/glyph/adds remapped); soft gaps: Zek corpse revive (`inferno_zek.rs2`), logout-pause/resume (perm varps + `~inferno_login`), Jal-nib-rek pet 1/100 (`infernopet`); scripts 9424; pack 0 errors
 - 2026-08-04: Zuk verify vs Kronos — seqs 7562–7566/`zuk_*` + seal anim 7561 match; map `m35_83` seal locs match; HUD `0/1` fixed via `inferno_temp_noprotect_transmit` transmit=yes (varbits 5653/5654); cutscene waits `p_delay` after instance teleport so cam uses rebuilt scene base; flank rocks 30345/30346 after seal clear; rubble 30342 add when map has no 30324
 - 2026-08-04: Zuk encounter never started from softtimer — `p_teleport`/`p_delay` need protect; softtimers run unprotected. All Zuk entry points now `queue(inferno_zuk_start, …)` (protected). Do **not** apply LostCity `--overlay-backing`/`--mapfill` — modern engine already handles magenta overlay + underlay; those hacks were for LC's 2004 client.
-- 2026-08-04: Zuk visuals — black rectangle was `inferno_collapsing_prison_roof` (30356→`inferno_prison_roof`); hide via `%inferno_prisonroof_hidden=1` + transmit on `inferno_temp_protect_transmit`. Glyph clipped by L0 flank 5x2 on spawn tile; flanks now spawn after glyph drops to run row.
+- 2026-08-04: Zuk visuals — black rectangle was `inferno_collapsing_prison_roof` (30356→`inferno_prison_roof`); hide via `%inferno_prisonroof_hidden=1` + transmit on `inferno_temp_protect_transmit` (set before and after rebuild remorph). Flanks 30345/30346: Kronos tele→plane1→spawn→tele→plane0 (LOC_* is player-plane); engine plane-change no longer REBUILD_* so L1 flanks survive. Glyph `moverestrict=blocked` so it walks the lava shelf and Zuk becomes ready. **Restart embed** after script/varp/engine changes — do not bake flanks into the client cache.
 - 2026-08-04: queue was idle; extended with slices 24–28 (Cerberus / Kraken+Thermy / Sire / Skotizo+Gorilla+Shaman / CoX stub)
 - slice 24 done: Cerberus stub — `minigame_cerberus/`: Taverley crawl ↔ lobby, Slayer 91 winch→3 lairs, portcullis exit, `cerberus_attacking` kill; souls/lava/loot deferred; scripts 4932; pack 0 errors
 - slice 25 done: Kraken + Thermy stubs — `minigame_kraken/` cove+Disturb whirlpool; `minigame_thermy/` smoky cave+boss crevice; tentacles/face-mask dmg/loot deferred; scripts 4964; pack 0 errors
@@ -374,4 +374,4 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 83 done: Woodcutting Guild gates WC60 + BV hand-in moved off bonevoyage oploc; ropes + dungeon; scripts 7395; pack 0 errors
 - slice 85 done (in 83): shrine bird eggs → `bird_nest_seeds` + 100 Prayer XP; scripts 7396; pack 0 errors
 - slice 84 withdrawn: Mining Guild already LC-ported
-- slice 86 done: The Gauntlet + Corrupted Gauntlet + crystal equipment — wiki boss (tornadoes/floor/prayer-disable/protect), sceptre lighting, SotE gate, Ilfeen/Conwenna/Reese, rewards; docs/GAUNTLET.md; inv_setvar + true procedural 7×7 still deferred
+- slice 86 done: The Gauntlet + Corrupted Gauntlet + crystal equipment — procedural 7×7 room assembly, EXTRA inv_setvar/getvar, floor HP-phase patterns, Ilfeen hard WP diary, crystal tool skilling drain; docs/GAUNTLET.md

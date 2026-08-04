@@ -431,9 +431,9 @@ mock230_send_rebuild_region(struct Mock230Player* player)
     rsab_bits(&buf);
     for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
     {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
         {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
             {
                 const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
 
@@ -456,13 +456,13 @@ mock230_send_rebuild_region(struct Mock230Player* player)
      * client would need if it were taking keys off the wire. Counted from the
      * window so the two never disagree about how many follow. */
     {
-        int seen_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
-                   MOCK230_MAPINSTANCE_ZONES];
+        int seen_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
+                   MOCK230_MAPINSTANCE_SCENE_ZONES];
         int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
 
         for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
                     const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
                     int map_x;

@@ -155,13 +155,26 @@ mock230_container_mark(
 void
 mock230_container_mark_all(struct Mock230Container* container);
 
-/** Write one slot and mark it. `obj_id` < 0 empties the slot. */
+/** Write one slot and mark it. `obj_id` < 0 empties the slot (and its vars). */
 void
 mock230_container_set(
     struct Mock230Container* container,
     int slot,
     int obj_id,
     int count);
+
+/** `inv_getvar` — 0 when the slot is empty or the key is unset. */
+int
+mock230_item_get_var(
+    const struct Mock230Item* item,
+    int key_obj);
+
+/** `inv_setvar` — keyed by obj id; at most MOCK230_ITEM_VAR_MAX keys per slot. */
+void
+mock230_item_set_var(
+    struct Mock230Item* item,
+    int key_obj,
+    int value);
 
 /**
  * Put `count` of `obj_id` in, the way `Inventory.add` does, and say how many

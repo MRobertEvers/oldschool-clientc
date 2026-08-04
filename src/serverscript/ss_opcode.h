@@ -442,10 +442,12 @@
 #define SS_OP_MAP_INSTANCE_FREE 11013
 #define SS_OP_MAP_INSTANCE_FIND 11014
 #define SS_OP_NPC_SETRESPAWN 11015
+#define SS_OP_INV_SETVAR 11016
+#define SS_OP_INV_GETVAR 11017
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11016
+#define SS_OPCODE_MAX 11018
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 420
+#define SS_OPCODE_COUNT 422
 
 #endif

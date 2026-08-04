@@ -552,7 +552,117 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 27m | Prifddinas city guard | done | prif_city_guard Talk + gate Halt |
 | 27n | Grip death (Heroes) | done | heroquest progress + death_drop |
 | 27o | Undead one drops thin | done | zqzombie_* bones; greenmist deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | After 27o: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 27p | Nightshade Eat | done | Cave nightshade ifop4 Eat → poison damage |
+| 27q | Observatory goblin_guard Talk | done | Talk + retaliate; drops already landed |
+| 27r | Duck flavour | done | _duck/_duckling Quack/Eep; sound/death deferred |
+| 27s | Zombie flavour | done | 4 zombie timers Brainssss; dragonslayer_zombie absent |
+| 27t | God staff/cape conflict | done | opheld2 conflict→~equip; drop/pickup already landed |
+| 27u | Serum book (Mort'ton) | done | mesbox pages + %morttonquest start; IF1 deferred |
+| 27v | Elemental workshop book | done | mesbox + knife key; OSRS varbits book/key |
+| 27w | Regicide General Hining | done | Talk + thin ^regicide_* constants |
+| 27x | Regicide quartermaster | done | Talk + Trade stub (inv.ini) |
+| 27y | Spirit of Scorpius | done | mould/bless; %scorpius_given_symbol authored |
+| 27z | Ikov fire warrior | done | Talk + Fire Blast AI + death → ^ikov_defeated_fire_warrior |
+| 28a | Death barman apnpc | done | apnpc1/3 approach Talk + Trade stub |
+| 28b | Ikov Winelda | done | Talk + limpwurt tele (cam/smoke; sound deferred) |
+| 28c | Ikov Lucien1 Talk | done | Start/mission/pendant thin; lucien2 deferred |
+| 28d | Regicide tyras lazy guard | done | Talk + cooked rabbit → %regicide_given_rabbit |
+| 28e | Trollromance Aga | done | Talk + thin ^troll_love_*; flower Use mes |
+| 28f | Misc Ulby doorguard | done | Heroes gate + audience + throne door walk-through |
+| 28g | Viking market stubs | done | Fur/fish monger outerlander + Trade stub |
+| 28h | Viking sailor Talk | done | Outerlander / postquest thin; merchant trial deferred |
+| 28i | Eadgar Tegid washing | done | Flavour Talk; dirty robes quest arm deferred |
+| 28j | Lucy apnpc + Arandar gates | done | Lucy approach beer; overpass walk-through after tyras; elf_overpass_guard absent → mesbox |
+| 28k | Ikov Guardians of Armadyl | done | Talk thin; ikov_guardianmale/female; help path → ^ikov_helping_armadyl |
+| 28l | Regicide camp tracker | done | Talk + pendant show; full ^regicide_* stage constants |
+| 28m | Regicide Koftik Talk | done | caveguide6 food + well line; %regicide_koftik_food / down_well |
+| 28n | Ikov Lucien2 Talk | done | Staff handoff thin; quest_complete UI / death queues deferred |
+| 28o | Regicide Tyras guards | done | Camp/tent guard Talk; combat/drops deferred |
+| 28p | Regicide kings messenger | done | Talk + summons; spawn timer deferred |
+| 28q | Viking fisherman thin | done | Outerlander/postquest; merchant trial deferred |
+| 28r | Viking weapons salesman | done | Outerlander/council thin + Trade stub |
+| 28s | Fight Arena Lady Servil | done | Talk start + thin ^arena_*; progress IF / rewards deferred |
+| 28t | Eadgar troll thistle | done | Pick/move/drop; grind/brew/cook dry deferred |
+| 28u | Arena spectator Talk | done | Flavour by %arenaquest; armour proc deferred |
+| 28v | Arena fightslave Talk | done | Kelvin/Joe/fightslave thin; armour/.npc_find deferred |
+| 28w | Justin Servil Talk | done | Thin by %arenaquest; release labels deferred |
+| 28x | General Khazard Talk | done | Remap → general_khazard_arena; cinematic deferred |
+| 28y | Arena boss death progress | done | Ogre/scorpion/bouncer %arenaquest advance thin |
+| 28z | Brother Kojo Talk | done | Clock Tower start/progress; trails watch deferred |
+| 29a | Burntmeat Talk thin | done | eadgar_troll_chief_cook + thin ^eadgar_* |
+| 29b | Parroty Pete Talk | done | Aviary Talk; alco-chunks/hatch deferred |
+| 29c | Horror rockcrab | done | Activate + drops; trail clue deferred |
+| 29d | Arena khazard_barman | done | Beer/Khali brew Talk; SotN soft-skip merged |
+| 29e | Arena hengrad Talk | done | Thin jail Talk; cinematic deferred |
+| 29f | Sammy Servil Talk | done | Remap jeremy→sammy_servil*; free/keys deferred |
+| 29g | Viking longhall barkeep | done | Outerlander + Trade stub; merchant trial deferred |
+| 29h | Viking Sigmund Talk | done | Outerlander + Trade stub; merchant flower chain deferred |
+| 29i | Viking clothing shopkeeper | done | Outerlander + Trade stub; shoe IF deferred |
+| 29j | Trollromance Ug Talk | done | Expanded ^troll_love_*; flower/sled deferred |
+| 29k | Lord Iorwerth Talk | done | Thin by %regicide_quest; trail clue deferred |
+| 29l | Arena khazard_guard | done | arena_guard1–4 Talk + brew keys; wearing deferred |
+| 29m | Crest Caleb Talk | done | caleb_fitzharmon fish→avan_crest; gauntlets deferred |
+| 29n | Observatory assistant | done | qip_obs_proffesors_assistant remap; wine claim |
+| 29o | Viking Brundt Talk | done | Start + vote stub; merchant/history deferred |
+| 29p | Viking citizen Talk | done | viking_man/woman thin; drops deferred |
+| 29q | Viking Askeladden Talk | done | Outerlander/council/postquest thin; pet rock deferred |
+| 29r | Crest Johnathon Talk | done | Cure + Talk thin; gauntlets deferred |
+| 29s | Crest Dimintheis Talk | done | Start/progress thin; complete/gauntlets deferred |
+| 29t | Crest Chronozon AI | done | Death/weaken thin; magic cast hook deferred |
+| 29u | Horror Larrissa Talk | done | Girlfriend Talk + ^horror_*; gunnjorn key deferred |
+| 29v | Troll Eadgar Talk | done | Prison + stew thin; Eadgar's Ruse trees deferred |
+| 29w | Troll prison guards | done | Pickpocket keys thin; snore AI deferred |
+| 29x | Watchtower city_guard | done | Riddle + deathrune map thin |
+| 29y | Watchtower Toban | done | Dragon bones → relicpart3 thin |
+| 29z | Watchtower enclave_guard | done | Talk + nightshade → cave tele |
+| 30a | Watchtower Gorad | done | Talk + tooth death drop thin |
+| 30b | Watchtower Grew | done | Talk + ogretooth → relicpart2/crystal1 |
+| 30c | Watchtower Og | done | Talk + stolen_gold → relicpart1 |
+| 30d | Watchtower ogre_guard | done | Gu'Tanoth gates + %gutanoth_gold; door swing → tele |
+| 30e | Watchtower ogre_shaman | done | Talk blast + magic_ogre_potion dissolve; ai_queue2 deferred |
+| 30f | Watchtower skavid | done | Talkers + scared/mad language + crystal2 |
+| 30g | Watchtower wizard | done | Start/fingernails/relic/potion enchant thin; crystal Use deferred |
+| 30h | Watchtower ogre_potion mix | done | guam/janger/ground bat → ogre_potion; wrong-order explode |
+| 30i | Watchtower locs | done | Bushes/caves/chest/jumps/lever/finish thin; wall/ropeswing/gates deferred |
+| 30j | Fairy/Shilo bankers | done | fairy_banker + shilobanker Talk + ~openbank |
+| 30k | Dragon sq halves Use | done | dragonshield_a↔b anvil hint; smith repair deferred |
+| 30l | Chompy ogre chest | done | Rock lift + bellows; ^chompybird_* constants |
+| 30m | Viking guard drops | done | ai_queue3 table; trail clue deferred |
+| 30n | Chompy Fycie Talk | done | Feathers trade + %chompybird_kills; trail clue deferred |
+| 30o | Chompy Bugs Talk | done | Chisel/knife trade + scratchers bit |
+| 30p | Desert Rescue Irena | done | Talk start/progress thin; barrel Ana/XP deferred |
+| 30q | Mosol Rei Talk thin | done | Start/postquest tele; belt/Trufitus deferred |
+| 30r | Regicide darkelf AI/drops | done | AI + table; trail deferred; name-expand darkelf/2 |
+| 30s | Viyeldi Talk thin | done | Spirit dialogue; hat/dagger stab deferred |
+| 30t | Al Shabim greeting thin | done | Intro/place/looking; dart chain deferred |
+| 30u | Troll spectator Attack gate | done | Name-expand 1–7 + champion gate + drops; face timer deferred |
+| 30v | Crest Avan Talk | done | Remap avan→avan_fitzharmon_*; gauntlets kept |
+| 30w | Arrg Talk/death thin | done | Spawn + death progress; ranged AI deferred |
+| 30x | Ikov Lucien door | done | Walk-through; door swing deferred |
+| 30y | Horror diary Read | done | IF1 book → mesbox stub |
+| 30z | Regicide alchemy book | done | IF1 book → mesbox stub |
+| 31a | Book of Binding Read | done | Enchant IF deferred |
+| 31b | Bullroarer Use thin | done | Jungle spawn/Gujuó deferred |
+| 31c | Mcannon railings | done | %mcannon_railing*_fixed varbits |
+| 31d | Mcannon broken cannon | done | tool1–3 + safety_on varbits |
+| 31e | Plague City mournertwa | done | Thin Talk by %elenaquest |
+| 31f | Members general shops | done | Khazard/dwarven/Zanaris Trade stubs |
+| 31g | Grip Talk | done | Heroes' Quest black arm HQ; Attack gate deferred |
+| 31h | Chompy caves + bellows | done | Rantz cave tele + swamp gas fill |
+| 31i | Horror basalt rocks | done | Lighthouse jumping spots |
+| 31j | Achey log firemaking | done | Tinderbox light; knife→shafts deferred |
+| 31k | Oomlie wrap | done | palm_leaf↔raw_oomlie |
+| 31l | Pie shell + fill | done | Switch map (no uncooked_pie_struct) |
+| 31m | Stew assemble | done | potato/meat+bowl + curry; BIM meat Use deferred |
+| 31n | Pizza assemble | done | Switch map (no pizza_topping_struct); topping XP; tomato/cheese BIM |
+| 31o | Ugthanki kebab assemble | done | Switch map (no ugthanki_kebab_struct); members gate |
+| 31p | cooked_meat BIM Use | done | Pie/stew/pizza reverse Use via cooked_meat.rs2 |
+| 31q | Ugthanki kebab bad Eat | done | Name-bound over _misc_food |
+| 31r | Ape Atoll food Eat | done | mm_monkey_nuts/bar + mm_banana_stew |
+| 31s | Poison karambwan + slimey eel Eat | done | tbwt_poorly + mort_slimey_eel_cooked |
+| 31t | Strange fruit Eat | done | macro_triffidfruit; poison immunity |
+| 31u | Empty vial | done | opheld4 _potion + vial_water |
+| 8 | Outward areas / remaining quests / minigames | pending | After 31u: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1163,3 +1273,160 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 27n done: grip death → %heroquest killed_grip + death_drop
 - slice 27o done: zqzombie undead_one drops; greenmist deferred
 - next pending: skip blocked; CW/Trails deferred
+
+- slice 27p done: nightshade ifop4 Eat → 15 dmg; mock230_pack 0 errors
+- slice 27q done: goblin_guard Talk + retaliate
+- slice 27r done: duck/duckling Quack/Eep flavour
+- slice 27s done: zombie Brainssss flavour (4 names)
+- slice 27t done: god staff/cape opheld2 conflict→~equip
+- slice 27u done: serum_book mesbox + %morttonquest start constants
+- slice 27v done: elemental workshop book mesbox + knife key (OSRS varbits)
+- slice 27w done: regicide_general_hining Talk + thin constants
+- slice 27x done: regicidegeneralshopkeeper Trade stub
+- slice 27y done: spirit_of_scorpius mould/bless + authored %scorpius_given_symbol
+- sibling fix: dropped client-only turnspeed from inferno.npc overlay
+- final: 10515 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest
+
+- slice 27z done: ikov_firewarrior Talk + Fire Blast AI + death progress; mock230_pack 0 errors
+- slice 28a done: death_barman apnpc approach
+- loop re-armed: AGENT_LOOP_TICK_content_port every ~180s (pid 25968)
+- next pending: skip blocked; CW/Trails deferred
+
+- slice 28b done: ikov_winelda Talk + limpwurt tele; expanded quest_ikov.constant
+- slice 28c done: ikov_lucien1 Talk thin (start/pendant); lucien2 deferred
+- slice 28d done: regicide_tyras_lazy_guard Talk + cooked_rabbit → %regicide_given_rabbit
+- slice 28e done: trollromance_aga Talk + thin ^troll_love_*
+- slice 28f done: misc_ulby_doorguard + throne door walk-through
+- slice 28g done: viking fur/fish monger outerlander + Trade stub
+- slice 28h done: viking_sailor Talk thin
+- slice 28i done: eadgar_druid_washing flavour Talk
+- final: 10647 scripts; mock230_pack 0 errors
+- next pending: leave 28k alone if still in_progress; outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest
+
+- slice 28l done (sibling): regicide camp tracker Talk + pendant + stage constants
+- slice 28m done (sibling): koftik caveguide6 food + well line
+- slice 28n done: ikov_lucien2 Talk + staff handoff thin; quest_complete UI deferred
+- slice 28o done: regicide tyras camp/tent guard Talk
+- slice 28p done: regicide_kings_messenger Talk + summons; spawn timer deferred
+- slice 28q done: viking_fisherman1 outerlander/postquest thin
+- slice 28r done: viking_weapons_salesman outerlander + Trade stub
+- slice 28s done: lady_servil Talk start + quest_arena.constant
+- slice 28t done: eadgar_troll_thistle pick/move/drop
+- slice 28u done: arena_spectator Talk by %arenaquest
+- final: 10688 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 28v done: fightslave_kelvin/joe/fightslave Talk thin; armour/.npc_find deferred
+- slice 28w done: justin_servil Talk thin; release labels deferred
+- slice 28x done: general_khazard_arena Talk thin; jail cinematic deferred
+- slice 28y done: arena_ogre/scorpion/bouncer death → %arenaquest advance + zone coords
+- slice 28z done: brother_kojo Clock Tower Talk; trails watch deferred
+- slice 29a done: eadgar_troll_chief_cook (Burntmeat) Talk + thin ^eadgar_* constants
+- slice 29b done: eadgar_zoo_keeper_aviary (Parroty Pete) Talk; alco-chunks deferred
+- slice 29c done: horror_rockcrab activate + drops; trail clue deferred
+- final: 10754 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 29d done: khazard_barman beer/Khali brew Talk; SotN soft-skip merged from secretsofthenorth
+- slice 29e done: hengrad Talk thin; jail cinematic deferred
+- slice 29f done: sammy_servil/sammy_servil_arena Talk (jeremy remap); free/keys cinematic deferred
+- slice 29g done: viking_longhall_barkeep outerlander + Trade stub
+- slice 29h done: viking_sigmund outerlander + Trade stub; merchant flower chain deferred
+- slice 29i done: viking_clothing_shopkeeper (Yrsa) outerlander + Trade stub; shoe IF deferred
+- slice 29j done: trollromance_ug Talk + expanded ^troll_love_* + ^troll_complete; rewards deferred
+- slice 29k done: lord_iorwerth Talk thin by %regicide_quest; trail clue deferred
+- final: 10772 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 29l done: arena_guard1–4 Talk + drunk brew→keys; wearing_khazard deferred where LC uses proc
+- slice 29m done: crest_caleb Talk + quest_crest.constant; gauntlets deferred
+- slice 29n done: observatory assistant (qip_obs_proffesors_assistant) + expanded itgronigen stages
+- slice 29o done: viking_brundt start + vote stub; merchant/history deferred
+- slice 29p done: viking_citizen man/woman Talk thin; drops deferred
+- slice 29q done: viking_askelapen outerlander/council/postquest thin; pet rock deferred
+- final: 10842 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 29r done: crest_johnathon Talk + antipoison cure; gauntlets deferred
+- slice 29s done: crest_dimintheis Talk start/progress; complete UI/gauntlets deferred
+- slice 29t done: crest_chronozon death/weaken + %crest_spells_levers_gauntlets; magic cast hook deferred
+- slice 29u done: horror_girlfriend (Larrissa) Talk + ^horror_*; gunnjorn key deferred
+- slice 29v done: troll_eadgar prison + stew Talk; Eadgar's Ruse trees deferred
+- slice 29w done: troll_prison_guard1/2 pickpocket keys; snore AI deferred
+- slice 29x done: watchtower city_guard riddle + deathrune→skavidmap + constants/bits
+- slice 29y done: watchtower toban dragon_bones→relicpart3
+- final: 10907 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 29z done: enclave_guard Talk + nightshade → cave tele; expanded ^itwatchtower_* + %gutanoth_gold
+- slice 30a done: gorad Talk + tooth death drop thin
+- slice 30b done: grew Talk + ogretooth → relicpart2/powering_crystal1
+- slice 30c done: og Talk + stolen_gold → relicpart1 + toban_key
+- slice 30d done: ogre_guard1–4 Gu'Tanoth gates; door swing → p_teleport; rockcake market thin
+- slice 30e done: ogre_shaman Talk blast + magic_ogre_potion dissolve; ai_queue2 deferred
+- slice 30f done: skavid talkers + scared/mad language + powering_crystal2
+- slice 30g done: watchtower_wizard start/fingernails/relic/potion enchant thin; crystal Use deferred
+- final: 10963 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (watchtower ogre_potion mix / locs; CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 30h done: ogre_potion mix (guam/janger/bat bones; explode wrong order); jangerberries brew hook
+- final: 10970 scripts; mock230_pack 0 errors
+- next pending: watchtower locs; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 30i done: watchtower locs (bushes/caves/chest/jumps/lever/crystal rock/finish); wall climb/ropeswing/gate swing deferred
+- final: 11026 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 30j done: fairy_banker + shilobanker Talk/~openbank
+- slice 30k done: dragonshield_a↔b Use anvil hint; repair deferred
+- slice 30l done: chompybird chest + ^chompybird_* constants; bellows name-expand
+- slice 30m done: viking_guard/2 death drops; trail clue deferred
+- final: 11038 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 30n done: fycie Talk + %chompybird_kills bitfield + expanded ^chompybird_*; trail clue deferred
+- slice 30o done: bugs Talk + scratchers bit; tools trade
+- slice 30p done: desertrescue irena Talk start/progress thin; barrel Ana/XP deferred
+- slice 30q done: mosol_rei Talk start/postquest tele; belt/Trufitus deferred
+- slice 30r done: regicide_darkelf/2 AI + drops; trail deferred
+- slice 30s done: viyeldi Talk thin; hat/dagger deferred
+- slice 30t done: al_shabim greeting/looking thin; dart chain deferred
+- slice 30u done: troll_spectator1–7 Attack gate + drops; face timer deferred
+- final: 11092 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 30v done: crest Avan Talk (avan_fitzharmon_* remap); gauntlets kept
+- slice 30w done: trollromance_arrg Talk + spawn/death; ranged AI deferred
+- slice 30x done: ikov_luciendoor walk-through; swing deferred
+- slice 30y done: horror_diary1–3 Read mesbox stub
+- slice 30z done: regicide_alchemy Read mesbox stub
+- slice 31a done: book_of_binding Read mesbox; enchant IF deferred
+- slice 31b done: bullroarer Use thin; kharazi/Gujuó deferred
+- slice 31c done: mcannon railings via %mcannon_railing*_fixed
+- slice 31d done: broken_multicannon repair via tool1–3/safety_on
+- slice 31e done: mournertwa Talk by %elenaquest
+- final: 11160 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 31f done: khazard/dwarven/generalshop8 Trade stubs
+- slice 31g done: grip Talk + id_papers/misc_key; Attack gate deferred
+- slice 31h done: rantz cave teleports + swamp bellows fill
+- slice 31i done: horror_jumping_spot1–10 basalt jumps
+- slice 31j done: achey_tree_logs firemaking (tinderbox); knife→shafts deferred
+- slice 31k done: palm_leaf↔raw_oomlie wrap
+- slice 31l done: pie shell + apple/redberry/meat fill (switch map)
+- slice 31m done: stew assemble + curry spice; BIM cooked_meat Use deferred
+- final: 11236 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 31n done: pizza assemble + toppings (switch map; pizza_topping_struct deferred); tomato/cheese BIM; pineapple_chunks arm
+- slice 31o done: ugthanki kebab assemble (switch map; ugthanki_kebab_struct deferred); members gate; knife check
+- slice 31p done: cooked_meat/chicken BIM → pie/stew/pizza
+- slice 31q done: ugthanki_kebab_bad Eat (name-bound)
+- slice 31r done: mm_monkey_nuts/bar + mm_banana_stew Eat
+- slice 31s done: tbwt_poorly_cooked_karambwan + mort_slimey_eel_cooked Eat
+- slice 31t done: macro_triffidfruit Eat + %poison immunity
+- slice 31u done: opheld4 _potion + vial_water → vial_empty
+- final: 11297 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)

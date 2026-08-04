@@ -832,9 +832,9 @@ window_source_squares(
 
     for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
     {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
         {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
             {
                 const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
                 int map_x;
@@ -872,10 +872,10 @@ mock230_scene_build_instance(
     struct RSCache_Dat2Disk* disk;
     /* One per descriptor is the ceiling: every zone could name a different
      * square. In practice this is 1 to 4. */
-    int square_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
-                 MOCK230_MAPINSTANCE_ZONES];
-    int square_z[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_ZONES *
-                 MOCK230_MAPINSTANCE_ZONES];
+    int square_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
+                 MOCK230_MAPINSTANCE_SCENE_ZONES];
+    int square_z[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
+                 MOCK230_MAPINSTANCE_SCENE_ZONES];
     int square_count;
     int locs_before;
 
@@ -895,8 +895,8 @@ mock230_scene_build_instance(
         if( !terrain )
             continue;
         for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
                     const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
 
@@ -920,8 +920,8 @@ mock230_scene_build_instance(
         if( !locs )
             continue;
         for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_ZONES; zz++ )
+            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
                     const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
 

@@ -183,9 +183,9 @@ unblocked row per tick.
 | 25 | Gilded altar / POH incense | 2009 | blocked | → SCAPE2009 Construction POH remainder (4c owned elsewhere); do not edit live `skill_construction/` from this lane |
 | 26 | Prayer potion / restore consume | LC | done | `prayer_potion.rs2` — prayer +7/+25%, super restore +8/+25% all skills; dose ladders. Sanfew → follow-up. |
 | 27 | Smite / Piety / Rigour combat effects | LC | done | Chivalry/Piety/Rigour/Augury (+ eagle/mystic ladder) wired in `combat_stats` prayer multipliers. Smite PvP drain still needs #2 multi-player. |
-| 28 | Retribution multi-target AoE | Kronos | pending | Kronos §23 single-target only; comment still says map_multiway deferred though opcode hosted — wire AoE |
-| 29 | Prayer cape / bones-to-peaches | wiki+cache | pending | Cape perk absent; peaches spell live via MAGIC M5 (`bones_peaches`) |
-| 30 | Magic autocast IF | MAGIC | blocked | → [`MAGIC_CONTENT_PORT_PLAN.md`](MAGIC_CONTENT_PORT_PLAN.md) **M6** (in_progress) |
+| 28 | Retribution multi-target AoE | Kronos | done | Multi: `map_multiway` → `npc_huntall`/`huntall` within 1 (`prayer_effects.rs2`); single keeps `%aggressive_npc` ≤1. LC none; 2009scape surround + Kronos multi players. |
+| 29 | Prayer cape / bones-to-peaches | wiki+cache | done | Prayer cape Boost +1 (`skillcape_boost.rs2`); peaches already live (`convert_bones.rs2` / MAGIC M5). |
+| 30 | Magic autocast IF | MAGIC | blocked | → MAGIC **M6** done (`auto_cast.rs2`; strike→wave index map; staff-set/ancient grids deferred) |
 | 31 | Ancient Magicks spellbook | MAGIC | blocked | → MAGIC **M7** |
 | 32 | Lunar / Arceuus spellbooks | MAGIC | blocked | → MAGIC **M8** / **M9** |
 | 33 | God / Iban / Crumble Undead | MAGIC | blocked | → MAGIC **M1**+**M3**+**M4** done |
@@ -370,3 +370,5 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #22 enchanted bolts done (PvM opal…onyx). MAGIC slices #30–36 → blocked MAGIC plan. Next = #24 ectofuntus / #28 retribution.
 - magic lane: plan `MAGIC_CONTENT_PORT_PLAN.md` + loop `AGENT_LOOP_WAKE_magic_port`; M1–M3 done (members combat, magic potion, crumble).
 - port #24 ectofuntus/chaos offer done: LC has no worship/grind — 2009scape Phasmatys + wiki Chaos Temple. `ectofuntus.rs2` (worship 4×, hopper/wind/bin, slime→ectoplasm), `chaos_altar_offer.rs2` (350% + 50% save), `bone_xp.rs2` shared with bury. Verified pack 0 + mock230-scripts. Next = #28 Retribution AoE / #29 cape+peaches / #37 RC.
+- port #28 Retribution AoE done: LC none; multi uses hosted `map_multiway` + npc/player hunt within 1; single `%aggressive_npc`. Verified pack 0 + scripts. Next = #29 Prayer cape / bones-to-peaches.
+- port #29 Prayer cape done: wiki +1 Boost on `skillcape_prayer`/`_trimmed`; peaches already MAGIC M5. Next = #37 RC tiara/pure essence.
