@@ -292,6 +292,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock239_playerinfo.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
@@ -771,6 +772,16 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/bitbuffer.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+# PLAYER_INFO v5 round-trip: the encoder against a decoder transcribed from
+# RSProt's own reference client, written in the opposite direction. Catches the
+# skip-run off-by-ones and misaligned bit sections that otherwise decode into
+# the wrong players rather than erroring.
+test-mock239-playerinfo: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test \
+		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
+		$(RSAREABUF_DIR)/rsareabuf.c -lm
+	./$(OBJ_DIR)/mock239_playerinfo_test
+
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
 		net/test/net_login_test.c $(NET_CORE_OBJS) -lm

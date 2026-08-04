@@ -205,6 +205,54 @@ client closing its update connection the moment it has what it wants — the
 normal way that connection ends — killed the process mid-write. Exit code 141,
 which from outside is indistinguishable from a crash.
 
+## 5b. The rev-239 handshake, verified end to end
+
+The client's login driver and the server's block reader are written from ONE
+statement of the layout (`src/net/rev/osrs239/loginblock.h`). This is what
+checks that they agree:
+
+```sh
+src/build/mock230 43596 --rev osrs239 &
+src/torirs --manifest manifest_osrs239_net.ini --user testc --pass test
+```
+
+```
+mock230: login user='testc' session=ok
+mock230: -> IF_OPENTOP       op=96  payload=2
+mock230: -> IF_OPENSUB       op=7   payload=7
+mock230: -> IF_CLOSESUB      op=23  payload=4
+mock230: -> IF_SETEVENTS     op=108 payload=16
+mock230: -> VARP_SMALL       op=97  payload=3
+mock230: -> VARP_LARGE       op=12  payload=6
+mock230: -> UPDATE_RUNENERGY op=64  payload=2
+mock230: -> UPDATE_RUNWEIGHT op=31  payload=2
+mock230: -> UPDATE_STAT      op=46  payload=7
+mock230: -> REBUILD_NORMAL   op=49  payload=6
+```
+
+Every opcode and every size there is revision 239's. `user='testc'` is the
+strongest single line in it: at 239 the username is not in the RSA block at all,
+it is the first field of the **XTEA body**, so recovering it proves the RSA
+envelope, the four seeds and the XTEA decrypt all agree between two halves
+written independently from the same spec.
+
+Two bugs this run caught that nothing else would have:
+
+- **`serve()` memsets the server struct**, which erased the wire set at the call
+  site. Every login block was then read as revision 230, and the symptom was
+  `rsa decrypt failed` — a message pointing at the key rather than at the four
+  bytes of `serverVersion` it had failed to skip.
+- The RSA block now checks its **encryption-check byte** and says so. It is the
+  one place a key mismatch announces itself; without it the failure surfaces
+  later as a garbage username or seeds that make every subsequent packet
+  unreadable, both of which read as protocol bugs.
+
+`MOCK230_REV=osrs239 --selftest` runs the 239 writers now (it previously ran the
+230 ones whatever the variable said, which is how three of the first six writers
+were wrong with nothing to catch them). It reports **205 failures** against
+**13** at 230 — that gap is the distance to parity, and it is a number that
+comes down as writers land rather than a pass/fail.
+
 ## 6. The measured result, and what is left
 
 ```
@@ -238,12 +286,11 @@ Not done, in the order that unblocks the most:
    `MULTI_GENERATIONAL_PARITY.md` §5.4 already calls "the biggest new build".
    They are absent from the 239 writer set, so the server refuses them rather
    than sending a 230 bitstream a 239 client would read as garbage.
-2. **The server's login block is still the 230 shape.** `mock230_session`'s
-   `step_login` reads version/subVersion/clientType and an RSA block ending at
-   the password. A vanilla client sends `serverVersion`, an OTP discriminator,
-   and an XTEA body carrying the window state, host platform stats and 23 CRCs.
-   The layout is already stated once in `src/net/rev/osrs239/loginblock.h` and
-   the client driver already writes it; the server half is a transcription.
+2. ~~**The server's login block is still the 230 shape.**~~ **Done** — see §5b.
+   The server reads `serverVersion`, the OTP discriminator and the XTEA body,
+   and checks the RSA encryption-check byte. It does not verify the 23 archive
+   CRCs; that is a decision (this server has no cache-version policy) rather
+   than an omission, and the fields are documented for whenever one appears.
 3. **The 239 payload writer set covers 10 packets.** What is missing is listed
    in `k_transcribed_osrs239` and refused at send.
 4. **The selftest cannot reach the 239 writers.** `--rev` / `MOCK230_REV` is

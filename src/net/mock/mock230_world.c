@@ -2773,8 +2773,15 @@ advance_npcs(struct Mock230Server* srv)
                 if( npc->queue[i].delay > 0 )
                     continue;
                 npc->queue[i].active = 0;
-                mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1),
-                                            npc->type, -1, slot);
+                /* The queued value IS the script's `last_int` — `npc_queue(2,
+                 * $damage, $delay)` is how one npc damages another, and
+                 * `[ai_queue2]` reads it back with `last_int`. Dispatching
+                 * without it dropped the argument, so every npc-to-npc hit in
+                 * the tree landed for zero. Reference: `Npc.ts` sets
+                 * `state.lastInt = request.lastInt` on the queued script. */
+                mock230_scripts_run_trigger_lastint(
+                    srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1), npc->type, -1, slot,
+                    npc->queue[i].arg);
             }
         }
         if( !npc->active )
@@ -7849,6 +7856,29 @@ mock230_world_selftest(void)
     const struct Mock230Ids* ids = mock230_ids();
 
     memset(&srv, 0, sizeof(srv));
+    /*
+     * The revision under test, from the same selector the server uses.
+     *
+     * Without this the selftest ran the 230 writers whatever MOCK230_REV said,
+     * so the 239 payload set was verified by transcription and by the length
+     * check but by no test at all -- which is exactly how three of its first
+     * six writers were wrong (VARP_SMALL's id order, VARP_LARGE's field order,
+     * UPDATE_STAT_V2 reordered) and none of them showed a symptom.
+     *
+     * An unknown name is a hard stop rather than a fallback: a typo that
+     * silently tested the other revision would be worse than not running.
+     */
+    {
+        char const* rev_name = getenv("MOCK230_REV");
+        srv.wire = rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
+        if( !srv.wire )
+        {
+            fprintf(stderr, "mock230 selftest: unknown MOCK230_REV '%s'\n", rev_name);
+            return 1;
+        }
+        if( rev_name )
+            fprintf(stderr, "mock230 selftest: wire %s\n", srv.wire->name);
+    }
     /*
      * Its own save directory, before anything can read one.
      *

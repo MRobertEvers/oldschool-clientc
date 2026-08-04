@@ -289,6 +289,10 @@ enum
 
     /* Parked script bookkeeping. */
     MOCK230_QUEUE_MAX = 16,
+    /** Arguments one queued script can carry. The reference's list is
+     *  unbounded; four covers every `queue*` in the tree and keeps the entry a
+     *  fixed size. Overflow is reported, never truncated silently. */
+    MOCK230_QUEUE_ARG_MAX = 4,
     /*
      * The engine queue is its own array because the reference's is its own list:
      * `unlinkQueuedScript`'s default branch walks `queue` and `weakQueue` and
@@ -1233,7 +1237,13 @@ struct Mock230Queued
      *  reference does, so an entry that came due while the player was busy
      *  fires the moment access returns rather than restarting its wait. */
     int delay;
-    int32_t arg;
+    /** The script's arguments. `queue` states one; `queue*` states as many as
+     *  the target script declares, which is why this is an array — the
+     *  reference's QUEUEVARARG passes a whole list and `[queue,combat_damage_player]
+     *  (npc_uid $nid, int $damage)` is the shape that needs it. `arg` is
+     *  `args[0]`, kept as a name because most callers state exactly one. */
+    int32_t args[MOCK230_QUEUE_ARG_MAX];
+    int argc;
     /** enum Mock230QueueKind. */
     int kind;
     /** LONG only: `^accelerate` (0) means "run it early when the player logs
@@ -2239,6 +2249,15 @@ struct Mock230Server
 
     /** Deterministic per-connection RNG so a session replays identically. */
     uint32_t rng;
+
+    /** The `last_int` the NEXT trigger dispatch must give its script, and
+     *  whether one is stated. Set only across `mock230_scripts_run_trigger_lastint`
+     *  (the npc queue) and restored after — a scalar rather than a parameter
+     *  because the value has to survive `run_trigger_impl`'s script lookup and
+     *  its two refusal paths without every dispatcher growing an argument it
+     *  would pass -1 for. */
+    int32_t pending_last_int;
+    int pending_last_int_valid;
 
     int verbose;
 
@@ -3402,6 +3421,20 @@ mock230_scripts_run_trigger(
     int type,
     int category,
     int npc_slot);
+
+/** Trigger dispatch that also states the script's `last_int`. The npc queue is
+ *  the only caller: `npc_queue(<n>, $arg, $delay)` carries a value and a queued
+ *  npc script has no player whose `last_int` could stand in for it, so without
+ *  this every `[ai_queue<n>]` in the tree read 0. Reference: `Npc.ts`
+ *  `state.lastInt = request.lastInt`. */
+int
+mock230_scripts_run_trigger_lastint(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    int32_t last_int);
 
 /** Trigger dispatch with string arguments (friend login/logout display name). */
 int

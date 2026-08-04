@@ -269,6 +269,25 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_SETEVENTS,     PKT_NAME_VARP_SMALL,      PKT_NAME_VARP_LARGE,
     PKT_NAME_UPDATE_RUNENERGY, PKT_NAME_UPDATE_RUNWEIGHT, PKT_NAME_UPDATE_STAT,
     PKT_NAME_REBUILD_NORMAL,
+
+    /* PLAYER_INFO has no `payload` writer because it is not a field list — the
+     * whole packet is built by mock239_playerinfo.c, which mock230_encode.c
+     * forks to before writing a bit. It is listed here so the send is allowed;
+     * NPC_INFO is deliberately still absent. */
+    PKT_NAME_PLAYER_INFO,
+
+    /*
+     * Payload-free packets. A packet with no body has no layout to get wrong,
+     * so listing them costs nothing and is not a claim about anything -- their
+     * only per-revision fact is the opcode, which the table already answers.
+     *
+     * FRIENDLIST_LOADED is deliberately NOT here even though it looks like one:
+     * it is 0 bytes at 239 and 1 at 230, and this server writes the 1-byte
+     * form. The length check catches that ("wrote 1 bytes, client frames it as
+     * 0"), which is the guard working rather than a packet to wave through.
+     */
+    PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
+    PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
 };
 
 static const struct Mock230Wire k_wire_osrs230 = {
@@ -392,6 +411,16 @@ mock230_wire_pkt_name(int pkt_name)
     case PKT_NAME_OBJ_REVEAL: return "OBJ_REVEAL";
     case PKT_NAME_MAP_ANIM: return "MAP_ANIM";
     case PKT_NAME_MAP_PROJANIM: return "MAP_PROJANIM";
+    case PKT_NAME_SERVER_TICK_END: return "SERVER_TICK_END";
+    case PKT_NAME_MIDI_SONG: return "MIDI_SONG";
+    case PKT_NAME_MIDI_JINGLE: return "MIDI_JINGLE";
+    case PKT_NAME_LOGOUT: return "LOGOUT";
+    case PKT_NAME_RESET_ANIMS: return "RESET_ANIMS";
+    case PKT_NAME_UPDATE_REBOOT_TIMER: return "UPDATE_REBOOT_TIMER";
+    case PKT_NAME_HINT_ARROW: return "HINT_ARROW";
+    /* A `?` here is not cosmetic: this switch is what the "not transcribed"
+     * report prints, so a name missing from it turns a work item into an
+     * anonymous one. */
     default: return "?";
     }
 }

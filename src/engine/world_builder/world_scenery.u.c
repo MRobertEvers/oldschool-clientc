@@ -1868,6 +1868,77 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
     }
 }
 
+/*
+ * One loc's contribution to the minimap: either a mapscene sprite or a wall
+ * line, never both (reference drawDetail).
+ *
+ * Extracted from the square walker so the INSTANCE build can call it too.
+ * The square walker maps a loc through `World_ToSceneX/Z`, which assumes the
+ * contiguous map-square grid — an instance is assembled from remapped 8x8
+ * chunks, so every loc came out off-scene and was skipped, and an instanced
+ * minimap had no wall outlines and no mapscene icons at all. Everything the
+ * registration needs is per-loc, so the fix is to pass the scene position the
+ * caller already computed instead of re-deriving one.
+ *
+ * `map_loc->orientation` must already be the placed (rotated) angle and
+ * `chunk_pos_level` the destination level — the instance path rewrites both on
+ * its copy before calling.
+ */
+static void
+world_builder_minimap_add_loc(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc const* map_loc,
+    struct ToriRS_Location const* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+
+    if( !world->minimap )
+        return;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
+        return;
+
+    /* Reference drawDetail (Client.ts): a loc carrying a mapscene index plots
+     * that Pix8 into the minimap image instead of drawing wall lines. Two
+     * sources — wallType (wall shapes 0-3) and sceneType (diagonal-wall 9,
+     * centrepiece 10/11, roofs 12-21). Wall-decor (4-8) and floor-decoration
+     * (22) never feed a mapscene. The sprite is blitted per baked level in
+     * app_rebuild_world_map, which owns the loaded mapscene atlas. width/length
+     * are the raw config footprint (drawDetail centers the sprite over
+     * loc.width x loc.length without the orientation swap). */
+    if( config_loc->map_scene_id != -1 )
+    {
+        int const shape = map_loc->shape_select;
+        if( (shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
+             shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER) ||
+            (shape >= RSCACHE_LOC_SHAPE_WALL_DIAGONAL &&
+             shape <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER) )
+        {
+            World_AddMapSceneIcon(
+                world,
+                scene_x,
+                scene_z,
+                map_loc->chunk_pos_level,
+                config_loc->map_scene_id,
+                config_loc->size_x,
+                config_loc->size_z);
+        }
+        return;
+    }
+
+    /* Recorded per level (no WORLD_CURRENT_LEVEL filter): the bake takes the
+     * level it needs, so upper floors get their own wall outlines. */
+    {
+        int flags = scenery_minimap_wall_flags(
+            map_loc->shape_select, map_loc->orientation, config_loc->is_interactive);
+        if( flags != 0 )
+            minimap_add_tile_wall(
+                world->minimap, scene_x, scene_z, map_loc->chunk_pos_level, flags);
+    }
+}
+
 void
 world_builder_minimap_add_chunk_walls(
     struct WorldBuilder* builder,
@@ -1903,44 +1974,7 @@ world_builder_minimap_add_chunk_walls(
         if( !config_loc )
             continue;
 
-        /* Reference drawDetail (Client.ts): a loc carrying a mapscene index
-         * plots that Pix8 into the minimap image instead of drawing wall lines.
-         * Gather it here, mirroring drawDetail's two sources — wallType (wall
-         * shapes 0-3) and sceneType (diagonal-wall 9, centrepiece 10/11, roofs
-         * 12-21). Wall-decor (4-8) and floor-decoration (22) never feed a
-         * mapscene. The sprite is blitted per baked level in
-         * app_rebuild_world_map, which owns the loaded mapscene atlas.
-         * width/length are the raw config footprint (drawDetail centers the
-         * sprite over loc.width x loc.length without the orientation swap). */
-        if( config_loc->map_scene_id != -1 )
-        {
-            int const shape = map_loc->shape_select;
-            if( (shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
-                 shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER) ||
-                (shape >= RSCACHE_LOC_SHAPE_WALL_DIAGONAL &&
-                 shape <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER) )
-            {
-                World_AddMapSceneIcon(
-                    world,
-                    offset_x,
-                    offset_z,
-                    map_loc->chunk_pos_level,
-                    config_loc->map_scene_id,
-                    config_loc->size_x,
-                    config_loc->size_z);
-            }
-            continue;
-        }
-
-        /* Recorded per level (no WORLD_CURRENT_LEVEL filter): the bake takes
-         * the level it needs, so upper floors get their own wall outlines. */
-        {
-            int flags = scenery_minimap_wall_flags(
-                map_loc->shape_select, map_loc->orientation, config_loc->is_interactive);
-            if( flags != 0 )
-                minimap_add_tile_wall(
-                    world->minimap, offset_x, offset_z, map_loc->chunk_pos_level, flags);
-        }
+        world_builder_minimap_add_loc(builder, map_loc, config_loc, offset_x, offset_z);
     }
 }
 

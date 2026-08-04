@@ -12,6 +12,8 @@
 
 #include <stdlib.h>
 
+#include <xteas.h>
+
 #include "mock230.h"
 
 #include "net/isaac.h"
@@ -178,6 +180,21 @@ fill(struct Mock230Session* session)
 /* ------------------------------------------------------------------ */
 /* Handshake                                                          */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Does this world speak the revision-239 login block?
+ *
+ * Read off the wire adapter rather than a second setting: "which bytes we
+ * write" and "which bytes we expect" are one decision, and letting them be two
+ * is how a server ends up parsing one revision and answering in another.
+ */
+static int
+login_is_239(const struct Mock230Server* srv)
+{
+    const struct Mock230Wire* wire = (srv && srv->wire) ? srv->wire
+                                                        : mock230_wire_default();
+    return wire->revision >= 239;
+}
 
 /* ------------------------------------------------------------------ */
 /* JS5                                                                 */
@@ -386,6 +403,8 @@ step_login(
     uint64_t claimed;
     char user[64];
     char pass[64];
+    int body_off = 0;
+    int body_len = 0;
     uint8_t ok = 2;
 
     if( session->in_len < 3 )
@@ -406,13 +425,34 @@ step_login(
     if( session->in_len < 3 + payload_len )
         return 0; /* the rest of the block is still in flight */
 
+    /*
+     * The header, whose SHAPE is per-revision.
+     *
+     * Revision 237 inserted `serverVersion` between subVersion and clientType.
+     * Four bytes, and nothing downstream would notice: the three bytes after it
+     * are all small ints, so a 230 reader on a 239 block picks up plausible
+     * values for clientType/platformType/externalAuth and then reads the RSA
+     * size two bytes out of position — which surfaces as "rsa decrypt failed",
+     * a message that points at the key rather than at the offset.
+     *
+     * The layout for both is stated once in src/net/rev/osrs239/loginblock.h;
+     * the client driver writes it from the same file.
+     */
     rsab_wrap(&in, session->in + 3, (size_t)payload_len);
     (void)rsab_g4(&in); /* version */
     (void)rsab_g4(&in); /* subVersion */
+    if( login_is_239(srv) )
+        (void)rsab_g4(&in); /* serverVersion, new at revision 237 */
     (void)rsab_g1(&in); /* clientType */
     (void)rsab_g1(&in); /* platformType */
     (void)rsab_g1(&in); /* externalAuth */
     rsa_size = rsab_g2(&in);
+    /*
+     * Where the XTEA body starts, captured now because `in` is about to be
+     * re-wrapped over the RSA plaintext and the offset would be gone.
+     */
+    body_off = 3 + (int)in.pos + rsa_size;
+    body_len = payload_len - (int)in.pos - rsa_size;
     if( !rsab_ok(&in) )
     {
         session->state = MOCK230_SESSION_DEAD;
@@ -435,13 +475,83 @@ step_login(
     }
 
     rsab_wrap(&in, plain, (size_t)plain_len);
-    (void)rsab_g1(&in); /* encryption check byte */
+    {
+        int check = rsab_g1(&in);
+        /*
+         * The one place a wrong RSA key announces itself.
+         *
+         * Everything after this is read out of a buffer that decrypted to
+         * noise, so without this check the failure appears as a garbage
+         * username or a seed that makes every subsequent packet unreadable —
+         * both of which look like protocol bugs rather than key mismatch.
+         */
+        if( check != 1 )
+        {
+            fprintf(stderr,
+                    "mock230: RSA check byte is %d, expected 1 — the client's "
+                    "modulus does not match this server's key\n",
+                    check);
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+    }
     for( int i = 0; i < 4; i++ )
         seed[i] = rsab_g4(&in);
     claimed = (uint64_t)rsab_g8(&in);
-    (void)rsab_g1(&in); /* auth type */
-    rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
-    rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+    if( login_is_239(srv) )
+    {
+        /*
+         * The OTP discriminator, ahead of the auth type at this revision. Its
+         * four payload bytes mean different things per kind (a trusted-computer
+         * identifier, a 3-byte authenticator key plus a pad, or nothing) and
+         * this server authenticates none of them — but they must be CONSUMED,
+         * because the username and password follow immediately after.
+         */
+        int otp = rsab_g1(&in);
+        (void)rsab_g4(&in);
+        if( otp < 0 || otp > 3 )
+        {
+            fprintf(stderr, "mock230: unknown OTP kind %d in login block\n", otp);
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+    }
+    (void)rsab_g1(&in); /* auth type: 0 password, 2 token */
+    if( login_is_239(srv) )
+    {
+        /*
+         * At 239 the RSA block ends with the password; the USERNAME lives in
+         * the XTEA body, which this server does not read (see below). The 230
+         * block carries both here, in the other order.
+         */
+        rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+        /*
+         * The username is the first field of the XTEA body, keyed on the seeds
+         * we just recovered. Decrypting in place is safe: the block is fully
+         * buffered by the length check above and consumed immediately after.
+         *
+         * The rest of the body -- window state, uuid, host platform stats and
+         * 23 archive CRCs -- is read by nothing here. That is a decision, not
+         * an oversight: this server verifies no cache CRCs, so parsing them
+         * would produce values with no consumer. The fields are documented in
+         * loginblock.h for whenever one appears.
+         */
+        snprintf(user, sizeof(user), "%s", "Player");
+        if( body_len > 0 && body_off + body_len <= session->in_len )
+        {
+            struct RSAreaBuf body;
+            xteas_decrypt((char*)session->in + body_off, body_len, seed);
+            rsab_wrap(&body, session->in + body_off, (size_t)body_len);
+            rsab_gjstr(&body, user, sizeof(user), RSAB_JSTR_NUL);
+            if( !rsab_ok(&body) || !user[0] )
+                snprintf(user, sizeof(user), "%s", "Player");
+        }
+    }
+    else
+    {
+        rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
+        rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+    }
     (void)pass;
 
     /*

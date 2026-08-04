@@ -108,7 +108,8 @@ static void
 serve(
     struct Mock230Server* srv,
     struct Mock230Conn* conn,
-    const struct Mock230BootConfig* config)
+    const struct Mock230BootConfig* config,
+    const struct Mock230Wire* wire)
 {
     struct Mock230Session session;
     struct Mock230Transport transport;
@@ -116,6 +117,17 @@ serve(
 
     memset(srv, 0, sizeof(*srv));
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
+    /*
+     * After the memset, not before it.
+     *
+     * The revision was first set at the call site, which the memset two lines
+     * up then erased -- so the server read every login block as revision 230
+     * and answered "rsa decrypt failed", a message that points at the key and
+     * not at the four bytes of `serverVersion` it had failed to skip. The wire
+     * is per-process configuration, so it has to be re-applied to a struct this
+     * function deliberately zeroes per connection.
+     */
+    srv->wire = wire;
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);
@@ -290,12 +302,8 @@ main(
         if( fd < 0 )
             continue;
         fprintf(stderr, "mock230: client connected\n");
-        /* Set before serve() rather than inside it: `serve` calls
-         * mock230_world_reset on the way out, and the world's revision is a
-         * property of the process, not of one connection. */
-        srv.wire = wire;
         if( mock230_conn_open(&conn, fd) )
-            serve(&srv, &conn, &config);
+            serve(&srv, &conn, &config, wire);
         close(fd);
         fprintf(stderr, "mock230: client disconnected\n");
     }

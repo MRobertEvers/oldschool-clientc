@@ -570,39 +570,44 @@ static int
 run_script_id(
     struct Mock230Server* srv,
     int script_id,
-    int32_t arg,
-    int has_arg,
+    const int32_t* args,
+    int argc,
     int npc_slot,
     int protect,
     const char* expect)
 {
     const struct SSVM_Script* script = SSVM_ProviderGet(srv->scripts, script_id);
     struct SSVM_State* state;
+    int bind;
 
     if( !script )
         return 0;
     if( !script_kind_allowed(script, expect) )
         return 0;
 
-    /* `queue` always carries an argument, but a queued script only declares one
-     * if it uses it. Bind what the script asked for rather than what the caller
-     * happened to have — the reference is equally forgiving, since its
-     * setupNewScript pops exactly int_arg_count and leaves any surplus alone. */
-    if( script->int_arg_count == 0 )
-        has_arg = 0;
-    else if( script->int_arg_count > 1 || script->string_arg_count > 0 )
+    /* Bind what the script asked for rather than what the caller happened to
+     * have — the reference is equally forgiving, since its setupNewScript pops
+     * exactly int_arg_count and leaves any surplus alone. A script that declares
+     * MORE than the caller states is the one real error: those parameters would
+     * read uninitialised. */
+    if( script->string_arg_count > 0 )
     {
-        fprintf(stderr, "mock230: %s declares arguments the engine cannot supply\n",
+        fprintf(stderr, "mock230: %s declares string arguments the engine cannot supply\n",
                 script->name);
         return 0;
     }
-    else
-        has_arg = 1;
+    if( script->int_arg_count > argc )
+    {
+        fprintf(stderr, "mock230: %s declares %d int argument(s), the caller stated %d\n",
+                script->name, (int)script->int_arg_count, argc);
+        return 0;
+    }
+    bind = script->int_arg_count;
 
-    state = SSVM_StateAlloc(srv->script_env, script, has_arg ? &arg : NULL,
-                            has_arg ? 1 : 0, NULL, 0);
+    state = SSVM_StateAlloc(srv->script_env, script, bind > 0 ? args : NULL, bind, NULL, 0);
     if( !state )
         return 0;
+    state->last_int = argc > 0 ? args[0] : 0;
 
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     if( protect )
@@ -711,7 +716,8 @@ drain_queue(
     {
         struct Mock230Queued* entry = &srv->active_player->queue[i];
         int script_id;
-        int32_t arg;
+        int32_t args[MOCK230_QUEUE_ARG_MAX];
+        int argc;
 
         if( !entry->active )
             continue;
@@ -732,9 +738,10 @@ drain_queue(
             continue;
 
         script_id = entry->script_id;
-        arg = entry->arg;
+        memcpy(args, entry->args, sizeof(args));
+        argc = entry->argc;
         entry->active = 0;
-        run_script_id(srv, script_id, arg, 1, -1, 1, "queue");
+        run_script_id(srv, script_id, args, argc, -1, 1, "queue");
     }
 }
 
@@ -824,7 +831,7 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
             if( type == MOCK230_TIMER_NORMAL && !player_can_access(srv) )
                 continue;
             timer->clock = srv->tick;
-            run_script_id(srv, timer->script_id, 0, 0, -1, type == MOCK230_TIMER_NORMAL,
+            run_script_id(srv, timer->script_id, NULL, 0, -1, type == MOCK230_TIMER_NORMAL,
                           "timer,softtimer");
         }
     }
@@ -853,7 +860,7 @@ mock230_scripts_process_walktrigger(struct Mock230Server* srv)
 
     script_id = player->walktrigger;
     player->walktrigger = -1;
-    run_script_id(srv, script_id, 0, 0, -1, 1, "walktrigger");
+    run_script_id(srv, script_id, NULL, 0, -1, 1, "walktrigger");
 }
 
 int
@@ -915,7 +922,7 @@ mock230_scripts_run_script(
 {
     if( !srv->scripts_ok )
         return 0;
-    return run_script_id(srv, script_id, 0, 0, -1, 1, "proc");
+    return run_script_id(srv, script_id, NULL, 0, -1, 1, "proc");
 }
 
 /*
@@ -951,6 +958,8 @@ mock230_scripts_run_hook_sv(
         return 0;
 
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
+    if( state && srv->active_player )
+        state->last_int = srv->active_player->last_int;
     if( !state )
     {
         fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
@@ -1056,6 +1065,8 @@ mock230_scripts_run_hook_int_sv(
         return 0;
 
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
+    if( state && srv->active_player )
+        state->last_int = srv->active_player->last_int;
     if( !state )
     {
         fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
@@ -1160,7 +1171,8 @@ mock230_scripts_queue_hook(
         /* +1 for the same reason SS_OP_QUEUE does it: the drain decrements
          * before it fires, so delay 0 has to mean "next tick". */
         player->queue[i].delay = delay + 1;
-        player->queue[i].arg = arg;
+        player->queue[i].args[0] = arg;
+        player->queue[i].argc = 1;
         player->queue[i].kind = MOCK230_QUEUE_NORMAL;
         player->queue[i].logout_action = 0;
         return 1;
@@ -1343,6 +1355,16 @@ run_trigger_script(
     int loc_slot)
 {
     struct SSVM_State* state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
+    if( state )
+    {
+        /* A queued npc script states its own `last_int`; everything else
+         * inherits the player's, which is what every player-context reader has
+         * always seen. See mock230_scripts_run_trigger_lastint. */
+        if( srv->pending_last_int_valid )
+            state->last_int = srv->pending_last_int;
+        else if( srv->active_player )
+            state->last_int = srv->active_player->last_int;
+    }
 
     if( !state )
     {
@@ -1486,6 +1508,38 @@ mock230_scripts_run_trigger(
 }
 
 /*
+ * The same dispatch, carrying the value the trigger's own `last_int` must
+ * answer. `Npc.ts` does exactly this for a queued npc script:
+ *
+ *     const state = ScriptRunner.init(script, this, null, request.args);
+ *     state.lastInt = request.lastInt;
+ *
+ * and the npc queue is the only caller that needs it, because it is the only
+ * trigger source with a value of its own — `npc_queue(<n>, $arg, $delay)` — and
+ * no player whose `last_int` could stand in.
+ */
+int
+mock230_scripts_run_trigger_lastint(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    int32_t last_int)
+{
+    int rc;
+    int32_t saved = srv->pending_last_int;
+    int saved_valid = srv->pending_last_int_valid;
+
+    srv->pending_last_int = last_int;
+    srv->pending_last_int_valid = 1;
+    rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 1, 1);
+    srv->pending_last_int = saved;
+    srv->pending_last_int_valid = saved_valid;
+    return rc;
+}
+
+/*
  * Trigger dispatch with string arguments — used by friend login/logout
  * notifications that hand the display name to content (`[friendlogin,_]`).
  */
@@ -1510,6 +1564,8 @@ mock230_scripts_run_trigger_sv(
         return MOCK230_TRIGGER_NONE;
 
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, strv, strc);
+    if( state && srv->active_player )
+        state->last_int = srv->active_player->last_int;
     if( !state )
     {
         fprintf(stderr, "mock230: %s rejected string argument(s)\n",
@@ -1762,7 +1818,8 @@ mock230_scripts_queue_trigger_at(
          * this one, which is phase 5 of the next tick.
          */
         player->engine_queue[i].delay = 0;
-        player->engine_queue[i].arg = 0;
+        player->engine_queue[i].args[0] = 0;
+        player->engine_queue[i].argc = 0;
         player->engine_queue[i].kind = MOCK230_QUEUE_ENGINE;
         player->engine_queue[i].logout_action = 0;
         return MOCK230_TRIGGER_RAN;
@@ -1806,7 +1863,7 @@ mock230_scripts_process_engine_queue(struct Mock230Server* srv)
         script_id = entry->script_id;
         entry->active = 0;
         /* Protected, as `processEngineQueue`'s `executeScript(script, true)`. */
-        run_script_id(srv, script_id, 0, 0, -1, 1, "zone,zoneexit,mapzone,mapzoneexit");
+        run_script_id(srv, script_id, NULL, 0, -1, 1, "zone,zoneexit,mapzone,mapzoneexit");
     }
 }
 
@@ -3475,6 +3532,23 @@ mock230_script_command(
          * one of the two.
          */
         npc->mode = mode;
+        /*
+         * A targetless mode CLEARS THE TARGET. `NPC_SETMODE` in the reference is
+         * `clearInteraction()` for `none`/`wander`/`patrol` and `resetDefaults()`
+         * for `null` (NpcOps.ts), and `clearInteraction` sets `target = null`.
+         *
+         * Setting only the mode field left `combat_target` alive, and the npc
+         * phase skips any npc that has one ("combat and death own the npc's
+         * movement") — so a script-driven npc that anything hit once stopped
+         * walking for the rest of its life. The Inferno's Ancestral Glyph binds
+         * `[ai_queue1] npc_setmode(none)` precisely so that being attacked does
+         * not stop its sweep, and it froze on the first hit anyway.
+         */
+        if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL ||
+            mode == MOCK230_NPCMODE_WANDER || mode == MOCK230_NPCMODE_PATROL )
+        {
+            npc->combat_target = -1;
+        }
         if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL )
             npc->step_dir = -1;
         return 1;
@@ -5636,9 +5710,88 @@ mock230_script_command(
              * pre-decrements, so this is the reference's raw store read the
              * other way round — same answer for every delay. */
             player->queue[i].delay = values[1] + 1;
-            player->queue[i].arg = values[2];
+            player->queue[i].args[0] = values[2];
+            player->queue[i].argc = 1;
             player->queue[i].kind = kind;
             player->queue[i].logout_action = values[3];
+            return 1;
+        }
+        SSVM_Abort(state, "the player's queue is full");
+        return 1;
+    }
+
+    /*
+     * `queue*(script, delay)(args…)` — QUEUEVARARG and its three siblings.
+     *
+     * A separate opcode from `queue`, not a modifier on it: `queue` states
+     * exactly one argument (`[command,queue](queue $queue, int $delay, int $arg)`
+     * in the reference's engine.rs2) and the vararg form states a list.
+     *
+     * It was unhosted, and the content had been written as though `queue` took
+     * two — `queue(combat_damage_player, $delay, npc_uid, $damage)` at ten sites
+     * across the Inferno, the Gauntlet, Elvarg and Melzar. Four values pushed
+     * into a three-value pop does not fail; it shifts, so the SCRIPT ID came out
+     * of the delay slot and every one of those hits queued a garbage id. That is
+     * why TzKal-Zuk's projectile arrived and did nothing.
+     *
+     * The vararg tail arrives as a type-string plus that many values, the same
+     * shape `runclientscript*` uses.
+     */
+    case SS_OP_QUEUEVARARG:
+    case SS_OP_STRONGQUEUEVARARG:
+    case SS_OP_WEAKQUEUEVARARG:
+    case SS_OP_LONGQUEUEVARARG:
+    {
+        int32_t vals[MOCK230_QUEUE_ARG_MAX];
+        int32_t script_id = 0;
+        int32_t delay = 0;
+        int32_t logout_action = 0;
+        const char* types = NULL;
+        int n = 0;
+        int kind = opcode == SS_OP_STRONGQUEUEVARARG ? MOCK230_QUEUE_STRONG
+                   : opcode == SS_OP_WEAKQUEUEVARARG ? MOCK230_QUEUE_WEAK
+                   : opcode == SS_OP_LONGQUEUEVARARG ? MOCK230_QUEUE_LONG
+                                                     : MOCK230_QUEUE_NORMAL;
+
+        if( !SSVM_PopStr(state, &types) )
+            return 1;
+        n = types ? (int)strlen(types) : 0;
+        if( n > MOCK230_QUEUE_ARG_MAX )
+        {
+            SSVM_Abort(state, "queue* states %d argument(s); the queue carries %d", n,
+                       MOCK230_QUEUE_ARG_MAX);
+            return 1;
+        }
+        for( int i = n - 1; i >= 0; i-- )
+        {
+            if( types[i] != 'i' )
+            {
+                SSVM_Abort(state, "queue* argument %d is '%c'; only int is carried", i,
+                           types[i]);
+                return 1;
+            }
+            if( !SSVM_PopInt(state, &vals[i]) )
+                return 1;
+        }
+        if( opcode == SS_OP_LONGQUEUEVARARG && !SSVM_PopInt(state, &logout_action) )
+            return 1;
+        if( !SSVM_PopInt(state, &delay) )
+            return 1;
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+
+        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        {
+            if( player->queue[i].active )
+                continue;
+            player->queue[i].active = 1;
+            player->queue[i].script_id = script_id;
+            player->queue[i].delay = delay + 1;
+            for( int a = 0; a < n; a++ )
+                player->queue[i].args[a] = vals[a];
+            player->queue[i].argc = n;
+            player->queue[i].kind = kind;
+            player->queue[i].logout_action = logout_action;
             return 1;
         }
         SSVM_Abort(state, "the player's queue is full");
@@ -7045,8 +7198,21 @@ mock230_script_command(
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
+    /*
+     * `last_int` is a property of the SCRIPT STATE, not of the player — the
+     * reference pushes `state.lastInt` (PlayerOps.ts) and the npc queue seeds it
+     * per request (`Npc.ts`: `state.lastInt = request.lastInt`).
+     *
+     * Reading `player->last_int` here worked for every player-context reader and
+     * silently returned 0 for the one context that has no player value to read:
+     * an `[ai_queue<n>]` on an npc. That is where `npc_queue(2, $damage, $delay)`
+     * delivers its damage, so EVERY npc-to-npc hit in the tree landed for zero —
+     * the Inferno's adds chewed on the Ancestral Glyph for 0s and its health line
+     * reprinted 600/600 forever. `state->last_int` was already declared for this
+     * and was read by nothing.
+     */
     case SS_OP_LAST_INT:
-        SSVM_PushInt(state, player->last_int);
+        SSVM_PushInt(state, state->last_int);
         return 1;
     case SS_OP_LAST_SLOT:
         SSVM_PushInt(state, player->last_slot);
@@ -7179,6 +7345,7 @@ mock230_scripts_resume_countdialog(
     if( state->execution != SSVM_COUNTDIALOG )
         return 0;
     srv->active_player->last_int = value;
+    state->last_int = value;
     rebind_active_npc(srv, state);
     return run_or_park(srv, state);
 }
@@ -7233,6 +7400,8 @@ mock230_scripts_run_hook_on_npc(
     if( !srv->scripts_ok || !script )
         return 0;
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
+    if( state && srv->active_player )
+        state->last_int = srv->active_player->last_int;
     if( !state )
         return 0;
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);

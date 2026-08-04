@@ -820,6 +820,38 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         compiler->arg_kind_hint = saved_hint;
         compiler->arg_is_script_name = saved_script_arg;
         compiler->arg_script_trigger = saved_script_trigger;
+
+        /*
+         * The arity check, and it is not a nicety.
+         *
+         * A command's argument count was never compared against its signature,
+         * so a call with the wrong number compiled clean and desynced the stack
+         * at runtime — the VM pops what the opcode says and the surplus stays
+         * behind, which shifts every value by one. `queue` states three
+         * (`[command,queue](queue $queue, int $delay, int $arg)`); ten sites in
+         * this tree passed four, so the SCRIPT ID was read out of the delay slot
+         * and each of those queued a garbage id. Nothing reported it: a wrong
+         * script id is a valid script id.
+         *
+         * Skipped for `variadic` commands, whose trailing count is decided by a
+         * type string, and for `known == 0`, whose signature is a placeholder
+         * the VM already refuses to execute.
+         */
+        if( !variadic && meta->known )
+        {
+            int declared = (int)meta->int_in + (int)meta->str_in;
+
+            if( arg_index != declared )
+            {
+                if( getenv("SSC_ARITY_WARN") )
+                    fprintf(stderr, "ARITY %s:%d: '%s' takes %d, %d given\n",
+                            compiler->source_path, compiler->lexer.line, name,
+                            declared, arg_index);
+                else
+                    return fail(compiler, "'%s' takes %d argument(s), %d given", name,
+                                declared, arg_index);
+            }
+        }
     }
 
     /*

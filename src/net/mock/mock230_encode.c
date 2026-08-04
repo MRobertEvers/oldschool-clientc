@@ -20,6 +20,7 @@
 #include "mock230_ids.h"
 #include "mock230_mapinstance.h"
 #include "mock230_session.h"
+#include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
 #include "net/jbase37.h"
@@ -301,6 +302,16 @@ wire_payload(struct Mock230Player* player)
     const struct Mock230Wire* wire =
         (srv && srv->wire) ? srv->wire : mock230_wire_default();
     return wire->payload;
+}
+
+/** Does this player's world speak the v5 entity streams? */
+static int
+wire_is_v5(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player ? player->world : NULL;
+    const struct Mock230Wire* wire =
+        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    return wire->revision >= 239;
 }
 
 /* Send whatever the caller just built into `buf`. */
@@ -2000,6 +2011,41 @@ mock230_send_player_info(struct Mock230Player* player)
     int kept_count = 0;
 
     open_packet(&buf, 4096);
+
+    /*
+     * Revision 239 is a different CODEC here, not a different field order, so
+     * it forks before a single bit is written rather than branching per field.
+     *
+     * What it sends is the local player only: high resolution with an
+     * appearance block, every other slot held in low resolution. Other players
+     * are not in it yet — see mock239_playerinfo.h — which is why this does not
+     * fall through into the loop below afterwards. Sending the classic stream's
+     * other-player records after a v5 header would frame cleanly and decode as
+     * noise.
+     */
+    if( wire_is_v5(player) )
+    {
+        uint8_t appearance[512];
+        struct RSAreaBuf ap;
+        int32_t coord;
+
+        rsab_wrap(&ap, appearance, sizeof(appearance));
+        put_appearance(&ap, player);
+
+        coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
+                          (player->z & 0x3fff));
+        /*
+         * Always a teleport. The v5 stream's alternative is a delta against
+         * what the client last heard, and this server keeps no such per-session
+         * record; a wrong delta displaces the player silently where a restated
+         * absolute coord cannot.
+         */
+        mock239_playerinfo_write(&buf, player->pid, coord, 1, appearance,
+                                 (int)rsab_len(&ap));
+        flush(player, &buf, OP_PLAYER_INFO, 2);
+        return;
+    }
+
     rsab_bits(&buf);
 
     /* --- local player --- */

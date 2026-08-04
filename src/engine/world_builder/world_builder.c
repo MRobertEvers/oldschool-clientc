@@ -338,10 +338,13 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
  * square with three different rotations — writing the turned angle back would
  * corrupt the second and third.
  *
- * The minimap wall/mapfunction passes the square path runs are deliberately not
- * called here: both take a whole map square and paint it at its own scene offset,
- * which for a copied zone is the wrong place. An instanced minimap is its own
- * problem; the terrain colours it gets from the terrain pass are correct.
+ * The minimap wall/mapfunction passes the square path runs are still not called
+ * here: both take a whole map square and paint it at its own scene offset, which
+ * for a copied zone is the wrong place. What IS called is the per-loc half,
+ * `world_builder_minimap_add_loc`, from inside the loop below where the copied
+ * zone's real scene position and rotated angle are already in hand. Before that
+ * split an instanced minimap had terrain colours and nothing else — no wall
+ * outlines, no mapscene icons — which is what the Inferno's arena looked like.
  */
 void
 WorldBuilder_RebuildInstanceZoneScenery(
@@ -416,6 +419,11 @@ WorldBuilder_RebuildInstanceZoneScenery(
 
         world_collision_add_loc(builder, &placed, config_loc, scene_x, scene_z);
         scenery_add(builder, &placed, config_loc, scene_x, scene_z);
+        /* `placed` already carries the rotated angle and the destination level,
+         * and `scene_x/scene_z` is the copied zone's real position — everything
+         * the minimap registration needs, which is why it belongs here and not
+         * in the square-offset walkers the ordinary path uses. */
+        world_builder_minimap_add_loc(builder, &placed, config_loc, scene_x, scene_z);
     }
 }
 

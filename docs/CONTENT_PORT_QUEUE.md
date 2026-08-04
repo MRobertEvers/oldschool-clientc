@@ -752,7 +752,15 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 35e | MM quest crates+pineapple | done | denture/mould/eye crates + bookcase + pineapple plant |
 | 35f | MM warehouse hole+ropes | done | crate hole tele/damage + ropes + trapdoor + locked door |
 | 35g | MM bridge+jump+gold bar | done | bridge ladders + jumping square + enchanted gold Examine |
-| 8 | Outward areas / remaining quests / minigames | pending | After 35g: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 35h | Priest Peril vampire coffin | done | blessed water Use + Examine Talk |
+| 35i | Priest Peril temple doors | done | Open/Knock-at; door swing → walk-through |
+| 35j | Priest Peril trapped Drezel | done | cell Talk/key/bless water |
+| 35k | Heroes Scarface mansion locs | done | grip cabinet + pete doors + candle chest (garvdoor already) |
+| 35l | Legends jungle forester | done | Talk + map→bullroarer Use |
+| 35m | Observatory professor Talk | done | progress Talk/Use; trails stubbed |
+| 35n | Shilo nazastarool death | done | zq_mainzombie* queues + thin summon; %npc_aggressive_player→findhero |
+| 35o | Legends echned_zekin Talk | done | Talk/Use dagger + nezi summon; trails/update_all deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | After 35o: MM AI/knockout/transmog deferred; CW/Trails deferred; Nature Spirit filliman/ghast; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1696,4 +1704,15 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 35g done: MM bridge ladders + jumping square + enchanted gold Examine
 - final: 12031 scripts; mock230_pack 0 errors
 - next pending: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35h done: Priest Peril vampire coffin (blessed water Use)
+- slice 35i done: Priest Peril temple doors (Open/Knock-at; walk-through)
+- slice 35j done: Priest Peril trapped Drezel (cell Talk/key/bless)
+- slice 35k done: Heroes Scarface mansion locs (grip cabinet/pete doors/candle chest)
+- slice 35l done: Legends jungle forester Talk + map→bullroarer
+- slice 35m done: Observatory professor Talk/Use (trails stubbed)
+- slice 35n done: Shilo nazastarool death queues + thin summon
+- slice 35o done: Legends echned_zekin Talk/Use + nezi summon
+- final: 12178 scripts; mock230_pack 0 errors
+- next pending: Nature Spirit filliman/ghast; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
