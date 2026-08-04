@@ -2420,10 +2420,9 @@ npc_run_mode(
             npc_walk_to_player(npc, player, 0);
             return 1;
         }
-        /* Cleared *before* the trigger runs, so a script that sets a new mode
-         * keeps it — the same ordering the player's interaction resolver uses
-         * and for the same reason. */
-        npc->mode = MOCK230_NPCMODE_NONE;
+        /* NOT cleared before the trigger — matching LostCity. Combat re-fires
+         * every tick from this mode; content rate-limits via attack_clock/delay.
+         * A script that wants to leave combat clears the mode itself. */
         mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }
@@ -2444,7 +2443,7 @@ npc_run_mode(
             npc_walk_to_player(npc, player, 0);
             return 1;
         }
-        npc->mode = MOCK230_NPCMODE_NONE; /* see above */
+        /* NOT cleared — same as OPPLAYER above. */
         mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }

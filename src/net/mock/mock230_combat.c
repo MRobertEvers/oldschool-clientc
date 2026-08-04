@@ -34,6 +34,8 @@
 #include "mock230_content.h"
 #include "mock230_scene.h"
 
+#include "ss_trigger.h"
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -839,24 +841,15 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     player->attack_clock = player_attack_rate(player);
 
     /*
-     * The swing is content's, all of it.
-     *
-     * `[proc,player_melee_swing]` rolls the accuracy, rolls the damage, pays
-     * the experience, lands the splat and plays the animation — which is the
-     * reference's `[label,player_melee_attack]` and, allowing for one server
-     * having players and this one having one, the same list.
-     *
-     * What this function keeps is the simulation around the swing: whose turn
-     * it is, the attack clock, following a target that walks, and facing it.
-     * Those are about the world rather than about combat, and the test for the
-     * split is that the proc names no tick and no distance while nothing below
-     * this line names a bonus or a formula.
-     *
-     * The active npc is set for the proc so `npc_stat`, `npc_param` and
-     * `npc_damage` resolve to the target without content having to be told
-     * which slot it is.
+     * The swing is content's, all of it — [opnpc2,_] owns it via
+     * @player_combat_start. Fire the OPNPC2 trigger with this npc as subject
+     * so content's combat script runs and handles the swing.
      */
-    mock230_scripts_run_hook_on_npc(srv, srv->hooks.player_melee_swing, player->combat_target);
+    {
+        int category = mock230_npc_category(npc->type);
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC2, npc->type, category,
+                                    player->combat_target);
+    }
 }
 
 /*
@@ -983,6 +976,7 @@ maybe_aggress(
 
     npc->combat_target = player->pid;
     npc->attack_clock = 0;
+    npc->mode = MOCK230_NPCMODE_OPPLAYER1 + 1; /* OPPLAYER2: Attack */
 }
 
 void
