@@ -93,7 +93,13 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
      * sends both the destination form (server-owned yellow cross) and the
      * clear form; the canonical UNSET_MAP_FLAG handler reads the payload. */
     { 2, 2, PKT_NAME_UNSET_MAP_FLAG },
-    { 75, PKTIN_LENGTH_VARU8, PKT_NAME_NONE },   /* SET_PLAYER_OP */
+    /* The right-click ops on another player: "Attack", "Follow", "Trade with".
+     * The slot was mapped to PKT_NAME_NONE — its length was known so the frame
+     * was consumed rather than desyncing the stream, but the ops were dropped,
+     * and `App.player_ops[]` stayed empty however many the server sent. The
+     * parser and the executor both already existed for lc254; only this line was
+     * missing, which is why enabling it is the whole of the client's half. */
+    { 75, PKTIN_LENGTH_VARU8, PKT_NAME_SET_PLAYER_OP },
     { 76, 6, PKT_NAME_NONE },  /* HINT_ARROW */
     { 73, 1, PKT_NAME_NONE },  /* MINIMAP_TOGGLE */
     { 65, 0, PKT_NAME_NONE },  /* CAM_RESET */

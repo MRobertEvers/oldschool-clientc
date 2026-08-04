@@ -325,8 +325,8 @@ re-arm. Stop only when the user stops the loop.
 | 19c | Dig Site area locs | done | panning/soil/winch/shaft/chest/barrel; cam_shake deferred |
 | 19d | Trawler Murphy (dock) | done | murphy Talk-to + constants; %trawler→%trawler_status; trail deferred |
 | 19e | Trawler at sea / gangplank | done | zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred |
-| 19f | Trawler gameplay core | pending | LC trawler.rs2 + flood/net/control/bail/winch |
-| 19g | Trawler start/win/sink | pending | LC trawler_start/win/sink + configs |
+| 19f | Trawler gameplay core | done | net/bail/winch/leak Fill/reset+login; hull remaps; control/varn deferred |
+| 19g | Trawler start/win/sink | pending | LC trawler_start/win + sink huntall; IF/varn blockers |
 | 19h | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (was 18t) |
 | 19i | minigame: Treasure Trails | pending | LC `minigames/game_trail` (was 18u) |
 | 19j | Outward leftover A | pending | next resolvable area/quest leftover |
@@ -663,6 +663,7 @@ re-arm. Stop only when the user stops the loop.
 - queue: subdivided Trawler→19d–19g; CW→19h; Trails→19i; outward leftovers→19j–19l
 - slice 19d done: Murphy dock + trawler.constant; %trawler→%trawler_status; trail sextant deferred; mock230_pack 0 errors (5882 scripts)
 - slice 19e done: zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred; mock230_pack 0 errors (5935 scripts)
-- next pending: Trawler gameplay core (19f); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved)
+- slice 19f done: net/bail/winch/leak Fill/reset+login hook; hull→trawler_hull_*; control timer+varn deferred; mock230_pack 0 errors (6020 scripts)
+- next pending: Trawler start/win (19g); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

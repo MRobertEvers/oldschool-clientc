@@ -119,7 +119,10 @@ update this file; re-arm. Stop only when the user stops the loop.
 | 50 | skill: Catacombs shortcuts | done | `catacombs_shortcuts.rs2`: stepstones (28) + cracks (17/34 from skill_features); Kronos dest coords |
 | 51 | skill: Bracelet of ethereum | done | `ethereum.rs2`: charge/check/toggle/uncharge/dismantle; `%ethereum_charges` stub (inv_setvar gap); combat absorb/auto-collect deferred |
 | 52 | skill: Ancient sceptre / wilderness weapons | done | `wildy_weapons.rs2`: Thammaron's / Craw's / Viggora's charge/check/uncharge (1000 activate, max 16000); `%thammaron/craws/viggoras_charges` stubs; combat/dismantle/swap/ancient sceptre deferred |
-| 53 | wilderness: Rev caves stairs exits | pending | `wild_cave_exit_low/high` + surface trapdoors (one-way 2022 layout) |
+| 53 | wilderness: Rev caves stairs exits | done | `wild_cave_exit_low/high` Climb-up → surface beside trapdoors (override `climb_up`); `wild_cave_exit_surface` no ops = one-way; crawl `exit_mid` unchanged |
+| 54 | wilderness: Rev caves fee caves | pending | `wild_cave_exit01` Enter + Check-Fee (post-2022 fee entrances) |
+| 55 | skill: Ancient sceptre combine | pending | sceptre + ancient staff → `ancient_sceptre`; elemental variants deferred |
+| 56 | skill: Accursed / Webweaver / Ursine | pending | upgraded wildy weapon charge stubs (same ether pattern) |
 
 ## Opcode gap log
 
@@ -193,6 +196,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 51 | (none) | Charge/check/toggle/dismantle expressible | confirmed — inventory ops |
 | 52 | inv_setvar / inv_getvar | Per-item ether charges on wildy weapons | deferred — player `%thammaron/craws/viggoras_charges` stubs |
 | 52 | (none) | Charge/check/uncharge expressible | confirmed — inventory ops |
+| 53 | (none) | Stairs Climb-up teleports (named override of climb_up) | confirmed — no new opcode |
 
 ## Log
 
@@ -256,3 +260,5 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 51 done: Bracelet of ethereum — charge/check/toggle/uncharge/dismantle; inv_setvar gap noted; scripts 5896; pack 0 errors
 - 2026-08-04: extended queue with 52 wildy weapons / 53 rev stairs exits
 - slice 52 done: wildy weapons charge stubs — Thammaron's / Craw's / Viggora's; inv_setvar gap noted; combat/dismantle/swap/ancient sceptre deferred; scripts 5981; pack 0 errors
+- slice 53 done: rev stairs exits — `wild_cave_exit_low/high` → surface trapdoor tiles; surface trapdoors op-less (one-way); scripts 5997 (excl. unrelated POH WIP compile break); pack 0 errors
+- 2026-08-04: extended queue with 54 fee caves / 55 ancient sceptre / 56 upgraded wildy weapons

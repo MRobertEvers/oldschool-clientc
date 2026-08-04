@@ -4227,6 +4227,15 @@ mock230_encode_zone_sub(
     int max,
     const struct Mock230ZoneEvent* event);
 
+/** Set or clear one of the five right-click ops on other players. A NULL or
+ *  empty `text` clears the slot. */
+void
+mock230_send_set_player_op(
+    struct Mock230Player* player,
+    int slot,
+    int primary,
+    const char* text);
+
 /** A whole shared blob as one UPDATE_ZONE_PARTIAL_ENCLOSED. */
 void
 mock230_send_zone_enclosed(

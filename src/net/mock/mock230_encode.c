@@ -92,6 +92,7 @@ enum
     OP_OBJ_DEL = 121,
     OP_OBJ_COUNT = 122,
     OP_MAP_PROJANIM = 125,
+    OP_SET_PLAYER_OP = 75,
 };
 
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -1539,6 +1540,38 @@ mock230_send_zone_header(
     rsab_p1(&buf, base_z);
     flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
           0);
+}
+
+/*
+ * The right-click ops on another player, one slot at a time.
+ *
+ * `SetPlayerOpEncoder.ts`: p1 slot, p1 primary, pjstr text — and the client's
+ * parser already read exactly that for lc254, which is why this needed no new
+ * decode. The op is *cleared* by sending a null text, which is how the
+ * reference's `login.rs2` takes "Attack" away outside the wilderness.
+ *
+ * Slots are 1..5 and the client stores them at `player_ops[slot - 1]`; anything
+ * else is dropped on arrival, so the range check belongs in the opcode that
+ * calls this rather than here.
+ *
+ * `primary` decides whether the op is the *left-click* action or lives in the
+ * menu. It is a wire encoding rather than a config value, which is why it is a
+ * plain int here and `^true`/`^false` in content.
+ */
+void
+mock230_send_set_player_op(
+    struct Mock230Player* player,
+    int slot,
+    int primary,
+    const char* text)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 64);
+    rsab_p1(&buf, slot);
+    rsab_p1(&buf, primary ? 1 : 0);
+    rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+    flush(player, &buf, OP_SET_PLAYER_OP, 1);
 }
 
 /*

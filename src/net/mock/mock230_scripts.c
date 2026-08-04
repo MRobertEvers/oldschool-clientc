@@ -2546,6 +2546,44 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `[command,set_player_op](string $op, int $slot, boolean $primary)` —
+     * `PlayerOps.ts` SET_PLAYER_OP, one `SetPlayerOp` write.
+     *
+     * The right-click menu on *other players*: "Attack", "Follow", "Trade with".
+     * Five slots, and the reference's `login.rs2` sets three of them on every
+     * login and then adds or removes "Attack" as you cross the wilderness ditch —
+     * which is the caller the wilderness slice deferred for want of this opcode.
+     *
+     * A null or empty `$op` clears the slot, which is how the ditch takes
+     * "Attack" away again. The reference spells the clear `set_player_op(null, 2,
+     * ^false)`, and RuneScript `null` for a string arrives here as an empty one,
+     * so the two cases need no distinguishing.
+     *
+     * Popped string-first because the reference pops string-first, and the order
+     * has to match the compiler's push order rather than the source order.
+     */
+    case SS_OP_SET_PLAYER_OP:
+    {
+        const char* text;
+        int32_t values[2];
+
+        if( !SSVM_PopStr(state, &text) )
+            return 1;
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] < 1 || values[0] > 5 )
+        {
+            SSVM_Abort(state, "set_player_op: slot %d is not 1..5", values[0]);
+            return 1;
+        }
+        mock230_send_set_player_op(srv->active_player, values[0], values[1], text);
+        return 1;
+    }
+
     case SS_OP_ERROR:
     {
         const char* text;
@@ -5028,6 +5066,79 @@ mock230_script_command(
             mock230_scene_npc_approach(info->size, &approach);
             mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
         }
+        return 1;
+    }
+
+    /*
+     * projanim_pl(coord $from, player_uid $to, spotanim, fromHeight, toHeight,
+     * delay, duration, peak, arc) — engine.rs2:70, and `projanim_npc` (:72) is
+     * the same nine arguments against an npc. `ServerOps.ts` PROJANIM_PL /
+     * PROJANIM_NPC, both of which reduce to one `World.mapProjAnim` call.
+     *
+     * This is the arrow, the spell and the dragon's breath — every projectile in
+     * the game. `skill_combat/scripts/projectile.rs2` wraps both, and every
+     * ranged and magic script in the reference goes through that wrapper, which
+     * is why the two land together: hosting one would leave half the combat
+     * scripts casting invisible spells.
+     *
+     * The destination is the target's tile **now**, read here rather than sent as
+     * a coord, because that is what the reference does and what the wire can
+     * carry: MAP_PROJANIM has one signed byte per axis, as an offset from the
+     * source. The client then re-aims at the live entity every cycle (`target`),
+     * so the tile written here only decides the opening arc — which is exactly
+     * how a shot at a walking target bends to follow it.
+     *
+     * `target` is the wire's own encoding of "whom": `slot + 1` for an npc,
+     * `-pid - 1` for a player. Two spaces in one signed field, which is why an
+     * npc can never be slot -1 and a pid is never negative.
+     *
+     * The player uid is resolved the way this server defines uids: there is one
+     * player, `uid` pushes 1 for it, and `damage` already ignores the argument
+     * for the same reason. So any uid names the active player. That is a
+     * single-player limitation and not a decision — a tree with a real uid space
+     * resolves it here.
+     */
+    case SS_OP_PROJANIM_PL:
+    case SS_OP_PROJANIM_NPC:
+    {
+        int32_t values[9];
+        int dst_x;
+        int dst_z;
+        int target;
+
+        for( int i = 8; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+
+        if( opcode == SS_OP_PROJANIM_NPC )
+        {
+            /* `npcUid & 0xffff` is the slot; the type in the high half is what
+             * the reference checks and then comments out. */
+            int slot = (int)values[1] & 0xffff;
+
+            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+            {
+                SSVM_Abort(state, "projanim_npc: npc uid %d is not a live npc",
+                           (int)values[1]);
+                return 1;
+            }
+            dst_x = srv->npcs[slot].x;
+            dst_z = srv->npcs[slot].z;
+            target = slot + 1;
+        }
+        else
+        {
+            dst_x = player->x;
+            dst_z = player->z;
+            target = -player->pid - 1;
+        }
+
+        mock230_zone_projanim(srv, mock230_coord_x(values[0]), mock230_coord_z(values[0]),
+                              mock230_coord_level(values[0]), dst_x, dst_z, target,
+                              (int)values[2], (int)values[3], (int)values[4], (int)values[5],
+                              (int)values[6], (int)values[7], (int)values[8]);
         return 1;
     }
 
