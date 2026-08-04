@@ -690,3 +690,32 @@ ever matters.
     revision 240` and then crashed in its own decode. Blocker unchanged and
     external: RuneLite ships a rev-240 client; the newest RSProt module and
     every archived cache are 239.
+
+- **2026-08-04 (later still) — the 239 handshake and PLAYER_INFO v5.**
+  - `mock230_session` reads the real 239 login block: `serverVersion`, the OTP
+    discriminator, the XTEA body (username), and the RSA encryption-check byte.
+    Verified against this repo's own 239 client — `login user='testc'` proves
+    the RSA envelope, the four seeds and the XTEA decrypt all agree between two
+    halves written from one spec.
+  - Twelve packets now flow at real 239 opcodes and sizes (IF_OPENTOP 96,
+    IF_SETEVENTS 108/16, VARP_SMALL 97, REBUILD_NORMAL 49, PLAYER_INFO 28, …).
+  - **`serve()` memsets the server struct**, which erased the wire set at the
+    call site — every login block was read as revision 230 and reported
+    `rsa decrypt failed`, pointing at the key rather than at four bytes of
+    `serverVersion`.
+  - `mock239_playerinfo.c` writes the v5 stream (local player only), with a
+    round-trip test against a decoder transcribed from RSProt's reference
+    client. Mutation-tested. Correction it produced: an empty bit section emits
+    zero bytes, so the four sections are not four markers on the wire.
+  - **One fact, three consumers**: the local player's wire index is used by the
+    init block, PLAYER_INFO, and the login response. The pool is 0-based and the
+    client's table is 1..2047; `mock230_wire_local_index()` is the single
+    definition. Found by arithmetic — REBUILD_NORMAL was 4616 bytes where 4614
+    was predicted, and the gap is exactly one 18-bit entry.
+  - **A bare `0x02` login response is a desync at 239**, not a short response:
+    `LoginResponse.Ok` is 34 bytes behind a length, so the client swallowed the
+    first 35 bytes of the login burst. Silent — the packets simply never arrive.
+  - Process note: this selftest is **noisy** (11–14 failures per run) while the
+    content submodule is being edited concurrently. A 3-run union is not enough
+    to separate a regression from a flake; a back-to-back 5-run union against
+    the same HEAD is. Measured that way, the whole change set is 13 vs 13.

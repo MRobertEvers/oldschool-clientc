@@ -253,6 +253,60 @@ were wrong with nothing to catch them). It reports **205 failures** against
 **13** at 230 — that gap is the distance to parity, and it is a number that
 comes down as writers land rather than a pass/fail.
 
+## 5c. PLAYER_INFO v5, and the three-way index
+
+`src/net/mock/mock239_playerinfo.c` writes the v5 player stream. It is a
+different **codec** from the classic bitstream, not a different field order,
+so `mock230_encode.c` forks to it before writing a bit rather than branching
+per field.
+
+Two things are sent and they are not the same thing. The **init block** rides
+inside the login REBUILD (30 bits of absolute coord, then 18 bits per other
+index) and seeds the client's 2048-slot table. The **per-tick packet** is four
+byte-aligned bit sections — high-res active, high-res inactive, low-res
+inactive, low-res active — then the extended-info blocks.
+
+Transcribed against RSProt's reference **decoder** (`PlayerInfoClient.kt` in its
+test tree) rather than its 7,600-line production encoder: the decoder is what a
+client actually does, and a wire format is easier to get right by reading what
+consumes it.
+
+`make -C src test-mock239-playerinfo` round-trips the encoder against a decoder
+written independently in the opposite direction. It is mutation-tested: an
+off-by-one in the skip run turns it red. It also turned up a correction worth
+keeping — **an empty bit section emits zero bytes**, so deleting sections 2 and
+3 produces an identical packet. The obvious reading ("four sections, four
+markers on the wire") is wrong and would send someone hunting for separators
+that do not exist.
+
+### The three-way index
+
+The pool is 0-based; the client's player table is **1..2047 with index 0
+unused**. That is one fact with three consumers, and getting it wrong is not
+cosmetic:
+
+- the init block skips the local index, so a local index of 0 skips nothing and
+  writes 2047 entries where the client reads 2046 — every entry after the first
+  lands on the wrong slot, and the block is two bytes too long;
+- PLAYER_INFO's high-resolution section keys on the same index;
+- the **login response** has to state it, because the client learns which slot
+  is itself from there and nowhere else.
+
+`mock230_wire_local_index()` is the one definition so the three cannot disagree.
+The bug that exposed it was arithmetic, not a symptom: REBUILD_NORMAL came out
+at 4616 bytes where 4614 was predicted, and the two-byte gap is exactly
+`(2047 - 2046) * 18 bits` rounded up.
+
+Fixing it surfaced a second, larger one. This server answered login with a bare
+`0x02`, and at 239 that is not "a shorter response" — `LoginResponse.Ok` is 34
+bytes behind a var-byte length, so the client read a length and then **swallowed
+the first 35 bytes of the login burst** as the response body. Nothing errors;
+the client simply never sees the packets it ate, which reads as "the server
+didn't send them".
+
+Verified: client reports `local player index 1`, REBUILD_NORMAL is 4614 bytes,
+PLAYER_INFO is 57.
+
 ## 6. The measured result, and what is left
 
 ```
@@ -281,11 +335,10 @@ disconnect cleanly rather than dying on SIGPIPE.
 
 Not done, in the order that unblocks the most:
 
-1. **PLAYER_INFO / NPC_INFO v5 are not written.** No vanilla client reaches the
-   world without them. The largest remaining piece, and the one
-   `MULTI_GENERATIONAL_PARITY.md` §5.4 already calls "the biggest new build".
-   They are absent from the 239 writer set, so the server refuses them rather
-   than sending a 230 bitstream a 239 client would read as garbage.
+1. **NPC_INFO v5 is not written**, and PLAYER_INFO v5 carries only the local
+   player — other players are held in low resolution and never promoted, so the
+   high-resolution movement opcodes and the low-to-high transition are read by
+   the client and written by nobody. `mock239_playerinfo.h` says where.
 2. ~~**The server's login block is still the 230 shape.**~~ **Done** — see §5b.
    The server reads `serverVersion`, the OTP discriminator and the XTEA body,
    and checks the RSA encryption-check byte. It does not verify the 23 archive
