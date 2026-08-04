@@ -109,7 +109,7 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
     { 67, 6, PKT_NAME_CAM_MOVETO },
     { 30, 6, PKT_NAME_CAM_LOOKAT },
     { 107, 4, PKT_NAME_CAM_SHAKE },
-    { 108, 0, PKT_NAME_NONE }, /* SERVER_TICK_END */
+    { 108, 0, PKT_NAME_SERVER_TICK_END },
     { 103, 2, PKT_NAME_NONE }, /* UPDATE_REBOOT_TIMER */
     /*
      * The social trio.

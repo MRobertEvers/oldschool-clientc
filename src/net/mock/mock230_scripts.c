@@ -5395,6 +5395,15 @@ mock230_script_command(
             target = -player->pid - 1;
         }
 
+        /* MOCK230_PROJ_DEBUG=1: one line per send. A projectile that never
+         * leaves and a projectile the client drops look identical from the
+         * outside, and this is the line that separates them — it is how the
+         * commented-out `projanim_pl` in `skill_combat/scripts/projectile.rs2`
+         * was found (0 sends across a whole TzKal-Zuk fight). */
+        if( getenv("MOCK230_PROJ_DEBUG") )
+            fprintf(stderr, "projanim: src=%d,%d dst=%d,%d target=%d spot=%d delay=%d dur=%d\n",
+                    mock230_coord_x(values[0]), mock230_coord_z(values[0]), dst_x, dst_z,
+                    target, (int)values[2], (int)values[5], (int)values[6]);
         mock230_zone_projanim(srv, mock230_coord_x(values[0]), mock230_coord_z(values[0]),
                               mock230_coord_level(values[0]), dst_x, dst_z, target,
                               (int)values[2], (int)values[3], (int)values[4], (int)values[5],

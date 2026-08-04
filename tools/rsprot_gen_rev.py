@@ -105,6 +105,7 @@ CANON_IN = {
     "HINT_ARROW": "HINT_ARROW",
     "RESET_ANIMS": "RESET_ANIMS",
     "UPDATE_REBOOT_TIMER_V2": "UPDATE_REBOOT_TIMER",
+    "SERVER_TICK_END": "SERVER_TICK_END",
 }
 
 # --- RSProt client prot -> canonical PKTOUT_NAME_* -------------------------

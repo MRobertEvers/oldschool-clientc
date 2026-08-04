@@ -51,6 +51,29 @@ RL_REPO = os.path.expanduser("~/.runelite/repository2")
 MODULUS_RE = re.compile(rb"\x01\x01\x00([0-9a-f]{256})")
 EXPONENT = b"\x01\x00\x0510001"
 
+# RuneLite refuses a jav_config whose host does not end in one of these:
+#
+#   host.toLowerCase().endsWith(".jagex.com") || ....endsWith(".runescape.com")
+#
+# so `--jav_config=http://127.0.0.1:.../` is rejected before it is even fetched.
+# Rewriting the first suffix to one that a loopback address ends with is the
+# smallest change that opens it, and it leaves the second alone so a client
+# patched this way still accepts the real config.
+#
+# This one is NOT a same-length edit, so it rewrites the constant's u2 length as
+# well. That is safe for the same reason the modulus edit is: a class file
+# addresses constants by POOL INDEX, never by byte offset, so a pool entry may
+# change size without disturbing anything that refers to it.
+HOST_SUFFIX_OLD = ".jagex.com"
+HOST_SUFFIX_NEW = ".0.0.1"
+CLIENT_LOADER_ENTRY = "net/runelite/client/rs/ClientLoader.class"
+
+
+def utf8_constant(text):
+    """The exact constant-pool bytes for a CONSTANT_Utf8 entry: tag, u2 len, bytes."""
+    raw = text.encode("utf-8")
+    return b"\x01" + struct.pack(">H", len(raw)) + raw
+
 
 def find_injected_client(explicit=None):
     if explicit:
@@ -118,6 +141,79 @@ def patch(jar_path, out_jar, new_modulus):
     return entry, old
 
 
+def find_client_jar():
+    """Newest client-*.jar. There is usually more than one left in the
+    repository after an update, and both carry a logback.xml and a
+    net.runelite.client.RuneLite, so putting them both on a classpath silently
+    runs whichever sorts first -- which is the OLD one."""
+    jars = [
+        os.path.join(RL_REPO, f)
+        for f in os.listdir(RL_REPO)
+        if f.startswith("client-") and f.endswith(".jar")
+    ]
+    if not jars:
+        raise SystemExit(f"no client-*.jar in {RL_REPO}")
+    return max(jars, key=os.path.getmtime)
+
+
+def strip_manifest_digests(manifest_bytes):
+    """Drop the per-entry digest sections from a MANIFEST.MF.
+
+    A signed jar records a SHA-256 of every entry in the manifest and again in
+    META-INF/*.SF. Leaving those behind after editing a class produces
+
+        java.lang.SecurityException: SHA-256 digest error for <entry>
+
+    at class-load time -- the JVM checks the digest even when no signature file
+    survives, because the manifest still claims one. So both have to go, and the
+    manifest keeps only its main section (Main-Class and friends)."""
+    text = manifest_bytes.decode("utf-8", "replace")
+    # Sections are separated by a blank line; the first is the main section.
+    main = text.split("\r\n\r\n")[0].split("\n\n")[0]
+    lines = [
+        ln for ln in main.splitlines()
+        if not ln.lower().startswith(("sha", "md5", "magic:"))
+    ]
+    return ("\r\n".join(lines) + "\r\n\r\n").encode("utf-8")
+
+
+def patch_host_check(jar_path, out_jar):
+    """Relax RuneLite's jav_config host allowlist so a loopback address passes."""
+    old = utf8_constant(HOST_SUFFIX_OLD)
+    new = utf8_constant(HOST_SUFFIX_NEW)
+    found = False
+    dropped = []
+    os.makedirs(os.path.dirname(out_jar) or ".", exist_ok=True)
+    with zipfile.ZipFile(jar_path) as zin, zipfile.ZipFile(
+        out_jar, "w", zipfile.ZIP_DEFLATED
+    ) as zout:
+        for info in zin.infolist():
+            name = info.filename
+            upper = name.upper()
+            if upper.startswith("META-INF/") and upper.endswith(
+                (".SF", ".DSA", ".RSA", ".EC")
+            ):
+                dropped.append(name)
+                continue
+            data = zin.read(name)
+            if upper == "META-INF/MANIFEST.MF":
+                data = strip_manifest_digests(data)
+            elif name == CLIENT_LOADER_ENTRY and old in data:
+                data = data.replace(old, new, 1)
+                found = True
+            # Rebuild the entry so its recorded sizes follow the new content.
+            out_info = zipfile.ZipInfo(name, date_time=info.date_time)
+            out_info.compress_type = zipfile.ZIP_DEFLATED
+            out_info.external_attr = info.external_attr
+            zout.writestr(out_info, data)
+    if not found:
+        raise SystemExit(
+            f"{CLIENT_LOADER_ENTRY} does not carry the constant {HOST_SUFFIX_OLD!r}; "
+            "the host allowlist may have changed shape."
+        )
+    return HOST_SUFFIX_OLD, HOST_SUFFIX_NEW, dropped
+
+
 def print_launch(patched_jar, jav_config_url):
     """The classpath RuneLite is launched with, patched jar first.
 
@@ -127,18 +223,41 @@ def print_launch(patched_jar, jav_config_url):
     """
     if not os.path.isdir(RL_REPO):
         raise SystemExit(f"RuneLite repository not found at {RL_REPO}")
-    jars = [
+    out_dir = os.path.dirname(patched_jar)
+    shadowed = {
+        os.path.basename(find_injected_client()),
+        os.path.basename(find_client_jar()),
+    }
+    # Every OTHER client-*.jar is dropped, not just the one we patched: leaving
+    # a stale version on the classpath is how 1.12.33 ends up running when
+    # 1.12.34.1 is installed.
+    stale_clients = {
+        f for f in os.listdir(RL_REPO)
+        if f.startswith("client-") and f.endswith(".jar")
+    } | {
+        f for f in os.listdir(RL_REPO)
+        if f.startswith("injected-client-") and f.endswith(".jar")
+    }
+    patched = [
+        os.path.join(out_dir, f)
+        for f in sorted(os.listdir(out_dir))
+        if f.endswith(".jar")
+    ] if os.path.isdir(out_dir) else [patched_jar]
+    rest = [
         os.path.join(RL_REPO, f)
         for f in sorted(os.listdir(RL_REPO))
-        if f.endswith(".jar")
+        if f.endswith(".jar") and f not in stale_clients
     ]
-    original = os.path.basename(find_injected_client())
-    cp = [patched_jar] + [j for j in jars if os.path.basename(j) != original]
-    print("java \\")
+    _ = shadowed
+    cp = patched + rest
+    # `-ea` is not optional alongside `--developer-mode`: RuneLite refuses to
+    # start with "Developers should enable assertions" if the two disagree, and
+    # it reports that as a fatal error dialog rather than a flag warning.
+    print("java -ea \\")
     print(f"  -cp {os.pathsep.join(cp)} \\")
     print("  net.runelite.client.RuneLite \\")
     print(f"  --jav_config={jav_config_url} \\")
-    print("  --developer-mode --disable-telemetry --noupdate --insecure-skip-tls-verification")
+    print("  --developer-mode --disable-telemetry --noupdate")
 
 
 def main():
@@ -176,6 +295,19 @@ def main():
     print(f"  old {old}", file=sys.stderr)
     print(f"  new {args.modulus.lower()}", file=sys.stderr)
     print(f"  -> {out_jar}", file=sys.stderr)
+
+    client_jar = find_client_jar()
+    client_out = os.path.join(args.out, os.path.basename(client_jar))
+    old_suffix, new_suffix, dropped = patch_host_check(client_jar, client_out)
+    print(
+        f"patched {CLIENT_LOADER_ENTRY} in {os.path.basename(client_jar)}: "
+        f"host suffix {old_suffix!r} -> {new_suffix!r}",
+        file=sys.stderr,
+    )
+    if dropped:
+        print(f"  unsigned the jar (dropped {', '.join(dropped)})", file=sys.stderr)
+    print(f"  -> {client_out}", file=sys.stderr)
+
     if args.print_launch:
         print_launch(out_jar, args.jav_config)
 

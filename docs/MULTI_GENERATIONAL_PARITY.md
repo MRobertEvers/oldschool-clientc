@@ -625,3 +625,68 @@ ever matters.
   - Verified end-to-end: headless screenshot shows the player model (green
     top/olive legs) on the path with the camera orbiting it and the minimap
     tracking it. All net/UI regressions + lc254 offline boot green.
+
+- **2026-08-04 — rev-239 (live OldSchool) protocol tables, login, and JS5;
+  RuneLite reached this server.** Full write-up in
+  [`RSPROT_OSRS239_PORT.md`](RSPROT_OSRS239_PORT.md); the parts that belong to
+  this document's seams:
+  - `GameProtoRevTable` gained **`opcode_smart2`**. Revision 239's server
+    opcodes reach 148, and RSProt writes anything >= 0x80 as two stream-cipher
+    bytes (`pSmart1Or2Enc`). `packetbuffer.c` grew `PKTBUF_READ_OPCODE_LOW` to
+    park between them, because the first byte's ISAAC step cannot be replayed.
+    A revision that needs this and leaves it 0 does not drop the high packets —
+    it reads each one's second byte as the next opcode and never resyncs.
+  - `src/net/rev/osrs239/` is **generated** (`tools/rsprot_gen_rev.py`), 158
+    server prots and 101 client prots, and is the first table in the tree whose
+    every number is real rather than partly assigned. `osrs230` stays as it is;
+    it is what the regression suite runs on.
+  - The 5.4 "entity-info op-list codec" item is still the largest gap and is now
+    the *only* thing between this and a vanilla client in the world: PLAYER_INFO
+    and NPC_INFO v5 are unwritten, so `osrs239_parse.c` refuses them (along with
+    REBUILD_NORMAL/REGION V2, IF_SETEVENTS V2, IF_SETMODEL V2 and CAM_MOVETO/
+    LOOKAT V2) rather than decoding them with the 230 layout.
+  - **JS5 landed** as `src/net/mock/mock_js5.c` + `make -C src mock-js5`. It is
+    a login-prot branch, not a service — one socket, opcode 14 game vs 15 JS5 —
+    so it must move into `mock230_session`'s handshake; it is standalone today
+    because that is the half testable against a real client now.
+  - **Measured, not assumed**: the JS5 master index's layout was read off a live
+    239 server with `tools/js5_probe.py` (25 archives of `p4 crc, p4 version`,
+    no prefix), and three of our computed CRCs match live exactly.
+  - **RuneLite was launched against it** and its vanilla client pulled 2,733
+    groups / 7.9 MB before crashing in its own decode. The blocker is external:
+    RuneLite ships a revision **240** client, while RSProt's newest module and
+    every archived cache are 239.
+
+- **2026-08-04 (later) — the server-side wire adapter; JS5 folded into the
+  session.** `src/net/mock/mock230_wire.h` is the fourth vtable seam, shaped
+  like `Mock230Transport` / `NetLoginVTable` / `GameProtoRevTable`: struct of
+  function pointers, one instance per revision, a `_by_name` resolver, NULL
+  slots meaning classic. Selected by `--rev osrs239` or `MOCK230_REV`;
+  default osrs230, so anything that says nothing is unchanged.
+  - `mock230_encode.c`'s 50-opcode enum became **canonical-name aliases**, so
+    all 140 call sites are untouched and `mock230_send` resolves per revision.
+    The packet capture records the RESOLVED opcode, which is what keeps the
+    selftest's wire-number assertions meaningful — measured: the same 13
+    pre-existing failures before and after, none new.
+  - `payload` is a WHOLE writer set, not sparse overrides: a packet a
+    revision's set does not name is refused rather than written with the other
+    revision's layout. Necessary because payloads move even when sizes do not —
+    IF_OPENTOP is 2 bytes at both revisions and `p2Alt1` vs `p2Alt2`; IF_OPENSUB
+    is 7 bytes at both with its fields in the opposite order.
+  - `zone_sub_code` is a separate slot from `opcode`: inside
+    UPDATE_ZONE_PARTIAL_ENCLOSED, 230 uses the top-level opcode and 239 uses the
+    ordinal of RSProt's IndexedZoneProtEncoder — a third numbering. Missing it
+    is invisible at the frame level.
+  - **Transcribe each writer from its own encoder.** Checking against RSProt
+    found three of the first six wrong (VARP_SMALL's id order, VARP_LARGE's
+    field order, UPDATE_STAT_V2 reordered entirely) — none of which has any
+    downstream symptom.
+  - JS5 moved into `mock230_session`'s handshake (opcode 15 beside 14), which
+    is where it belongs since one socket carries both. That immediately exposed
+    a real latent bug: mock230 did not ignore SIGPIPE, and a cache download is
+    megabytes in a tight loop, so a client closing its update connection killed
+    the process mid-write (exit 141, indistinguishable from a crash).
+  - RuneLite re-run against the integrated server reached `JS5 session opened at
+    revision 240` and then crashed in its own decode. Blocker unchanged and
+    external: RuneLite ships a rev-240 client; the newest RSProt module and
+    every archived cache are 239.

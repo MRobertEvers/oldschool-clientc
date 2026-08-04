@@ -186,7 +186,7 @@ static const struct Osrs239PacketInDef g_packet_in_definitions_osrs239[] = {
     {   37, PKTIN_LENGTH_VARU8,    PKT_NAME_UPDATE_REBOOT_TIMER,        "UPDATE_REBOOT_TIMER_V2" },
     {   26, 1,                     PKT_NAME_NONE,                       "SET_HEATMAP_ENABLED" },
     {   43, 1,                     PKT_NAME_NONE,                       "MINIMAP_TOGGLE" },
-    {   83, 0,                     PKT_NAME_NONE,                       "SERVER_TICK_END" },
+    {   83, 0,                     PKT_NAME_SERVER_TICK_END,            "SERVER_TICK_END" },
     {   75, 1,                     PKT_NAME_NONE,                       "HIDENPCOPS" },
     {   73, 1,                     PKT_NAME_NONE,                       "HIDEOBJOPS" },
     {   21, 1,                     PKT_NAME_NONE,                       "HIDELOCOPS" },

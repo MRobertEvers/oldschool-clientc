@@ -8,6 +8,10 @@
 
 #include "mock230_session.h"
 
+#include "mock_js5.h"
+
+#include <stdlib.h>
+
 #include "mock230.h"
 
 #include "net/isaac.h"
@@ -175,6 +179,147 @@ fill(struct Mock230Session* session)
 /* Handshake                                                          */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* JS5                                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The cache the JS5 service serves, opened once for the process.
+ *
+ * Lazy and shared rather than per-session: it is a pair of read-only file
+ * handles plus a computed master index, and a client opens JS5 and the game as
+ * two separate connections, so per-session would rebuild the master index on
+ * every reconnect.
+ *
+ * MOCK230_JS5_CACHE overrides the directory. It defaults to the same cache the
+ * world boots from, because serving one revision's content while the world
+ * reads another is a mismatch nothing downstream can detect.
+ */
+static struct MockJs5* g_js5;
+static int g_js5_tried;
+
+static struct MockJs5*
+js5_cache(void)
+{
+    if( !g_js5_tried )
+    {
+        char const* dir = getenv("MOCK230_JS5_CACHE");
+        if( !dir )
+            dir = getenv("MOCK230_CACHE");
+        if( !dir )
+            dir = "cache.osrs239";
+        g_js5_tried = 1;
+        g_js5 = mock_js5_open(dir);
+    }
+    return g_js5;
+}
+
+/**
+ * The JS5 handshake: p1 15, p4 revision, p4 seed x4 -> p1 status.
+ *
+ * `MOCK230_JS5_REV` is the revision to accept, because the revision a client
+ * announces and the revision whose content a cache holds are two different
+ * facts that drift apart between the day a cache is archived and the day the
+ * game updates. Answering 6 (out of date) is what a client reports as
+ * `error_game_js5connect_outofdate`.
+ */
+static int
+step_js5_init(struct Mock230Session* session)
+{
+    uint8_t status;
+    int client_rev;
+    char const* want = getenv("MOCK230_JS5_REV");
+    int accept_rev = want ? atoi(want) : 239;
+
+    if( session->in_len < 1 + 20 )
+        return 0; /* the whole handshake has not arrived */
+
+    client_rev = (session->in[1] << 24) | (session->in[2] << 16) |
+                 (session->in[3] << 8) | session->in[4];
+    consume(session, 1 + 20);
+
+    if( !js5_cache() )
+    {
+        fprintf(stderr, "mock230: JS5 requested but no cache could be opened\n");
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    if( client_rev != accept_rev )
+    {
+        fprintf(stderr, "mock230: JS5 client revision %d, serving %d -> out of date\n",
+                client_rev, accept_rev);
+        status = 6;
+        mock230_session_send(session, &status, 1);
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+
+    status = 0;
+    if( mock230_session_send(session, &status, 1) < 0 )
+    {
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
+    fprintf(stderr, "mock230: JS5 session opened at revision %d\n", client_rev);
+    session->state = MOCK230_SESSION_JS5;
+    return 1;
+}
+
+/**
+ * Serve whatever whole JS5 requests are buffered.
+ *
+ * A request is four bytes: opcode, archive, group. Opcodes 2, 3 and 4 are
+ * flow-control and XOR hints a server may ignore; 0 and 1 are prefetch and
+ * urgent, which differ only in queue priority and not in the answer.
+ */
+static int
+step_js5_serve(struct Mock230Session* session)
+{
+    struct MockJs5* js5 = js5_cache();
+    int served = 0;
+
+    while( session->in_len >= 4 )
+    {
+        int opcode = session->in[0];
+        int archive = session->in[1];
+        int group = (session->in[2] << 8) | session->in[3];
+        int cap;
+        int n;
+        uint8_t* out;
+
+        consume(session, 4);
+        served = 1;
+
+        if( opcode == 2 || opcode == 3 || opcode == 4 )
+            continue;
+        if( opcode != 0 && opcode != 1 )
+        {
+            fprintf(stderr, "mock230: unknown JS5 request opcode %d\n", opcode);
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+
+        cap = mock_js5_max_response_bytes(js5) + 4096;
+        out = malloc((size_t)cap);
+        if( !out )
+        {
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+        n = mock_js5_build_response(js5, archive, group, out, cap);
+        if( n > 0 && mock230_session_send(session, out, n) < 0 )
+        {
+            free(out);
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+        if( n <= 0 && session->verbose )
+            fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+        free(out);
+    }
+    return served;
+}
+
 /*
  * Step 1: INIT_GAME_CONNECTION. One byte in, nine out.
  *
@@ -188,9 +333,19 @@ step_init(struct Mock230Session* session)
 
     if( session->in_len < 1 )
         return 0;
+    /*
+     * One socket, two services, chosen by this byte: 14 is a game login and 15
+     * is a JS5 cache download. A vanilla OldSchool client always opens JS5
+     * first and treats a refusal as "unable to connect to the update server",
+     * so answering only 14 produces a client that never reaches its login
+     * screen -- which is not a symptom that points anywhere near here.
+     */
+    if( session->in[0] == 15 )
+        return step_js5_init(session);
+
     if( session->in[0] != 14 )
     {
-        fprintf(stderr, "mock230: expected opcode 14, got %d\n", session->in[0]);
+        fprintf(stderr, "mock230: expected opcode 14 or 15, got %d\n", session->in[0]);
         session->state = MOCK230_SESSION_DEAD;
         return 1;
     }
@@ -451,6 +606,9 @@ mock230_session_pump(
             break;
         case MOCK230_SESSION_LOGIN:
             advanced = step_login(session, srv);
+            break;
+        case MOCK230_SESSION_JS5:
+            advanced = step_js5_serve(session);
             break;
         case MOCK230_SESSION_ONLINE:
             advanced = step_online(session, srv);

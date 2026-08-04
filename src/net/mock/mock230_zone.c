@@ -952,7 +952,7 @@ build_shared(
                             sizeof(*zone->shared));
         if( zone->shared_len + 16 > zone->shared_capacity )
             return;
-        written = mock230_encode_zone_sub(zone->shared + zone->shared_len,
+        written = mock230_encode_zone_sub(srv->wire, zone->shared + zone->shared_len,
                                           zone->shared_capacity - zone->shared_len,
                                           &zone->events[i]);
         zone->shared_len += written;

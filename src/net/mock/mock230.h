@@ -89,6 +89,7 @@
 #define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239.baked"
 
 #include "mock230_bank.h"
+#include "mock230_wire.h"
 #include "mock230_zone.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -2244,6 +2245,17 @@ struct Mock230Server
     /** Non-NULL only under the selftest; see mock230_capture_begin. */
     struct Mock230Capture* capture;
 
+    /**
+     * Which revision's bytes this world writes. See mock230_wire.h.
+     *
+     * On the world rather than on the session because a packet is built once
+     * and addressed to a player: the encoders reach it as `player->world`, and
+     * making it per-session would mean one tick's PLAYER_INFO had to be encoded
+     * once per connected revision. Selected at boot by `--rev` / MOCK230_REV,
+     * and NULL is read as revision 230 so nothing that never sets it changes.
+     */
+    const struct Mock230Wire* wire;
+
     /** Objs on the floor. Flat rather than zone-bucketed: 256 entries scanned
      *  once a tick is nothing, and a zone index would be the only structure in
      *  the mock that has to be kept consistent under a rebuild. */
@@ -3998,12 +4010,20 @@ mock230_push_typed_param(
 /* Encoders (mock230_encode.c)                                         */
 /* ------------------------------------------------------------------ */
 
-/** Frame + ISAAC-scramble one packet and write it to the socket. `var` is 0
- *  (fixed), 1 (var-u8) or 2 (var-u16). */
+/**
+ * Frame + ISAAC-scramble one packet and write it to the socket. `var` is 0
+ * (fixed), 1 (var-u8) or 2 (var-u16).
+ *
+ * `pkt_name` is a **canonical** GameProtoPktName, not a wire opcode: the
+ * revision's number comes from `world->wire` here, so one build can serve
+ * either. A name this revision does not carry is dropped and reported once
+ * (mock230_wire.h). The packet capture still records the RESOLVED opcode, so
+ * selftest assertions written against wire numbers keep their meaning.
+ */
 void
 mock230_send(
     struct Mock230Player* player,
-    int opcode,
+    int pkt_name,
     const uint8_t* payload,
     int len,
     int var);
@@ -4297,6 +4317,7 @@ mock230_send_zone_sub(
  *  this is what makes a zone's shared blob shared. Returns the bytes written. */
 int
 mock230_encode_zone_sub(
+    const struct Mock230Wire* wire,
     uint8_t* dst,
     int max,
     const struct Mock230ZoneEvent* event);

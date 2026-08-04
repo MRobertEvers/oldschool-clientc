@@ -291,7 +291,8 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_objinfo.c \
+	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
@@ -764,7 +765,10 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
+	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
+	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
+	$(OBJ_DIR)/bitbuffer.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
@@ -1018,6 +1022,26 @@ test-revconfig: $(OBJ_DIR)
 # §3.4 — a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/mock230 disagree).
 MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
+# The JS5 (cache download) service, standalone.
+#
+# It is separate from mock230 because a client uses ONE port for JS5 and the
+# game, choosing with its first byte — so the two cannot both own 43594 in a
+# finished deployment, and the branch belongs in mock230_session's handshake.
+# This binary exists because it is the half that can be verified today against
+# a real OldSchool client and against Jagex's own service:
+#
+#   src/build/mock_js5 cache.osrs239 43594 239
+#   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
+#
+# See docs/RSPROT_OSRS239_PORT.md.
+mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 \
+		net/mock/mock_js5_main.c net/mock/mock_js5.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/mock_js5"
+
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \

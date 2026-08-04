@@ -34,6 +34,7 @@
 #include "mock230_ws.h"
 
 #include <arpa/inet.h>
+#include <signal.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -200,6 +201,37 @@ main(
     int listener = -1;
     int reuse = 1;
     struct sockaddr_in addr;
+    /*
+     * Which revision's bytes to write. `--rev <name>` beats MOCK230_REV beats
+     * the default, which is osrs230 — so every existing manifest, script and
+     * test keeps its behaviour by saying nothing. See mock230_wire.h.
+     */
+    char const* rev_name = getenv("MOCK230_REV");
+    const struct Mock230Wire* wire;
+
+    for( int i = 1; i < argc - 1; i++ )
+        if( strcmp(argv[i], "--rev") == 0 )
+            rev_name = argv[i + 1];
+
+    wire = rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
+    if( !wire )
+    {
+        fprintf(stderr, "mock230: unknown --rev '%s' (osrs230, osrs239)\n", rev_name);
+        return 1;
+    }
+
+    /*
+     * A client that walks away mid-write must not take the server with it.
+     *
+     * This mattered little while every packet was a few hundred bytes and a
+     * dead socket surfaced as a -1 from send(). It matters now that the same
+     * port serves JS5: a cache download is megabytes written in a tight loop,
+     * so a client that closes its update connection the moment it has what it
+     * wants — which is the normal way that connection ends — lands SIGPIPE in
+     * the middle of a write and killed the process. Exit code 141 is what that
+     * looks like from outside, and it looks exactly like a crash.
+     */
+    signal(SIGPIPE, SIG_IGN);
 
     mock230_boot_defaults(&config);
 
@@ -247,9 +279,10 @@ main(
     }
 
     /* Listening since before the loaders ran; this is where it starts accepting. */
-    fprintf(stderr, "mock230: listening on 127.0.0.1:%d (home %d,%d — zone %d,%d)\n", port,
-            config.home_x, config.home_z, mock230_boot_zone(config.home_x),
-            mock230_boot_zone(config.home_z));
+    fprintf(stderr,
+            "mock230: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d)\n",
+            port, wire->name, config.home_x, config.home_z,
+            mock230_boot_zone(config.home_x), mock230_boot_zone(config.home_z));
 
     for( ;; )
     {
@@ -257,6 +290,10 @@ main(
         if( fd < 0 )
             continue;
         fprintf(stderr, "mock230: client connected\n");
+        /* Set before serve() rather than inside it: `serve` calls
+         * mock230_world_reset on the way out, and the world's revision is a
+         * property of the process, not of one connection. */
+        srv.wire = wire;
         if( mock230_conn_open(&conn, fd) )
             serve(&srv, &conn, &config);
         close(fd);

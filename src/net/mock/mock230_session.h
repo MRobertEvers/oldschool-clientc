@@ -47,6 +47,18 @@ enum Mock230SessionState
     MOCK230_SESSION_INIT = 0,
     /** Session id sent; awaiting GAMELOGIN (opcode 16) and its block. */
     MOCK230_SESSION_LOGIN,
+    /**
+     * A JS5 (cache download) connection.
+     *
+     * The same socket carries either service and the client picks with its
+     * FIRST byte: 14 opens a game login, 15 opens JS5. That is why this is a
+     * session state rather than a second listener -- a vanilla client will not
+     * reach the login screen without JS5, so a server that only speaks the game
+     * protocol shows a client that never starts.
+     *
+     * Nothing here is ciphered: JS5 runs before any ISAAC pair exists.
+     */
+    MOCK230_SESSION_JS5,
     /** Ciphers armed; the game stream is running. */
     MOCK230_SESSION_ONLINE,
     /** Peer gone, or the stream went unrecoverable. */

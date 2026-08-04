@@ -273,6 +273,142 @@ The port mirrors that: `p_teleport` to plane 1 → `~inferno_spawn_flanks` →
 **not** REBUILD the scene (that would wipe the L1 flanks); see
 `mock230_world_player_level_changed`. Do not bake flanks into the client cache.
 
+## Four engine defects the Zuk fight uncovered (2026-08-04)
+
+All four presented as "the Inferno is broken" and none of them were Inferno
+content. Each is stated with the command that settles it, because each is a
+general defect that the encounter happened to be the first content to exercise.
+
+1. **`npc_walk` was not implemented, and a targetless npc never walked.** Two
+   halves, and fixing either alone changes nothing. `SS_OP_NPC_WALK` printed
+   `ssvm: NPC_WALK is not implemented` and returned defaults; and the npc phase
+   only stepped waypoints for `WANDER` / a targeted mode, so even a queued
+   destination sat still. The reference's `noMode()` *is* `updateMovement()` —
+   mode `none` steps whatever `waypointIndex` holds (`Npc.ts`). The Ancestral
+   Glyph therefore never left its spawn tile, so `%inferno_zuk_ready` never
+   latched and the fight sat there after the cutscene, which is exactly the
+   symptom `inferno.npc`'s `moverestrict=blocked` comment predicts for a
+   different reason. `grep 'NPC_WALK is not implemented' <run log>`.
+
+2. **A `loc_change`d loc was drawn twice, at two different depths.**
+   `WorldBuilder_ApplyLocChange` released the painter's exclusive *wall* slot
+   for the loc it removed and nothing for a centrepiece — so the baked static
+   scenery element stayed in its tile chains. Scene element ids are recycled,
+   the replacement loc was handed the id the dead one held, and the painter then
+   emitted that model twice: once where the abandoned element sat in the
+   back-to-front order and once at the new loc's own depth. Everything drawn
+   between the two was overpainted by the second, which is what made the seal's
+   rubble and the flank rocks swap in front of and behind the ground rocks
+   around them. `painter_release_scenery` is the counterpart of
+   `painter_release_wall`. `painter_reset_to_static` cannot help: the stale
+   element is below `static_element_count`, the range it exists to preserve.
+   Measured with a per-frame emit-order dump — 30340 at order 482 *and* 1341 in
+   the same frame — not from pixels; the two painters (`bucket`, `world3d`)
+   agree here and swapping them proves nothing.
+
+3. **`npc_basestat(hitpoints)` compiled to param 2100 and answered 0.** The
+   compiler's stat-name hint (`ssc_compile.c`, the thing that stops bare
+   `hitpoints` resolving to the param that shares the word) tested membership by
+   name prefix — `STAT_`, `STAT`, `NPC_STAT` — and `NPC_BASESTAT` matches none
+   of them. So `%inferno_zuk_base_hp` was 0 and the overlay read `1200/1`. This
+   is the failure that comment says the hint exists to prevent, missed on a
+   spelling. Pinned by `test_stat_argument_hint` in `ssc_test.c`, which goes red
+   on exactly one of its four legs if the clause is removed.
+
+4. **`turnspeed` never reached the client on a dat2 cache.** The dat2→ToriRS npc
+   mapping pinned `turn_speed = 32` under a comment saying dat2 records carry no
+   such field. They do: opcode 103, decoded as `rotation_speed`, defaulted to 32
+   by the decoder itself. `0` means "never turns", and it is how a loc-like npc
+   holds a fixed facing — the Ancestral Glyph states 0 so it slides along its row
+   still facing the arena, and with 32 forced it swung east and west as it
+   walked. Cache-wide, not Inferno-only.
+
+## The Zuk fight's own defects, and `::zuktest` (2026-08-04)
+
+Five, all in content or in a content-facing seam, all found after the four
+engine ones above stopped masking them. `::zuktest` is the command that now
+holds them down — it drives the fight and reports each milestone with a
+deadline, so a stage that stalls says which stage and at which tick instead of
+looking like "the fight is just sitting there".
+
+1. **No projectile ever left Zuk.** `[proc,player_projectile]` and
+   `[proc,npc_projectile]` computed an honest flight time and had the
+   `projanim_pl` / `projanim_npc` call **commented out**, under a header saying
+   the opcodes were "declared but not hosted yet". They are hosted
+   (`mock230_scripts.c` `SS_OP_PROJANIM_PL`/`_NPC` → `mock230_zone_projanim`).
+   Blocker decay again, and this one was tree-wide: *every* ranged and magic
+   attack in the content tree drew nothing. `MOCK230_PROJ_DEBUG=1` counts the
+   sends — 0 before, 14 in a 4,500-frame Zuk run after.
+
+2. **The blocked shot fired nothing at all.** When the player is behind the
+   glyph, Kronos still sends the projectile — at the glyph — and flinches it on
+   impact (`TzKalZuk.attack()`: `projectileTarget.animate(getDefendAnimation(),
+   delay - 25)`). This port played the block animation instantly and sent no
+   projectile, so a working safespot looked like a broken one. Note the
+   argument order: `~npc_projectile` measures flight with `npc_range($coord)`
+   **from the active npc**, so the glyph has to be active and Zuk's tile the
+   argument; the reverse computes zero.
+
+3. **One varp was doing two clocks' work, and the add waves paid for it.**
+   Content2 keeps `%inferno_cooldown` (the emerge delay) and
+   `%npc_action_delay` (the gap between shots) apart, and calls
+   `~inferno_wave_tick` *between* them. Sharing one varp put the
+   between-shots gap on the **top** of `[ai_timer]`, so the wave tick ran on one
+   tick in ten: `^inferno_add_wave_first` 60 behaved like 600 and
+   `^inferno_add_wave_interval` 350 like 3,500. The adds read as "never
+   spawning". Split into `%inferno_zuk_action_delay`.
+
+4. **Six anim params were missing, and the seq names are not the authority.**
+   None of the Zuk-phase npcs declared `attack_anim` / `defend_anim` /
+   `death_anim`, so all of them died and blocked on `npc_param`'s default. The
+   ids come from Kronos (`data/npcs/combat/<Name>.json`, and `Inferno.java:600`
+   for the glyph) — **not** from this cache's seq names, which get three of six
+   wrong because the Inferno reuses older assets and keeps their names:
+   Jal-MejJak's defend is 2863 (`..._creature_walk` here) and its death is 2865
+   (`..._creature_go_down`), while the seq actually *named* `..._creature_death`
+   is 2866 and is not it. Jal-Xil's and Jal-Zek's `attack_animation` is the
+   **melee** seq; their ranged/magic seqs are named in the monster classes.
+
+5. **The glyph re-queued its walk every tick.** Content2 re-issues on a 2-tick
+   cooldown and says why in its own comment (anything that clears the queued
+   movement strands it mid-row). Every tick is the opposite failure: it
+   re-queues a destination the client is already walking to.
+
+`::zuktest` reports each milestone with the tick it landed on and the deadline
+it had. Read it headlessly with `MOCK230_ECHO_MES=1`, which mirrors every `mes`
+to stderr — a content self-test that reports through the chat box is otherwise
+invisible to a headless run. A healthy fight:
+
+```
+zuktest: spawn ok — tick 21.
+zuktest: emerge ok — tick 21.
+zuktest: ready (glyph reached an end) ok — tick 35.
+zuktest: first shot ok — tick 35.
+zuktest: first add wave ok — tick 95.
+zuktest: done at tick 161 — 13 shot(s) fired.
+```
+
+The wave number is the one to read: **95 = ready (35) + `^inferno_add_wave_first`
+(60)**, to the tick. That equality is the whole point of the test — it is what
+distinguishes a wave clock advancing once per tick from one advancing once per
+attack cooldown, and the two are indistinguishable from any single screenshot.
+`MOCK230_PROJ_DEBUG=1` alongside it counted 16 sends against the test's 13
+shots; the extra three are the add wave's own attacks, which is the cheapest
+confirmation that the spawned mager and ranger are live rather than merely
+present.
+
+Two things the test got wrong first, both worth copying rather than repeating:
+
+- **The clock has to be `map_clock`.** Counting queue passes reads perfectly
+  plausibly and is wrong: a re-queued `[queue]` does not land once per tick
+  here, so every milestone came out at roughly a quarter of its real tick and
+  the deadlines were measuring a unit nothing else in the fight uses. It anchors
+  `%inferno_test_start = map_clock` and subtracts.
+- **The runner has to survive.** Zuk hits for up to `^inferno_zuk_maxhit`, and
+  the milestones that matter most are the late ones. A test that dies at tick 20
+  prints four passes and then simply stops — which is indistinguishable from a
+  pass. It tops the runner's hitpoints up every tick.
+
 ## Re-running the export
 
 The full command is in

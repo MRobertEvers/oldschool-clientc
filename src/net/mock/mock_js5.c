@@ -115,8 +115,17 @@ mock_js5_open(char const* cache_dir)
             if( fread(rec, 1, sizeof(rec), js5->idx[i]) != sizeof(rec) )
                 break;
             long len = read_u24(rec);
-            if( len > biggest )
-                biggest = len;
+            /* A 3-byte length maxes at 16 MB, and a cache with a torn or
+             * never-written idx record reads back as exactly that. Sizing the
+             * response buffer off such a record turns one bad record into a
+             * 16 MB allocation per session, so the scan ignores anything the
+             * dat2 file could not possibly contain. */
+            if( len > biggest && (long)len * JS5_SECTOR_BYTES > 0 )
+            {
+                fseek(js5->dat2, 0, SEEK_END);
+                if( len <= ftell(js5->dat2) )
+                    biggest = len;
+            }
         }
     }
     if( !opened )
@@ -132,7 +141,104 @@ mock_js5_open(char const* cache_dir)
     js5->max_group_bytes = (int)(3 + body + (body / (JS5_BLOCK_LENGTH - 1)) + 16);
     fprintf(stderr, "js5: %s, %d indices, largest group %ld bytes\n", cache_dir, opened,
             biggest);
+    build_master_index(js5, cache_dir);
     return js5;
+}
+
+/*
+ * Build the master index from the reference tables.
+ *
+ * Two different reads of the same archive, and they are not interchangeable:
+ * the CRC is over the raw container as stored (read_group_raw), while the
+ * version lives inside the decoded table, so this loads it twice by design.
+ */
+static void
+build_master_index(struct MockJs5* js5, char const* cache_dir)
+{
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    if( !disk )
+    {
+        fprintf(stderr, "js5: cannot open %s for the master index\n", cache_dir);
+        return;
+    }
+
+    int32_t crc[JS5_MAX_INDEX];
+    int32_t version[JS5_MAX_INDEX];
+    memset(crc, 0, sizeof(crc));
+    memset(version, 0, sizeof(version));
+    int highest = -1;
+
+    uint8_t* raw = malloc((size_t)js5->max_group_bytes);
+    if( !raw )
+    {
+        RSCache_Dat2DiskFree(disk);
+        return;
+    }
+
+    for( int i = 0; i < JS5_MAX_INDEX; i++ )
+    {
+        int len = read_group_raw(js5, JS5_REFERENCE_TABLE_INDEX, i, raw,
+                                 js5->max_group_bytes);
+        if( len <= 0 )
+            continue;
+        len = strip_version_trailer(raw, len);
+        crc[i] = (int32_t)RSCache_Crc32Buffer(raw, (size_t)len);
+
+        struct RSCache_Dat2DiskArchive* table =
+            RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, i);
+        if( table )
+        {
+            struct RSCache_ReferenceTable* decoded =
+                RSCache_ReferenceTableNewDecode(table->data, table->data_size);
+            if( decoded )
+            {
+                version[i] = decoded->version;
+                RSCache_ReferenceTableFree(decoded);
+            }
+            RSCache_Dat2DiskArchiveFree(table);
+        }
+        highest = i;
+    }
+    free(raw);
+    RSCache_Dat2DiskFree(disk);
+
+    if( highest < 0 )
+    {
+        fprintf(stderr, "js5: no reference tables; the master index will be empty\n");
+        return;
+    }
+
+    /* Absent archives keep their slot as a (0, 0) pair -- the count is the
+     * highest index present plus one, not the number present. */
+    int count = highest + 1;
+    int body = count * JS5_MASTER_ENTRY_BYTES;
+    js5->master_len = 5 + body;
+    js5->master = malloc((size_t)js5->master_len);
+    if( !js5->master )
+    {
+        js5->master_len = 0;
+        return;
+    }
+
+    uint8_t* p = js5->master;
+    *p++ = 0; /* compression: none, as the live server sends it */
+    *p++ = (uint8_t)(body >> 24);
+    *p++ = (uint8_t)(body >> 16);
+    *p++ = (uint8_t)(body >> 8);
+    *p++ = (uint8_t)body;
+    for( int i = 0; i < count; i++ )
+    {
+        *p++ = (uint8_t)(crc[i] >> 24);
+        *p++ = (uint8_t)(crc[i] >> 16);
+        *p++ = (uint8_t)(crc[i] >> 8);
+        *p++ = (uint8_t)crc[i];
+        *p++ = (uint8_t)(version[i] >> 24);
+        *p++ = (uint8_t)(version[i] >> 16);
+        *p++ = (uint8_t)(version[i] >> 8);
+        *p++ = (uint8_t)version[i];
+    }
+    fprintf(stderr, "js5: master index built, %d archives (%d bytes)\n", count,
+            js5->master_len);
 }
 
 void
@@ -145,6 +251,7 @@ mock_js5_close(struct MockJs5* js5)
     for( int i = 0; i <= JS5_MAX_INDEX; i++ )
         if( js5->idx[i] )
             fclose(js5->idx[i]);
+    free(js5->master);
     free(js5);
 }
 
@@ -265,52 +372,34 @@ mock_js5_build_response(
     if( !js5 )
         return 0;
 
-    /* Archive 255 is not a real index: group N of it is archive N's reference
-     * table, and group 255 is the master index over all of them. Both live in
-     * idx255, so the lookup is the same read with a different index number. */
-    int index = (archive == JS5_REFERENCE_TABLE_INDEX) ? JS5_REFERENCE_TABLE_INDEX
-                                                       : archive;
-    int lookup_group = group;
-    if( archive == JS5_REFERENCE_TABLE_INDEX )
-        index = JS5_REFERENCE_TABLE_INDEX;
-
-    uint8_t* raw = malloc((size_t)js5->max_group_bytes);
-    if( !raw )
-        return 0;
-
+    uint8_t* raw = NULL;
+    uint8_t const* body;
     int len;
+
     if( archive == JS5_REFERENCE_TABLE_INDEX && group == JS5_REFERENCE_TABLE_INDEX )
     {
-        /*
-         * The master index is not stored: it is built from every reference
-         * table's version and CRC. Serving it means reading idx255 and
-         * summarising it, which the cache tools already do -- so rather than
-         * duplicating the CRC computation here and risking a second opinion,
-         * this reads the group the packer wrote if it exists and reports the
-         * gap loudly if it does not.
-         */
-        len = read_group_raw(js5, JS5_REFERENCE_TABLE_INDEX, JS5_REFERENCE_TABLE_INDEX,
-                             raw, js5->max_group_bytes);
-        if( len < 0 )
-        {
-            fprintf(stderr,
-                    "js5: no stored master index (255/255). A client cannot start "
-                    "without it; build one with cachepack.\n");
-            free(raw);
+        /* The master index is computed at open, not stored. */
+        if( !js5->master )
             return 0;
-        }
+        body = js5->master;
+        len = js5->master_len;
     }
     else
     {
-        len = read_group_raw(js5, index, lookup_group, raw, js5->max_group_bytes);
+        /* Archive 255 is not a real index: group N of it is archive N's
+         * reference table. Everything else is (index, group) as given. */
+        raw = malloc((size_t)js5->max_group_bytes);
+        if( !raw )
+            return 0;
+        len = read_group_raw(js5, archive, group, raw, js5->max_group_bytes);
+        if( len < 0 )
+        {
+            free(raw);
+            return 0;
+        }
+        len = strip_version_trailer(raw, len);
+        body = raw;
     }
-
-    if( len < 0 )
-    {
-        free(raw);
-        return 0;
-    }
-    len = strip_version_trailer(raw, len);
 
     /* Chunk into 512-byte blocks separated by 0xFF, header included in the
      * first block's budget. */
@@ -330,7 +419,7 @@ mock_js5_build_response(
         free(raw);
         return -1;
     }
-    memcpy(out + pos, raw, (size_t)first);
+    memcpy(out + pos, body, (size_t)first);
     pos += first;
 
     int off = first;
@@ -345,7 +434,7 @@ mock_js5_build_response(
             return -1;
         }
         out[pos++] = 0xff;
-        memcpy(out + pos, raw + off, (size_t)take);
+        memcpy(out + pos, body + off, (size_t)take);
         pos += take;
         off += take;
     }

@@ -38,72 +38,76 @@
 #include <string.h>
 #include <unistd.h>
 
-/* rev-230 server->client opcodes (RSProt GameServerProt). */
+/*
+ * The packets this server can send, as CANONICAL names rather than wire
+ * opcodes.
+ *
+ * These used to be literal rev-230 opcodes, one `enum` of 50 numbers, and that
+ * was a second copy of what `src/net/rev/osrs230/packetin.h` already said. The
+ * numbers now come from the wire adapter (mock230_wire.h) at send time, which
+ * is what lets one build speak either revision -- and, less obviously, what
+ * removes the chance of the two copies disagreeing.
+ *
+ * Every call site below is unchanged. `mock230_send` takes what used to be an
+ * opcode and is now a name, resolves it through `world->wire`, and records the
+ * RESOLVED opcode in the packet capture -- so the selftest's assertions, which
+ * are written against wire numbers like 120 and 108, still mean what they
+ * meant, and still pass unchanged at revision 230. That is the property that
+ * makes this refactor checkable rather than merely plausible.
+ */
 enum
 {
-    OP_SET_MAP_FLAG = 2,
-    /* Assigned here; packetin.h says why 3 was free and why it stays <128. */
-    OP_CHAT_FILTER_SETTINGS = 3,
-    OP_IF_OPENSUB = 6,
-    OP_FRIENDLIST_LOADED = 15,
-    OP_UPDATE_IGNORELIST = 21,
-    OP_MESSAGE_PRIVATE = 29,
-    OP_UPDATE_FRIENDLIST = 56,
-    OP_UPDATE_INV_FULL = 10,
-    OP_PLAYER_INFO = 23,
-    OP_UPDATE_RUNWEIGHT = 27,
-    OP_VARP_SMALL = 35,
-    OP_UPDATE_INV_PARTIAL = 37,
-    OP_IF_SETEVENTS = 47,
-    /* Assigned, not transcribed — see docs/osrs230_mockserver.md 3.5. */
-    OP_IF_SETTEXT = 94,
-    OP_IF_SETNPCHEAD = 95,
-    OP_IF_SETPLAYERHEAD = 96,
-    OP_IF_SETANIM = 97,
-    OP_IF_SETHIDE = 98,
-    OP_IF_CLOSESUB = 36,
-    OP_IF_MOVESUB = 42,
-    OP_RUNCLIENTSCRIPT = 84,
-    /* Assigned here, zero-length; see src/net/rev/osrs230/packetin.h. */
-    OP_P_COUNTDIALOG = 128,
-    OP_IF_OPENTOP = 60,
-    OP_REBUILD_NORMAL = 68,
-    OP_REBUILD_REGION = 59,
-    OP_UPDATE_RUNENERGY = 77,
-    OP_MESSAGE_GAME = 90,
-    OP_NPC_INFO = 104,
-    OP_SERVER_TICK_END = 108,
-    OP_UPDATE_STAT = 114,
-    OP_UPDATE_PID = 127,
-    OP_VARP_LARGE = 82,
-
-    /* Zones. 106 is a real rev-230 opcode; the sub-packet opcodes are assigned
-     * here and must match src/net/rev/osrs230/packetin.h, which is where the
-     * client resolves them (a zone sub-packet's opcode is looked up in the same
-     * table as a top-level one, so they cannot collide with either). */
-    OP_UPDATE_ZONE_PARTIAL_FOLLOWS = 106,
-    OP_UPDATE_ZONE_FULL_FOLLOWS = 41,
-    OP_UPDATE_ZONE_PARTIAL_ENCLOSED = 38,
-    OP_LOC_ADD_CHANGE = 70,
-    OP_LOC_DEL = 71,
-    OP_LOC_ANIM = 72,
-    OP_LOC_MERGE = 126,
-    OP_OBJ_ADD = 120,
-    OP_OBJ_DEL = 121,
-    OP_OBJ_COUNT = 122,
-    OP_MAP_PROJANIM = 125,
-    OP_MAP_ANIM = 124,
-    OP_SET_PLAYER_OP = 75,
-    /* RSProt osrs-230 camera opcodes (see packetin.h). */
-    OP_CAM_RESET = 65,
-    OP_CAM_MOVETO = 67,
-    OP_CAM_LOOKAT = 30,
-    OP_CAM_SHAKE = 107,
-    /* SYNTH_SOUND — packetin.h:102, field order id g2 / loops g1 / delay g2
-     * matches gameproto_parse.c:706-710 (the client's own reader). */
-    OP_SYNTH_SOUND = 102,
+    OP_SET_MAP_FLAG = PKT_NAME_UNSET_MAP_FLAG,
+    OP_CHAT_FILTER_SETTINGS = PKT_NAME_CHAT_FILTER_SETTINGS,
+    OP_IF_OPENSUB = PKT_NAME_IF_OPENSUB,
+    OP_FRIENDLIST_LOADED = PKT_NAME_FRIENDLIST_LOADED,
+    OP_UPDATE_IGNORELIST = PKT_NAME_UPDATE_IGNORELIST,
+    OP_MESSAGE_PRIVATE = PKT_NAME_MESSAGE_PRIVATE,
+    OP_UPDATE_FRIENDLIST = PKT_NAME_UPDATE_FRIENDLIST,
+    OP_UPDATE_INV_FULL = PKT_NAME_UPDATE_INV_FULL,
+    OP_PLAYER_INFO = PKT_NAME_PLAYER_INFO,
+    OP_UPDATE_RUNWEIGHT = PKT_NAME_UPDATE_RUNWEIGHT,
+    OP_VARP_SMALL = PKT_NAME_VARP_SMALL,
+    OP_UPDATE_INV_PARTIAL = PKT_NAME_UPDATE_INV_PARTIAL,
+    OP_IF_SETEVENTS = PKT_NAME_IF_SETEVENTS,
+    OP_IF_SETTEXT = PKT_NAME_IF_SETTEXT,
+    OP_IF_SETNPCHEAD = PKT_NAME_IF_SETNPCHEAD,
+    OP_IF_SETPLAYERHEAD = PKT_NAME_IF_SETPLAYERHEAD,
+    OP_IF_SETANIM = PKT_NAME_IF_SETANIM,
+    OP_IF_SETHIDE = PKT_NAME_IF_SETHIDE,
+    OP_IF_CLOSESUB = PKT_NAME_IF_CLOSESUB,
+    OP_IF_MOVESUB = PKT_NAME_IF_MOVESUB,
+    OP_RUNCLIENTSCRIPT = PKT_NAME_RUNCLIENTSCRIPT,
+    OP_P_COUNTDIALOG = PKT_NAME_P_COUNTDIALOG,
+    OP_IF_OPENTOP = PKT_NAME_IF_OPENTOP,
+    OP_REBUILD_NORMAL = PKT_NAME_REBUILD_NORMAL,
+    OP_REBUILD_REGION = PKT_NAME_REBUILD_REGION,
+    OP_UPDATE_RUNENERGY = PKT_NAME_UPDATE_RUNENERGY,
+    OP_MESSAGE_GAME = PKT_NAME_MESSAGE_GAME,
+    OP_NPC_INFO = PKT_NAME_NPC_INFO,
+    OP_SERVER_TICK_END = PKT_NAME_SERVER_TICK_END,
+    OP_UPDATE_STAT = PKT_NAME_UPDATE_STAT,
+    OP_UPDATE_PID = PKT_NAME_UPDATE_PID,
+    OP_VARP_LARGE = PKT_NAME_VARP_LARGE,
+    OP_UPDATE_ZONE_PARTIAL_FOLLOWS = PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+    OP_UPDATE_ZONE_FULL_FOLLOWS = PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS,
+    OP_UPDATE_ZONE_PARTIAL_ENCLOSED = PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+    OP_LOC_ADD_CHANGE = PKT_NAME_LOC_ADD_CHANGE,
+    OP_LOC_DEL = PKT_NAME_LOC_DEL,
+    OP_LOC_ANIM = PKT_NAME_LOC_ANIM,
+    OP_LOC_MERGE = PKT_NAME_LOC_MERGE,
+    OP_OBJ_ADD = PKT_NAME_OBJ_ADD,
+    OP_OBJ_DEL = PKT_NAME_OBJ_DEL,
+    OP_OBJ_COUNT = PKT_NAME_OBJ_COUNT,
+    OP_MAP_PROJANIM = PKT_NAME_MAP_PROJANIM,
+    OP_MAP_ANIM = PKT_NAME_MAP_ANIM,
+    OP_SET_PLAYER_OP = PKT_NAME_SET_PLAYER_OP,
+    OP_CAM_RESET = PKT_NAME_CAM_RESET,
+    OP_CAM_MOVETO = PKT_NAME_CAM_MOVETO,
+    OP_CAM_LOOKAT = PKT_NAME_CAM_LOOKAT,
+    OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
+    OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
 };
-
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
  * the mock produces (a full REBUILD_NORMAL key block). */
 static uint8_t g_arena_memory[64 * 1024];
@@ -125,95 +129,11 @@ open_packet(
         fprintf(stderr, "mock230: packet arena exhausted (%zu bytes)\n", capacity);
 }
 
-static const char*
-opcode_name(int op)
-{
-    switch( op )
-    {
-    case OP_SET_MAP_FLAG:
-        return "SET_MAP_FLAG";
-    case OP_IF_OPENSUB:
-        return "IF_OPENSUB";
-    case OP_UPDATE_INV_FULL:
-        return "UPDATE_INV_FULL";
-    case OP_PLAYER_INFO:
-        return "PLAYER_INFO";
-    case OP_UPDATE_RUNWEIGHT:
-        return "UPDATE_RUNWEIGHT";
-    case OP_VARP_SMALL:
-        return "VARP_SMALL";
-    case OP_UPDATE_INV_PARTIAL:
-        return "UPDATE_INV_PARTIAL";
-    case OP_IF_SETEVENTS:
-        return "IF_SETEVENTS";
-    case OP_RUNCLIENTSCRIPT:
-        return "RUNCLIENTSCRIPT";
-    case OP_IF_OPENTOP:
-        return "IF_OPENTOP";
-    case OP_IF_MOVESUB:
-        return "IF_MOVESUB";
-    case OP_REBUILD_NORMAL:
-        return "REBUILD_NORMAL";
-    case OP_REBUILD_REGION:
-        return "REBUILD_REGION";
-    case OP_UPDATE_RUNENERGY:
-        return "UPDATE_RUNENERGY";
-    case OP_CAM_RESET:
-        return "CAM_RESET";
-    case OP_CAM_MOVETO:
-        return "CAM_MOVETO";
-    case OP_CAM_LOOKAT:
-        return "CAM_LOOKAT";
-    case OP_CAM_SHAKE:
-        return "CAM_SHAKE";
-    case OP_SYNTH_SOUND:
-        return "SYNTH_SOUND";
-    case OP_MESSAGE_GAME:
-        return "MESSAGE_GAME";
-    case OP_NPC_INFO:
-        return "NPC_INFO";
-    case OP_SERVER_TICK_END:
-        return "SERVER_TICK_END";
-    case OP_UPDATE_STAT:
-        return "UPDATE_STAT";
-    case OP_UPDATE_PID:
-        return "UPDATE_PID";
-    case OP_VARP_LARGE:
-        return "VARP_LARGE";
-    case OP_UPDATE_ZONE_PARTIAL_FOLLOWS:
-        return "UPDATE_ZONE_PARTIAL_FOLLOWS";
-    case OP_UPDATE_ZONE_FULL_FOLLOWS:
-        return "UPDATE_ZONE_FULL_FOLLOWS";
-    case OP_UPDATE_ZONE_PARTIAL_ENCLOSED:
-        return "UPDATE_ZONE_PARTIAL_ENCLOSED";
-    case OP_LOC_ADD_CHANGE:
-        return "LOC_ADD_CHANGE";
-    case OP_LOC_DEL:
-        return "LOC_DEL";
-    case OP_LOC_ANIM:
-        return "LOC_ANIM";
-    case OP_LOC_MERGE:
-        return "LOC_MERGE";
-    case OP_OBJ_ADD:
-        return "OBJ_ADD";
-    case OP_OBJ_DEL:
-        return "OBJ_DEL";
-    case OP_OBJ_COUNT:
-        return "OBJ_COUNT";
-    case OP_CHAT_FILTER_SETTINGS:
-        return "CHAT_FILTER_SETTINGS";
-    case OP_FRIENDLIST_LOADED:
-        return "FRIENDLIST_LOADED";
-    case OP_UPDATE_IGNORELIST:
-        return "UPDATE_IGNORELIST";
-    case OP_MESSAGE_PRIVATE:
-        return "MESSAGE_PRIVATE";
-    case OP_UPDATE_FRIENDLIST:
-        return "UPDATE_FRIENDLIST";
-    default:
-        return "?";
-    }
-}
+/*
+ * The old `opcode_name` switch lived here: a second table of the same 50
+ * packets, keyed on wire opcode. It went with the opcodes -- a name for a
+ * canonical packet is `mock230_wire_pkt_name`, and there is one of those.
+ */
 
 /*
  * A fixed-length packet's framing comes from the client's table, not from what
@@ -225,36 +145,30 @@ opcode_name(int op)
  */
 static void
 check_frame_length(
+    const struct Mock230Wire* wire,
+    int pkt_name,
     int opcode,
     int len,
     int var)
 {
+    int framed;
+
     if( var != 0 )
         return;
-    for( int i = 0; i < (int)(sizeof(g_packet_in_definitions_osrs230) /
-                              sizeof(g_packet_in_definitions_osrs230[0]));
-         i++ )
-    {
-        struct Osrs230PacketInDef const* def = &g_packet_in_definitions_osrs230[i];
-
-        if( def->code != opcode )
-            continue;
-        if( def->length >= 0 && def->length != len )
-            fprintf(
-                stderr,
-                "mock230: op %d (%s) wrote %d bytes, client frames it as %d\n",
-                opcode,
-                opcode_name(opcode),
-                len,
-                def->length);
-        return;
-    }
+    /* Through the wire adapter rather than the 230 table directly: the whole
+     * point of the check is "does what this encoder wrote match what THIS
+     * client frames", and which client that is now depends on the revision. */
+    framed = wire->payload_size ? wire->payload_size(opcode) : 0;
+    if( framed >= 0 && framed != len )
+        fprintf(stderr,
+                "mock230: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
+                wire->name, opcode, mock230_wire_pkt_name(pkt_name), len, framed);
 }
 
 void
 mock230_send(
     struct Mock230Player* player,
-    int opcode,
+    int pkt_name,
     const uint8_t* payload,
     int len,
     int var)
@@ -262,6 +176,8 @@ mock230_send(
     uint8_t frame[64 * 1024];
     struct RSAreaBuf buf;
     struct Mock230Server* srv;
+    const struct Mock230Wire* wire;
+    int opcode;
 
     /* A packet is addressed to a player, and every encoder above this now says
      * so. What is left of the old "send to the server's one player" shape is
@@ -271,7 +187,22 @@ mock230_send(
         return;
     srv = player->world;
 
-    check_frame_length(opcode, len, var);
+    /*
+     * Resolve the canonical name to this world's revision.
+     *
+     * Two ways this returns "no": the revision has no such packet at all
+     * (there is no UPDATE_PID at 239), or its payload has not been transcribed
+     * for this revision. Both drop the packet and report once. Dropping is the
+     * only answer that cannot corrupt: a packet written with another
+     * revision's layout frames correctly, passes the length check below, and
+     * arrives meaning something else.
+     */
+    wire = (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    opcode = mock230_wire_opcode(wire, pkt_name);
+    if( opcode < 0 || !mock230_wire_can_write(wire, pkt_name) )
+        return;
+
+    check_frame_length(wire, pkt_name, opcode, len, var);
 
     /* Above the fd check on purpose: the selftest runs with no socket, and this
      * is the one point every encoder has already passed through with its
@@ -313,7 +244,23 @@ mock230_send(
         !player->session->cipher_out )
         return;
     rsab_wrap(&buf, frame, sizeof(frame));
-    rsab_p1(&buf, (opcode + isaac_next(player->session->cipher_out)) & 0xff);
+    /*
+     * pSmart1Or2: a revision whose opcodes reach 0x80 writes the high ones as
+     * two bytes, each stepped through the cipher separately. Revision 239's
+     * reach 148. Writing such an opcode as one byte does not lose the packet —
+     * the client reads the truncated value as some other opcode and the whole
+     * stream is gone from there on.
+     */
+    if( wire->opcode_smart2 && opcode >= 0x80 )
+    {
+        rsab_p1(&buf,
+                (((opcode >> 8) | 0x80) + isaac_next(player->session->cipher_out)) & 0xff);
+        rsab_p1(&buf, ((opcode & 0xff) + isaac_next(player->session->cipher_out)) & 0xff);
+    }
+    else
+    {
+        rsab_p1(&buf, (opcode + isaac_next(player->session->cipher_out)) & 0xff);
+    }
     if( var == 1 )
         rsab_p1(&buf, len);
     else if( var == 2 )
@@ -332,9 +279,28 @@ mock230_send(
         fprintf(
             stderr,
             "mock230: -> %-18s op=%-3d payload=%d\n",
-            opcode_name(opcode),
+            mock230_wire_pkt_name(pkt_name),
             opcode,
             len);
+}
+
+
+/*
+ * The revision's payload writer set, or NULL for "whatever this file has
+ * always written".
+ *
+ * Every encoder that has a per-revision writer branches on this. The branch is
+ * explicit rather than a dispatch table because there are ten of them and
+ * because the 230 arm is the readable statement of what the mock's own client
+ * expects — hiding it behind a pointer would leave that layout written nowhere.
+ */
+static const struct Mock230WirePayload*
+wire_payload(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player ? player->world : NULL;
+    const struct Mock230Wire* wire =
+        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    return wire->payload;
 }
 
 /* Send whatever the caller just built into `buf`. */
@@ -372,12 +338,26 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
     /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
      * then keyCount * 4 XTEA ints. Zero keys: unencrypted regions load, and
      * this cache ships its keys client-side via xteas.json. */
-    rsab_p2(&buf, 0);
-    rsab_p2_alt2(&buf, srv->zone_x);
-    rsab_p2(&buf, srv->zone_z);
-    rsab_p2(&buf, count);
-    for( int i = 0; i < count * 4; i++ )
-        rsab_p4(&buf, 0);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_normal )
+        {
+            /* V2 carries no key block at all — OldSchool stores map archives
+             * in the clear from revision 237 — so the writer is handed the
+             * square count and ignores it, rather than this branch quietly
+             * omitting a field. */
+            pl->rebuild_normal(&buf, 0, srv->zone_x, srv->zone_z, NULL, count);
+        }
+        else
+        {
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, srv->zone_x);
+            rsab_p2(&buf, srv->zone_z);
+            rsab_p2(&buf, count);
+            for( int i = 0; i < count * 4; i++ )
+                rsab_p4(&buf, 0);
+        }
+    }
 
     flush(player, &buf, OP_REBUILD_NORMAL, 2);
     if( srv->verbose )
@@ -598,7 +578,13 @@ mock230_send_if_opentop(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2_alt1(&buf, group);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_opentop )
+            pl->if_opentop(&buf, group);
+        else
+            rsab_p2_alt1(&buf, group);
+    }
     flush(player, &buf, OP_IF_OPENTOP, 0);
 }
 
@@ -710,9 +696,17 @@ mock230_send_if_opensub(
     child = uid & 0xffff;
 
     open_packet(&buf, 16);
-    rsab_p1(&buf, type);
-    rsab_p2_alt2(&buf, group);
-    rsab_p4_alt3(&buf, uid);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_opensub )
+            pl->if_opensub(&buf, group, uid, type);
+        else
+        {
+            rsab_p1(&buf, type);
+            rsab_p2_alt2(&buf, group);
+            rsab_p4_alt3(&buf, uid);
+        }
+    }
     flush(player, &buf, OP_IF_OPENSUB, 0);
     mock230_note_modal_mount(srv, uid, group);
     /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
@@ -781,10 +775,18 @@ mock230_send_if_setevents(
      * events, p2 end. */
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p4_alt3(&buf, uid);
-    rsab_p2_alt2(&buf, from);
-    rsab_p4_alt1(&buf, events);
-    rsab_p2(&buf, to);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setevents )
+            pl->if_setevents(&buf, uid, from, to, (uint32_t)events);
+        else
+        {
+            rsab_p4_alt3(&buf, uid);
+            rsab_p2_alt2(&buf, from);
+            rsab_p4_alt1(&buf, events);
+            rsab_p2(&buf, to);
+        }
+    }
     flush(player, &buf, OP_IF_SETEVENTS, 0);
 }
 
@@ -881,7 +883,13 @@ mock230_send_if_closesub(
     uid = mock230_remap_gameframe_slot_uid(player, uid);
 
     open_packet(&buf, 8);
-    rsab_p4(&buf, uid);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_closesub )
+            pl->if_closesub(&buf, uid);
+        else
+            rsab_p4(&buf, uid);
+    }
     flush(player, &buf, OP_IF_CLOSESUB, 0);
     mock230_note_modal_mount(srv, uid, 0);
 }
@@ -910,8 +918,16 @@ mock230_send_varp_small(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, id);
-    rsab_p1(&buf, value);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->varp_small )
+            pl->varp_small(&buf, id, value);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p1(&buf, value);
+        }
+    }
     flush(player, &buf, OP_VARP_SMALL, 0);
 }
 
@@ -930,8 +946,16 @@ mock230_send_varp_large(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, id);
-    rsab_p4(&buf, value);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->varp_large )
+            pl->varp_large(&buf, id, value);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p4(&buf, value);
+        }
+    }
     flush(player, &buf, OP_VARP_LARGE, 0);
 }
 
@@ -952,10 +976,18 @@ mock230_send_stat(
      * full health forever, which is exactly what it used to do. */
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p1(&buf, stat);
-    rsab_p1(&buf, level);
-    rsab_p4(&buf, xp);
-    rsab_p1(&buf, boosted);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->update_stat )
+            pl->update_stat(&buf, stat, level, xp, boosted);
+        else
+        {
+            rsab_p1(&buf, stat);
+            rsab_p1(&buf, level);
+            rsab_p4(&buf, xp);
+            rsab_p1(&buf, boosted);
+        }
+    }
     flush(player, &buf, OP_UPDATE_STAT, 0);
 }
 
@@ -992,7 +1024,13 @@ mock230_send_run_energy(
     /* Two bytes at rev 230: energy in hundredths of a percent. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, percent * 100);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->update_runenergy )
+            pl->update_runenergy(&buf, percent * 100);
+        else
+            rsab_p2(&buf, percent * 100);
+    }
     flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
 }
 
@@ -1087,7 +1125,13 @@ mock230_send_run_weight(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, kilograms);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->update_runweight )
+            pl->update_runweight(&buf, kilograms);
+        else
+            rsab_p2(&buf, kilograms);
+    }
     flush(player, &buf, OP_UPDATE_RUNWEIGHT, 0);
 }
 
@@ -1097,6 +1141,11 @@ mock230_send_message(
     const char* text)
 {
     struct RSAreaBuf buf;
+    /* MOCK230_ECHO_MES=1: mirror every game message to stderr. The chat box is
+     * the only place a `mes` lands, which makes a content self-test that
+     * reports through it unreadable from a headless run. */
+    if( getenv("MOCK230_ECHO_MES") )
+        fprintf(stderr, "mes: %s\n", text ? text : "");
     open_packet(&buf, 512);
     rsab_p1(&buf, 0); /* message type: plain game message */
     rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
@@ -1816,17 +1865,31 @@ zone_sub_payload(
 
 int
 mock230_encode_zone_sub(
+    const struct Mock230Wire* wire,
     uint8_t* dst,
     int max,
     const struct Mock230ZoneEvent* event)
 {
     struct RSAreaBuf buf;
-    int opcode = zone_sub_opcode(event->kind);
+    int pkt_name = zone_sub_opcode(event->kind);
+    int code;
 
-    if( opcode < 0 )
+    if( !wire )
+        wire = mock230_wire_default();
+    if( pkt_name < 0 )
+        return 0;
+    /*
+     * The byte that leads a sub-packet inside PARTIAL_ENCLOSED is NOT the
+     * top-level opcode at every revision -- 239 uses an ordinal. Resolving it
+     * here rather than reusing `opcode` is the difference between the client
+     * reading this event and reading a different one: the enclosed blob is
+     * length-prefixed as a whole, so a wrong lead byte still frames.
+     */
+    code = wire->zone_sub_code ? wire->zone_sub_code(pkt_name) : -1;
+    if( code < 0 )
         return 0;
     rsab_wrap(&buf, dst, (size_t)max);
-    rsab_p1(&buf, opcode);
+    rsab_p1(&buf, code);
     if( !zone_sub_payload(&buf, event) || !rsab_ok(&buf) )
         return 0;
     return (int)rsab_len(&buf);

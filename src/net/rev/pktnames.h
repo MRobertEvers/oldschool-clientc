@@ -97,6 +97,11 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /** End of a server tick's packet group. The client uses it to know a tick's
+     *  worth of state has arrived whole; it carries no payload. Named here
+     *  because the mock emits it and a canonical name is what lets the mock's
+     *  wire adapter resolve it per revision (108 at 230, 83 at 239). */
+    PKT_NAME_SERVER_TICK_END,
     /* RUNCLIENTSCRIPT: run a CS2 clientscript with server-supplied arguments.
      * The world map needs it (the server pushes the player's coord through
      * `worldmap_transmitdata` before opening the interface), and it is the

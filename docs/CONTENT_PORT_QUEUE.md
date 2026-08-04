@@ -706,7 +706,47 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 33k | MM temple priests | done | hafuba/lofu/denadu Talk |
 | 33l | MM sleeping monkey guard Talk | done | opnpc1 mesbox; ai_timer (%npc_int) deferred |
 | 33m | Dragon spear Shove special | done | sa_kind=8 + pvm_dragon_spear_sa; CW barricade gate deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | After 33m: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 33n | MM monkeys uncle Talk | done | opnpc1; aa_summon deferred |
+| 33o | MM dugopul Talk | done | Talk only; AI/hunt deferred |
+| 33p | MM uwogo/murowoi Talk | done | aa_summon deferred |
+| 33q | MM shopkeepers Trade stubs | done | hamab/ifaba/tutab/daga/solihib; openshop→stub |
+| 33r | MM elder_guard Talk thin | done | greegree/speak; quest arms+AI deferred |
+| 33s | MM zoo_monkey capture Talk | done | backpack handoff; timer/trail deferred |
+| 33t | MM karam Talk | done | talker + busy; AI deferred |
+| 33u | MM caranock Talk | done | shipyard liaison; ^monkeymadness_* rename |
+| 33v | MM kruk Talk | done | %varbit_117/%varbit_120; escort tele thin |
+| 33w | MM lumdo Talk | done | crash↔atoll boat; seal proof; fade→tele |
+| 33x | MM waydar Talk | done | hangar/crash menus; glidermap→tele; ch2 thin |
+| 33y | MM garkor Talk | done | quest arms; %varbit_118; ch4 cutscene thin |
+| 33z | AA market stalls | done | mm_stall_* Steal; padulah guard; afk/combat drop |
+| 34a | MM lumo jail Talk | done | lumo/bunkdo/carado Talk; jail queue deferred |
+| 34b | MM monkeys aunt Talk | done | greegree/speak Talk; AI/guards deferred |
+| 34c | MM daero Talk | done | hangar tele thin; training IF1 deferred; %varbit_99–101 |
+| 34d | MM zooknock Talk+Use | done | flags %varbit_106–112/133; ch3 cutscene thin; AI deferred |
+| 34e | MM awowogei throne Talk | done | %varbit_118; MM2 soft-skips merged; aa_guards deferred |
+| 34f | MM monkey child Talk | done | %varbit_119/%varbit_113; banana/talisman Use |
+| 34g | MM glough reinit | done | buyout → %varbit_103; hooked from grandtree_glough |
+| 34h | MM narnode Talk | done | quest start/reward/complete; mm_ch1 cutscene deferred |
+| 34i | MM monkey minder Talk | done | cage tele thin; %varbit_132; greegree arms |
+| 34j | MM temple trapdoor | done | open/climb/rope; mapzone spikes deferred |
+| 34k | AA wildlife poison | done | spider/snake/scorpion 1/10 poison_player |
+| 34l | MM hangar puzzle thin | done | crate+hint+panel → %varbit_103/^daero_reinit; IF1 slide deferred |
+| 34m | MM greegree Hold+zone | done | ~mm_greegree_zone + opheld2 Hold; transmogrify deferred |
+| 34n | MM archer ranged AI | done | posted/monkey/ravine; grass/greegree skip; knockout deferred |
+| 34o | MM jail doors+Talk | done | pick lock walk-through; aberab/trefaji Talk; patrol deferred |
+| 34p | MM skeleton drops | done | ai_queue3 death_drop; reanimate deferred |
+| 34q | MM jungle demon thin | done | sigil tele+spawn+Talk; wave/melee AI; cutscene deferred |
+| 34r | MM atoll locs | done | bamboo ladders/stairs/banana crates/bunker tele |
+| 34s | Ape Atoll dungeon thin | done | exit ladder+plank trap+bones crumble; mapzone spikes deferred |
+| 34t | AA monkey guard AI | done | greegree despawn; religious heal; knockout deferred |
+| 34u | MM bamboo doors+trees | done | largedoor greegree gate; banana deplete chain |
+| 34v | MM monkey amulet string | done | ball_of_wool + unstrung speak amulet |
+| 34w | Mort Myre swamp decay | done | ~start_swampdecay_timer + %mortmyre; music wire deferred |
+| 34x | Priest Peril evil monks | done | confuse/weaken/curse/zap AI + pipkey_gold |
+| 34y | MM amulet smith firewall | done | enchanted gold → unstrung speak amulet; zenyte hook |
+| 34z | MM aa_summon_guards | done | ~aa_summon_guards + aa_guards_queue; %mm_guards_cooldown temp |
+| 35a | MM summon shop/uncle/advisors | done | shopkeepers + uncle + uwogo/murowoi → ~aa_summon_guards |
+| 8 | Outward areas / remaining quests / minigames | pending | After 35a: aunt/dugopul/throne summon; thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1556,4 +1596,83 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 33m done: dragon spear Shove (sa_kind=8); also stripped 22 unresolved special_attack.obj names → pack 0
 - final: 11567 scripts; mock230_pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 33n done: MM monkeys uncle Talk (aa_summon deferred)
+- slice 33o done: MM dugopul Talk only (AI/hunt deferred)
+- slice 33p done: MM uwogo/murowoi Talk (aa_summon deferred)
+- slice 33q done: MM shopkeepers Trade stubs (hamab/ifaba/tutab/daga/solihib)
+- slice 33r done: MM elder_guard Talk thin (quest arms+AI deferred)
+- slice 33s done: MM zoo_monkey capture Talk (backpack handoff; timer/trail deferred)
+- slice 33t done: MM karam Talk (talker + busy; AI deferred)
+- slice 33u done: MM caranock Talk (^monkeymadness_* rename)
+- final: 11645 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (mm_kruk/lumdo/waydar/garkor/aa_market/CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 33v done: MM kruk Talk (%varbit_117/%varbit_120; escort tele thin)
+- slice 33w done: MM lumdo Talk (crash↔atoll boat; seal proof)
+- slice 33x done: MM waydar Talk (glidermap→tele; ch2 cutscene thin)
+- slice 33y done: MM garkor Talk (%varbit_118; ch4 cutscene thin)
+- slice 33z done: AA market stalls (mm_stall_* Steal; padulah guard)
+- slice 34a done: MM lumo/bunkdo/carado jail Talk (queue deferred)
+- final: 11693 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (mm_monkeys_aunt/daero/zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34b done: MM monkeys aunt Talk (AI/guards deferred)
+- final: 11719 scripts; mock230_pack 0 errors
+- next pending: mm_daero/zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34c done: MM daero Talk + hangar tele thin (training IF1 deferred; %varbit_99–101)
+- final: 11741 scripts; mock230_pack 0 errors
+- next pending: mm_zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34d done: MM zooknock Talk+Use (%varbit_106–112/133; ch3 thin; AI deferred)
+- final: 11778 scripts; mock230_pack 0 errors
+- next pending: mm_awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34e done: MM awowogei throne Talk (%varbit_118; MM2 soft-skips merged)
+- final: 11780 scripts; mock230_pack 0 errors
+- next pending: mm_monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34f done: MM monkey child Talk+Use (%varbit_119/%varbit_113)
+- final: 11800 scripts; mock230_pack 0 errors
+- next pending: glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34g done: MM glough reinit buyout (%varbit_103; grandtree_glough hook)
+- final: 11801 scripts; mock230_pack 0 errors
+- next pending: mm_narnode/minder/temple/wildlife; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34h done: MM narnode Talk (start/reward/complete; mm_ch1 deferred)
+- final: 11824 scripts; mock230_pack 0 errors
+- next pending: mm_monkey_minder/temple/wildlife; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34i done: MM monkey minder Talk (cage tele thin; %varbit_132)
+- slice 34j done: MM temple trapdoor/rope (mapzone spikes deferred)
+- slice 34k done: AA wildlife poison-on-attack (1/10 → poison_player)
+- final: 11834 scripts; mock230_pack 0 errors
+- next pending: mm_puzzle/greegree/archer/jail/skeleton/demon; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34l done: MM hangar puzzle thin (crate/hint/panel → %varbit_103 + ^daero_reinit; IF1 deferred)
+- slice 34m done: MM greegree Hold + zone + force unequip timer
+- slice 34n done: MM archer ranged AI (grass/greegree skip; knockout deferred)
+- slice 34o done: MM jail pick-lock + aberab/trefaji Talk (patrol deferred)
+- slice 34p done: MM skeleton death_drop (reanimate deferred)
+- slice 34q done: MM jungle demon thin (sigil tele/Talk/wave AI; cutscene deferred)
+- slice 34r done: MM atoll ladders/stairs/banana crates/bunker tele
+- slice 34s done: Ape Atoll dungeon exit/plank/bones exit (spikes deferred)
+- slice 34t done: AA monkey guard AI (greegree despawn; knockout deferred)
+- slice 34u done: MM bamboo largedoor + banana tree deplete
+- slice 34v done: MM monkey speak amulet stringing
+- slice 34w done: Mort Myre swamp_decay timer + %mortmyre
+- slice 34x done: Priest Peril evil monk AI + pipkey_gold
+- slice 34y done: MM amulet smith on iban firewall (zenyte oplocu hook)
+- final: 11975 scripts; mock230_pack 0 errors
+- next pending: quest_mm leftovers (aa_summon_guards/cutscenes); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 34z done: MM aa_summon_guards + aa_guards_queue (%mm_guards_cooldown)
+- final: 11988 scripts; mock230_pack 0 errors
+- next pending: wire summon callers (shopkeepers/uncle/aunt/dugopul/uwogo/throne); thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35a done: wire aa_summon into shopkeepers/uncle/uwogo/murowoi
+- final: 12000 scripts; mock230_pack 0 errors
+- next pending: aunt/dugopul/throne summon; thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 

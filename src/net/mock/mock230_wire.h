@@ -1,0 +1,210 @@
+#ifndef SRC_NET_MOCK_MOCK230_WIRE_H
+#define SRC_NET_MOCK_MOCK230_WIRE_H
+
+/*
+ * The outbound wire adapter: which revision's bytes this server writes.
+ *
+ * This is the fourth vtable seam in the net stack and it is deliberately shaped
+ * like the other three -- `Mock230Transport` (where the bytes go),
+ * `NetLoginVTable` (how the handshake runs), `GameProtoRevTable` (what the
+ * client reads). Same contract in all four: a struct of function pointers, one
+ * instance per implementation, a `_by_name` resolver, and NULL slots meaning
+ * "the classic behaviour". Nothing above the seam asks which revision it is.
+ *
+ * ## Why this could not stay an enum
+ *
+ * `mock230_encode.c` used to hold its 50 opcodes in a file-local `enum` of
+ * literals. That was honest while there was one revision, and it hid three
+ * things the moment there were two:
+ *
+ *  1. **Opcodes move.** IF_OPENTOP is 60 at revision 230 and 96 at 239.
+ *  2. **Opcodes disappear.** There is no UPDATE_PID and no P_COUNTDIALOG at
+ *     239 -- the local player's index rides in the login response and the count
+ *     dialog is a clientscript. A literal cannot express "absent", so an enum
+ *     forces every revision to have every packet.
+ *  3. **Payloads move even when the size does not.** This is the one that costs
+ *     debugging days. IF_OPENTOP is a 2-byte interface id at both revisions and
+ *     is written `p2Alt1` at 230, `p2Alt2` at 239. IF_OPENSUB is 7 bytes at
+ *     both and writes its three fields in the opposite ORDER. A packet like
+ *     that frames perfectly, passes every length assert, and arrives as a
+ *     different interface.
+ *
+ * Point 3 is why `payload` is not a sparse list of overrides over a shared
+ * default. A revision's writer set is *whole*: if `payload` is non-NULL, every
+ * packet it does not name is REFUSED rather than written with the other
+ * revision's layout. Refusing is visible; a wrong layout is not. This is the
+ * same choice `osrs239_parse.c` makes on the way in.
+ *
+ * ## What "the 230 payloads" actually are
+ *
+ * Not RSProt's. `src/net/rev/osrs230/` is a hybrid: about a third of its
+ * opcodes were assigned by this project and its payloads are lc254-shaped,
+ * because it is paired with this repo's own client and the two only have to
+ * agree with each other. So the 230 wire adapter's `payload` is NULL, meaning
+ * "whatever mock230_encode.c has always written", and that is correct for the
+ * only client it talks to. The 239 adapter's payloads are transcribed from
+ * RSProt because its client is not ours.
+ */
+
+#include "net/rev/pktnames.h"
+
+#include <stdint.h>
+
+struct RSAreaBuf;
+
+/* ------------------------------------------------------------------ */
+/* Payload writers                                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A payload writer receives an opened buffer and the packet's fields, and
+ * writes the body only -- no opcode, no length. Framing is the adapter's job.
+ *
+ * The argument lists are the union of what the revisions need, which is why
+ * some carry a field a given revision ignores (239's REBUILD_NORMAL has no
+ * XTEA keys, but 230's does). A writer that ignores an argument is stating
+ * that its revision does not carry it; a writer that is absent is stating that
+ * nobody has transcribed it yet.
+ */
+struct Mock230WirePayload
+{
+    void (*if_opentop)(struct RSAreaBuf* buf, int interface_id);
+    void (*if_opensub)(struct RSAreaBuf* buf, int interface_id, int dest_uid, int type);
+    void (*if_closesub)(struct RSAreaBuf* buf, int dest_uid);
+    void (*if_setevents)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int start,
+        int end,
+        uint32_t events);
+    void (*varp_small)(struct RSAreaBuf* buf, int varp, int value);
+    void (*varp_large)(struct RSAreaBuf* buf, int varp, int value);
+    void (*update_runenergy)(struct RSAreaBuf* buf, int hundredths);
+    void (*update_runweight)(struct RSAreaBuf* buf, int kilograms);
+    void (*update_stat)(
+        struct RSAreaBuf* buf,
+        int stat,
+        int level,
+        int xp,
+        int boosted);
+    void (*rebuild_normal)(
+        struct RSAreaBuf* buf,
+        int world_area,
+        int zone_x,
+        int zone_z,
+        const int32_t* keys,
+        int key_squares);
+};
+
+/* ------------------------------------------------------------------ */
+/* The adapter                                                         */
+/* ------------------------------------------------------------------ */
+
+struct Mock230Wire
+{
+    char const* name;
+    int revision;
+
+    /** Canonical PKT_NAME_* -> wire opcode. **-1 means the revision has no
+     *  such packet**, which is a real answer and not an error: the caller
+     *  drops it (loudly, once) instead of writing a negative opcode. */
+    int (*opcode)(int pkt_name);
+
+    /** Wire opcode -> framing size: >=0 fixed, -1 var-u8, -2 var-u16. Used by
+     *  the length check that catches an encoder disagreeing with its table. */
+    int (*payload_size)(int wire_opcode);
+
+    /** Wire opcode -> the revision's own name for it, for logs. A trace can
+     *  then be grepped straight back into RSProt. NULL-safe. */
+    char const* (*prot_name)(int wire_opcode);
+
+    /**
+     * The byte that identifies a sub-packet INSIDE
+     * UPDATE_ZONE_PARTIAL_ENCLOSED. -1 when the revision cannot carry it there.
+     *
+     * This is a separate question from `opcode` and the two revisions answer it
+     * differently, which is exactly why it is a slot rather than a reuse:
+     *
+     *   230  the same top-level opcode. A zone sub-packet is looked up in the
+     *        same table as a normal packet, which is why this repo's 230 table
+     *        had to pick sub-packet numbers that collide with nothing.
+     *   239  the ORDINAL of RSProt's IndexedZoneProtEncoder enum -- neither the
+     *        top-level opcode nor RSProt's own OldSchoolZoneProt id, both of
+     *        which are different numbers that would decode as a different
+     *        sub-packet. See src/net/rev/osrs239/zoneprot.h.
+     *
+     * Getting this wrong is invisible at the frame level: the enclosed blob is
+     * length-prefixed as a whole, so a wrong sub-code produces a well-formed
+     * packet whose contents are read as some other event.
+     */
+    int (*zone_sub_code)(int pkt_name);
+
+    /**
+     * 1 = opcodes >= 0x80 are written as TWO stream-cipher bytes
+     * (`(op >> 8) | 0x80`, then `op & 0xFF`) -- RSProt's pSmart1Or2Enc.
+     *
+     * Not optional at 239, whose opcodes reach 148. A server that leaves this
+     * 0 and sends a high opcode does not lose one packet; the client reads the
+     * second byte as the next opcode and never resynchronises.
+     */
+    int opcode_smart2;
+
+    /** NULL = write the payloads mock230_encode.c has always written (the
+     *  lc254-shaped 230 set). Non-NULL = a whole writer set; anything it does
+     *  not name is refused. See the header comment. */
+    const struct Mock230WirePayload* payload;
+
+    /**
+     * The canonical packets this revision's writer set covers.
+     *
+     * NULL means "all of them", which is the 230 case: its payloads are
+     * whatever the encoders already write and there is nothing to be missing.
+     * When `payload` is non-NULL this list is the whitelist, and a packet
+     * outside it is REFUSED at send rather than written with the other
+     * revision's bytes.
+     *
+     * This exists because the alternative -- letting an un-transcribed packet
+     * fall through to the 230 writer -- produces a packet that frames
+     * correctly, passes the length check, and means something else. There is no
+     * downstream symptom of that; there is a very obvious symptom of a packet
+     * that never arrives.
+     */
+    const int* transcribed;
+    int transcribed_count;
+};
+
+/** "osrs230" or "osrs239"; NULL when unknown. */
+const struct Mock230Wire*
+mock230_wire_by_name(char const* name);
+
+/** The default when nothing selects one: revision 230, the hybrid this repo's
+ *  own client speaks and every existing test asserts against. */
+const struct Mock230Wire*
+mock230_wire_default(void);
+
+/**
+ * Resolve `pkt_name` to a wire opcode, reporting an absent packet ONCE per
+ * (revision, packet) rather than per send.
+ *
+ * The once-ness is the point. A packet the revision lacks is usually emitted
+ * every tick, so a plain warning would bury the log and a silent drop would
+ * hide a real gap. Returns -1 when the packet does not exist here.
+ */
+int
+mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name);
+
+/** Human-readable name for a canonical packet, for those same diagnostics. */
+char const*
+mock230_wire_pkt_name(int pkt_name);
+
+/**
+ * 1 when this revision's writer set covers `pkt_name`.
+ *
+ * Always 1 for a wire with no `payload` (revision 230). For one with a payload
+ * set, a 0 here reports once and then drops -- same policy and same reasoning
+ * as an absent opcode.
+ */
+int
+mock230_wire_can_write(const struct Mock230Wire* wire, int pkt_name);
+
+#endif
