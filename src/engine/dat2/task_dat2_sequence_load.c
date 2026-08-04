@@ -108,9 +108,13 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             anim->skeletal = self->skeletal;
             self->skeletal = NULL;
             anim->frame_count = play_frames > 0 ? play_frames : 1;
-            anim->replaceheldleft = -1;
-            anim->replaceheldright = -1;
-            anim->stretches = self->seq && self->seq->stretches ? 1 : 0;
+            if( self->seq )
+                seq_apply_meta(anim, self->seq);
+            else
+            {
+                anim->replaceheldleft = -1;
+                anim->replaceheldright = -1;
+            }
             if( getenv("TORIRS_ANIM_DEBUG") )
                 fprintf(
                     stderr,
@@ -135,30 +139,13 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             (struct RSCache_Dat2Frame const* const*)self->frames,
             self->delays,
             self->frame_count,
-            self->seq ? self->seq->frame_step : 0);
-    /* Held-item override (reference SeqType.replaceheldleft/right, opcodes 6/7 =
-     * dat2 left_hand_item/right_hand_item): a woodcutting/mining-style seq swaps
-     * the worn hand item for an obj so the per-frame player-model swap can pull
-     * in the tool/log model. Set only these two fields directly rather than
-     * through SetSeqMeta — the dat2 sequence decoder memsets its def to 0, so a
-     * full meta copy would clobber priority/max_loops with 0 instead of the
-     * reference defaults (5/99) the constructor already left in place. The dat2
-     * decoder does not convert the 65535 "no override" sentinel and defaults an
-     * absent opcode to 0, so map both <=0 and 65535 to -1 (no override); this
-     * gives up the rare explicit "hide via 0", which the reference-accurate dat1
-     * path still honours through its proper -1 defaults. */
+            self->seq ? self->seq->frame_step : -1);
+    /* Seq-config metadata (walkmerge / priority / preanim / postanim / held
+     * items / stretches). Dat2 stores the mask as interleave_leave (opcode 3);
+     * SetSeqMeta deep-copies it onto anim->walkmerge for the masked draw path.
+     * Decoder now applies RuneLite defaults so a full meta copy is safe. */
     if( anim && self->seq )
-    {
-        int held_left = self->seq->left_hand_item;
-        int held_right = self->seq->right_hand_item;
-        anim->replaceheldleft = (held_left <= 0 || held_left == 65535) ? -1 : held_left;
-        anim->replaceheldright = (held_right <= 0 || held_right == 65535) ? -1 : held_right;
-        /* Set directly for the same reason as the held-item fields above: a full
-         * SetSeqMeta copy would clobber the constructor's priority/max_loops
-         * defaults with the memset-0 config. Drives forward draw-padding
-         * (reference SeqType.stretches, dat2 opcode 13). */
-        anim->stretches = self->seq->stretches ? 1 : 0;
-    }
+        seq_apply_meta(anim, self->seq);
     if( !anim )
     {
         anim = calloc(1, sizeof(*anim));

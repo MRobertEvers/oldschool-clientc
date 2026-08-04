@@ -7,6 +7,7 @@
  * Also pins the REBUILD_NORMAL map-square residency predicate that used to
  * compare only the SW square and skip loads that needed an eastern square.
  */
+#include "app.h"
 #include "game/rs_chat.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_player_stats.h"
@@ -167,6 +168,43 @@ main(void)
         assert(rebuild_squares_resident(&world, mx0, mz0, mx1, mz1));
 
         printf("ok - REBUILD_NORMAL square residency\n");
+    }
+
+    /* SET_MAP_FLAG: wire tiles are classic-scene local; store our-scene. */
+    {
+        struct App app;
+        memset(&app, 0, sizeof(app));
+        app.minimap_flag_x = -1;
+        app.minimap_flag_z = -1;
+        app.scene_off_x = 32;
+        app.scene_off_z = 8;
+        ctx.app = &app;
+
+        {
+            struct RevPacket p;
+            memset(&p, 0, sizeof(p));
+            p.packet_type = PKT_NAME_UNSET_MAP_FLAG;
+            p._set_map_flag.x = 40;
+            p._set_map_flag.z = 50;
+            p._set_map_flag.clear = 0;
+            RS_GameProto_Exec(&ctx, &p);
+            assert(app.minimap_flag_x == 72);
+            assert(app.minimap_flag_z == 58);
+            assert(app.need_redraw == 1);
+        }
+        {
+            struct RevPacket p;
+            memset(&p, 0, sizeof(p));
+            p.packet_type = PKT_NAME_UNSET_MAP_FLAG;
+            p._set_map_flag.x = 255;
+            p._set_map_flag.z = 255;
+            p._set_map_flag.clear = 1;
+            RS_GameProto_Exec(&ctx, &p);
+            assert(app.minimap_flag_x == -1);
+            assert(app.minimap_flag_z == -1);
+        }
+        ctx.app = NULL;
+        printf("ok - SET_MAP_FLAG applies scene_off\n");
     }
 
     UITree_Free(tree);

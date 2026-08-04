@@ -83,6 +83,10 @@ struct RSCache_Dat2ConfigSequence
 /** Archive revision at which the weight byte appeared (game rev 226). */
 #define RSCACHE_SEQUENCE_ARCHIVE_REV_226 1268
 
+/** RuneLite SequenceDefinition field defaults (applied before opcodes). */
+void
+RSCache_Dat2ConfigSequenceSetDefaults(struct RSCache_Dat2ConfigSequence* sequence);
+
 /** Which sequence codec this cache needs. */
 int
 RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache);

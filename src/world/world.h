@@ -17,6 +17,7 @@
  * next ClearPool(STATIC) and starves the element free list. */
 #define WORLD_MAX_EVENTS 8192
 #define WORLD_SCENERY_PICK_MAX 4096
+#define WORLD_LOC_CHANGE_MAX 256
 
 #define WORLD_MAP_TERRAIN_X 64
 #define WORLD_MAP_TERRAIN_Z 64
@@ -100,6 +101,24 @@ struct World_MapSceneIcon
     int mapscene;
     int width;
     int length;
+};
+
+/** Client-side temporary loc change (Client-TS LocChange / deob class99).
+ * Coordinates are scene-local; rebuilt maps drop entries that leave [0,104). */
+struct World_LocChange
+{
+    int level;
+    int layer;
+    int x;
+    int z;
+    int old_type;
+    int old_angle;
+    int old_shape;
+    int new_type;
+    int new_angle;
+    int new_shape;
+    int start_time;
+    int end_time;
 };
 
 struct World
@@ -187,6 +206,13 @@ struct World
     struct World_MapSceneIcon* mapscenes;
     int mapscene_count;
     int mapscene_capacity;
+
+    /** Client-side temporary loc-change list (Client-TS locChanges /
+     * deob world.field1353). Pushed by App_WorldLocChange; shifted on
+     * REBUILD_NORMAL and unlinked when out of the 104 window. Not re-applied
+     * after a rebuild — the server re-sends zone state. */
+    struct World_LocChange loc_changes[WORLD_LOC_CHANGE_MAX];
+    int loc_change_count;
 };
 
 /** Padded mover painter footprint: the tile span (pos±padding)>>7 covers,
@@ -574,6 +600,18 @@ World_PlayerSetExactMove(
     int facing);
 
 void
+World_NpcSetExactMove(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing);
+
+void
 World_PlayerSetSpotanim(
     struct World* world,
     int idx,
@@ -722,12 +760,35 @@ World_SceneryRemove(
  * coords by the negation (routes, grid, fine draw positions, exact-move).
  * Entities landing outside the scene are parked on tile 255 — still tracked
  * (the server addresses info lists by position) but skipped by the painter
- * bounds checks until the server removes them. */
+ * bounds checks until the server removes them. Loc-change records shift and
+ * are dropped when out of the scene window. */
 void
 World_ShiftEntities(
     struct World* world,
     int dx,
     int dz);
+
+/** Record a temporary loc change (Client-TS locChanges.push). old_* may be
+ * -1 when unknown; end_time of -1 means "until replaced". */
+void
+World_LocChangePush(
+    struct World* world,
+    int level,
+    int layer,
+    int x,
+    int z,
+    int old_type,
+    int old_angle,
+    int old_shape,
+    int new_type,
+    int new_angle,
+    int new_shape,
+    int start_time,
+    int end_time);
+
+/** Clear every temporary loc-change record (scene rebuild). */
+void
+World_LocChangesClear(struct World* world);
 
 /** Despawn every projectile + spotanim (reference mapBuild clears both when
  * the new scene lands; their trajectories are scene-local). Emits

@@ -86,7 +86,7 @@
  * not the wire.
  */
 #define MOCK230_CACHE_REVISION 239
-#define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239"
+#define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239.baked"
 
 #include "mock230_bank.h"
 #include "mock230_zone.h"

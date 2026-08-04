@@ -35,7 +35,7 @@ cp_unpack_seq(
     for( int i = 0; i < entry.frame_count; i++ )
         cp_lines_addf(out, "frame=%d,%d", entry.frame_ids[i], entry.frame_lengths[i]);
 
-    if( entry.frame_step )
+    if( entry.frame_step != -1 )
         cp_lines_addf(out, "framestep=%d", entry.frame_step);
     if( entry.interleave_leave )
     {
@@ -53,17 +53,17 @@ cp_unpack_seq(
     }
     if( entry.stretches )
         cp_lines_addf(out, "stretches=yes");
-    if( entry.forced_priority )
+    if( entry.forced_priority != 5 )
         cp_lines_addf(out, "forcedpriority=%d", entry.forced_priority);
-    cp_emit_ref(ctx, out, "lefthand", CP_TYPE_OBJ, entry.left_hand_item, 0);
-    cp_emit_ref(ctx, out, "righthand", CP_TYPE_OBJ, entry.right_hand_item, 0);
-    if( entry.max_loops )
+    cp_emit_ref(ctx, out, "lefthand", CP_TYPE_OBJ, entry.left_hand_item, -1);
+    cp_emit_ref(ctx, out, "righthand", CP_TYPE_OBJ, entry.right_hand_item, -1);
+    if( entry.max_loops != 99 )
         cp_lines_addf(out, "maxloops=%d", entry.max_loops);
-    if( entry.precedence_animating )
+    if( entry.precedence_animating != -1 )
         cp_lines_addf(out, "precedence=%d", entry.precedence_animating);
-    if( entry.priority )
+    if( entry.priority != -1 )
         cp_lines_addf(out, "priority=%d", entry.priority);
-    if( entry.reply_mode )
+    if( entry.reply_mode != 2 )
         cp_lines_addf(out, "replymode=%d", entry.reply_mode);
 
     for( int i = 0; i < entry.chat_frame_id_count; i++ )
@@ -136,6 +136,10 @@ cp_pack_seq(
 {
     struct RSCache_Dat2ConfigSequence entry;
     memset(&entry, 0, sizeof(entry));
+    /* Seed RuneLite defaults via the empty-record decode so absent keys leave
+     * the encoder's skip-default conditions alone (same pattern as spotanim). */
+    RSCache_Dat2ConfigSequenceDecodeProfile(
+        &entry, &ctx->profile, (char*)cp_empty_record, (int)sizeof(cp_empty_record));
     entry.id = id;
 
     struct CP_IntList frame_ids = { 0 }, frame_lengths = { 0 };

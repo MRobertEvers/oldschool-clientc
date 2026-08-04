@@ -28,6 +28,10 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_EntitySpotanim spotanim;
+    /** Exact-move window (Actor fields on the deob). Classic NPC_INFO has no
+     * exact-move mask, but rebuild shifts these the same as players, and the
+     * cycle update consumes them when set. */
+    struct WorldEntityFacet_ExactMove exact_move;
     /** Server npc slot this entity mirrors; -1 = local/unsynced. */
     int server_slot;
 };

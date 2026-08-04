@@ -601,19 +601,32 @@ World_CycleUpdateNpcs(
                 continue;
 
             int size = npc->size > 0 ? npc->size : 1;
-            struct World_MoverInfo info = {
-                .pathing = &npc->pathing,
-                .draw_position = &npc->draw_position,
-                .grid_position = &npc->grid_position,
-                .orientation = &npc->orientation,
-                .idle = &npc->idle_animations,
-                .animation = &npc->animation,
-                .facing = &npc->facing,
-                .size_x = size,
-                .size_z = size,
-            };
-            int seqId = World_UpdateMoverMovementAndAnimation(&info);
-            World_ApplySecondaryAnim(&npc->animation, seqId);
+            if( World_UpdateExactMove(
+                    world,
+                    &npc->exact_move,
+                    &npc->draw_position,
+                    &npc->orientation,
+                    &npc->animation,
+                    size) )
+            {
+                /* Exact move overrides route movement. */
+            }
+            else
+            {
+                struct World_MoverInfo info = {
+                    .pathing = &npc->pathing,
+                    .draw_position = &npc->draw_position,
+                    .grid_position = &npc->grid_position,
+                    .orientation = &npc->orientation,
+                    .idle = &npc->idle_animations,
+                    .animation = &npc->animation,
+                    .facing = &npc->facing,
+                    .size_x = size,
+                    .size_z = size,
+                };
+                int seqId = World_UpdateMoverMovementAndAnimation(&info);
+                World_ApplySecondaryAnim(&npc->animation, seqId);
+            }
             {
                 int face_seq = World_EntityFace(
                     world,

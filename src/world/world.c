@@ -150,6 +150,7 @@ World_ResetSceneAlloc(
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
+    world->loc_change_count = 0;
     world->_scene_size = scene_size;
 
     world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
@@ -734,7 +735,12 @@ World_ShiftEntities(
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
         if( npc )
             world_shift_mover(
-                &npc->grid_position, &npc->draw_position, &npc->pathing, NULL, dx, dz);
+                &npc->grid_position,
+                &npc->draw_position,
+                &npc->pathing,
+                &npc->exact_move,
+                dx,
+                dz);
     }
 
     pool = &world->entities.obj_stack;
@@ -753,6 +759,25 @@ World_ShiftEntities(
         stack->grid_position.z = (sz < 0 || sz > 255) ? 255 : sz;
         stack->draw_position.x = (uint32_t)(stack->grid_position.x * 128 + 64);
         stack->draw_position.z = (uint32_t)(stack->grid_position.z * 128 + 64);
+    }
+
+    /* Loc-change list (Client-TS locChanges / deob field1353): shift and
+     * unlink entries that leave the scene. */
+    {
+        int write = 0;
+        int scene = world->_scene_size > 0 ? world->_scene_size : 104;
+        for( int i = 0; i < world->loc_change_count; i++ )
+        {
+            struct World_LocChange* loc = &world->loc_changes[i];
+            loc->x -= dx;
+            loc->z -= dz;
+            if( loc->x < 0 || loc->z < 0 || loc->x >= scene || loc->z >= scene )
+                continue;
+            if( write != i )
+                world->loc_changes[write] = *loc;
+            write++;
+        }
+        world->loc_change_count = write;
     }
 }
 
@@ -1334,6 +1359,76 @@ World_PlayerSetExactMove(
 
     /* Reference abortRoute(). */
     player->pathing.route_length = 0;
+}
+
+void
+World_NpcSetExactMove(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.npc;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
+
+    npc->exact_move.start_x = (uint8_t)start_x;
+    npc->exact_move.start_z = (uint8_t)start_z;
+    npc->exact_move.end_x = (uint8_t)end_x;
+    npc->exact_move.end_z = (uint8_t)end_z;
+    npc->exact_move.move_start = world->cycle + start_cycle_delta;
+    npc->exact_move.move_end = world->cycle + end_cycle_delta;
+    npc->exact_move.facing = (uint8_t)facing;
+    npc->pathing.route_length = 0;
+}
+
+void
+World_LocChangePush(
+    struct World* world,
+    int level,
+    int layer,
+    int x,
+    int z,
+    int old_type,
+    int old_angle,
+    int old_shape,
+    int new_type,
+    int new_angle,
+    int new_shape,
+    int start_time,
+    int end_time)
+{
+    struct World_LocChange* loc;
+
+    assert(world);
+    if( world->loc_change_count >= WORLD_LOC_CHANGE_MAX )
+        return;
+    loc = &world->loc_changes[world->loc_change_count++];
+    loc->level = level;
+    loc->layer = layer;
+    loc->x = x;
+    loc->z = z;
+    loc->old_type = old_type;
+    loc->old_angle = old_angle;
+    loc->old_shape = old_shape;
+    loc->new_type = new_type;
+    loc->new_angle = new_angle;
+    loc->new_shape = new_shape;
+    loc->start_time = start_time;
+    loc->end_time = end_time;
+}
+
+void
+World_LocChangesClear(struct World* world)
+{
+    assert(world);
+    world->loc_change_count = 0;
 }
 
 static void

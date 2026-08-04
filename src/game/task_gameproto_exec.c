@@ -159,6 +159,7 @@ Task_GameProtoExec_Run(
              * App_WorldLoadFinish (which the shift must precede). */
             TASK_AWAITSELF_IF(CreateTask_WorldLoad(
                 app->provider, app->world_builder, self->chunks, self->chunk_count,
+                self->packet._map_rebuild.zonex, self->packet._map_rebuild.zonez,
                 NULL, NULL));
             /* The load's final step swapped the scene synchronously (same
              * task drain — no frame renders in between): relocate the kept

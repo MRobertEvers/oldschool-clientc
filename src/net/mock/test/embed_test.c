@@ -36,6 +36,7 @@
 #include "net/mock/mock230_content.h"
 #include "net/mock/mock230_embed.h"
 #include "net/mock/mock230_friends.h"
+#include "net/mock/mock230_save.h"
 #include "net/mock/mock230_scene.h"
 #include "net/mock/mock230_session.h"
 
@@ -1019,8 +1020,34 @@ main(void)
                      : "and bob's, in his own container");
         check(player->stat_level[MOCK230_STAT_HITPOINTS] == 10,
               p == 0 ? "[login] put alice's hitpoints at level 10" : "and bob's");
+        check(player->hitpoints == 10 && player->stat_boosted[MOCK230_STAT_HITPOINTS] == 10 &&
+                  player->max_hitpoints == 10,
+              p == 0 ? "[login] left alice's current HP full at 10 (not zero)"
+                     : "and bob's current HP full at 10");
         check(player->stat_level[MOCK230_STAT_ATTACK] == 1,
               "and left every other skill on the engine's level-1 floor");
+    }
+
+    /*
+     * Save restores boosted HP; login hydrates player->hitpoints from it.
+     * Without that seam a returning character dies on the first hit with a
+     * full-looking orb (UPDATE_STAT reads boosted, death reads hitpoints).
+     */
+    {
+        const char* path = mock230_save_path("alice");
+        int boosted_before;
+
+        check(mock230_save_player(alice, path), "[login] wrote alice's save");
+        boosted_before = alice->stat_boosted[MOCK230_STAT_HITPOINTS];
+        alice->hitpoints = 0;
+        check(mock230_load_player(alice, path), "[login] read alice's save back");
+        check(alice->stat_boosted[MOCK230_STAT_HITPOINTS] == boosted_before,
+              "[login] save kept boosted HP at %d", boosted_before);
+        /* The same hydrate mock230_world_login runs after load. */
+        alice->hitpoints = alice->stat_boosted[MOCK230_STAT_HITPOINTS];
+        mock230_combat_sync_hitpoints(alice);
+        check(alice->hitpoints == 10 && alice->stat_boosted[MOCK230_STAT_HITPOINTS] == 10,
+              "[login] hydrate restored current HP from the save's boosted value");
     }
 
     /* Separate allocations — one pointer would mean one player's deposit
@@ -1159,6 +1186,139 @@ main(void)
                     if( collision_map_tile(cm, x, z) != COLL_FLAG_OPEN )
                         blocked++;
             check(blocked > 1000, "embed scene collision is more than a border ring");
+
+            /*
+             * Closed courtyard door at 3226,3223 (loc 1535) is a wall_straight.
+             * Crossing its edge must be refused — the same stamp fences use —
+             * or the character walks through every thin wall on the map.
+             */
+            {
+                int door_closed = mock230_scene_find_loc(3226, 3223, 0, 1535);
+                struct Mock230SceneLoc* dloc =
+                    door_closed >= 0 ? mock230_scene_loc(door_closed) : NULL;
+                int sx;
+                int sz;
+                int wall_here;
+                int wall_nbr;
+                int step_a;
+                int step_b;
+                int dir_a;
+                int dir_b;
+
+                check(dloc != NULL && dloc->shape == RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE,
+                      "castle courtyard door is a wall_straight on the scene");
+                if( dloc && dloc->shape == RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE )
+                {
+                    sx = dloc->x - base_x;
+                    sz = dloc->z - base_z;
+                    /* Angle 0=W 1=N 2=E 3=S — neighbour sits across the stamped edge. */
+                    if( (dloc->angle & 3) == 0 )
+                    {
+                        wall_here = COLL_FLAG_WALL_WEST;
+                        wall_nbr = COLL_FLAG_WALL_EAST;
+                        dir_a = mock230_step_direction(-1, 0); /* W from door */
+                        dir_b = mock230_step_direction(1, 0);  /* E from nbr */
+                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
+                        step_b = mock230_scene_can_step(0, dloc->x - 1, dloc->z, dir_b);
+                        check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
+                                  (collision_map_tile(cm, sx - 1, sz) & wall_nbr) != 0,
+                              "door wall bits sit on both sides of the W edge");
+                    }
+                    else if( (dloc->angle & 3) == 1 )
+                    {
+                        wall_here = COLL_FLAG_WALL_NORTH;
+                        wall_nbr = COLL_FLAG_WALL_SOUTH;
+                        dir_a = mock230_step_direction(0, 1);
+                        dir_b = mock230_step_direction(0, -1);
+                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
+                        step_b = mock230_scene_can_step(0, dloc->x, dloc->z + 1, dir_b);
+                        check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
+                                  (collision_map_tile(cm, sx, sz + 1) & wall_nbr) != 0,
+                              "door wall bits sit on both sides of the N edge");
+                    }
+                    else if( (dloc->angle & 3) == 2 )
+                    {
+                        wall_here = COLL_FLAG_WALL_EAST;
+                        wall_nbr = COLL_FLAG_WALL_WEST;
+                        dir_a = mock230_step_direction(1, 0);
+                        dir_b = mock230_step_direction(-1, 0);
+                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
+                        step_b = mock230_scene_can_step(0, dloc->x + 1, dloc->z, dir_b);
+                        check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
+                                  (collision_map_tile(cm, sx + 1, sz) & wall_nbr) != 0,
+                              "door wall bits sit on both sides of the E edge");
+                    }
+                    else
+                    {
+                        wall_here = COLL_FLAG_WALL_SOUTH;
+                        wall_nbr = COLL_FLAG_WALL_WEST; /* unused; south nbr */
+                        dir_a = mock230_step_direction(0, -1);
+                        dir_b = mock230_step_direction(0, 1);
+                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
+                        step_b = mock230_scene_can_step(0, dloc->x, dloc->z - 1, dir_b);
+                        check((collision_map_tile(cm, sx, sz) & COLL_FLAG_WALL_SOUTH) != 0 &&
+                                  (collision_map_tile(cm, sx, sz - 1) & COLL_FLAG_WALL_NORTH) != 0,
+                              "door wall bits sit on both sides of the S edge");
+                        (void)wall_nbr;
+                        (void)wall_here;
+                    }
+                    check(!step_a && !step_b,
+                          "can_step refuses both directions across the closed door");
+                }
+            }
+
+            /*
+             * Fence / railing scan near home: at least one shape 0–3 wall loc
+             * within ±20 of the courtyard must block a cardinal step across
+             * its edge. Catches "locs load but walls never stamp".
+             */
+            {
+                int fence_edges = 0;
+                int fence_blocked = 0;
+                int home_x = 3222;
+                int home_z = 3218;
+
+                for( int slot = 0;; slot++ )
+                {
+                    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+                    int dir_out;
+                    int dir_back;
+                    int ox;
+                    int oz;
+
+                    if( !loc )
+                        break;
+                    if( !loc->active )
+                        continue;
+                    if( loc->level != 0 )
+                        continue;
+                    if( loc->shape < RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE ||
+                        loc->shape > RSCACHE_LOC_SHAPE_WALL_RECT_CORNER )
+                        continue;
+                    if( loc->x < home_x - 20 || loc->x > home_x + 20 ||
+                        loc->z < home_z - 20 || loc->z > home_z + 20 )
+                        continue;
+                    if( loc->shape != RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE )
+                        continue;
+
+                    ox = ((loc->angle & 3) == 0) ? -1 : ((loc->angle & 3) == 2) ? 1 : 0;
+                    oz = ((loc->angle & 3) == 1) ? 1 : ((loc->angle & 3) == 3) ? -1 : 0;
+                    if( ox == 0 && oz == 0 )
+                        continue;
+                    dir_out = mock230_step_direction(ox, oz);
+                    dir_back = mock230_step_direction(-ox, -oz);
+                    fence_edges++;
+                    if( !mock230_scene_can_step(0, loc->x, loc->z, dir_out) &&
+                        !mock230_scene_can_step(0, loc->x + ox, loc->z + oz, dir_back) )
+                        fence_blocked++;
+                }
+                check(fence_edges > 0,
+                      "courtyard neighbourhood has wall_straight fence/wall locs");
+                check(fence_blocked == fence_edges,
+                      "every nearby wall_straight edge refuses can_step both ways "
+                      "(%d/%d)",
+                      fence_blocked, fence_edges);
+            }
         }
     }
 

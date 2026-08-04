@@ -663,12 +663,11 @@ struct App
     /** Zone base for follows-mode zone packets (scene-local tiles). */
     int zone_base_x;
     int zone_base_z;
-    /** Server "local" coords (PLAYER_INFO teleport, exact-move, zone bases)
-     * are relative to the classic 104x104 scene origin ((zone-6)*8), but our
-     * scene is map-square aligned. Offset from OUR scene base to the classic
-     * origin, set on REBUILD_NORMAL: scene_tile = server_local + scene_off. */
-    int scene_off_x;
-    int scene_off_z;
+    /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
+     * Client-TS mapBuildCenterZoneX/Z). -1 until the first rebuild. Same-zone
+     * packets early-out when the world is already active. */
+    int rebuild_zone_x;
+    int rebuild_zone_z;
 
     /* ---- interaction state (Part 6) ---- */
     /** "Use <item> with ..." selection (reference objSelected). */
@@ -1009,9 +1008,10 @@ App_WorldObjStackDel(
  * REBUILD_NORMAL relocation, run right after the server-driven world load
  * lands: shift every kept entity by the scene-base delta (tiles), reposition
  * ground-item elements against the new heightmap, drop out-of-scene stacks,
- * clear projectiles/spotanims (reference mapBuild), and move the minimap
- * destination flag. Entity element ids are untouched — they live in the
- * scene's DYNAMIC pool, which the rebuild's static clear skips.
+ * clear projectiles/spotanims (reference mapBuild), shift/clear the camera
+ * and cutscene script, clear the minimenu, invalidate the minimap bake, and
+ * move the minimap destination flag. Entity element ids are untouched — they
+ * live in the scene's DYNAMIC pool, which the rebuild's static clear skips.
  */
 void
 App_WorldRebuildShift(
@@ -1019,23 +1019,38 @@ App_WorldRebuildShift(
     int base_dx,
     int base_dz);
 
+/**
+ * REBUILD_NORMAL (Client-TS / deob method3310): early-out when the centre
+ * zone is unchanged and a world is active; otherwise queue a classic 104x104
+ * zone-centred load. The packet task awaits the load, then shifts entities
+ * and finishes. Returns 1 when a load was started, 0 on same-zone skip
+ * (reference does not ack a skipped rebuild — Client.ts:2289 acks from
+ * mapBuild only).
+ */
+int
+App_WorldRebuildBegin(
+    struct App* app,
+    int zone_x,
+    int zone_z);
+
 /** Drain WorldEventKind_EntityRemoved into ToriDraw_SceneElementRemove.
  *  Required before a scene rebuild begins (ResetSceneAlloc asserts the queue
  *  is empty) and after bulk despawns. */
 void
 App_WorldDrainEntityRemoved(struct App* app);
 
-/** Post-load wiring (camera, height fn, texture sync, minimap bake, and the
+/** Post-load wiring (height fn, texture sync, minimap bake, and the
  * server ack for a REBUILD_NORMAL-driven load). Runs at the tail of the world
  * load: the fire-and-forget path wires it as Task_WorldLoad's on_done; the
  * server-driven path, which awaits the load, calls it directly after the await.
+ * Camera is only placed for non-server-driven loads — a rebuild shifts the
+ * existing camera instead (deob field3239 -= dx<<7).
  */
 void
 App_WorldLoadFinish(struct App* app);
 
-/** MAP_BUILD_COMPLETE ack. Sent after a REBUILD_NORMAL-driven load finishes,
- * and also on the skip path when the required map squares are already resident
- * (reference Client.ts always acks every accepted REBUILD_NORMAL). */
+/** MAP_BUILD_COMPLETE ack. Sent after a REBUILD_NORMAL-driven load finishes
+ * (Client.ts mapBuild / Client.ts:2289). Same-zone skips do not ack. */
 void
 App_SendMapBuildComplete(struct App* app);
 

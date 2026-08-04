@@ -8,9 +8,15 @@ struct ToriRS_Task;
 /**
  * Composite load: map terrain + scenery for a chunk list, then every config
  * referenced by them (underlays, overlays, overlay textures, locs, loc
- * models), then a synchronous WorldBuilder_RebuildChunklist + load-complete.
+ * models), then a synchronous rebuild + load-complete.
  * All IO flows through the task system; already-cached assets are skipped.
- * chunks_xz is (mapx,mapz) pairs, copied into the task.
+ * chunks_xz is (mapx,mapz) pairs, copied into the task — used for the asset
+ * prefetch regardless of rebuild shape.
+ *
+ * zone_center_x/z (>= 0): rebuild via WorldBuilder_RebuildCenterzone with a
+ * classic 104x104 scene based at (zone-6)*8 — the REBUILD_NORMAL path.
+ * zone_center_x < 0: rebuild via WorldBuilder_RebuildChunklist (offline /
+ * hotkey loads that name an explicit square list).
  *
  * on_done (may be NULL) is invoked once, synchronously, at the tail of the load
  * — after the rebuild and load-complete, before the task frees. It is how a
@@ -24,6 +30,8 @@ CreateTask_WorldLoad(
     struct WorldBuilder* builder,
     const int* chunks_xz,
     int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
     void (*on_done)(void*),
     void* on_done_ud);
 

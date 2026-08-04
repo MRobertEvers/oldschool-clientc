@@ -70,6 +70,9 @@ struct Task_WorldLoad
     struct WorldBuilder* builder;
     int chunks_xz[WORLD_LOAD_MAX_CHUNKS * 2];
     int chunk_count;
+    /* >= 0: RebuildCenterzone(zone, 104). < 0: RebuildChunklist. */
+    int zone_center_x;
+    int zone_center_z;
 
     /* Invoked once at the synchronous tail (see CreateTask_WorldLoad). */
     void (*on_done)(void*);
@@ -359,8 +362,14 @@ Task_WorldLoad_Run(
         self->models.count,
         self->seqs.count);
 
-    /* 5. Synchronous rebuild: world + scene elements from the loaded assets. */
-    WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
+    /* 5. Synchronous rebuild: world + scene elements from the loaded assets.
+     * REBUILD_NORMAL passes the zone centre so the scene base is (zone-6)*8
+     * (Client-TS / deob method3310); offline loads keep the chunk-list path. */
+    if( self->zone_center_x >= 0 )
+        WorldBuilder_RebuildCenterzone(
+            self->builder, self->zone_center_x, self->zone_center_z, 104);
+    else
+        WorldBuilder_RebuildChunklist(self->builder, self->chunks_xz, self->chunk_count);
     World_SetLoadComplete(self->builder->world, true);
 
     /* 6. "The load landed" hook — runs here, in the same synchronous span as the
@@ -396,6 +405,8 @@ CreateTask_WorldLoad(
     struct WorldBuilder* builder,
     const int* chunks_xz,
     int chunk_count,
+    int zone_center_x,
+    int zone_center_z,
     void (*on_done)(void*),
     void* on_done_ud)
 {
@@ -412,6 +423,8 @@ CreateTask_WorldLoad(
     strcpy(task->task.name, "WorldLoad");
     task->provider = provider;
     task->builder = builder;
+    task->zone_center_x = zone_center_x;
+    task->zone_center_z = zone_center_z;
     memcpy(task->chunks_xz, chunks_xz, (size_t)chunk_count * 2 * sizeof(int));
     task->chunk_count = chunk_count;
     task->on_done = on_done;

@@ -18,7 +18,7 @@
  *
  * Env:
  *   MOCK230_VERBOSE=1   log every packet in and out
- *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs239)
+ *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs239.baked)
  *   MOCK230_CONTENT=dir content tree (default OSRS-Content/osrs239-content)
  *   MOCK230_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
  *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle

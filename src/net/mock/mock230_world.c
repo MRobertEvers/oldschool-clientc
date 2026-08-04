@@ -1608,14 +1608,6 @@ player_take_step(struct Mock230Player* player)
     }
 
     /* Blocked — stall, keep the waypoint; still record last_step. */
-    fprintf(stderr, "DBG stall at %d,%d toward %d,%d flags_dest=%x flags_here=%x\n",
-            player->x, player->z, wp_x, wp_z,
-            mock230_scene_collision(player->level) ? collision_map_tile(
-                mock230_scene_collision(player->level), player->x + dx - mock230_scene_base_x(),
-                player->z + dz - mock230_scene_base_z()) : 0,
-            mock230_scene_collision(player->level) ? collision_map_tile(
-                mock230_scene_collision(player->level), player->x - mock230_scene_base_x(),
-                player->z - mock230_scene_base_z()) : 0);
     player->last_step_x = prev_x;
     player->last_step_z = prev_z;
     return -1;
@@ -5768,6 +5760,9 @@ mock230_world_player_init(struct Mock230Player* player)
         player->stat_boosted[stat] = 1;
         player->stat_xp_tenths[stat] = 0;
     }
+    /* memset left hitpoints at 0; sync copies hitpoints → boosted, so without
+     * this the floor becomes 0/0 and the first damage event is a death. */
+    player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
     mock230_combat_sync_hitpoints(player);
     player->dest_x = -1;
     player->dest_z = -1;
@@ -5895,6 +5890,12 @@ mock230_world_login(struct Mock230Player* player)
      * says so by returning 0 on ENOENT — so there is nothing to handle here.
      */
     mock230_load_player(player, mock230_save_path(player->display_name));
+    /* The save restores boosted HP into the stat array; the DAMAGE mask and
+     * death check read player->hitpoints. LostCity's PlayerLoading writes both
+     * together (`levels[i] = sav.g1()`); hydrate here so a returning character
+     * is not already dead before the first hit. */
+    player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+    mock230_combat_sync_hitpoints(player);
 
     /*
      * 0. Presence, before any packet.

@@ -2564,6 +2564,8 @@ App_Init(
     app->worldmap_render = RS_WorldMapRender_New();
     app->minimap_flag_x = -1;
     app->minimap_flag_z = -1;
+    app->rebuild_zone_x = -1;
+    app->rebuild_zone_z = -1;
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
     app->proj_src_tile_level = 0;
@@ -3342,7 +3344,7 @@ app_world_load_begin(
     App_WorldDrainEntityRemoved(app);
     task = CreateTask_WorldLoad(
         app->provider, app->world_builder, chunks_xz, chunk_pair_count,
-        app_world_load_finish_cb, app);
+        -1, -1, app_world_load_finish_cb, app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     app->need_redraw = 1;
 }
@@ -8330,8 +8332,8 @@ app_cinema_point(
     int* out_y,
     int* out_z)
 {
-    int x = (app->scene_off_x + local_x) * 128 + 64;
-    int z = (app->scene_off_z + local_z) * 128 + 64;
+    int x = local_x * 128 + 64;
+    int z = local_z * 128 + 64;
     *out_x = x;
     *out_z = z;
     *out_y = app_world_height(app, x, z, app_cinema_level(app)) - height;

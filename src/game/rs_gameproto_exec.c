@@ -533,19 +533,18 @@ RS_GameProto_Exec(
     case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
         if( ctx->app )
         {
-            /* Wire base is classic-scene local; store our-scene tiles. */
-            ctx->app->zone_base_x =
-                ctx->app->scene_off_x + packet->_update_zone_partial_follows.base_x;
-            ctx->app->zone_base_z =
-                ctx->app->scene_off_z + packet->_update_zone_partial_follows.base_z;
+            /* Wire base is classic-scene local; with a (zone-6)*8 scene base
+             * that is our-scene too. */
+            ctx->app->zone_base_x = packet->_update_zone_partial_follows.base_x;
+            ctx->app->zone_base_z = packet->_update_zone_partial_follows.base_z;
         }
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            app->zone_base_x = app->scene_off_x + packet->_update_zone_full_follows.base_x;
-            app->zone_base_z = app->scene_off_z + packet->_update_zone_full_follows.base_z;
+            app->zone_base_x = packet->_update_zone_full_follows.base_x;
+            app->zone_base_z = packet->_update_zone_full_follows.base_z;
             /* Full update: the zone's client-side obj stacks reset. */
             if( app->world )
             {
@@ -569,11 +568,10 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct PktUpdateZoneEnclosed const* enc = &packet->_update_zone_enclosed;
-            /* Wire base is classic-scene local, same as the FOLLOWS variants
-             * above — without scene_off every enclosed LOC/OBJ mutation lands
-             * up to 63 tiles off the REBUILD-loaded scenery. */
-            ctx->app->zone_base_x = ctx->app->scene_off_x + enc->base_x;
-            ctx->app->zone_base_z = ctx->app->scene_off_z + enc->base_z;
+            /* Wire base is classic-scene local; with a (zone-6)*8 scene base
+             * that is our-scene too. */
+            ctx->app->zone_base_x = enc->base_x;
+            ctx->app->zone_base_z = enc->base_z;
             for( int i = 0; i < enc->count; i++ )
                 exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
         }
@@ -645,8 +643,8 @@ RS_GameProto_Exec(
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
             if( !app->cam_script.scripted )
             {
-                app->cam_script.move_lx = app->world_camera_pos.x / 128 - app->scene_off_x;
-                app->cam_script.move_lz = app->world_camera_pos.z / 128 - app->scene_off_z;
+                app->cam_script.move_lx = app->world_camera_pos.x / 128;
+                app->cam_script.move_lz = app->world_camera_pos.z / 128;
             }
             app->cam_script.scripted = 1;
             if( packet->_cam_lookat.rate2 >= 100 )
@@ -915,6 +913,8 @@ RS_GameProto_Exec(
             RS_UISlots_SetSideTab(ctx->app, packet->_if_settab_active.tab_id);
         break;
     case PKT_NAME_UNSET_MAP_FLAG:
+        /* Wire tiles are classic-scene local; with a (zone-6)*8 base that is
+         * our-scene too. */
         if( ctx->app )
         {
             if( packet->_set_map_flag.clear )

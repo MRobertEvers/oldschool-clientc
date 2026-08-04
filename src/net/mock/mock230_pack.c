@@ -1163,7 +1163,9 @@ main(
     char** argv)
 {
     const char* content = "OSRS-Content/osrs239-content";
-    const char* cache = MOCK230_CACHE_DIR_DEFAULT;
+    /* Pack validates against the pristine unpack source, not the baked client
+     * cache the live server shares with the client. */
+    const char* cache = "cache.osrs239";
     int prune = 0;
 
     for( int i = 1; i < argc; i++ )

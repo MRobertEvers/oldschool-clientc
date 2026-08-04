@@ -106,8 +106,8 @@ player_local_tile(
     int* out_level)
 {
     int world_idx;
-    *out_x = self->app->scene_off_x + 52;
-    *out_z = self->app->scene_off_z + 52;
+    *out_x = 52;
+    *out_z = 52;
     *out_level = 0;
     if( RS_EntitySync_FindPlayer(&self->app->esync, local_player_pid(&self->app->esync), &world_idx, NULL) )
     {
@@ -238,8 +238,8 @@ player_apply_op(
             world,
             idx,
             op->_local_xz_level.jump,
-            app->scene_off_x + op->_local_xz_level.x,
-            app->scene_off_z + op->_local_xz_level.z);
+            op->_local_xz_level.x,
+            op->_local_xz_level.z);
         if( player )
             player->grid_position.level = op->_local_xz_level.level;
         break;
@@ -336,10 +336,10 @@ player_apply_op(
         World_PlayerSetExactMove(
             world,
             idx,
-            app->scene_off_x + op->_exactmove.start_x,
-            app->scene_off_z + op->_exactmove.start_z,
-            app->scene_off_x + op->_exactmove.end_x,
-            app->scene_off_z + op->_exactmove.end_z,
+            op->_exactmove.start_x,
+            op->_exactmove.start_z,
+            op->_exactmove.end_x,
+            op->_exactmove.end_z,
             op->_exactmove.start_cycle_delta,
             op->_exactmove.end_cycle_delta,
             op->_exactmove.facing);
@@ -636,8 +636,8 @@ npc_local_tile(
 {
     int world_idx;
     struct RS_EntitySync* esync = &self->app->esync;
-    *out_x = self->app->scene_off_x + 52;
-    *out_z = self->app->scene_off_z + 52;
+    *out_x = 52;
+    *out_z = 52;
     *out_level = 0;
     if( RS_EntitySync_FindPlayer(
             esync,

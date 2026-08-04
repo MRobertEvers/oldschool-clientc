@@ -60,9 +60,9 @@ OSRS-Content/osrs239-content/                ← source of truth for what it sta
       └────────► server/scripts/build/{script.dat,script.idx}
 
 mock230 boot (mock230_boot.c — the order is a function, not a convention):
-  cache.osrs239        → obj/npc/seq/varbit configs, collision (client's own
+  cache.osrs239.baked  → obj/npc/seq/varbit configs, collision (client's own
                          collision_map.c, LINKED not reimplemented — flags and
-                         routing), inv sizes
+                         routing), inv sizes — same bake the client boots
   content tree         → symbols, config overlays, spawns, db tables
   script pack          → ServerScript VM (per session)
 ```

@@ -1,0 +1,102 @@
+run_perf: building EMBED_SERVER=1 TORIDRAW_OPT=1 PLATFORM_OBJ_BASE=build_perf
+makefile:435: warning: overriding commands for target `build_perf_tdo/features.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/features.o'
+makefile:435: warning: overriding commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:480: warning: overriding commands for target `build_perf_tdo/collision_map.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/collision_map.o'
+makefile:577: warning: overriding commands for target `build_perf_tdo/rsareabuf.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/rsareabuf.o'
+makefile:586: warning: overriding commands for target `build_perf_tdo/ini.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/ini.o'
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c app.c -o build_perf_tdo/app.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c bootmanifest/bootmanifest.c -o build_perf_tdo/bootmanifest.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c main.c -o build_perf_tdo/main.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/rs_clientcode.c -o build_perf_tdo/rs_clientcode.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/rs_gameproto_exec.c -o build_perf_tdo/rs_gameproto_exec.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/rs_if1_buttons.c -o build_perf_tdo/rs_if1_buttons.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/rs_ui_slots.c -o build_perf_tdo/rs_ui_slots.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bzip -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz -I/Users/matthewevers/Documents/git_repos/3draster/3rd/xteas  -w -c /Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/rscache_unity.c -o build_perf_tdo/rscache_unity.o
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/task_exec_entity_info.c -o build_perf_tdo/task_exec_entity_info.o
+game/rs_gameproto_exec.c:538:27: error: no member named 'scene_off_x' in 'struct App'
+  538 |                 ctx->app->scene_off_x + packet->_update_zone_partial_follows.base_x;
+      |                 ~~~~~~~~  ^
+game/rs_gameproto_exec.c:540:27: error: no member named 'scene_off_z' in 'struct App'
+  540 |                 ctx->app->scene_off_z + packet->_update_zone_partial_follows.base_z;
+      |                 ~~~~~~~~  ^
+game/rs_gameproto_exec.c:547:37: error: no member named 'scene_off_x' in 'struct App'
+  547 |             app->zone_base_x = app->scene_off_x + packet->_update_zone_full_follows.base_x;
+      |                                ~~~  ^
+game/rs_gameproto_exec.c:548:37: error: no member named 'scene_off_z' in 'struct App'
+  548 |             app->zone_base_z = app->scene_off_z + packet->_update_zone_full_follows.base_z;
+      |                                ~~~  ^
+game/rs_gameproto_exec.c:575:47: error: no member named 'scene_off_x' in 'struct App'
+  575 |             ctx->app->zone_base_x = ctx->app->scene_off_x + enc->base_x;
+      |                                     ~~~~~~~~  ^
+game/rs_gameproto_exec.c:576:47: error: no member named 'scene_off_z' in 'struct App'
+  576 |             ctx->app->zone_base_z = ctx->app->scene_off_z + enc->base_z;
+      |                                     ~~~~~~~~  ^
+game/rs_gameproto_exec.c:648:80: error: no member named 'scene_off_x' in 'struct App'
+  648 |                 app->cam_script.move_lx = app->world_camera_pos.x / 128 - app->scene_off_x;
+      |                                                                           ~~~  ^
+game/rs_gameproto_exec.c:649:80: error: no member named 'scene_off_z' in 'struct App'
+  649 |                 app->cam_script.move_lz = app->world_camera_pos.z / 128 - app->scene_off_z;
+      |                                                                           ~~~  ^
+cc -std=c11 -O0 -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP -I/Users/matthewevers/Documents/git_repos/3draster/src -I/Users/matthewevers/Documents/git_repos/3draster/src/cs2vm2 -I/Users/matthewevers/Documents/git_repos/3draster/src/serverscript -I/Users/matthewevers/Documents/git_repos/3draster -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/include -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rscache/src -I/Users/matthewevers/Documents/git_repos/3draster/3rd/toridraw -I/Users/matthewevers/Documents/git_repos/3draster/3rd/trspk -I/Users/matthewevers/Documents/git_repos/3draster/3rd/bmp -I/Users/matthewevers/Documents/git_repos/3draster/3rd/hmap -I/Users/matthewevers/Documents/git_repos/3draster/3rd/rsareabuf -I/Users/matthewevers/Documents/git_repos/3draster/3rd/miniz  -DTORIRS_HAVE_GL3=1 -I/opt/homebrew/include/SDL2 -D_THREAD_SAFE -DTORIRS_EMBED_SERVER=1 -c game/task_gameproto_exec.c -o build_perf_tdo/task_gameproto_exec.o
+game/rs_gameproto_exec.c:930:31: error: no member named 'scene_off_x' in 'struct App'
+  930 |                     ctx->app->scene_off_x + packet->_set_map_flag.x;
+      |                     ~~~~~~~~  ^
+game/rs_gameproto_exec.c:932:31: error: no member named 'scene_off_z' in 'struct App'
+  932 |                     ctx->app->scene_off_z + packet->_set_map_flag.z;
+      |                     ~~~~~~~~  ^
+10 errors generated.
+make: *** [build_perf_tdo/rs_gameproto_exec.o] Error 1
+make: *** Waiting for unfinished jobs....
+app.c:8333:19: error: no member named 'scene_off_x' in 'struct App'
+ 8333 |     int x = (app->scene_off_x + local_x) * 128 + 64;
+      |              ~~~  ^
+app.c:8334:19: error: no member named 'scene_off_z' in 'struct App'
+ 8334 |     int z = (app->scene_off_z + local_z) * 128 + 64;
+      |              ~~~  ^
+2 errors generated.
+make: *** [build_perf_tdo/app.o] Error 1
+game/task_gameproto_exec.c:185:14: error: no member named 'scene_off_x' in 'struct App'
+  185 |         app->scene_off_x =
+      |         ~~~  ^
+game/task_gameproto_exec.c:187:14: error: no member named 'scene_off_z' in 'struct App'
+  187 |         app->scene_off_z =
+      |         ~~~  ^
+2 errors generated.
+game/task_exec_entity_info.c:109:25: error: no member named 'scene_off_x' in 'struct App'
+  109 |     *out_x = self->app->scene_off_x + 52;
+      |              ~~~~~~~~~  ^
+game/task_exec_entity_info.c:110:25: error: no member named 'scene_off_z' in 'struct App'
+  110 |     *out_z = self->app->scene_off_z + 52;
+      |              ~~~~~~~~~  ^
+game/task_exec_entity_info.c:241:18: error: no member named 'scene_off_x' in 'struct App'
+  241 |             app->scene_off_x + op->_local_xz_level.x,
+      |             ~~~  ^
+game/task_exec_entity_info.c:242:18: error: no member named 'scene_off_z' in 'struct App'
+  242 |             app->scene_off_z + op->_local_xz_level.z);
+      |             ~~~  ^
+game/task_exec_entity_info.c:339:18: error: no member named 'scene_off_x' in 'struct App'
+  339 |             app->scene_off_x + op->_exactmove.start_x,
+      |             ~~~  ^
+game/task_exec_entity_info.c:340:18: error: no member named 'scene_off_z' in 'struct App'
+  340 |             app->scene_off_z + op->_exactmove.start_z,
+      |             ~~~  ^
+game/task_exec_entity_info.c:341:18: error: no member named 'scene_off_x' in 'struct App'
+  341 |             app->scene_off_x + op->_exactmove.end_x,
+      |             ~~~  ^
+game/task_exec_entity_info.c:342:18: error: no member named 'scene_off_z' in 'struct App'
+  342 |             app->scene_off_z + op->_exactmove.end_z,
+      |             ~~~  ^
+game/task_exec_entity_info.c:639:25: error: no member named 'scene_off_x' in 'struct App'
+  639 |     *out_x = self->app->scene_off_x + 52;
+      |              ~~~~~~~~~  ^
+make: *** [build_perf_tdo/task_gameproto_exec.o] Error 1
+game/task_exec_entity_info.c:640:25: error: no member named 'scene_off_z' in 'struct App'
+  640 |     *out_z = self->app->scene_off_z + 52;
+      |              ~~~~~~~~~  ^
+10 errors generated.
+make: *** [build_perf_tdo/task_exec_entity_info.o] Error 1

@@ -3,6 +3,7 @@
 #include "../dat2disk.h"
 #include "../rsbuffer.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -872,7 +873,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p2(&buffer, (def->frame_ids[i] >> 16) & 0xFFFF);
     }
 
-    if( def->frame_step != 0 )
+    if( def->frame_step != -1 )
     {
         p1(&buffer, 2);
         p2(&buffer, def->frame_step);
@@ -894,37 +895,37 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
 
     if( def->stretches )
         p1(&buffer, 4);
-    if( def->forced_priority != 0 )
+    if( def->forced_priority != 5 )
     {
         p1(&buffer, 5);
         p1(&buffer, def->forced_priority);
     }
-    if( def->left_hand_item != 0 )
+    if( def->left_hand_item != -1 )
     {
         p1(&buffer, 6);
         p2(&buffer, def->left_hand_item);
     }
-    if( def->right_hand_item != 0 )
+    if( def->right_hand_item != -1 )
     {
         p1(&buffer, 7);
         p2(&buffer, def->right_hand_item);
     }
-    if( def->max_loops != 0 )
+    if( def->max_loops != 99 )
     {
         p1(&buffer, 8);
         p1(&buffer, def->max_loops);
     }
-    if( def->precedence_animating != 0 )
+    if( def->precedence_animating != -1 )
     {
         p1(&buffer, 9);
         p1(&buffer, def->precedence_animating);
     }
-    if( def->priority != 0 )
+    if( def->priority != -1 )
     {
         p1(&buffer, 10);
         p1(&buffer, def->priority);
     }
-    if( def->reply_mode != 0 )
+    if( def->reply_mode != 2 )
     {
         p1(&buffer, 11);
         p1(&buffer, def->reply_mode);
@@ -1154,6 +1155,21 @@ RSCache_Dat2ConfigSequenceCodecVersion(const struct RSCache* cache)
 }
 
 void
+RSCache_Dat2ConfigSequenceSetDefaults(struct RSCache_Dat2ConfigSequence* sequence)
+{
+    assert(sequence);
+    /* RuneLite SequenceDefinition field defaults. Opportunistic opcodes overwrite. */
+    sequence->frame_step = -1;
+    sequence->forced_priority = 5;
+    sequence->left_hand_item = -1;
+    sequence->right_hand_item = -1;
+    sequence->max_loops = 99;
+    sequence->precedence_animating = -1;
+    sequence->priority = -1;
+    sequence->reply_mode = 2;
+}
+
+void
 RSCache_Dat2ConfigSequenceDecodeProfile(
     struct RSCache_Dat2ConfigSequence* sequence,
     const struct RSCache* cache,
@@ -1161,6 +1177,8 @@ RSCache_Dat2ConfigSequenceDecodeProfile(
     int buffer_size)
 {
     assert(cache);
+    assert(sequence);
+    RSCache_Dat2ConfigSequenceSetDefaults(sequence);
     struct RSCache_Buffer buffer = {
         .data = (uint8_t*)(data), .size = (uint32_t)(buffer_size), .position = 0
     };
