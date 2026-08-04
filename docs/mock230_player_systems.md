@@ -272,12 +272,19 @@ carries the toggle to the client; it is declared `transmit=yes` in
 `content/scripts/player/configs/player_controls.varp`, like any other varp the
 client's own CS2 reads.
 
-### 2.3 The orb
+### 2.3 The orb and the Controls-tab run toggle
 
 `UPDATE_RUNENERGY` and `UPDATE_RUNWEIGHT` go out only when the value changed —
 at one packet a tick each they would be a third of everything the mock sends —
 and are flushed after `PLAYER_INFO` but before the container deltas, so weight
 never lags a tick behind the item that changed it.
+
+Two writers share `%option_run`: the minimap orb (`[if_button,orbs:runbutton]`)
+and the Controls side panel (`[if_button,settings_side:runmode]` on interface
+116). Both client CS2s flip var 173 locally; both need `if_setevents` + a
+server `%option_run` write or the icon moves and the player still walks.
+`~settings_side_login` arms the Controls button the same way `~orbs_login`
+arms the orb.
 
 Two client-side gaps had to be closed for any of it to be visible:
 

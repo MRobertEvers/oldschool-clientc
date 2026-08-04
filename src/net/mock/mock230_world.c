@@ -12793,6 +12793,38 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(player->run_toggle == 0 && player->varps[option_run] == 0,
                                    "clicking it again should turn run off (varp %d toggle %d)",
                                    player->varps[option_run], player->run_toggle);
+
+                    /*
+                     * Same chain for the Controls-tab button on settings_side.
+                     * clientscript 3925 flips var 173 locally the way 7557 does
+                     * for the orb; without the content `[if_button]` the panel
+                     * icon moved and run_toggle stayed 0.
+                     */
+                    uid = mock230_content_symbol(
+                        MOCK230_PACK_COMPONENT, "settings_side:runmode");
+                    SELFTEST_CHECK(uid > 0, "the content pack should name settings_side:runmode");
+                    if( uid > 0 )
+                    {
+                        button[0] = (uint8_t)(uid >> 24);
+                        button[1] = (uint8_t)(uid >> 16);
+                        button[2] = (uint8_t)(uid >> 8);
+                        button[3] = (uint8_t)uid;
+
+                        player->run_toggle = 0;
+                        player->varps[option_run] = 0;
+                        mock230_world_handle(
+                            player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                        SELFTEST_CHECK(player->varps[option_run] == 1 && player->run_toggle == 1,
+                                       "clicking settings_side:runmode should arm run "
+                                       "(varp %d toggle %d)",
+                                       player->varps[option_run],
+                                       player->run_toggle);
+
+                        mock230_world_handle(
+                            player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                        SELFTEST_CHECK(player->run_toggle == 0 && player->varps[option_run] == 0,
+                                       "clicking settings_side:runmode again should clear run");
+                    }
                 }
                 mock230_scripts_free(&srv);
             }

@@ -252,11 +252,17 @@ Boot canvas unchanged — `manifest_osrs230.ini` with no knobs still gives
 
 ```
 before: BOUNDS (161|92) abs=108,132 765x503     BOUNDS (161|94) abs=108,132 765x503
-after:  BOUNDS (161|92) abs=-21,0  1024x768     BOUNDS (161|94) abs=-21,0  1024x768
+after:  BOUNDS (161|92) abs=0,0  1024x768     BOUNDS (161|94) abs=0,0  1024x768
 ```
 
-(The `x=-21` is authored on 161:1 and is present at 765×503 too — pre-existing,
-not part of this change. Do not "fix" it.)
+(Earlier dumps showed `abs=-21` here. That was not authored on 161:1 — it
+fell out of script 5355 shrinking `gameframe` to canvas−42 for the popout
+strip while script 909 sizes the viewport trackers to full canvas with
+authored `xmode=1` (centre): `(723−765)/2 = −21`. IF3 centre modes now
+origin-align when the child is larger than the parent
+(`UITree_If3AxisFromPositionMode`), so the tracker sits at abs_x=0 and still
+bleeds right under the popout. That also stops stat-boost / worldmap chrome
+from clipping on the left edge.)
 
 **A live resize reflows.** `TORIRS_SIM_RESIZE="200,1024x768" TORIRS_CS2_TRACE=1`:
 script 909 runs a fourth time after the injected event, and

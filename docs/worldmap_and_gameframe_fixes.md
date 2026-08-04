@@ -610,9 +610,10 @@ Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
   target name 17, the visibility varbits 9/20 are parsed and discarded today).
 - **The overview panel is grey** because `overview_display` 595:12 declares
   `clientcode=1401` and `uitree_build.c` maps only 1337/1338/1339/1400.
-- **The whole gameframe sits 21px left** (161:1..161:18 resolve at abs x=-21),
-  which clips the map's left border (and the key-toggle model at
-  `595:24` / dynamic child abs x=-12).
+- ~~**The whole gameframe sits 21px left**~~ **Fixed** (oversized IF3 centre
+  origin-aligns in `UITree_If3AxisFromPositionMode`): trackers resolve at
+  abs_x=0; stat-boost HUD content at +2 is fully on-canvas. Was emergent from
+  script 5355 (gameframe = canvas−42) + script 909 (tracker = canvas, xmode=1).
 - `mock230_pack --check-only` is green at **0 errors** (15 unrelated warnings).
 
 ---
