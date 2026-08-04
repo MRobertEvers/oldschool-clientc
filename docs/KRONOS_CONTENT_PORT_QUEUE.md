@@ -154,7 +154,7 @@ re-arm. Stop only when the user stops the loop.
 | 71 | skill: Ethereum aggression tolerance | blocked | charged bracelet → tolerant; needs `.hunt` `check_inv` (LC HuntType) — `nearest_victim` is placeholder |
 | 72 | wilderness: Fountain of Rune | done | `minigame_fountain_of_rune/`: oplocu glory/wealth/skills/combat → max (6)/(5); 1/25000 `amulet_of_glory_inf`; desktop op1 overlay |
 | 73 | wilderness: Wilderness Sword teleports | done | `minigame_wilderness_sword/`: sword 3 daily FoR + sword 4 unlimited; Kronos coords; worn op / web-slash deferred |
-| 74 | skill: Imbued heart | pending | create/boost combat stats |
+| 74 | skill: Imbued heart | done | `skill_slayer/imbued_heart.rs2`: Invigorate `stat_boost(magic,1,10)` + 700t CD; saturated upgrade 150k essence + `(4,10)`/500t; death clears CD; non-drain / Ferox pool reset deferred |
 | 75 | wilderness: Supply / Bloody chest stubs | pending | wildy loot chests if cache-named; skip Kronos custom loot |
 
 ## Opcode gap log
@@ -240,6 +240,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 71 | `.hunt` + `check_inv` (HuntType) | Charged ethereum → skip player in aggro | blocked — `nearest_victim` is nearest-only placeholder; inventing `aggro_immune` C flag would be a content hook |
 | 72 | (none) | oplocu recharge + random(25000) eternal | confirmed — inventory ops |
 | 73 | (none) | opheld3 + date_minutes daily gate | confirmed — no new opcode |
+| 74 | (none) | opheld1 + map_clock CD + death reset | confirmed — inventory ops |
 
 ## Log
 
@@ -331,6 +332,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - 2026-08-04: extended with 72 Fountain of Rune / 73 Wilderness Sword / 74 Imbued heart / 75 supply chests
 - slice 72 done: Fountain of Rune recharge + eternal glory 1/25000 (wiki); scripts 6586; pack 0 errors
 - slice 73 done: Wilderness sword 3 daily / 4 unlimited FoR tele; scripts 6642; pack 0 errors
+- slice 74 done: imbued/saturated heart Invigorate + saturate; death CD clear; scripts 7040; pack 0 errors (no sibling park)
 - 2026-08-04: **policy:** never park/silence sibling lanes (`*.skip`,
   `skill_construction`/`minigame_mta` moves) — all queues + PORTING_GUIDE §7 +
   loop prompts updated; Kronos agents must not mute POH/MTA to compile

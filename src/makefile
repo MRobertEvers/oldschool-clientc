@@ -309,7 +309,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
 	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
-	net/mock/mock230_zone.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+	net/mock/mock230_zone.c net/mock/mock230_zone_index.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c $(SS_SRCS)
 
@@ -1157,6 +1157,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
+	net/mock/mock230_zone_index.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \

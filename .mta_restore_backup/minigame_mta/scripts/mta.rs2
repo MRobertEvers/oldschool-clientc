@@ -205,6 +205,7 @@ if (%mta_room = ^mta_room_enchant) {
     ~mta_grave_claim_runes;
 } else if (%mta_room = ^mta_room_tele) {
     $pad = ^mta_exit_tele;
+    ~mta_tele_cam_reset;
     ~mta_tele_clear_nodes;
 }
 ~mta_strip_room_items;

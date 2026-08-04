@@ -2843,6 +2843,19 @@ static int* g_multiway;
 static int g_multiway_count;
 static int g_multiway_capacity;
 
+/*
+ * Same packing as `mock230_zone_index` / the reference's `ZoneMap.zoneIndex`.
+ * Kept local so `mock230_pack` need not link the zone module.
+ */
+static int
+content_zone_index(
+    int x,
+    int z,
+    int level)
+{
+    return ((x >> 3) & 0x7ff) | (((z >> 3) & 0x7ff) << 11) | ((level & 3) << 22);
+}
+
 static int
 compare_zone_index(
     const void* a,
@@ -2871,9 +2884,9 @@ load_multiway(const char* path)
         /*
          * The reference warns on a line that is not zone-aligned and then files
          * it anyway, which files the *containing* zone. Reproduced by rounding
-         * rather than by warning: `mock230_zone_index` shifts the tile down to
-         * its zone, so an unaligned line lands where the reference puts it, and
-         * a warning nobody can act on in a ported data file is noise.
+         * rather than by warning: the zone index shifts the tile down to its
+         * zone, so an unaligned line lands where the reference puts it, and a
+         * warning nobody can act on in a ported data file is noise.
          */
         if( g_multiway_count == g_multiway_capacity )
         {
@@ -2890,7 +2903,7 @@ load_multiway(const char* path)
             g_multiway_capacity = capacity;
         }
         g_multiway[g_multiway_count++] =
-            mock230_zone_index((map_x << 6) + local_x, (map_z << 6) + local_z, level);
+            content_zone_index((map_x << 6) + local_x, (map_z << 6) + local_z, level);
     }
     fclose(file);
     qsort(g_multiway, (size_t)g_multiway_count, sizeof(*g_multiway), compare_zone_index);
@@ -2902,7 +2915,7 @@ mock230_content_multiway(
     int z,
     int level)
 {
-    int key = mock230_zone_index(x, z, level);
+    int key = content_zone_index(x, z, level);
     int low = 0;
     int high = g_multiway_count - 1;
 

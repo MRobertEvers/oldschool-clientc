@@ -385,7 +385,12 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 20y | Canifis citizens | done | Talk-to + wolfbane transform + drops; ~canafis_werewolf_type; death_drop overlay |
 | 20z | Plague manhole | done | plaguemanhole open/cover/climb; loc_findallzone→loc_find; sewer telejump |
 | 21a | Mourners Talk-to | done | mourner1–3/head/stew/twb + elena/biohazard arms; biohazard stages expanded |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers (shantay*, desert_heat, doors…); rpdt_employee already 17z; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms |
+| 21b | Shantay Talk-to | done | jail varp authored; pass sale; Trade stub; ~objbox→~mesbox |
+| 21c | Desert heat | done | %desert_heat temp (carrier avoided); timer+zones; desert clothes bonuses; armour cats deferred |
+| 21d | Shantay pass | done | guards+henge+prison walk-through; desert heat enter; Ana barrel deferred |
+| 21e | E. Ardougne Elena door | done | elenadoor2 quest-gated walk-through |
+| 21f | W. Ardougne doors | done | bravek + city wall + mourner HQ walk-through; biohazard/elena gates |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers (kilron/nurse/omart biohazard-gated skipped; shops Trade stubs; …); rpdt_employee already 17z; CW/Trails deferred (large); skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms |
 
 
 
@@ -770,7 +775,12 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 20y done: canafis_citizen Talk/transform/drops; mock230_pack 0 errors (6919 scripts)
 - slice 20z done: plague manhole open/cover/climb; mock230_pack 0 errors (~6947 scripts)
 - slice 21a done: mourner Talk-to + stew/biohazard arms; mock230_pack 0 errors (6971 scripts)
-- next pending: outward leftovers (shantay*, desert_heat, doors…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int)
+- slice 21b done: shantay Talk-to + jail varp + pass sale; mock230_pack 0 errors (6983 scripts)
+- slice 21c done: desert_heat timer + %desert_heat; mock230_pack 0 errors (~7040 scripts)
+- slice 21d done: shantay_pass guards/henge/prison; mock230_pack 0 errors (7047 scripts)
+- slice 21e done: elenadoor2 walk-through; mock230_pack 0 errors
+- slice 21f done: W. Ardougne bravek/city/mourner HQ doors; mock230_pack 0 errors (7059 scripts)
+- next pending: outward leftovers (after preferred batch); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)
 

@@ -112,15 +112,6 @@ grow(
 /* The map                                                             */
 /* ------------------------------------------------------------------ */
 
-int
-mock230_zone_index(
-    int x,
-    int z,
-    int level)
-{
-    return ((x >> 3) & 0x7ff) | (((z >> 3) & 0x7ff) << 11) | ((level & 3) << 22);
-}
-
 static int
 probe(
     struct Mock230Zone* const* slots,

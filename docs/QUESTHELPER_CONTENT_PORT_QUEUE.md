@@ -114,9 +114,9 @@ filed under `helpers/quests/` are at the end.
 | 9 | Ethically Acquired Antiquities | `ethicallyacquiredantiquities` | 313 | done | `%eaa`; museum→crew→Betty→Haig shame→Herminius; `::eaarun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/Ethically_Acquired_Antiquities/Quick_guide); COTS soft-skip; deferred charter/shame matrix |
 | 10 | The Ides of Milk | `theidesofmilk` | 316 | done | `%cowquest`; Cassius→Gillie/Seth→milk→Duke→Brutus→finish; `::iomrun` OK; wiki [Quick guide](https://oldschool.runescape.wiki/w/The_Ides_of_Milk/Quick_guide); deferred Brutus specials / lamp Rub |
 | 11 | In Search of Knowledge | `insearchofknowledge` | 317 | done | `%hosdun_knowledge_search`; Aimeri→tomes→Logosia; `::isokrun` OK; pack 0 errors; deferred combat pages/web/lamp Rub |
-| 12 | Bone Voyage | `bonevoyage` | 320 | in_progress | `%fossilquest_progress` endstate 50 |
-| 13 | Children of the Sun | `childrenofthesun` | 337 | pending | |
-| 14 | The Garden of Death | `thegardenofdeath` | 346 | pending | |
+| 12 | Bone Voyage | `bonevoyage` | 320 | done | `%fossilquest_progress`→50; Haig→foreman→sawmills→navigators→sail soft; `::bvrun` OK; pack 0 errors |
+| 13 | Children of the Sun | `childrenofthesun` | 337 | done | `%vmq1`→24; Alina→follow soft→door→Tobyn→mark→roof; `::cotsrun` OK; pack 0 errors |
+| 14 | The Garden of Death | `thegardenofdeath` | 346 | in_progress | `%tgod` endstate 56 |
 | 15 | At First Light | `atfirstlight` | 348 | pending | |
 | 16 | Tale of the Righteous | `taleoftherighteous` | 353 | pending | needs #1 |
 | 17 | Getting Ahead | `gettingahead` | 361 | pending | |
@@ -247,3 +247,18 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   `::insearchofknowledge` / `::isokrun`; headless OK (`isokrun OK` payload);
   pack 0 errors; deferred Forthos combat page drops, knife web, Protect Magic,
   lamp Rub; next = Bone Voyage (#12)
+- slice 12 done: Bone Voyage — `%fossilquest_progress` on `fossilquest_main`
+  (0..35→50) + `%fossilquest_lucky_charm` / `%fossilquest_potion`; Haig /
+  Foreman / Varrock+Guild sawmills / barge Lead+Junior / Jack / Odd Old Man
+  charm / Apothecary sealegs / sail soft-skip; wiki
+  https://oldschool.runescape.wiki/w/Bone_Voyage/Quick_guide (+ Transcript);
+  `::bonevoyage` / `::bvrun`; headless OK (`bvrun OK` payload); pack 0 errors;
+  deferred Dig Site/Kudos hard gates, WC60, sailing IF, bank-chest note; next =
+  Children of the Sun (#13)
+- slice 13 done: Children of the Sun — `%vmq1` on `vmq1_primary` (0..22→24) +
+  guard mark bits; Alina / bag-guard follow soft / house door soft / Tobyn /
+  mark four guards / castle roof finish; `%vmq1_questcomplete_type`=2; wiki
+  https://oldschool.runescape.wiki/w/Children_of_the_Sun/Quick_guide (+ Transcript);
+  `::childrenofthesun` / `::cotsrun`; headless OK (`cotsrun OK` payload); pack 0
+  errors; deferred stealth tiles, house cutscene, wrong-guard overlay puzzle,
+  Quetzal first-travel (VMQ2); next = The Garden of Death (#14)

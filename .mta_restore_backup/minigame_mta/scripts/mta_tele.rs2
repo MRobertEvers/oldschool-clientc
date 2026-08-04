@@ -64,6 +64,22 @@ switch_int ($maze) {
 }
 return(19, 50, 0);
 
+// Observe overhead tile (2009scape Maze.cameraLocation).
+[proc,mta_tele_maze_cam](int $maze)(int, int, int)
+switch_int ($maze) {
+    case 1 : return(15, 45, 0);
+    case 2 : return(17, 48, 1);
+    case 3 : return(53, 17, 1);
+    case 4 : return(50, 53, 1);
+    case 5 : return(45, 13, 0);
+    case 6 : return(14, 15, 0);
+    case 7 : return(43, 51, 0);
+    case 8 : return(19, 49, 2);
+    case 9 : return(16, 14, 2);
+    case 10 : return(23, 20, 1);
+}
+return(15, 45, 0);
+
 // Wall thresholds: northZ, southZ, westX, eastX (2009scape Maze.data).
 [proc,mta_tele_maze_bounds](int $maze)(int, int, int, int)
 switch_int ($maze) {
@@ -134,8 +150,11 @@ def_int $gl;
 $bx, $bz, $bl = ~mta_tele_maze_base($maze);
 $sx, $sz, $sl = ~mta_tele_maze_statue($maze);
 $gx, $gz, $gl = ~mta_tele_maze_guardian($maze);
+~mta_tele_cam_reset;
 ~mta_tele_place_statue($sx, $sz, $sl);
-npc_add(~mta_tele_coord($gx, $gz, $gl), magictraining_guard_tele, 0);
+// Cache: incomplete = Observe/Reset; tele = Talk-to tips at maze entrance.
+npc_add(~mta_tele_coord($gx, $gz, $gl), magictraining_guard_maze_incomplete, 0);
+npc_add(~mta_tele_coord($bx, $bz, $bl), magictraining_guard_tele, 0);
 p_teleport(~mta_tele_coord($bx, $bz, $bl));
 ~mta_overlay_update;
 
@@ -175,8 +194,40 @@ if ($lx >= $east) {
 }
 return(^mta_dir_none);
 
+[proc,mta_tele_cam_reset]
+if (%mta_tele_cam = 1) {
+    cam_reset;
+    %mta_tele_cam = 0;
+}
+
+// Observe toggle — 2009scape TelekineticZone.observe (height 798, rate 1/95).
+[proc,mta_tele_observe]
+if (%mta_room ! ^mta_room_tele) {
+    return;
+}
+if (%mta_tele_cam = 1) {
+    ~mta_tele_cam_reset;
+    return;
+}
+mes("Click Observe on the guardian to reset your camera.");
+def_int $cx;
+def_int $cz;
+def_int $cl;
+$cx, $cz, $cl = ~mta_tele_maze_cam(%mta_tele_maze);
+def_coord $cam = ~mta_tele_coord($cx, $cz, $cl);
+%mta_tele_cam = 1;
+if (%mta_tele_maze = 4) {
+    cam_moveto(movecoord($cam, 11, 0, 15), 799, 1, 95);
+    cam_lookat(movecoord($cam, -55, 0, -25), 799, 1, 95);
+    return;
+}
+def_coord $view = movecoord($cam, 0, 0, -10);
+cam_moveto($view, 798, 1, 95);
+cam_lookat($view, 798, 1, 95);
+
 [proc,mta_tele_win]
 ~mta_tele_clear_statue;
+~mta_tele_cam_reset;
 def_int $points = 2;
 // Wiki May 2024: +250 Magic XP per maze (stacks with telegrab XP).
 stat_advance(magic, ^mta_tele_maze_xp);
@@ -188,7 +239,7 @@ if (%magictraining_mazesolved >= 5) {
     // 1000 Magic XP → 10000 tenths.
     stat_advance(magic, ^mta_tele_bonus_xp);
     inv_add(inv, lawrune, 10);
-    // Run energy restore: getter-only opcode — mes until set-runenergy exists.
+    healenergy(10000);
     mes("Your run energy has been replenished.");
     ~mesbox("Congratulations on solving five mazes in a row! You receive 8 bonus|points, 10 law runes, 1,000 Magic XP, and restored run energy.");
 }
@@ -304,6 +355,13 @@ if ($c = 2) {
 if (%mta_room = ^mta_room_tele) {
     ~mta_tele_reset;
 }
+
+// Cache: maze incomplete op1=Observe, op3=Reset.
+[opnpc1,magictraining_guard_maze_incomplete]
+~mta_tele_observe;
+
+[opnpc3,magictraining_guard_maze_incomplete]
+~mta_tele_reset;
 
 [debugproc,mta_tele]
 %magictraining_entra_noob = 1;

@@ -67,6 +67,12 @@ protect=no
 transmit=no
 scope=temp
 
+// 1 while Observe overhead cam is active (toggle → cam_reset).
+[mta_tele_cam]
+protect=no
+transmit=no
+scope=temp
+
 // Alchemy session (costs + free + cupboard rotation).
 [mta_alch_cost1]
 protect=no
@@ -122,6 +128,17 @@ transmit=no
 scope=temp
 
 [mta_grave_rune_pending]
+protect=no
+transmit=no
+scope=temp
+
+// Per-pile grab life (2009scape BoneType life=4); coord of tracked pile.
+[mta_grave_pile_coord]
+protect=no
+transmit=no
+scope=temp
+
+[mta_grave_pile_life]
 protect=no
 transmit=no
 scope=temp
