@@ -40,6 +40,7 @@ main(void)
     test_route_window();
     test_collision_types();
     test_follow_dance_semantics();
+    test_wall_edge_symmetry();
 
     sim_path_followers();
     sim_projectile_barrage();

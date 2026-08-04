@@ -213,6 +213,8 @@ struct NormalScenery
     uint16_t entity;
     uint8_t size_x : 4;
     uint8_t size_z : 4;
+    /** Reference Model.minY / bottomY — height above ground for spriteOccluded. */
+    uint16_t model_height;
 };
 
 struct GroundObject
@@ -270,7 +272,8 @@ struct WallDecor
         uint8_t _bf_through_wall_flags : 8;
     };
 
-    // int through_wall_flags;
+    /** Reference Model.minY / bottomY — height above ground for spriteOccluded. */
+    uint16_t model_height;
 };
 
 struct PaintersElement
@@ -623,7 +626,8 @@ painter_add_normal_scenery(
     int slevel,
     int entity,
     int size_x,
-    int size_y);
+    int size_y,
+    int model_height);
 
 void
 painter_mark_static_count(struct Painter* painter);
@@ -674,7 +678,8 @@ painter_add_wall_decor(
     int entity,
     int wall_ab,
     int side,
-    int through_wall_flags);
+    int through_wall_flags,
+    int model_height);
 
 int
 painter_add_ground_decor(

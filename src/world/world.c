@@ -21,6 +21,15 @@ World_New(void)
 }
 
 void
+World_SetScene(
+    struct World* world,
+    struct ToriDraw_Scene* scene)
+{
+    assert(world);
+    world->scene = scene;
+}
+
+void
 World_Free(struct World* world)
 {
     if( !world )

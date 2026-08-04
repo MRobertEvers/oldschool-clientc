@@ -874,7 +874,8 @@ painter_add_normal_scenery(
     int slevel,
     int entity,
     int size_x,
-    int size_z)
+    int size_z,
+    int model_height)
 {
     /* Scene ids are 0..TORIDRAW_SCENE_MAX_ELEMENTS-1 (65535); the command
      * word packs entity in 16 bits, so the full uint16 range is legal. */
@@ -888,6 +889,10 @@ painter_add_normal_scenery(
         size_x = 15;
     if( size_z > 15 )
         size_z = 15;
+    if( model_height < 0 )
+        model_height = 0;
+    if( model_height > UINT16_MAX )
+        model_height = UINT16_MAX;
 
     int element = painter_push_element(painter);
 
@@ -898,7 +903,12 @@ painter_add_normal_scenery(
         .sx = sx,
         .sz = sz,
         .source_level = slevel,
-        ._scenery = { .entity = entity, .size_x = size_x, .size_z = size_z },
+        ._scenery = {
+            .entity = entity,
+            .size_x = size_x,
+            .size_z = size_z,
+            .model_height = (uint16_t)model_height,
+        },
     };
     return element;
 }
@@ -1033,13 +1043,19 @@ painter_add_wall_decor(
     int entity,
     int wall_ab,
     int side,
-    int through_wall_flags)
+    int through_wall_flags,
+    int model_height)
 {
     struct PaintersTile* tile;
     int element;
 
     if( painter->suppress_slot_registration )
         return -1;
+
+    if( model_height < 0 )
+        model_height = 0;
+    if( model_height > UINT16_MAX )
+        model_height = UINT16_MAX;
 
     tile = painter_tile_at(painter, sx, sz, slevel);
     element = painter_push_element(painter);
@@ -1067,6 +1083,7 @@ painter_add_wall_decor(
             .entity = entity, //
             ._bf_side = side,
             ._bf_through_wall_flags = through_wall_flags,
+            .model_height = (uint16_t)model_height,
         },
     };
     return element;

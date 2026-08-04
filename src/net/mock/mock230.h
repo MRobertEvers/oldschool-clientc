@@ -93,6 +93,7 @@
 
 #include "engine/world_builder/collision_map.h"
 
+#include <assert.h>
 #include <stdint.h>
 
 struct Mock230Conn;
@@ -3089,11 +3090,12 @@ void
 mock230_world_clear_pending_action(struct Mock230Server* srv);
 
 /**
- * Resolve the pending interaction if it is in range, else leave it walking.
+ * Resolve the pending interaction if it is already in range, else recover a
+ * stalled walk.
  *
- * Called twice per interaction at least: once by the packet handler that set it
- * (so clicking something you are standing next to acts immediately) and once per
- * tick from phase 5 after movement.
+ * Packet handlers call this so a click on something adjacent acts immediately.
+ * Per-tick chase lives in phase_player (try → pathToPathingTarget → move → try),
+ * matching LostCity processInteraction — not a post-move-only pass.
  */
 void
 mock230_world_process_interaction(struct Mock230Server* srv);

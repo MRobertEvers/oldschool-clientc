@@ -189,9 +189,12 @@ traffic, not against reading that proc.
 ### 2.3 How the answer comes back
 
 Not `last_com` (all rows share one component). `IF_BUTTON1` carries the row as
-a sub-id; `mock230_world.c:3008-3038` sets `last_com`/**`last_slot`**/`last_verb`
-from it. Content reads `last_slot` via `SS_OP_LAST_SLOT`
-(`mock230_scripts.c:4647-4648`) and `chat.rs2`'s `p_choice2..5` branch on it.
+a sub-id; `handle_if_button_op` sets `last_com` / **`last_slot`** / `last_verb`
+from it **and** resumes `p_pausebutton` when the uid is a registered resume
+button (choice menus park on `chatmenu:options`). Content reads `last_slot` via
+`SS_OP_LAST_SLOT` and `chat.rs2`'s `p_choice2..5` branch on it. Without that
+resume on the same packet, a later continue left `last_slot` at 0 and every
+`~p_choice*` fell through to its last option.
 
 ### 2.4 Loose ends
 

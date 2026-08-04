@@ -514,7 +514,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      docs/cs2-arrays-are-handles.md).
 #  (c) rows where the vendored table looks right and ours is a heuristic guess,
 #      but which nothing reachable exercises today: 202, 3129, 3140, 3656,
-#      4104, 4120, 4200, 4210, 6618..6696, 7506. Left as-is rather than flipped
+#      4104, 4200, 4210, 6618..6696, 7506. Left as-is rather than flipped
 #      blind; each needs its own witness before it moves.
 BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     102: (1, 0, 0, 0),   # cc_deleteall
@@ -555,7 +555,6 @@ BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     3800: (0, 0, 1, 0),  # activeclansettings_find_listened
     3850: (0, 0, 1, 0),  # activeclanchannel_find_listened
     4104: (1, 0, 0, 1),  # fromdate
-    4120: (1, 1, 1, 0),  # string_indexof_char
     4200: (1, 0, 0, 1),  # oc_name
     4201: (2, 0, 0, 1),  # oc_op
     4202: (2, 0, 0, 1),  # oc_iop
@@ -728,7 +727,7 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
     if name == "STRING_INDEXOF_STRING":
         return (1, 2, 1, 0)
     if name == "STRING_INDEXOF_CHAR":
-        return (2, 1, 1, 0)
+        return (1, 1, 1, 0)
     if name == "STRUCT_PARAM":
         return (2, 0, 1, 0)
     if name in ("ON_MOBILE", "CLIENTTYPE", "COORD", "RUNWEIGHT_VISIBLE", "RUNENERGY_VISIBLE"):

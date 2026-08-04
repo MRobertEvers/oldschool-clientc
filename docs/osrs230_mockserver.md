@@ -970,6 +970,15 @@ change, and `if_addresumebutton` had to widen its arming range to match —
 `MOCK230_RESUME_SUB_MAX` rather than slot 0, because arming slot 0 arms the empty
 container and none of the rows.
 
+**The click is `IF_BUTTON1 (container, sub)`.** That one packet both writes
+`last_slot` and resumes `p_pausebutton` (same latch-then-resume order as
+LostCity's `IfButtonHandler`). A resume without a row leaves `last_slot` at its
+memset 0, and `~p_choice*` treats every non-`1..(N-1)` value as the last option —
+which is how Leela's dialogue kept answering every choice with "I will go and get
+the rest of the escape equipment." The client maps EVENT_CLICK on a dynamic child
+of the armed container to that `IF_BUTTON1`; a plain `IF_BUTTON` with the child's
+runtime id never matches the registered resume uid.
+
 ### The three caps
 
 A RUNCLIENTSCRIPT string argument is not a label, it is a *payload*, and three
@@ -1468,13 +1477,15 @@ instantly in game terms". The player could take an obj from across Lumbridge,
 through a wall.
 
 There is now a real interaction (`struct Mock230Interaction`, latched on the
-player), resolved once per tick in phase 5 after movement:
+player), resolved each tick in phase 5 with LostCity's `processInteraction`
+order: try before movement, repath a pathing target at the last waypoint, move,
+then try again:
 
 | distance | what runs |
 |---|---|
 | within ap range (10) | `[apnpc<n>]` / `[aploc<n>]` / `[apobj<n>]` — if content bound one, the interaction is done and the player never closes the distance |
-| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling **only if nothing was bound** and only for the kinds that still have any — `[opobj<n>]` has none, so a miss there is `Player.defaultOp`, the message and nothing else. A script that aborted stops here either way, and with no script pack there is no fallback at all (§3.18) |
-| further | keep walking, try again next tick |
+| adjacent (or *on* the tile, for a ground obj) | `[opnpc<n>]` / `[oploc<n>]` / `[opobj<n>]`, then the engine's own verb handling **only if nothing was bound** and only for the kinds that still have any — `[opobj<n>]` has none, so a miss there is `Player.defaultOp`, the message and nothing else. A script that aborted stops here either way, and with no script pack there is no fallback at all (§3.18). Locs/objs wait for a stall (`steps_taken == 0`) or the packet-handler immediate try; npcs/players OP on the arrival tick. |
+| further | keep walking; at the last waypoint a mover gets a full `walk_to_approach` to its live tile (not a one-tile crawl) |
 
 The packet handler also attempts resolution immediately, so clicking something
 you are already standing next to acts on the tick the click arrives rather than
@@ -1487,10 +1498,10 @@ convention: "at range" was previously not a state the server could be in, so no
 
 Three things worth knowing:
 
-- **An npc target is re-read every tick**, because it moves. Re-routing as it
-  goes is what makes following work; without it the player walks to a memory.
-  Slot reuse is checked too — same index, different npc, and acting on it would
-  attack whatever respawned there.
+- **An npc target is re-read every tick**, because it moves. Last-waypoint
+  repath to the live tile is what makes following work; without it the player
+  walks to a memory. Slot reuse is checked too — same index, different npc, and
+  acting on it would attack whatever respawned there.
 - **A loc is re-found by id first, tile second.** A tile routinely carries more
   than one loc: 3226,3223 in Lumbridge holds the castle door *and* a wall
   decoration, and "whatever is at this tile" resolves to the decoration. Only

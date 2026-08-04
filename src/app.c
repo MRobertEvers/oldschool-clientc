@@ -2551,6 +2551,7 @@ App_Init(
      * sync with the shared scene from cache data. */
     app->world = World_New();
     assert(app->world);
+    World_SetScene(app->world, app->scene);
     app->world_builder = WorldBuilder_New(app->world, app->provider, app->scene, &app->varps);
     assert(app->world_builder);
     app->painter_buffer = painter_buffer_new();
@@ -5357,8 +5358,9 @@ app_world_paint(struct App* app)
         if( occ && !occ_off )
         {
             int top_level = app_world_roof_check(app);
-            /* Use the same clamped tile coords as the painter / cullspan so
-             * footprint visibility lines up with World.gx/gz. */
+            /* Eye is clamped inside scene_occluders_select_for_camera to match
+             * Client-TS World.renderAll; cullspan still uses the painter's
+             * clamped cam_sx/cam_sz for row ranges. */
             scene_occluders_select_for_camera(
                 occ,
                 app->world_camera_pos.x,
@@ -9770,15 +9772,15 @@ app_minimenu_run_option(
                 opt.action_index < 10 && app->net )
             {
                 int const op_num = opt.action_index + 1;
+                unsigned const events = app_if_events_for_node(app, opt.pick.id);
                 /* The events mask is the whole of "is this op the server's", so it
                  * is the one number worth printing beside the row that carries it —
                  * a component the server never armed produces a perfectly good menu
                  * row and sends nothing. */
                 if( getenv("TORIRS_CLICK_DEBUG") )
                     fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
-                            opt.pick.id, app_if_events_for_node(app, opt.pick.id),
-                            app->net ? 1 : 0);
-                if( app_if_events_for_node(app, opt.pick.id) & (1u << op_num) )
+                            opt.pick.id, events, app->net ? 1 : 0);
+                if( events & (1u << op_num) )
                 {
                     int target;
                     int sub;
@@ -9794,18 +9796,50 @@ app_minimenu_run_option(
                             target, sub));
                     if_button_sent = 1;
                 }
+                else if(
+                    opt.action == REVCONFIG_MINIMENU_IF_BUTTON && opt.action_index == 0 &&
+                    (events & 0x1u) )
+                {
+                    /* EVENT_CLICK (bit 0): minimenu rows use action_index 0, so
+                     * the bit-(action_index+1) check above looks at bit 1 and
+                     * misses. Choice-menu rows are dynamic children of a
+                     * container the server armed across a sub range — answer
+                     * with IF_BUTTON1 (parent, sub) so last_slot names the row
+                     * and the server can resume p_pausebutton. Static continue
+                     * prompts (no sub) keep the CS2 / plain IF_BUTTON path. */
+                    int target;
+                    int sub;
+
+                    app_if_button_target(app, opt.pick.id, &target, &sub);
+                    if( sub >= 0 )
+                    {
+                        if( getenv("TORIRS_CLICK_DEBUG") )
+                            fprintf(
+                                stderr,
+                                "clickdbg: EVENT_CLICK choice target=0x%x sub=%d\n",
+                                target,
+                                sub);
+                        APP_NET_SEND(
+                            app,
+                            net_out_if_button_op(
+                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1,
+                                target, sub));
+                        if_button_sent = 1;
+                    }
+                }
             }
             hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
             if( !hook || hook->script_id <= 0 )
             {
+                /* Already answered the server (choice-menu IF_BUTTON1, or a
+                 * numbered op). Do not also sink a plain IF_BUTTON with the
+                 * dynamic child's runtime id. */
+                if( if_button_sent )
+                    return 0;
                 /* IF1-style static buttons have no CS2 hook — the button engine
                  * applies buttonType/varp semantics locally (+ server notify via
                  * the sink once networking attaches). */
                 if( RS_IF1_ApplyButtonClick(app, opt.pick.id, opt.action) )
-                    return 0;
-                /* Server-armed ops are done once IF_BUTTON went out; popout strip
-                 * cells (and similar) carry events without an onop script. */
-                if( if_button_sent )
                     return 0;
                 fprintf(
                     stderr,
@@ -11123,8 +11157,24 @@ static void
 app_send_if_button(void* user, int com_id)
 {
     struct App* app = (struct App*)user;
+    int target;
+    int sub;
+
+    /* A dynamic child is addressed as (container, sub) on the wire — its own
+     * runtime id is a client allocation the server has never heard of. EVENT_CLICK
+     * on chatmenu rows (and any other IF_SETEVENTS-armed list) must use that
+     * pair, which is IF_BUTTON1 with the sub-id, not plain IF_BUTTON. */
+    app_if_button_target(app, com_id, &target, &sub);
     if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(stderr, "if_button: com=%d\n", com_id);
+        fprintf(stderr, "if_button: com=%d target=%d sub=%d\n", com_id, target, sub);
+    if( sub >= 0 )
+    {
+        APP_NET_SEND(
+            app,
+            net_out_if_button_op(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, target, sub));
+        return;
+    }
     APP_NET_SEND(app, net_out_if_button(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
 }
 
@@ -11132,6 +11182,23 @@ static void
 app_send_resume_pausebutton(void* user, int com_id)
 {
     struct App* app = (struct App*)user;
+    int target;
+    int sub;
+
+    /* Number-key selection on a chatmenu row ends in cc_resume_pausebutton on
+     * the found child. RESUME_PAUSEBUTTON carries only a component uid (no
+     * sub), so a dynamic child has to travel as IF_BUTTON1(parent, sub) —
+     * that sets last_slot and, once the server tries resume on IF_BUTTON1,
+     * unparks p_pausebutton. Static continue buttons keep RESUME_PAUSEBUTTON. */
+    app_if_button_target(app, com_id, &target, &sub);
+    if( sub >= 0 )
+    {
+        APP_NET_SEND(
+            app,
+            net_out_if_button_op(
+                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, target, sub));
+        return;
+    }
     APP_NET_SEND(
         app, net_out_resume_pausebutton(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
 }

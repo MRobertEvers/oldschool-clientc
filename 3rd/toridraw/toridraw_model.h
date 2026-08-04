@@ -137,6 +137,8 @@ ToriDraw_ModelGetBoundsCylinder(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+        if( !hnd.u.model.model )
+            return NULL;
         return hnd.u.model.model->bounds_cylinder;
     default:
         return NULL;

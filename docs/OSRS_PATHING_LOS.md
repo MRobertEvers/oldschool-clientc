@@ -3,7 +3,8 @@
 How Old School RuneScape paths players vs NPCs, how line of sight works, how
 this engine decides, and where the named references agree or diverge.
 
-Cross-links: [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md)
+Cross-links: [`COLLISION_MAP.md`](COLLISION_MAP.md) (wall flag set/check and
+one-way orphan failure mode), [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md)
 (click → route), [`ASH_MOVEMENT_CORPUS.md`](ASH_MOVEMENT_CORPUS.md) (Mod Ash
 verbatim), [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §2.3 / §8.
 

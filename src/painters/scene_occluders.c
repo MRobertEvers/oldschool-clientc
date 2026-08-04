@@ -251,6 +251,19 @@ scene_occluders_select_for_camera(
     if( top_level >= occ->levels )
         top_level = occ->levels - 1;
 
+    /* Match Client-TS World.renderAll: clamp eye into the scene before
+     * deriving camera tile / spreads (World.cx/gx). Without this the
+     * footprint gate indexes the cullspan from a different origin than
+     * the painter when the orbit eye sits past the map edge. */
+    if( eye_x < 0 )
+        eye_x = 0;
+    else if( eye_x >= occ->width * 128 )
+        eye_x = occ->width * 128 - 1;
+    if( eye_z < 0 )
+        eye_z = 0;
+    else if( eye_z >= occ->height * 128 )
+        eye_z = occ->height * 128 - 1;
+
     camera_sx = eye_x / 128;
     camera_sz = eye_z / 128;
     occ->camera_sx = camera_sx;

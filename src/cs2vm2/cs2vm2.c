@@ -6923,12 +6923,11 @@ CS2VM2_Op_StringIndexOfChar(
     assert(frame);
     (void)operand;
 
+    /* Bytecode / LostCity / SSVM: (string, char) -> index. No start index —
+     * STRING_INDEXOF_STRING is the one that takes a start. */
     int ch;
-    int start;
     char* haystack;
     if( CS2VM2_PopInt(vm, &ch) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &start) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopStr(vm, &haystack) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
@@ -6937,9 +6936,7 @@ CS2VM2_Op_StringIndexOfChar(
     if( haystack )
     {
         int len = (int)strlen(haystack);
-        if( start < 0 )
-            start = 0;
-        for( int i = start; i < len; i++ )
+        for( int i = 0; i < len; i++ )
         {
             if( (unsigned char)haystack[i] == (unsigned char)ch )
             {

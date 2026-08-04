@@ -835,6 +835,24 @@ than argued to.
 - **The blank-panel ladder was not run.** The panel was never blank; see
   `REV230_UI_BLANK_PANELS.md` §1's step 0, added because of this.
 
+### 5.8 Show/Hide orb — server mounts the widget
+
+The gold XP orb's op1 is **not** local-only. Clientscript 1040 flips
+`%xpdrops_enabled` (varbit 4702) and redraws the orb, but the counter and
+floating drops live on interface **122**, and the server is what opens and
+closes that widget (RuneLite #632: "the server sends that the client should
+show/hide the XP drop widget on login and on clicking the orb").
+
+`interface_orbs/scripts/orbs.rs2` now:
+
+1. Arms **op1|op2** (`^xpdrops_orb_events`).
+2. On op1, toggles `%xpdrops_enabled` and calls `~xpdrops_sync_mount`
+   (`if_opensub` / `if_closesub` on `toplevel_osrs_stretch:xp_drops`, type 1).
+3. Keeps `xp_drops` **out of** `gameframe.enum` so the default (off) does not
+   leave a live `if_setonstattransmit` listener drawing drops after Hide.
+   `~xpdrops_sync_mount` also runs from `~orbs_login` and after
+   `if_opentop` in `gameframe_apply_mode`.
+
 ---
 
 ## 6. Where things live

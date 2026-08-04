@@ -92,7 +92,13 @@ re-arm. Stop only when the user stops the loop.
 | 10d | antipoison consume | done | Drink labels + dose switch ladder (obj next_obj_stage overlays blocked); deferred: full _potion consume, consume_messages.dbrow, sound_synth |
 | 10e | weapon_poison | done | Use→poison for daggers/spears/arrows/bolts/darts/knives/javelins via switches; deferred: cleaning cloth, karambwan paste, combat poison_severity |
 | 10f | highwayman combat AI | done | Stand and deliver! AP + overlays + highwayman2 drop bind; deferred: .hunt ranged, attack_sound |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: chaosmonk combat AI (npc_zap_attack ready); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player) |
+| 10g | chaosmonk combat AI | done | chaosmonk1/2/3 1/4 zap + melee; npc_zap_attack from Melzar; overlays; deferred: .hunt cowardly, attack_sound, drop table (none in LC) |
+| 10h | witch combat AI (Draynor) | done | witch1/2 name-expand (_witch orphan); weaken/earth_strike; overlays; deferred: category mint, attack_sound |
+| 10i | wine_of_zamorak altar | done | Chaos Temple Take drain+aggro chaosmonks; sound_synth dropped; deferred: telegrab-only modern path |
+| 10j | shadow_spider combat AI | done | prayer-halve drain on queue1 + melee; spider_update_* anims; deferred: op drain via ~npc_retal_ready varn, sound_synth, .hunt cowardly |
+| 10k | skeletonmage combat AI | done | ^skeleton_mage_attack=105 + magic_spell_skeleton_mage dbrow (skeleton cast anims; sound dropped) + AI + overlay; deferred: undead param, attack_sound |
+| 10l | cow milking | done | opnpcu cow/cow2/cow_beef + bucket_empty → bucket_milk; combat overlay already lumbridge.npc |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: barbarian combat YEARGH AI (barbarian/fai_*); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), freeze (%frozen), guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player), chaos_druid (freeze), pirate (_pirate orphan — name-expand), imp teleport (%npc_lastcombat/%npc_aggressive_player) |
 
 
 ## Log
@@ -181,4 +187,10 @@ re-arm. Stop only when the user stops the loop.
 - slice 10d done: antipoison consume — anti_poison.rs2 Drink for 1–4dose antipoison + super; %poison=min(-5/-20); dose ladder via switch (obj next_obj_stage overlays blocked); deferred: full _potion dispatch, consume_messages.dbrow, sound_synth
 - slice 10e done: weapon_poison — Use weapon_poison on daggers/spears/arrows/bolts/darts/knives/javelins (switch maps; cat weapon_stab→weapon_stab_sword); deferred: tbwt_cleaning_cloth/karambwan, combat poison_severity on hit
 - slice 10f done: highwayman AI — "Stand and deliver!" applayer2 + overlays + highwayman2 drop bind; deferred: .hunt ranged, attack_sound
-- next pending: chaosmonk combat AI (chaosmonk1/2/3; npc_zap_attack already in melzar); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, freeze, guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack (%npc_aggressive_player)
+- slice 10g done: chaosmonk AI — chaosmonk1/2/3 1/4 ~npc_zap_attack + melee + combat overlays; deferred: .hunt cowardly, attack_sound, drops (none in LC)
+- slice 10h done: witch AI — witch1/2 name-expand (orphan `_witch`) weaken/earth_strike + overlays; deferred: category mint, attack_sound
+- slice 10i done: wine_of_zamorak — Chaos Temple opobj3 drain+stat_drain+chaosmonk aggro; sound_synth dropped; deferred: telegrab-only modern
+- slice 10j done: shadow_spider AI — prayer-halve on queue1 + melee; spider_update_* anims; deferred: op ~npc_retal_ready drain, sound_synth, .hunt cowardly
+- slice 10k done: skeletonmage AI — ^skeleton_mage_attack=105 + magic_spell_skeleton_mage (skeleton_update_mage_casting / skeleton_weaken_casting; sound dropped) + ai_opplayer2 rot/melee + combat overlay; deferred: undead param, attack_sound
+- slice 10l done: cow milking — opnpcu cow/cow2/cow_beef bucket_empty→bucket_milk; deferred: Milk right-click op (LC Use-with only)
+- next pending: barbarian combat YEARGH AI (barbarian + fai_barbarian_*); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, freeze, guard2, ditch, shops inv.ini, npc_poison varn, al_kharid_warrior pack, chaos_druid (freeze), pirate (_pirate orphan), imp teleport (varns)

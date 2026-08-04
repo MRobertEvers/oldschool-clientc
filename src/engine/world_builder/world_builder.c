@@ -362,17 +362,18 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
 
-    /* Terrain first, then the bridge push-down — the push-down copies whole
-     * flag words down a LinkBelow column, so it has to see the terrain flags
-     * to carry them. */
+    /* Terrain first (place-time LinkBelow shift for BLOCK flags), then End's
+     * no-op bridge hook — loc collision already shifted at place time. Geometry
+     * push-down below is separate. See docs/COLLISION_MAP.md. */
     world_collision_apply_terrain(builder);
     world_collision_apply_bridges(builder);
     world_contour_ground(builder);
     world_builder_apply_wall_decor_offsets(builder);
 
-    /* Bridge decks are LinkBelow: the collision push-down above (and the tile /
-     * geometry push-down below) move a bridge column from cache level 1 to paint
-     * level 0. Mapfunction icons still carry their raw cache level, so pull each
+    /* Bridge decks are LinkBelow: geometry / painter push-down below move a
+     * bridge column from cache level 1 to paint level 0. Collision already
+     * used place-time level shift when locs/terrain were stamped. Mapfunction
+     * icons still carry their raw cache level, so pull each
      * icon on a LinkBelow column to its paint level before the spread — otherwise
      * the spread samples the wrong (pre-push-down) collision map and, at draw
      * time, the icon's level never matches the player's level (app.c minimap icon
@@ -488,7 +489,8 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( builder->occluder_buildmap && world->painter )
     {
         struct SceneOccluders* occ = painter_get_occluders(world->painter);
-        if( !occ )
+        if( !occ || occ->width != world->_scene_size || occ->height != world->_scene_size ||
+            occ->levels != WORLD_MAP_TERRAIN_LEVELS )
         {
             occ = scene_occluders_new(
                 world->_scene_size, world->_scene_size, WORLD_MAP_TERRAIN_LEVELS);

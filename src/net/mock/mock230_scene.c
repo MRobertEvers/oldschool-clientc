@@ -55,9 +55,9 @@ static int g_base_z = -1;
 static struct ToriRS_FeatureTable const* g_features;
 
 /* Which scene columns have a bridge deck (LINK_BELOW at raw level 1), captured
- * during apply_terrain and consumed once by apply_bridges() after every map
- * square's terrain and locs are in. Map-square terrain buffers are freed per
- * square, so this has to be persisted rather than re-derived at the end. */
+ * during apply_terrain and read by apply_loc_collision for place-time level
+ * shift (Client-TS / LostCity). Map-square terrain buffers are freed per
+ * square, so this has to be persisted for locs in the same build pass. */
 static unsigned char g_link_below[SCENE_TILES][SCENE_TILES];
 
 static struct Mock230SceneLoc* g_locs;
@@ -235,6 +235,10 @@ mock230_scene_loc_op(
  * src/engine/world_builder/world_collision.u.c — the client's own switch — and
  * has to keep mirroring it: the whole value of this file is that both ends
  * block the same tiles.
+ *
+ * LINK_BELOW: stamp onto collision level-1 (Client-TS ClientBuild /
+ * LostCity place-time shift). Geometry / loc->level stay at the raw cache
+ * level. See docs/COLLISION_MAP.md.
  */
 static void
 apply_loc_collision(
@@ -246,16 +250,24 @@ apply_loc_collision(
     enum CollisionLocAngle angle;
     int blockrange;
     int scene_x, scene_z;
+    int coll_level;
 
     if( !config || loc->level < 0 || loc->level >= SCENE_LEVELS )
-        return;
-    map = g_collision[loc->level];
-    if( !map )
         return;
 
     scene_x = loc->x - g_base_x;
     scene_z = loc->z - g_base_z;
     if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 || scene_z >= SCENE_TILES )
+        return;
+
+    coll_level = loc->level;
+    if( g_link_below[scene_x][scene_z] )
+        coll_level--;
+    if( coll_level < 0 )
+        return;
+
+    map = g_collision[coll_level];
+    if( !map )
         return;
 
     angle = (enum CollisionLocAngle)(loc->angle & 3);
@@ -392,18 +404,12 @@ record_loc(
 /*
  * Terrain: a tile whose settings carry BLOCK is not walkable.
  *
- * No level shift here, deliberately — mirrors world_collision_apply_terrain
- * (world_collision.u.c). The LINK_BELOW rule is the bridge case, and it is a
- * separate whole-column pass (apply_bridges, below) that runs once after every
- * map square's terrain *and* locs are registered: it copies level i+1's whole
- * collision word down onto level i for every LINK_BELOW column, so a bridge
- * deck's blocking (terrain and locs alike) ends up at the level players
- * actually stand on, and whatever raw level-0 content sat underneath is
- * discarded with it. Shifting terrain alone, here, missed locs entirely — a
- * fence post placed at the raw level under a bridge stayed blocked at the
- * level the bridge deck occupies, so BFS refused to route across it even
- * though the client's own collision (built the same two-pass way) said the
- * tile was open.
+ * LINK_BELOW uses Client-TS / LostCity place-time trueLevel-- (stamp onto the
+ * playable collision level). Loc collision does the same shift in
+ * apply_loc_collision. A post-hoc whole-word column overwrite used to split
+ * dual-tile wall stamps — docs/COLLISION_MAP.md.
+ *
+ * Roof bits stay on the raw cache level (LostCity changeRoofCollision).
  */
 static void
 apply_terrain(
@@ -419,13 +425,16 @@ apply_terrain(
             int abs_z = map_z * 64 + local_z;
             int scene_x = abs_x - g_base_x;
             int scene_z = abs_z - g_base_z;
+            int link_below;
 
             if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
                 scene_z >= SCENE_TILES )
                 continue;
 
-            if( (terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, 1)].settings &
-                 RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
+            link_below =
+                (terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, 1)].settings &
+                 RSCACHE_FLOFLAG_LINK_BELOW) != 0;
+            if( link_below )
                 g_link_below[scene_x][scene_z] = 1;
 
             for( int level = 0; level < SCENE_LEVELS; level++ )
@@ -433,15 +442,22 @@ apply_terrain(
                 uint8_t settings =
                     terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)]
                         .settings;
+                int true_level = level;
 
-                if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 && g_collision[level] )
-                    collision_map_add_floor(g_collision[level], scene_x, scene_z);
+                if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 )
+                {
+                    if( link_below )
+                        true_level--;
+                    if( true_level >= 0 && true_level < SCENE_LEVELS &&
+                        g_collision[true_level] )
+                        collision_map_add_floor(g_collision[true_level], scene_x, scene_z);
+                }
 
                 /* Roofed-ness, which is what moverestrict=indoors/outdoors
                  * reads. REMOVE_ROOF marks the tiles the client hides roofs
                  * over, i.e. the ones that are indoors, and it is the same bit
                  * the reference stamps ROOF from (LostCity GameMap). Raw cache
-                 * level, no bridge shift — like the BLOCK bit above. */
+                 * level, no bridge shift. */
                 if( (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) != 0 && g_collision[level] )
                     collision_map_change_roof(g_collision[level], scene_x, scene_z, 1);
             }
@@ -450,37 +466,12 @@ apply_terrain(
 }
 
 /*
- * Bridge push-down: a direct port of world_collision_apply_bridges
- * (world_collision.u.c). For every scene column whose raw level-1 tile carries
- * LINK_BELOW, copy level i+1's whole flags word onto level i (0<-1, 1<-2,
- * 2<-3) — terrain and loc collision together, since apply_terrain and
- * record_loc already ran for the whole scene by the time this is called.
- * Runs exactly once, after every map square in the scene has contributed its
- * terrain and locs.
+ * Formerly a whole-flag-word column overwrite. Loc/terrain collision now use
+ * place-time LinkBelow shift; this remains so build's call site is stable.
  */
 static void
 apply_bridges(void)
 {
-    for( int x = 0; x < SCENE_TILES; x++ )
-    {
-        for( int z = 0; z < SCENE_TILES; z++ )
-        {
-            if( !g_link_below[x][z] )
-                continue;
-
-            for( int level = 0; level < SCENE_LEVELS - 1; level++ )
-            {
-                struct CollisionMap* cm_below = g_collision[level];
-                struct CollisionMap* cm_above = g_collision[level + 1];
-                int idx;
-
-                if( !cm_below || !cm_above )
-                    continue;
-                idx = collision_map_index_at(cm_below, x, z);
-                cm_below->flags[idx] = cm_above->flags[idx];
-            }
-        }
-    }
 }
 
 /* ------------------------------------------------------------------ */

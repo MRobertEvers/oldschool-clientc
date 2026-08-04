@@ -54,7 +54,7 @@ with screenshots under `tmp_panel_shots/after_*.png`, not a reading. See
 | `xptracker` | 729 | **mounted in `popout:container`** | **right-docked 264×491 inside widened strip (312px); overview keeps `Total XP/Hr` / `Total XP Gained`**. Exit 0. Screenshots: `tmp_panel_shots/after_xptracker.png`. | Set Goal dead (§1.1). Skill rows still empty after `::xp attack N` in the same cheat batch — baseline/transmit timing, not mount. |
 | `hiscores` | 894 | **honest failure path, framed** | **right-docked; 7809 status 3; cache text `In-world lookup: Disabled` draws inside the nine-slice frame**. Exit 0. `after_hiscores.png`. | Real HTTP lookup stays out of band; do not fabricate ranks. |
 | `loottools` | 650 | **mounted + framed; kill drops populate** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). | Settings gear / ignore chrome; undeclared `loottools_varp1` 3798 if chrome wants it. |
-| `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)` from `~orbs_login`. `xpdrops_options` + goal varps + carriers declared. | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
+| `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)`. Op1 Show/Hide arms with Setup (`^xpdrops_orb_events`), toggles `%xpdrops_enabled`, and `~xpdrops_sync_mount` opens/closes interface `xp_drops` (not in `gameframe.enum` — default off). | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
 

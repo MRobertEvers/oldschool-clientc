@@ -23,9 +23,9 @@ test_painters_smoke(void)
         return;
 
     /* A couple of scenery elements and a wall around the center of the grid. */
-    painter_add_normal_scenery(painter, 16, 16, 0, 1, 1, 1);
-    painter_add_normal_scenery(painter, 15, 16, 0, 2, 1, 1);
-    painter_add_normal_scenery(painter, 17, 15, 0, 3, 2, 1);
+    painter_add_normal_scenery(painter, 16, 16, 0, 1, 1, 1, 0);
+    painter_add_normal_scenery(painter, 15, 16, 0, 2, 1, 1, 0);
+    painter_add_normal_scenery(painter, 17, 15, 0, 3, 2, 1, 0);
     painter_add_wall(painter, 16, 15, 0, 4, WALL_A, WALL_SIDE_NORTH);
 
     painter_mark_static_count(painter);
@@ -73,9 +73,9 @@ test_painters_tile_order(void)
         return;
 
     /* Three 1x1 statics on the same tile, added in ascending entity order. */
-    painter_add_normal_scenery(painter, 16, 16, 0, 101, 1, 1);
-    painter_add_normal_scenery(painter, 16, 16, 0, 102, 1, 1);
-    painter_add_normal_scenery(painter, 16, 16, 0, 103, 1, 1);
+    painter_add_normal_scenery(painter, 16, 16, 0, 101, 1, 1, 0);
+    painter_add_normal_scenery(painter, 16, 16, 0, 102, 1, 1, 0);
+    painter_add_normal_scenery(painter, 16, 16, 0, 103, 1, 1, 0);
 
     painter_mark_static_count(painter);
 
@@ -102,7 +102,7 @@ test_painters_tile_order(void)
     /* Dynamics (players/npcs) re-register every cycle after painter_reset_to_static; they must
      * land after the tile's statics, not in front of them. */
     painter_reset_to_static(painter);
-    painter_add_normal_scenery(painter, 16, 16, 0, 900, 1, 1);
+    painter_add_normal_scenery(painter, 16, 16, 0, 900, 1, 1, 0);
     painter_paint_bucket(painter, buffer, 16, 16, 0);
 
     int i900 = command_index_of_entity(buffer, 900);

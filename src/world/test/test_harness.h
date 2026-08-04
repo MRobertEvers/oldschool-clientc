@@ -100,6 +100,7 @@ void test_occupancy_stacking(void);
 void test_route_window(void);
 void test_collision_types(void);
 void test_follow_dance_semantics(void);
+void test_wall_edge_symmetry(void);
 
 /* Simulations */
 void sim_path_followers(void);

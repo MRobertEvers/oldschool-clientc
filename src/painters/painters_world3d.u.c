@@ -130,20 +130,30 @@ painter_w3d_emit_ground_pass(
     int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
     tile_paint->near_wall_flags |= ~far_walls;
 
-    int paintgrid_level = painters_tile_get_paintgrid_level(tile);
+    /* Occlusion uses mesh_level = reference originalLevel (survives push-down). */
+    int occlusion_level = painters_tile_get_mesh_level(tile);
     struct SceneOccluders* occ = painter->occluders;
     int ground_hidden =
-        painter_tile_ground_hidden(occ, tile_paint, paintgrid_level, tile_sx, tile_sz);
+        painter_tile_ground_hidden(occ, tile_paint, occlusion_level, tile_sx, tile_sz);
 
     if( tile->bridge_tile != -1 )
     {
         bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
 
-        push_command_terrain(
-            buffer,
-            bridge_underpass_tile->sx,
-            bridge_underpass_tile->sz,
-            painters_tile_get_mesh_level(bridge_underpass_tile));
+        /* Reference groundOccluded(0, ...) on the linked underpass square. */
+        if( !(occ &&
+              scene_occluders_ground_tile_hidden(
+                  occ,
+                  painters_tile_get_mesh_level(bridge_underpass_tile),
+                  bridge_underpass_tile->sx,
+                  bridge_underpass_tile->sz)) )
+        {
+            push_command_terrain(
+                buffer,
+                bridge_underpass_tile->sx,
+                bridge_underpass_tile->sz,
+                painters_tile_get_mesh_level(bridge_underpass_tile));
+        }
 
         if( bridge_underpass_tile->wall_a != -1 )
         {
@@ -178,7 +188,7 @@ painter_w3d_emit_ground_pass(
 
         if( (element->_wall.side & far_walls) != 0 &&
             !(occ && scene_occluders_wall_hidden(
-                         occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
             push_command_entity(buffer, element->_wall.entity);
     }
 
@@ -189,7 +199,7 @@ painter_w3d_emit_ground_pass(
 
         if( (element->_wall.side & far_walls) != 0 &&
             !(occ && scene_occluders_wall_hidden(
-                         occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
             push_command_entity(buffer, element->_wall.entity);
     }
 
@@ -197,7 +207,7 @@ painter_w3d_emit_ground_pass(
     {
         element = &painter->elements[tile->ground_decor];
         assert(element->kind == PNTRELEM_GROUND_DECOR);
-        if( !(occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+        if( !(occ && scene_occluders_column_hidden(occ, occlusion_level, tile_sx, tile_sz, 0)) )
             push_command_entity(buffer, element->_ground_decor.entity);
     }
 
@@ -205,7 +215,7 @@ painter_w3d_emit_ground_pass(
     {
         element = &painter->elements[tile->ground_object_bottom];
         assert(element->kind == PNTRELEM_GROUND_OBJECT);
-        if( !(occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0)) )
+        if( !(occ && scene_occluders_column_hidden(occ, occlusion_level, tile_sx, tile_sz, 0)) )
             push_command_entity(buffer, element->_ground_object.entity);
     }
 
@@ -214,7 +224,9 @@ painter_w3d_emit_ground_pass(
         element = &painter->elements[tile->wall_decor_a];
         assert(element->kind == PNTRELEM_WALL_DECOR);
         int decor_hidden =
-            occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
+            occ &&
+            scene_occluders_column_hidden(
+                occ, occlusion_level, tile_sx, tile_sz, element->_wall_decor.model_height);
         if( element->_wall_decor._bf_through_wall_flags != 0 )
         {
             int x_diff = element->sx - camera_sx;
@@ -265,12 +277,19 @@ painter_w3d_emit_near_wall_pass(
     struct TilePaint* tile_paint)
 {
     struct PaintersElement* element = NULL;
-    int paintgrid_level = painters_tile_get_paintgrid_level(tile);
+    int occlusion_level = painters_tile_get_mesh_level(tile);
     int tile_sx = tile->sx;
     int tile_sz = tile->sz;
     struct SceneOccluders* occ = painter->occluders;
-    int decor_hidden =
-        occ && scene_occluders_column_hidden(occ, paintgrid_level, tile_sx, tile_sz, 0);
+    int decor_hidden = 0;
+    if( tile->wall_decor_a != -1 )
+    {
+        element = &painter->elements[tile->wall_decor_a];
+        decor_hidden =
+            occ &&
+            scene_occluders_column_hidden(
+                occ, occlusion_level, tile_sx, tile_sz, element->_wall_decor.model_height);
+    }
 
     if( tile->wall_decor_a != -1 )
     {
@@ -320,7 +339,7 @@ painter_w3d_emit_near_wall_pass(
 
         if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
             !(occ && scene_occluders_wall_hidden(
-                         occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
             push_command_entity(buffer, element->_wall.entity);
     }
 
@@ -331,7 +350,7 @@ painter_w3d_emit_near_wall_pass(
 
         if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
             !(occ && scene_occluders_wall_hidden(
-                         occ, paintgrid_level, tile_sx, tile_sz, element->_wall.side)) )
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
             push_command_entity(buffer, element->_wall.entity);
     }
 }
@@ -489,6 +508,7 @@ painter_paint_world3d(
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
         int paintgrid_level = painters_tile_get_paintgrid_level(tile);
+        int occlusion_level = painters_tile_get_mesh_level(tile);
         tile_paint = &painter->tile_paints[tile_idx];
 
         if( wp->draw_front )
@@ -684,12 +704,12 @@ painter_paint_world3d(
                 if( !(painter->occluders &&
                       scene_occluders_footprint_hidden(
                           painter->occluders,
-                          paintgrid_level,
+                          occlusion_level,
                           (int)element->sx,
                           (int)element->sz,
                           element->_scenery.size_x,
                           element->_scenery.size_z,
-                          0)) )
+                          element->_scenery.model_height)) )
                     push_command_entity(buffer, element->_scenery.entity);
 
                 int occ_min_x = element->sx;

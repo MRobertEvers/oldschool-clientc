@@ -1111,6 +1111,7 @@ For any substantial task, in this order:
      `LostCity_Server/content/scripts/README.md`
    - ServerScript → [`serverscript.md`](serverscript.md)
    - pathfinding / LoS / NPC movement →
+     [`COLLISION_MAP.md`](COLLISION_MAP.md) (wall flags / directionality),
      [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md), then
      [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md) §7
    - UI-facing features → [`REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md),

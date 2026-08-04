@@ -1330,3 +1330,76 @@ test_follow_dance_semantics(void)
         (a_x == 50 || a_x == 51) && (b_x == 50 || b_x == 51),
         "dance stays on the two-tile corridor");
 }
+
+/*
+ * Walk checks are destination-only; two-way blocking is a data invariant of
+ * collision_map_add_wall. docs/COLLISION_MAP.md.
+ */
+void
+test_wall_edge_symmetry(void)
+{
+    printf("TEST: wall edge dual-stamp symmetry vs one-sided orphan\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int a_x = 20;
+    int a_z = 20;
+    int b_x = 19; /* west neighbor */
+    int b_z = 20;
+
+    /* Proper dual stamp: west wall on A mirrors WALL_EAST onto B. */
+    collision_map_add_wall(cm, a_x, a_z, 0 /* WALL_SINGLE_SIDE */, COLL_ANGLE_WEST, 0);
+    TEST_ASSERT(
+        (collision_map_tile(cm, a_x, a_z) & COLL_FLAG_WALL_WEST) != 0,
+        "dual-stamp: home tile has WALL_WEST");
+    TEST_ASSERT(
+        (collision_map_tile(cm, b_x, b_z) & COLL_FLAG_WALL_EAST) != 0,
+        "dual-stamp: neighbor has WALL_EAST");
+    TEST_ASSERT(!collision_map_can_step_west(cm, a_x, a_z), "dual-stamp: A→B west blocked");
+    TEST_ASSERT(!collision_map_can_step_east(cm, b_x, b_z), "dual-stamp: B→A east blocked");
+
+    collision_map_free(cm);
+    cm = collision_map_new(64, 64);
+
+    /*
+     * Orphan: only the home face. Dest-only step then allows A→B (walk through)
+     * while B→A still hits WALL_WEST on A. Do not "fix" this by checking both
+     * tiles when walking — fix the stamp instead.
+     */
+    cm->flags[collision_map_index_at(cm, a_x, a_z)] |= COLL_FLAG_WALL_WEST;
+    TEST_ASSERT(
+        (collision_map_tile(cm, b_x, b_z) & COLL_FLAG_WALL_EAST) == 0,
+        "orphan: neighbor lacks WALL_EAST");
+    TEST_ASSERT(
+        collision_map_can_step_west(cm, a_x, a_z),
+        "orphan: A→B west is open (one-way walk-through)");
+    TEST_ASSERT(
+        !collision_map_can_step_east(cm, b_x, b_z),
+        "orphan: B→A east still blocked");
+
+    /*
+     * Bridge column overwrite of one tile of an edge produces the same orphan
+     * on the playable level: L1 has a mirrored wall, only column A is pushed
+     * down onto L0.
+     */
+    collision_map_free(cm);
+    cm = collision_map_new(64, 64);
+    {
+        struct CollisionMap* upper = collision_map_new(64, 64);
+        collision_map_add_wall(upper, a_x, a_z, 0, COLL_ANGLE_WEST, 0);
+        /* Simulate post-hoc LINK_BELOW overwrite of column A only. */
+        cm->flags[collision_map_index_at(cm, a_x, a_z)] =
+            upper->flags[collision_map_index_at(upper, a_x, a_z)];
+        TEST_ASSERT(
+            (collision_map_tile(cm, a_x, a_z) & COLL_FLAG_WALL_WEST) != 0 &&
+                (collision_map_tile(cm, b_x, b_z) & COLL_FLAG_WALL_EAST) == 0,
+            "column overwrite: orphan WALL_WEST on playable level");
+        TEST_ASSERT(
+            collision_map_can_step_west(cm, a_x, a_z) &&
+                !collision_map_can_step_east(cm, b_x, b_z),
+            "column overwrite: one-way west through the edge");
+        collision_map_free(upper);
+    }
+
+    collision_map_free(cm);
+}
+

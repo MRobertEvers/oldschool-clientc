@@ -182,6 +182,34 @@ ToriDraw_SceneElementIsLive(
     struct ToriDraw_Scene* scene,
     int element_id);
 
+/**
+ * Occlusion sample height above ground for a scene element — reference
+ * Model.minY / bottomY (= max(-vertexY)). Returns 0 when the element is dead,
+ * the handle is not a full model, or bounds are missing.
+ */
+static inline int
+ToriDraw_SceneElementOcclusionHeight(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* el;
+    struct ToriDraw_Model* model;
+    int h;
+
+    if( !scene || element_id < 0 )
+        return 0;
+    if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return 0;
+    el = ToriDraw_SceneElementGet(scene, element_id);
+    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+        return 0;
+    model = el->model.u.model.model;
+    if( !model || !model->bounds_cylinder )
+        return 0;
+    h = -model->bounds_cylinder->min_y;
+    return h > 0 ? h : 0;
+}
+
 int
 ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene);
 

@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct ToriDraw_Scene;
+
 /* Sized for a rebuild's bulk despawn (projectiles + spotanims + out-of-scene
  * stacks) plus a frame of NPC/player churn. Overflow is a programming error —
  * silently dropping EntityRemoved orphans DYNAMIC scene elements across the
@@ -169,6 +171,9 @@ struct World
     struct Minimap* minimap;
     struct Painter* painter;
     struct PaintersCullMap* cullmap;
+    /** Shared ToriDraw scene; set by App after World_New so dynamic painter
+     * registration can read model bounds for occlusion heights. */
+    struct ToriDraw_Scene* scene;
 
     /** Raw land "settings" byte per scene tile (reference mapl): 0x1 block,
      * 0x2 link-below (bridge), 0x4 remove-roof, 0x8 vis-below. Persisted
@@ -324,6 +329,12 @@ World_New(void);
 
 void
 World_Free(struct World* world);
+
+/** Bind the shared ToriDraw scene (for occlusion model-height lookups). */
+void
+World_SetScene(
+    struct World* world,
+    struct ToriDraw_Scene* scene);
 
 /** Append a loc mapscene minimap icon (reference drawDetail mapscene gather),
  * growing world->mapscenes as needed. Silently no-ops on alloc failure. */

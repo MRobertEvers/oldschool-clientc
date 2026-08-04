@@ -1286,7 +1286,8 @@ scenery_add_wall_decor_inside(
         element_id,
         WALL_A,
         ROTATION_WALL_TYPE[orientation],
-        0);
+        0,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     decor_buildmap_add_element(
         builder->decor_buildmap,
@@ -1340,7 +1341,8 @@ scenery_add_wall_decor_outside(
         element_id,
         WALL_A,
         ROTATION_WALL_TYPE[orientation],
-        0);
+        0,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     decor_buildmap_add_element(
         builder->decor_buildmap,
@@ -1394,7 +1396,8 @@ scenery_add_wall_decor_diagonal_outside(
         element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation],
-        THROUGHWALL);
+        THROUGHWALL,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     decor_buildmap_add_element(
         builder->decor_buildmap,
@@ -1449,7 +1452,8 @@ scenery_add_wall_decor_diagonal_inside(
         element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation],
-        THROUGHWALL);
+        THROUGHWALL,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     decor_buildmap_add_element(
         builder->decor_buildmap,
@@ -1528,7 +1532,8 @@ scenery_add_wall_decor_diagonal_double(
         outside_element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[outside_orientation],
-        THROUGHWALL);
+        THROUGHWALL,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, outside_element_id));
 
     painter_add_wall_decor(
         world->painter,
@@ -1538,7 +1543,8 @@ scenery_add_wall_decor_diagonal_double(
         inside_element_id,
         WALL_B,
         ROTATION_WALL_CORNER_TYPE[inside_orientation],
-        THROUGHWALL);
+        THROUGHWALL,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, inside_element_id));
 
     decor_buildmap_add_element(
         builder->decor_buildmap,
@@ -1583,7 +1589,14 @@ scenery_add_wall_diagonal(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
 
     painter_add_normal_scenery(
-        world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        world->painter,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        element_id,
+        1,
+        1,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     decor_buildmap_set_wall_offset(
         builder->decor_buildmap,
@@ -1641,7 +1654,14 @@ scenery_add_normal(
     scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_normal_scenery(
-        world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, size_x, size_z);
+        world->painter,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        element_id,
+        size_x,
+        size_z,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
     int shade = size_x * size_z * 11;
     if( shade > 30 )
         shade = 30;
@@ -1680,7 +1700,14 @@ scenery_add_roof(
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
     painter_add_normal_scenery(
-        world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
+        world->painter,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        element_id,
+        1,
+        1,
+        ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
     /* Roof occluder marks: shapes 12..17 except 13 (ROOF_DIAGONAL_WITH_ROOFEDGE
      * / ROOF_SLOPED_OUTER_CORNER), only above level 0. Gate on the shape

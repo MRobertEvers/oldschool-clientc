@@ -178,7 +178,7 @@ painter_fuzz_build_scene(
             w = 1;
         if( h < 1 )
             h = 1;
-        if( painter_add_normal_scenery(painter, sx, sz, slevel, 1000 + i, w, h) >= 0 && added )
+        if( painter_add_normal_scenery(painter, sx, sz, slevel, 1000 + i, w, h, 0) >= 0 && added )
             added->scenery++;
     }
 
@@ -210,7 +210,7 @@ painter_fuzz_build_scene(
         int side = 1 << rng_range(&rng, 0, 7);
         int through = (rng_u32(&rng) & 3u) == 0 ? THROUGHWALL : 0;
         if( painter_add_wall_decor(
-                painter, sx, sz, slevel, 3000 + i, wall_ab, side, through) >= 0 &&
+                painter, sx, sz, slevel, 3000 + i, wall_ab, side, through, 0) >= 0 &&
             added )
             added->walldecor++;
     }
