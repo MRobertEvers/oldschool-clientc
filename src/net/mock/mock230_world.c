@@ -3179,8 +3179,9 @@ handle_opheld(
  * CS2 path, so this is what actually moves the items; a reject would leave
  * the client looking at the pre-drag layout until the next transmit.
  *
- * Same-component moves inside the backpack (and bankmain items) are accepted.
- * Cross-container drags are refused — the mock has no equip-by-drag model. */
+ * Same-component moves inside the backpack and bankmain items are accepted.
+ * Bank item → bankmain:tabs assigns the stack to that tab (updates tab_size).
+ * Other cross-container drags are refused — the mock has no equip-by-drag. */
 static void
 handle_inv_buttond(
     struct Mock230Server* srv,
@@ -3226,15 +3227,14 @@ handle_inv_buttond(
             dst_slot,
             dst_obj);
 
-    if( src_com != dst_com )
-        return;
-    if( src_slot == dst_slot )
-        return;
-
     if( src_com == ids->com_inventory_items )
     {
         struct Mock230Item swap;
 
+        if( src_com != dst_com )
+            return;
+        if( src_slot == dst_slot )
+            return;
         if( src_slot < 0 || src_slot >= MOCK230_INV_SLOTS || dst_slot < 0 ||
             dst_slot >= MOCK230_INV_SLOTS )
             return;
@@ -3255,21 +3255,38 @@ handle_inv_buttond(
     if( src_com == ids->com_bankmain_items )
     {
         struct Mock230Bank* bank = &player->bank;
-        struct Mock230Item swap;
 
-        if( src_slot < 0 || src_slot >= bank->size || dst_slot < 0 || dst_slot >= bank->size )
+        if( src_slot < 0 || src_slot >= bank->size )
             return;
         if( src_obj >= 0 && bank->slots[src_slot].obj_id != src_obj )
+            return;
+
+        /* Drop onto the tab strip: child 0..9 backgrounds, 10..19 icons
+         * (script_505). Kronos maps the same way (toSlot - 10). */
+        if( dst_com == ids->com_bankmain_tabs )
+        {
+            int dest_tab = dst_slot;
+
+            if( dest_tab >= 10 && dest_tab <= 19 )
+                dest_tab -= 10;
+            else if( dest_tab < 0 || dest_tab > 9 )
+                return;
+            mock230_bank_move_to_tab(srv, src_slot, dest_tab);
+            return;
+        }
+
+        if( src_com != dst_com )
+            return;
+        if( dst_slot < 0 || dst_slot >= bank->size )
+            return;
+        if( src_slot == dst_slot )
             return;
         if( dst_obj >= 0 && bank->slots[dst_slot].obj_id != dst_obj )
             return;
         if( dst_obj < 0 && bank->slots[dst_slot].obj_id >= 0 )
             return;
 
-        swap = bank->slots[src_slot];
-        bank->slots[src_slot] = bank->slots[dst_slot];
-        bank->slots[dst_slot] = swap;
-        bank->dirty = 1;
+        mock230_bank_move_slot(srv, src_slot, dst_slot);
         return;
     }
 }
@@ -7723,6 +7740,11 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(ids->com_bankmain_items == MOCK230_COM(12, 12) &&
                            ids->com_bankside_items == MOCK230_COM(15, 3),
                        "the two item grids should be 12:12 and 15:3");
+        SELFTEST_CHECK(ids->com_bankmain_capacity == MOCK230_COM(12, 8) &&
+                           ids->com_bankmain_tabs == MOCK230_COM(12, 10),
+                       "capacity/tabs should be 12:8 and 12:10, got 12:%d and 12:%d",
+                       MOCK230_COM_CHILD(ids->com_bankmain_capacity),
+                       MOCK230_COM_CHILD(ids->com_bankmain_tabs));
         SELFTEST_CHECK(MOCK230_COM_CHILD(ids->com_bankmain_qty_1) == 29 &&
                            MOCK230_COM_CHILD(ids->com_bankmain_deposit_inv) == 47,
                        "the bank buttons should be the components carrying op1: "
@@ -8372,15 +8394,38 @@ mock230_world_selftest(void)
         {
             int joe_type = mock230_content_symbol(MOCK230_PACK_NPC, "joe");
             int joe;
-            uint8_t payload[2];
             static const int k_dialogue[] = { 95, 97, 94, 6 };
 
             SELFTEST_CHECK(joe_type > 0, "npc joe should resolve by name");
             joe = selftest_find_npc(&srv, joe_type);
             if( joe < 0 )
             {
-                joe = mock230_world_npc_spawn(
-                    &srv, joe_type, player->x + 1, player->z, player->level);
+                /* Selftest worlds fill every npc slot from map spawns. Free one
+                 * far from the player so Joe can take it — same occupancy clear
+                 * a despawn uses. */
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                {
+                    struct Mock230Npc* n = &srv.npcs[i];
+                    int dx;
+                    int dz;
+
+                    if( !n->active )
+                    {
+                        joe = mock230_world_npc_spawn(
+                            &srv, joe_type, player->x + 1, player->z, player->level);
+                        break;
+                    }
+                    dx = n->x - player->x;
+                    dz = n->z - player->z;
+                    if( dx > 32 || dx < -32 || dz > 32 || dz < -32 )
+                    {
+                        mock230_world_npc_occupancy(n, 0);
+                        n->active = 0;
+                        joe = mock230_world_npc_spawn(
+                            &srv, joe_type, player->x + 1, player->z, player->level);
+                        break;
+                    }
+                }
             }
             SELFTEST_CHECK(joe >= 0, "joe should be in the world or spawnable");
 
@@ -8393,13 +8438,15 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->active_script == NULL,
                            "refused opnpc leaves no parked script");
 
+            /* Direct trigger with the live slot — proves arming without depending
+             * on walk-to-approach (Joe may sit outside the default Lumbridge
+             * scene the selftest player starts in). */
             mock230_world_close_modal(&srv);
-            payload[0] = (uint8_t)(joe >> 8);
-            payload[1] = (uint8_t)(joe & 0xff);
             mock230_capture_begin(&srv, &capture);
-            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
-                           "the walk to Joe should complete");
+            SELFTEST_CHECK(
+                mock230_scripts_run_trigger(
+                    &srv, SS_TRIGGER_OPNPC1, joe_type, -1, joe) == MOCK230_TRIGGER_RAN,
+                "[opnpc1,joe] with a live slot should run");
             mock230_capture_end(&srv);
 
             SELFTEST_CHECK(player->active_script != NULL,
@@ -11431,6 +11478,91 @@ mock230_world_selftest(void)
         player->client_layout_mode = 1;
         mock230_gameframe_opentop(player, ids->iface_gameframe);
         remove(path);
+    }
+
+    fprintf(stderr, "mock230 selftest: gameframe HUD role alias under Fixed\n");
+    {
+        /*
+         * Content names toplevel_osrs_stretch:xp_drops even after Display
+         * remounts Fixed. The remapper must rewrite that HUD role onto the
+         * live top, and must not rewrite nested panels like orbs:xp_drops.
+         */
+        static struct Mock230Capture capture;
+        int stretch_xp =
+            mock230_content_symbol(MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:xp_drops");
+        int fixed_xp = mock230_content_symbol(MOCK230_PACK_COMPONENT, "toplevel:xp_drops");
+        int orbs_xp = mock230_content_symbol(MOCK230_PACK_COMPONENT, "orbs:xp_drops");
+        int xp_drops_iface = mock230_content_symbol(MOCK230_PACK_INTERFACE, "xp_drops");
+        int open_at;
+        struct RSAreaBuf mount;
+        int type;
+        int group;
+        int target;
+
+        SELFTEST_CHECK(stretch_xp > 0 && fixed_xp > 0 && orbs_xp > 0 && xp_drops_iface > 0,
+                       "xp_drops slot / orb / interface must resolve by name "
+                       "(stretch=%d fixed=%d orbs=%d iface=%d)",
+                       stretch_xp, fixed_xp, orbs_xp, xp_drops_iface);
+
+        mock230_gameframe_opentop(player, ids->iface_toplevel);
+        SELFTEST_CHECK(player->gameframe_iface == ids->iface_toplevel,
+                       "fixture needs Fixed top (%d), got %d",
+                       ids->iface_toplevel, player->gameframe_iface);
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_send_if_opensub(
+            player,
+            MOCK230_COM_GROUP(stretch_xp),
+            MOCK230_COM_CHILD(stretch_xp),
+            xp_drops_iface,
+            1);
+        mock230_capture_end(&srv);
+
+        open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+        SELFTEST_CHECK(open_at >= 0, "stretch:xp_drops opensub should encode");
+        if( open_at >= 0 )
+        {
+            rsab_wrap(&mount, capture.packets[open_at].data,
+                      (size_t)capture.packets[open_at].len);
+            type = rsab_g1(&mount);
+            group = rsab_g2_alt2(&mount);
+            target = rsab_g4_alt3(&mount);
+            SELFTEST_CHECK(group == xp_drops_iface,
+                           "opensub group should be xp_drops (%d), got %d",
+                           xp_drops_iface, group);
+            SELFTEST_CHECK(type == 1, "xp_drops mounts as overlay type 1, got %d", type);
+            SELFTEST_CHECK(target == fixed_xp,
+                           "under Fixed, stretch:xp_drops must remap to toplevel:xp_drops "
+                           "(%d), got %d (stretch left alone would be %d)",
+                           fixed_xp, target, stretch_xp);
+        }
+
+        mock230_capture_begin(&srv, &capture);
+        mock230_send_if_opensub(
+            player,
+            MOCK230_COM_GROUP(orbs_xp),
+            MOCK230_COM_CHILD(orbs_xp),
+            xp_drops_iface,
+            1);
+        mock230_capture_end(&srv);
+
+        open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
+        SELFTEST_CHECK(open_at >= 0, "orbs:xp_drops opensub should encode");
+        if( open_at >= 0 )
+        {
+            rsab_wrap(&mount, capture.packets[open_at].data,
+                      (size_t)capture.packets[open_at].len);
+            (void)rsab_g1(&mount);
+            (void)rsab_g2_alt2(&mount);
+            target = rsab_g4_alt3(&mount);
+            SELFTEST_CHECK(target == orbs_xp,
+                           "orbs:xp_drops must not remap onto the HUD slot "
+                           "(expected %d, got %d)",
+                           orbs_xp, target);
+        }
+
+        player->client_layout_mode = 1;
+        mock230_gameframe_opentop(player, ids->iface_gameframe);
     }
 
     fprintf(stderr, "mock230 selftest: combat arithmetic\n");

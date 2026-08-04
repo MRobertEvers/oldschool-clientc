@@ -312,6 +312,12 @@ EXTRA_TRIGGERS: dict[str, int] = {
     # has to run *when that parent opens*, not from [login] a tick later: the
     # child's IF_OPENSUB otherwise races the parent's bake on the client.
     "IF_OPEN": 178,
+    # Rev-230 friend presence. LostCity's client derived "X has logged in."
+    # from UPDATE_FRIENDLIST world-id transitions; at rev 230 that derivation
+    # is gone and the sentence is a server MESSAGE_GAME — so the engine names
+    # the event and content words it (`[friendlogin,_]` / `[friendlogout,_]`).
+    "FRIENDLOGIN": 179,
+    "FRIENDLOGOUT": 180,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.

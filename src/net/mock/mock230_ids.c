@@ -56,6 +56,8 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_COMPONENT, "wornitems:equipment", &g_ids.com_worn_equipment_stats },
 
         { MOCK230_PACK_COMPONENT, "bankmain:items", &g_ids.com_bankmain_items },
+        { MOCK230_PACK_COMPONENT, "bankmain:capacity", &g_ids.com_bankmain_capacity },
+        { MOCK230_PACK_COMPONENT, "bankmain:tabs", &g_ids.com_bankmain_tabs },
         { MOCK230_PACK_COMPONENT, "bankmain:swap_insert", &g_ids.com_bankmain_swap_insert },
         { MOCK230_PACK_COMPONENT, "bankmain:note", &g_ids.com_bankmain_note },
         { MOCK230_PACK_COMPONENT, "bankmain:quantity1", &g_ids.com_bankmain_qty_1 },

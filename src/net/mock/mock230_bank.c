@@ -467,13 +467,161 @@ bank_slot_of(
     return -1;
 }
 
+/* Contiguous tab prefix: tab 1 owns [0, size0), tab 2 owns [size0, size0+size1),
+ * …, main (tab 0) owns everything past the sum. Matches bank_gettabrange CS2. */
 static int
-bank_first_free(const struct Mock230Bank* bank)
+bank_tab_prefix(const struct Mock230Bank* bank)
 {
-    for( int i = 0; i < bank->size; i++ )
-        if( bank->slots[i].obj_id < 0 )
-            return i;
-    return -1;
+    int sum = 0;
+
+    for( int i = 0; i < MOCK230_BANK_TABS; i++ )
+        sum += bank->tab_size[i];
+    return sum;
+}
+
+/** Tab holding `slot`: 1..9, or 0 for main. */
+static int
+bank_tab_for_slot(
+    const struct Mock230Bank* bank,
+    int slot)
+{
+    int end = 0;
+
+    if( slot < 0 )
+        return 0;
+    for( int t = 0; t < MOCK230_BANK_TABS; t++ )
+    {
+        end += bank->tab_size[t];
+        if( slot < end )
+            return t + 1;
+    }
+    return 0;
+}
+
+/** First slot of tab `tab` (1..9), or the main prefix when tab is 0 / past end. */
+static int
+bank_tab_start(
+    const struct Mock230Bank* bank,
+    int tab)
+{
+    int start = 0;
+
+    if( tab <= 0 )
+        return bank_tab_prefix(bank);
+    for( int t = 1; t < tab && t <= MOCK230_BANK_TABS; t++ )
+        start += bank->tab_size[t - 1];
+    return start;
+}
+
+static void
+bank_shift_left(
+    struct Mock230Bank* bank,
+    int from)
+{
+    if( from < 0 || from >= bank->size )
+        return;
+    for( int i = from; i < bank->size - 1; i++ )
+        bank->slots[i] = bank->slots[i + 1];
+    bank->slots[bank->size - 1].obj_id = -1;
+    bank->slots[bank->size - 1].count = 0;
+    bank->dirty = 1;
+}
+
+static void
+bank_shift_right(
+    struct Mock230Bank* bank,
+    int at)
+{
+    if( at < 0 || at >= bank->size )
+        return;
+    if( bank->slots[bank->size - 1].obj_id >= 0 )
+        return; /* no room to open a hole */
+    for( int i = bank->size - 1; i > at; i-- )
+        bank->slots[i] = bank->slots[i - 1];
+    bank->slots[at].obj_id = -1;
+    bank->slots[at].count = 0;
+    bank->dirty = 1;
+}
+
+static void
+bank_push_tab_settings(struct Mock230Server* srv)
+{
+    struct Mock230Bank* bank = &srv->active_player->bank;
+    const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
+
+    /* Sizes only — currenttab is owned by content / CS2 switchtab. */
+    for( int i = 0; tabs && i < tabs->count; i++ )
+    {
+        int tab = tabs->values[i].key;
+
+        if( tab < 0 || tab >= MOCK230_BANK_TABS )
+            continue;
+        mock230_bank_set_varbit(srv, tabs->values[i].value, bank->tab_size[tab]);
+    }
+}
+
+/**
+ * Move the stack at `from_slot` into `dest_tab` (0 = main, 1..9 = a tab).
+ * Updates tab_size[] and re-pushes the tab varbits while the bank is open.
+ */
+void
+mock230_bank_move_to_tab(
+    struct Mock230Server* srv,
+    int from_slot,
+    int dest_tab)
+{
+    struct Mock230Bank* bank = &srv->active_player->bank;
+    struct Mock230Item item;
+    int old_tab;
+    int insert;
+
+    if( from_slot < 0 || from_slot >= bank->size )
+        return;
+    if( dest_tab < 0 || dest_tab > MOCK230_BANK_TABS )
+        return;
+    if( bank->slots[from_slot].obj_id < 0 )
+        return;
+
+    old_tab = bank_tab_for_slot(bank, from_slot);
+    if( old_tab == dest_tab )
+        return;
+
+    item = bank->slots[from_slot];
+    bank_shift_left(bank, from_slot);
+    if( old_tab >= 1 )
+        bank->tab_size[old_tab - 1]--;
+
+    /* Insertion point after the removal. */
+    if( dest_tab >= 1 )
+    {
+        insert = bank_tab_start(bank, dest_tab) + bank->tab_size[dest_tab - 1];
+        if( from_slot < insert )
+            insert--;
+    }
+    else
+    {
+        insert = bank_tab_prefix(bank);
+        if( from_slot < insert )
+            insert--;
+        /* Append after the last occupied main slot. */
+        while( insert < bank->size - 1 && bank->slots[insert].obj_id >= 0 )
+            insert++;
+    }
+
+    if( insert < 0 )
+        insert = 0;
+    if( insert >= bank->size )
+        insert = bank->size - 1;
+
+    if( bank->slots[insert].obj_id >= 0 )
+        bank_shift_right(bank, insert);
+    bank->slots[insert] = item;
+    bank->dirty = 1;
+    if( dest_tab >= 1 )
+        bank->tab_size[dest_tab - 1]++;
+
+    if( bank->open )
+        bank_push_tab_settings(srv);
 }
 
 int
@@ -639,6 +787,15 @@ bank_set_events(struct Mock230Server* srv)
 
     for( size_t i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
         mock230_send_if_setevents(srv->active_player, k_buttons[i], 0, 0, op_1);
+
+    /* Tab strip: CS2 creates backgrounds 0..9 and icons at 10+tab. Ops for
+     * View tab / Collapse; drag target so items can be dropped onto a tab. */
+    mock230_send_if_setevents(
+        srv->active_player,
+        ids->com_bankmain_tabs,
+        0,
+        19,
+        ops_1_to_10 | drag_depth_1 | drag_target);
 }
 
 void
@@ -692,6 +849,15 @@ mock230_bank_open(struct Mock230Server* srv)
         srv->active_player->inv,
         MOCK230_INV_SLOTS);
     bank->dirty = 0;
+
+    /* Capacity under occupiedslots — CS2 never writes it. Content's openbank
+     * also sends this after if_openmain_side; this covers the C-only open path. */
+    {
+        char capacity[16];
+
+        snprintf(capacity, sizeof(capacity), "%d", bank->size);
+        mock230_send_if_settext(srv->active_player, ids->com_bankmain_capacity, capacity);
+    }
 
     /* Bankmain embeds the same bonus rows the equipment screen paints; CS2
      * toggles them behind wornitems_button. Content's ~equipment_refresh
@@ -764,7 +930,9 @@ bank_add(
     int count)
 {
     struct Mock230Bank* bank = &srv->active_player->bank;
+    const struct Mock230Ids* ids = mock230_ids();
     int slot;
+    int dest_tab;
 
     if( obj_id < 0 || count <= 0 )
         return 0;
@@ -776,14 +944,52 @@ bank_add(
         bank_write(bank, slot, obj_id, bank->slots[slot].count + count);
         return count;
     }
-    slot = bank_first_free(bank);
-    if( slot < 0 )
+
+    /* New stack: land in the viewed tab (varbit), else main after the prefix. */
+    dest_tab = mock230_bank_get_varbit(srv, ids->varbit_bank_currenttab);
+    if( dest_tab < 0 || dest_tab > MOCK230_BANK_TABS || dest_tab == 15 )
+        dest_tab = 0;
+    bank->current_tab = dest_tab;
+
+    if( dest_tab >= 1 && dest_tab <= MOCK230_BANK_TABS )
     {
-        mock230_say(srv, "bank_full_message", NULL);
-        return 0;
+        int insert = bank_tab_start(bank, dest_tab) + bank->tab_size[dest_tab - 1];
+
+        if( insert < 0 || insert >= bank->size || bank->slots[bank->size - 1].obj_id >= 0 )
+        {
+            mock230_say(srv, "bank_full_message", NULL);
+            return 0;
+        }
+        if( bank->slots[insert].obj_id >= 0 )
+            bank_shift_right(bank, insert);
+        bank_write(bank, insert, obj_id, count);
+        bank->tab_size[dest_tab - 1]++;
+        if( bank->open )
+            bank_push_tab_settings(srv);
+        return count;
     }
-    bank_write(bank, slot, obj_id, count);
-    return count;
+
+    /* Main: first free at or past the tab prefix. */
+    {
+        int prefix = bank_tab_prefix(bank);
+
+        slot = -1;
+        for( int i = prefix; i < bank->size; i++ )
+        {
+            if( bank->slots[i].obj_id < 0 )
+            {
+                slot = i;
+                break;
+            }
+        }
+        if( slot < 0 )
+        {
+            mock230_say(srv, "bank_full_message", NULL);
+            return 0;
+        }
+        bank_write(bank, slot, obj_id, count);
+        return count;
+    }
 }
 
 int
@@ -938,6 +1144,19 @@ mock230_bank_withdraw(
     if( moved <= 0 )
         return 0;
     bank_write(bank, bank_slot, obj_id, bank->slots[bank_slot].count - moved);
+    /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
+    if( bank->slots[bank_slot].obj_id < 0 )
+    {
+        int tab = bank_tab_for_slot(bank, bank_slot);
+
+        bank_shift_left(bank, bank_slot);
+        if( tab >= 1 )
+        {
+            bank->tab_size[tab - 1]--;
+            if( bank->open )
+                bank_push_tab_settings(srv);
+        }
+    }
     return moved;
 }
 
@@ -1012,9 +1231,13 @@ void
 mock230_bank_reorganize(struct Mock230Server* srv)
 {
     struct Mock230Bank* bank = &srv->active_player->bank;
-    int write = 0;
+    int prefix = bank_tab_prefix(bank);
+    int write = prefix;
 
-    for( int read = 0; read < bank->size; read++ )
+    /* Tab prefix stays contiguous by construction (withdraw/move_to_tab shift).
+     * Only the main section is packed — collapsing across tab boundaries would
+     * steal slots from the tab sizes CS2 reads. */
+    for( int read = prefix; read < bank->size; read++ )
     {
         if( bank->slots[read].obj_id < 0 )
             continue;

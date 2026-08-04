@@ -6617,10 +6617,14 @@ CS2VM2_Op_CC_ChildrenFindCount(
 }
 
 /*
- * Opcode 211 — IF_CHILDREN_COLLECT(startIndex, componentUid, unused) -> count.
- * Fills a new int-array with child subids from startIndex (same collect as
- * IF_CHILDREN_FIND) and stashes the handle for CHILDREN_ARRAY (215). Script
- * 9181 uses this to walk overview_tabs and if_sethide non-selected panels.
+ * Opcode 211 — IF_CHILDREN_COLLECT(unused, componentUid, startIndex) -> count.
+ * Call sites push in that order (script 9181: `211(1, $tabs, -1)`), so start
+ * is on top of the stack — same as IF_CHILDREN_FIND's start-then-uid pop
+ * after the leading unused. Fills a new int-array with child subids from
+ * startIndex and stashes the handle for CHILDREN_ARRAY (215). Script 9181
+ * walks overview_tabs and if_sethide's the non-selected content panel; a
+ * reversed pop made start=1 and skipped tab 0, so Overview never hid when
+ * switching to Quest XP.
  */
 int
 CS2VM2_Op_IF_ChildrenCollect(
@@ -6632,14 +6636,14 @@ CS2VM2_Op_IF_ChildrenCollect(
     assert(frame);
     (void)operand;
 
-    int unused;
-    int uid;
     int start_index;
-    if( CS2VM2_PopInt(vm, &unused) != CS2VM_EXECNO_OK )
+    int uid;
+    int unused;
+    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     if( CS2VM2_PopInt(vm, &uid) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
-    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
+    if( CS2VM2_PopInt(vm, &unused) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
     (void)unused;
 

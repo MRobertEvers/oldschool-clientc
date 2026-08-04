@@ -106,6 +106,10 @@ struct Mock230Ids
 
     /** The bank's item grid and the buttons along its bottom. */
     int com_bankmain_items;
+    /** Max-slot text under occupiedslots — CS2 never writes it; the server does. */
+    int com_bankmain_capacity;
+    /** Tab strip CS2 fills with dynamic children (View all / tab icons / New tab). */
+    int com_bankmain_tabs;
     /*
      * One component each, not two.
      *

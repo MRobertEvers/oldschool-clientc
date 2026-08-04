@@ -200,14 +200,16 @@ test_known_coverage(void)
 
     CHECK_EQ(named, SS_OPCODE_COUNT, "every defined opcode has a name");
 
-    /* LC_OP, OC_IOP and OC_OP are the only three: the reference declares the
-     * ids but implements no handler, so their arity is genuinely unknown and
+    /* LC_OP, OC_IOP, OC_OP and MAP_LOC are the only unknowns: the reference
+     * declares the ids but implements no handler (and engine.rs2 has no
+     * signature for MAP_LOC either), so their arity is genuinely unknown and
      * they must stay known=0 so the VM refuses to execute them. Guessing would
      * silently corrupt the stack. */
-    CHECK_EQ(SS_OPCODE_COUNT - known, 3, "exactly three opcodes lack a signature");
+    CHECK_EQ(SS_OPCODE_COUNT - known, 4, "exactly four opcodes lack a signature");
     CHECK(!SSVM_OpcodeMetaKnown(SS_OP_LC_OP), "lc_op has no signature");
     CHECK(!SSVM_OpcodeMetaKnown(SS_OP_OC_IOP), "oc_iop has no signature");
     CHECK(!SSVM_OpcodeMetaKnown(SS_OP_OC_OP), "oc_op has no signature");
+    CHECK(!SSVM_OpcodeMetaKnown(SS_OP_MAP_LOC), "map_loc has no signature");
 }
 
 static void

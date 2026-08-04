@@ -1216,6 +1216,18 @@ showed the underlying item.
   0, so the guard is equivalent for the target caches and safer against odd
   data than bare `cert_template != -1`).
 
+**`zan2d` roll on inventory icons.** Client-TS `Model.objRender` (and deob
+`drawFrustum`) apply model rotations as roll → pitch → yaw before the eye
+offset. `ToriDraw_Project` used to drop `position.roll` and only run the
+yaw-only / pitch+yaw SIMD fused paths, so items with a large authored `2dzan`
++ `2dxof` (e.g. Pet chaos elemental: `2dzan=1939`, `2dxof=-66`) projected mostly
+off the 36×32 tile and appeared as a speck in Collection Log. Fix:
+`project_orthographic` / `project_notex` use Jagex roll→pitch→yaw order;
+`ToriDraw_Project` (and the cylinder AABB) take the `project_vertices_array6_fused`
+path when model or camera roll is non-zero (same as v0 Dash); yaw-only and
+pitch+yaw keep the SIMD fused paths. `SpriteNewFromObjIconRaster` sets
+`position.roll = zan2d` again. Items with `zan2d == 0` are unchanged.
+
 Not ported: the reference's `owi === 33` stackable sentinel that forces the
 yellow count number onto every cert/stackable icon (`Client.ts:10197-10263`).
 The count is currently drawn only through the `RS_INV_TEXT` path

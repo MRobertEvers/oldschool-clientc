@@ -228,8 +228,18 @@ mock230_bank_move_slot(
     int from,
     int to);
 
-/** Compact the container towards slot 0, preserving order. The reference does
- *  this on open and on close, because a drag can leave gaps. */
+/**
+ * Move the stack at `from_slot` into bank tab `dest_tab` (0 = main / unassigned,
+ * 1..9 = a named tab). Updates `tab_size[]` and re-pushes the tab varbits.
+ */
+void
+mock230_bank_move_to_tab(
+    struct Mock230Server* srv,
+    int from_slot,
+    int dest_tab);
+
+/** Compact the main section towards the end of the tab prefix, preserving tab
+ *  boundaries. The reference does this on open and on close. */
 void
 mock230_bank_reorganize(struct Mock230Server* srv);
 

@@ -155,13 +155,10 @@ mock230_scripts_load(
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
     mock230_scripts_report_gaps(srv);
-    /* Same reasoning, applied to names instead of opcodes — see the header on
-     * mock230_scripts_resolve_hooks. */
-    mock230_scripts_resolve_hooks(srv);
-    /* And the third list of the same kind: which behaviours are still answered
+    /* And the second list of the same kind: which behaviours are still answered
      * from C when content binds nothing. It shrinks; that is the schedule. */
     mock230_scripts_report_fallbacks(srv);
-    /* And the fourth: the fallbacks above are C standing in for content that
+    /* And the third: the fallbacks above are C standing in for content that
      * has not arrived. This is the opposite — content that arrived and took a
      * verb the engine still answers. See mock230_scripts_report_shadowed_ops. */
     mock230_scripts_report_shadowed_ops(srv);

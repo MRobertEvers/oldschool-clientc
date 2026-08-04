@@ -177,23 +177,54 @@ ToriDraw_CalculateCylinderAabb8point(
     int sc_y[8];
     int sc_z[8];
 
-    project_vertices_array_fused_notex(
-        sc_x,
-        sc_y,
-        sc_z,
-        bb_x,
-        bb_y,
-        bb_z,
-        8,
-        position->yaw,
-        0,
-        position->x,
-        position->y,
-        position->z,
-        camera->near_plane_z,
-        camera->fov_rpi2048,
-        camera->pitch,
-        camera->yaw);
+    int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+    int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+    int const model_roll = ToriDraw_NormalizeAngle(position->roll);
+    int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
+
+    if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+    {
+        project_vertices_array6_fused_notex(
+            sc_x,
+            sc_y,
+            sc_z,
+            bb_x,
+            bb_y,
+            bb_z,
+            8,
+            model_pitch,
+            model_yaw,
+            model_roll,
+            0,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw,
+            camera_roll);
+    }
+    else
+    {
+        project_vertices_array_fused_notex(
+            sc_x,
+            sc_y,
+            sc_z,
+            bb_x,
+            bb_y,
+            bb_z,
+            8,
+            model_yaw,
+            0,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw);
+    }
 
     int min_sx = sc_x[0];
     int max_sx = sc_x[0];
@@ -857,8 +888,64 @@ ToriDraw_Project(
 
     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+    int const model_roll = ToriDraw_NormalizeAngle(position->roll);
+    int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
 
-    if( model_pitch != 0 )
+    /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
+     * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
+    if( model_roll != 0 || camera_roll != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array6_fused(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+        else
+        {
+            project_vertices_array6_fused_notex(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+    }
+    else if( model_pitch != 0 )
     {
         if( model_has_textures(hnd) )
         {
@@ -919,7 +1006,7 @@ ToriDraw_Project(
             model_vertices_y(hnd),
             model_vertices_z(hnd),
             model_vertex_count(hnd),
-            position->yaw,
+            model_yaw,
             center_projection.z,
             position->x,
             position->y,
@@ -939,7 +1026,7 @@ ToriDraw_Project(
             model_vertices_y(hnd),
             model_vertices_z(hnd),
             model_vertex_count(hnd),
-            position->yaw,
+            model_yaw,
             center_projection.z,
             position->x,
             position->y,

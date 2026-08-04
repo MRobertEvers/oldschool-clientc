@@ -2041,66 +2041,19 @@ mock230_player_set_face_entity(struct Mock230Player* player)
 }
 
 /*
- * Every script the *engine* starts, resolved once when the pack loads.
+ * The hook table is gone.
  *
- * The engine does not spell a script's name at a call site. A name is content's
- * identifier, and a literal in C is the same category of mistake as an anim id
- * in C — docs/CONTENT_ARCHITECTURE.md §8.6 is the whole argument. This is the
- * shape `mock230_ids` already uses for interface and varbit names, for the same
- * reason and with the same property: one place, checked at boot, loud when it is
- * wrong.
+ * Every path that used to go through `struct Mock230Hooks` now reaches content
+ * via a trigger: `[advancestat,<stat>]`, `[friendlogin,_]`,
+ * `[friendlogout,_]`, `[ai_opplayer2,<npc>]`, or an `[if_button,...]` dispatch.
+ * Triggers are the only engine→content entry — no name in C, no table, no boot
+ * resolution. See CONTENT_ARCHITECTURE.md §8.6 for why that is better.
  *
- * Loud is the point. Every helper that ran a proc by name treated an unknown
- * name as "do nothing, quietly" — so renaming a script broke no build, failed no
- * test and logged nothing outside `--verbose`; it deleted a feature. The worst
- * case was `[queue,player_death]`, where a typo means a player who dies is a
- * corpse forever.
- *
- * A *trigger* is still the better answer where one exists: `[login,_]`,
- * `[opnpc1..5,<npc>]` and `[ai_queue3,<npc>]` reach content with no name in C at
- * all, because the engine names an event and content names itself. What is here
- * is the residue — the places this server does work LostCity's content does, and
- * so has to call a proc the reference's engine never calls.
+ * The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` / `run_hook_on_npc`
+ * primitives remain as the "run a resolved Script*" helpers used by
+ * `run_proc*` and `queue_named`. They take an already-resolved pointer and
+ * are how the by-name test helpers and internal dispatch work.
  */
-struct Mock230Hooks
-{
-    /* Combat. */
-    const struct SSVM_Script* player_death;
-    const struct SSVM_Script* combat_defend_anim;
-    const struct SSVM_Script* combat_levelup_message;
-    const struct SSVM_Script* player_melee_swing;
-    const struct SSVM_Script* npc_meleeattack;
-    const struct SSVM_Script* combat_weapon_type;
-
-    /* Equipment. */
-    const struct SSVM_Script* equipment_refresh;
-    const struct SSVM_Script* equipment_open;
-    /** Stance BAS from worn righthand — `[proc,update_bas]`. */
-    const struct SSVM_Script* update_bas;
-
-    /*
-     * Friend presence.
-     *
-     * The reference has no equivalent and never could: its 2004 client derived
-     * "X has logged in." for itself from the world-id transitions in
-     * UPDATE_FRIENDLIST, so no server ever worded it. At rev 230 the client
-     * dropped that derivation and the notification arrives as a server
-     * MESSAGE_GAME — which makes the sentence the server's to say, and a
-     * sentence the server says is content's to word
-     * (CONTENT_ARCHITECTURE.md §8.2(a)).
-     *
-     * Both take one string, the display name. The engine supplies the name
-     * because only the engine knows it; it supplies nothing else, and in
-     * particular it does not decide whether anything is said at all — a tree
-     * that does not define these procs is a tree whose players are not
-     * notified, which is a policy a content author can now choose.
-     *
-     * Addressed per *follower*: see social_notify_followers in
-     * mock230_world.c, which is what makes `mes` reach the right chatbox.
-     */
-    const struct SSVM_Script* friend_login_notification;
-    const struct SSVM_Script* friend_logout_notification;
-};
 
 #include "mock230_ids.h"
 

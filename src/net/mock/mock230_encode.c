@@ -371,10 +371,16 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
 /* ------------------------------------------------------------------ */
 
 /*
- * Content often names `toplevel_osrs_stretch:sidemodal` (etc.) even after
- * Display has remounted Fixed/Modern. Those are role aliases for the live
- * gameframe's matching slot — rewrite by the `:role` suffix using the uids
- * if_opentop already bound on the player. No list of tops, no numeric ids.
+ * Content often names `toplevel_osrs_stretch:sidemodal` / `:xp_drops` (etc.)
+ * even after Display has remounted Fixed/Modern. Those are role aliases for
+ * the live gameframe's matching slot — rewrite by the `:role` suffix. No list
+ * of tops, no numeric ids.
+ *
+ * Modal slots use the uids if_opentop already bound on the player (also used
+ * for modal-mount bookkeeping). Other HUD roles resolve `<live_top>:<role>`
+ * through the component pack, but only when the *source* interface is itself
+ * a gameframe top (has `:mainmodal`) — so nested panels like `orbs:xp_drops`
+ * are never rewritten onto the HUD slot.
  *
  * Only rewrite when the named component lives on a *different* interface than
  * the session's live top; same-top spellings are already correct.
@@ -387,8 +393,12 @@ mock230_remap_gameframe_slot_uid(
     const char* name;
     const char* colon;
     const char* role;
+    const char* src_iface_name;
+    const char* live_iface_name;
+    char probe[128];
     int live;
     int live_iface;
+    int src_iface;
 
     assert(player);
     if( uid <= 0 )
@@ -410,7 +420,18 @@ mock230_remap_gameframe_slot_uid(
     else if( strcmp(role, "floater") == 0 )
         live = mock230_player_floater(player);
     else
-        return uid;
+    {
+        src_iface = MOCK230_COM_GROUP(uid);
+        src_iface_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, src_iface);
+        live_iface_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, live_iface);
+        if( !src_iface_name || !live_iface_name || live_iface <= 0 )
+            return uid;
+        snprintf(probe, sizeof(probe), "%s:mainmodal", src_iface_name);
+        if( mock230_content_symbol(MOCK230_PACK_COMPONENT, probe) <= 0 )
+            return uid;
+        snprintf(probe, sizeof(probe), "%s:%s", live_iface_name, role);
+        live = mock230_content_symbol(MOCK230_PACK_COMPONENT, probe);
+    }
     return live > 0 ? live : uid;
 }
 

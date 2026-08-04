@@ -150,7 +150,23 @@ re-arm. Stop only when the user stops the loop.
 | 12j | tunnel_dwarf + fishingcompo complete | done | quest start/finish + pass; ~quest_complete(quest_fishingcontest); deferred: tunnel stairs |
 | 12k | garlicpipe + hemenster gate | done | stash + move_hemenster_pipe + pass gate walk-through + bonzo_quits; deferred: gate swing |
 | 12l | sir_mordred + thrantaxaltar | done | spare Merlin dialogue + chaos altar words; deferred: crate ship, Excalibur lake, bat-bones summon, crystal smash |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Merlin Crystal remainder (crate/Excalibur lake/crystal smash) or hemenster competition spots or Murder Mystery body; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 12m | merlin crate ship | done | merlincrate + %arhein_crate_coord 5764 + Keep Le Faye door walk-through/knock; deferred: door swing/inviswall |
+| 12n | Excalibur lake | done | ladyofthelake + lake_beggar + jewellersdoor/ladder walk-through; deferred: door swing |
+| 12o | thrantax bat-bones | done | opheld5 summon + binding words → ^arthur_excalibur_bound; deferred: sound_synth |
+| 12p | merlins_crystal smash | done | oplocu Excalibur shatter + free Merlin; deferred: none |
+| 12q | hemenster competition spots | done | hemenster_fishing + my_spot + bigdave/joshua labels; deferred: gate swing |
+| 12r | murder_guard start | done | start/%murdersus + accuse/proof arms + %murder_evidence 5765 + complete queue; deferred: family NPCs, fingerprints flour, journal |
+| 12s | gossipy_man | done | full Murder Mystery gossip tree; deferred: none |
+| 12t | murder poisonproof locs | done | compost/hive/drain/web/fountain/crest Investigate; deferred: barrels, window thread, flour prints |
+| 12u | anna + bob | done | Sinclair family Talk-to trees; deferred: none |
+| 12v | carol + david | done | Sinclair family Talk-to trees; deferred: none |
+| 12w | elizabeth + frank | done | Sinclair family Talk-to trees; deferred: none |
+| 12x | murder servants | done | donovan/hobbes/louisa/mary/pierre/stanford; deferred: trail clues |
+| 12y | murder evidence barrels | done | barrela..f Search + murderweapon/murderpot2 Take; deferred: flour prints |
+| 12z | murder window/flour/sacks | done | kr_mansion_window_multi thread + flourbarrel + sacks flypaper + dog gates; deferred: Break op |
+| 13a | flour prints + murder_journal | done | name-expand flour/print switches + quest_murdermystery journal wire; deferred: category overlays |
+| 13b | arthur_journal | done | Merlin's Crystal journal + quest_merlinscrystal wire; deferred: none |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: fishingcompo_journal or sinclair_guard_dog or cake_tin dough arm; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -298,6 +314,22 @@ re-arm. Stop only when the user stops the loop.
 - slice 12j done: tunnel_dwarf + fishingcompo_quest_complete; mock230_pack 0 errors (3187 scripts)
 - slice 12k done: garlicpipe + hemenster gate walk-through + move_hemenster_pipe; mock230_pack 0 errors (3196 scripts)
 - slice 12l done: sir_mordred spare + thrantaxaltar; mock230_pack 0 errors (3204 scripts)
-- next pending: Merlin Crystal remainder (crate/Excalibur lake/crystal smash) or hemenster competition spots or Murder Mystery body; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 12m done: merlin crate ship + %arhein_crate_coord 5764 + Keep Le Faye doors walk-through; mock230_pack 0 errors (3218 scripts)
+- slice 12n done: ladyofthelake + beggar + jewellersdoor/ladder; mock230_pack 0 errors (3226 scripts)
+- slice 12o done: thrantax bat-bones summon; mock230_pack 0 errors (3227 scripts)
+- slice 12p done: merlins_crystal smash; mock230_pack 0 errors (3228 scripts)
+- slice 12q done: hemenster competition spots; mock230_pack 0 errors (3239 scripts)
+- slice 12r done: murder_guard + %murder_evidence 5765 + murderer constants + complete; mock230_pack 0 errors (3256 scripts)
+- slice 12s done: gossipy_man; mock230_pack 0 errors (3257 scripts)
+- slice 12t done: murder poisonproof Investigate locs; mock230_pack 0 errors (3263 scripts)
+- slice 12u done: anna + bob Sinclair Talk-to; mock230_pack 0 errors
+- slice 12v done: carol + david Sinclair Talk-to; mock230_pack 0 errors
+- slice 12w done: elizabeth + frank Sinclair Talk-to; mock230_pack 0 errors
+- slice 12x done: murder servants (donovan/hobbes/louisa/mary/pierre/stanford); trail clues deferred; mock230_pack 0 errors
+- slice 12y done: murder evidence barrels + weapon/pot Take; mock230_pack 0 errors
+- slice 12z done: murder window/flour/sacks/dog gates (loc_2666→kr_mansion_window_multi_*); mock230_pack 0 errors
+- slice 13a done: flour prints (switch maps) + murder_journal; mock230_pack 0 errors
+- slice 13b done: arthur_journal + quest_merlinscrystal wire; mock230_pack 0 errors (3357 scripts)
+- next pending: fishingcompo_journal or sinclair_guard_dog or cake_tin dough arm; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

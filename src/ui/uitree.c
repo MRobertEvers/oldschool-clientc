@@ -2348,7 +2348,18 @@ UITree_CollectDynamicChildIndices(
          child = tree->components[child].next_sibling )
     {
         struct UITreeComponent const* c = &tree->components[child];
-        if( c->dynamic_child_index <= start_index )
+        /* Keep static / unset slots out: they store dynamic_child_index = -1. */
+        if( !c->dynamic )
+            continue;
+        /*
+         * Inclusive lower bound: scripts pass start=1 to walk children whose
+         * sub-ids are 1..N (skill-guide Overview tab chrome in 9179). xrsps
+         * documents `i > start` for FINDNEXTID-era ops, but that drops the
+         * first real child when the allocator's first slot is 1 and leaves
+         * 9179 one short of the cc_setonop arm — Overview could not switch
+         * back from Quest XP. `i >= start` matches the call sites.
+         */
+        if( c->dynamic_child_index < start_index )
             continue;
         if( count < out_cap )
             out_indices[count++] = c->dynamic_child_index;

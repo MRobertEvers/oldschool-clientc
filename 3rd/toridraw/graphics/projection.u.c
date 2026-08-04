@@ -52,7 +52,7 @@ project_orthographic(
     int cos_camera_roll = RSCacheDat2A_NoiseCosTable[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
 
-    // Apply model rotation
+    // Apply model rotation — Jagex/Client-TS objRender order: roll (Z), pitch (X), yaw (Y).
     int sin_pitch = g_sin_table[pitch];
     int cos_pitch = RSCacheDat2A_NoiseCosTable[pitch];
     int sin_yaw = g_sin_table[yaw];
@@ -60,40 +60,50 @@ project_orthographic(
     int sin_roll = g_sin_table[roll];
     int cos_roll = RSCacheDat2A_NoiseCosTable[roll];
 
-    // Rotate around Y-axis (yaw)
-    int x_rotated = x * cos_yaw + z * sin_yaw;
-    x_rotated >>= 16;
-    int z_rotated = z * cos_yaw - x * sin_yaw;
-    z_rotated >>= 16;
-
-    // Rotate around X-axis (pitch)
-    int y_rotated = y * cos_pitch - z_rotated * sin_pitch;
-    y_rotated >>= 16;
-    int z_rotated2 = y * sin_pitch + z_rotated * cos_pitch;
-    z_rotated2 >>= 16;
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
 
     // Rotate around Z-axis (roll)
-    int x_final = x_rotated * cos_roll + y_rotated * sin_roll;
-    x_final >>= 16;
-    int y_final = y_rotated * cos_roll - x_rotated * sin_roll;
-    y_final >>= 16;
+    if( roll != 0 )
+    {
+        int tmp = (y_rotated * sin_roll + x_rotated * cos_roll) >> 16;
+        y_rotated = (y_rotated * cos_roll - x_rotated * sin_roll) >> 16;
+        x_rotated = tmp;
+    }
+
+    // Rotate around X-axis (pitch)
+    if( pitch != 0 )
+    {
+        int tmp = (y_rotated * cos_pitch - z_rotated * sin_pitch) >> 16;
+        z_rotated = (y_rotated * sin_pitch + z_rotated * cos_pitch) >> 16;
+        y_rotated = tmp;
+    }
+
+    // Rotate around Y-axis (yaw)
+    if( yaw != 0 )
+    {
+        int tmp = (z_rotated * sin_yaw + x_rotated * cos_yaw) >> 16;
+        z_rotated = (z_rotated * cos_yaw - x_rotated * sin_yaw) >> 16;
+        x_rotated = tmp;
+    }
 
     // Translate points relative to camera position
-    x_final += scene_x;
-    y_final += scene_y;
-    z_rotated2 += scene_z;
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
 
     // Apply perspective rotation
     // First rotate around Y-axis (scene yaw)
-    int x_scene = x_final * cos_camera_yaw + z_rotated2 * sin_camera_yaw;
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
     x_scene >>= 16;
-    int z_scene = z_rotated2 * cos_camera_yaw - x_final * sin_camera_yaw;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
     z_scene >>= 16;
 
     // Then rotate around X-axis (scene pitch)
-    int y_scene = y_final * cos_camera_pitch - z_scene * sin_camera_pitch;
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
     y_scene >>= 16;
-    int z_final_scene = y_final * sin_camera_pitch + z_scene * cos_camera_pitch;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
     z_final_scene >>= 16;
 
     // Finally rotate around Z-axis (scene roll)
@@ -822,33 +832,44 @@ project_notex(
     int sin_roll = g_sin_table[roll];
     int cos_roll = RSCacheDat2A_NoiseCosTable[roll];
 
-    int x_rotated = x * cos_yaw + z * sin_yaw;
-    x_rotated >>= 16;
-    int z_rotated = z * cos_yaw - x * sin_yaw;
-    z_rotated >>= 16;
+    /* Model rotation: roll → pitch → yaw (matches project_orthographic / objRender). */
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
 
-    int y_rotated = y * cos_pitch - z_rotated * sin_pitch;
-    y_rotated >>= 16;
-    int z_rotated2 = y * sin_pitch + z_rotated * cos_pitch;
-    z_rotated2 >>= 16;
+    if( roll != 0 )
+    {
+        int tmp = (y_rotated * sin_roll + x_rotated * cos_roll) >> 16;
+        y_rotated = (y_rotated * cos_roll - x_rotated * sin_roll) >> 16;
+        x_rotated = tmp;
+    }
 
-    int x_final = x_rotated * cos_roll + y_rotated * sin_roll;
-    x_final >>= 16;
-    int y_final = y_rotated * cos_roll - x_rotated * sin_roll;
-    y_final >>= 16;
+    if( pitch != 0 )
+    {
+        int tmp = (y_rotated * cos_pitch - z_rotated * sin_pitch) >> 16;
+        z_rotated = (y_rotated * sin_pitch + z_rotated * cos_pitch) >> 16;
+        y_rotated = tmp;
+    }
 
-    x_final += scene_x;
-    y_final += scene_y;
-    z_rotated2 += scene_z;
+    if( yaw != 0 )
+    {
+        int tmp = (z_rotated * sin_yaw + x_rotated * cos_yaw) >> 16;
+        z_rotated = (z_rotated * cos_yaw - x_rotated * sin_yaw) >> 16;
+        x_rotated = tmp;
+    }
 
-    int x_scene = x_final * cos_camera_yaw + z_rotated2 * sin_camera_yaw;
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
     x_scene >>= 16;
-    int z_scene = z_rotated2 * cos_camera_yaw - x_final * sin_camera_yaw;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
     z_scene >>= 16;
 
-    int y_scene = y_final * cos_camera_pitch - z_scene * sin_camera_pitch;
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
     y_scene >>= 16;
-    int z_final_scene = y_final * sin_camera_pitch + z_scene * cos_camera_pitch;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
     z_final_scene >>= 16;
 
     int x_final_scene = x_scene * cos_camera_roll + y_scene * sin_camera_roll;
