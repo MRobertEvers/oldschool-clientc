@@ -1756,6 +1756,29 @@ maybe_rebuild(struct Mock230Server* srv)
 /* NPCs                                                                */
 /* ------------------------------------------------------------------ */
 
+void
+mock230_world_npc_teleport(
+    struct Mock230Npc* npc,
+    int x,
+    int z,
+    int level)
+{
+    assert(npc);
+
+    npc_set_occupancy(npc, 0);
+    npc->x = x;
+    npc->z = z;
+    npc->level = level;
+    npc_set_occupancy(npc, 1);
+    /* The reference seeds the same pair, so the npc faces away from the tile it
+     * would have stepped from rather than holding the heading it arrived with. */
+    npc->last_step_x = npc->x - 1;
+    npc->last_step_z = npc->z;
+    npc_clear_waypoints(npc);
+    npc->step_dir = -1;
+    npc->tele = 1;
+}
+
 static int
 npc_spawn(
     struct Mock230Server* srv,
@@ -2306,16 +2329,9 @@ npc_run_mode(
         (void)mock230_world_npc_walk_to(npc, dest_x, dest_z);
         if( npc->stuck_counter >= 32 || npc->level != def->patrol[npc->patrol_index].level )
         {
-            npc_set_occupancy(npc, 0);
-            npc->x = dest_x;
-            npc->z = dest_z;
-            npc->level = def->patrol[npc->patrol_index].level;
-            npc_set_occupancy(npc, 1);
-            npc->last_step_x = npc->x - 1;
-            npc->last_step_z = npc->z;
-            npc_clear_waypoints(npc);
+            mock230_world_npc_teleport(
+                npc, dest_x, dest_z, def->patrol[npc->patrol_index].level);
             npc->stuck_counter = 0;
-            npc->step_dir = -1;
         }
         return 1;
     }
@@ -2463,15 +2479,8 @@ advance_npcs(struct Mock230Server* srv)
             if( npc->x != npc->spawn_x || npc->z != npc->spawn_z ||
                 npc->level != npc->spawn_level )
             {
-                npc_set_occupancy(npc, 0);
-                npc->x = npc->spawn_x;
-                npc->z = npc->spawn_z;
-                npc->level = npc->spawn_level;
-                npc_set_occupancy(npc, 1);
-                npc->last_step_x = npc->x - 1;
-                npc->last_step_z = npc->z;
-                npc_clear_waypoints(npc);
-                npc->step_dir = -1;
+                mock230_world_npc_teleport(
+                    npc, npc->spawn_x, npc->spawn_z, npc->spawn_level);
             }
             npc->stuck_counter = 0;
         }
@@ -6700,6 +6709,10 @@ phase_cleanup(struct Mock230Server* srv)
     {
         srv->npcs[i].masks = 0;
         srv->npcs[i].step_dir = -1;
+        /* With the masks, and for the same reason: a teleport describes one
+         * tick, and every recipient's NPC_INFO has to have been written before
+         * it is dropped. See `Mock230Npc.tele`. */
+        srv->npcs[i].tele = 0;
         srv->npcs[i].anim_id = -1;
         srv->npcs[i].anim_delay = 0;
     }

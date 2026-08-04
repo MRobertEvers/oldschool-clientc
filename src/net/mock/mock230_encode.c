@@ -1815,7 +1815,20 @@ mock230_send_npc_info(struct Mock230Player* player)
                        dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
 
-        if( !in_range )
+        /*
+         * `tele` is the npc half of the player section's `place_dirty`, and it
+         * is here for the same reason: this section's four movement ops are
+         * "nothing", one step, two steps, and remove, so a teleport *is* a
+         * remove — and the entering-view loop below re-adds the npc, in the
+         * same packet, at its new tile. Phase 8 refiles the ZoneMap before
+         * anything is encoded, so the scan finds it there.
+         *
+         * Without this the observer's copy stays where the npc was until it
+         * takes a step, and then walks on from the wrong tile — while the
+         * server routes clicks to the tile it is really standing on. That is
+         * an npc answering from somewhere other than where it is drawn.
+         */
+        if( !in_range || npc->tele )
         {
             /* Move op 3 removes the npc from the client's list. It is the one
              * op that does not keep the slot, so it must not be counted into

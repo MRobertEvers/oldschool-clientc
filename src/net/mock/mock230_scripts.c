@@ -3683,13 +3683,11 @@ mock230_script_command(
             SSVM_Abort(state, "npc_tele with no active npc");
             return 1;
         }
-        npc->x = coord_x(coord);
-        npc->z = coord_z(coord);
-        npc->level = coord_level(coord);
-        /* A teleport is not a step. Leaving `step_dir` set would make the
-         * client walk the npc there, which for any distance reads as the npc
-         * sliding across the map. */
-        npc->step_dir = -1;
+        /* The chokepoint, not three assignments: this used to move the npc
+         * without moving its collision stamp or telling the clients, so the
+         * imp left a blocked tile behind it and every observer kept drawing it
+         * at the tile it teleported out of. */
+        mock230_world_npc_teleport(npc, coord_x(coord), coord_z(coord), coord_level(coord));
         return 1;
     }
 

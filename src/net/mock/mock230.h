@@ -1364,6 +1364,24 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    /**
+     * This tick moved the npc somewhere its steps cannot explain — the npc half
+     * of `place_dirty`, and `PathingEntity.tele` in the reference.
+     *
+     * NPC_INFO's tracked section has four movement ops: nothing, one step, two
+     * steps, remove. None of them can say "is now over there", so a teleport
+     * *is* a remove, and the entering-view scan re-adds the npc at its new tile
+     * in the same packet. Without it every client that already holds the npc
+     * keeps drawing it where it was, forever: the server routes clicks to the
+     * real tile, so the npc answers from somewhere other than where it is
+     * standing. Patrol's stuck-teleport made Hans the usual victim.
+     *
+     * Set only by `mock230_world_npc_teleport`, read only by the encoder, and
+     * cleared in phase 11 beside `masks` — for the same reason `masks` is
+     * cleared there rather than in the encoder: every observer's NPC_INFO has to
+     * have been written first, or whoever is encoded first consumes it.
+     */
+    int tele;
     int last_step_x, last_step_z; /* tile before this tick's step attempt; seed (x-1,z) on spawn */
     int follow_x, follow_z;       /* snapshot of target's last_step at top of turn */
     struct Mock230Step waypoints[MOCK230_WAYPOINT_MAX];
@@ -2780,6 +2798,23 @@ void
 mock230_world_npc_occupancy(
     struct Mock230Npc* npc,
     int add);
+
+/**
+ * Move an npc without walking it there — `PathingEntity.teleport()`.
+ *
+ * The one entry point for a discontinuous move, because four things have to
+ * happen together and every site that open-coded them forgot at least one: the
+ * collision stamp moves with the npc, the route it was walking is abandoned,
+ * `step_dir` is cleared (a teleport is not a step, and leaving it set makes the
+ * client glide the npc across the map), and `tele` is raised so NPC_INFO
+ * re-adds it rather than leaving every client's copy behind. See `tele`.
+ */
+void
+mock230_world_npc_teleport(
+    struct Mock230Npc* npc,
+    int x,
+    int z,
+    int level);
 
 void
 mock230_world_npc_died(

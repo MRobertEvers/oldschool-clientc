@@ -301,8 +301,10 @@ Two client-side gaps had to be closed for any of it to be visible:
 
 `make -C src test-mock230-dev` covers the drain arithmetic against the starting
 kit's real weight, the regen clamp at full, and that running out clears both the
-toggle and varp 173. In the client, `TORIRS_NET_CHEAT="run 1"` plus a world
-click lights the orb, and the percent falls and recovers.
+toggle and varp 173. The same selftest drives `IF_BUTTON1` against both
+`orbs:runbutton` and `settings_side:runmode` and asserts `run_toggle` follows.
+In the client, `TORIRS_NET_CHEAT="run 1"` plus a world click lights the orb, and
+the percent falls and recovers.
 
 ---
 
