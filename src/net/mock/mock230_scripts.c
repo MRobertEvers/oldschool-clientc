@@ -4743,14 +4743,22 @@ mock230_script_command(
          * rows, which is the same looks-right-does-nothing failure this call
          * exists to prevent. A plain component has no sub-ids, so the wider
          * range costs it nothing.
+         *
+         * Clear last_slot so a bare RESUME_PAUSEBUTTON / IF_BUTTON cannot
+         * inherit memset 0 or a stale inv slot and make ~p_choice* take its
+         * last option.
          */
+        player->last_slot = -1;
         mock230_send_if_setevents(srv->active_player, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
         return 1;
     }
 
     case SS_OP_P_PAUSEBUTTON:
         /* Waits for client input, not for the clock — so nothing in the tick
-         * resumes it. mock230_scripts_resume_button does, on a matching click. */
+         * resumes it. mock230_scripts_resume_button does, on a matching click.
+         * Same last_slot clear as if_addresumebutton: the click that unparks
+         * must be what sets the row, not whatever was latched earlier. */
+        player->last_slot = -1;
         SSVM_Suspend(state, SSVM_PAUSEBUTTON);
         return 1;
 

@@ -202,7 +202,19 @@ re-arm. Stop only when the user stops the loop.
 | 14j | nora AI | done | ai_spawn+ai_timer hunt/LOS curse + patrol overlay; deferred: sound_synth |
 | 14k | death IOU + scout | done | death_iou→combination + combination mesbox + secret-path zone; deferred: doors/mechanism/rocks |
 | 14l | death + ball journals | done | death_journal + ball_journal wired to quest_deathplateau/quest_witchshouse |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Death Plateau doors/stone mechanism or burthorpe leftovers; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
+| 14m | death doors + stone mechanism | done | harold/sherpa/castle doors walk-through + stone balls; cat 73=death_cannonball; %death_stones; deferred: obj_find pickup clear |
+| 14n | death caves/stile/rocks/boots | done | hermit cave teleports + stile + climbing rocks + Wear gates; deferred: dangersign cam_* |
+| 14o | troll thrower AI + npc ranged | done | npc_combat_ranged helpers + thrower name-expand AI/overlays/drops; proj params hardcoded (fields/npc.ini gap); deferred: .hunt |
+| 14p | death_archer + guard drops + dangersign | done | archer ranged AI/drops + guard drops + dangersign mesbox; combat overlays; deferred: cam cinematic, rangebonus npc field |
+| 14q | Heroes Guild leftovers | done | achietties/helemos/entrance + %heroquest/%zanaris stubs + quest_hero procs; Trade stub; door walk-through; deferred: full Heroes body, openshop, IF1 progress |
+| 14r | combat training camp | done | trainers/shop Trade stub + gate (biohazard stub) + dummy + ranged-only ogre; %biodummy authored 5770; deferred: Biohazard body, autocast ogre, openshop |
+| 14s | trollweiss chill | done | chill_zones + apply_chill timer/mapzone; stats enum→named drain; deferred: snow overlay IF1, music |
+| 14t | gerrant lava eel arm | done | Heroes-in-progress blamish slime handoff; Trade stub kept; deferred: openshop, clues |
+| 14u | entrana firebird heroquest gate | done | hot_feather drop gated on %heroquest < ^hero_complete |
+| 14v | quest equip gates | done | heroes (dragon_mace/battleaxe) + dragon slayer (rune plate/green dhide body) in ~levelrequire_quest_gate; deferred: zanaris/legends/regicide equip siblings |
+| 14w | brimhaven thin | done | davon/alfonse Trade stubs + pirate_guard + pineapple name-expand; deferred: hajedy/kangai/barcrawl/clues |
+| 14x | deadmans bartender + platform fishermen | done | grog/rum sales (barcrawl deferred) + fishplatform1..4 Talk-to; deferred: Sea Slug body |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: Sea Slug thin (bailey/kennith/kent/holgart) or brimhaven hajedy/kangai stubs or gnome thin; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl |
 
 
 
@@ -403,6 +415,18 @@ re-arm. Stop only when the user stops the loop.
 - slice 14j done: nora_t_hagg ai_spawn/ai_timer + patrol overlay; mock230_pack 0 errors (3644 scripts)
 - slice 14k done: death_iou→combination + scout zone; doors/mechanism deferred; mock230_pack 0 errors
 - slice 14l done: death_journal + ball_journal questlist wires; mock230_pack 0 errors (3649 scripts)
-- next pending: Death Plateau doors/stone mechanism or burthorpe leftovers; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
+- slice 14m done: death doors + stone mechanism + cat 73=death_cannonball + %death_stones; mock230_pack 0 errors (3659 scripts)
+- slice 14n done: hermit cave + stile + climbing rocks + boot Wear; dangersign deferred; mock230_pack 0 errors (3666 scripts)
+- slice 14o done: npc_combat_ranged + troll thrower AI/overlays/drops; mock230_pack 0 errors (3711 scripts)
+- slice 14p done: death_archer combat/drops + death_guard drops + dangersign stub; mock230_pack 0 errors (3718 scripts)
+- slice 14q done: Heroes Guild leftovers (achietties/helemos/entrance) + %heroquest/%zanaris stubs + quest_hero procs/complete; Trade stub; door walk-through; mock230_pack 0 errors (3738 scripts)
+- slice 14r done: combat training camp (trainers/shop stub/gate/dummy/ogre) + %biohazard/%biodummy; mock230_pack 0 errors (3749 scripts)
+- slice 14s done: trollweiss chill (zones + timer/mapzone drain); snow overlay IF1 deferred; mock230_pack 0 errors
+- slice 14t done: gerrant lava-eel Heroes arm (blamish slime); mock230_pack 0 errors
+- slice 14u done: entrana firebird hot_feather gated on %heroquest; mock230_pack 0 errors
+- slice 14v done: quest equip gates (heroes + dragon slayer) via ~levelrequire_quest_gate; mock230_pack 0 errors
+- slice 14w done: brimhaven thin (davon/alfonse/pirate_guard/pineapple); mock230_pack 0 errors
+- slice 14x done: deadmans bartender drinks + fishplatform1..4 Talk-to; mock230_pack 0 errors (3772 scripts)
+- next pending: Sea Slug thin (bailey/kennith/kent/holgart) or brimhaven hajedy/kangai stubs or gnome thin; skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

@@ -25,13 +25,14 @@ The three recurring failure modes this guide exists to prevent:
 
 ## 1. The map — repos, trees, and who reads what
 
-Three repositories:
+Four repositories:
 
 | repo | what it is |
 |---|---|
 | this repo (`3draster`) | the client, the server (`src/net/mock/`, "mock230" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
 | `OSRS-Content/osrs239-content` (submodule) | **the content tree** — the destination for all ported content |
-| `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
+| `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
+| `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-254 behaviour reference** (Java). Use when LostCity has no proc (farming, hunter, slayer, construction, barrows, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
 
 The reference content tree is 1,326 `.rs2` files / 113k lines / 9,376 script
 blocks, organized **by subject** (area, quest, skill, minigame) with configs
@@ -630,6 +631,27 @@ shows no *new* silently-missing opcodes. "It compiles" is not done;
 "the graphic plays but the character is frozen"-class bugs (anim priority,
 missing `IF_SETEVENTS`) only show up in the client.
 
+### 4.4 Kronos → OSRS-Content (post-254 skills / activities)
+
+LostCity stops at Sept 2004. Farming, hunter, slayer, construction, and most
+modern minigames/bosses live in Kronos as Java. Port them as content, not as
+engine:
+
+1. Confirm LostCity has no proc (§2.2). If it does, use
+   [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md) instead.
+2. Read Kronos under
+   `Kronos184-Fixed_2/Kronos-master/kronos-server/src/main/{java,kotlin}/io/ruin/`
+   for *policy* (growth rules, task weights, brother order). Cross-check the
+   osrs239 cache (dbtables, varbits, CS2) for the *wire* — when they disagree,
+   the cache wins.
+3. Skip the custom skip-list in [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md)
+   (donor zones, Easy/Med/Hard slayer chooser, custom bosses, …).
+4. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
+   If a new Server VM opcode is required, add it to that queue's opcode-gap
+   log, implement it, then land the content — never a one-off C hook that
+   content could have said once the opcode existed.
+5. Agent loop state: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md).
+
 ---
 
 ## 5. Decision four: modern features with no LostCity reference
@@ -1106,9 +1128,13 @@ For any substantial task, in this order:
    - pack/cache work → [`CONTENT_PACK_PLAN.md`](CONTENT_PACK_PLAN.md) §0 +
      §5.4, then `src/net/mock/mock230_servercodec.h` and
      `src/content/content_fields.h` (prose-quality headers)
-   - content porting → [`LOSTCITY_PORT_TRIAGE.md`](LOSTCITY_PORT_TRIAGE.md)
-     §1, §9, §10.1, §12, and
-     `LostCity_Server/content/scripts/README.md`
+   - content porting (LostCity / pre-254) → [`LOSTCITY_PORT_TRIAGE.md`](LOSTCITY_PORT_TRIAGE.md)
+     §1, §9, §10.1, §12,
+     `LostCity_Server/content/scripts/README.md`, and
+     [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md)
+   - content porting (Kronos / post-254) → this file §4.4, then
+     [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md); behaviour
+     under `Kronos184-Fixed_2/.../io/ruin/`; still grep LostCity first (§2.2)
    - ServerScript → [`serverscript.md`](serverscript.md)
    - pathfinding / LoS / NPC movement →
      [`COLLISION_MAP.md`](COLLISION_MAP.md) (wall flags / directionality),

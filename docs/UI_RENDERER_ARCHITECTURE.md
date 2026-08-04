@@ -737,28 +737,33 @@ It now uses `IsMouseHeld`, same as `interact_hold`
 Jagex `loopLayer` / xrsps `widgetClickInput` run onclick on mousedown for widgets
 that are not drag sources. Our input path used to defer every click to mouseup, so
 a scrollbar track's `scrollbar_vertical_jump` → `cc_dragpickup` ran after the button
-was already up: the pending pickup became a one-shot `on_drag`+complete that jerked
-the list. Non-draggable nodes with `on_click`/`on_op` now set `result.clicked` on
-DOWN; draggable nodes still defer until release if no drag started
+was already up. Non-draggable nodes with `on_click`/`on_op` now set `result.clicked`
+on DOWN. If a **draggable sibling** also contains the press point (thumb under a
+full-size `noclickthrough` track, or under a decorative cap), the press retargets
+to that sibling and arms a real drag instead of firing the track's onclick —
+matching reference `dragTryPickup` before onclick
 ([uitree_input.c](src/ui/uitree_input.c)).
 
-**`cc_dragpickup` is staged on the tree and consumed the same frame.**
+**`cc_dragpickup` is staged on the tree and consumed the same frame as a one-shot.**
 The host cannot touch `UIInputState`, so pickup parks on `tree->pending_drag_*`
 (like `anti_drag`). After the post-intent `TaskRunner` drain, App_RunOnce calls
-`UITree_InteractConsumePendingDragPickup` while the button is still held — matching
-xrsps `setDragSource` inside the opcode — then dispatches the resulting `on_drag`
-and drains again. Pickup refuses targets with no drag render area / clickmask depth
+`UITree_InteractConsumePendingDragPickup`, which forces one `on_drag` +
+`on_drag_complete` then clears the source — track click jumps the list without
+starting a held drag. Continuous scrollbar dragging is only from pressing the
+thumb. Pickup refuses targets with no drag render area / clickmask depth
 (`Client.dragTryPickup` when `getDragLayer` is null)
 ([rs_cs2_host.c](src/game/rs_cs2_host.c), [app.c](src/app.c),
 [uitree_interact.c](src/ui/uitree_interact.c)).
 
 **`on_drag` CS2 must apply before emit in the same frame.**
-`RS_CS2_DispatchHook` only enqueues. The frame's TaskRunner pump ran *before*
-`InteractFrame`, so `scrollbar_vertical_drag`'s `if_setscrollpos` and cap
-`cc_setposition` landed next frame (or starved under a busy queue) while the
-middle followed `drag_visual` immediately. After intent dispatch, `App_RunOnce`
-drains the runner (bounded) before layout+emit
-([app.c](src/app.c) — post-intent `TaskRunner_Step` loop).
+`RS_CS2_DispatchHook` only enqueues onto a **serial FIFO**. A yielding head
+(asset load, etc.) parks the whole queue, so `scrollbar_vertical_drag`'s
+`if_setscrollpos` / cap `cc_setposition` never ran while `drag_visual` still
+moved the middle every frame — detached thumb body, stuck caps, unscrolled
+list. Drag intents (`has_drag_target`) are dispatched onto a **side queue** and
+`TaskRunner_Drain`'d before layout+emit, matching the reference's synchronous
+ScriptEvent invoke during drag
+([app.c](src/app.c)).
 
 **Scrollbar `event_mouse` is track-relative, not bar-relative.**
 `~scrollbar_vertical` does `.cc_setdraggable(bar, 0)` — child 0 is the track

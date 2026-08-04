@@ -569,8 +569,9 @@ interact_drag_push_ondrag(
     out->need_redraw = 1;
 }
 
-/* Apply a CS2 cc/if_dragpickup that the host staged on the tree. Returns 1 if
- * a one-shot on_drag was emitted (mouse already up — track jump). */
+/* Apply a CS2 cc/if_dragpickup that the host staged on the tree. Always emits
+ * a one-shot on_drag + on_drag_complete (track jump); does not leave a live
+ * drag while the button stays held. */
 static int
 interact_drag_consume_pending(
     struct UIInteraction* interact,
@@ -665,11 +666,11 @@ interact_drag_consume_pending(
             src->drag_visual_y);
     }
 
-    if( !left_held )
+    /* Track jump (`scrollbar_vertical_jump` → cc_dragpickup) is always a
+     * one-shot: apply scroll/caps once then complete. Continuing the drag
+     * while held made empty-track presses feel like "dragging the track";
+     * thumb presses arm the real drag source separately. */
     {
-        /* onclick used to fire on mouseup here, so the jump was a one-shot.
-         * Press-time onclick keeps the drag while held; a same-frame
-         * press+release still ends immediately after the jump. */
         struct UIIntent complete = {
             .component_id = st->drag_source_id,
             .hook = &UITree_Hooks(src)->on_drag_complete,
@@ -690,9 +691,9 @@ interact_drag_consume_pending(
         st->drag_source_idx = -1;
         st->drag_source_id = -1;
         st->drag_target_id = -1;
-        return 1;
     }
-    return 0;
+    (void)left_held;
+    return 1;
 }
 
 int
@@ -717,20 +718,6 @@ UITree_InteractConsumePendingDragPickup(
 
     left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
     (void)interact_drag_consume_pending(interact, tree, ui_host, input, left_held, out);
-    /* While held, also tick once so the jump frame's on_drag matches the
-     * pointer after pickup offsets are applied. */
-    if( left_held && interact->input_state.drag_source_idx >= 0 &&
-        interact->input_state.drag_active )
-    {
-        (void)UITree_InputDragTick(
-            &interact->input_state,
-            tree,
-            ui_host,
-            input->curr.mouse_x,
-            input->curr.mouse_y,
-            1);
-        /* consume_pending already pushed one on_drag; avoid a duplicate. */
-    }
     return out->intent_count;
 }
 

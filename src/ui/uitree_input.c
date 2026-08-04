@@ -704,6 +704,35 @@ UITree_InputUpdate(
             struct UITreeComponent const* c = &tree->components[state->pressed];
             int bx = 0, by = 0, bw = 0, bh = 0;
             int offx = 0, offy = 0;
+            /* Reference dragTryPickup walks every widget under the cursor and
+             * starts a drag before onclick. Our hit test is topmost-only, so a
+             * full-size noclickthrough track (or decorative cap) sitting on the
+             * thumb steals the press and never arms the dragger. Prefer a
+             * draggable sibling that also contains the point (last = topmost). */
+            if( !tree->anti_drag && !UITree_ComponentIsDraggable(c) && c->parent >= 0 &&
+                (uint32_t)c->parent < tree->component_count )
+            {
+                int32_t prefer = -1;
+                int32_t sibling = tree->components[c->parent].first_child;
+                for( ; sibling >= 0; sibling = tree->components[sibling].next_sibling )
+                {
+                    struct UITreeComponent const* s = &tree->components[sibling];
+                    int sbx = 0, sby = 0, sbw = 0, sbh = 0;
+                    int soffx = 0, soffy = 0;
+                    if( !UITree_ComponentIsDraggable(s) || s->behavior.hide )
+                        continue;
+                    UITree_LayoutGetBounds(&s->position, &sbx, &sby, &sbw, &sbh);
+                    UITree_AccumScrollOffset(tree, sibling, &soffx, &soffy);
+                    if( UITree_PointInScrolledBounds(
+                            event.x, event.y, sbx, sby, sbw, sbh, soffx, soffy) )
+                        prefer = sibling;
+                }
+                if( prefer >= 0 )
+                {
+                    state->pressed = prefer;
+                    c = &tree->components[prefer];
+                }
+            }
             UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
             /* Pickup offset is against the DRAWN position: ancestor scroll
              * offsets shift the widget on screen while abs_* stays in content
@@ -724,9 +753,11 @@ UITree_InputUpdate(
             {
                 /* Non-draggable with on_click/on_op: fire on press (Jagex
                  * Client loopLayer field1871 / xrsps widgetClickInput).
-                 * Scrollbar tracks call cc_dragpickup from onclick — that must
-                 * run while the button is still held. Hold-only chrome (arrow
-                 * on_hold) must not get a synthetic click here. */
+                 * Scrollbar tracks call cc_dragpickup from onclick on the
+                 * press edge so the jump can run this frame; continuous drag
+                 * from the track is not wanted — consume_pending one-shots.
+                 * Hold-only chrome (arrow on_hold) must not get a synthetic
+                 * click here. */
                 struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
                 if( hooks->on_click.script_id > 0 || hooks->on_op.script_id > 0 )
                 {

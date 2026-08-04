@@ -150,6 +150,7 @@ void test_drag_scrollbar_ondrag_held(void);
 void test_drag_scrollbar_inplace_emit(void);
 void test_drag_scrollbar_137_geometry(void);
 void test_drag_cc_dragpickup_seeds(void);
+void test_drag_thumb_under_track_noclickthrough(void);
 void test_scroll_hit(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);

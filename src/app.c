@@ -11133,6 +11133,13 @@ App_RunOnce(
      * (realloc) or CC_DELETEALL (reclaim/reuse the slot), dangling the pointer. */
     {
         struct UITreeRuntimeScriptHook hook_copies[UI_INTENT_MAX];
+        /* Drag hooks must not sit behind a yielding head on the main FIFO —
+         * drag_visual updates the thumb middle every frame while on_drag (caps +
+         * if_setscrollpos) would starve. Side-queue + drain matches the
+         * reference's synchronous ScriptEvent invoke during drag. */
+        struct ToriRS_TaskQueue* drag_queue = NULL;
+        struct TaskRunner drag_runner;
+
         for( int i = 0; i < out.intent_count; i++ )
             if( out.intents[i].hook )
                 hook_copies[i] = *out.intents[i].hook;
@@ -11140,6 +11147,7 @@ App_RunOnce(
         for( int i = 0; i < out.intent_count; i++ )
         {
             struct UIIntent const* intent = &out.intents[i];
+            struct TaskRunner* dest = &app->runner;
             /* Set the op index explicitly per intent rather than relying on the
              * host default, so one intent's op cannot leak into the next.
              * Unset (0) means the primary left-click op, which is what every
@@ -11148,13 +11156,29 @@ App_RunOnce(
             if( intent->has_event_mouse )
                 RS_CS2_SetEventMouse(&app->host, intent->event_mouse_x, intent->event_mouse_y);
             if( intent->has_drag_target )
+            {
                 RS_CS2_SetEventDragTarget(&app->host, app->tree, intent->drag_target_id);
+                if( !drag_queue )
+                {
+                    drag_queue = ToriRS_TaskQueue_New();
+                    drag_runner.queue = drag_queue;
+                    drag_runner.io = app->runner.io;
+                    drag_runner.px = app->runner.px;
+                }
+                dest = &drag_runner;
+            }
             RS_CS2_DispatchHook(
                 &app->host,
-                &app->runner,
+                dest,
                 intent->component_id,
                 intent->hook ? &hook_copies[i] : NULL);
             ran_cs2 = 1;
+        }
+
+        if( drag_queue )
+        {
+            TaskRunner_Drain(&drag_runner);
+            ToriRS_TaskQueue_Free(drag_queue);
         }
     }
 
@@ -11444,9 +11468,8 @@ App_RunOnce(
                     break;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
-             * the drain above. Consume it now while the button is still held
-             * so the thumb drag continues this frame (xrsps setDragSource is
-             * synchronous inside the opcode). */
+             * the drain above. Consume it now as a one-shot jump (on_drag +
+             * complete); continuous drag is thumb-press only. */
             if( app->tree && app->tree->pending_drag_pickup )
             {
                 struct UIInteractOut pickup_out;
@@ -11455,6 +11478,12 @@ App_RunOnce(
                 if( n > 0 )
                 {
                     struct UITreeRuntimeScriptHook hook_copies[UI_INTENT_MAX];
+                    struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
+                    struct TaskRunner drag_runner = {
+                        .queue = drag_queue,
+                        .io = app->runner.io,
+                        .px = app->runner.px,
+                    };
                     for( int i = 0; i < pickup_out.intent_count; i++ )
                         if( pickup_out.intents[i].hook )
                             hook_copies[i] = *pickup_out.intents[i].hook;
@@ -11469,18 +11498,16 @@ App_RunOnce(
                         if( intent->has_drag_target )
                             RS_CS2_SetEventDragTarget(
                                 &app->host, app->tree, intent->drag_target_id);
+                        /* Same side-queue as the main intent loop — must not
+                         * wait on a yielding main-queue head. */
                         RS_CS2_DispatchHook(
                             &app->host,
-                            &app->runner,
+                            &drag_runner,
                             intent->component_id,
                             intent->hook ? &hook_copies[i] : NULL);
                     }
-                    for( int i = 0; i < budget; i++ )
-                    {
-                        stat = TaskRunner_Step(&app->runner);
-                        if( stat == TASK_RUNNER_IDLE )
-                            break;
-                    }
+                    TaskRunner_Drain(&drag_runner);
+                    ToriRS_TaskQueue_Free(drag_queue);
                     if( pickup_out.need_redraw )
                         app->need_redraw = 1;
                 }

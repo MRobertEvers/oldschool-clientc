@@ -438,13 +438,13 @@ test_drag_scrollbar_137_geometry(void)
 }
 
 /*
- * cc_dragpickup seeds UIInputState like scrollbar_vertical_jump: force
- * drag_active, pickup offsets, and an on_drag intent while the button is held.
+ * cc_dragpickup from scrollbar_vertical_jump is a one-shot: force one on_drag
+ * (+ complete) then clear the source — track click must not leave a held drag.
  */
 void
 test_drag_cc_dragpickup_seeds(void)
 {
-    printf("TEST: cc_dragpickup seeds drag while held\n");
+    printf("TEST: cc_dragpickup one-shot jump (no held drag from track)\n");
 
     struct UITree* tree = UITree_New(16);
     struct TestHostState hs;
@@ -485,7 +485,7 @@ test_drag_cc_dragpickup_seeds(void)
     struct LibToriRS_Input* input = LibToriRS_Input_Init(&storage, 0);
 
     int const mx = 108;
-    int const my = 100 + 16 + 40;
+    int const my = 100 + 16 + 40; /* empty track below thumb */
 
     LibToriRS_Input_Begin(input, 0);
     LibToriRS_Input_PushMouseMove(input, mx, my);
@@ -514,20 +514,123 @@ test_drag_cc_dragpickup_seeds(void)
         struct UIInteractOut out;
         int n = UITree_InteractConsumePendingDragPickup(
             &interact, tree, &host, input, &out);
-        TEST_ASSERT(n >= 1, "pickup produced intents");
-        TEST_ASSERT(interact.input_state.drag_active, "pickup forces drag_active");
-        TEST_ASSERT(interact.input_state.drag_source_idx == thumb, "source is thumb");
-        TEST_ASSERT(interact.input_state.drag_pickup_y == 10, "pickup_y from script");
+        TEST_ASSERT(n >= 2, "pickup produced on_drag + complete");
+        TEST_ASSERT(!interact.input_state.drag_active, "one-shot clears drag_active");
+        TEST_ASSERT(interact.input_state.drag_source_idx < 0, "one-shot clears source");
         TEST_ASSERT(LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT), "still held");
         int found_drag = 0;
+        int found_complete = 0;
         for( int i = 0; i < out.intent_count; i++ )
         {
-            if( out.intents[i].hook && out.intents[i].hook->script_id == 35 &&
-                out.intents[i].has_event_mouse )
+            if( !out.intents[i].hook || out.intents[i].hook->script_id != 35 )
+                continue;
+            if( out.intents[i].has_event_mouse )
                 found_drag = 1;
+            else
+                found_complete = 1;
         }
-        TEST_ASSERT(found_drag, "on_drag from pickup while held");
+        /* Both hooks are script 35; complete may also carry event mouse from the
+         * jump frame — count intents instead. */
+        TEST_ASSERT(found_drag, "on_drag from pickup");
+        TEST_ASSERT(out.intent_count >= 2, "complete follows on_drag");
+        (void)found_complete;
+        (void)thumb;
         TEST_ASSERT(!tree->pending_drag_pickup, "pending cleared");
+    }
+
+    UITree_Free(tree);
+}
+
+/*
+ * Full-size noclickthrough track drawn after the thumb steals HitTestInteractive.
+ * Press on the thumb area must still arm the thumb (dragTryPickup before onclick),
+ * not fire the track's jump onclick.
+ */
+void
+test_drag_thumb_under_track_noclickthrough(void)
+{
+    printf("TEST: thumb press wins over noclickthrough track on top\n");
+
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    int32_t bar = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 100, 100, 16, 100);
+    tree->components[bar].if3 = 1;
+
+    /* Thumb first, then track on top (wrong z for ~scrollbar_vertical, but the
+     * failure mode when replace-append puts the track last). */
+    struct UITreeNodeSpec thumb_spec;
+    memset(&thumb_spec, 0, sizeof(thumb_spec));
+    thumb_spec.type = UIELEM_RS_GRAPHIC;
+    thumb_spec.component_id = 902;
+    thumb_spec.x = 0;
+    thumb_spec.y = 16;
+    thumb_spec.width = 16;
+    thumb_spec.height = 20;
+    thumb_spec.u.rs_graphic.scene_id = 2;
+    int32_t thumb = UITree_Push(tree, bar, &thumb_spec);
+    tree->components[thumb].draggable = 1;
+    tree->components[thumb].drag_behavior = 1;
+    tree->components[thumb].drag_dead_zone = 0;
+    tree->components[thumb].drag_dead_time = 0;
+    tree->components[thumb].drag_render_area_uid = 900;
+    UITree_HooksMut(&tree->components[thumb])->on_drag.script_id = 35;
+
+    int32_t track = UITree_CcCreate(tree, bar, 900, 5, 0);
+    TEST_ASSERT(UITree_ApplyPosition(tree, tree->components[track].component_id, 0, 16),
+                "track pos");
+    TEST_ASSERT(UITree_ApplySize(tree, tree->components[track].component_id, 16, 68),
+                "track size");
+    tree->components[track].no_click_through = 1;
+    UITree_HooksMut(&tree->components[track])->on_click.script_id = 34;
+
+    UITree_TestResolve(tree);
+
+    int const press_x = 108;
+    int const press_y = 126; /* inside thumb */
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, press_x, press_y) == track,
+        "interactive hit is track on top");
+
+    struct UIInteraction interact;
+    UIInteraction_Init(&interact);
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&storage, 0);
+
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, press_x, press_y);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, press_x, press_y);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        TEST_ASSERT(interact.input_state.drag_source_idx == thumb, "press arms thumb");
+        TEST_ASSERT(interact.input_state.deferred_click, "draggable defers click");
+        int found_track_click = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 34 )
+                found_track_click = 1;
+        }
+        TEST_ASSERT(!found_track_click, "track onclick suppressed over thumb");
+    }
+
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, press_x, press_y + 3);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        TEST_ASSERT(interact.input_state.drag_active, "thumb drag promotes");
+        int found = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 35 )
+                found = 1;
+        }
+        TEST_ASSERT(found, "on_drag from thumb");
     }
 
     UITree_Free(tree);

@@ -4487,7 +4487,21 @@ handle_if_button_op(
      * IF_BUTTON1 alone would set last_slot and leave the script parked, so a
      * later resume with last_slot still 0 would always take p_choice's last
      * option (Leela's "escape equipment" line, and every other final else).
+     *
+     * Sub 0 is the chatmenu title (and other non-row children share the armed
+     * range). Resuming those made every ~p_choice* take its last option.
+     * Leave the script parked; content also re-opens on last_slot outside 1..N.
+     * sub < 0 means a static component (no dynamic child) — continue prompts.
      */
+    if( sub == 0 )
+    {
+        struct Mock230Player* player = srv->active_player;
+        for( int i = 0; i < player->resume_button_count; i++ )
+        {
+            if( player->resume_buttons[i] == uid )
+                return;
+        }
+    }
     if( mock230_scripts_resume_button(srv, uid) )
         return;
     /*
@@ -8251,6 +8265,53 @@ mock230_world_selftest(void)
                 mock230_capture_end(&srv);
                 SELFTEST_CHECK(player->active_script != NULL,
                                "p_choice3 should park on p_pausebutton");
+                SELFTEST_CHECK(player->last_slot == -1,
+                               "arming the choice should clear last_slot, got %d",
+                               player->last_slot);
+
+                if( rows_uid > 0 && player->active_script != NULL )
+                {
+                    /* Title / junk sub 0 must not unpark — that used to make
+                     * every ~p_choice* take its last option (Sanfew refuse,
+                     * Leela escape equipment, …). */
+                    button[0] = (uint8_t)(rows_uid >> 24);
+                    button[1] = (uint8_t)(rows_uid >> 16);
+                    button[2] = (uint8_t)(rows_uid >> 8);
+                    button[3] = (uint8_t)rows_uid;
+                    button[4] = 0;
+                    button[5] = 0; /* title child, not a row */
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    SELFTEST_CHECK(player->active_script != NULL,
+                                   "sub=0 must leave the choice script parked");
+                    SELFTEST_CHECK(
+                        player->resume_button_count == 1 &&
+                            player->resume_buttons[0] == rows_uid,
+                        "sub=0 must not leave the chatmenu:options pause");
+
+                    /* Bare RESUME_PAUSEBUTTON carries no sub. With last_slot
+                     * forced to 0 (the old memset default), content must
+                     * re-open the menu rather than take option 3. */
+                    player->last_slot = 0;
+                    {
+                        uint8_t choice_resume[4] = {
+                            (uint8_t)(rows_uid >> 24),
+                            (uint8_t)(rows_uid >> 16),
+                            (uint8_t)(rows_uid >> 8),
+                            (uint8_t)rows_uid,
+                        };
+                        mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON,
+                                             choice_resume, 4);
+                    }
+                    SELFTEST_CHECK(player->active_script != NULL,
+                                   "stale last_slot=0 resume must re-park on choice");
+                    SELFTEST_CHECK(
+                        player->resume_button_count == 1 &&
+                            player->resume_buttons[0] == rows_uid,
+                        "stale resume must re-arm chatmenu:options, not a chatplayer");
+                    SELFTEST_CHECK(player->last_slot == -1,
+                                   "re-open should clear last_slot again, got %d",
+                                   player->last_slot);
+                }
 
                 /*
                  * The option list reaches the wire whole.
@@ -8316,9 +8377,10 @@ mock230_world_selftest(void)
                     mock230_capture_begin(&srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     mock230_capture_end(&srv);
-                    SELFTEST_CHECK(player->last_slot == 3,
-                                   "the clicked row should arrive as last_slot, got %d",
-                                   player->last_slot);
+                    /* last_slot is latched for ~p_choice* then cleared when the
+                     * branch's chatplayer arms its continue — do not assert the
+                     * row id after that park. The branch is proven by leaving
+                     * chatmenu:options and drawing chatplayer. */
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "branch 3 parks on chatplayer after the choice");
                     SELFTEST_CHECK(
@@ -8366,6 +8428,89 @@ mock230_world_selftest(void)
                 player->resume_button_count = 0;
             }
 
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: sanfew p_choice junk does not refuse\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int sanfew_type = mock230_content_symbol(MOCK230_PACK_NPC, "sanfew");
+            int rows_uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "chatmenu:options");
+            int sanfew = -1;
+            uint8_t button[6];
+
+            SELFTEST_CHECK(sanfew_type > 0, "npc sanfew should resolve by name");
+            SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
+            selftest_reset_world(&srv, player, 402, 402);
+            for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            {
+                struct Mock230Npc* n = &srv.npcs[i];
+                int dx;
+                int dz;
+
+                if( !n->active )
+                {
+                    sanfew = mock230_world_npc_spawn(
+                        &srv, sanfew_type, player->x + 1, player->z, player->level);
+                    break;
+                }
+                dx = n->x - player->x;
+                dz = n->z - player->z;
+                if( dx > 32 || dx < -32 || dz > 32 || dz < -32 )
+                {
+                    mock230_world_npc_occupancy(n, 0);
+                    n->active = 0;
+                    sanfew = mock230_world_npc_spawn(
+                        &srv, sanfew_type, player->x + 1, player->z, player->level);
+                    break;
+                }
+            }
+            SELFTEST_CHECK(sanfew >= 0, "sanfew should be spawnable");
+            SELFTEST_CHECK(
+                mock230_scripts_run_trigger(
+                    &srv, SS_TRIGGER_OPNPC1, sanfew_type, -1, sanfew) == MOCK230_TRIGGER_RAN,
+                "[opnpc1,sanfew] should run");
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "sanfew greeting should park on chatnpc");
+            /* Continue past "What can I do for you young 'un?" into ~p_choice2. */
+            selftest_click_through(&srv, 1);
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "sanfew should park on p_choice2");
+            SELFTEST_CHECK(
+                player->resume_button_count == 1 && player->resume_buttons[0] == rows_uid,
+                "sanfew choice should arm chatmenu:options");
+
+            button[0] = (uint8_t)(rows_uid >> 24);
+            button[1] = (uint8_t)(rows_uid >> 16);
+            button[2] = (uint8_t)(rows_uid >> 8);
+            button[3] = (uint8_t)rows_uid;
+            button[4] = 0;
+            button[5] = 0;
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            SELFTEST_CHECK(
+                player->resume_button_count == 1 && player->resume_buttons[0] == rows_uid,
+                "sanfew title click must stay on the choice menu");
+
+            button[5] = 1; /* quest / teach option, not refuse */
+            mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "sanfew row 1 should park on the teach branch");
+            SELFTEST_CHECK(
+                player->resume_button_count == 1 && player->resume_buttons[0] != rows_uid,
+                "sanfew row 1 must leave chatmenu:options (not refuse fallthrough)");
+
+            selftest_click_through(&srv, 8);
             mock230_scripts_free(&srv);
         }
     }

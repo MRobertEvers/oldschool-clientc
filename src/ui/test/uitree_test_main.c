@@ -16,6 +16,7 @@ main(void)
     test_drag_scrollbar_inplace_emit();
     test_drag_scrollbar_137_geometry();
     test_drag_cc_dragpickup_seeds();
+    test_drag_thumb_under_track_noclickthrough();
     test_scroll_hit();
     test_drag_scrolled();
     test_emit_icons();
