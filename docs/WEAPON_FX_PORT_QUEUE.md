@@ -68,13 +68,31 @@ never existed. `make -C src mock230-pack` writes it to `$(OBJ_DIR)/mock230_pack`
 the default-objdir copy is `./src/build/mock230_pack`.
 
 If a slice touched C: `make -C src`. Agents sharing this repo **must** set a
-private objdir (`PLATFORM_OBJ_BASE=build_wfx_<lane>`) — stale-`.o` races are
-real (`embed-binary-build-isolation`). Prefer a **relative** objdir: an absolute
-one (`/tmp/objdir-<lane>`) breaks every recipe that does `./src/$(OBJ_DIR)/...`,
-which includes `test-mock230-embed:1478` and `test-content:1289`. If a lane also
-links the client, override the target too (`PLATFORM_TARGET=torirs_<lane>`, with
-`torirs_<lane>` as the make goal) — `make -C src` otherwise links one shared
-`src/torirs` and two lanes will race it.
+private objdir — stale-`.o` races are real (`embed-binary-build-isolation`).
+Three things about that, all measured 2026-08-04, all of which silently produce
+a *shared* build if you get them wrong:
+
+```sh
+# WRONG — an env prefix does NOT override; platform.mk does `PLATFORM_OBJ_BASE := build`
+# unconditionally, and an environment variable loses to a makefile assignment.
+PLATFORM_OBJ_BASE=build_wfx_A make -C src mock230-pack     # -> builds into src/build/
+
+# RIGHT — a command-line variable wins over `:=`
+make -C src mock230-pack PLATFORM_OBJ_BASE=build_wfx_A     # -> builds into src/build_wfx_A/
+```
+
+- **It must be a make *argument*, not an environment prefix.** Verified by
+  running both forms back to back: the prefix form printed
+  `built build/mock230_pack`, the argument form `built build_wfx_orch/mock230_pack`.
+- **Use a relative objdir.** An absolute one (`/tmp/objdir-<lane>`) breaks every
+  recipe that does `./$(OBJ_DIR)/...` or `./src/$(OBJ_DIR)/...` — the `./`
+  prefix makes `.//tmp/...` resolve against cwd. That hits `mock230-scripts`
+  (`./$(OBJ_DIR)/sscompile`), `test-mock230-embed:1478` and `test-content:1289`.
+- **If a lane also links the client, override the target too**
+  (`PLATFORM_TARGET=torirs_<lane>`, with `torirs_<lane>` as the make goal —
+  the goal name must equal the target). `make -C src` otherwise links one shared
+  `src/torirs` and two lanes will race it; a relink racing a `cp` dies with
+  SIGKILL/exit 137 and an empty log on Apple Silicon.
 
 `pkill -f build/mock230` also kills `mock230_dev` — match tighter.
 
@@ -141,14 +159,14 @@ wave 3 (sharded)    G(11), then G(12) one weapon per agent
 | 0 | Findings catalog + audit tool | — | done | — |
 | 1 | Stance params + resolver | A | done | — |
 | 2 | Cross-check the overlap | B | done | 1 |
-| 3 | The 667 rsmod-sourced weapons | B | in_progress | 1, 2 |
+| 3 | The 667 rsmod-sourced weapons | B | **blocked** | 1, 2, **`synth` pack kind** |
 | 4 | The 246 with no direct row | B | pending | 3 |
 | 5 | BAS + equip sound | B | pending | 3 |
 | 6 | `SYNTH_SOUND` wire | C | done | — |
 | 7 | `sound_synth` opcode body | C | done | 6 |
 | 8 | Swing sounds through content | F | blocked | 1, 7, **3 or 5** (bar only) |
 | 9 | Seq frame sounds (client) | D | done | — |
-| 10 | Special attack obj table | E | in_progress | — |
+| 10 | Special attack obj table | E | done (orb bar unproven) | — |
 | 11 | Special attack FX | G | pending | 8, 10 |
 | 12 | Special attack behaviour | G | pending | 11 |
 
@@ -267,6 +285,40 @@ A **new file**, never appended to `attack_anims.obj`, so the LostCity-sourced
 and rsmod-sourced sets stay separately attributable. The header the writer emits
 already names the source and the method; do not edit it.
 
+> **BLOCKED as of 2026-08-04 — do not re-run `--write` until this is decided.**
+>
+> The 667 rows write and `--check` passes, but `mock230_pack --check-only` then
+> reports **2,821 errors**, all of the form
+> `cannot resolve param value 'synth_2498'`. Cause, traced to source:
+>
+> - Slice 1 correctly found no `synth` type in `fields/param.ini`, so it declared
+>   `attack_sound_stance1..4` and `equipment_sound` as `type=int`.
+> - `--write` emits sound values as **names** (`synth_2498`), which §0.3 says is
+>   safe because `pack/4_soundeffects.pack` really is `N=synth_N` for 12,010 ids
+>   (verified: line 2499 is `2498=synth_2498`).
+> - But the engine's param-type → pack-kind table
+>   (`src/net/mock/mock230_content.c:1655-1669`) **has no `synth` entry and there
+>   is no `MOCK230_PACK_SYNTH` kind at all**; the comment right below it says
+>   `int` and anything unlisted is "a literal, not a name."
+>
+> So a name-valued sound param is unrepresentable today: `type=int` cannot hold
+> `synth_2498`, and no other type exists to declare. **The `synth` namespace has
+> a pack file but no server-side pack kind — per PORTING_GUIDE §2.4 the missing
+> namespace surface *is* the bug, so this stops rather than being worked around.**
+> The 2,821 failures are exactly the sound params
+> (`attack_sound_stance1..4` = 662+661+311+656, `equipment_sound` = 531); the
+> 3,500-odd anim/BAS params in the same file all resolve.
+>
+> **This is a decision the queue has not made.** The candidates are: add a
+> `synth` pack kind (engine, and no lane in §1 owns
+> `src/net/mock/mock230_content.c`); or have the writer emit integers for
+> int-typed params; or split sounds into their own file so the anims can land
+> now. Pick one deliberately — do not let a lane choose it silently.
+>
+> The generated 667-row file is parked at
+> `<scratchpad>/attack_anims_modern.obj.blocked` rather than deleted, so whoever
+> resolves this does not have to regenerate blind.
+
 **Bar.**
 
 - Standing bar (§0.6).
@@ -277,13 +329,37 @@ already names the source and the method; do not edit it.
 
   ```sh
   SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 TORIRS_ANIM_DEBUG=1 \
-    TORIRS_SIM_CLICK_AT=... TORIRS_EXIT_BMP=/tmp/whip.bmp ./build/<client>
+    TORIRS_SIM_CLICK_AT=... TORIRS_EXIT_BMP=/tmp/whip.bmp ./src/<client>
   ```
 
-  `::equip <slot>` swaps weapons headlessly. Before this slice all eight play
-  `human_sword_slash` or `human_bow`; after, each plays its own. Capture the
-  before/after for the log — it is the only evidence that distinguishes "the
-  table landed" from "the table landed and is read".
+  `::equip <slot>` swaps weapons headlessly. Capture the before/after for the
+  log — it is the only evidence that distinguishes "the table landed" from "the
+  table landed and is read".
+
+  > **Two corrections, measured 2026-08-04 — read before you try this.**
+  >
+  > 1. **`TORIRS_ANIM_DEBUG=1` does not print the combat swing seq.** For a
+  >    synced world entity, `app_world_apply_entity_anim_tracks` (`src/app.c`
+  >    ~12065) sets `el->anim_seq_id` directly and never reaches either path that
+  >    prints (`app_world_try_bind_seq`, or the dat2 sequence-load task, which
+  >    prints only on the skeletal or failure branch). Use an lldb breakpoint on
+  >    `mock230_anim_play_player` instead, with `breakpoint command add <N>` /
+  >    `DONE` block syntax — the `-o` auto-continue form silently swallows the
+  >    output and reads as "no hits".
+  > 2. **"Before this slice all eight play `human_sword_slash` or `human_bow`"
+  >    is wrong.** The pre-slice default varies by damage type through
+  >    `combat_stats.rs2`'s existing fallback chain: stab → `human_unarmedpunch`,
+  >    crush → `human_unarmedkick`, slash → `human_sword_slash`. Measured
+  >    `ghrazi_rapier` = `human_unarmedpunch`, `abyssal_whip` and
+  >    `dragon_warhammer` = `human_unarmedkick`, `scythe_of_vitur`,
+  >    `dragon_scimitar`, `dragon_claws` = `human_sword_slash`. All six are
+  >    genuinely reading an unported default — just not the *same* one.
+  >
+  > Also: `::fight` with no slot picks the **globally** nearest attackable npc
+  > across the whole spawn table, not the nearest loaded one — at the plain
+  > Lumbridge spawn that is a 2054-tile-away chicken and no swing ever happens.
+  > Teleport onto a spawn-file-confirmed tile first (e.g. `::tele 3229 3298`,
+  > `areas/lumbridge/configs/lumbridge.spawn:133`) and it lands every time.
 - `python3 tools/port_weapon_fx.py --summary` shows `swing the param default
   today` down from 913 by the number you wrote.
 
@@ -627,6 +703,79 @@ and §1 needs a row for this slice either way.
 blocks with `human_dhsword_block` and not `human_sword_def`.
 
 ---
+
+- **2026-08-04** — slices 3 and 10.
+
+  **Slice 3 is blocked on a namespace gap, not on data.** The write itself is
+  fine: 667 records, `--check` `0 problem(s)`,
+  `--summary` moving `swing the param default today` **913 → 246** with
+  `no source at all` still **10** (exactly slice 4's expected remainder). Then
+  `mock230_pack --check-only` went **0 → 2,821 errors**, every one
+  `cannot resolve param value 'synth_NNNN'`. See the blocker note at slice 3:
+  `type=int` cannot hold a name and there is no `synth` pack kind to declare
+  instead. Reverted to green (`0 error(s), 17 warning(s)`); the file is parked
+  in the scratchpad.
+
+  **§1.1's sharding is broken when the shards actually run.** The queue states
+  "4 shards of the 667 gap rows produce 167+167+167+166 = 667 records with 0
+  duplicates." Measured, four `--shard i/4` agents produced
+  **167 + 125 + 94 + 70 = 456 — a 211-row silent shortfall.** Cause:
+  `cmd_write` filters on `not src.row(n)["overlaid"]`, and every landed shard
+  makes its own rows overlaid, so each later shard sees a smaller eligible set.
+  The shards are disjoint (`uniq -d` empty) — the loss is **coverage, not
+  overlap**, which is why nothing errored. The queue's "verified" claim is true
+  only if all four read a pristine tree, which is not how they run.
+
+  Proof it was interference and not a changed tree: deleting the four shard
+  files returned `--summary` to exactly `170` / `913`, and a single unsharded
+  `--write` then produced exactly `667`. **All four shard agents independently
+  concluded "the tree has fewer gap rows than the queue documented." All four
+  were wrong** — a good illustration of why §0.7 asks for the command and not
+  the conclusion. **Do not shard slice 3. Use the unsharded form.**
+
+  **A scratch file leaked into tracked content.** Lane A's slice-1 mutation
+  proof, `bas/_scratch_wfx_mutation_proof.obj` — whose own header reads "Deleted
+  before the slice is reported done; do not commit" — was swept into submodule
+  commit `5ee1b4ae9b` by the concurrent actor's broad commit after its agent was
+  stopped mid-run. It set `bronze_dagger`'s `attack_anim_stance1` to
+  `human_scythe_slash` for every future reader. Removed. **A mutation proof that
+  lives in a packed config directory is a loaded gun; put the next one outside
+  the tree.**
+
+  **Slice 10 landed: 97 → 135 rows (+38).** The wiki list was built from
+  `Special_attack` → redirects to `Special_attacks`, fetched as raw wikitext via
+  the MediaWiki `action=parse&prop=wikitext` API and parsed programmatically —
+  not paraphrased, and not URL-mangled from obj names (the first attempt at this
+  slice did exactly that and was rejected). Section counts cross-checked against
+  the queue's own breakdown: non-combat is exactly 14 (7 axes, 3 harpoons, 4
+  pickaxes); combat plus the 4 cooldown semi-specials is 119; 133 total.
+
+  Seven wiki names resolved to two objs each, one plain and one `br_`-prefixed;
+  the plain obj was taken in all seven, on the measured grounds that **0 of the
+  97 pre-existing rows use a `br_` obj** and `br_` objs are non-tradeable 30–50gp
+  Bounty-Hunter reskins.
+
+  **Four items stopped rather than guessed**, each needing a call this queue has
+  not made: the **Dragon hasta** family is channelled at "5-100%" and one flat
+  `sa_energy` int cannot express it; **Rod of ivandis** has no obj under that
+  name, only 10 numbered charge variants; **Vesta's spear (Deadman Mode)** has no
+  distinct obj; and **Ancient wyvern shield / Dragonfire shield / Dragonfire
+  ward** cost "None (2-minute cooldown)" — declaring `specwep` would arm an orb
+  for a mechanic that never touches it.
+
+  **Flagged, not acted on:** `soulreaper` is in the pre-existing 97 with
+  `sa_energy=500`, but the wiki says Soulreaper axe's special costs "None,
+  consumes Soul Stacks instead". Auditing the original 97 was out of this
+  slice's scope.
+
+  **Slice 10's bar is only partly met and is recorded that way.** Equipping two
+  of the 38 new weapons (`darkbow_blue`, `ancient_goblin_mace`) was confirmed
+  end-to-end through `mock230_pack` → `sscompile` → live server → client. The
+  click-driven orb arm/drain was **not** conclusively observed: `TORIRS_DUMP_BOUNDS=160`
+  printed nothing, so the orb rect was only visually estimated, and the shared
+  `testc` account's persisted state produced a misleading "no ammo left in your
+  quiver". The arming path is shared unmodified code across all 135 rows, so this
+  is not new logic — but the positive proof the bar asks for was not obtained.
 
 - **2026-08-04** — slice 8, lane F. **Content wiring landed and proven; the
   bar's specific id is not yet reachable.**

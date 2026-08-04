@@ -199,6 +199,44 @@ serve(
     mock230_world_reset(srv);
 }
 
+/*
+ * A JS5 connection's own loop.
+ *
+ * Deliberately NOT `serve()`. That function ticks the world every 600 ms, and a
+ * JS5 session never logs in, so the world it would tick is the memset-zero one
+ * `serve` starts with — no scripts, no scene, no players. The child died on the
+ * first tick after answering one request, which presents as a client that
+ * fetches a single reference table and then renders a black screen forever:
+ * the game connection is healthy the whole time, so nothing looks broken.
+ *
+ * JS5 needs none of it. Read, answer, repeat until the peer goes away.
+ */
+static void
+serve_js5(
+    struct Mock230Server* srv,
+    struct Mock230Conn* conn)
+{
+    struct Mock230Session session;
+    struct Mock230Transport transport;
+
+    memset(srv, 0, sizeof(*srv));
+    srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
+
+    mock230_transport_socket(&transport, conn);
+    mock230_session_init(&session, &transport, srv->verbose);
+
+    while( mock230_session_alive(&session) )
+    {
+        /* No tick deadline to race, so this blocks until there is something to
+         * do — a cache download is request/response with long idle gaps. */
+        if( wait_readable(&session, 60000) < 0 )
+            break;
+        if( !mock230_session_pump(&session, srv) )
+            break;
+    }
+    mock230_session_free(&session);
+}
+
 int
 main(
     int argc,
@@ -332,8 +370,9 @@ main(
             {
                 close(listener);
                 fprintf(stderr, "mock230: JS5 connection\n");
+                srv.wire = wire;
                 if( mock230_conn_open(&conn, fd) )
-                    serve(&srv, &conn, &config, wire);
+                    serve_js5(&srv, &conn);
                 close(fd);
                 _exit(0);
             }

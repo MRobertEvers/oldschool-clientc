@@ -332,8 +332,22 @@ step_js5_serve(struct Mock230Session* session)
             session->state = MOCK230_SESSION_DEAD;
             return 1;
         }
-        if( n <= 0 && session->verbose )
-            fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+        /*
+         * Log served groups too, not only missing ones.
+         *
+         * Logging failures alone reads as silence when everything is fine AND
+         * when the client is asking for nothing at all — and those are very
+         * different situations. A black screen with a healthy packet stream is
+         * exactly the case where the difference matters: it says whether the
+         * client is failing to load the map or failing to ask for it.
+         */
+        if( session->verbose )
+        {
+            if( n > 0 )
+                fprintf(stderr, "mock230: JS5 %d/%d -> %d bytes\n", archive, group, n);
+            else
+                fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+        }
         free(out);
     }
     return served;

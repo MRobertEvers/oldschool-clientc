@@ -371,8 +371,12 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
                                       coord);
         player->player_tracked[player->pid] = 1;
         /* The init block resets the client's cycle bits, so the next
-         * PLAYER_INFO must place the crowd in section 4 again. */
+         * PLAYER_INFO must place the crowd in section 4 again — and it stated
+         * the absolute position, so the next delta is measured from there. */
         player->v5_playerinfo_sent = 0;
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
     }
 
     /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
@@ -1430,6 +1434,124 @@ default_kit(int wearpos)
     return -1;
 }
 
+/*
+ * The revision-239 appearance block.
+ *
+ * Not a reordering of the classic one — a different shape, and the differences
+ * are the kind that frame perfectly and render as nothing:
+ *
+ *   - the 12 wear slots become TWO arrays of 12: `equipment` (worn objs) and
+ *     `identKit` (the body underneath). The classic packs both into one array,
+ *     `0x200 + obj` or `0x100 + kit` per slot, so a 239 client reading it
+ *     consumes the whole thing as equipment and then reads the colours as an
+ *     identKit;
+ *   - a skull icon and a head icon sit right after the gender;
+ *   - the name is a NUL-terminated STRING, not the classic 8-byte base-37;
+ *   - and there are five trailing fields the classic has no room for at all
+ *     (skill level, hidden, a customisation flag, three name extras).
+ *
+ * Transcribed from RSProt's reference client `decodeAppearance`, read in the
+ * direction it reads.
+ */
+static void
+put_appearance_v5(
+    struct RSAreaBuf* buf,
+    const struct Mock230Player* player)
+{
+    int equipment[12];
+    int identkit[12];
+    int covered[12] = { 0 };
+
+    /* Same covering rule as the classic writer: a worn item blanks the slots it
+     * claims through wearpos_2 / wearpos_3, which is what makes a full helm
+     * hide hair and a platebody hide arms. */
+    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+    {
+        const struct Mock230ObjInfo* info;
+
+        if( player->worn[i].obj_id < 0 )
+            continue;
+        info = mock230_objinfo(player->worn[i].obj_id);
+        if( !info )
+            continue;
+        if( info->wearpos_2 >= 0 && info->wearpos_2 < 12 )
+            covered[info->wearpos_2] = 1;
+        if( info->wearpos_3 >= 0 && info->wearpos_3 < 12 )
+            covered[info->wearpos_3] = 1;
+    }
+
+    for( int i = 0; i < 12; i++ )
+    {
+        int kit;
+
+        equipment[i] = 0;
+        identkit[i] = 0;
+        if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
+            equipment[i] = 0x200 + player->worn[i].obj_id;
+        else if( covered[i] )
+            ; /* deliberately bare: something worn hides this body part */
+        else if( (kit = default_kit(i)) >= 0 )
+            identkit[i] = 0x100 + kit;
+    }
+
+    rsab_p1(buf, (uint8_t)player->gender);
+    rsab_p1(buf, 255); /* skullIcon: -1, none */
+    rsab_p1(buf, 255); /* headIcon:  -1, none */
+
+    /* A zero byte is an empty slot and costs one byte; anything else is two. */
+    for( int i = 0; i < 12; i++ )
+    {
+        if( equipment[i] == 0 )
+            rsab_p1(buf, 0);
+        else
+            rsab_p2(buf, equipment[i]);
+    }
+    for( int i = 0; i < 12; i++ )
+    {
+        if( identkit[i] == 0 )
+            rsab_p1(buf, 0);
+        else
+            rsab_p2(buf, identkit[i]);
+    }
+
+    for( int i = 0; i < 5; i++ )
+        rsab_p1(buf, 0); /* body colours */
+
+    {
+        int anims[7] = {
+            player->readyanim, player->turnanim, player->walkanim,
+            player->walkanim_b, player->walkanim_l, player->walkanim_r,
+            player->runanim
+        };
+        for( int i = 0; i < 7; i++ )
+            rsab_p2(buf, anims[i] < 0 ? 65535 : anims[i]);
+    }
+
+    rsab_pjstr(buf, player->display_name, RSAB_JSTR_NUL);
+    rsab_p1(buf, 3); /* combat level */
+    rsab_p2(buf, 0); /* skill level, shown only in some minigames */
+    rsab_p1(buf, 0); /* hidden */
+    /*
+     * The customisation flag. Bit 15 says per-obj customisations follow, and
+     * the client errors on them rather than skipping, so this must stay 0
+     * until they are written.
+     */
+    rsab_p2(buf, 0);
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* beforeName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterCombatLevel */
+    /*
+     * The pronoun, and it is the last byte of the block.
+     *
+     * Easy to miss: RSProt's reference DECODER stops after the three name
+     * strings, so a writer transcribed from that alone is one byte short. The
+     * real encoder writes this, and the length prefix counts it — so omitting
+     * it does not truncate a field, it shifts the whole block's length and the
+     * client rejects the packet.
+     */
+    rsab_p1(buf, 0);
+}
+
 static void
 put_appearance(
     struct RSAreaBuf* buf,
@@ -2059,20 +2181,27 @@ mock230_send_player_info(struct Mock230Player* player)
         int32_t coord;
 
         rsab_wrap(&ap, appearance, sizeof(appearance));
-        put_appearance(&ap, player);
+        put_appearance_v5(&ap, player);
 
-        coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
-                          (player->z & 0x3fff));
         /*
-         * Always a teleport. The v5 stream's alternative is a delta against
-         * what the client last heard, and this server keeps no such per-session
-         * record; a wrong delta displaces the player silently where a restated
-         * absolute coord cannot.
+         * A DELTA against what this client was last told, which the init block
+         * seeded with the absolute position. Zero while standing still.
+         *
+         * The 30-bit field is added to the client's own copy, so sending the
+         * absolute coord here moves the player by their whole world position
+         * every tick — a world that builds correctly and goes black seconds
+         * later as they leave the loaded scene, with no packet malformed.
          */
-        mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord, 1,
+        coord = (int32_t)((((player->level - player->v5_last_level) & 0x3) << 28) |
+                          (((player->x - player->v5_last_x) & 0x3fff) << 14) |
+                          ((player->z - player->v5_last_z) & 0x3fff));
+        mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
                                  player->v5_playerinfo_sent, appearance,
                                  (int)rsab_len(&ap));
         player->v5_playerinfo_sent = 1;
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
         flush(player, &buf, OP_PLAYER_INFO, 2);
         return;
     }

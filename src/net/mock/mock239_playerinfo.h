@@ -86,9 +86,20 @@ mock239_playerinfo_write_init(
 /**
  * One tick of PLAYER_INFO carrying only the local player.
  *
- * `teleported` selects how the position is stated: a teleport writes the
- * absolute 30-bit coord, otherwise the player is reported stationary. Both
- * forms carry the extended-info bit when `appearance` is non-NULL.
+ * `coord_delta` is a DELTA against the position the client already holds, not
+ * an absolute coordinate — packed (dLevel << 28) | (dX << 14) | dZ with each
+ * field masked to its width. The client adds it:
+ *
+ *     curX = (curX + deltaX) and 16383
+ *
+ * so passing an absolute coord moves the player by that much every tick. The
+ * symptom is a world that builds correctly and then goes black a few seconds
+ * later, as the player walks off the loaded scene — nothing errors, because
+ * every packet is well-formed.
+ *
+ * A stationary player is therefore a delta of 0, which is also what the first
+ * tick after the init block should send: the init block already stated the
+ * absolute position.
  *
  * `low_res_inactive` selects WHICH low-resolution section the untracked players
  * are skipped in, and it is not cosmetic. The client carries a per-player cycle
@@ -110,8 +121,7 @@ void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord,
-    int teleported,
+    int32_t coord_delta,
     int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len);

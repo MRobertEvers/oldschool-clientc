@@ -187,13 +187,25 @@ def is_combat_weapon(name, record):
     )
 
 
-def load_overlays():
-    """{obj: {param: value}} for every overlay already in the content tree."""
+def load_overlays(exclude=None):
+    """{obj: {param: value}} for every overlay already in the content tree.
+
+    `exclude` drops one file from the scan, and it is not a convenience: this
+    directory is where `--write` puts its output, so a second `--write` would
+    otherwise see its own previous run as a pre-existing overlay, find every row
+    already covered, and emit an empty file. That is not hypothetical — it is
+    what happened on 2026-08-04, and the same aliasing made four `--shard i/4`
+    agents silently cover 456 of 667 rows. A generated file must never be an
+    input to its own generation.
+    """
     out = {}
     if not os.path.isdir(BAS_DIR):
         return out
+    skip = os.path.basename(exclude) if exclude else None
     for fname in sorted(os.listdir(BAS_DIR)):
         if not fname.endswith(".obj"):
+            continue
+        if skip and fname == skip:
             continue
         name = None
         with open(os.path.join(BAS_DIR, fname), encoding="utf-8") as fh:
@@ -442,13 +454,33 @@ def shard_filter(names, shard):
     return [n for pos, n in enumerate(ordered) if pos % total == index - 1]
 
 
-def cmd_write(src, path, shard):
+def is_sound_param(param):
+    """Sound-valued params, which are blocked on a `synth` pack kind.
+
+    `attack_sound_stance1..4` and `equipment_sound`. They are declared `type=int`
+    because `fields/param.ini` has no `synth` type, but this writer emits their
+    values as *names* (`synth_2498`) — and `mock230_content.c`'s param-type map
+    has no `synth` kind, so `int` treats the operand as a literal and the pack
+    validator rejects every one of them. Until that namespace exists, the two
+    families have to be written separately. See slice 3's blocker note.
+    """
+    return "sound" in param
+
+
+def cmd_write(src, path, shard, families="all"):
     """Emit the rank-1 `.obj` overlay for the rows rsmod states and we do not.
 
     Regenerated, never hand-edited: running this twice must produce an identical
     file (`exporter-owns-generated-configs`). Hand corrections belong in a
     separate file at the same rank.
+
+    `families` splits the emission because the two halves have different
+    blockers, not because it is tidier: `anims` (attack/defend/BAS) validates
+    today, `sounds` cannot until a `synth` pack kind exists. Default stays `all`
+    so the documented command keeps its meaning.
     """
+    if families not in ("all", "anims", "sounds"):
+        raise SystemExit("--families must be one of: all, anims, sounds")
     names = [n for n in sorted(src.weapons)
              if not src.row(n)["overlaid"] and src.row(n)["has_attack_source"]]
     if shard:
@@ -469,13 +501,31 @@ def cmd_write(src, path, shard):
         "// them — the id IS the name for that namespace.",
         "",
     ]
+    if families == "anims":
+        lines.insert(len(lines) - 1, "// FAMILIES: anims only — attack/defend/BAS. The sound params are held")
+        lines.insert(len(lines) - 1, "// back because they are unrepresentable today (no `synth` pack kind);")
+        lines.insert(len(lines) - 1, "// regenerate them with --families sounds once that lands.")
+    elif families == "sounds":
+        lines.insert(len(lines) - 1, "// FAMILIES: sounds only — attack_sound_stance*/equipment_sound. Needs a")
+        lines.insert(len(lines) - 1, "// `synth` pack kind in mock230_content.c or every row fails to resolve.")
+
+    def wanted(param):
+        if families == "anims":
+            return not is_sound_param(param)
+        if families == "sounds":
+            return is_sound_param(param)
+        return True
+
     written = 0
     for name in names:
         r = src.row(name)
         if not r["fx"]:
             continue
+        emit = [(p, v) for p, (v, _why) in sorted(r["fx"].items()) if wanted(p)]
+        if not emit:
+            continue
         lines.append("[%s]" % name)
-        for param, (value, _why) in sorted(r["fx"].items()):
+        for param, value in emit:
             lines.append("param=%s,%s" % (param, value))
         lines.append("")
         written += 1
@@ -591,6 +641,10 @@ def main():
     ap.add_argument("--diff", action="store_true", help="cross-check overlaid weapons vs rsmod")
     ap.add_argument("--specials", action="store_true", help="the special-attack worklist")
     ap.add_argument("--shard", metavar="i/n", help="take a deterministic 1-of-n partition")
+    ap.add_argument("--families", metavar="WHICH", default="all",
+                    choices=("all", "anims", "sounds"),
+                    help="which param families --write emits: all (default), "
+                         "anims (attack/defend/BAS), sounds (needs a synth pack kind)")
     args = ap.parse_args()
 
     # `--report | head` is the normal way to read this; a closed pipe is not an
@@ -601,7 +655,7 @@ def main():
     if args.sources:
         return cmd_sources(src, args.sources)
     if args.write:
-        return cmd_write(src, args.write, args.shard)
+        return cmd_write(src, args.write, args.shard, args.families)
     if args.diff:
         return cmd_diff(src)
     if args.specials:

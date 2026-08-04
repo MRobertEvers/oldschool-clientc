@@ -1677,6 +1677,16 @@ struct Mock230Player
      */
     int v5_playerinfo_sent;
 
+    /**
+     * The position this client was last told, for the v5 stream's DELTA.
+     *
+     * Seeded by the init block. Kept per player because it is a fact about what
+     * one client has been sent, not about where the player is.
+     */
+    int v5_last_x;
+    int v5_last_z;
+    int v5_last_level;
+
     /*
      * The world this player is in, and where its bytes go.
      *

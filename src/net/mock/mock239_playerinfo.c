@@ -101,8 +101,7 @@ void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord,
-    int teleported,
+    int32_t coord_delta,
     int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len)
@@ -127,31 +126,22 @@ mock239_playerinfo_write(
     rsab_bits(buf);
     rsab_pbit(buf, 1, 1); /* not skipped */
     rsab_pbit(buf, 1, has_extended ? 1 : 0);
-    if( teleported )
-    {
-        rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
-        /*
-         * The far form. The near form is a 12-bit delta against the client's
-         * previous coord, which is smaller but requires the server to know what
-         * the client last heard — state this server does not keep per session,
-         * and getting it wrong silently displaces the player rather than
-         * failing.
-         */
-        rsab_pbit(buf, 1, 1);
-        rsab_pbit(buf, 30, coord);
-    }
-    else
-    {
-        /*
-         * NOMOVE with the extended-info bit set is "still here, and here is an
-         * update". NOMOVE *without* it means something else entirely for a
-         * non-local player — the client drops them to low resolution — and for
-         * the local index the client throws. So this branch is only safe while
-         * `has_extended` is true, and the caller that sends no appearance
-         * should be sending a teleport or a movement instead.
-         */
-        rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
-    }
+    /*
+     * Always the far teleport form, carrying a delta that is usually zero.
+     *
+     * The alternative for a stationary player is NOMOVE, which is one bit
+     * cheaper and carries a trap: NOMOVE without the extended-info bit means
+     * "drop to low resolution" for a normal player, and for the LOCAL index the
+     * client throws outright. A zero delta says the same thing with no state to
+     * get wrong.
+     *
+     * The near form (12 bits) would be smaller again but is a signed delta
+     * against what the client last heard, so it needs the same tracking with a
+     * narrower range and a worse failure.
+     */
+    rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
+    rsab_pbit(buf, 1, 1);
+    rsab_pbit(buf, 30, coord_delta);
     rsab_bytes(buf);
 
     /*

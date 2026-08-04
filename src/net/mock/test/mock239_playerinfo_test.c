@@ -16,6 +16,20 @@
  * runs and misaligned bit sections live — and those are the failures that
  * produce a stream decoding into the wrong players rather than an error.
  *
+ * THE LIMIT OF THAT, demonstrated: this test passed while the encoder wrote an
+ * ABSOLUTE coordinate into a field the client adds as a DELTA. A round-trip
+ * proves a value survives the bits; it cannot prove the value meant the right
+ * thing, because both ends of the round trip are this file's own reading. Only
+ * a real client caught it, as a world that built and then went black once the
+ * player had been displaced off the loaded scene.
+ *
+ * Nothing in this repo was masking it. The C client REFUSES PLAYER_INFO at
+ * revision 239 (osrs239_parse.c returns -1 rather than decode a moved layout),
+ * and the classic rev-230 decoder is a different codec — its local-player op 3
+ * is `2 bits level, 7 bits scene x, 7 bits scene z`, an absolute placement
+ * inside the scene, not a 30-bit delta. There is no shared reader in which one
+ * semantics could paper over the other.
+ *
  *     make -C src test-mock239-playerinfo
  */
 
@@ -241,7 +255,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, 0, appearance,
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, appearance,
                              sizeof(appearance));
     {
         size_t written = rsab_len(&buf);
@@ -251,8 +265,8 @@ main(void)
         CHECK(got.hi_res_seen == 1, "exactly one high-resolution update (%d)",
               got.hi_res_seen);
         CHECK(got.hi_res_extended == 1, "the high-resolution update flags extended info");
-        CHECK(got.hi_res_teleported == 1, "the position is stated as a teleport");
-        CHECK(got.hi_res_coord == coord, "teleport coord round-trips (%d)",
+        CHECK(got.hi_res_teleported == 1, "the position is stated as a delta");
+        CHECK(got.hi_res_coord == coord, "coord delta round-trips (%d)",
               got.hi_res_coord);
         CHECK(got.low_res_skipped == SLOTS - 2,
               "section 4 covers all %d low-resolution players", got.low_res_skipped);
@@ -268,7 +282,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, 0, NULL, 0);
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, NULL, 0);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);
@@ -282,7 +296,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, 1, appearance,
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, appearance,
                              sizeof(appearance));
     {
         size_t written = rsab_len(&buf);
