@@ -140,10 +140,17 @@ struct GL3SpriteVariant
 
 #define GL3_SPRITE_VARIANT_CAP 2048u
 #define GL3_WIDGET_MODEL_NEAR 50
+/* Mid-relative widget Z spans hundreds–thousands; the 2D ortho used for UI
+ * models must cover that or faces clip to nothing (chatheads look transparent). */
+#define GL3_WIDGET_MODEL_Z_NEAR (-8192.0f)
+#define GL3_WIDGET_MODEL_Z_FAR 8192.0f
 #define GL3_FONT_BOX_MAX_LINES 64
 /* Ephemeral arena key for UI MODEL widgets. The DYNAMIC group is reset before
  * each widget bake, so this never collides with world element ids. */
 #define GL3_WIDGET_ARENA_ELEMENT_ID 0
+/* Compass + minimap both rotmask-blit in one frame; ring avoids GPU texture
+ * aliasing when the second upload would overwrite the first draw's source. */
+#define GL3_ROTMASK_TEX_RING 4
 
 struct GL3FontSlot
 {
@@ -259,12 +266,15 @@ struct ToriRS_GL3
     struct TRSPK_Atlas sprite_atlas;
     GLuint sprite_atlas_texture;
     GLuint white_texture;
-    /* Per-frame reusable destination for rotated+masked blits (minimap/compass).
-     * Soft3D reblits every frame; caching by yaw filled the atlas and skipped
-     * draws once the 256-slot table was full. */
-    GLuint rotmask_texture;
-    int rotmask_tex_w;
-    int rotmask_tex_h;
+    /* Ring of reusable destinations for rotated+masked blits (minimap + compass).
+     * A single texture is unsafe: the second upload can overwrite texels before
+     * the GPU has sampled the first draw. Soft3D reblits every frame into the
+     * framebuffer; we alternate distinct GL textures instead. */
+    GLuint rotmask_textures[GL3_ROTMASK_TEX_RING];
+    int rotmask_tex_w[GL3_ROTMASK_TEX_RING];
+    int rotmask_tex_h[GL3_ROTMASK_TEX_RING];
+    int rotmask_tex_cursor;
+    GLuint rotmask_last_texture;
     struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;
@@ -543,8 +553,16 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
         glDeleteProgram(renderer->program2d);
     if( renderer->sprite_atlas_texture )
         glDeleteTextures(1, &renderer->sprite_atlas_texture);
-    if( renderer->rotmask_texture )
-        glDeleteTextures(1, &renderer->rotmask_texture);
+    for( int i = 0; i < GL3_ROTMASK_TEX_RING; i++ )
+    {
+        if( renderer->rotmask_textures[i] )
+            glDeleteTextures(1, &renderer->rotmask_textures[i]);
+        renderer->rotmask_textures[i] = 0u;
+        renderer->rotmask_tex_w[i] = 0;
+        renderer->rotmask_tex_h[i] = 0;
+    }
+    renderer->rotmask_tex_cursor = 0;
+    renderer->rotmask_last_texture = 0u;
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
     if( renderer->quad_vao )
@@ -564,9 +582,6 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->ebo = 0u;
     renderer->atlas_texture = 0u;
     renderer->sprite_atlas_texture = 0u;
-    renderer->rotmask_texture = 0u;
-    renderer->rotmask_tex_w = 0;
-    renderer->rotmask_tex_h = 0;
     renderer->white_texture = 0u;
 }
 
@@ -1639,26 +1654,32 @@ gl3_rotmask_upload(
     struct ToriRS_GL3* renderer,
     uint8_t const* rgba,
     int w,
-    int h)
+    int h,
+    GLuint* out_texture)
 {
-    if( !renderer || !rgba || w <= 0 || h <= 0 )
+    int slot;
+    GLuint* tex;
+    if( !renderer || !rgba || w <= 0 || h <= 0 || !out_texture )
         return false;
-    if( !renderer->rotmask_texture )
-        glGenTextures(1, &renderer->rotmask_texture);
-    if( !renderer->rotmask_texture )
+    slot = renderer->rotmask_tex_cursor % GL3_ROTMASK_TEX_RING;
+    renderer->rotmask_tex_cursor = (slot + 1) % GL3_ROTMASK_TEX_RING;
+    tex = &renderer->rotmask_textures[slot];
+    if( !*tex )
+        glGenTextures(1, tex);
+    if( !*tex )
         return false;
-    glBindTexture(GL_TEXTURE_2D, renderer->rotmask_texture);
+    glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    if( renderer->rotmask_tex_w != w || renderer->rotmask_tex_h != h )
+    if( renderer->rotmask_tex_w[slot] != w || renderer->rotmask_tex_h[slot] != h )
     {
         glTexImage2D(
             GL_TEXTURE_2D, 0, TORIRS_GL_TEX_RGBA, (GLsizei)w, (GLsizei)h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
             rgba);
-        renderer->rotmask_tex_w = w;
-        renderer->rotmask_tex_h = h;
+        renderer->rotmask_tex_w[slot] = w;
+        renderer->rotmask_tex_h[slot] = h;
     }
     else
     {
@@ -1666,6 +1687,8 @@ gl3_rotmask_upload(
             GL_TEXTURE_2D, 0, 0, 0, (GLsizei)w, (GLsizei)h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
+    *out_texture = *tex;
+    renderer->rotmask_last_texture = *tex;
     return gl3_check_error("rotmask upload");
 }
 
@@ -1681,6 +1704,7 @@ gl3_sprite_ensure_rotated_masked(
     int dst_h;
     uint32_t* scratch = NULL;
     struct ToriDraw_ViewPort vp = { 0 };
+    GLuint uploaded = 0u;
     if( cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene || !sp )
         return false;
     dst_w = cmd->w > 0 ? cmd->w : sp->width;
@@ -1726,12 +1750,13 @@ gl3_sprite_ensure_rotated_masked(
      * conversion every other upload gets. Without it the minimap's ground is
      * transparent and its colours are channel-swapped. */
     gl3_argb_to_rgba(scratch, scratch, (size_t)dst_w * (size_t)dst_h);
-    if( !gl3_rotmask_upload(renderer, (uint8_t const*)scratch, dst_w, dst_h) )
+    if( !gl3_rotmask_upload(renderer, (uint8_t const*)scratch, dst_w, dst_h, &uploaded) )
     {
         free(scratch);
         return false;
     }
     free(scratch);
+    (void)uploaded;
     /* Dedicated texture is filled edge-to-edge. */
     out_uv[0] = 0.0f;
     out_uv[1] = 0.0f;
@@ -2732,7 +2757,7 @@ gl3_ev_sprite(
         gl3_flush_2d_batch(renderer);
         gl3_draw_textured_quad(
             renderer,
-            renderer->rotmask_texture,
+            renderer->rotmask_last_texture,
             0,
             true,
             mask_uv,
@@ -2745,6 +2770,9 @@ gl3_ev_sprite(
             mask_uv[2],
             mask_uv[3],
             rgba);
+        /* Flush immediately so the next rotmask upload cannot race this draw's
+         * texture (compass + minimap share the ring within one frame). */
+        gl3_flush_2d_batch(renderer);
         return;
     }
     {
@@ -4079,7 +4107,9 @@ gl3_widget_model_project_vertex(
     }
     *out_x = origin_x + (float)px;
     *out_y = origin_y + (float)py;
-    *out_z = (float)(cz - mid_z);
+    /* Negate mid-relative depth so larger cz (further) maps toward +NDC z with
+     * a standard GL ortho (m10 = -2/(far-near)). */
+    *out_z = (float)(mid_z - cz);
     return true;
 }
 
@@ -4191,7 +4221,7 @@ gl3_bake_widget_model(
                     {
                         sx[corner] = origin_x - 5000.0f;
                         sy[corner] = origin_y;
-                        sz[corner] = (float)-mid_z;
+                        sz[corner] = 0.0f;
                     }
                 }
             }
@@ -4232,6 +4262,27 @@ gl3_bake_widget_model(
         }
     }
     return base;
+}
+
+static void
+gl3_mat4_ortho_top_left_zf(
+    float m[16],
+    float left,
+    float right,
+    float top,
+    float bottom,
+    float near_z,
+    float far_z)
+{
+    memset(m, 0, 16 * sizeof(float));
+    m[0] = 2.0f / (right - left);
+    /* top < bottom in top-left pixel space (top=0, bottom=height). */
+    m[5] = 2.0f / (top - bottom);
+    m[10] = -2.0f / (far_z - near_z);
+    m[12] = -(right + left) / (right - left);
+    m[13] = -(top + bottom) / (top - bottom);
+    m[14] = -(far_z + near_z) / (far_z - near_z);
+    m[15] = 1.0f;
 }
 
 static void
@@ -4308,20 +4359,26 @@ gl3_ev_model_widget(
     gl3_flush_2d_batch(renderer);
     glEnable(GL_SCISSOR_TEST);
     glScissor(gl_x, gl_y, gl_w, gl_h);
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
+    /* Soft3D skips HIDDEN/transparent faces; we still submit them with alpha 0.
+     * Depth-writing those would punch holes through the chathead. Painter order
+     * via face submission is enough once Z is in range (see ortho near/far). */
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
     memset(model_view, 0, sizeof(model_view));
     model_view[0] = model_view[5] = model_view[10] = model_view[15] = 1.0f;
-    trspk_mat4_ortho2d_top_left(
-        widget_proj, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
+    gl3_mat4_ortho_top_left_zf(
+        widget_proj,
+        0.0f,
+        (float)renderer->width,
+        0.0f,
+        (float)renderer->height,
+        GL3_WIDGET_MODEL_Z_NEAR,
+        GL3_WIDGET_MODEL_Z_FAR);
     glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
     gl3_upload_widget_ubo(renderer, model_view, widget_proj);
     gl3_bind_world_draw_state(renderer);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
     gl3_bind_group_attribs(renderer, g, 0u);
     glDrawArrays(GL_TRIANGLES, (GLint)vertex_base, (GLsizei)(face_count * 3));
     gl3_unbind_attribs(renderer);

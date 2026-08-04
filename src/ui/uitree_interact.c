@@ -516,7 +516,13 @@ interact_drag_push_ondrag(
         .drag_target_id = st->drag_target_id,
     };
     if( src->drag_render_area_uid >= 0 )
-        parent_idx = UITree_ResolveDragRenderArea(tree, src);
+    {
+        int32_t area = UITree_ResolveDragRenderArea(tree, src);
+        /* Miss must not wipe the widget parent: absolute screen coords
+         * (parent_y=0) make event_mousey huge and pin scroll to max. */
+        if( area >= 0 )
+            parent_idx = area;
+    }
     if( parent_idx >= 0 )
     {
         int poffx = 0, poffy = 0;

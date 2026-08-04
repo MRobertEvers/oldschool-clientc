@@ -831,7 +831,11 @@ UITree_InputDragTick(
         int depth = UITree_ClickMaskDragDepth(src->behavior.click_mask);
         int32_t clamp_idx = -1;
         if( src->drag_render_area_uid >= 0 )
-            clamp_idx = UITree_ResolveDragRenderArea(tree, src);
+        {
+            int32_t area = UITree_ResolveDragRenderArea(tree, src);
+            if( area >= 0 )
+                clamp_idx = area;
+        }
         else if( depth > 0 )
         {
             int d;
