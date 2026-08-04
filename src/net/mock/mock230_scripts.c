@@ -1855,12 +1855,10 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
  */
 
 static const struct FallbackBlockingOp k_blocked_inv_button[] = {
-    { "SS_OP_LAST_VERB", MOCK230_BLOCKER_LAST_VERB }, /* not BLOCKING_OP: undeclared */
     { NULL, 0 }
 };
 
 static const struct FallbackBlockingOp k_blocked_if_button[] = {
-    { "SS_OP_LAST_VERB", MOCK230_BLOCKER_LAST_VERB }, /* not BLOCKING_OP: undeclared */
     { NULL, 0 }
 };
 
@@ -1909,38 +1907,20 @@ static const struct
           k_blocked_opnpc },
     [MOCK230_FALLBACK_INV_BUTTON] =
         { "inv_button",
-          "NOT 'the bank, 1,370 lines'. The bank is 1,395 (`wc -l "
-          "net/mock/mock230_bank.c`) and its RULES are already sayable — the container "
-          "is script-addressable and every inv_/varbit op they need is implemented. "
-          "This row is ADDRESSING, and it is the quantity map: mock230_bank_quantity_for_op "
-          "(mock230_bank.c) reads CS2 script_5272's fixed sparse indices (Withdraw-X is "
-          "always op 6, All always op 7). SS_TRIGGER_INV_BUTTON1..5 are 149-153 "
-          "(ss_trigger.h) and physically cannot name op 6+; those ops arrive as "
-          "IF_BUTTON6..10 (all ten routed to handle_if_button_op, mock230_world.c) and "
-          "reach [if_button], which has no op rung. So this row and if_button share ONE "
-          "blocker: a last_verb reader. The engine already latches the verb "
-          "(player->last_verb = op_num, two sites); nothing declares SS_OP_LAST_VERB. "
-          "The reference does not hit this — its bank has five fixed rows and binds "
-          "[inv_button1..5,bank_main:inv] (interface_bank/scripts/bank.rs2:1-5)",
+          "Bank item ops no longer arrive as INV_BUTTON — the client emits "
+          "IF_BUTTON1..10 for IF_SETEVENTS-armed component rows, and content binds "
+          "[if_button1..8,bankmain:items] / [if_button2..8,bankside:items] "
+          "(interface_bank/scripts/bank.rs2, bank_deposit.rs2). This row remains for "
+          "any other unbound INV_BUTTON surface (worn tab, shops). The C bank "
+          "quantity ladder is deleted; mock230_bank_handle_button is a no-op stub",
           k_blocked_inv_button },
     [MOCK230_FALLBACK_IF_BUTTON] =
         { "if_button",
-          "'the bank's op ladder, same blocker' was right by accident. It is not the "
-          "quantity ladder (that is inv_button's); it is the settings/deposit router "
-          "mock230_bank_handle_button, mock230_bank.c:1249-1312, 64 lines, shared by "
-          "both bank rows. Same last_verb blocker, and then TWO DEFECTS under it that "
-          "make 'content already binds this' false. (1) The replacement content is "
-          "compiled and INERT: bank.rs2 binds bankmain:{potionstore_container, "
-          "banktags_header_separator, swap_insert_graphic, note_graphic, "
-          "quantity1_text, ...} while bank_set_events (mock230_bank.c) arms "
-          "bankmain:{swap_insert, note, quantity1, ...} — genuinely different "
-          "components (interfaces/bankmain.compack: 23 vs 24, 25 vs 26, 29 vs 30), and "
-          "nothing is clickable until IF_SETEVENTS. (2) Even armed, they only write "
-          "varbits and there is no varbit -> bank-state seam: mock230_bank_get_varbit "
-          "has no runtime caller at all (`grep -rn mock230_bank_get_varbit src` finds "
-          "the definition and two selftest asserts), so Note would toggle on screen "
-          "while the withdraw still came out an item. Both are fixable without an "
-          "opcode and neither is fixed",
+          "Bank settings and item ops are content on the armed components "
+          "(bankmain:{swap_insert,note,quantity*,depositinv,depositworn,items}). "
+          "mock230_bank_handle_button is a no-op stub. This row remains for other "
+          "unbound IF_BUTTON clicks outside the bank. No last_verb opcode — numbered "
+          "[if_buttonN] encodes the op index (skill_guide pattern)",
           k_blocked_if_button },
 };
 

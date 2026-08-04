@@ -143,7 +143,7 @@ Two things about note records bit during this work, both silent:
 
 ---
 
-## 4. The op index is sparse and fixed
+## 4. Content owns the sparse op ladder
 
 LostCity binds five handlers, `[inv_button1..5,bank_main:inv]`, one per withdraw
 amount. Its interface always offers the same five rows in the same order.
@@ -164,24 +164,18 @@ op 8                    Withdraw-All-but-1          always
 op 10                   Examine
 ```
 
-So Withdraw-X is always op 6 and Withdraw-All is always op 7 when shown. The
-engine maps those indices in `mock230_bank_quantity_for_op` and the item rows
-are **deliberately not bound in content** — binding them would mean writing the
-ladder twice, and `[inv_button1..5]` cannot name ops 6+.
+Content binds `[if_button1..8,bankmain:items]` and the side-panel deposit map in
+[`bank.rs2`](../OSRS-Content/osrs239-content/server/scripts/interface_bank/scripts/bank.rs2) /
+[`bank_deposit.rs2`](../OSRS-Content/osrs239-content/server/scripts/interface_bank/scripts/bank_deposit.rs2).
+Amounts come from `%bank_quantity_type` / `%bank_requestedquantity` and
+`^bank_qty_*`. Withdraw-X uses `p_countdialog` and writes last-X into
+`%bank_requestedquantity`. The engine keeps open/close, `IF_SETEVENTS`,
+`UPDATE_INV`, and `inv_moveitem_cert`/`_uncert` → `mock230_bank_withdraw`/`deposit`.
 
-The side panel is the same shape with shifted constants (`bankside_drawitem`):
-op 3 is Deposit-1 whether or not it is on the menu. Hence the `side` parameter
-rather than an offset.
-
-`Withdraw-X` / `Deposit-X` return `MOCK230_BANK_ASK`, which opens the count
-prompt and parks the slot in `bank.pending_slot` until `RESUME_P_COUNTDIALOG`
-arrives. A successful amount is written to `bank_requestedquantity` (varbit
-3960) so the next menu can offer Withdraw-`<N>` at op 5.
-
-`UITREE_MENU_OPTION_SLOTS` is **10**, so the full CS2 ladder reaches the player.
-Ops 1..5 emit `INV_BUTTON1..5`; ops 6..10 emit `IF_BUTTON6..10` (the classic
-inventory-button family stops at five on the wire). Both paths reach
-`mock230_bank_handle_button`.
+`UITREE_MENU_OPTION_SLOTS` is **10**. Armed component item ops emit
+`IF_BUTTON1..10` (component + sub=slot). Settings bind the **armed** comps
+(`swap_insert`, `note`, `quantity*`, `depositinv`, `depositworn`), not the
+graphic/text children beside them.
 
 ---
 

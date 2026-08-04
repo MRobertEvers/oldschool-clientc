@@ -350,10 +350,10 @@ landed in other lanes, one wrong from the start:
   opcodes that now exist. A dbtable with two `LIST` columns is the shape.
   `osrs230_mockserver.md` §3.18.
 
-`inv_button`/`if_button` blamed the bank's line count when the obstacle is
-**addressing**: rev-230's bank menu has 8 op rungs, `[inv_button1..5]` has 5,
-and no opcode exposes the latched verb, so content cannot name Withdraw-All.
-The rules are already sayable; the ops are not.
+`inv_button`/`if_button` blamed the bank's line count when the obstacle was
+**addressing**. That is closed for the bank: numbered `[if_button1..8,bankmain:items]`
+binds the sparse CS2 ladder (no `last_verb`); the client emits `IF_BUTTON1..10`
+for armed component ops. The fallback rows remain for unbound clicks elsewhere.
 
 The cheapest next unlock is therefore **structural, not an opcode**: give
 `[oploc<n>]` an active loc — or, for `opheld`, give the level requirement a
