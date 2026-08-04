@@ -34,6 +34,7 @@ Four repositories:
 | `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
 | `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/Summoning/RS2-only. Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
 | `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-2009 OSRS behaviour reference** (Java). Use when LostCity *and* 2009scape have no proc (Wintertodt, Motherlode, rooftops, Zulrah, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
+| `/Users/matthewevers/Documents/git_repos/quest-helper` | **OSRS-era quest state machines / test guides** (RuneLite plugin). `helpers/quests/*/…` `steps.put(N, …)` is the quest varbit progression; gameval names resolve in the osrs239 pack with no remapping. Does **not** define dialogue/combat implementation. Queue: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md) |
 
 The reference content tree is 1,326 `.rs2` files / 113k lines / 9,376 script
 blocks, organized **by subject** (area, quest, skill, minigame) with configs
@@ -680,6 +681,35 @@ content, not as engine — and **prefer 2009scape over Kronos** for this era
    Mid-era slices that also appear on the Kronos queue are owned here; Kronos
    keeps post-2009-only content.
 
+### 4.6 Quest Helper → OSRS-Content (post-2009 / no LC / no 2009scape)
+
+LostCity stops at Sept 2004; 2009scape covers authentic mid-era through ~Jan
+2009. Quests that neither tree implements — OSRS launches and later RS2
+quests 2009scape never shipped — live as **guides** in the RuneLite Quest
+Helper. Port them as content, not as engine:
+
+1. Confirm LostCity has no proc (§2.2). If it does, use
+   [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md) instead.
+2. Confirm 2009scape has no *implementation* (a `Quests.kt` enum row alone is
+   not enough). If it does, use
+   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
+3. Read the helper under
+   `quest-helper/src/main/java/com/questhelper/helpers/quests/<dir>/`
+   for the **state machine** (`steps.put(N, …)` = quest varbit values) and
+   **named subjects** (`NpcID`/`ObjectID`/`ItemID`/`VarbitID` gamevals →
+   lowercased pack names). Cross-check the osrs239 cache (`quest_*` dbrow,
+   varbit basevars, CS2) for the *wire* — when they disagree, the cache wins.
+   Run `tools/questhelper_extract.py <dir> --check` before writing scripts.
+4. Skip the skip-list in
+   [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md)
+   (diaries, combat tasks, League variants, unresolved gamevals).
+5. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
+   Depth-first: finish every `steps.put` value before marking the slice done.
+   If a new Server VM opcode is required, add it to that queue's opcode-gap
+   log, implement it, then land the content — never a one-off C hook that
+   content could have said once the opcode existed.
+6. Agent loop state: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md).
+
 ---
 
 ## 5. Decision four: modern features with no LostCity reference
@@ -1167,6 +1197,10 @@ For any substantial task, in this order:
    - content porting (Kronos / post-2009) → this file §4.4, then
      [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md); behaviour
      under `Kronos184-Fixed_2/.../io/ruin/`; still grep LostCity first (§2.2)
+   - content porting (Quest Helper / OSRS-era quests) → this file §4.6, then
+     [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md);
+     guides under `quest-helper/.../helpers/quests/`; still grep LostCity then
+     2009scape first (§2.2 / §4.6)
    - ServerScript → [`serverscript.md`](serverscript.md)
    - instanced maps / dynamic regions (POH, Pest Control island, private
      mazes, cutscene sets) → [`map_instances.md`](map_instances.md). Its §5 is

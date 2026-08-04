@@ -10,15 +10,15 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    187  host commands
+ *    196  host commands
  *      9  host commands (db)
- *      6  host commands (inv)
+ *      7  host commands (inv)
  *      8  host commands (loc)
  *      7  host commands (npc)
- *     12  host commands (obj)
+ *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    297  total, of 419 declared opcodes
+ *    308  total, of 419 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 297
+#define MOCK230_OPCODE_COVERAGE_COUNT 308
 #define MOCK230_OPCODE_DECLARED_COUNT 419
 
 /*
@@ -80,10 +80,12 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1008, /* SS_OP_MAP_CLOCK (host commands) */
     1009, /* SS_OP_MAP_FINDSQUARE (host commands) */
     1014, /* SS_OP_MAP_MEMBERS (host commands) */
+    1015, /* SS_OP_MAP_MULTIWAY (host commands) */
     1016, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
     1017, /* SS_OP_MOVECOORD (host commands) */
     1022, /* SS_OP_WORLD_DELAY (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
+    2005, /* SS_OP_BUSY (host commands) */
     2011, /* SS_OP_CLEARQUEUE (host commands) */
     2012, /* SS_OP_CLEARSOFTTIMER (host commands) */
     2013, /* SS_OP_CLEARTIMER (host commands) */
@@ -128,6 +130,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2077, /* SS_OP_P_LOGOUT (host commands) */
     2079, /* SS_OP_P_OPLOC (host commands (player)) */
     2080, /* SS_OP_P_OPNPC (host commands) */
+    2081, /* SS_OP_P_OPNPCT (host commands) */
     2082, /* SS_OP_P_OPOBJ (host commands (player)) */
     2083, /* SS_OP_P_OPPLAYER (host commands (player)) */
     2085, /* SS_OP_P_PAUSEBUTTON (host commands) */
@@ -135,15 +138,18 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2090, /* SS_OP_P_TELEJUMP (host commands) */
     2091, /* SS_OP_P_TELEPORT (host commands) */
     2093, /* SS_OP_P_WALK (host commands) */
+    2095, /* SS_OP_PROJANIM_PL (host commands) */
     2096, /* SS_OP_QUEUE (host commands) */
     2098, /* SS_OP_READYANIM (host commands) */
     2099, /* SS_OP_RUNANIM (host commands) */
     2101, /* SS_OP_SAY (host commands) */
     2102, /* SS_OP_SESSION_LOG (host commands) */
+    2103, /* SS_OP_SET_PLAYER_OP (host commands) */
     2108, /* SS_OP_SETTIMER (host commands) */
     2109, /* SS_OP_SOFTTIMER (host commands) */
     2110, /* SS_OP_SOUND_SYNTH (host commands) */
     2111, /* SS_OP_SPOTANIM_PL (host commands) */
+    2113, /* SS_OP_STAT_ADD (host commands) */
     2114, /* SS_OP_STAT_ADVANCE (host commands) */
     2115, /* SS_OP_STAT_BASE (host commands) */
     2116, /* SS_OP_STAT_BOOST (host commands) */
@@ -190,13 +196,16 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2531, /* SS_OP_NPC_QUEUE (host commands) */
     2532, /* SS_OP_NPC_RANGE (host commands) */
     2533, /* SS_OP_NPC_SAY (host commands) */
+    2535, /* SS_OP_NPC_SETHUNTMODE (host commands) */
     2536, /* SS_OP_NPC_SETMODE (host commands) */
     2537, /* SS_OP_NPC_SETTIMER (host commands) */
     2538, /* SS_OP_NPC_STAT (host commands) */
     2540, /* SS_OP_NPC_STATHEAL (host commands) */
+    2541, /* SS_OP_NPC_STATSUB (host commands) */
     2542, /* SS_OP_NPC_TELE (host commands) */
     2543, /* SS_OP_NPC_TYPE (host commands) */
     2544, /* SS_OP_NPC_UID (host commands) */
+    2547, /* SS_OP_PROJANIM_NPC (host commands) */
     2548, /* SS_OP_SPOTANIM_NPC (host commands) */
     3000, /* SS_OP_LOC_ADD (host commands) */
     3001, /* SS_OP_LOC_ANGLE (host commands) */
@@ -217,6 +226,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     3502, /* SS_OP_OBJ_COORD (host commands (obj)) */
     3503, /* SS_OP_OBJ_COUNT (host commands (obj)) */
     3504, /* SS_OP_OBJ_DEL (host commands (obj)) */
+    3505, /* SS_OP_OBJ_FIND (host commands (obj)) */
     3510, /* SS_OP_OBJ_TAKEITEM (host commands (obj)) */
     3511, /* SS_OP_OBJ_TYPE (host commands (obj)) */
     4000, /* SS_OP_NC_CATEGORY (host commands (npc)) */
@@ -252,6 +262,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4307, /* SS_OP_INV_DEL (host commands) */
     4308, /* SS_OP_INV_DELSLOT (host commands) */
     4309, /* SS_OP_INV_DROPALL (host commands (inv)) */
+    4310, /* SS_OP_INV_DROPITEM_DELAYED (host commands (inv)) */
     4312, /* SS_OP_INV_DROPSLOT (host commands (inv)) */
     4313, /* SS_OP_INV_FREESPACE (host commands) */
     4314, /* SS_OP_INV_GETNUM (host commands) */

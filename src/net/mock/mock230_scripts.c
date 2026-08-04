@@ -6036,6 +6036,37 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `[command,map_multiway](coord $coord)(boolean)` — `ServerOps.ts`
+     * MAP_MULTIWAY, one `World.gameMap.isMulti(coord)`.
+     *
+     * Multi-combat: whether more than one thing may attack you on that tile, and
+     * whether an AoE spreads. `player_combat.rs2` and `npc_combat.rs2` both open
+     * with `if (map_multiway(npc_coord) = false & nc_param(npc_type,
+     * npc_forcemulti) = ^false)` before refusing a second attacker, so this is
+     * the gate on every fight in the game rather than a wilderness detail.
+     *
+     * The data is content's (`maps/multiway.csv`, ported from the reference's own
+     * file) and the lookup is a binary search over a zone set —
+     * `mock230_content_multiway`. The Kronos queue recorded this as "opcode
+     * exists, no multi map": the opcode was *declared* and never hosted, so a
+     * script calling it reached the VM's stub and got 0. Which is the same answer
+     * an empty zone set gives, and that is exactly why it was worth hosting
+     * rather than leaving — the two are indistinguishable from content, so
+     * nothing could tell whether the map was missing or the opcode was.
+     */
+    case SS_OP_MAP_MULTIWAY:
+    {
+        int32_t coord;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state, mock230_content_multiway(mock230_coord_x(coord),
+                                                     mock230_coord_z(coord),
+                                                     mock230_coord_level(coord)));
+        return 1;
+    }
+
     case SS_OP_STAT_TOTAL:
     {
         int total = 0;

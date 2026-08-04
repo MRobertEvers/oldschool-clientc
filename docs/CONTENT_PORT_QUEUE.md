@@ -326,13 +326,13 @@ re-arm. Stop only when the user stops the loop.
 | 19d | Trawler Murphy (dock) | done | murphy Talk-to + constants; %trawler→%trawler_status; trail deferred |
 | 19e | Trawler at sea / gangplank | done | zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred |
 | 19f | Trawler gameplay core | done | net/bail/winch/leak Fill/reset+login; hull remaps; control/varn deferred |
-| 19g | Trawler start/win/sink | pending | LC trawler_start/win + sink huntall; IF/varn blockers |
-| 19h | minigame: Castle Wars | pending | LC `minigames/game_castlewars` (was 18t) |
-| 19i | minigame: Treasure Trails | pending | LC `minigames/game_trail` (was 18u) |
-| 19j | Outward leftover A | pending | next resolvable area/quest leftover |
-| 19k | Outward leftover B | pending | next resolvable area/quest leftover |
-| 19l | Outward leftover C | pending | next resolvable area/quest leftover |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: Trawler Murphy (19d); also 19e–19l; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved) |
+| 19g | Trawler start/win/sink | done | start tele+mes; win+shore net→inv; sink huntall; IF/varn deferred |
+| 19h | Shantay disclaimer | done | thshantaydisc opheld1 → ~mesbox |
+| 19i | Canifis Barker | done | werewolfshopkeeper2 Talk + Trade stub |
+| 19j | Chadwell (W. Ardougne) | done | chadwell Talk + Trade stub |
+| 19k | West Ardougne recruiter | done | recruiter + citizen npc_say; .npc→finduid restore |
+| 19l | Zanaris thin NPCs | done | fairy_queen + jakut/irksol Trade stubs |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: outward leftovers / CW / Trails; skip: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large) |
 
 
 
@@ -664,6 +664,13 @@ re-arm. Stop only when the user stops the loop.
 - slice 19d done: Murphy dock + trawler.constant; %trawler→%trawler_status; trail sextant deferred; mock230_pack 0 errors (5882 scripts)
 - slice 19e done: zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred; mock230_pack 0 errors (5935 scripts)
 - slice 19f done: net/bail/winch/leak Fill/reset+login hook; hull→trawler_hull_*; control timer+varn deferred; mock230_pack 0 errors (6020 scripts)
-- next pending: Trawler start/win (19g); skip blocked: scorpcatcher quest, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn)
+- slice 19g done: start tele+mes; win+shore net→inv; sink huntall; IF/control varn deferred; mock230_pack 0 errors (6021 scripts)
+- queue: CW/Trails deferred (large); 19h–19l = outward leftovers
+- slice 19h done: thshantaydisc opheld1 → ~mesbox; mock230_pack 0 errors (6035 scripts)
+- slice 19i done: Canifis Barker Trade stub; mock230_pack 0 errors (6035 scripts)
+- slice 19j done: Chadwell W. Ardougne Trade stub; mock230_pack 0 errors (6035 scripts)
+- slice 19k done: recruiter + citizen npc_say (finduid restore); mock230_pack 0 errors (6035 scripts)
+- slice 19l done: Zanaris fairy_queen + jakut/irksol Trade stubs; mock230_pack 0 errors (6035 scripts)
+- next pending: outward leftovers / CW / Trails (large); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large)
 
 - equip BAS parallel queue: docs/EQUIP_BAS_PORT_QUEUE.md (slices 0–9 done)

@@ -7,7 +7,9 @@ An instance is a private copy of a piece of the map, assembled out of 8x8 zones
 taken from anywhere in the cache. It is the thing a player-owned house, the Pest
 Control island, a Barrows tunnel and a cutscene set all are, and until this
 landed the engine could not express any of them: `SCAPE2009_CONTENT_PORT_QUEUE`
-rows 4a and 4b were **blocked** on the surface, not on the content.
+rows 4a and 4b were **blocked** on the surface, not on the content. Slice 4a
+(house enter/leave) now lives in `skill_construction/`; 4b (hotspot build) is
+still pending.
 
 Source, in the order it is easiest to read:
 

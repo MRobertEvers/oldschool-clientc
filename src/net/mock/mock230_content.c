@@ -2826,6 +2826,100 @@ walk_configs(
     closedir(handle);
 }
 
+/*
+ * The multi-combat zone set, from `maps/multiway.csv`.
+ *
+ * Where LostCity puts it: `content/maps/multiway.csv`, read by `GameMap.ts`
+ * into a `Set<number>` of zone indices and answered by `GameMap.isMulti`. Engine
+ * code, content data — so the file ports across and only the reader is written
+ * here.
+ *
+ * A *set of zones*, not a list of rectangles, because that is the shape of the
+ * fact: a zone is either multi or it is not, the wilderness edge is ragged, and
+ * 4,697 zones do not reduce to a handful of boxes. Kept sorted so a query is a
+ * binary search — `player_combat.rs2` asks once per swing, per fighter.
+ */
+static int* g_multiway;
+static int g_multiway_count;
+static int g_multiway_capacity;
+
+static int
+compare_zone_index(
+    const void* a,
+    const void* b)
+{
+    int left = *(const int*)a;
+    int right = *(const int*)b;
+
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+static void
+load_multiway(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char line[256];
+
+    if( !file )
+        return;
+    while( fgets(line, sizeof(line), file) )
+    {
+        int level, map_x, map_z, local_x, local_z;
+
+        if( sscanf(line, "%d_%d_%d_%d_%d", &level, &map_x, &map_z, &local_x, &local_z) != 5 )
+            continue; /* a comment or a blank line — the reference skips both. */
+        /*
+         * The reference warns on a line that is not zone-aligned and then files
+         * it anyway, which files the *containing* zone. Reproduced by rounding
+         * rather than by warning: `mock230_zone_index` shifts the tile down to
+         * its zone, so an unaligned line lands where the reference puts it, and
+         * a warning nobody can act on in a ported data file is noise.
+         */
+        if( g_multiway_count == g_multiway_capacity )
+        {
+            int capacity = g_multiway_capacity ? g_multiway_capacity * 2 : 1024;
+            int* grown = realloc(g_multiway, (size_t)capacity * sizeof(*grown));
+
+            if( !grown )
+            {
+                CONTENT_ERROR("maps/multiway.csv: out of memory at %d zones\n",
+                              g_multiway_count);
+                break;
+            }
+            g_multiway = grown;
+            g_multiway_capacity = capacity;
+        }
+        g_multiway[g_multiway_count++] =
+            mock230_zone_index((map_x << 6) + local_x, (map_z << 6) + local_z, level);
+    }
+    fclose(file);
+    qsort(g_multiway, (size_t)g_multiway_count, sizeof(*g_multiway), compare_zone_index);
+}
+
+int
+mock230_content_multiway(
+    int x,
+    int z,
+    int level)
+{
+    int key = mock230_zone_index(x, z, level);
+    int low = 0;
+    int high = g_multiway_count - 1;
+
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_multiway[mid] == key )
+            return 1;
+        if( g_multiway[mid] < key )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return 0;
+}
+
 static void
 load_maps(const char* dir)
 {
@@ -3025,6 +3119,8 @@ mock230_content_load(const char* dir)
 
     snprintf(path, sizeof(path), "%s/maps", dir);
     load_maps(path);
+    snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
+    load_multiway(path);
 
     {
         int requires_total = 0;
@@ -3446,6 +3542,9 @@ mock230_content_free(void)
     free(g_varp_defs);
     g_varp_defs = NULL;
     g_varp_def_count = g_varp_def_capacity = 0;
+    free(g_multiway);
+    g_multiway = NULL;
+    g_multiway_count = g_multiway_capacity = 0;
     for( int i = 0; i < g_enum_def_count; i++ )
     {
         free((void*)g_enum_defs[i].symbol);

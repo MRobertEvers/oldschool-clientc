@@ -719,6 +719,22 @@ mock230_content_load_server_band(
 void
 mock230_content_free(void);
 
+/**
+ * Is this tile in a multi-combat zone? — `maps/multiway.csv`, the reference's
+ * `GameMap.isMulti`.
+ *
+ * Answers 0 for every tile when the file is absent, which is the same answer the
+ * reference gives (`if (fs.existsSync(...))` — no file, empty set). A tree
+ * without the data therefore behaves as single-way everywhere rather than
+ * failing to boot, and that is the safe direction: single-way is the more
+ * restrictive rule.
+ */
+int
+mock230_content_multiway(
+    int x,
+    int z,
+    int level);
+
 /** Diagnostics: what the last load rejected. Zero means the tree is clean. */
 int
 mock230_content_error_count(void);
