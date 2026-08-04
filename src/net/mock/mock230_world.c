@@ -11433,15 +11433,14 @@ mock230_world_selftest(void)
         }
 
         /*
-         * An unreachable interaction terminates instead of latching forever.
-         *
-         * Park the player away from a loc, latch an interaction with an empty
-         * waypoint queue and no step this tick, then process once: the reach
-         * test fails, there is nowhere left to walk, and the interaction clears
-         * (with cannot_reach_message via mock230_say).
+         * Empty waypoint queue mid-interaction: re-flood if a path exists, else
+         * clear with cannot_reach_message. The castle door from the courtyard is
+         * reachable — LostCity keeps walking — so that case must stay latched.
+         * A target the flood cannot reach is what clears.
          */
         {
             int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+            int goblin = selftest_find_npc(&srv, 3028);
 
             if( door >= 0 )
             {
@@ -11454,8 +11453,37 @@ mock230_world_selftest(void)
                 steps_clear(player);
                 player->steps_taken = 0;
                 mock230_world_process_interaction(&srv);
+                SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_LOC,
+                               "a reachable interaction with an empty queue re-floods");
+                SELFTEST_CHECK(player->waypoint_index >= 0,
+                               "and queues an approach path, idx=%d", player->waypoint_index);
+                mock230_world_interaction_clear(&srv);
+                steps_clear(player);
+            }
+
+            SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+            if( goblin >= 0 )
+            {
+                struct Mock230Npc* npc = &srv.npcs[goblin];
+                const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+                int keep_x = npc->x;
+                int keep_z = npc->z;
+                int keep_level = npc->level;
+
+                selftest_park_player(&srv, 3222, 3218);
+                mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 1, goblin, npc->type,
+                                              npc->x, npc->z, npc->level, info->size, info->size);
+                player->interaction.ap_tried = 1;
+                steps_clear(player);
+                player->steps_taken = 0;
+                /* Outside the scene window — route_op refuses and give-up clears. */
+                mock230_world_npc_teleport(npc, 0, 0, 0);
+                npc->next_roam_tick = srv.tick + 1000;
+                mock230_world_process_interaction(&srv);
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                                "an unreachable interaction clears rather than latching");
+                mock230_world_npc_teleport(npc, keep_x, keep_z, keep_level);
+                npc->next_roam_tick = srv.tick + 1000;
             }
         }
     }

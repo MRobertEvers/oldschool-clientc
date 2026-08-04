@@ -1100,14 +1100,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 sc->painter_wall_ab, sc->painter_wall_side);
         else
             painter_add_normal_scenery(
-        world->painter,
-        grid_x,
-        grid_z,
-        sc->grid_position.level,
-        sc->element_id,
-        sc->size_x > 0 ? sc->size_x : 1,
-        sc->size_z > 0 ? sc->size_z : 1,
-        ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id));
+                world->painter,
+                grid_x,
+                grid_z,
+                sc->grid_position.level,
+                sc->element_id,
+                sc->size_x > 0 ? sc->size_x : 1,
+                sc->size_z > 0 ? sc->size_z : 1,
+                ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id));
     }
 
     /* Ground items render below entities (reference tile.groundObject draws in
@@ -1129,14 +1129,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
             grid_z >= world->_scene_size )
             continue;
         painter_add_normal_scenery(
-        world->painter,
-        grid_x,
-        grid_z,
-        local_level,
-        stack->element_id,
-        1,
-        1,
-        ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id));
+            world->painter,
+            grid_x,
+            grid_z,
+            local_level,
+            stack->element_id,
+            1,
+            1,
+            ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id));
     }
 
     world_dyn_register_players(world, /*only_local=*/true, local_level);
@@ -1163,14 +1163,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 &footprint) )
             continue; /* off-edge padded span: reference draws nothing */
         painter_add_normal_scenery(
-        world->painter,
-        footprint.sx,
-        footprint.sz,
-        local_level,
-        p->element_id,
-        footprint.size_x,
-        footprint.size_z,
-        ToriDraw_SceneElementOcclusionHeight(world->scene, p->element_id));
+            world->painter,
+            footprint.sx,
+            footprint.sz,
+            local_level,
+            p->element_id,
+            footprint.size_x,
+            footprint.size_z,
+            ToriDraw_SceneElementOcclusionHeight(world->scene, p->element_id));
     }
 
     pool = &world->entities.spotanim;
@@ -1187,14 +1187,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
             grid_z >= world->_scene_size )
             continue;
         painter_add_normal_scenery(
-        world->painter,
-        grid_x,
-        grid_z,
-        local_level,
-        s->element_id,
-        1,
-        1,
-        ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id));
+            world->painter,
+            grid_x,
+            grid_z,
+            local_level,
+            s->element_id,
+            1,
+            1,
+            ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id));
     }
 }
 

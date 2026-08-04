@@ -126,6 +126,8 @@ Default **on**; `TORIRS_OCCLUDERS=0` disables (mirrors `TORIRS_PAINTER_NOCULL=1`
 | `occluded` / `groundOccluded` / `wallOccluded` / `spriteOccluded` / `spriteOccluded2` | `scene_occluders_{point,ground_tile,wall,column,footprint}_hidden` |
 | `visibilityMap` | `PaintersCullSpan` (analytic per frame); no 9×32×51×51 bake |
 | `FloType.occlude` | `Dat2ConfigFlo.hide_underlay` (same opcode 5) |
+| `Square.originalLevel` / deob `field2564` | `painters_tile_get_mesh_level` (survives bridge push-down) |
+| `Model.minY` / `bottomY` (= max(-vertexY)) | `-bounds_cylinder->min_y` via `ToriDraw_SceneElementOcclusionHeight`, stored on `NormalScenery` / `WallDecor.model_height` |
 
 ### Split flat-floor condition
 
@@ -148,11 +150,17 @@ Shapes **12..17 except 13** (`ROOF_SLOPED_OUTER_CORNER` / reference `ROOF_DIAGON
 
 `scene_occluders_select_for_camera` takes a `PaintersCullSpan*` instead of porting `visibilityMap`. Footprint tiles are tested with the span's row ranges (same question the painters already ask: "is this tile on screen?"). `NULL`/empty span treats every footprint tile as visible (activates more occluders).
 
+Before deriving the camera tile and spreads, the eye is clamped into `[0, scene_size*128 - 1]` on X and Z — matching Client-TS `World.renderAll`. That keeps the footprint gate aligned with the painter's clamped `cam_sx`/`cam_sz` when the orbit eye sits past the map edge.
+
 ### Painter wiring
 
 All three painters (`bucket`, `world3d`, `distancemetric`) skip **emits** when occluded; traversal / step / neighbour pushes / span gating are untouched so the wavefront still propagates. Ground verdict is computed once per tile into `TilePaint.occlusion`.
 
+Occlusion tests use **`mesh_level`** (reference `originalLevel`); traversal and `painter_coord_idx` stay on **`paintgrid_level`**. Bridge-underpass ground is gated with `scene_occluders_ground_tile_hidden` at the underpass tile's mesh level (always 0 after push-down); underpass walls/scenery are not tested, matching both references. Wall decor and scenery footprint tests pass the stored `model_height`; ground decor / ground objects keep height 0 (equivalent to the reference's `tileDrawn` gate).
+
 ### Measured (2026-08-03, Lumbridge `tele 0,50,50,16,14`, pitch 167)
+
+Pre-parity baseline (before mesh_level / model_height / eye-clamp fixes):
 
 | | `TORIRS_OCCLUDERS=0` | `=1` |
 |---|---:|---:|
@@ -160,6 +168,8 @@ All three painters (`bucket`, `world3d`, `distancemetric`) skip **emits** when o
 | entities / terrain kinds | 1341 / 4512 | 1135 / 3886 |
 | built planes (top=3) | — | 38 wall + 116 floor |
 | active planes this eye | 0 | 10 |
+
+Re-measure after the parity fixes rather than trusting these numbers — they still show the command-count drop is real, but the active set and what gets culled on bridges / tall locs changed.
 
 Headless BMPs are **not** frame-deterministic even with occluders off (~1.3% pixel churn from water/NPC/UI animation between runs), so pixel identity is not a usable gate. The command-count drop plus the fuzz subsequence check (`scripts/painter/c/fuzz_real.c`) and `make -C src test-painters-occluders` are the correctness gates.
 
