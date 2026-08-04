@@ -99,7 +99,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     210: (6, 0, 0, 0),  # _210(component, int, int, int, int, int)
     211: (3, 0, 1, 0),  # IF_CHILDREN_COLLECT(start, component, unused) -> count
     212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
-    213: (0, 0, 1, 0),  # children find-next id (same as 204/206)
+    213: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXT() -> bool (set target; != FINDNEXTID)
     215: (0, 0, 0, 1),  # CHILDREN_ARRAY() -> string (array handle)
     6200: (2, 0, 0, 0),  # VIEWPORT_SETFOV
     6201: (2, 0, 0, 0),  # VIEWPORT_SETZOOM

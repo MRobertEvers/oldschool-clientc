@@ -420,6 +420,7 @@ CS2VM2_ResetChildrenIter(struct CS2VM2_Thread* vm)
     assert(vm);
     vm->children_iter_count = 0;
     vm->children_iter_index = 0;
+    vm->children_iter_parent = -1;
 }
 
 static inline int
@@ -9175,8 +9176,10 @@ CS2VM2_RunOp(
     case CS2_OP_CC_CHILDREN_FIND:
         return CS2VM2_Op_CC_ChildrenFind(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
-    case CS2_OP__213:
         return CS2VM2_Op_CC_ChildrenFindNextId(vm, frame, operand);
+    case CS2_OP_CC_CHILDREN_FINDNEXT:
+    case CS2_OP__213:
+        return CS2VM2_Op_CC_ChildrenFindNext(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FIND_COUNT:
         return CS2VM2_Op_CC_ChildrenFindCount(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FIND:
@@ -10589,6 +10592,38 @@ CS2VM2_Op_CC_ChildrenFindNextId(
     if( vm->children_iter_index < vm->children_iter_count )
         return CS2VM2_PushInt(vm, vm->children_iter_indices[vm->children_iter_index++]);
     return CS2VM2_PushInt(vm, -1);
+}
+
+/*
+ * Opcode 213 — CC_CHILDREN_FINDNEXT() -> bool.
+ * After 203/212 filled children_iter_*, advance to the next child, set it as
+ * the active/dot target (same as cc_find), and push 1. Exhausted -> push 0.
+ * Script 9179 compares against 1 then runs .cc_setop/.cc_setonop on that child
+ * — aliasing this to FINDNEXTID (204) broke Overview/Quest XP tab clicks.
+ */
+int
+CS2VM2_Op_CC_ChildrenFindNext(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    if( vm->children_iter_index >= vm->children_iter_count ||
+        vm->children_iter_parent < 0 )
+        return CS2VM2_PushInt(vm, 0);
+
+    int sub_id = vm->children_iter_indices[vm->children_iter_index++];
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_FIND;
+    request.u.cc_find.parent_id = vm->children_iter_parent;
+    request.u.cc_find.sub_id = sub_id;
+    request.u.cc_find.dot_operand = operand;
+
+    return vm->vm->host_exec(vm, &request);
 }
 
 int

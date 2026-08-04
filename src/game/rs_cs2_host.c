@@ -2624,6 +2624,7 @@ exec_children_find(
 
     /* Group is mounted; an absent parent simply has no children to iterate. */
     CS2VM2_ResetChildrenIter(vm);
+    vm->children_iter_parent = parent_id;
     if( tree )
     {
         vm->children_iter_count = UITree_CollectDynamicChildIndices(

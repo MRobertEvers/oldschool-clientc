@@ -115,7 +115,11 @@ struct CS2VM2_Array
 /* Skill-guide Overview (9150..9199): children-find variant that also pushes
  * the match count (call-site (1i->1i) in scripts 9179/9186). */
 #define CS2_OP_CC_CHILDREN_FIND_COUNT 212
-#define CS2_OP__213 213
+/* Boolean children find-next after 212/203: set active/dot child, push 1/0.
+ * Distinct from FINDNEXTID (204/206), which pushes the child sub-id. Script
+ * 9179 arms Overview/Quest XP cc_setonop via this loop. */
+#define CS2_OP_CC_CHILDREN_FINDNEXT 213
+#define CS2_OP__213 CS2_OP_CC_CHILDREN_FINDNEXT
 /* IF_CHILDREN_COLLECT (211) + CHILDREN_ARRAY (215): script 9181 gathers
  * overview_tabs child subids into an int-array handle, then walks it to
  * if_sethide the non-selected Overview content panel. */
