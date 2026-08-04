@@ -254,11 +254,12 @@ UITree_EmitFill(
              * - outline==0 && graphic_shadow==0 (inventory/bank): use the
              *   SHADOW-baked item_scene_id and keep both fields at 0 — the
              *   drop shadow is already in the pixels.
-             * - either non-zero (skill-guide rows after cc_setoutline /
-             *   cc_setgraphicshadow): swap to the plain (outlineRgb=-1) bake
-             *   and forward the component fields so Soft3D/GL3 apply the
-             *   post-process once. Stacking on a SHADOW bake doubles the
-             *   shadow at +2px. */
+             * - outline==1 && graphic_shadow==0 (collection log / bank cells):
+             *   use a pre-baked black-border sprite so Soft3D does not call
+             *   SpriteNewGraphicOutline every frame for each unique icon.
+             * - graphic_shadow != 0 (skill-guide rows): swap to the plain bake
+             *   and forward outline/shadow for Soft3D post-process once.
+             *   Stacking on a SHADOW bake doubles the shadow at +2px. */
             if( component->item_id > 0 && component->item_scene_id > 0 )
             {
                 int outline = component->u.rs_graphic.outline;
@@ -272,6 +273,46 @@ UITree_EmitFill(
                     out->atlas_index = component->item_atlas_index;
                     out->outline = 0;
                     out->graphic_shadow = 0;
+                }
+                else if( outline == 1 && graphic_shadow == 0 )
+                {
+                    int bordered = -1;
+                    if( host )
+                    {
+                        struct UITreeHostRequest req = {
+                            .kind = UITREE_HOST_GET_OBJ_ICON_BORDERED,
+                            .u.get_obj_icon_bordered.obj_id = component->item_id,
+                            .u.get_obj_icon_bordered.count =
+                                component->item_count > 0 ? component->item_count : 1,
+                        };
+                        bordered = UITree_Host(host, &req);
+                    }
+                    if( bordered > 0 )
+                    {
+                        out->scene_id = bordered;
+                        out->atlas_index = 0;
+                        out->outline = 0;
+                        out->graphic_shadow = 0;
+                    }
+                    else
+                    {
+                        /* Model still loading — fall back to plain + Soft3D. */
+                        int plain = -1;
+                        if( host )
+                        {
+                            struct UITreeHostRequest req = {
+                                .kind = UITREE_HOST_GET_OBJ_ICON_PLAIN,
+                                .u.get_obj_icon_plain.obj_id = component->item_id,
+                                .u.get_obj_icon_plain.count =
+                                    component->item_count > 0 ? component->item_count : 1,
+                            };
+                            plain = UITree_Host(host, &req);
+                        }
+                        out->scene_id = plain > 0 ? plain : component->item_scene_id;
+                        out->atlas_index = plain > 0 ? 0 : component->item_atlas_index;
+                        out->outline = outline;
+                        out->graphic_shadow = 0;
+                    }
                 }
                 else
                 {

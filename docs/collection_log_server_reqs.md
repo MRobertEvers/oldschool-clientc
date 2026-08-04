@@ -1,5 +1,14 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-03 — open lag fixed (client draw).** Dense sources
+> (`cc_setoutline(1)` + `cc_setobject` per catalog row, up to ~134 icons on Hard
+> Treasure Trails) were Soft3D-outlining every unique icon every frame against a
+> 32-entry LRU. Emit now prefers a pre-baked bordered obj icon
+> (`UITreeSceneBridge_EnsureObjIconBordered`); Soft3D outline LRU raised to 256.
+> Measured (`TORIRS_NET_CHEAT=collectionbig`, uncapped 1200 frames): frame p95
+> **14.5 → 6.0 ms**, render p95 **9.2 → 4.2 ms**. Cheats: `::collection`,
+> `::collectionbig`. See [`PERF_HARNESS.md`](PERF_HARNESS.md).
+>
 > **UPDATE 2026-08-03 — body-draw bootstrap landed.** Stretch desktop's
 > `collection_init` (script_2240) never calls script7798 (only the mobile
 > enum_1132 branch does), so mount alone left tabs visible and the parchment

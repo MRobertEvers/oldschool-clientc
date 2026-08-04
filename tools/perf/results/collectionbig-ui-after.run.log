@@ -1,0 +1,96 @@
+run_perf: building EMBED_SERVER=1 TORIDRAW_OPT=1 PLATFORM_OBJ_BASE=build_perf
+makefile:435: warning: overriding commands for target `build_perf_tdo/features.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/features.o'
+makefile:435: warning: overriding commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:480: warning: overriding commands for target `build_perf_tdo/collision_map.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/collision_map.o'
+makefile:577: warning: overriding commands for target `build_perf_tdo/rsareabuf.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/rsareabuf.o'
+makefile:586: warning: overriding commands for target `build_perf_tdo/ini.o'
+makefile:435: warning: ignoring old commands for target `build_perf_tdo/ini.o'
+make: `torirs' is up to date.
+run_perf: scenario=ui frames=1200 window=1000 csv=tools/perf/results/collectionbig-ui-after.csv
+run_perf: wrote tools/perf/results/collectionbig-ui-after.csv
+run_perf: wrote tools/perf/results/collectionbig-ui-after.csv.windows.csv
+=== torirs_perf report ===
+frames=1200 ring=1200 over_20ms=15 (1.2%) eff_fps=101.2
+frame_ns mean=9883779 p50=5243000 p95=5986000 max=5425282000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async            288865       2000     181000   88652000
+logic            629347      83000     492000  117002000
+cs2              555380          0     403000  116838000
+layout              381          0       1000     157000
+interact          19012      19000      28000      66000
+emit             194560     195000     355000     700000
+paint            552556     621000     712000    1879000
+build            552716     621000     712000    1880000
+render          3364397    3808000    4227000    5320000
+present          140654     138000     156000     384000
+server            82650       1000       2000   93709000
+residual        3503261  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                         825564       687.97
+uitree_find_id_probes                 2099472      1749.56
+uitree_id_rebuild                         498         0.41
+uitree_find_child                       27228        22.69
+uitree_find_child_hit                   15837        13.20
+uitree_find_child_ceil_miss             10748         8.96
+uitree_walk_emit                      3307304      2756.09
+uitree_walk_hit                        675725       563.10
+uitree_walk_hover                      108205        90.17
+uitree_emit_skip                      2929453      2441.21
+uitree_layout_resolve                     959         0.80
+uitree_layout_skip                        461         0.38
+uitree_layout_nodes                   3416507      2847.09
+uitree_layout_node_skip               3298522      2748.77
+uitree_layout_depth_recompute             484         0.40
+uitree_ensure_layout                    23248        19.37
+uitree_cc_create                        11054         9.21
+uitree_cc_deleteall                       783         0.65
+uitree_cc_deleteall_rows                 5022         4.18
+uitree_apply_geo                        27595        23.00
+uitree_apply_content                    31379        26.15
+uitree_apply_hook                        8398         7.00
+uitree_apply_other                     568189       473.49
+uitree_components                     7798176      6498.48
+uitree_capacity                       8673280      7227.73
+uitree_node_bytes                 18040422400  15033685.33
+cs2_scripts                             11266         9.39
+cs2_opcodes                           2416859      2014.05
+cs2_host_ops                           336099       280.08
+cs2_cycles                            2416859      2014.05
+cs2_vm_acquire                           8935         7.45
+cs2_vm_pool_hit                          8933         7.44
+cs2_vm_pool_miss                            2         0.00
+cs2_vm_init_ns                        6350000      5291.67
+cs2_frame_pool_hit                      19898        16.58
+cs2_frame_pool_miss                        15         0.01
+cache_model_hit                         15450        12.88
+cache_model_miss                         2393         1.99
+cache_sprite_hit                        47734        39.78
+cache_sprite_miss                        1031         0.86
+painter_pops                          8763558      7302.97
+painter_gate_rejects                  3830586      3192.16
+painter_pushes                        8763558      7302.97
+painter_push_dedup                    3820291      3183.58
+painter_drain_events                     4160         3.47
+painter_commands                      5435014      4529.18
+painter_tiles_remaining_set           4502780      3752.32
+scene_elements                        6879178      5732.65
+scene_anim_list                         53250        44.38
+zone_map_count                          52868        44.06
+zone_map_capacity                      306944       255.79
+npc_slot_max                            77935        64.95
+cache_model_size                       425479       354.57
+cache_sprite_size                      209277       174.40
+iface_open                                 26         0.02
+iface_close                                 2         0.00
+iface_bake                                 22         0.02
+iface_bake_reuse                            4         0.00
+iface_mount_ns                        8034000      6695.00
+iface_close_ns                           1000         0.83
+iface_groups_resident                    9980         8.32
+uitree_hidden                         1546646      1288.87

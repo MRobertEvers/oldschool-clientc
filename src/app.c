@@ -540,6 +540,53 @@ app_worldmap_flash_marker_scene(struct App* app)
     return app->worldmap_flash_scene_id;
 }
 
+/* Loc mapfunction / worldmap icon: mapelement id → sprite scene id (dat2).
+ * Queues MapElementLoad / SpriteLoad when cold; returns <= 0 until ready.
+ * Label-only elements (sprite_id < 0) return 0. If out_element is non-NULL and
+ * the config is loaded, it is filled (even when the sprite is not ready). */
+static int
+app_mapfunction_scene_id(
+    struct App* app,
+    int element_id,
+    struct ToriRS_MapElement** out_element)
+{
+    struct ToriRS_MapElement* element;
+    struct ToriRS_Sprite* sprite;
+    int scene_id;
+
+    assert(app);
+    assert(app->provider);
+    if( out_element )
+        *out_element = NULL;
+    if( element_id < 0 )
+        return 0;
+
+    element = CacheProvider_MapElementGet(app->provider, element_id);
+    if( !element )
+    {
+        struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return 0;
+    }
+    if( out_element )
+        *out_element = element;
+    if( element->sprite_id < 0 )
+        return 0;
+
+    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
+    if( !sprite || sprite->frame_count <= 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, element->sprite_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return 0;
+    }
+
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
+    return scene_id > 0 ? scene_id : 0;
+}
+
 static bool
 app_worldmap_push_icon(
     struct App* app,
@@ -547,7 +594,7 @@ app_worldmap_push_icon(
     int screen_x,
     int screen_y)
 {
-    struct ToriRS_MapElement* element;
+    struct ToriRS_MapElement* element = NULL;
     struct ToriRS_Sprite* sprite;
     struct UITreeWorldMapTile* tile;
     int scene_id;
@@ -563,6 +610,8 @@ app_worldmap_push_icon(
         screen_y > app->worldmap_box_y + app->worldmap_box_h + 32 )
         return false;
 
+    /* Warm the mapelement first so category visibility can gate the sprite
+     * load — same order as before the shared helper. */
     element = CacheProvider_MapElementGet(app->provider, element_id);
     if( !element )
     {
@@ -578,21 +627,13 @@ app_worldmap_push_icon(
     if( !RS_WorldMap_IconVisible(app->host.worldmap, element_id, element->category) )
         return false;
 
-    if( element->sprite_id < 0 )
-        return false; /* label-only element: drawn as text, not yet implemented */
-
-    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
-    if( !sprite || sprite->frame_count <= 0 )
-    {
-        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, element->sprite_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
-        return false;
-    }
-
-    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
+    scene_id = app_mapfunction_scene_id(app, element_id, &element);
     if( scene_id <= 0 )
-        return false;
+        return false; /* cold sprite, or label-only (sprite_id < 0) */
+
+    assert(element);
+    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
+    assert(sprite && sprite->frame_count > 0);
 
     /* Flash marker first, so it lands *behind* the icon (tiles draw in push
      * order). Reserve room for both, or the marker would be the last blit that
@@ -1220,7 +1261,10 @@ app_minimap_build_dots(
     marker_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPMARKER);
 
     /* Loc mapfunction icons first, so entity dots draw on top (reference
-     * minimapDraw order). Gathered at scene build into world->mapfuncs. */
+     * minimapDraw order). Gathered at scene build into world->mapfuncs.
+     * dat1: frame index into the mapfunction atlas. dat2/OSRS: mapelement id
+     * → sprite (same path as the world map). */
+    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
     {
         int mapfunc_scene =
             UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPFUNCTION);
@@ -1238,6 +1282,25 @@ app_minimap_build_dots(
                     mapfunc_scene,
                     icon->func);
             }
+        }
+    }
+    else
+    {
+        for( int i = 0; i < world->mapfunc_count; i++ )
+        {
+            struct World_MapFunctionIcon const* icon = &world->mapfuncs[i];
+            int scene_id;
+            if( icon->level != local->grid_position.level )
+                continue;
+            scene_id = app_mapfunction_scene_id(app, icon->func, NULL);
+            if( scene_id <= 0 )
+                continue;
+            app_minimap_push_dot(
+                app,
+                icon->x * 128 + 64 - px,
+                icon->z * 128 + 64 - pz,
+                scene_id,
+                0);
         }
     }
 
@@ -2029,6 +2092,11 @@ app_host_request(
             &app->bridge,
             req->u.get_obj_icon_plain.obj_id,
             req->u.get_obj_icon_plain.count > 0 ? req->u.get_obj_icon_plain.count : 1);
+    case UITREE_HOST_GET_OBJ_ICON_BORDERED:
+        return UITreeSceneBridge_EnsureObjIconBordered(
+            &app->bridge,
+            req->u.get_obj_icon_bordered.obj_id,
+            req->u.get_obj_icon_bordered.count > 0 ? req->u.get_obj_icon_bordered.count : 1);
     default:
         return 0;
     }
@@ -8256,6 +8324,88 @@ App_WorldLocChange(
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
+static void
+app_loc_change_apply_cb(
+    void* user,
+    int level,
+    int x,
+    int z,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct App* app = (struct App*)user;
+
+    App_WorldLocChange(app, x, z, level, loc_id, shape, angle);
+}
+
+void
+App_WorldLocMerge(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle,
+    int start_cycle,
+    int end_cycle,
+    int player_pid)
+{
+    struct WorldEntity_Player* player = NULL;
+    int old_type = -1;
+    int old_angle = 0;
+    int old_shape = shape;
+    int idx;
+
+    assert(app);
+    if( !app->world || !app->world->load_complete )
+        return;
+
+    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, shape);
+    if( idx >= 0 )
+    {
+        struct WorldEntity_Scenery* old =
+            World_EntityPoolGet(&app->world->entities.scenery, idx);
+        if( old )
+        {
+            old_type = old->loc_id;
+            old_angle = old->angle;
+            old_shape = old->shape;
+        }
+    }
+
+    /* Countdown LocChange: hide (new_type -1) after start_cycle ticks, restore
+     * after end_cycle ticks — Client-TS locChangeCreate(..., t1+1, t2+1). */
+    World_LocChangePush(
+        app->world,
+        level,
+        World_LocShapeToLayer(shape),
+        scene_x,
+        scene_z,
+        old_type,
+        old_angle,
+        old_shape,
+        -1,
+        0,
+        0,
+        start_cycle + 1,
+        end_cycle + 1);
+
+    if( player_pid == app->esync.local_pid )
+        player = app_local_player(app);
+    else
+        player = World_PlayerGetByServerPid(app->world, player_pid);
+    if( player )
+    {
+        player->loc_start_cycle = app->world->cycle + start_cycle;
+        player->loc_stop_cycle = app->world->cycle + end_cycle;
+        player->loc_merge_id = loc_id;
+        player->loc_merge_shape = shape;
+        player->loc_merge_angle = angle;
+    }
+}
+
 /* Hotkey 5: spawn a free-standing spotanim on the hovered tile.
  * TORIRS_SPAWN_SPOTANIM / _HEIGHT / _DELAY override the defaults. */
 static void
@@ -8852,6 +9002,7 @@ app_world_frame(
     world->local_pid = app->esync.local_pid;
 
     World_Cycle(world, cycles);
+    World_LocChangesTick(world, cycles, app_loc_change_apply_cb, app);
     App_WorldDrainEntityRemoved(app);
 
     app_world_sync_positions(app);
@@ -8878,6 +9029,20 @@ app_world_frame(
     }
     app_world_sync_entity_animations(app);
     app_world_sync_entity_spotanims(app);
+
+    /* Expire P_LOCMERGE markers once the ride window ends. */
+    {
+        struct World_EntityPool* pool = &world->entities.player;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Player* p = World_EntityPoolGet(pool, i);
+            if( !p || p->loc_merge_id < 0 )
+                continue;
+            if( world->cycle < p->loc_start_cycle || world->cycle >= p->loc_stop_cycle )
+                p->loc_merge_id = -1;
+        }
+    }
 
     for( int c = 0; c < cycles; c++ )
         app_world_tick_animations(app);

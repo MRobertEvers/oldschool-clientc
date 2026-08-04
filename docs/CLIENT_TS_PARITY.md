@@ -175,16 +175,23 @@ is folded into build-time heights here).
   widget box. Static sprites `mapdots`/`mapmarker` were already loaded by
   `task_static_sprites_load`.
 
-**Function icons (done in the pathing-parity session):** `mapfunction`
-(loc opcode 60, already decoded by rscache) now flows into
+**Function icons (done in the pathing-parity session; osrs239 draw fixed):**
+`mapfunction` (loc opcode 60, already decoded by rscache) flows into
 `ToriRS_Location.map_function_id`; `world_builder_minimap_add_chunk_mapfunctions`
 (`world_scenery.u.c`) gathers floor-decoration locs per chunk (the reference
-gather reads `gdType`, i.e. ground decor only) into `World.mapfuncs[]`, and
+gather reads `gdType`, i.e. ground decor only) into `World.mapfuncs[]` with no
+atlas-size cap (dat1 had 50 frames; osrs239 mapelement ids go far higher), and
 `world_builder_minimap_spread_mapfunctions` runs the 10-step
 collision-respecting random walk (±3 tiles, funcs 22/29/34/36/46/47/48 stay
-put) in `RebuildCenterzoneEnd` once collision is final. Draw:
-`app_minimap_build_dots` pushes them first (entity dots on top) as ordinary
-dots with `scene_id = STATIC_SPRITE_MAPFUNCTION` slot, `atlas_index = func`.
+put) in `RebuildCenterzoneEnd` once collision is final. Draw
+(`app_minimap_build_dots`, icons first so entity dots land on top):
+- **dat1:** `STATIC_SPRITE_MAPFUNCTION` atlas, `atlas_index = func` (Client-TS
+  Pix32 frames).
+- **dat2 / osrs239:** `func` is a **mapelement** id — same resolution as the
+  world map (`app_mapfunction_scene_id`: MapElementLoad → `sprite_id` →
+  EnsureSprite, `atlas_index = 0`). There is no bare `mapfunction` sprites
+  archive on osrs239 (`STATIC_SPRITE_MAPFUNCTION.dat2_name` is NULL); icons
+  live as `mapfunction_N` archives pointed at by mapelement configs.
 
 **Scene icons — `mapscene` (trees / rocks / altars / fences) — done this
 session.** These are a *separate* mechanism from the function dots above, and
@@ -2463,7 +2470,7 @@ built the missing vertical slice, end to end.
 **Packet wiring.** `rs_gameproto_exec.c` `PKT_NAME_MAP_ANIM` now resolves the
 zone tile and calls `App_WorldSpotanimSpawn(app, tile_x, tile_z, level, id,
 height, delay)` (65535 = the clear sentinel, ignored). `MAP_PROJANIM` and
-`LOC_MERGE` remain stubs (see §29b follow-ons).
+`LOC_MERGE` is wired (see §56); `MAP_PROJANIM` remains a stub (see §29b follow-ons).
 
 ### Verified offline
 
@@ -2893,10 +2900,9 @@ old-state capture reads typecodes from the scene, not a side pool.
 
 ### Known limitations (unchanged from §28 where not listed)
 
-- **No timed re-verts / `P_LOCMERGE`.** The reference `LocChange` carries
-  `startTime`/`endTime` for temporary changes (`P_LOCMERGE`); torirs implements
-  the permanent subset (`startTime 0`, `endTime -1`) that `LOC_DEL`/
-  `LOC_ADD_CHANGE` use.
+- **Timed LocChange / `P_LOCMERGE` — landed in §56.** Countdown apply + hide
+  window work; player riding-loc **model draw** is still partial (timers +
+  scenery hide/restore only).
 - **No `locChangePostBuildCorrect`.** After a map rebuild the reference
   re-applies surviving changes client-side; torirs relies on the server's zone
   resync after `REBUILD_NORMAL` (the 245 server re-sends zone state).
@@ -4421,3 +4427,40 @@ after abs is formed — not origin-align in `UITree_If3AxisFromPositionMode`
 (that broke chat; see `gameframe_layout_resize.md` §5 / `REV230_UI_BLANK_PANELS.md`
 §5). Verified: `TORIRS_NET_CHEAT="boost attack 10 0"` → content `abs=2,301`,
 full `35×35` emit clip; `make -C src test-uitree` green.
+
+---
+
+## 56. Multiloc live remorph + timed LocChange / LOC_ANIM / LOC_MERGE — ✅
+
+### Multiloc (not a zone packet)
+
+Map/zone places the **base** LocType id. Child model / name / ops come from
+`transforms[varbit|varp]` (opcodes 77/92). LostCity's webclient leaves multiloc
+as TODOs; the working references are Java `ClientLocAnim` and OpenRS2
+`LocType.getMultiLoc` (last-entry fallback on OOB — same as
+`VarPManager_ResolveTransform`).
+
+torirs already resolved at place / `ApplyLocChange` and kept scenery `loc_id` as
+the map base (OpLoc wire id). Gaps closed:
+
+1. **Live remorph** — `VarPManager_SetChangeCallback` →
+   `app_varp_refresh_loc_transforms`: walk scenery whose base LocType depends on
+   the changed varp, queue `App_WorldLocChange` (dedupe tile+shape). Model, name,
+   and `actions[]` refresh; base `loc_id` stays. CS2 transmit stays on the
+   separate server-update callback.
+2. **Minimenu** — post-remorph child ops/name via the refreshed scenery record
+   (no separate menu-time resolve needed).
+3. **Server OpLoc** — `mock230_loc_resolve_transform` for op validation +
+   trigger type/category; scene loc remains the base (`osrs230_mockserver.md`).
+
+Content that needs this: Ernest `%ernestdoors` levers/doors, runecraft ruin
+multilocs, Restless Ghost tower altar (`%restless_ghost_altar_var`).
+
+### Timed LocChange / `P_LOCMERGE` / `LOC_ANIM`
+
+- `World_LocChangesTick` applies countdown LocChange records (`end_time > 0`);
+  permanent zone changes still use `end_time = -1`.
+- `SS_OP_P_LOCMERGE` → zone `LOC_MERGE`; client `App_WorldLocMerge` + player
+  `loc_*` merge fields. Timers hide/restore the loc; **riding-loc model attach
+  onto the player mesh is still partial** (Client-TS `locModel` / ModelMerge).
+- `SS_OP_LOC_ANIM` → zone `LOC_ANIM` → existing `App_WorldSceneryAnim`.

@@ -207,7 +207,8 @@ struct World
 
     /** Loc "mapfunction" minimap icons gathered at scene build (reference
      * activeMapFunctionX/Z/Count, Client.ts minimapBuildBuffer): scene tile
-     * after the random-walk spread + mapfunction sprite frame. */
+     * after the random-walk spread + func (dat1 atlas frame / dat2 mapelement
+     * id). */
     struct World_MapFunctionIcon mapfuncs[WORLD_MAPFUNC_MAX];
     int mapfunc_count;
 

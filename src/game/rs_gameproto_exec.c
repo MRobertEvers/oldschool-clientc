@@ -271,10 +271,26 @@ exec_zone_sub_packet(
         break;
     }
     case PKT_NAME_LOC_MERGE:
-        /* LOC_MERGE (a drawing-order hint) remains a flagged follow-on. */
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "gameproto_exec: zone sub-packet %d stored (visual pending)\n", name);
+    {
+        /* P_LOCMERGE: hide the loc for [start,end) and mark the player so the
+         * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
+        struct PktLocMerge const* pkt = payload;
+        int pid;
+        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        pid = pkt->pid;
+        App_WorldLocMerge(
+            app,
+            tile_x,
+            tile_z,
+            level,
+            pkt->loc_id,
+            pkt->info >> 2,
+            pkt->info & 0x3,
+            pkt->start,
+            pkt->end,
+            pid);
         break;
+    }
     default:
         break;
     }

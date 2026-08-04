@@ -775,6 +775,32 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
     }
 }
 
+void
+mock230_scripts_process_walktrigger(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+    int script_id;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+
+    /* LostCity Player.processWalktrigger: fire when armed, not delayed, and not
+     * mid protected-access script. Clear before run so the script must re-arm. */
+    if( !srv->scripts_ok )
+        return;
+    if( player->walktrigger < 0 )
+        return;
+    if( srv->tick < player->delayed_until )
+        return;
+    if( player->active_script )
+        return;
+
+    script_id = player->walktrigger;
+    player->walktrigger = -1;
+    run_script_id(srv, script_id, 0, 0, -1, 1);
+}
+
 int
 mock230_scripts_resume_button(
     struct Mock230Server* srv,
@@ -2537,6 +2563,43 @@ mock230_script_command(
         SSVM_PushInt(state, coord_pack(player->level, player->x, player->z));
         return 1;
 
+    case SS_OP_WALKTRIGGER:
+    {
+        int32_t script_id;
+
+        if( !SSVM_PopInt(state, &script_id) )
+            return 1;
+        player->walktrigger = (int)script_id;
+        return 1;
+    }
+
+    case SS_OP_GETWALKTRIGGER:
+        SSVM_PushInt(state, player->walktrigger);
+        return 1;
+
+    case SS_OP_P_WALK:
+    {
+        int32_t coord;
+        int x;
+        int z;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        x = coord_x(coord);
+        z = coord_z(coord);
+        /* Same-tile destination cancels the route (freeze/stun root). */
+        if( x == player->x && z == player->z )
+        {
+            mock230_world_steps_clear(player);
+            player->dest_x = -1;
+            player->dest_z = -1;
+            player->clear_map_flag = 1;
+        }
+        else
+            mock230_world_walk_to(srv, x, z);
+        return 1;
+    }
+
     case SS_OP_P_TELEPORT:
     case SS_OP_P_TELEJUMP:
     {
@@ -3740,6 +3803,40 @@ mock230_script_command(
             SSVM_PushInt(state, npc->def->magic);
         else
             SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    case SS_OP_NPC_STATHEAL:
+    {
+        int32_t values[3];
+        struct Mock230Npc* npc = active_npc(state);
+        int healed;
+        int i;
+
+        /* Call is npc_statheal(stat, constant, percent) — pop into values[0..2]. */
+        for( i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_statheal with no active npc");
+            return 1;
+        }
+        /*
+         * Hitpoints is the only npc stat that moves (see NPC_STAT above). Heal
+         * that; other stats are content-block constants with nothing to write.
+         * Formula matches NpcOps.ts NPC_STATHEAL.
+         */
+        if( values[0] != MOCK230_STAT_HITPOINTS )
+            return 1;
+        healed = npc->hitpoints + (int)(values[1] + (npc->base_hitpoints * values[2]) / 100);
+        if( healed > npc->base_hitpoints )
+            healed = npc->base_hitpoints;
+        if( healed < 0 )
+            healed = 0;
+        npc->hitpoints = healed;
         return 1;
     }
 

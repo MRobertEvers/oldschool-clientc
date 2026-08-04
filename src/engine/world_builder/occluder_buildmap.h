@@ -24,12 +24,6 @@ struct Heightmap;
 #define OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS 0x492
 /** floor on every level: 0x004|0x020|0x100|0x800 */
 #define OCCLUDER_MARK_FLOOR_ALL_LEVELS 0x924
-/**
- * West arm of an L-wall in the reference (ClientBuild.ts:984). This is a Jagex
- * bug: 0x109 = wall0@L0 | floor@L2 | wall0@L2 — not wall0 on all levels.
- * Ported verbatim so our occlusion matches the reference's.
- */
-#define OCCLUDER_MARK_WALL_L_WEST_ARM 0x109
 
 struct OccluderBuildmap
 {

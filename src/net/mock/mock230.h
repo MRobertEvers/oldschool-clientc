@@ -1849,6 +1849,12 @@ struct Mock230Player
     struct SSVM_State* active_script;
     /** Tick at which the player stops being delayed. */
     int delayed_until;
+    /**
+     * Script id of the armed `[walktrigger,…]`, or -1.
+     * LostCity `PathingEntity.walktrigger` — set by `walktrigger(X)`, cleared
+     * when the engine fires it (the script re-arms itself while still frozen).
+     */
+    int walktrigger;
 
     struct Mock230Queued queue[MOCK230_QUEUE_MAX];
     /** `Player.engineQueue`. Zone triggers only; see `enum Mock230QueueKind`. */
@@ -3553,6 +3559,13 @@ void
 mock230_scripts_process_queues(struct Mock230Server* srv);
 void
 mock230_scripts_process_timers(struct Mock230Server* srv);
+/**
+ * Fire the player's armed walktrigger if any (LostCity `processWalktrigger`).
+ * Call after pathing is set for the tick and before movement, when the player
+ * has waypoints and is not delayed.
+ */
+void
+mock230_scripts_process_walktrigger(struct Mock230Server* srv);
 /**
  * Drain the engine queue — the zone family — on `srv->active_player`.
  *

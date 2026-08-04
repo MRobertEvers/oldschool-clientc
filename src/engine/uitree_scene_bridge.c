@@ -149,6 +149,8 @@ UITreeSceneBridge_Init(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->obj_icon_plain_map = bridge_hmap_new_keyed(
         sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
+    bridge->obj_icon_border_map = bridge_hmap_new_keyed(
+        sizeof(int) * 2, sizeof(struct MapEntry_ObjIcon), BRIDGE_OBJ_ICON_MAP_CAP);
     bridge->npc_head_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     bridge->obj_model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
@@ -158,7 +160,7 @@ UITreeSceneBridge_Init(
     bridge->player_head_scene_id = -1;
     assert(bridge->sprite_map && bridge->model_map && bridge->obj_icon_map &&
            bridge->obj_icon_outline_map && bridge->obj_icon_plain_map &&
-           bridge->npc_head_map && bridge->obj_model_map);
+           bridge->obj_icon_border_map && bridge->npc_head_map && bridge->obj_model_map);
 }
 
 void
@@ -171,6 +173,7 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_map);
     bridge_hmap_free(bridge->obj_icon_outline_map);
     bridge_hmap_free(bridge->obj_icon_plain_map);
+    bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
     memset(bridge, 0, sizeof(*bridge));
@@ -706,12 +709,14 @@ bridge_resolve_count_variant(
  * reference cert base sub-icon (outlineRgb == -1: no shadow); SHADOW is the
  * normal inventory icon (outlineRgb == 0: value-1 edge + drop shadow); WHITE is
  * the "Use"-selected highlight (outlineRgb > 0: value-1 edge + white ring, and
- * a 1.04x zoom so the ring stays inside the tile). */
+ * a 1.04x zoom so the ring stays inside the tile); BLACK is Soft3D's
+ * SpriteNewGraphicOutline(1) on a plain raster (cc_setoutline(1), no shadow). */
 enum BridgeObjIconOutline
 {
     BRIDGE_ICON_OUTLINE_NONE = 0,
     BRIDGE_ICON_OUTLINE_SHADOW,
     BRIDGE_ICON_OUTLINE_WHITE,
+    BRIDGE_ICON_OUTLINE_BLACK,
 };
 
 /* Rasterize one objtype's inventory model into a 36x32 obj-icon sprite at the
@@ -788,6 +793,26 @@ bridge_rasterize_obj_icon(
     if( sprite && outline == BRIDGE_ICON_OUTLINE_WHITE )
         ToriDraw_SpritePostprocessObjIconOutlineColor(
             sprite->pixels_argb, sprite->width, sprite->height, 0xFFFFFFFFu);
+
+    /* Match Soft3D's draw-time outline=1: pad + black neighbour dilate. Bake
+     * once so dense grids (collection log) skip per-frame calloc/outline. */
+    if( sprite && outline == BRIDGE_ICON_OUTLINE_BLACK )
+    {
+        int ow = 0;
+        int oh = 0;
+        uint32_t* outlined = ToriDraw_SpriteNewGraphicOutline(
+            sprite->pixels_argb, sprite->width, sprite->height, 1, &ow, &oh);
+        ToriDraw_SpriteFree(sprite);
+        sprite = NULL;
+        if( !outlined )
+            return NULL;
+        sprite = ToriDraw_SpriteNewFromArgbOwned(outlined, ow, oh);
+        if( !sprite )
+        {
+            free(outlined);
+            return NULL;
+        }
+    }
 
     return sprite;
 }
@@ -1005,6 +1030,16 @@ UITreeSceneBridge_EnsureObjIconPlain(
 {
     return bridge_ensure_obj_icon(
         bridge, obj_id, count, BRIDGE_ICON_OUTLINE_NONE, bridge->obj_icon_plain_map);
+}
+
+int
+UITreeSceneBridge_EnsureObjIconBordered(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count)
+{
+    return bridge_ensure_obj_icon(
+        bridge, obj_id, count, BRIDGE_ICON_OUTLINE_BLACK, bridge->obj_icon_border_map);
 }
 
 int

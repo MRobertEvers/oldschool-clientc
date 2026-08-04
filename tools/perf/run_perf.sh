@@ -69,8 +69,9 @@ case "$SCENARIO" in
     # Logged in, world visible, no input.
     ;;
   ui)
-    # Open the bank via a cheat once boot has settled (~frame 400).
-    EXTRA_ENV+=(TORIRS_NET_CHEAT="::bank")
+    # Open a panel via cheat once boot has settled (~frame 400).
+    # Override with TORIRS_NET_CHEAT=collection (etc.) for other panels.
+    EXTRA_ENV+=(TORIRS_NET_CHEAT="${TORIRS_NET_CHEAT:-bank}")
     ;;
   world)
     # Spawn NPCs / projectiles for model-instance cache pressure.

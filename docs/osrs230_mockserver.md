@@ -1848,16 +1848,13 @@ only the named records is two allocations. Footprints store one byte each
 (measured maxima 17 and 33; both are `g1` on the wire) and an id that is not in
 the table answers 1x1, which is the decoder's own default rather than a guess.
 
-**One loc opcode is deliberately NOT landed, and it is not blocked on effort:**
-
-- **`loc_anim` (3002) — 56 uses / 23 files, the largest single loc gap. Blocked
-  on a missing wire packet.** The reference is `LocOps.ts:50` →
-  `World.animLoc(...)`, i.e. a **zone event**. `zone_sub_opcode` in
-  `mock230_encode.c` enumerates every zone sub-packet this server has —
-  `LOC_ADD_CHANGE`, `LOC_DEL`, `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT` — and there is
-  no loc-anim among them. Landing it means a new `MOCK230_ZONE_EV_*` kind, a new
-  encoder arm and headless-client verification that the loc actually animates.
-  That is engine work outside the ops-file seam; file it as its own item.
+**`loc_anim` (3002) — landed.** `SS_OP_LOC_ANIM` → `mock230_zone_loc_anim` →
+zone event `MOCK230_ZONE_EV_LOC_ANIM` → encode opcode `OP_LOC_ANIM` (72). The
+client already applied `PKT_NAME_LOC_ANIM` via `App_WorldSceneryAnim`; the gap
+was the missing zone emit. `P_LOCMERGE` (2075) likewise emits
+`MOCK230_ZONE_EV_LOC_MERGE` / `OP_LOC_MERGE` (126); client timed LocChange +
+`App_WorldLocMerge` handle the hide window (player riding-loc model draw still
+partial — see `CLIENT_TS_PARITY.md` §56).
 
 One was measured and cut on data, not on scope:
 
@@ -2319,7 +2316,7 @@ Each zone holds **state** and **this tick's events**:
 | `locs[]` | `struct Mock230ZoneLoc` — every loc that differs from the map square | the replay, and the rebuild's re-apply |
 | `objs[]` | `Mock230Server.ground` slots standing here | the replay |
 | `npcs[]` | `Mock230Server.npcs` slots standing here | NPC_INFO's entering-view scan |
-| `events[]` | this tick's `LOC_ADD_CHANGE` / `LOC_DEL` / `OBJ_ADD` / `OBJ_DEL` / `OBJ_COUNT` | the per-client flush |
+| `events[]` | this tick's `LOC_ADD_CHANGE` / `LOC_DEL` / `OBJ_ADD` / `OBJ_DEL` / `OBJ_COUNT` / `LOC_ANIM` / `LOC_MERGE` | the per-client flush |
 
 and the per-client half is two sets on `Mock230Player`: `active_zones`, the 7x7
 window around the player clipped to the 13x13 build area (the reference's
@@ -2621,6 +2618,16 @@ What the row's original blockers said and what happened to each part:
 | no loc category rung — `interaction_category` returned a hardcoded -1 for locs | `dat2_config_loc.c` keeps config opcode 61 (it was `g2(buffer); // Skip unsigned short`), `mock230_loc_category` merges the cache's 8,407 categorised records with the authored overlay, and `content.ini`'s allocation base minted `door_closed`/`door_opened` |
 | `LOC_CATEGORY` / `LC_CATEGORY` unimplemented | `mock230_ops_loc.c`, with `LC_DEBUGNAME` beside them because `stairs.rs2` needs it |
 | `P_OPLOC` unimplemented while the shadowed-verb report told content to call it | `mock230_ops_player.c`, as a **re-issue** — `setInteraction`, not a call into `interaction_engine_loc` |
+
+**Multiloc resolve on OpLoc (OpenRS2-shaped).** Map/zone keep the **base** loc
+id; child scripts bind to transform targets (`[oploc1,ernest_doorajar]`,
+runecraft ruin children, `restless_ghost_altar_*`). `handle_oploc` and the
+interaction / `run_interaction_trigger` path call
+`mock230_loc_resolve_transform(player, base_loc_id)` for option validity and
+trigger type+category, then find the scene entity by **base**. Same last-entry
+fallback as the client’s `VarPManager_ResolveTransform`. Without this, a remorphed
+door shows “Open” client-side and the server still looks up the parent with no
+ops.
 
 **Three findings from doing it, in descending order of how much they changed the plan.**
 

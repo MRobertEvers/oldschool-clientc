@@ -339,7 +339,7 @@ struct App
     int minimap_flag_z;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
-    struct UITreeMinimapDot minimap_dots[128];
+    struct UITreeMinimapDot minimap_dots[256];
     int minimap_dot_count;
     /* Per-frame entity overlay primitives (health bars + hitsplats), filled
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
@@ -1155,6 +1155,24 @@ App_WorldLocChange(
     int loc_id,
     int shape,
     int angle);
+
+/**
+ * Zone LOC_MERGE / P_LOCMERGE: schedule a timed hide of the loc on this tile
+ * (countdown LocChange) and mark the player so the loc model rides with them
+ * for [start_cycle, end_cycle) client ticks from now.
+ */
+void
+App_WorldLocMerge(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle,
+    int start_cycle,
+    int end_cycle,
+    int player_pid);
 
 /**
  * Drain the command bus, routing each command to its subsystem: the single

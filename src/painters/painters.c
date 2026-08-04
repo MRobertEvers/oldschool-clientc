@@ -498,6 +498,7 @@ painter_new(
     painter->has_draw_center = 0;
     painter->draw_center_sx = -1;
     painter->draw_center_sz = -1;
+    painter->draw_distance = OCCLUDER_DRAW_DISTANCE_MIN;
     painter->level_mask = 0xFu;
     painter->min_level = 0;
 
@@ -679,6 +680,26 @@ painter_set_draw_center(
     painter->has_draw_center = 1;
     painter->draw_center_sx = sx;
     painter->draw_center_sz = sz;
+}
+
+void
+painter_set_draw_distance(
+    struct Painter* painter,
+    int draw_distance)
+{
+    assert(painter);
+    if( draw_distance < OCCLUDER_DRAW_DISTANCE_MIN )
+        draw_distance = OCCLUDER_DRAW_DISTANCE_MIN;
+    if( draw_distance > OCCLUDER_DRAW_DISTANCE_MAX )
+        draw_distance = OCCLUDER_DRAW_DISTANCE_MAX;
+    painter->draw_distance = draw_distance;
+}
+
+int
+painter_get_draw_distance(const struct Painter* painter)
+{
+    assert(painter);
+    return painter->draw_distance;
 }
 
 void

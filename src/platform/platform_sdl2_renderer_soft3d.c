@@ -19,7 +19,9 @@
  * Soft3D is stack-allocated and re-Init'd every App_Render, so persistent
  * working buffers live here rather than on the struct. The outline cache is
  * what stops SpriteNewGraphicOutline from calloc/freeing the same chrome
- * icons every frame (idle flamegraphs put it at ~2.5% of samples).
+ * icons every frame (idle flamegraphs put it at ~2.5% of samples). Dense
+ * SETOBJECT grids with cc_setoutline(1) prefer a pre-baked bordered icon;
+ * this cache covers remaining draw-time outline/shadow chrome.
  */
 static uint32_t* g_soft3d_scratch;
 static size_t g_soft3d_scratch_cap;
@@ -35,7 +37,7 @@ struct Soft3DOutlineCacheEntry
     uint64_t last_used;
 };
 
-static struct Soft3DOutlineCacheEntry g_soft3d_outline_cache[32];
+static struct Soft3DOutlineCacheEntry g_soft3d_outline_cache[256];
 static uint64_t g_soft3d_outline_clock;
 
 /*
@@ -114,7 +116,8 @@ soft3d_outline_cache_get(
     assert(out_h);
     g_soft3d_outline_clock++;
 
-    for( i = 0; i < 32; i++ )
+    for( i = 0; i < (int)(sizeof(g_soft3d_outline_cache) / sizeof(g_soft3d_outline_cache[0]));
+         i++ )
     {
         if( g_soft3d_outline_cache[i].src == src && g_soft3d_outline_cache[i].sw == sw &&
             g_soft3d_outline_cache[i].sh == sh &&

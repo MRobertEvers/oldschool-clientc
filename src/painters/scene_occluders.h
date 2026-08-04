@@ -50,8 +50,11 @@ enum OccluderHides
 #define OCCLUDER_ROOF_MIN_CLEARANCE 128
 /** Cap per top-level, matching Client-TS World.levelOccluders capacity. */
 #define OCCLUDER_MAX_PER_LEVEL 500
-/** Draw window radius around the camera tile (±25 → 51×51). */
-#define OCCLUDER_TILE_RADIUS 25
+/** Draw-distance clamp — modern Scene.setDrawDistance (class333.method2818). */
+#define OCCLUDER_DRAW_DISTANCE_MIN 25
+#define OCCLUDER_DRAW_DISTANCE_MAX 90
+/** Far clip scene units per draw-distance tile (deob class243.method4457). */
+#define OCCLUDER_FAR_CLIP_PER_TILE 210
 
 struct SceneOccluder
 {
@@ -167,12 +170,15 @@ scene_occluders_ground_height(
     int level);
 
 /**
- * Select occluders for the current camera (Client-TS calcOcclude).
+ * Select occluders for the current camera (Client-TS calcOcclude /
+ * deob updateActiveOccluders).
  * top_level is the roof-capped max draw level (0..3).
+ * draw_distance is the painter's runtime radius (Scene.drawDistance, 25..90);
+ * the footprint gate indexes tiles in [0, 2*draw_distance].
  * span may be NULL; when provided (and non-empty), it gates the footprint
  * against the frustum the way the reference uses visibilityMap. When NULL
  * and cullmap is also NULL, every footprint tile is treated as visible.
- * cullmap + camera_sx/sz are the baked-map fallback.
+ * cullmap + camera_pitch/yaw are the baked-map fallback (unused today).
  */
 void
 scene_occluders_select_for_camera(
@@ -181,6 +187,7 @@ scene_occluders_select_for_camera(
     int eye_y,
     int eye_z,
     int top_level,
+    int draw_distance,
     const struct PaintersCullSpan* span,
     const struct PaintersCullMap* cullmap,
     int camera_pitch,
@@ -330,17 +337,19 @@ scene_occluders_column_hidden(
     int model_min_y);
 
 /**
- * Multi-tile scenery footprint is hidden (Client-TS spriteOccluded2).
- * model_min_y is the model's extent above the ground.
+ * Scenery footprint is hidden (Client-TS spriteOccluded2 / deob isAreaOccluded).
+ * Takes the painter's (sx, sz, size_x, size_z) and derives max_x/max_z inside —
+ * callers must not pass min/max tile extents (easy to swap with size_*).
+ * model_min_y is the model's extent above the ground (Model.bottomY).
  */
 bool
 scene_occluders_footprint_hidden(
     struct SceneOccluders* occ,
     int level,
-    int min_x,
-    int max_x,
-    int min_z,
-    int max_z,
+    int sx,
+    int sz,
+    int size_x,
+    int size_z,
     int model_min_y);
 
 #endif

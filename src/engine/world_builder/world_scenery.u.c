@@ -1132,9 +1132,9 @@ scenery_add_wall_two_sides(
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id2, 1, 1);
 
-    /* Planar occluder marks (Client-TS ClientBuild.addLoc WALL_L). The west
-     * arm uses OCCLUDER_MARK_WALL_L_WEST_ARM (0x109), not the all-levels
-     * wall-along-X composite — a Jagex bug preserved for parity. */
+    /* Planar occluder marks (modern deob class85 WALL_L / shape 2). Both arms
+     * use the all-levels wall composites (585 / 1170); the 2004 Client-TS
+     * 0x109 west-arm typo is not present in the modern client. */
     if( config_loc->occlude )
     {
         switch( orientation )
@@ -1145,7 +1145,7 @@ scenery_add_wall_two_sides(
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
-                OCCLUDER_MARK_WALL_L_WEST_ARM);
+                OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             occluder_buildmap_or_mark(
                 builder->occluder_buildmap,
                 scene_x,
@@ -1797,9 +1797,10 @@ world_builder_minimap_add_chunk_mapfunctions(
         if( !config_loc )
             continue;
 
-        /* The mapfunction archive holds 50 frames (reference Client.ts:978). */
+        /* Loc mapfunction: dat1 atlas frame index, or dat2 mapelement id
+         * (resolved to a sprite at draw time). Negative means unset. */
         int func = config_loc->map_function_id;
-        if( func < 0 || func >= 50 )
+        if( func < 0 )
             continue;
         if( world->mapfunc_count >= WORLD_MAPFUNC_MAX )
             return;

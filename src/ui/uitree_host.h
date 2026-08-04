@@ -199,6 +199,11 @@ enum UITreeHostRequestKind
      * 0 and keep the SHADOW-baked item_scene_id instead.
      */
     UITREE_HOST_GET_OBJ_ICON_PLAIN,
+    /**
+     * Plain icon with cc_setoutline(1) black border baked in (no graphic_shadow).
+     * Prefer over Soft3D draw-time outline for dense item grids.
+     */
+    UITREE_HOST_GET_OBJ_ICON_BORDERED,
 };
 
 /*
@@ -300,6 +305,11 @@ struct UITreeHostRequest
             int obj_id;
             int count;
         } get_obj_icon_plain;
+        struct
+        {
+            int obj_id;
+            int count;
+        } get_obj_icon_bordered;
         struct
         {
             int slot;

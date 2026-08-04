@@ -5902,6 +5902,7 @@ mock230_world_player_init(struct Mock230Player* player)
     player->follow_x = player->last_step_x;
     player->follow_z = player->last_step_z;
     player->waypoint_index = -1;
+    player->walktrigger = -1;
     player_set_occupancy(player, 1);
     /* Same reason as the npc's: 0 is a sequence id, and the priority gate reads
      * this as the animation already queued for the tick. */
@@ -6450,6 +6451,10 @@ phase_player(struct Mock230Player* player)
     /* Combat's every-tick pathToTarget — same pre-move slot as above, for the
      * engaged fight that no longer holds a latched interaction. */
     mock230_combat_player_approach(srv);
+    /* LostCity processInteraction: processWalktrigger when hasWaypoints, before
+     * updateMovement — freeze/stun scripts cancel the path via p_walk(coord). */
+    if( player_has_waypoints(player) )
+        mock230_scripts_process_walktrigger(srv);
     advance_player(srv);
 
     if( player->interaction.kind != MOCK230_INTERACT_NONE )

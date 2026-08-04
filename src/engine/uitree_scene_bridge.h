@@ -29,6 +29,11 @@ struct UITreeSceneBridge
      * reference outlineRgb == -1; used when a component applies runtime
      * cc_setoutline / cc_setgraphicshadow on top of a SETOBJECT icon. */
     struct HMap* obj_icon_plain_map;
+    /** (obj_id, count) → scene_id for cc_setoutline(1) without graphic_shadow:
+     * plain raster + black border baked once (Soft3D SpriteNewGraphicOutline
+     * equivalent). Collection-log / bank cell grids use this so Soft3D does
+     * not re-outline every unique icon every frame. */
+    struct HMap* obj_icon_border_map;
 
     /**
      * Client-hardcoded sprites (compass, hitmarks, cross, scrollbar arrows, …)
@@ -281,6 +286,17 @@ UITreeSceneBridge_EnsureObjIconSelected(
  */
 int
 UITreeSceneBridge_EnsureObjIconPlain(
+    struct UITreeSceneBridge* bridge,
+    int obj_id,
+    int count);
+
+/**
+ * Rasterize a plain icon with Soft3D-equivalent black border (cc_setoutline(1)
+ * and no graphic_shadow) baked into the pixels. Prefer this over draw-time
+ * SpriteNewGraphicOutline for dense item grids. Returns scene sprite id or -1.
+ */
+int
+UITreeSceneBridge_EnsureObjIconBordered(
     struct UITreeSceneBridge* bridge,
     int obj_id,
     int count);

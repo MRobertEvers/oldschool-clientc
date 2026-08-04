@@ -230,6 +230,7 @@ scene_occluders_select_for_camera(
     int eye_y,
     int eye_z,
     int top_level,
+    int draw_distance,
     const struct PaintersCullSpan* span,
     const struct PaintersCullMap* cullmap,
     int camera_pitch,
@@ -240,6 +241,9 @@ scene_occluders_select_for_camera(
     int i;
     int camera_sx;
     int camera_sz;
+    int tile_x;
+    int tile_z;
+    int span_extent;
 
     (void)cullmap;
     (void)camera_pitch;
@@ -251,26 +255,35 @@ scene_occluders_select_for_camera(
     if( top_level >= occ->levels )
         top_level = occ->levels - 1;
 
-    /* Match Client-TS World.renderAll: clamp eye into the scene before
-     * deriving camera tile / spreads (World.cx/gx). Without this the
-     * footprint gate indexes the cullspan from a different origin than
-     * the painter when the orbit eye sits past the map edge. */
-    if( eye_x < 0 )
-        eye_x = 0;
-    else if( eye_x >= occ->width * 128 )
-        eye_x = occ->width * 128 - 1;
-    if( eye_z < 0 )
-        eye_z = 0;
-    else if( eye_z >= occ->height * 128 )
-        eye_z = occ->height * 128 - 1;
+    /* drawDistance mirrors Scene.setDrawDistance (clamped 25..90). */
+    if( draw_distance < OCCLUDER_DRAW_DISTANCE_MIN )
+        draw_distance = OCCLUDER_DRAW_DISTANCE_MIN;
+    if( draw_distance > OCCLUDER_DRAW_DISTANCE_MAX )
+        draw_distance = OCCLUDER_DRAW_DISTANCE_MAX;
+    span_extent = draw_distance + draw_distance;
 
-    camera_sx = eye_x / 128;
-    camera_sz = eye_z / 128;
-    occ->camera_sx = camera_sx;
-    occ->camera_sz = camera_sz;
+    /* Deob keeps cameraX/Y/Z raw for depth/spread and wall side tests; only
+     * the camera tile used by the footprint gate is derived from a scene-
+     * clamped copy so it lines up with the painter's clamped cam_sx/cam_sz. */
     occ->eye_x = eye_x;
     occ->eye_y = eye_y;
     occ->eye_z = eye_z;
+
+    tile_x = eye_x;
+    tile_z = eye_z;
+    if( tile_x < 0 )
+        tile_x = 0;
+    else if( tile_x >= occ->width * 128 )
+        tile_x = occ->width * 128 - 1;
+    if( tile_z < 0 )
+        tile_z = 0;
+    else if( tile_z >= occ->height * 128 )
+        tile_z = occ->height * 128 - 1;
+
+    camera_sx = tile_x / 128;
+    camera_sz = tile_z / 128;
+    occ->camera_sx = camera_sx;
+    occ->camera_sz = camera_sz;
     occ->frame_no++;
     if( occ->frame_no == 0 )
         occ->frame_no = 1;
@@ -294,23 +307,23 @@ scene_occluders_select_for_camera(
 
         if( o->plane == OCCLUDER_PLANE_CONSTANT_X )
         {
-            int dx_vis = o->tile_min_x + OCCLUDER_TILE_RADIUS - camera_sx;
+            int dx_vis = o->tile_min_x - camera_sx + draw_distance;
             int z0;
             int z1;
             int ok = 0;
 
-            if( dx_vis < 0 || dx_vis > 50 )
+            if( dx_vis < 0 || dx_vis > span_extent )
                 continue;
-            z0 = o->tile_min_z + OCCLUDER_TILE_RADIUS - camera_sz;
+            z0 = o->tile_min_z - camera_sz + draw_distance;
             if( z0 < 0 )
                 z0 = 0;
-            z1 = o->tile_max_z + OCCLUDER_TILE_RADIUS - camera_sz;
-            if( z1 > 50 )
-                z1 = 50;
+            z1 = o->tile_max_z - camera_sz + draw_distance;
+            if( z1 > span_extent )
+                z1 = span_extent;
             while( z0 <= z1 )
             {
                 if( occluder_footprint_tile_visible(
-                        span, dx_vis - OCCLUDER_TILE_RADIUS, z0 - OCCLUDER_TILE_RADIUS) )
+                        span, dx_vis - draw_distance, z0 - draw_distance) )
                 {
                     ok = 1;
                     break;
@@ -340,23 +353,23 @@ scene_occluders_select_for_camera(
         }
         else if( o->plane == OCCLUDER_PLANE_CONSTANT_Z )
         {
-            int dz_vis = o->tile_min_z + OCCLUDER_TILE_RADIUS - camera_sz;
+            int dz_vis = o->tile_min_z - camera_sz + draw_distance;
             int x0;
             int x1;
             int ok = 0;
 
-            if( dz_vis < 0 || dz_vis > 50 )
+            if( dz_vis < 0 || dz_vis > span_extent )
                 continue;
-            x0 = o->tile_min_x + OCCLUDER_TILE_RADIUS - camera_sx;
+            x0 = o->tile_min_x - camera_sx + draw_distance;
             if( x0 < 0 )
                 x0 = 0;
-            x1 = o->tile_max_x + OCCLUDER_TILE_RADIUS - camera_sx;
-            if( x1 > 50 )
-                x1 = 50;
+            x1 = o->tile_max_x - camera_sx + draw_distance;
+            if( x1 > span_extent )
+                x1 = span_extent;
             while( x0 <= x1 )
             {
                 if( occluder_footprint_tile_visible(
-                        span, x0 - OCCLUDER_TILE_RADIUS, dz_vis - OCCLUDER_TILE_RADIUS) )
+                        span, x0 - draw_distance, dz_vis - draw_distance) )
                 {
                     ok = 1;
                     break;
@@ -398,25 +411,25 @@ scene_occluders_select_for_camera(
             if( depth <= OCCLUDER_ROOF_MIN_CLEARANCE )
                 continue;
 
-            z0 = o->tile_min_z + OCCLUDER_TILE_RADIUS - camera_sz;
+            z0 = o->tile_min_z - camera_sz + draw_distance;
             if( z0 < 0 )
                 z0 = 0;
-            z1 = o->tile_max_z + OCCLUDER_TILE_RADIUS - camera_sz;
-            if( z1 > 50 )
-                z1 = 50;
+            z1 = o->tile_max_z - camera_sz + draw_distance;
+            if( z1 > span_extent )
+                z1 = span_extent;
             if( z0 > z1 )
                 continue;
-            x0 = o->tile_min_x + OCCLUDER_TILE_RADIUS - camera_sx;
+            x0 = o->tile_min_x - camera_sx + draw_distance;
             if( x0 < 0 )
                 x0 = 0;
-            x1 = o->tile_max_x + OCCLUDER_TILE_RADIUS - camera_sx;
-            if( x1 > 50 )
-                x1 = 50;
+            x1 = o->tile_max_x - camera_sx + draw_distance;
+            if( x1 > span_extent )
+                x1 = span_extent;
 
             for( x = x0; x <= x1 && !ok; x++ )
                 for( z = z0; z <= z1; z++ )
                     if( occluder_footprint_tile_visible(
-                            span, x - OCCLUDER_TILE_RADIUS, z - OCCLUDER_TILE_RADIUS) )
+                            span, x - draw_distance, z - draw_distance) )
                     {
                         ok = 1;
                         break;
@@ -669,22 +682,33 @@ bool
 scene_occluders_footprint_hidden(
     struct SceneOccluders* occ,
     int level,
-    int min_x,
-    int max_x,
-    int min_z,
-    int max_z,
+    int sx,
+    int sz,
+    int size_x,
+    int size_z,
     int model_min_y)
 {
+    int min_x;
+    int max_x;
+    int min_z;
+    int max_z;
     int x;
     int z;
-    int sx;
-    int sz;
+    int px;
+    int pz;
     int y0;
     int x1;
     int z1;
 
     if( !occ || occ->active_count == 0 )
         return false;
+
+    assert(size_x >= 1);
+    assert(size_z >= 1);
+    min_x = sx;
+    min_z = sz;
+    max_x = sx + size_x - 1;
+    max_z = sz + size_z - 1;
 
     if( min_x != max_x || min_z != max_z )
     {
@@ -699,16 +723,16 @@ scene_occluders_footprint_hidden(
                     return false;
             }
 
-        sx = (min_x << 7) + 1;
-        sz = (min_z << 7) + 2;
+        px = (min_x << 7) + 1;
+        pz = (min_z << 7) + 2;
         y0 = scene_occluders_ground_height(occ, min_x, min_z, level) - model_min_y;
-        if( !scene_occluders_point_hidden(occ, sx, y0, sz) )
+        if( !scene_occluders_point_hidden(occ, px, y0, pz) )
             return false;
         x1 = (max_x << 7) - 1;
-        if( !scene_occluders_point_hidden(occ, x1, y0, sz) )
+        if( !scene_occluders_point_hidden(occ, x1, y0, pz) )
             return false;
         z1 = (max_z << 7) - 1;
-        if( !scene_occluders_point_hidden(occ, sx, y0, z1) )
+        if( !scene_occluders_point_hidden(occ, px, y0, z1) )
             return false;
         return scene_occluders_point_hidden(occ, x1, y0, z1);
     }

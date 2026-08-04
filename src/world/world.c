@@ -500,6 +500,7 @@ World_PlayerSpawn(
         .server_pid = -1,
         .held_left_applied = -1,
         .held_right_applied = -1,
+        .loc_merge_id = -1,
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
     };

@@ -102,7 +102,16 @@ re-arm. Stop only when the user stops the loop.
 | 10n | pirate Talk-to dialogue | done | _pirate orphan → pirate1/2/2_aggressive/3_aggressive/lady_pirate; deferred: category mint, pickpocketable variants |
 | 10o | chaos_druid combat AI | done | AP/OP bind+confuse + melee; overlay; deferred: %frozen freeze walktrigger, .hunt ranged, wilderness_chaos_druid / warrior AI |
 | 10p | al_kharid_warrior pack AI | done | ai_queue1 retaliate + huntall pack say; overlay; deferred: %npc_aggressive_player exact target wiring |
-| 8 | Outward areas / remaining quests / minigames | pending | Next: freeze (%frozen author + walktrigger — unblocks chaos_druid/KBD/bind); skip: Mort'ton lair, pyre, kolodion_fight, antifire (%dragonresist), guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (%npc_lastcombat/%npc_aggressive_player) |
+| 10q | freeze (%frozen + walktrigger) | done | frozen.varp; [walktrigger,frozen] + npc_freeze_*; chaos_druid + KBD icy wired; engine walktrigger/p_walk; deferred: %npc_stunned PvM freeze, .walktrigger PvP |
+| 10r | cleaning cloth (weapon poison wipe) | done | tbwt_cleaning_cloth Use + reverse switch map + wipe messages; deferred: karambwan paste, poison_severity on hit, obj next_obj_stage overlays |
+| 10s | citizen Talk-to expand | done | man2/woman3/al_kharid_man binds on citizens.rs2 (drop-table member list); deferred: _citizen category mint |
+| 10t | monk / entrana_monk combat AI | done | 1/4 self-heal (npc_statheal HP) + melee; monk.npc overlays; deferred: sound_synth, %heroquest firebird |
+| 10u | chaos_druid_warrior AI expand | done | Name-expand bind+confuse+melee + yanille.npc overlay; deferred: wilderness_chaos_druid (Elder modern false-friend), .hunt, attackbonus |
+| 10v | cooking dough | done | pot_flour+water → bread/pastry/pizza/pitta; p_choice4_header; water empty switch; deferred: cake_tin, swamp_tar, murder_proofobj |
+| 10w | cooking wine | done | grapes+jug_water → ferment timer (bank+inv); login hook; modulo() for %; deferred: bad-wine polish, reverse Use |
+| 10x | dye cape mixing | done | primary dye mixes + cape all cape colours (switch maps); dye→goblin/wig reverse; deferred: crafting_capes_struct overlays |
+| 8 | Outward areas / remaining quests / minigames | pending | Next: studded leather (crafting leftover) or glassblowing / necromancer AI / Taverley jail doors; skip: wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport |
+
 
 
 ## Log
@@ -132,8 +141,8 @@ re-arm. Stop only when the user stops the loop.
 - slice 7d done: fishing (saltfish/freshfish/rarefish); p_opnpc non-Attack re-issues interaction; fish XP/rate/equip switches; movement/macros/member deferred
 - slice 7e done: cooking (cooking_generic + F2P meat/fish/bread/cake/pizza/pies); 687=cooking_oven; cook-o-matic + gauntlets; dough/wine/gnome deferred
 - slice 7f done: crafting remainder (pottery softclay/wheel/oven; gem cutting table; F2P leather via p_choice); jewellery/glass/dragonhide/guild deferred
-- slice 8a done: Restless Ghost (Aereck/Urhney/ghostx + shutghostcoffin↔openghostcoffin_*; skull; journal quest_restlessghost); tower altar multiloc + npc_retaliate deferred
-- slice 8b done: Ernest the Chicken (Veronica/Oddenstein + compost/fountain/closet/levers; %ernestdoors multilocs; journal quest_ernestthechicken); double-door open_and_close deferred; fountain poison server varp
+- slice 8a done: Restless Ghost (Aereck/Urhney/ghostx + shutghostcoffin↔openghostcoffin_*; skull; journal quest_restlessghost; tower altar multiloc via %restless_ghost_altar_var + child Search); npc_retaliate deferred
+- slice 8b done: Ernest the Chicken (Veronica/Oddenstein + compost/fountain/closet/levers; %ernestdoors multilocs + live remorph/OpLoc resolve; journal quest_ernestthechicken); double-door open_and_close deferred; fountain poison server varp
 - slice 8c done: Prince Ali Rescue (Hassan/Osman/Leela/Keli/Joe/Ali + Ned rope/wig + Aggie paste; journal quest_princealirescue); Aggie dyes + Ned Dragon Slayer + metal gate helper deferred
 - slice 8d done: Demon Slayer (Aris/Prysin/Rovin/Traiborn + drain key + Delrith incantation; journal quest_demonslayer); Oracle clues + Dragon Slayer map piece deferred
 - slice 8e done: Black Knights' Fortress (Sir Amik + fortress doors/grill/cabbage sabotage; journal quest_blackknightsfortress); open_and_close_door swing + inacbk Open op deferred
@@ -143,7 +152,7 @@ re-arm. Stop only when the user stops the loop.
 - slice 8i done: Dragon Slayer core (Champions' Guild, Oziach, Klarense/ship repair, Ned, Wormbrain, map assemble, Duke shield, Oracle; journal quest_dragonslayer1); Melzar's Maze + Elvarg fight deferred
 - slice 8j done: Melzar maze (keyed doors + *_1_key drops + funchest mappart1), oracle door as dragon_slayer_qip_magic_door + mappart3 chest, Elvarg/elvarg_alive → dragon_complete, dragonsecretdoor; deferred: fire-breath AI, Melzar combat spells, crandor_rock/rope/elvarg_gate (authored absent)
 - slice 7g done: skill_smithing (smelting table + furnace cat 215; anvil cat 772 + smithing_bar 151; F2P bars/products via p_choice; dorics_anvil gate); deferred cannonballs, dragon sq, claws/darts/wire/studs, jewellery furnace redirects, CS2 smithing.if
-- slice 8k done: skill_runecraft (runecraft_table + F2P air..body + members cosmic..death; rc_ruins 8200 / rc_exit_portal 8201; essence mine enter/exit; Aubury+Sedridor tele wired); deferred soul/blood, Ourania/zeah, tiaras, projanim_pl projectile, int loc_param(rune_type), Aubury shop, Brimstail/Disentor/Cromperty
+- slice 8k done: skill_runecraft (runecraft_table + F2P air..body + members cosmic..death; rc_ruins 8200 / rc_exit_portal 8201; essence mine enter/exit; Aubury+Sedridor tele wired; ruin multilocs need live remorph + OpLoc resolve — landed); deferred soul/blood, Ourania/zeah, tiaras, projanim_pl projectile, int loc_param(rune_type), Aubury shop, Brimstail/Disentor/Cromperty
 - slice 8l done: Aggie dyes (reddye/yellowdye/bluedye + insult fine + onion/redberries/woadleaf use); skin paste path unchanged
 - slice 8m done: Wyson the gardener woad leaf purchase (15gp×1 / 20gp×2)
 - slice 8n done: skill_thieving stalls/pickpocket (dbrows + thieving.rs2 helpers + stealing.rs2; loc remap *thiefstall; %thieving_stall_timer server varp); deferred: trapped_chest/locked_door, viking/misc/etc stalls, viking pickpocket, guard2, ~npc_retaliate
@@ -201,4 +210,12 @@ re-arm. Stop only when the user stops the loop.
 - slice 10n done: pirate Talk-to — name-expand pirate1/2/2_aggressive/3_aggressive/lady_pirate (29-line table); deferred: _pirate category mint, pickpocketable
 - slice 10o done: chaos_druid AI — AP/OP bind+confuse + melee + overlay; deferred: %frozen freeze, .hunt ranged, wilderness/warrior variants
 - slice 10p done: al_kharid_warrior pack AI — ai_queue1 setmode + huntall "Brother…" + overlay; deferred: %npc_aggressive_player exact
-- next pending: freeze (%frozen author + walktrigger); skip blocked: Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)
+- slice 10q done: freeze — %frozen authored (frozen.varp); [walktrigger,frozen] + queue(npc_freeze_player)/~npc_freeze_*; chaos_druid + KBD icy wired; engine walktrigger/getwalktrigger/p_walk + processWalktrigger; deferred: %npc_stunned PvM freeze, PvP .walktrigger
+- slice 10r done: cleaning cloth — tbwt_cleaning_cloth Use + ~weapon_unpoisoned_obj reverse map + wipe messages; deferred: karambwan paste, combat poison_severity
+- slice 10s done: citizen Talk-to expand — man2/woman3/al_kharid_man (+ existing) on citizens.rs2; deferred: _citizen category mint
+- slice 10t done: monk/entrana_monk AI — 1/4 self-heal (npc_statheal HP-only) + melee + overlays; deferred: sound_synth, %heroquest
+- slice 10u done: chaos_druid_warrior AI — name-expand bind+confuse+melee + yanille.npc combat overlay; deferred: wilderness_chaos_druid (Elder false-friend), .hunt, attackbonus
+- slice 10v done: cooking dough — pot_flour + bucket/jug/bowl/vial_water → bread/pastry/pizza/pitta via p_choice4_header; empty switch; deferred: cake_tin, swamp_tar, murder_proofobj
+- slice 10w done: cooking wine — grapes+jug_water → jug_unfermented_wine + fermenting_wine timer (bank batches + inv); ~ferment_wines_login; deferred: bad-wine polish
+- slice 10x done: dye cape — mix primary dyes + dye capes (switch maps, no struct overlays); dye→goblin_armour / plainwig reverse; deferred: crafting_capes_struct .obj overlays
+- next pending: studded leather (or glassblowing / necromancer AI / Taverley jail doors); skip blocked: wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport (varns)

@@ -77,6 +77,13 @@ struct Painter
     int draw_center_sz;
     int has_draw_center;
 
+    /**
+     * Draw-box / occluder footprint radius in tiles (Scene.drawDistance).
+     * Clamped to [OCCLUDER_DRAW_DISTANCE_MIN, OCCLUDER_DRAW_DISTANCE_MAX]
+     * by painter_set_draw_distance. Default 25.
+     */
+    int draw_distance;
+
     /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
     uint8_t level_mask;
     /** Lowest set bit in level_mask; 0 when mask is all bits or unset. */

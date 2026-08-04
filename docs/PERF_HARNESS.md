@@ -94,6 +94,24 @@ CSV: `tools/perf/results/9175a425-idle.csv`. Flamegraph:
 
 Gate: **PASS** (p95 ≪ 20 ms).
 
+### Collection Log open (`collection` / `collectionbig`, measured 2026-08-03)
+
+`TORIRS_NET_CHEAT=collection` or `collectionbig` overrides the `ui` scenario's
+default bank cheat (`run_perf.sh` respects `TORIRS_NET_CHEAT`).
+
+| scenario | before frame p95 | after frame p95 | before render p95 | after render p95 |
+| --- | ---: | ---: | ---: | ---: |
+| `collection` (Abyssal Sire, 9 icons) | 5.02 ms | 5.21 ms | 3.41 ms | 3.60 ms |
+| `collectionbig` (Hard Trails, 134 icons) | **14.46 ms** | **5.99 ms** | **9.22 ms** | **4.23 ms** |
+
+Cause: script 2732 `cc_setoutline(1)` + `cc_setobject` → emit used Soft3D
+draw-time `SpriteNewGraphicOutline` with a 32-entry LRU. Fix: bake bordered
+icons once (`EnsureObjIconBordered`) when `outline==1 && graphic_shadow==0`;
+Soft3D outline LRU 32 → 256 for remaining chrome. Open CS2 hitch (~120 ms max)
+is one-shot (mount + 7798 + timer `if_callonresize` redraw), same class as bank.
+
+CSV: `tools/perf/results/collectionbig-ui-{before,after}.csv`.
+
 ### Flamegraph hotspots (`flame_now`, main thread self %)
 
 | leaf | self % | ~ms @ p95 7.16 |
@@ -174,6 +192,7 @@ even when command count drops.
 | windowed perf + `server` stage + FRAME_END before Delay                              |   harness only | keep                             |
 | `SceneAnimatedElements` walks live intrusive chain (not high-water slots)            |   structural   | keep                             |
 | Soft3D outline/shadow LRU (stops per-frame `SpriteNewGraphicOutline` calloc)         |   see below    | keep                             |
+| Pre-baked `cc_setoutline(1)` obj icons + Soft3D outline LRU 32→256 (collection log)  |   see above    | keep                             |
 
 ### Idle FPS drift investigation (2026-08-03)
 

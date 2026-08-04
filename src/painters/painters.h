@@ -533,6 +533,18 @@ painter_set_draw_center(
     int sx,
     int sz);
 
+/**
+ * Scene.drawDistance — paint-box / occluder footprint radius in tiles.
+ * Clamped to [25, 90] (deob Scene.setDrawDistance). Default 25.
+ */
+void
+painter_set_draw_distance(
+    struct Painter* painter,
+    int draw_distance);
+
+int
+painter_get_draw_distance(const struct Painter* painter);
+
 /** Bitmask of levels to draw (bits 0-3 for levels 0-3). Default 0xF = all levels. */
 void
 painter_set_level_mask(
