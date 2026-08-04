@@ -214,6 +214,10 @@ unequip_slot(
     inv_set(player, dest, obj_id, player->worn[slot].count);
     worn_set(player, slot, -1, 0);
     mock230_say(srv, "unequip_message", mock230_objinfo(obj_id)->name);
+    /* Worn-tab Remove is still engine-owned; content's ~equip path calls
+     * ~update_bas itself. Without this hook, taking off a spear would leave
+     * staff/halberd idle seqs on the appearance blob. */
+    mock230_scripts_run_hook(srv, srv->hooks.update_bas, NULL, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -5907,6 +5911,15 @@ mock230_world_player_init(struct Mock230Player* player)
     /* Same reason as the npc's: 0 is a sequence id, and the priority gate reads
      * this as the animation already queued for the tick. */
     player->anim_id = -1;
+    /* Unarmed human_* appearance seqs — same ids put_appearance used to
+     * hardcode. Content's ~update_bas replaces them when a weapon is worn. */
+    player->readyanim = 808;
+    player->turnanim = 823;
+    player->walkanim = 819;
+    player->walkanim_b = 820;
+    player->walkanim_l = 821;
+    player->walkanim_r = 822;
+    player->runanim = 824;
     player->face_entity = -1;
     /* LostCity targetX/Z sentinel: memset leaves 0, which is a real half-tile
      * face point (scene origin), so reorient would fire a spurious FACE_COORD. */

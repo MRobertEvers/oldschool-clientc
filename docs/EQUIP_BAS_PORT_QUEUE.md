@@ -1,0 +1,33 @@
+# Equip BAS port queue
+
+Agent-loop state for equipable-item stats, stance BAS (`*_baseanim`), and
+related attack/defend anim overlays (LostCity → OSRS-Content).
+
+Inventory = objs with `wearpos` (RuneLite/cache equipables). Stats = cache
+params (do not import RuneLite `ItemEquipmentStats`). BAS = LostCity
+`ready_baseanim`…`running_baseanim` + `~update_bas`. Post-254 weapons without
+LC overlays keep param defaults.
+
+Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4.
+Status: `pending` | `in_progress` | `done` | `blocked`.
+
+Loop prompt: read this file + PORTING_GUIDE §4; port the next pending unblocked
+slice; verify (`mock230_pack --check-only`, `make -C src mock230-scripts`);
+update this file; re-arm. Stop only when the user stops the loop.
+
+| # | Slice | Status | Notes |
+|---|---|---|---|
+| 0 | Queue tracker | done | This file |
+| 1 | Engine idle-anim path | pending | READYANIM…RUNANIM + put_appearance reads player fields |
+| 2 | `~update_bas` | pending | appearance.rs2; wire equip/unequip/login; drop agility stubs |
+| 3 | BAS overlays — spears | pending | LC spears.obj `*_baseanim` by name |
+| 4 | BAS overlays — polearms | pending | LC polearms.obj |
+| 5 | BAS overlays — staves | pending | staves + battlestaves + mysticstaves |
+| 6 | BAS overlays — sparse | pending | dragon_longsword `human_ds_ready` + other LC hits |
+| 7 | Attack/defend anim overlays | pending | LC `*_attack_anim` / `defend_anim` + combat_attack_anim style switch |
+| 8 | Stats audit | pending | Spot-check cache bonuses/rate; no RL dump |
+| 9 | Headless verify | pending | Wield spear/staff → appearance seqs; unwield → human_* |
+
+## Log
+
+- queue created (equip BAS parallel to CONTENT_PORT_QUEUE)

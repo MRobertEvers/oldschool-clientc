@@ -838,19 +838,31 @@ scenery_load_model(
     };
     ToriDraw_SceneElementSetModel(builder->scene, element_id, hnd);
 
-    /* LocType.raiseobject: stamp model minY (max of -vy) onto the anchor tile
-     * so later zone OBJ_ADD stacks can sit on the table (Client-TS objRaise). */
-    if( config_loc->raiseobject == 1 )
+    /* LocType.raiseobject: stamp model minY (max of -vy) onto every tile of the
+     * sprite footprint so later zone OBJ_ADD stacks can sit on the table
+     * (Client-TS objRaise). Only shapes that Client-TS places via addScenery /
+     * setSprite contribute — walls, wall-decor, and ground decor never feed
+     * setObj, so stamping them lifts items at full wall height over empty dirt. */
+    if( config_loc->raiseobject == 1 &&
+        (shape_select == RSCACHE_LOC_SHAPE_WALL_DIAGONAL ||
+         shape_select == RSCACHE_LOC_SHAPE_SCENERY ||
+         shape_select == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ||
+         (shape_select >= RSCACHE_LOC_SHAPE_ROOF_SLOPED &&
+          shape_select <= RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER)) )
     {
         int raise = 0;
+        int level = map_tile->chunk_pos_level;
         for( int v = 0; v < model->vertex_count; v++ )
         {
             int h = -(int)model->vertices_y[v];
             if( h > raise )
                 raise = h;
         }
-        World_ObjRaiseSetMax(
-            world, scene_x, scene_z, map_tile->chunk_pos_level, raise);
+        for( int dx = 0; dx < size_x; dx++ )
+        {
+            for( int dz = 0; dz < size_z; dz++ )
+                World_ObjRaiseSetMax(world, scene_x + dx, scene_z + dz, level, raise);
+        }
     }
 
     if( config_loc->contour_ground_type != 0 )

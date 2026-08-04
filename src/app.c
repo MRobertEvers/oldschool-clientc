@@ -5238,7 +5238,7 @@ app_update_painter_cull(
     int vh;
     int near_z;
     int far_z;
-    int radius = 25;
+    int radius;
     int center_sx;
     int center_sz;
     int eye_height;
@@ -5253,6 +5253,13 @@ app_update_painter_cull(
     if( !world || !world->painter )
         return;
     painter = world->painter;
+    {
+        char const* dd = getenv("TORIRS_DRAW_DISTANCE");
+        int v;
+        if( dd && dd[0] != '\0' && sscanf(dd, "%d", &v) == 1 )
+            painter_set_draw_distance(painter, v);
+    }
+    radius = painter_get_draw_distance(painter);
 
     nocull = getenv("TORIRS_PAINTER_NOCULL");
     if( nocull && nocull[0] != '\0' && nocull[0] != '0' )
@@ -5307,9 +5314,9 @@ app_update_painter_cull(
     near_z = app->world_camera.near_plane_z;
     if( near_z < 1 )
         near_z = 50;
-    /* Reference far plane is drawDistance * 210; use a generous bound so the
-     * span never clips the radius-25 box diagonal (~4525). */
-    far_z = 100000;
+    /* Far clip = drawDistance * 210 (deob class243.method4457). Covers the
+     * radius box diagonal (radius * 128 * sqrt(2)) at both 25 and 90. */
+    far_z = radius * OCCLUDER_FAR_CLIP_PER_TILE;
 
     cull_mode = getenv("TORIRS_PAINTER_CULL");
     if( cull_mode && strcmp(cull_mode, "baked") == 0 )
@@ -5543,15 +5550,16 @@ app_world_paint(struct App* app)
         if( occ && !occ_off )
         {
             int top_level = app_world_roof_check(app);
-            /* Eye is clamped inside scene_occluders_select_for_camera to match
-             * Client-TS World.renderAll; cullspan still uses the painter's
-             * clamped cam_sx/cam_sz for row ranges. */
+            /* Eye for depth/spread stays raw (deob cameraX/Y/Z); only the
+             * camera tile used by the footprint gate is scene-clamped inside
+             * select_for_camera so it lines up with the painter's cam_sx/sz. */
             scene_occluders_select_for_camera(
                 occ,
                 app->world_camera_pos.x,
                 app->world_camera_pos.y,
                 app->world_camera_pos.z,
                 top_level,
+                painter_get_draw_distance(app->world->painter),
                 painter_get_cullspan(app->world->painter),
                 NULL,
                 app->world_camera.pitch,

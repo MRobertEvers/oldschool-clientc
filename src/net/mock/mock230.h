@@ -1708,6 +1708,19 @@ struct Mock230Player
     uint32_t masks;
     int anim_id;
     int anim_delay;
+    /**
+     * Appearance idle/walk/run seqs (LostCity PathingEntity readyanim…runanim).
+     * Written by READYANIM, TURNANIM, WALKANIM, RUNANIM; put_appearance encodes
+     * the seven as p2s. Defaults match the unarmed human_* set the client
+     * already assumes at spawn (808/823/819-822/824).
+     */
+    int readyanim;
+    int turnanim;
+    int walkanim;
+    int walkanim_b;
+    int walkanim_l;
+    int walkanim_r;
+    int runanim;
     int face_entity;
     int face_x;
     int face_z;
@@ -2053,6 +2066,8 @@ struct Mock230Hooks
     /* Equipment. */
     const struct SSVM_Script* equipment_refresh;
     const struct SSVM_Script* equipment_open;
+    /** Stance BAS from worn righthand — `[proc,update_bas]`. */
+    const struct SSVM_Script* update_bas;
 
     /*
      * Friend presence.

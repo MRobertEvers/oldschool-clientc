@@ -1788,14 +1788,17 @@ Now it mirrors the reference exactly:
 
 Client-TS: LocType opcode 75 `raiseobject` (default `-1 → blockwalk ? 1 : 0`);
 model build stamps `objRaise = minY` (`max(-vertexY)`); `World.setObj` takes
-the max raise across loc sprites on the tile; raised stacks draw at
-`y - height` (world Y is negative-up).
+the max raise across loc **sprites** on the tile (walls / wall-decor / ground
+decor never feed `setObj`); raised stacks draw at `y - height` (world Y is
+negative-up). Multi-tile sprites register on the full footprint.
 
 torirs: rscache `support_items` finishes the same default; copied to
 `ToriRS_Location.raiseobject`. At loc place (`scenery_load_model`), when
-raiseobject==1, `World_ObjRaiseSetMax` stores max(-vy) on the anchor tile
-(`World.obj_raise`, scene_size² × levels — persists after decor_buildmap is
-freed). `App_WorldObjStackAdd` / rebuild-shift apply
+raiseobject==1 **and** the shape is a Client-TS sprite shape (wall-diagonal 9,
+centrepiece 10/11, roofs 12–21), `World_ObjRaiseSetMax` stores max(-vy) on
+every tile of the `size_x × size_z` footprint (`World.obj_raise`, scene_size²
+× levels — persists after decor_buildmap is freed). Walls and floor decor do
+not stamp. `App_WorldObjStackAdd` / rebuild-shift apply
 `ground_y - World_ObjRaiseGet(...)`. Painter early/late ground-object split
 is still a follow-up; height alone puts items on the table.
 - **`minusedlevel` plane (reference `Client.minusedlevel`)**: movers have no

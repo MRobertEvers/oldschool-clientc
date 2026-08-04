@@ -120,6 +120,7 @@ run_occlusion_subsequence(
             -100,
             cfg->camera_sz * 128 + 64,
             top,
+            OCCLUDER_DRAW_DISTANCE_MIN,
             NULL,
             NULL,
             cfg->pitch,

@@ -377,7 +377,7 @@ painter_paint_world3d(
     buffer->command_count = 0;
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
-    int radius = 25;
+    int radius = painter->draw_distance;
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
 
     int draw_center_sx;

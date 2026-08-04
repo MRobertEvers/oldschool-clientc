@@ -208,6 +208,7 @@ mock230_scripts_resolve_hooks(struct Mock230Server* srv)
         HOOK(combat_weapon_type, "[proc,combat_weapon_type]"),
         HOOK(equipment_refresh, "[proc,equipment_refresh]"),
         HOOK(equipment_open, "[proc,equipment_open]"),
+        HOOK(update_bas, "[proc,update_bas]"),
         HOOK(friend_login_notification, "[proc,friend_login_notification]"),
         HOOK(friend_logout_notification, "[proc,friend_logout_notification]"),
 #undef HOOK
@@ -4209,6 +4210,81 @@ mock230_script_command(
          * plays a low-priority emote cannot cut off a swing already queued this
          * tick. */
         mock230_anim_play_player(player, values[0], values[1]);
+        return 1;
+    }
+
+    /* Appearance stance seqs — LostCity PlayerOps READYANIM…RUNANIM. Each
+     * write dirties APPEARANCE so a BAS change without a worn-container write
+     * (agility ~bas_set restore, equip already dirties via worn) still ships. */
+    case SS_OP_READYANIM:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->readyanim = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_TURNANIM:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->turnanim = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_WALKANIM:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->walkanim = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_WALKANIM_B:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->walkanim_b = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_WALKANIM_L:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->walkanim_l = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_WALKANIM_R:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        player->walkanim_r = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
+        return 1;
+    }
+    case SS_OP_RUNANIM:
+    {
+        int32_t seq;
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        /* LostCity allows -1 (null) to clear runanim. */
+        player->runanim = seq;
+        player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
     }
 

@@ -191,7 +191,7 @@ painter_paint_distancemetric(
 
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
-    int radius = 25;
+    int radius = painter->draw_distance;
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
     int clear_max_level = painter->levels;
 

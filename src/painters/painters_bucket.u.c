@@ -193,7 +193,7 @@ painter_paint_bucket(
     buffer->command_count = 0;
     memset(element_paints, 0x00, (size_t)painter->element_count * sizeof(struct ElementPaint));
 
-    int radius = 25;
+    int radius = painter->draw_distance;
 
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
     /* Iterate all grid stack levels; per-tile draw_mask uses packed visible_gte_level (VisBelow). */

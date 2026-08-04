@@ -1145,11 +1145,17 @@ put_appearance(
     for( int i = 0; i < 5; i++ )
         rsab_p1(buf, 0); /* body colours */
 
-    /* idle, turn, walk, walk-back, walk-left, walk-right, run. */
+    /* idle, turn, walk, walk-back, walk-left, walk-right, run.
+     * Content's READYANIM…RUNANIM own these; player_init seeds the unarmed
+     * defaults the client already expects at spawn. */
     {
-        static const int anims[7] = { 808, 823, 819, 820, 821, 822, 824 };
+        int anims[7] = {
+            player->readyanim, player->turnanim, player->walkanim,
+            player->walkanim_b, player->walkanim_l, player->walkanim_r,
+            player->runanim
+        };
         for( int i = 0; i < 7; i++ )
-            rsab_p2(buf, anims[i]);
+            rsab_p2(buf, anims[i] < 0 ? 65535 : anims[i]);
     }
 
     /*

@@ -71,7 +71,16 @@ test_point_hidden_behind_wall(void)
 
     /* Camera east of the wall (x > 10*128 + dead zone). */
     scene_occluders_select_for_camera(
-        occ, 14 * 128 + 64, -100, 13 * 128 + 64, 3, NULL, NULL, 0, 0);
+        occ,
+        14 * 128 + 64,
+        -100,
+        13 * 128 + 64,
+        3,
+        OCCLUDER_DRAW_DISTANCE_MIN,
+        NULL,
+        NULL,
+        0,
+        0);
 
     expect(occ->active_count == 1, "wall activates when camera is east");
     expect(
@@ -122,7 +131,16 @@ test_camera_dead_zone(void)
 
     /* Eye within OCCLUDER_CAMERA_DEAD_ZONE (32) of the plane → rejected. */
     scene_occluders_select_for_camera(
-        occ, 10 * 128 + 16, -100, 13 * 128 + 64, 3, NULL, NULL, 0, 0);
+        occ,
+        10 * 128 + 16,
+        -100,
+        13 * 128 + 64,
+        3,
+        OCCLUDER_DRAW_DISTANCE_MIN,
+        NULL,
+        NULL,
+        0,
+        0);
     expect(occ->active_count == 0, "dead zone rejects near-plane eye");
 
     scene_occluders_free(occ);
@@ -215,6 +233,77 @@ test_merge_floor_area_threshold(void)
     occluder_buildmap_free(map);
 }
 
+/**
+ * Catch the (sx,sz,size_x,size_z) vs (min_x,max_x,min_z,max_z) signature
+ * mix-up: a 1x1 scenery at sx != sz must not be tested against z=1.
+ */
+static void
+test_footprint_hidden_size_args(void)
+{
+    struct SceneOccluders* occ = scene_occluders_new(32, 32, 4);
+    int16_t* heights;
+    int gw = 33;
+    int gh = 33;
+    int n = gw * gh * 4;
+    int i;
+
+    heights = calloc((size_t)n, sizeof(int16_t));
+    assert(heights);
+    for( i = 0; i < n; i++ )
+        heights[i] = 0;
+    scene_occluders_set_ground_heights(occ, heights, gw, gh, 4);
+    free(heights);
+
+    /* Constant-X wall at x=10*128, spanning z=8..18. */
+    expect(
+        scene_occluders_add(
+            occ,
+            3,
+            OCCLUDER_PLANE_CONSTANT_X,
+            10 * 128,
+            -240,
+            8 * 128,
+            10 * 128,
+            0,
+            18 * 128 + 128) == 0,
+        "add wall plane for footprint");
+
+    scene_occluders_select_for_camera(
+        occ,
+        14 * 128 + 64,
+        -100,
+        13 * 128 + 64,
+        3,
+        OCCLUDER_DRAW_DISTANCE_MIN,
+        NULL,
+        NULL,
+        0,
+        0);
+    expect(occ->active_count == 1, "wall active for footprint tests");
+
+    /* 1x1 east of the wall (camera side) — must stay visible even when sx != sz. */
+    expect(
+        !scene_occluders_footprint_hidden(occ, 0, 16, 13, 1, 1, 0),
+        "1x1 east of wall is visible (sx != sz)");
+
+    /* 1x1 west of the wall, in its Z span — hidden. */
+    expect(
+        scene_occluders_footprint_hidden(occ, 0, 5, 13, 1, 1, 0),
+        "1x1 west of wall is hidden");
+
+    /* 2x2 west of the wall covering its shadow — hidden. */
+    expect(
+        scene_occluders_footprint_hidden(occ, 0, 4, 12, 2, 2, 0),
+        "2x2 west of wall is hidden");
+
+    /* 2x2 straddling / east of the wall — not fully hidden. */
+    expect(
+        !scene_occluders_footprint_hidden(occ, 0, 10, 12, 2, 2, 0),
+        "2x2 on camera side is visible");
+
+    scene_occluders_free(occ);
+}
+
 int
 main(void)
 {
@@ -222,6 +311,7 @@ main(void)
     test_camera_dead_zone();
     test_merge_wall_area_threshold();
     test_merge_floor_area_threshold();
+    test_footprint_hidden_size_args();
 
     if( g_failures )
     {
