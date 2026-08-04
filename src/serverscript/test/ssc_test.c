@@ -228,6 +228,11 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
     SSC_SymbolsAdd(&fixture->symbols, "coins", 995, SSC_SYM_OBJ, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "inv", 93, SSC_SYM_INV, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "quest_progress", 42, SSC_SYM_VARP, NULL);
+    /* The stat-name collision the arg_kind_hint exists for, as the real cache
+     * has it: `hitpoints` is param 2100 *and* stat 3, and PARAM sorts first.
+     * See test_stat_argument_hint. */
+    SSC_SymbolsAdd(&fixture->symbols, "hitpoints", 2100, SSC_SYM_PARAM, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "hitpoints", 3, SSC_SYM_STAT, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "max_coins", 0, SSC_SYM_CONSTANT, "2147000000");
     SSC_SymbolsAdd(&fixture->symbols, "greeting", 0, SSC_SYM_CONSTANT, "\"Well met!\"");
     /*
@@ -879,6 +884,76 @@ test_script_name_argument(void)
  * collision — so this fails by construction without the per-kind seed guard in
  * ssc_symbols.c.
  */
+/* Every stat command must resolve a bare stat name as a STAT, not as whatever
+ * pack symbol shares the word. NPC_BASESTAT is spelled out in the compiler's
+ * membership test because its name matches neither the `STAT_` nor the
+ * `NPC_STAT` prefix the rest of the family is caught by — and while it did not,
+ * `npc_basestat(hitpoints)` compiled to param 2100 and every caller read 0. */
+static void
+test_stat_argument_hint(void)
+{
+    struct Fixture fixture;
+    static const char* const k_calls[] = {
+        "stat(hitpoints)",
+        "stat_base(hitpoints)",
+        "npc_stat(hitpoints)",
+        "npc_basestat(hitpoints)",
+    };
+
+    printf("bare stat names in stat-command arguments\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]()(int)\n"
+                         "return(stat(hitpoints));\n"
+                         "\n"
+                         "[proc,s1]()(int)\n"
+                         "return(stat_base(hitpoints));\n"
+                         "\n"
+                         "[proc,s2]()(int)\n"
+                         "return(npc_stat(hitpoints));\n"
+                         "\n"
+                         "[proc,s3]()(int)\n"
+                         "return(npc_basestat(hitpoints));\n",
+                         "stat argument hint") )
+        return;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        char script_name[32];
+        const struct SSVM_Script* script;
+        int pushed = -1;
+
+        snprintf(script_name, sizeof(script_name), "[proc,s%d]", i);
+        script = SSVM_ProviderGetByName(&fixture.provider, script_name);
+        if( !script )
+        {
+            printf("  FAIL stat argument hint: no %s\n", script_name);
+            g_fail++;
+            continue;
+        }
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            if( script->opcodes[op] == SS_OP_PUSH_CONSTANT_INT )
+            {
+                pushed = script->int_operands[op];
+                break;
+            }
+        }
+        if( pushed != 3 )
+        {
+            printf("  FAIL %s pushes %d, want stat 3 (param `hitpoints` is 2100)\n",
+                   k_calls[i], pushed);
+            g_fail++;
+        }
+        else
+        {
+            printf("  ok   %s -> stat 3\n", k_calls[i]);
+        }
+    }
+
+    fixture_close(&fixture);
+}
+
 static void
 test_param_type_shadowing(void)
 {
@@ -1077,6 +1152,7 @@ main(void)
     test_implicit_return();
     test_runclientscript_vararg();
     test_vararg_limits();
+    test_stat_argument_hint();
     test_param_type_shadowing();
     test_script_name_argument();
     test_errors();

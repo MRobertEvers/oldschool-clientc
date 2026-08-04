@@ -743,9 +743,24 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
          * LostCity's surface is the same: `enum_getoutputcount(stats)`.
          */
 
+        /*
+         * `NPC_BASESTAT` is spelled out because it is the one member of the stat
+         * family whose name does not start with either prefix — and the prefixes
+         * were the whole membership test, so it was the one stat command whose
+         * argument was resolved unhinted. `npc_basestat(hitpoints)` therefore
+         * compiled to `npc_basestat(2100)` (param `hitpoints`, which sorts before
+         * the stat), `npc_base_stat()` answered its `default:` and pushed 0, and
+         * TzKal-Zuk's health overlay read `1200/0`. Exactly the failure the
+         * comment above says the hint exists to prevent, missed on a spelling.
+         *
+         * Every other stat command is covered: `STAT`, `STAT_*` (add/advance/
+         * base/boost/drain/heal/random/sub/total) and `NPC_STAT*` (stat/statadd/
+         * statheal/statsub). Check a new one against this list by name shape,
+         * not by assuming a prefix reaches it.
+         */
         if( op_name &&
             (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||
-             strncmp(op_name, "NPC_STAT", 8) == 0) )
+             strncmp(op_name, "NPC_STAT", 8) == 0 || strcmp(op_name, "NPC_BASESTAT") == 0) )
             base_hint = SSC_SYM_STAT;
         /*
          * The open family's arguments name interfaces, and a bare interface

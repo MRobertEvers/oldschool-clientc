@@ -84,7 +84,8 @@ CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
-	-I$(REPO_ROOT)/3rd/miniz
+	-I$(REPO_ROOT)/3rd/miniz \
+	-I$(REPO_ROOT)/3rd/xteas
 
 RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
@@ -264,8 +265,10 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_embed.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
+	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
+	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -441,7 +444,8 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 endef
 
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
-	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c
+	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
+	net/rev/osrs239/gameproto_rev_osrs239.c
 
 $(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
@@ -457,6 +461,8 @@ $(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c |
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs230 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_osrs239.o: net/rev/osrs239/gameproto_rev_osrs239.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/osrs239 -c $< -o $@
 
 # tommath amalgam for RSA (login block exptmod).
 $(OBJ_DIR)/tommath.o: $(REPO_ROOT)/3rd/tommath/mpi.c | $(OBJ_DIR)

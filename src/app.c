@@ -3828,14 +3828,14 @@ app_debug_log_position(struct App* app)
             fprintf(
                 stderr,
                 "  npc slot=%d type=%d '%s' grid=%d,%d L%d draw=%d,%d elpos=%d,%d,%d yaw=%d "
-                "ground=%d size=%d\n",
+                "ground=%d size=%d turn=%d dstyaw=%d\n",
                 n->server_slot, n->npc_id, n->name, n->grid_position.x, n->grid_position.z,
                 n->grid_position.level, (int)n->draw_position.x, (int)n->draw_position.z,
                 sel ? sel->world_position.x : -1, sel ? sel->world_position.y : -1,
                 sel ? sel->world_position.z : -1, sel ? sel->world_position.yaw : -1,
                 app_world_height(app, (int)n->draw_position.x, (int)n->draw_position.z,
                                  app_cinema_level(app)),
-                n->size);
+                n->size, n->facing.turn_speed, n->orientation.dst_yaw);
         }
     }
 }
@@ -5236,6 +5236,43 @@ app_world_sync_positions(struct App* app)
     }
 }
 
+/* Play frame sounds for a sequence animation when its frame advances.
+ * The sounds are stored in the ToriDraw_Animation as a map of frame indices
+ * to sound ids. */
+static void
+app_play_frame_sounds(
+    struct App* app,
+    const struct ToriDraw_Animation* anim,
+    int current_frame)
+{
+    if( !anim || !app || anim->frame_sounds.count <= 0 )
+        return;
+
+    /* Binary search for the current frame in the frame_sounds.frame_indices array */
+    int left = 0;
+    int right = anim->frame_sounds.count - 1;
+    while( left <= right )
+    {
+        int mid = (left + right) / 2;
+        int frame_idx = anim->frame_sounds.frame_indices[mid];
+        if( frame_idx == current_frame )
+        {
+            /* Found a matching frame; queue all sounds for this frame */
+            struct ToriDraw_AnimFrameSound const* sound = &anim->frame_sounds.sounds[mid];
+            RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
+            return;
+        }
+        else if( frame_idx < current_frame )
+        {
+            left = mid + 1;
+        }
+        else
+        {
+            right = mid - 1;
+        }
+    }
+}
+
 /* One client tick of scene-element animation frames. UITreeAnim only advances
  * UI model widgets; world scene elements (scenery + entities) advance here
  * (v1 GameRunescape_TickAnimations, both classic and skeletal branches). */
@@ -5303,6 +5340,8 @@ app_world_tick_animations(struct App* app)
             {
                 element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
                 element->anim_cycle = 0;
+                /* Play any frame sounds for the new frame */
+                app_play_frame_sounds(app, anim, element->anim_frame);
             }
         }
     }

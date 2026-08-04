@@ -55,6 +55,12 @@
 #include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/pktnames.h"
 
+/* For the SS_OP_SOUND_SYNTH direct-dispatch check below (WEAPON_FX_PORT_QUEUE.md
+ * slice 7's bar). Same include path (-I src/serverscript) mock230_scripts.c
+ * itself uses. */
+#include "ss_opcode.h"
+#include "ssvm.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -198,6 +204,17 @@ struct Peer
     /** An op landed on an npc slot this client was never told about — the shape
      *  a mis-ordered extended section takes. */
     int saw_npc_unknown_target;
+
+    /*
+     * SYNTH_SOUND (WEAPON_FX_PORT_QUEUE.md slices 6-7). How many, and the
+     * fields of the most recent, decoded by `ToriRS_Network`'s own reader —
+     * the same `gameproto_parse.c` case `rs_gameproto_exec.c:907` hands to
+     * `RS_Audio_Synth`. This is the wire half of the chain; the id-to-audible-
+     * PCM half is `rs_audio_test.c`, unmodified, per the queue's instruction
+     * not to touch it.
+     */
+    int saw_synth_count;
+    int saw_synth_id, saw_synth_loops, saw_synth_delay;
 };
 
 /** The last FACE_ENTITY this client decoded for `slot`, or -1 if none.
@@ -714,6 +731,13 @@ pump(
                 absorb_npc_info(peer, packet._npc_info.data, packet._npc_info.length);
             else if( packet.packet_type == PKT_NAME_UPDATE_PID )
                 peer->my_pid = packet._update_pid.local_player_index;
+            else if( packet.packet_type == PKT_NAME_SYNTH_SOUND )
+            {
+                peer->saw_synth_count++;
+                peer->saw_synth_id = packet._synth_sound.id;
+                peer->saw_synth_loops = packet._synth_sound.loops;
+                peer->saw_synth_delay = packet._synth_sound.delay;
+            }
             else if( !absorb_social(peer, &packet) )
                 absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
@@ -995,6 +1019,74 @@ main(void)
     check(world->tick > 0, "the world ticked");
     check(alice->x > 0 && alice->z > 0 && bob->x > 0 && bob->z > 0,
           "both players are on a tile");
+
+    /*
+     * ── SYNTH_SOUND, slices 6-7 (WEAPON_FX_PORT_QUEUE.md) ──────────────
+     *
+     * `sound_synth(id, loops, delay)` (`[command,sound_synth]`,
+     * LostCity_Server/content/scripts/engine.rs2:205) is a content call, and the
+     * queue's own bar for slice 7 is "a [debugproc] calling sound_synth is
+     * audible headlessly". No content script does that yet — the natural home
+     * (`general/scripts/misc/engine_op_debug.rs2`, the file this pattern was
+     * copied from for `projanim`/`multiway`/`statadd`) is not in lane C's file
+     * ownership (WEAPON_FX_PORT_QUEUE.md §1), so this dispatches
+     * SS_OP_SOUND_SYNTH the same way a compiled `sound_synth(...)` call would —
+     * three ints pushed in the reference's declared order, popped by
+     * `mock230_script_command`'s own case (mock230_scripts.c) — rather than
+     * adding a script this lane cannot own.
+     *
+     * What this proves: the opcode body now calls `mock230_send_synth_sound`
+     * (it used to only print under MOCK230_VERBOSE and send nothing), the
+     * packet is framed on wire opcode 102 as `PKT_NAME_SYNTH_SOUND`
+     * (packetin.h, slice 6), and — the load-bearing part — it is decoded back
+     * by `ToriRS_Network`'s *own* reader (`gameproto_parse.c`, the same
+     * decoder `rs_gameproto_exec.c:907` hands to `RS_Audio_Synth`), not by a
+     * parser this test wrote for itself.
+     *
+     * What this does *not* prove, and is not asked to: that a given id renders
+     * non-silent PCM. That is `rs_audio_test.c`'s "audible is the point" check,
+     * against a real cache — unmodified per the queue's instruction, and out of
+     * reach here because `test-mock230-embed`'s link line (src/Makefile) does
+     * not pull in RS_Audio/dat2_buildcache/platform_audio_null, and the
+     * Makefile is not a file lane C owns either. The two tests together are the
+     * whole chain: this one proves the wire carries the id the opcode was
+     * given; rs_audio_test.c proves that id becomes audible PCM once decoded.
+     */
+    {
+        struct SSVM_State state;
+        int synth_id = 2720;   /* synth_2720 — abyssal_whip's equipment_sound,
+                                 * WEAPON_FX.md §4's worked example. Cited by
+                                 * value here only because this bypasses the
+                                 * name-resolving script layer entirely (there
+                                 * is no compiled script to spell the name in);
+                                 * every real caller still goes through content,
+                                 * which resolves synth_2720 by name. */
+        int synth_loops = 1;
+        int synth_delay = 5;
+
+        memset(&state, 0, sizeof(state));
+        state.env = world->script_env;
+        world->active_player = alice;
+
+        check(SSVM_PushInt(&state, synth_id), "pushed the sound id");
+        check(SSVM_PushInt(&state, synth_loops), "pushed loops");
+        check(SSVM_PushInt(&state, synth_delay), "pushed delay");
+        check(mock230_script_command(&state, SS_OP_SOUND_SYNTH, 0),
+              "SS_OP_SOUND_SYNTH dispatched (mock230_scripts.c's own case, not a "
+              "stand-in)");
+
+        peers[0].saw_synth_count = 0;
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        check(peers[0].saw_synth_count > 0,
+              "SYNTH_SOUND reached alice's stream (packetin.h:102 is no longer "
+              "PKT_NAME_NONE)");
+        check(peers[0].saw_synth_id == synth_id && peers[0].saw_synth_loops == synth_loops &&
+                  peers[0].saw_synth_delay == synth_delay,
+              "id/loops/delay round-tripped through the client's own "
+              "gameproto_parse.c reader unchanged");
+    }
 
     /*
      * The opening fixture, over a real login rather than a direct call.

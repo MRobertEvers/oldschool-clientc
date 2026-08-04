@@ -692,12 +692,21 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 32w | Scorpion Catcher journal | done | ~scorpcatcher_journal + quest_scorpioncatcher; thin ^scorpcatcher_* (parallel) |
 | 32x | Throne of Miscellania journal | done | ~misc_journal + quest_throneofmiscellania; affection constants (parallel) |
 | 32y | Shilo Village journal | done | ~zombiequeen_journal + quest_shilovillage; %zq_map_mechanisms authored |
-| 32z | Monkey Madness journal | in_progress | ~mm_journal + quest_monkeymadness1; unnamed OSRS mm flag varbits |
-| 33a | Legends Quest journal | pending | ~legends_journal + quest_legends; %legends_bits |
-| 33b | In Search of the Myreque journal | pending | ~routequest_journal + quest_insearchofthemyreque |
-| 33c | outward leftover | pending | after journals |
-| 33d | outward leftover | pending | after journals |
-| 8 | Outward areas / remaining quests / minigames | pending | After 33d: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 32z | Monkey Madness journal | done | ~mm_journal + quest_monkeymadness1; ^monkeymadness_* (Misthalin owns ^mm_*); unnamed flag varbits |
+| 33a | Legends Quest journal | done | ~legends_journal + quest_legends; %legends_bits authored; constants expanded |
+| 33b | In Search of the Myreque journal | done | ~routequest_journal + quest_insearchofthemyreque; %routequest_myreque_bits; bitcount→getbit_range |
+| 33c | Ogre bow Check kills | done | ogre_bow opheld3 + ~get_chompy_rank; ~objbox→~mesbox |
+| 33d | Swamp toad inflate | done | opnpcu toad + ai_timer; synth/sound_area dropped |
+| 33e | Chompy bloated toad release/place | done | bloated_toad release/place + bait roll; thin ~spawn_chompy_bird; full AI deferred |
+| 33f | Cannonballs smelting | in_progress | steel_bar+ammo_mould → mcannonball×4 |
+| 33g | Dragon sq anvil repair | in_progress | @make_dragon_sq via oplocu anvil |
+| 33h | Crest Boot gold branch | in_progress | boot_the_dwarf ^crest_spoken_* arms |
+| 33i | Holiday scythe/bunnyears pickup | in_progress | opobj3 one-owned; authored unlock varps |
+| 33j | MM talk helpers + padulah | in_progress | ~mm_wearing_greegree / monkeyspeak + padulah Talk |
+| 33k | MM temple priests | in_progress | hafuba/lofu/denadu Talk |
+| 33l | MM sleeping monkey guard Talk | in_progress | opnpc1 mesbox; ai_timer (%npc_int) deferred |
+| 33m | Dragon spear Shove special | in_progress | sa_kind=8 + pvm_dragon_spear_sa |
+| 8 | Outward areas / remaining quests / minigames | pending | After 33m: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1524,3 +1533,16 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 32v done: Nature Spirit journal (~druidspirit_journal + quest_naturespirit; %druidspirit_bits authored; ^priestperil_complete)
 - final: 11422 scripts; mock230_pack 0 errors
 - next pending: remaining journals (misc/mm/legends/zombiequeen/routequest); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend); scorpcatcher landed in parallel (leave alone)
+
+- slice 32y verified: Shilo Village journal already landed (~zombiequeen_journal + quest_shilovillage; %zq_map_mechanisms)
+- slice 32z done: Monkey Madness journal (~mm_journal + quest_monkeymadness1; ^monkeymadness_* rename vs Misthalin ^mm_*; unnamed OSRS flag varbits)
+- slice 33a done: Legends Quest journal (~legends_journal + quest_legends; %legends_bits; constants expanded)
+- slice 33b done: In Search of the Myreque journal (~routequest_journal + quest_insearchofthemyreque; %routequest_myreque_bits; bitcount→getbit_range)
+- slice 33c done: Ogre bow Check kills (opheld3 + ~get_chompy_rank; ~objbox→~mesbox)
+- slice 33d done: Swamp toad inflate (opnpcu toad + ai_timer; synth/sound_area dropped)
+- final: 11481 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+- slice 33e done: Chompy bloated toad release/place (~release_toad, Drop→place bait, ai_queue4 explode/spawn thin); chompybird via names.map; %npc_attacking_uid/huntmode deferred
+- final: 11500 scripts; mock230_pack 66 errors (all special_attack.obj unknown objs — pre-existing, not 33e)
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
