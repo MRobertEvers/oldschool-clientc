@@ -7094,6 +7094,12 @@ CS2VM2_Op_CC_ChildrenFindNextId(
     int operand);
 
 int
+CS2VM2_Op_CC_ChildrenFindNext(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
 CS2VM2_Op_IF_ChildrenFind(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -9178,7 +9184,6 @@ CS2VM2_RunOp(
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
         return CS2VM2_Op_CC_ChildrenFindNextId(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FINDNEXT:
-    case CS2_OP__213:
         return CS2VM2_Op_CC_ChildrenFindNext(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FIND_COUNT:
         return CS2VM2_Op_CC_ChildrenFindCount(vm, frame, operand);
@@ -11121,6 +11126,7 @@ cs2vm2_thread_init(
 
     thread->children_iter_count = 0;
     thread->children_iter_index = 0;
+    thread->children_iter_parent = -1;
     thread->children_collect_handle = NULL;
 
     for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )

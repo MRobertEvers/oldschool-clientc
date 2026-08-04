@@ -305,7 +305,7 @@ invented. Tables: `local_commands.py` → `cs2_command.gen.h`, and
 |---|---|---|---|
 | 211 | `(3i)->(1i)` | script 9181 | **real** — `IF_CHILDREN_COLLECT` |
 | 212 | `(1i)->(1i)` | 9179/9186 after `.cc_find` | real — children-find + count |
-| 213 | `()->(1i)` | same as FINDNEXTID 204/206 | real — alias |
+| 213 | `()->(1i)` | 9179/9186 boolean find-next | **real** — `CC_CHILDREN_FINDNEXT` (set target, push 1/0; not FINDNEXTID) |
 | 215 | `()->(1s)` | 9181 → array handle for 8003 | **real** — `CHILDREN_ARRAY` |
 | 4036 | `(1s)->(1i)` | xrsps `STRING_TO_INT` | real |
 | 8003 | `(1s)->(1i)` | xrsps `ARRAY_LENGTH` | real |
