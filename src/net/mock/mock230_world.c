@@ -3488,8 +3488,7 @@ interaction_engine_npc(
     /*
      * Everything else is a greeting, and the words are content's:
      * `[proc,npc_default_chat]` (player/messages.rs2), run with this npc active
-     * so it can use `npc_say` — which is also what makes the line *visible*.
-     * The mask this used to set alone renders nowhere in this client.
+     * so it can use `npc_say` (overhead SAY on NPC_INFO).
      */
     /* The clicker, by pid: `active_player` is whoever's packet is being
      * dispatched, which for an op handler is exactly the right answer. Two

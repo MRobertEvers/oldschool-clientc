@@ -184,12 +184,12 @@ unblocked row per tick.
 | 26 | Prayer potion / restore consume | LC | done | `prayer_potion.rs2` — prayer +7/+25%, super restore +8/+25% all skills; dose ladders. Sanfew → follow-up. |
 | 27 | Smite / Piety / Rigour combat effects | LC | done | Chivalry/Piety/Rigour/Augury (+ eagle/mystic ladder) wired in `combat_stats` prayer multipliers. Smite PvP drain still needs #2 multi-player. |
 | 28 | Retribution multi-target AoE | Kronos | pending | Kronos §23 single-target only; comment still says map_multiway deferred though opcode hosted — wire AoE |
-| 29 | Prayer cape / bones-to-peaches | wiki+cache | pending | Cape perk absent; CONTENT 11j bananas only — peaches deferred |
-| 30 | Magic autocast IF | MAGIC | blocked | → [`MAGIC_CONTENT_PORT_PLAN.md`](MAGIC_CONTENT_PORT_PLAN.md) **M6** |
+| 29 | Prayer cape / bones-to-peaches | wiki+cache | pending | Cape perk absent; peaches spell live via MAGIC M5 (`bones_peaches`) |
+| 30 | Magic autocast IF | MAGIC | blocked | → [`MAGIC_CONTENT_PORT_PLAN.md`](MAGIC_CONTENT_PORT_PLAN.md) **M6** (in_progress) |
 | 31 | Ancient Magicks spellbook | MAGIC | blocked | → MAGIC **M7** |
 | 32 | Lunar / Arceuus spellbooks | MAGIC | blocked | → MAGIC **M8** / **M9** |
-| 33 | God / Iban / Crumble Undead | MAGIC | blocked | → MAGIC **M1**+**M3** done; **M4** pending |
-| 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** |
+| 33 | God / Iban / Crumble Undead | MAGIC | blocked | → MAGIC **M1**+**M3**+**M4** done |
+| 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** done (peaches + Magic Dart; PvP/post-LC teles deferred) |
 | 35 | Magic potion consume | MAGIC | blocked | → MAGIC **M2** done (`magic_potion.rs2`); battlemage/divine deferred in plan |
 | 36 | Magic cape / surge spells | MAGIC | blocked | → MAGIC **M10** |
 | 37 | Runecraft tiara craft + pure essence | LC | pending | CONTENT 8k / runecraft.rs2 deferred tiara crafting + pure essence mining; tiara enter path partially live (`*_ruined_new`) |

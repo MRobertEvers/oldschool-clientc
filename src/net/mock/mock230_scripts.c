@@ -2609,30 +2609,15 @@ mock230_script_command(
             return 1;
         }
         /*
-         * Overhead text does not exist in this client.
-         *
-         * The NPC_INFO SAY mask decodes fine and reaches World_NpcSetChat — but
-         * nothing ever reads that field back, so an npc's speech would render
-         * nowhere. Sending the mask anyway would look correct at every level
-         * except the one that matters.
-         *
-         * So npc speech goes to the chatbox as "<name>: <text>", which is
-         * visible, keeps npc_say's fire-and-forget semantics (unlike routing it
-         * through a modal dialogue), and needs only the speaker's name. Content
-         * is unchanged — scripts still write npc_say.
+         * LostCity `Npc.say()` — fire-and-forget overhead SAY on NPC_INFO.
+         * Do not route through the chatbox: [ai_timer] flavour scripts
+         * (cows/sheep/chickens) call npc_say with no player set, and leftover
+         * srv->active_player would spam "Cow: Moo" as game messages. Do not
+         * face the player either; talk-op scripts that need facing do it
+         * themselves.
          */
         snprintf(npc->say, sizeof(npc->say), "%s", text);
-        {
-            char line[192];
-
-            snprintf(line, sizeof(line), "%s: %s", mock230_npcinfo(npc->type)->name, text);
-            mock230_send_message(srv->active_player, line);
-        }
-        /* Facing the player is real and does render, so keep it — by the pid of
-         * the player the script is running for, which is the same player the
-         * line above was addressed to. */
-        if( srv->active_player )
-            mock230_npc_face_player(npc, srv->active_player->pid);
+        npc->masks |= MOCK230_NMASK_SAY;
         return 1;
     }
 

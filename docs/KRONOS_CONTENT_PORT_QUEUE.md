@@ -166,7 +166,7 @@ re-arm. Stop only when the user stops the loop.
 | 83 | skill: Woodcutting Guild | done | `skill_woodcutting/woodcutting_guild.rs2`: WC60 gates + Bone Voyage hand-in; rope ladders; dungeon; shrine eggs → seed nest + 100 Prayer XP; redwood plane / +2 boost deferred |
 | 84 | skill: Mining Guild expansion ladders | done | withdrawn — LC `areas/.../mining_guild.rs2` already gates Mining 60 on `mguild_ladder`/`mguild_door`; Kronos coord-specific teleports are the same +6400 cellar offset |
 | 85 | skill: WC Guild bird-egg shrine | done | folded into slice 83 (`oplocu,wcguild_shrine`) |
-| 86 | minigame: The Gauntlet + Corrupted Gauntlet + crystal equipment | done | `minigame_gauntlet/`: portal→lobby, instance m29_88/m30_88, prep timer, gather/craft, Hunllef AI (wiki max hits), completion + incomplete/junk reward chest (wiki rates/rolls), leave/death loot rules, `prif_singing_bowl` crystal sing + XP/charge/dismantle; procedural rooms/tornadoes/floor/Ilfeen deferred; docs/GAUNTLET.md; no new opcodes |
+| 86 | minigame: The Gauntlet + Corrupted Gauntlet + crystal equipment | done | wiki session+boss (prayer disable, protect swap, tornadoes, floor), sceptre node lighting, SotE gate, Ilfeen/Conwenna/Reese, rewards; inv_setvar + true procedural rooms still deferred; docs/GAUNTLET.md |
 
 ## Opcode gap log
 
@@ -258,7 +258,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 82 | (none) | oploc Use + p_teleport + diary gate | confirmed — no new opcode |
 | 83 | (none) | oploc Open + walk-through + teleports | confirmed — no new opcode |
 | 86 | (none) | Gauntlet session + crystal sing expressible via instance/inv/locs | confirmed — no new opcode |
-| 86 | inv_setvar / inv_getvar | Per-item crystal charges | deferred — player `%crystal_*_charges` stubs |
+| 86 | inv_setvar / inv_getvar | Per-item crystal charges | deferred — player `%crystal_*_charges` + combat drain; opcode still absent |
 
 ## Log
 
@@ -287,6 +287,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - 2026-08-04: Inferno full encounter — `minigame_inferno/`: fire-cape gate, `map_instance_from_square(35_83)`, waves 1–66 budget + pillars/nibblers, 67–68 Jad, 69 Zuk (Content2 seal/`loc_change`/glyph/adds remapped); soft gaps: Zek corpse revive (`inferno_zek.rs2`), logout-pause/resume (perm varps + `~inferno_login`), Jal-nib-rek pet 1/100 (`infernopet`); scripts 9424; pack 0 errors
 - 2026-08-04: Zuk verify vs Kronos — seqs 7562–7566/`zuk_*` + seal anim 7561 match; map `m35_83` seal locs match; HUD `0/1` fixed via `inferno_temp_noprotect_transmit` transmit=yes (varbits 5653/5654); cutscene waits `p_delay` after instance teleport so cam uses rebuilt scene base; flank rocks 30345/30346 after seal clear; rubble 30342 add when map has no 30324
 - 2026-08-04: Zuk encounter never started from softtimer — `p_teleport`/`p_delay` need protect; softtimers run unprotected. All Zuk entry points now `queue(inferno_zuk_start, …)` (protected). Do **not** apply LostCity `--overlay-backing`/`--mapfill` — modern engine already handles magenta overlay + underlay; those hacks were for LC's 2004 client.
+- 2026-08-04: Zuk visuals — black rectangle was `inferno_collapsing_prison_roof` (30356→`inferno_prison_roof`); hide via `%inferno_prisonroof_hidden=1` + transmit on `inferno_temp_protect_transmit`. Glyph clipped by L0 flank 5x2 on spawn tile; flanks now spawn after glyph drops to run row.
 - 2026-08-04: queue was idle; extended with slices 24–28 (Cerberus / Kraken+Thermy / Sire / Skotizo+Gorilla+Shaman / CoX stub)
 - slice 24 done: Cerberus stub — `minigame_cerberus/`: Taverley crawl ↔ lobby, Slayer 91 winch→3 lairs, portcullis exit, `cerberus_attacking` kill; souls/lava/loot deferred; scripts 4932; pack 0 errors
 - slice 25 done: Kraken + Thermy stubs — `minigame_kraken/` cove+Disturb whirlpool; `minigame_thermy/` smoky cave+boss crevice; tentacles/face-mask dmg/loot deferred; scripts 4964; pack 0 errors
@@ -373,4 +374,4 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 83 done: Woodcutting Guild gates WC60 + BV hand-in moved off bonevoyage oploc; ropes + dungeon; scripts 7395; pack 0 errors
 - slice 85 done (in 83): shrine bird eggs → `bird_nest_seeds` + 100 Prayer XP; scripts 7396; pack 0 errors
 - slice 84 withdrawn: Mining Guild already LC-ported
-- slice 86 done: The Gauntlet + Corrupted Gauntlet + crystal equipment — `minigame_gauntlet/` wiki behaviour, instance templates m29_88/m30_88, completion+incomplete loot, leave/death rules, `prif_singing_bowl` XP/charges; docs/GAUNTLET.md; no new opcodes; deferred: procedural rooms, tornadoes/floor, Ilfeen/Conwenna, per-item inv_setvar charges
+- slice 86 done: The Gauntlet + Corrupted Gauntlet + crystal equipment — wiki boss (tornadoes/floor/prayer-disable/protect), sceptre lighting, SotE gate, Ilfeen/Conwenna/Reese, rewards; docs/GAUNTLET.md; inv_setvar + true procedural 7×7 still deferred

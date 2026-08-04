@@ -722,24 +722,18 @@ The whole loop then works: `~chatnpc` opens the dialogue and suspends, the
 player clicks, IF_BUTTON arrives, `mock230_scripts_resume_button` matches it by
 full uid, and the script continues to the next page.
 
-### NPC speech has no overhead text in this client
+### `npc_say` is overhead SAY, not a chatbox message
 
-`npc_say` originally set the NPC_INFO SAY mask. That decodes correctly and
-reaches `World_NpcSetChat` — but **nothing reads `entity->chat` back**;
-`world.c` is the only file that touches it. Overhead bubbles are not
-implemented, so npc speech rendered nowhere while looking correct at every other
-level: the mask was set, the payload grew, the client parsed it.
+`npc_say` sets `npc->say` and `MOCK230_NMASK_SAY` on NPC_INFO — the same
+fire-and-forget path as LostCity `Npc.say()`. The client decodes that into
+`World_NpcSetChat`; painting overhead bubbles from `entity->chat` is a
+separate client render gap, not a reason to invent another delivery path.
 
-The mock now sends npc speech to the chatbox as `"<name>: <text>"`. That is
-visible, and it keeps `npc_say`'s fire-and-forget semantics — routing it through
-a modal dialogue would have made a non-blocking command blocking. Content is
-unchanged; scripts still write `npc_say`.
-
-The speaker's name comes from `mock230_npcinfo.c`, which decodes the npc config
-table the same way `mock230_objinfo.c` decodes objs (14,205 records). It also
-backs `npc_name`.
-
-Facing the player is kept on the SAY path, because FACE_ENTITY does render.
+A prior workaround posted `"<name>: <text>"` to `srv->active_player`'s
+chatbox. That was wrong: `[ai_timer]` flavour scripts (cows/sheep/chickens)
+call `npc_say` with no player armed, so leftover `active_player` got ambient
+"Moo"/"Baa!" spam. Chatbox routing and the opportunistic face-player side
+effect are gone; talk-ops that need facing still face themselves.
 
 ## 3.11b Animation priority, and the two bugs that hid behind each other
 
@@ -1261,8 +1255,6 @@ mutation that counts is the shared helper.
 - **`MOCK230_NMASK_DAMAGE2` has no writer**, so two players hitting one npc in a
   tick lose the first splat. Same family — a shared slot — and the reference's
   answer is a second hitmark pair on the npc, not per-observer state.
-- **`npc_say` is delivered to `srv->active_player` only.** Wrong recipient, not
-  wrong value; a broadcast question.
 - **`npc_run_mode` reads `srv->active_player`** in a phase where it is nobody's
   turn, unlike `maybe_aggress`, which picks the nearest eligible victim. This
   change makes its face id honest about which player it named; it does not fix

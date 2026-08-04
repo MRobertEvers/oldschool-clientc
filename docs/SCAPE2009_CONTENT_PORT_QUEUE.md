@@ -146,7 +146,8 @@ Vorkath, Hydra, ToB, Inferno, …).
 | 8d | minigame: Puro-Puro imp steal | done | `imp_defender_no_patrol` AI: 1/10 near heroes; Thieving avoid + repellent; steals lowest jar → empty jar ground; `::puroimp`; scripts 9928; pack 0 errors |
 | 13c | minigame: Blast Furnace breakage/belt | done | 1/50 pipe/belt/cog break while pump/pedal; Repair Crafting30+hammer; stove multilocs; belt FIFO→`blast_furnace_*_ore` NPCs while pedaling; `::bfbreak`/`::bfbelt`; scripts 10177; pack 0 errors |
 | 2e | skill_hunter: salamander net + impling loot | done | Sapling net-trap swamp/orange/red/black; baby jar Loot weighted table; `::hunternet`/`::hunterbabyimp`; scripts 10296; pack 0 errors |
-| 2f | skill_hunter: polar kebbit trails | pending | Polar kebbit tracking trails (deferred from 2d) |
+| 2f | skill_hunter: polar kebbit trails | done | Inspect spawn→`%hunting_trail_state8_*` footprints; clue/end inspect; Attack snowdrift + noose → meat/fur/bones +30xp; linking graph deferred; `::hunterpolar`; scripts 10414; pack 0 errors |
+| 2g | skill_hunter: common kebbit trails | pending | Common kebbit east/west tracking (2009scape CommonKebbitEast/West; deferred from 2f linking) |
 | 21 | quest: Priest in Peril / Nature Spirit | lc | LC has `quest_priestperil` + `quest_druidspirit` — port via CONTENT_PORT_QUEUE |
 | 22 | quest: Recruitment Drive | done | Start: Amik→Tiffy (`rd_teleporter_guy`)→grounds (`m38_77`); quit portals; `%rd_main`; puzzles/shuffle deferred; `::rd`; scripts 5278; pack 0 errors |
 | 23 | quest: Lost Tribe | done | Sigmund→cook→Duke permit; dig/brooch→23b; Mistag/HAM deferred; `::losttribe`; scripts 5299; pack 0 errors |
@@ -201,6 +202,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 
 ## Log
 
+- slice 2f done (polar kebbit trails): LC none; 2009scape PolarKebbitHunting/HunterTracking; Inspect `hunting_trail_spawn_polar1/2` → LINKING initials + `%hunting_trail_state8_*` footprints; clue8_*/end Search; Attack end + `noose_wand` → `spit_raw_beast_meat`/`huntingbeast_polar_fur`/`bones` + 30xp; tunnel/linking graph expansion deferred→2g; `::hunterpolar`; scripts 10414; pack 0 errors; next=2g common kebbit trails
 - slice 2e done (salamander net + baby jar loot): LC none; 2009scape NetTrapSetting/NetTrapNode + ImplingLoot.BABY; Set-trap on `hunting_sapling_up_*` needs `net`+`rope`; catch swamp/orange/red/black → salamander item; baby jar `opheld3` weighted loot + empty jar return; secondary net scenery + clues deferred; `::hunternet`/`::hunterbabyimp`; scripts 10296; pack 0 errors; next=2f polar kebbit trails
 - slice 13c done (BF breakage/belt): LC none; 2009scape BlastState/BFSceneryController/BFBeltOre; 1/50 pot|pump while pumping, belt then cog while pedaling; furnace heat gated on no breakage; Repair Crafting30+hammer 50xp; stove low/med/full loc_change; ore place→4-slot FIFO + `blast_furnace_*_ore` visuals; pedals advance/deposit; `::bfbreak`/`::bfbelt`; scripts 10177; pack 0 errors; next=2e salamander net + impling loot
 - slice 8d done (Puro imp steal): LC none; 2009scape ImpDefenderBehavior; `imp_defender_no_patrol` ai_timer 1/10 within 2 tiles; Thieving avoid (low35/high280 +20 repellent); steals lowest `ii_captured_impling_*` → `npc_say("Be free!")` + empty `ii_impling_jar` ground; cooldown 25–100t; `::puroimp`; scripts 9928; pack 0 errors; next=13c BF breakage/belt

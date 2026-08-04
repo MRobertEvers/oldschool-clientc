@@ -5,9 +5,8 @@
  * file list, decode each — and worth keeping separate for the same reason: it
  * is the only place that knows the cache's npc layout.
  *
- * The immediate consumer is npc_say. NPCs have no overhead text in this client
- * (World_NpcSetChat writes a field nothing reads), so the mock renders npc
- * speech as a chatbox line, which needs the speaker's name.
+ * Consumers include npc_name and the default greeting path. `npc_say` itself
+ * no longer needs the name for a chatbox line — it sets NPC_INFO SAY only.
  */
 
 #include "mock230.h"

@@ -536,8 +536,23 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 26w | Heroes oily fishing rod | done | blamish_oil + fishing_rod → oily_fishing_rod |
 | 26x | Chicken flavour squawk | done | _chicken timer squawk + egg; sound deferred |
 | 26y | Mcannon doors | done | walk-through gated on %mcannon |
-| 26z | Nulodion notes | in_progress | mesbox Read |
-| 8 | Outward areas / remaining quests / minigames | pending | After 26y: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw |
+| 26z | Nulodion notes | done | mesbox Read |
+| 27a | Rabbit drop table | done | rabbit_1..3 death → bones + raw_rabbit |
+| 27b | Legends Guild doors | done | quest gate + walk-through; body deferred |
+| 27c | Mcannon tower ladder | done | mcannonladder trapdoor gate + climb |
+| 27d | Troll Godric Talk | done | cage Talk + ^troll_freed_godric constants |
+| 27e | Mcannon crate + dwarf child | done | search crate + rescue Talk; walk-off simplified |
+| 27f | Misc giant nib | done | Use nib on logs → misc_giant_pen |
+| 27g | Heroes Trobert | done | ID papers Black Arm HQ Talk |
+| 27h | Astrology book | done | Scorpius tale mesbox pages |
+| 27i | Heroes Garv + door | done | mansion unlock papers + walk-through |
+| 27j | Legends Guild gates | done | mithril gate Examine + walk-through thin |
+| 27k | Zanaris Shamus | done | leprechaun Talk; tree spirit already landed |
+| 27l | Mort Myre gate guard | done | Ulizius Talk; trails clue deferred |
+| 27m | Prifddinas city guard | done | prif_city_guard Talk + gate Halt |
+| 27n | Grip death (Heroes) | done | heroquest progress + death_drop |
+| 27o | Undead one drops thin | done | zqzombie_* bones; greenmist deferred |
+| 8 | Outward areas / remaining quests / minigames | pending | After 27o: CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1122,3 +1137,29 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 26w done: blamish_oil + fishing_rod → oily_fishing_rod
 - slice 26x done: chicken flavour squawk + egg; sound/%npc_attacking_uid deferred
 - next pending: leave 26p–r alone if still in_progress; skip blocked; CW/Trails deferred
+
+- slice 27a done: rabbit_1..3 drops; mock230_pack 0 errors
+- slice 27b done: legends guild doors walk-through + constants
+- slice 27c done: mcannonladder trapdoor gate
+- slice 27d done: troll_godric Talk + quest_troll.constant
+- sibling unblock: duel_bank_chest loc_3193 false-friend; gauntlet_floor_tick stub
+- next pending: leave 26z alone if still in_progress; skip blocked; CW/Trails deferred
+
+- slice 26y done: mcannondoor/mcannondoor1 walk-through; mock230_pack 0 errors
+- slice 26z done: nulodions_notes mesbox
+- slice 27e done: mcannoncrateboy + dwarfchildtw1 rescue
+- slice 27f done: misc_giant_nib → pen on logs
+- slice 27g done: trobert ID papers Talk
+- slice 27h done: book_of_astrology mesbox
+- slice 27i done: garv + garvdoor mansion unlock
+- slice 27j done: legendsguildgate l/r thin walk-through
+- slice 27k done: zanarisleprechaun Shamus Talk
+- slice 27l done: mort_myre_gate_guard Ulizius Talk; trails deferred
+- sibling fix: removed duplicate [softtimer,gauntlet_floor_tick]
+- final: 10414 scripts; mock230_pack 0 errors
+- next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest (loc_3193 false-friend)
+
+- slice 27m done: prif_city_guard Talk + elf_city_gate Halt; mock230_pack 0 errors
+- slice 27n done: grip death → %heroquest killed_grip + death_drop
+- slice 27o done: zqzombie undead_one drops; greenmist deferred
+- next pending: skip blocked; CW/Trails deferred
