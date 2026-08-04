@@ -8,6 +8,8 @@
 
 #include "mock230_session.h"
 
+#include "net/rev/osrs239/loginblock.h"
+
 #include "mock_js5.h"
 
 #include <stdlib.h>
@@ -570,7 +572,50 @@ step_login(
 
     consume(session, 3 + payload_len);
 
-    if( mock230_session_send(session, &ok, 1) < 0 )
+    if( login_is_239(srv) )
+    {
+        /*
+         * LoginResponse.Ok — 34 bytes of body behind a var-byte length.
+         *
+         * A bare `0x02` is what this server used to send, and at 239 that is
+         * not "a shorter response", it is a desync: the client reads a length
+         * and then 34 bytes, so it swallows the first 35 bytes of the login
+         * burst as though they were the response body. The burst that follows
+         * then starts mid-packet. Nothing reports an error — the client simply
+         * never sees the packets it ate, which reads as "the server didn't send
+         * them".
+         *
+         * The length byte over-reports by 3. RSProt adds `Byte + Short` to it
+         * for this response alone, and OldSchool has apparently always done so;
+         * matching it matters more than explaining it.
+         *
+         * `index` is the slot the client will treat as itself, and it must be
+         * the same number the GPI init block skipped and PLAYER_INFO keys on.
+         */
+        uint8_t body[64];
+        struct RSAreaBuf out;
+        int index = mock230_wire_local_index(
+            session->player ? session->player->pid : 0);
+
+        rsab_wrap(&out, body, sizeof(body));
+        rsab_p1(&out, OSRS239_LOGINRES_OK);
+        rsab_p1(&out, 34 + 3);
+        rsab_p1(&out, 0); /* no authenticator */
+        rsab_p4(&out, 0); /* ...and no code */
+        rsab_p1(&out, 0); /* staffModLevel */
+        rsab_p1(&out, 0); /* playerMod */
+        rsab_p2(&out, index);
+        rsab_p1(&out, 1); /* member */
+        rsab_p8(&out, 0); /* accountHash */
+        rsab_p8(&out, 0); /* userId */
+        rsab_p8(&out, 0); /* userHash */
+        if( mock230_session_send(session, body, (int)rsab_len(&out)) < 0 )
+        {
+            session->state = MOCK230_SESSION_DEAD;
+            return 1;
+        }
+    }
+    else if( mock230_session_send(session, &ok, 1) < 0 )
     {
         session->state = MOCK230_SESSION_DEAD;
         return 1;

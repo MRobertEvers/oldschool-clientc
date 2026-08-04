@@ -760,7 +760,9 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 35m | Observatory professor Talk | done | progress Talk/Use; trails stubbed |
 | 35n | Shilo nazastarool death | done | zq_mainzombie* queues + thin summon; %npc_aggressive_player→findhero |
 | 35o | Legends echned_zekin Talk | done | Talk/Use dagger + nezi summon; trails/update_all deferred |
-| 8 | Outward areas / remaining quests / minigames | pending | After 35o: MM AI/knockout/transmog deferred; CW/Trails deferred; Nature Spirit filliman/ghast; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 35p | Nature Spirit filliman | done | Talk/Use + ns dialogue + quest_complete queues; VFX/sounds thin |
+| 35q | Nature Spirit ghast | done | invis AI + pouch reveal + vis death/reward; food-rot thinned; %ghast_delay |
+| 8 | Outward areas / remaining quests / minigames | pending | After 35q: Nature Spirit locs/bloom; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1715,4 +1717,12 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 35o done: Legends echned_zekin Talk/Use + nezi summon
 - final: 12178 scripts; mock230_pack 0 errors
 - next pending: Nature Spirit filliman/ghast; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35p done: Nature Spirit filliman Talk/Use + quest_complete queues
+- final: 12246 scripts; mock230_pack 0 errors
+- next pending: Nature Spirit ghast/locs; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35q done: Nature Spirit ghast AI/pouch + %ghast_delay; food-rot thinned
+- final: 12275 scripts; mock230_pack 0 errors
+- next pending: Nature Spirit locs/bloom; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 

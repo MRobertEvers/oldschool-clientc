@@ -12044,12 +12044,23 @@ app_world_apply_entity_anim_tracks(
     struct ToriDraw_SceneElement* el;
     int primary_active = anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0;
     int secondary_active = anim->secondary.anim_id != (uint16_t)-1 && anim->secondary.anim_id != 0;
+    int old_seq_id, old_frame;
 
     if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return;
     el = ToriDraw_SceneElementGet(app->scene, element_id);
     if( !el )
         return;
+
+    /* Entities are world-sim driven (anim_external), so the naive per-element
+     * modulo tick in app_world_tick_animations never sees them and never
+     * fires their frame sounds. World_Cycle already steps anim->primary.frame
+     * authoritatively (world_cycle.c) each world tick; this is the one place
+     * that state is bound onto the renderable element, so it is also the one
+     * place a transition into a new (seq, frame) pair can be detected without
+     * duplicating the world's own frame-stepping logic here. */
+    old_seq_id = el->anim_seq_id;
+    old_frame = el->anim_frame;
 
     if( primary_active )
         app_request_entity_seq(app, anim->primary.anim_id);
@@ -12065,6 +12076,8 @@ app_world_apply_entity_anim_tracks(
             app_element_set_anim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
+            if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
+                app_play_frame_sounds(app, pa, el->anim_frame);
             /* The walkmerge blend is a frame-animator operation (it masks
              * transform groups), so a skeletal primary never takes a secondary. */
             if( !pa->skeletal && secondary_active && idle &&
@@ -12098,6 +12111,8 @@ app_world_apply_entity_anim_tracks(
             app_element_set_anim(el, sa);
             el->anim_seq_id = anim->secondary.anim_id;
             el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
+            if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
+                app_play_frame_sounds(app, sa, el->anim_frame);
             return;
         }
     }

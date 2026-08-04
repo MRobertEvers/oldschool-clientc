@@ -173,6 +173,29 @@ struct Mock230Wire
     int transcribed_count;
 };
 
+/**
+ * The wire index for a player pool slot.
+ *
+ * The pool is 0-based; the client's player table is **1..2047, with index 0
+ * unused**. Those are different numbering schemes and conflating them is not a
+ * cosmetic error:
+ *
+ *  - the GPI init block writes one low-resolution entry per index 1..2047
+ *    EXCEPT the local one, so a local index of 0 skips nothing and writes 2047
+ *    entries where the client reads 2046 — every entry after the first lands on
+ *    the wrong slot and the block is two bytes too long;
+ *  - PLAYER_INFO's high-resolution section is keyed on the same index;
+ *  - and the login response has to state it, because the client learns which
+ *    slot is itself from there and nowhere else.
+ *
+ * One function so the three cannot disagree.
+ */
+static inline int
+mock230_wire_local_index(int pool_pid)
+{
+    return pool_pid + 1;
+}
+
 /** "osrs230" or "osrs239"; NULL when unknown. */
 const struct Mock230Wire*
 mock230_wire_by_name(char const* name);

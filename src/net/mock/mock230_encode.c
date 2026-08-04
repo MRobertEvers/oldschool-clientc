@@ -345,7 +345,33 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
     int sq_z0 = base_z >> 6, sq_z1 = (base_z + MOCK230_SCENE_TILES - 1) >> 6;
     int count = (sq_x1 - sq_x0 + 1) * (sq_z1 - sq_z0 + 1);
 
-    open_packet(&buf, 4096);
+    open_packet(&buf, 8192);
+
+    /*
+     * At revision 239 the LOGIN rebuild carries the GPI init block first, ahead
+     * of its own fields — RSProt's RebuildLogin variant.
+     *
+     * This is what seeds the client's 2048-slot player table: the local
+     * player's absolute coord and a rough position for every other index.
+     * Without it PLAYER_INFO is not merely incomplete, it is unreadable — the
+     * client's high-resolution count is zero, so the first section's bits are
+     * read as the second's and the stream decodes as noise.
+     *
+     * `player_tracked[pid]` is the server's own "has this client been told
+     * about pid" flag, and the local player's own entry is what distinguishes
+     * the login rebuild from a later one. A rebuild after login must NOT repeat
+     * the block: the client would re-seed a table it is already tracking
+     * against, and every player in it would jump.
+     */
+    if( wire_is_v5(player) && !player->player_tracked[player->pid] )
+    {
+        int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
+                                  ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
+        mock239_playerinfo_write_init(&buf, mock230_wire_local_index(player->pid),
+                                      coord);
+        player->player_tracked[player->pid] = 1;
+    }
+
     /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
      * then keyCount * 4 XTEA ints. Zero keys: unencrypted regions load, and
      * this cache ships its keys client-side via xteas.json. */
@@ -2040,7 +2066,8 @@ mock230_send_player_info(struct Mock230Player* player)
          * record; a wrong delta displaces the player silently where a restated
          * absolute coord cannot.
          */
-        mock239_playerinfo_write(&buf, player->pid, coord, 1, appearance,
+        mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord, 1,
+                                 appearance,
                                  (int)rsab_len(&ap));
         flush(player, &buf, OP_PLAYER_INFO, 2);
         return;

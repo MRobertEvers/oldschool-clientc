@@ -121,6 +121,10 @@ struct SSC_Compiler
     /** The return arity of the call `parse_call` most recently finished, so an
      *  argument that *is* a call can be scored by what it actually pushed.
      *  -1 when that callee declared no header. */
+    /** Set by parse_command on every command it compiles; an enclosing argument
+     *  list reads and clears it per argument to learn that the argument was a
+     *  call whose pushed count is not known here. */
+    int saw_command_call;
     int last_call_int_returns;
     int last_call_str_returns;
     int name_count;
@@ -668,6 +672,10 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
          */
         int type_args = 0;
         int arg_index = 0;
+        /* Set when an argument was itself a call whose pushed count this pass
+         * cannot know exactly — `arg_index` is then a LOWER bound. */
+        int arg_lower_bound = 0;
+        int saved_saw_command = compiler->saw_command_call;
         /*
          * Leading arguments that name a *server script* rather than a value.
          *
@@ -795,6 +803,17 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                 {
                     int arg_is_string = 0;
 
+                    /* Same value-vs-expression distinction the proc-call loop
+                     * makes: an argument that is itself a call can leave more
+                     * than one value. A `~proc` reports its declared arity; a
+                     * nested COMMAND does not (a db_getfield on a two-column
+                     * field pushes two and says nothing), so any call argument
+                     * marks the count as a lower bound rather than exact. */
+                    int arg_is_proc = compiler->lexer.current.kind == SSC_TOK_PROC;
+
+                    compiler->last_call_int_returns = -1;
+                    compiler->last_call_str_returns = -1;
+                    compiler->saw_command_call = 0;
                     compiler->arg_kind_hint =
                         arg_index < type_args ? SSC_SYM_TYPE : base_hint;
                     compiler->arg_is_script_name = arg_index < script_args;
@@ -804,7 +823,14 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                         return 0;
                     compiler->arg_is_script_name = 0;
                     compiler->arg_script_trigger = NULL;
-                    arg_index++;
+                    if( arg_is_proc && compiler->last_call_int_returns >= 0 )
+                        arg_index += compiler->last_call_int_returns +
+                                     compiler->last_call_str_returns;
+                    else
+                        arg_index++;
+                    if( arg_is_proc || compiler->last_call_int_returns >= 0 ||
+                        compiler->saw_command_call )
+                        arg_lower_bound = 1;
                     if( SSC_LexIsPunct(&compiler->lexer, ",") )
                     {
                         SSC_LexNext(&compiler->lexer);
@@ -820,6 +846,7 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         compiler->arg_kind_hint = saved_hint;
         compiler->arg_is_script_name = saved_script_arg;
         compiler->arg_script_trigger = saved_script_trigger;
+        compiler->saw_command_call = saved_saw_command;
 
         /*
          * The arity check, and it is not a nicety.
@@ -841,15 +868,43 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         {
             int declared = (int)meta->int_in + (int)meta->str_in;
 
-            if( arg_index != declared )
+            /*
+             * Only two verdicts are sound.
+             *
+             * `arg_index > declared` is always wrong: every argument pushes at
+             * least one value, so more arguments than slots cannot be right.
+             *
+             * `arg_index < declared` is only wrong when nothing in the list
+             * could have pushed extra — a `~proc` returning three, or a
+             * `db_getfield` on a `coord,coord` column, legitimately fills
+             * several slots from one expression. Reporting those was the
+             * check's own false-positive class: `movecoord(coord,
+             * ~door_open_move_player_out_of_way($angle))` is correct and reads
+             * as two-of-four.
+             */
+            if( arg_index > declared || (arg_index < declared && !arg_lower_bound) )
             {
-                if( getenv("SSC_ARITY_WARN") )
-                    fprintf(stderr, "ARITY %s:%d: '%s' takes %d, %d given\n",
-                            compiler->source_path, compiler->lexer.line, name,
-                            declared, arg_index);
-                else
-                    return fail(compiler, "'%s' takes %d argument(s), %d given", name,
-                                declared, arg_index);
+                /*
+                 * Fatal. It was reported-only for exactly one session — the
+                 * length of time it took to clear the ~160 sites the tree had
+                 * when the check was written.
+                 *
+                 * What it found, and none of it was theoretical: `npc_del`
+                 * (declared with no arguments) called with one at 19 sites;
+                 * `obj_add` given a duration in the COUNT slot at 120, so every
+                 * one of those drops spawned 200 items; ten `queue` calls
+                 * passing two arguments to a command that states one, which put
+                 * the SCRIPT ID in the delay slot; and `mes("::boost <stat> …")`
+                 * compiling `<stat>` as a call because the interpolation test
+                 * did not ask whether the command took arguments.
+                 *
+                 * It also caught the first fix for `obj_add` being wrong — 107
+                 * of those sites pass `~randomherb`, a proc returning
+                 * `(namedobj, int)`, so the count was already there. A check
+                 * that only reported would not have said so.
+                 */
+                return fail(compiler, "'%s' takes %d argument(s), %d given", name, declared,
+                            arg_index);
             }
         }
     }
@@ -902,6 +957,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
 
     /* Commands carry a one-byte operand that is the dot flag, never an id. */
     emit(compiler, opcode, dot ? 1 : 0);
+    /* Tell an enclosing argument list that one of its arguments was a command.
+     * A command's pushed count is not tracked the way a proc's declared return
+     * arity is — `db_getfield` on a `coord,coord` column pushes two and says
+     * nothing — so the enclosing count becomes a lower bound. */
+    compiler->saw_command_call = 1;
 
     if( is_string )
         *is_string = meta->str_out > 0;
@@ -959,7 +1019,33 @@ is_interpolation(const char* inner, size_t length)
     if( i < length && inner[i] != '(' )
         return 0;
 
-    return SSVM_OpcodeFromName(name) >= 0;
+    {
+        int opcode = SSVM_OpcodeFromName(name);
+        const struct SSVM_OpcodeMeta* meta;
+
+        if( opcode < 0 )
+            return 0;
+        if( i < length ) /* followed by '(' — an ordinary call, always a call */
+            return 1;
+
+        /*
+         * A bare command name with no `(` is an interpolation only if the
+         * command takes nothing. `<displayname>` does; `<stat>` does not, and
+         * `mes("::boost <stat> <constant> <percent>")` — a usage line telling
+         * the player what to type — compiled to a `stat` CALL with no argument.
+         * That popped a value the caller never pushed, so the message printed a
+         * skill name pulled off whatever was underneath and the stack was one
+         * short from there on.
+         *
+         * Caught by the new arity check rather than by anyone reading it, which
+         * is the argument for the arity check: this had been in three files
+         * since the cheats were written.
+         */
+        meta = SSVM_OpcodeMeta(opcode);
+        if( !meta || !meta->known )
+            return 0;
+        return (int)meta->int_in + (int)meta->str_in == 0;
+    }
 }
 
 /** Compile `inner` as an expression and leave a STRING on the stack. */
