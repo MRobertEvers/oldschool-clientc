@@ -918,6 +918,14 @@ at: 83" tooltip renders. Regression tests in `uitree_test_hover.c` and
 `uitree_test_minimenu.c` (the latter through `UITree_InteractFrame`, i.e. the
 actual call site; both verified to fail without the fix).
 
+### Magic jewellery-enchant: main-book tooltips pierce the submenu
+
+`IF_SETHIDE` on type=5 spell icons left `on_mouse_repeat` attached. Hover only
+pruned hidden **layers**, so a later hidden Lumbridge sibling still claimed
+hover (last-match-wins) over a visible enchant icon and `script2622` drew its
+tooltip. Fix: `find_hovered_recursive` now returns on any `behavior.hide`,
+matching hit-test/emit. Regression in `uitree_test_hover.c`.
+
 ### Debug helpers added while chasing these
 
 - `TORIRS_HOVER_PROBE="x0,y0,x1,y1[,step]"` — sweep a rect and print the

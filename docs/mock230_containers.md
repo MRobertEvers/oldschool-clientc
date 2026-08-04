@@ -77,7 +77,7 @@ One row per container, in a fixed table: `Mock230Player.containers[16]` and
 | `owns_items` | the registry calloc'd it. 0 for an adopted array |
 | `per_slot` | **`slots <= 32`, decided at registration and nowhere else** |
 | `slot_dirty_ref` / `dirty_ref` | adopted flags, for state read outside the registry |
-| `component`, `first_seen` | the binding — `inv_transmit` / `inv_stoptransmit` |
+| `listeners[]`, `listener_count` | LostCity's `invListeners` — `inv_transmit` appends, `inv_stoptransmit` removes by component; one inv may paint several panels |
 
 **`per_slot` is a correctness branch, not an optimisation.**
 `mock230_send_inv_partial` addresses its slots out of a 32-bit mask
@@ -134,18 +134,27 @@ half stays, because a run with no cache still needs a usable bank.
 
 ## 6. Transmit
 
-`inv_transmit` binds `{inv_id → component}` on the row and sends a full update
-immediately — the reference's `Player.invListenOnCom`, and the interface needs
-it because a paint hook only runs on a transmit. `inv_stoptransmit` clears the
-binding.
+`inv_transmit` appends a `{component, first_seen}` listener on the row and
+sends a full update to **that** component immediately — the reference's
+`Player.invListenOnCom`. Re-binding the same `(inv, com)` is a no-op; binding a
+`com` that already listens elsewhere moves it. `inv_stoptransmit` removes only
+the named component, so closing the equipment-stats screen
+(`inv_stoptransmit(equipment:universe)`) leaves the worn-tab listener intact.
+
+One inv may have several listeners at once. That is load-bearing for worn: the
+login bind paints `wornitems`, and `~equipment_refresh` also
+`inv_transmit(worn, equipment:universe)`. A single `component` field used to
+overwrite the login binding; after stats closed, unequips still said "You
+remove X" but sent no `UPDATE_INV_*`, so the worn tab kept stale icons.
 
 `phase_client_out` runs **one loop** (`mock230_container_flush`) over the
-bound rows, replacing two hardcoded `mock230_send_inv_partial` calls that
-named the backpack and the worn set. Partial when `per_slot`, full otherwise,
-trimmed to the used prefix (UPDATE_INV_FULL clears everything past the
-capacity it carries). Rows with no binding still get cleaned, so a container
-written while its interface was closed does not re-transmit the moment
-something binds — the bind's own full update already covered it.
+rows, replacing two hardcoded `mock230_send_inv_partial` calls that named the
+backpack and the worn set. For each dirty (or firstSeen) row it emits
+partial/full to **every** listener, then cleans once. Partial when `per_slot`,
+full otherwise, trimmed to the used prefix (UPDATE_INV_FULL clears everything
+past the capacity it carries). Rows with no listeners still get cleaned, so a
+container written while its interface was closed does not re-transmit the
+moment something binds — the bind's own full update already covered it.
 
 **The bank is deliberately not bound through the registry.** Its transmit is
 gated on `bank.open` and carries tab bookkeeping the generic binding does not

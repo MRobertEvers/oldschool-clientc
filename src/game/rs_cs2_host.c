@@ -3077,13 +3077,61 @@ rs_cs2_component_in_interface_group(
     return 0;
 }
 
-/* Free runtime_hooks on `root` and every descendant. Uses a heap-grown stack
- * because interface trees are shallow but can be very wide (bank), so a fixed
- * array overflows and recursion blows the platform stack. */
+/* True when any click/op/drag slot is still live — those must survive IF_CLOSE
+ * on a reused bake (compass on_op is installed once by gameframe onload and is
+ * not re-registered when a sidebar pack remounts). */
+static int
+rs_cs2_hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
+{
+    assert(hooks);
+    return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
+           hooks->on_hold.script_id > 0 || hooks->on_drag.script_id > 0 ||
+           hooks->on_drag_complete.script_id > 0;
+}
+
+/* Drop reactive listeners on one node. Interaction hooks stay; if nothing
+ * interactive remains the whole block is freed (purely reactive closed nodes
+ * still drop ~10 KB). */
 static void
-rs_cs2_free_hooks_subtree(
+rs_cs2_clear_reactive_hooks_at(
     struct UITree* tree,
-    int32_t root)
+    int32_t idx)
+{
+    struct UITreeComponent* c;
+    struct UITreeRuntimeHooks* hooks;
+
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    hooks = c->runtime_hooks;
+    if( !hooks )
+        return;
+
+    memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
+    memset(&hooks->on_key, 0, sizeof(hooks->on_key));
+    memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
+    memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
+    memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
+    memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
+    memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
+    memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
+    /* Mouse-over/leave/repeat and scroll-wheel are not interaction clicks but
+     * are also not the transmit/timer/resize set ClearHooks is for; leave them.
+     * Remount onLoad rewrites them when the pack owns them. */
+
+    if( !rs_cs2_hooks_have_interaction(hooks) )
+        UITree_FreeHooksAt(tree, idx);
+    else
+        UITree_SyncHookMembership(tree, idx);
+}
+
+/* Clear reactive hooks on `root` and same-group descendants. Uses a heap-grown
+ * stack because interface trees are shallow but can be very wide (bank). */
+static void
+rs_cs2_clear_hooks_subtree(
+    struct UITree* tree,
+    int32_t root,
+    int group_id)
 {
     int32_t* stack = NULL;
     int sp = 0;
@@ -3101,11 +3149,18 @@ rs_cs2_free_hooks_subtree(
     {
         int32_t cur = stack[--sp];
         int32_t child;
-        if( tree->components[cur].runtime_hooks )
-            UITree_FreeHooksAt(tree, cur);
+        int cid = tree->components[cur].component_id;
+        /* Do not walk into / clear foreign-group descendants under a closed
+         * root (nested mounts, or a live gameframe child that somehow nested). */
+        if( cid >= 0 && ((cid >> 16) & 0xffff) == group_id &&
+            tree->components[cur].runtime_hooks )
+            rs_cs2_clear_reactive_hooks_at(tree, cur);
         for( child = tree->components[cur].first_child; child >= 0;
              child = tree->components[child].next_sibling )
         {
+            int child_cid = tree->components[child].component_id;
+            if( child_cid >= 0 && ((child_cid >> 16) & 0xffff) != group_id )
+                continue;
             if( sp >= cap )
             {
                 int ncap = cap * 2;
@@ -3176,15 +3231,13 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
     }
     host->stat_transmit_hook_count = w;
 
-    /* Drop component-local listeners for the group. Free the whole
-     * runtime_hooks block: onLoad re-registers click/op/drag as well as the
-     * reactive slots on the next mount, and leaving ~10 KB blocks on every
-     * hidden node was the dominant retained footprint under multi-panel use
-     * (bank alone held ~1500 blocks ≈ 15 MB while closed).
+    /* Drop component-local *reactive* listeners for the group. Interaction
+     * hooks (click/op/drag) stay so a reused bake still responds to input —
+     * the compass on_op is installed once by toplevel_init and is not rebuilt
+     * when a sidebar pack closes. Purely reactive blocks are still freed.
      *
-     * Walk the group's live set (plus descendants under each group root)
-     * instead of scanning every component with an ancestor walk. Wide packs
-     * (bank) need a growable stack — fixed arrays overflow, recursion does too. */
+     * Walk the group's live set (plus same-group descendants under each group
+     * root) instead of scanning every component with an ancestor walk. */
     {
         struct UITreeNodeSet const* gset = UITree_GroupNodes(tree, group_id);
         int gi;
@@ -3199,7 +3252,7 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
                 assert(idx >= 0 && (uint32_t)idx < tree->component_count);
                 /* Only start a subtree walk from group roots relative to this
                  * group — children that are also in the set are visited from
-                 * their ancestor, avoiding double FreeHooksAt. */
+                 * their ancestor, avoiding double clears. */
                 parent = tree->components[idx].parent;
                 if( parent >= 0 &&
                     !tree->components[parent].freed &&
@@ -3207,7 +3260,7 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
                     ((tree->components[parent].component_id >> 16) & 0xffff) ==
                         group_id )
                     continue;
-                rs_cs2_free_hooks_subtree(tree, idx);
+                rs_cs2_clear_hooks_subtree(tree, idx, group_id);
             }
         }
     }

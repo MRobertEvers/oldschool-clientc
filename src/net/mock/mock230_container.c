@@ -91,7 +91,7 @@ row_init(
     row->inv_id = inv_id;
     row->slots = slots;
     row->owner = owner;
-    row->component = -1;
+    row->listener_count = 0;
     /*
      * The transmit shape is a function of the size and nothing else.
      * UPDATE_INV_PARTIAL indexes its slots out of a 32-bit mask
@@ -505,28 +505,6 @@ used_prefix(const struct Mock230Container* row)
 }
 
 int
-mock230_container_bind(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
-    int32_t inv_id,
-    int32_t component)
-{
-    struct Mock230Container* row = mock230_container_resolve(srv, player, inv_id);
-
-    if( !row )
-        return 0;
-    row->component = component;
-    row->first_seen = 1;
-    /* The reference sends a full update the moment a listener is added, and the
-     * interface being painted needs it: a paint hook only runs on a transmit,
-     * so a panel mounted before the container existed stays empty otherwise. */
-    mock230_send_inv_full(player, (int)component, (int)inv_id, row->items, used_prefix(row));
-    row->first_seen = 0;
-    mock230_container_clean(row);
-    return 1;
-}
-
-int
 mock230_container_unbind(
     struct Mock230Player* player,
     int32_t component)
@@ -538,14 +516,65 @@ mock230_container_unbind(
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &player->containers[i];
+        int w = 0;
 
-        if( !row->used || row->component != component )
+        if( !row->used )
             continue;
-        row->component = -1;
-        row->first_seen = 0;
-        dropped++;
+        for( int r = 0; r < row->listener_count; r++ )
+        {
+            if( row->listeners[r].component == component )
+            {
+                dropped++;
+                continue;
+            }
+            row->listeners[w++] = row->listeners[r];
+        }
+        row->listener_count = (uint8_t)w;
     }
     return dropped;
+}
+
+int
+mock230_container_bind(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int32_t inv_id,
+    int32_t component)
+{
+    struct Mock230Container* row = mock230_container_resolve(srv, player, inv_id);
+    int listener_i;
+
+    if( !row || !player )
+        return 0;
+
+    /* Same (inv, com) already listening — LostCity's early return. */
+    for( listener_i = 0; listener_i < row->listener_count; listener_i++ )
+    {
+        if( row->listeners[listener_i].component == component )
+            return 1;
+    }
+
+    /* A component listens to at most one inv; move it if it was elsewhere. */
+    mock230_container_unbind(player, component);
+
+    if( row->listener_count >= MOCK230_CONTAINER_LISTENERS_MAX )
+    {
+        fprintf(stderr,
+                "mock230: inv %d already has %d listeners; cannot bind component %d\n",
+                (int)inv_id, MOCK230_CONTAINER_LISTENERS_MAX, (int)component);
+        return 0;
+    }
+
+    listener_i = row->listener_count++;
+    row->listeners[listener_i].component = component;
+    row->listeners[listener_i].first_seen = 1;
+    /* The reference sends a full update the moment a listener is added, and the
+     * interface being painted needs it: a paint hook only runs on a transmit,
+     * so a panel mounted before the container existed stays empty otherwise.
+     * Only this listener's first_seen is cleared — other listeners keep theirs. */
+    mock230_send_inv_full(player, (int)component, (int)inv_id, row->items, used_prefix(row));
+    row->listeners[listener_i].first_seen = 0;
+    return 1;
 }
 
 void
@@ -556,16 +585,26 @@ mock230_container_flush(struct Mock230Player* player)
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &player->containers[i];
+        int dirty;
+        int any_first_seen = 0;
 
         if( !row->used || !row->items )
             continue;
-        if( row->component < 0 )
+
+        dirty = mock230_container_is_dirty(row);
+        for( int l = 0; l < row->listener_count; l++ )
+        {
+            if( row->listeners[l].first_seen )
+                any_first_seen = 1;
+        }
+
+        if( row->listener_count == 0 )
         {
             /*
-             * Nothing is painting from it. The dirty state still has to be
-             * dropped: a container written while its interface was closed would
-             * otherwise re-transmit the moment something bound to it, at which
-             * point the bind's own full update has already covered it.
+             * Nothing is painting from it. Drop the dirty state: a container
+             * written while its interface was closed would otherwise re-transmit
+             * the moment something bound to it, at which point the bind's own
+             * full update has already covered it.
              *
              * The bank is deliberately one of these. Its row exists for resolve
              * and dirty — which is what fixes `inv_del(bank,…)` marking a worn
@@ -575,17 +614,28 @@ mock230_container_flush(struct Mock230Player* player)
              * into this binding table; it is a real simplification and it is
              * not this stage's.
              */
+            if( dirty )
+                mock230_container_clean(row);
             continue;
         }
-        if( !mock230_container_is_dirty(row) && !row->first_seen )
+
+        if( !dirty && !any_first_seen )
             continue;
-        if( row->per_slot )
-            mock230_send_inv_partial(player, (int)row->component, (int)row->inv_id, row->items,
-                                     row->slots, mock230_container_slot_mask(row));
-        else
-            mock230_send_inv_full(player, (int)row->component, (int)row->inv_id, row->items,
-                                  used_prefix(row));
-        row->first_seen = 0;
+
+        for( int l = 0; l < row->listener_count; l++ )
+        {
+            int32_t component = row->listeners[l].component;
+
+            if( !dirty && !row->listeners[l].first_seen )
+                continue;
+            if( row->per_slot && dirty && !row->listeners[l].first_seen )
+                mock230_send_inv_partial(player, (int)component, (int)row->inv_id, row->items,
+                                         row->slots, mock230_container_slot_mask(row));
+            else
+                mock230_send_inv_full(player, (int)component, (int)row->inv_id, row->items,
+                                      used_prefix(row));
+            row->listeners[l].first_seen = 0;
+        }
         mock230_container_clean(row);
     }
 }

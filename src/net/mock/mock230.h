@@ -193,6 +193,9 @@ enum
      */
     MOCK230_CONTAINER_MAX = 16,
     MOCK230_WORLD_CONTAINER_MAX = 16,
+    /** How many components may listen to one inv at once (`inv_transmit`).
+     *  Worn tab + equipment-stats is two; four leaves room for a side panel. */
+    MOCK230_CONTAINER_LISTENERS_MAX = 4,
 
     /*
      * Players this world can hold.
@@ -1057,10 +1060,8 @@ struct Mock230Container
     /** A write to this container changes how its owner looks, so it also sets
      *  MOCK230_PMASK_APPEARANCE. True of the worn container and nothing else. */
     uint8_t appearance;
-    /** Set when a component binds and cleared once a full update has gone out —
-     *  the reference's `listener.firstSeen`, which is what makes a binding
-     *  paint a container that has not changed since. */
-    uint8_t first_seen;
+    /** How many entries in `listeners` are live. */
+    uint8_t listener_count;
 
     int32_t inv_id;
     int32_t slots;
@@ -1086,9 +1087,21 @@ struct Mock230Container
     uint32_t slot_dirty_own;
     int dirty_own;
 
-    /** The component this container paints into, or -1 when nothing is bound.
-     *  `inv_transmit` sets it; `inv_stoptransmit` clears it. */
-    int32_t component;
+    /*
+     * Components listening to this inv — LostCity's `Player.invListeners`,
+     * scoped to the row. `inv_transmit` appends; `inv_stoptransmit` removes by
+     * component. One inv may paint two panels at once (worn tab + equipment
+     * stats); a single `component` field overwrote the login binding and left
+     * unequips with no UPDATE_INV after the stats screen closed.
+     *
+     * `first_seen` is per listener: a new bind gets a full update immediately,
+     * without forcing every other listener to re-send.
+     */
+    struct
+    {
+        int32_t component;
+        uint8_t first_seen;
+    } listeners[MOCK230_CONTAINER_LISTENERS_MAX];
 };
 
 /*

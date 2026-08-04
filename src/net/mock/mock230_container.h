@@ -201,13 +201,13 @@ mock230_container_slot_mask(const struct Mock230Container* container);
 /* ------------------------------------------------------------------ */
 
 /**
- * Bind a container to a component and send it now.
+ * Bind a container to a component and send a full update to that component now.
  *
- * The reference keeps a list of `{type, com, source}` per client and sends a
- * full update when one is added (`Player.invListenOnCom`). A row holds one
- * binding rather than a list because one container painting into two components
- * at once has no consumer here yet — and the bank, which is the nearest thing,
- * still owns its own transmit for the reasons in mock230_container.c.
+ * LostCity's `Player.invListenOnCom`: a player may have several listeners, and
+ * one inv may appear on more than one component (worn tab + equipment stats).
+ * Re-binding the same `(inv, com)` is a no-op; binding a `com` that already
+ * listens to a different inv moves it. The bank still owns its own transmit
+ * for the reasons in mock230_container.c.
  */
 int
 mock230_container_bind(
@@ -216,20 +216,21 @@ mock230_container_bind(
     int32_t inv_id,
     int32_t component);
 
-/** Drop whatever binding names `component`. Returns 1 when one did. */
+/** Drop the listener that names `component`. Returns how many were dropped. */
 int
 mock230_container_unbind(
     struct Mock230Player* player,
     int32_t component);
 
 /**
- * Send every bound container that changed this tick, and clear the rest.
+ * Send every listener of every dirty container this tick, and clear dirty.
  *
  * Partial when the row is per-slot, full otherwise — 304 of the cache's 1026
  * invs are past the 32 slots UPDATE_INV_PARTIAL's mask can address, so this is
  * a correctness branch and not an optimisation. A full update is trimmed to the
  * used prefix, because UPDATE_INV_FULL clears everything past the capacity it
- * carries.
+ * carries. A row with no listeners still has its dirty dropped so a later bind
+ * is not followed by a stale partial on top of the bind's own full update.
  */
 void
 mock230_container_flush(struct Mock230Player* player);

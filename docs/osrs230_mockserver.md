@@ -851,10 +851,14 @@ Three things about the implementation:
   he keeps circling rather than stopping at the end of his round.
 - **The pause is charged on arrival, before the index advances**, or it would be
   charged to the waypoint he is walking away from.
-- **Routing is `mock230_world_npc_walk_to`** — the same flood the player's click
-  uses — so a leg that has to go round the castle wall does. `maxrange=50` is
-  the reference's leash and is what lets a route this wide exist at all; the
-  default 7 would drop it the moment he left his spawn tile's neighbourhood.
+- **Routing matches LostCity `Npc.patrolMode`:** queue the absolute patrol
+  tile as a waypoint and `takeStep` toward it. Re-running `naive_path` every
+  tick is wrong here — that finder can return the source tile on a pure
+  cardinal approach, which left Hans one tile short of every waypoint until the
+  stuck-teleport fired (looking like ordinary wander near the castle).
+  `maxrange=50` is the reference's leash and is what lets a route this wide
+  exist at all; the default 7 would drop it the moment he left his spawn tile's
+  neighbourhood.
 
 `moverestrict=outdoors` is deliberately not ported: this engine implements
 `nomove` of that family and nothing else, so declaring it would be a claim the

@@ -589,15 +589,17 @@ void
 RS_CS2Host_Tick(struct RS_CS2Host* host);
 
 /**
- * Drop every host-side transmit hook (inv / var / stat) and free the
- * component `runtime_hooks` blocks that belong to interface `group_id`,
- * including dynamic children parented under that pack.
+ * Drop every host-side transmit hook (inv / var / stat) for interface
+ * `group_id`, and clear that pack's *reactive* component listeners
+ * (timer/key/*transmit/resize/sub_change), including same-group dynamic
+ * children. Interaction hooks (click/op/hold/drag) stay on the reused bake —
+ * packs like the gameframe install those once and do not re-run on sidebar
+ * remount. A block with no remaining interaction slots is freed.
  *
  * Call this when IF_CLOSESUB or a replacing IF_OPENSUB unmounts a group.
  * Hiding alone leaves the nodes in the tree for reuse; without this the
  * host registries keep firing for them (and grow again when onload
- * re-registers under new dynamic uids). The next mount's onLoad re-registers
- * click/op/drag as well as the reactive listeners.
+ * re-registers under new dynamic uids).
  */
 void
 RS_CS2Host_ClearHooksForInterfaceGroup(

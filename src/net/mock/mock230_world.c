@@ -2062,6 +2062,20 @@ mock230_world_npc_walk_to(
         return 0;
     }
 
+    /*
+     * LostCity's findNaivePath can return the source tile when already aligned
+     * cardinally with a 1x1 dest (the perimeter walk lands on src, then the
+     * `currX !== destX && currZ !== destZ` loop never runs). They discard that
+     * result rather than queueing it; queuing it here would make take_step clear
+     * the waypoint and look permanently stuck. Patrol does not use this path —
+     * it queues the absolute waypoint and takeSteps (Npc.patrolMode).
+     */
+    if( out_x == npc->x && out_z == npc->z )
+    {
+        npc->stuck_counter++;
+        return 0;
+    }
+
     npc_queue_waypoint(npc, out_x, out_z);
     if( npc_take_step(npc) )
     {
@@ -2294,8 +2308,10 @@ npc_run_mode(
     }
 
     /*
-     * Patrol: walk the route via naive pathing, pause where the route says.
-     * stuck_counter >= 32 → teleport to the current patrol waypoint.
+     * Patrol — LostCity Npc.patrolMode: queue the absolute waypoint and
+     * takeStep toward it. Do not re-run naive_path each tick; that finder can
+     * return the source tile on a pure cardinal approach, which left Hans one
+     * tile short of every waypoint until the stuck-teleport fired.
      */
     if( npc->mode == MOCK230_NPCMODE_PATROL )
     {
@@ -2324,9 +2340,22 @@ npc_run_mode(
             npc->patrol_pause = def->patrol[npc->patrol_index].pause;
             npc->patrol_index = (npc->patrol_index + 1) % def->patrol_count;
             npc->stuck_counter = 0;
-            return 1;
+            dest_x = def->patrol[npc->patrol_index].x;
+            dest_z = def->patrol[npc->patrol_index].z;
+            if( npc->patrol_pause > 0 )
+                return 1;
+            /* pause was 0 — queue the next leg this tick, like LostCity. */
         }
-        (void)mock230_world_npc_walk_to(npc, dest_x, dest_z);
+        if( npc->waypoint_index < 0 ||
+            npc->waypoints[npc->waypoint_index].x != dest_x ||
+            npc->waypoints[npc->waypoint_index].z != dest_z )
+            npc_queue_waypoint(npc, dest_x, dest_z);
+
+        if( npc_take_step(npc) )
+            npc->stuck_counter = 0;
+        else
+            npc->stuck_counter++;
+
         if( npc->stuck_counter >= 32 || npc->level != def->patrol[npc->patrol_index].level )
         {
             mock230_world_npc_teleport(
@@ -13799,6 +13828,146 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(row->owner_kind == MOCK230_CONTAINER_PLAYER && row->owner == player,
                        "a per-player row knows its owner without asking active_player");
 
+        /* 8. Multi-listener bind — LostCity's invListeners. One inv may paint
+         *    two components (worn tab + equipment:universe). A single
+         *    `component` field overwrote the login binding when stats opened
+         *    and left unequips with no UPDATE_INV after close. */
+        {
+            const int component2 = MOCK230_COM(iface_collection, 1);
+            int full_for_com1 = 0;
+            int full_for_com2 = 0;
+            int saw_com1 = 0;
+            int saw_com2 = 0;
+
+            mock230_container_unbind(player, component);
+            mock230_container_clean(row);
+            SELFTEST_CHECK(row->listener_count == 0, "unbound before dual bind");
+
+            SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component),
+                           "first listener binds");
+            SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component2),
+                           "second listener binds without replacing the first");
+            SELFTEST_CHECK(row->listener_count == 2,
+                           "both listeners present (got %d)", row->listener_count);
+            SELFTEST_CHECK(row->listeners[0].component == component &&
+                               row->listeners[1].component == component2,
+                           "listeners keep both components");
+
+            mock230_container_set(row, 40, obj_test, 3);
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(!capture.overflow, "dual-flush capture buffer overflowed");
+
+            for( int i = 0; i < capture.count; i++ )
+            {
+                int32_t pkt_com;
+                int pkt_inv;
+
+                if( capture.packets[i].opcode != 10 /* UPDATE_INV_FULL */ )
+                    continue;
+                if( capture.packets[i].len < 8 )
+                    continue;
+                pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
+                          ((int32_t)capture.packets[i].data[1] << 16) |
+                          ((int32_t)capture.packets[i].data[2] << 8) |
+                          (int32_t)capture.packets[i].data[3];
+                pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
+                if( pkt_inv != inv_collection )
+                    continue;
+                if( pkt_com == component )
+                    full_for_com1++;
+                else if( pkt_com == component2 )
+                    full_for_com2++;
+            }
+            SELFTEST_CHECK(full_for_com1 == 1 && full_for_com2 == 1,
+                           "dirty flush sends one UPDATE_INV_FULL per listener "
+                           "(com1=%d com2=%d)",
+                           full_for_com1, full_for_com2);
+
+            SELFTEST_CHECK(mock230_container_unbind(player, component2) == 1,
+                           "stoptransmit drops only the named listener");
+            SELFTEST_CHECK(row->listener_count == 1 && row->listeners[0].component == component,
+                           "first listener survives the unbind");
+
+            mock230_container_set(row, 40, obj_test, 4);
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            for( int i = 0; i < capture.count; i++ )
+            {
+                int32_t pkt_com;
+                int pkt_inv;
+
+                if( capture.packets[i].opcode != 10 )
+                    continue;
+                if( capture.packets[i].len < 8 )
+                    continue;
+                pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
+                          ((int32_t)capture.packets[i].data[1] << 16) |
+                          ((int32_t)capture.packets[i].data[2] << 8) |
+                          (int32_t)capture.packets[i].data[3];
+                pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
+                if( pkt_inv != inv_collection )
+                    continue;
+                if( pkt_com == component )
+                    saw_com1++;
+                else if( pkt_com == component2 )
+                    saw_com2++;
+            }
+            SELFTEST_CHECK(saw_com1 == 1 && saw_com2 == 0,
+                           "after unbind only the remaining listener is updated "
+                           "(com1=%d com2=%d)",
+                           saw_com1, saw_com2);
+
+            /* Equipment-shaped smoke: worn stays bound to wornitems after a
+             * second listener is added and removed — the unequip stale-icon bug. */
+            {
+                struct Mock230Container* worn =
+                    mock230_container_resolve(&srv, player, mock230_ids()->inv_worn);
+                const int wornitems = MOCK230_COM(mock230_ids()->iface_wornitems, 0);
+                const int stats_com = mock230_ids()->com_equipment_stats_container;
+                int worn_partials = 0;
+
+                SELFTEST_CHECK(worn != NULL && stats_com >= 0, "worn + equipment:universe resolve");
+                mock230_container_bind(&srv, player, mock230_ids()->inv_worn, wornitems);
+                mock230_container_bind(&srv, player, mock230_ids()->inv_worn, stats_com);
+                SELFTEST_CHECK(worn->listener_count == 2, "worn has dual listeners");
+                mock230_container_unbind(player, stats_com);
+                SELFTEST_CHECK(worn->listener_count == 1 &&
+                                   worn->listeners[0].component == wornitems,
+                               "closing equipment stats leaves wornitems bound");
+
+                player->worn_dirty = 0;
+                mock230_container_clean(worn);
+                worn_set(player, MOCK230_WEAR_HEAD, -1, 0);
+                /* worn_set marks dirty even when already empty; force a real dirty bit. */
+                player->worn_dirty |= 1u << MOCK230_WEAR_HEAD;
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_tick(&srv);
+                mock230_capture_end(&srv);
+                for( int i = 0; i < capture.count; i++ )
+                {
+                    int32_t pkt_com;
+                    int pkt_inv;
+
+                    if( capture.packets[i].opcode != 37 /* UPDATE_INV_PARTIAL */ )
+                        continue;
+                    if( capture.packets[i].len < 6 )
+                        continue;
+                    pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
+                              ((int32_t)capture.packets[i].data[1] << 16) |
+                              ((int32_t)capture.packets[i].data[2] << 8) |
+                              (int32_t)capture.packets[i].data[3];
+                    pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
+                    if( pkt_inv == mock230_ids()->inv_worn && pkt_com == wornitems )
+                        worn_partials++;
+                }
+                SELFTEST_CHECK(worn_partials >= 1,
+                               "unequip-shaped dirty still reaches wornitems after stats close");
+            }
+        }
+
         mock230_container_unbind(player, component);
         mock230_container_forget(player, inv_collection);
     }
@@ -13857,6 +14026,10 @@ mock230_world_selftest(void)
                 const struct Mock230NpcDef* def = npc->def;
                 int start_index = npc->patrol_index;
                 int advanced = 0;
+                int stood_on = 0;
+                int jumped = 0;
+                int dest_x = 0;
+                int dest_z = 0;
 
                 SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PATROL,
                                "content should put Hans on patrol, got mode %d", npc->mode);
@@ -13870,15 +14043,42 @@ mock230_world_selftest(void)
                                    def->patrol[0].z);
                     SELFTEST_CHECK(def->patrol[3].pause == 10,
                                    "and patrol4 pauses for ten ticks, got %d", def->patrol[3].pause);
+                    if( start_index >= 0 && start_index < def->patrol_count )
+                    {
+                        dest_x = def->patrol[start_index].x;
+                        dest_z = def->patrol[start_index].z;
+                    }
                 }
 
                 for( int tick = 0; tick < 600 && !advanced; tick++ )
                 {
+                    int prev_x = npc->x;
+                    int prev_z = npc->z;
+                    int dx;
+                    int dz;
+
                     advance_npcs(&srv);
                     srv.tick++;
+                    if( npc->x == dest_x && npc->z == dest_z )
+                        stood_on = 1;
+                    dx = npc->x - prev_x;
+                    dz = npc->z - prev_z;
+                    if( dx < 0 )
+                        dx = -dx;
+                    if( dz < 0 )
+                        dz = -dz;
+                    /* A normal takeStep is at most one tile; a jump is the stuck
+                     * teleport papering over a routing bug. */
+                    if( dx > 1 || dz > 1 )
+                        jumped = 1;
                     if( npc->patrol_index != start_index )
                         advanced = 1;
                 }
+                SELFTEST_CHECK(stood_on,
+                               "Hans should walk onto waypoint %d at %d,%d; he is at %d,%d",
+                               start_index, dest_x, dest_z, npc->x, npc->z);
+                SELFTEST_CHECK(!jumped,
+                               "Hans should reach that waypoint by walking, not by teleport");
                 SELFTEST_CHECK(advanced,
                                "Hans should reach a waypoint and move on; he is at %d,%d",
                                npc->x, npc->z);
@@ -15618,6 +15818,12 @@ mock230_world_selftest(void)
 
             /*
              * ---- opnpcu ---------------------------------------------------
+             *
+             * Hans patrols the castle ring, so by this point in the suite he is
+             * usually nowhere near the Lumbridge spawn the earlier fixtures
+             * use. Park beside him and hold him still for the click — the
+             * assertion is the use-on bind, not that the player can catch a
+             * patroller in 80 ticks.
              */
             {
                 int hans = selftest_find_npc(&srv, hans_type);
@@ -15625,7 +15831,12 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(hans >= 0, "hans should be on the roster");
                 if( hans >= 0 )
                 {
-                    selftest_park_player(&srv, 3222, 3218);
+                    struct Mock230Npc* hnpc = &srv.npcs[hans];
+                    int keep_mode = hnpc->mode;
+
+                    hnpc->mode = MOCK230_NPCMODE_NONE;
+                    hnpc->waypoint_index = -1;
+                    selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, hans);
@@ -15634,10 +15845,11 @@ mock230_world_selftest(void)
                     rsab_p2(&out, 0);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)rsab_len(&out));
                     SELFTEST_CHECK(selftest_settle(&srv, 80) >= 0,
-                                   "the walk to a wandering npc should complete");
+                                   "the walk to the npc should complete");
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 30,
                                    "[opnpcu,hans] runs with the npc as its subject, got %d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    hnpc->mode = keep_mode;
                 }
             }
 

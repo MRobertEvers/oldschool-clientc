@@ -347,11 +347,14 @@ Three different hit tests exist because they answer three different questions:
 | Function | Question | Notes |
 |---|---|---|
 | `UITree_HitTestInteractive` | what did the user *click*? | passthrough classification, `no_click_through` blocking, scroll + drag offsets, clip |
-| `UITree_FindHoveredComponentIdForRegion` | what id is *hovered*? | IF1 `over_layer_id` / `over_color` redirect, plus IF3 nodes carrying hover hooks |
+| `UITree_FindHoveredComponentIdForRegion` | what id is *hovered*? | IF1 `over_layer_id` / `over_color` redirect, plus IF3 nodes carrying hover hooks; prunes **any** `behavior.hide` (not only layers) |
 | `UITree_FindDropTarget` | what is under a *dragged* widget? | visits `InterfaceParent` mounts after normal children |
 
 All three must prune identically to emit (hidden subtrees, unselected sidebar
-tabs) or you get invisible click targets and visible dead widgets.
+tabs) or you get invisible click targets and visible dead widgets. Hover used
+to skip only hidden layers/sidebars; IF_SETHIDE on type=5 spell icons then left
+`on_mouse_repeat` live, so jewellery-enchant submenu tooltips pierced through
+to the main spellbook (later hidden sibling won last-match-wins).
 
 **Passthrough** is the key classification
 ([uitree_input.c:45](src/ui/uitree_input.c#L45)): containers (layer, sidebar, chat,

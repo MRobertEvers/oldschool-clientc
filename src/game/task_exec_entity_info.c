@@ -162,8 +162,18 @@ player_target_op(
         return 1;
     }
     case PKT_PLAYER_INFO_OPBITS_COUNT_RESET:
+    {
+        /* Client-TS getPlayerPosOldVis: when the wire 8-bit count is less than
+         * the previous tracked length, indices [count, oldCount) are removed.
+         * Plane-change zeros tracked_count and sends count=0 — without this,
+         * old-floor players linger in the world pool (drawn on minusedlevel,
+         * rejected by pick). */
+        int keep = (int)op->_bitvalue;
+        for( int i = keep; i < self->old_count; i++ )
+            RS_EntitySync_RemovePlayer(esync, self->app->world, self->old_list[i]);
         esync->active_player_count = 0;
         return 1;
+    }
     case PKT_PLAYER_INFO_OPBITS_INFO:
         return 1;
     default:
@@ -717,8 +727,18 @@ npc_target_op(
         return 1;
     }
     case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+    {
+        /* Client-TS getNpcPosOldVis: when the wire 8-bit count is less than
+         * the previous tracked length, indices [count, oldCount) are removed.
+         * Plane-change zeros tracked_count and sends count=0 — without this,
+         * old-floor NPCs linger in the world pool (drawn on minusedlevel,
+         * rejected by pick → visible but Walk-here only). */
+        int keep = (int)op->_bitvalue;
+        for( int i = keep; i < self->old_count; i++ )
+            RS_EntitySync_RemoveNpc(esync, self->app->world, self->old_list[i]);
         esync->active_npc_count = 0;
         return 1;
+    }
     case PKT_NPC_INFO_OPBITS_INFO:
         return 1;
     default:

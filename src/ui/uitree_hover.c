@@ -66,14 +66,6 @@ UITree_HoverRoutingToIds(struct UIHoverRouting const* routing)
     return ids;
 }
 
-static bool
-layer_blocks_hover_find(struct UITreeComponent const* component)
-{
-    return component &&
-           (component->type == UIELEM_RS_LAYER || component->type == UIELEM_BUILTIN_SIDEBAR) &&
-           component->behavior.hide;
-}
-
 static void
 find_hovered_recursive(
     struct UITree const* tree,
@@ -99,7 +91,13 @@ find_hovered_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( layer_blocks_hover_find(component) )
+    /* Match hit-test / emit: any hidden node is pruned (no self-report, no
+     * children). IF_SETHIDE on type=5 spell icons must stop on_mouse_repeat
+     * from firing — otherwise a later hidden Lumbridge icon overwrites a
+     * visible jewellery-enchant sibling (last-match-wins). IF1 overlayer
+     * tooltips stay correct: the visible cell redirects via over_layer_id;
+     * the hidden tooltip layer never needs to self-report. */
+    if( component->behavior.hide )
         return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit

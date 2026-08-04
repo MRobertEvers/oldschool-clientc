@@ -115,6 +115,33 @@ test_hover_input(void)
         TEST_ASSERT(id == 14, "on_mouse_repeat-only component reports hovered");
     }
 
+    /* Regression: IF_SETHIDE on a non-layer must prune hover (match hit-test).
+     *
+     * Magic spellbook jewellery-enchant: CS2 hides main-book type=5 icons but
+     * leaves on_mouse_repeat attached. Hover used to only skip hidden layers,
+     * so a later hidden Lumbridge sibling overwrote the visible enchant icon
+     * (last-match-wins) and script2622 still drew its tooltip. */
+    {
+        struct UITree* st = UITree_New(8);
+        int32_t L = UITree_TestPushXy(st, -1, UIELEM_RS_LAYER, 300, 0, 0, 100, 100);
+        int32_t enchant = UITree_TestPushXy(st, L, UIELEM_RS_RECT, 301, 10, 10, 24, 24);
+        UITree_HooksMut(&st->components[enchant])->on_mouse_repeat.script_id = 2622;
+        int32_t lumbridge = UITree_TestPushXy(st, L, UIELEM_RS_RECT, 302, 10, 10, 24, 24);
+        UITree_HooksMut(&st->components[lumbridge])->on_mouse_repeat.script_id = 2622;
+        st->components[lumbridge].behavior.hide = 1;
+        UITree_TestResolve(st);
+
+        int id = UITree_FindHoveredComponentIdForRegion(
+            st, &host, -1, 20, 20, 0, 0, 400, 300);
+        TEST_ASSERT(id == 301, "hidden later sibling with on_mouse_repeat does not win hover");
+
+        st->components[enchant].behavior.hide = 1;
+        id = UITree_FindHoveredComponentIdForRegion(
+            st, &host, -1, 20, 20, 0, 0, 400, 300);
+        TEST_ASSERT(id < 0, "lone hidden hooked child reports no hover");
+        UITree_Free(st);
+    }
+
     /* Out-of-region deep branch must not steal hover id */
     {
         int32_t far = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 80, 500, 0, 200, 200);
