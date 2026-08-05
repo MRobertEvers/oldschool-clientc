@@ -280,9 +280,20 @@ mock239_playerinfo_write(
 
         if( has_hit )
         {
-            /* PlayerHitmarkEncoder, same shape as the npc one: p1Alt1 count,
-             * then pSmart1or2 type, value, delay, limit per hit. */
-            rsab_p1_alt1(buf, 1);
+            /*
+             * PlayerHitEncoder -- and it is NOT the npc encoder with a
+             * different flag. The four fields per hit are the same, but the
+             * COUNT is p1Alt3 (`128 - n`) where NpcHitmarkEncoder writes
+             * p1Alt1 (`n + 128`).
+             *
+             * Writing the npc form here sends 129 for one hit, which the
+             * client reads back as `128 - 129 = -1 & 0xff` = 255. It then reads
+             * 255 hitsplats out of a packet that holds one, runs off the end,
+             * and drops the connection. The symptom is the client logging out
+             * at the instant a hit lands -- with no hitsplat, because the block
+             * that would have drawn it is what killed the stream.
+             */
+            rsab_p1_alt3(buf, 1);
             ext_psmart1or2(buf, ext->hit_type);
             ext_psmart1or2(buf, ext->hit_value);
             ext_psmart1or2(buf, 0); /* delay: lands this tick */
@@ -290,8 +301,18 @@ mock239_playerinfo_write(
         }
         if( has_seq )
         {
-            rsab_p2(buf, ext->seq_id < 0 ? 65535 : ext->seq_id);
-            rsab_p1_alt2(buf, ext->seq_delay);
+            /*
+             * PlayerSequenceEncoder: p2Alt2 id, p1 delay -- both orders differ
+             * from NpcSequenceEncoder's p2 id, p1Alt2 delay. Same two fields,
+             * same three bytes, and not one of them written the same way.
+             *
+             * p2Alt2 is [v>>8, v+128], so a plain p2 here shifts the id's low
+             * byte by 128: the player plays a real animation, just the wrong
+             * one. That is the whole failure -- nothing malformed, nothing
+             * logged, a defend that looks like something else.
+             */
+            rsab_p2_alt2(buf, ext->seq_id < 0 ? 65535 : ext->seq_id);
+            rsab_p1(buf, ext->seq_delay);
         }
         if( !has_appearance )
             return;

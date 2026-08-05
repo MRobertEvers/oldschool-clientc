@@ -3835,19 +3835,55 @@ app_debug_height_profile(struct App* app)
     }
 }
 
+/* TORIRS_TFLAGS=x0,x1,z0,z1: per-tile terrain settings at every cache level,
+ * once per load. BLOCK 0x1, LINK_BELOW 0x2, REMOVE_ROOF 0x4, VIS_BELOW 0x8,
+ * FORCE_HIGH_DETAIL 0x10. VIS_BELOW is the one that drags a tile from an upper
+ * level down onto level 0's draw pass. */
+static void
+app_debug_tile_flags(struct App* app)
+{
+    static unsigned logged = (unsigned)-1;
+    const char* env = getenv("TORIRS_TFLAGS");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete )
+        return;
+    if( app->world->load_seq == logged )
+        return;
+    logged = app->world->load_seq;
+    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+        return;
+    for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
+    {
+        int n_vis = 0, n_link = 0;
+        for( int z = z0; z <= z1; z++ )
+            for( int x = x0; x <= x1; x++ )
+            {
+                unsigned f = (unsigned)World_TileFlagGet(app->world, x, z, lv);
+                if( f & RSCACHE_FLOFLAG_VIS_BELOW ) { n_vis++;
+                    if( n_vis <= 400 )
+                        fprintf(stderr,
+                                "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
+                                lv, x, z, f, World_TerrainElementAt(app->world, x, z, lv)); }
+                if( f & RSCACHE_FLOFLAG_LINK_BELOW ) n_link++;
+            }
+        fprintf(stderr, "tflags L%d: vis_below=%d link_below=%d\n", lv, n_vis, n_link);
+    }
+}
+
 /* TORIRS_TPROJ=x0,x1,z0,z1: project each tile centre to screen, once per load.
  * Turns "which tile is that artifact" from a guess into a lookup. */
 static void
 app_debug_tile_project(struct App* app)
 {
-    static unsigned logged = (unsigned)-1;
+    static int ticks = 0;
     const char* env = getenv("TORIRS_TPROJ");
     int x0, x1, z0, z1;
     if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
         return;
-    if( app->world->load_seq == logged )
+    /* After the camera has settled, not on the load callback: the projection
+     * reads app->world_camera, which the load has not written yet. */
+    if( ++ticks != 120 )
         return;
-    logged = app->world->load_seq;
     if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
         return;
     for( int z = z0; z <= z1; z++ )
@@ -3904,6 +3940,7 @@ app_update_world_viewport(struct App* app)
     app_debug_log_bridges(app);
     app_debug_height_profile(app);
     app_debug_tile_project(app);
+    app_debug_tile_flags(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     if( getenv("TORIRS_WORLD_VIEW_DEBUG") )
@@ -5980,6 +6017,99 @@ app_world_paint(struct App* app)
             if( by_kind[k] )
                 fprintf(stderr, " %d:%d", k, by_kind[k]);
         fprintf(stderr, "\n");
+    }
+
+    /* TORIRS_TILETABLE=x0,x1,z0,z1: one row per (tile, cache level) joining
+     * everything that decides when a ground mesh reaches the screen —
+     *
+     *   flags     the raw floor settings byte (VIS_BELOW 0x08 is the one that
+     *             moves a mesh onto another level's pass)
+     *   elem      the terrain element id, or -1 when the tile has no geometry
+     *             at all; a -1 row can carry any flag and still draw nothing
+     *   set       PaintersTile::terrain_levels, the meshes this level emits
+     *   order     the command-buffer index the mesh landed at, or "-" when it
+     *             was never emitted
+     *
+     * The point is the join: flags alone say what *should* happen, the emit
+     * order alone says what did, and only the two side by side say whether a
+     * tile that looks wrong on screen is mis-flagged, mis-ordered, or simply
+     * has no mesh to move. Prints once, after the paint that produced it. */
+    {
+        static int done = 0;
+        static int paints = 0;
+        const char* env = getenv("TORIRS_TILETABLE");
+        /* Wait for the paint the caller means. The table is only interesting
+         * after a teleport into an instance, and printing on the first paint
+         * silently describes wherever the player logged in — the same trap that
+         * made TORIRS_HPROF report Lumbridge's relief for the arena. */
+        const char* at = getenv("TORIRS_TILETABLE_AT");
+        int want_paint = at ? atoi(at) : 600;
+        int x0, x1, z0, z1;
+        paints++;
+        if( env && !done && paints >= want_paint &&
+            sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) == 4 )
+        {
+            done = 1;
+            fprintf(stderr, "tile     lvl flags elem  set order\n");
+            for( int z = z0; z <= z1; z++ )
+                for( int x = x0; x <= x1; x++ )
+                    for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
+                    {
+                        int order = -1;
+                        /* Count, do not stop at the first: "the mesh is drawn
+                         * once, from the level that owns it" is only provable
+                         * by showing there is no second emission. A search that
+                         * breaks on the first hit reports a double-draw and a
+                         * single draw identically. */
+                        int order_count = 0;
+                        for( int i = 0; i < app->painter_buffer->command_count; i++ )
+                        {
+                            struct PaintersElementCommand* c = &app->painter_buffer->commands[i];
+                            if( c->_bf_kind != PNTR_CMD_TERRAIN )
+                                continue;
+                            if( (int)c->_terrain._bf_terrain_x != x ||
+                                (int)c->_terrain._bf_terrain_z != z ||
+                                (int)c->_terrain._bf_terrain_y != lv )
+                                continue;
+                            if( order < 0 )
+                                order = i;
+                            order_count++;
+                        }
+                        fprintf(stderr, "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
+                                x, z, lv,
+                                (unsigned)World_TileFlagGet(app->world, x, z, lv),
+                                World_TerrainElementAt(app->world, x, z, lv),
+                                painter_tile_get_terrain_levels(app->world->painter, x, z, lv));
+                        if( order < 0 )
+                            fprintf(stderr, "-\n");
+                        else if( order_count > 1 )
+                            fprintf(stderr, "%d  DRAWN %dx\n", order, order_count);
+                        else
+                            fprintf(stderr, "%d\n", order);
+                    }
+            /* The other half of the comparison. A terrain order is only
+             * meaningful against the scenery it is supposed to be behind, and
+             * both have to be read off the SAME buffer — the render-command
+             * sequence TORIRS_DRAW_ORDER prints is a filtered renumbering, so
+             * the two cannot be lined up across tools. */
+            fprintf(stderr, "locs overlapping the rect (same numbering)\n");
+            for( int i = 0; i < app->painter_buffer->command_count; i++ )
+            {
+                struct PaintersElementCommand* c = &app->painter_buffer->commands[i];
+                struct WorldEntity_Scenery* sc;
+                if( c->_bf_kind != PNTR_CMD_ELEMENT )
+                    continue;
+                sc = World_SceneryGetByElementId(app->world, (int)c->_entity._bf_entity);
+                if( !sc )
+                    continue;
+                if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
+                    sc->grid_position.z < z0 - 8 || sc->grid_position.z > z1 + 8 )
+                    continue;
+                fprintf(stderr, "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n", i,
+                        sc->loc_id, sc->grid_position.x, sc->grid_position.z,
+                        sc->grid_position.level, sc->debug.draw_size_x, sc->debug.draw_size_z);
+            }
+        }
     }
 }
 

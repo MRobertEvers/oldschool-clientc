@@ -88,6 +88,25 @@ struct PaintersTile
     uint8_t spans;
 
     /*
+     * Which cache levels' terrain meshes this tile's ground pass emits, as a
+     * bitmask over levels 0..3. Normally just its own (1 << mesh_level).
+     *
+     * VisBelow is why it is a set and not a single level. A tile flagged
+     * FLOFLAG_VIS_BELOW is meant to appear on the floor below rather than on
+     * its own, and it is real geometry with a real colour — the Inferno's
+     * alcove floor is an orange tile at cache level 1 that belongs on level 0.
+     * Emitting it during its OWN level's pass puts it at the wrong point in the
+     * back-to-front order, which is how it ended up painted over the wall in
+     * front of it. So the flagged tile clears its bit and the tile below adds
+     * it: one ground pass, at the lower level's depth, emitting both meshes in
+     * ascending level order so the upper one lands on top of the lower.
+     *
+     * Zero is legal and means "emit nothing" — a VisBelow tile whose mesh has
+     * moved down has no terrain of its own left to draw.
+     */
+    uint8_t terrain_levels;
+
+    /*
      * packed_meta layout (uint16_t):
      *   bits 0-2:   visible_gte_level, 0-7
      *   bits 3-5:   paintgrid_level, 0-7
@@ -621,6 +640,25 @@ painter_tile_set_bridge(
     int bridge_tile_sx,
     int bridge_tile_sz,
     int bridge_tile_slevel);
+
+/** Replace the set of cache-level terrain meshes this tile's ground pass emits.
+ *  See PaintersTile::terrain_levels. `levels` is a bitmask over 0..3; 0 means
+ *  the tile emits no terrain at all. */
+void
+painter_tile_set_terrain_levels(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    unsigned levels);
+
+/** The current terrain-mesh set for a tile (see painter_tile_set_terrain_levels). */
+unsigned
+painter_tile_get_terrain_levels(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel);
 
 void
 painter_tile_set_draw_level(

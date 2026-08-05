@@ -777,7 +777,23 @@ w239_zone_payload(
         w239_p3_alt2(buf, 0);
         rsab_p1_alt2(buf, event->arc);
         rsab_p2(buf, event->src_height * 4);
-        rsab_p3(buf, event->target);
+        /*
+         * The target index, in the CLIENT's numbering.
+         *
+         * "If the target avatar is a player, set the value as -(index + 1)" --
+         * and `index` is the index the client knows that player by, which at
+         * this revision is `pool pid + 1` (mock230_wire_local_index: the
+         * client's table is 1..2047 with 0 unused). The event carries the
+         * classic form, `-pid - 1`, so a player target is one further from zero
+         * here. Npc targets need no adjustment: NPC_INFO writes the raw slot,
+         * so the two numberings already agree.
+         *
+         * Sent unadjusted, a shot aimed at the only player in the world names
+         * client index 0 -- the slot that is never occupied -- so the
+         * projectile has no target to lock onto and is not drawn. The packet is
+         * well-formed and the server logs a send.
+         */
+        rsab_p3(buf, event->target < 0 ? event->target - 1 : event->target);
         return 1;
     }
 

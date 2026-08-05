@@ -424,6 +424,7 @@ WorldBuilder_RebuildInstanceZoneScenery(
          * the minimap registration needs, which is why it belongs here and not
          * in the square-offset walkers the ordinary path uses. */
         world_builder_minimap_add_loc(builder, &placed, config_loc, scene_x, scene_z);
+        world_builder_minimap_add_loc_mapfunction(builder, &placed, config_loc, scene_x, scene_z);
     }
 }
 
@@ -610,12 +611,46 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             for( int z = 0; z < scene_size; z++ )
             {
                 int link_l1 = (flag_map_get(builder->flag_map, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0;
+                int terrain_src[WORLD_MAP_TERRAIN_LEVELS] = { 0 };
+                int terrain_vis_below[WORLD_MAP_TERRAIN_LEVELS] = { 0 };
                 for( int g = 0; g < painter_max_levels(world->painter); g++ )
                 {
                     int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
                     uint8_t st = (uint8_t)flag_map_get(builder->flag_map, x, z, src);
                     int draw = RSCache_MapFloorVisBelowDrawLevel(st, src, link_l1);
                     painter_tile_set_draw_level(world->painter, x, z, g, draw);
+                    terrain_src[g] = src;
+                    terrain_vis_below[g] =
+                        (st & RSCACHE_FLOFLAG_VIS_BELOW) != 0 && draw != g;
+                }
+
+                /*
+                 * VisBelow moves a tile's terrain MESH onto the floor below,
+                 * it does not merely reveal it. The mesh is real geometry with
+                 * a real colour, so emitting it during its own level's ground
+                 * pass puts it at the wrong depth in the back-to-front order —
+                 * which is how the Inferno's alcove floor, an orange tile a
+                 * level up, ended up painted over the wall standing in front of
+                 * it. Hand the mesh to the level it belongs on and take it off
+                 * the level it came from; the painter emits a tile's whole set
+                 * in ascending order, so the borrowed mesh lands on top.
+                 */
+                {
+                    unsigned set[WORLD_MAP_TERRAIN_LEVELS];
+                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
+                        set[g] = terrain_vis_below[g] ? 0u : (1u << (terrain_src[g] & 3));
+                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
+                        if( terrain_vis_below[g] )
+                        {
+                            int dst = RSCache_MapFloorVisBelowDrawLevel(
+                                (uint8_t)flag_map_get(builder->flag_map, x, z, terrain_src[g]),
+                                terrain_src[g],
+                                link_l1);
+                            if( dst >= 0 && dst < painter_max_levels(world->painter) )
+                                set[dst] |= 1u << (terrain_src[g] & 3);
+                        }
+                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
+                        painter_tile_set_terrain_levels(world->painter, x, z, g, set[g]);
                 }
             }
         }

@@ -33,6 +33,8 @@ init_painter_tile(
     painters_tile_set_paintgrid_level(tile, (uint8_t)slevel);
     painters_tile_set_mesh_level(tile, (uint8_t)slevel);
     painters_tile_set_flags(tile, 0);
+    /* Its own mesh and nothing else until the world build says otherwise. */
+    tile->terrain_levels = (uint8_t)(1u << (slevel & 3));
     tile->spans = 0;
     tile->scenery_head = -1;
     tile->wall_a = -1;
@@ -792,6 +794,28 @@ painter_tile_copyto(
     painters_tile_set_paintgrid_level(dest_tile, (uint8_t)dest_slevel);
     dest_tile->sx = (uint16_t)dest_sx;
     dest_tile->sz = (uint16_t)dest_sz;
+}
+
+void
+painter_tile_set_terrain_levels(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    unsigned levels)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    tile->terrain_levels = (uint8_t)(levels & 0xFu);
+}
+
+unsigned
+painter_tile_get_terrain_levels(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel)
+{
+    return painter_tile_at(painter, sx, sz, slevel)->terrain_levels;
 }
 
 void

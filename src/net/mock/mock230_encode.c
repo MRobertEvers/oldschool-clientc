@@ -2868,6 +2868,9 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
     if( classic & MOCK230_NMASK_CHANGE_TYPE )
         flag |= V5_NPC_TRANSFORMATION;
 
+    if( getenv("MOCK230_EXT_DEBUG") )
+        fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
+                npc->damage_type, npc->damage, npc->anim_id);
     v5_put_extended_flag(buf, flag);
 
     /*

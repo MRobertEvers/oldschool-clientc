@@ -516,12 +516,11 @@ painter_paint_bucket(
                           bridge_underpass_tile->sx,
                           bridge_underpass_tile->sz)) )
                 {
-                    bucket_emit_terrain(
-                        &cmd_cur,
-                        cmd_end,
-                        bridge_underpass_tile->sx,
-                        bridge_underpass_tile->sz,
-                        painters_tile_get_mesh_level(bridge_underpass_tile));
+                    unsigned uset = bridge_underpass_tile->terrain_levels;
+                    for( int ml = 0; ml < 4; ml++ )
+                        if( uset & (1u << ml) )
+                            bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
+                                                bridge_underpass_tile->sz, ml);
                 }
 
                 if( bridge_underpass_tile->wall_a != -1 )
@@ -548,8 +547,15 @@ painter_paint_bucket(
             }
 
             if( !ground_hidden )
-                bucket_emit_terrain(
-                    &cmd_cur, cmd_end, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
+            {
+                /* Every mesh this tile owns, ascending, so a VisBelow mesh
+                 * moved down from above lands on top of the one below it.
+                 * See PaintersTile::terrain_levels. */
+                unsigned set = tile->terrain_levels;
+                for( int ml = 0; ml < 4; ml++ )
+                    if( set & (1u << ml) )
+                        bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+            }
 
             if( tile->wall_a != -1 )
             {
