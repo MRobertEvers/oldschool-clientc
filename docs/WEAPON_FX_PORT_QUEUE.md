@@ -159,9 +159,9 @@ wave 3 (sharded)    G(11), then G(12) one weapon per agent
 | 0 | Findings catalog + audit tool | — | done | — |
 | 1 | Stance params + resolver | A | done | — |
 | 2 | Cross-check the overlap | B | done | 1 |
-| 3 | The 667 rsmod-sourced weapons | B | **blocked** | 1, 2, **`synth` pack kind** |
-| 4 | The 246 with no direct row | B | pending | 3 |
-| 5 | BAS + equip sound | B | pending | 3 |
+| 3 | The 667 rsmod-sourced weapons | B | anims done; sounds blocked | 1, 2; sounds need a `synth` **param** kind |
+| 4 | The 246 with no direct row | B | done | 3 |
+| 5 | BAS + equip sound | B | BAS done+verified; equip sound blocked | 3; equip sound needs a `synth` param kind |
 | 6 | `SYNTH_SOUND` wire | C | done | — |
 | 7 | `sound_synth` opcode body | C | done | 6 |
 | 8 | Swing sounds through content | F | blocked | 1, 7, **3 or 5** (bar only) |
@@ -322,6 +322,21 @@ already names the source and the method; do not edit it.
 > int-typed params; or split sounds into their own file so the anims can land
 > now. Pick one deliberately — do not let a lane choose it silently.
 >
+> **Scope of the blocker, measured — it is narrower than it first looked.**
+> `sscompile` **already has a synth symbol kind**:
+> `src/serverscript/ssc_symbols.c:485` maps the `4_soundeffects` pack to
+> `SSC_SYM_SYNTH`, `:498` declares `synth` as a type name and `:1289` gives it
+> type code 80. So **a `.rs2` script may name a synth today** —
+> `sound_synth(synth_2720, …)` compiles, and that is naming, not the
+> hand-copied integer §0.3 forbids. The gap is **only** the obj-param path:
+> `mock230_content.c`'s param-type → pack-kind map has no `synth` row, so
+> `type=synth` on a param falls through to "literal" exactly like `type=int`.
+>
+> Consequences: **slice 11's per-weapon spec sounds are NOT blocked** (they are
+> script-level `sound_synth` calls). Lane F's `specwep.rs2` stop should be
+> **re-examined** on the same grounds. Only param-carried sounds
+> (`attack_sound_stance1..4`, `equipment_sound`) actually need the engine change.
+>
 > The generated 667-row file is parked at
 > `<scratchpad>/attack_anims_modern.obj.blocked` rather than deleted, so whoever
 > resolves this does not have to regenerate blind.
@@ -378,6 +393,17 @@ already names the source and the method; do not edit it.
 inactive/uncharged form, a barrows ornament kit, a league reskin). **10 have no
 source at any tier.**
 
+> **Measured 2026-08-04, and this framing oversold it.** "236 share a category
+> with a covered sibling" is true but nearly useless: cache `category=` is a
+> *coarse weapon-type bucket* (`1`=weapon_staff, `21`=weapon_slash_sword,
+> `55`=weapon_blunt_heavy), and one id spans dozens of unrelated families.
+> Checked against the real overlay content rather than category-string overlap,
+> **only 4 of 26 relevant categories agree unanimously**, so only **9** of the
+> 246 inherit. The other 227 are correctly left bare via this slice's own escape
+> hatch — that is the expected outcome, not a shortfall. `weapon_blunt_heavy`
+> alone holds 34 gap members across 16 distinct answers (rubber chicken, casket,
+> balloon, trophy…) and could never have produced one default.
+
 ```sh
 python3 tools/port_weapon_fx.py --report | awk -F'\t' '$5=="no" && $8=="-"'
 ```
@@ -409,6 +435,24 @@ only.
 swing — `slayer_abyssal_whip_walk` / `slayer_abyssal_whip_run` while moving.
 Equip sound is inaudible until lane C lands; verify the param reads back with
 `oc_param` and say so.
+
+> **Status 2026-08-04: data confirmed, behaviour NOT observed.** The BAS half of
+> the data is in the tree and resolvable — `abyssal_whip` carries
+> `walk_{f,b,l,r}_baseanim=slayer_abyssal_whip_walk` and
+> `running_baseanim=slayer_abyssal_whip_run`, and both names exist in
+> `configs/all.seq`. The read path is intact
+> (`player/scripts/appearance.rs2:20-26` → `oc_param` →
+> `SS_OP_READYANIM/WALKANIM/RUNANIM`, `mock230_scripts.c:4755-4825` → APPEARANCE
+> mask). **But nobody has yet watched the stance change while the player moves**
+> — the one run made equipped and teleported without walking, so "while moving"
+> was never exercised. Grep plus an architecture argument is not this bar.
+> **Do not mark slice 5 done on the strength of the data being present.**
+>
+> The `equipment_sound` half **cannot pass at all today**: it is one of the
+> sound params split out of slice 3 and is absent from the tree
+> (`grep -c equipment_sound …/attack_anims_modern.obj` → `0`). It is blocked on
+> the same missing `synth` pack kind. Verifying it with `oc_param` is not
+> possible until that lands.
 
 ---
 
@@ -774,6 +818,79 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   `sa_energy=500`, but the wiki says Soulreaper axe's special costs "None,
   consumes Soul Stacks instead". Auditing the original 97 was out of this
   slice's scope.
+
+  **Slice 3's anim half then landed** once the sound params were split out
+  (`--families anims`, now the working command): **667 records**,
+  `already carry an FX overlay` **170 → 837**, `swing the param default today`
+  **913 → 246**, `--check` `0 problem(s)`, `compiled 12369 scripts`, pack
+  `0 error(s), 17 warning(s)`.
+
+  **A second aliasing bug, same root cause, found while doing it.** `--write` is
+  **not idempotent**: two identical runs produced different md5s and **the second
+  wrote 0 records and wiped the file**, because `load_overlays()` scans every
+  `.obj` in `bas/` — which is where `--write` puts its output. The slice-0 Log's
+  "`--write` verified idempotent" was never true. Fixed by excluding the write
+  target from the overlay scan (`load_overlays(exclude=…)`); two runs now give
+  identical md5 and 667 records both times. **This fix does not rescue sharding**
+  — shard 2 still sees shard 1's differently-named file. Do not shard slice 3.
+
+  **Slice 4 landed: 9 records**, `swing the param default today` **246 → 237**,
+  `no source at all` still **10**, pack still `0 error(s), 17 warning(s)`.
+  Accounting closes exactly: 9 inherited + 227 left bare + 10 no-source = 246.
+  See the correction at slice 4 — the "236 share a category" framing implied
+  most would inherit, and measured against real overlay content only 4 of 26
+  categories agree. The 10 no-source objs, named rather than guessed:
+  `rotten_venator_bow` (cat 15); `keris_partisan` + `_amascut`, `_breach`,
+  `_corruption`, `_sun` (cat 1588); `infernal_tecpatl` (cat 2418) and
+  `hallowed_flail` (cat 2447), whose category ids are not even named in
+  `pack/category.pack`; `tangled_lizard_charged` / `_uncharged` (cat 975).
+
+  One judgement call made and declared rather than buried: four `fishingrod_pearl*`
+  objs state **no** cache category, and the only other record in that "unstated"
+  group is `osb9_reward_skis`. "Unstated" is not a shared category, so they were
+  left bare instead of inheriting ski-pole animations.
+
+  **Slice 3's bar is met — the paired before/after, on the real animation
+  path.** `TORIRS_ANIM_DEBUG` was useless here (see the correction at slice 3),
+  so the seq was read at an lldb breakpoint on `mock230_anim_play_player`:
+
+  | weapon | BEFORE | AFTER | changed |
+  |---|---|---|---|
+  | `abyssal_whip` | `human_unarmedkick` (423) | `slayer_abyssal_whip_attack` (1658) | yes |
+  | `scythe_of_vitur` | `human_sword_slash` (390) | `scythe_of_vitur_attack` (8056) | yes |
+  | `ghrazi_rapier` | `human_unarmedpunch` (422) | `ghrazi_rapier_attack` (8145) | yes |
+  | `dragon_warhammer` | `human_unarmedkick` (423) | `human_blunt_pound` (401) | yes |
+  | `dragon_claws` | `human_sword_slash` (390) | `human_axe_chop` (393) | yes |
+  | `dragon_scimitar` | `human_sword_slash` (390) | `human_sword_slash` (390) | **no** |
+  | `osmumtens_fang` | not reached | `human_osmumtens_fang` (9471) | AFTER-only |
+
+  **`dragon_scimitar`'s unchanged value was checked, not waved through.** Its
+  new row states `attack_anim_stance1..4 = human_sword_slash, human_sword_slash,
+  human_sword_stab, human_sword_slash`, and the sessions resolved `%com_mode=1`
+  → stance2 → `human_sword_slash`. The authored value legitimately coincides
+  with the old damage-type fallback for a plain scimitar. That is the row being
+  read and returning the same answer, not the row being ignored — the other five
+  changing is what makes that distinguishable.
+
+  **`twisted_bow` was not captured, and the reason is not slice 3.** Bow +
+  `dragon_arrow` produced **zero** `mock230_anim_play_player` hits at 900 and
+  2000 frames. `[proc,player_ranged_check_ammo]` has an early
+  `return(null)`/`p_stopaction` path *before* its `anim()` call when ammo does
+  not validate for the weapon. That is a ranged ammo-compatibility gate, not a
+  read failure. Flagged, not chased.
+
+  **Slice 5's BAS bar passed, in motion.** Equip-and-teleport never moves the
+  player, so the stance was exercised by teleporting away from the target and
+  letting `::fight`'s approach walk, breaking on `World_ApplySecondaryAnim`
+  (`world_cycle.c:546`) rather than the attack path:
+  - walking (`::run 0`): `slayer_abyssal_whip_walk` (1660) — **640 hits**
+  - running (`::run 1`, 16 tiles): `slayer_abyssal_whip_run` (1661) — **96 hits**
+    (plus 32 walk hits before run engages), with `mes: Run on (100%).` confirming
+    run was actually armed
+
+  Read through the real movement path (`World_UpdateMoverMovementAndAnimation` →
+  `World_ApplySecondaryAnim`), not inferred from the config file. **Row written
+  and row read.** The `equipment_sound` half remains blocked and absent.
 
   **Slice 10's bar is only partly met and is recorded that way.** Equipping two
   of the 38 new weapons (`darkbow_blue`, `ancient_goblin_mace`) was confirmed

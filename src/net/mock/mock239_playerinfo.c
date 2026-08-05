@@ -124,6 +124,30 @@ mock239_playerinfo_write(
      * this section is exactly one update.
      */
     rsab_bits(buf);
+    /*
+     * A player who has not moved and has nothing to say is SKIPPED, not
+     * written.
+     *
+     * This is the shape the client is built around: `active = 0` plus a
+     * zero-length stationary run says "nothing about this one this tick". The
+     * obvious alternative -- writing a teleport whose delta happens to be zero
+     * -- is well-formed and decodes cleanly, and it still breaks the client,
+     * because a teleport means the player JUMPED and the client re-centres its
+     * scene on one. Sending that every tick re-centres every tick: the world
+     * builds, draws once, and then goes black.
+     *
+     * (NOMOVE, opcode 0, is the other way to say "still here", but only with
+     * the extended-info bit set -- without it the client throws outright for
+     * the local index. Skipping needs no such care.)
+     */
+    if( coord_delta == 0 && !has_extended )
+    {
+        rsab_pbit(buf, 1, 0);
+        write_stationary(buf, 0);
+        rsab_bytes(buf);
+    }
+    else
+    {
     rsab_pbit(buf, 1, 1); /* not skipped */
     rsab_pbit(buf, 1, has_extended ? 1 : 0);
     /*
@@ -143,6 +167,7 @@ mock239_playerinfo_write(
     rsab_pbit(buf, 1, 1);
     rsab_pbit(buf, 30, coord_delta);
     rsab_bytes(buf);
+    }
 
     /*
      * Section 2 — high resolution, inactive this cycle. Always empty: the only

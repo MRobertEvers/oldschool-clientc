@@ -4758,7 +4758,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: readyanim seq=%d\n", seq);
         player->readyanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4770,7 +4770,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: turnanim seq=%d\n", seq);
         player->turnanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4782,7 +4782,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: walkanim seq=%d\n", seq);
         player->walkanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4794,7 +4794,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: walkanim_b seq=%d\n", seq);
         player->walkanim_b = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4806,7 +4806,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: walkanim_l seq=%d\n", seq);
         player->walkanim_l = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4818,7 +4818,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: walkanim_r seq=%d\n", seq);
         player->walkanim_r = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -4830,7 +4830,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
-        if( MOCK230_VERBOSE )
+        if( player->world->verbose )
             fprintf(stderr, "mock230: runanim seq=%d\n", seq);
         /* LostCity allows -1 (null) to clear runanim. */
         player->runanim = seq;

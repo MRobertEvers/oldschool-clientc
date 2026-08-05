@@ -2180,8 +2180,15 @@ mock230_send_player_info(struct Mock230Player* player)
         struct RSAreaBuf ap;
         int32_t coord;
 
+        /*
+         * The appearance goes out once, on the tick after the init block, and
+         * then only when it changes. Re-sending it every tick is not merely
+         * wasteful: it forces the extended-info bit on, which keeps the player
+         * out of the skip path above and makes every tick an update.
+         */
         rsab_wrap(&ap, appearance, sizeof(appearance));
-        put_appearance_v5(&ap, player);
+        if( !player->v5_playerinfo_sent || (player->masks & MOCK230_PMASK_APPEARANCE) )
+            put_appearance_v5(&ap, player);
 
         /*
          * A DELTA against what this client was last told, which the init block

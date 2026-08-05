@@ -344,7 +344,8 @@ step_js5_serve(struct Mock230Session* session)
         if( session->verbose )
         {
             if( n > 0 )
-                fprintf(stderr, "mock230: JS5 %d/%d -> %d bytes\n", archive, group, n);
+                fprintf(stderr, "mock230: JS5 %s %d/%d -> %d bytes\n",
+                        opcode == 1 ? "urgent" : "prefetch", archive, group, n);
             else
                 fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
         }
