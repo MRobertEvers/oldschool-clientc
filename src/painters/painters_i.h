@@ -39,6 +39,9 @@ struct TilePaint
     uint8_t queue_count; /* distancemetric painter only */
     uint8_t near_wall_flags;
     uint8_t in_queue;
+    /** Scenery chain already in reference emission order this paint (see
+     *  scenery_chain_sort_once). Cleared in the classify pass. */
+    uint8_t scenery_sorted;
     /**
      * Per-frame ground-occlusion tri-state for this tile:
      *   0 = not yet computed
@@ -249,40 +252,63 @@ scenery_centre_dist_sq(
 }
 
 /*
- * Sort a ready batch of scenery element indices for emission, reference
- * order: farthest-corner key descending, centre-distance tie-break. The
- * official runs a selection loop picking the max each time; batches are <=5
- * per tile there, so the same O(n^2) selection is fine here.
+ * Sort a tile's scenery CHAIN into reference emission order, once per paint:
+ * farthest-corner key descending, centre-distance tie-break.
  *
- * Cost discipline: this runs at most once per tile pop, each element is in
- * exactly one emitted batch (drawn elements leave the set), batches of 0/1
- * return immediately, and both keys are computed ONCE per element rather
- * than per comparison.
+ * The chain is fixed before the drain (registration happens at build /
+ * per-frame re-add, never mid-paint) and the keys depend only on the camera
+ * tile, which is constant for the whole paint — so one sort per tile per
+ * paint is complete. Every later pop of the tile emits its READY subset in
+ * chain order, and an in-order subset of a sorted list is sorted. The
+ * `scenery_sorted` latch on TilePaint is cleared in the classify pass.
+ *
+ * The permutation moves (element_idx, span) PAIRS between nodes and leaves
+ * the node topology alone: `span` is per (tile, element), and
+ * tile_remove_scenery_element unlinks by element payload, so a permuted
+ * chain stays reset-safe when dynamic elements are stripped.
+ *
+ * Chains are tiny (the official caps at 5 per tile); anything past the cap
+ * keeps its unsorted tail rather than growing the scratch.
  */
 #define SCENERY_SORT_BATCH_MAX 64
 
 static inline void
-scenery_sort_ready_batch(
+scenery_chain_sort_once(
     struct Painter* painter,
-    int* batch,
-    int count,
+    struct PaintersTile* tile,
+    struct TilePaint* tile_paint,
     int camera_sx,
     int camera_sz)
 {
+    int32_t nodes[SCENERY_SORT_BATCH_MAX];
+    int16_t elems[SCENERY_SORT_BATCH_MAX];
+    uint8_t spans[SCENERY_SORT_BATCH_MAX];
     int keys[SCENERY_SORT_BATCH_MAX];
     int64_t tie[SCENERY_SORT_BATCH_MAX];
+    int count = 0;
     int camera_fine_x = camera_sx * 128 + 64;
     int camera_fine_z = camera_sz * 128 + 64;
 
+    if( tile_paint->scenery_sorted )
+        return;
+    tile_paint->scenery_sorted = 1;
+
+    for( int32_t sn = tile->scenery_head; sn != -1 && count < SCENERY_SORT_BATCH_MAX;
+         sn = painter->scenery_pool[sn].next )
+    {
+        struct SceneryNode const* node = &painter->scenery_pool[sn];
+        nodes[count] = sn;
+        elems[count] = node->element_idx;
+        spans[count] = node->span;
+        keys[count] =
+            scenery_far_corner_dist(&painter->elements[node->element_idx], camera_sx, camera_sz);
+        tie[count] = scenery_centre_dist_sq(
+            &painter->elements[node->element_idx], camera_fine_x, camera_fine_z);
+        count++;
+    }
     if( count <= 1 )
         return;
-    assert(count <= SCENERY_SORT_BATCH_MAX);
 
-    for( int a = 0; a < count; a++ )
-    {
-        keys[a] = scenery_far_corner_dist(&painter->elements[batch[a]], camera_sx, camera_sz);
-        tie[a] = scenery_centre_dist_sq(&painter->elements[batch[a]], camera_fine_x, camera_fine_z);
-    }
     for( int a = 0; a < count; a++ )
     {
         int best = a;
@@ -293,16 +319,24 @@ scenery_sort_ready_batch(
         }
         if( best != a )
         {
-            int tmp_i = batch[a];
+            int16_t tmp_e = elems[a];
+            uint8_t tmp_s = spans[a];
             int tmp_k = keys[a];
             int64_t tmp_t = tie[a];
-            batch[a] = batch[best];
+            elems[a] = elems[best];
+            spans[a] = spans[best];
             keys[a] = keys[best];
             tie[a] = tie[best];
-            batch[best] = tmp_i;
+            elems[best] = tmp_e;
+            spans[best] = tmp_s;
             keys[best] = tmp_k;
             tie[best] = tmp_t;
         }
+    }
+    for( int a = 0; a < count; a++ )
+    {
+        painter->scenery_pool[nodes[a]].element_idx = elems[a];
+        painter->scenery_pool[nodes[a]].span = spans[a];
     }
 }
 

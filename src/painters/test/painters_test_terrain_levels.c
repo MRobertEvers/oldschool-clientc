@@ -364,29 +364,61 @@ test_stack_base_does_not_defer_static_locs(void)
 }
 
 /*
- * The reference batch sort itself (class112.java:1030-1058 + method3971):
- * within one ready batch, the entity whose footprint reaches FARTHEST from
- * the camera draws first; exact ties break toward the farther centre. Tested
- * on the helper directly — batches of more than one only form when several
- * entities become ready at the same pop, which a scene-level test cannot
- * stage deterministically.
+ * The reference emission sort itself (class112.java:1030-1058 + method3971):
+ * the entity whose footprint reaches FARTHEST from the camera draws first;
+ * exact ties break toward the farther centre. Production pays it ONCE per
+ * tile per paint by relinking the tile's chain (scenery_chain_sort_once) —
+ * tested here directly on one shared tile, including the once-per-paint
+ * latch and that each node's span rides with its element.
  */
 static void
 test_ready_batch_sorts_by_far_corner(void)
 {
     struct Painter* p = make_painter();
-    int wall = painter_add_normal_scenery_ex(p, 3, 3, 0, 910, 3, 5, 0, 0); /* far corner z=7 */
+    /* All three share tile (4,4): the wall covers it, the 1x1s sit on it. */
+    int wall = painter_add_normal_scenery_ex(p, 2, 4, 0, 910, 3, 4, 0, 0); /* far corner z=7 */
     int near_1x1 = painter_add_normal_scenery_ex(p, 4, 4, 0, 911, 1, 1, 0, 0);
-    int far_1x1 = painter_add_normal_scenery_ex(p, 3, 7, 0, 912, 1, 1, 0, 0);
-    int batch[3] = { near_1x1, wall, far_1x1 };
+    struct PaintersTile* tile = painter_tile_at(p, 4, 4, 0);
+    struct TilePaint tp = { 0 };
+    int order[3];
+    int count = 0;
+    uint8_t span_of_wall_before = 0;
+    uint8_t span_of_wall_after = 0;
 
-    printf("a ready batch emits farthest-corner-first with the centre tie-break\n");
-    /* Camera (4,1): keys — wall max(1,1)+max(-2,6)=7; far_1x1 1+6=7 (tie,
-     * farther centre wins); near_1x1 0+3=3. */
-    scenery_sort_ready_batch(p, batch, 3, 4, 1);
-    expect(batch[0] == far_1x1, "tie broken to the farther centre (the 1x1 on the far corner)");
-    expect(batch[1] == wall, "the wall next (same far-corner key)");
-    expect(batch[2] == near_1x1, "the near 1x1 last");
+    printf("the chain sorts farthest-corner-first, once per paint, spans riding along\n");
+
+    for( int32_t sn = tile->scenery_head; sn != -1; sn = p->scenery_pool[sn].next )
+        if( p->scenery_pool[sn].element_idx == wall )
+            span_of_wall_before = p->scenery_pool[sn].span;
+
+    /* Camera (4,1): keys — wall max(4-2,4-4)+max(1-4,7-1)=2+6=8;
+     * near_1x1 0+3=3. Wall must come first. */
+    scenery_chain_sort_once(p, tile, &tp, 4, 1);
+    for( int32_t sn = tile->scenery_head; sn != -1 && count < 3;
+         sn = p->scenery_pool[sn].next )
+    {
+        order[count++] = p->scenery_pool[sn].element_idx;
+        if( p->scenery_pool[sn].element_idx == wall )
+            span_of_wall_after = p->scenery_pool[sn].span;
+    }
+    expect(count == 2, "both elements still on the chain");
+    expect(order[0] == wall, "the wall (farthest corner) first");
+    expect(order[1] == near_1x1, "the near 1x1 after it");
+    expect(span_of_wall_after == span_of_wall_before, "the wall's span moved with it");
+    expect(tp.scenery_sorted == 1, "the once-per-paint latch is set");
+    /* Idempotence: reverse the chain payloads by hand, call again — the latch
+     * must make it a no-op. */
+    {
+        int32_t head = tile->scenery_head;
+        int16_t e0 = p->scenery_pool[head].element_idx;
+        p->scenery_pool[head].element_idx =
+            p->scenery_pool[p->scenery_pool[head].next].element_idx;
+        p->scenery_pool[p->scenery_pool[head].next].element_idx = e0;
+    }
+    scenery_chain_sort_once(p, tile, &tp, 4, 1);
+    expect((int)p->scenery_pool[tile->scenery_head].element_idx == near_1x1,
+           "second call is a no-op — no re-sort within one paint");
+
     painter_free(p);
 }
 

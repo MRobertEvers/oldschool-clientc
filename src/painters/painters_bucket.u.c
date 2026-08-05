@@ -294,6 +294,7 @@ painter_paint_bucket(
                 tp->near_wall_flags = 0;
                 tp->in_queue = 0;
                 tp->occlusion = TILE_OCCLUSION_UNKNOWN;
+                tp->scenery_sorted = 0;
 
                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
                 if( tile_excluded_by_bridge_or_draw_mask(
@@ -769,6 +770,12 @@ painter_paint_bucket(
         int n_visit = 0;
         int blocked_undrawn = 0;
 
+        /* Reference emission order (class112.java:1030-1058 + method3971),
+         * paid ONCE per tile per paint: the chain is relinked farthest-corner
+         * first here, so every pop's ready subset — collected below in chain
+         * order — is already sorted. */
+        scenery_chain_sort_once(painter, tile, tile_paint, camera_sx, camera_sz);
+
         for( int32_t sn = tile->scenery_head; sn != -1; sn = scenery_pool[sn].next )
         {
             int si = scenery_pool[sn].element_idx;
@@ -829,12 +836,6 @@ painter_paint_bucket(
             else
                 blocked_undrawn = 1;
         }
-
-        /* Reference batch order (class112.java:1030-1058): the ready set
-         * emits farthest-corner key first, centre-distance tie-break. This is
-         * the rule that puts a big wall ahead of the near 1x1s on its own
-         * footprint and behind the far ones — no containment involved. */
-        scenery_sort_ready_batch(painter, visit_sc, n_visit, camera_sx, camera_sz);
 
         int some_drawn = 0;
         for( int vi = 0; vi < n_visit; vi++ )

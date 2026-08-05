@@ -2127,3 +2127,48 @@ farther footprint tiles, one DYNAMIC 1x1 added after
 `painter_mark_static_count`. Asserts the static planes emit BEFORE the wall
 and the dynamic obj AFTER it. Mutation-checked: reverting the exemption fails
 exactly the two static-order assertions.
+
+## 25. §24.3 corrected: the reference rule is a distance sort, not an exemption
+
+The user pushed back on §24.3's static/dynamic framing, and the reference
+agrees with them. Read in full this time:
+
+* `class112.java:1014-1016` — every entity that passes the readiness scan
+  gets a key from **`method3971`: the Manhattan distance from the camera tile
+  to the FARTHEST corner of its footprint** (max extent per axis, summed).
+* `class112.java:1030-1058` — the ready batch is drawn by a selection loop
+  taking the **maximum key first**, ties broken toward the larger squared
+  fine distance of the entity centre.
+* The readiness scan (`label614`) skips only the unready entity — a pending
+  big loc never holds back the 1x1s sharing its tiles. There is **no
+  containment rule and no static/dynamic distinction anywhere.**
+
+So the correct port, now in place:
+
+1. `scenery_blocked_by_stack_base` is **deleted** — all three paint variants.
+   §24.3's static-only exemption produced the right order in the Inferno by
+   accident and the wrong rule in general.
+2. The bucket variant gains the reference batch sort
+   (`scenery_sort_ready_batch`, painters_i.h): farthest-corner key
+   descending, centre tie-break. The world3d and distancemetric variants
+   **already had exactly this sort** — the production bucket was the one
+   variant missing it, which is the disparity behind every "locs draw in the
+   wrong order" observation this document has chased.
+3. Cost discipline per review: the sort runs at most once per tile pop, each
+   element is sorted in exactly the one batch it is emitted from (drawn
+   elements leave the set), 0/1-element batches return immediately, and both
+   keys are computed once per element, not per comparison.
+
+`PNTR_SCENERY_STACK_BASE` now has no consumer; the flag is still written by
+the builder and kept for the day obj-stack layering needs it — remove it if
+that day turns out never to come.
+
+Tests: `test_stack_base_does_not_defer_static_locs` re-asserted to reference
+semantics (all three 1x1s — static AND dynamic — before the wall), and
+`test_ready_batch_sorts_by_far_corner` pins the sort itself on a hand-built
+batch (wall key 7, far 1x1 key 7 tie-broken ahead of it by centre, near 1x1
+key 3 last).
+
+Verified: glyph scene — 39/39 planes before the wall, zero after; lattice
+checks still zero violations; settled pinned-eye wedge byte-stable at 96 px
+h=8; world-builder / occluders / net-exec / uitree suites green.
