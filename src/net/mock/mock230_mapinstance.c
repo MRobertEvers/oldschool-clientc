@@ -66,11 +66,27 @@ struct Mock230MapInstance
     /** Reserved footprint in map squares, which is what the pool hands out. */
     int square_x, square_z, square_w, square_h;
     int built;
+    /** Bumped on every build (see mock230_mapinstance_generation). */
+    int generation;
     struct Mock230MapInstanceZone
         zones[MOCK230_MAPINSTANCE_LEVELS][MOCK230_MAPINSTANCE_ZONES][MOCK230_MAPINSTANCE_ZONES];
 };
 
 static struct Mock230MapInstance g_instances[MOCK230_MAPINSTANCE_MAX];
+
+/*
+ * Monotonic across the whole pool, never reset while the server runs.
+ *
+ * Per-instance would not answer the question that matters: the allocator hands
+ * the first free slot the first free block, so freeing an instance and
+ * allocating another gives back the SAME handle at the SAME square. A scene
+ * identity built from (handle, square) therefore cannot distinguish "still the
+ * instance you are standing in" from "a fresh one built on its grave", and the
+ * second Inferno run played against the first run's crumbled arena
+ * (docs/ORANGE_WEDGE.md §18). A global counter makes every build a distinct
+ * scene.
+ */
+static int g_instance_generation;
 
 /* Which map squares the cache ships. Swept once per process: the reference
  * table does not change under a running server, and the sweep is 65,536 lookups
@@ -421,7 +437,16 @@ mock230_mapinstance_build(int handle)
     if( !inst )
         return 0;
     inst->built = 1;
+    inst->generation = ++g_instance_generation;
     return 1;
+}
+
+int
+mock230_mapinstance_generation(int handle)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    return inst ? inst->generation : 0;
 }
 
 int

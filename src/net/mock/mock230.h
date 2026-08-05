@@ -1964,6 +1964,14 @@ struct Mock230Player
     /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
      *  else moved the world's origin, or it changed level. */
     int rebuild_pending;
+    /** Which map-instance build this client's scene is a copy of
+     *  (`mock230_mapinstance_generation`); 0 = not in an instance. A mismatch
+     *  against the instance the player is standing in means the scene it holds
+     *  was assembled from a map that no longer exists, and only a fresh
+     *  REBUILD_REGION fixes it. See phase_client_out and
+     *  docs/ORANGE_WEDGE.md §18: the allocator reuses handle AND square, so
+     *  nothing else distinguishes a re-entry from staying put. */
+    int scene_instance_generation;
     /** Set by the login burst, drained by phase 7, so [login] runs inside the
      *  tick rather than ahead of it — per player, so a second login does not
      *  re-run the first player's. */

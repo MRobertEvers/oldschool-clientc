@@ -642,7 +642,7 @@ painter_paint_bucket(
                 }
             }
 
-            if( tile->ground_decor != -1 )
+            if( tile->ground_decor != -1 && painter_ground_decor_enabled() )
             {
                 struct PaintersElement* element = &elements[tile->ground_decor];
                 assert(element->kind == PNTRELEM_GROUND_DECOR);
@@ -824,14 +824,17 @@ painter_paint_bucket(
                     break;
             }
 
-            if( all_base && scenery_blocked_by_stack_base(painter, tile, element) )
-                all_base = 0;
-
             if( all_base && n_visit < (int)(sizeof(visit_sc) / sizeof(visit_sc[0])) )
                 visit_sc[n_visit++] = si;
             else
                 blocked_undrawn = 1;
         }
+
+        /* Reference batch order (class112.java:1030-1058): the ready set
+         * emits farthest-corner key first, centre-distance tie-break. This is
+         * the rule that puts a big wall ahead of the near 1x1s on its own
+         * footprint and behind the far ones — no containment involved. */
+        scenery_sort_ready_batch(painter, visit_sc, n_visit, camera_sx, camera_sz);
 
         int some_drawn = 0;
         for( int vi = 0; vi < n_visit; vi++ )

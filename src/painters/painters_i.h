@@ -205,34 +205,105 @@ scenery_footprint_contains(
            i_max_x <= o_max_x && i_max_z <= o_max_z;
 }
 
-/**
- * True when any undrawn STACK_BASE scenery on this tile's chain has a footprint
- * that strictly contains `el`. Chains are short (max ~5), so the walk is cheap.
+/*
+ * Reference class112.method3971: a ready entity's draw-order key is the
+ * Manhattan distance from the camera tile to the FARTHEST corner of its
+ * footprint (max extent per axis, summed). The drain draws the ready batch
+ * max-key first, ties broken by the squared fine distance of the entity
+ * centre (class112.java:1030-1058). This is the whole of the reference's
+ * loc-vs-loc ordering — there is no containment rule and no static/dynamic
+ * distinction; an earlier containment heuristic here inverted the order
+ * around every multi-tile loc (docs/ORANGE_WEDGE.md §24-25).
  */
 static inline int
-scenery_blocked_by_stack_base(
-    struct Painter* painter,
-    struct PaintersTile* tile,
-    const struct PaintersElement* el)
+scenery_far_corner_dist(
+    const struct PaintersElement* el,
+    int camera_sx,
+    int camera_sz)
 {
-    assert(painter && tile && el);
-    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+    int span_x = camera_sx - (int)el->sx;
+    int span_x2 = (int)el->sx + (int)el->_scenery.size_x - 1 - camera_sx;
+    int span_z = camera_sz - (int)el->sz;
+    int span_z2 = (int)el->sz + (int)el->_scenery.size_z - 1 - camera_sz;
+    if( span_x2 > span_x )
+        span_x = span_x2;
+    if( span_z2 > span_z )
+        span_z = span_z2;
+    return span_x + span_z;
+}
+
+/* The reference tie-break: squared fine distance from the camera position to
+ * the entity's centre (class112.java:1040-1046 uses the entity's stored fine
+ * coords; ours is the footprint centre, the same point placement uses). */
+static inline int64_t
+scenery_centre_dist_sq(
+    const struct PaintersElement* el,
+    int camera_fine_x,
+    int camera_fine_z)
+{
+    int64_t cx = (int64_t)el->sx * 128 + (int64_t)el->_scenery.size_x * 64;
+    int64_t cz = (int64_t)el->sz * 128 + (int64_t)el->_scenery.size_z * 64;
+    int64_t dx = cx - camera_fine_x;
+    int64_t dz = cz - camera_fine_z;
+    return dx * dx + dz * dz;
+}
+
+/*
+ * Sort a ready batch of scenery element indices for emission, reference
+ * order: farthest-corner key descending, centre-distance tie-break. The
+ * official runs a selection loop picking the max each time; batches are <=5
+ * per tile there, so the same O(n^2) selection is fine here.
+ *
+ * Cost discipline: this runs at most once per tile pop, each element is in
+ * exactly one emitted batch (drawn elements leave the set), batches of 0/1
+ * return immediately, and both keys are computed ONCE per element rather
+ * than per comparison.
+ */
+#define SCENERY_SORT_BATCH_MAX 64
+
+static inline void
+scenery_sort_ready_batch(
+    struct Painter* painter,
+    int* batch,
+    int count,
+    int camera_sx,
+    int camera_sz)
+{
+    int keys[SCENERY_SORT_BATCH_MAX];
+    int64_t tie[SCENERY_SORT_BATCH_MAX];
+    int camera_fine_x = camera_sx * 128 + 64;
+    int camera_fine_z = camera_sz * 128 + 64;
+
+    if( count <= 1 )
+        return;
+    assert(count <= SCENERY_SORT_BATCH_MAX);
+
+    for( int a = 0; a < count; a++ )
     {
-        int si = painter->scenery_pool[sn].element_idx;
-        struct PaintersElement* other;
-        if( painter->element_paints[si].drawn )
-            continue;
-        other = &painter->elements[si];
-        if( other->kind != PNTRELEM_SCENERY )
-            continue;
-        if( other == el )
-            continue;
-        if( (other->_scenery.flags & PNTR_SCENERY_STACK_BASE) == 0 )
-            continue;
-        if( scenery_footprint_contains(other, el) )
-            return 1;
+        keys[a] = scenery_far_corner_dist(&painter->elements[batch[a]], camera_sx, camera_sz);
+        tie[a] = scenery_centre_dist_sq(&painter->elements[batch[a]], camera_fine_x, camera_fine_z);
     }
-    return 0;
+    for( int a = 0; a < count; a++ )
+    {
+        int best = a;
+        for( int b = a + 1; b < count; b++ )
+        {
+            if( keys[b] > keys[best] || (keys[b] == keys[best] && tie[b] > tie[best]) )
+                best = b;
+        }
+        if( best != a )
+        {
+            int tmp_i = batch[a];
+            int tmp_k = keys[a];
+            int64_t tmp_t = tie[a];
+            batch[a] = batch[best];
+            keys[a] = keys[best];
+            tie[a] = tie[best];
+            batch[best] = tmp_i;
+            keys[best] = tmp_k;
+            tie[best] = tmp_t;
+        }
+    }
 }
 
 #endif

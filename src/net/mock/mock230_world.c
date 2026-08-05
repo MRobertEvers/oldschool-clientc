@@ -7248,6 +7248,44 @@ phase_client_out(struct Mock230Player* player)
      * every encoder below rather than entangled with them. */
     mock230_world_update_map(player);
 
+    /*
+     * The instance under this player is not the one its scene was copied from.
+     *
+     * `maybe_rebuild` cannot see this: it fires when the scene *window* moves,
+     * and re-entering an instance does not move it — the allocator hands back
+     * the same handle at the same square, so the coordinates are identical.
+     * Without this the second `::zuk` plays against the first run's arena:
+     * server collision and client scenery both still carry the crumbled walls
+     * and the morphed-away roof, and the ledge behind them is exposed
+     * (docs/ORANGE_WEDGE.md §18). The generation is pool-wide and bumped by
+     * every build, so "same place, new map" is exactly what it detects.
+     *
+     * The server's own scene is rebuilt here too, not just the client's: it is
+     * a copy of the same descriptors and is equally stale.
+     */
+    {
+        int instance_handle = mock230_mapinstance_find(player->x, player->z);
+        int instance_gen =
+            instance_handle ? mock230_mapinstance_generation(instance_handle) : 0;
+
+        if( instance_gen != player->scene_instance_generation )
+        {
+            /* Skip when a rebuild is already owed this tick (teleport in
+             * moved the window and maybe_rebuild has run) — rebuilding the
+             * server scene twice in one tick is wasted work, not a bug. */
+            if( !player->rebuild_pending )
+            {
+                mock230_world_scene_rebuild(srv);
+                mock230_world_locs_reapply(srv);
+                world_occupancy_restamp(srv);
+                mock230_zone_player_reset(player);
+                player->rebuild_pending = 1;
+                player->place_dirty = 1;
+            }
+            player->scene_instance_generation = instance_gen;
+        }
+    }
+
     /* A rebuild has to reach the client before the placement that depends on
      * it, and the client's serial packet queue holds every later packet until
      * the world load finishes — so ordering here is simply "rebuild first". */

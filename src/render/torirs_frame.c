@@ -1016,6 +1016,20 @@ translate_ui_cmd(
             out->u.font.scissor_w = desc->clip.w;
             out->u.font.scissor_h = desc->clip.h;
             return true;
+        case UITREE_ENTITY_OVERLAY_LINE:
+            out->kind = TORIRSRC_LINE;
+            out->u.line.x = item->x;
+            out->u.line.y = item->y;
+            out->u.line.w = item->w;
+            out->u.line.h = item->h;
+            out->u.line.argb = item->color;
+            out->u.line.line_width = item->line_width > 0 ? item->line_width : 1;
+            out->u.line.line_direction = item->line_direction;
+            out->u.line.scissor_x = desc->clip.x;
+            out->u.line.scissor_y = desc->clip.y;
+            out->u.line.scissor_w = desc->clip.w;
+            out->u.line.scissor_h = desc->clip.h;
+            return true;
         case UITREE_ENTITY_OVERLAY_RECT:
         default:
             out->kind = TORIRSRC_FILL_RECT;

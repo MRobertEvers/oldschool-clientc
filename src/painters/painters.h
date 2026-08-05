@@ -734,6 +734,13 @@ painter_mark_static_count(struct Painter* painter);
 void
 painter_set_suppress_slot_registration(struct Painter* painter, int suppress);
 
+/** 0 when TORIRS_NO_GROUND_DECOR is set: every painter variant skips its
+ *  ground-decor emit. A bisection knob for "is that geometry decor or floor?",
+ *  which a screenshot cannot answer — shape-22 locs (floor plates, paths, the
+ *  Inferno's lava floor planes) read exactly like terrain. Read once. */
+int
+painter_ground_decor_enabled(void);
+
 void
 painter_reset_to_static(struct Painter* painter);
 
