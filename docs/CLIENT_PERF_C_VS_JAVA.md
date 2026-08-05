@@ -461,25 +461,65 @@ trusting a `render` comparison.
 
 ---
 
-### First Java stage data (Inferno, 2912 frames)
+### Java stage data (Inferno, 2667 frames, harness corrected)
 
-| stage | p50 | p95 |
-| --- | ---: | ---: |
-| frame | 2147 µs | 3714 µs |
-| uidraw | 465 µs | 2503 µs |
-| render | 251 µs | 1576 µs |
-| paint | 48 µs | 360 µs |
-| layout | 15 µs | 107 µs |
+Measured after the frame-boundary fix (see below). Logged in, Inferno arena
+after `::zuk`, unlocked fps, 52 s.
 
-`tiles_drawn` 623/frame.
+| stage | mean | p50 | p95 |
+| --- | ---: | ---: | ---: |
+| **frame** | 5252 µs | 3534 µs | 8588 µs |
+| uidraw | 3394 | 0 | 7811 |
+| render | 3215 | 0 | 7440 |
+| logic | 564 | 136 | 623 |
+| paint | 214 | 0 | 485 |
+| cs2 | 167 | 0 | 173 |
+| net | 104 | 0 | 7 |
+| present | 91 | 11 | 43 |
+| cache | 91 | 0 | 0 |
+| layout | 12 | 0 | 27 |
+| interact | — | — | — |
 
-**Two reasons not to compare these with §4 yet.** The scenes differ (Inferno vs
-Lumbridge idle) and the scale bug above is unfixed. And a harness bug: `logic`,
-`cs2`, `interact` and `net` read 0.00 ms because the frame probe sits on the
-*draw* and zeroes the per-frame accumulator, wiping the tick that ran earlier in
-the same loop iteration. The draw-side stages are sound; the fix is to move the
-boundary to `class510.run`. Recorded rather than left to be inferred from a
-suspicious zero.
+`p50 = 0` on the draw-side stages is not an error: at unlocked fps the pacer
+sets `shouldDraw = false` on most loop iterations, so more than half of all
+frames are tick-only and draw nothing. Read the means for those.
+
+`interact` has no probe yet, so it is blank rather than zero — a stage with no
+probe and a stage that is fast must not look the same.
+
+**An earlier version of this table was wrong and is worth recording.** It read
+`logic`/`cs2`/`net` as 0.00 ms and `uidraw` p50 465 µs. The frame probe sat on
+the *draw* (`client.method1926`) and zeroed the per-frame accumulator there,
+after the tick had already run. The tell was that `uidraw`'s **mean exceeded
+`frame`'s** — impossible for nested scopes. The boundary now sits in
+`class510.run`, wrapping tick + draw + present and excluding the pacing sleep.
+
+### Why there is still no side-by-side table
+
+The two halves above are **not comparable**, for three independent reasons, and
+combining them into one table would be the most misleading thing this document
+could do:
+
+| | C (§4) | Java (above) |
+| --- | --- | --- |
+| scene | Lumbridge, idle | Inferno arena |
+| projection scale | 512 | 191 — the C client renders 2.68× magnified |
+| pacing | `--uncapped`, every frame draws | unlocked fps, most frames skip the draw |
+
+Pixel count goes as the square of the projection scale, so the render and paint
+stages are measuring different amounts of work by a factor of ~7 before any
+code is compared. The scale fix (`ORANGE_WEDGE.md` §4) is a prerequisite for
+the comparison, not a side quest.
+
+**What a valid comparison needs**, in order:
+
+1. the projection-scale fix applied and verified,
+2. both clients on the same scene, same camera, same canvas,
+3. both drawing every frame (C `--uncapped`; Java with the fps cap on so the
+   pacer stops skipping draws, or the draw-side stages compared per *drawn*
+   frame rather than per loop iteration),
+4. and the C client's `emit`/`build` stages mapped onto the Java taxonomy —
+   they have no direct counterpart and currently have nowhere to land.
 
 ## 5. What remains
 
