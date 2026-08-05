@@ -28,6 +28,9 @@
 
 /* The client's framing table, for the length check in mock230_send. */
 #include "net/rev/osrs230/packetin.h"
+/* The appearance vocabulary and every wire spelling of it — the writers below
+ * choose an encoding, never a tag. */
+#include "net/rev/packets/pkt_player_appearance.h"
 
 #include "ss_trigger.h"
 
@@ -1467,12 +1470,10 @@ mock230_send_inv_partial(
 /* PLAYER_INFO                                                         */
 /* ------------------------------------------------------------------ */
 
-/* The appearance blob the client's PktPlayerAppearance_Decode reads: gender,
- * head icon, 12 slots, 5 body colours, 7 movement animations, name37, combat
- * level. A slot is 0 when empty, 0x100 + idkId for a body kit, or 0x200 + objId
- * for a worn item — the same encoding PlayerModel_CollectAppearanceModelIds
- * splits on. The tag and the ordering are the wire's, so they are here; *which*
- * kit fills a bare slot is the player's character and is content's, in
+/* What a player looks like is decided once, here, in the canonical slot
+ * vocabulary (pkt_player_appearance.h); each writer below only spells that out
+ * in its revision's tags, through Appearance_WirePack. *Which* kit fills a bare
+ * slot is the player's character and is content's, in
  * `player/configs/appearance.enum`. */
 static int
 default_kit(int wearpos)
@@ -1489,36 +1490,29 @@ default_kit(int wearpos)
 }
 
 /*
- * The revision-239 appearance block.
+ * The player's canonical appearance: one slot per wear position, in the
+ * vocabulary every renderer and every wire encoding is expressed in.
  *
- * Not a reordering of the classic one — a different shape, and the differences
- * are the kind that frame perfectly and render as nothing:
+ * Both writers below build from this, so the rules live once:
  *
- *   - the 12 wear slots become TWO arrays of 12: `equipment` (worn objs) and
- *     `identKit` (the body underneath). The classic packs both into one array,
- *     `0x200 + obj` or `0x100 + kit` per slot, so a 239 client reading it
- *     consumes the whole thing as equipment and then reads the colours as an
- *     identKit;
- *   - a skull icon and a head icon sit right after the gender;
- *   - the name is a NUL-terminated STRING, not the classic 8-byte base-37;
- *   - and there are five trailing fields the classic has no room for at all
- *     (skill level, hidden, a customisation flag, three name extras).
- *
- * Transcribed from RSProt's reference client `decodeAppearance`, read in the
- * direction it reads.
+ *   - a worn item blanks the positions it claims through wearpos_2 / wearpos_3
+ *     — that is what makes a full helm hide hair and jaw, and a platebody hide
+ *     arms. Those claimed positions are body positions, never worn ones, so
+ *     blanking before placing the worn obj (the order RSProt's pEquipment uses)
+ *     and after it come to the same thing;
+ *   - an unclaimed position falls back to the body kit. That fallback is not
+ *     redundancy: an empty slot means "nothing here", not "see the kit", so a
+ *     character wearing nothing would otherwise render with no body at all —
+ *     the scene draws, the player is present and positioned, and there is
+ *     nothing to look at.
  */
 static void
-put_appearance_v5(
-    struct RSAreaBuf* buf,
-    const struct Mock230Player* player)
+appearance_slots(
+    const struct Mock230Player* player,
+    int slots[APPEARANCE_SLOT_COUNT])
 {
-    int equipment[12];
-    int identkit[12];
-    int covered[12] = { 0 };
+    int covered[APPEARANCE_SLOT_COUNT] = { 0 };
 
-    /* Same covering rule as the classic writer: a worn item blanks the slots it
-     * claims through wearpos_2 / wearpos_3, which is what makes a full helm
-     * hide hair and a platebody hide arms. */
     for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
     {
         const struct Mock230ObjInfo* info;
@@ -1528,59 +1522,93 @@ put_appearance_v5(
         info = mock230_objinfo(player->worn[i].obj_id);
         if( !info )
             continue;
-        if( info->wearpos_2 >= 0 && info->wearpos_2 < 12 )
+        if( info->wearpos_2 >= 0 && info->wearpos_2 < APPEARANCE_SLOT_COUNT )
             covered[info->wearpos_2] = 1;
-        if( info->wearpos_3 >= 0 && info->wearpos_3 < 12 )
+        if( info->wearpos_3 >= 0 && info->wearpos_3 < APPEARANCE_SLOT_COUNT )
             covered[info->wearpos_3] = 1;
     }
 
-    for( int i = 0; i < 12; i++ )
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
     {
-        int kit = default_kit(i);
-
-        /*
-         * The identKit array carries the body part, and the equipment array
-         * carries the worn obj OR THE SAME BODY PART when nothing is worn.
-         *
-         * That fallback is not redundancy — it is what makes a player visible.
-         * Leaving an equipment slot at 0 means "empty" rather than "see the
-         * kit", so a character wearing nothing renders with no body at all: the
-         * scene draws, the player is present and positioned, and nothing is
-         * there to look at. RSProt's pEquipment does exactly this fallback.
-         *
-         * A worn obj is `obj + 0x800` at this revision. The classic stream uses
-         * `0x200 + obj`, which lands inside the kit range here and would draw
-         * some unrelated body part.
-         */
-        identkit[i] = kit >= 0 ? 0x100 + kit : 0;
+        int kit;
 
         if( covered[i] )
-            equipment[i] = 0; /* something worn hides this body part */
+            slots[i] = 0;
         else if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
-            equipment[i] = 0x800 + player->worn[i].obj_id;
+            slots[i] = Appearance_PackObj(player->worn[i].obj_id);
+        else if( (kit = default_kit(i)) >= 0 )
+            slots[i] = Appearance_PackKit(kit);
         else
-            equipment[i] = identkit[i];
+            slots[i] = 0;
     }
+}
+
+/** The body underneath, whatever is worn over it (239's second array). */
+static void
+appearance_identkit_slots(int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int kit = default_kit(i);
+        slots[i] = kit >= 0 ? Appearance_PackKit(kit) : 0;
+    }
+}
+
+/** One slot entry: an empty slot is a single zero byte, anything else is the
+ *  encoding's tagged word in two. */
+static void
+put_appearance_slots(
+    struct RSAreaBuf* buf,
+    enum AppearanceEncoding encoding,
+    const int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int wire = Appearance_WirePack(encoding, slots[i]);
+        if( wire == 0 )
+            rsab_p1(buf, 0);
+        else
+            rsab_p2(buf, wire);
+    }
+}
+
+/*
+ * The revision-239 appearance block.
+ *
+ * Not a reordering of the classic one — a different shape, and the differences
+ * are the kind that frame perfectly and render as nothing:
+ *
+ *   - the 12 wear slots become TWO arrays of 12: `equipment` (what is drawn)
+ *     and `identKit` (the body underneath). The classic packs both into one
+ *     array, so a 239 client reading it consumes the whole thing as equipment
+ *     and then reads the colours as an identKit;
+ *   - a worn obj is tagged `+ 0x800`, not `+ 0x200` — the classic tag lands
+ *     inside the kit range here and would draw some unrelated body part.
+ *     Appearance_WirePack owns that difference so it cannot be half-applied;
+ *   - a skull icon and a head icon sit right after the gender;
+ *   - the name is a NUL-terminated STRING, not the classic 8-byte base-37;
+ *   - and there are five trailing fields the classic has no room for at all
+ *     (skill level, hidden, a customisation flag, three name extras).
+ *
+ * Transcribed from RSProt's `PlayerAppearanceEncoder`.
+ */
+static void
+put_appearance_v5(
+    struct RSAreaBuf* buf,
+    const struct Mock230Player* player)
+{
+    int equipment[APPEARANCE_SLOT_COUNT];
+    int identkit[APPEARANCE_SLOT_COUNT];
+
+    appearance_slots(player, equipment);
+    appearance_identkit_slots(identkit);
 
     rsab_p1(buf, (uint8_t)player->gender);
     rsab_p1(buf, 255); /* skullIcon: -1, none */
     rsab_p1(buf, 255); /* headIcon:  -1, none */
 
-    /* A zero byte is an empty slot and costs one byte; anything else is two. */
-    for( int i = 0; i < 12; i++ )
-    {
-        if( equipment[i] == 0 )
-            rsab_p1(buf, 0);
-        else
-            rsab_p2(buf, equipment[i]);
-    }
-    for( int i = 0; i < 12; i++ )
-    {
-        if( identkit[i] == 0 )
-            rsab_p1(buf, 0);
-        else
-            rsab_p2(buf, identkit[i]);
-    }
+    put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
+    put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);
 
     for( int i = 0; i < 5; i++ )
         rsab_p1(buf, 0); /* body colours */
@@ -1600,9 +1628,12 @@ put_appearance_v5(
     rsab_p2(buf, 0); /* skill level, shown only in some minigames */
     rsab_p1(buf, 0); /* hidden */
     /*
-     * The customisation flag. Bit 15 says per-obj customisations follow, and
-     * the client errors on them rather than skipping, so this must stay 0
-     * until they are written.
+     * The obj-customisation flag: bits 1..12 (one per wear position) each say a
+     * variable-length per-obj recolour/retexture block follows, and bit 15 is
+     * forceModelRefresh. This stays 0 until those blocks are written — a
+     * decoder that cannot skip a block it does not understand reads every later
+     * field at the wrong offset, which is why our own reader rejects the whole
+     * appearance when it sees one.
      */
     rsab_p2(buf, 0);
     rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* beforeName */
@@ -1620,42 +1651,18 @@ put_appearance_v5(
     rsab_p1(buf, 0);
 }
 
+/*
+ * The classic appearance block (lc254 / lc245_2 / xrsps233 / osrs230): one slot
+ * array, `0x100 + kit` / `0x200 + obj`, a base-37 name, and no trailing fields.
+ */
 static void
 put_appearance(
     struct RSAreaBuf* buf,
     const struct Mock230Player* player)
 {
-    /* Worn items win over the body kit in their own slot, and additionally
-     * blank the slots they claim through wearpos_2 / wearpos_3 — which is what
-     * makes a full helm hide hair and jaw, and a platebody hide arms. */
-    int slots[12];
-    int covered[12] = { 0 };
+    int slots[APPEARANCE_SLOT_COUNT];
 
-    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
-    {
-        const struct Mock230ObjInfo* info;
-        if( player->worn[i].obj_id < 0 )
-            continue;
-        info = mock230_objinfo(player->worn[i].obj_id);
-        if( info->wearpos_2 >= 0 && info->wearpos_2 < 12 )
-            covered[info->wearpos_2] = 1;
-        if( info->wearpos_3 >= 0 && info->wearpos_3 < 12 )
-            covered[info->wearpos_3] = 1;
-    }
-
-    for( int i = 0; i < 12; i++ )
-    {
-        int kit;
-
-        if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
-            slots[i] = 0x200 + player->worn[i].obj_id;
-        else if( covered[i] )
-            slots[i] = 0;
-        else if( (kit = default_kit(i)) >= 0 )
-            slots[i] = 0x100 + kit;
-        else
-            slots[i] = 0;
-    }
+    appearance_slots(player, slots);
 
     rsab_p1(buf, (uint8_t)player->gender);
     /*
@@ -1675,13 +1682,7 @@ put_appearance(
             fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
         rsab_p1(buf, headicons);
     }
-    for( int i = 0; i < 12; i++ )
-    {
-        if( slots[i] == 0 )
-            rsab_p1(buf, 0);
-        else
-            rsab_p2(buf, slots[i]);
-    }
+    put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
     for( int i = 0; i < 5; i++ )
         rsab_p1(buf, 0); /* body colours */
 

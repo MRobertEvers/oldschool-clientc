@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/revpacket.h"
 #include "packetin.h"
 #include "packetout.h"
@@ -38,6 +39,20 @@ static int
 rev_packetout_code(int pkt_out_name)
 {
     return packetout_code_osrs239(pkt_out_name);
+}
+
+/* The appearance block moved shape at this revision (two slot arrays, a
+ * different worn-obj tag, a string name, five trailing fields) — see
+ * `APPEARANCE_ENC_V5` in pkt_player_appearance.h. Everything downstream of the
+ * decode is unchanged: the reader emits the same command stream the classic
+ * block does. */
+static int
+rev_appearance_decode(
+    uint8_t const* data,
+    int len,
+    struct PktPlayerAppearance* out)
+{
+    return PktPlayerAppearance_DecodeAs(out, APPEARANCE_ENC_V5, data, len);
 }
 
 /*
@@ -89,6 +104,7 @@ static struct GameProtoRevTable k_rev_osrs239 = {
     .npc_type_bits = 14,
     .login = &g_osrs239_login_vtable,
     .parse = osrs239_parse,
+    .appearance_decode = rev_appearance_decode,
 };
 
 struct GameProtoRevTable const*

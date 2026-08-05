@@ -263,10 +263,23 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_APPEARANCE:
-        if( PktPlayerAppearance_Decode(
-                &self->app_decoded, op->_appearance.appearance, op->_appearance.len) )
+    {
+        /* The block's layout is the revision's, not this layer's: a rev whose
+         * appearance shape moved states its own reader
+         * (GameProtoRevTable.appearance_decode) and NULL means the classic
+         * block. Either way what lands in `app_decoded` is the same canonical
+         * appearance — see pkt_player_appearance.h. */
+        struct GameProtoRevTable const* rev = app->net ? app->net->rev : NULL;
+        int decoded =
+            rev && rev->appearance_decode
+                ? rev->appearance_decode(
+                      op->_appearance.appearance, op->_appearance.len, &self->app_decoded)
+                : PktPlayerAppearance_Decode(
+                      &self->app_decoded, op->_appearance.appearance, op->_appearance.len);
+        if( decoded )
             return PLAYER_NEED_APPEARANCE;
         break;
+    }
     case PKT_PLAYER_INFO_OP_SEQUENCE:
         self->pending_seq = op->_sequence.sequence_id;
         self->pending_delay = op->_sequence.delay;
@@ -364,11 +377,16 @@ static struct ToriRS_Task*
 player_slot_cfg_task(struct Task_ExecPlayerInfo* self)
 {
     int value = self->app_decoded.slots[self->cfg_i];
-    if( value >= 0x100 && value < 0x200 )
-        return CreateTask_IdkLoad(self->app->provider, value - 0x100);
-    if( value >= 0x200 )
-        return CreateTask_ObjLoad(self->app->provider, value - 0x200);
-    return NULL;
+    switch( Appearance_SlotKind(value) )
+    {
+    case APPEARANCE_SLOT_KIT:
+        return CreateTask_IdkLoad(self->app->provider, Appearance_SlotKit(value));
+    case APPEARANCE_SLOT_OBJ:
+        return CreateTask_ObjLoad(self->app->provider, Appearance_SlotObj(value));
+    case APPEARANCE_SLOT_EMPTY:
+    default:
+        return NULL;
+    }
 }
 
 static struct ToriRS_Task*
@@ -479,13 +497,16 @@ Task_ExecPlayerInfo_Run(
                     self->held_vals[0] = prim ? prim->replaceheldleft : -1;
                     self->held_vals[1] = prim ? prim->replaceheldright : -1;
                 }
-                /* Obj configs first — only obj-range values (>= 0x200) name an
-                 * obj; lower values hide the item and need no model. */
+                /* Obj configs first — the seq's replacehead values are appearance
+                 * slots, so only an obj-range one names an obj; anything lower
+                 * hides the item and needs no model. */
                 for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )
                     TASK_AWAITSELF_IF(
-                        self->held_vals[self->cfg_i] >= 0x200
+                        Appearance_SlotKind(self->held_vals[self->cfg_i]) ==
+                                APPEARANCE_SLOT_OBJ
                             ? CreateTask_ObjLoad(
-                                  app->provider, self->held_vals[self->cfg_i] - 0x200)
+                                  app->provider,
+                                  Appearance_SlotObj(self->held_vals[self->cfg_i]))
                             : NULL);
                 /* Then their gendered wear models (slot 3 = right hand, slot 5 =
                  * left hand — same appearance encoding the swap feeds the build). */
@@ -495,8 +516,14 @@ Task_ExecPlayerInfo_Run(
                     int held_slots[12];
                     for( int k = 0; k < 12; k++ )
                         held_slots[k] = -1;
-                    held_slots[3] = self->held_vals[1] >= 0x200 ? self->held_vals[1] : -1;
-                    held_slots[5] = self->held_vals[0] >= 0x200 ? self->held_vals[0] : -1;
+                    held_slots[3] =
+                        Appearance_SlotKind(self->held_vals[1]) == APPEARANCE_SLOT_OBJ
+                            ? self->held_vals[1]
+                            : -1;
+                    held_slots[5] =
+                        Appearance_SlotKind(self->held_vals[0]) == APPEARANCE_SLOT_OBJ
+                            ? self->held_vals[0]
+                            : -1;
                     self->model_count = PlayerModel_CollectAppearanceModelIds(
                         app->provider,
                         held_slots,

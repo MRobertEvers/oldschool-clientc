@@ -606,6 +606,20 @@ early (29 registrations, mostly skilling axes/pickaxes/harpoons).
 `dragon_halberd_special_attack` and `slayer_whip_sp_attack` are all present in
 this cache by name — confirm on pixels, not by `grep`.
 
+> **A §1 ownership gap this slice cannot close by itself (2026-08-04).** Ten
+> `pvm_*.rs2` files now exist and their anims/sounds are proven at runtime, but
+> **none of them can be reached from real gameplay.** Dispatch runs through
+> `player_special_attack.rs2`'s `switch_int(oc_param($weapon, sa_kind))`, so
+> arming a new spec needs **two files no lane-G agent may write**: an
+> `sa_kind` row in `special_attack.obj` (**lane E's**, §1) and a matching
+> `case N:` in `player_special_attack.rs2` (**owned by nobody in §1**).
+> Measured: all 12 rows carrying `sa_kind` today are the pre-2004 LostCity set;
+> every one of the 10 new weapons has `specwep` + `sa_energy` and **no**
+> `sa_kind`.
+>
+> This is not a lane-G shortfall — it is a hole in §1. Decide who owns the
+> wiring before slice 12, or every spec written stays dead code.
+
 ---
 
 ### Slice 12 — special attack behaviour, one weapon per agent  *(lane G, sharded)*

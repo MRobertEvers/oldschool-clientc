@@ -341,6 +341,255 @@ test_appearance_decode(void)
     printf("ok - appearance blob decode\n");
 }
 
+/* ------------------------------------------------------------------ */
+/* The 239 appearance block, and the encoding-independence claim        */
+/* ------------------------------------------------------------------ */
+
+static void
+bw_word(struct BitWriter* w, int value)
+{
+    bw_byte(w, (value >> 8) & 0xff);
+    bw_byte(w, value & 0xff);
+}
+
+static void
+bw_jstr(struct BitWriter* w, char const* s)
+{
+    for( ; *s; s++ )
+        bw_byte(w, (uint8_t)*s);
+    bw_byte(w, 0);
+}
+
+/* One kit in slot 2 and one worn obj in slot 4 — enough to tell the two tags
+ * apart, which is the whole risk in this block. */
+enum
+{
+    FIXTURE_KIT_SLOT = 2,
+    FIXTURE_KIT_ID = 18,
+    FIXTURE_OBJ_SLOT = 4,
+    FIXTURE_OBJ_ID = 1153,
+    FIXTURE_READY_ANIM = 808,
+    FIXTURE_COMBAT_LEVEL = 42,
+};
+
+/* The block the mock server's put_appearance_v5 writes, built independently
+ * here so the decoder is tested against the layout rather than against the
+ * writer's helper functions. `obj_tag` is a parameter so the test can hand the
+ * v5 reader a classic-tagged word and watch what it becomes. */
+static void
+build_v5_blob(struct BitWriter* w, int obj_tag, int customisation_flag)
+{
+    bw_byte(w, 0);   /* gender */
+    bw_byte(w, 255); /* skull icon: none */
+    bw_byte(w, 255); /* head icon: none */
+    for( int i = 0; i < 12; i++ ) /* equipment */
+    {
+        if( i == FIXTURE_KIT_SLOT )
+            bw_word(w, 0x100 + FIXTURE_KIT_ID);
+        else if( i == FIXTURE_OBJ_SLOT )
+            bw_word(w, obj_tag + FIXTURE_OBJ_ID);
+        else
+            bw_byte(w, 0);
+    }
+    for( int i = 0; i < 12; i++ ) /* identKit */
+    {
+        if( i == FIXTURE_KIT_SLOT )
+            bw_word(w, 0x100 + FIXTURE_KIT_ID);
+        else
+            bw_byte(w, 0);
+    }
+    for( int i = 0; i < 5; i++ )
+        bw_byte(w, i); /* colours */
+    bw_word(w, FIXTURE_READY_ANIM);
+    for( int i = 0; i < 6; i++ )
+        bw_word(w, 65535);
+    bw_jstr(w, "test");
+    bw_byte(w, FIXTURE_COMBAT_LEVEL);
+    bw_word(w, 99); /* skill level */
+    bw_byte(w, 0);  /* hidden */
+    bw_word(w, customisation_flag);
+    bw_jstr(w, "");
+    bw_jstr(w, "");
+    bw_jstr(w, "");
+    bw_byte(w, 0); /* pronoun */
+}
+
+/* The same appearance in the classic block. */
+static void
+build_classic_blob(struct BitWriter* w)
+{
+    bw_byte(w, 0); /* gender */
+    bw_byte(w, 0); /* head icons */
+    for( int i = 0; i < 12; i++ )
+    {
+        if( i == FIXTURE_KIT_SLOT )
+            bw_word(w, 0x100 + FIXTURE_KIT_ID);
+        else if( i == FIXTURE_OBJ_SLOT )
+            bw_word(w, 0x200 + FIXTURE_OBJ_ID);
+        else
+            bw_byte(w, 0);
+    }
+    for( int i = 0; i < 5; i++ )
+        bw_byte(w, i);
+    bw_word(w, FIXTURE_READY_ANIM);
+    for( int i = 0; i < 6; i++ )
+        bw_word(w, 65535);
+    for( int i = 0; i < 8; i++ )
+        bw_byte(w, 0); /* name37 */
+    bw_byte(w, FIXTURE_COMBAT_LEVEL);
+}
+
+static void
+test_appearance_v5_decode(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerAppearance app;
+
+    build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
+    assert(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+
+    /* Both tags land in the canonical vocabulary, not on the wire's numbers. */
+    assert(app.slots[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    assert(app.slots[FIXTURE_OBJ_SLOT] == Appearance_PackObj(FIXTURE_OBJ_ID));
+    assert(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == FIXTURE_OBJ_ID);
+    assert(app.identkit[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    assert(app.identkit[FIXTURE_OBJ_SLOT] == 0);
+    assert(app.skull_icon == -1);
+    assert(app.headicon == 0);
+    assert(app.colors[3] == 3);
+    assert(app.readyanim == FIXTURE_READY_ANIM);
+    assert(app.turnanim == -1);
+    assert(strcmp(app.name, "test") == 0);
+    assert(app.combat_level == FIXTURE_COMBAT_LEVEL);
+    assert(app.skill_level == 99);
+    assert(app.hidden == 0);
+    assert(app.npc_id == -1);
+    printf("ok - 239 appearance block decode\n");
+}
+
+static void
+test_appearance_encoding_independent(void)
+{
+    struct BitWriter classic = { 0 };
+    struct BitWriter v5 = { 0 };
+    struct PktPlayerAppearance a_classic;
+    struct PktPlayerAppearance a_v5;
+
+    build_classic_blob(&classic);
+    build_v5_blob(&v5, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
+
+    assert(PktPlayerAppearance_Decode(&a_classic, classic.buf, bw_len(&classic)));
+    assert(PktPlayerAppearance_DecodeAs(&a_v5, APPEARANCE_ENC_V5, v5.buf, bw_len(&v5)));
+
+    /* Two blocks of different length, different field order and different tags
+     * describing one player: everything the client renders from must match. */
+    assert(bw_len(&classic) != bw_len(&v5));
+    assert(memcmp(a_classic.slots, a_v5.slots, sizeof(a_classic.slots)) == 0);
+    assert(memcmp(a_classic.colors, a_v5.colors, sizeof(a_classic.colors)) == 0);
+    assert(a_classic.gender == a_v5.gender);
+    assert(a_classic.readyanim == a_v5.readyanim);
+    assert(a_classic.turnanim == a_v5.turnanim);
+    assert(a_classic.combat_level == a_v5.combat_level);
+    assert(a_classic.headicon == a_v5.headicon);
+    printf("ok - classic and 239 blocks decode to the same appearance\n");
+}
+
+static void
+test_appearance_tag_is_per_encoding(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerAppearance app;
+
+    /*
+     * The silent failure this module exists to prevent: the classic worn-obj
+     * tag read under the 239 encoding is not an error — 0x200 + obj sits inside
+     * the 239 kit range, so it decodes as a perfectly valid body part. The tag
+     * is therefore never spelled at a call site, only chosen by encoding.
+     */
+    build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_CLASSIC, 0);
+    assert(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+    assert(Appearance_SlotKind(app.slots[FIXTURE_OBJ_SLOT]) == APPEARANCE_SLOT_KIT);
+    assert(Appearance_SlotObj(app.slots[FIXTURE_OBJ_SLOT]) == -1);
+    printf("ok - the worn-obj tag is per-encoding (classic tag reads as a kit at 239)\n");
+}
+
+static void
+test_appearance_rejects_undecodable(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerAppearance app;
+
+    /* A per-obj customisation block follows a set flag bit, and it is variable
+     * length — guessing its size reads every later field at the wrong offset,
+     * so the block is refused whole. */
+    build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_V5, 1 << 12);
+    assert(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+
+    /* Truncation is rejected rather than silently decoding a naked player:
+     * rsbuffer's getters return 0 past the end instead of failing. */
+    {
+        struct BitWriter full = { 0 };
+        build_v5_blob(&full, APPEARANCE_WIRE_OBJ_TAG_V5, 0);
+        assert(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, full.buf, 10));
+    }
+    {
+        struct BitWriter full = { 0 };
+        build_classic_blob(&full);
+        assert(!PktPlayerAppearance_Decode(&app, full.buf, bw_len(&full) - 1));
+    }
+    printf("ok - undecodable and truncated appearance blocks are refused\n");
+}
+
+static void
+test_appearance_transmog(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktAppearanceOp ops[PKT_APPEARANCE_OPS_MAX];
+    int n;
+    int saw_transmog = 0;
+    int visible_slots = 0;
+
+    bw_byte(&w, 0);
+    bw_byte(&w, 255);
+    bw_byte(&w, 255);
+    /* equipment[0] == 65535 is not a slot: an npc id follows and the array ENDS
+     * there — the other eleven entries are never written. */
+    bw_word(&w, APPEARANCE_WIRE_TRANSMOG);
+    bw_word(&w, 3106);
+    for( int i = 0; i < 12; i++ )
+        bw_byte(&w, 0); /* identKit */
+    for( int i = 0; i < 5; i++ )
+        bw_byte(&w, 0);
+    for( int i = 0; i < 7; i++ )
+        bw_word(&w, 65535);
+    bw_jstr(&w, "npc");
+    bw_byte(&w, 0);
+    bw_word(&w, 0);
+    bw_byte(&w, 0);
+    bw_word(&w, 0);
+    bw_jstr(&w, "");
+    bw_jstr(&w, "");
+    bw_jstr(&w, "");
+    bw_byte(&w, 0);
+
+    n = pkt_appearance_read(APPEARANCE_ENC_V5, w.buf, bw_len(&w), ops, PKT_APPEARANCE_OPS_MAX);
+    assert(n > 0);
+    for( int i = 0; i < n; i++ )
+    {
+        if( ops[i].kind == PKT_APPEARANCE_OP_TRANSMOG )
+        {
+            saw_transmog = 1;
+            assert(ops[i]._value == 3106);
+        }
+        if( ops[i].kind == PKT_APPEARANCE_OP_SLOT &&
+            ops[i]._slot.layer == APPEARANCE_LAYER_VISIBLE )
+            visible_slots++;
+    }
+    assert(saw_transmog);
+    assert(visible_slots == 0);
+    printf("ok - 239 transmog ends the equipment array\n");
+}
+
 int
 main(void)
 {
@@ -350,6 +599,11 @@ main(void)
     test_npc_add_change_type_spotanim();
     test_npc_type_width();
     test_appearance_decode();
+    test_appearance_v5_decode();
+    test_appearance_encoding_independent();
+    test_appearance_tag_is_per_encoding();
+    test_appearance_rejects_undecodable();
+    test_appearance_transmog();
     printf("entity-decode: all tests passed\n");
     return 0;
 }

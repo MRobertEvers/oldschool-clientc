@@ -3,6 +3,10 @@
 #include "engine/cache_provider.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/torirs_types.h"
+/* The appearance slot vocabulary (what a slot int means) is defined once, next
+ * to every wire spelling of it; the half this file uses is header-only and
+ * depends on nothing. See pkt_player_appearance.h. */
+#include "net/rev/packets/pkt_player_appearance.h"
 
 #include "toridraw.h"
 
@@ -106,18 +110,20 @@ PlayerModel_CollectAppearanceModelIds(
     for( int s = 0; s < 12 && count < cap; s++ )
     {
         int value = slots[s];
-        if( value >= 0x100 && value < 0x200 )
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
         {
-            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            struct ToriRS_Idk* idk =
+                CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
             if( !idk )
                 continue;
             for( int m = 0; m < idk->model_ids_count && count < cap; m++ )
                 if( idk->model_ids[m] >= 0 )
                     out_ids[count++] = idk->model_ids[m];
         }
-        else if( value >= 0x200 )
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
         {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int wear[3];
             if( !obj )
                 continue;
@@ -145,18 +151,20 @@ PlayerHeadModel_CollectHeadModelIds(
     for( int s = 0; s < 12 && count < cap; s++ )
     {
         int value = slots[s];
-        if( value >= 0x100 && value < 0x200 )
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
         {
-            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            struct ToriRS_Idk* idk =
+                CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
             if( !idk )
                 continue;
             for( int h = 0; h < 10 && count < cap; h++ )
                 if( idk->heads[h] > 0 )
                     out_ids[count++] = idk->heads[h];
         }
-        else if( value >= 0x200 )
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
         {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int head[2];
             if( !obj )
                 continue;
@@ -200,9 +208,10 @@ PlayerModel_BuildFromAppearance(
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
-        if( value >= 0x100 && value < 0x200 )
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
         {
-            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            struct ToriRS_Idk* idk =
+                CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
             if( !idk )
                 continue;
             for( int m = 0; m < idk->model_ids_count; m++ )
@@ -224,9 +233,10 @@ PlayerModel_BuildFromAppearance(
                 part_count = append_model(parts, part_count, model);
             }
         }
-        else if( value >= 0x200 )
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
         {
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int wear[3];
             if( !obj )
                 continue;
@@ -302,9 +312,10 @@ PlayerHeadModel_BuildFromAppearance(
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
-        if( value >= 0x100 && value < 0x200 )
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
         {
-            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, value - 0x100);
+            struct ToriRS_Idk* idk =
+                CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
             if( !idk )
                 continue;
             for( int h = 0; h < 10; h++ )
@@ -325,13 +336,14 @@ PlayerHeadModel_BuildFromAppearance(
                 part_count = append_model(parts, part_count, model);
             }
         }
-        else if( value >= 0x200 )
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
         {
             /* Worn-equipment head models (reference getHeadModel pulls
              * ObjType.getHeadModelNoCheck for slots >= 512): the gendered
              * manhead + manhead2 with the obj's own recolours. head[0] == -1
              * means the item covers no head. */
-            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, value - 0x200);
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int head[2];
             if( !obj )
                 continue;

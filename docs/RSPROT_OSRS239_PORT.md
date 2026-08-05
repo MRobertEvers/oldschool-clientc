@@ -5,6 +5,28 @@
 > take for an unmodified OldSchool client to talk to this server**, and how far
 > along that is.
 
+## 0a. `3rd/rsprot` — a standalone C port of RSProt itself
+
+Everything below this point is about the **hand-transcribed** tables in
+`src/net/rev/osrs230/` and `src/net/rev/osrs239/`. As of 2026-08-04 there is
+also `3rd/rsprot/` — a standalone library (unity build, single header, own
+`makefile`, own tests) that ports RSProt's *runtime* rather than transcribing
+one revision's opcode table by hand: `JagByteBuf` (every byte/bit access
+method, all Alt1-3 orders, smart/varint encodings — `rsprot_buf.c`), the
+ISAAC/XTEA/RSA crypto as thin adapters over this project's existing
+`src/net/isaac.c` / `3rd/xteas` / `src/net/rsa.c` rather than a second copy,
+the Huffman chat codec and Base37 name codec (full port), and **generated
+`{name, opcode, size}` prot tables for all 19 revisions RSProt vendors**
+(221..239 — `tools/rsprot_gen_tables.py`, cross-checked against the facts in
+§5a/§5b of this doc). See `3rd/rsprot/README.md` for full scope and status,
+including what is deliberately **not** done yet: message-struct/encoder/
+decoder codec bodies (the ~65k lines of Kotlin under RSProt's `osrs-239-desktop`
+and `osrs-239-model`) and the PLAYER_INFO/NPC_INFO v5 info streams, which
+`mock239_playerinfo.c` (§5c below) still owns. The library is standalone by
+design — it does not yet replace or feed `mock230_wire.c` /
+`src/net/rev/osrs239/` / `3rd/rsareabuf`, which this doc continues to describe
+as they exist today.
+
 ## 0. The one-paragraph state
 
 The revision-239 wire tables, the framing change they need, the login block and

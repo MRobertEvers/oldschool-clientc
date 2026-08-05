@@ -8110,9 +8110,10 @@ Task_AppIfHead_Run(
         for( self->slot_i = 0; self->slot_i < 12; self->slot_i++ )
         {
             struct WorldEntity_Player* lp = app_local_player(app);
-            if( lp && lp->appearance.slots[self->slot_i] >= 0x200 )
-                TASK_AWAITSELF_IF(CreateTask_ObjLoad(
-                    app->provider, lp->appearance.slots[self->slot_i] - 0x200));
+            int slot = lp ? lp->appearance.slots[self->slot_i] : 0;
+            if( Appearance_SlotKind(slot) == APPEARANCE_SLOT_OBJ )
+                TASK_AWAITSELF_IF(
+                    CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
         }
         {
             struct WorldEntity_Player* lp = app_local_player(app);
@@ -12161,9 +12162,10 @@ app_world_apply_entity_anim_tracks(
  * no worn slots). Reference ClientPlayer.getSequencedModel: while the PRIMARY
  * seq is actually driving frames (delay 0), its replaceheldleft/right override
  * the left-hand (appearance slot 5) / right-hand (slot 3) worn item before the
- * model is composited. A value >= 0 but below the obj range (< 0x200) draws no
- * model there, i.e. the held item is hidden (e.g. many emotes drop the weapon
- * and shield); a value >= 0x200 swaps in a different obj. The appearance model
+ * model is composited. The override is an appearance slot: a value >= 0 that is
+ * not in the obj range draws no model there, i.e. the held item is hidden (e.g.
+ * many emotes drop the weapon and shield); an obj-range value swaps in a
+ * different obj (see pkt_player_appearance.h). The appearance model
  * is built once and cached on the scene element, so rebuild it only when the
  * effective override changes (anim start/stop), keyed by held_*_applied. */
 static void
