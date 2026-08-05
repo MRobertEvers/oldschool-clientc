@@ -484,6 +484,81 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # decompiling 45 of its 87 scripts where no other arity in the space
     # decompiles any, and 45 more scripts across the cache besides.
     "_1703": (["INT"], ["INT"], True),
+
+    # ---------------------------------------------------------------
+    # Read out of the *rev-239* client, which the block above did not have.
+    #
+    # `Deobfuscator/src_osrs239_rl1_12_33/deob/Statics.java`, the same tree
+    # `Deobfuscator/instr/src/` compiles. `Statics.method6889` is a range ladder
+    # from opcode to group handler; the citation on each line is the handler and
+    # the case. Ranges used here, re-derived from the ladder rather than read by
+    # eye (reading it by eye put the 4000s off by one hundred):
+    #
+    #     100..1000 method4548   1700..1800 method12337   2500..2600 method4787
+    #     2600..2700 method8067  4100..4200 method5814    4200..4300 method2965
+    #     8000..8100 method12336
+    #
+    # The three stacks, and which is which, are not guessed: `method7522` is
+    # `pushValueOfType` -- the deobfuscation left its exception strings intact --
+    # and it switches on the base var type to
+    #
+    #     type 1 -> class42.field258 / field259    (Long) ..... the long stack
+    #     type 2 -> class42.field252 / field3897   Object ..... the STRING stack
+    #     type 3 -> class42.field254 / field257    (Integer) .. the INT stack
+    #
+    # so `field252` is where strings live, despite `field258` being the one that
+    # looks like a string stack from its neighbours. One slot is 818837815 on
+    # field257, 1907375409 on field259 and -1540699919 on field3897; a multi-slot
+    # move is written as the multiple wrapped to signed 32 bits, so
+    # `field257 -= -1838453851` is a pop of three ints, not a push.
+    #
+    # Two things make counting the idioms in a case body wrong on its own, and
+    # both bit before they were caught:
+    #
+    #  - a handler can pop in its *preamble*, before it looks at the opcode.
+    #    method4787 and method8067 both open by popping a component id, so every
+    #    opcode in 2500..2699 takes one more argument than its own case shows.
+    #    `if_getx` 2500 in the vendored table confirms it: one COMPONENT in.
+    #  - a case can push through a helper. `method2627` pushes 0 or 1 on every
+    #    path -- it is "set the active component and push whether it was found" --
+    #    so opcodes 210 and 217..221 push an int no idiom in their body shows.
+    #    Every opcode below was checked against a transitive closure of which
+    #    methods in the tree touch a stack pointer; none of them reach one.
+    #
+    # `dot` is whether the case reads the handler's `var2`, the per-instruction
+    # flag the interpreter builds from `Script.field272[pc]`. That matches the
+    # corpus: 208 reads it and is the one opcode here whose operand byte is 1 at
+    # its only call site, and 216, which does not read it, is 0 at all 56 of its.
+    "_208": ([], ["INT"], True),                    # method4548 case 208
+    "_216": (["INT", "INT"], ["INT"], False),       # method4548 case 216
+    "_1707": ([], ["INT"], True),                   # method12337 case 1707
+    # 2506/2624: nothing in the case body, one int from the handler preamble.
+    "_2506": (["COMPONENT"], ["INT"], False),       # method4787 preamble + case
+    "_2624": (["COMPONENT"], ["INT"], False),       # method8067 preamble + case
+    # 4127 is the least ambiguous case in the client: it is a literal
+    # `Integer.parseInt(String)` in a try/catch, pushing the value then 1, or
+    # 0 then 0 on NumberFormatException. One string in, two ints out.
+    "_4127": (["STRING"], ["INT", "INT"], False),   # method5814 case 4127
+    "_4223": ([], [], False),                       # method2965 case 4223
+    # The 8000 block is the array family (_8022 ARRAY_NEW above hands out the
+    # handles). The handle is a string -- `field252` -- and is the first push at
+    # every call site, so it leads the argument list, matching _8003/_8018/
+    # _8019/_8023/_8024. The trailing int of the four is a *type code*: the
+    # client feeds it to `method6560`, which resolves a base var type rather
+    # than reading a value, so all four arguments are int-stack.
+    "_8005": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
+    "_8007": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
+    "_8010": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "_8011": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "_8014": (["STRING", "INT", "INT"], [], False),              # method12336
+    "_8020": (["INT", "INT"], ["STRING"], False),                # method12336
+    # 8026 is polymorphic in the client -- it ends in `method7522`
+    # (pushValueOfType), so what it pushes is the array's element type, not a
+    # fixed stack. It is recorded statically anyway because every one of its 61
+    # call sites in cache.osrs239 indexes an int-typed array: each is followed
+    # immediately by `pop_int_discard` or an int-consuming op. If a string-typed
+    # array ever reaches it this needs a LOCAL_KINDS entry, as db_getfield has.
+    "_8026": (["STRING", "INT"], ["INT"], False),                # method12336
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

@@ -5665,6 +5665,17 @@ app_update_painter_cull(
 
     /* Follow cam owns the orbit anchor; free/scripted cam is eye-centred. */
     follow_cam = app->net && !app->cam_script.scripted;
+    /* TORIRS_WEDGE_DRAWCENTER=eye — centre the painter's draw box on the EYE tile
+     * instead of the orbit anchor, which is what the official does
+     * unconditionally (class112.method4111 derives the window from field1755 /
+     * field1765, the camera tile). Diagnostic knob for the draw-order capture:
+     * without it the two clients' 51x51 windows cover different tiles and an
+     * order diff conflates "different box" with "different traversal". */
+    {
+        char const* dc = getenv("TORIRS_WEDGE_DRAWCENTER");
+        if( dc && strcmp(dc, "eye") == 0 )
+            follow_cam = 0;
+    }
     if( follow_cam )
     {
         center_sx = app->orbit_x >> 7;
@@ -5825,6 +5836,36 @@ app_update_painter_cull(
 static void
 app_world_paint(struct App* app)
 {
+    /* TORIRS_WEDGE_CAM=x,y,z,pitch,yaw — pin the eye so a draw-order capture can
+     * be taken at the same camera as the instrumented official client. Pitch/yaw
+     * are the C client's 2048-per-turn units (the official's 16384-per-turn value
+     * divided by 8). Off unless the env var is set; when set it is re-applied every
+     * frame *before* anything reads the camera, so the painter, the occluders and
+     * the frame the renderer draws all agree. Ordering telemetry is worthless if
+     * the two clients look from different places (the C settled eye is two tiles
+     * farther in z than the official's, and the bucket traversal is centred on the
+     * camera tile). */
+    {
+        static int resolved = 0;
+        static int have = 0;
+        static int px, py, pz, ppitch, pyaw;
+        if( !resolved )
+        {
+            char const* wc = getenv("TORIRS_WEDGE_CAM");
+            resolved = 1;
+            if( wc && sscanf(wc, "%d,%d,%d,%d,%d", &px, &py, &pz, &ppitch, &pyaw) == 5 )
+                have = 1;
+        }
+        if( have )
+        {
+            app->world_camera_pos.x = px;
+            app->world_camera_pos.y = py;
+            app->world_camera_pos.z = pz;
+            app->world_camera.pitch = ppitch;
+            app->world_camera.yaw = pyaw;
+        }
+    }
+
     /* >>7, not /128: the orbit eye can sit at negative coords past the scene
      * edge, and truncation toward zero would mis-seed the bucket flood-fill
      * origin by a tile. Clamp into the scene — the bucket's distance metric
@@ -5982,6 +6023,15 @@ app_world_paint(struct App* app)
             occ->active_count = 0;
         }
     }
+
+    /* Draw-order telemetry (TORIRS_WEDGELOG): hand the painter the eye and world
+     * viewport it is about to paint with, for the log header. No-op otherwise. */
+    painter_wedgelog_set_eye(
+        app->world_camera_pos.x,
+        app->world_camera_pos.y,
+        app->world_camera_pos.z,
+        app->world_view_valid ? app->world_emit_desc.w : 0,
+        app->world_view_valid ? app->world_emit_desc.h : 0);
 
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 

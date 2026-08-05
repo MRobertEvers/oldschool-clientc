@@ -1688,6 +1688,246 @@ painter_dump_command_order(
     fflush(stdout);
 }
 
+/* ---------------------------------------------------------------------------
+ * TORIRS_WEDGELOG=<path> — per-frame DRAW ORDER telemetry.
+ *
+ * Emits the same 7-column schema as the instrumented official rev-239 client
+ * (Deobfuscator/instr/src/WedgeLog.java, hooked into class112):
+ *
+ *     seq  plane  x  z  drawLevel  renderLevel  what  [extra...]
+ *
+ *   plane        PaintersTile paintgrid_level — the grid slot the traversal is
+ *                walking (official: the plane index of the tile array).
+ *   drawLevel    PaintersTile visible_gte_level — the level at or above which
+ *                the UI floor reveals this tile (official class112.method4161).
+ *   renderLevel  the cache level whose mesh / element is actually drawn
+ *                (official class112.method4114). For terrain this is the
+ *                emitted mesh level; for elements it is the element's
+ *                source_level.
+ *   what         MARK / SEED / PUSH / POP for traversal machinery, otherwise a
+ *                geometry category using the official's vocabulary
+ *                (floor, wall_a, wall_b, wall_back_a, wall_back_b, decor,
+ *                decor_alt, decor_back, decor_back_alt, grounddecor, item,
+ *                item_back, loc, entity, and the `:bridge` variants).
+ *
+ * Everything here is read-only telemetry: it never mutates painter, tile or
+ * command state, and the whole thing folds away behind one `armed` test when
+ * the env var is unset.
+ *
+ * TORIRS_WEDGELOG_AT=<n>      capture on the n-th painter_paint_bucket call
+ *                             (default 700 — the camera must have settled).
+ * TORIRS_WEDGELOG_FRAMES=<n>  number of consecutive frames to record (default 1).
+ * ------------------------------------------------------------------------ */
+struct PainterWedgeLog
+{
+    FILE* fp;
+    int enabled; /* -1 = unresolved */
+    int armed;
+    int paint_calls;
+    int at;
+    int frames_left;
+    long seq;
+    long paints;
+    int eye_x;
+    int eye_y;
+    int eye_z;
+    int vp_w;
+    int vp_h;
+    int eye_valid;
+    const struct Painter* painter;
+    char path[512];
+};
+
+static struct PainterWedgeLog g_wedgelog = { NULL, -1, 0, 0, 700, 1, 0, 0, 0, 0, 0, 0, 0, 0, NULL,
+                                             { 0 } };
+
+void
+painter_wedgelog_set_eye(
+    int eye_x,
+    int eye_y,
+    int eye_z,
+    int viewport_w,
+    int viewport_h)
+{
+    if( g_wedgelog.enabled == 0 )
+        return;
+    if( g_wedgelog.enabled < 0 )
+    {
+        char const* p = getenv("TORIRS_WEDGELOG");
+        char const* at = getenv("TORIRS_WEDGELOG_AT");
+        char const* fr = getenv("TORIRS_WEDGELOG_FRAMES");
+        g_wedgelog.enabled = (p && p[0]) ? 1 : 0;
+        if( g_wedgelog.enabled )
+        {
+            snprintf(g_wedgelog.path, sizeof(g_wedgelog.path), "%s", p);
+            if( at && at[0] )
+                g_wedgelog.at = atoi(at);
+            if( fr && fr[0] )
+                g_wedgelog.frames_left = atoi(fr);
+        }
+        if( !g_wedgelog.enabled )
+            return;
+    }
+    g_wedgelog.eye_x = eye_x;
+    g_wedgelog.eye_y = eye_y;
+    g_wedgelog.eye_z = eye_z;
+    g_wedgelog.vp_w = viewport_w;
+    g_wedgelog.vp_h = viewport_h;
+    g_wedgelog.eye_valid = 1;
+}
+
+/** True when this paint call is being recorded. */
+static inline int
+painter_wedgelog_armed(void)
+{
+    return g_wedgelog.armed;
+}
+
+/* Opens the sink on the requested paint call and writes the `#frame` /
+ * `#path` header. Returns non-zero when this frame is being recorded. */
+static int
+painter_wedgelog_frame_begin(
+    const struct Painter* painter,
+    int camera_sx,
+    int camera_sz,
+    int center_sx,
+    int center_sz,
+    int min_draw_x,
+    int max_draw_x,
+    int min_draw_z,
+    int max_draw_z,
+    int radius,
+    unsigned draw_mask)
+{
+    g_wedgelog.armed = 0;
+    if( g_wedgelog.enabled <= 0 )
+        return 0;
+    g_wedgelog.paint_calls++;
+    if( g_wedgelog.paint_calls < g_wedgelog.at )
+        return 0;
+    if( g_wedgelog.frames_left <= 0 )
+        return 0;
+    if( !g_wedgelog.fp )
+    {
+        g_wedgelog.fp = fopen(g_wedgelog.path, "w");
+        if( !g_wedgelog.fp )
+        {
+            g_wedgelog.enabled = 0;
+            return 0;
+        }
+    }
+    g_wedgelog.armed = 1;
+    g_wedgelog.painter = painter;
+    g_wedgelog.seq = 0;
+    g_wedgelog.paints = 0;
+    g_wedgelog.frames_left--;
+
+    fprintf(g_wedgelog.fp, "#frame %d\n", g_wedgelog.paint_calls);
+    fprintf(
+        g_wedgelog.fp,
+        "#path bucket:painter_paint_bucket dims=%dx%d planes=%d camTile=%d,%d cam=%d,%d,%d "
+        "drawCenter=%d,%d window=x[%d,%d)z[%d,%d) drawDist=%d levelMask=0x%x minLevel=%d "
+        "vp=%dx%d pitch=%d yaw=%d cullspan=%d occluders=%d\n",
+        painter->width,
+        painter->height,
+        painter->levels,
+        camera_sx,
+        camera_sz,
+        g_wedgelog.eye_x,
+        g_wedgelog.eye_y,
+        g_wedgelog.eye_z,
+        center_sx,
+        center_sz,
+        min_draw_x,
+        max_draw_x,
+        min_draw_z,
+        max_draw_z,
+        radius,
+        draw_mask,
+        painter->min_level,
+        g_wedgelog.vp_w,
+        g_wedgelog.vp_h,
+        painter->camera_pitch,
+        painter->camera_yaw,
+        painter->cullspan_active,
+        painter->occluders ? painter->occluders->active_count : -1);
+    return 1;
+}
+
+static void
+painter_wedgelog_frame_end(long command_count)
+{
+    if( !g_wedgelog.armed )
+        return;
+    fprintf(
+        g_wedgelog.fp,
+        "#endframe seq=%ld paints=%ld commands=%ld\n",
+        g_wedgelog.seq,
+        g_wedgelog.paints,
+        command_count);
+    fflush(g_wedgelog.fp);
+    g_wedgelog.armed = 0;
+    if( g_wedgelog.frames_left <= 0 )
+    {
+        fclose(g_wedgelog.fp);
+        g_wedgelog.fp = NULL;
+        g_wedgelog.enabled = 0;
+    }
+}
+
+/** Traversal machinery row: `seq plane x z - - KIND extra`. */
+static void
+painter_wedgelog_event(
+    int ti,
+    const char* kind,
+    const char* extra)
+{
+    const struct PaintersTile* t;
+    if( !g_wedgelog.armed )
+        return;
+    t = &g_wedgelog.painter->tiles[ti];
+    fprintf(
+        g_wedgelog.fp,
+        "%ld %d %d %d - - %s%s%s\n",
+        ++g_wedgelog.seq,
+        (int)painters_tile_get_paintgrid_level(t),
+        (int)t->sx,
+        (int)t->sz,
+        kind,
+        extra ? " " : "",
+        extra ? extra : "");
+}
+
+/** Geometry row: `seq plane x z drawLevel renderLevel what p=<paint#> ...`. */
+static void
+painter_wedgelog_paint(
+    int ti,
+    const char* what,
+    int render_level,
+    int entity,
+    int element_idx)
+{
+    const struct PaintersTile* t;
+    if( !g_wedgelog.armed )
+        return;
+    t = &g_wedgelog.painter->tiles[ti];
+    fprintf(
+        g_wedgelog.fp,
+        "%ld %d %d %d %d %d %s p=%ld ent=%d elem=%d spans=0x%x flags=0x%x\n",
+        ++g_wedgelog.seq,
+        (int)painters_tile_get_paintgrid_level(t),
+        (int)t->sx,
+        (int)t->sz,
+        (int)painters_tile_get_visible_gte_level(t),
+        render_level,
+        what,
+        ++g_wedgelog.paints,
+        entity,
+        element_idx,
+        (unsigned)t->spans,
+        (unsigned)painters_tile_get_flags(t));
+}
+
 // clang-format off
 #include "painters_bucket.u.c"
 #include "painters_world3d.u.c"

@@ -1420,6 +1420,21 @@ main(int argc, char** argv)
         store.have_cache = true;
         store.trailer_flags = RSCache_ClientScriptFlags(&store.profile);
     }
+    else if( options.revision_name )
+    {
+        /* A bare script dump carries no revision, but the caller can still name
+         * one. `--raw` output written by `compile --cache` uses that cache's
+         * trailer, so without this a dump could only be read back under the
+         * legacy footer and diffing a recompile against its source was
+         * impossible. */
+        if( !tool_resolve_profile(
+                options.revision_name, NULL, NULL, NULL, NULL, &store.profile) )
+        {
+            free(explicit_ids);
+            return 1;
+        }
+        store.trailer_flags = RSCache_ClientScriptFlags(&store.profile);
+    }
     else
     {
         /* A bare script dump carries no revision, so the trailer width cannot

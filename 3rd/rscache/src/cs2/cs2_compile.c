@@ -91,6 +91,9 @@ struct cs2_cc_switch
     int* targets;
     int count;
     int capacity;
+    /* Index of the SWITCH instruction itself. Case targets are stored relative
+     * to it, so anything that renumbers instructions has to move both. */
+    int pc;
 };
 
 struct cs2_cc_local
@@ -1267,6 +1270,33 @@ cs2_cc_command_arguments(
  * just created rather than to the trough. `cs2_translate_clientscript` reads
  * that operand back on the same rule, so the two must agree.
  */
+/**
+ * The descriptor letter for one callback argument.
+ *
+ * A hook's descriptor used to carry each argument's *real* type — 'I' for a
+ * component, 'o' for an obj — and `cs2_parse_hook_desc` still reads any of
+ * them, because older caches have them. This revision does not write them.
+ *
+ * Measured over the whole of cache.osrs239: 29,323 descriptor characters, and
+ * the alphabet is exactly `i` (27038), `s` (1124) and the trailing `Y` (1159)
+ * that marks a trigger list. Not one fine-type letter anywhere. Writing the
+ * fine type back was the largest single round-trip defect in the corpus — 1506
+ * scripts differing from the original by nothing but this, always in the same
+ * direction ('i' in the cache, a narrower letter from us: 4622 times 'I', 120
+ * 'd', 78 'g', and so on down; never once the reverse).
+ *
+ * The narrower type is not recoverable from source anyway. The decompiler names
+ * a local `$component5` because its *other* uses type it, and a descriptor 'i'
+ * deliberately does not freeze it (see the interpreter's note at
+ * cs2_translate_clientscript); so re-deriving the letter from the argument
+ * expression can only ever over-specify.
+ */
+static char
+cs2_cc_desc_letter(enum RSCache_CS2_Type type)
+{
+    return RSCache_CS2_TypeStackType(type) == RSCACHE_CS2_STACK_STRING ? 's' : 'i';
+}
+
 static void
 cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
 {
@@ -1364,7 +1394,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                             cs2_cc_leave_fragment(cc, &saved);
                             return;
                         }
-                        descriptor[descriptor_length++] = (char)RSCache_CS2_TypeDesc(dotted);
+                        descriptor[descriptor_length++] = cs2_cc_desc_letter(dotted);
                         cs2_cc_expression(cc, dotted);
                         if( !cs2_cc_accept_punct(cc, ',') )
                             break;
@@ -1449,7 +1479,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                     cs2_cc_leave_fragment(cc, &saved);
                     return;
                 }
-                descriptor[descriptor_length++] = (char)RSCache_CS2_TypeDesc(type);
+                descriptor[descriptor_length++] = cs2_cc_desc_letter(type);
 
                 cs2_cc_expression(cc, type);
                 if( !cs2_cc_accept_punct(cc, ',') )
@@ -2092,6 +2122,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     if( !cs2_cc_expect_punct(cc, ')') || cc->failed )
         return;
     int switch_pc = cs2_cc_emit(cc, RSCACHE_CS2_OP_SWITCH, table);
+    entries->pc = switch_pc;
     if( !cs2_cc_expect_punct(cc, '{') )
         return;
 
@@ -2386,6 +2417,70 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
     cs2_cc_emit(cc, pop, id);
 }
 
+/**
+ * What a call written as a *statement* will leave on the operand stacks.
+ *
+ * A statement leaves the stacks as it found them, so a call that returns
+ * anything is followed by one POP_INT_DISCARD / POP_STRING_DISCARD per result.
+ * Source cannot show this — `~script1205;` reads the same whether the proc
+ * returns nothing or an int nobody wants — so the count comes from the callee,
+ * exactly as the decompiler had it when it dropped the discards in the first
+ * place. Missing them cost 3 bytes a call and was the whole of the round-trip's
+ * −3 family.
+ *
+ * Reads ahead only; the caller still compiles the expression normally. Returns
+ * 0 whenever the answer is not certain — an unknown command, a data-dependent
+ * kind such as db_getfield, or a callee whose script cannot be loaded — because
+ * a wrong discard is worse than a missing one.
+ */
+static int
+cs2_cc_statement_results(
+    struct cs2_cc_compiler* cc, enum RSCache_CS2_StackType* out, int capacity)
+{
+    if( cs2_cc_at_punct(cc, '~') )
+    {
+        if( !cc->options || !cc->options->scripts.load )
+            return 0;
+        const struct cs2_cc_token* name = cs2_cc_peek(cc);
+        int callee = -1;
+        if( name->kind != CS2_CC_TOK_IDENT ||
+            !cs2_cc_resolve_script(cc, name->text, RSCACHE_CS2_TRIGGER_PROC, &callee) )
+            return 0;
+        const struct RSCache_CS2_Script* script =
+            cc->options->scripts.load(cc->options->scripts.user, callee);
+        if( !script )
+            return 0;
+        return RSCache_CS2_ScriptReturnTypes(script, out, capacity);
+    }
+
+    const char* name = NULL;
+    if( cc->token.kind == CS2_CC_TOK_IDENT )
+        name = cc->token.text;
+    else if( cs2_cc_at_punct(cc, '.') && cs2_cc_peek(cc)->kind == CS2_CC_TOK_IDENT )
+        name = cs2_cc_peek(cc)->text;
+    if( !name )
+        return 0;
+
+    int opcode = RSCache_CS2_CommandOfName(name);
+    const struct RSCache_CS2_CommandInfo* info =
+        opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
+    /* Only BASIC has a fixed result list. The rest either push nothing or push
+     * a count only the data knows, as db_getfield does. */
+    if( !info || info->kind != RSCACHE_CS2_CMD_BASIC )
+        return 0;
+
+    int count = info->def_count < capacity ? info->def_count : capacity;
+    for( int i = 0; i < count; i++ )
+    {
+        const struct RSCache_CS2_Prototype* proto =
+            RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, i));
+        out[i] = proto && proto->type == RSCACHE_CS2_TYPE_STRING
+                     ? RSCACHE_CS2_STACK_STRING
+                     : RSCACHE_CS2_STACK_INT;
+    }
+    return count;
+}
+
 static void
 cs2_cc_statement(struct cs2_cc_compiler* cc)
 {
@@ -2555,8 +2650,22 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         return;
     }
 
-    /* A bare command call. */
-    cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+    /* A bare command call. Whatever it returns is thrown away, and the bytecode
+     * says so explicitly — see cs2_cc_statement_results. */
+    {
+        enum RSCache_CS2_StackType results[64];
+        int result_count = cs2_cc_statement_results(cc, results, 64);
+        cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+        /* Top of stack first, so the last result is discarded first. */
+        for( int i = result_count - 1; i >= 0 && !cc->failed; i-- )
+        {
+            cs2_cc_emit(
+                cc,
+                results[i] == RSCACHE_CS2_STACK_STRING ? RSCACHE_CS2_OP_POP_STRING_DISCARD
+                                                       : RSCACHE_CS2_OP_POP_INT_DISCARD,
+                0);
+        }
+    }
     cs2_cc_accept_punct(cc, ';');
 }
 
@@ -2705,6 +2814,141 @@ cs2_cc_signature(struct cs2_cc_compiler* cc)
 }
 
 /* -------------------------------------------------------------------------
+ * Peephole: drop branches that land on the very next instruction
+ *
+ * `cs2_cc_if` and `cs2_cc_switch` emit a "jump to the end of the construct"
+ * after every body, because a body followed by an `else` (or another case)
+ * needs one. When the body is the *last* one, that jump's target is the
+ * instruction immediately after it, so its operand resolves to 0 — a jump to
+ * the next instruction, which is what the machine would have done anyway.
+ *
+ * The official compiler does not emit those. Measured over `cache.osrs239`:
+ * 51,711 of the corpus's 51,716 unconditional branches have a non-zero
+ * operand, and no conditional branch has a zero one at all. Emitting them cost
+ * exactly one instruction — 6 bytes, opcode plus int operand — per trailing
+ * body, which is the entire shape of the round-trip length histogram (+6 in
+ * 2147 scripts, +12 in 911, +18 in 474, and so on in units of one).
+ *
+ * Removing them is done here rather than at the emit sites because the target
+ * is not known until the construct closes, and because a removal can shorten
+ * another branch's span to zero in turn — hence the fixpoint.
+ * ---------------------------------------------------------------------- */
+
+static bool
+cs2_cc_is_branch(int opcode)
+{
+    switch( opcode )
+    {
+    case RSCACHE_CS2_OP_BRANCH:
+    case RSCACHE_CS2_OP_BRANCH_NOT:
+    case RSCACHE_CS2_OP_BRANCH_EQUALS:
+    case RSCACHE_CS2_OP_BRANCH_LESS_THAN:
+    case RSCACHE_CS2_OP_BRANCH_GREATER_THAN:
+    case RSCACHE_CS2_OP_BRANCH_LESS_THAN_OR_EQUALS:
+    case RSCACHE_CS2_OP_BRANCH_GREATER_THAN_OR_EQUALS:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void
+cs2_cc_drop_fallthrough_branches(struct cs2_cc_compiler* cc)
+{
+    if( cc->failed || cc->ops.count <= 0 )
+        return;
+
+    int count = cc->ops.count;
+    /* `map` is indexed by old instruction index and holds the new one. It needs
+     * a slot for `count` itself, because a branch may target one past the last
+     * instruction. */
+    int* map = (int*)malloc((size_t)(count + 1) * sizeof(int));
+    char* dropped = (char*)malloc((size_t)count);
+    if( !map || !dropped )
+    {
+        free(map);
+        free(dropped);
+        cs2_cc_fail(cc, "out of memory");
+        return;
+    }
+
+    for( ;; )
+    {
+        count = cc->ops.count;
+        int survivors = 0;
+        for( int i = 0; i < count; i++ )
+        {
+            map[i] = survivors;
+            dropped[i] = (char)(cc->ops.opcodes[i] == RSCACHE_CS2_OP_BRANCH &&
+                                cc->ops.int_operands[i] == 0);
+            if( !dropped[i] )
+                survivors++;
+        }
+        map[count] = survivors;
+        if( survivors == count )
+            break;
+
+        /* Retarget before compacting: both sides of the arithmetic are still in
+         * old indices here. */
+        for( int i = 0; i < count; i++ )
+        {
+            if( !cs2_cc_is_branch(cc->ops.opcodes[i]) )
+                continue;
+            int target = i + 1 + cc->ops.int_operands[i];
+            if( target < 0 )
+                target = 0;
+            if( target > count )
+                target = count;
+            cc->ops.int_operands[i] = map[target] - map[i] - 1;
+        }
+        for( int t = 0; t < cc->switch_count; t++ )
+        {
+            struct cs2_cc_switch* entries = &cc->switches[t];
+            int pc = entries->pc;
+            if( pc < 0 || pc >= count )
+                continue;
+            for( int j = 0; j < entries->count; j++ )
+            {
+                int target = pc + 1 + entries->targets[j];
+                if( target < 0 )
+                    target = 0;
+                if( target > count )
+                    target = count;
+                entries->targets[j] = map[target] - map[pc] - 1;
+            }
+            entries->pc = map[pc];
+        }
+
+        int write = 0;
+        for( int i = 0; i < count; i++ )
+        {
+            if( dropped[i] )
+            {
+                /* A bare BRANCH never carries a string operand, but release it
+                 * rather than assume. */
+                free(cc->ops.string_operands[i]);
+                cc->ops.string_operands[i] = NULL;
+                continue;
+            }
+            cc->ops.opcodes[write] = cc->ops.opcodes[i];
+            cc->ops.int_operands[write] = cc->ops.int_operands[i];
+            cc->ops.string_operands[write] = cc->ops.string_operands[i];
+            write++;
+        }
+        for( int i = write; i < count; i++ )
+        {
+            cc->ops.opcodes[i] = 0;
+            cc->ops.int_operands[i] = 0;
+            cc->ops.string_operands[i] = NULL;
+        }
+        cc->ops.count = write;
+    }
+
+    free(map);
+    free(dropped);
+}
+
+/* -------------------------------------------------------------------------
  * Entry point
  * ---------------------------------------------------------------------- */
 
@@ -2774,6 +3018,10 @@ RSCache_CS2_Compile(
             cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
         }
     }
+
+    /* After the epilogue, so a branch aimed past the last statement is measured
+     * against the instruction stream the encoder will actually write. */
+    cs2_cc_drop_fallthrough_branches(&cc);
 
     bool ok = !cc.failed;
     if( ok )

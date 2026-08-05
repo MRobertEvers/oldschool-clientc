@@ -85,6 +85,12 @@ bucket_push_if_active(
         return 0;
     bucket_push(w, paints, ti, dist);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, 1);
+    if( painter_wedgelog_armed() )
+    {
+        char extra[32];
+        snprintf(extra, sizeof(extra), "d=%d", dist);
+        painter_wedgelog_event(ti, "PUSH", extra);
+    }
     return 1;
 }
 
@@ -229,6 +235,21 @@ painter_paint_bucket(
     painter_cullmap_refresh_camera_key(painter);
     cull_camera_key = painter->cull_camera_key;
 
+    /* Draw-order telemetry (TORIRS_WEDGELOG). Armed before the classify loop so
+     * the MARK rows land in the same file as the traversal. */
+    painter_wedgelog_frame_begin(
+        painter,
+        camera_sx,
+        camera_sz,
+        draw_center_sx,
+        draw_center_sz,
+        min_draw_x,
+        max_draw_x,
+        min_draw_z,
+        max_draw_z,
+        radius,
+        draw_mask);
+
     /* Contiguous row setup: reset + classify + count. Distance is derived at push. */
     int tiles_remaining = 0;
     int tiles_in_box = 0;
@@ -313,6 +334,8 @@ painter_paint_bucket(
 
                 tp->step = PAINT_STEP_READY;
                 tiles_remaining++;
+                if( painter_wedgelog_armed() )
+                    painter_wedgelog_event(ti, "MARK", NULL);
             }
         }
     }
@@ -404,6 +427,12 @@ painter_paint_bucket(
                 if( paints[tidx].step == PAINT_STEP_READY )
                 {
                     int dist = abs(sx - camera_sx) + abs(sz - camera_sz);
+                    if( painter_wedgelog_armed() )
+                    {
+                        char extra[48];
+                        snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
+                        painter_wedgelog_event(tidx, "SEED", extra);
+                    }
                     bucket_push_if_active(w, paints, tidx, dist);
                     check_adjacent = (phase == 1);
                     seeded = 1;
@@ -419,6 +448,12 @@ painter_paint_bucket(
         if( e_tile < 0 )
             continue;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, 1);
+        if( painter_wedgelog_armed() )
+        {
+            char extra[32];
+            snprintf(extra, sizeof(extra), "step=%d", (int)paints[e_tile].step);
+            painter_wedgelog_event(e_tile, "POP", extra);
+        }
 
         struct PaintersTile* tile = &tiles[e_tile];
         struct TilePaint* tile_paint = &paints[e_tile];
@@ -519,8 +554,12 @@ painter_paint_bucket(
                     unsigned uset = bridge_underpass_tile->terrain_levels;
                     for( int ml = 0; ml < 4; ml++ )
                         if( uset & (1u << ml) )
+                        {
                             bucket_emit_terrain(&cmd_cur, cmd_end, bridge_underpass_tile->sx,
                                                 bridge_underpass_tile->sz, ml);
+                            painter_wedgelog_paint(
+                                tile->bridge_tile, "floor:bridge", ml, -1, -1);
+                        }
                 }
 
                 if( bridge_underpass_tile->wall_a != -1 )
@@ -528,6 +567,12 @@ painter_paint_bucket(
                     struct PaintersElement* element = &elements[bridge_underpass_tile->wall_a];
                     assert(element->kind == PNTRELEM_WALL_A);
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    painter_wedgelog_paint(
+                        tile->bridge_tile,
+                        "wall:bridge",
+                        (int)element->source_level,
+                        element->_wall.entity,
+                        bridge_underpass_tile->wall_a);
                 }
 
                 for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
@@ -541,6 +586,13 @@ painter_paint_bucket(
                     struct PaintersElement* element = &elements[scenery_element];
                     assert(element->kind == PNTRELEM_SCENERY);
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
+                    painter_wedgelog_paint(
+                        tile->bridge_tile,
+                        scenery_element >= painter->static_element_count ? "entity:bridge"
+                                                                        : "loc:bridge",
+                        (int)element->source_level,
+                        element->_scenery.entity,
+                        scenery_element);
 
                     ep->drawn = true;
                 }
@@ -554,7 +606,10 @@ painter_paint_bucket(
                 unsigned set = tile->terrain_levels;
                 for( int ml = 0; ml < 4; ml++ )
                     if( set & (1u << ml) )
+                    {
                         bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                        painter_wedgelog_paint(e_tile, "floor", ml, -1, -1);
+                    }
             }
 
             if( tile->wall_a != -1 )
@@ -564,7 +619,12 @@ painter_paint_bucket(
                 if( (element->_wall.side & far_walls) != 0 &&
                     !(occ && scene_occluders_wall_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "wall_a", (int)element->source_level, element->_wall.entity,
+                        tile->wall_a);
+                }
             }
 
             if( tile->wall_b != -1 )
@@ -574,7 +634,12 @@ painter_paint_bucket(
                 if( (element->_wall.side & far_walls) != 0 &&
                     !(occ && scene_occluders_wall_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "wall_b", (int)element->source_level, element->_wall.entity,
+                        tile->wall_b);
+                }
             }
 
             if( tile->ground_decor != -1 )
@@ -583,7 +648,12 @@ painter_paint_bucket(
                 assert(element->kind == PNTRELEM_GROUND_DECOR);
                 if( !(occ && scene_occluders_column_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, 0)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "grounddecor", (int)element->source_level,
+                        element->_ground_decor.entity, tile->ground_decor);
+                }
             }
 
             if( tile->ground_object_bottom != -1 )
@@ -592,7 +662,12 @@ painter_paint_bucket(
                 assert(element->kind == PNTRELEM_GROUND_OBJECT);
                 if( !(occ && scene_occluders_column_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, 0)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "item", (int)element->source_level,
+                        element->_ground_object.entity, tile->ground_object_bottom);
+                }
             }
 
             if( tile->wall_decor_a != -1 )
@@ -621,20 +696,35 @@ painter_paint_bucket(
                     if( z_near < x_near )
                     {
                         if( !decor_hidden )
+                        {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                            painter_wedgelog_paint(
+                                e_tile, "decor", (int)element->source_level,
+                                element->_wall_decor.entity, tile->wall_decor_a);
+                        }
                     }
                     else if( tile->wall_decor_b != -1 )
                     {
                         element = &elements[tile->wall_decor_b];
                         assert(element->kind == PNTRELEM_WALL_DECOR);
                         if( !decor_hidden )
+                        {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                            painter_wedgelog_paint(
+                                e_tile, "decor_alt", (int)element->source_level,
+                                element->_wall_decor.entity, tile->wall_decor_b);
+                        }
                     }
                 }
                 else if( (element->_wall_decor._bf_side & far_walls) != 0 )
                 {
                     if( !decor_hidden )
+                    {
                         bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                        painter_wedgelog_paint(
+                            e_tile, "decor", (int)element->source_level,
+                            element->_wall_decor.entity, tile->wall_decor_a);
+                    }
                 }
             }
             else
@@ -761,7 +851,15 @@ painter_paint_bucket(
                       element->_scenery.size_x,
                       element->_scenery.size_z,
                       element->_scenery.model_height)) )
+            {
                 bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
+                painter_wedgelog_paint(
+                    e_tile,
+                    si >= painter->static_element_count ? "entity" : "loc",
+                    (int)element->source_level,
+                    element->_scenery.entity,
+                    si);
+            }
 
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
@@ -818,6 +916,8 @@ painter_paint_bucket(
                 continue;
             ep->drawn = true;
             bucket_emit_entity(&cmd_cur, cmd_end, el->_scenery.entity);
+            painter_wedgelog_paint(
+                e_tile, "item_back", (int)el->source_level, el->_scenery.entity, si);
         }
 
         {
@@ -859,20 +959,35 @@ painter_paint_bucket(
                     if( z_near >= x_near )
                     {
                         if( !decor_hidden )
+                        {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                            painter_wedgelog_paint(
+                                e_tile, "decor_back", (int)element->source_level,
+                                element->_wall_decor.entity, tile->wall_decor_a);
+                        }
                     }
                     else if( tile->wall_decor_b != -1 )
                     {
                         element = &elements[tile->wall_decor_b];
                         assert(element->kind == PNTRELEM_WALL_DECOR);
                         if( !decor_hidden )
+                        {
                             bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                            painter_wedgelog_paint(
+                                e_tile, "decor_back_alt", (int)element->source_level,
+                                element->_wall_decor.entity, tile->wall_decor_b);
+                        }
                     }
                 }
                 else if( (element->_wall_decor._bf_side & tile_paint->near_wall_flags) != 0 )
                 {
                     if( !decor_hidden )
+                    {
                         bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                        painter_wedgelog_paint(
+                            e_tile, "decor_back", (int)element->source_level,
+                            element->_wall_decor.entity, tile->wall_decor_a);
+                    }
                 }
             }
 
@@ -883,7 +998,12 @@ painter_paint_bucket(
                 if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
                     !(occ && scene_occluders_wall_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "wall_back_a", (int)element->source_level, element->_wall.entity,
+                        tile->wall_a);
+                }
             }
 
             if( tile->wall_b != -1 )
@@ -893,7 +1013,12 @@ painter_paint_bucket(
                 if( (element->_wall.side & tile_paint->near_wall_flags) != 0 &&
                     !(occ && scene_occluders_wall_hidden(
                                  occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+                {
                     bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "wall_back_b", (int)element->source_level, element->_wall.entity,
+                        tile->wall_b);
+                }
             }
         }
 
@@ -930,6 +1055,7 @@ painter_paint_bucket(
     buffer->command_count = (int)(cmd_cur - cmd_base);
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
 
+    painter_wedgelog_frame_end((long)buffer->command_count);
     painter_dump_command_order(painter, buffer);
     return 0;
 }
