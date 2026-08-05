@@ -440,6 +440,47 @@ Two things to read out of this before any comparison:
   Whatever the Java comparison eventually says, the rasterizer is where the C
   client's frame time lives, and it is already the most-optimised part.
 
+## 4b. A blocker for the rendering comparison, found on the way
+
+**The C client draws the 3-D scene 2.68× magnified.** Its world projection
+scale is a compile-time constant (`src/app.c:2853`, `fov_rpi2048 = 512`, set
+once at world creation); the official recomputes it every layout from the
+viewport height (`class159.method5357`: `scale = viewportHeight * zoom / 334`).
+Measured side by side, same server/cache/canvas/account: official scale **191**
+(and `(int)(503*127/334) = 191` exactly), C **512**.
+
+This was found while diagnosing the Inferno "orange wedge", which turns out not
+to be a spurious object at all — it is the Zuk alcove floor, the same loc models
+in the same colour in both clients, 2.7× too large. Full write-up, evidence and
+the three proposed edits: [`ORANGE_WEDGE.md`](ORANGE_WEDGE.md).
+
+**Why it belongs in this log:** pixel count scales with the square of the
+projection scale, so until this is fixed the two clients are not rasterizing
+comparable scenes and **no render-stage number is meaningful**. Fix it before
+trusting a `render` comparison.
+
+---
+
+### First Java stage data (Inferno, 2912 frames)
+
+| stage | p50 | p95 |
+| --- | ---: | ---: |
+| frame | 2147 µs | 3714 µs |
+| uidraw | 465 µs | 2503 µs |
+| render | 251 µs | 1576 µs |
+| paint | 48 µs | 360 µs |
+| layout | 15 µs | 107 µs |
+
+`tiles_drawn` 623/frame.
+
+**Two reasons not to compare these with §4 yet.** The scenes differ (Inferno vs
+Lumbridge idle) and the scale bug above is unfixed. And a harness bug: `logic`,
+`cs2`, `interact` and `net` read 0.00 ms because the frame probe sits on the
+*draw* and zeroes the per-frame accumulator, wiping the tick that ran earlier in
+the same loop iteration. The draw-side stages are sound; the fix is to move the
+boundary to `class510.run`. Recorded rather than left to be inferred from a
+suspicious zero.
+
 ## 5. What remains
 
 1. **Unblock the Java client** — the JS5 reference-table version above. Until
