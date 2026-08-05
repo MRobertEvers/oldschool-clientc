@@ -931,21 +931,18 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
             index++;
             continue;
         }
-        /* Marked before the pending literal run, not after: if the `<...>`
-         * turns out to be markup rather than interpolation, the run has to be
-         * unwound too and re-emitted later as part of a longer one. Rolling
-         * back only the expression left the run emitted twice, which is how
-         * `"<col=ff9040>Tutors</col>"` came back with its text duplicated. */
-        int mark = cc->ops.count;
-        int emitted_run = 0;
+        int tag_open = index;
         if( index > start )
         {
             cs2_cc_emit_string(cc, cs2_cc_decode_string(cc, body + start, index - start));
             parts++;
-            emitted_run = 1;
         }
         if( ch == '\0' )
             break;
+        /* Marked *after* the literal run, so a failed interpolation attempt
+         * unwinds only itself. The run stands either way — see the markup
+         * branch below. */
+        int mark = cc->ops.count;
 
         int depth = 1;
         int expression_start = ++index;
@@ -986,11 +983,20 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
         else
         {
             cs2_cc_rollback(cc, mark);
-            parts -= emitted_run;
-            /* Markup: the tag and its brackets are part of the text, so the run
-             * continues through it and `start` stays where it was. */
-            index++;
-            continue;
+            /* Markup, not interpolation. The tag is text — but it is text the
+             * official compiler pushes as a *segment of its own* rather than
+             * folding into the run beside it, so `"Blue token:<br>50"` is three
+             * pushes and a join, not one string.
+             *
+             * Measured over cache.osrs239: of the 6,244 string constants in the
+             * corpus that contain a '<' at all, 6,243 are exactly one `<...>`
+             * tag and nothing else. Folding them into the neighbouring run was
+             * the largest remaining structural difference — 607 scripts, always
+             * as a short recompile missing both the extra pushes and the wider
+             * join_string count. */
+            cs2_cc_emit_string(
+                cc, cs2_cc_decode_string(cc, body + tag_open, index + 1 - tag_open));
+            parts++;
         }
 
         index++;
@@ -2101,9 +2107,23 @@ cs2_cc_while(struct cs2_cc_compiler* cc)
 /**
  * A switch.
  *
- * The default body sits immediately after the SWITCH (it is where control falls
- * through to), but the source writes it last. So each body's source span is
- * recorded on a first sweep and compiled in bytecode order on a second.
+ * The source writes the default body last and so does the bytecode, which is
+ * not what falling through a SWITCH does — so the layout is:
+ *
+ *     SWITCH
+ *     BRANCH -> default            the no-case-matched path
+ *     case body; BRANCH -> end     once per case, the last one included
+ *     ...
+ *     default body                 falls through
+ *     end
+ *
+ * Read off script 110 in cache.osrs239 and true of every switch in it. Putting
+ * the default body immediately after the SWITCH instead — which is also
+ * correct, and is what this compiler used to do — reorders every case and moves
+ * one branch, and was the largest structural difference left in the round-trip.
+ *
+ * Each body's source span is recorded on a first sweep and compiled in bytecode
+ * order on a second.
  */
 static void
 cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
@@ -2294,16 +2314,9 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     struct cs2_cc_jumps ends;
     ends.count = 0;
 
-    if( default_body && *default_body )
-    {
-        struct cs2_cc_lexer_state saved;
-        cs2_cc_enter_fragment(cc, default_body, &saved);
-        cs2_cc_statements_until(cc, 0);
-        cs2_cc_leave_fragment(cc, &saved);
-        if( cc->failed )
-            goto done;
-    }
-    cs2_cc_jumps_add(cc, &ends, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
+    /* Falling out of the SWITCH means no case matched, and the default body is
+     * at the far end, so the fall-through is a jump rather than the body. */
+    int to_default = cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0);
 
     for( int i = 0; i < case_count && !cc->failed; i++ )
     {
@@ -2338,6 +2351,17 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
             cs2_cc_leave_fragment(cc, &saved);
         }
         cs2_cc_jumps_add(cc, &ends, cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0));
+    }
+
+    cs2_cc_patch(cc, to_default, cc->ops.count);
+    if( default_body && *default_body && !cc->failed )
+    {
+        struct cs2_cc_lexer_state saved;
+        cs2_cc_enter_fragment(cc, default_body, &saved);
+        cs2_cc_statements_until(cc, 0);
+        cs2_cc_leave_fragment(cc, &saved);
+        if( cc->failed )
+            goto done;
     }
 
     cs2_cc_jumps_patch(cc, &ends, cc->ops.count);
@@ -2464,9 +2488,27 @@ cs2_cc_statement_results(
     int opcode = RSCache_CS2_CommandOfName(name);
     const struct RSCache_CS2_CommandInfo* info =
         opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
-    /* Only BASIC has a fixed result list. The rest either push nothing or push
-     * a count only the data knows, as db_getfield does. */
-    if( !info || info->kind != RSCACHE_CS2_CMD_BASIC )
+    if( !info )
+        return 0;
+
+    /* The db_find family has no fixed *signature* — the search value's stack
+     * comes from the indexed column — but its result does not depend on the
+     * data at all: the `_with_count` pair pushes one int and the other two push
+     * nothing (cs2_translate_db_find). So a statement-position call still knows
+     * what to discard. db_getfield genuinely does not, and falls through to 0. */
+    if( info->kind == RSCACHE_CS2_CMD_DB_FIND )
+    {
+        if( opcode != RSCACHE_CS2_OP_DB_FIND_WITH_COUNT &&
+            opcode != RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT )
+            return 0;
+        if( capacity < 1 )
+            return 0;
+        out[0] = RSCACHE_CS2_STACK_INT;
+        return 1;
+    }
+
+    /* Only BASIC has a fixed result list otherwise. */
+    if( info->kind != RSCACHE_CS2_CMD_BASIC )
         return 0;
 
     int count = info->def_count < capacity ? info->def_count : capacity;
@@ -3011,9 +3053,27 @@ RSCache_CS2_Compile(
             for( int i = 0; i < cc.return_type_count; i++ )
             {
                 if( RSCache_CS2_TypeStackType(cc.return_types[i]) == RSCACHE_CS2_STACK_STRING )
+                {
                     cs2_cc_emit_string(&cc, "");
-                else
-                    cs2_cc_emit(&cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, 0);
+                    continue;
+                }
+                /* The default is a property of the declared type, not of the
+                 * stack it lands on. Measured over cache.osrs239 by pairing each
+                 * script's decompiled return types against the constants its own
+                 * epilogue pushes: `string` is "" (432 of 432), plain `int` is 0
+                 * (1792), and every narrower type is -1 without exception --
+                 * graphic 12, obj 8, namedobj 6, struct 6, boolean 5, component
+                 * 5, coord 4, enum 3, stat 1. Emitting 0 for all of them was
+                 * worth 364 otherwise byte-identical scripts.
+                 *
+                 * The 590 scripts whose epilogue is -1 where the signature says
+                 * `int` are not this rule failing: they are returns the
+                 * decompiler could not narrow past `int`, so the type it prints
+                 * is already the lossy step. See the queue doc's residue list. */
+                cs2_cc_emit(
+                    &cc,
+                    RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
+                    cc.return_types[i] == RSCACHE_CS2_TYPE_INT ? 0 : -1);
             }
             cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
         }

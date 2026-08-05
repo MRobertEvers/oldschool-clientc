@@ -546,11 +546,13 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # _8019/_8023/_8024. The trailing int of the four is a *type code*: the
     # client feeds it to `method6560`, which resolves a base var type rather
     # than reading a value, so all four arguments are int-stack.
+    "_8002": (["STRING"], ["INT"], False),                       # method12336
     "_8005": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
     "_8007": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
     "_8010": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
     "_8011": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
     "_8014": (["STRING", "INT", "INT"], [], False),              # method12336
+    "_8015": (["STRING", "STRING", "INT", "INT", "INT"], [], False),  # method12336
     "_8020": (["INT", "INT"], ["STRING"], False),                # method12336
     # 8026 is polymorphic in the client -- it ends in `method7522`
     # (pushValueOfType), so what it pushes is the array's element type, not a
@@ -559,6 +561,50 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # immediately by `pop_int_discard` or an int-consuming op. If a string-typed
     # array ever reaches it this needs a LOCAL_KINDS entry, as db_getfield has.
     "_8026": (["STRING", "INT"], ["INT"], False),                # method12336
+
+    # ---------------------------------------------------------------
+    # Active-component ("dot") forms these rows had marked False.
+    #
+    # For a cc_* command the operand byte is not data, it is the flag that picks
+    # `.cc_foo` over `cc_foo` — the interpreter builds it from
+    # `Script.field272[pc]` and passes it to the group handler as `var2`, which
+    # selects `Statics.field5113` over `field2369`. The generator already writes
+    # `dot = 100 <= opcode < 2000` for anything it takes from the client's stack
+    # table; these eleven came from LOCAL_BASIC instead, which had to state it
+    # and stated False.
+    #
+    # A False here is not a harmless mislabel: the decompiler stops printing the
+    # '.', so the compiler writes operand 0 where the cache has 1.
+    #
+    # Membership is the client's, not the operand's. Thirteen BASIC opcodes hold
+    # operand 1 somewhere in cache.osrs239, but "holds a 1" is not evidence of a
+    # dot form, and taking it as such is wrong for four of them:
+    #
+    #   102  cc_deleteall  `method4548`'s case for it pops the component id off
+    #                      the int stack and never touches `var2`. Not a dot
+    #                      form, on the client's own evidence. (The RuneStar
+    #                      reference happens to agree; the client is why.)
+    #   103                no case in this client and no preamble flag: unknown,
+    #                      so left alone rather than guessed either way.
+    #   4123, 4124         outside the cc_ range, and `method5814` never reads
+    #                      `var2` — the client ignores that byte for them. Worth
+    #                      22 scripts, deliberately not taken: printing
+    #                      `._4123` would assert an active-component form that
+    #                      does not exist.
+    #
+    # The nine below are each confirmed at the client: 209/210/212/213 and 1927
+    # read `var2` in their own case, and 1128/1506/1624/1704 are in ranges whose
+    # handler preamble (method4754/method1470/method6296/method12337) selects
+    # field5113 over field2369 before it looks at the opcode at all.
+    "_209": ([], ["INT"], True),
+    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], [], True),
+    "_212": (["INT"], ["INT"], True),
+    "_213": ([], ["INT"], True),
+    "_1128": (["INT", "INT"], [], True),
+    "_1506": ([], ["INT"], True),
+    "_1624": ([], ["INT"], True),
+    "cc_setcomponentparam": (["INT", "INT", "INT"], [], True),
+    "cc_callonresize": (["BOOLEAN"], [], True),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

@@ -25,22 +25,26 @@ make -C 3rd/rscache tools                       # builds 3rd/rscache/tools/cs2/c
 
 `--rev` is not optional — the tool refuses to run without a cache identity.
 
-Baseline, `cache.osrs239`, 2026-08-05:
+Baseline, `cache.osrs239`, 2026-08-05, and where it stands after the work in §8:
 
 ```
-round-trip: 9507/9725 decompiled, 9440 compiled, 3850 same-length, 3080 exact
+2026-08-05  9507/9725 decompiled, 9440 compiled, 3850 same-length, 3080 exact
+2026-08-05  9523/9725 decompiled, 9456 compiled, 8859 same-length, 8333 exact   (after §8)
 ```
 
-| | count | of 9725 |
-| --- | ---: | ---: |
-| decompiled at all | 9507 | 97.8% |
-| **failed to decompile** | **218** | 2.2% |
-| compiled back | 9440 | |
-| same length as the original | 3850 | |
-| **byte-exact** | **3080** | **31.7%** |
+| | baseline | after §8 | of 9725 |
+| --- | ---: | ---: | ---: |
+| decompiled at all | 9507 | 9523 | 97.9% |
+| **failed to decompile** | **218** | **202** | 2.1% |
+| compiled back | 9440 | 9456 | |
+| same length as the original | 3850 | 8859 | |
+| **byte-exact** | **3080** | **8333** | **85.7%** |
 
-So roughly **two thirds of the corpus does not round-trip**, and that is the
-number to move.
+**Read the delta direction correctly.** `run_roundtrip` prints
+`DIFF <id>: <written> bytes vs <original>` — the *recompiled* size first. The
+baseline write-up in §2.1 below read it the other way round and concluded the
+pipeline was dropping instructions; it was adding them. Nothing else in §2 is
+affected, but the histogram there is signed backwards.
 
 Other useful invocations (see the header comment in
 `3rd/rscache/tools/cs2/main.c`):
@@ -246,6 +250,163 @@ because ~11 classes of defect were repaired. `instr/build.sh` then
 - Prefer a generated table over a hand-edited one; if the generator cannot
   express something, extend the override tables rather than editing
   `cs2_command.gen.h` by hand.
+
+## 8. What was found, 2026-08-05
+
+`3080 → 8333` byte-exact. Nine changes, each measured on the whole corpus before
+and after. The order below is the order they were found, and each number is the
+whole-corpus `exact` count after that change alone.
+
+| # | change | exact |
+| --- | --- | ---: |
+| — | baseline | 3080 |
+| 1 | drop branches that land on the next instruction | **5779** |
+| 2 | 14 opcode signatures read out of the rev-239 client | 5786 |
+| 3 | discard a statement call's return values | 6047 |
+| 4 | hook descriptors carry the stack type, not the fine type | **7536** |
+| 5 | epilogue default is the declared type's, not always 0 | 7569 |
+| 6 | switch: default body last, after every case | 7728 |
+| 7 | markup `<...>` is its own string segment | **8291** |
+| 8 | `db_find_with_count` discards its count | 8326 |
+| 9 | eleven cc_* rows regain their active-component flag | **8333** |
+
+Everything is in `3rd/rscache/src/cs2/cs2_compile.c` except #2 and #9, which are
+`3rd/rscache/tools/cs2/local_commands.py`. Each carries its evidence as a
+comment at the site.
+
+**The doc's own file paths were stale.** §3 says new signatures go in
+`tools/cs2_gen_opcodes/local_opcodes.py`; the file that actually feeds
+`cs2_command.gen.h` is **`3rd/rscache/tools/cs2/local_commands.py`**, via
+`3rd/rscache/tools/cs2/gen_cs2_tables.py`. The cs2vm2 side stays consistent by
+re-running `src/cs2vm2/gen_opcode_stack.py`, which reads `cs2_command.gen.h` —
+so one edit propagates to both, and both were regenerated.
+
+### 8.1 The big one was not the big one
+
+§2.1 said the pipeline was dropping whole instructions. It was **adding** them:
+`cs2_cc_if` and `cs2_cc_switch` emitted a "jump to the end of the construct"
+after *every* body, including the last one, where the target is the next
+instruction and the offset resolves to 0. The official compiler does not.
+Measured: 51,711 of the corpus's 51,716 unconditional branches have a non-zero
+operand, and no conditional branch has a zero one at all. Removing them is a
+fixpoint pass (`cs2_cc_drop_fallthrough_branches`) because a removal can shorten
+another branch's span to zero in turn.
+
+That one change was worth 2,699 scripts — as §2.1 predicted, just with the sign
+flipped.
+
+### 8.2 Reading signatures off the client, and the two ways to get it wrong
+
+Fourteen opcodes now have signatures read from
+`Deobfuscator/src_osrs239_rl1_12_33/deob/Statics.java`: 208, 216, 1707, 2506,
+2624, 4127, 4223, 8002, 8005, 8007, 8010, 8011, 8014, 8015, 8020, 8026. Each
+cites its group handler. Two traps, both of which produce a *plausible* wrong
+answer:
+
+- **the handler pops in its preamble.** `method4787` (2500–2599) and
+  `method8067` (2600–2699) each pop a component id before looking at the
+  opcode, so 2506 and 2624 take one argument their own cases never show.
+- **the case pushes through a helper.** `Statics.method2627` pushes 0 or 1 on
+  every path, so opcodes 210 and 217–221 push an int no idiom in their body
+  shows. Every signature above was checked against a transitive closure of
+  which methods in the tree touch a stack pointer.
+
+Which stack is which is settled, not assumed: `Statics.method7522` kept its
+exception strings — `"pushValueOfType() failure - unsupported type"` — and
+switches on the base var type into `field258` (long), `field252` (**string**,
+despite reading as `Object[]`) and `field254` (int). The full map and the
+handler ladder are now in `Deobfuscator/instr/RENAMES.md`.
+
+**Sixteen of the thirty missing opcodes have no signature to read.** 6758, 6803,
+6859, 6951, 7043, 7451, 7600, 7627, 7800, 7803, 7804, 7805, 7807, 7813, 7814
+and 7820 reach no handler in the rev-239 client: `method10020` (7600–7699) is a
+bare `return 2`, and `method11128` (7700–7999) implements only 7900 and 7901.
+`return 2` is what the interpreter turns into `IllegalStateException`. They are
+absent from `src_osrs239`, `src_20260701/08/30` and `instr/src` too. The scripts
+holding them cannot run under this client, so §4's oracle simply has no answer —
+these need `cs2 infer-arity` or call-site balance, and infer-arity currently
+calls most of them under-determined.
+
+### 8.3 The residue — 1,131 scripts that recompile but not byte-for-byte
+
+Classified by the first structural difference between the original and the
+recompiled instruction stream. Percentages are of the 9,725-script corpus.
+
+| count | what differs | why |
+| ---: | --- | --- |
+| 425 | one `push_constant_int` operand, `-1` vs `0` | §8.4 |
+| 253 | one extra `branch` | §8.5 |
+| 172 | one missing `branch` | §8.5 |
+| 44 | extra `push_constant_int` + `return` | an epilogue the cache does not have; not yet chased |
+| 29 | header or trailer bytes only, ops identical | not yet chased |
+| 22 | missing `join_string` + `push_constant_string` | markup segmentation that #7 did not reach |
+| 21 | missing a trailing `return` | the 32 scripts whose body ends in an explicit `return`, which the decompiler suppresses printing |
+| 15 | `_4124` operand `1` vs `0` | §8.6 |
+| 13 | missing `push_constant_string` | not yet chased |
+| 126 | eleven smaller shapes, ≤ 11 scripts each | not yet chased |
+
+Plus **202 that do not decompile** (46 still on a missing signature, the rest
+type/stack errors downstream of one) and **67 that decompile but do not
+recompile** — 39 a parse error in the emitted source, 16 a callback argument the
+compiler cannot type, 7 an unterminated `(` in a callback, 4 over a fixed limit
+on condition or switch size.
+
+### 8.4 Why 425 scripts cannot be exact, specifically
+
+A script's epilogue — the unreachable `push default; return` tail that is the
+only record of its return types — pushes a value that depends on the *declared*
+type. Measured by pairing every script's decompiled return types against the
+constants its own epilogue pushes: `string` is `""` (432 of 432), plain `int` is
+`0` (1792), and every narrower type is `-1` without exception (graphic 12, obj 8,
+namedobj 6, struct 6, boolean 5, component 5, coord 4, enum 3, stat 1). Change #5
+implements exactly that.
+
+The 425 left are scripts whose epilogue is `-1` but whose signature the
+decompiler prints as `int` — so the compiler emits `0`. **The rule is not
+failing; the type is.** Script 3 is the whole shape of it: it returns literal
+`1` and `0` from a `testbit`, nothing in the script constrains the type further,
+and its callers are not visible to a one-script-at-a-time decompiler. The
+epilogue says the declared type was a reference type; it does not say which one,
+and there are eleven candidates that all default to `-1`.
+
+Making these exact means either whole-program typing (type a proc's return from
+its callers) or printing a fabricated type name that happens to default to `-1`.
+The second would round-trip and would make the decompiled source assert
+something about the program that is not known to be true, which is worse than a
+wrong byte. Left as is, deliberately.
+
+### 8.5 The 425 branch differences are one decision made without its evidence
+
+`if (a) { return; } if (b) { … }` and `if (a) { return; } else if (b) { … }` are
+the same program and different bytecode: the `else` form needs a jump over the
+else from the end of the body, and the plain form needs none. Both shapes are in
+the cache — script 73 has no jump, script 56 does — so the original says which,
+and the decompiler has to read it rather than pick.
+
+It nearly does. `cs2_reconstruct_block` already tracks whether the `if` side
+rejoins (`after_if`), and the unreachable jump is what makes it rejoin. What
+does not follow the evidence is the `else if` merge, which runs before that
+check. Guarding the merge on `after_if` was tried: it moves the whole-corpus
+number by **+1** (8325 → 8326) and costs 27 scripts of divergence against the
+RuneStar reference corpus in `make -C 3rd/rscache test` — so it was reverted.
+The real fix is further in: the short-circuit rewrite in `cs2_dfa.c` restructures
+`&`/`|` conditions before this point and is what decides `after_if` for the cases
+that matter. Not attempted.
+
+### 8.6 One thing deliberately not done
+
+Thirteen BASIC opcodes carry operand `1` somewhere in the cache while the table
+says they have no active-component form, so the compiler writes `0`. Eleven are
+in the cc_ range and are now marked dot-capable (#9) — for those the operand
+byte *is* that flag, which is what the interpreter passes each group handler as
+`var2`.
+
+**4123 and 4124 are not**, though flipping them would recover 22 more scripts.
+They sit outside the cc_ range and their cases in `method5814` never read
+`var2` — the client ignores that byte entirely. Marking them dot-capable would
+make the decompiler print `._4123`, asserting an active-component form that does
+not exist, to win a byte. What that operand means for them is unknown, and
+saying so is worth more than 22 scripts.
 
 ## 7. What "done" looks like
 
