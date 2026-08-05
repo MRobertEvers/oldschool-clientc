@@ -2747,6 +2747,155 @@ mock230_send_player_info(struct Mock230Player* player)
 /* NPC_INFO                                                            */
 /* ------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------ */
+/* Revision 239 extended info                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The npc extended-info block at revision 239.
+ *
+ * A DIFFERENT FLAG SPACE from the classic one-byte mask beside it, not a wider
+ * version of it. The classic bits are 0x01 DAMAGE2, 0x02 ANIM, 0x04
+ * FACE_ENTITY, ... in the client's own read order; at 239 the same eight
+ * concepts are scattered across 26 bits with no relationship to those values,
+ * and the ORDER the blocks are written in is a third thing again -- neither
+ * ascending flag order nor the classic order. Both come from RSProt's
+ * NpcAvatarExtendedInfoDesktopWriter, whose `convertFlags` exists precisely
+ * because the server-side constants and the client's bits are different sets.
+ *
+ * Getting either wrong is quiet: the flag byte frames, the blocks are read in
+ * whatever order the client wants them, and the npc plays some other npc's
+ * animation or none.
+ */
+enum
+{
+    /* "another flag byte follows" -- one per additional byte, and they are
+     * part of the flag, so they are set from the value rather than counted. */
+    V5_NEXT_BYTE_1 = 0x40,
+    V5_NEXT_BYTE_2 = 0x800,
+    V5_NEXT_BYTE_3 = 0x200000,
+
+    V5_NPC_TRANSFORMATION = 0x1,
+    V5_NPC_SAY = 0x2,
+    V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_SPOTANIM = 0x40000,
+    V5_NPC_HITMARKS = 0x80000,
+};
+
+/** pSmart1or2: 0..127 in one byte, anything larger in two with 0x8000 set. */
+static void
+v5_psmart1or2(struct RSAreaBuf* buf, int value)
+{
+    if( value >= 0 && value < 128 )
+        rsab_p1(buf, value);
+    else
+        rsab_p2(buf, (value & 0x7fff) | 0x8000);
+}
+
+/** The flag itself, plus the continuation bits its own width implies. */
+static void
+v5_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
+{
+    if( flag & 0xffffff00u )
+        flag |= V5_NEXT_BYTE_1;
+    if( flag & 0xffff0000u )
+        flag |= V5_NEXT_BYTE_2;
+    if( flag & 0xff000000u )
+        flag |= V5_NEXT_BYTE_3;
+
+    rsab_p1(buf, (int32_t)(flag & 0xff));
+    if( flag & V5_NEXT_BYTE_1 )
+        rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+    if( flag & V5_NEXT_BYTE_2 )
+        rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+    if( flag & V5_NEXT_BYTE_3 )
+        rsab_p1(buf, (int32_t)((flag >> 24) & 0xff));
+}
+
+static void
+put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_face_latch)
+{
+    uint32_t const classic = npc->masks;
+    uint32_t flag = 0;
+    int const hit = (classic & (MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2)) != 0;
+
+    (void)force_face_latch;
+
+    if( hit )
+        flag |= V5_NPC_HITMARKS;
+    if( classic & MOCK230_NMASK_ANIM )
+        flag |= V5_NPC_SEQUENCE;
+    if( classic & MOCK230_NMASK_SAY )
+        flag |= V5_NPC_SAY;
+    if( classic & MOCK230_NMASK_SPOTANIM )
+        flag |= V5_NPC_SPOTANIM;
+    if( classic & MOCK230_NMASK_CHANGE_TYPE )
+        flag |= V5_NPC_TRANSFORMATION;
+
+    v5_put_extended_flag(buf, flag);
+
+    /*
+     * Blocks in the writer's order, which is neither the flag order nor the
+     * classic order: HITMARKS before SEQUENCE before SAY before SPOTANIM before
+     * TRANSFORMATION. The client reads them in this sequence and nothing on the
+     * wire separates them, so a block out of place is read as the next one.
+     */
+    if( hit )
+    {
+        /* NpcHitmarkEncoder: p1Alt1 count, then per hit
+         * pSmart1or2 type, value, delay, limit. One hit per tick is all the
+         * classic mask could express, so one is all there is to convert. */
+        rsab_p1_alt1(buf, 1);
+        v5_psmart1or2(buf, npc->damage_type);
+        v5_psmart1or2(buf, npc->damage);
+        v5_psmart1or2(buf, 0); /* delay: lands this tick */
+        v5_psmart1or2(buf, 0); /* limit: uncapped */
+    }
+    if( classic & MOCK230_NMASK_ANIM )
+    {
+        /* NpcSequenceEncoder: p2 id, p1Alt2 delay. 65535 cancels. */
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1_alt2(buf, npc->anim_delay);
+    }
+    if( classic & MOCK230_NMASK_SAY )
+        rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    if( classic & MOCK230_NMASK_SPOTANIM )
+    {
+        /*
+         * NpcSpotAnimEncoder: p1Alt2 count, then per entry p1 slot, p2 id,
+         * p4Alt2 (delay | height << 16).
+         *
+         * A LIST at this revision -- an npc can carry several graphics at once,
+         * in numbered slots -- where the classic packet carried exactly one and
+         * had no slot. Slot 0 is the one the classic mask means.
+         */
+        rsab_p1_alt2(buf, 1);
+        rsab_p1(buf, 0);
+        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
+        rsab_p4_alt2(buf, npc->spotanim_height_delay);
+    }
+    if( classic & MOCK230_NMASK_CHANGE_TYPE )
+        rsab_p2_alt3(buf, npc->change_type); /* NpcTransformationEncoder */
+
+    /*
+     * NOT converted, and each for a reason rather than as a batch:
+     *
+     *   FACE_ENTITY / FACE_COORD  239 folds both into one FACING block whose
+     *                             first byte packs a walk mode, a 3-bit kind
+     *                             and an instant flag -- a different model, not
+     *                             a different layout, and the mock has no
+     *                             walk-mode concept to fill it from.
+     *   the health bar            a separate HEADBARS block keyed by a headbar
+     *                             CONFIG ID. That is content, and there is no
+     *                             name for it in this tree yet, so inventing
+     *                             one here would be exactly the hardcoded
+     *                             config id the porting guide forbids. Until it
+     *                             exists, damage numbers appear and the bar
+     *                             above the npc does not.
+     */
+}
+
 static int
 npc_extended_pending(const struct Mock230Npc* npc)
 {
@@ -2950,16 +3099,30 @@ mock230_send_npc_info(struct Mock230Player* player)
                 continue;
             }
             kept[kept_count++] = slot;
-            if( npc->step_dir >= 0 )
             {
-                rsab_pbit(&buf, 1, 1);
-                rsab_pbit(&buf, 2, 1); /* walk */
-                rsab_pbit(&buf, 3, npc->step_dir);
-                rsab_pbit(&buf, 1, 0); /* no extended info yet */
-            }
-            else
-            {
-                rsab_pbit(&buf, 1, 0); /* unchanged */
+                int const extended = npc_extended_pending(npc);
+
+                if( npc->step_dir >= 0 )
+                {
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 1); /* walk */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( extended )
+                {
+                    /* "no movement, but something to say about it" -- update
+                     * type 0. Without this an npc that stands still and swings
+                     * has no way to carry its animation. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 0);
+                }
+                else
+                {
+                    rsab_pbit(&buf, 1, 0); /* unchanged */
+                }
+                if( extended )
+                    queued[queued_count++] = slot;
             }
         }
 
@@ -2999,9 +3162,11 @@ mock230_send_npc_info(struct Mock230Player* player)
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
+            int const extended = npc_extended_pending(npc);
+
             rsab_pbit(&buf, 16, slot);
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
-            rsab_pbit(&buf, 1, 0); /* no extended info */
+            rsab_pbit(&buf, 1, extended);
             rsab_pbit(&buf, 6, dx & 0x3f);
             /*
              * Facing, and the client applies it ONLY here -- `if (isNew)` in
@@ -3013,10 +3178,12 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 6, dz & 0x3f);
             rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
             rsab_pbit(&buf, 14, npc->type);
+            if( extended )
+                queued[queued_count++] = slot;
         }
 
         /*
-         * NO TERMINATOR. It is written only when extended-info bytes follow.
+         * The terminator, and ONLY when extended-info bytes follow it.
          *
          * The client's low-resolution loop has two exits and the sentinel is
          * the second one: it first checks `readableBits() >= 16 + 12` and
@@ -3028,15 +3195,32 @@ mock230_send_npc_info(struct Mock230Player* player)
          * With nothing after the bit section there is nothing to stop: byte
          * alignment leaves at most 7 bits, the first check ends the loop, and a
          * sentinel written anyway is 16 bits the client never consumes. It then
-         * fails its own end-of-packet check -- which is how this was found:
+         * fails its own end-of-packet check -- which is how the unconditional
+         * version was found:
          *
          *     Client error: 85,28,74,147,...
          *     RuntimeException: 145,147
          *
-         * 145 bytes read of the 147 sent, and the two are the sentinel. Add
-         * extended info and this has to come back.
+         * 145 bytes read of the 147 sent, and the two were the sentinel.
+         *
+         * So it is conditional on the same thing the client's check is: whether
+         * there is anything after the bits. Both halves of that are load-bearing
+         * and they fail in opposite directions -- omit it with extended info
+         * present and the client reads an animation block as an npc record;
+         * write it with nothing following and the packet ends two bytes late.
          */
+        if( queued_count > 0 )
+            rsab_pbit(&buf, 16, 0xffff);
         rsab_bytes(&buf);
+
+        /*
+         * The extended blocks, byte-aligned, in the order the bit section
+         * queued them -- high resolution first, then the entering-view adds.
+         * Nothing on the wire says which npc a block belongs to; the client
+         * replays its own queue, so the two orders have to be the same walk.
+         */
+        for( int i = 0; i < queued_count; i++ )
+            put_npc_extended_v5(&buf, &srv->npcs[queued[i]], 0);
 
         flush(player, &buf, OP_NPC_INFO, 2);
         memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);

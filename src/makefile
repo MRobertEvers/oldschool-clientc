@@ -390,7 +390,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -632,6 +632,20 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
+
+$(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
+
+# rsprot is deliberately absent from $(OBJS) and from every binary's link line:
+# no caller exists yet, so linking it in would be dead weight and would risk
+# duplicate symbols against src/net's ISAAC/RSA. This target is the compile
+# gate — it proves the unity TU still builds under the main build's flags.
+rsprot: $(OBJ_DIR) $(OBJ_DIR)/rsprot_unity.o
+
+# rsprot's own unit tests. Shelled out because the test binaries link against
+# rsprot's private build/ objects (its makefile builds its own isaac/rsa/mpi).
+test-rsprot:
+	$(MAKE) -C $(RSPROT_DIR) test
 
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@

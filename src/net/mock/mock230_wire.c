@@ -726,14 +726,21 @@ w239_zone_payload(
      */
     case PKT_NAME_MAP_PROJANIM:
     {
-        int end_x = event->dx_offset;
-        int end_z = event->dz_offset;
+        /*
+         * `end` is an ABSOLUTE CoordGrid -- (level << 28) | (x << 14) | z --
+         * not the source-relative offsets the classic packet carries. The two
+         * are the same field conceptually and nothing distinguishes them on the
+         * wire, so the offsets written here put the arc's landing point a few
+         * tiles from (0,0) and the shot flies off the map.
+         */
+        int end_packed = ((event->dst_level & 3) << 28) | ((event->dst_x & 0x3fff) << 14) |
+                         (event->dst_z & 0x3fff);
         rsab_p2(buf, event->start_delay);
         rsab_p1(buf, pos);
         rsab_p2_alt2(buf, 0);
         rsab_p2_alt2(buf, id);
         rsab_p2_alt1(buf, event->end_delay);
-        rsab_p4_alt1(buf, ((end_x & 0x3fff) << 14) | (end_z & 0x3fff));
+        rsab_p4_alt1(buf, end_packed);
         rsab_p2_alt3(buf, event->dst_height);
         w239_p3_alt2(buf, 0);
         rsab_p1_alt2(buf, event->arc);

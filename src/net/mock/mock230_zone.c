@@ -509,6 +509,9 @@ mock230_zone_projanim(
      */
     event.dx_offset = dst_x - x;
     event.dz_offset = dst_z - z;
+    event.dst_x = dst_x;
+    event.dst_z = dst_z;
+    event.dst_level = level;
     event.target = target;
     event.src_height = src_height;
     event.dst_height = dst_height;

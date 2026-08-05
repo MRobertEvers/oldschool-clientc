@@ -144,6 +144,21 @@ struct Mock230ZoneEvent
      */
     /** Destination tile relative to the source, which is where `pos` points. */
     int dx_offset, dz_offset;
+    /**
+     * The destination as an ABSOLUTE tile, carried alongside the offsets rather
+     * than instead of them because the two revisions want different ones.
+     *
+     * The classic packet spells the destination as one signed byte per axis
+     * from the source tile. Revision 239's MAP_PROJANIM_V2 writes a whole
+     * CoordGrid -- `p4Alt1 end.packed`, level/x/z bitpacked absolutely -- and
+     * feeding it the offsets lands the arc a few tiles from the world origin
+     * while the packet frames perfectly and the client draws a projectile
+     * nobody can see.
+     *
+     * Kept on the event rather than reconstructed in the encoder because the
+     * encoder is handed a zone-local `pos` and never learns which zone it is.
+     */
+    int dst_x, dst_z, dst_level;
     /** Whom it homes on, in the wire's encoding: `slot + 1` for an npc,
      *  `-slot - 1` for a player, 0 for a shot that just lands on a tile. */
     int target;
