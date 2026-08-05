@@ -307,6 +307,14 @@ wire_payload(struct Mock230Player* player)
     return wire->payload;
 }
 
+/** The wire adapter behind a player, or the default when the world has none. */
+static const struct Mock230Wire*
+wire_for(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player ? player->world : NULL;
+    return (srv && srv->wire) ? srv->wire : mock230_wire_default();
+}
+
 /** Does this player's world speak the v5 entity streams? */
 static int
 wire_is_v5(struct Mock230Player* player)
@@ -1919,8 +1927,18 @@ mock230_send_zone_header(
     int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
 
     open_packet(&buf, 8);
-    rsab_p1(&buf, base_x);
-    rsab_p1(&buf, base_z);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, player->level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
     flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
           0);
 }
@@ -2013,8 +2031,25 @@ clamp16(int count)
 static int
 zone_sub_payload(
     struct RSAreaBuf* buf,
-    const struct Mock230ZoneEvent* event)
+    const struct Mock230ZoneEvent* event,
+    const struct Mock230Wire* wire)
 {
+    /*
+     * The revision's own writer first. Its absence is not a fallback to the
+     * classic layout — a revision with a payload set refuses what it has not
+     * transcribed, because these packets frame to the right length either way
+     * and decode to a different loc on a different tile.
+     */
+    if( wire && wire->payload && wire->payload->zone_payload )
+    {
+        int name = zone_sub_opcode(event->kind);
+        int props = ((event->shape & 0x1f) << 2) | (event->angle & 3);
+
+        if( name < 0 )
+            return 0;
+        return wire->payload->zone_payload(buf, name, event, event->pos, props);
+    }
+
     switch( event->kind )
     {
     case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
@@ -2121,7 +2156,7 @@ mock230_encode_zone_sub(
         return 0;
     rsab_wrap(&buf, dst, (size_t)max);
     rsab_p1(&buf, code);
-    if( !zone_sub_payload(&buf, event) || !rsab_ok(&buf) )
+    if( !zone_sub_payload(&buf, event, wire) || !rsab_ok(&buf) )
         return 0;
     return (int)rsab_len(&buf);
 }
@@ -2137,7 +2172,7 @@ mock230_send_zone_sub(
     if( opcode < 0 )
         return;
     open_packet(&buf, 16);
-    if( !zone_sub_payload(&buf, event) )
+    if( !zone_sub_payload(&buf, event, wire_for(player)) )
         return;
     flush(player, &buf, opcode, 0);
 }
@@ -2157,8 +2192,18 @@ mock230_send_zone_enclosed(
     if( len <= 0 )
         return;
     open_packet(&buf, (size_t)len + 8);
-    rsab_p1(&buf, base_x);
-    rsab_p1(&buf, base_z);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            player->level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
     rsab_pdata(&buf, blob, (size_t)len);
     flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
 }

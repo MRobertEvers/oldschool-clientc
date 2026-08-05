@@ -6,6 +6,8 @@
 #include "net/rev/osrs239/packetout.h"
 #include "net/rev/osrs239/zoneprot.h"
 
+#include "mock230_zone.h"
+
 #include <rsareabuf.h>
 
 #include <stdio.h>
@@ -326,6 +328,21 @@ w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
  * decode to a different loc on a different tile.
  */
 /*
+ * p3Alt2: [v>>16, v, v>>8].
+ *
+ * rsareabuf has p3 (big-endian medium) but not this permutation, and it is the
+ * only place a 24-bit alt order is needed, so it lives here rather than
+ * widening the buffer library for one caller.
+ */
+static void
+w239_p3_alt2(struct RSAreaBuf* buf, int v)
+{
+    rsab_p1(buf, (v >> 16) & 0xff);
+    rsab_p1(buf, v & 0xff);
+    rsab_p1(buf, (v >> 8) & 0xff);
+}
+
+/*
  * Zone headers. Three fields, three different orders, one per packet:
  *
  *   FULL_FOLLOWS      p1Alt3 zoneZ, p1Alt2 zoneX, p1     level
@@ -359,12 +376,14 @@ static int
 w239_zone_payload(
     struct RSAreaBuf* buf,
     int pkt_name,
+    const struct Mock230ZoneEvent* event,
     int pos,
-    int props,
-    int id,
-    int count,
-    int old_count)
+    int props)
 {
+    int const id = event->id;
+    int const count = event->count;
+    int const old_count = event->old_count;
+
     switch( pkt_name )
     {
     /* LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
@@ -395,10 +414,72 @@ w239_zone_payload(
      * `count` carries the delay and `old_count` the height, which is what the
      * caller already packs into them. */
     case PKT_NAME_MAP_ANIM:
-        rsab_p1(buf, old_count);
+        rsab_p1(buf, event->src_height);
         rsab_p2_alt1(buf, id);
-        rsab_p2_alt1(buf, count);
+        rsab_p2_alt1(buf, event->start_delay);
         rsab_p1(buf, pos);
+        return 1;
+
+    /*
+     * LocMergeEncoder: p1 minX, p2Alt1 index, p1 locProperties, p1 minZ,
+     * p2Alt1 id, p2 end, p2Alt3 start, p1Alt1 maxX, p1Alt3 coordInZone,
+     * p1Alt3 maxZ.
+     *
+     * Fourteen bytes at both revisions and every field in a different place --
+     * the classic order is coord, properties, id, start, end, pid, then the
+     * four bounds. `index` is the player the merged loc belongs to.
+     */
+    case PKT_NAME_LOC_MERGE:
+        rsab_p1(buf, event->west);
+        rsab_p2_alt1(buf, event->player_pid);
+        rsab_p1(buf, props);
+        rsab_p1(buf, event->south);
+        rsab_p2_alt1(buf, id);
+        rsab_p2(buf, event->end_cycle);
+        rsab_p2_alt3(buf, event->start_cycle);
+        rsab_p1_alt1(buf, event->east);
+        rsab_p1_alt3(buf, pos);
+        rsab_p1_alt3(buf, event->north);
+        return 1;
+
+    /*
+     * MapProjAnimV2Encoder: p2 startTime, p1 coordInZone, p2Alt2 progress,
+     * p2Alt2 id, p2Alt1 endTime, p4Alt1 end.packed, p2Alt3 endHeight,
+     * p3Alt2 sourceIndex, p1Alt2 angle, p2 startHeight, p3 targetIndex.
+     *
+     * Twenty-four bytes against the classic fifteen, and the shape changed
+     * rather than just the order: the destination is an absolute PACKED COORD
+     * (p4) where the classic sends a pair of tile offsets, and the source and
+     * target indices are three bytes each where the classic uses two. Those
+     * widths are the id space growing, and a two-byte write here truncates a
+     * real index into a different entity.
+     *
+     * `progress` is how far along the flight already is, which this server
+     * never starts mid-flight, so it is zero.
+     */
+    case PKT_NAME_MAP_PROJANIM:
+    {
+        int end_x = event->dx_offset;
+        int end_z = event->dz_offset;
+        rsab_p2(buf, event->start_delay);
+        rsab_p1(buf, pos);
+        rsab_p2_alt2(buf, 0);
+        rsab_p2_alt2(buf, id);
+        rsab_p2_alt1(buf, event->end_delay);
+        rsab_p4_alt1(buf, ((end_x & 0x3fff) << 14) | (end_z & 0x3fff));
+        rsab_p2_alt3(buf, event->dst_height);
+        w239_p3_alt2(buf, 0);
+        rsab_p1_alt2(buf, event->arc);
+        rsab_p2(buf, event->src_height);
+        rsab_p3(buf, event->target);
+        return 1;
+    }
+
+    /* ObjEnabledOpsEncoder: p1Alt1 coordInZone, p2Alt3 id, p1 opFlags. */
+    case PKT_NAME_OBJ_REVEAL:
+        rsab_p1_alt1(buf, pos);
+        rsab_p2_alt3(buf, id);
+        rsab_p1(buf, 0xff);
         return 1;
 
     /* ObjDelEncoder: p2 id, p1 coordInZone, p4Alt2 quantity. */
@@ -489,7 +570,8 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
     PKT_NAME_LOC_ADD_CHANGE,   PKT_NAME_LOC_DEL,         PKT_NAME_LOC_ANIM,
     PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
-    PKT_NAME_OBJ_COUNT,
+    PKT_NAME_OBJ_COUNT,        PKT_NAME_LOC_MERGE,       PKT_NAME_MAP_PROJANIM,
+    PKT_NAME_OBJ_REVEAL,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c

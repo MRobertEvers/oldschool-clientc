@@ -51,6 +51,7 @@
 #include <stdint.h>
 
 struct RSAreaBuf;
+struct Mock230ZoneEvent;
 
 /* ------------------------------------------------------------------ */
 /* Payload writers                                                     */
@@ -123,11 +124,9 @@ struct Mock230WirePayload
     int (*zone_payload)(
         struct RSAreaBuf* buf,
         int pkt_name,
+        const struct Mock230ZoneEvent* event,
         int pos,
-        int props,
-        int id,
-        int count,
-        int old_count);
+        int props);
 
     /**
      * A zone header: which zone the sub-packets that follow apply to.
