@@ -107,6 +107,39 @@ struct Mock230WirePayload
         int random,
         int amplitude,
         int rate);
+    /**
+     * One zone sub-packet's payload, by canonical name.
+     *
+     * A single slot rather than one per event because they share a shape --
+     * a packed coord-in-zone byte, a packed loc-properties byte, an id -- and
+     * differ only in field order and byte order. Returns 1 when it wrote the
+     * event, 0 when this revision has no writer for that kind, which the caller
+     * turns into a dropped sub-packet rather than a mis-encoded one.
+     *
+     * `props` is (shape << 2) | angle and `pos` is (x << 4) | z within the
+     * zone; both are already packed by the caller, identically at both
+     * revisions.
+     */
+    int (*zone_payload)(
+        struct RSAreaBuf* buf,
+        int pkt_name,
+        int pos,
+        int props,
+        int id,
+        int count,
+        int old_count);
+
+    /**
+     * A zone header: which zone the sub-packets that follow apply to.
+     *
+     * Three bytes at revision 239 against the hybrid's two — the level is a
+     * field the 230 table has no room for, so a 239 client reading our old
+     * header takes the first sub-packet's opcode as the level and everything
+     * after it is one byte out.
+     */
+    void (*zone_header)(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z,
+                        int level);
+
     /** REBUILD_REGION's header. The zone descriptor grid follows and is written
      *  by the caller, which already knows how to bit-pack it. */
     void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);

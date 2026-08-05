@@ -317,7 +317,135 @@ w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
     rsab_p1_alt1(buf, reload ? 1 : 0);
 }
 
+/*
+ * The zone sub-packets, transcribed from RSProt's zone/payload encoders.
+ *
+ * Every one of these is the same handful of fields in a different order and a
+ * different byte order from revision 230's, which is the failure mode this
+ * whole adapter exists for: they frame to the right length either way and
+ * decode to a different loc on a different tile.
+ */
+/*
+ * Zone headers. Three fields, three different orders, one per packet:
+ *
+ *   FULL_FOLLOWS      p1Alt3 zoneZ, p1Alt2 zoneX, p1     level
+ *   PARTIAL_FOLLOWS   p1Alt1 zoneZ, p1     zoneX, p1Alt2 level
+ *   PARTIAL_ENCLOSED  p1Alt2 level, p1Alt1 zoneZ, p1Alt1 zoneX
+ */
+static void
+w239_zone_header(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z, int level)
+{
+    switch( pkt_name )
+    {
+    case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
+        rsab_p1_alt3(buf, zone_z);
+        rsab_p1_alt2(buf, zone_x);
+        rsab_p1(buf, level);
+        break;
+    case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        rsab_p1_alt1(buf, zone_z);
+        rsab_p1(buf, zone_x);
+        rsab_p1_alt2(buf, level);
+        break;
+    default: /* PARTIAL_ENCLOSED */
+        rsab_p1_alt2(buf, level);
+        rsab_p1_alt1(buf, zone_z);
+        rsab_p1_alt1(buf, zone_x);
+        break;
+    }
+}
+
+static int
+w239_zone_payload(
+    struct RSAreaBuf* buf,
+    int pkt_name,
+    int pos,
+    int props,
+    int id,
+    int count,
+    int old_count)
+{
+    switch( pkt_name )
+    {
+    /* LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
+     * p1Alt1 locProperties, p1Alt2 coordInZone, p2Alt3 id.
+     * No per-loc custom ops here, so the count leads with zero. */
+    case PKT_NAME_LOC_ADD_CHANGE:
+        rsab_p1_alt1(buf, 0);
+        rsab_p1_alt3(buf, 0);
+        rsab_p1_alt1(buf, props);
+        rsab_p1_alt2(buf, pos);
+        rsab_p2_alt3(buf, id);
+        return 1;
+
+    /* LocDelEncoder: p1 locProperties, p1Alt2 coordInZone. */
+    case PKT_NAME_LOC_DEL:
+        rsab_p1(buf, props);
+        rsab_p1_alt2(buf, pos);
+        return 1;
+
+    /* LocAnimEncoder: p1 locProperties, p1Alt3 coordInZone, p2Alt3 id. */
+    case PKT_NAME_LOC_ANIM:
+        rsab_p1(buf, props);
+        rsab_p1_alt3(buf, pos);
+        rsab_p2_alt3(buf, id);
+        return 1;
+
+    /* MapAnimEncoder: p1 height, p2Alt1 id, p2Alt1 delay, p1 coordInZone.
+     * `count` carries the delay and `old_count` the height, which is what the
+     * caller already packs into them. */
+    case PKT_NAME_MAP_ANIM:
+        rsab_p1(buf, old_count);
+        rsab_p2_alt1(buf, id);
+        rsab_p2_alt1(buf, count);
+        rsab_p1(buf, pos);
+        return 1;
+
+    /* ObjDelEncoder: p2 id, p1 coordInZone, p4Alt2 quantity. */
+    case PKT_NAME_OBJ_DEL:
+        rsab_p2(buf, id);
+        rsab_p1(buf, pos);
+        rsab_p4_alt2(buf, count);
+        return 1;
+
+    /* ObjCountEncoder: p4Alt3 oldQuantity, p1Alt1 coordInZone,
+     * p4Alt1 newQuantity, p2Alt3 id. Both quantities are four bytes at this
+     * revision; the classic packet carries two. */
+    case PKT_NAME_OBJ_COUNT:
+        rsab_p4_alt3(buf, old_count);
+        rsab_p1_alt1(buf, pos);
+        rsab_p4_alt1(buf, count);
+        rsab_p2_alt3(buf, id);
+        return 1;
+
+    /*
+     * ObjAddEncoder: p1Alt1 coordInZone, p2 timeUntilPublic, p1 ownershipType,
+     * p2Alt2 id, p1 neverBecomesPublic, p1Alt2 opFlags, p2Alt3 timeUntilDespawn,
+     * p4Alt1 quantity.
+     *
+     * Fourteen bytes against the classic five: ownership and the two timers are
+     * new fields with no older equivalent, so they are stated rather than
+     * carried over. Public immediately, never despawning, all ops enabled.
+     */
+    case PKT_NAME_OBJ_ADD:
+        rsab_p1_alt1(buf, pos);
+        rsab_p2(buf, 0);
+        rsab_p1(buf, 0);
+        rsab_p2_alt2(buf, id);
+        rsab_p1(buf, 0);
+        rsab_p1_alt2(buf, 0xff);
+        rsab_p2_alt3(buf, 0);
+        rsab_p4_alt1(buf, count);
+        return 1;
+
+    default:
+        return 0;
+    }
+}
+
 static const struct Mock230WirePayload k_payload_osrs239 = {
+    .zone_header = w239_zone_header,
+    .zone_payload = w239_zone_payload,
     .cam_moveto = w239_cam_moveto,
     .cam_lookat = w239_cam_lookat,
     .cam_shake = w239_cam_shake,
@@ -357,6 +485,11 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_UPDATE_RUNENERGY, PKT_NAME_UPDATE_RUNWEIGHT, PKT_NAME_UPDATE_STAT,
     PKT_NAME_REBUILD_NORMAL,   PKT_NAME_REBUILD_REGION,
     PKT_NAME_CAM_MOVETO,       PKT_NAME_CAM_LOOKAT,      PKT_NAME_CAM_SHAKE,
+    PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+    PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+    PKT_NAME_LOC_ADD_CHANGE,   PKT_NAME_LOC_DEL,         PKT_NAME_LOC_ANIM,
+    PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
+    PKT_NAME_OBJ_COUNT,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c
