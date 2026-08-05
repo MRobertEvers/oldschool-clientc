@@ -1,0 +1,282 @@
+{
+ "version": 1,
+ "description": "Cross-client CS2 cases. Short, argument-free scripts, so both clients start from the same entry state without needing a server-side fixture to align locals.",
+ "cases": [
+  {
+   "id": "script1",
+   "scriptId": 1,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script3",
+   "scriptId": 3,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script29",
+   "scriptId": 29,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script50",
+   "scriptId": 50,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script64",
+   "scriptId": 64,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script70",
+   "scriptId": 70,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script75",
+   "scriptId": 75,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script76",
+   "scriptId": 76,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script83",
+   "scriptId": 83,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script95",
+   "scriptId": 95,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script99",
+   "scriptId": 99,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script100",
+   "scriptId": 100,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script103",
+   "scriptId": 103,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script104",
+   "scriptId": 104,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script105",
+   "scriptId": 105,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script106",
+   "scriptId": 106,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script111",
+   "scriptId": 111,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script133",
+   "scriptId": 133,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script138",
+   "scriptId": 138,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script170",
+   "scriptId": 170,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script201",
+   "scriptId": 201,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script202",
+   "scriptId": 202,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script213",
+   "scriptId": 213,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script216",
+   "scriptId": 216,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script234",
+   "scriptId": 234,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script242",
+   "scriptId": 242,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script245",
+   "scriptId": 245,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script271",
+   "scriptId": 271,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script280",
+   "scriptId": 280,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script300",
+   "scriptId": 300,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script311",
+   "scriptId": 311,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script316",
+   "scriptId": 316,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script325",
+   "scriptId": 325,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script367",
+   "scriptId": 367,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script368",
+   "scriptId": 368,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script369",
+   "scriptId": 369,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script372",
+   "scriptId": 372,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script374",
+   "scriptId": 374,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script383",
+   "scriptId": 383,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script389",
+   "scriptId": 389,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script403",
+   "scriptId": 403,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script410",
+   "scriptId": 410,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script416",
+   "scriptId": 416,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script434",
+   "scriptId": 434,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script438",
+   "scriptId": 438,
+   "intArgs": [],
+   "stringArgs": []
+  },
+  {
+   "id": "script451",
+   "scriptId": 451,
+   "intArgs": [],
+   "stringArgs": []
+  }
+ ]
+}

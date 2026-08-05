@@ -261,7 +261,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	engine/uitree_anim.c engine/entity_model_build.c \

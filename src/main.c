@@ -5,6 +5,7 @@
 #include "cmd/cmdbus.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/cs2_harness.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
@@ -892,6 +893,34 @@ frame_loop_step(void)
                     rs_frame = -1;
                 }
             }
+            /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
+             * once the client is far enough in to have a cache, a host and a
+             * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
+             * the default is late enough for login to have completed against
+             * mock230, because a case that reads a varp needs the varps.
+             * The run ends the way every other headless run here ends, with
+             * TORIRS_MAX_FRAMES — the harness does not invent a second exit
+             * path. */
+            {
+                static int harness_done = 0;
+                char const* harness_cases = getenv("TORIRS_CS2_HARNESS");
+                if( !harness_done && harness_cases && *harness_cases )
+                {
+                    char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
+                    long harness_frame = at ? strtol(at, NULL, 0) : 400;
+                    if( frame_count >= harness_frame )
+                    {
+                        char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
+                        harness_done = 1;
+                        CS2Harness_Run(
+                            &app.host,
+                            &app.runner,
+                            harness_cases,
+                            out && *out ? out : "/tmp/cs2_harness_c");
+                    }
+                }
+            }
+
             if( rs_frame >= 0 && frame_count >= rs_frame )
             {
                 fprintf(
