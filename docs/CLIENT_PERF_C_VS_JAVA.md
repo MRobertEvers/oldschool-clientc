@@ -333,7 +333,55 @@ The watchdog distinguishes them, captures a thread dump plus the busiest
 threads, and exits early when the log already shows a startup failure rather
 than burning the deadline on a corpse.
 
-### T11 — 2026-08-04 — blocked: the mock JS5 server, not the client
+### T11 — 2026-08-04 — not the JS5 server: the rebuilt client's own bzip2
+
+The instrumented client died in the cache path with a reference-table protocol
+error, which looked server-side. It was not, and proving that took the right
+measurement rather than more reading:
+
+1. Probed the mock server for all 25 reference tables and decompressed each.
+   **Every one decodes as protocol 7.** Archives 16 and 23 are genuine holes —
+   `idx255` records are all-zero — which matches the live cache.
+2. Probed `oldschool1.runescape.com` at revisions 239–242 for the master index.
+   It answers with the **same shape** the mock server sends: an uncompressed
+   205-byte container, 200-byte body, 25 × (p4 crc, p4 version). So the mock
+   JS5 master index is correct.
+3. Added a diagnostic at the client's own throw site (it is our source now):
+   `archive=17, raw=791B, decompressed=6372B, protocol=20, first24=1400...`
+   Decompressing the same 791 bytes independently gave `07 6a5f6b14 ...` —
+   protocol 7. Same input, same output length, **different bytes**.
+
+The client's bzip2 decoder was corrupt. `class605.method13053` had
+`byte var96 = 1; … var96 *= 2;` — the RUNA/RUNB run-length multiplier, doubling
+per bit, wrapping at 128. Bytecode: `iload 96; iconst_2; imul; istore 96`, no
+`i2b`, a plain int slot. Every archive decompressed to the declared length and
+the wrong content.
+
+**The mock JS5 server was right the whole time.** The lesson is the one this
+log keeps re-learning: when a rebuilt client disagrees with a server, suspect
+the rebuild first, and measure both sides rather than reading either.
+
+### T12 — 2026-08-05 — logged in and rendering
+
+Eight more defects between the bzip2 fix and a rendered scene, every one from
+the deobfuscation and every one invisible to the compile and API gates. Full
+catalogue in `Deobfuscator/instr/DEOB_DEFECTS.md`; the procedure to reproduce
+is `Deobfuscator/instr/RUNNING.md`.
+
+The client now logs in through the control channel and renders the world:
+player, terrain, lava, orbs, inventory, minimap, "Welcome to the mock230 world".
+
+Two that generalise beyond this client:
+
+- **`for (byte i = 0; i < 256; i += 8)`** — four ISAAC counters, wrapping to
+  −128 and indexing a 256-entry array. A `for` counter is never legitimately
+  `byte` in Java source, so all 39 in the tree were widened wholesale.
+- **The narrowed-local scanner was wrong twice before it was right**, and each
+  wrong version looked fine. "Does the enclosing method contain `i2b`?" proves
+  *some* local narrows, not *this* one — that version left the bzip2 bug in
+  place. The exact test is per slot.
+
+### T13 — 2026-08-04 — (superseded) blocked: the mock JS5 server, not the client
 
 The instrumented client reaches the game loop and then dies in the cache path:
 
