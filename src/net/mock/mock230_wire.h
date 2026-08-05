@@ -157,6 +157,25 @@ struct Mock230WirePayload
     void (*inv_slot)(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id,
                      int count);
 
+    /**
+     * RUNCLIENTSCRIPT's argument block.
+     *
+     * The type string is NUL-terminated at this revision rather than
+     * newline-terminated, and the script id is a plain p4 after the arguments
+     * (which are still written in reverse). `types` is one char per argument.
+     */
+    void (*run_clientscript)(
+        struct RSAreaBuf* buf,
+        int script_id,
+        const char* types,
+        int const* intv,
+        const char* const* strv,
+        int argc);
+
+    /** One ignore-list entry. The list is name-based at this revision rather
+     *  than a flat array of base-37 longs. */
+    void (*ignore_entry)(struct RSAreaBuf* buf, const char* name);
+
     /** REBUILD_REGION's header. The zone descriptor grid follows and is written
      *  by the caller, which already knows how to bit-pack it. */
     void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);

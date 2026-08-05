@@ -478,6 +478,57 @@ w239_inv_slot(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id, int cou
 }
 
 /*
+ * RunClientScriptEncoder: pjstr types, then the arguments in REVERSE order,
+ * then p4 the script id.
+ *
+ * Two differences from the classic packet, both silent. The type string is
+ * NUL-terminated here and newline-terminated at 230 -- a client reading the
+ * wrong terminator consumes the first argument as part of the string. And 's'
+ * arguments are NUL-terminated strings rather than newline-terminated ones.
+ *
+ * The reverse ordering is the same at both revisions and is not a mistake: the
+ * client pops arguments off a stack.
+ */
+static void
+w239_run_clientscript(
+    struct RSAreaBuf* buf,
+    int script_id,
+    const char* types,
+    int const* intv,
+    const char* const* strv,
+    int argc)
+{
+    for( int i = 0; i < argc; i++ )
+        rsab_p1(buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
+    rsab_p1(buf, 0); /* NUL, not the classic newline */
+    for( int i = argc - 1; i >= 0; i-- )
+    {
+        if( types && types[i] == 's' )
+            rsab_pjstr(buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NUL);
+        else
+            rsab_p4(buf, intv ? intv[i] : 0);
+    }
+    rsab_p4(buf, script_id);
+}
+
+/*
+ * UpdateIgnoreListEncoder, added-entry form: p1 kind, pjstr name,
+ * pjstr previousName, pjstr note.
+ *
+ * The classic packet is a flat array of 8-byte base-37 names; this one is
+ * per-entry and text. Kind 0x1 is "added", 0x4 is "removed"; only the added
+ * form is written here because this server only ever sends a whole list.
+ */
+static void
+w239_ignore_entry(struct RSAreaBuf* buf, const char* name)
+{
+    rsab_p1(buf, 0x1);
+    rsab_pjstr(buf, name ? name : "", RSAB_JSTR_NUL);
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* previousName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* note */
+}
+
+/*
  * p3Alt2: [v>>16, v, v>>8].
  *
  * rsareabuf has p3 (big-endian medium) but not this permutation, and it is the
@@ -686,6 +737,8 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .friendlist_loaded = w239_friendlist_loaded,
     .inv_header = w239_inv_header,
     .inv_slot = w239_inv_slot,
+    .run_clientscript = w239_run_clientscript,
+    .ignore_entry = w239_ignore_entry,
     .zone_header = w239_zone_header,
     .zone_payload = w239_zone_payload,
     .cam_moveto = w239_cam_moveto,
@@ -737,6 +790,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,
+    PKT_NAME_RUNCLIENTSCRIPT,  PKT_NAME_UPDATE_IGNORELIST,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c

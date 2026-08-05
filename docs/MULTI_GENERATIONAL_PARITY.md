@@ -89,7 +89,7 @@ Identified gaps (all outside the rev table today):
 |---|---|---|
 | Login handshake shape | `src/net/loginproto.c` | opcode 14/16, RSA block, ISAAC±50 seeding, 3-byte success tail, uid=1337, 9 jag CRCs |
 | Transport & framing | `src/net/net.c`, `packetbuffer.c` | raw TCP, ISAAC-encrypted opcode byte |
-| Appearance decode | `src/net/rev/pkt_player_appearance.c` | 254-era layout (12 slots, 5 colors, 7 anims, base37 name) |
+| Appearance decode | `src/net/rev/packets/pkt_player_appearance.c` | Colocated 2026-08-04: one canonical 12-slot vocabulary + every wire spelling of it (classic and osrs239's two-array/`+0x800` shape) + an encoding-independent op-stream reader, mirroring pkt_npc_info.c's op list. `GameProtoRevTable.appearance_decode` selects the reader; NULL = classic. |
 | PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec, NPC 14-bit slots |
 | Scene-origin math | `task_gameproto_exec.c` / `World_ResetScene` | `(zone-6)*8` local-coord base (unified 2026-08-03; `scene_off` deleted) |
 | ClientCode constants | `src/game/rs_clientcode.h` | 254-era baked component behaviors (friends rows, bankmode, designer…) |
@@ -365,7 +365,9 @@ rendered, camera on local player.
 
 **Phase 3 — entity sync.**
 Modern GPI/GNI readers → op-list → shared applier; modern appearance decode
-(worn-equipment model composition already exists from the dat2 UI work);
+(worn-equipment model composition already exists from the dat2 UI work; the
+appearance block itself is done — `pkt_player_appearance.c`'s `APPEARANCE_ENC_V5`
+reader, wired via `osrs239`'s `appearance_decode` hook);
 movement/teleport/skip-runs; Huffman chat decode. Exit criterion: local player
 + other players + NPCs moving/animating. This is the phase with real new code;
 everything downstream of the op-list already exists.
@@ -735,3 +737,52 @@ ever matters.
     The index widened from 14 to 16 bits at this revision. The terminator is not
     optional when extended info follows: the client's loop consumes indices
     while the bit reader has bits, and that reader spans the rest of the packet.
+
+- **2026-08-04 — appearance colocated: one vocabulary, every wire spelling,
+  one encoding-independent decoder.**
+  - The 12-int appearance buffer had drifted into three tellings of the same
+    fact: `pkt_player_appearance.c` decoded only the classic block,
+    `mock230_encode.c` had a second, hand-duplicated classic writer plus a
+    separate 239 writer (`put_appearance_v5`), and every renderer
+    (`entity_model_build.c`, the chathead build, the design preview, the
+    uitree scene bridge, held-item swap) tested `>= 0x100` / `>= 0x200`
+    against the wire's own numbers. Nothing was wrong yet — 230 and 239 never
+    ran in the same process — but a third encoding, or a 239-tagged value
+    reaching a classic-shaped test, would have decoded into a different, valid
+    body part rather than failed.
+  - All three now live in one file, `src/net/rev/packets/pkt_player_appearance.h/.c`:
+    a canonical slot vocabulary (`Appearance_PackKit`/`PackObj`,
+    `Appearance_SlotKind`/`SlotKit`/`SlotObj`), every wire tag next to the
+    others (`APPEARANCE_WIRE_KIT_TAG` 0x100, `_OBJ_TAG_CLASSIC` 0x200,
+    `_OBJ_TAG_V5` 0x800) behind `Appearance_WirePack`/`WireUnpack`, and an
+    op-stream reader (`pkt_appearance_read`) in the same shape as
+    `pkt_npc_info.c`'s `PktNpcInfoOp` — a revision's shape becomes a new
+    reader function, not a branch in every consumer. `PktPlayerAppearance`
+    is the folded form the client still applies; `PktPlayerAppearance_Decode`
+    is now `DecodeAs(APPEARANCE_ENC_CLASSIC, ...)`, kept for every rev table
+    that leaves `appearance_decode` NULL.
+  - The canonical range moved off the wire's own numbers (`APPEARANCE_PACK_KIT`
+    0x10000, not 0x100): the osrs239 cache ships 307 identity kits, and
+    `0x100 + kit` collides with the classic obj range at kit 256 — not
+    reachable today, but a canonical packing that equals one encoding's wire
+    tag is exactly the bug this change exists to close off.
+  - `mock230_encode.c`'s two writers now build from one `appearance_slots()`
+    (the worn/covered/kit-fallback rule, stated once) and one
+    `put_appearance_slots()` (the zero-byte-vs-two-byte framing, stated once),
+    differing only in which `AppearanceEncoding` they pack against.
+  - The two cache-sourced held-item override sites (`task_exec_entity_info.c`'s
+    SEQ handling, `app.c`'s per-frame held-item swap) both read
+    `SeqType.replaceheldleft/right`, which are classic-tagged appearance
+    values from the cache regardless of which net revision is connected —
+    routed through `Appearance_FromCacheValue` rather than compared to a
+    literal at each site.
+  - Verified: `make -C src test-entity-decode` (new cases: a same-content
+    classic/239 pair decodes to an identical `PktPlayerAppearance`; the
+    classic obj tag read under the 239 encoding lands as a *kit*, not an
+    error — the silent-failure case this module exists to prevent; malformed
+    customisation flags and truncated blocks are refused; 239 transmog ends
+    the equipment array early), `test-mock239-playerinfo`,
+    `test-mock230-embed`, `mock230_pack --check-only` (0 errors), and a
+    headless `torirs --manifest manifest_osrs230_embed.ini` run
+    (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`
+    confirming the local player still renders equipped gear end to end.

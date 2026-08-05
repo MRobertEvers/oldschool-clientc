@@ -343,7 +343,7 @@ struct PktPlayerAppearance
     int gender;
     int headicon; /* bitmask over the headicons sprite pack */
     int skull_icon; /* -1 none; 239 only, no consumer yet */
-    int slots[APPEARANCE_SLOT_COUNT];    /* canonical: 0 | 0x100+kit | 0x200+obj */
+    int slots[APPEARANCE_SLOT_COUNT];    /* canonical: empty | kit | obj */
     int identkit[APPEARANCE_SLOT_COUNT]; /* 239's body-underneath array, canonical */
     int colors[APPEARANCE_COLOUR_COUNT];
     int readyanim;

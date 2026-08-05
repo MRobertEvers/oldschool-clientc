@@ -687,3 +687,828 @@ def split_args(text):
     if "".join(cur).strip():
         parts.append("".join(cur))
     return parts
+
+
+# --- wire function -> C function/type table -----------------------------------
+
+def _build_fn_table():
+    t = {}
+    for w in (1, 2, 3, 4):
+        for alt, asuf in (("", ""), ("Alt1", "_alt1"), ("Alt2", "_alt2"), ("Alt3", "_alt3")):
+            t[f"p{w}{alt}"] = (f"rsprot_p{w}{asuf}", "int32_t")
+            t[f"g{w}{alt}"] = (f"rsprot_g{w}{asuf}", "int32_t")
+            if w <= 3:
+                t[f"g{w}s{alt}"] = (f"rsprot_g{w}s{asuf}", "int32_t")
+    t["p8"] = ("rsprot_p8", "int64_t")
+    t["g8"] = ("rsprot_g8", "int64_t")
+    t["p4f"] = ("rsprot_p4f", "float")
+    t["g4f"] = ("rsprot_g4f", "float")
+    t["p8d"] = ("rsprot_p8d", "double")
+    t["g8d"] = ("rsprot_g8d", "double")
+    t["pboolean"] = ("rsprot_pboolean", "bool")
+    t["gboolean"] = ("rsprot_gboolean", "bool")
+    for kt in ("pjstr", "gjstr", "pjstrnull", "gjstrnull", "pjstr2", "gjstr2"):
+        t[kt] = (f"rsprot_{kt}", "const char *")
+    for kt, c in (
+        ("pSmart1or2", "psmart1or2"), ("gSmart1or2", "gsmart1or2"),
+        ("pSmart1or2s", "psmart1or2s"), ("gSmart1or2s", "gsmart1or2s"),
+        ("pSmart1or2null", "psmart1or2null"), ("gSmart1or2null", "gsmart1or2null"),
+        ("pSmart1or2extended", "psmart1or2extended"), ("gSmart1or2extended", "gsmart1or2extended"),
+        ("pSmart2or4", "psmart2or4"), ("gSmart2or4", "gsmart2or4"),
+        ("pSmart2or4null", "psmart2or4null"), ("gSmart2or4null", "gsmart2or4null"),
+        ("pMidiVarLen", "pmidivarlen"), ("gMidiVarLen", "gmidivarlen"),
+        ("pVarInt2", "pvarint2"), ("gVarInt2", "gvarint2"),
+        ("pVarInt2s", "pvarint2s"), ("gVarInt2s", "gvarint2s"),
+        ("pType", "ptype"), ("gType", "gtype"),
+    ):
+        t[kt] = (f"rsprot_{c}", "int32_t")
+    for alt, asuf in (("", ""), ("Alt1", "_alt1"), ("Alt2", "_alt2"), ("Alt3", "_alt3")):
+        t[f"pCombinedId{alt}"] = (f"rsprot_pcombined_id{asuf}", "int32_t")
+        t[f"gCombinedId{alt}"] = (f"rsprot_gcombined_id{asuf}", "int32_t")
+    return t
+
+
+FN_TABLE = _build_fn_table()
+
+
+def wire_c_fn(kt_fn):
+    if kt_fn not in FN_TABLE:
+        raise Unsupported(f"unmapped wire function: {kt_fn}")
+    return FN_TABLE[kt_fn]
+
+
+# --- scope / field registry ---------------------------------------------------
+#
+# A Scope owns one C struct. The top-level scope is the message struct; a
+# for_each/for_each_pair loop body gets its OWN scope for its element struct.
+# `fields` is an ordered dict name -> ctype (declaration order = first-seen
+# order, which is also wire order for the common flat case -- readable output).
+
+class Scope:
+    def __init__(self, struct_name, parent=None, recv_name=None):
+        self.struct_name = struct_name
+        self.parent = parent
+        self.recv_name = recv_name  # the Kotlin identifier this scope's struct is accessed through (None for top)
+        self.fields = {}  # name -> ctype
+        self.locals = {}  # kotlin local name -> ("field", cname) | ("local", ctype) | ("loopvar",) | ("elem_alias", child_scope)
+        self.array_fields = {}  # field name -> element Scope (for for_each) or True (for indexed scalar arrays)
+        self.count_field_for = {}  # array field name -> the count field name
+
+    def add_field(self, name, ctype):
+        if name not in self.fields:
+            self.fields[name] = ctype
+        return name
+
+
+def c_escape_ident(name):
+    return re.sub(r"[^A-Za-z0-9_]", "_", name)
+
+
+def lower_first(s):
+    return s[:1].lower() + s[1:] if s else s
+
+
+def deprefix_getter(name):
+    """`getObject` -> `object`, `getX` -> `x`."""
+    if name.startswith("get") and len(name) > 3 and name[3].isupper():
+        return lower_first(name[3:])
+    return name
+
+
+# --- expression resolution + C emission ---------------------------------------
+
+CAST_CALLS = {"toInt", "toByte", "toShort", "toLong", "toFloat", "toDouble", "toUInt", "toUByte", "toUShort"}
+
+
+def resolve_recv_scope(recv_ast, scope):
+    """If `recv_ast` is `message` (or a known nested-loop var), return the
+    Scope it addresses. Otherwise None (not a field access we model)."""
+    if recv_ast["kind"] != "ident":
+        return None
+    name = recv_ast["name"]
+    if name == "message":
+        s = scope
+        while s.parent is not None:
+            s = s.parent
+        return s
+    s = scope
+    while s is not None:
+        if s.recv_name == name:
+            return s
+        s = s.parent
+    return None
+
+
+def emit_expr(ast, scope, ctx):
+    """Emit a C expression string for `ast`. `ctx` carries mode ('encode' or
+    'decode') for a few asymmetric idioms. Raises Unsupported for anything
+    not modeled -- see module docstring for why that is the correct failure
+    mode here."""
+    k = ast["kind"]
+
+    if k == "num":
+        t = ast["text"]
+        if t.endswith(("f", "F")):
+            return t
+        return t.rstrip("uUlL")
+
+    if k == "str":
+        return '"' + ast["text"] + '"'
+
+    if k == "char":
+        ch = ast["text"]
+        if ch == "\\":
+            raise Unsupported("bare backslash char literal")
+        return f"'{ch}'" if ch != "'" else "'\\''"
+
+    if k == "bool":
+        return "true" if ast["val"] else "false"
+
+    if k == "null":
+        return "NULL"
+
+    if k == "ident":
+        name = ast["name"]
+        # loop index / plain local?
+        s = scope
+        while s is not None:
+            if name in s.locals:
+                kind = s.locals[name]
+                if kind[0] == "loopvar":
+                    return c_escape_ident(name)
+                if kind[0] == "local":
+                    return c_escape_ident(name)
+                if kind[0] == "field":
+                    owner, cname = kind[1], kind[2]
+                    return f"{owner}->{cname}"
+                if kind[0] == "count_alias":
+                    owner, field = kind[1], kind[2]
+                    return f"{owner}->{field}_count"
+            s = s.parent
+        raise Unsupported(f"unresolved identifier: {name}")
+
+    if k == "member":
+        recv = ast["recv"]
+        name = ast["name"]
+        target_scope = resolve_recv_scope(recv, scope)
+        if target_scope is not None:
+            ptr = struct_ptr_expr(target_scope, ctx)
+            cname = c_escape_ident(name)
+            target_scope.add_field(cname, "int32_t")
+            return f"{ptr}->{cname}"
+        # `foo.size` on a local array-ish value we track as a count alias
+        if recv["kind"] == "ident":
+            s = scope
+            while s is not None:
+                if recv["name"] in s.locals and s.locals[recv["name"]][0] == "count_alias" and name == "size":
+                    owner, field = s.locals[recv["name"]][1], s.locals[recv["name"]][2]
+                    return f"{struct_ptr_expr(scope_for_owner(scope, owner), ctx)}->{field}_count"
+                s = s.parent
+        raise Unsupported(f"unmodeled member access: .{name}")
+
+    if k == "index":
+        recv_c = emit_expr(ast["recv"], scope, ctx)
+        idx_c = emit_expr(ast["idx"], scope, ctx)
+        return f"{recv_c}[{idx_c}]"
+
+    if k == "call":
+        return emit_call(ast, scope, ctx)
+
+    if k == "neg":
+        return f"(-{emit_expr(ast['val'], scope, ctx)})"
+
+    if k == "not":
+        return f"(!{emit_expr(ast['val'], scope, ctx)})"
+
+    if k == "bin":
+        op = ast["op"]
+        cop = {
+            "and": "&", "or": "|", "xor": "^", "shl": "<<", "shr": ">>", "ushr": ">>",
+        }.get(op, op)
+        l = emit_expr(ast["left"], scope, ctx)
+        r = emit_expr(ast["right"], scope, ctx)
+        if op == "ushr":
+            return f"((int32_t)((uint32_t)({l}) >> ({r})))"
+        return f"({l} {cop} {r})"
+
+    if k == "ternary":
+        c = emit_expr(ast["cond"], scope, ctx)
+        t = emit_expr(ast["then"], scope, ctx)
+        e = emit_expr(ast["els"], scope, ctx)
+        return f"({c} ? {t} : {e})"
+
+    if k == "elvis":
+        # Only the "reference-or-default" shape is modeled: emit as a NULL
+        # check. This is correct for pointer-typed lefts (strings) and is
+        # rejected (Unsupported) for anything else -- see design note above
+        # on why a numeric elvis is not safely representable without a
+        # distinct null sentinel this generator does not model.
+        left = ast["left"]
+        if left["kind"] == "member" and left.get("safe"):
+            raise Unsupported("safe-call member elvis not modeled generically")
+        l = emit_expr(left, scope, ctx)
+        r = emit_expr(ast["right"], scope, ctx)
+        return f"({l} != NULL ? {l} : {r})"
+
+    if k == "in_range":
+        v = emit_expr(ast["val"], scope, ctx)
+        lo = emit_expr(ast["lo"], scope, ctx)
+        hi = emit_expr(ast["hi"], scope, ctx)
+        return f"(({v}) >= ({lo}) && ({v}) <= ({hi}))"
+
+    raise Unsupported(f"unmodeled expr kind: {k}")
+
+
+def scope_for_owner(scope, owner_expr):
+    # owner_expr is already a C pointer-expr string like "msg" or "elem";
+    # this helper only needs to exist for the count_alias resolution path
+    # above where we already have the target scope logically -- kept simple
+    # by resolving through struct_ptr_expr's own naming convention.
+    return scope
+
+
+def struct_ptr_expr(target_scope, ctx):
+    if target_scope.parent is None:
+        return "out" if ctx == "decode" else "msg"
+    return "elem"
+
+
+CALL_UNSUPPORTED = object()
+
+
+def emit_call(ast, scope, ctx):
+    name = ast["name"]
+    recv = ast["recv"]
+    args = ast["args"]
+
+    if name in CAST_CALLS:
+        # (Type) cast -- values are already the right C width.
+        return emit_expr(recv, scope, ctx)
+
+    if name == "coerceAtMost":
+        a = emit_expr(recv, scope, ctx)
+        b = emit_expr(args[0], scope, ctx)
+        return f"({a} < {b} ? {a} : {b})"
+    if name == "coerceAtLeast":
+        a = emit_expr(recv, scope, ctx)
+        b = emit_expr(args[0], scope, ctx)
+        return f"({a} > {b} ? {a} : {b})"
+
+    if name == "isNullOrEmpty":
+        # only used in `if (!X.isNullOrEmpty())`; handled at the if-condition
+        # level (see emit_cond), never reached as a bare expression normally.
+        raise Unsupported("isNullOrEmpty outside an if-condition")
+
+    if recv is None and name in ("message",):
+        raise Unsupported("bare message() call")
+
+    # `message.getX(i)` / `alias.getX(i)` indexed accessor -> array field.
+    if recv is not None:
+        target_scope = resolve_recv_scope(recv, scope)
+        if target_scope is not None and len(args) == 1:
+            field = c_escape_ident(deprefix_getter(name))
+            idx_c = emit_expr(args[0], scope, ctx)
+            target_scope.add_field(field, "int32_t")
+            target_scope.array_fields.setdefault(field, True)
+            ptr = struct_ptr_expr(target_scope, ctx)
+            return f"{ptr}->{field}[{idx_c}]"
+
+    raise Unsupported(f"unmodeled call: {name}(...)")
+
+
+def leaf_string_fn(fn_kt):
+    return fn_kt.startswith(("pjstr", "gjstr"))
+
+
+# --- IR -> C statement emission ------------------------------------------------
+
+class Emitter:
+    def __init__(self, msg_name, ctx):
+        self.msg_name = msg_name
+        self.ctx = ctx  # "encode" | "decode"
+        self.lines = []
+        self.tmp_i = 0
+        self.decl_locals = []  # (ctype, name) declared up front, C89-ish safety not required (C11 ok inline)
+
+    def emit(self, s, indent=1):
+        self.lines.append(("    " * indent) + s)
+
+    def new_scope_field(self, scope, ast_or_name, kt_fn=None):
+        pass  # kept for symmetry; fields are registered where referenced.
+
+
+def gen_ops(ops, scope, em, indent, ctx):
+    for op in ops:
+        gen_op(op, scope, em, indent, ctx)
+
+
+def gen_op(op, scope, em, indent, ctx):
+    kind = op["op"]
+
+    if kind == "write":
+        fn_kt = op["fn"]
+        c_fn, ctype = wire_c_fn(fn_kt)
+        expr_ast = op["expr"]
+        # register the field if the expr is a direct field/member reference
+        _pre_register(expr_ast, scope, ctype, ctx)
+        expr_c = emit_expr(expr_ast, scope, ctx)
+        buf = "buf"
+        if leaf_string_fn(fn_kt):
+            em.emit(f"{c_fn}({buf}, {expr_c});", indent)
+        else:
+            em.emit(f"{c_fn}({buf}, {expr_c});", indent)
+        return
+
+    if kind == "read":
+        fn_kt = op["fn"]
+        c_fn, ctype = wire_c_fn(fn_kt)
+        name = c_escape_ident(op["name"])
+        scope.add_field(name, ctype)
+        scope.locals[op["name"]] = ("field", struct_ptr_expr(scope, ctx), name)
+        buf = "buf"
+        if leaf_string_fn(fn_kt):
+            em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = {c_fn}({buf}, NULL);", indent)
+        else:
+            cast = f"({ctype})" if ctype != "int32_t" else ""
+            em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = {cast}{c_fn}({buf});", indent)
+        return
+
+    if kind == "readbool":
+        fn_kt = op["fn"]
+        c_fn, _ = wire_c_fn(fn_kt)
+        name = c_escape_ident(op["name"])
+        scope.add_field(name, "bool")
+        scope.locals[op["name"]] = ("field", struct_ptr_expr(scope, ctx), name)
+        tv = op["true_val"]
+        em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = ({c_fn}(buf) == {tv});", indent)
+        return
+
+    if kind == "local":
+        # Restrict to the patterns declared safe in the module docstring:
+        # a pure alias to a field/local, or a self-contained computed value
+        # with no `message.`/element field reference beyond a single leaf
+        # already covered by the field registry.
+        expr_ast = op["expr"]
+        name = op["name"]
+        # count-alias idiom: `val N = FIELD?.size ?: 0` / `FIELD.size`
+        alias = _match_count_alias(expr_ast, scope)
+        if alias is not None:
+            owner, field = alias
+            scope.locals[name] = ("count_alias", owner, field)
+            return
+        # pure passthrough alias: `val N = message.FIELD` (no array use) or
+        # `val N = someLocal`
+        if expr_ast["kind"] in ("ident", "member"):
+            try:
+                target_scope = None
+                if expr_ast["kind"] == "member":
+                    target_scope = resolve_recv_scope(expr_ast["recv"], scope)
+                if target_scope is not None:
+                    cname = c_escape_ident(expr_ast["name"])
+                    target_scope.add_field(cname, "int32_t")
+                    scope.locals[name] = ("field", struct_ptr_expr(target_scope, ctx), cname)
+                    return
+                if expr_ast["kind"] == "ident" and expr_ast["name"] in _all_local_names(scope):
+                    scope.locals[name] = scope_lookup(scope, expr_ast["name"])
+                    return
+            except Unsupported:
+                pass
+        # otherwise: emit as a genuine computed C local (int32_t/bool by shape)
+        ctype = "bool" if expr_ast["kind"] in ("bin",) and expr_ast.get("op") in (
+            "==", "!=", "<", ">", "<=", ">=", "&&", "||") else "int32_t"
+        expr_c = emit_expr(expr_ast, scope, ctx)
+        cname = c_escape_ident(name)
+        em.emit(f"{ctype} {cname} = {expr_c};", indent)
+        scope.locals[name] = ("local", ctype)
+        return
+
+    if kind == "assign":
+        name = op["name"]
+        expr_c = emit_expr(op["expr"], scope, ctx)
+        em.emit(f"{c_escape_ident(name)} = {expr_c};", indent)
+        return
+
+    if kind == "if":
+        cond_c = emit_cond(op["cond"], scope, ctx)
+        em.emit(f"if ({cond_c}) {{", indent)
+        gen_ops(op["then"], scope, em, indent + 1, ctx)
+        if op["else"]:
+            em.emit("} else {", indent)
+            gen_ops(op["else"], scope, em, indent + 1, ctx)
+        em.emit("}", indent)
+        return
+
+    if kind == "for_range":
+        var = c_escape_ident(op["var"])
+        lo_c = emit_expr(op["lo"], scope, ctx)
+        hi_c = emit_expr(op["hi"], scope, ctx)
+        cmp = "<=" if op["inclusive"] else "<"
+        em.emit(f"for (int32_t {var} = {lo_c}; {var} {cmp} {hi_c}; {var}++) {{", indent)
+        scope.locals[op["var"]] = ("loopvar",)
+        gen_ops(op["body"], scope, em, indent + 1, ctx)
+        del scope.locals[op["var"]]
+        em.emit("}", indent)
+        return
+
+    if kind == "for_each":
+        iter_scope = resolve_recv_scope(op["iter"], scope) if op["iter"]["kind"] == "ident" else None
+        field = None
+        if op["iter"]["kind"] == "member":
+            target_scope = resolve_recv_scope(op["iter"]["recv"], scope)
+            if target_scope is not None:
+                field = c_escape_ident(op["iter"]["name"])
+                owner = target_scope
+        elif op["iter"]["kind"] == "ident":
+            owner = scope
+            field = None
+        if field is None:
+            raise Unsupported("for-each over an unresolved iterable")
+        elem_struct = f"Rsprot_{c_escape_ident(scope.struct_name)}_{c_escape_ident(field)}Elem"
+        child = Scope(elem_struct, parent=scope, recv_name=op["var"])
+        owner.array_fields[field] = child
+        owner.count_field_for[field] = f"{field}_count"
+        elem_var = c_escape_ident(op["var"])
+        ptr = struct_ptr_expr(owner, ctx)
+        em.emit(
+            f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {ptr}->{field}_count; rs_i_{elem_var}++) {{",
+            indent,
+        )
+        decl_kw = "const " if ctx == "encode" else ""
+        em.emit(f"{decl_kw}{elem_struct} *elem = ({decl_kw}{elem_struct} *)&{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
+        scope.locals[op["var"]] = ("elem_alias", child)
+        gen_ops(op["body"], child, em, indent + 1, ctx)
+        del scope.locals[op["var"]]
+        em.emit("}", indent)
+        return
+
+    if kind in ("return", "return_void", "ignore", "continue", "break"):
+        if kind == "continue":
+            em.emit("continue;", indent)
+        elif kind == "break":
+            em.emit("break;", indent)
+        # return/return_void/ignore: nothing to emit -- for decoders the
+        # struct is filled field-by-field already; the "return TYPE(args)"
+        # constructor call's argument LIST is what tells us which locals are
+        # part of the wire struct (locals not referenced there are scratch),
+        # so we validate it, not emit it.
+        if kind == "return":
+            for a in op["args"]:
+                _ = emit_expr(a, scope, ctx)  # validates every arg resolves
+        return
+
+    raise Unsupported(f"unmodeled IR op: {kind}")
+
+
+def emit_cond(ast, scope, ctx):
+    # special-case `!X.isNullOrEmpty()` / `X.isNullOrEmpty()` at condition
+    # position, since isNullOrEmpty() cannot be modeled as a value expr.
+    def scan(a, negate):
+        if a["kind"] == "not":
+            return scan(a["val"], not negate)
+        if a["kind"] == "call" and a["name"] == "isNullOrEmpty" and a["recv"] is not None:
+            alias = _match_count_alias({"kind": "member", "recv": a["recv"], "name": "size"}, scope) \
+                if a["recv"]["kind"] == "ident" else None
+            cnt = None
+            if a["recv"]["kind"] == "ident" and a["recv"]["name"] in _all_local_names(scope):
+                info = scope_lookup(scope, a["recv"]["name"])
+                if info[0] == "count_alias":
+                    owner, field = info[1], info[2]
+                    cnt = f"{struct_ptr_expr(scope, ctx)}->{field}_count"
+            if cnt is None:
+                target_scope = resolve_recv_scope(a["recv"], scope)
+                if target_scope is not None:
+                    fname = None
+                    # bare `message.isNullOrEmpty()`-style not expected; skip
+                if cnt is None:
+                    raise Unsupported("isNullOrEmpty on unresolved receiver")
+            expr = f"({cnt} > 0)"
+            return f"(!{expr})" if negate else expr
+        return None
+
+    top = scan(ast, False)
+    if top is not None:
+        return top
+    return emit_expr(ast, scope, ctx)
+
+
+def _pre_register(ast, scope, ctype, ctx):
+    """Best-effort: if `ast` is directly (optionally cast-wrapped) a field or
+    local reference, register/override its declared ctype from the wire call
+    that touches it -- gives strings/booleans/int64 the right struct type
+    instead of the emit_expr default of int32_t."""
+    a = ast
+    while a["kind"] == "call" and a["name"] in CAST_CALLS:
+        a = a["recv"]
+    if a["kind"] == "member":
+        target_scope = resolve_recv_scope(a["recv"], scope)
+        if target_scope is not None:
+            target_scope.fields[c_escape_ident(a["name"])] = ctype
+    elif a["kind"] == "ident":
+        info = _all_local_names(scope).get(a["name"])
+        if info and info[0] == "field":
+            owner_ptr, cname = info[1], info[2]
+            # find owning scope object matching owner_ptr; simplest: walk up
+            s = scope
+            while s is not None:
+                if struct_ptr_expr(s, ctx) == owner_ptr and cname in s.fields:
+                    s.fields[cname] = ctype
+                    break
+                s = s.parent
+
+
+def _all_local_names(scope):
+    out = {}
+    s = scope
+    while s is not None:
+        for k, v in s.locals.items():
+            out.setdefault(k, v)
+        s = s.parent
+    return out
+
+
+def scope_lookup(scope, name):
+    s = scope
+    while s is not None:
+        if name in s.locals:
+            return s.locals[name]
+        s = s.parent
+    raise Unsupported(f"unresolved local: {name}")
+
+
+def _match_count_alias(expr_ast, scope):
+    """Recognize `FIELD?.size ?: 0`, `FIELD.size`, `FIELD?.size`. Returns
+    (owner_scope, field_name) or None."""
+    a = expr_ast
+    default_ok = True
+    if a["kind"] == "elvis":
+        # right side must be 0
+        r = a["right"]
+        if not (r["kind"] == "num" and r["text"] in ("0",)):
+            return None
+        a = a["left"]
+    if a["kind"] != "member" or a["name"] != "size":
+        return None
+    target_scope = resolve_recv_scope(a["recv"], scope)
+    if target_scope is None:
+        return None
+    field = c_escape_ident(a["recv"]["name"]) if a["recv"]["kind"] == "member" else None
+    if a["recv"]["kind"] == "member":
+        field = c_escape_ident(a["recv"]["name"])
+    elif a["recv"]["kind"] == "ident":
+        # `X.size` where X is itself a local alias to a field
+        info = _all_local_names(scope).get(a["recv"]["name"])
+        if info and info[0] == "field":
+            field = info[2]
+        else:
+            return None
+    else:
+        return None
+    target_scope.array_fields.setdefault(field, True)
+    return (struct_ptr_expr(target_scope, "encode"), field)
+
+
+# --- struct + function rendering -----------------------------------------------
+
+def collect_nested_scopes(scope, out):
+    for name, val in scope.array_fields.items():
+        if isinstance(val, Scope):
+            collect_nested_scopes(val, out)
+            out.append(val)
+
+
+def render_struct(scope, struct_c_name):
+    lines = [f"typedef struct {struct_c_name} {{"]
+    for name, ctype in scope.fields.items():
+        av = scope.array_fields.get(name)
+        if av is True:
+            lines.append(f"\t{ctype} *{name};")
+            lines.append(f"\tint32_t {name}_count;")
+        elif isinstance(av, Scope):
+            elem_name = f"Rsprot_{struct_c_name}_{name}Elem"
+            lines.append(f"\tconst {elem_name} *{name};")
+            lines.append(f"\tint32_t {name}_count;")
+        else:
+            lines.append(f"\t{ctype} {name};")
+    lines.append(f"}} {struct_c_name};")
+    return "\n".join(lines)
+
+
+def render_all_structs(scope, msg_type):
+    """Nested element structs first (dependency order), then the top struct."""
+    nested = []
+    collect_nested_scopes(scope, nested)
+    out = []
+    for child in nested:
+        # child.struct_name was set to the placeholder element-struct name
+        # already at construction time in gen_op's for_each handling.
+        out.append(render_struct(child, child.struct_name))
+    out.append(render_struct(scope, f"RsprotMsg_{msg_type}"))
+    return "\n\n".join(out)
+
+
+def build_message(info, msg_type):
+    ctx = "decode" if info["is_decoder"] else "encode"
+    struct_c_name = f"RsprotMsg_{msg_type}"
+    scope = Scope(struct_c_name)
+    em = Emitter(msg_type, ctx)
+
+    if info.get("no_body"):
+        fn_name = f"rsprot_decode_{msg_type}" if info["is_decoder"] else f"rsprot_encode_{msg_type}"
+        struct_text = f"typedef struct {struct_c_name} {{\n\tint32_t _unused;\n}} {struct_c_name};"
+        if info["is_decoder"]:
+            fn_text = (
+                f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)\n"
+                f"{{\n\t(void)buf;\n\tout->_unused = 0;\n}}"
+            )
+        else:
+            fn_text = (
+                f"static inline void {fn_name}(RsprotBuf *buf, const {struct_c_name} *msg)\n"
+                f"{{\n\t(void)buf;\n\t(void)msg;\n}}"
+            )
+        return struct_text, fn_text, scope
+
+    chunks = split_top_level(info["body"])
+    ops = parse_statements(chunks, info["is_decoder"])
+    gen_ops(ops, scope, em, 1, ctx)
+
+    struct_text = render_all_structs(scope, msg_type)
+
+    if info["is_decoder"]:
+        fn_name = f"rsprot_decode_{msg_type}"
+        sig = f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)"
+    else:
+        fn_name = f"rsprot_encode_{msg_type}"
+        sig = f"static inline void {fn_name}(RsprotBuf *buf, const {struct_c_name} *msg)"
+    body_text = "\n".join(em.lines) if em.lines else ""
+    fn_text = f"{sig}\n{{\n{body_text}\n}}"
+    return struct_text, fn_text, scope
+
+
+# --- driver --------------------------------------------------------------------
+
+def iter_kt_files(base_dir):
+    for root, dirs, files in os.walk(base_dir):
+        rel = os.path.relpath(root, base_dir)
+        parts = rel.split(os.sep)
+        if any(p in EXCLUDE_DIR_PARTS for p in parts):
+            dirs[:] = []
+            continue
+        for f in sorted(files):
+            if f.endswith(".kt") and not f.endswith("Test.kt"):
+                yield os.path.join(root, f)
+
+
+def process_dir(base_dir, label):
+    generated = []
+    skipped = []
+    for path in iter_kt_files(base_dir):
+        rel = os.path.relpath(path, base_dir)
+        try:
+            info = parse_file(path)
+        except Exception as e:  # noqa: BLE001 - report and move on
+            skipped.append((rel, f"file parse error: {e}"))
+            continue
+        if info is None:
+            continue  # not a recognizable Encoder/Decoder class -- e.g. a helper file
+        msg_type = info["msg_type"]
+        try:
+            struct_text, fn_text, scope = build_message(info, msg_type)
+        except Unsupported as e:
+            skipped.append((rel, str(e)))
+            continue
+        except Exception as e:  # noqa: BLE001
+            skipped.append((rel, f"internal error: {type(e).__name__}: {e}"))
+            continue
+        generated.append(
+            {
+                "rel": rel,
+                "class": info["class"],
+                "msg_type": msg_type,
+                "prot": info["prot"],
+                "is_decoder": info["is_decoder"],
+                "struct": struct_text,
+                "fn": fn_text,
+                "scope": scope,
+                "flat": len(scope.array_fields) == 0,
+            }
+        )
+    return generated, skipped
+
+
+BANNER = """/*
+ * GENERATED by tools/rsprot_gen_codec.py -- do not edit.
+ * Source: RSProt revision {rev}, {count} message types.
+ * See 3rd/rsprot/gen/codec_status_{rev}.txt for what was skipped and why.
+ */"""
+
+
+def emit_header(path, guard, banner, includes, body_chunks):
+    lines = [f"#ifndef {guard}", f"#define {guard}", "", banner, ""]
+    for inc in includes:
+        lines.append(f'#include "{inc}"')
+    lines.append("")
+    for c in body_chunks:
+        lines.append(c)
+        lines.append("")
+    lines.append("#endif")
+    lines.append("")
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines))
+
+
+def gen_shadow_test(gen, direction):
+    """For flat (no array/nested) message types only: a mirror function that
+    reads back what the real function wrote (or vice versa), purely for
+    test_codec_roundtrip.c. Not part of the public API."""
+    scope = gen["scope"]
+    msg_type = gen["msg_type"]
+    struct_c_name = f"RsprotMsg_{msg_type}"
+    lines = []
+    if direction == "encode":
+        fn_name = f"rsprot_shadow_decode_{msg_type}"
+        lines.append(f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)")
+        lines.append("{")
+        for name, ctype in scope.fields.items():
+            fn_kt = scope.__dict__.get("field_fn", {}).get(name)
+            if not fn_kt:
+                return None
+            c_fn, _ = wire_c_fn(fn_kt)
+            g_fn = c_fn.replace("rsprot_p", "rsprot_g", 1) if c_fn.startswith("rsprot_p") else None
+            if g_fn is None:
+                return None
+            if leaf_string_fn(fn_kt.replace("p", "g", 1)) or fn_kt.startswith("pjstr"):
+                lines.append(f"\tout->{name} = {g_fn}(buf, NULL);")
+            else:
+                cast = f"({ctype})" if ctype != "int32_t" else ""
+                lines.append(f"\tout->{name} = {cast}{g_fn}(buf);")
+        lines.append("}")
+        return "\n".join(lines)
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("rev")
+    args = ap.parse_args()
+    rev = args.rev
+
+    desktop = os.path.join(RSPROT, f"protocol/osrs-{rev}/osrs-{rev}-desktop/src/main/kotlin/net/rsprot/protocol/game")
+
+    enc_gen, enc_skip = process_dir(os.path.join(desktop, "outgoing/codec"), "encoders")
+    dec_gen, dec_skip = process_dir(os.path.join(desktop, "incoming/codec"), "decoders")
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    enc_chunks = []
+    for g in enc_gen:
+        enc_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
+        enc_chunks.append(g["struct"])
+        enc_chunks.append(g["fn"])
+    emit_header(
+        os.path.join(OUT_DIR, f"encoders_{rev}.h"),
+        f"RSPROT_GEN_CODEC_ENCODERS_{rev}_H",
+        BANNER.format(rev=rev, count=len(enc_gen)),
+        ["../../src/rsprot_buf.h"],
+        enc_chunks,
+    )
+
+    dec_chunks = []
+    for g in dec_gen:
+        dec_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
+        dec_chunks.append(g["struct"])
+        dec_chunks.append(g["fn"])
+    emit_header(
+        os.path.join(OUT_DIR, f"decoders_{rev}.h"),
+        f"RSPROT_GEN_CODEC_DECODERS_{rev}_H",
+        BANNER.format(rev=rev, count=len(dec_gen)),
+        ["../../src/rsprot_buf.h"],
+        dec_chunks,
+    )
+
+    status_path = os.path.join(os.path.dirname(OUT_DIR), f"codec_status_{rev}.txt")
+    with open(status_path, "w") as fh:
+        fh.write(f"rsprot codec generation status -- revision {rev}\n")
+        fh.write(f"encoders: {len(enc_gen)} generated, {len(enc_skip)} skipped (of {len(enc_gen)+len(enc_skip)})\n")
+        fh.write(f"decoders: {len(dec_gen)} generated, {len(dec_skip)} skipped (of {len(dec_gen)+len(dec_skip)})\n\n")
+        fh.write("--- generated encoders ---\n")
+        for g in enc_gen:
+            fh.write(f"  OK   {g['rel']:<55} {g['msg_type']}{' [flat]' if g['flat'] else ' [array/nested]'}\n")
+        fh.write("\n--- skipped encoders ---\n")
+        for rel, reason in enc_skip:
+            fh.write(f"  SKIP {rel:<55} {reason}\n")
+        fh.write("\n--- generated decoders ---\n")
+        for g in dec_gen:
+            fh.write(f"  OK   {g['rel']:<55} {g['msg_type']}{' [flat]' if g['flat'] else ' [array/nested]'}\n")
+        fh.write("\n--- skipped decoders ---\n")
+        for rel, reason in dec_skip:
+            fh.write(f"  SKIP {rel:<55} {reason}\n")
+
+    print(
+        f"rev {rev}: encoders {len(enc_gen)}/{len(enc_gen)+len(enc_skip)}, "
+        f"decoders {len(dec_gen)}/{len(dec_gen)+len(dec_skip)} -- see {status_path}",
+        file=sys.stderr,
+    )
+
+
+if __name__ == "__main__":
+    main()

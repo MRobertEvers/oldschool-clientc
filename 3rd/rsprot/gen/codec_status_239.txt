@@ -1,0 +1,276 @@
+rsprot codec generation status -- revision 239
+encoders: 99 generated, 52 skipped (of 151)
+decoders: 81 generated, 14 skipped (of 95)
+
+--- generated encoders ---
+  OK   misc/client/HideLocOpsEncoder.kt                        HideLocOps [flat]
+  OK   misc/client/HideNpcOpsEncoder.kt                        HideNpcOps [flat]
+  OK   misc/client/HideObjOpsEncoder.kt                        HideObjOps [flat]
+  OK   misc/client/MinimapToggleEncoder.kt                     MinimapToggle [flat]
+  OK   misc/client/PacketGroupStartEncoder.kt                  PacketGroupStart [flat]
+  OK   misc/client/ResetAnimsEncoder.kt                        ResetAnims [flat]
+  OK   misc/client/ResetInteractionModeEncoder.kt              ResetInteractionMode [flat]
+  OK   misc/client/SendPingEncoder.kt                          SendPing [flat]
+  OK   misc/client/ServerTickEndEncoder.kt                     ServerTickEnd [flat]
+  OK   misc/client/SetHeatmapEnabledEncoder.kt                 SetHeatmapEnabled [flat]
+  OK   misc/client/SetInteractionModeEncoder.kt                SetInteractionMode [flat]
+  OK   misc/client/SiteSettingsEncoder.kt                      SiteSettings [flat]
+  OK   misc/client/UrlOpenEncoder.kt                           UrlOpen [flat]
+  OK   misc/player/AccountFlagsEncoder.kt                      AccountFlags [flat]
+  OK   misc/player/ChatFilterSettingsEncoder.kt                ChatFilterSettings [flat]
+  OK   misc/player/ChatFilterSettingsPrivateChatEncoder.kt     ChatFilterSettingsPrivateChat [flat]
+  OK   misc/player/MessageGameEncoder.kt                       MessageGame [flat]
+  OK   misc/player/SetPlayerOpEncoder.kt                       SetPlayerOp [flat]
+  OK   misc/player/TriggerOnDialogAbortEncoder.kt              TriggerOnDialogAbort [flat]
+  OK   misc/player/UpdateRunEnergyEncoder.kt                   UpdateRunEnergy [flat]
+  OK   misc/player/UpdateRunWeightEncoder.kt                   UpdateRunWeight [flat]
+  OK   misc/player/UpdateStatV2Encoder.kt                      UpdateStatV2 [flat]
+  OK   inv/UpdateInvStopTransmitEncoder.kt                     UpdateInvStopTransmit [flat]
+  OK   specific/AnimSpecificEncoder.kt                         AnimSpecific [flat]
+  OK   specific/LocAnimSpecificEncoder.kt                      LocAnimSpecific [flat]
+  OK   specific/MapAnimSpecificEncoder.kt                      MapAnimSpecific [flat]
+  OK   specific/NpcAnimSpecificEncoder.kt                      NpcAnimSpecific [flat]
+  OK   specific/NpcHeadIconSpecificEncoder.kt                  NpcHeadIconSpecific [flat]
+  OK   specific/NpcSpotAnimSpecificEncoder.kt                  NpcSpotAnimSpecific [flat]
+  OK   specific/PlayerSpotAnimSpecificEncoder.kt               PlayerSpotAnimSpecific [flat]
+  OK   clan/VarClanDisableEncoder.kt                           VarClanDisable [flat]
+  OK   clan/VarClanEnableEncoder.kt                            VarClanEnable [flat]
+  OK   camera/CamLookAtV2Encoder.kt                            CamLookAtV2 [flat]
+  OK   camera/CamLookAtV3Encoder.kt                            CamLookAtV3 [flat]
+  OK   camera/CamModeEncoder.kt                                CamMode [flat]
+  OK   camera/CamMoveToV2Encoder.kt                            CamMoveToV2 [flat]
+  OK   camera/CamMoveToV3Encoder.kt                            CamMoveToV3 [flat]
+  OK   camera/CamResetEncoder.kt                               CamReset [flat]
+  OK   camera/CamShakeEncoder.kt                               CamShake [flat]
+  OK   camera/CamSkyboxEncoder.kt                              CamSkybox [flat]
+  OK   camera/CamSmoothResetEncoder.kt                         CamSmoothReset [flat]
+  OK   camera/CamUnlockEncoder.kt                              CamUnlock [flat]
+  OK   camera/OculusSyncEncoder.kt                             OculusSync [flat]
+  OK   zone/payload/LocAnimEncoder.kt                          LocAnim [flat]
+  OK   zone/payload/LocDelEncoder.kt                           LocDel [flat]
+  OK   zone/payload/LocMergeEncoder.kt                         LocMerge [flat]
+  OK   zone/payload/MapAnimEncoder.kt                          MapAnim [flat]
+  OK   zone/payload/ObjAddEncoder.kt                           ObjAdd [flat]
+  OK   zone/payload/ObjCountEncoder.kt                         ObjCount [flat]
+  OK   zone/payload/ObjCustomiseEncoder.kt                     ObjCustomise [flat]
+  OK   zone/payload/ObjDelEncoder.kt                           ObjDel [flat]
+  OK   zone/payload/ObjEnabledOpsEncoder.kt                    ObjEnabledOps [flat]
+  OK   zone/payload/ObjUncustomiseEncoder.kt                   ObjUncustomise [flat]
+  OK   zone/payload/SoundAreaEncoder.kt                        SoundArea [flat]
+  OK   zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt  UpdateZonePartialEnclosed [flat]
+  OK   zone/header/UpdateZoneFullFollowsEncoder.kt             UpdateZoneFullFollows [flat]
+  OK   zone/header/UpdateZonePartialFollowsEncoder.kt          UpdateZonePartialFollows [flat]
+  OK   logout/LogoutEncoder.kt                                 Logout [flat]
+  OK   logout/LogoutTransferEncoder.kt                         LogoutTransfer [flat]
+  OK   logout/LogoutWithReasonEncoder.kt                       LogoutWithReason [flat]
+  OK   varp/VarpLargeEncoder.kt                                VarpLarge [flat]
+  OK   varp/VarpResetEncoder.kt                                VarpReset [flat]
+  OK   varp/VarpSmallEncoder.kt                                VarpSmall [flat]
+  OK   varp/VarpSyncEncoder.kt                                 VarpSync [flat]
+  OK   social/FriendListLoadedEncoder.kt                       FriendListLoaded [flat]
+  OK   map/RebuildNormalV2Encoder.kt                           StaticRebuildMessageV2 [flat]
+  OK   map/RebuildRegionV2Encoder.kt                           RebuildRegionV2 [flat]
+  OK   map/RebuildWorldEntityV4Encoder.kt                      RebuildWorldEntityV4 [flat]
+  OK   sound/AmbientSoundStartEncoder.kt                       AmbientSoundStart [flat]
+  OK   sound/AmbientSoundStopEncoder.kt                        AmbientSoundStop [flat]
+  OK   sound/MidiJingleEncoder.kt                              MidiJingle [flat]
+  OK   sound/MidiSongStopEncoder.kt                            MidiSongStop [flat]
+  OK   sound/MidiSongV2Encoder.kt                              MidiSongV2 [flat]
+  OK   sound/MidiSongWithSecondaryEncoder.kt                   MidiSongWithSecondary [flat]
+  OK   sound/MidiSwapEncoder.kt                                MidiSwap [flat]
+  OK   sound/SynthSoundEncoder.kt                              SynthSound [flat]
+  OK   interfaces/IfClearInvEncoder.kt                         IfClearInv [flat]
+  OK   interfaces/IfCloseSubEncoder.kt                         IfCloseSub [flat]
+  OK   interfaces/IfMoveSubEncoder.kt                          IfMoveSub [flat]
+  OK   interfaces/IfOpenSubEncoder.kt                          IfOpenSub [flat]
+  OK   interfaces/IfOpenTopEncoder.kt                          IfOpenTop [flat]
+  OK   interfaces/IfSetAngleEncoder.kt                         IfSetAngle [flat]
+  OK   interfaces/IfSetAnimEncoder.kt                          IfSetAnim [flat]
+  OK   interfaces/IfSetColourEncoder.kt                        IfSetColour [flat]
+  OK   interfaces/IfSetEventsV2Encoder.kt                      IfSetEventsV2 [flat]
+  OK   interfaces/IfSetHideEncoder.kt                          IfSetHide [flat]
+  OK   interfaces/IfSetModelV2Encoder.kt                       IfSetModelV2 [flat]
+  OK   interfaces/IfSetNpcHeadActiveEncoder.kt                 IfSetNpcHeadActive [flat]
+  OK   interfaces/IfSetNpcHeadEncoder.kt                       IfSetNpcHead [flat]
+  OK   interfaces/IfSetObjectEncoder.kt                        IfSetObject [flat]
+  OK   interfaces/IfSetPlayerHeadEncoder.kt                    IfSetPlayerHead [flat]
+  OK   interfaces/IfSetPlayerModelBaseColourEncoder.kt         IfSetPlayerModelBaseColour [flat]
+  OK   interfaces/IfSetPlayerModelBodyTypeEncoder.kt           IfSetPlayerModelBodyType [flat]
+  OK   interfaces/IfSetPlayerModelObjEncoder.kt                IfSetPlayerModelObj [flat]
+  OK   interfaces/IfSetPlayerModelSelfEncoder.kt               IfSetPlayerModelSelf [flat]
+  OK   interfaces/IfSetPositionEncoder.kt                      IfSetPosition [flat]
+  OK   interfaces/IfSetRotateSpeedEncoder.kt                   IfSetRotateSpeed [flat]
+  OK   interfaces/IfSetScrollPosEncoder.kt                     IfSetScrollPos [flat]
+  OK   interfaces/IfSetTextEncoder.kt                          IfSetText [flat]
+
+--- skipped encoders ---
+  SKIP misc/client/HintArrowEncoder.kt                         buffer expression not understood: when (val type = message.type) {
+            is HintArrow.Np
+  SKIP misc/client/HiscoreReplyEncoder.kt                      buffer expression not understood: when (val response = message.response) {
+            is Hisc
+  SKIP misc/client/ReflectionCheckerEncoder.kt                 buffer expression not understood: when (check) {
+                is ReflectionChecker.GetField
+  SKIP misc/client/UpdateRebootTimerV2Encoder.kt               buffer expression not understood: when (val mes = message.messageType) {
+            UpdateReb
+  SKIP misc/client/UpdateUid192Encoder.kt                      unmapped wire function: pdata
+  SKIP misc/player/RunClientScriptEncoder.kt                   internal error: SyntaxError: trailing tokens: [('ident', 'downTo'), ('num', '0')]
+  SKIP misc/player/SetMapFlagV2Encoder.kt                      unmodeled member access: .packed
+  SKIP misc/player/UpdateStockMarketSlotEncoder.kt             buffer expression not understood: when (val update = message.update) {
+            UpdateStock
+  SKIP misc/player/UpdateTradingPostEncoder.kt                 buffer expression not understood: when (val update = message.updateType) {
+            UpdateT
+  SKIP inv/UpdateInvFullEncoder.kt                             unmodeled member access: .NULL
+  SKIP inv/UpdateInvPartialEncoder.kt                          unmodeled call: getSlot(...)
+  SKIP friendchat/MessageFriendChannelEncoder.kt               unmodeled call: provide(...)
+  SKIP friendchat/UpdateFriendChatChannelFullV2Encoder.kt      buffer expression not understood: when (val update = message.updateType) {
+            is Upda
+  SKIP friendchat/UpdateFriendChatChannelSingleUserEncoder.kt  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
+  SKIP specific/ObjAddSpecificEncoder.kt                       unmodeled member access: .packed
+  SKIP specific/ObjCountSpecificEncoder.kt                     unmodeled member access: .packed
+  SKIP specific/ObjCustomiseSpecificEncoder.kt                 unmodeled member access: .packed
+  SKIP specific/ObjDelSpecificEncoder.kt                       unmodeled member access: .packed
+  SKIP specific/ObjEnabledOpsSpecificEncoder.kt                unmodeled member access: .packed
+  SKIP specific/ObjUncustomiseSpecificEncoder.kt               unmodeled member access: .packed
+  SKIP specific/ProjAnimSpecificV4Encoder.kt                   unmodeled member access: .packed
+  SKIP clan/ClanChannelDeltaEncoder.kt                         buffer expression not understood: when (event) {
+                is ClanChannelDelta.AddUserEv
+  SKIP clan/ClanChannelFullEncoder.kt                          buffer expression not understood: when (val update = message.update) {
+            is ClanChan
+  SKIP clan/ClanSettingsDeltaEncoder.kt                        buffer expression not understood: when (update) {
+                is ClanSettingsDelta.SetClan
+  SKIP clan/ClanSettingsFullEncoder.kt                         buffer expression not understood: when (update) {
+            is ClanSettingsFull.JoinUpdate -
+  SKIP clan/MessageClanChannelEncoder.kt                       unmodeled call: provide(...)
+  SKIP clan/MessageClanChannelSystemEncoder.kt                 unmodeled call: provide(...)
+  SKIP clan/VarClanEncoder.kt                                  buffer expression not understood: when (val value = message.value) {
+            is VarClan.Va
+  SKIP group/GroupFullEncoder.kt                               buffer expression not understood: when (update) {
+                is GroupFull.GroupDelete -> 
+  SKIP group/GroupVarEncoder.kt                                buffer expression not understood: when (val variable = update.variable) {
+                is G
+  SKIP group/GroupVarIntEncoder.kt                             unmodeled member access: .index
+  SKIP group/GroupVarLongEncoder.kt                            unmodeled member access: .index
+  SKIP camera/CamLookAtCyclesEncoder.kt                        unmodeled member access: .id
+  SKIP camera/CamMoveToArcV2Encoder.kt                         unmodeled member access: .id
+  SKIP camera/CamMoveToArcV3Encoder.kt                         unmodeled member access: .id
+  SKIP camera/CamMoveToCyclesV2Encoder.kt                      unmodeled member access: .id
+  SKIP camera/CamMoveToCyclesV3Encoder.kt                      unmodeled member access: .id
+  SKIP camera/CamRotateByEncoder.kt                            unmodeled member access: .id
+  SKIP camera/CamRotateToCoordinateV2Encoder.kt                unmodeled member access: .id
+  SKIP camera/CamRotateToCoordinateV3Encoder.kt                unmodeled member access: .id
+  SKIP camera/CamRotateToEncoder.kt                            unmodeled member access: .id
+  SKIP camera/CamTargetV3Encoder.kt                            buffer expression not understood: when (val type = message.type) {
+            is CamTargetV3.
+  SKIP camera/CamTargetV4Encoder.kt                            buffer expression not understood: when (val type = message.type) {
+            is CamTargetV4.
+  SKIP zone/payload/LocAddChangeV2Encoder.kt                   safe-call member elvis not modeled generically
+  SKIP zone/payload/MapProjAnimV2Encoder.kt                    unmodeled member access: .packed
+  SKIP zone/payload/ScriptedProjAddEncoder.kt                  unmodeled member access: .packed
+  SKIP zone/payload/ScriptedProjChangeEncoder.kt               unmodeled member access: .packed
+  SKIP social/MessagePrivateEchoEncoder.kt                     unmodeled call: provide(...)
+  SKIP social/MessagePrivateEncoder.kt                         unmodeled call: provide(...)
+  SKIP social/UpdateFriendListEncoder.kt                       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
+  SKIP social/UpdateIgnoreListEncoder.kt                       buffer expression not understood: when (ignore) {
+                is UpdateIgnoreList.AddedIgn
+  SKIP interfaces/IfResyncV2Encoder.kt                         unmodeled member access: .size
+
+--- generated decoders ---
+  OK   worldentities/OpWorldEntity1Decoder.kt                  OpWorldEntity [flat]
+  OK   worldentities/OpWorldEntity2Decoder.kt                  OpWorldEntity [flat]
+  OK   worldentities/OpWorldEntity3Decoder.kt                  OpWorldEntity [flat]
+  OK   worldentities/OpWorldEntity4Decoder.kt                  OpWorldEntity [flat]
+  OK   worldentities/OpWorldEntity5Decoder.kt                  OpWorldEntity [flat]
+  OK   worldentities/OpWorldEntity6Decoder.kt                  OpWorldEntity6 [flat]
+  OK   worldentities/OpWorldEntityTDecoder.kt                  OpWorldEntityT [flat]
+  OK   misc/user/BugReportDecoder.kt                           BugReport [flat]
+  OK   misc/user/ClientCheatDecoder.kt                         ClientCheat [flat]
+  OK   misc/user/HiscoreRequestDecoder.kt                      HiscoreRequest [flat]
+  OK   misc/user/IfCrmViewOpDecoder.kt                         IfCrmViewOp [flat]
+  OK   misc/user/MoveGameClickDecoder.kt                       MoveGameClick [flat]
+  OK   misc/user/MoveMinimapClickDecoder.kt                    MoveMinimapClick [flat]
+  OK   misc/user/SendSnapshotDecoder.kt                        SendSnapshot [flat]
+  OK   misc/user/SetChatFilterSettingsDecoder.kt               SetChatFilterSettings [flat]
+  OK   misc/user/SetHeadingDecoder.kt                          SetHeading [flat]
+  OK   misc/user/TeleportDecoder.kt                            Teleport [flat]
+  OK   misc/client/ConnectionTelemetryDecoder.kt               ConnectionTelemetry [flat]
+  OK   misc/client/DetectModifiedClientDecoder.kt              DetectModifiedClient [flat]
+  OK   misc/client/MembershipPromotionEligibilityDecoder.kt    MembershipPromotionEligibility [flat]
+  OK   misc/client/RSevenStatusDecoder.kt                      RSevenStatus [flat]
+  OK   misc/client/SendPingReplyDecoder.kt                     SendPingReply [flat]
+  OK   misc/client/SoundJingleEndDecoder.kt                    SoundJingleEnd [flat]
+  OK   misc/client/WindowStatusDecoder.kt                      WindowStatus [flat]
+  OK   friendchat/FriendChatKickDecoder.kt                     FriendChatKick [flat]
+  OK   friendchat/FriendChatSetRankDecoder.kt                  FriendChatSetRank [flat]
+  OK   buttons/If1ButtonDecoder.kt                             If1Button [flat]
+  OK   buttons/IfButtonDDecoder.kt                             IfButtonD [flat]
+  OK   buttons/IfButtonTDecoder.kt                             IfButtonT [flat]
+  OK   buttons/IfButtonXDecoder.kt                             If3Button [flat]
+  OK   buttons/IfSubOpDecoder.kt                               IfSubOp [flat]
+  OK   clan/AffinedClanSettingsAddBannedFromChannelDecoder.kt  AffinedClanSettingsAddBannedFromChannel [flat]
+  OK   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt   AffinedClanSettingsSetMutedFromChannel [flat]
+  OK   clan/ClanChannelFullRequestDecoder.kt                   ClanChannelFullRequest [flat]
+  OK   clan/ClanChannelKickUserDecoder.kt                      ClanChannelKickUser [flat]
+  OK   clan/ClanSettingsFullRequestDecoder.kt                  ClanSettingsFullRequest [flat]
+  OK   npcs/OpNpc1V2Decoder.kt                                 OpNpcV2 [flat]
+  OK   npcs/OpNpc2V2Decoder.kt                                 OpNpcV2 [flat]
+  OK   npcs/OpNpc3V2Decoder.kt                                 OpNpcV2 [flat]
+  OK   npcs/OpNpc4V2Decoder.kt                                 OpNpcV2 [flat]
+  OK   npcs/OpNpc5V2Decoder.kt                                 OpNpcV2 [flat]
+  OK   npcs/OpNpc6Decoder.kt                                   OpNpc6 [flat]
+  OK   npcs/OpNpcTDecoder.kt                                   OpNpcT [flat]
+  OK   players/OpPlayer1Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer2Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer3Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer4Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer5Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer6Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer7Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayer8Decoder.kt                             OpPlayer [flat]
+  OK   players/OpPlayerTDecoder.kt                             OpPlayerT [flat]
+  OK   objs/OpObj1V2Decoder.kt                                 OpObjV2 [flat]
+  OK   objs/OpObj2V2Decoder.kt                                 OpObjV2 [flat]
+  OK   objs/OpObj3V2Decoder.kt                                 OpObjV2 [flat]
+  OK   objs/OpObj4V2Decoder.kt                                 OpObjV2 [flat]
+  OK   objs/OpObj5V2Decoder.kt                                 OpObjV2 [flat]
+  OK   objs/OpObj6Decoder.kt                                   OpObj6 [flat]
+  OK   objs/OpObjTDecoder.kt                                   OpObjT [flat]
+  OK   social/FriendListAddDecoder.kt                          FriendListAdd [flat]
+  OK   social/FriendListDelDecoder.kt                          FriendListDel [flat]
+  OK   social/IgnoreListAddDecoder.kt                          IgnoreListAdd [flat]
+  OK   social/IgnoreListDelDecoder.kt                          IgnoreListDel [flat]
+  OK   events/EventAppletFocusDecoder.kt                       EventAppletFocus [flat]
+  OK   events/EventCameraPositionDecoder.kt                    EventCameraPosition [flat]
+  OK   events/EventMouseClickV1Decoder.kt                      EventMouseClickV1 [flat]
+  OK   events/EventMouseClickV2Decoder.kt                      EventMouseClickV2 [flat]
+  OK   events/EventMouseScrollDecoder.kt                       EventMouseScroll [flat]
+  OK   locs/OpLoc1V2Decoder.kt                                 OpLocV2 [flat]
+  OK   locs/OpLoc2V2Decoder.kt                                 OpLocV2 [flat]
+  OK   locs/OpLoc3V2Decoder.kt                                 OpLocV2 [flat]
+  OK   locs/OpLoc4V2Decoder.kt                                 OpLocV2 [flat]
+  OK   locs/OpLoc5V2Decoder.kt                                 OpLocV2 [flat]
+  OK   locs/OpLoc6Decoder.kt                                   OpLoc6 [flat]
+  OK   locs/OpLocTDecoder.kt                                   OpLocT [flat]
+  OK   resumed/ResumePCountDialogDecoder.kt                    ResumePCountDialog [flat]
+  OK   resumed/ResumePCountDialogLongDecoder.kt                ResumePCountDialogLong [flat]
+  OK   resumed/ResumePNameDialogDecoder.kt                     ResumePNameDialog [flat]
+  OK   resumed/ResumePObjDialogDecoder.kt                      ResumePObjDialog [flat]
+  OK   resumed/ResumePStringDialogDecoder.kt                   ResumePStringDialog [flat]
+  OK   resumed/ResumePauseButtonDecoder.kt                     ResumePauseButton [flat]
+
+--- skipped decoders ---
+  SKIP misc/user/ClickWorldMapDecoder.kt                       unmodeled call: CoordGrid(...)
+  SKIP misc/user/CloseModalDecoder.kt                          file parse error: substring not found
+  SKIP misc/user/ExitFreecamDecoder.kt                         file parse error: substring not found
+  SKIP misc/client/IdleDecoder.kt                              file parse error: substring not found
+  SKIP misc/client/MapBuildCompleteDecoder.kt                  file parse error: substring not found
+  SKIP misc/client/NoTimeoutDecoder.kt                         file parse error: substring not found
+  SKIP misc/client/ReflectionCheckReplyDecoder.kt              unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
+  SKIP friendchat/FriendChatJoinLeaveDecoder.kt                unparseable val name: unexpected token None
+  SKIP buttons/IfScriptTriggerDecoder.kt                       unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
+  SKIP events/EventKeyboardDecoder.kt                          unmodeled call: readableBytes(...)
+  SKIP events/EventMouseMoveDecoder.kt                         buffer expression not understood: while (buffer.isReadable) {
+            var packed = buffer.
+  SKIP events/EventNativeMouseMoveDecoder.kt                   buffer expression not understood: while (buffer.isReadable) {
+            var packed = buffer.
+  SKIP messaging/MessagePrivateDecoder.kt                      unmodeled call: provide(...)
+  SKIP messaging/MessagePublicDecoder.kt                       unparseable val patternArray: unexpected token None

@@ -824,17 +824,25 @@ mock230_send_run_clientscript_mixed(
      * one string carrying every row (see PKT_RUNCLIENTSCRIPT_STR_LEN), and five
      * rows of dialogue is comfortably past a kilobyte. */
     open_packet(&buf, 4096);
-    for( int i = 0; i < argc; i++ )
-        rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
-    rsab_p1(&buf, '\n');
-    for( int i = argc - 1; i >= 0; i-- )
     {
-        if( types && types[i] == 's' )
-            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->run_clientscript )
+            pl->run_clientscript(&buf, script_id, types, intv, strv, argc);
         else
-            rsab_p4(&buf, intv ? intv[i] : 0);
+        {
+        for( int i = 0; i < argc; i++ )
+            rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
+        rsab_p1(&buf, '\n');
+        for( int i = argc - 1; i >= 0; i-- )
+        {
+            if( types && types[i] == 's' )
+                rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+            else
+                rsab_p4(&buf, intv ? intv[i] : 0);
+        }
+        rsab_p4(&buf, script_id);
+        }
     }
-    rsab_p4(&buf, script_id);
     flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
 }
 
@@ -1357,8 +1365,21 @@ mock230_send_update_ignorelist(
      * no single-entry form to pair with UPDATE_FRIENDLIST's. */
     struct RSAreaBuf buf;
     open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
-    for( int i = 0; i < count; i++ )
-        rsab_p8(&buf, names37[i]);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        for( int i = 0; i < count; i++ )
+        {
+            if( pl && pl->ignore_entry )
+            {
+                char name[16];
+                base37tostr((uint64_t)names37[i], name, (int)sizeof(name));
+                pl->ignore_entry(&buf, name);
+                continue;
+            }
+            rsab_p8(&buf, names37[i]);
+        }
+    }
     flush(player, &buf, OP_UPDATE_IGNORELIST, 2);
 }
 
