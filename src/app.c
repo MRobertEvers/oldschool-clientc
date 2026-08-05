@@ -3933,6 +3933,157 @@ app_debug_log_bridges(struct App* app)
     fprintf(stderr, "bridge: %d link-below columns in scene\n", count);
 }
 
+/*
+ * TORIRS_WEDGE_SCALE — env-gated projection-scale experiment (docs/ORANGE_WEDGE.md 4).
+ *
+ * The reference client recomputes the world projection scale from the world
+ * viewport HEIGHT on every layout (class159.method5357:
+ * scale = viewportHeight * zoom / 334, zoom interpolated between the two
+ * VIEWPORT_SETFOV endpoints over height-334 in [0,100]); this client uses the
+ * compile-time constant fov_rpi2048 = 512, whose effective linear scale is
+ * exactly 512. At a 503-high world viewport the reference lands on 191, i.e.
+ * this client draws the scene 512/191 = 2.68x magnified.
+ *
+ * OFF by default so the shipped build is bit-identical. Values:
+ *   TORIRS_WEDGE_SCALE=1|auto   recompute per class159.method5357
+ *   TORIRS_WEDGE_SCALE=<n>      force the linear scale to n (n >= 8), for bisection
+ *   TORIRS_WEDGE_ZOOM=<n>,<f>   override the decoded SETFOV endpoints (auto mode)
+ *   TORIRS_WEDGE_FOV_DEBUG=1    log the SETFOV decode and the resulting scale/fov
+ *
+ * The kernel wants an ANGLE, not a scale: 3rd/toridraw/graphics/
+ * projection16_simd.scalar.u.c:27-58 computes screen = x * cot(fov/2) * 512 / z,
+ * so effective_scale = cot(fov_rpi2048/2) * 512 and the inverse is
+ * fov = atan(512/scale) * 2048/pi. scale 512 -> fov 512 (today's behaviour,
+ * unchanged); scale 191 -> fov 791.
+ */
+static int
+app_fov_from_scale(int scale)
+{
+    int fov;
+    if( scale < 1 )
+        scale = 1;
+    fov = (int)lround(atan2(512.0, (double)scale) * 2048.0 / M_PI);
+    if( fov < 1 )
+        fov = 1;
+    if( fov > 2047 )
+        fov = 2047;
+    return fov;
+}
+
+/* Effective linear scale the kernel will actually use for a given angle, read
+ * back through the same 2048-entry tan table the projection uses, so the number
+ * reported is measured rather than assumed. */
+static double
+app_scale_from_fov(int fov)
+{
+    double half = (double)(fov >> 1) * (2.0 * M_PI / 2048.0);
+    double t = tan(half);
+    if( fabs(t) < 1e-9 )
+        return 0.0;
+    return 512.0 / t;
+}
+
+/* -1 = gate off, 0 = auto (recompute), >0 = forced linear scale. */
+static int
+app_wedge_scale_mode(void)
+{
+    static int cached = -2;
+    if( cached == -2 )
+    {
+        char const* e = getenv("TORIRS_WEDGE_SCALE");
+        cached = -1;
+        if( e && e[0] != '\0' && e[0] != '0' )
+        {
+            if( strcmp(e, "1") == 0 || strcmp(e, "auto") == 0 )
+                cached = 0;
+            else
+            {
+                int v = atoi(e);
+                cached = v >= 8 ? v : 0;
+            }
+        }
+    }
+    return cached;
+}
+
+static void
+app_apply_wedge_scale(struct App* app)
+{
+    int mode = app_wedge_scale_mode();
+    int vp_h;
+    int near_zoom;
+    int far_zoom;
+    int d;
+    int zoom;
+    int scale;
+    int fov;
+
+    if( mode < 0 )
+        return;
+    if( !app->world_view_valid )
+        return;
+
+    vp_h = app->world_emit_desc.h;
+    if( vp_h < 1 )
+        return;
+
+    if( mode > 0 )
+    {
+        scale = mode;
+        zoom = 0;
+        near_zoom = 0;
+        far_zoom = 0;
+    }
+    else
+    {
+        near_zoom = app->host.viewport_zoom_near;
+        far_zoom = app->host.viewport_zoom_far;
+        {
+            char const* z = getenv("TORIRS_WEDGE_ZOOM");
+            int zn, zf;
+            if( z && sscanf(z, "%d,%d", &zn, &zf) == 2 )
+            {
+                near_zoom = zn;
+                far_zoom = zf;
+            }
+        }
+        if( near_zoom < 1 )
+            near_zoom = 256;
+        if( far_zoom < 1 )
+            far_zoom = 256;
+
+        d = vp_h - 334;
+        if( d < 0 )
+            zoom = near_zoom;
+        else if( d >= 100 )
+            zoom = far_zoom;
+        else
+            zoom = (far_zoom - near_zoom) * d / 100 + near_zoom;
+
+        scale = (int)((double)vp_h * (double)zoom / 334.0);
+    }
+    if( scale < 1 )
+        scale = 1;
+
+    fov = app_fov_from_scale(scale);
+    app->world_camera.fov_rpi2048 = fov;
+
+    if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+    {
+        static int last = -1;
+        if( fov != last )
+        {
+            last = fov;
+            fprintf(
+                stderr,
+                "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
+                "fov_rpi2048=%d effective_scale=%.2f\n",
+                mode, vp_h, near_zoom, far_zoom, zoom, scale, fov,
+                app_scale_from_fov(fov));
+        }
+    }
+}
+
 static void
 app_update_world_viewport(struct App* app)
 {
@@ -3991,6 +4142,8 @@ app_update_world_viewport(struct App* app)
             app->minimap_view_valid = 1;
         }
     }
+    /* No-op unless TORIRS_WEDGE_SCALE is set — see the comment on that gate. */
+    app_apply_wedge_scale(app);
 }
 
 int32_t

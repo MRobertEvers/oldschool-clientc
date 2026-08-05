@@ -1,9 +1,14 @@
 # The Inferno "orange wedge" — root cause and proposed fix
 
-Status: **diagnosed, patch proposed, not applied.** No C source was modified by
-this investigation. `git status` shows the same pre-existing modified files it
-showed at session start; `src/.last_flavor` was restored after building into the
-private objdir `src/build_wedge_tdo_es/`.
+Status: **fixed under an env gate, and the fix is confirmed by measurement —
+see §10.** The projection-scale change of §4 collapses the wedge from 29 px to
+9 px and moves it from y 137..165 to y 213..221; at the official client's own
+eye the two clients then agree on the band's top edge (213) and widest span
+(153 px) to the pixel. The change lives behind `TORIRS_WEDGE_SCALE`, **off by
+default**, so the shipped build is unchanged until someone promotes it.
+
+§1–§9 below are the diagnosis as written before the experiment; §10 is the
+experiment. Where they disagree, §10 was measured.
 
 ---
 
@@ -1061,3 +1066,133 @@ there, 29 px at y 137–165 floating clear of it here. So the open question is n
 "where does this object come from" but **"why are these tiles projected to the
 wrong size *and place*"** — and a ~70 px vertical displacement is a position
 error, which scale alone does not explain.
+
+---
+
+## 11. The experiment: both fixes applied and measured
+
+**Answer up front: the wedge is gone, and §4's projection scale is the whole of
+it.** The ~70 px vertical displacement §10.3 called "a position error scale
+alone does not explain" *is* the scale — the band is a floor patch several tiles
+in front of the eye, so magnifying the projection 2.68× about the viewport
+centre moves it up the screen as well as making it bigger. Nothing else was
+needed.
+
+Both changes are in the tree and **off by default**. Every number below is from
+the same build; the only difference between rows is environment.
+
+### 11.1 The gates
+
+| gate | default | what it does |
+| --- | --- | --- |
+| `TORIRS_WEDGE_SCALE=1` \| `auto` | **off** | §4 fix A. Recomputes `world_camera.fov_rpi2048` every layout from the world viewport **height** per `class159.method5357`, via `app_apply_wedge_scale()` (`src/app.c`, called at the end of `app_update_world_viewport`). Off ⇒ `fov_rpi2048` stays the compile-time 512. |
+| `TORIRS_WEDGE_SCALE=<n>` (n ≥ 8) | — | Forces the linear scale to `n`, for bisection. |
+| `TORIRS_WEDGE_ZOOM=<near>,<far>` | — | Overrides the decoded `VIEWPORT_SETFOV` endpoints (auto mode only). |
+| `TORIRS_WEDGE_FOV_DEBUG=1` | off | Logs the SETFOV decode and the resulting zoom/scale/fov. |
+| `TORIRS_WEDGE_DRAWCENTER=eye` | **off** | §9.7(b) fix B — pre-existing gate. Centres the painter draw box on the camera tile, as `class112.method4111` does unconditionally, instead of the orbit anchor. |
+| `TORIRS_WEDGE_CAM=x,y,z,pitch,yaw` | off | Pre-existing. Pins the eye so a capture can be taken at the official's camera. |
+
+Supporting change, always on but read by nothing in the default build:
+`RS_CS2Host` gains `viewport_zoom_near` / `viewport_zoom_far`, set on every
+`VIEWPORT_SETFOV` through `rs_cs2_viewport_zoom_decode()` = `Statics.method5659`
+(`(int)pow(2, arg/256 + 7)`, 256 when ≤ 0). The raw args are still stored and
+still what `GETFOV` answers, so CS2 behaviour is untouched.
+
+### 11.2 Measured — exact `0xA45409` inside `x 280..470, y 120..245`
+
+At the **C client's own settled camera** — eye (7104, −666, 5299), camera tile
+(55,41), pitch 128, yaw 0:
+
+| configuration | count | x extent | widest row | widest span | y extent (h) |
+| --- | --- | --- | --- | --- | --- |
+| baseline, no gates | 632 | 325..449 | 46 | 111 | **137..165 (29)** |
+| rebuilt, gates off | 598 | 325..449 | 46 | 111 | 137..165 (29) |
+| fix **B** only | 544 | 325..449 | 46 | 111 | 141..165 (25) |
+| fix **A** only | 79 | 348..393 | 15 | 41 | **209..218 (10)** |
+| fix **A+B** | 74 | 348..393 | 15 | 41 | **210..218 (9)** |
+
+At the **official client's camera**, pinned with
+`TORIRS_WEDGE_CAM=7104,-743,5072,128,0` — camera tile (55,39), the §9.0 viewpoint:
+
+| configuration | count | x extent | widest row | widest span | y extent (h) |
+| --- | --- | --- | --- | --- | --- |
+| C, no fixes | 675 | 320..441 | 53 | 120 | 143..171 (29) |
+| C, fix **A** only | 113 | 280..434 | 22 | **153** | 211..221 (11) |
+| C, fix **A+B** | 100 | 280..434 | 22 | **153** | **213..221 (9)** |
+| **official** `/tmp/r_06.png` | 142 | 302..455 | 30 | **153** | **213..220 (8)** |
+
+Same eye, same window: **top edge 213 = 213** and **widest span 153 = 153**.
+Height 9 vs 8, and the x extent is displaced 21–22 px left.
+
+Baseline count varies run to run (632 / 598 / 675) because the arena is
+animated; the **extents are bit-stable** across runs, so they are the metric.
+
+### 11.3 What each fix contributed
+
+* **Fix A (scale) does essentially all of it.** 29 px → 10 px and y 137..165 →
+  209..218 on its own. Resulting scale: viewport height 503, decoded zoom
+  endpoints 128/128, `503 × 128 / 334 = 192`, `fov_rpi2048 = 790`, effective
+  scale read back through the kernel's own tan table **192.11** (official 191).
+* **Fix B (eye-centred draw box) trims the top two rows** and is what lands the
+  top edge exactly on the official's 213 (211..221 → 213..221 at the pinned
+  eye). On its own it is a 4 px effect (29 → 25) — consistent with §9.7(b)'s
+  29 → 22 at the pinned camera, and far too small to be the cause.
+
+### 11.4 The three residuals, all already named in this document
+
+1. **21 px horizontal displacement** — C's band is x 280..434, the official's
+   302..455. That is exactly §7(a): the C world viewport is **723×503** and the
+   official's **765×503**, so the projection centre sits at 361.5 instead of
+   382.5, i.e. **21 px left**. The residual is not a new defect; it is the
+   viewport-width defect measured through the band.
+2. **Effective scale 192.11 vs 191** (0.6 %, ≈1 px on this band). Our CS2
+   `VIEWPORT_SETFOV` receives raw args `0,0` → decoded zoom **128**, while the
+   official's `proj` reports **127**. `503×128/334 = 192` vs `503×127/334 = 191`.
+   Whether the official's 127 comes from a different SETFOV argument or from a
+   saved zoom setting is unresolved and worth one grep; it cannot produce a
+   visible artefact at this magnitude.
+3. **Count 100 vs 142 and the narrower left edge** — the C analytic cullspan
+   drops ~30 % of the official's plane-0 floors at this camera (§9.7(d): 283 of
+   934 with no C counterpart), so fewer pixels of the *same* band survive.
+
+### 11.5 What was not verifiable here
+
+§5's gate 3 (Lumbridge re-shoot) did not produce a usable comparison: without
+`TORIRS_NET_CHEAT="zuk"` this harness reaches Lumbridge with the player drawn
+but **no terrain at all**, at 500 and at 900 frames, with the gate on *and* off.
+That is a pre-existing property of the embedded-server harness, not a
+regression from these changes — the two frames differ only in the player model
+being 2.68× smaller with the gate on. A framing regression check needs a
+scene that actually loads.
+
+### 11.6 Artefacts
+
+| path | what |
+| --- | --- |
+| `/tmp/wedge_base.bmp` | baseline, gates off, settled camera — the wedge |
+| `/tmp/wedge_fixA.bmp`, `/tmp/wedge_fixAB.bmp` | settled camera, fix A and A+B |
+| `/tmp/wedge_fixB.bmp` | settled camera, fix B alone |
+| `/tmp/wedge_pin_none.bmp`, `/tmp/wedge_pin_A.bmp`, `/tmp/wedge_pin_AB.bmp` | pinned at the official eye |
+| `/tmp/wedge_*_crop.png` | 4× crops of `x 280..470, y 120..245` |
+| `/tmp/wedge_fixA.log` | `TORIRS_WEDGE_FOV_DEBUG` — the SETFOV decode and scale |
+
+Reproduce (private objdir, nothing else in the tree touched):
+
+```sh
+make -C src PLATFORM_OBJ_BASE=build_wedge3 EMBED_SERVER=1 TORIDRAW_OPT=1 torirs
+SDL_VIDEODRIVER=dummy TORIRS_WEDGE_SCALE=1 TORIRS_WEDGE_DRAWCENTER=eye \
+  TORIRS_WEDGE_FOV_DEBUG=1 TORIRS_EXIT_BMP=/tmp/wedge_fixAB.bmp \
+  TORIRS_MAX_FRAMES=900 TORIRS_NET_CHEAT="zuk" \
+  src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test --soft3d
+```
+
+### 11.7 To promote this from a gate to the default
+
+Three things, in this order: make the recompute unconditional (drop the
+`app_wedge_scale_mode()` test), make the draw box eye-centred unconditionally
+(delete the `follow_cam` branch's use of `orbit_x/orbit_z` for the *bounds*
+only), and fix the 723 vs 765 world viewport width of §7(a) so the projection
+centre stops sitting 21 px left. The §4.4 duplicate literal
+(`src/render/torirs_frame.c:1135`) should read the same helper at that point.
+§7(b)'s follow-camera orbit distance is then the only §7 item left, and it is
+worth re-measuring after the above rather than before.

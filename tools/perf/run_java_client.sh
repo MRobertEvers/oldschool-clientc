@@ -7,6 +7,10 @@
 #   src/build/mock230 43594 --rev osrs239        (with MOCK230_JS5_* set)
 #   tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239
 #
+# JAVA_EXTRA_OPTS passes JVM flags through, for the instrumentation that is off
+# by default — e.g. JAVA_EXTRA_OPTS=-Dcs2.stacktrace=true to have the CS2
+# interpreter record each opcode's operand-stack delta (instr/src/CS2Trace.java).
+#
 # Classpath order matters and has bitten this before: leaving two client-*.jar
 # versions on it silently runs the older one, because both carry logback.xml and
 # net.runelite.client.RuneLite. The patched jars therefore go first and the
@@ -49,6 +53,7 @@ exec env \
   JPROF=1 JPROF_CSV="$CSV" JPROF_WINDOW="${JPROF_WINDOW:-500}" \
   JCTL=1 JCTL_PORT="${JCTL_PORT:-43601}" \
   "$JAVA_HOME/bin/java" -ea \
+  ${JAVA_EXTRA_OPTS:-} \
   --add-exports java.desktop/com.apple.eawt=ALL-UNNAMED \
   --add-exports java.desktop/sun.awt=ALL-UNNAMED \
   --add-exports java.desktop/sun.java2d=ALL-UNNAMED \
