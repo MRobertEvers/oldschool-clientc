@@ -29,16 +29,17 @@ Baseline, `cache.osrs239`, 2026-08-05, and where it stands after the work in §8
 
 ```
 2026-08-05  9507/9725 decompiled, 9440 compiled, 3850 same-length, 3080 exact
-2026-08-05  9523/9725 decompiled, 9456 compiled, 8859 same-length, 8333 exact   (after §8)
+2026-08-05  9556/9725 decompiled, 9551 compiled, 8951 same-length, 8405 exact   (after §8)
 ```
 
 | | baseline | after §8 | of 9725 |
 | --- | ---: | ---: | ---: |
-| decompiled at all | 9507 | 9523 | 97.9% |
-| **failed to decompile** | **218** | **202** | 2.1% |
-| compiled back | 9440 | 9456 | |
-| same length as the original | 3850 | 8859 | |
-| **byte-exact** | **3080** | **8333** | **85.7%** |
+| decompiled at all | 9507 | 9556 | 98.3% |
+| **failed to decompile** | **218** | **169** | 1.7% |
+| compiled back | 9440 | 9551 | |
+| **failed to compile** | **67** | **5** | 0.05% |
+| same length as the original | 3850 | 8951 | |
+| **byte-exact** | **3080** | **8405** | **86.4%** |
 
 **Read the delta direction correctly.** `run_roundtrip` prints
 `DIFF <id>: <written> bytes vs <original>` — the *recompiled* size first. The
@@ -156,9 +157,16 @@ later. Fix signatures first and re-measure before chasing these individually.
 | `3rd/rscache/tools/cs2/main.c` | the `cs2` tool |
 | `src/cs2vm2/` | the C client's runtime VM (separate from these tools; keep them consistent) |
 
+> **Both rows above are the wrong file.** `cs2_command.gen.h` is written by
+> `3rd/rscache/tools/cs2/gen_cs2_tables.py` from
+> `3rd/rscache/tools/cs2/local_commands.py` — that is where a new signature
+> goes. `tools/cs2_gen_opcodes/` generates a different set of headers.
+> `src/cs2vm2/gen_opcode_stack.py` then reads `cs2_command.gen.h`, so one edit
+> plus two regenerations keeps the tools and the client's VM in step.
+
 Note the generator's source is **RuneStar's `Opcodes.kt`, vendored**. It is not
 authoritative for rev 239 — that is precisely why opcodes are missing. New
-signatures belong in `local_opcodes.py` so a vendor refresh does not lose them,
+signatures belong in `local_commands.py` so a vendor refresh does not lose them,
 with a comment naming the evidence.
 
 `cs2_command.h` also documents the opcodes whose signature is *not fixed*
@@ -253,8 +261,8 @@ because ~11 classes of defect were repaired. `instr/build.sh` then
 
 ## 8. What was found, 2026-08-05
 
-`3080 → 8333` byte-exact. Nine changes, each measured on the whole corpus before
-and after. The order below is the order they were found, and each number is the
+`3080 → 8405` byte-exact, `9440 → 9551` compiling, `9507 → 9556` decompiling.
+Each change below was measured on the whole corpus before and after. The order below is the order they were found, and each number is the
 whole-corpus `exact` count after that change alone.
 
 | # | change | exact |
@@ -268,11 +276,20 @@ whole-corpus `exact` count after that change alone.
 | 6 | switch: default body last, after every case | 7728 |
 | 7 | markup `<...>` is its own string segment | **8291** |
 | 8 | `db_find_with_count` discards its count | 8326 |
-| 9 | eleven cc_* rows regain their active-component flag | **8333** |
+| 9 | nine cc_* rows regain their active-component flag | 8332 |
+| 10 | an array argument lives in the string bank, and is passed by name | 8341 |
+| 11 | jump sets grow instead of capping at 256 | 8343 |
+| 12 | a hook callback re-reads its own span, counting `(...)` | 8350 |
+| 13 | `enum`/`*_param`/undeclared locals type a callback argument | 8365 |
+| 14 | a `calc` stays open across every kind of argument list | 8376 |
+| 15 | 18 more signatures: 5 from the client, 13 from call sites | **8405** |
 
-Everything is in `3rd/rscache/src/cs2/cs2_compile.c` except #2 and #9, which are
-`3rd/rscache/tools/cs2/local_commands.py`. Each carries its evidence as a
-comment at the site.
+Changes 10–15 also took **failed to compile from 67 to 5** and **failed to
+decompile from 202 to 169**.
+
+Most are in `3rd/rscache/src/cs2/cs2_compile.c`; #2, #9 and #15 are
+`3rd/rscache/tools/cs2/local_commands.py`, #10 also touches `cs2_dfa.c` and #14
+also `cs2_gen.c`. Each carries its evidence as a comment at the site.
 
 **The doc's own file paths were stale.** §3 says new signatures go in
 `tools/cs2_gen_opcodes/local_opcodes.py`; the file that actually feeds
@@ -327,31 +344,42 @@ holding them cannot run under this client, so §4's oracle simply has no answer 
 these need `cs2 infer-arity` or call-site balance, and infer-arity currently
 calls most of them under-determined.
 
-### 8.3 The residue — 1,131 scripts that recompile but not byte-for-byte
+### 8.3 The residue — 1,320 scripts that are not byte-exact
 
-Classified by the first structural difference between the original and the
-recompiled instruction stream. Percentages are of the 9,725-script corpus.
+**169 do not decompile.** None is a missing signature any longer except five
+(opcode 2310, which no handler in this client dispatches either). The rest are
+stack/type errors the interpreter raises while walking, and the opcodes they
+*name* — 8 (`branch_equals`, 40 times) and 36 (`pop_string_local`, 24) — are
+victims, not causes: a signature wrong further up desynchronises the stack and
+the complaint surfaces at the next typed pop. The named causes that remain are
+8005 (10), **2929** (8, §8.7), 1704 (7) and 8024 (5).
+
+**5 do not compile**, and three of those are one thing: a string constant that
+contains a `"` (scripts 3303, 5500, 9162). `~script9182($int0, "…coloured
+"hitsplats" on…")` cannot be lexed without an escape convention, and adding one
+would change the decompiled text of every script whose strings contain a quote
+— which is exactly what the reference corpus in `make -C 3rd/rscache test`
+compares against. A callback gets away with it (#12) because its inner strings
+are always inside `(...)`, which gives the scanner something to count; a plain
+argument has no such bracket. The other two (8474, 9195) pass `db_getfield`
+straight into a hook callback, where the descriptor needs one letter per
+argument and `db_getfield` pushes a count only the dbtable knows.
+
+**1,146 compile but differ**, by first structural difference:
 
 | count | what differs | why |
 | ---: | --- | --- |
-| 425 | one `push_constant_int` operand, `-1` vs `0` | §8.4 |
-| 253 | one extra `branch` | §8.5 |
+| 427 | one `push_constant_int` operand, `-1` vs `0` | §8.4 |
+| 259 | one extra `branch` | §8.5 |
 | 172 | one missing `branch` | §8.5 |
-| 44 | extra `push_constant_int` + `return` | an epilogue the cache does not have; not yet chased |
-| 29 | header or trailer bytes only, ops identical | not yet chased |
+| 44 | extra `push_constant_int` + `return` | an epilogue the cache does not have; not chased |
+| 42 | header or trailer bytes only, ops identical | not chased |
 | 22 | missing `join_string` + `push_constant_string` | markup segmentation that #7 did not reach |
-| 21 | missing a trailing `return` | the 32 scripts whose body ends in an explicit `return`, which the decompiler suppresses printing |
+| 21 | missing a trailing `return` | the 32 scripts whose body ends in an explicit `return`, which the generator suppresses printing |
 | 15 | `_4124` operand `1` vs `0` | §8.6 |
-| 13 | missing `push_constant_string` | not yet chased |
-| 126 | eleven smaller shapes, ≤ 11 scripts each | not yet chased |
+| 144 | 54 smaller shapes, ≤ 13 scripts each | not chased |
 
-Plus **202 that do not decompile** (46 still on a missing signature, the rest
-type/stack errors downstream of one) and **67 that decompile but do not
-recompile** — 39 a parse error in the emitted source, 16 a callback argument the
-compiler cannot type, 7 an unterminated `(` in a callback, 4 over a fixed limit
-on condition or switch size.
-
-### 8.4 Why 425 scripts cannot be exact, specifically
+### 8.4 Why 427 scripts cannot be exact, specifically
 
 A script's epilogue — the unreachable `push default; return` tail that is the
 only record of its return types — pushes a value that depends on the *declared*
@@ -361,7 +389,7 @@ constants its own epilogue pushes: `string` is `""` (432 of 432), plain `int` is
 namedobj 6, struct 6, boolean 5, component 5, coord 4, enum 3, stat 1). Change #5
 implements exactly that.
 
-The 425 left are scripts whose epilogue is `-1` but whose signature the
+The 427 left are scripts whose epilogue is `-1` but whose signature the
 decompiler prints as `int` — so the compiler emits `0`. **The rule is not
 failing; the type is.** Script 3 is the whole shape of it: it returns literal
 `1` and `0` from a `testbit`, nothing in the script constrains the type further,
@@ -375,7 +403,7 @@ The second would round-trip and would make the decompiled source assert
 something about the program that is not known to be true, which is worse than a
 wrong byte. Left as is, deliberately.
 
-### 8.5 The 425 branch differences are one decision made without its evidence
+### 8.5 The 431 branch differences are one decision made without its evidence
 
 `if (a) { return; } if (b) { … }` and `if (a) { return; } else if (b) { … }` are
 the same program and different bytecode: the `else` form needs a jump over the
@@ -396,17 +424,40 @@ that matter. Not attempted.
 ### 8.6 One thing deliberately not done
 
 Thirteen BASIC opcodes carry operand `1` somewhere in the cache while the table
-says they have no active-component form, so the compiler writes `0`. Eleven are
-in the cc_ range and are now marked dot-capable (#9) — for those the operand
-byte *is* that flag, which is what the interpreter passes each group handler as
-`var2`.
+says they have no active-component form, so the compiler writes `0` and loses
+the byte. **"Holds a 1" is not evidence of a dot form**, though, and the corpus
+cannot tell the two apart — the client can, so ask it: does the opcode's case,
+or its handler's preamble, read `var2` (the flag the interpreter builds from
+`Script.field272[pc]`, which selects `field5113` over `field2369`)?
 
-**4123 and 4124 are not**, though flipping them would recover 22 more scripts.
-They sit outside the cc_ range and their cases in `method5814` never read
-`var2` — the client ignores that byte entirely. Marking them dot-capable would
-make the decompiler print `._4123`, asserting an active-component form that does
-not exist, to win a byte. What that operand means for them is unknown, and
-saying so is worth more than 22 scripts.
+Nine do, and are now marked dot-capable (#9): 209, 210, 212, 213 and 1927 read
+it in their own case; 1128, 1506, 1624 and 1704 sit in ranges whose handler
+preamble reads it before it looks at the opcode at all.
+
+Four do not, and were left alone:
+
+- **102 `cc_deleteall`** — `method4548`'s case pops the component id off the int
+  stack instead. Taking the corpus operand at face value and marking it dot cost
+  two scripts here and produced source the client does not describe.
+- **103** — no case in this client and no preamble flag. Unknown, so unchanged.
+- **4123 / 4124** — outside the cc_ range, and `method5814` never reads `var2`
+  for either; the client ignores that byte entirely. Marking them dot-capable
+  would win 22 scripts and would make the decompiler print `._4123`, asserting
+  an active-component form the client does not have. What that operand does mean
+  is still unknown, and saying so is worth more than the 22.
+
+### 8.7 Opcode 2929 has no signature to record
+
+`_2929` is in `local_commands.py` as five arguments and that is wrong, but
+removing it only trades eight mis-decompiles for eight refusals. The rev-239
+client calls `Statics.method989` for it — pop a descriptor string, then one
+value per character, `'i'` from the int stack and anything else from the string
+stack — which is the *hook* argument mechanism, and then pops three more ints.
+So 2929 is a hook that also carries three plain arguments, and none of this
+tool's command kinds can say that: `RSCACHE_CS2_CMD_CLIENTSCRIPT` pops exactly
+one component for an opcode at or above 2000, and `BASIC` cannot vary at all.
+It needs a kind of its own, and until it has one those eight scripts cannot
+decompile correctly whatever number is written here.
 
 ## 7. What "done" looks like
 
