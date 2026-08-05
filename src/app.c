@@ -3937,18 +3937,20 @@ app_debug_log_bridges(struct App* app)
 }
 
 /*
- * TORIRS_WEDGE_SCALE — env-gated projection-scale experiment (docs/ORANGE_WEDGE.md 4).
+ * World projection scale — recomputed per layout, the reference behaviour
+ * (docs/ORANGE_WEDGE.md §4/§11/§12, promoted to the default per §11.7).
  *
  * The reference client recomputes the world projection scale from the world
  * viewport HEIGHT on every layout (class159.method5357:
  * scale = viewportHeight * zoom / 334, zoom interpolated between the two
- * VIEWPORT_SETFOV endpoints over height-334 in [0,100]); this client uses the
- * compile-time default proj_scale = 512. At a 503-high world viewport the
- * reference lands on 191, i.e. this client draws the scene 2.68x magnified.
+ * VIEWPORT_SETFOV endpoints over height-334 in [0,100]). Leaving it at the
+ * compile-time proj_scale = 512 is what drew the Inferno 2.68x magnified —
+ * at a 503-high world viewport the reference lands on 191/192.
  *
- * OFF by default. Values:
- *   TORIRS_WEDGE_SCALE=1|auto   recompute per class159.method5357
- *   TORIRS_WEDGE_SCALE=<n>      force the linear scale to n (n >= 8), for bisection
+ * ON by default. TORIRS_WEDGE_SCALE values:
+ *   (unset) | 1 | auto        recompute per class159.method5357 (default)
+ *   0 | off                   legacy constant scale 512, for A/B comparison
+ *   <n>                       force the linear scale to n (n >= 8), for bisection
  *   TORIRS_WEDGE_ZOOM=<n>,<f>   override the decoded SETFOV endpoints (auto mode)
  *   TORIRS_WEDGE_FOV_DEBUG=1    log the SETFOV decode and the resulting scale
  *
@@ -3984,7 +3986,8 @@ app_world_fov_override(void)
     return cached;
 }
 
-/* -1 = gate off, 0 = auto (recompute), >0 = forced linear scale. */
+/* 0 = auto (recompute — the default), -1 = forced off (legacy constant 512),
+ * >0 = forced linear scale. */
 static int
 app_wedge_scale_mode(void)
 {
@@ -3992,10 +3995,12 @@ app_wedge_scale_mode(void)
     if( cached == -2 )
     {
         char const* e = getenv("TORIRS_WEDGE_SCALE");
-        cached = -1;
-        if( e && e[0] != '\0' && e[0] != '0' )
+        cached = 0;
+        if( e && e[0] != '\0' )
         {
-            if( strcmp(e, "1") == 0 || strcmp(e, "auto") == 0 )
+            if( strcmp(e, "0") == 0 || strcmp(e, "off") == 0 )
+                cached = -1;
+            else if( strcmp(e, "1") == 0 || strcmp(e, "auto") == 0 )
                 cached = 0;
             else
             {
@@ -4167,7 +4172,8 @@ app_update_world_viewport(struct App* app)
             app->minimap_view_valid = 1;
         }
     }
-    /* No-op unless TORIRS_WEDGE_SCALE is set — see the comment on that gate. */
+    /* Recomputes the projection scale from the world viewport height, the
+     * reference behaviour (TORIRS_WEDGE_SCALE=off reverts to constant 512). */
     app_apply_wedge_scale(app);
 }
 
@@ -5847,18 +5853,18 @@ app_update_painter_cull(
     if( vw < 1 || vh < 1 )
         return;
 
-    /* Follow cam owns the orbit anchor; free/scripted cam is eye-centred. */
-    follow_cam = app->net && !app->cam_script.scripted;
-    /* TORIRS_WEDGE_DRAWCENTER=eye — centre the painter's draw box on the EYE tile
-     * instead of the orbit anchor, which is what the official does
-     * unconditionally (class112.method4111 derives the window from field1755 /
-     * field1765, the camera tile). Diagnostic knob for the draw-order capture:
-     * without it the two clients' 51x51 windows cover different tiles and an
-     * order diff conflates "different box" with "different traversal". */
+    /* The painter's draw box is centred on the EYE tile — the official does
+     * this unconditionally (class112.method4111 derives the window from
+     * field1755/field1765, the camera tile). Centring on the orbit anchor
+     * instead put nine extra z rows behind the camera in the box and dropped
+     * nine near ones, which is §9.7(b)'s share of the Inferno wedge
+     * (docs/ORANGE_WEDGE.md, promoted per §11.7).
+     * TORIRS_WEDGE_DRAWCENTER=orbit restores the old behaviour for A/B. */
+    follow_cam = 0;
     {
         char const* dc = getenv("TORIRS_WEDGE_DRAWCENTER");
-        if( dc && strcmp(dc, "eye") == 0 )
-            follow_cam = 0;
+        if( dc && strcmp(dc, "orbit") == 0 )
+            follow_cam = app->net && !app->cam_script.scripted;
     }
     if( follow_cam )
     {

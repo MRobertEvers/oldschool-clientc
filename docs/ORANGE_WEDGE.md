@@ -1,11 +1,11 @@
 # The Inferno "orange wedge" — root cause and proposed fix
 
-Status: **fixed under an env gate, and the fix is confirmed by measurement —
-see §10.** The projection-scale change of §4 collapses the wedge from 29 px to
-9 px and moves it from y 137..165 to y 213..221; at the official client's own
-eye the two clients then agree on the band's top edge (213) and widest span
-(153 px) to the pixel. The change lives behind `TORIRS_WEDGE_SCALE`, **off by
-default**, so the shipped build is unchanged until someone promotes it.
+Status: **fixed, and ON by default since §15.** The projection-scale change of
+§4 collapses the wedge from 29 px to 8 px and moves it from y 137..165 to
+y 214..221; at the official client's own eye the two clients agree on the
+band's height (8), top edge (±1) and widest span (153 px). The recompute and
+the eye-centred draw box are the default; `TORIRS_WEDGE_SCALE=off` and
+`TORIRS_WEDGE_DRAWCENTER=orbit` restore the legacy behaviour for A/B.
 
 §1–§9 below are the diagnosis as written before the experiment; §10 is the
 experiment. Where they disagree, §10 was measured.
@@ -1499,3 +1499,67 @@ buffer; the order of the draws themselves is unchanged.)
   `test-world-builder`, `test-minimap`, `test-painters-occluders` all pass.
   The terrain-levels test target also gained the toridraw `shared_tables.c` it
   had been missing since §12 made the painter read `g_tan_table`.
+
+## 15. Promoted: the reference projection is now the default
+
+§11.7's checklist, executed. The wedge is gone from the shipped build — no
+environment variables required.
+
+### 15.1 What changed
+
+* **Projection scale** — `app_apply_wedge_scale` now runs by default: the
+  world projection scale is recomputed from the world viewport height on every
+  layout (`class159.method5357`), reaching the kernels exactly through
+  `proj_scale`. `TORIRS_WEDGE_SCALE=off` (or `0`) restores the legacy constant
+  512 for A/B; `1|auto` and `=<n>` keep their old meanings.
+* **Draw box centre** — the painter's draw box is eye-centred unconditionally
+  (`class112.method4111` semantics). `TORIRS_WEDGE_DRAWCENTER=orbit` restores
+  the old orbit-anchored box for A/B (the gate's polarity flipped: `eye` was
+  the opt-in, `orbit` is now the opt-out).
+* §4.4's fallback literal was already gone — the no-world-camera path reads
+  `TORIDRAW_PROJ_SCALE_DEFAULT` since §12.
+
+### 15.2 Measured, default build, no gates
+
+Pinned at the official eye (`TORIRS_WEDGE_CAM=7104,-743,5072,128,0`), exact
+`0xA45409` in `x 280..470, y 120..245`:
+
+| configuration | count | x extent | widest | y extent (h) |
+| --- | --- | --- | --- | --- |
+| **default (promoted)** | 97 | 280..434 | 22 | **214..221 (8)** |
+| `TORIRS_WEDGE_SCALE=off` + `DRAWCENTER=orbit` | 685 | 320..441 | 51 | 143..171 (29) |
+| official `/tmp/r_06.png` | 142 | 302..455 | 30 | 213..220 (8) |
+
+The default equals §12.5's gated row bit for bit; the off-switches reproduce
+the legacy wedge exactly, so the A/B knob is proven both ways. At the client's
+own settled camera the band is 81 px, y 210..219 (h 10) — §11.2's fix-A+B row
+with the exact scale.
+
+Lumbridge courtyard (`::tele 3222 3218`) renders at the reference framing —
+the §11.5 blocker (no terrain at Lumbridge in the embed harness) is gone now
+that the mock embeds real map loading, so the framing check finally ran.
+
+`test-world-builder`, `test-scanline`, `test-light-model`,
+`test-painters-terrain-levels`, `test-painters-occluders`, `test-minimap`,
+`test-bootmanifest` all pass.
+
+### 15.3 §7(a) reframed: the 21 px is the popout strip, not a defect
+
+The last §11.7 item — "fix the 723 vs 765 world viewport width" — dissolves
+on inspection. The 42 px is clientscript 5355 carving the **popout strip**
+(interface 728, the launcher column that hosts the xptracker / hiscores /
+loottools panels this repo deliberately implemented) out of the canvas; the
+`viewport` component (clientCode 1337, which drives the reference's own
+`method5357` through `class71.method2484`) then resolves at 723 inside the
+shrunken `gameframe`. That is the authored layout: a Jagex-client-style boot
+*with* the strip has a 723-wide world viewport, centre 361.5, and our
+projection is exactly right for it. The official numbers in §3.1 were read
+from RuneLite, which has no strip — its 765/382.5 is the strip-less
+configuration of the same math, not a truer one. The 21 px x-offset between
+our frames and RuneLite's is a chrome difference and only matters to
+pixel-diff comparisons; suppress the strip (or compare against a Jagex-client
+capture) if a diff needs the centres to coincide.
+
+Residuals still open, unchanged: zoom 128 vs 127 (§11.4.2, ≈1 px) and the
+follow-camera orbit distance (§7b, worth re-measuring now that the scale no
+longer amplifies it).
