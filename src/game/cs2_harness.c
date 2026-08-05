@@ -39,6 +39,7 @@ struct HarnessCase
 {
     char id[128];
     int script_id;
+    int screenshot;
     int int_args[HARNESS_MAX_ARGS];
     int int_arg_count;
     char* str_args[HARNESS_MAX_ARGS];
@@ -132,6 +133,10 @@ harness_parse_case(char const* body, char const* end, struct HarnessCase* out)
     {
         snprintf(out->id, sizeof(out->id), "script%d", out->script_id);
     }
+
+    field = harness_field(body, end, "screenshot", &len);
+    if( field && len >= 4 && strncmp(field, "true", 4) == 0 )
+        out->screenshot = 1;
 
     field = harness_field(body, end, "intArgs", &len);
     if( field )
@@ -303,7 +308,9 @@ CS2Harness_Run(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
     char const* cases_path,
-    char const* out_dir)
+    char const* out_dir,
+    CS2Harness_Shot_Fn shot,
+    void* shot_user)
 {
     static struct HarnessCase cases[HARNESS_MAX_CASES];
     int count = harness_load_cases(cases_path, cases, HARNESS_MAX_CASES);
@@ -348,6 +355,16 @@ CS2Harness_Run(
         int steps = CS2VM2_TraceCaptureEnd();
 
         harness_write(out_dir, item, 0, steps);
+
+        /* The picture, when the case asked for one. A trace proves the two VMs
+         * ran the same instructions; only the frame shows whether the interface
+         * they built looks the same. */
+        if( item->screenshot && shot )
+        {
+            char shot_path[512];
+            snprintf(shot_path, sizeof(shot_path), "%s/cs2_%s.bmp", out_dir, item->id);
+            shot(shot_user, shot_path);
+        }
 
         for( int s = 0; s < item->str_arg_count; s++ )
         {

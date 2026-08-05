@@ -1306,19 +1306,68 @@ emit:
     }
 }
 
+/* Painter-command stepping (see torirs_frame.h). -2 = env not read yet. */
+static int g_paint_limit = -2;
+static int g_paint_limit_step = -2;
+static long g_paint_limit_step_at = 0; /* TORIRS_PAINT_LIMIT_STEP_AT */
+static long g_paint_limit_frame = 0;
+
+static void
+paint_limit_init(void)
+{
+    if( g_paint_limit == -2 )
+    {
+        char const* env = getenv("TORIRS_PAINT_LIMIT");
+        g_paint_limit = (env && env[0]) ? (int)strtol(env, NULL, 0) : -1;
+        if( g_paint_limit < -1 )
+            g_paint_limit = -1;
+    }
+    if( g_paint_limit_step == -2 )
+    {
+        char const* env = getenv("TORIRS_PAINT_LIMIT_STEP");
+        g_paint_limit_step = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
+        env = getenv("TORIRS_PAINT_LIMIT_STEP_AT");
+        g_paint_limit_step_at = (env && env[0]) ? strtol(env, NULL, 0) : 0;
+    }
+}
+
+void
+ToriRS_Frame_PaintLimitSet(int limit)
+{
+    paint_limit_init();
+    g_paint_limit = limit < 0 ? -1 : limit;
+}
+
+int
+ToriRS_Frame_PaintLimitGet(void)
+{
+    paint_limit_init();
+    return g_paint_limit;
+}
+
 static bool
 try_emit_world_draw_model(
     struct ToriRS_Frame* frame,
     struct ToriRS_RenderCommand* out)
 {
+    int paint_limit;
+
     assert(frame);
     assert(out);
 
     if( !frame->world || !frame->painters || !frame->scene )
         return false;
 
+    /* Truncate the stream at the cap: commands past it simply do not exist
+     * this frame, so the raster shows the scene as of paint N. The index
+     * counts every consumed command, drawn or dropped, so a cap position
+     * names the same command on every frame of the same scene. */
+    paint_limit = ToriRS_Frame_PaintLimitGet();
+
     while( frame->painters_index < frame->painters->command_count )
     {
+        if( paint_limit >= 0 && frame->painters_index >= paint_limit )
+            break;
         struct PaintersElementCommand* cmd =
             &frame->painters->commands[frame->painters_index++];
         int element_id = -1;
@@ -1394,12 +1443,17 @@ try_emit_world_draw_model(
                     struct WorldEntity_Scenery* sc =
                         cmd->_bf_kind == PNTR_CMD_ELEMENT
                             ? World_SceneryGetByElementId(frame->world, element_id) : NULL;
+                    /* cmd= is the painters_index of this command — the unit
+                     * TORIRS_PAINT_LIMIT caps at, so a cap of cmd+1 draws up
+                     * to and including this line. */
                     if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
-                        fprintf(stderr, "order %4d TERRAIN tile=%d,%d L%d\n", seq++,
+                        fprintf(stderr, "order %4d cmd=%4d TERRAIN tile=%d,%d L%d\n", seq++,
+                                frame->painters_index - 1,
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
                     else
-                        fprintf(stderr, "order %4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
+                        fprintf(stderr, "order %4d cmd=%4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
+                                frame->painters_index - 1,
                                 sc ? sc->loc_id : -1, sc ? sc->grid_position.x : -1,
                                 sc ? sc->grid_position.z : -1,
                                 sc ? sc->debug.draw_size_x : 0, sc ? sc->debug.draw_size_z : 0);
@@ -1523,6 +1577,15 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     assert(frame);
     assert(frame->scene);
     assert(frame->canvas_w > 0 && frame->canvas_h > 0);
+    /* TORIRS_PAINT_LIMIT_STEP: advance the cap once per frame (from frame
+     * TORIRS_PAINT_LIMIT_STEP_AT on, so a login/cinematic prefix does not
+     * consume the sweep), so a TORIRS_BMP_SERIES run flips through the paint
+     * order. */
+    paint_limit_init();
+    g_paint_limit_frame++;
+    if( g_paint_limit >= 0 && g_paint_limit_step > 0 &&
+        g_paint_limit_frame > g_paint_limit_step_at )
+        g_paint_limit += g_paint_limit_step;
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;

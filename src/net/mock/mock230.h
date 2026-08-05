@@ -3517,6 +3517,19 @@ mock230_scripts_run_trigger_on_loc(
     int loc_slot);
 
 /**
+ * Unpark and free one script state, wherever it is parked.
+ *
+ * The logout path's only caller: a `[logout]` script that suspends has parked
+ * itself on a player whose slot is about to be reused, and the reference's
+ * answer (defer the logout until `canAccess()`) is not available to a socket
+ * that has already closed.
+ */
+void
+mock230_scripts_release_state(
+    struct Mock230Server* srv,
+    struct SSVM_State* state);
+
+/**
  * One rung, no chain — `ScriptProvider.getByTriggerSpecific`.
  *
  * `type` if it is not -1, else `category` if it is not -1, else the global form.

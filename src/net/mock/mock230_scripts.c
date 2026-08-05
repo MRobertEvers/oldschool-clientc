@@ -403,6 +403,15 @@ release_parked(struct Mock230Server* srv, struct SSVM_State* state)
     SSVM_StateRelease(state);
 }
 
+void
+mock230_scripts_release_state(
+    struct Mock230Server* srv,
+    struct SSVM_State* state)
+{
+    if( state )
+        release_parked(srv, state);
+}
+
 /*
  * `Player.canAccess()` — may the engine hand this player a script right now?
  *
@@ -6077,9 +6086,34 @@ mock230_script_command(
     case SS_OP_MAP_INSTANCE_FREE:
     {
         int32_t handle;
+        int left = 0;
 
         if( !SSVM_PopInt(state, &handle) )
             return 1;
+        /*
+         * Count what is still standing in it, and say so.
+         *
+         * The engine does not delete them — whose npcs those are is content's
+         * question, and a rule about when a minigame is over does not belong
+         * here (`map_instance_procs.rs2`'s header makes the same point). But an
+         * abandoned spawn is the one consequence of a sloppy teardown that
+         * nothing else reports: the pool re-issues a released square
+         * immediately, `npc_add`'s duration is measured in thousands of ticks,
+         * and the symptom is the *next* session finding somebody else's boss
+         * already in the arena. One line at the moment of the release is what
+         * turns that into something a run can be read for.
+         */
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( srv->npcs[i].active &&
+                mock230_mapinstance_find(srv->npcs[i].x, srv->npcs[i].z) == handle )
+                left++;
+        }
+        if( left > 0 && getenv("MOCK230_VERBOSE") )
+            fprintf(stderr,
+                    "mock230: map instance %d freed with %d npc(s) still inside — "
+                    "the next session on this square inherits them\n",
+                    (int)handle, left);
         mock230_mapinstance_free(handle);
         return 1;
     }

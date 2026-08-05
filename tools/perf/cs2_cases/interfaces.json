@@ -1,0 +1,11 @@
+{
+ "version": 1,
+ "description": "Interface-building cases. Each runs a gameframe script that draws or rebuilds a panel, then captures the framebuffer, so the rendered result can be compared between clients and not just the instruction stream.",
+ "cases": [
+  {"id": "boot_state",    "scriptId": 3,    "intArgs": [], "stringArgs": [], "screenshot": true, "settleMs": 600},
+  {"id": "orbs_hp",       "scriptId": 1445, "intArgs": [], "stringArgs": [], "screenshot": true, "settleMs": 600},
+  {"id": "chat_rebuild",  "scriptId": 83,   "intArgs": [], "stringArgs": [], "screenshot": true, "settleMs": 600},
+  {"id": "tab_switch",    "scriptId": 915,  "intArgs": [], "stringArgs": [], "screenshot": true, "settleMs": 600},
+  {"id": "xp_drops",      "scriptId": 1300, "intArgs": [], "stringArgs": [], "screenshot": true, "settleMs": 600}
+ ]
+}

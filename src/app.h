@@ -156,6 +156,11 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
+     * send once right after login, e.g. "zuk" to enter the Inferno instance.
+     * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var
+     * still overrides. NULL/"" = none. */
+    char const* net_cheat;
     /** Protocol revision name ("lc254", "lc245_2"). NULL = lc254, the
      * authoritative LostCity_Server build. Mock/loopback tests pass
      * lc245_2 explicitly. */

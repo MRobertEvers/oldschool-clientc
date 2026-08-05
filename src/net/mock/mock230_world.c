@@ -5981,6 +5981,50 @@ mock230_world_remove_player(
     snprintf(display_name, sizeof(display_name), "%s", player->display_name);
 
     /*
+     * `[logout]`, and it runs *above* the save on purpose.
+     *
+     * The reference puts this in the logout phase — `World.ts:780`,
+     * `getByTriggerSpecific(LOGOUT, -1, -1)` with a protected active player,
+     * immediately before `removePlayer` — and its content
+     * (`login_logout/logout.rs2`) is a list of per-feature teardowns:
+     * `~duel_arena_logout`, `~castlewars_logout`, the follower, the skull. That
+     * is the shape of everything a session holds and nothing else can give
+     * back.
+     *
+     * Here it hangs off `remove_player` rather than off `phase_logouts`,
+     * because this function is the *only* logout path either host has (see the
+     * save comment below): a socket disconnect calls it from the transport, not
+     * through a tick phase, so a phase-only dispatch would silently skip the
+     * case that matters most — the client that vanished mid-encounter.
+     *
+     * Above the save because a logout script's whole job may be to *move* the
+     * player: a run that ends inside a map instance has to leave a saved coord
+     * that is still map when the reservation goes back to the pool. Save first
+     * and the character is stored standing on void.
+     *
+     * Two divergences from the reference, both stated rather than hidden:
+     * it cannot *defer* (`canAccess()` / a non-empty engine queue make the
+     * reference wait a tick, and a closed socket cannot wait), and a logout
+     * script that suspends is dropped rather than parked, because the slot it
+     * would park on is about to be reused.
+     */
+    {
+        struct Mock230Player* was_active = srv->active_player;
+
+        mock230_world_set_active(srv, player);
+        mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_LOGOUT, -1, -1, -1);
+        if( player->active_script )
+        {
+            fprintf(stderr,
+                    "mock230: [logout] suspended for %s; dropping the parked "
+                    "script — a logout cannot wait for it\n",
+                    display_name);
+            mock230_scripts_release_state(srv, player->active_script);
+        }
+        mock230_world_set_active(srv, was_active == player ? NULL : was_active);
+    }
+
+    /*
      * Write the save first, while the player is still whole.
      *
      * Everything below this line takes something away — the bank is freed, the
@@ -6790,7 +6834,17 @@ phase_players(struct Mock230Server* srv)
         phase_player(player);
 }
 
-/** 6. Logouts, which run the [logout] trigger before dropping the player. */
+/**
+ * 6. Logouts.
+ *
+ * Empty, and the `[logout]` trigger it used to promise is **not** missing — it
+ * lives in `mock230_world_remove_player`, because that is the only path either
+ * host removes a player through and a dropped socket does not wait for a tick
+ * phase. What is genuinely absent here is the reference's *deferral*: a
+ * `p_logout` that has to wait for `canAccess()` or for the engine queue to
+ * drain (`World.ts:764`). Nothing in this engine requests a logout and then
+ * waits, so there is nothing for this phase to hold.
+ */
 static void
 phase_logouts(struct Mock230Server* srv)
 {
@@ -19527,6 +19581,76 @@ mock230_world_selftest(void)
                        "setting a display name should derive its base-37 key");
 
         mock230_friends_reset();
+    }
+
+    /*
+     * A logout gives a map-instance reservation back, and leaves the character
+     * saved on real map.
+     *
+     * Last leg on purpose: it ends by removing the player, and nothing after it
+     * would have one.
+     *
+     * What this is measuring, and why it is worth a permanent check rather than
+     * one headless run: a leaked reservation is invisible from inside the game.
+     * The pool is MOCK230_MAPINSTANCE_MAX wide, so the eighth leak is the first
+     * symptom, it lands in whatever content asked next, and it reads as "the
+     * Inferno could not be prepared right now". The saved coord is the worse
+     * half and quieter still — a character stored inside a square the allocator
+     * is free to re-issue logs back in on void, with no terrain to walk off.
+     *
+     * Both assertions fail if `[logout,_]` stops being dispatched, if
+     * `~map_instance_logout_release` is dropped from it, or if the dispatch
+     * moves below the save in `mock230_world_remove_player` — measured, by
+     * running the whole thing with an empty `[logout,_]`: the release line never
+     * prints and the save reads x = 6431.
+     */
+    fprintf(stderr, "mock230 selftest: a logout releases the session's map instance\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t handle = 0;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[logout,_]") != NULL,
+                           "the tree should bind [logout,_] — without it this stanza "
+                           "proves nothing");
+            /* `::mapinstance` and not the Inferno, deliberately. The subject is
+             * the *reservation*, and the generic debugproc is the smallest thing
+             * that holds one — an Inferno run would drag a fire cape, 68 waves of
+             * spawn policy and a cutscene through a check about a pool slot. What
+             * the Inferno adds on top (`~inferno_on_logout`, a destination better
+             * than ^respawn_coord) is content, and content's own business. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "mapinstance"),
+                           "::mapinstance should reach [debugproc,mapinstance]");
+            handle = (int32_t)mock230_mapinstance_find(player->x, player->z);
+            SELFTEST_CHECK(handle != 0,
+                           "::mapinstance should leave the player inside an instance, "
+                           "got coord %d,%d", player->x, player->z);
+            if( handle != 0 )
+            {
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 1,
+                               "one reservation should be live, got %d",
+                               mock230_mapinstance_live_count());
+                mock230_world_remove_player(&srv, player);
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
+                               "the logout should have released it, %d still live",
+                               mock230_mapinstance_live_count());
+                SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
+                               "the logout should have moved the player out of the "
+                               "pool before the save, still at %d,%d",
+                               player->x, player->z);
+            }
+            mock230_scripts_free(&srv);
+        }
     }
 
     if( g_selftest_failures )

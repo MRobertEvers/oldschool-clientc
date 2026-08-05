@@ -606,51 +606,38 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             }
         }
 
+        /*
+         * VIS_BELOW lowers a tile's DRAW LEVEL; it does not move geometry.
+         *
+         * Reference (rev-239 class112): buildScene calls method4195 with
+         * Statics.method8418's result, which sets tile flag 0x40; method4161
+         * (renderLevel) then answers 0 for such a tile, and the mark pass
+         * (method4241: `renderLevel <= field1653`) is the only place the level
+         * cull happens. Client-TS is the same shape: setLayer(level, x, z,
+         * getVisBelowLevel(...)) stores a cull level on the Square, and
+         * draw() gates on `tile.drawLevel <= maxLevel`. In both, the mesh
+         * stays on its own plane and pops in its own traversal slot — after
+         * the tile below fully retires, so the floor above paints over the
+         * walls below it.
+         *
+         * An earlier session relocated the flagged mesh into the lower
+         * level's terrain set instead ("hand the mesh down"). That drew the
+         * borrowed floor before the lower tile's walls — the reverse of the
+         * reference order — and its motivation (surviving the roof-hide
+         * level mask) was already covered: tile_excluded_by_bridge_or_draw_mask
+         * tests visible_gte_level, and bit 0 of the mask is always set.
+         */
         for( int x = 0; x < scene_size; x++ )
         {
             for( int z = 0; z < scene_size; z++ )
             {
                 int link_l1 = (flag_map_get(builder->flag_map, x, z, 1) & RSCACHE_FLOFLAG_LINK_BELOW) != 0;
-                int terrain_src[WORLD_MAP_TERRAIN_LEVELS] = { 0 };
-                int terrain_vis_below[WORLD_MAP_TERRAIN_LEVELS] = { 0 };
                 for( int g = 0; g < painter_max_levels(world->painter); g++ )
                 {
                     int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
                     uint8_t st = (uint8_t)flag_map_get(builder->flag_map, x, z, src);
                     int draw = RSCache_MapFloorVisBelowDrawLevel(st, src, link_l1);
                     painter_tile_set_draw_level(world->painter, x, z, g, draw);
-                    terrain_src[g] = src;
-                    terrain_vis_below[g] =
-                        (st & RSCACHE_FLOFLAG_VIS_BELOW) != 0 && draw != g;
-                }
-
-                /*
-                 * VisBelow moves a tile's terrain MESH onto the floor below,
-                 * it does not merely reveal it. The mesh is real geometry with
-                 * a real colour, so emitting it during its own level's ground
-                 * pass puts it at the wrong depth in the back-to-front order —
-                 * which is how the Inferno's alcove floor, an orange tile a
-                 * level up, ended up painted over the wall standing in front of
-                 * it. Hand the mesh to the level it belongs on and take it off
-                 * the level it came from; the painter emits a tile's whole set
-                 * in ascending order, so the borrowed mesh lands on top.
-                 */
-                {
-                    unsigned set[WORLD_MAP_TERRAIN_LEVELS];
-                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
-                        set[g] = terrain_vis_below[g] ? 0u : (1u << (terrain_src[g] & 3));
-                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
-                        if( terrain_vis_below[g] )
-                        {
-                            int dst = RSCache_MapFloorVisBelowDrawLevel(
-                                (uint8_t)flag_map_get(builder->flag_map, x, z, terrain_src[g]),
-                                terrain_src[g],
-                                link_l1);
-                            if( dst >= 0 && dst < painter_max_levels(world->painter) )
-                                set[dst] |= 1u << (terrain_src[g] & 3);
-                        }
-                    for( int g = 0; g < painter_max_levels(world->painter); g++ )
-                        painter_tile_set_terrain_levels(world->painter, x, z, g, set[g]);
                 }
             }
         }
@@ -680,6 +667,30 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 
     world_build_scene_terrain(builder);
     world_build_lighting(builder);
+
+    /* A level with no terrain mesh emits nothing. The reference never queues a
+     * content-less tile at all (class112.method3940 gates marking on the
+     * has-content bit), whereas leaving the default set here emits a terrain
+     * command for all four levels of every column and lets the frame drop the
+     * dead ones at World_TerrainElementAt() < 0 — the 4x speculative emits of
+     * ORANGE_WEDGE.md §9.7(c). Runs after world_build_scene_terrain, the first
+     * point the mesh census exists. */
+    if( world->painter )
+    {
+        for( int x = 0; x < scene_size; x++ )
+            for( int z = 0; z < scene_size; z++ )
+                for( int g = 0; g < painter_max_levels(world->painter); g++ )
+                {
+                    unsigned set = painter_tile_get_terrain_levels(world->painter, x, z, g);
+                    unsigned kept = 0;
+                    for( int ml = 0; ml < WORLD_MAP_TERRAIN_LEVELS; ml++ )
+                        if( (set & (1u << ml)) != 0 &&
+                            World_TerrainElementAt(world, x, z, ml) >= 0 )
+                            kept |= 1u << ml;
+                    if( kept != set )
+                        painter_tile_set_terrain_levels(world->painter, x, z, g, kept);
+                }
+    }
 
     /* Bridge minimap push-down runs HERE, after world_build_scene_terrain has
      * set the per-level minimap colours — shuffling the planes any earlier moves

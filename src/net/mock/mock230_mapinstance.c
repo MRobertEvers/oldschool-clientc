@@ -447,8 +447,30 @@ mock230_mapinstance_free(int handle)
 
     if( !inst )
         return 0;
+    /* Logged for the same reason the alloc is: a reservation that is never
+     * released is invisible from inside the game — the pool simply stops
+     * answering after MOCK230_MAPINSTANCE_MAX entries, several sessions later
+     * and in whatever content asked next. The pair of lines is what makes a
+     * leak a thing you can read off one run. */
+    if( getenv("MOCK230_VERBOSE") )
+        fprintf(stderr,
+                "mock230: map instance %d released (map square %d,%d)\n",
+                handle, inst->square_x, inst->square_z);
     memset(inst, 0, sizeof(*inst));
     return 1;
+}
+
+int
+mock230_mapinstance_live_count(void)
+{
+    int live = 0;
+
+    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    {
+        if( g_instances[i].active )
+            live++;
+    }
+    return live;
 }
 
 int

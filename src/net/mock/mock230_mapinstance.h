@@ -170,6 +170,11 @@ mock230_mapinstance_base(
 int
 mock230_mapinstance_free(int handle);
 
+/** How many reservations are live. For leak checks — a session that ends with
+ *  a non-zero count released nothing. */
+int
+mock230_mapinstance_live_count(void);
+
 /** The handle whose reserved area contains this absolute tile, or 0. */
 int
 mock230_mapinstance_find(

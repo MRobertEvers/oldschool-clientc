@@ -1,24 +1,27 @@
 /**
- * Unit tests for PaintersTile::terrain_levels — the set of cache-level terrain
- * meshes a tile's ground pass emits.
+ * Unit tests for VIS_BELOW's painter behaviour — the draw-level cull and the
+ * per-tile terrain-mesh set.
  *
- * Why this lives in the painters module even though the flag it models is a
- * *world* concept: the painter is what decides WHEN a mesh is emitted, and that
- * is the whole bug this exists for. VisBelow terrain has a real colour and a
- * real position; drawing it during its own level's pass simply puts it at the
- * wrong point in the back-to-front order. So the tests set the tile state a
- * world build would produce — by hand, with no cache and no world builder — and
- * assert on the command stream.
+ * Reference semantics (rev-239 class112 + Client-TS, verified side by side in
+ * docs/ORANGE_WEDGE.md §14): FLOFLAG_VIS_BELOW lowers a tile's DRAW LEVEL to 0
+ * — the reference's renderLevel (method4161), our visible_gte_level — and
+ * nothing else. The mesh stays on its own level's tile and pops in its own
+ * traversal slot, after the tile below fully retires. The level mask (roof
+ * hiding) gates per tile on visible_gte_level, so a flagged tile survives a
+ * mask of 0x1 without its geometry moving anywhere.
  *
- * What the world builder does, restated here so the simulation is checkable
- * against something (world_builder.c, the RSCACHE_FLOFLAG_VIS_BELOW pass):
+ * An earlier revision instead relocated the flagged mesh into the lower
+ * level's terrain_levels set, which drew it before the lower tile's walls —
+ * the reverse of the reference order. These tests pin the reference shape so
+ * that mechanism cannot come back.
  *
- *   for each column:
- *     every grid level starts owning exactly its own mesh:  1 << src(level)
- *     a level whose settings carry VIS_BELOW, and whose draw level is therefore
- *     not itself, hands its mesh to the draw level and keeps none:
- *         set[own]  &= ~(1 << mesh)
- *         set[draw] |=  (1 << mesh)
+ * What the world builder does (world_builder.c), restated here so the
+ * simulation is checkable against something:
+ *
+ *   for each column, for each grid level g:
+ *     painter_tile_set_draw_level(g, RSCache_MapFloorVisBelowDrawLevel(...))
+ *   terrain_levels is left owning exactly the tile's own mesh; levels that
+ *   decoded no mesh get their set cleared to 0 after the terrain build.
  *
  * Build/run: make -C src test-painters-terrain-levels
  */
@@ -56,8 +59,9 @@ expect(
 #define TEST_FLOFLAG_VIS_BELOW 0x08
 
 /*
- * The world builder's VisBelow pass, reduced to the one column it acts on.
- * `settings[level]` is the raw floor settings byte for that cache level.
+ * The world builder's VisBelow pass, reduced to the one column it acts on:
+ * set the draw level, touch nothing else. RSCache_MapFloorVisBelowDrawLevel
+ * with no bridge collapses to "0 when flagged, own level otherwise".
  */
 static void
 apply_vis_below_for_column(
@@ -66,25 +70,13 @@ apply_vis_below_for_column(
     int sz,
     const unsigned char* settings)
 {
-    unsigned set[LEVELS];
     int level;
 
     for( level = 0; level < LEVELS; level++ )
-        set[level] = 1u << level;
-
-    for( level = 0; level < LEVELS; level++ )
     {
-        if( (settings[level] & TEST_FLOFLAG_VIS_BELOW) == 0 )
-            continue;
-        /* RSCache_MapFloorVisBelowDrawLevel: VisBelow draws on level 0. */
-        if( level == 0 )
-            continue;
-        set[level] &= ~(1u << level);
-        set[0] |= 1u << level;
+        int draw = (settings[level] & TEST_FLOFLAG_VIS_BELOW) != 0 ? 0 : level;
+        painter_tile_set_draw_level(painter, sx, sz, level, draw);
     }
-
-    for( level = 0; level < LEVELS; level++ )
-        painter_tile_set_terrain_levels(painter, sx, sz, level, set[level]);
 }
 
 static struct Painter*
@@ -97,7 +89,7 @@ make_painter(void)
 }
 
 /* Count terrain commands for one tile at one mesh level, and record the order
- * each landed at so adjacency can be asserted. */
+ * each landed at so relative order can be asserted. */
 static int
 terrain_emits(
     struct PaintersBuffer* buf,
@@ -148,50 +140,34 @@ test_default_is_own_mesh_only(void)
 }
 
 /*
- * The move itself, at the level the world builder works on: a VisBelow level
- * keeps nothing and level 0 gains its mesh.
+ * VisBelow does not move geometry: the flagged level keeps its own mesh, the
+ * level below gains nothing, and only the draw level changes.
  */
 static void
-test_vis_below_moves_the_mesh_down(void)
+test_vis_below_leaves_the_mesh_in_place(void)
 {
     struct Painter* p = make_painter();
     unsigned char settings[LEVELS] = { 0, TEST_FLOFLAG_VIS_BELOW, 0, 0 };
 
-    printf("VisBelow on level 1 moves that mesh onto level 0\n");
+    printf("VisBelow lowers the draw level and leaves every mesh in place\n");
     apply_vis_below_for_column(p, 4, 4, settings);
 
-    expect(painter_tile_get_terrain_levels(p, 4, 4, 1) == 0u,
-           "the flagged level emits nothing of its own");
-    expect(painter_tile_get_terrain_levels(p, 4, 4, 0) == 0x3u,
-           "level 0 emits both mesh 0 and mesh 1");
+    expect(painter_tile_get_terrain_levels(p, 4, 4, 1) == 0x2u,
+           "the flagged level still owns its own mesh");
+    expect(painter_tile_get_terrain_levels(p, 4, 4, 0) == 0x1u,
+           "level 0 owns only its own mesh");
     expect(painter_tile_get_terrain_levels(p, 4, 4, 2) == 0x4u,
            "an unflagged level is untouched");
-
-    /* A column with the flag on two levels hands both down. */
-    {
-        unsigned char two[LEVELS] = { 0, TEST_FLOFLAG_VIS_BELOW, TEST_FLOFLAG_VIS_BELOW, 0 };
-        apply_vis_below_for_column(p, 5, 4, two);
-        expect(painter_tile_get_terrain_levels(p, 5, 4, 0) == 0x7u,
-               "two flagged levels both land on level 0");
-        expect(painter_tile_get_terrain_levels(p, 5, 4, 1) == 0u &&
-                   painter_tile_get_terrain_levels(p, 5, 4, 2) == 0u,
-               "and neither keeps a mesh");
-    }
     painter_free(p);
 }
 
 /*
- * The two meshes must reach the command stream adjacently, during one ground
- * pass, with the borrowed mesh second so it lands on top.
- *
- * Read this one for what it is: a regression guard, not a proof. The bucket
- * painter already walks a column's levels back to back (a level-N tile waits on
- * level N-1 and is pushed at the same distance), so this passes with or without
- * the mask — a mutant that ignored terrain_levels entirely still satisfied it.
- * test_borrowed_mesh_survives_a_level_mask below is the discriminating one.
+ * The flagged mesh draws from its OWN level's traversal slot, after the level
+ * below it — the reference pops a plane-1 tile only once the plane-0 tile has
+ * fully retired (walls and all), so the floor above paints over what is below.
  */
 static void
-test_emission_is_adjacent_and_ordered(void)
+test_emission_is_from_own_level_and_ordered(void)
 {
     struct Painter* p = make_painter();
     struct PaintersBuffer* buf = painter_buffer_new();
@@ -199,7 +175,7 @@ test_emission_is_adjacent_and_ordered(void)
     int i0 = -1, i1 = -1;
     int n0, n1;
 
-    printf("the borrowed mesh is emitted with the level it moved onto\n");
+    printf("the flagged mesh is emitted from its own level, after the one below\n");
     apply_vis_below_for_column(p, 4, 4, settings);
 
     painter_paint_bucket(p, buf, 4, 4, 0);
@@ -208,12 +184,9 @@ test_emission_is_adjacent_and_ordered(void)
     n1 = terrain_emits(buf, 4, 4, 1, &i1);
 
     expect(n0 == 1, "mesh 0 is emitted exactly once");
-    expect(n1 == 1, "mesh 1 is emitted exactly once (from level 0's pass)");
+    expect(n1 == 1, "mesh 1 is emitted exactly once");
     if( n0 == 1 && n1 == 1 )
-    {
-        expect(i1 == i0 + 1, "the two are back to back in the command stream");
-        expect(i0 < i1, "and ascending, so the borrowed mesh draws on top");
-    }
+        expect(i0 < i1, "mesh 0 first, mesh 1 after — the floor above draws on top");
 
     free(buf->commands);
     free(buf);
@@ -221,9 +194,10 @@ test_emission_is_adjacent_and_ordered(void)
 }
 
 /*
- * A tile whose set is empty emits no terrain at all. This is the state a
- * VisBelow level is left in, and "emits nothing" has to be representable —
- * falling back to the tile's own mesh level would silently undo the move.
+ * A tile whose set is empty emits no terrain at all. This is the state the
+ * world builder leaves a mesh-less level in, and "emits nothing" has to be
+ * representable — falling back to the tile's own mesh level would emit
+ * commands for geometry that does not exist.
  */
 static void
 test_empty_set_emits_nothing(void)
@@ -246,30 +220,31 @@ test_empty_set_emits_nothing(void)
 
 /*
  * The discriminating case, and the one with a real client behaviour behind it:
- * VisBelow terrain belongs to level 0's picture, so it must still be drawn when
- * the upper levels are not being drawn at all. Roof hiding and the level mask
- * both do exactly that — draw level 0 only — and a mesh that is emitted from
- * its own level's pass simply vanishes there.
- *
- * This is what a mask-ignoring implementation cannot pass: with the mask honoured
- * mesh 1 arrives from level 0's pass; without it, mesh 1 is never emitted.
+ * roof hiding and the level mask draw level 0 only, and a VisBelow tile must
+ * still be drawn there. The reference gets this from the mark gate testing
+ * renderLevel (method4241: `renderLevel <= topLevel`), not the tile's physical
+ * plane; ours is tile_excluded_by_bridge_or_draw_mask testing
+ * visible_gte_level. No geometry has to move for this to work.
  */
 static void
-test_borrowed_mesh_survives_a_level_mask(void)
+test_flagged_tile_survives_a_level_mask(void)
 {
     struct Painter* p = make_painter();
     struct PaintersBuffer* buf = painter_buffer_new();
     unsigned char settings[LEVELS] = { 0, TEST_FLOFLAG_VIS_BELOW, 0, 0 };
+    int i0 = -1, i1 = -1;
 
-    printf("the borrowed mesh still draws when only level 0 is drawn\n");
+    printf("the flagged tile still draws when only level 0 is drawn\n");
     apply_vis_below_for_column(p, 4, 4, settings);
     painter_set_level_mask(p, 0x1);
 
     painter_paint_bucket(p, buf, 4, 4, 0);
 
-    expect(terrain_emits(buf, 4, 4, 0, NULL) == 1, "mesh 0 is drawn");
-    expect(terrain_emits(buf, 4, 4, 1, NULL) == 1,
+    expect(terrain_emits(buf, 4, 4, 0, &i0) == 1, "mesh 0 is drawn");
+    expect(terrain_emits(buf, 4, 4, 1, &i1) == 1,
            "mesh 1 is drawn too, even though level 1 is masked off");
+    if( i0 >= 0 && i1 >= 0 )
+        expect(i0 < i1, "and still after mesh 0 — order does not change under the mask");
     /* A neighbour without the flag keeps the ordinary behaviour: its upper mesh
      * is masked away. Otherwise "everything draws" would pass this too. */
     expect(terrain_emits(buf, 6, 4, 1, NULL) == 0,
@@ -284,9 +259,9 @@ int
 main(void)
 {
     test_default_is_own_mesh_only();
-    test_vis_below_moves_the_mesh_down();
-    test_emission_is_adjacent_and_ordered();
-    test_borrowed_mesh_survives_a_level_mask();
+    test_vis_below_leaves_the_mesh_in_place();
+    test_emission_is_from_own_level_and_ordered();
+    test_flagged_tile_survives_a_level_mask();
     test_empty_set_emits_nothing();
 
     if( g_failures )

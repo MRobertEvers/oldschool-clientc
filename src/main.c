@@ -41,6 +41,7 @@
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+
 #endif
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
@@ -49,6 +50,21 @@
  * an interface id is opened directly instead. */
 #define DAT1_CACHE_DIR "cache254"
 #define DAT2_CACHE_DIR "cache.jan2026"
+
+/* Render one frame into a BMP for the CS2 harness. Same path TORIRS_EXIT_BMP
+ * uses, so a harness frame and an exit frame are the same picture. */
+static void
+harness_shot(void* user, char const* path)
+{
+    struct App* app = (struct App*)user;
+    int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+    if( !pixels )
+        return;
+    App_Render(app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    free(pixels);
+}
+
 #define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
 #define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
 #define CONFIG_DIR "config"
@@ -916,7 +932,9 @@ frame_loop_step(void)
                             &app.host,
                             &app.runner,
                             harness_cases,
-                            out && *out ? out : "/tmp/cs2_harness_c");
+                            out && *out ? out : "/tmp/cs2_harness_c",
+                            harness_shot,
+                            &app);
                     }
                 }
             }
@@ -1590,6 +1608,7 @@ frame_loop_tick(void)
     App_Shutdown(&app);
 }
 #endif
+
 
 int
 main(

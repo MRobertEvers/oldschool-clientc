@@ -17,6 +17,11 @@
  *                 ws_host=<h>  ws_port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
+ *                 cheat=<"::" commands, ';'-separated, no leading "::">
+ *                 Sent once right after login — the manifest spelling of the
+ *                 TORIRS_NET_CHEAT harness hook (env still overrides). What
+ *                 lets a manifest state "boot into the Zuk instance" rather
+ *                 than every invocation carrying the env var.
  *                 ws_host/ws_port are where a *browser* reaches the same
  *                 server, which is rarely where the native client dials: a
  *                 page has no TCP, so the web build's sockets are WebSockets
@@ -131,6 +136,9 @@ struct BootManifest
      * server answers "invalid username or password". --user/--pass still win. */
     char user[64];
     char pass[64];
+    /* "::" commands (';'-separated) to send once right after login; "" = none.
+     * TORIRS_NET_CHEAT still overrides. */
+    char cheat[256];
 
     /* [features:boot] — client-behaviour era name; "" = derive from the cache
      * identity (ToriRS_Features_ForCache). */

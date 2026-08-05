@@ -11,6 +11,16 @@
 
 struct RS_CS2Host;
 struct TaskRunner;
+struct App;
+
+/**
+ * How the harness captures a frame.
+ *
+ * Passed in rather than reached for: this file has no business knowing how the
+ * client renders, and the renderer has no business knowing about the harness.
+ * A case that asks for a screenshot gets one written beside its artifact.
+ */
+typedef void (*CS2Harness_Shot_Fn)(void* user, char const* path);
 
 /** Returns the number of cases run. */
 int
@@ -18,6 +28,8 @@ CS2Harness_Run(
     struct RS_CS2Host* host,
     struct TaskRunner* runner,
     char const* cases_path,
-    char const* out_dir);
+    char const* out_dir,
+    CS2Harness_Shot_Fn shot,
+    void* shot_user);
 
 #endif /* CS2_HARNESS_H */

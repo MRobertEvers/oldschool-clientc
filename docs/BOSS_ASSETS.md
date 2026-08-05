@@ -566,6 +566,56 @@ survive indefinitely unexamined. It is not stale:
   anchors", and it is a standing hazard — the day the level mask admits level 1
   here, its terrain draws after level 0's scenery at identical height.
 
+## The instance's lifetime, and the two ends that were not closed (2026-08-05)
+
+The encounter has been instanced since it landed — `~inferno_enter` and both Zuk
+debugprocs go through `~map_instance_from_square(^inferno_template)`, and a
+headless `TORIRS_NET_CHEAT="zuk"` with `MOCK230_VERBOSE=1` prints `map instance 1
+reserved 8x8 zones at 6400,64` followed by `instanced scene built at zone 803,13`.
+So "one instance per encounter" was already true, and **death already released
+it** (`[playerdeath,_]` → `player/death.rs2` → `~inferno_on_death` →
+`~inferno_free_instance`, exactly one release per run, measured).
+
+What was not closed was the other two ends, and both are the kind of defect that
+only bites the *next* session:
+
+1. **A session that ended any other way leaked the reservation.** No `[logout]`
+   trigger was dispatched at all — `SS_TRIGGER_LOGOUT` had existed in the
+   compiler since forever with nothing on the engine side — so a disconnect, a
+   `::logout` or the host shutting down mid-fight left the slot held. The pool is
+   eight wide, so the eighth abandoned run is the first symptom, and it surfaces
+   as "The Inferno could not be prepared right now" in whatever content asks
+   next. The saved coord was the worse half: `saves/testc.ini` read
+   `x = 6431, z = 104`, a tile inside a square the allocator was free to
+   re-issue, so the character logged back in on void with nothing to walk off.
+   Fixed on both sides — the engine dispatches `[logout]` from
+   `mock230_world_remove_player` *above* the save
+   (`osrs230_mockserver.md` §3.23), and `player/logout.rs2` calls
+   `~inferno_on_logout`, which clears the session, teleports to
+   `^inferno_exit_pad` and frees. The same run now saves `x = 2495, z = 5112`,
+   which is the exit pad to the tile.
+
+2. **Every teardown left the arena's npcs standing in it.** `npc_add`'s
+   `^inferno_npc_duration` is 5,000 ticks and the pool hands a released square
+   straight back out, so the next entry was dropped into the previous run's live
+   spawns. `~inferno_despawn_arena` (called from `~inferno_clear_session`, so all
+   four exits get it) deletes them, and it keys on **position** rather than on a
+   list of npc types: `map_instance_find(npc_coord) = %map_instance_handle`
+   cannot go stale the way a type list does the first time a wave gains a
+   monster — and a stale type list fails silently. `map_instance_free` now counts
+   what is left behind and says so under `MOCK230_VERBOSE`; measured, `freed with
+   2 npc(s) still inside` before, silent after.
+
+Both are pinned rather than described. The reservation half is the last leg of
+`mock230 --selftest` and goes red under either mutation (an empty `[logout,_]`
+body, or the engine dispatch removed). The npc half is the diagnostic line
+itself, which fires the moment `~inferno_despawn_arena` is dropped from
+`~inferno_clear_session`.
+
+The fight is unchanged by all of it — nothing on either new path can run during a
+live session — and `::zuktest` still reports the milestones at the ticks this
+document records: spawn 21, emerge 21, ready 35, first shot 35, first add wave 95.
+
 ## Re-running the export
 
 The full command is in

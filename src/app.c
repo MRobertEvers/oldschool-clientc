@@ -4868,7 +4868,8 @@ app_logic_tick(struct App* app)
 
         /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::
          * commands (';'-separated) right after login — headless harness hook
-         * (the dev server grants staffmod, so tele/give work).
+         * (the dev server grants staffmod, so tele/give work). The manifest's
+         * `[net:boot] cheat=` is the same hook with env > manifest precedence.
          * TORIRS_NET_CHEAT_EVERY=N: re-send the same cheats every N logic
          * cycles (menu open/close churn in drift-ui). N<=0 keeps one-shot. */
         if( app->net->state == TORIRS_NET_GAME )
@@ -4876,6 +4877,9 @@ app_logic_tick(struct App* app)
             static int cheat_every = -1;
             char const* cheat = getenv("TORIRS_NET_CHEAT");
             int fire = 0;
+
+            if( !cheat || !cheat[0] )
+                cheat = app->cfg.net_cheat;
 
             if( cheat_every < 0 )
             {
@@ -4957,6 +4961,8 @@ app_logic_tick(struct App* app)
                 {
                     int parts = 0;
                     char const* p = getenv("TORIRS_NET_CHEAT");
+                    if( !p || !p[0] )
+                        p = app->cfg.net_cheat;
                     while( p && p[0] )
                     {
                         char const* sep = strchr(p, ';');
@@ -7018,6 +7024,32 @@ app_world_camera_keys(
      * rebuild clears world scene elements incl. spawned entities). */
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
         app_world_load_begin(app, NULL, 0);
+
+    /* Painter-command stepping, the v0 client's debug (docs/ORANGE_WEDGE.md):
+     * I toggles the cap (unlimited <-> 0), J/K step it +-1, L/, +-100. The
+     * raster then draws exactly the first N painter commands, which is how a
+     * draw-order artefact is walked to the command that paints it. */
+    {
+        int limit = ToriRS_Frame_PaintLimitGet();
+        int next = limit;
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_I) )
+            next = limit < 0 ? 0 : -1;
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_J) )
+            next = (limit < 0 ? 0 : limit) + 1;
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_K) )
+            next = (limit < 0 ? 0 : limit) - 1;
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_L) )
+            next = (limit < 0 ? 0 : limit) + 100;
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_COMMA) )
+            next = (limit < 0 ? 0 : limit) - 100;
+        if( next != limit )
+        {
+            if( next < -1 )
+                next = -1;
+            ToriRS_Frame_PaintLimitSet(next);
+            fprintf(stderr, "paintlimit: %d\n", ToriRS_Frame_PaintLimitGet());
+        }
+    }
 }
 
 /*

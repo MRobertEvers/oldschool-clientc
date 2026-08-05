@@ -860,7 +860,8 @@ test-painters-terrain-levels: $(OBJ_DIR)
 		-o $(OBJ_DIR)/painters_test_terrain_levels \
 		painters/test/painters_test_terrain_levels.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
-		perf/torirs_perf.c
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_terrain_levels
 
 test-uitree: $(OBJ_DIR)

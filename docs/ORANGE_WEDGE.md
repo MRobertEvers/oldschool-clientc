@@ -1326,3 +1326,176 @@ samples 601835, differing 49283 (8.19%), worst |dx| 2 px, worst |dy| 2 px
 The 2 px cases are all near-plane geometry (the 1-unit pre-divide difference is
 multiplied by 512 and divided by a small `z`); at typical scene depths it is
 under 0.2 px. `test-world-builder`, `test-light-model` and `test-scanline` pass.
+
+## 13. Painter stepping: the draw order exonerated by construction
+
+§9 exonerated the traversal statistically (293/300 concordant pairs). This
+section does it by construction: render exactly the first N painter commands,
+screenshot, and watch the wedge get painted and then covered. Two new tools
+made that possible, both now in the tree.
+
+### 13.1 Boot straight into the scene
+
+`manifest_osrs230_zuk.ini` boots the whole encounter with no environment
+variables:
+
+```sh
+make -C src torirs EMBED_SERVER=1
+src/torirs --manifest manifest_osrs230_zuk.ini
+```
+
+It is `manifest_osrs230_embed.ini` plus credentials (`user=testc pass=test`)
+and a new manifest key, `[net:boot] cheat=zuk` — "::" commands (';'-separated,
+no leading `::`) sent once right after login, the manifest spelling of the
+`TORIRS_NET_CHEAT` harness hook (the env var still overrides). Plumbing:
+`bootmanifest.{h,c}` → `AppConfig.net_cheat` → the existing cheat block in
+`app_logic_tick`.
+
+Verified: a run with no env vars lands in the instance and reproduces the
+artefact bit-for-bit (909 exact `0xA45409` px, x 325..449, y 137..165, h 29,
+widest 71 at the settled camera).
+
+### 13.2 The painter-command cap (the v0 client's `cc`, ported)
+
+The v0 client stepped its painter by capping how many commands the frame
+consumed (`game->cc`, `v0/tori_rs_frame.u.c:1324`) with keys to nudge it.
+torirs now has the same seam in `try_emit_world_draw_model`
+(`src/render/torirs_frame.c`):
+
+| knob | what |
+| --- | --- |
+| `TORIRS_PAINT_LIMIT=N` | consume at most N painter commands per frame; -1/absent = unlimited. The unit is `painters_index`, i.e. every consumed command, drawn or dropped, so a position names the same command each frame of the same scene. |
+| `TORIRS_PAINT_LIMIT_STEP=S` | advance the cap by S every frame — pair with `TORIRS_BMP_SERIES` for a flip-book |
+| `TORIRS_PAINT_LIMIT_STEP_AT=F` | start advancing only at frame F (so login/cinematic frames don't burn the sweep) |
+| keys `I` / `J` / `K` / `L` / `,` | toggle unlimited↔0 / +1 / −1 / +100 / −100, logged as `paintlimit: N` (same gate as the W/S/A/D camera keys) |
+
+`TORIRS_DRAW_ORDER=<frame>`'s dump now prints `cmd=<painters_index>` on every
+line, so a cap value maps exactly to a dump line: cap `cmd+1` draws up to and
+including that line.
+
+### 13.3 What stepping showed
+
+All at the §9.0 pinned eye (`TORIRS_WEDGE_CAM=7104,-743,5072,128,0`), default
+projection (gates off), exact `0xA45409` in `x 280..470, y 120..245`:
+
+| cap | count | y extent (h) | meaning |
+| --- | --- | --- | --- |
+| 1267 | 4 | — | before the first alcove tile: no band |
+| 4765 | 4435 | 143..196 (54) | all 25 alcove tiles painted, nothing nearer yet: the floor is a huge orange **sheet** |
+| 4900 | 1740 | 143..196 (54) | rim partially drawn |
+| 5050 | 676 | 143..171 (29) | rim complete — the final image's band, already exact |
+| full (5587) | 675 | 143..171 (29) | nothing after cmd ~5050 touches the band |
+
+The 25 wedge tiles paint at cmd 1267..4764 (western six early — §9.6.1's wave
+0 — the rest in the second wave, same as the official). Then commands
+4765..5050 draw the **arena rim** in front of them: `inferno_floor_sand_straight_01`
+(30288), `inferno_floor_lowered_02b` (30349), `inferno_floor_fixed_02a/b`
+(30360/30361), `archeuus_invisible_type_1` (27787) and the
+`wilderness_rocks_floor_hard_02..05` rock piles (14391–94), at slots z 44..56 —
+between the camera and the alcove. They cover 85% of the sheet.
+
+So the painter does exactly what it should: far floor first, near rim after,
+rim occludes floor. **The wedge is the residue of correct occlusion** — the
+strip of alcove floor whose screen rows sit above the rim's on-screen top
+edge. That residue's height is a pure projection question, and it scales with
+the §1 scale error: 29 px at the constant 512, and with the §11/§12 gates on
+(`TORIRS_WEDGE_SCALE=1 TORIRS_WEDGE_DRAWCENTER=eye`, same build, same pinned
+eye) **8 px at y 214..221** — the official's own h=8, one pixel below its
+213..220.
+
+There is no draw-order bug, no spurious geometry, and no missing occluder;
+there is only the projection scale, and §11.7 remains the promotion checklist.
+
+### 13.4 Artefacts
+
+| path | what |
+| --- | --- |
+| `/tmp/zuk_manifest.bmp` | manifest-only boot, settled camera — the wedge, 909 px |
+| `/tmp/zuk_order.log` | `TORIRS_DRAW_ORDER=800` dump with `cmd=` indices, pinned eye |
+| `/tmp/zuk_cap{0,1267,4765,4900,5050,5200,5350,5500}.bmp` | the stepping series |
+| `/tmp/zuk_full.bmp`, `/tmp/zuk_fix.bmp` | full frame, gates off (675 px) / on (97 px, h 8) |
+
+Reproduce one step:
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_WEDGE_CAM=7104,-743,5072,128,0 \
+  TORIRS_PAINT_LIMIT=4765 TORIRS_EXIT_BMP=/tmp/step.bmp TORIRS_MAX_FRAMES=900 \
+  src/torirs --manifest manifest_osrs230_zuk.ini --soft3d
+```
+
+`test-bootmanifest`, `test-world-builder`, `test-light-model` and
+`test-scanline` pass with these changes.
+
+## 14. Terrain-flags audit: every settings bit against both references
+
+Follow-up to §9.7(c) and the user's ask to re-verify flag rendering behaviour
+against the official client and Client-TS. Method: enumerate every consumer of
+the tile-settings byte in rev-239 (`class100.field1398` → scene copy
+`class112.field1720`) and in Client-TS (`ClientBuild.mapl`), then diff ours.
+No cache data was touched — §10.1 already proved the map bytes identical
+everywhere; this is purely about what the client does with them.
+
+### 14.1 The reference semantics, bit by bit
+
+| bit | rev-239 | Client-TS | torirs before audit |
+| --- | --- | --- | --- |
+| 0x1 BLOCK | collision only (`method982`, level lowered by 1 under a LINK_BELOW column) | `finishBuild` → `blockGround`, same lowering | same — collision, not rendering |
+| 0x2 LINK_BELOW | `method3884`: full column shift of tile records (plane N+1→N), original plane-0 parked at plane 3, new deck flagged 0x20 + linked (`field5536`); drain loop draws the parked underpass column first | `World.pushDown` | same scheme (`painter_tile_copyto` shuffle, park at 3, `bridge_tile` link, underpass drawn on deck pop) — ✓ |
+| 0x4 REMOVE_ROOF | accessor `method4160`, feeds the roof-hide logic | `roofCheck`: camera→player line walk | same line-walk port (`app_world_roof_check`) — ✓ |
+| 0x8 VIS_BELOW | tile flag 0x40 → `method4161` (renderLevel) answers 0; consumed by the mark gate `renderLevel <= field1653` (class112.java:2000), the hover-pick gate (`Statics.field2292`), and the entity gate `method3986`. **Geometry never moves.** | `setLayer(level,x,z,getVisBelowLevel(...))` → `Square.drawLevel`; draw gates on `drawLevel <= maxLevel`. Geometry never moves. | **DIVERGED — fixed, §14.2** |
+| 0x10 FORCE_HIGH_DETAIL | lowMem-only content gate | same (`ClientBuild.lowMem`) | n/a (no lowMem mode); minimap skip matches both |
+
+The minimap treatment of 0x8/0x10 (skip the flagged tile's own-level bake,
+bake the level+1 tile onto this level) is present and correct on our side
+(`minimap.c:804-812`).
+
+### 14.2 The divergence: VIS_BELOW relocated the mesh
+
+An earlier session (chasing this document's wedge, on the since-refuted theory
+that the alcove floor was a vis-below tile) made the world builder move a
+flagged tile's terrain mesh into the *lower* level's `terrain_levels` set. Both
+references instead lower only the tile's **draw level** — the cull/pick value —
+and draw the mesh from its own plane's traversal slot, *after* the tile below
+fully retires. The relocation reversed that order: the borrowed floor emitted
+before the lower tile's walls.
+
+Its stated motivation — surviving the roof-hide level mask — was already
+covered: our mark gate `tile_excluded_by_bridge_or_draw_mask` tests
+`visible_gte_level` (the reference's renderLevel), and bit 0 of the mask is
+always set. The rewritten `painters_test_terrain_levels.c` proves it: the
+flagged tile still draws under `level_mask=0x1` with no relocation.
+
+This was no corner case: **312,831 tiles cache-wide** carry VIS_BELOW with
+real geometry at their own level (censused from the `.jm2` map dumps —
+overhangs, waterfalls, upper river tiles).
+
+Fix (world_builder.c): the per-column loop now only calls
+`painter_tile_set_draw_level(...)`; `terrain_levels` stays "own mesh only"
+(carried through the bridge shuffle by `painter_tile_copyto`).
+
+### 14.3 §9.7(c)'s speculative emits, also fixed
+
+The builder left the default `terrain_levels` on all four levels of every
+column, so mesh-less levels emitted terrain commands that died downstream at
+`World_TerrainElementAt() < 0`. The reference never queues content-less tiles
+(`method3940`). A new pass after `world_build_scene_terrain` clears the bits of
+levels that decoded no mesh. Measured at the §9.0 pinned eye: the painter
+buffer shrank **5587 → 1572 commands** with the identical 1572 draws — every
+command now becomes a draw. (§13.3's `cmd=` values describe the pre-fix
+buffer; the order of the draws themselves is unchanged.)
+
+### 14.4 Verified
+
+* Zuk scene, pinned eye: wedge extents bit-identical before/after (x 320..441,
+  y 143..171, h 29) — the Inferno's 378 bit-8 tiles have no geometry, so the
+  only change there is the dead-command purge.
+* River Lum east (`::tele 3324 3205`), `TORIRS_TILETABLE=48,60,45,60`: the
+  vis-below waterfall column now reads e.g. `54,54 L0 elem=6603 set=0x1
+  order=1961` / `L1 0x09 elem=1042 set=0x2 order=1962`, with the L1 waterfall
+  locs at 1963-64 — floor above emitted from its own level, immediately after
+  the tile below retires, exactly the reference drain order. A flagged tile
+  with no mesh (`60,57 L1 0x09 elem=-1`) emits nothing.
+* `test-painters-terrain-levels` (rewritten to pin reference semantics),
+  `test-world-builder`, `test-minimap`, `test-painters-occluders` all pass.
+  The terrain-levels test target also gained the toridraw `shared_tables.c` it
+  had been missing since §12 made the painter read `g_tan_table`.

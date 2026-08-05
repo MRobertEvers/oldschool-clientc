@@ -91,20 +91,20 @@ struct PaintersTile
 
     /*
      * Which cache levels' terrain meshes this tile's ground pass emits, as a
-     * bitmask over levels 0..3. Normally just its own (1 << mesh_level).
+     * bitmask over levels 0..3. Normally just its own (1 << mesh_level);
+     * painter_tile_copyto carries the source's bit through the bridge shuffle
+     * so a shifted tile keeps emitting the mesh it came with.
      *
-     * VisBelow is why it is a set and not a single level. A tile flagged
-     * FLOFLAG_VIS_BELOW is meant to appear on the floor below rather than on
-     * its own, and it is real geometry with a real colour — the Inferno's
-     * alcove floor is an orange tile at cache level 1 that belongs on level 0.
-     * Emitting it during its OWN level's pass puts it at the wrong point in the
-     * back-to-front order, which is how it ended up painted over the wall in
-     * front of it. So the flagged tile clears its bit and the tile below adds
-     * it: one ground pass, at the lower level's depth, emitting both meshes in
-     * ascending level order so the upper one lands on top of the lower.
+     * Zero is legal and means "emit nothing" — the world builder clears the
+     * bits of levels that decoded no terrain mesh, so a content-less level
+     * costs no command (the reference never queues such tiles at all).
      *
-     * Zero is legal and means "emit nothing" — a VisBelow tile whose mesh has
-     * moved down has no terrain of its own left to draw.
+     * VIS_BELOW does NOT edit this set. The flag lowers visible_gte_level (the
+     * reference's renderLevel, class112.method4161) and nothing else — the
+     * mesh stays on its own level and pops in its own traversal slot, after
+     * the tile below fully retires. An earlier revision relocated the flagged
+     * mesh into the lower level's set, which drew it before the lower tile's
+     * walls — the reverse of the reference order.
      */
     uint8_t terrain_levels;
 
