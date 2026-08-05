@@ -256,7 +256,7 @@ main(void)
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
     mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, appearance,
-                             sizeof(appearance));
+                             sizeof(appearance), NULL);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);
@@ -282,7 +282,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, NULL, 0);
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, NULL, 0, NULL);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);
@@ -297,7 +297,7 @@ main(void)
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
     mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, appearance,
-                             sizeof(appearance));
+                             sizeof(appearance), NULL);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);

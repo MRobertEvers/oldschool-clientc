@@ -167,6 +167,19 @@ struct Mock230ZoneEvent
     /** Client-TS `angle` and `startpos` — how high the arc goes and how far
      *  along it the projectile is drawn at spawn. */
     int peak, arc;
+
+    /**
+     * OBJ_ADD: ticks until this obj vanishes, or 0 for one that never does.
+     *
+     * A field with no classic equivalent -- the older packet says only that an
+     * obj is there, and the client keeps drawing it until told otherwise, so
+     * the server has to send OBJ_DEL when a drop expires. Revision 239's
+     * ObjAdd carries the lifetime up front. Sending 0 ("never despawns") for a
+     * timed drop is not a protocol error and never desyncs anything; the client
+     * simply draws the item until the server's own OBJ_DEL catches up, which is
+     * a visible difference on a busy floor and nowhere else.
+     */
+    int despawn_ticks;
 };
 
 /**

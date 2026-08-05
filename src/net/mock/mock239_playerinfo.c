@@ -33,6 +33,12 @@ enum
 enum
 {
     EXTINFO_APPEARANCE = 0x20,
+    EXTINFO_SEQUENCE = 0x40,
+    EXTINFO_HITMARKS = 0x40000,
+    /* "another flag byte follows" -- the player's are 0x8 and 0x800, where an
+     * npc's are 0x40 and 0x800. Only the second one is shared. */
+    EXTINFO_NEXT_BYTE_1 = 0x8,
+    EXTINFO_NEXT_BYTE_2 = 0x800,
 };
 
 /**
@@ -97,6 +103,16 @@ mock239_playerinfo_write_init(
     rsab_bytes(buf);
 }
 
+/** pSmart1or2: 0..127 in one byte, larger in two with 0x8000 set. */
+static void
+ext_psmart1or2(struct RSAreaBuf* buf, int value)
+{
+    if( value >= 0 && value < 128 )
+        rsab_p1(buf, value);
+    else
+        rsab_p2(buf, (value & 0x7fff) | 0x8000);
+}
+
 void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
@@ -104,9 +120,13 @@ mock239_playerinfo_write(
     int32_t coord_delta,
     int low_res_inactive,
     const uint8_t* appearance,
-    int appearance_len)
+    int appearance_len,
+    const struct Mock239PlayerExt* ext)
 {
-    int const has_extended = appearance && appearance_len > 0;
+    int const has_appearance = appearance && appearance_len > 0;
+    int const has_hit = ext && ext->has_hit;
+    int const has_seq = ext && ext->has_seq;
+    int const has_extended = has_appearance || has_hit || has_seq;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -226,7 +246,55 @@ mock239_playerinfo_write(
      */
     if( has_extended )
     {
-        rsab_p1(buf, EXTINFO_APPEARANCE);
+        /*
+         * The flag, then the blocks in the WRITER's order -- HITMARKS first,
+         * then SEQUENCE, then APPEARANCE. That is not ascending flag order and
+         * not the order they are listed in anywhere; it is
+         * PlayerAvatarExtendedInfoDesktopWriter's, and the client replays the
+         * same sequence with nothing on the wire separating the blocks.
+         *
+         * The player flag space is its own, DIFFERENT from the npc one: here
+         * SEQUENCE is 0x40 and HITMARKS 0x40000, where an npc's are 0x80 and
+         * 0x80000. The continuation bits differ too -- a player's second byte
+         * is announced by 0x8 and an npc's by 0x40.
+         */
+        uint32_t flag = 0;
+
+        if( has_hit )
+            flag |= EXTINFO_HITMARKS;
+        if( has_seq )
+            flag |= EXTINFO_SEQUENCE;
+        if( has_appearance )
+            flag |= EXTINFO_APPEARANCE;
+
+        if( flag & 0xffffff00u )
+            flag |= EXTINFO_NEXT_BYTE_1;
+        if( flag & 0xffff0000u )
+            flag |= EXTINFO_NEXT_BYTE_2;
+
+        rsab_p1(buf, (int32_t)(flag & 0xff));
+        if( flag & EXTINFO_NEXT_BYTE_1 )
+            rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+        if( flag & EXTINFO_NEXT_BYTE_2 )
+            rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+
+        if( has_hit )
+        {
+            /* PlayerHitmarkEncoder, same shape as the npc one: p1Alt1 count,
+             * then pSmart1or2 type, value, delay, limit per hit. */
+            rsab_p1_alt1(buf, 1);
+            ext_psmart1or2(buf, ext->hit_type);
+            ext_psmart1or2(buf, ext->hit_value);
+            ext_psmart1or2(buf, 0); /* delay: lands this tick */
+            ext_psmart1or2(buf, 0); /* limit: uncapped */
+        }
+        if( has_seq )
+        {
+            rsab_p2(buf, ext->seq_id < 0 ? 65535 : ext->seq_id);
+            rsab_p1_alt2(buf, ext->seq_delay);
+        }
+        if( !has_appearance )
+            return;
         rsab_p1(buf, (128 - appearance_len) & 0xff);
         for( int i = 0; i < appearance_len; i++ )
             rsab_p1(buf, (appearance[i] + 128) & 0xff);

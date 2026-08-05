@@ -115,8 +115,24 @@ mock239_playerinfo_write_init(
  *
  * `appearance` / `appearance_len` are the raw appearance block — the same bytes
  * the classic stream sends — which this wraps in the v5 extended-info framing.
- * NULL sends no extended info, which is correct for every tick after the first.
+ * NULL sends no appearance, which is correct for every tick after the first.
+ *
+ * `ext` carries the rest of the local player's extended info, or NULL. See
+ * the struct.
  */
+struct Mock239PlayerExt
+{
+    /** A hitsplat landing this tick: the hitmark TYPE from content, and the
+     *  damage. Zero `has_hit` when nothing was hit. */
+    int has_hit;
+    int hit_type;
+    int hit_value;
+    /** A sequence to play: `seq_id` < 0 cancels whatever is running. */
+    int has_seq;
+    int seq_id;
+    int seq_delay;
+};
+
 void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
@@ -124,7 +140,8 @@ mock239_playerinfo_write(
     int32_t coord_delta,
     int low_res_inactive,
     const uint8_t* appearance,
-    int appearance_len);
+    int appearance_len,
+    const struct Mock239PlayerExt* ext);
 
 /**
  * One tick of NPC_INFO v5 carrying no npcs.

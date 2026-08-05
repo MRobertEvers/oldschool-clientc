@@ -799,6 +799,11 @@ obj_event(
     event.id = obj->obj_id;
     event.count = new_count;
     event.old_count = old_count;
+    /* Only a *drop* expires; a map-square spawn stays until it is taken, which
+     * is what `despawn_tick < 0` means. Clamped at zero because a tick that has
+     * already passed is not a negative lifetime. */
+    if( obj->despawn_tick >= 0 )
+        event.despawn_ticks = obj->despawn_tick > srv->tick ? obj->despawn_tick - srv->tick : 0;
     queue_event(srv, zone, &event);
 }
 
@@ -1034,13 +1039,41 @@ mock230_zone_update_player(struct Mock230Player* player)
             mock230_send_zone_enclosed(player, zone_x, zone_z, zone->shared,
                                        zone->shared_len);
 
-        /* Whatever is addressed to one client goes out on its own. */
+        /*
+         * Whatever is addressed to one client goes out on its own -- as a
+         * top-level packet where the revision has one, and otherwise as a
+         * PARTIAL_ENCLOSED carrying a single event.
+         *
+         * Revision 239 has no top-level prot for the obj family or for
+         * MAP_PROJANIM_V2 at all; they exist only inside the enclosed blob.
+         * Sending them the 230 way resolves to opcode -1 and drops them, and
+         * the events this loop carries are precisely the ones scoped to one
+         * player -- loot only its killer may see. Nothing logs it and the
+         * shared events in the same zone keep arriving, so the symptom is one
+         * player's ground items missing rather than anything looking broken.
+         *
+         * A one-event blob is not a workaround: RSProt's own encoder says
+         * player-specific zone prots "cannot be grouped together and must be
+         * sent separately, as they also are in OldSchool RuneScape".
+         */
         for( int e = 0; e < zone->event_count; e++ )
         {
             if( zone->events[e].receiver_pid != player->pid )
                 continue;
-            mock230_send_zone_header(player, zone_x, zone_z, 0);
-            mock230_send_zone_sub(player, &zone->events[e]);
+            if( mock230_zone_sub_standalone(srv->wire, zone->events[e].kind) )
+            {
+                mock230_send_zone_header(player, zone_x, zone_z, 0);
+                mock230_send_zone_sub(player, &zone->events[e]);
+                continue;
+            }
+            {
+                uint8_t one[256];
+                int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one),
+                                                     &zone->events[e]);
+
+                if( written > 0 )
+                    mock230_send_zone_enclosed(player, zone_x, zone_z, one, written);
+            }
         }
     }
 }

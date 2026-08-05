@@ -2400,6 +2400,18 @@ mock230_encode_zone_sub(
     return (int)rsab_len(&buf);
 }
 
+int
+mock230_zone_sub_standalone(
+    const struct Mock230Wire* wire,
+    int kind)
+{
+    int name = zone_sub_opcode(kind);
+
+    if( name < 0 )
+        return 0;
+    return mock230_wire_opcode(wire ? wire : mock230_wire_default(), name) >= 0;
+}
+
 void
 mock230_send_zone_sub(
     struct Mock230Player* player,
@@ -2566,9 +2578,32 @@ mock230_send_player_info(struct Mock230Player* player)
         coord = (int32_t)((((player->level - player->v5_last_level) & 0x3) << 28) |
                           (((player->x - player->v5_last_x) & 0x3fff) << 14) |
                           ((player->z - player->v5_last_z) & 0x3fff));
-        mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
-                                 player->v5_playerinfo_sent, appearance,
-                                 (int)rsab_len(&ap));
+        /*
+         * The rest of the local player's extended info, from the same masks the
+         * classic writer reads. Hitsplats and animations were absent here while
+         * the npc side had them, which reads as "npcs take damage and the player
+         * does not" -- the packets were fine, the block was simply never built.
+         */
+        {
+            struct Mock239PlayerExt ext;
+
+            memset(&ext, 0, sizeof(ext));
+            if( player->masks & (MOCK230_PMASK_DAMAGE | MOCK230_PMASK_DAMAGE2) )
+            {
+                ext.has_hit = 1;
+                ext.hit_type = player->damage_type;
+                ext.hit_value = player->damage;
+            }
+            if( player->masks & MOCK230_PMASK_SEQUENCE )
+            {
+                ext.has_seq = 1;
+                ext.seq_id = player->anim_id;
+                ext.seq_delay = player->anim_delay;
+            }
+            mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
+                                     player->v5_playerinfo_sent, appearance,
+                                     (int)rsab_len(&ap), &ext);
+        }
         player->v5_playerinfo_sent = 1;
         player->v5_last_x = player->x;
         player->v5_last_z = player->z;

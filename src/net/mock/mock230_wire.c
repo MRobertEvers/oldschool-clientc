@@ -167,10 +167,23 @@ w239_if_closesub(struct RSAreaBuf* buf, int dest_uid)
  * IfSetEventsV2Encoder:
  *   p2Alt2(end), p4(events2), p4Alt2(events1), p2(start), pCombinedIdAlt3(uid)
  *
- * V2 carries TWO 32-bit masks where 230 carried one, which is where the extra
- * four bytes (12 -> 16) went. This server has never had a second mask to say,
- * so it writes 0 for events2 -- an explicit "no high-range events" rather than
- * a field left off, which would shorten the packet and desync the frame.
+ * V2 carries TWO 32-bit masks where 230 carried one, and they are NOT a mask
+ * and a spare -- the button ops MOVED OUT of the first into the second:
+ *
+ *   events1  "the bitpacked events. Note that ifbutton is no longer included
+ *             in this, so bits 1..10 are ignored."
+ *   events2  "the bitpacked ifbutton events. Each bit corresponds to the
+ *             respective button, including the sign bit."
+ *
+ * So the classic mask's bits 1..10 -- which are exactly IF_BUTTON1..10, and are
+ * what arms a component's ops -- are DISCARDED by a 239 client if they are left
+ * where they are. Writing 0 for events2 and the whole classic mask for events1
+ * is a well-formed packet that arms nothing: every component the content arms
+ * still resolves its verb, still runs its own onop clientscript, and then has
+ * nothing to send, because the bit the client checks is in the other word.
+ *
+ * Nothing downstream reports it. The server sees no IF_BUTTON at all, which is
+ * indistinguishable from a player who did not click.
  */
 static void
 w239_if_setevents(
@@ -180,8 +193,14 @@ w239_if_setevents(
     int end,
     uint32_t events)
 {
+    /* Bits 1..10 of the classic mask are buttons 1..10; events2 bit N is
+     * button N+1. They are left set in events1 as well -- the client ignores
+     * them there, and clearing them would make the two revisions' masks differ
+     * by more than where the buttons live. */
+    uint32_t const buttons = (events >> 1) & 0x3ff;
+
     rsab_p2_alt2(buf, end);
-    rsab_p4(buf, 0);
+    rsab_p4(buf, (int32_t)buttons);
     rsab_p4_alt2(buf, (int32_t)events);
     rsab_p2(buf, start);
     rsab_p4_alt3(buf, component_uid);
@@ -741,10 +760,23 @@ w239_zone_payload(
         rsab_p2_alt2(buf, id);
         rsab_p2_alt1(buf, event->end_delay);
         rsab_p4_alt1(buf, end_packed);
-        rsab_p2_alt3(buf, event->dst_height);
+        /*
+         * Heights, times four.
+         *
+         * "the startHeight and endHeight variables no longer come with an
+         * implicit * 4 multiplier in the client" -- the classic client scaled
+         * them, so content states them in the old units and this revision has
+         * to scale them here instead. Unscaled, every projectile flies at a
+         * quarter of its intended height, which for a typical arc means along
+         * the ground: it renders, it just does not look like a projectile.
+         */
+        rsab_p2_alt3(buf, event->dst_height * 4);
+        /* sourceIndex: 0 = not locked to a source entity. The content-facing
+         * `projanim` op names a source COORD, not an entity, so there is no
+         * index to give -- the shot already starts from the right tile. */
         w239_p3_alt2(buf, 0);
         rsab_p1_alt2(buf, event->arc);
-        rsab_p2(buf, event->src_height);
+        rsab_p2(buf, event->src_height * 4);
         rsab_p3(buf, event->target);
         return 1;
     }
@@ -784,12 +816,16 @@ w239_zone_payload(
      */
     case PKT_NAME_OBJ_ADD:
         rsab_p1_alt1(buf, pos);
+        /* timeUntilPublic / ownershipType / neverBecomesPublic: this server has
+         * no per-player loot ownership, so every obj is public from the moment
+         * it lands. Stated rather than inherited -- the classic packet has no
+         * field for any of the three. */
         rsab_p2(buf, 0);
         rsab_p1(buf, 0);
         rsab_p2_alt2(buf, id);
         rsab_p1(buf, 0);
-        rsab_p1_alt2(buf, 0xff);
-        rsab_p2_alt3(buf, 0);
+        rsab_p1_alt2(buf, 0xff); /* every op shown */
+        rsab_p2_alt3(buf, event->despawn_ticks & 0xffff);
         rsab_p4_alt1(buf, count);
         return 1;
 

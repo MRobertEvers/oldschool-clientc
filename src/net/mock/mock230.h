@@ -4402,6 +4402,24 @@ mock230_send_zone_sub(
     struct Mock230Player* player,
     const struct Mock230ZoneEvent* event);
 
+/**
+ * Can this revision send this zone event as a packet of its own?
+ *
+ * At revision 230 every zone sub-packet is also a top-level opcode, so a
+ * receiver-scoped event (loot only its killer may see) goes out on its own
+ * after a PARTIAL_FOLLOWS header. At 239 the obj family and MAP_PROJANIM_V2
+ * have NO top-level prot -- they exist only inside
+ * UPDATE_ZONE_PARTIAL_ENCLOSED -- so the same send resolves to opcode -1 and
+ * is dropped, silently, for exactly the events that matter to one player.
+ *
+ * The answer is per revision and per event, which is why it is a function and
+ * not a flag on the event.
+ */
+int
+mock230_zone_sub_standalone(
+    const struct Mock230Wire* wire,
+    int kind);
+
 /** The same sub-packet, encoded into a caller-owned buffer instead of sent —
  *  this is what makes a zone's shared blob shared. Returns the bytes written. */
 int

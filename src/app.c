@@ -3835,6 +3835,30 @@ app_debug_height_profile(struct App* app)
     }
 }
 
+/* TORIRS_TPROJ=x0,x1,z0,z1: project each tile centre to screen, once per load.
+ * Turns "which tile is that artifact" from a guess into a lookup. */
+static void
+app_debug_tile_project(struct App* app)
+{
+    static unsigned logged = (unsigned)-1;
+    const char* env = getenv("TORIRS_TPROJ");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
+        return;
+    if( app->world->load_seq == logged )
+        return;
+    logged = app->world->load_seq;
+    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+        return;
+    for( int z = z0; z <= z1; z++ )
+        for( int x = x0; x <= x1; x++ )
+        {
+            int sx = 0, sy = 0;
+            if( app_world_project(app, x * 128 + 64, z * 128 + 64, 0, &sx, &sy) )
+                fprintf(stderr, "tproj tile=%d,%d screen=%d,%d\n", x, z, sx, sy);
+        }
+}
+
 /* TORIRS_BRIDGE_DEBUG=1: list every LinkBelow column in the loaded scene with
  * the level-0/level-1 ground heights the getAvH bump chooses between. The
  * "am I standing on the deck or under it" one-liner. Prints once per load. */
@@ -3879,6 +3903,7 @@ app_update_world_viewport(struct App* app)
     app_debug_log_position(app);
     app_debug_log_bridges(app);
     app_debug_height_profile(app);
+    app_debug_tile_project(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     if( getenv("TORIRS_WORLD_VIEW_DEBUG") )
