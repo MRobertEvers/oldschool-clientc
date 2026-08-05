@@ -14,7 +14,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
     int stride,
     int screen_width,
     int screen_height,
-    int camera_fov,
+    int camera_cot16,
     int x0,
     int x1,
     int x2,
@@ -36,7 +36,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8_ordered(
     int* RESTRICT texels,
     int texture_width)
 {
-    (void)camera_fov;
+    (void)camera_cot16;
     (void)texture_width;
     // Map orthographic texture coordinates to u/v/w
     int u0 = orthographic_uvorigin_x0;
@@ -307,7 +307,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
     int stride,
     int screen_width,
     int screen_height,
-    int camera_fov,
+    int camera_cot16,
     int x0,
     int x1,
     int x2,
@@ -349,7 +349,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x0,
                 x1,
                 x2,
@@ -382,7 +382,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x0,
                 x2,
                 x1,
@@ -418,7 +418,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x1,
                 x2,
                 x0,
@@ -451,7 +451,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x1,
                 x0,
                 x2,
@@ -487,7 +487,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x2,
                 x0,
                 x1,
@@ -520,7 +520,7 @@ raster_texshadeblend_affine_textrans_branching_lerp8(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x2,
                 x1,
                 x0,

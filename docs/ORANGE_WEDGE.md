@@ -1196,3 +1196,133 @@ centre stops sitting 21 px left. The §4.4 duplicate literal
 (`src/render/torirs_frame.c:1135`) should read the same helper at that point.
 §7(b)'s follow-camera orbit distance is then the only §7 item left, and it is
 worth re-measuring after the above rather than before.
+
+## 12. The projection scale is now a real parameter, not a constant
+
+§11 proved the scale *is* the wedge, but it got there through a knob that could
+not actually express the answer. This section is the follow-up: making toridraw
+support the thing §4 asked for, and what that turned up.
+
+### 12.1 What was wrong with the §11 mechanism
+
+§11's `app_apply_wedge_scale()` computed the reference's integer scale and then
+converted it to an **angle** with `atan`, because `ToriDraw_Camera` had only
+`fov_rpi2048`. That conversion is lossy in a way §11 recorded but did not chase:
+it reported an effective scale of 192.11 where the reference reads 191.
+
+The reference has no field of view at all. `class159.method5357` writes an
+integer to `client.field817`, and `Statics.java:33409` projects with it
+directly — `scale * x / z + width/2`. toridraw's kernels compute
+`cot(fov/2) * 512`, and the conversion opens with `fov >> 1`, so only **1024**
+of the 2048 angles are distinct. The reachable scales step by ~1.7 near scale
+190 and ~2.6 near 410:
+
+| fov | 786 | 788 | **790** | **792** | 794 |
+| --- | --- | --- | --- | --- | --- |
+| effective scale | 195.69 | 193.89 | **192.09** | **190.31** | 188.52 |
+
+**191 is not on that ladder.** Measured across the useful range, only **320 of
+961** integer scales in [64, 1024] are reachable through an angle at all (33 %).
+The angle route could never have matched the reference; it could only get near.
+
+### 12.2 The change
+
+`ToriDraw_Camera` now carries **both** spellings and an explicit selector:
+
+```c
+enum ToriDraw_ProjMode proj_mode;  /* SCALE (default) | FOV */
+int proj_scale;                    /* class159's field817, exact */
+int fov_rpi2048;                   /* an angle, for free cameras */
+```
+
+`proj_mode` selects; the unselected field is never consulted. Two fields racing
+to define one quantity through "0 means use the other" is how a camera ends up
+projecting with a value nobody set, so the rule is stated rather than inferred.
+A zero-initialised camera selects SCALE and lands on the reference's own default
+of 512.
+
+Mechanically, the 16.16 multiplier is now resolved **once per frame** at the two
+places that read the camera, instead of being recomputed by a `g_tan_table`
+lookup inside every kernel. 48 kernels across 7 SIMD variants (`scalar`, `sse2`,
+`sse41`, `avx`, `neon`, `sse_float`, dispatcher) take `camera_cot16` where they
+used to take `camera_fov`.
+
+### 12.3 Four more places the scale was hardcoded
+
+Chasing the literals turned up hardcodes §4 had not named:
+
+| site | what it did |
+| --- | --- |
+| `painters_cullmap.u.c:48` | passed a bare `512` as the fov to the baked cullmap's frustum test — the bake assumed scale 512 **whatever the camera projected with** |
+| `painters_cullspan.u.c` | a second, independent `focal = 512.0 / tan(half_fov)`, with its own `512` fallback. Cull and raster could disagree about the scale |
+| `projection.u.c` `project_perspective()` | took a `fov` argument and **ignored it**, always projecting at `UNIT_SCALE` |
+| `app.c` ×2, `torirs_frame.c` | bare `= 512` camera defaults |
+
+All now thread the same trio. The cullspan one matters beyond tidiness: a cull
+frustum computed at a different scale than the rasterizer draws at removes tiles
+that would have been visible, which is §11.4's residual 3.
+
+### 12.4 A latent inversion bug in the fov knob
+
+`cot(fov/2)` is only positive while `fov/2 < 90°`, i.e. `fov < 1024`. Past that
+the tan table returns a **negative** cotangent: `fov = 1200` resolves to scale
+**−142**, which mirrors the world rather than failing. Nothing had ever
+constrained the domain. `TORIDRAW_PROJ_FOV_MIN/MAX` now clamp it, and
+`toridraw_proj_fov_from_scale()`'s binary search is restricted to the monotonic
+region — searching across the sign flip returned nonsense (round-trip drift up
+to 167400 before, **0** after).
+
+### 12.5 Measured
+
+Same pinned eye as §11.2 (`TORIRS_WEDGE_CAM=7104,-743,5072,128,0`), exact
+`0xA45409` inside `x 280..470, y 120..245`:
+
+| configuration | count | x extent | widest span | y extent (h) |
+| --- | --- | --- | --- | --- |
+| default (no gates) | 676 | 320..441 | 120 | 143..171 (29) |
+| `TORIRS_WEDGE_SCALE=1` + eye box | 97 | 280..434 | **153** | **214..221 (8)** |
+| `TORIRS_WORLD_FOV=790` + eye box | 99 | 280..434 | **153** | 213..221 (9) |
+| **official** `/tmp/r_06.png` | 142 | 302..455 | **153** | **213..220 (8)** |
+
+Both gates report "realised scale 192", and they still differ by a pixel —
+because the angle's true multiplier is 192.086 and the exact one is 192.000.
+That 0.045 % is the ladder, visible in a real frame. §11 got h 9 through the
+angle; the exact scale gives **h 8 = the official's h 8**.
+
+The x displacement (280..434 vs 302..455) is unchanged and is still §7(a): the
+C world viewport is 723 wide against the official's 765, so the projection
+centre sits 21 px left. The remaining scale gap is 192 vs 191 — our
+`VIEWPORT_SETFOV` decodes zoom 128 where the official reports 127.
+
+### 12.6 What this cost, and how it was verified
+
+The whole-frame BMP comparison used in §11 **is not a valid identity test**: two
+runs of the *same* binary at the same pinned camera produce different files
+(`7d5b2012…` vs `b3066fb2…`), because the arena is animated. Extents are stable;
+byte-identity is not. The check was replaced with a deterministic probe over the
+kernels themselves, built once against `HEAD` and once against the tree, sweeping
+all 2046 angles through `project_vertices_array`, `project_divide` and
+`project_scale_unit`:
+
+```
+HEAD  (fov arg, original kernels):     764e6626d106be73
+TREE  (cot16 arg, hoisted kernels):    764e6626d106be73
+negative control (deliberately fov+2): 396ce839ae52efd7
+```
+
+The hoist is exact. The negative control confirms the probe can fail.
+
+**One deliberate behavioural change remains.** The old default resolved fov 512
+through the tan table to cot16 **65535**, an effective scale of 511.992. The new
+default is the integer 512, cot16 **65536**, exactly 512.000 — which makes
+toridraw's default projection `p * 512 / z`, bit-identical to the reference's own
+formula, which it previously was not. Cost, measured over 601835 vertex
+projections across the full pitch/yaw sweep:
+
+```
+samples 601835, differing 49283 (8.19%), worst |dx| 2 px, worst |dy| 2 px
+```
+
+The 2 px cases are all near-plane geometry (the 1-unit pre-divide difference is
+multiplied by 512 and divided by a small `z`); at typical scene depths it is
+under 0.2 px. `test-world-builder`, `test-light-model` and `test-scanline` pass.

@@ -129,7 +129,7 @@ project_perspective(
     int x,
     int y,
     int z,
-    int fov, // FOV in units of (2π/2048) radians
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
     int near_clip)
 {
     struct ProjectedVertex projected_vertex = { 0 };
@@ -162,25 +162,17 @@ project_perspective(
 
     assert(z != 0);
 
-    // Calculate FOV scale based on the angle using sin/cos tables
-    // fov is in units of (2π/2048) radians
-    // For perspective projection, we need tan(fov/2)
-    // tan(x) = sin(x)/cos(x)
-    // int fov_half = fov >> 1; // fov/2
-
-    // fov_scale = 1/tan(fov/2)
-    // cot(x) = 1/tan(x)
-    // cot(x) = tan(pi/2 - x)
-    // cot(x + pi) = cot(x)
-    // assert(fov_half < 1536);
-    // int cot_fov_half = g_tan_table[1536 - fov_half];
-
-    // Apply FOV scaling to x and y coordinates
-    // int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
-
-    // Project to screen space with FOV
-    // int screen_x = ((x * fov_scale_ish16) >> 16);
-    // int screen_y = ((y * fov_scale_ish16) >> 16);
+    /* Same arithmetic as the fast path (project_perspective_fast_trig): the
+     * multiplier is applied here rather than assumed. This used to drop
+     * camera_cot16 on the floor and project everything at UNIT_SCALE, i.e. a
+     * silent scale of exactly 512 no matter what the caller asked for. */
+    {
+        int cot_scaled = camera_cot16 >> 1;
+        x *= cot_scaled;
+        y *= cot_scaled;
+        x >>= 15;
+        y >>= 15;
+    }
 
     int screen_x = SCALE_UNIT(x) / z;
     int screen_y = SCALE_UNIT(y) / z;
@@ -214,7 +206,7 @@ project(
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
-    int fov, // FOV in units of (2π/2048) radians
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
     int near_clip,
     int screen_width,
     int screen_height)
@@ -236,7 +228,7 @@ project(
         camera_roll);
 
     projected_vertex = project_perspective(
-        projected_vertex.x, projected_vertex.y, projected_vertex.z, fov, near_clip);
+        projected_vertex.x, projected_vertex.y, projected_vertex.z, camera_cot16, near_clip);
 
     return projected_vertex;
 }
@@ -428,10 +420,9 @@ project_orthographic_fast_pitchyaw(
 static inline int
 project_scale_unit(
     int p,
-    int fov)
+    int camera_cot16)
 {
-    int fov_half = fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     static const int scale_angle = 6;
     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
@@ -461,10 +452,9 @@ static inline int
 project_divide(
     int p,
     int z,
-    int fov)
+    int camera_cot16)
 {
-    int fov_half = fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     static const int scale_angle = 1;
     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
@@ -502,11 +492,10 @@ project_perspective_fast_trig(
     int x,
     int y,
     int z,
-    int fov, // FOV in units of (2π/2048) radians
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
     int near_clip,
     const struct ToriDrawTrigFns* trig)
 {
-    assert(trig && trig->tan);
 
     // Perspective projection with FOV
 
@@ -540,18 +529,11 @@ project_perspective_fast_trig(
 
     assert(z != 0);
 
-    // Calculate FOV scale based on the angle using sin/cos tables
-    // fov is in units of (2π/2048) radians
-    // For perspective projection, we need tan(fov/2)
-    // tan(x) = sin(x)/cos(x)
-    int fov_half = fov >> 1; // fov/2
-
-    // fov_scale = 1/tan(fov/2)
-    // cot(x) = 1/tan(x)
-    // cot(x) = tan(pi/2 - x)
-    // cot(x + pi) = cot(x)
-    // assert(fov_half < 1536);
-    int cot_fov_half_ish16 = trig->tan(1536 - fov_half, trig->user);
+    /* Already resolved by the caller (toridraw_proj_cot16), so an exact linear
+     * scale reaches this path too and not just an angle. trig->tan is no longer
+     * consulted here; trig still supplies sin/cos above. */
+    int cot_fov_half_ish16 = camera_cot16;
+    (void)trig;
 
     static const int scale_angle = 1;
     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
@@ -597,21 +579,13 @@ project_perspective_fast(
     int x,
     int y,
     int z,
-    int fov, // FOV in units of (2π/2048) radians
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
     int near_clip)
 {
     struct ToriDrawTrigFns trig;
     ToriDraw_TrigFnsFromShared(&trig);
     project_perspective_fast_trig(
-        projected_vertex, x, y, z, fov, near_clip, &trig);
-}
-
-static inline int
-calc_cot_fov_half_ish15(int fov)
-{
-    int fov_half = fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
-    return cot_fov_half_ish16 >> 1;
+        projected_vertex, x, y, z, camera_cot16, near_clip, &trig);
 }
 
 static inline void
@@ -679,7 +653,7 @@ project_fast_trig(
     int scene_z,
     int camera_pitch_r2pi2048,
     int camera_yaw_r2pi2048,
-    int fov_r2pi2048,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height,
@@ -705,7 +679,7 @@ project_fast_trig(
         projected_vertex->x,
         projected_vertex->y,
         projected_vertex->z,
-        fov_r2pi2048,
+        camera_cot16,
         near_clip,
         trig);
 }
@@ -722,7 +696,7 @@ project_fast(
     int scene_z,
     int camera_pitch_r2pi2048,
     int camera_yaw_r2pi2048,
-    int fov_r2pi2048,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height)
@@ -740,7 +714,7 @@ project_fast(
         scene_z,
         camera_pitch_r2pi2048,
         camera_yaw_r2pi2048,
-        fov_r2pi2048,
+        camera_cot16,
         near_clip,
         screen_width,
         screen_height,
@@ -759,7 +733,7 @@ project_fast_notex(
     int scene_z,
     int camera_pitch_r2pi2048,
     int camera_yaw_r2pi2048,
-    int fov_r2pi2048,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height)
@@ -796,7 +770,7 @@ project_fast_notex(
     z_final_scene >>= 16;
 
     project_perspective_fast(
-        projected_vertex, x_scene, y_scene, z_final_scene, fov_r2pi2048, near_clip);
+        projected_vertex, x_scene, y_scene, z_final_scene, camera_cot16, near_clip);
 }
 
 static inline struct ProjectedVertex
@@ -813,7 +787,7 @@ project_notex(
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
-    int fov,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height)
@@ -877,7 +851,8 @@ project_notex(
     int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
     y_final_scene >>= 16;
 
-    return project_perspective(x_final_scene, y_final_scene, z_final_scene, fov, near_clip);
+    return project_perspective(
+        x_final_scene, y_final_scene, z_final_scene, camera_cot16, near_clip);
 }
 
 // #include <arm_neon.h>

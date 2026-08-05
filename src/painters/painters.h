@@ -1,6 +1,8 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
+#include "graphics/projection.h"
+
 #include <stddef.h>
 #include <stdint.h>
 /**
@@ -403,7 +405,7 @@ typedef void (*PaintersProjectFn)(
     int scene_z,
     int camera_pitch,
     int camera_yaw,
-    int fov,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height,
@@ -475,6 +477,11 @@ struct PaintersCullSpanParams
     int far_clip;
     int screen_width;
     int screen_height;
+    /** Mirror of ToriDraw_Camera's projection knobs, and they must be the SAME
+     *  values the frame is drawn with — see the note at the focal computation
+     *  in painters_cullspan.u.c. proj_mode selects; see graphics/projection.h. */
+    int proj_mode;
+    int proj_scale;
     int fov_rpi2048;
     int dz_min;
     int dz_max;
@@ -495,13 +502,20 @@ painters_cullspan_build(
     const struct PaintersCullSpanParams* params);
 
 /** Build cullmap at runtime (CPU bake).
- * project and sin_fn are required; both receive the same user pointer. */
+ * project and sin_fn are required; both receive the same user pointer.
+ *
+ * camera_cot16 is the resolved projection multiplier the bake assumes (see
+ * toridraw_proj_cot16). It used to be a bare 512 buried in the frustum test,
+ * which silently baked a scale-512 frustum no matter what the camera projected
+ * with; pass what the frame will actually use. The bake is conservative
+ * (padding + dilation), so it tolerates being slightly wide but not narrow. */
 struct PaintersCullMap*
 painters_cullmap_build(
     int radius,
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     PaintersProjectFn project,
     void* user,
     PaintersSinFn sin_fn);

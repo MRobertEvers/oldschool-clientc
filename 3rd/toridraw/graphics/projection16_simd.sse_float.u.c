@@ -20,12 +20,11 @@ project_vertices_array_sse_float(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -184,12 +183,11 @@ project_vertices_array_sse_float_noyaw(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -345,7 +343,7 @@ project_vertices_array(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
@@ -367,7 +365,7 @@ project_vertices_array(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -387,7 +385,7 @@ project_vertices_array(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -496,12 +494,11 @@ project_vertices_array_sse_float_notex(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
     __m128 v_cos_camera_pitch = _mm_set1_ps(RSCacheDat2A_NoiseCosTable[camera_pitch] * inv_scale);
@@ -629,12 +626,11 @@ project_vertices_array_sse_float_noyaw_notex(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
     __m128 v_cos_camera_pitch = _mm_set1_ps(RSCacheDat2A_NoiseCosTable[camera_pitch] * inv_scale);
@@ -758,7 +754,7 @@ project_vertices_array_notex(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
@@ -776,7 +772,7 @@ project_vertices_array_notex(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -793,7 +789,7 @@ project_vertices_array_notex(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -901,12 +897,11 @@ project_vertices_array_fused_sse_float(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -1118,12 +1113,11 @@ project_vertices_array_fused_sse_float_noyaw(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -1327,12 +1321,11 @@ project_vertices_array_fused_sse_float_notex(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
     __m128 v_cos_camera_pitch = _mm_set1_ps(RSCacheDat2A_NoiseCosTable[camera_pitch] * inv_scale);
@@ -1513,12 +1506,11 @@ project_vertices_array_fused_sse_float_noyaw_notex(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
     __m128 v_cos_camera_pitch = _mm_set1_ps(RSCacheDat2A_NoiseCosTable[camera_pitch] * inv_scale);
@@ -1697,7 +1689,7 @@ project_vertices_array_fused(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
@@ -1719,7 +1711,7 @@ project_vertices_array_fused(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -1741,7 +1733,7 @@ project_vertices_array_fused(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -1762,7 +1754,7 @@ project_vertices_array_fused_notex(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
@@ -1782,7 +1774,7 @@ project_vertices_array_fused_notex(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
@@ -1801,7 +1793,7 @@ project_vertices_array_fused_notex(
             scene_x,
             scene_y,
             scene_z,
-            camera_fov,
+            camera_cot16,
             camera_pitch,
             camera_yaw);
     }
