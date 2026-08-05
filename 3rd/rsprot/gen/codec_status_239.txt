@@ -1,6 +1,6 @@
 rsprot codec generation status -- revision 239
-encoders: 99 generated, 52 skipped (of 151)
-decoders: 81 generated, 14 skipped (of 95)
+encoders: 122 generated, 29 skipped (of 151)
+decoders: 86 generated, 9 skipped (of 95)
 
 --- generated encoders ---
   OK   misc/client/HideLocOpsEncoder.kt                        HideLocOps [flat]
@@ -20,6 +20,7 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   misc/player/ChatFilterSettingsEncoder.kt                ChatFilterSettings [flat]
   OK   misc/player/ChatFilterSettingsPrivateChatEncoder.kt     ChatFilterSettingsPrivateChat [flat]
   OK   misc/player/MessageGameEncoder.kt                       MessageGame [flat]
+  OK   misc/player/SetMapFlagV2Encoder.kt                      SetMapFlagV2 [flat]
   OK   misc/player/SetPlayerOpEncoder.kt                       SetPlayerOp [flat]
   OK   misc/player/TriggerOnDialogAbortEncoder.kt              TriggerOnDialogAbort [flat]
   OK   misc/player/UpdateRunEnergyEncoder.kt                   UpdateRunEnergy [flat]
@@ -32,15 +33,33 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   specific/NpcAnimSpecificEncoder.kt                      NpcAnimSpecific [flat]
   OK   specific/NpcHeadIconSpecificEncoder.kt                  NpcHeadIconSpecific [flat]
   OK   specific/NpcSpotAnimSpecificEncoder.kt                  NpcSpotAnimSpecific [flat]
+  OK   specific/ObjAddSpecificEncoder.kt                       ObjAddSpecific [flat]
+  OK   specific/ObjCountSpecificEncoder.kt                     ObjCountSpecific [flat]
+  OK   specific/ObjCustomiseSpecificEncoder.kt                 ObjCustomiseSpecific [flat]
+  OK   specific/ObjDelSpecificEncoder.kt                       ObjDelSpecific [flat]
+  OK   specific/ObjEnabledOpsSpecificEncoder.kt                ObjEnabledOpsSpecific [flat]
+  OK   specific/ObjUncustomiseSpecificEncoder.kt               ObjUncustomiseSpecific [flat]
   OK   specific/PlayerSpotAnimSpecificEncoder.kt               PlayerSpotAnimSpecific [flat]
+  OK   specific/ProjAnimSpecificV4Encoder.kt                   ProjAnimSpecificV4 [flat]
   OK   clan/VarClanDisableEncoder.kt                           VarClanDisable [flat]
   OK   clan/VarClanEnableEncoder.kt                            VarClanEnable [flat]
+  OK   group/GroupVarIntEncoder.kt                             GroupVarInt [flat]
+  OK   group/GroupVarLongEncoder.kt                            GroupVarLong [flat]
+  OK   camera/CamLookAtCyclesEncoder.kt                        CamLookAtCycles [flat]
   OK   camera/CamLookAtV2Encoder.kt                            CamLookAtV2 [flat]
   OK   camera/CamLookAtV3Encoder.kt                            CamLookAtV3 [flat]
   OK   camera/CamModeEncoder.kt                                CamMode [flat]
+  OK   camera/CamMoveToArcV2Encoder.kt                         CamMoveToArcV2 [flat]
+  OK   camera/CamMoveToArcV3Encoder.kt                         CamMoveToArcV3 [flat]
+  OK   camera/CamMoveToCyclesV2Encoder.kt                      CamMoveToCyclesV2 [flat]
+  OK   camera/CamMoveToCyclesV3Encoder.kt                      CamMoveToCyclesV3 [flat]
   OK   camera/CamMoveToV2Encoder.kt                            CamMoveToV2 [flat]
   OK   camera/CamMoveToV3Encoder.kt                            CamMoveToV3 [flat]
   OK   camera/CamResetEncoder.kt                               CamReset [flat]
+  OK   camera/CamRotateByEncoder.kt                            CamRotateBy [flat]
+  OK   camera/CamRotateToCoordinateV2Encoder.kt                CamRotateToCoordinateV2 [flat]
+  OK   camera/CamRotateToCoordinateV3Encoder.kt                CamRotateToCoordinateV3 [flat]
+  OK   camera/CamRotateToEncoder.kt                            CamRotateTo [flat]
   OK   camera/CamShakeEncoder.kt                               CamShake [flat]
   OK   camera/CamSkyboxEncoder.kt                              CamSkybox [flat]
   OK   camera/CamSmoothResetEncoder.kt                         CamSmoothReset [flat]
@@ -50,12 +69,15 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   zone/payload/LocDelEncoder.kt                           LocDel [flat]
   OK   zone/payload/LocMergeEncoder.kt                         LocMerge [flat]
   OK   zone/payload/MapAnimEncoder.kt                          MapAnim [flat]
+  OK   zone/payload/MapProjAnimV2Encoder.kt                    MapProjAnimV2 [flat]
   OK   zone/payload/ObjAddEncoder.kt                           ObjAdd [flat]
   OK   zone/payload/ObjCountEncoder.kt                         ObjCount [flat]
   OK   zone/payload/ObjCustomiseEncoder.kt                     ObjCustomise [flat]
   OK   zone/payload/ObjDelEncoder.kt                           ObjDel [flat]
   OK   zone/payload/ObjEnabledOpsEncoder.kt                    ObjEnabledOps [flat]
   OK   zone/payload/ObjUncustomiseEncoder.kt                   ObjUncustomise [flat]
+  OK   zone/payload/ScriptedProjAddEncoder.kt                  ScriptedProjAdd [flat]
+  OK   zone/payload/ScriptedProjChangeEncoder.kt               ScriptedProjChange [flat]
   OK   zone/payload/SoundAreaEncoder.kt                        SoundArea [flat]
   OK   zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt  UpdateZonePartialEnclosed [flat]
   OK   zone/header/UpdateZoneFullFollowsEncoder.kt             UpdateZoneFullFollows [flat]
@@ -84,6 +106,7 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   interfaces/IfMoveSubEncoder.kt                          IfMoveSub [flat]
   OK   interfaces/IfOpenSubEncoder.kt                          IfOpenSub [flat]
   OK   interfaces/IfOpenTopEncoder.kt                          IfOpenTop [flat]
+  OK   interfaces/IfResyncV2Encoder.kt                         IfResyncV2 [array/nested]
   OK   interfaces/IfSetAngleEncoder.kt                         IfSetAngle [flat]
   OK   interfaces/IfSetAnimEncoder.kt                          IfSetAnim [flat]
   OK   interfaces/IfSetColourEncoder.kt                        IfSetColour [flat]
@@ -113,8 +136,9 @@ decoders: 81 generated, 14 skipped (of 95)
   SKIP misc/client/UpdateRebootTimerV2Encoder.kt               buffer expression not understood: when (val mes = message.messageType) {
             UpdateReb
   SKIP misc/client/UpdateUid192Encoder.kt                      unmapped wire function: pdata
-  SKIP misc/player/RunClientScriptEncoder.kt                   internal error: SyntaxError: trailing tokens: [('ident', 'downTo'), ('num', '0')]
-  SKIP misc/player/SetMapFlagV2Encoder.kt                      unmodeled member access: .packed
+  SKIP misc/player/RunClientScriptEncoder.kt                   buffer expression not understood: when (type) {
+                'W' -> {
+                    v
   SKIP misc/player/UpdateStockMarketSlotEncoder.kt             buffer expression not understood: when (val update = message.update) {
             UpdateStock
   SKIP misc/player/UpdateTradingPostEncoder.kt                 buffer expression not understood: when (val update = message.updateType) {
@@ -125,13 +149,6 @@ decoders: 81 generated, 14 skipped (of 95)
   SKIP friendchat/UpdateFriendChatChannelFullV2Encoder.kt      buffer expression not understood: when (val update = message.updateType) {
             is Upda
   SKIP friendchat/UpdateFriendChatChannelSingleUserEncoder.kt  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  SKIP specific/ObjAddSpecificEncoder.kt                       unmodeled member access: .packed
-  SKIP specific/ObjCountSpecificEncoder.kt                     unmodeled member access: .packed
-  SKIP specific/ObjCustomiseSpecificEncoder.kt                 unmodeled member access: .packed
-  SKIP specific/ObjDelSpecificEncoder.kt                       unmodeled member access: .packed
-  SKIP specific/ObjEnabledOpsSpecificEncoder.kt                unmodeled member access: .packed
-  SKIP specific/ObjUncustomiseSpecificEncoder.kt               unmodeled member access: .packed
-  SKIP specific/ProjAnimSpecificV4Encoder.kt                   unmodeled member access: .packed
   SKIP clan/ClanChannelDeltaEncoder.kt                         buffer expression not understood: when (event) {
                 is ClanChannelDelta.AddUserEv
   SKIP clan/ClanChannelFullEncoder.kt                          buffer expression not understood: when (val update = message.update) {
@@ -148,31 +165,16 @@ decoders: 81 generated, 14 skipped (of 95)
                 is GroupFull.GroupDelete -> 
   SKIP group/GroupVarEncoder.kt                                buffer expression not understood: when (val variable = update.variable) {
                 is G
-  SKIP group/GroupVarIntEncoder.kt                             unmodeled member access: .index
-  SKIP group/GroupVarLongEncoder.kt                            unmodeled member access: .index
-  SKIP camera/CamLookAtCyclesEncoder.kt                        unmodeled member access: .id
-  SKIP camera/CamMoveToArcV2Encoder.kt                         unmodeled member access: .id
-  SKIP camera/CamMoveToArcV3Encoder.kt                         unmodeled member access: .id
-  SKIP camera/CamMoveToCyclesV2Encoder.kt                      unmodeled member access: .id
-  SKIP camera/CamMoveToCyclesV3Encoder.kt                      unmodeled member access: .id
-  SKIP camera/CamRotateByEncoder.kt                            unmodeled member access: .id
-  SKIP camera/CamRotateToCoordinateV2Encoder.kt                unmodeled member access: .id
-  SKIP camera/CamRotateToCoordinateV3Encoder.kt                unmodeled member access: .id
-  SKIP camera/CamRotateToEncoder.kt                            unmodeled member access: .id
   SKIP camera/CamTargetV3Encoder.kt                            buffer expression not understood: when (val type = message.type) {
             is CamTargetV3.
   SKIP camera/CamTargetV4Encoder.kt                            buffer expression not understood: when (val type = message.type) {
             is CamTargetV4.
-  SKIP zone/payload/LocAddChangeV2Encoder.kt                   safe-call member elvis not modeled generically
-  SKIP zone/payload/MapProjAnimV2Encoder.kt                    unmodeled member access: .packed
-  SKIP zone/payload/ScriptedProjAddEncoder.kt                  unmodeled member access: .packed
-  SKIP zone/payload/ScriptedProjChangeEncoder.kt               unmodeled member access: .packed
+  SKIP zone/payload/LocAddChangeV2Encoder.kt                   isNullOrEmpty on unresolved receiver
   SKIP social/MessagePrivateEchoEncoder.kt                     unmodeled call: provide(...)
   SKIP social/MessagePrivateEncoder.kt                         unmodeled call: provide(...)
   SKIP social/UpdateFriendListEncoder.kt                       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
   SKIP social/UpdateIgnoreListEncoder.kt                       buffer expression not understood: when (ignore) {
                 is UpdateIgnoreList.AddedIgn
-  SKIP interfaces/IfResyncV2Encoder.kt                         unmodeled member access: .size
 
 --- generated decoders ---
   OK   worldentities/OpWorldEntity1Decoder.kt                  OpWorldEntity [flat]
@@ -184,6 +186,8 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   worldentities/OpWorldEntityTDecoder.kt                  OpWorldEntityT [flat]
   OK   misc/user/BugReportDecoder.kt                           BugReport [flat]
   OK   misc/user/ClientCheatDecoder.kt                         ClientCheat [flat]
+  OK   misc/user/CloseModalDecoder.kt                          CloseModal [flat]
+  OK   misc/user/ExitFreecamDecoder.kt                         ExitFreecam [flat]
   OK   misc/user/HiscoreRequestDecoder.kt                      HiscoreRequest [flat]
   OK   misc/user/IfCrmViewOpDecoder.kt                         IfCrmViewOp [flat]
   OK   misc/user/MoveGameClickDecoder.kt                       MoveGameClick [flat]
@@ -194,7 +198,10 @@ decoders: 81 generated, 14 skipped (of 95)
   OK   misc/user/TeleportDecoder.kt                            Teleport [flat]
   OK   misc/client/ConnectionTelemetryDecoder.kt               ConnectionTelemetry [flat]
   OK   misc/client/DetectModifiedClientDecoder.kt              DetectModifiedClient [flat]
+  OK   misc/client/IdleDecoder.kt                              Idle [flat]
+  OK   misc/client/MapBuildCompleteDecoder.kt                  MapBuildComplete [flat]
   OK   misc/client/MembershipPromotionEligibilityDecoder.kt    MembershipPromotionEligibility [flat]
+  OK   misc/client/NoTimeoutDecoder.kt                         NoTimeout [flat]
   OK   misc/client/RSevenStatusDecoder.kt                      RSevenStatus [flat]
   OK   misc/client/SendPingReplyDecoder.kt                     SendPingReply [flat]
   OK   misc/client/SoundJingleEndDecoder.kt                    SoundJingleEnd [flat]
@@ -259,11 +266,6 @@ decoders: 81 generated, 14 skipped (of 95)
 
 --- skipped decoders ---
   SKIP misc/user/ClickWorldMapDecoder.kt                       unmodeled call: CoordGrid(...)
-  SKIP misc/user/CloseModalDecoder.kt                          file parse error: substring not found
-  SKIP misc/user/ExitFreecamDecoder.kt                         file parse error: substring not found
-  SKIP misc/client/IdleDecoder.kt                              file parse error: substring not found
-  SKIP misc/client/MapBuildCompleteDecoder.kt                  file parse error: substring not found
-  SKIP misc/client/NoTimeoutDecoder.kt                         file parse error: substring not found
   SKIP misc/client/ReflectionCheckReplyDecoder.kt              unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   SKIP friendchat/FriendChatJoinLeaveDecoder.kt                unparseable val name: unexpected token None
   SKIP buttons/IfScriptTriggerDecoder.kt                       unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())

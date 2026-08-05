@@ -396,6 +396,17 @@ def find_method_body(src, method_name, has_buffer_first_param):
             if depth == 0:
                 break
         j += 1
+    # An expression-body function (`fun decode(...): T = EXPR`, no `{ }` at
+    # all) has no brace to find here -- return None so the caller's
+    # expression-body fallback in parse_file() can handle it, rather than
+    # crashing on the next unrelated `{` later in the file (the next class,
+    # or nothing at all).
+    nl = src.find("\n", j)
+    line_tail = src[j:nl if nl != -1 else len(src)]
+    if "{" not in line_tail and "=" in line_tail:
+        return None
+    if "{" not in src[j:]:
+        return None
     k = src.index("{", j)
     depth = 0
     p = k
@@ -436,6 +447,20 @@ def parse_file(path):
     method = "decode" if is_decoder else "encode"
     body = find_method_body(src, method, not is_decoder)
     if body is None:
+        # `override fun decode(buffer: JagByteBuf): Idle = Idle` -- Kotlin's
+        # expression-body syntax, used only for zero-payload singleton
+        # messages (no `{ }` block to find). A bare identifier or a
+        # no-arg-constructor RHS on this shape carries no wire fields.
+        em = re.search(rf"override fun {method}\s*\([^)]*\)\s*(?::\s*[\w.<>]+)?\s*=\s*([^\n{{]+)", src)
+        if em and "(" not in em.group(1).strip().rstrip():
+            return {
+                "class": cls_name,
+                "base": base,
+                "msg_type": msg_type.split(".")[-1],
+                "prot": prot,
+                "is_decoder": is_decoder,
+                "no_body": True,
+            }
         return None
     return {
         "class": cls_name,
@@ -527,6 +552,15 @@ def parse_val(s, is_decoder):
         gm = READ_FN_RE.match(rhs)
         if gm:
             return {"op": "read", "name": name, "fn": gm.group(1)}
+        # `TypeName(buffer.gN())` -- a value-class/coord wrapper constructed
+        # directly around a single read (e.g. `CoordGrid(buffer.g4())`). The
+        # wrapper's only content IS that read; unwrap it to a plain read
+        # under the local's own name, same as the bare form above.
+        wm = re.match(r"^\w+\(\s*(buffer\.g[\w0-9]*\(\))\s*\)$", rhs)
+        if wm:
+            gm2 = READ_FN_RE.match(wm.group(1))
+            if gm2:
+                return {"op": "read", "name": name, "fn": gm2.group(1)}
         # `buffer.gN() == 1` boolean derivation
         m2 = re.match(r"^buffer\.(g[\w0-9]*)\(\)\s*==\s*(\d+)$", rhs)
         if m2:
@@ -575,6 +609,19 @@ def parse_for(s, is_decoder):
     bclose = find_matching(rest, "{", "}", bopen)
     body_text = rest[bopen + 1 : bclose]
 
+    # `x in HI downTo LO` (descending, inclusive on both ends)
+    m = re.match(r"^(\w+)\s+in\s+(.*?)\s+downTo\s+(.*)$", header)
+    if m:
+        var, hi, lo = m.groups()
+        return {
+            "op": "for_range",
+            "var": var,
+            "lo": parse_expr(lo.strip()),
+            "hi": parse_expr(hi.strip()),
+            "inclusive": True,
+            "descending": True,
+            "body": parse_block(body_text, is_decoder),
+        }
     # `x in A..<B` / `x in A until B` / `x in A..B`
     m = re.match(r"^(\w+)\s+in\s+(.*?)\s*(?:\.\.<|until)\s*(.*)$", header)
     if m:
@@ -799,6 +846,47 @@ def resolve_recv_scope(recv_ast, scope):
     return None
 
 
+def resolve_path(ast, scope):
+    """Resolve `ast` to (target_scope, [path segments]) if it is a chain of
+    plain member accesses rooted at `message`, a loop-iterated element var, or
+    a local alias registered via a previous `val X = <path>` statement.
+    Returns None if the chain does not root anywhere resolvable (the caller
+    decides whether that is fatal).
+
+    This is what lets `message.easing.id` (a value-class/enum property on top
+    of a field) and `update.index` (a member access on top of an ALIASED
+    field, from `val update = message.update`) both flatten to a single C
+    struct field -- `easing_id`, `update_index` -- without special-casing each
+    shape RSProt happens to use for "a field that isn't a bare Int"."""
+    if ast["kind"] == "ident":
+        name = ast["name"]
+        if name == "message":
+            s = scope
+            while s.parent is not None:
+                s = s.parent
+            return (s, [])
+        s = scope
+        while s is not None:
+            if s.recv_name == name:
+                return (s, [])
+            s = s.parent
+        info = _all_local_names(scope).get(name)
+        if info and info[0] == "alias_path":
+            return (info[1], list(info[2]))
+        return None
+    if ast["kind"] == "member":
+        base = resolve_path(ast["recv"], scope)
+        if base is None:
+            return None
+        target_scope, path = base
+        return (target_scope, path + [ast["name"]])
+    return None
+
+
+def flatten_field_name(path):
+    return "_".join(c_escape_ident(p) for p in path)
+
+
 def emit_expr(ast, scope, ctx):
     """Emit a C expression string for `ast`. `ctx` carries mode ('encode' or
     'decode') for a few asymmetric idioms. Raises Unsupported for anything
@@ -829,7 +917,6 @@ def emit_expr(ast, scope, ctx):
 
     if k == "ident":
         name = ast["name"]
-        # loop index / plain local?
         s = scope
         while s is not None:
             if name in s.locals:
@@ -838,32 +925,46 @@ def emit_expr(ast, scope, ctx):
                     return c_escape_ident(name)
                 if kind[0] == "local":
                     return c_escape_ident(name)
-                if kind[0] == "field":
-                    owner, cname = kind[1], kind[2]
-                    return f"{owner}->{cname}"
                 if kind[0] == "count_alias":
                     owner, field = kind[1], kind[2]
                     return f"{owner}->{field}_count"
+                if kind[0] == "field":
+                    owner, cname = kind[1], kind[2]
+                    return f"{owner}->{cname}"
             s = s.parent
+        # Anything else that resolves as a path (bare `message.X` handled via
+        # the "member" case normally, but a local *alias* to a field used
+        # directly as a scalar -- `val update = message.update; ...update...`
+        # with no further `.member` -- lands here too.)
+        path = resolve_path(ast, scope)
+        if path is not None:
+            target_scope, segs = path
+            if not segs:
+                raise Unsupported(f"bare '{name}' has no wire value")
+            ptr = struct_ptr_expr(target_scope, ctx)
+            cname = flatten_field_name(segs)
+            target_scope.add_field(cname, "int32_t")
+            return f"{ptr}->{cname}"
         raise Unsupported(f"unresolved identifier: {name}")
 
     if k == "member":
         recv = ast["recv"]
         name = ast["name"]
-        target_scope = resolve_recv_scope(recv, scope)
-        if target_scope is not None:
-            ptr = struct_ptr_expr(target_scope, ctx)
-            cname = c_escape_ident(name)
-            target_scope.add_field(cname, "int32_t")
-            return f"{ptr}->{cname}"
         # `foo.size` on a local array-ish value we track as a count alias
-        if recv["kind"] == "ident":
+        if recv["kind"] == "ident" and name == "size":
             s = scope
             while s is not None:
-                if recv["name"] in s.locals and s.locals[recv["name"]][0] == "count_alias" and name == "size":
+                if recv["name"] in s.locals and s.locals[recv["name"]][0] == "count_alias":
                     owner, field = s.locals[recv["name"]][1], s.locals[recv["name"]][2]
                     return f"{struct_ptr_expr(scope_for_owner(scope, owner), ctx)}->{field}_count"
                 s = s.parent
+        path = resolve_path(ast, scope)
+        if path is not None:
+            target_scope, segs = path
+            ptr = struct_ptr_expr(target_scope, ctx)
+            cname = flatten_field_name(segs)
+            target_scope.add_field(cname, "int32_t")
+            return f"{ptr}->{cname}"
         raise Unsupported(f"unmodeled member access: .{name}")
 
     if k == "index":
@@ -1056,23 +1157,21 @@ def gen_op(op, scope, em, indent, ctx):
             owner, field = alias
             scope.locals[name] = ("count_alias", owner, field)
             return
-        # pure passthrough alias: `val N = message.FIELD` (no array use) or
-        # `val N = someLocal`
+        # pure passthrough alias: `val N = message.FIELD` (possibly a
+        # compound value accessed further via N.subfield later -- deferred
+        # to a path, not a scalar field, until something actually reads N as
+        # a value) or `val N = someLocal`/`val N = message.FIELD.sub`.
         if expr_ast["kind"] in ("ident", "member"):
-            try:
-                target_scope = None
-                if expr_ast["kind"] == "member":
-                    target_scope = resolve_recv_scope(expr_ast["recv"], scope)
-                if target_scope is not None:
-                    cname = c_escape_ident(expr_ast["name"])
-                    target_scope.add_field(cname, "int32_t")
-                    scope.locals[name] = ("field", struct_ptr_expr(target_scope, ctx), cname)
+            path = resolve_path(expr_ast, scope)
+            if path is not None:
+                target_scope, segs = path
+                scope.locals[name] = ("alias_path", target_scope, segs)
+                return
+            if expr_ast["kind"] == "ident":
+                info = _all_local_names(scope).get(expr_ast["name"])
+                if info is not None:
+                    scope.locals[name] = info
                     return
-                if expr_ast["kind"] == "ident" and expr_ast["name"] in _all_local_names(scope):
-                    scope.locals[name] = scope_lookup(scope, expr_ast["name"])
-                    return
-            except Unsupported:
-                pass
         # otherwise: emit as a genuine computed C local (int32_t/bool by shape)
         ctype = "bool" if expr_ast["kind"] in ("bin",) and expr_ast.get("op") in (
             "==", "!=", "<", ">", "<=", ">=", "&&", "||") else "int32_t"
@@ -1102,9 +1201,12 @@ def gen_op(op, scope, em, indent, ctx):
         var = c_escape_ident(op["var"])
         lo_c = emit_expr(op["lo"], scope, ctx)
         hi_c = emit_expr(op["hi"], scope, ctx)
-        cmp = "<=" if op["inclusive"] else "<"
-        em.emit(f"for (int32_t {var} = {lo_c}; {var} {cmp} {hi_c}; {var}++) {{", indent)
         scope.locals[op["var"]] = ("loopvar",)
+        if op.get("descending"):
+            em.emit(f"for (int32_t {var} = {hi_c}; {var} >= {lo_c}; {var}--) {{", indent)
+        else:
+            cmp = "<=" if op["inclusive"] else "<"
+            em.emit(f"for (int32_t {var} = {lo_c}; {var} {cmp} {hi_c}; {var}++) {{", indent)
         gen_ops(op["body"], scope, em, indent + 1, ctx)
         del scope.locals[op["var"]]
         em.emit("}", indent)
@@ -1199,15 +1301,16 @@ def _pre_register(ast, scope, ctype, ctx):
     a = ast
     while a["kind"] == "call" and a["name"] in CAST_CALLS:
         a = a["recv"]
-    if a["kind"] == "member":
-        target_scope = resolve_recv_scope(a["recv"], scope)
-        if target_scope is not None:
-            target_scope.fields[c_escape_ident(a["name"])] = ctype
-    elif a["kind"] == "ident":
+    if a["kind"] in ("member", "ident"):
+        path = resolve_path(a, scope)
+        if path is not None and path[1]:
+            target_scope, segs = path
+            target_scope.fields[flatten_field_name(segs)] = ctype
+            return
+    if a["kind"] == "ident":
         info = _all_local_names(scope).get(a["name"])
         if info and info[0] == "field":
             owner_ptr, cname = info[1], info[2]
-            # find owning scope object matching owner_ptr; simplest: walk up
             s = scope
             while s is not None:
                 if struct_ptr_expr(s, ctx) == owner_ptr and cname in s.fields:
@@ -1236,33 +1339,22 @@ def scope_lookup(scope, name):
 
 
 def _match_count_alias(expr_ast, scope):
-    """Recognize `FIELD?.size ?: 0`, `FIELD.size`, `FIELD?.size`. Returns
-    (owner_scope, field_name) or None."""
+    """Recognize `FIELD?.size ?: 0`, `FIELD.size`, `FIELD?.size` (FIELD may
+    itself be a dotted path or an alias to one). Returns (owner_ptr_expr,
+    field_name) or None."""
     a = expr_ast
-    default_ok = True
     if a["kind"] == "elvis":
-        # right side must be 0
         r = a["right"]
         if not (r["kind"] == "num" and r["text"] in ("0",)):
             return None
         a = a["left"]
     if a["kind"] != "member" or a["name"] != "size":
         return None
-    target_scope = resolve_recv_scope(a["recv"], scope)
-    if target_scope is None:
+    path = resolve_path(a["recv"], scope)
+    if path is None or not path[1]:
         return None
-    field = c_escape_ident(a["recv"]["name"]) if a["recv"]["kind"] == "member" else None
-    if a["recv"]["kind"] == "member":
-        field = c_escape_ident(a["recv"]["name"])
-    elif a["recv"]["kind"] == "ident":
-        # `X.size` where X is itself a local alias to a field
-        info = _all_local_names(scope).get(a["recv"]["name"])
-        if info and info[0] == "field":
-            field = info[2]
-        else:
-            return None
-    else:
-        return None
+    target_scope, segs = path
+    field = flatten_field_name(segs)
     target_scope.array_fields.setdefault(field, True)
     return (struct_ptr_expr(target_scope, "encode"), field)
 

@@ -2763,11 +2763,117 @@ mock230_send_npc_info(struct Mock230Player* player)
      * and one that is told nothing at all — and a client that receives no
      * NPC_INFO does not simply see an empty world, it waits.
      */
+    /*
+     * Revision 239's npc stream.
+     *
+     * The HIGH-RESOLUTION section is byte-for-byte the shape the classic
+     * encoder below already writes -- an 8-bit count, then per npc a
+     * "has update" bit and a 2-bit type (0 stay, 1 walk, 2 run/crawl,
+     * 3 remove). That is why it is duplicated here rather than shared: the
+     * agreement is a coincidence of two revisions, not a guarantee, and a
+     * shared body would silently follow whichever one changed first.
+     *
+     * The LOW-RESOLUTION adds are where it diverges, and every field moved:
+     *
+     *   classic   14-bit slot, 14-bit type, 5-bit dx, 5-bit dz, 1-bit extended
+     *   v5        16-bit index, 1-bit spawn-cycle flag (+32 bits if set),
+     *             1-bit extended, 6-bit dx, 3-bit direction, 6-bit dz,
+     *             1-bit jump, 14-bit id
+     *
+     * The id moved to the END and the deltas widened from 5 bits to 6, so a
+     * client reading the classic record takes the type as part of the index and
+     * places an npc that does not exist at a coordinate that is not there.
+     *
+     * The terminator is a 16-bit 0xFFFF, and it is only written when something
+     * follows: below 28 remaining bits the client stops without reading it, so
+     * an otherwise-empty packet carrying one is three bytes of which the client
+     * consumes one, and it treats the leftover as a protocol error.
+     */
     if( wire_is_v5(player) )
     {
-        open_packet(&buf, 64);
-        mock239_npcinfo_write_empty(&buf);
+        int adds[MOCK230_TRACKED_NPC_MAX];
+        int add_count = 0;
+
+        open_packet(&buf, 4096);
+        rsab_bits(&buf);
+
+        rsab_pbit(&buf, 8, player->tracked_count);
+        for( int i = 0; i < player->tracked_count; i++ )
+        {
+            int slot = player->tracked[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx = npc->x - player->x;
+            int dz = npc->z - player->z;
+            int in_range = npc->active && npc->level == player->level && dx >= -15 &&
+                           dx <= 15 && dz >= -15 && dz <= 15;
+
+            if( !in_range || npc->tele )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 3); /* remove */
+                continue;
+            }
+            kept[kept_count++] = slot;
+            if( npc->step_dir >= 0 )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 1); /* walk */
+                rsab_pbit(&buf, 3, npc->step_dir);
+                rsab_pbit(&buf, 1, 0); /* no extended info yet */
+            }
+            else
+            {
+                rsab_pbit(&buf, 1, 0); /* unchanged */
+            }
+        }
+
+        nearby_count = mock230_zone_npcs_near(srv, player->x, player->z, player->level, 15,
+                                              nearby, MOCK230_TRACKED_NPC_MAX);
+        for( int i = 0; i < nearby_count; i++ )
+        {
+            int slot = nearby[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx;
+            int dz;
+
+            if( !npc->active || player->npc_tracked[slot] )
+                continue;
+            dx = npc->x - player->x;
+            dz = npc->z - player->z;
+            if( dx < -31 || dx > 31 || dz < -31 || dz > 31 )
+                continue;
+            if( kept_count >= MOCK230_TRACKED_NPC_MAX )
+                break;
+            adds[add_count++] = slot;
+            player->npc_tracked[slot] = 1;
+            kept[kept_count++] = slot;
+        }
+
+        for( int i = 0; i < add_count; i++ )
+        {
+            int slot = adds[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx = npc->x - player->x;
+            int dz = npc->z - player->z;
+
+            rsab_pbit(&buf, 16, slot);
+            rsab_pbit(&buf, 1, 0); /* no spawn cycle */
+            rsab_pbit(&buf, 1, 0); /* no extended info */
+            rsab_pbit(&buf, 6, dx & 0x3f);
+            rsab_pbit(&buf, 3, npc->face_dir >= 0 ? npc->face_dir : 0);
+            rsab_pbit(&buf, 6, dz & 0x3f);
+            rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
+            rsab_pbit(&buf, 14, npc->type);
+        }
+
+        /* Only when something followed the count -- see above. */
+        if( add_count > 0 )
+            rsab_pbit(&buf, 16, 0xffff);
+        rsab_bytes(&buf);
+
         flush(player, &buf, OP_NPC_INFO, 2);
+        memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+        player->tracked_count = kept_count;
         return;
     }
     open_packet(&buf, 8192);
