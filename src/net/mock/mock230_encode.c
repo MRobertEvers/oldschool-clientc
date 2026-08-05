@@ -468,30 +468,19 @@ mock230_send_rebuild_region(struct Mock230Player* player)
         }
     }
 
-    rsab_bits(&buf);
-    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-    {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
-        {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
-            {
-                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
-
-                if( !zone->set )
-                {
-                    rsab_pbit(&buf, 1, 0);
-                    continue;
-                }
-                rsab_pbit(&buf, 1, 1);
-                rsab_pbit(&buf, 26,
-                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
-                              ((zone->src_zone_x & 0x3ff) << 14) |
-                              ((zone->src_level & 3) << 24));
-            }
-        }
-    }
-    rsab_bytes(&buf);
-
+/*
+     * The distinct source map squares.
+     *
+     * Counted before the grid rather than after it, because revision 239 wants
+     * the number HERE -- `encodeRegionV2` back-patches a p2 in front of the bit
+     * buffer -- while the classic packet writes it afterwards as the length of
+     * a trailing XTEA key block. Same number, two different places, and V2 has
+     * no key block at all (map archives are stored plain from 237).
+     *
+     * Getting this wrong is what logs a client out: the grid is read as though
+     * the count were part of it, so every zone descriptor after the first is
+     * shifted and the packet ends somewhere the client does not expect.
+     */
     /* One key block per source square the descriptors name, which is what the
      * client would need if it were taking keys off the wire. Counted from the
      * window so the two never disagree about how many follow. */
@@ -525,9 +514,39 @@ mock230_send_rebuild_region(struct Mock230Player* player)
                     key_count++;
                 }
     }
-    rsab_p2(&buf, key_count);
-    for( int i = 0; i < key_count * 4; i++ )
-        rsab_p4(&buf, 0);
+    if( wire_is_v5(player) )
+        rsab_p2(&buf, key_count);
+
+    rsab_bits(&buf);
+    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+        {
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+            {
+                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+        }
+    }
+    rsab_bytes(&buf);
+
+    if( !wire_is_v5(player) )
+    {
+        rsab_p2(&buf, key_count);
+        for( int i = 0; i < key_count * 4; i++ )
+            rsab_p4(&buf, 0);
+    }
 
     flush(player, &buf, OP_REBUILD_REGION, 2);
     if( srv->verbose )
