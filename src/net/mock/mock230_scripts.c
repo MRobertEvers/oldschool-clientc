@@ -5592,8 +5592,10 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        local_x = coord_x(values[0]) - mock230_scene_base_x();
-        local_z = coord_z(values[0]) - mock230_scene_base_z();
+        /* The world coordinate, unconverted: which of the two the wire wants
+         * is the encoder's question now, because the revisions disagree. */
+        local_x = coord_x(values[0]);
+        local_z = coord_z(values[0]);
         if( opcode == SS_OP_CAM_MOVETO )
             mock230_send_cam_moveto(player, local_x, local_z, (int)values[1],
                                     (int)values[2], (int)values[3]);

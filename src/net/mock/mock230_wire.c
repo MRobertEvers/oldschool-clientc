@@ -67,6 +67,12 @@ osrs239_out_name(int wire_opcode)
     return osrs239_packetout_name(wire_opcode);
 }
 
+static char const*
+osrs239_out_prot_name(int wire_opcode)
+{
+    return osrs239_packetout_protname(wire_opcode);
+}
+
 static int
 osrs230_zone_sub(int pkt_name)
 {
@@ -616,6 +622,9 @@ w239_zone_header(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z, in
     }
 }
 
+/** OpFlags.ofOps(true x5) -- every right-click option the loctype declares. */
+#define OSRS239_LOC_OPS_ALL_SHOWN 0x1f
+
 static int
 w239_zone_payload(
     struct RSAreaBuf* buf,
@@ -630,12 +639,26 @@ w239_zone_payload(
 
     switch( pkt_name )
     {
-    /* LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
+    /*
+     * LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
      * p1Alt1 locProperties, p1Alt2 coordInZone, p2Alt3 id.
-     * No per-loc custom ops here, so the count leads with zero. */
+     *
+     * TWO fields V1 did not have, and each one is silent when wrong.
+     *
+     * `opCount` leads with zero, which means "do not override the ops" -- the
+     * client then uses the loctype's own from the cache. A non-zero count is
+     * followed by that many `p1 op-1, pjstr text` pairs and REPLACES all five.
+     *
+     * `opFlags` is a five-bit mask of which right-click options are SHOWN
+     * (OpFlags.ofOps: bit 0 is op1). Zero is a legal value meaning "hide every
+     * option", so a loc placed with 0 appears, animates, blocks movement and
+     * cannot be clicked -- which reads as the loc change half-working rather
+     * than as a protocol error. LOC_DEL's own reference call passes 31 for the
+     * same field; ALL_SHOWN is what a server that has nothing to hide sends.
+     */
     case PKT_NAME_LOC_ADD_CHANGE:
         rsab_p1_alt1(buf, 0);
-        rsab_p1_alt3(buf, 0);
+        rsab_p1_alt3(buf, OSRS239_LOC_OPS_ALL_SHOWN);
         rsab_p1_alt1(buf, props);
         rsab_p1_alt2(buf, pos);
         rsab_p2_alt3(buf, id);
@@ -798,10 +821,10 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .update_runweight = w239_update_runweight,
     .update_stat = w239_update_stat,
     .rebuild_normal = w239_rebuild_normal,
-    /* Everything else is deliberately absent: see mock230_wire.h. The two that
-     * matter most and are the largest work item are PLAYER_INFO and NPC_INFO,
-     * whose v5 high/low-resolution streams are a different codec rather than a
-     * different field order. */
+    /* Everything else is deliberately absent: see mock230_wire.h. PLAYER_INFO
+     * and NPC_INFO have no entry here and are not missing -- their v5 streams
+     * are a codec rather than a field list, so mock230_encode.c forks to a
+     * whole writer instead of filling one of these slots. */
 };
 
 /* ------------------------------------------------------------------ */
@@ -813,9 +836,9 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
  * see `transcribed` in mock230_wire.h for why refusing beats falling through.
  *
  * What is missing from this list is the honest measure of how far the 239
- * server is: PLAYER_INFO and NPC_INFO above all, whose v5 high/low-resolution
- * streams are a different codec rather than a different field order, and
- * without which no OldSchool client reaches the world.
+ * server is. PLAYER_INFO and NPC_INFO are now here; what is not is the
+ * long tail -- OBJ_ADD, P_COUNTDIALOG and UPDATE_PID among them, and those
+ * three because revision 239 has no such packet at all.
  */
 static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_OPENTOP,       PKT_NAME_IF_OPENSUB,      PKT_NAME_IF_CLOSESUB,
@@ -840,7 +863,8 @@ static const int k_transcribed_osrs239[] = {
      * forks to before writing a bit. It is listed here so the send is allowed;
      * NPC_INFO is deliberately still absent. */
     PKT_NAME_PLAYER_INFO,
-    /* Empty form only — mock239_npcinfo_write_empty. */
+    /* Also built whole by mock230_encode.c rather than by a field writer: the
+     * v5 stream is one bit section, not a list of fields. */
     PKT_NAME_NPC_INFO,
 
     /*
@@ -879,6 +903,7 @@ static const struct Mock230Wire k_wire_osrs239 = {
     .zone_sub_code = osrs239_zone_sub,
     .packetout_size = osrs239_out_size,
     .packetout_name = osrs239_out_name,
+    .packetout_prot_name = osrs239_out_prot_name,
     .translate_in = mock239_inbound_translate,
     .opcode_smart2 = 1,
     .payload = &k_payload_osrs239,

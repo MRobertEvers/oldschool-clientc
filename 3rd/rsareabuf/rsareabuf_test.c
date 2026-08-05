@@ -109,6 +109,26 @@ test_byte_orders(void)
     CHECK_EQ(buf.data[6], (0x34 + 128) & 0xff);
     CHECK_EQ(buf.data[7], 0x12);
 
+    /* The 24-bit permutations, transcribed from RSProt's JagByteBuf rather
+     * than derived — three of the four put b0 somewhere other than the top. */
+    rsab_rewind(&buf);
+    rsab_p3(&buf, 0x112233);
+    rsab_p3_alt1(&buf, 0x112233);
+    rsab_p3_alt2(&buf, 0x112233);
+    rsab_p3_alt3(&buf, 0x112233);
+    CHECK_EQ(buf.data[0], 0x11);
+    CHECK_EQ(buf.data[1], 0x22);
+    CHECK_EQ(buf.data[2], 0x33);
+    CHECK_EQ(buf.data[3], 0x33); /* alt1 = little endian */
+    CHECK_EQ(buf.data[4], 0x22);
+    CHECK_EQ(buf.data[5], 0x11);
+    CHECK_EQ(buf.data[6], 0x11); /* alt2 = [b0,b2,b1] */
+    CHECK_EQ(buf.data[7], 0x33);
+    CHECK_EQ(buf.data[8], 0x22);
+    CHECK_EQ(buf.data[9], 0x22); /* alt3 = [b1,b0,b2] */
+    CHECK_EQ(buf.data[10], 0x11);
+    CHECK_EQ(buf.data[11], 0x33);
+
     rsab_rewind(&buf);
     rsab_p4(&buf, 0x11223344);
     rsab_p4_alt1(&buf, 0x11223344);
@@ -144,6 +164,9 @@ test_roundtrip(void)
     rsab_p2_alt2(&buf, 0xBEEF);
     rsab_p2_alt3(&buf, 0xBEEF);
     rsab_p3(&buf, 0xABCDEF);
+    rsab_p3_alt1(&buf, 0xABCDEF);
+    rsab_p3_alt2(&buf, 0xABCDEF);
+    rsab_p3_alt3(&buf, 0xABCDEF);
     rsab_p4(&buf, 0x12345678);
     rsab_p4_alt1(&buf, 0x12345678);
     rsab_p4_alt2(&buf, 0x12345678);
@@ -163,6 +186,9 @@ test_roundtrip(void)
     CHECK_EQ(rsab_g2_alt2(&buf), 0xBEEF);
     CHECK_EQ(rsab_g2_alt3(&buf), 0xBEEF);
     CHECK_EQ(rsab_g3(&buf), 0xABCDEF);
+    CHECK_EQ(rsab_g3_alt1(&buf), 0xABCDEF);
+    CHECK_EQ(rsab_g3_alt2(&buf), 0xABCDEF);
+    CHECK_EQ(rsab_g3_alt3(&buf), 0xABCDEF);
     CHECK_EQ(rsab_g4(&buf), 0x12345678);
     CHECK_EQ(rsab_g4_alt1(&buf), 0x12345678);
     CHECK_EQ(rsab_g4_alt2(&buf), 0x12345678);

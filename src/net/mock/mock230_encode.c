@@ -27,6 +27,7 @@
 #include "net/wordpack.h"
 
 /* The client's framing table, for the length check in mock230_send. */
+#include "net/mock/mock230_scene.h"
 #include "net/rev/osrs230/packetin.h"
 /* The appearance vocabulary and every wire spelling of it — the writers below
  * choose an encoding, never a tag. */
@@ -156,14 +157,41 @@ check_frame_length(
     int var)
 {
     int framed;
-
-    if( var != 0 )
-        return;
     /* Through the wire adapter rather than the 230 table directly: the whole
      * point of the check is "does what this encoder wrote match what THIS
      * client frames", and which client that is now depends on the revision. */
+    int expect;
+
     framed = wire->payload_size ? wire->payload_size(opcode) : 0;
-    if( framed >= 0 && framed != len )
+    expect = framed == PKTIN_LENGTH_VARU8 ? 1 : framed == PKTIN_LENGTH_VARU16 ? 2 : 0;
+
+    /*
+     * The LENGTH CLASS is checked before the length, and it is the check that
+     * matters more.
+     *
+     * A fixed packet written at the wrong size costs one packet: the client
+     * reads the declared number of bytes either way and the next opcode is
+     * still on a boundary. Writing the wrong CLASS costs the connection --
+     * a one-byte length where the client reads two (or none) leaves every
+     * subsequent byte offset, so the client reads payload as opcodes until it
+     * hits something fatal and drops the socket. Nothing about that failure
+     * points back at the packet that caused it, and the packet itself was
+     * perfectly formed.
+     *
+     * This used to `return` whenever `var != 0`, which is to say it checked
+     * only the case that cannot desynchronise a stream and skipped the one
+     * that can.
+     */
+    if( expect != var )
+    {
+        static char const* const k_class[] = { "fixed", "var-u8", "var-u16" };
+
+        fprintf(stderr, "mock230: %s op %d (%s) sent as %s, client frames it as %s\n",
+                wire->name, opcode, mock230_wire_pkt_name(pkt_name),
+                k_class[var < 0 || var > 2 ? 0 : var], k_class[expect]);
+        return;
+    }
+    if( var == 0 && framed >= 0 && framed != len )
         fprintf(stderr,
                 "mock230: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
                 wire->name, opcode, mock230_wire_pkt_name(pkt_name), len, framed);
@@ -1212,8 +1240,8 @@ mock230_send_cam_reset(struct Mock230Player* player)
 void
 mock230_send_cam_moveto(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2)
@@ -1222,12 +1250,13 @@ mock230_send_cam_moveto(
     open_packet(&buf, 16);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
         if( pl && pl->cam_moveto )
-            pl->cam_moveto(&buf, local_x, local_z, height, rate, rate2);
+            pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, local_x);
-            rsab_p1(&buf, local_z);
+            rsab_p1(&buf, world_x - mock230_scene_base_x());
+            rsab_p1(&buf, world_z - mock230_scene_base_z());
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -1239,8 +1268,8 @@ mock230_send_cam_moveto(
 void
 mock230_send_cam_lookat(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2)
@@ -1249,12 +1278,13 @@ mock230_send_cam_lookat(
     open_packet(&buf, 16);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
         if( pl && pl->cam_lookat )
-            pl->cam_lookat(&buf, local_x, local_z, height, rate, rate2);
+            pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, local_x);
-            rsab_p1(&buf, local_z);
+            rsab_p1(&buf, world_x - mock230_scene_base_x());
+            rsab_p1(&buf, world_z - mock230_scene_base_z());
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2175,6 +2205,32 @@ mock230_send_set_player_op(
  * carries it too — a tile can hold a wall and a scenery loc at once, and the
  * shape says which one is meant.
  */
+/**
+ * The length class this revision frames a packet with: 0 fixed, 1 var-u8,
+ * 2 var-u16 -- the `var` argument `flush` wants.
+ *
+ * Exists because the class is a property of the REVISION, and the callers that
+ * used to pass a literal were stating 230's. See `check_frame_length`.
+ */
+static int
+wire_var_class(const struct Mock230Wire* wire, int pkt_name)
+{
+    int opcode;
+    int size;
+
+    if( !wire || !wire->payload_size )
+        return 0;
+    opcode = mock230_wire_opcode(wire, pkt_name);
+    if( opcode < 0 )
+        return 0;
+    size = wire->payload_size(opcode);
+    if( size == PKTIN_LENGTH_VARU8 )
+        return 1;
+    if( size == PKTIN_LENGTH_VARU16 )
+        return 2;
+    return 0;
+}
+
 static int
 zone_sub_opcode(int kind)
 {
@@ -2349,14 +2405,25 @@ mock230_send_zone_sub(
     const struct Mock230ZoneEvent* event)
 {
     struct RSAreaBuf buf;
+    const struct Mock230Wire* wire = wire_for(player);
     int opcode = zone_sub_opcode(event->kind);
 
     if( opcode < 0 )
         return;
-    open_packet(&buf, 16);
-    if( !zone_sub_payload(&buf, event, wire_for(player)) )
+    open_packet(&buf, 512);
+    if( !zone_sub_payload(&buf, event, wire) )
         return;
-    flush(player, &buf, opcode, 0);
+    /*
+     * The length class comes from the revision's table, not from a constant.
+     *
+     * These were all sent as fixed-size, which they are at 230. At 239
+     * LOC_ADD_CHANGE_V2 is VAR-U16, because it can carry a list of
+     * op-override strings; sending it fixed writes no length prefix at all,
+     * and the client reads the first two payload bytes as one and then keeps
+     * reading. The stream never recovers, so the symptom is the connection
+     * dropping some packets after a door opened -- not a wrong door.
+     */
+    flush(player, &buf, opcode, wire_var_class(wire, opcode));
 }
 
 void
@@ -2795,16 +2862,6 @@ mock230_send_npc_info(struct Mock230Player* player)
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
 
-        /*
-     * Revision 239's npc stream is its own codec, like PLAYER_INFO's — one bit
-     * section rather than the classic terminator-delimited list, and 16-bit npc
-     * indices rather than 14.
-     *
-     * The empty form is what is written today: no npcs. That is not parity, but
-     * it is the difference between a client that is told "no npcs this tick"
-     * and one that is told nothing at all — and a client that receives no
-     * NPC_INFO does not simply see an empty world, it waits.
-     */
     /*
      * Revision 239's npc stream.
      *
@@ -2852,6 +2909,17 @@ mock230_send_npc_info(struct Mock230Player* player)
             {
                 rsab_pbit(&buf, 1, 1);
                 rsab_pbit(&buf, 2, 3); /* remove */
+                /*
+                 * Clearing this is what lets the npc come BACK. `npc_tracked`
+                 * is the "this client already holds it" gate on the
+                 * entering-view scan below; leaving it set on a remove means
+                 * the npc is dropped from the client's list and can never be
+                 * re-added, so the world empties out one npc at a time as
+                 * things wander in and out of range -- a scene that starts
+                 * populated and is bare a few ticks later, with a perfectly
+                 * well-formed packet every tick.
+                 */
+                player->npc_tracked[slot] = 0;
                 continue;
             }
             kept[kept_count++] = slot;
@@ -2881,7 +2949,14 @@ mock230_send_npc_info(struct Mock230Player* player)
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
-            if( dx < -31 || dx > 31 || dz < -31 || dz > 31 )
+            /*
+             * The SAME radius the high-resolution loop keeps at, and it has to
+             * be. The 6-bit delta could carry +-31, but an npc added at 20 tiles
+             * is out of range on the very next tick, so it is removed, re-added,
+             * removed... every tick, and never renders. The wire's capacity is
+             * not the view distance.
+             */
+            if( dx < -15 || dx > 15 || dz < -15 || dz > 15 )
                 continue;
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;

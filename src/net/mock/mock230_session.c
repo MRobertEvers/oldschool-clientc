@@ -724,6 +724,34 @@ step_online(
         name = wire->packetout_name(session->pending_opcode);
 
         /*
+         * MOCK230_TRACE_IN=1 -- the client->server half, the mirror of
+         * MOCK230_TRACE_OUT. Prints the revision's own name for the opcode and
+         * whether anything routed it, because the two failures look identical
+         * from the game's side: a click that produces nothing because the
+         * opcode is unmapped, and one that produces nothing because the body
+         * was translated into the wrong numbers.
+         */
+        {
+            static int trace = -1;
+
+            if( trace < 0 )
+            {
+                char const* v = getenv("MOCK230_TRACE_IN");
+                trace = (v && *v && *v != '0') ? 1 : 0;
+            }
+            if( trace )
+            {
+                char const* prot = wire->packetout_prot_name
+                                       ? wire->packetout_prot_name(session->pending_opcode)
+                                       : NULL;
+
+                fprintf(stderr, "mock230: <- op %3d %-24s %d byte(s)%s\n",
+                        session->pending_opcode, prot ? prot : "?", payload_len,
+                        name == PKTOUT_NAME_NONE ? "  [no canonical name]" : "");
+            }
+        }
+
+        /*
          * The body may not be the one the handlers read. `translate_in`
          * rewrites it and can RENAME it -- at 239 one opcode covers what 230
          * splits into twenty -- so the name is re-read from its return value

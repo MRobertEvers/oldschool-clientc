@@ -248,6 +248,13 @@ struct Mock230Wire
     /** Wire opcode -> canonical PKTOUT_NAME_*, or PKTOUT_NAME_NONE. */
     int (*packetout_name)(int wire_opcode);
 
+    /** Wire opcode -> the revision's own INBOUND name, for logs. A separate
+     *  slot from `prot_name` because the two directions are separate tables
+     *  with separate numbering: opcode 114 is MOVE_GAMECLICK arriving and
+     *  RUNCLIENTSCRIPT leaving, so naming one with the other's table produces
+     *  a trace that is not merely unhelpful but actively misleading. */
+    char const* (*packetout_prot_name)(int wire_opcode);
+
     /**
      * Rewrite an inbound body into the one `mock230_world.c` reads, or NULL
      * when the revision's client already sends it.

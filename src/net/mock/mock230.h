@@ -4181,19 +4181,34 @@ mock230_send_if_sethide(
     int hide);
 void
 mock230_send_cam_reset(struct Mock230Player* player);
+/**
+ * Move / point the camera at a WORLD coordinate.
+ *
+ * World, not scene-local, and the distinction is the packet's whole content at
+ * revision 239: CamMoveToV2 and CamLookAtV2 carry 16-bit ABSOLUTE coordinates
+ * ("a specific coordinate in the root world"), where the classic packet carries
+ * a byte each of scene-local 0..103. Passing scene-local into the V2 body puts
+ * the camera near the world origin, thousands of tiles from the scene -- which
+ * renders as a black viewport with the subject a dot in the distance, not as
+ * anything that looks like a camera bug.
+ *
+ * So the caller states the coordinate and the encoder decides how to say it;
+ * the scene-local subtraction that used to be at the call site now lives beside
+ * the classic writer that needs it.
+ */
 void
 mock230_send_cam_moveto(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2);
 void
 mock230_send_cam_lookat(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2);
