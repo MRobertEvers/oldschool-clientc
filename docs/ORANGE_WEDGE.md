@@ -979,3 +979,85 @@ SDL_VIDEODRIVER=dummy TORIRS_WEDGE_CAM=7104,-743,5072,128,0 TORIRS_WEDGE_DRAWCEN
 No C rendering behaviour was changed for this section; the wedge telemetry is
 env-gated and inert when unarmed (terrain emit count is 2940 with the log on and
 2940 with it off at the identical pinned camera).
+
+---
+
+## 10. Falsification tests — what is now ruled out
+
+Two hypotheses tested and both eliminated. Recorded here because the workflow
+that produced them was cancelled before it wrote its own verdict section.
+
+### 10.1 The map data is identical across caches
+
+Region **9043 = map square 35_83** (world x 2240–2303, z 5312–5375), derived
+three independent ways — one of them from this repo's own content tree, where
+`minigame_inferno/configs/inferno.constant` declares
+`^inferno_template = 0_35_83_0_0`.
+
+**The 25 wedge tiles are byte-identical in every cache.** All 25 tiles across
+all 4 levels (100 rows) hash to one md5, `7a5a2eb84c937477583aeb3e3a5e7eb2`,
+for `cache.osrs239`, `cache.osrs230`, `cache.osrs184` **and** `cache.kronos`:
+
+```
+L0: underlay 0, overlay 152, attr_opcode 2 -> shape 0, rotation 0,
+    settings 1 (BLOCK), height byte 30 (h = -240)
+L1: empty, except scene (43,55) which has settings 8
+L2/L3: empty
+```
+
+`cache.rs254_zuk` carries the same geometry with ids remapped into the RS2
+floor table (overlay 152 → 102) — a namespace difference, not a shape one.
+
+**`attr_opcode 2` means shape 0, rotation 0: a plain full-tile overlay.** There
+is no diagonal, fan or trapezium tile shape anywhere in the wedge set, in any
+cache. The wedge *shape* is therefore not in the data; it is produced
+downstream, by projection.
+
+The `0x08` settings bit is identical everywhere too. The histogram over all
+16,384 tiles is byte-for-byte the same in all five caches —
+`{0: 12780, 1: 3226, 8: 378}` — the 378 bit-8 tiles are the same positions in
+all five (md5 `e6979e17cab7e3df6d83860792f0d347`), all at level 1, and that set
+matches the **live official client's census exactly**: 378 vs 378, empty diff.
+
+Of the 25 wedge tiles, exactly **one** has an `0x08` tile above it. That is a
+further nail in §1's superseded VIS_BELOW explanation.
+
+Kronos/184 carry the Inferno in full: 875 plane-0 overlay tiles, 870 underlay,
+and the same **2850 locs, diff 0** against osrs239. The whole square differs by
+three tiles across caches, none in or near the wedge.
+
+**Verdict: "the map data is different" is off the candidate list.**
+
+### 10.2 Single-pass painting does not cause it
+
+§9 established that the official at default settings paints twice into a depth
+buffer, and that the C client is a single-pass painter's-algorithm renderer —
+which made renderer architecture a plausible cause.
+
+It is not. Observed directly by the operator: the official client with `::zbuf 0`
+— single-pass `method4241` only, no depth buffer, i.e. the C client's
+architecture — **still does not render the wedge**, even though that path is
+otherwise broken and mostly black in this RuneLite build.
+
+**Verdict: architecture is off the candidate list.**
+
+### 10.3 Where that leaves it
+
+Eliminated: map data (§10.1), `VIS_BELOW` geometry (§9, §10.1), draw order
+(§9 — 293/300 concordant, and the official's own two passes agree with each
+other *less*), renderer architecture (§10.2).
+
+Still standing, both measured:
+
+| | evidence | explains |
+| --- | --- | --- |
+| projection scale 512 vs 191 (§1–§4) | read from each client's own state | **size** (2.68×) |
+| draw box centred on player, not camera (§9) | window z[23,73) vs z[14,64) | part of it — 29 px → 22 px |
+| follow-camera eye ~15% too close (§7) | official d≈1314, C d≈1113 | **position**, untested |
+
+The reframe that matters: the wedge is **not spurious geometry**. It is the
+same overlay-152 tiles the official draws — 8 px at y 213–220 hugging the wall
+there, 29 px at y 137–165 floating clear of it here. So the open question is not
+"where does this object come from" but **"why are these tiles projected to the
+wrong size *and place*"** — and a ~70 px vertical displacement is a position
+error, which scale alone does not explain.
