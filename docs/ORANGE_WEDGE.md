@@ -2172,3 +2172,27 @@ key 3 last).
 Verified: glyph scene — 39/39 planes before the wall, zero after; lattice
 checks still zero violations; settled pinned-eye wedge byte-stable at 96 px
 h=8; world-builder / occluders / net-exec / uitree suites green.
+
+### 25.1 The sort is paid once per tile per paint
+
+Review point taken: a tile can pop several times in one paint (span and
+footprint re-pushes), and the first cut re-sorted the ready batch at every
+pop. The chain's membership is fixed before the drain and the key depends
+only on the camera tile — constant for the whole paint — so one sort per
+tile is complete.
+
+`scenery_chain_sort_once` (painters_i.h) now relinks the tile's scenery
+CHAIN into reference order at the tile's first pop, latched by
+`TilePaint::scenery_sorted` (cleared in the classify pass). Every later
+pop's ready subset is collected in chain order, and an in-order subset of a
+sorted list is sorted — no per-pop work at all. The permutation moves
+(element_idx, span) pairs and leaves node topology alone;
+`tile_remove_scenery_element` unlinks by element payload, so stripped
+dynamics stay reset-safe. 0/1-element chains return before sorting; keys are
+computed once per element.
+
+Verified equivalence: the glyph-scene DRAW_ORDER stream is **byte-identical**
+to the per-batch-sort version (1153 commands), 39/39 planes still before the
+wall, settled wedge byte-stable, all suites green. The unit test now
+exercises the chain sort directly — order, span-follows-element, the
+once-per-paint latch, and no-op on a second call.

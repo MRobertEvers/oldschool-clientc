@@ -290,6 +290,7 @@ SRCS = main.c app.c platform/platform_sdl2.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
+	net/rev/osrs239/osrs239_entity_info.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -804,6 +805,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
+	$(OBJ_DIR)/osrs239_entity_info.o \
 	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/bitbuffer.o \

@@ -391,8 +391,26 @@ exec_zone_sub_packet_at(
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         src_tx = tile_x;
         src_tz = tile_z;
-        dst_tx = tile_x + pkt->dx_offset;
-        dst_tz = tile_z + pkt->dz_offset;
+        if( pkt->dst_abs )
+        {
+            /* Revision 239 states the landing point as an absolute CoordGrid;
+             * everything below the parse works in scene-local tiles, and the
+             * scene origin is the zone the last rebuild centred on, minus the
+             * six zones of margin the client keeps on each side. Applied as
+             * offsets, an absolute coord puts the arc a few tiles from the
+             * scene's south-west corner and the shot flies off the map. */
+            int origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
+            int origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+
+            dst_tx = pkt->dst_abs_x - origin_x;
+            dst_tz = pkt->dst_abs_z - origin_z;
+            level = pkt->dst_abs_level;
+        }
+        else
+        {
+            dst_tx = tile_x + pkt->dx_offset;
+            dst_tz = tile_z + pkt->dz_offset;
+        }
         App_WorldProjectileSpawn(
             app,
             src_tx,
@@ -1079,6 +1097,15 @@ RS_GameProto_Exec(
             {
                 ctx->app->minimap_flag_x = -1;
                 ctx->app->minimap_flag_z = -1;
+            }
+            else if( packet->_set_map_flag.absolute )
+            {
+                /* SetMapFlagV2 carries an absolute coord; the minimap draws in
+                 * scene-local tiles. Same origin the projectile decode uses. */
+                ctx->app->minimap_flag_x =
+                    packet->_set_map_flag.x - (ctx->app->rebuild_zone_x - 6) * 8;
+                ctx->app->minimap_flag_z =
+                    packet->_set_map_flag.z - (ctx->app->rebuild_zone_z - 6) * 8;
             }
             else
             {

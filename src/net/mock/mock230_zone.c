@@ -370,6 +370,30 @@ mock230_zone_loc_find(
     return zone ? loc_in(zone, x, z, shape) : NULL;
 }
 
+struct Mock230ZoneLoc*
+mock230_zone_loc_find_id(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int loc_id)
+{
+    struct Mock230Zone* zone = zone_find(srv, x, z, level);
+
+    if( !zone )
+        return NULL;
+    for( int i = 0; i < zone->loc_count; i++ )
+    {
+        struct Mock230ZoneLoc* loc = &zone->locs[i];
+
+        /* `loc_id < 0` records a deletion — the tile *had* this loc and no
+         * longer does, which is exactly what a find must not answer with. */
+        if( loc->x == x && loc->z == z && loc->loc_id == loc_id && loc->loc_id >= 0 )
+            return loc;
+    }
+    return NULL;
+}
+
 void
 mock230_zone_loc_changed(
     struct Mock230Server* srv,

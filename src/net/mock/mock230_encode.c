@@ -2600,6 +2600,15 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
+             * one since it was written; without the pair, "the animation did
+             * not play" cannot be split into "the server never set the mask"
+             * and "the client dropped the block". */
+            if( getenv("MOCK230_EXT_DEBUG") )
+                fprintf(stderr,
+                        "ext player: masks=0x%x hit=%d/%d seq=%d/%d appearance=%d\n",
+                        player->masks, ext.hit_type, ext.hit_value, ext.seq_id,
+                        ext.seq_delay, (int)rsab_len(&ap));
             mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
                                      player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);

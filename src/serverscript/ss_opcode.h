@@ -444,10 +444,12 @@
 #define SS_OP_NPC_SETRESPAWN 11015
 #define SS_OP_INV_SETVAR 11016
 #define SS_OP_INV_GETVAR 11017
+#define SS_OP_NPC_FREEZE 11018
+#define SS_OP_NPC_FROZEN 11019
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11018
+#define SS_OPCODE_MAX 11020
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 422
+#define SS_OPCODE_COUNT 424
 
 #endif

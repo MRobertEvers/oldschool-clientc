@@ -2412,6 +2412,46 @@ inactive, `is_static` set, its slot never handed to a `loc_add` — because the
 square still has a loc on that tile and "it has been removed" has to stay
 addressable.
 
+### The loc family reaches the whole world, not the scene window
+
+The reference's `World.getLoc` / `World.addLoc` resolve through
+`gameMap.getZone(x, z, level)` — every zone, always resident. Ours held one
+104×104 window, and the mutating loc opcodes refused everything outside it:
+`loc_add` aborted ("outside the scene"), `loc_find` answered false, `loc_del`
+had nothing to address. Content is entitled to the reference's reach —
+puro-puro's crop circle rotates through eight farms and at most one is ever
+near a player, so its softtimer aborted every 50 ticks from login onward.
+
+Since the ZoneMap is already the world-indexed durable authority (above), the
+window was only ever a *scene* limitation, not a world one:
+
+- **`mock230_world_loc_set` out of scene** records the mutation in the ZoneMap
+  and skips the scene halves (collision, the slot array);
+  `mock230_world_locs_reapply` puts the record onto the scene if the window
+  ever moves over it, and the zone event still queues for whoever holds the
+  zone. What this cannot capture is the map square's own loc on that tile —
+  `base` stays -1 — so an out-of-scene add onto a tile whose square holds a
+  same-shape static loc records "nothing was here" and a later revert removes
+  rather than restores. Reading the square from the cache on that path would
+  fix it; nothing needs it yet.
+- **The active-loc handle has two kinds** (`mock230_script_loc_resolve`):
+  positive is `scene slot + 1` as before; negative names a ZoneMap record by
+  its `(x, z, level, shape)` key through a small recycling key table in
+  mock230_scripts.c — a key rather than a record index because
+  `mock230_zone_loc_changed` retires records by swap-remove. `loc_find` hands
+  one back for an out-of-scene runtime loc; `loc_add` leaves one active when
+  it adds beyond the window; `loc_del`/`loc_change`/`loc_anim` work through it
+  because they re-key on coordinates anyway. Static map locs outside the
+  window stay invisible to `loc_find` — the ZoneMap is the diff, not the map.
+
+Same commit, adjacent bug: `loc_find` was answering through
+`mock230_scene_find_loc`, the *click* resolver, whose any-loc fallback exists
+so a stale OPLOC id still opens the door somebody else already opened. Through
+it, `loc_find(coord, X)` reported true for **any** loc on the tile — puro's
+clear pass `loc_del`ed whatever the map had standing near a circle site. It
+now asks `mock230_scene_find_loc_id`: corner tile and type both exact, the
+reference's `Zone.getLoc(x, z, locId)`.
+
 ### The npc cap was a wire field standing in for a world capacity
 
 `MOCK230_NPC_MAX` was 256, annotated "the tracked count is an 8-bit field on the

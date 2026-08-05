@@ -257,8 +257,21 @@ w239_update_runweight(struct RSAreaBuf* buf, int kilograms)
 static void
 w239_update_stat(struct RSAreaBuf* buf, int stat, int level, int xp, int boosted)
 {
+    /*
+     * `currentLevel` is the BOOSTED level -- "boosted or drained", in RSProt's
+     * own words -- and `invisibleBoostedLevel` is the same number with invisible
+     * boosts folded in. The base level is not on this wire at all: the client
+     * derives it from the experience.
+     *
+     * Written the other way round (base into currentLevel), every stat orb and
+     * every skill-tab number reads the base level, so a boost or a drain is
+     * simply invisible -- and the packet is the right length with plausible
+     * values in it. This server models no invisible boost, so both fields carry
+     * the same value rather than one carrying a base level that has no slot.
+     */
+    (void)level;
     rsab_p1(buf, boosted);
-    rsab_p1(buf, level);
+    rsab_p1(buf, boosted);
     rsab_p1_alt1(buf, stat);
     rsab_p4_alt2(buf, xp);
 }
@@ -740,8 +753,12 @@ w239_zone_payload(
      * widths are the id space growing, and a two-byte write here truncates a
      * real index into a different entity.
      *
-     * `progress` is how far along the flight already is, which this server
-     * never starts mid-flight, so it is zero.
+     * The two flight-shape fields are `angle` and `progress`, and they are the
+     * content-facing `$angle` and `$offset` of `projanim_pl`/`projanim_npc` --
+     * the same pair the classic packet carries as `peak` and `arc`, in the same
+     * order. `progress` is documented in fine coords (128 per game square),
+     * which is exactly the unit `World_ProjectileSpawn`'s `startpos` already
+     * uses, so neither needs scaling.
      */
     case PKT_NAME_MAP_PROJANIM:
     {
@@ -756,7 +773,7 @@ w239_zone_payload(
                          (event->dst_z & 0x3fff);
         rsab_p2(buf, event->start_delay);
         rsab_p1(buf, pos);
-        rsab_p2_alt2(buf, 0);
+        rsab_p2_alt2(buf, event->arc);
         rsab_p2_alt2(buf, id);
         rsab_p2_alt1(buf, event->end_delay);
         rsab_p4_alt1(buf, end_packed);
@@ -775,7 +792,7 @@ w239_zone_payload(
          * `projanim` op names a source COORD, not an entity, so there is no
          * index to give -- the shot already starts from the right tile. */
         w239_p3_alt2(buf, 0);
-        rsab_p1_alt2(buf, event->arc);
+        rsab_p1_alt2(buf, event->peak);
         rsab_p2(buf, event->src_height * 4);
         /*
          * The target index, in the CLIENT's numbering.

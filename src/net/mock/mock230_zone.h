@@ -386,6 +386,19 @@ mock230_zone_loc_find(
     int level,
     int shape);
 
+/** The record on this tile currently holding `loc_id`, or NULL. This is
+ *  `loc_find`'s reach beyond the scene window: a runtime-added loc is
+ *  addressable anywhere in the world, the way the reference's
+ *  `World.getLoc` is. Static map locs outside the scene are not visible
+ *  here — the ZoneMap is the diff, not the map. */
+struct Mock230ZoneLoc*
+mock230_zone_loc_find_id(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int loc_id);
+
 /** Walk every recorded loc change in the world. Used by the rebuild, which has
  *  to put all of them back onto a scene that was just re-read from the cache. */
 void

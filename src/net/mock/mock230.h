@@ -262,7 +262,22 @@ enum
      * Still a flat per-player array (docs/osrs230_mockserver.md §6.1 wants it
      * sparse); this makes it correct before it makes it small. */
     MOCK230_VARP_CACHE_MAX = 5705,
-    MOCK230_VARP_SERVER_HEADROOM = 512,
+    /*
+     * Room above the cache for the tree's own varps, and it is a MEASUREMENT.
+     *
+     * 512 was a guess and the tree outgrew it: `configs/all.varp.compack` now
+     * reaches 6223 where the array reached 6216, and the seven ids over the end
+     * were the `%com_*` block the combat stats are computed into. The symptom
+     * was not "combat is slightly wrong" — `[proc,player_combat_stat]` aborted
+     * on `POP_VARP` every time an npc swung, so `[ai_opplayer2,_]` never
+     * finished, the goblin never hit back, and the fight ran to the selftest's
+     * 200-tick cap. A varp allocation is content's to make (PORTING_GUIDE
+     * §2.4 item 4) and this array is the engine's floor beneath it, so the
+     * floor is now checked rather than assumed: `mock230_content_load` refuses
+     * to boot when the tree declares a varp this cannot hold, and says by how
+     * much.
+     */
+    MOCK230_VARP_SERVER_HEADROOM = 1024,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
     /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
      * handful per kill, and they expire. */
@@ -1365,6 +1380,25 @@ struct Mock230Interaction
     int ap_tried;
 
     /**
+     * How far away the `[ap*]` trigger fires, and whether the script asked.
+     *
+     * `p_aprange(N)` is content saying "I am not finished — call me again when
+     * I am within N", and it is how a ranged action states its own reach: the
+     * combat scripts open with it, so an attack from ten tiles resolves at the
+     * weapon's range rather than by walking into melee. The reference resets
+     * both to (10, false) on every `setInteraction`/`clearInteraction`
+     * (`PathingEntity.ts:541`), which is what `MOCK230_AP_RANGE_DEFAULT` is.
+     *
+     * `ap_range_called` is what stops the interaction from being cleared after
+     * the trigger ran: an ap script that called `p_aprange` did NOT act, so the
+     * walk has to continue and the trigger has to be allowed to fire again.
+     * Without it the first `p_aprange` looks like a completed interaction and
+     * the attack silently never happens.
+     */
+    int ap_range;
+    int ap_range_called;
+
+    /**
      * "Use <this item> on it" rather than "do op <n> to it".
      *
      * A use-on click is an interaction like any other — it latches, it walks,
@@ -1559,6 +1593,27 @@ struct Mock230Npc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+
+    /**
+     * Tick at which this npc stops being frozen — `npc_freeze(ticks)`.
+     *
+     * A freeze stops *movement* and nothing else: a frozen npc still attacks
+     * anything already in reach, still retaliates and still runs its queues.
+     * That is what OldSchool's Ice spells do, and it is why this is not
+     * `delayed_until`, which gates the queue drain and would silently make a
+     * frozen npc stop fighting too.
+     *
+     * Gated in `npc_take_step` rather than at each caller: wandering, going
+     * home and closing on a target are three call sites of one step, and a
+     * freeze that only covered some of them is the bug this field exists to
+     * make impossible.
+     *
+     * A countdown of ticks remaining, not an absolute expiry tick, because
+     * `npc_take_step` is handed an npc and not the server — an absolute clock
+     * would mean threading `srv` through five call sites to answer "what tick
+     * is it". Decremented once per npc phase, next to the delay it sits beside.
+     */
+    int frozen_ticks;
 
     /**
      * What this npc is *doing*, from `npc_setmode` — LostCity's `npcmode`
@@ -3538,6 +3593,13 @@ mock230_scripts_release_state(
     struct SSVM_State* state);
 
 /**
+ * Run a script by id on the active player. The walktrigger's firing path; see
+ * the definition for why it is not a general script-call hook.
+ */
+void
+mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id);
+
+/**
  * One rung, no chain — `ScriptProvider.getByTriggerSpecific`.
  *
  * `type` if it is not -1, else `category` if it is not -1, else the global form.
@@ -4003,6 +4065,30 @@ mock230_script_command(
     struct SSVM_State* state,
     int opcode,
     int dot);
+
+/*
+ * The active-loc handle, both kinds (mock230_scripts.c).
+ *
+ * Positive is `scene slot + 1`; negative names a ZoneMap record by key, which
+ * is how a script addresses a loc the scene window does not cover — the
+ * reference's `World.getLoc` reaches every zone and content leans on that.
+ * `mock230_script_loc_resolve` decodes either, re-validating against the live
+ * scene / ZoneMap, and returns NULL when the loc is gone. A zone-backed result
+ * is a borrowed view valid until the next resolve; consumers copy what they
+ * need, and mutations re-key on coordinates anyway.
+ */
+struct Mock230SceneLoc*
+mock230_script_loc_resolve(
+    struct Mock230Server* srv,
+    void* handle_ptr);
+
+/** A handle for the ZoneMap record at this key, for SSVM_SetActive. */
+void*
+mock230_script_zone_loc_handle(
+    int x,
+    int z,
+    int level,
+    int shape);
 
 /*
  * Per-domain opcode handlers (`mock230_ops_*.c`).

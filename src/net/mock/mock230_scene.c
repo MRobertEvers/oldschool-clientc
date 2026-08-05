@@ -998,6 +998,33 @@ mock230_scene_find_loc(
 }
 
 int
+mock230_scene_find_loc_id(
+    int x,
+    int z,
+    int level,
+    int loc_id)
+{
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        struct Mock230SceneLoc* loc = &g_locs[i];
+
+        /* The loc's own south-west corner and its own id, both exact: this is
+         * `loc_find`'s question, and the reference answers it with
+         * `Zone.getLoc(x, z, locId)` — locs keyed by their corner tile,
+         * filtered by type. `mock230_scene_find_loc`'s footprint-plus-fallback
+         * is the *click* resolver and deliberately answers a different
+         * question; asking it here made `loc_find(coord, X)` report true for
+         * any loc standing on the tile. */
+        if( !loc->active || loc->level != level )
+            continue;
+        if( loc->x != x || loc->z != z || loc->loc_id != loc_id )
+            continue;
+        return i;
+    }
+    return -1;
+}
+
+int
 mock230_scene_find_loc_exact(
     int x,
     int z,

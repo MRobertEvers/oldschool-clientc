@@ -19,7 +19,7 @@
 
 /** Far plane for bounding-cylinder frustum cull. */
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
-#define TORIDRAW_CYLINDER_FAR_PLANE_Z 6000
+#define TORIDRAW_CYLINDER_FAR_PLANE_Z 7500
 
 static inline int
 div3_fast_fixedpoint(int z_sum)
@@ -110,8 +110,14 @@ ToriDraw_FastCull(
     int ortho_screen_x_min = mid_x - model_edge_radius;
     int ortho_screen_x_max = mid_x + model_edge_radius;
 
-    int screen_x_min_unoffset = project_divide(ortho_screen_x_min, mid_z, toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    int screen_x_max_unoffset = project_divide(ortho_screen_x_max, mid_z, toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_x_min_unoffset = project_divide(
+        ortho_screen_x_min,
+        mid_z,
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_x_max_unoffset = project_divide(
+        ortho_screen_x_max,
+        mid_z,
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
     int screen_edge_width = view_port->width >> 1;
 
     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
@@ -123,10 +129,14 @@ ToriDraw_FastCull(
         (bc->center_to_bottom_edge * RSCacheDat2A_NoiseCosTable[camera_pitch] >> 16) +
         (model_edge_radius * g_sin_table[camera_pitch] >> 16);
 
-    int screen_y_min_unoffset =
-        project_divide(mid_y - abs(model_center_to_bottom_edge), mid_z, toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    int screen_y_max_unoffset =
-        project_divide(mid_y + abs(model_center_to_top_edge), mid_z, toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_y_min_unoffset = project_divide(
+        mid_y - abs(model_center_to_bottom_edge),
+        mid_z,
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_y_max_unoffset = project_divide(
+        mid_y + abs(model_center_to_top_edge),
+        mid_z,
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
     int screen_edge_height = view_port->height >> 1;
     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
         return TORIDRAW_CULL_FAST;
