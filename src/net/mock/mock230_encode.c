@@ -208,6 +208,48 @@ mock230_send(
 
     check_frame_length(wire, pkt_name, opcode, len, var);
 
+    /*
+     * MOCK230_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
+     * name for it.
+     *
+     * The only view of the stream that exists. The client is obfuscated: when
+     * it dies it prints a ring of recent opcodes and a stack of one-letter
+     * method names, and matching that ring against what was actually sent is
+     * the whole diagnosis. Named from the revision's table (`prot_name`) rather
+     * than the canonical enum so a line can be grepped straight into RSProt.
+     *
+     * Guarded by an env lookup cached in a static: this is on the path of every
+     * packet of every tick, and `getenv` per packet is measurable.
+     */
+    {
+        static int trace = -1;
+
+        if( trace < 0 )
+        {
+            char const* v = getenv("MOCK230_TRACE_OUT");
+            trace = (v && *v && *v != '0') ? (*v == '2' ? 2 : 1) : 0;
+        }
+        if( trace )
+        {
+            char const* prot = wire->prot_name ? wire->prot_name(opcode) : NULL;
+
+            fprintf(stderr, "mock230: -> op %3d %-28s %d byte(s)", opcode,
+                    prot ? prot : "?", len);
+            /* MOCK230_TRACE_OUT=2 adds the body. Capped because PLAYER_INFO's
+             * init block is 4608 bytes and would bury everything around it. */
+            if( trace > 1 )
+            {
+                int const cap = len < 48 ? len : 48;
+
+                for( int i = 0; i < cap; i++ )
+                    fprintf(stderr, " %02x", payload[i]);
+                if( cap < len )
+                    fprintf(stderr, " ...");
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
     /* Above the fd check on purpose: the selftest runs with no socket, and this
      * is the one point every encoder has already passed through with its
      * payload built. Recording here makes all of them observable without any

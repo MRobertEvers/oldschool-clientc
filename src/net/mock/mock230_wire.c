@@ -445,11 +445,52 @@ w239_friendlist_loaded(struct RSAreaBuf* buf, int status)
  * form puts the COUNT first and the id second, the partial form the other way
  * round, and their overflow escapes use different byte orders.
  */
+/*
+ * UpdateInvFullEncoder / UpdateInvPartialEncoder: pCombinedId, p2 inventoryId,
+ * and (full only) p2 capacity.
+ *
+ * THE COMBINED ID IS DISCARDED, and that is the packet's contract at this
+ * revision rather than a simplification. RSProt states it twice, once as a
+ * runtime check and once as a deprecation on the only constructor that can
+ * produce a positive value:
+ *
+ *     require(combinedId < 0) {
+ *         "Positive combined id will always lead to crashing as the client no
+ *          longer supports it."
+ *     }
+ *     @Deprecated("Interface Id/Component Id are no longer supported by the
+ *                  client, guaranteed crashing.")
+ *
+ * An IF1-era client painted an inventory by writing the objs INTO the named
+ * component's item array. IF3 components have no such array, so the client
+ * dereferences a null field and dies -- which is exactly what a real client did
+ * here, every login, on the first UPDATE_INV_FULL:
+ *
+ *     Client error: 22,97,12,14,...
+ *     NullPointerException: Cannot read the array length because "<local9>.fv"
+ *     is null
+ *
+ * -- opcode 22 (UPDATE_INV_FULL), 14 bytes, whose body began `00 95 00 00`:
+ * interface 149, component 0. It reads as a disconnect rather than a crash,
+ * because the client's answer to a fatal packet is to drop the connection and
+ * return to the login screen; nothing in the server log looks wrong.
+ *
+ * -1 is the value for a normal IF3 interface. (Values below -70000 mark a
+ * MIRRORED inventory -- the trade/partner case, where two components share one
+ * inv id. Nothing here mirrors, and if something does the caller will have to
+ * say so, because this layer cannot tell.)
+ *
+ * The binding a positive id used to carry is not lost: at IF3 the interface
+ * says which inv it paints, and the server's part is only to keep that inv's
+ * contents current.
+ */
+#define OSRS239_INV_COMBINED_ID_NONE (-1)
 static void
 w239_inv_header(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
                 int capacity)
 {
-    rsab_p4(buf, uid);
+    (void)uid;
+    rsab_p4(buf, (uint32_t)OSRS239_INV_COMBINED_ID_NONE);
     rsab_p2(buf, container);
     if( pkt_name == PKT_NAME_UPDATE_INV_FULL )
         rsab_p2(buf, capacity);
