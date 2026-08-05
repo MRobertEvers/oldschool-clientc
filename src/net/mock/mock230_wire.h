@@ -249,6 +249,38 @@ struct Mock230Wire
     int (*packetout_name)(int wire_opcode);
 
     /**
+     * Rewrite an inbound body into the one `mock230_world.c` reads, or NULL
+     * when the revision's client already sends it.
+     *
+     * A THIRD slot rather than a smarter `packetout_name`, because inbound the
+     * client writes the bytes and we do not get to choose them. Two things a
+     * name lookup cannot express turn up at 239:
+     *
+     *  - the fields inside a packet moved. `OPLOC1_V2` is
+     *    `z, x, ctrl, subop, id` where the 230 body is `x, z, id`: the same
+     *    length, the same opcode after the table maps it, and not one field in
+     *    the same place. The packet frames, so the stream never desynchronises
+     *    and nothing is logged; the interaction just names a loc that is not
+     *    there;
+     *
+     *  - a family collapsed into one opcode. IF_BUTTON1..10, OPHELD1..5 and
+     *    INV_BUTTON1..5 are all `IF_BUTTONX` at 239 with the op number in the
+     *    payload, so ONE wire opcode has to resolve to one of twenty canonical
+     *    names -- which is why this returns a name and not a length.
+     *
+     * NULL for 230, whose client is this repo's own and writes what the
+     * handlers read by construction.
+     */
+    int (*translate_in)(
+        int wire_opcode,
+        int name,
+        uint8_t const* in,
+        int in_len,
+        uint8_t* out,
+        int out_cap,
+        int* out_len);
+
+    /**
      * 1 = opcodes >= 0x80 are written as TWO stream-cipher bytes
      * (`(op >> 8) | 0x80`, then `op & 0xFF`) -- RSProt's pSmart1Or2Enc.
      *

@@ -293,6 +293,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
 	net/mock/mock239_playerinfo.c \
+	net/mock/mock239_inbound.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \

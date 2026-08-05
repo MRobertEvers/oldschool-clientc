@@ -722,7 +722,34 @@ step_online(
             break; /* body still in flight; nothing consumed */
 
         name = wire->packetout_name(session->pending_opcode);
-        if( name == PKTOUT_NAME_NONE )
+
+        /*
+         * The body may not be the one the handlers read. `translate_in`
+         * rewrites it and can RENAME it -- at 239 one opcode covers what 230
+         * splits into twenty -- so the name is re-read from its return value
+         * rather than kept from the table. See mock230_wire.h.
+         */
+        if( wire->translate_in )
+        {
+            uint8_t xlat[MOCK230_SESSION_IN_MAX];
+            int xlat_len = 0;
+            int translated = wire->translate_in(session->pending_opcode, name,
+                                                session->in + len_bytes, payload_len, xlat,
+                                                (int)sizeof(xlat), &xlat_len);
+
+            if( translated == PKTOUT_NAME_NONE )
+            {
+                if( session->verbose )
+                    fprintf(stderr, "mock230: <- op %d (%d bytes) not translated, dropped\n",
+                            session->pending_opcode, payload_len);
+            }
+            else
+            {
+                (void)srv;
+                mock230_world_handle(session->player, translated, xlat, xlat_len);
+            }
+        }
+        else if( name == PKTOUT_NAME_NONE )
         {
             if( session->verbose )
                 fprintf(stderr, "mock230: <- unknown op %d (%d bytes)\n",

@@ -1,5 +1,7 @@
 #include "mock230_wire.h"
 
+#include "mock239_inbound.h"
+
 #include "net/rev/osrs230/packetin.h"
 #include "net/rev/osrs230/packetout.h"
 #include "net/rev/osrs239/packetin.h"
@@ -836,6 +838,7 @@ static const struct Mock230Wire k_wire_osrs239 = {
     .zone_sub_code = osrs239_zone_sub,
     .packetout_size = osrs239_out_size,
     .packetout_name = osrs239_out_name,
+    .translate_in = mock239_inbound_translate,
     .opcode_smart2 = 1,
     .payload = &k_payload_osrs239,
     .transcribed = k_transcribed_osrs239,
