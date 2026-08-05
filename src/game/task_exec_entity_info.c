@@ -78,7 +78,7 @@ struct Task_ExecPlayerInfo
     int seq_i;
     int pending_seq;
     int pending_delay;
-    int held_vals[2]; /* replaceheld left/right (encoded appearance values) */
+    int held_vals[2]; /* replaceheld left/right, as canonical appearance slots */
 };
 
 static int
@@ -494,10 +494,12 @@ Task_ExecPlayerInfo_Run(
                         self->pending_seq >= 0
                             ? ToriDraw_SceneAnimationGet(app->scene, self->pending_seq)
                             : NULL;
-                    self->held_vals[0] = prim ? prim->replaceheldleft : -1;
-                    self->held_vals[1] = prim ? prim->replaceheldright : -1;
+                    self->held_vals[0] =
+                        Appearance_FromCacheValue(prim ? prim->replaceheldleft : -1);
+                    self->held_vals[1] =
+                        Appearance_FromCacheValue(prim ? prim->replaceheldright : -1);
                 }
-                /* Obj configs first — the seq's replacehead values are appearance
+                /* Obj configs first — the seq's replaceheld values are appearance
                  * slots, so only an obj-range one names an obj; anything lower
                  * hides the item and needs no model. */
                 for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )

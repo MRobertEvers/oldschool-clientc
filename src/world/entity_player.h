@@ -28,7 +28,9 @@ struct WorldEntity_Player
      * (reference ClientPlayer.getSequencedModel: a primary seq's
      * replaceheldleft/right swaps the left-hand/right-hand worn item). -1 =
      * base appearance is on the element (no active override); >= 0 = the model
-     * was rebuilt with this value in slot 5 (left) / slot 3 (right). Tracked so
+     * was rebuilt with this canonical appearance slot (pkt_player_appearance.h)
+     * in slot 5 (left) / slot 3 (right), where an empty one hides the held item
+     * rather than swapping it. Tracked so
      * the model is rebuilt only when the effective override changes. */
     int held_left_applied;
     int held_right_applied;

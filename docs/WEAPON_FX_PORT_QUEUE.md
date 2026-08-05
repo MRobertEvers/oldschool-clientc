@@ -167,8 +167,8 @@ wave 3 (sharded)    G(11), then G(12) one weapon per agent
 | 8 | Swing sounds through content | F | blocked | 1, 7, **3 or 5** (bar only) |
 | 9 | Seq frame sounds (client) | D | done | — |
 | 10 | Special attack obj table | E | done (orb bar unproven) | — |
-| 11 | Special attack FX | G | pending | 8, 10 |
-| 12 | Special attack behaviour | G | pending | 11 |
+| 11 | Special attack FX | G | 10 of ~46 written; unreachable | 8, 10; **needs an `sa_kind` wiring owner** |
+| 12 | Special attack behaviour | G | pending | 11; same wiring owner |
 
 **Statuses above were re-derived from the tree on 2026-08-04, not carried
 forward.** Slices 1, 6, 7 and 9 had been completed by an earlier run that did
@@ -905,6 +905,40 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   Read through the real movement path (`World_UpdateMoverMovementAndAnimation` →
   `World_ApplySecondaryAnim`), not inferred from the config file. **Row written
   and row read.** The `equipment_sound` half remains blocked and absent.
+
+  **Slice 11: 10 of ~46 Kronos specs written, 5 proven at runtime.** Files:
+  `pvm_{dragon_claws,dragon_warhammer,dragon_scimitar,dragon_halberd,abyssal_whip,ags,bgs,zgs,granite_maul,abyssal_dagger}.rs2`.
+  Spotanim ids were resolved by extending the tool's own pattern (rsmod
+  `spotanim.sym` × RuneLite `SpotanimID.java`, existence-checked against
+  `configs/all.spotanim`) rather than hand-copied. Runtime `seq_id` measured at
+  an lldb breakpoint on `mock230_anim_play_player`: dragon_claws 7514,
+  dragon_warhammer 1378, dragon_scimitar 1872, dragon_halberd 1203 (no synth —
+  correctly none expected), abyssal_whip 1669; the four with sound also logged
+  `sound_synth(2537/2541/2529/2713, 1, 0)`. Temporary `[debugproc]` hooks used to
+  reach the labels were removed and the removal verified. The other five
+  (ags/bgs/zgs/granite_maul/abyssal_dagger) are **not** individually
+  runtime-verified.
+
+  **A Kronos id corrected against the cache.** Kronos states
+  `player.animate(1658)` for the whip special, and 1658 cross-checks cleanly —
+  but to `slayer_abyssal_whip_attack`, the whip's *normal* attack (RuneLite's
+  neighbours 1658 attack / 1659 defend / 1660 walk / 1661 run make that plain).
+  The dedicated special is **1669 `slayer_whip_sp_attack`** — which is the name
+  this queue's own slice-11 bar lists. Used 1669; Kronos is rev 184 and the live
+  cache wins. **A clean cross-check is not the same as the right id**, and this
+  is the second time on this port that a "verified" number was verified against
+  the wrong thing.
+
+  **A pre-existing cache gap, not a lane defect:** `dragon_claws_spot` resolves
+  correctly to runtime spotanim 5749, but the client logs
+  `Failed to load dat2 spotanim 5749` — the model is not baked into this cache
+  build. Id resolution is provably right; the asset is missing.
+
+  36 Kronos specials remain unwritten; they are named in the agent's report
+  (14 melee, 11 ranged + a `bolts/` subfolder, 1 magic, 4 skilling).
+
+  Standing bar after slice 11: `--check` `0 problem(s)`,
+  `compiled 12379 scripts`, pack `0 error(s), 17 warning(s)`.
 
   **Slice 10's bar is only partly met and is recorded that way.** Equipping two
   of the 38 new weapons (`darkbow_blue`, `ancient_goblin_mace`) was confirmed

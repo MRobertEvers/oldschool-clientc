@@ -333,7 +333,8 @@ test_appearance_decode(void)
     int ok = PktPlayerAppearance_Decode(&app, w.buf, bw_len(&w));
     assert(ok);
     assert(app.gender == 0);
-    assert(app.slots[2] == 0x100 + 18);
+    /* The wire's tag becomes the canonical slot, not the number on the wire. */
+    assert(app.slots[2] == Appearance_PackKit(18));
     assert(app.colors[3] == 3);
     assert(app.readyanim == 808);
     assert(app.turnanim == -1);

@@ -58,12 +58,20 @@ enum AppearanceSlotKind
 /*
  * The canonical packing the engine's int[12] carries.
  *
- * It happens to equal the classic wire tags, which is exactly why the wire
- * spelling leaked into the renderers in the first place. Renderers use the
- * helpers below; only the readers and writers in this module touch the wire.
+ * Deliberately NOT the classic wire tags, which is what it used to be — and
+ * being the same number is exactly why the wire spelling leaked into the
+ * renderers in the first place. It is also too narrow to be the engine's:
+ * `0x100 + kit` leaves 256 kit ids before it collides with the obj range, and
+ * the osrs239 cache ships 307 identity kits, so kit 300 packed the classic way
+ * reads back as obj 44 — a valid, wrong item. The canonical ranges are wide
+ * enough for every id either wire can carry; the narrow wire tags are applied
+ * only at the wire, by Appearance_WirePack.
+ *
+ * Renderers use the helpers below; only the readers and writers in this module
+ * touch the wire.
  */
-#define APPEARANCE_PACK_KIT 0x100
-#define APPEARANCE_PACK_OBJ 0x200
+#define APPEARANCE_PACK_KIT 0x10000
+#define APPEARANCE_PACK_OBJ 0x20000
 
 static inline int
 Appearance_PackKit(int kit_id)
@@ -148,19 +156,35 @@ Appearance_WireObjTag(enum AppearanceEncoding encoding)
                                          : APPEARANCE_WIRE_OBJ_TAG_CLASSIC;
 }
 
-/** Canonical slot -> the word this encoding puts on the wire (0 = empty, and
- *  an empty slot costs one byte where anything else costs two). */
+/**
+ * Canonical slot -> the word this encoding puts on the wire (0 = empty, and an
+ * empty slot costs one byte where anything else costs two).
+ *
+ * An id the encoding cannot carry comes back as 0 — an empty slot, i.e. a
+ * missing body part — rather than as a tagged word that would land in the next
+ * range and draw something else entirely. The classic block has room for 256
+ * kits and the 239 block for 1792, so this is reachable: the osrs239 cache
+ * ships 307 identity kits.
+ */
 static inline int
 Appearance_WirePack(
     enum AppearanceEncoding encoding,
     int packed)
 {
+    int const obj_tag = Appearance_WireObjTag(encoding);
+
     switch( Appearance_SlotKind(packed) )
     {
     case APPEARANCE_SLOT_KIT:
-        return APPEARANCE_WIRE_KIT_TAG + Appearance_SlotKit(packed);
+    {
+        int kit = APPEARANCE_WIRE_KIT_TAG + Appearance_SlotKit(packed);
+        return kit >= obj_tag ? 0 : kit;
+    }
     case APPEARANCE_SLOT_OBJ:
-        return Appearance_WireObjTag(encoding) + Appearance_SlotObj(packed);
+    {
+        int obj = obj_tag + Appearance_SlotObj(packed);
+        return obj >= APPEARANCE_WIRE_TRANSMOG ? 0 : obj;
+    }
     case APPEARANCE_SLOT_EMPTY:
     default:
         return 0;
@@ -183,6 +207,21 @@ Appearance_WireUnpack(
     if( wire >= APPEARANCE_WIRE_KIT_TAG )
         return Appearance_PackKit(wire - APPEARANCE_WIRE_KIT_TAG);
     return 0;
+}
+
+/**
+ * The cache speaks this encoding too.
+ *
+ * A sequence's `replaceheldleft` / `replaceheldright` (SeqType opcodes 6/7) are
+ * appearance slots in the classic spelling: an obj-range value swaps the held
+ * item, anything lower hides it. They arrive from the cache rather than from a
+ * server, so they are converted here, once, instead of being compared against a
+ * tag at the two call sites that use them.
+ */
+static inline int
+Appearance_FromCacheValue(int cache_value)
+{
+    return cache_value < 0 ? 0 : Appearance_WireUnpack(APPEARANCE_ENC_CLASSIC, cache_value);
 }
 
 /* ------------------------------------------------------------------ */

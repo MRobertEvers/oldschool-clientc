@@ -12190,10 +12190,12 @@ app_world_apply_player_held_items(struct App* app, struct WorldEntity_Player* pl
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
         if( prim && prim->frame_count > 0 )
         {
+            /* Cache-sourced appearance slots — converted here so the override
+             * is in the same vocabulary as the appearance it overwrites. */
             if( prim->replaceheldleft >= 0 )
-                want_left = prim->replaceheldleft;
+                want_left = Appearance_FromCacheValue(prim->replaceheldleft);
             if( prim->replaceheldright >= 0 )
-                want_right = prim->replaceheldright;
+                want_right = Appearance_FromCacheValue(prim->replaceheldright);
         }
     }
 
