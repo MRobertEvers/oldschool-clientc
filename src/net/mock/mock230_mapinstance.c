@@ -37,6 +37,23 @@
 enum
 {
     MAPINSTANCE_SCAN_X0 = 100,
+    /*
+     * ...and one square in from the SOUTH edge, for a reason the x band does
+     * not have.
+     *
+     * The build area is 13x13 zones centred on the player, so its south-west
+     * corner is `(zone - 6) * 8`. An instance handed out at map square z = 0
+     * with the player anywhere in the square's lower six zones produces a
+     * NEGATIVE base -- the client is told its scene starts below the map. It
+     * accepts the rebuild, allocates all 104x104 tiles, places locs and npcs
+     * from the packets that follow, and draws no terrain and no minimap,
+     * because the squares the descriptors reference never resolve. A working
+     * instance and a broken one differ only by which square the pool handed
+     * out, so the same content renders on one entry and not the next.
+     *
+     * One square is enough: it makes the smallest possible base 64 - 48 = 16.
+     */
+    MAPINSTANCE_SCAN_Z0 = 1,
     MAPINSTANCE_SQUARES = 256,
 };
 
@@ -331,7 +348,7 @@ mock230_mapinstance_alloc(
 
     for( int x = MAPINSTANCE_SCAN_X0; x + square_w <= MAPINSTANCE_SQUARES; x++ )
     {
-        for( int z = 0; z + square_h <= MAPINSTANCE_SQUARES; z++ )
+        for( int z = MAPINSTANCE_SCAN_Z0; z + square_h <= MAPINSTANCE_SQUARES; z++ )
         {
             struct Mock230MapInstance* inst;
 

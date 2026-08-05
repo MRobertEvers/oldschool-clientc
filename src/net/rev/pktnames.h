@@ -138,6 +138,19 @@ enum GameProtoPktName
     PKT_NAME_MAP_ANIM,
     PKT_NAME_OBJ_ADD,
 
+    /*
+     * The origin NPC_INFO's low-resolution deltas are relative to, as a
+     * scene-local (build-area) tile pair. Its own packet since revision 222:
+     * world entities mean the reference point is no longer always the local
+     * player, so the server states it instead of the client assuming it.
+     *
+     * A revision that has it and is never sent it does not fail -- the client's
+     * origin is simply 0,0, and every npc is placed at its raw delta, in the
+     * south-west corner of the scene or off it entirely. They decode, they are
+     * in the client's npc table with the right ids, and none of them is drawn.
+     */
+    PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+
     PKT_NAME_COUNT
 };
 

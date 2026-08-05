@@ -877,6 +877,8 @@ static const int k_transcribed_osrs239[] = {
      * form. The length check catches that ("wrote 1 bytes, client frames it as
      * 0"), which is the guard working rather than a packet to wave through.
      */
+    PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
 };

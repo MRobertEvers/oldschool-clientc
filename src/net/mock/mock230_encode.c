@@ -90,6 +90,7 @@ enum
     OP_UPDATE_RUNENERGY = PKT_NAME_UPDATE_RUNENERGY,
     OP_MESSAGE_GAME = PKT_NAME_MESSAGE_GAME,
     OP_NPC_INFO = PKT_NAME_NPC_INFO,
+    OP_SET_NPC_UPDATE_ORIGIN = PKT_NAME_SET_NPC_UPDATE_ORIGIN,
     OP_SERVER_TICK_END = PKT_NAME_SERVER_TICK_END,
     OP_UPDATE_STAT = PKT_NAME_UPDATE_STAT,
     OP_UPDATE_PID = PKT_NAME_UPDATE_PID,
@@ -2892,6 +2893,32 @@ mock230_send_npc_info(struct Mock230Player* player)
         int adds[MOCK230_TRACKED_NPC_MAX];
         int add_count = 0;
 
+        /*
+         * SET_NPC_UPDATE_ORIGIN first, every tick, and it is not optional.
+         *
+         * The low-resolution deltas below are relative to an origin the CLIENT
+         * holds, and since revision 222 the client does not infer it -- world
+         * entities mean the reference point is not always the local player, so
+         * the server states it. Two bytes, scene-local, "the player's
+         * coordinate in the current build area" for the ordinary case.
+         *
+         * Omitting it is silent in every way that matters: the client's origin
+         * stays 0,0, so an npc six tiles north-west of the player is placed six
+         * tiles from the scene's south-west CORNER. It is in the npc table with
+         * the right id, RuneLite's API reports it, extended info applies to it,
+         * and it is drawn nowhere near the player -- usually off the scene
+         * entirely, and so not drawn at all. Nothing about "no npcs appear"
+         * points at a missing two-byte packet.
+         *
+         * Sent unconditionally rather than on change: it costs four bytes on
+         * the wire, and the tick it is skipped is the tick after a rebuild
+         * moves the build area under a stationary player.
+         */
+        open_packet(&buf, 4);
+        rsab_p1(&buf, player->x - mock230_scene_base_x());
+        rsab_p1(&buf, player->z - mock230_scene_base_z());
+        flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
+
         open_packet(&buf, 4096);
         rsab_bits(&buf);
 
@@ -2976,10 +3003,13 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
             rsab_pbit(&buf, 1, 0); /* no extended info */
             rsab_pbit(&buf, 6, dx & 0x3f);
-            /* Facing direction. The mock does not track a resting orientation
-             * for npcs (only `step_dir`, which is per-tick and -1 here because
-             * an npc entering view did not step into it), so south it is. */
-            rsab_pbit(&buf, 3, 0);
+            /*
+             * Facing, and the client applies it ONLY here -- `if (isNew)` in
+             * its own decode. An npc that enters view facing the wrong way
+             * stays that way until it walks, so this is not cosmetic for a boss
+             * that never moves.
+             */
+            rsab_pbit(&buf, 3, npc->face_dir & 7);
             rsab_pbit(&buf, 6, dz & 0x3f);
             rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
             rsab_pbit(&buf, 14, npc->type);

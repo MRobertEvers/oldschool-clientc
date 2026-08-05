@@ -1430,6 +1430,10 @@ enum
     MOCK230_NPCMODE_APPLAYER5 = 16,
 };
 
+/** Index 6 of the client's turn-angle table {768,1024,1280,512,1536,256,0,1792}:
+ *  angle 0, due south, which is the resting facing the game gives an npc. */
+#define MOCK230_FACE_SOUTH 6
+
 struct Mock230Npc
 {
     int active;
@@ -1450,6 +1454,23 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    /**
+     * Which way the npc is FACING, in the same 0..7 space as `step_dir`
+     * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
+     *
+     * Separate from `step_dir` because it outlives a tick: `step_dir` is -1
+     * whenever the npc stood still, and an npc that stops does not turn back to
+     * face where it started. This is the value NPC_INFO's low-resolution add
+     * carries, and the client applies it only when the npc is NEW -- so it is
+     * the orientation the npc is drawn with from the moment it enters view, and
+     * nothing later corrects it.
+     *
+     * Seeded to MOCK230_FACE_SOUTH rather than 0, which is not a detail: the
+     * client's turn-angle table is {768, 1024, 1280, 512, 1536, 256, 0, 1792},
+     * so index 0 is NORTH-WEST and index 6 is the south the game treats as the
+     * resting direction. Every npc spawned with 0 faces diagonally away.
+     */
+    int face_dir;
     /**
      * This tick moved the npc somewhere its steps cannot explain — the npc half
      * of `place_dirty`, and `PathingEntity.tele` in the reference.

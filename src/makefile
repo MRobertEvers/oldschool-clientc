@@ -74,6 +74,7 @@ else
 TARGET = $(PLATFORM_TARGET)
 endif
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
+RSPROT_DIR   := $(REPO_ROOT)/3rd/rsprot
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
@@ -93,6 +94,24 @@ RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR) \
 	-I$(REPO_ROOT)/3rd/bzip \
 	-I$(REPO_ROOT)/3rd/miniz \
+	-I$(REPO_ROOT)/3rd/xteas
+
+# rsprot (protocol codecs) is a unity TU like rscache. Its include list is the
+# authoritative one from 3rd/rsprot/makefile's INCLUDES, rewritten absolute:
+# its own include/src/gen/root, plus src/net for the ISAAC/RSA implementations
+# it adapts rather than re-ports, 3rd for tommath/xteas, and the repo root
+# because src/net/rsa.h includes tommath as "3rd/tommath/tommath.h".
+# Not on any binary's link line yet — nothing calls it; `make -C src rsprot`
+# is the compile gate. rsprot's own makefile is where its warnings are visible;
+# here it gets -w like everything else under 3rd/.
+RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+	-I$(RSPROT_DIR)/include \
+	-I$(RSPROT_DIR)/src \
+	-I$(RSPROT_DIR)/gen \
+	-I$(RSPROT_DIR) \
+	-I$(SRC_DIR)/net \
+	-I$(REPO_ROOT)/3rd \
+	-I$(REPO_ROOT) \
 	-I$(REPO_ROOT)/3rd/xteas
 
 COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
@@ -116,6 +135,7 @@ TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -
 # strdup behind a feature macro hides it from 3rd/ too.
 CFLAGS += $(PLATFORM_CFLAGS)
 RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
+RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS)
@@ -140,6 +160,7 @@ MEMTRACE_CFLAGS := -DTORIRS_MEMTRACE=1 \
 	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 CFLAGS          += $(MEMTRACE_CFLAGS)
 RSCACHE_CFLAGS  += $(MEMTRACE_CFLAGS)
+RSPROT_CFLAGS   += $(MEMTRACE_CFLAGS)
 COMPRESS_CFLAGS += $(MEMTRACE_CFLAGS)
 TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
 ifeq ($(PLATFORM),web)
@@ -335,6 +356,7 @@ SRCS += $(MOCK230_CORE_SRCS)
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
+RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the

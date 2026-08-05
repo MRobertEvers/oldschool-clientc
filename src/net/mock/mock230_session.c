@@ -341,13 +341,25 @@ step_js5_serve(struct Mock230Session* session)
          * exactly the case where the difference matters: it says whether the
          * client is failing to load the map or failing to ask for it.
          */
-        if( session->verbose )
         {
-            if( n > 0 )
-                fprintf(stderr, "mock230: JS5 %s %d/%d -> %d bytes\n",
-                        opcode == 1 ? "urgent" : "prefetch", archive, group, n);
-            else
-                fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+            /* Its own switch (MOCK230_TRACE_JS5=1) rather than --verbose: the
+             * client issues six figures of prefetch requests, so this is the
+             * one trace that has to be separable from everything else. */
+            static int trace = -1;
+
+            if( trace < 0 )
+            {
+                char const* v = getenv("MOCK230_TRACE_JS5");
+                trace = (v && *v && *v != '0') ? 1 : 0;
+            }
+            if( trace || session->verbose )
+            {
+                if( n > 0 )
+                    fprintf(stderr, "mock230: JS5 %s %d/%d -> %d bytes\n",
+                            opcode == 1 ? "urgent" : "prefetch", archive, group, n);
+                else
+                    fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+            }
         }
         free(out);
     }

@@ -2139,6 +2139,7 @@ npc_spawn(
         npc->spawn_x = x;
         npc->spawn_z = z;
         npc->spawn_level = level;
+        npc->face_dir = MOCK230_FACE_SOUTH;
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
         {
@@ -2336,6 +2337,9 @@ npc_take_step(struct Mock230Npc* npc)
         npc->z += try_dz;
         npc_set_occupancy(npc, 1);
         npc->step_dir = mock230_step_direction(try_dx, try_dz);
+        /* A step is also a turn, and the facing outlives the step. */
+        if( npc->step_dir >= 0 )
+            npc->face_dir = npc->step_dir;
         moved = 1;
         if( npc->x == wp_x && npc->z == wp_z )
             npc->waypoint_index--;
