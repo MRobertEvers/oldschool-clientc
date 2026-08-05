@@ -2826,10 +2826,9 @@ mock230_send_npc_info(struct Mock230Player* player)
      * client reading the classic record takes the type as part of the index and
      * places an npc that does not exist at a coordinate that is not there.
      *
-     * The terminator is a 16-bit 0xFFFF, and it is only written when something
-     * follows: below 28 remaining bits the client stops without reading it, so
-     * an otherwise-empty packet carrying one is three bytes of which the client
-     * consumes one, and it treats the leftover as a protocol error.
+     * The terminator is a 16-bit 0xFFFF and it is NOT written here; see the
+     * end of the low-resolution loop for why it is only correct once extended
+     * info follows it.
      */
     if( wire_is_v5(player) )
     {
@@ -2911,9 +2910,27 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 14, npc->type);
         }
 
-        /* Only when something followed the count -- see above. */
-        if( add_count > 0 )
-            rsab_pbit(&buf, 16, 0xffff);
+        /*
+         * NO TERMINATOR. It is written only when extended-info bytes follow.
+         *
+         * The client's low-resolution loop has two exits and the sentinel is
+         * the second one: it first checks `readableBits() >= 16 + 12` and
+         * returns if the buffer cannot hold another record, and only then reads
+         * an index and compares it to 0xFFFF. `readableBits()` spans the WHOLE
+         * remaining packet, including the extended-info section, so the sentinel
+         * is what stops it from reading extended-info bytes as another add.
+         *
+         * With nothing after the bit section there is nothing to stop: byte
+         * alignment leaves at most 7 bits, the first check ends the loop, and a
+         * sentinel written anyway is 16 bits the client never consumes. It then
+         * fails its own end-of-packet check -- which is how this was found:
+         *
+         *     Client error: 85,28,74,147,...
+         *     RuntimeException: 145,147
+         *
+         * 145 bytes read of the 147 sent, and the two are the sentinel. Add
+         * extended info and this has to come back.
+         */
         rsab_bytes(&buf);
 
         flush(player, &buf, OP_NPC_INFO, 2);
