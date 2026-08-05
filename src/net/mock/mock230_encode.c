@@ -1482,16 +1482,30 @@ put_appearance_v5(
 
     for( int i = 0; i < 12; i++ )
     {
-        int kit;
+        int kit = default_kit(i);
 
-        equipment[i] = 0;
-        identkit[i] = 0;
-        if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
-            equipment[i] = 0x200 + player->worn[i].obj_id;
-        else if( covered[i] )
-            ; /* deliberately bare: something worn hides this body part */
-        else if( (kit = default_kit(i)) >= 0 )
-            identkit[i] = 0x100 + kit;
+        /*
+         * The identKit array carries the body part, and the equipment array
+         * carries the worn obj OR THE SAME BODY PART when nothing is worn.
+         *
+         * That fallback is not redundancy — it is what makes a player visible.
+         * Leaving an equipment slot at 0 means "empty" rather than "see the
+         * kit", so a character wearing nothing renders with no body at all: the
+         * scene draws, the player is present and positioned, and nothing is
+         * there to look at. RSProt's pEquipment does exactly this fallback.
+         *
+         * A worn obj is `obj + 0x800` at this revision. The classic stream uses
+         * `0x200 + obj`, which lands inside the kit range here and would draw
+         * some unrelated body part.
+         */
+        identkit[i] = kit >= 0 ? 0x100 + kit : 0;
+
+        if( covered[i] )
+            equipment[i] = 0; /* something worn hides this body part */
+        else if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
+            equipment[i] = 0x800 + player->worn[i].obj_id;
+        else
+            equipment[i] = identkit[i];
     }
 
     rsab_p1(buf, (uint8_t)player->gender);
