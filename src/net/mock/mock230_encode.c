@@ -453,9 +453,20 @@ mock230_send_rebuild_region(struct Mock230Player* player)
     mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
 
     open_packet(&buf, 8192);
-    rsab_p2(&buf, 0);
-    rsab_p2_alt2(&buf, srv->zone_x);
-    rsab_p2(&buf, srv->zone_z);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_region )
+        {
+            /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
+            pl->rebuild_region(&buf, srv->zone_x, srv->zone_z, 0);
+        }
+        else
+        {
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, srv->zone_x);
+            rsab_p2(&buf, srv->zone_z);
+        }
+    }
 
     rsab_bits(&buf);
     for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
@@ -1097,11 +1108,19 @@ mock230_send_cam_moveto(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p1(&buf, local_x);
-    rsab_p1(&buf, local_z);
-    rsab_p2(&buf, height);
-    rsab_p1(&buf, rate);
-    rsab_p1(&buf, rate2);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_moveto )
+            pl->cam_moveto(&buf, local_x, local_z, height, rate, rate2);
+        else
+        {
+            rsab_p1(&buf, local_x);
+            rsab_p1(&buf, local_z);
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
     flush(player, &buf, OP_CAM_MOVETO, 0);
 }
 
@@ -1116,11 +1135,19 @@ mock230_send_cam_lookat(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p1(&buf, local_x);
-    rsab_p1(&buf, local_z);
-    rsab_p2(&buf, height);
-    rsab_p1(&buf, rate);
-    rsab_p1(&buf, rate2);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_lookat )
+            pl->cam_lookat(&buf, local_x, local_z, height, rate, rate2);
+        else
+        {
+            rsab_p1(&buf, local_x);
+            rsab_p1(&buf, local_z);
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
     flush(player, &buf, OP_CAM_LOOKAT, 0);
 }
 
@@ -1134,10 +1161,18 @@ mock230_send_cam_shake(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, axis);
-    rsab_p1(&buf, jitter);
-    rsab_p1(&buf, amplitude);
-    rsab_p1(&buf, frequency);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_shake )
+            pl->cam_shake(&buf, axis, jitter, amplitude, frequency);
+        else
+        {
+            rsab_p1(&buf, axis);
+            rsab_p1(&buf, jitter);
+            rsab_p1(&buf, amplitude);
+            rsab_p1(&buf, frequency);
+        }
+    }
     flush(player, &buf, OP_CAM_SHAKE, 0);
 }
 

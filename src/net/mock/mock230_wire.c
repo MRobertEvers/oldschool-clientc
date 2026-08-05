@@ -260,7 +260,68 @@ w239_rebuild_normal(
     rsab_p2_alt2(buf, zone_x);
 }
 
+/*
+ * CamMoveToV2Encoder: p2Alt1 x, p1Alt2 rate, p2Alt1 height, p1Alt2 rate2, p2 z.
+ *
+ * Eight bytes at this revision against the classic six, and the coordinates are
+ * two bytes each rather than one — the classic packs a scene-local tile into a
+ * byte, which cannot address a coordinate outside the 104-tile scene.
+ */
+static void
+w239_cam_moveto(struct RSAreaBuf* buf, int x, int z, int height, int rate, int rate2)
+{
+    rsab_p2_alt1(buf, x);
+    rsab_p1_alt2(buf, rate);
+    rsab_p2_alt1(buf, height);
+    rsab_p1_alt2(buf, rate2);
+    rsab_p2(buf, z);
+}
+
+/* CamLookAtV2Encoder: p2 z, p2Alt2 height, p1 rate2, p1Alt3 rate, p2Alt1 x.
+ * Same five fields as the move, in a different order and different orders. */
+static void
+w239_cam_lookat(struct RSAreaBuf* buf, int x, int z, int height, int rate, int rate2)
+{
+    rsab_p2(buf, z);
+    rsab_p2_alt2(buf, height);
+    rsab_p1(buf, rate2);
+    rsab_p1_alt3(buf, rate);
+    rsab_p2_alt1(buf, x);
+}
+
+/* CamShakeEncoder: p1 axis, p1 random, p1 amplitude, p1 rate. Unchanged shape,
+ * but it still needs a writer: an untranscribed packet is refused. */
+static void
+w239_cam_shake(struct RSAreaBuf* buf, int axis, int random, int amplitude, int rate)
+{
+    rsab_p1(buf, axis);
+    rsab_p1(buf, random);
+    rsab_p1(buf, amplitude);
+    rsab_p1(buf, rate);
+}
+
+/*
+ * RebuildRegionV2Encoder: p2 zoneZ, p2 zoneX, p1Alt1 reload.
+ *
+ * Three differences from the normal rebuild and from revision 230, all of them
+ * silent if missed: zoneZ comes FIRST, both are plain p2 rather than alt
+ * orders, and there is a `reload` flag the older packet has no field for. The
+ * zone descriptor grid follows this header and the XTEA key block that used to
+ * trail it is gone, as it is for REBUILD_NORMAL.
+ */
+static void
+w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
+{
+    rsab_p2(buf, zone_z);
+    rsab_p2(buf, zone_x);
+    rsab_p1_alt1(buf, reload ? 1 : 0);
+}
+
 static const struct Mock230WirePayload k_payload_osrs239 = {
+    .cam_moveto = w239_cam_moveto,
+    .cam_lookat = w239_cam_lookat,
+    .cam_shake = w239_cam_shake,
+    .rebuild_region = w239_rebuild_region,
     .if_opentop = w239_if_opentop,
     .if_opensub = w239_if_opensub,
     .if_closesub = w239_if_closesub,
@@ -294,7 +355,8 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_OPENTOP,       PKT_NAME_IF_OPENSUB,      PKT_NAME_IF_CLOSESUB,
     PKT_NAME_IF_SETEVENTS,     PKT_NAME_VARP_SMALL,      PKT_NAME_VARP_LARGE,
     PKT_NAME_UPDATE_RUNENERGY, PKT_NAME_UPDATE_RUNWEIGHT, PKT_NAME_UPDATE_STAT,
-    PKT_NAME_REBUILD_NORMAL,
+    PKT_NAME_REBUILD_NORMAL,   PKT_NAME_REBUILD_REGION,
+    PKT_NAME_CAM_MOVETO,       PKT_NAME_CAM_LOOKAT,      PKT_NAME_CAM_SHAKE,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c

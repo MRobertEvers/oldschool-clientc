@@ -87,6 +87,29 @@ struct Mock230WirePayload
         int level,
         int xp,
         int boosted);
+    void (*cam_moveto)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int rate,
+        int rate2);
+    void (*cam_lookat)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int rate,
+        int rate2);
+    void (*cam_shake)(
+        struct RSAreaBuf* buf,
+        int axis,
+        int random,
+        int amplitude,
+        int rate);
+    /** REBUILD_REGION's header. The zone descriptor grid follows and is written
+     *  by the caller, which already knows how to bit-pack it. */
+    void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);
     void (*rebuild_normal)(
         struct RSAreaBuf* buf,
         int world_area,
