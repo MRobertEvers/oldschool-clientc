@@ -327,6 +327,156 @@ w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
  * whole adapter exists for: they frame to the right length either way and
  * decode to a different loc on a different tile.
  */
+/* pSmart1or2: one byte below 0x80, else a short with 0x8000 set. */
+static void
+w239_psmart1or2(struct RSAreaBuf* buf, int v)
+{
+    if( v >= 0 && v <= 0x7f )
+        rsab_p1(buf, v);
+    else
+        rsab_p2(buf, 0x8000 | (v & 0x7fff));
+}
+
+/*
+ * MessageGameEncoder: pSmart1or2 type, p1 hasName, [pjstr name], pjstr text.
+ *
+ * The type is a smart rather than the classic single byte, and the name is an
+ * optional field the classic packet does not have at all -- so a 239 client
+ * reading the old layout takes the first character of the message as its
+ * "has name" flag.
+ */
+static void
+w239_message_game(struct RSAreaBuf* buf, int type, const char* text)
+{
+    w239_psmart1or2(buf, type);
+    rsab_p1(buf, 0); /* no sender name */
+    rsab_pjstr(buf, text ? text : "", RSAB_JSTR_NUL);
+}
+
+/* IfSetTextEncoder: pjstr text, pCombinedIdAlt2 uid. The text comes FIRST at
+ * this revision and second at 230. */
+static void
+w239_if_settext(struct RSAreaBuf* buf, int uid, const char* text)
+{
+    rsab_pjstr(buf, text ? text : "", RSAB_JSTR_NUL);
+    rsab_p4_alt2(buf, uid);
+}
+
+/* IfSetNpcHeadEncoder: pCombinedId uid, p2Alt3 npc. */
+static void
+w239_if_setnpchead(struct RSAreaBuf* buf, int uid, int npc_id)
+{
+    rsab_p4(buf, uid);
+    rsab_p2_alt3(buf, npc_id);
+}
+
+/* IfSetAnimEncoder: pCombinedIdAlt1 uid, p2Alt1 anim. */
+static void
+w239_if_setanim(struct RSAreaBuf* buf, int uid, int anim_id)
+{
+    rsab_p4_alt1(buf, uid);
+    rsab_p2_alt1(buf, anim_id);
+}
+
+/* IfSetPlayerHeadEncoder: pCombinedIdAlt2 uid, and nothing else. */
+static void
+w239_if_setplayerhead(struct RSAreaBuf* buf, int uid)
+{
+    rsab_p4_alt2(buf, uid);
+}
+
+/*
+ * SetMapFlagV2Encoder: p4 packed coord.
+ *
+ * Four bytes carrying an ABSOLUTE coord where the classic sends two
+ * scene-local tile bytes with 255,255 meaning "clear". There is no
+ * clear sentinel here; a cleared flag is coord 0.
+ */
+static void
+w239_set_map_flag(struct RSAreaBuf* buf, int level, int x, int z)
+{
+    rsab_p4(buf, ((level & 0x3) << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff));
+}
+
+/*
+ * ChatFilterSettingsEncoder: p1Alt1 public, p1Alt3 trade.
+ *
+ * TWO bytes, not the classic three -- the private-chat filter moved to its own
+ * packet (CHAT_FILTER_SETTINGS_PRIVATECHAT). Writing three desynchronises the
+ * next packet by one byte.
+ */
+static void
+w239_chat_filter(struct RSAreaBuf* buf, int public_, int private_, int trade)
+{
+    (void)private_;
+    rsab_p1_alt1(buf, public_);
+    rsab_p1_alt3(buf, trade);
+}
+
+/* SynthSoundEncoder: p2 id, p1 loops, p2 delay. */
+static void
+w239_synth_sound(struct RSAreaBuf* buf, int id, int loops, int delay)
+{
+    rsab_p2(buf, id);
+    rsab_p1(buf, loops);
+    rsab_p2(buf, delay);
+}
+
+/* FriendListLoadedEncoder writes nothing: the packet is zero-length at this
+ * revision where the classic carries a status byte. */
+static void
+w239_friendlist_loaded(struct RSAreaBuf* buf, int status)
+{
+    (void)buf;
+    (void)status;
+}
+
+/*
+ * UpdateInvFull:    pCombinedId uid, p2 container, p2 capacity, then per slot
+ *                   p1Alt3 count (capped at 255), [p4Alt3 count if >= 255],
+ *                   p2Alt1 id+1.
+ * UpdateInvPartial: pCombinedId uid, p2 container, then per changed slot
+ *                   pSmart1or2 slot, p2 id+1, p1 count, [p4 count if >= 255].
+ *
+ * The `+1` on the id is the wire's null encoding -- 0 means empty -- and it is
+ * the same at both revisions. What differs is everything around it: the full
+ * form puts the COUNT first and the id second, the partial form the other way
+ * round, and their overflow escapes use different byte orders.
+ */
+static void
+w239_inv_header(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
+                int capacity)
+{
+    rsab_p4(buf, uid);
+    rsab_p2(buf, container);
+    if( pkt_name == PKT_NAME_UPDATE_INV_FULL )
+        rsab_p2(buf, capacity);
+}
+
+static void
+w239_inv_slot(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id, int count)
+{
+    if( pkt_name == PKT_NAME_UPDATE_INV_FULL )
+    {
+        if( obj_id < 0 )
+        {
+            rsab_p1_alt3(buf, 0);
+            rsab_p2_alt1(buf, 0);
+            return;
+        }
+        rsab_p1_alt3(buf, count > 0xff ? 0xff : count);
+        if( count >= 255 )
+            rsab_p4_alt3(buf, count);
+        rsab_p2_alt1(buf, obj_id + 1);
+        return;
+    }
+    w239_psmart1or2(buf, slot);
+    rsab_p2(buf, obj_id < 0 ? 0 : obj_id + 1);
+    rsab_p1(buf, count > 0xff ? 0xff : count);
+    if( count >= 0xff )
+        rsab_p4(buf, count);
+}
+
 /*
  * p3Alt2: [v>>16, v, v>>8].
  *
@@ -525,6 +675,17 @@ w239_zone_payload(
 }
 
 static const struct Mock230WirePayload k_payload_osrs239 = {
+    .message_game = w239_message_game,
+    .if_settext = w239_if_settext,
+    .if_setnpchead = w239_if_setnpchead,
+    .if_setanim = w239_if_setanim,
+    .if_setplayerhead = w239_if_setplayerhead,
+    .set_map_flag = w239_set_map_flag,
+    .chat_filter = w239_chat_filter,
+    .synth_sound = w239_synth_sound,
+    .friendlist_loaded = w239_friendlist_loaded,
+    .inv_header = w239_inv_header,
+    .inv_slot = w239_inv_slot,
     .zone_header = w239_zone_header,
     .zone_payload = w239_zone_payload,
     .cam_moveto = w239_cam_moveto,
@@ -571,7 +732,11 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_LOC_ADD_CHANGE,   PKT_NAME_LOC_DEL,         PKT_NAME_LOC_ANIM,
     PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
     PKT_NAME_OBJ_COUNT,        PKT_NAME_LOC_MERGE,       PKT_NAME_MAP_PROJANIM,
-    PKT_NAME_OBJ_REVEAL,
+    PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
+    PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
+    PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
+    PKT_NAME_SYNTH_SOUND,      PKT_NAME_FRIENDLIST_LOADED,
+    PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c

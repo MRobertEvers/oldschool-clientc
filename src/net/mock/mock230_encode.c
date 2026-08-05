@@ -898,8 +898,16 @@ mock230_send_if_settext(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 512);
-    rsab_p4(&buf, uid);
-    rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_settext )
+            pl->if_settext(&buf, uid, text);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+        }
+    }
     flush(player, &buf, OP_IF_SETTEXT, 2);
 }
 
@@ -912,8 +920,16 @@ mock230_send_if_setnpchead(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 16);
-    rsab_p4(&buf, uid);
-    rsab_p2(&buf, npc_id);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setnpchead )
+            pl->if_setnpchead(&buf, uid, npc_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, npc_id);
+        }
+    }
     flush(player, &buf, OP_IF_SETNPCHEAD, 0);
 }
 
@@ -925,7 +941,15 @@ mock230_send_if_setplayerhead(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
-    rsab_p4(&buf, uid);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setplayerhead )
+            pl->if_setplayerhead(&buf, uid);
+        else
+        {
+            rsab_p4(&buf, uid);
+        }
+    }
     flush(player, &buf, OP_IF_SETPLAYERHEAD, 0);
 }
 
@@ -938,8 +962,16 @@ mock230_send_if_setanim(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 16);
-    rsab_p4(&buf, uid);
-    rsab_p2(&buf, anim_id);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setanim )
+            pl->if_setanim(&buf, uid, anim_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, anim_id);
+        }
+    }
     flush(player, &buf, OP_IF_SETANIM, 0);
 }
 
@@ -1221,9 +1253,17 @@ mock230_send_synth_sound(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, id);
-    rsab_p1(&buf, loops);
-    rsab_p2(&buf, delay);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->synth_sound )
+            pl->synth_sound(&buf, id, loops, delay);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p1(&buf, loops);
+            rsab_p2(&buf, delay);
+        }
+    }
     flush(player, &buf, OP_SYNTH_SOUND, 0);
 }
 
@@ -1256,8 +1296,16 @@ mock230_send_message(
     if( getenv("MOCK230_ECHO_MES") )
         fprintf(stderr, "mes: %s\n", text ? text : "");
     open_packet(&buf, 512);
-    rsab_p1(&buf, 0); /* message type: plain game message */
-    rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->message_game )
+            pl->message_game(&buf, 0, text);
+        else
+        {
+            rsab_p1(&buf, 0); /* message type: plain game message */
+            rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
+        }
+    }
     flush(player, &buf, OP_MESSAGE_GAME, 1);
 }
 
@@ -1324,7 +1372,15 @@ mock230_send_friendlist_loaded(
      * `social.server_status`. */
     struct RSAreaBuf buf;
     open_packet(&buf, 4);
-    rsab_p1(&buf, status);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->friendlist_loaded )
+            pl->friendlist_loaded(&buf, status);
+        else
+        {
+            rsab_p1(&buf, status);
+        }
+    }
     flush(player, &buf, OP_FRIENDLIST_LOADED, 0);
 }
 
@@ -1370,9 +1426,17 @@ mock230_send_chat_filter_settings(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, public_mode);
-    rsab_p1(&buf, private_mode);
-    rsab_p1(&buf, trade_mode);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->chat_filter )
+            pl->chat_filter(&buf, public_mode, private_mode, trade_mode);
+        else
+        {
+            rsab_p1(&buf, public_mode);
+            rsab_p1(&buf, private_mode);
+            rsab_p1(&buf, trade_mode);
+        }
+    }
     flush(player, &buf, OP_CHAT_FILTER_SETTINGS, 0);
 }
 
@@ -1382,8 +1446,18 @@ mock230_send_unset_map_flag(struct Mock230Player* player)
     /* SET_MAP_FLAG with the 255,255 "no flag" sentinel. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, 255);
-    rsab_p1(&buf, 255);
+    {
+        /* No 255,255 clear sentinel at V2 -- the packet carries an absolute
+         * coord, and a cleared flag is coord 0. */
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, 0, 0, 0);
+        else
+        {
+            rsab_p1(&buf, 255);
+            rsab_p1(&buf, 255);
+        }
+    }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
@@ -1393,8 +1467,17 @@ mock230_send_set_map_flag(struct Mock230Player* player, int local_x, int local_z
     struct RSAreaBuf buf;
     assert(player);
     open_packet(&buf, 8);
-    rsab_p1(&buf, local_x & 0xff);
-    rsab_p1(&buf, local_z & 0xff);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, player->level, mock230_scene_origin(player->world->zone_x) + local_x,
+                             mock230_scene_origin(player->world->zone_z) + local_z);
+        else
+        {
+            rsab_p1(&buf, local_x & 0xff);
+            rsab_p1(&buf, local_z & 0xff);
+        }
+    }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
@@ -1441,11 +1524,30 @@ mock230_send_inv_full(
      * the only containers were the 28-slot backpack and the 14-slot worn set.
      * Sizing from the count keeps a full bank inside one packet. */
     open_packet(&buf, (size_t)(16 + ((slot_count > 0 ? slot_count : 0) * 7)));
-    rsab_p4(&buf, component);
-    rsab_p2(&buf, container);
-    rsab_p2(&buf, slot_count);
-    for( int i = 0; i < slot_count; i++ )
-        put_inv_slot(&buf, slots ? &slots[i] : NULL);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        if( pl && pl->inv_header && pl->inv_slot )
+        {
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_FULL, component, container,
+                           slot_count);
+            for( int i = 0; i < slot_count; i++ )
+            {
+                const struct Mock230Item* it = slots ? &slots[i] : NULL;
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_FULL, i,
+                             (it && it->count > 0) ? it->obj_id : -1,
+                             it ? it->count : 0);
+            }
+        }
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+            rsab_p2(&buf, slot_count);
+            for( int i = 0; i < slot_count; i++ )
+                put_inv_slot(&buf, slots ? &slots[i] : NULL);
+        }
+    }
     flush(player, &buf, OP_UPDATE_INV_FULL, 2);
 }
 
@@ -1462,14 +1564,31 @@ mock230_send_inv_partial(
     if( dirty == 0 )
         return;
     open_packet(&buf, 8192);
-    rsab_p4(&buf, component);
-    rsab_p2(&buf, container);
-    for( int i = 0; i < slot_count; i++ )
     {
-        if( !(dirty & (1u << i)) )
-            continue;
-        rsab_psmart(&buf, i);
-        put_inv_slot(&buf, &slots[i]);
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        int const v5 = pl && pl->inv_header && pl->inv_slot;
+
+        if( v5 )
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_PARTIAL, component, container, 0);
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+        }
+        for( int i = 0; i < slot_count; i++ )
+        {
+            if( !(dirty & (1u << i)) )
+                continue;
+            if( v5 )
+            {
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_PARTIAL, i,
+                             slots[i].count > 0 ? slots[i].obj_id : -1,
+                             slots[i].count);
+                continue;
+            }
+            rsab_psmart(&buf, i);
+            put_inv_slot(&buf, &slots[i]);
+        }
     }
     flush(player, &buf, OP_UPDATE_INV_PARTIAL, 2);
 }

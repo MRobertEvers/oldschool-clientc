@@ -139,6 +139,24 @@ struct Mock230WirePayload
     void (*zone_header)(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z,
                         int level);
 
+    void (*message_game)(struct RSAreaBuf* buf, int type, const char* text);
+    void (*if_settext)(struct RSAreaBuf* buf, int uid, const char* text);
+    void (*if_setnpchead)(struct RSAreaBuf* buf, int uid, int npc_id);
+    void (*if_setanim)(struct RSAreaBuf* buf, int uid, int anim_id);
+    void (*if_setplayerhead)(struct RSAreaBuf* buf, int uid);
+    void (*set_map_flag)(struct RSAreaBuf* buf, int level, int x, int z);
+    void (*chat_filter)(struct RSAreaBuf* buf, int public_, int private_, int trade);
+    void (*synth_sound)(struct RSAreaBuf* buf, int id, int loops, int delay);
+    void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
+    /** The header of an inventory update; the slot loop follows in the caller,
+     *  which is the only thing that knows the container. */
+    void (*inv_header)(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
+                       int capacity);
+    /** One inventory slot. `slot` is ignored by the FULL form, which is
+     *  positional, and leads the PARTIAL form. */
+    void (*inv_slot)(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id,
+                     int count);
+
     /** REBUILD_REGION's header. The zone descriptor grid follows and is written
      *  by the caller, which already knows how to bit-pack it. */
     void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);
