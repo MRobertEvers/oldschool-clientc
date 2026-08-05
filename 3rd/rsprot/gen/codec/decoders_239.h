@@ -16,7 +16,7 @@ typedef struct RsprotMsg_OpWorldEntity {
 	bool controlKey;
 } RsprotMsg_OpWorldEntity;
 
-static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
+static inline void rsprot_decode_OpWorldEntity1(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
 {
     out->index = rsprot_g2_alt1(buf);
     out->controlKey = (rsprot_g1_alt3(buf) == 1);
@@ -24,12 +24,7 @@ static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorld
 
 /* OpWorldEntity2Decoder (worldentities/OpWorldEntity2Decoder.kt) -- prot OPWORLDENTITY2 */
 
-typedef struct RsprotMsg_OpWorldEntity {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpWorldEntity;
-
-static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
+static inline void rsprot_decode_OpWorldEntity2(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
 {
     out->index = rsprot_g2_alt2(buf);
     out->controlKey = (rsprot_g1_alt1(buf) == 1);
@@ -37,12 +32,7 @@ static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorld
 
 /* OpWorldEntity3Decoder (worldentities/OpWorldEntity3Decoder.kt) -- prot OPWORLDENTITY3 */
 
-typedef struct RsprotMsg_OpWorldEntity {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpWorldEntity;
-
-static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
+static inline void rsprot_decode_OpWorldEntity3(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
 {
     out->index = rsprot_g2(buf);
     out->controlKey = (rsprot_g1_alt3(buf) == 1);
@@ -50,12 +40,7 @@ static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorld
 
 /* OpWorldEntity4Decoder (worldentities/OpWorldEntity4Decoder.kt) -- prot OPWORLDENTITY4 */
 
-typedef struct RsprotMsg_OpWorldEntity {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpWorldEntity;
-
-static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
+static inline void rsprot_decode_OpWorldEntity4(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
 {
     out->index = rsprot_g2(buf);
     out->controlKey = (rsprot_g1(buf) == 1);
@@ -63,12 +48,7 @@ static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorld
 
 /* OpWorldEntity5Decoder (worldentities/OpWorldEntity5Decoder.kt) -- prot OPWORLDENTITY5 */
 
-typedef struct RsprotMsg_OpWorldEntity {
-	bool controlKey;
-	int32_t index;
-} RsprotMsg_OpWorldEntity;
-
-static inline void rsprot_decode_OpWorldEntity(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
+static inline void rsprot_decode_OpWorldEntity5(RsprotBuf *buf, RsprotMsg_OpWorldEntity *out)
 {
     out->controlKey = (rsprot_g1_alt1(buf) == 1);
     out->index = rsprot_g2_alt2(buf);
@@ -521,7 +501,7 @@ typedef struct RsprotMsg_If3Button {
 	int32_t op;
 } RsprotMsg_If3Button;
 
-static inline void rsprot_decode_If3Button(RsprotBuf *buf, RsprotMsg_If3Button *out)
+static inline void rsprot_decode_IfButtonX(RsprotBuf *buf, RsprotMsg_If3Button *out)
 {
     out->combinedId = rsprot_gcombined_id(buf);
     out->sub = rsprot_g2(buf);
@@ -625,7 +605,7 @@ typedef struct RsprotMsg_OpNpcV2 {
 	bool controlKey;
 } RsprotMsg_OpNpcV2;
 
-static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
+static inline void rsprot_decode_OpNpc1V2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 {
     out->index = rsprot_g2_alt1(buf);
     out->subop = rsprot_g1_alt2(buf);
@@ -634,13 +614,7 @@ static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 
 /* OpNpc2V2Decoder (npcs/OpNpc2V2Decoder.kt) -- prot OPNPC2_V2 */
 
-typedef struct RsprotMsg_OpNpcV2 {
-	int32_t index;
-	int32_t subop;
-	bool controlKey;
-} RsprotMsg_OpNpcV2;
-
-static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
+static inline void rsprot_decode_OpNpc2V2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 {
     out->index = rsprot_g2_alt3(buf);
     out->subop = rsprot_g1_alt2(buf);
@@ -649,13 +623,7 @@ static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 
 /* OpNpc3V2Decoder (npcs/OpNpc3V2Decoder.kt) -- prot OPNPC3_V2 */
 
-typedef struct RsprotMsg_OpNpcV2 {
-	bool controlKey;
-	int32_t subop;
-	int32_t index;
-} RsprotMsg_OpNpcV2;
-
-static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
+static inline void rsprot_decode_OpNpc3V2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 {
     out->controlKey = (rsprot_g1_alt2(buf) == 1);
     out->subop = rsprot_g1_alt3(buf);
@@ -664,13 +632,7 @@ static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 
 /* OpNpc4V2Decoder (npcs/OpNpc4V2Decoder.kt) -- prot OPNPC4_V2 */
 
-typedef struct RsprotMsg_OpNpcV2 {
-	int32_t subop;
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpNpcV2;
-
-static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
+static inline void rsprot_decode_OpNpc4V2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 {
     out->subop = rsprot_g1_alt1(buf);
     out->index = rsprot_g2(buf);
@@ -679,13 +641,7 @@ static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 
 /* OpNpc5V2Decoder (npcs/OpNpc5V2Decoder.kt) -- prot OPNPC5_V2 */
 
-typedef struct RsprotMsg_OpNpcV2 {
-	int32_t subop;
-	bool controlKey;
-	int32_t index;
-} RsprotMsg_OpNpcV2;
-
-static inline void rsprot_decode_OpNpcV2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
+static inline void rsprot_decode_OpNpc5V2(RsprotBuf *buf, RsprotMsg_OpNpcV2 *out)
 {
     out->subop = rsprot_g1_alt1(buf);
     out->controlKey = (rsprot_g1_alt2(buf) == 1);
@@ -729,7 +685,7 @@ typedef struct RsprotMsg_OpPlayer {
 	int32_t index;
 } RsprotMsg_OpPlayer;
 
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer1(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->controlKey = (rsprot_g1_alt3(buf) == 1);
     out->index = rsprot_g2_alt1(buf);
@@ -737,12 +693,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer2Decoder (players/OpPlayer2Decoder.kt) -- prot OPPLAYER2 */
 
-typedef struct RsprotMsg_OpPlayer {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer2(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->index = rsprot_g2_alt1(buf);
     out->controlKey = (rsprot_g1_alt2(buf) == 1);
@@ -750,12 +701,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer3Decoder (players/OpPlayer3Decoder.kt) -- prot OPPLAYER3 */
 
-typedef struct RsprotMsg_OpPlayer {
-	bool controlKey;
-	int32_t index;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer3(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->controlKey = (rsprot_g1_alt2(buf) == 1);
     out->index = rsprot_g2_alt3(buf);
@@ -763,12 +709,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer4Decoder (players/OpPlayer4Decoder.kt) -- prot OPPLAYER4 */
 
-typedef struct RsprotMsg_OpPlayer {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer4(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->index = rsprot_g2(buf);
     out->controlKey = (rsprot_g1(buf) == 1);
@@ -776,12 +717,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer5Decoder (players/OpPlayer5Decoder.kt) -- prot OPPLAYER5 */
 
-typedef struct RsprotMsg_OpPlayer {
-	bool controlKey;
-	int32_t index;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer5(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->controlKey = (rsprot_g1_alt3(buf) == 1);
     out->index = rsprot_g2(buf);
@@ -789,12 +725,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer6Decoder (players/OpPlayer6Decoder.kt) -- prot OPPLAYER6 */
 
-typedef struct RsprotMsg_OpPlayer {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer6(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->index = rsprot_g2_alt3(buf);
     out->controlKey = (rsprot_g1_alt3(buf) == 1);
@@ -802,12 +733,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer7Decoder (players/OpPlayer7Decoder.kt) -- prot OPPLAYER7 */
 
-typedef struct RsprotMsg_OpPlayer {
-	bool controlKey;
-	int32_t index;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer7(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->controlKey = (rsprot_g1(buf) == 1);
     out->index = rsprot_g2(buf);
@@ -815,12 +741,7 @@ static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *ou
 
 /* OpPlayer8Decoder (players/OpPlayer8Decoder.kt) -- prot OPPLAYER8 */
 
-typedef struct RsprotMsg_OpPlayer {
-	int32_t index;
-	bool controlKey;
-} RsprotMsg_OpPlayer;
-
-static inline void rsprot_decode_OpPlayer(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
+static inline void rsprot_decode_OpPlayer8(RsprotBuf *buf, RsprotMsg_OpPlayer *out)
 {
     out->index = rsprot_g2(buf);
     out->controlKey = (rsprot_g1_alt2(buf) == 1);
@@ -855,7 +776,7 @@ typedef struct RsprotMsg_OpObjV2 {
 	int32_t x;
 } RsprotMsg_OpObjV2;
 
-static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
+static inline void rsprot_decode_OpObj1V2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 {
     out->id = rsprot_g2_alt2(buf);
     out->subop = rsprot_g1_alt3(buf);
@@ -866,15 +787,7 @@ static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 
 /* OpObj2V2Decoder (objs/OpObj2V2Decoder.kt) -- prot OPOBJ2_V2 */
 
-typedef struct RsprotMsg_OpObjV2 {
-	bool controlKey;
-	int32_t subop;
-	int32_t z;
-	int32_t id;
-	int32_t x;
-} RsprotMsg_OpObjV2;
-
-static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
+static inline void rsprot_decode_OpObj2V2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 {
     out->controlKey = (rsprot_g1_alt1(buf) == 1);
     out->subop = rsprot_g1_alt3(buf);
@@ -885,15 +798,7 @@ static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 
 /* OpObj3V2Decoder (objs/OpObj3V2Decoder.kt) -- prot OPOBJ3_V2 */
 
-typedef struct RsprotMsg_OpObjV2 {
-	bool controlKey;
-	int32_t x;
-	int32_t id;
-	int32_t subop;
-	int32_t z;
-} RsprotMsg_OpObjV2;
-
-static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
+static inline void rsprot_decode_OpObj3V2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 {
     out->controlKey = (rsprot_g1_alt1(buf) == 1);
     out->x = rsprot_g2_alt1(buf);
@@ -904,15 +809,7 @@ static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 
 /* OpObj4V2Decoder (objs/OpObj4V2Decoder.kt) -- prot OPOBJ4_V2 */
 
-typedef struct RsprotMsg_OpObjV2 {
-	int32_t subop;
-	int32_t id;
-	int32_t x;
-	int32_t z;
-	bool controlKey;
-} RsprotMsg_OpObjV2;
-
-static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
+static inline void rsprot_decode_OpObj4V2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 {
     out->subop = rsprot_g1_alt3(buf);
     out->id = rsprot_g2(buf);
@@ -923,15 +820,7 @@ static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 
 /* OpObj5V2Decoder (objs/OpObj5V2Decoder.kt) -- prot OPOBJ5_V2 */
 
-typedef struct RsprotMsg_OpObjV2 {
-	int32_t subop;
-	int32_t x;
-	int32_t id;
-	int32_t z;
-	bool controlKey;
-} RsprotMsg_OpObjV2;
-
-static inline void rsprot_decode_OpObjV2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
+static inline void rsprot_decode_OpObj5V2(RsprotBuf *buf, RsprotMsg_OpObjV2 *out)
 {
     out->subop = rsprot_g1_alt2(buf);
     out->x = rsprot_g2_alt2(buf);
@@ -1052,6 +941,8 @@ typedef struct RsprotMsg_EventMouseClickV1 {
 	int32_t packed;
 	int32_t x;
 	int32_t y;
+	int32_t lastTransmittedMouseClick;
+	int32_t rightClick;
 } RsprotMsg_EventMouseClickV1;
 
 static inline void rsprot_decode_EventMouseClickV1(RsprotBuf *buf, RsprotMsg_EventMouseClickV1 *out)
@@ -1061,6 +952,8 @@ static inline void rsprot_decode_EventMouseClickV1(RsprotBuf *buf, RsprotMsg_Eve
     int32_t lastTransmittedMouseClick = ((int32_t)((uint32_t)(out->packed) >> (1)));
     out->x = rsprot_g2(buf);
     out->y = rsprot_g2(buf);
+    out->lastTransmittedMouseClick = lastTransmittedMouseClick;
+    out->rightClick = rightClick;
 }
 
 /* EventMouseClickV2Decoder (events/EventMouseClickV2Decoder.kt) -- prot EVENT_MOUSE_CLICK_V2 */
@@ -1070,6 +963,8 @@ typedef struct RsprotMsg_EventMouseClickV2 {
 	int32_t packed;
 	int32_t y;
 	int32_t code;
+	int32_t lastTransmittedMouseClick;
+	int32_t rightClick;
 } RsprotMsg_EventMouseClickV2;
 
 static inline void rsprot_decode_EventMouseClickV2(RsprotBuf *buf, RsprotMsg_EventMouseClickV2 *out)
@@ -1080,6 +975,8 @@ static inline void rsprot_decode_EventMouseClickV2(RsprotBuf *buf, RsprotMsg_Eve
     out->code = rsprot_g1_alt3(buf);
     int32_t rightClick = (out->packed & (0x1 != 0));
     int32_t lastTransmittedMouseClick = ((int32_t)((uint32_t)(out->packed) >> (1)));
+    out->lastTransmittedMouseClick = lastTransmittedMouseClick;
+    out->rightClick = rightClick;
 }
 
 /* EventMouseScrollDecoder (events/EventMouseScrollDecoder.kt) -- prot EVENT_MOUSE_SCROLL */
@@ -1103,7 +1000,7 @@ typedef struct RsprotMsg_OpLocV2 {
 	int32_t id;
 } RsprotMsg_OpLocV2;
 
-static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
+static inline void rsprot_decode_OpLoc1V2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 {
     out->z = rsprot_g2_alt2(buf);
     out->x = rsprot_g2_alt1(buf);
@@ -1114,15 +1011,7 @@ static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 
 /* OpLoc2V2Decoder (locs/OpLoc2V2Decoder.kt) -- prot OPLOC2_V2 */
 
-typedef struct RsprotMsg_OpLocV2 {
-	int32_t z;
-	int32_t id;
-	int32_t x;
-	int32_t subop;
-	bool controlKey;
-} RsprotMsg_OpLocV2;
-
-static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
+static inline void rsprot_decode_OpLoc2V2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 {
     out->z = rsprot_g2_alt3(buf);
     out->id = rsprot_g2_alt3(buf);
@@ -1133,15 +1022,7 @@ static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 
 /* OpLoc3V2Decoder (locs/OpLoc3V2Decoder.kt) -- prot OPLOC3_V2 */
 
-typedef struct RsprotMsg_OpLocV2 {
-	int32_t id;
-	int32_t subop;
-	bool controlKey;
-	int32_t z;
-	int32_t x;
-} RsprotMsg_OpLocV2;
-
-static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
+static inline void rsprot_decode_OpLoc3V2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 {
     out->id = rsprot_g2_alt2(buf);
     out->subop = rsprot_g1_alt3(buf);
@@ -1152,15 +1033,7 @@ static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 
 /* OpLoc4V2Decoder (locs/OpLoc4V2Decoder.kt) -- prot OPLOC4_V2 */
 
-typedef struct RsprotMsg_OpLocV2 {
-	bool controlKey;
-	int32_t x;
-	int32_t id;
-	int32_t subop;
-	int32_t z;
-} RsprotMsg_OpLocV2;
-
-static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
+static inline void rsprot_decode_OpLoc4V2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 {
     out->controlKey = (rsprot_g1_alt1(buf) == 1);
     out->x = rsprot_g2_alt1(buf);
@@ -1171,15 +1044,7 @@ static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 
 /* OpLoc5V2Decoder (locs/OpLoc5V2Decoder.kt) -- prot OPLOC5_V2 */
 
-typedef struct RsprotMsg_OpLocV2 {
-	int32_t z;
-	int32_t x;
-	bool controlKey;
-	int32_t subop;
-	int32_t id;
-} RsprotMsg_OpLocV2;
-
-static inline void rsprot_decode_OpLocV2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
+static inline void rsprot_decode_OpLoc5V2(RsprotBuf *buf, RsprotMsg_OpLocV2 *out)
 {
     out->z = rsprot_g2_alt3(buf);
     out->x = rsprot_g2_alt1(buf);

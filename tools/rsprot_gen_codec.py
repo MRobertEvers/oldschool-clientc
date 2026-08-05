@@ -950,14 +950,28 @@ def emit_expr(ast, scope, ctx):
     if k == "member":
         recv = ast["recv"]
         name = ast["name"]
-        # `foo.size` on a local array-ish value we track as a count alias
-        if recv["kind"] == "ident" and name == "size":
-            s = scope
-            while s is not None:
-                if recv["name"] in s.locals and s.locals[recv["name"]][0] == "count_alias":
-                    owner, field = s.locals[recv["name"]][1], s.locals[recv["name"]][2]
-                    return f"{struct_ptr_expr(scope_for_owner(scope, owner), ctx)}->{field}_count"
-                s = s.parent
+        # `X.size` (X a resolvable path, e.g. `message.subInterfaces.size`,
+        # NOT preceded by a `val` -- the count-alias idiom below only fires
+        # when there IS a preceding `val`) marks X as an array field and
+        # reads its caller-provided count, same convention as for_each's
+        # synthetic `_count` companion.
+        if name == "size":
+            inner = resolve_path(recv, scope)
+            if inner is not None and inner[1]:
+                target_scope, segs = inner
+                field = flatten_field_name(segs)
+                target_scope.add_field(field, "int32_t")
+                target_scope.array_fields.setdefault(field, True)
+                return f"{struct_ptr_expr(target_scope, ctx)}->{field}_count"
+            # `foo.size` on a local already holding a count (from a `val N =
+            # X?.size ?: 0` elsewhere) -- rare, kept for completeness.
+            if recv["kind"] == "ident":
+                s = scope
+                while s is not None:
+                    if recv["name"] in s.locals and s.locals[recv["name"]][0] == "count_alias":
+                        owner, field = s.locals[recv["name"]][1], s.locals[recv["name"]][2]
+                        return f"{owner}->{field}_count"
+                    s = s.parent
         path = resolve_path(ast, scope)
         if path is not None:
             target_scope, segs = path
@@ -1213,20 +1227,14 @@ def gen_op(op, scope, em, indent, ctx):
         return
 
     if kind == "for_each":
-        iter_scope = resolve_recv_scope(op["iter"], scope) if op["iter"]["kind"] == "ident" else None
-        field = None
-        if op["iter"]["kind"] == "member":
-            target_scope = resolve_recv_scope(op["iter"]["recv"], scope)
-            if target_scope is not None:
-                field = c_escape_ident(op["iter"]["name"])
-                owner = target_scope
-        elif op["iter"]["kind"] == "ident":
-            owner = scope
-            field = None
-        if field is None:
+        path = resolve_path(op["iter"], scope)
+        if path is None or not path[1]:
             raise Unsupported("for-each over an unresolved iterable")
+        owner, segs = path
+        field = flatten_field_name(segs)
         elem_struct = f"Rsprot_{c_escape_ident(scope.struct_name)}_{c_escape_ident(field)}Elem"
         child = Scope(elem_struct, parent=scope, recv_name=op["var"])
+        owner.add_field(field, "int32_t")
         owner.array_fields[field] = child
         owner.count_field_for[field] = f"{field}_count"
         elem_var = c_escape_ident(op["var"])
@@ -1248,14 +1256,27 @@ def gen_op(op, scope, em, indent, ctx):
             em.emit("continue;", indent)
         elif kind == "break":
             em.emit("break;", indent)
-        # return/return_void/ignore: nothing to emit -- for decoders the
-        # struct is filled field-by-field already; the "return TYPE(args)"
-        # constructor call's argument LIST is what tells us which locals are
-        # part of the wire struct (locals not referenced there are scratch),
-        # so we validate it, not emit it.
+        # return: for decoders, a `read`/`readbool` op already wrote its
+        # field straight to `out->name`. But an arg here can also be a
+        # COMPUTED local (e.g. `val rightClick = packed and 0x1 != 0` --
+        # EventMouseClickV1Decoder derives its actual output fields from a
+        # raw `packed` short this way, not by reading them directly). Such an
+        # arg has no home in the struct yet, so materialize one: add the
+        # field under the local's own name and copy the already-computed C
+        # local into it. A field/loopvar arg needs nothing further -- it's
+        # already where it belongs.
         if kind == "return":
             for a in op["args"]:
                 _ = emit_expr(a, scope, ctx)  # validates every arg resolves
+                if a["kind"] != "ident":
+                    continue
+                info = scope.locals.get(a["name"]) or _all_local_names(scope).get(a["name"])
+                if info is not None and info[0] == "local":
+                    cname = c_escape_ident(a["name"])
+                    ctype = info[1]
+                    scope.add_field(cname, ctype)
+                    ptr = struct_ptr_expr(scope, ctx)
+                    em.emit(f"{ptr}->{cname} = {cname};", indent)
         return
 
     raise Unsupported(f"unmodeled IR op: {kind}")
@@ -1299,8 +1320,15 @@ def _pre_register(ast, scope, ctype, ctx):
     that touches it -- gives strings/booleans/int64 the right struct type
     instead of the emit_expr default of int32_t."""
     a = ast
-    while a["kind"] == "call" and a["name"] in CAST_CALLS:
-        a = a["recv"]
+    while True:
+        if a["kind"] == "call" and a["name"] in CAST_CALLS:
+            a = a["recv"]
+        elif a["kind"] == "elvis":
+            a = a["left"]
+        else:
+            break
+    if a["kind"] == "member" and a["name"] == "size":
+        return  # array-count field: emit_expr's own `.size` handling owns it
     if a["kind"] in ("member", "ident"):
         path = resolve_path(a, scope)
         if path is not None and path[1]:
@@ -1398,14 +1426,21 @@ def render_all_structs(scope, msg_type):
     return "\n\n".join(out)
 
 
-def build_message(info, msg_type):
+def build_message(info, msg_type, fn_suffix):
+    """`fn_suffix` names the generated FUNCTION (derived from the Kotlin class
+    name, e.g. "OpLoc2V2") -- distinct from `msg_type`, which names the
+    STRUCT. Several sibling classes (OpLoc1V2Decoder..OpLoc5V2Decoder) target
+    the SAME message type but read its fields in DIFFERENT wire orders/Alt-
+    modes per op slot -- confirmed by diffing RSProt's own sources, not
+    assumed -- so the struct is shared while every class still gets its own
+    function."""
     ctx = "decode" if info["is_decoder"] else "encode"
     struct_c_name = f"RsprotMsg_{msg_type}"
     scope = Scope(struct_c_name)
     em = Emitter(msg_type, ctx)
 
     if info.get("no_body"):
-        fn_name = f"rsprot_decode_{msg_type}" if info["is_decoder"] else f"rsprot_encode_{msg_type}"
+        fn_name = f"rsprot_decode_{fn_suffix}" if info["is_decoder"] else f"rsprot_encode_{fn_suffix}"
         struct_text = f"typedef struct {struct_c_name} {{\n\tint32_t _unused;\n}} {struct_c_name};"
         if info["is_decoder"]:
             fn_text = (
@@ -1426,10 +1461,10 @@ def build_message(info, msg_type):
     struct_text = render_all_structs(scope, msg_type)
 
     if info["is_decoder"]:
-        fn_name = f"rsprot_decode_{msg_type}"
+        fn_name = f"rsprot_decode_{fn_suffix}"
         sig = f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)"
     else:
-        fn_name = f"rsprot_encode_{msg_type}"
+        fn_name = f"rsprot_encode_{fn_suffix}"
         sig = f"static inline void {fn_name}(RsprotBuf *buf, const {struct_c_name} *msg)"
     body_text = "\n".join(em.lines) if em.lines else ""
     fn_text = f"{sig}\n{{\n{body_text}\n}}"
@@ -1450,9 +1485,17 @@ def iter_kt_files(base_dir):
                 yield os.path.join(root, f)
 
 
+def class_fn_suffix(class_name):
+    for suf in ("Encoder", "Decoder"):
+        if class_name.endswith(suf):
+            return class_name[: -len(suf)]
+    return class_name
+
+
 def process_dir(base_dir, label):
     generated = []
     skipped = []
+    seen_structs = {}  # msg_type -> (field_name_set, struct_text, rel) of the first occurrence
     for path in iter_kt_files(base_dir):
         rel = os.path.relpath(path, base_dir)
         try:
@@ -1463,22 +1506,46 @@ def process_dir(base_dir, label):
         if info is None:
             continue  # not a recognizable Encoder/Decoder class -- e.g. a helper file
         msg_type = info["msg_type"]
+        fn_suffix = class_fn_suffix(info["class"])
         try:
-            struct_text, fn_text, scope = build_message(info, msg_type)
+            struct_text, fn_text, scope = build_message(info, msg_type, fn_suffix)
         except Unsupported as e:
             skipped.append((rel, str(e)))
             continue
         except Exception as e:  # noqa: BLE001
             skipped.append((rel, f"internal error: {type(e).__name__}: {e}"))
             continue
+
+        # Several classes can share one message TYPE -- e.g. OpLoc1V2Decoder
+        # .. OpLoc5V2Decoder all decode `OpLocV2`, but a diff against RSProt's
+        # own sources shows each op-slot reads the same FIELDS in a DIFFERENT
+        # wire order/Alt-mode. So: one struct per message type (its field set
+        # only, not the read order, has to agree across siblings), but every
+        # class still gets its own function. A field-set mismatch is a real
+        # conflict -- two classes claiming the same type but disagreeing on
+        # what it holds -- and is reported rather than silently resolved.
+        emit_struct = True
+        field_set = frozenset(scope.fields.keys())
+        if msg_type in seen_structs:
+            prev_fields, prev_struct, prev_rel = seen_structs[msg_type]
+            if prev_fields != field_set:
+                skipped.append(
+                    (rel, f"message type {msg_type!r} field set disagrees with {prev_rel}")
+                )
+                continue
+            emit_struct = False
+        else:
+            seen_structs[msg_type] = (field_set, struct_text, rel)
+
         generated.append(
             {
                 "rel": rel,
                 "class": info["class"],
                 "msg_type": msg_type,
+                "fn_suffix": fn_suffix,
                 "prot": info["prot"],
                 "is_decoder": info["is_decoder"],
-                "struct": struct_text,
+                "struct": struct_text if emit_struct else None,
                 "fn": fn_text,
                 "scope": scope,
                 "flat": len(scope.array_fields) == 0,
@@ -1554,7 +1621,8 @@ def main():
     enc_chunks = []
     for g in enc_gen:
         enc_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
-        enc_chunks.append(g["struct"])
+        if g["struct"] is not None:
+            enc_chunks.append(g["struct"])
         enc_chunks.append(g["fn"])
     emit_header(
         os.path.join(OUT_DIR, f"encoders_{rev}.h"),
@@ -1567,7 +1635,8 @@ def main():
     dec_chunks = []
     for g in dec_gen:
         dec_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
-        dec_chunks.append(g["struct"])
+        if g["struct"] is not None:
+            dec_chunks.append(g["struct"])
         dec_chunks.append(g["fn"])
     emit_header(
         os.path.join(OUT_DIR, f"decoders_{rev}.h"),

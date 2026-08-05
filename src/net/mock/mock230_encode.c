@@ -2860,7 +2860,10 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
             rsab_pbit(&buf, 1, 0); /* no extended info */
             rsab_pbit(&buf, 6, dx & 0x3f);
-            rsab_pbit(&buf, 3, npc->face_dir >= 0 ? npc->face_dir : 0);
+            /* Facing direction. The mock does not track a resting orientation
+             * for npcs (only `step_dir`, which is per-tick and -1 here because
+             * an npc entering view did not step into it), so south it is. */
+            rsab_pbit(&buf, 3, 0);
             rsab_pbit(&buf, 6, dz & 0x3f);
             rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
             rsab_pbit(&buf, 14, npc->type);

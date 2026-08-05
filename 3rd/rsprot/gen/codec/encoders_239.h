@@ -230,7 +230,7 @@ static inline void rsprot_encode_SetMapFlagV2(RsprotBuf *buf, const RsprotMsg_Se
 typedef struct RsprotMsg_SetPlayerOp {
 	int32_t priority;
 	int32_t id;
-	int32_t op;
+	const char * op;
 } RsprotMsg_SetPlayerOp;
 
 static inline void rsprot_encode_SetPlayerOp(RsprotBuf *buf, const RsprotMsg_SetPlayerOp *msg)
@@ -1289,7 +1289,7 @@ typedef struct RsprotMsg_UpdateZonePartialEnclosed {
 	int32_t zoneX;
 } RsprotMsg_UpdateZonePartialEnclosed;
 
-static inline void rsprot_encode_UpdateZonePartialEnclosed(RsprotBuf *buf, const RsprotMsg_UpdateZonePartialEnclosed *msg)
+static inline void rsprot_encode_DesktopUpdateZonePartialEnclosed(RsprotBuf *buf, const RsprotMsg_UpdateZonePartialEnclosed *msg)
 {
     rsprot_p1_alt2(buf, msg->level);
     rsprot_p1_alt1(buf, msg->zoneZ);
@@ -1434,7 +1434,7 @@ typedef struct RsprotMsg_StaticRebuildMessageV2 {
 	int32_t zoneX;
 } RsprotMsg_StaticRebuildMessageV2;
 
-static inline void rsprot_encode_StaticRebuildMessageV2(RsprotBuf *buf, const RsprotMsg_StaticRebuildMessageV2 *msg)
+static inline void rsprot_encode_RebuildNormalV2(RsprotBuf *buf, const RsprotMsg_StaticRebuildMessageV2 *msg)
 {
     rsprot_p2_alt1(buf, msg->worldArea);
     rsprot_p2_alt2(buf, msg->zoneZ);
@@ -1670,13 +1670,16 @@ typedef struct Rsprot_RsprotMsg_IfResyncV2_eventsElem {
 
 typedef struct RsprotMsg_IfResyncV2 {
 	int32_t topLevelInterface;
-	int32_t subInterfaces_size;
+	const Rsprot_RsprotMsg_IfResyncV2_subInterfacesElem *subInterfaces;
+	int32_t subInterfaces_count;
+	const Rsprot_RsprotMsg_IfResyncV2_eventsElem *events;
+	int32_t events_count;
 } RsprotMsg_IfResyncV2;
 
 static inline void rsprot_encode_IfResyncV2(RsprotBuf *buf, const RsprotMsg_IfResyncV2 *msg)
 {
     rsprot_p2(buf, msg->topLevelInterface);
-    rsprot_p2(buf, msg->subInterfaces_size);
+    rsprot_p2(buf, msg->subInterfaces_count);
     for (int32_t rs_i_subInterface = 0; rs_i_subInterface < msg->subInterfaces_count; rs_i_subInterface++) {
         const Rsprot_RsprotMsg_IfResyncV2_subInterfacesElem *elem = (const Rsprot_RsprotMsg_IfResyncV2_subInterfacesElem *)&msg->subInterfaces[rs_i_subInterface];
         rsprot_pcombined_id(buf, elem->destinationCombinedId);
