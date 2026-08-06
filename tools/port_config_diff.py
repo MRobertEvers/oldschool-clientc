@@ -144,6 +144,10 @@ class Tree:
                    "struct", "enum", "dbtable", "dbrow", "varp", "varbit"):
             self.packs[ns] = load_pack(
                 os.path.join(tree, "configs", "all.%s.compack" % ns))
+            # The namespace's second layer: the server's allocation ledger.
+            # A ported name whose id lives there is just as landed.
+            self.packs[ns].update(
+                load_pack(os.path.join(tree, "pack", "%s.alloc" % ns)))
         for ns in ("stat", "category"):
             self.packs[ns] = load_pack(os.path.join(tree, "pack", "%s.pack" % ns))
         self.packs["interface"] = load_pack(

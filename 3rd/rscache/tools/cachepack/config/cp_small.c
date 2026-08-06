@@ -171,19 +171,47 @@ cp_pack_param(
         else if( strcmp(key, "default") == 0 )
         {
             /*
-             * A reference type's default is a name.
+             * The authored grammar (LostCity's lookupParamValue), which keys the
+             * whole reading on the declared type — which is why this runs after
+             * it:
              *
-             * `[death_drop] type=namedobj default=bones` is obj 526, and the only
-             * thing that says so is the type — which is why this runs after it.
-             * Falling back to `cp_parse_int` would turn `bones` into a failure and
-             * `0` into obj 0, and those are different mistakes.
+             *   string   `default=` IS the string, and `null` is the empty one
+             *   any ref  a name; `null` is the stated absence and packs as -1
+             *   boolean  yes/no/true/false/1/0
+             *   int      a number
+             *
+             * `[death_drop] type=namedobj default=bones` is obj 526, and the
+             * only thing that says so is the type. Falling back to
+             * `cp_parse_int` would turn `bones` into a failure and `0` into obj
+             * 0, and those are different mistakes.
              */
             int ref = cp_param_ref_type(entry.type);
 
-            if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
+            if( entry.type == 's' )
+            {
+                char buf[4096];
+                cp_unescape(strcmp(value, "null") == 0 ? "" : value, buf, sizeof(buf));
+                free(entry.default_string);
+                entry.default_string = strdup(buf);
+                ok = entry.default_string != NULL;
+            }
+            else if( strcmp(value, "null") == 0 )
+                entry.default_int = -1;
+            else if( cp_parse_int(value, &entry.default_int) )
+            {
+                /* The machine spelling — any type, including `type=1
+                 * default=-1`, which the client cache genuinely holds. */
+            }
+            else if( entry.type == '1' )
+            {
+                bool flag = false;
+                ok = cp_parse_bool(value, &flag);
+                entry.default_int = flag ? 1 : 0;
+            }
+            else if( ref >= 0 )
                 ok = cp_resolve_ref(ctx, (enum CP_TypeId)ref, value, &entry.default_int);
             else
-                ok = cp_parse_int(value, &entry.default_int);
+                ok = 0;
         }
         else if( strcmp(key, "defaultlong") == 0 )
         {

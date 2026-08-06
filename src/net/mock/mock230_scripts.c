@@ -227,8 +227,48 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
     else
         snprintf(tree, sizeof(tree), "%s", ".");
 
-    return scripts_scan_newer(tree, pack_st.st_mtime, out_path, out_len,
-                              out_delta);
+    if( scripts_scan_newer(tree, pack_st.st_mtime, out_path, out_len, out_delta) )
+        return 1;
+
+    /*
+     * The allocation ledgers, which live outside the script tree. Compiled
+     * bytecode carries resolved ids — `(table << 12) | column` constants, enum
+     * and varp numbers — so a renumbered `pack/<ns>.alloc` re-points every one
+     * of them at the wrong record while the script sources' mtimes say nothing
+     * changed. The tree is `<content>/server/scripts`; the ledgers sit two
+     * levels up in `<content>/pack`.
+     */
+    {
+        char packdir[1024];
+        DIR* dirp;
+        struct dirent* ent;
+        int stale = 0;
+
+        snprintf(packdir, sizeof(packdir), "%s/../../pack", tree);
+        dirp = opendir(packdir);
+        if( !dirp )
+            return 0;
+        while( !stale && (ent = readdir(dirp)) != NULL )
+        {
+            const char* dot = strrchr(ent->d_name, '.');
+            char child[1200];
+            struct stat sbuf;
+
+            if( !dot || strcmp(dot, ".alloc") != 0 )
+                continue;
+            snprintf(child, sizeof(child), "%s/%s", packdir, ent->d_name);
+            if( lstat(child, &sbuf) != 0 )
+                continue;
+            if( sbuf.st_mtime > pack_st.st_mtime )
+            {
+                snprintf(out_path, out_len, "%s", child);
+                *out_delta = (long)(sbuf.st_mtime - pack_st.st_mtime);
+                stale = 1;
+            }
+        }
+        closedir(dirp);
+        return stale;
+    }
 }
 
 int

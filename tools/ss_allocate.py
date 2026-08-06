@@ -32,16 +32,22 @@ marker, so a hand-written header survives a regeneration — which is exactly wh
 `cachepack unpack` destroying `configs/all.param.compack`'s header taught
 (docs/CONTENT_ARCHITECTURE.md §3.2).
 
-**Output goes to the namespace's one symbol file**, which is
-`configs/all.<ns>.compack` for a config type and `pack/<ns>.pack` for the four
-that are not one — see `pack_path` and NON_CONFIG_NAMESPACES, which mirror
-`pack_kind_is_config()` in src/net/mock/mock230_content.c because the runtime
-reads only those locations. Earlier drafts wrote to `names/<ns>.pack`
-(docs/CONTENT_ARCHITECTURE.md §4.4) and then to `server/pack/<ns>.pack`; both are
-wrong now that a namespace has exactly one symbol file. The marker discipline
-above is what makes sharing that file with a human safe in the other direction,
-and the cache-side codec's comment-preserving merge is what makes it safe in this
-one.
+**Output goes to the server's allocation ledger, `pack/<ns>.alloc`** — never to
+`configs/all.<ns>.compack`, which is the cache's member index and the file
+`cachepack unpack` regenerates. The two are layers of one namespace: every
+reader (mock230_content.c, ssc_symbols.c, cachepack's cp_names.c) loads the
+compack and then the ledger, and refuses a name bound in both. This tool used
+to append below a marker *inside* the compack, which meant every server feature
+edited a client-side file and `--gamevals` carried the server's dbrow names
+into the client cache's own symbol table (gameval archive 9 — a table nothing
+reads). The cache layer is still *read* here, for membership and for the
+high-water mark; it is just never written.
+
+Being in the ledger is also a routing statement: cachepack's entity gate treats
+an alloc-claimed record as the server's without a `pack/<ns>.server` line — the
+allocation is the membership. Restating every allocated name in a membership
+roster was measured to drift within days (560 varps/enums/params/structs
+allocated after the 2026-08-02 seeding, all cell-(c) errors).
 
 **The floor comes from the register, not from a copy of it.** `declared_base`
 reads `content.ini` and falls back to `src/content/content_register.c` — see
@@ -140,9 +146,15 @@ NON_CONFIG_NAMESPACES = ('3_interfaces', 'component', 'stat', 'category')
 # holds one file per cache index naming that index's archives. Most namespaces this
 # script allocates into are config types; see NON_CONFIG_NAMESPACES for the rest.
 def pack_path(tree, ns):
+    """The cache layer's symbol file — read for membership, never written."""
     if ns in NON_CONFIG_NAMESPACES:
         return os.path.join(tree, 'pack', f'{ns}.pack')
     return os.path.join(tree, 'configs', f'all.{ns}.compack')
+
+
+def alloc_path(tree, ns):
+    """The server's allocation ledger — the one file this tool writes."""
+    return os.path.join(tree, 'pack', f'{ns}.alloc')
 
 
 def read_pack(path):
@@ -194,6 +206,8 @@ def other_layers(tree, ns):
     for layer in (pack_path(tree, ns),):
         if not os.path.exists(layer):
             continue
+        # (kept as a loop: the cache layer used to be several files, and a
+        # future one — a second ledger, say — slots in here.)
         with open(layer, encoding='utf-8', errors='replace') as handle:
             for line in handle:
                 line = line.strip()
@@ -344,6 +358,12 @@ def declared_blocks(scripts_root, ns):
 DEFAULT_HEADER = (
     '// The `{ns}` namespace: ids this server allocated.',
     '//',
+    '// The server\'s allocation ledger — one layer of the namespace whose other',
+    '// layer is configs/all.{ns}.compack, the cache\'s member index. Every reader',
+    '// loads both and refuses a name bound in each. Being listed here also routes',
+    '// the record server-side in `cachepack pack`: the allocation is the',
+    '// membership, so no pack/{ns}.server line is needed.',
+    '//',
     '// Appended by tools/ss_allocate.py from the `[block]` names in',
     '// server/scripts/**/configs/*.{ns}, allocated from one past the largest id',
     '// anything else claims. See docs/CONTENT_PACK_PLAN.md §4.',
@@ -396,7 +416,7 @@ def main():
         declared = declared_blocks(scripts_root, ns)
         if not declared:
             continue
-        path = pack_path(args.tree, ns)
+        path = alloc_path(args.tree, ns)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         raw, mapping = read_pack(path)
         elsewhere, highest = other_layers(args.tree, ns)
@@ -468,7 +488,7 @@ def main():
               file=sys.stderr)
         return 2
     if args.check and dirty:
-        print('ss_allocate: server/pack/*.pack are stale; '
+        print('ss_allocate: pack/<ns>.alloc is stale; '
               'run tools/ss_allocate.py', file=sys.stderr)
         return 1
     return 0

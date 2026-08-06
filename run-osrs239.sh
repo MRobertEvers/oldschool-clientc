@@ -191,7 +191,12 @@ start_server() {
         say "server: already running on $GAME_PORT (--keep)"
         return 0
     fi
-    say "starting mock230 on $GAME_PORT (JS5 cache $CACHE)…"
+    say "starting mock230 on $GAME_PORT (world + JS5 cache $CACHE)…"
+    # One cache: the world reads the same directory JS5 serves. The two used to
+    # differ (world on the bake, RuneLite served pristine), which meant the
+    # world could act on config values no connected client had — point BOTH at
+    # a baked cache when client-visible content matters, never just one.
+    MOCK230_CACHE="$CACHE" \
     MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
         "$ROOT/src/build/mock230" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 &
