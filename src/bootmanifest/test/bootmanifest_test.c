@@ -50,6 +50,17 @@ test_load_fields(void)
     for( int i = 0; i < 9; i++ )
         CHECK(bm.jag_crc[i] == i);
 
+    CHECK(bm.client_arg_count == 9);
+    CHECK(strcmp(bm.client_args[0], "--offline") == 0);
+    CHECK(strcmp(bm.client_args[1], "--window") == 0);
+    CHECK(strcmp(bm.client_args[2], "1024x768") == 0);
+    CHECK(strcmp(bm.client_args[3], "--user") == 0);
+    CHECK(strcmp(bm.client_args[4], "Jane Doe") == 0);
+    CHECK(strcmp(bm.client_args[5], "--pass") == 0);
+    CHECK(strcmp(bm.client_args[6], "p;#&=, \"quoted\"") == 0);
+    CHECK(strcmp(bm.client_args[7], "--revconfig") == 0);
+    CHECK(strcmp(bm.client_args[8], "C:\\Program Files\\ui.ini") == 0);
+
     CHECK(bm.ui_logic == APP_UI_LOGIC_CS2);
     CHECK(bm.chrome == 2 /* cache */);
     /* Absolute path passes through; relative joins against the manifest dir. */
@@ -218,6 +229,18 @@ test_required_identity_keys(void)
     CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_missing_epoch.ini") != 0);
 }
 
+static void
+test_exact_manifest_tokens_preserved(void)
+{
+    struct BootManifest bm;
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_nested_manifest_arg.ini") == 0);
+    CHECK(bm.client_arg_count == 3);
+    CHECK(strcmp(bm.client_args[0], "--manifest") == 0);
+    CHECK(strcmp(bm.client_args[1], "another.ini") == 0);
+    CHECK(strcmp(bm.client_args[2], "") == 0);
+}
+
 int
 main(void)
 {
@@ -226,6 +249,7 @@ main(void)
     test_partial_apply_preserves_unset();
     test_web_endpoint();
     test_required_identity_keys();
+    test_exact_manifest_tokens_preserved();
 
     if( g_fail )
     {

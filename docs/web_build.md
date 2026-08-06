@@ -100,6 +100,42 @@ same way, so `TORIRS_BOOT_STATS=1 ./run-live.sh web …` behaves as it does
 natively. With no query at all the default is
 `--manifest manifest_rs254.ini --offline`.
 
+### Arguments carried by a manifest
+
+A boot manifest may provide an additional, lower-priority argv layer. Use one
+`arg=` line per token, in order:
+
+```ini
+[client:args]
+arg=--offline
+arg=--window
+arg=1024x768
+arg=--user
+arg=Jane Doe
+```
+
+The right-hand side is already one argument. It is not a shell command string:
+spaces, quotes, backslashes, commas, `=`, `;`, and `#` are literal, with no
+quote removal, escaping, variable expansion, or globbing. Thus `arg=Jane Doe`
+passes the single token `Jane Doe`; writing `arg="Jane Doe"` includes the quote
+characters. Since `;` and `#` are data on an `arg=` line, comments belong on
+their own lines. Empty arguments, more than 64 entries, and a nested
+`arg=--manifest` make the manifest invalid.
+
+The order is typed manifest fields, then `[client:args]`, then the real process
+argv (the page's query-string argv in a web build). A later CLI option therefore
+overrides a manifest option when the command language has an overriding form;
+for example, a query `arg=--connect&arg=host` can replace manifest `--offline`,
+and `--soft3d` can replace a manifest renderer choice. One-way switches such as
+`--bmp` and `--uncapped` remain enabled because there is no opposite CLI flag.
+
+Typed manifest paths such as `revconfig_ui=` resolve relative to the manifest's
+directory. A path supplied through `arg=--revconfig` is an ordinary CLI value
+and remains relative to the process working directory. The web host scans both
+forms before `main()` and fetches the named INIs into its virtual filesystem.
+Keep shared manifests platform-neutral: a native-only `--opengl3` or
+Windows-only `--d3d9` is correctly rejected by a web build that cannot honor it.
+
 ### Switching manifests from the URL
 
 Nothing is baked into the module. `main()` opens its manifest by name, and the

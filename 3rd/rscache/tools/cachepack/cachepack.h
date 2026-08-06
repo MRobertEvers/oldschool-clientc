@@ -260,8 +260,16 @@ cp_db_column_name(
     int table_id,
     int column);
 
-/** How many files of one extension a pack run will consider. */
-#define CP_PACK_MAX_SOURCES 256
+/**
+ * How many files of one extension a pack run will consider.
+ *
+ * `cp_walk_find` stops at this many and says nothing, so it has to stay ahead of
+ * the tree rather than merely near it: at 256 the 265 `.constant` files silently
+ * lost nine, which costs a `^name` that resolves to nothing at a use site far
+ * away. Raised to 1024 with that margin in mind; the array is
+ * `sizeof(char*) * this` on one stack frame, so the cost is 8KB, not a table.
+ */
+#define CP_PACK_MAX_SOURCES 1024
 
 /** Load `<srcdir>/pack/<type>.pack` for every type; missing files are empty. */
 int
@@ -385,11 +393,32 @@ cp_asset_name_set(
 
 /* ---- context ------------------------------------------------------------ */
 
+/** One `^name = <int>` from a `.constant` file. See CP_Ctx.constants. */
+struct CP_Constant
+{
+    char* name; /**< without the leading caret */
+    int value;
+};
+
 struct CP_Ctx
 {
     struct RSCache profile;
     struct Tool_Dat2Cache cache; /* open only for unpack/verify */
     bool cache_open;
+    /*
+     * The config commit reached disk.
+     *
+     * `cache_open` is set before the config pass, so it cannot answer this — and
+     * the asset and binary imports were gated on it alone. A pack that aborted
+     * before committing therefore went on to write assets into a cache with no
+     * config table, producing a directory that looks like a cache, is the size
+     * of one, and cannot be booted. Failing is fine; leaving that behind is not.
+     *
+     * It is deliberately not "cp_pack_run returned true": a run with membership
+     * errors returns false *after* a successful commit, and those exist in the
+     * tree today. Aborting the asset import for them would be a regression.
+     */
+    bool cache_committed;
 
     /** Source files found by extension, built once per pack run (cp_walk.h). */
     struct CP_Walk walk;
@@ -428,11 +457,33 @@ struct CP_Ctx
     char* param_types;
     int param_types_count;
 
+    /**
+     * The tree's `^constants`, as a param value can name one.
+     *
+     * `param=undead,^true` and `param=damagetype,^crush_style` are in this tree's
+     * `.npc` overlays, and a `^name` is declared in a `server/scripts/**\/*.constant`
+     * file (4,878 of them across 265 files). Loaded lazily — most packs never
+     * meet a caret, and the walk is only worth doing for one that does.
+     *
+     * Integer-valued constants only. A constant whose value is a name is not a
+     * thing a param value can hold, so it is skipped rather than half-resolved.
+     */
+    struct CP_Constant* constants;
+    int constants_count;
+    int constants_capacity;
+    int constants_loaded;
+
     /** Counted, not fatal: a record the decoder did not consume to the byte has
      *  fields this tool cannot see, and the count is the headline of the report. */
     int warn_short_decode;
     int warn_unknown_key;
     int warn_unresolved_name;
+    /* Archives added to a reference table that did not list them. Rare when
+     * packing onto a base cache — and every single archive when packing the
+     * tree alone, where the tables start empty. One line each meant six figures
+     * of stderr writes, which is both unreadable and slow, so it goes through
+     * cp_warn's suppression like every other repeated note. */
+    int warn_reference_added;
     /** Quiet down the per-record chatter after this many of each kind. */
     int warn_limit;
 };
@@ -629,6 +680,17 @@ cp_binary_import(
     struct CP_Ctx* ctx,
     const char* out_cache_dir);
 
+/** Record an archive's name (djb2) so the client can resolve it by name.
+ *  No-op for a NULL/empty name or an id nothing was written for. */
+int
+cp_reference_set_name(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    const char* name,
+    int* out_dirty);
+
+
 /**
  * Point one reference-table entry at bytes now stored, and write the table back.
  *
@@ -716,6 +778,28 @@ cp_emit_ref(
  *  Returns 0 and warns when the name is unknown. */
 int
 cp_resolve_ref(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* text,
+    int* out_id);
+
+/**
+ * Resolve a `^name` to its integer value. Returns 0 when `text` is not a caret
+ * or names no integer constant.
+ *
+ * `^true`/`^false` are the language's; everything else comes from the tree's
+ * `.constant` files, loaded on first use.
+ */
+int
+cp_resolve_caret(
+    struct CP_Ctx* ctx,
+    const char* text,
+    int* out_value);
+
+/** `cp_resolve_ref`, plus the literal `null` as -1 — the reference's spelling of
+ *  "no value". Use this wherever the value is allowed to name nothing. */
+int
+cp_resolve_ref_or_null(
     struct CP_Ctx* ctx,
     enum CP_TypeId type,
     const char* text,

@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "tool_posix_compat.h"
 
 #include "archive.h"
 #include "checksum.h"
@@ -46,7 +47,17 @@ ensure_dir(const char* path)
     struct stat st;
     if( stat(path, &st) == 0 )
         return S_ISDIR(st.st_mode) ? 0 : -1;
-    return cp_mkdir(path);
+    /*
+     * EEXIST is success. That is the ordinary mkdir -p rule (another process
+     * may have won the race), and on Windows it is also what makes an ABSOLUTE
+     * path work at all: the callers below split on '/' from index 1, so the
+     * first component of "C:/Users/..." is the bare drive designator "C:",
+     * where MSVCRT's stat() fails with ENOENT and _mkdir() then fails with
+     * EEXIST. Without this, every absolute path is an error.
+     */
+    if( cp_mkdir(path) == 0 )
+        return 0;
+    return errno == EEXIST ? 0 : -1;
 }
 
 /**
@@ -270,6 +281,96 @@ container_split(
  * Skipped when nothing changed: rewriting the table bumps its version, and a
  * version bump the contents do not justify is a difference for its own sake.
  */
+/*
+ * The table this import is about, created if the cache does not have one yet.
+ *
+ * `disk->tables[]` is populated from the .idxN files present when the cache was
+ * opened, so on a cache built from the content tree alone (`pack` with no
+ * --base) every entry is NULL. Both callers below used to read that as "no
+ * table, nothing to do" and return success — which meant the archives really
+ * were written to the .dat2 and .idxN, and *nothing* was written to idx255. A
+ * dat2 archive is only reachable through its reference table, so the whole
+ * asset half of a from-scratch pack was invisible to the client while the tool
+ * reported success.
+ *
+ * The empty table matches what the library builds for the same situation on the
+ * config side (dat2_edit_ensure_table in src/cache_edit.c): format 7, version 1,
+ * sizes present. Keeping the two identical is what makes a from-scratch cache
+ * one cache rather than two halves written by different rules.
+ */
+static struct RSCache_ReferenceTable*
+cp_reference_ensure(struct CP_Ctx* ctx, int table_id)
+{
+    struct RSCache_ReferenceTable* rt;
+
+    if( !ctx->cache.disk || !RSCache_Dat2DiskIsValidTableId(table_id) )
+        return NULL;
+
+    rt = ctx->cache.disk->tables[table_id];
+    if( rt )
+        return rt;
+
+    rt = calloc(1, sizeof(*rt));
+    if( !rt )
+        return NULL;
+    rt->format = 7;
+    rt->version = 1;
+    rt->flags = RSCACHE_REFTABLE_FLAG_SIZES;
+    ctx->cache.disk->tables[table_id] = rt;
+    return rt;
+}
+
+/*
+ * Record an archive's NAME in the reference table, as a djb2 hash.
+ *
+ * Half the cache is addressed by name rather than id. The client resolves a
+ * sprite with
+ *
+ *     name_hash = RSCache_ArchiveNameHashDat2(name);
+ *     for( i ... ) if( table->archives[i].identifier == name_hash ) ...
+ *
+ * so an archive whose `identifier` is 0 is unreachable by name however
+ * correctly its bytes were written. Packing onto a base cache hides this
+ * because the identifiers came with the base; a cache packed from the tree
+ * alone has none, and the client boots to a frame with no compass, no map
+ * scene, no hitmarks — everything looked up by name silently absent.
+ *
+ * FLAG_IDENTIFIERS is set here rather than at table creation because it must
+ * describe what the table actually carries: the encoder writes an identifier
+ * for every archive once the flag is on, so claiming it on a table nothing
+ * names would write a column of zeros and invite a spurious match on hash 0.
+ */
+int
+cp_reference_set_name(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    const char* name,
+    int* out_dirty)
+{
+    struct RSCache_ReferenceTable* rt;
+    int identifier;
+
+    if( !name || !*name )
+        return 1;
+
+    rt = cp_reference_ensure(ctx, table_id);
+    if( !rt )
+        return 0;
+    if( archive_id < 0 || archive_id >= rt->archive_count || rt->archives[archive_id].index < 0 )
+        return 1; /* nothing was written for this id; nothing to name */
+
+    identifier = RSCache_ArchiveNameHashDat2((char*)name);
+    if( rt->archives[archive_id].identifier != identifier )
+    {
+        rt->archives[archive_id].identifier = identifier;
+        if( out_dirty )
+            *out_dirty = 1;
+    }
+    rt->flags |= RSCACHE_REFTABLE_FLAG_IDENTIFIERS;
+    return 1;
+}
+
 int
 cp_reference_sync(
     struct CP_Ctx* ctx,
@@ -281,9 +382,9 @@ cp_reference_sync(
     int file_count,
     int* out_dirty)
 {
-    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+    struct RSCache_ReferenceTable* rt = cp_reference_ensure(ctx, table_id);
     if( !rt )
-        return 1;
+        return 0;
 
     /*
      * `archives` is indexed *by archive id*, not packed by position — the decoder
@@ -316,22 +417,50 @@ cp_reference_sync(
         if( archive_id >= rt->archive_count )
         {
             int next = archive_id + 1;
-            struct RSCache_ReferenceTableArchive* grown =
-                realloc(rt->archives, (size_t)next * sizeof(*grown));
-            if( !grown )
-                return 0;
-            memset(grown + rt->archive_count, 0,
-                   (size_t)(next - rt->archive_count) * sizeof(*grown));
+
+            /* Double rather than fit exactly. Fitting exactly meant a realloc
+             * per archive over an array that ends up tens of thousands long. */
+            if( next > rt->archive_capacity )
+            {
+                int capacity = rt->archive_capacity > rt->archive_count ? rt->archive_capacity
+                                                                        : rt->archive_count;
+                struct RSCache_ReferenceTableArchive* grown;
+
+                if( capacity < 16 )
+                    capacity = 16;
+                while( capacity < next )
+                    capacity *= 2;
+
+                grown = realloc(rt->archives, (size_t)capacity * sizeof(*grown));
+                if( !grown )
+                    return 0;
+                rt->archives = grown;
+                rt->archive_capacity = capacity;
+            }
+
+            memset(rt->archives + rt->archive_count, 0,
+                   (size_t)(next - rt->archive_count) * sizeof(*rt->archives));
             for( int i = rt->archive_count; i < next; i++ )
-                grown[i].index = -1;
-            rt->archives = grown;
+                rt->archives[i].index = -1;
             rt->archive_count = next;
         }
 
-        int* ids = realloc(rt->ids, (size_t)(rt->id_count + 1) * sizeof(int));
-        if( !ids )
-            return 0;
-        rt->ids = ids;
+        if( rt->id_count + 1 > rt->id_capacity )
+        {
+            int capacity = rt->id_capacity > rt->id_count ? rt->id_capacity : rt->id_count;
+            int* grown;
+
+            if( capacity < 16 )
+                capacity = 16;
+            while( capacity < rt->id_count + 1 )
+                capacity *= 2;
+
+            grown = realloc(rt->ids, (size_t)capacity * sizeof(int));
+            if( !grown )
+                return 0;
+            rt->ids = grown;
+            rt->id_capacity = capacity;
+        }
         /* Ascending, because that is the order the encoder writes and the decoder
          * reads back as a delta chain. */
         int at = rt->id_count;
@@ -347,8 +476,8 @@ cp_reference_sync(
         memset(archive, 0, sizeof(*archive));
         archive->index = archive_id;
         *out_dirty = 1;
-        fprintf(stderr, "cachepack: idx%d archive %d added to the reference table\n", table_id,
-                archive_id);
+        cp_warn(ctx, &ctx->warn_reference_added,
+                "idx%d archive %d added to the reference table", table_id, archive_id);
     }
 
     int trailer = 0;
@@ -427,9 +556,13 @@ cp_reference_write(
     const char* out_dir,
     int table_id)
 {
-    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+    /* Ensure, not fetch: this is only reached when cp_reference_sync marked the
+     * table dirty, and on a from-scratch cache that table was created by the
+     * sync rather than loaded from disk. Returning "nothing to write" here was
+     * the second half of the bug described above. */
+    struct RSCache_ReferenceTable* rt = cp_reference_ensure(ctx, table_id);
     if( !rt )
-        return 1;
+        return 0;
     rt->version += 1;
 
     uint32_t bound = RSCache_ReferenceTableEncodeBound(rt);

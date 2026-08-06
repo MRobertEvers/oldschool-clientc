@@ -3,21 +3,66 @@
 # One variable picks the whole host: compiler, windowing/audio/IO backends,
 # object directory and link output.
 #
-#   make -C src                        native, debug     -> src/torirs
-#   make -C src release                native, optimized -> src/torirs
-#   make -C src PLATFORM=web           web, debug        -> build-web/torirs.js
-#   make -C src web                    web, optimized    -> build-web/torirs.js
+#   make -C src                        host native, debug -> src/torirs
+#   make -C src release                host native, opt   -> src/torirs
+#   make -C src winxp                  Windows XP, opt    -> src/torirs.exe
+#   make -C src web                    web, optimized     -> build-web/torirs.js
 #
 # Objects never mix: each (PLATFORM, OPT) pair owns its own OBJ_DIR, so
 # switching targets never links a wasm object into a native binary or reads a
 # struct field at an offset another flavor's headers produced.
 #
-# Adding a platform means adding one block here plus its platform/*.c backends;
-# nothing above this file needs to know the list.
+# This file is the only place that knows a platform exists. The makefile reads
+# the PLATFORM_* variables below and never tests PLATFORM itself, so adding a
+# platform means adding one block here plus its platform/*.c backends; nothing
+# above this file needs to know the list. Every block must set all of:
+#
+#   PLATFORM_CC              compiler driver
+#   PLATFORM_OBJ_BASE        objdir stem (flavor suffixes are appended)
+#   PLATFORM_TARGET          link output
+#   PLATFORM_SRCS            windowing/audio/IO backends to add to SRCS
+#   PLATFORM_GPU_OBJ_NAMES   GPU-binding object *names* (no path -- OBJ_DIR is
+#                            computed after this file is included)
+#   PLATFORM_BASE_CFLAGS     flags every TU needs, vendored units included
+#   PLATFORM_CFLAGS          base + this platform's client-only flags
+#   PLATFORM_LDFLAGS         link flags
+#   PLATFORM_STRIP_LDFLAGS   dead-code stripping, if this linker has it
+#   PLATFORM_MEMTRACE_WRAP_LDFLAGS  how MEMTRACE=1 reaches the allocator here
+#   PLATFORM_TARGET_MEMTRACE_SUFFIX suffix MEMTRACE=1 adds to PLATFORM_TARGET
+#   PLATFORM_EXE_SUFFIX      what the linker appends to an executable here
+#
+# and may override PLATFORM_WINDOW_SRC (defaulted at the bottom).
+
+PLATFORM_LIST := macos linux win32 web
 
 PLATFORM ?= native
 
+# `native` is not a platform, it is "whatever this host is". Resolving it here
+# keeps every block below a declaration rather than a probe -- the old single
+# `native` block branched on uname *inside* itself, which is how an Apple-only
+# linker flag ended up on the Linux link line. $(OS) is set by Windows itself,
+# so a bare `make -C src` on the XP box picks win32 without needing uname.
+#
+# `override` is load-bearing: `native` also arrives from the command line (the
+# io-server target re-invokes make with PLATFORM=native), and a command-line
+# variable beats a plain assignment here -- without it PLATFORM would stay
+# `native`, match no block, and hit the unknown-PLATFORM error below.
 ifeq ($(PLATFORM),native)
+  ifeq ($(OS),Windows_NT)
+    override PLATFORM := win32
+  else ifeq ($(shell uname -s),Darwin)
+    override PLATFORM := macos
+  else
+    override PLATFORM := linux
+  endif
+endif
+
+ifneq ($(filter $(PLATFORM),macos linux),)
+  # --- Desktop SDL2 hosts -----------------------------------------------------
+  # macOS and Linux differ only in how GL is linked and whether the linker has a
+  # dead-strip flag, so they share this block and split in the tail below. They
+  # are still separate PLATFORM values: the difference has to be declarable, not
+  # discovered mid-recipe.
   PLATFORM_CC       := $(if $(filter default,$(origin CC)),cc,$(CC))
   PLATFORM_OBJ_BASE := build
   PLATFORM_TARGET   := torirs
@@ -26,6 +71,10 @@ ifeq ($(PLATFORM),native)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c
+  # The desktop-GL binding. The web lane builds the same renderer against
+  # WebGL1 and needs its index-splitting object instead; win32 has no GPU path.
+  PLATFORM_GPU_OBJ_NAMES := opengl3_sdlgl.o
+  PLATFORM_EXE_SUFFIX :=
 
   SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
   SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
@@ -45,25 +94,131 @@ ifeq ($(PLATFORM),native)
   # silently ignored on a host that cannot do it.
   PLATFORM_CFLAGS_EXTRA := -DTORIRS_HAVE_GL3=1
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) $(PLATFORM_CFLAGS_EXTRA) $(SDL_CFLAGS)
-  PLATFORM_LDFLAGS := -lm -Wl,-dead_strip $(SDL_LIBS)
+  PLATFORM_LDFLAGS := -lm $(SDL_LIBS)
 
-  UNAME_S := $(shell uname -s)
-  ifeq ($(UNAME_S),Darwin)
+  # A traced binary must not share ./torirs with an untraced one: MEMTRACE is a
+  # long-running capture and a plain `make -C src` in another terminal would
+  # silently replace it mid-session. Only the lanes whose output name is not
+  # referenced from outside the build can afford the rename.
+  PLATFORM_TARGET_MEMTRACE_SUFFIX := _mt
+
+  ifeq ($(PLATFORM),macos)
     PLATFORM_LDFLAGS += -framework OpenGL
+    PLATFORM_STRIP_LDFLAGS := -Wl,-dead_strip
+    # ld64 has no --wrap. The tracer instead defines malloc/free as strong
+    # symbols and reaches the real ones through dlsym(RTLD_NEXT), so there is
+    # nothing to add at link time.
+    PLATFORM_MEMTRACE_WRAP_LDFLAGS :=
   else
     PLATFORM_LDFLAGS += -lGL
+    PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
+        -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+        -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
+    # Deliberately empty. -dead_strip is ld64-only and GNU ld rejects it, which
+    # is why it cannot just be shared with macOS. The GNU equivalent,
+    # --gc-sections, only does real work when the objects were compiled with
+    # -ffunction-sections -fdata-sections, and this tree does not use those --
+    # so setting it here would be a no-op that looked like parity.
+    PLATFORM_STRIP_LDFLAGS :=
   endif
+
+else ifeq ($(PLATFORM),win32)
+  # Native Windows / XP host: a raw Win32 window with fixed-function D3D9 by
+  # default and the GDI Soft3D presenter behind explicit --soft3d. There is no
+  # SDL, GL, D3D9Ex, D3DX or shader compiler dependency. The windowing source is
+  # swapped in the Makefile via PLATFORM_WINDOW_SRC below.
+  PLATFORM_CC       := $(if $(filter default,$(origin CC)),gcc,$(CC))
+  PLATFORM_OBJ_BASE := build_win32
+  PLATFORM_TARGET   := torirs.exe
+  # IO is the portable stdio backend; audio is the null backend (no sound on XP
+  # for now). No GL renderer, no SDL audio.
+  PLATFORM_SRCS     := platform/platform_x_io.c \
+                       platform/platform_audio_null.c \
+                       platform/platform_win32_renderer_d3d9.c
+  # TRSPK's CPU retained-mode core is already linked through trspk_unity.o.
+  # D3D9 calls live in the regular platform source above, so there is no extra
+  # out-of-tree binding object (and in particular no WebGL object) here.
+  PLATFORM_GPU_OBJ_NAMES :=
+  # The linker appends .exe here. Host tools (sscompile, cachepack) are invoked
+  # by path, and a tracked macOS build of cachepack sits next to the Windows one
+  # under the extensionless name -- so the suffix has to be spelled, not left to
+  # the shell's .exe fallback, or the Mach-O file wins and sh reports only
+  # "Exec format error".
+  PLATFORM_EXE_SUFFIX := .exe
+  # platform_win32gdi.c replaces platform_sdl2.c (see PLATFORM_WINDOW_SRC).
+  PLATFORM_WINDOW_SRC := platform/platform_win32gdi.c
+  #
+  # The XP ABI contract. Every flag below is load-bearing for "runs on XP SP3",
+  # and none of it can be left to the ambient toolchain:
+  #
+  #   _WIN32_WINNT/WINVER=0x0501  cap the Windows API surface at XP, so a
+  #                               post-XP import fails at compile time here
+  #                               rather than as "procedure entry point not
+  #                               found" on the target.
+  #   -march=i686                 Keep the executable usable on pre-SSE2 XP
+  #     -mfpmath=387              machines. The i686 MinGW lane and x87 are the
+  #                               conservative 32-bit compatibility baseline.
+  #   -include win32_compat.h     setenv/unsetenv, which MinGW does not ship
+  #                               and the embedded rev-230 server calls. It is
+  #                               in BASE_CFLAGS, not CFLAGS, so it reaches the
+  #                               vendored units too -- same reasoning as
+  #                               _GNU_SOURCE on the web lane below.
+  #
+  # 32-bitness is deliberately *not* forced with -m32: on an x86_64 MinGW
+  # without multilib that fails deep in the assembler. `make lane-check`
+  # asserts the toolchain triple instead, which fails legibly.
+  PLATFORM_BASE_CFLAGS := -DTORIRS_HAVE_D3D9=1 -DD3D_DISABLE_9EX=1 \
+                          -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
+                          -D_WIN32_WINNT=0x0501 -DWINVER=0x0501 \
+                          -march=i686 -mtune=generic -mfpmath=387 \
+                          -include $(SRC_DIR)/platform/win32_compat.h
+  # No TORIRS_HAVE_GL3: this lane selects the fixed-function D3D9 path instead.
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS)
+  #
+  # --subsystem,console:5.01 does two things and replaces a bare -mconsole. It
+  # keeps stdout/stderr (the perf eff_fps line) attached, and it stamps the PE
+  # subsystem *version* at 5.01. Modern binutils default that field to 6.00,
+  # and XP refuses to load an image that claims to need Vista.
+  #
+  # -static-libgcc so the target needs no libgcc DLL. There is no
+  # -static-libstdc++ counterpart because this lane is pure C11 -- that flag
+  # belongs to the retired CMake recipe, which compiled C++ platform sources.
+  # -static, not just -static-libgcc. The toolchain is built `threads=posix`, so
+  # its runtime pulls in libwinpthread-1.dll even for a program that starts no
+  # threads — and the binary then fails to start with STATUS_DLL_NOT_FOUND
+  # (0xC0000135) anywhere that DLL is not beside it. It resolved here only
+  # because the toolchain's own bin/ happened to be on PATH, which is exactly
+  # the accident that does not survive the copy to an XP box: build_winxp.ps1
+  # stages the .exe and nothing else. Linking static makes the one file the
+  # whole deliverable, which is what this lane is for.
+  PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:5.01 \
+                      -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+  # See the linux note above: --gc-sections would be a no-op here too.
+  PLATFORM_STRIP_LDFLAGS :=
+  PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
+      -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
+      -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
+  # torirs.exe_mt would not be a runnable name; the suffix is for the extension-
+  # less desktop output only.
+  PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_OBJ_BASE := build_web
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # The GPU renderer builds here too, against WebGL1 rather than desktop GL —
+  # The GPU renderer builds here too, against WebGL1 rather than desktop GL --
   # same file, see TORIRS_GL_ES2 below. IO is asynchronous, audio is WebAudio.
   PLATFORM_SRCS     := platform/platform_x_io_web.c \
                        platform/io_wire.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_sdl2_renderer_gl3.c
+  # WebGL1 cannot index past 16 bits, so this lane needs the index-splitting
+  # object the desktop GL binding does not (see webgl1_index16.h).
+  PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
+  # emcc names its own outputs (PLATFORM_TARGET is explicit); host tools built
+  # alongside a web build are native and take the host's suffix, which on the
+  # machines this lane runs on is none.
+  PLATFORM_EXE_SUFFIX :=
 
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it
@@ -101,6 +256,12 @@ else ifeq ($(PLATFORM),web)
   # else's browser; GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 stops emscripten
   # quietly enabling every extension the browser offers, so a renderer that
   # reached for one would fail here too.
+  #
+  # There is deliberately no -sASYNCIFY. The IO path yields to
+  # emscripten_set_main_loop and lets torirs_host.js pump responses back in
+  # (see docs/web_build.md); ASYNCIFY would rewrite the whole module to get the
+  # same effect at a large size and speed cost. `make lane-check` asserts it
+  # stays absent.
   PLATFORM_LDFLAGS := -lm -sUSE_SDL=2 \
                       -sMIN_WEBGL_VERSION=1 \
                       -sMAX_WEBGL_VERSION=1 \
@@ -116,6 +277,16 @@ else ifeq ($(PLATFORM),web)
                       -sMODULARIZE=0 \
                       -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"]' \
                       -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"]'
+  # emcc strips at the wasm level; there is no ld flag to add here.
+  PLATFORM_STRIP_LDFLAGS :=
+  # emscripten's musl only routes these four through --wrap; reallocf and
+  # posix_memalign are not separate symbols there, and strdup is inlined to a
+  # malloc it already sees.
+  PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
+      -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free
+  # The web target keeps its name, which the page's <script src> is written
+  # against.
+  PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
   ifeq ($(OPT),1)
     # -g0 discards the DWARF the shared CFLAGS' -g put in the objects. Without
@@ -128,5 +299,9 @@ else ifeq ($(PLATFORM),web)
   endif
 
 else
-  $(error unknown PLATFORM '$(PLATFORM)' — expected one of: native web)
+  $(error unknown PLATFORM '$(PLATFORM)' — expected one of: native $(PLATFORM_LIST))
 endif
+
+# The windowing implementation of the PlatformSDL2 interface. SDL platforms use
+# platform_sdl2.c; the win32 block overrides this with platform_win32gdi.c.
+PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c

@@ -16,8 +16,21 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#if defined(_WIN32)
+/* win32 build: winsock instead of BSD sockets. close()->closesocket(); the
+ * embedded server never opens this websocket path at runtime (net_transport_embed
+ * bridges in-process), so this only has to compile and link. */
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define close closesocket
+/* This file does low-level read()/write() on socket fds; winsock uses
+ * recv()/send(). The buffers are byte data, so the char* casts are safe. */
+#define read(fd, buf, n)  recv((fd), (char*)(buf), (int)(n), 0)
+#define write(fd, buf, n) send((fd), (const char*)(buf), (int)(n), 0)
+#else
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 /* ------------------------------------------------------------------ */
 /* SHA-1 + base64, for the handshake's Sec-WebSocket-Accept            */

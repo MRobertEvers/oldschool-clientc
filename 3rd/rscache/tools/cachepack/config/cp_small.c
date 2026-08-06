@@ -177,10 +177,53 @@ cp_pack_param(
              * thing that says so is the type — which is why this runs after it.
              * Falling back to `cp_parse_int` would turn `bones` into a failure and
              * `0` into obj 0, and those are different mistakes.
+             *
+             * Three spellings below are the author's rather than the exporter's.
+             * The machine export writes `default=` only for the *int* slot and
+             * puts a string in `defaultstr=`, so each of these used to fail the
+             * whole record — 20 of them in this tree, and a param that fails to
+             * encode is a param the cache does not carry at all.
              */
             int ref = cp_param_ref_type(entry.type);
 
-            if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
+            if( entry.type == 's' )
+            {
+                /*
+                 * A string param's default is a string, and `default=` is how a
+                 * person writes it. Routed to the string slot (opcode 5) because
+                 * an *integer* default on a string type has no meaning — so there
+                 * is nothing for this to be ambiguous with. Export still writes
+                 * `defaultstr=`; both spellings read back the same.
+                 */
+                char buf[4096];
+                cp_unescape(value, buf, sizeof(buf));
+                free(entry.default_string);
+                entry.default_string = strdup(buf);
+                ok = entry.default_string != NULL;
+            }
+            else if( strcmp(value, "null") == 0 )
+            {
+                /*
+                 * "no value" — see cp_resolve_ref_or_null for why it is -1.
+                 *
+                 * Accepted on any non-string type, not only a reference one:
+                 * `[gnome_cooking_type] type=int default=null` is in this tree,
+                 * and the sentinel means the same thing there. The string case is
+                 * already handled above, where `null` would be a literal string.
+                 */
+                entry.default_int = -1;
+            }
+            else if( entry.type == '1' )
+            {
+                /* `yes`/`no` as well as 0/1 — the same two spellings autodisable
+                 * below already accepts, and what content authors write. */
+                bool flag = false;
+                if( cp_parse_bool(value, &flag) )
+                    entry.default_int = flag ? 1 : 0;
+                else
+                    ok = cp_parse_int(value, &entry.default_int);
+            }
+            else if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
                 ok = cp_resolve_ref(ctx, (enum CP_TypeId)ref, value, &entry.default_int);
             else
                 ok = cp_parse_int(value, &entry.default_int);

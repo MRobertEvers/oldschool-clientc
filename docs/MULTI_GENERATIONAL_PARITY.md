@@ -690,3 +690,23 @@ ever matters.
     revision 240` and then crashed in its own decode. Blocker unchanged and
     external: RuneLite ships a rev-240 client; the newest RSProt module and
     every archived cache are 239.
+
+- **2026-08-06 — Manifests gained a lower-priority command-line layer.**
+  - `[client:args]` carries repeated `arg=` entries, one exact argv token per
+    line in file order. It deliberately reuses the browser query string's
+    repeated-`arg` model instead of inventing a POSIX- or Windows-specific shell
+    tokenizer: spaces, quotes, backslashes and punctuation remain literal.
+  - Boot precedence is now typed manifest fields → manifest arguments → process
+    argv. Each layer gets fresh positional slots, so an explicit cache directory
+    or interface id replaces the manifest's positional value. Connectivity is
+    also resolved per layer: an explicit `--offline` clears a manifest
+    `--connect`, while an explicit `--connect` replaces manifest `--offline`.
+  - Argument backing is fixed storage inside the process-lifetime
+    `BootManifest`, because CLI values such as `--user`, `--connect`, and
+    `--revconfig` can become `AppConfig` pointers that must outlive parsing.
+    Empty entries, overflow beyond 64 tokens, and nested `--manifest` are load
+    errors rather than partially applied command lines.
+  - The web boot preloader also inspects manifest arguments for `--revconfig`
+    and `--revconfig-cache`, ensuring those CLI-named files exist in MEMFS before
+    `main()`. Typed RevConfig keys remain manifest-relative; argument paths keep
+    ordinary CLI/working-directory semantics.

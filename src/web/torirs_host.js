@@ -178,6 +178,27 @@
       return out;
     },
 
+    // `[client:args]` is intentionally one exact argv token per `arg=` line,
+    // matching the repeated query-string form above. Do not trim or interpret
+    // quotes/comments: the C INI reader does neither for a value.
+    clientArgs: function (bytes) {
+      var text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      var out = [];
+      var section = '';
+      text.split('\n').forEach(function (raw) {
+        var line = raw.replace(/\r$/, '');
+        if (line.charAt(0) === '[' && line.charAt(line.length - 1) === ']') {
+          section = line.substring(1, line.length - 1);
+          return;
+        }
+        if (section !== 'client:args') { return; }
+        var eq = line.indexOf('=');
+        if (eq < 0 || line.substring(0, eq) !== 'arg') { return; }
+        out.push(line.substring(eq + 1));
+      });
+      return out;
+    },
+
     load: function () {
       var self = this;
       var seen = {};
@@ -188,6 +209,19 @@
         return self.fetch(path);
       }
 
+      function takeArgFiles(argv) {
+        for (var j = 0; j < argv.length - 1; j++) {
+          var flag = argv[j];
+          var value = argv[j + 1];
+          if (flag === '--revconfig' || flag === '--revconfig-cache') {
+            take(value);
+            // main.c probes for a sibling _cache.ini when only the _ui.ini was
+            // given; fetch it so the probe finds it or honestly does not.
+            if (/_ui\.ini$/.test(value)) { take(value.replace(/_ui\.ini$/, '_cache.ini')); }
+          }
+        }
+      }
+
       for (var i = 0; i < args.length - 1; i++) {
         var flag = args[i];
         var value = args[i + 1];
@@ -196,14 +230,13 @@
           if (bytes) {
             var dir = value.indexOf('/') >= 0 ? value.replace(/\/[^/]*$/, '/') : '';
             self.revconfigPaths(bytes).forEach(function (rel) { take(dir + rel); });
+            // Additional CLI paths keep CLI/CWD semantics; unlike typed
+            // revconfig keys they are not relative to the manifest directory.
+            takeArgFiles(self.clientArgs(bytes));
           }
-        } else if (flag === '--revconfig' || flag === '--revconfig-cache') {
-          take(value);
-          // main.c probes for a sibling _cache.ini when only the _ui.ini was
-          // given; fetch it so the probe finds it or honestly does not.
-          if (/_ui\.ini$/.test(value)) { take(value.replace(/_ui\.ini$/, '_cache.ini')); }
         }
       }
+      takeArgFiles(args);
     }
   };
 

@@ -144,6 +144,7 @@ bad:
 enum bm_section
 {
     BM_SECTION_NONE = 0,
+    BM_SECTION_CLIENT_ARGS,
     BM_SECTION_CACHE,
     BM_SECTION_NET,
     BM_SECTION_UI,
@@ -158,6 +159,8 @@ static enum bm_section
 bm_section_of(char const* header)
 {
     /* Headers are "type:name"; we only care about the type prefix. */
+    if( strcmp(header, "client:args") == 0 )
+        return BM_SECTION_CLIENT_ARGS;
     if( strncmp(header, "cache:", 6) == 0 )
         return BM_SECTION_CACHE;
     if( strncmp(header, "net:", 4) == 0 )
@@ -190,6 +193,28 @@ bm_set_kv(
 
     switch( section )
     {
+    case BM_SECTION_CLIENT_ARGS:
+        if( strcmp(key, "arg") == 0 )
+        {
+            if( bm->client_arg_count >= BOOTMANIFEST_CLIENT_ARG_MAX )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [client:args] holds at most %d arguments\n",
+                    BOOTMANIFEST_CLIENT_ARG_MAX);
+                bm->client_args_error = 1;
+                return;
+            }
+            snprintf(
+                bm->client_args[bm->client_arg_count],
+                sizeof(bm->client_args[bm->client_arg_count]),
+                "%s",
+                value);
+            bm->client_arg_count++;
+            return;
+        }
+        break;
+
     case BM_SECTION_CACHE:
         if( strcmp(key, "epoch") == 0 )
         {
@@ -771,6 +796,12 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     if( !bm->cache_quirks_set )
     {
         fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] quirks=\n", path);
+        return -1;
+    }
+
+    if( bm->client_args_error )
+    {
+        fprintf(stderr, "bootmanifest: invalid [client:args] in '%s'\n", path);
         return -1;
     }
 

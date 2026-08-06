@@ -50,10 +50,43 @@ remember_multi(struct CP_MergeSet* set, const char* key)
     set->multi[set->multi_count++] = strdup(key);
 }
 
-/** Learn the type's multi-valued keys from one rank-0 block. */
+static int
+key_seen_rank0(const struct CP_MergeSet* set, const char* key)
+{
+    for( int i = 0; i < set->seen0_count; i++ )
+    {
+        if( strcmp(set->seen0[i], key) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+remember_seen0(struct CP_MergeSet* set, const char* key)
+{
+    if( key_seen_rank0(set, key) )
+        return;
+    if( set->seen0_count == set->seen0_capacity )
+    {
+        int next = set->seen0_capacity ? set->seen0_capacity * 2 : 32;
+        char** grown = (char**)realloc(set->seen0, (size_t)next * sizeof(*grown));
+
+        if( !grown )
+            return;
+        set->seen0 = grown;
+        set->seen0_capacity = next;
+    }
+    set->seen0[set->seen0_count++] = strdup(key);
+}
+
+/** Learn the type's multi-valued keys from one rank-0 block, and record every
+ *  key rank 0 states so a rank-1 repeat can be told apart from an authored-only
+ *  vocabulary (see CP_MergeSet.seen0). */
 static void
 learn_arity(struct CP_MergeSet* set, const struct CP_Config* block)
 {
+    for( int i = 0; i < block->count; i++ )
+        remember_seen0(set, block->lines[i].key);
     for( int i = 0; i < block->count; i++ )
     {
         for( int j = i + 1; j < block->count; j++ )
@@ -87,16 +120,105 @@ map_subkey(const char* value, char* out, size_t out_size)
     out[n] = '\0';
 }
 
+/* FNV-1a. Cheap, and debugnames are short identifiers rather than adversarial
+ * input, so the distribution is all that matters. Never returns 0 as a slot
+ * marker — the slot's record_plus_one is what says "empty". */
+static unsigned
+merge_hash(const char* s)
+{
+    unsigned h = 2166136261u;
+
+    while( *s )
+    {
+        h ^= (unsigned char)*s++;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int merge_index_insert(struct CP_MergeSet* set, unsigned hash, int record);
+
+static int
+merge_index_grow(struct CP_MergeSet* set)
+{
+    int capacity = set->index_capacity ? set->index_capacity * 2 : 512;
+    struct CP_MergeIndexSlot* old = set->index;
+    int old_capacity = set->index_capacity;
+
+    set->index = (struct CP_MergeIndexSlot*)calloc((size_t)capacity, sizeof(*set->index));
+    if( !set->index )
+    {
+        set->index = old;
+        return 0;
+    }
+    set->index_capacity = capacity;
+
+    for( int i = 0; i < old_capacity; i++ )
+    {
+        if( old[i].record_plus_one )
+            merge_index_insert(set, old[i].hash, old[i].record_plus_one - 1);
+    }
+    free(old);
+    return 1;
+}
+
+static int
+merge_index_insert(struct CP_MergeSet* set, unsigned hash, int record)
+{
+    unsigned mask;
+    unsigned slot;
+
+    if( set->index_capacity == 0 || (set->count + 1) * 10 >= set->index_capacity * 7 )
+    {
+        if( !merge_index_grow(set) )
+            return 0;
+    }
+
+    mask = (unsigned)set->index_capacity - 1u;
+    slot = hash & mask;
+    while( set->index[slot].record_plus_one )
+        slot = (slot + 1u) & mask;
+    set->index[slot].hash = hash;
+    set->index[slot].record_plus_one = record + 1;
+    return 1;
+}
+
+static int
+merge_index_find(const struct CP_MergeSet* set, unsigned hash, const char* debugname)
+{
+    unsigned mask;
+    unsigned slot;
+
+    if( !set->index || set->index_capacity == 0 )
+        return -1;
+
+    mask = (unsigned)set->index_capacity - 1u;
+    slot = hash & mask;
+    for( ;; )
+    {
+        int rec = set->index[slot].record_plus_one;
+
+        if( !rec )
+            return -1;
+        /* Compare the hash first: a miss costs no strcmp at all, which is the
+         * whole point of the table. */
+        if( set->index[slot].hash == hash &&
+            strcmp(set->records[rec - 1].debugname, debugname) == 0 )
+            return rec - 1;
+        slot = (slot + 1u) & mask;
+    }
+}
+
 static struct CP_MergedRecord*
 find_or_add(struct CP_MergeSet* set, const char* debugname, int rank)
 {
     struct CP_MergedRecord* rec;
+    unsigned hash = merge_hash(debugname);
+    int at = merge_index_find(set, hash, debugname);
 
-    for( int i = 0; i < set->count; i++ )
-    {
-        if( strcmp(set->records[i].debugname, debugname) == 0 )
-            return &set->records[i];
-    }
+    if( at >= 0 )
+        return &set->records[at];
+
     if( set->count == set->capacity )
     {
         int next = set->capacity ? set->capacity * 2 : 256;
@@ -112,6 +234,9 @@ find_or_add(struct CP_MergeSet* set, const char* debugname, int rank)
     memset(rec, 0, sizeof(*rec));
     rec->debugname = strdup(debugname);
     rec->origin_rank = rank;
+    /* After the append, so the stored index is the record's final position. */
+    if( !merge_index_insert(set, hash, set->count - 1) )
+        return NULL;
     return rec;
 }
 
@@ -205,6 +330,18 @@ cp_merge_add(
                 contributed = 1;
                 continue;
             }
+            if( rec->lines[at].rank == rank && rank > 0 && !key_is_multi(set, key) &&
+                !key_seen_rank0(set, key) )
+            {
+                /* Rank 0 has no opinion on this key, so the authored layer is
+                 * the only authority on its arity and this repeat is a list.
+                 * Remember it, so the rest of the record behaves the same way. */
+                remember_multi(set, key);
+                if( !push_line(rec, key, value, rank, origin) )
+                    return 0;
+                contributed = 1;
+                continue;
+            }
             if( rec->lines[at].rank == rank && rank > 0 && !key_is_multi(set, key) )
             {
                 /* Only the authored layer is policed. Two hand-written files
@@ -246,11 +383,11 @@ cp_merge_add(
 const struct CP_MergedRecord*
 cp_merge_find(const struct CP_MergeSet* set, const char* debugname)
 {
-    for( int i = 0; i < set->count; i++ )
-    {
-        if( strcmp(set->records[i].debugname, debugname) == 0 )
-            return &set->records[i];
-    }
+    /* Same table find_or_add maintains — this used to be the identical scan. */
+    int at = merge_index_find(set, merge_hash(debugname), debugname);
+
+    if( at >= 0 )
+        return &set->records[at];
     return NULL;
 }
 
@@ -268,8 +405,12 @@ cp_merge_free(struct CP_MergeSet* set)
         free(set->records[i].debugname);
     }
     free(set->records);
+    free(set->index);
     for( int i = 0; i < set->multi_count; i++ )
         free(set->multi[i]);
     free(set->multi);
+    for( int i = 0; i < set->seen0_count; i++ )
+        free(set->seen0[i]);
+    free(set->seen0);
     memset(set, 0, sizeof(*set));
 }

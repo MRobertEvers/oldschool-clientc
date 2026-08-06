@@ -126,52 +126,214 @@ dat2_edit_write_info_free(struct RSCache_Dat2EditWriteInfo* info)
     info->file_count = 0;
 }
 
-static int
-dat2_edit_find_file_pos(
-    const struct RSCache_Dat2EditFileEntry* entries,
-    int count,
-    int file_id)
+/* dat2_edit_find_file_pos lived here: a linear scan of an archive's entries for
+ * one file id. The commit applies one put per record into a single archive, and
+ * `loc` alone holds 61,413 of them, so the scan made that O(n^2). It is replaced
+ * by dat2_edit_file_index below, which answers the same question by hash. */
+
+/*
+ * file_id -> position in `entries`.
+ *
+ * Applying N file puts to one archive used to be O(N^2): every put ran the
+ * linear scan above over everything applied so far. One config archive is not a
+ * handful of files — `loc` carries 61,413 — so that single archive spent ~1.9e9
+ * comparisons, and on a from-scratch pack every one of them was a miss, because
+ * there is no pre-existing archive for a file to already be in. It was the
+ * larger half of why a bake ran for tens of minutes.
+ *
+ * Open addressing with linear probing, sized to a power of two. -1 marks an
+ * empty slot, which is safe because a dat2 file id is never negative.
+ */
+#define DAT2_EDIT_INDEX_EMPTY (-1)
+
+struct dat2_edit_file_index
 {
-    for( int i = 0; i < count; i++ )
-    {
-        if( entries[i].file_id == file_id )
-            return i;
-    }
-    return -1;
+    int* keys;
+    int* vals;
+    int capacity;
+    int count;
+};
+
+static uint32_t
+dat2_edit_index_hash(int key)
+{
+    /* splitmix-style finaliser: file ids are dense small integers, and the low
+     * bits alone would cluster badly under linear probing. */
+    uint32_t x = (uint32_t)key;
+    x ^= x >> 16;
+    x *= 0x7feb352du;
+    x ^= x >> 15;
+    x *= 0x846ca68bu;
+    x ^= x >> 16;
+    return x;
 }
 
+static void
+dat2_edit_index_free(struct dat2_edit_file_index* index)
+{
+    if( !index )
+        return;
+    free(index->keys);
+    free(index->vals);
+    index->keys = NULL;
+    index->vals = NULL;
+    index->capacity = 0;
+    index->count = 0;
+}
+
+static int
+dat2_edit_index_find(const struct dat2_edit_file_index* index, int file_id)
+{
+    uint32_t mask;
+    uint32_t slot;
+
+    if( !index || index->capacity == 0 )
+        return -1;
+
+    mask = (uint32_t)index->capacity - 1u;
+    slot = dat2_edit_index_hash(file_id) & mask;
+    for( ;; )
+    {
+        if( index->keys[slot] == DAT2_EDIT_INDEX_EMPTY )
+            return -1;
+        if( index->keys[slot] == file_id )
+            return index->vals[slot];
+        slot = (slot + 1u) & mask;
+    }
+}
+
+static bool dat2_edit_index_insert(struct dat2_edit_file_index* index, int file_id, int pos);
+
+static bool
+dat2_edit_index_grow(struct dat2_edit_file_index* index, int min_capacity)
+{
+    struct dat2_edit_file_index grown;
+    int capacity = index->capacity ? index->capacity * 2 : 64;
+
+    while( capacity < min_capacity )
+        capacity *= 2;
+
+    grown.capacity = capacity;
+    grown.count = 0;
+    grown.keys = malloc((size_t)capacity * sizeof(*grown.keys));
+    grown.vals = malloc((size_t)capacity * sizeof(*grown.vals));
+    if( !grown.keys || !grown.vals )
+    {
+        free(grown.keys);
+        free(grown.vals);
+        return false;
+    }
+    for( int i = 0; i < capacity; i++ )
+        grown.keys[i] = DAT2_EDIT_INDEX_EMPTY;
+
+    for( int i = 0; i < index->capacity; i++ )
+    {
+        if( index->keys[i] == DAT2_EDIT_INDEX_EMPTY )
+            continue;
+        if( !dat2_edit_index_insert(&grown, index->keys[i], index->vals[i]) )
+        {
+            dat2_edit_index_free(&grown);
+            return false;
+        }
+    }
+
+    dat2_edit_index_free(index);
+    *index = grown;
+    return true;
+}
+
+static bool
+dat2_edit_index_insert(struct dat2_edit_file_index* index, int file_id, int pos)
+{
+    uint32_t mask;
+    uint32_t slot;
+
+    assert(file_id >= 0);
+
+    /* Keep the load factor under ~0.7; linear probing degrades sharply past it. */
+    if( index->capacity == 0 || (index->count + 1) * 10 >= index->capacity * 7 )
+    {
+        if( !dat2_edit_index_grow(index, index->capacity ? index->capacity * 2 : 64) )
+            return false;
+    }
+
+    mask = (uint32_t)index->capacity - 1u;
+    slot = dat2_edit_index_hash(file_id) & mask;
+    for( ;; )
+    {
+        if( index->keys[slot] == DAT2_EDIT_INDEX_EMPTY )
+        {
+            index->keys[slot] = file_id;
+            index->vals[slot] = pos;
+            index->count++;
+            return true;
+        }
+        if( index->keys[slot] == file_id )
+        {
+            index->vals[slot] = pos;
+            return true;
+        }
+        slot = (slot + 1u) & mask;
+    }
+}
+
+static int
+dat2_edit_file_entry_cmp(const void* a, const void* b)
+{
+    int x = ((const struct RSCache_Dat2EditFileEntry*)a)->file_id;
+    int y = ((const struct RSCache_Dat2EditFileEntry*)b)->file_id;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+/*
+ * Was an insertion sort. That is fine for the handful of files most archives
+ * hold and quadratic for the ones that matter: a config archive holds one file
+ * per record, and `loc` has 61,413 — about 1.9e9 element moves for that archive
+ * alone, on top of the identical cost the lookup scan was already paying.
+ *
+ * file_ids are unique within an archive (they are the record ids), so an
+ * unstable sort is safe here: no two entries compare equal.
+ */
 static void
 dat2_edit_sort_file_entries(
     struct RSCache_Dat2EditFileEntry* entries,
     int count)
 {
-    for( int i = 1; i < count; i++ )
-    {
-        struct RSCache_Dat2EditFileEntry key = entries[i];
-        int j = i - 1;
-        while( j >= 0 && entries[j].file_id > key.file_id )
-        {
-            entries[j + 1] = entries[j];
-            j--;
-        }
-        entries[j + 1] = key;
-    }
+    if( count < 2 )
+        return;
+    qsort(entries, (size_t)count, sizeof(*entries), dat2_edit_file_entry_cmp);
+}
+
+/* (table, archive) as one sortable key. Both are non-negative table/archive ids,
+ * so the pair packs into 64 bits and compares as a plain integer. */
+static uint64_t
+dat2_edit_archive_key(int table_id, int archive_id)
+{
+    return ((uint64_t)(uint32_t)table_id << 32) | (uint32_t)archive_id;
+}
+
+static int
+dat2_edit_archive_key_cmp(const void* a, const void* b)
+{
+    uint64_t x = *(const uint64_t*)a;
+    uint64_t y = *(const uint64_t*)b;
+    return x < y ? -1 : (x > y ? 1 : 0);
 }
 
 static bool
-dat2_edit_has_archive_put(
-    const struct RSCache_Dat2Edit* edit,
-    int table_id,
-    int archive_id)
+dat2_edit_archive_key_present(const uint64_t* keys, int count, int table_id, int archive_id)
 {
-    for( int i = 0; i < edit->put_count; i++ )
-    {
-        if( edit->puts[i].kind == RSCACHE_DAT2_EDIT_PUT_ARCHIVE &&
-            edit->puts[i].table_id == table_id && edit->puts[i].archive_id == archive_id )
-            return true;
-    }
-    return false;
+    uint64_t want;
+
+    if( !keys || count <= 0 )
+        return false;
+    want = dat2_edit_archive_key(table_id, archive_id);
+    return bsearch(&want, keys, (size_t)count, sizeof(*keys), dat2_edit_archive_key_cmp) != NULL;
 }
+
+/* dat2_edit_has_archive_put lived here. It answered the same question by
+ * scanning every put, from inside a loop over every put; the sorted-key search
+ * above replaces it. */
 
 static bool
 dat2_edit_encode_and_write(
@@ -291,13 +453,16 @@ dat2_edit_apply_file_put(
     struct RSCache_Dat2EditFileEntry** entries,
     int* count,
     int* capacity,
+    struct dat2_edit_file_index* index,
     int file_id,
     const uint8_t* data,
     uint32_t size)
 {
     assert(entries && count && capacity);
 
-    int pos = dat2_edit_find_file_pos(*entries, *count, file_id);
+    /* Was dat2_edit_find_file_pos over every entry applied so far. Same answer,
+     * without the scan — see the note on dat2_edit_file_index. */
+    int pos = dat2_edit_index_find(index, file_id);
     uint8_t* copy = dat2_edit_copy_bytes(data, size);
     if( size > 0 && !copy )
         return false;
@@ -327,6 +492,8 @@ dat2_edit_apply_file_put(
     (*entries)[*count].file_id = file_id;
     (*entries)[*count].data = copy;
     (*entries)[*count].size = size;
+    if( !dat2_edit_index_insert(index, file_id, *count) )
+        return false;
     (*count)++;
     return true;
 }
@@ -347,6 +514,19 @@ dat2_edit_commit_file_group(
         return false;
     capacity = count;
 
+    /* Index whatever the archive already held, then keep it current as puts are
+     * applied, so each put is a hash lookup rather than a scan of the archive. */
+    struct dat2_edit_file_index index = { NULL, NULL, 0, 0 };
+    for( int i = 0; i < count; i++ )
+    {
+        if( !dat2_edit_index_insert(&index, entries[i].file_id, i) )
+        {
+            dat2_edit_index_free(&index);
+            dat2_edit_file_entries_free(entries, count);
+            return false;
+        }
+    }
+
     for( int i = 0; i < edit->put_count; i++ )
     {
         struct RSCache_Dat2EditPut* put = &edit->puts[i];
@@ -355,12 +535,14 @@ dat2_edit_commit_file_group(
         if( put->table_id != table_id || put->archive_id != archive_id )
             continue;
         if( !dat2_edit_apply_file_put(
-                &entries, &count, &capacity, put->file_id, put->data, put->size) )
+                &entries, &count, &capacity, &index, put->file_id, put->data, put->size) )
         {
+            dat2_edit_index_free(&index);
             dat2_edit_file_entries_free(entries, count);
             return false;
         }
     }
+    dat2_edit_index_free(&index);
 
     if( count <= 0 )
     {
@@ -759,6 +941,38 @@ RSCache_Dat2EditCommit(
     int write_capacity = 0;
     bool ok = false;
 
+    /*
+     * Which (table, archive) pairs have a whole-archive put, answered once.
+     *
+     * The loop below asks this for every FILE put, and dat2_edit_has_archive_put
+     * answers it by scanning every put — so a pack with 83k config puts spent
+     * ~7e9 comparisons here alone. Sorting the archive-put keys once and binary
+     * searching turns the whole question into O(n log n).
+     */
+    uint64_t* archive_keys = NULL;
+    int archive_key_count = 0;
+    for( int i = 0; i < edit->put_count; i++ )
+    {
+        if( edit->puts[i].kind == RSCACHE_DAT2_EDIT_PUT_ARCHIVE )
+            archive_key_count++;
+    }
+    if( archive_key_count > 0 )
+    {
+        archive_keys = malloc((size_t)archive_key_count * sizeof(*archive_keys));
+        if( !archive_keys )
+            return false;
+        int k = 0;
+        for( int i = 0; i < edit->put_count; i++ )
+        {
+            if( edit->puts[i].kind != RSCACHE_DAT2_EDIT_PUT_ARCHIVE )
+                continue;
+            archive_keys[k++] = dat2_edit_archive_key(edit->puts[i].table_id,
+                                                      edit->puts[i].archive_id);
+        }
+        qsort(archive_keys, (size_t)archive_key_count, sizeof(*archive_keys),
+              dat2_edit_archive_key_cmp);
+    }
+
     /* FILE puts, grouped by (table_id, archive_id). Skip groups that also have
      * an ARCHIVE put — the whole-archive write wins. */
     for( int i = 0; i < edit->put_count; i++ )
@@ -778,7 +992,8 @@ RSCache_Dat2EditCommit(
         }
         if( already )
             continue;
-        if( dat2_edit_has_archive_put(edit, put->table_id, put->archive_id) )
+        if( dat2_edit_archive_key_present(archive_keys, archive_key_count, put->table_id,
+                                          put->archive_id) )
             continue;
 
         if( write_count >= write_capacity )
@@ -870,6 +1085,7 @@ done:
     for( int i = 0; i < write_count; i++ )
         dat2_edit_write_info_free(&writes[i]);
     free(writes);
+    free(archive_keys);
     return ok;
 }
 

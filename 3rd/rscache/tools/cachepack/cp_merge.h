@@ -61,11 +61,32 @@ struct CP_MergedRecord
     int origin_rank;
 };
 
+/** One open-addressing slot: the name's hash, and its index in `records` + 1
+ *  (0 meaning empty, so a zeroed table is an empty table). */
+struct CP_MergeIndexSlot
+{
+    unsigned hash;
+    int record_plus_one;
+};
+
 struct CP_MergeSet
 {
     struct CP_MergedRecord* records;
     int count;
     int capacity;
+    /*
+     * debugname -> record, so merging is linear rather than quadratic.
+     *
+     * find_or_add used to strcmp its way through every record merged so far,
+     * once per record in the layer. A config type is not a handful of records —
+     * `loc` merges 61,413 — so that one type ran on the order of 1.9e9 string
+     * comparisons before a single byte was encoded.
+     *
+     * Indices, not pointers: `records` is realloc'd as it grows, and a stored
+     * pointer would dangle the moment it did.
+     */
+    struct CP_MergeIndexSlot* index;
+    int index_capacity;
     /** Records whose keys came from more than one layer. */
     int overlaid_count;
     /**
@@ -79,6 +100,26 @@ struct CP_MergeSet
     char** multi;
     int multi_count;
     int multi_capacity;
+
+    /*
+     * Every key rank 0 states, at any arity.
+     *
+     * Arity is learned from rank 0, which works only for keys rank 0 uses. The
+     * two layers do not share a vocabulary: a dbrow's values are `values=` in
+     * the machine export and `data=` in the authored tree, so `data` appears
+     * nowhere at rank 0 and its arity can never be observed there. Eight
+     * authored files repeat it — the areas' coord_pair rows, trawler, the
+     * Legends zones — and every one was rejected as an ambiguous duplicate.
+     *
+     * So the rule is split by what rank 0 knows. A key rank 0 states is one
+     * rank 0 has an opinion about, and a rank-1 repeat of a key it calls
+     * single-valued is the real ambiguity the check exists for. A key rank 0
+     * never states is one the authored layer alone defines, and a repeat there
+     * is a list — the same conclusion `learn_arity` would have drawn.
+     */
+    char** seen0;
+    int seen0_count;
+    int seen0_capacity;
 };
 
 /**

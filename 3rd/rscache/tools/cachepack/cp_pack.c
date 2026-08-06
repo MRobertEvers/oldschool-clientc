@@ -139,7 +139,17 @@ ensure_dir(const char* path)
 
     if( stat(path, &st) == 0 )
         return S_ISDIR(st.st_mode) ? 0 : -1;
-    return cp_mkdir(path);
+    /*
+     * EEXIST is success. That is the ordinary mkdir -p rule (another process
+     * may have won the race), and on Windows it is also what makes an ABSOLUTE
+     * path work at all: the callers below split on '/' from index 1, so the
+     * first component of "C:/Users/..." is the bare drive designator "C:",
+     * where MSVCRT's stat() fails with ENOENT and _mkdir() then fails with
+     * EEXIST. Without this, every absolute path is an error.
+     */
+    if( cp_mkdir(path) == 0 )
+        return 0;
+    return errno == EEXIST ? 0 : -1;
 }
 
 static int
@@ -176,6 +186,12 @@ server_pack_clear(const char* dir)
     char path[1200];
     int group_count = 0;
     const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
+
+    /* The write path keeps the .dat2 and .idxN open between archives. Windows
+     * will not delete a file that still has an open handle, so a stale cached
+     * handle here would turn "rebuild the server pack from nothing" into
+     * "append to yesterday's" — silently, because remove() just fails. */
+    RSCache_Dat2DiskWriteFlush();
 
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", dir);
     remove(path);
@@ -521,6 +537,7 @@ struct CP_Routing
     /* client-side populations */
     int client_by_name;
     int client_by_substrate;
+    int client_by_rank0;
     int client_by_default;
     int cell_b;      /**< server-only entities that state a client field */
     int server_only; /**< records the client side refused, cell (b) or not */
@@ -691,6 +708,32 @@ routing_client_member(
         routing->client_by_substrate++;
         return 1;
     }
+    if( rec->origin_rank == 0 )
+    {
+        /*
+         * A rank-0 block is a cache record by construction.
+         *
+         * `configs/all.<type>` is the machine export *of the cache*, so a record
+         * the tree did not add is the client's whether or not it also has a
+         * server half — which is exactly what pack/<type>.server's own header
+         * says: "the two files overlap rather than partition ... 'in the server
+         * pack' means 'has a server half', not 'is exclusively ours'".
+         *
+         * The substrate clause above is the same statement asked of a base cache,
+         * and it is the only one that used to be made. That works while `--base`
+         * is given and silently inverts without it: `in_cache` can never be 1, so
+         * every record named in <type>.server fell through to cell (b) and was
+         * dropped from the client cache. On this tree that was 776 locs — the
+         * doors among them, which is how it was found: castledoubledoorl loaded
+         * as `pos -1`, absent from a group holding 61,418 of the namespace's
+         * 62,194 records.
+         *
+         * Provenance, not the cache, is the authority here, so this answers the
+         * same in both modes rather than depending on what was opened.
+         */
+        routing->client_by_rank0++;
+        return 1;
+    }
     if( cp_membership_has(&routing->server, rec->debugname) )
     {
         /* §2 cell (b): a server-only entity carrying a client field. Counted and
@@ -804,10 +847,11 @@ routing_report(
     const struct CP_Fields* fields,
     const struct CP_Routing* routing)
 {
-    if( routing->client_by_name || routing->client_by_substrate )
+    if( routing->client_by_name || routing->client_by_substrate || routing->client_by_rank0 )
         printf("  %-11s   client: %d by pack/%s.client, %d because the base cache holds "
-               "them\n",
-               type->name, routing->client_by_name, type->name, routing->client_by_substrate);
+               "them, %d because rank 0 states them\n",
+               type->name, routing->client_by_name, type->name, routing->client_by_substrate,
+               routing->client_by_rank0);
     routing_report_server(type, routing);
     if( routing->server_only )
         printf("  %-11s   %d record(s) are not the client's: %d of them state a field "
@@ -1535,6 +1579,22 @@ cp_pack_run(
             return 0;
         }
     }
+    else
+    {
+        /*
+         * No --base: build the cache out of the content tree alone.
+         *
+         * The write path never needed a donor cache -- WriteArchive creates the
+         * .dat2 and each .idxN on demand, and the commit builds a reference
+         * table for every table it touches. Only the open needed a file to
+         * already be there, which is what this creates. What lands is then
+         * exactly what the tree states, with none of a base cache's untouched
+         * records carried along.
+         */
+        printf("Creating %s (no --base: packing the tree alone)\n", out_cache_dir);
+        if( !tool_dat2_create(out_cache_dir) )
+            return 0;
+    }
 
     if( !tool_dat2_open(out_cache_dir, &ctx->profile, &ctx->cache) )
         return 0;
@@ -1636,6 +1696,9 @@ cp_pack_run(
         fprintf(stderr, "cachepack: commit failed\n");
         return 0;
     }
+    /* The config table is on disk. Everything after this may safely add to the
+     * cache; before it, there is nothing to add to (see CP_Ctx.cache_committed). */
+    ctx->cache_committed = true;
 
     printf("Done. %d records written, %d failed, %d unknown keys, %d unresolved names.\n", total,
            failed, ctx->warn_unknown_key, ctx->warn_unresolved_name);

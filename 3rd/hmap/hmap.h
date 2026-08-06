@@ -336,7 +336,26 @@ hmap_init(
 void*
 hmap_buffer_ptr(struct HMap* h)
 {
-    return h->entries;
+    /*
+     * The pointer the CALLER gave us, not the aligned one we hand to the slots.
+     *
+     * hmap_init aligns the buffer up to 16 before storing it as `entries`, so
+     * `entries` is an interior pointer whenever malloc returned something that
+     * was not already 16-aligned. Every caller of hmap_free does
+     * `free(hmap_free(map))` — around ninety sites in src/ — so returning
+     * `entries` means freeing an interior pointer and corrupting the heap.
+     *
+     * It never showed up on the 64-bit hosts because glibc and macOS malloc are
+     * 16-byte aligned already, which makes `entries == original_buffer` and the
+     * two spellings indistinguishable. 32-bit MinGW (msvcrt) only guarantees 8,
+     * so roughly half of these allocations land at 8 mod 16 and the free is
+     * wrong — which is how the Windows XP lane found it, as a SIGSEGV inside
+     * RtlFreeHeap during App_Shutdown.
+     *
+     * hmap_resize already treats `original_buffer` as the free-me pointer
+     * (`old.original_buffer`); this makes the two agree.
+     */
+    return h->original_buffer;
 }
 
 struct HMap*

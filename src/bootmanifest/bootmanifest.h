@@ -42,6 +42,15 @@
  *                 player_head_ambient=<n>   (0 = scene-light like Client-TS)
  *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *   [client:args] arg=<one exact command-line argument>, repeated in argv order
+ *                 Optional lower-priority argv parsed after the typed manifest
+ *                 fields and before the process command line. The whole value
+ *                 after `=` is one token: spaces/backslashes/quotes are literal
+ *                 and no shell parsing or expansion occurs. Put comments on
+ *                 separate lines. At most 64 arguments. A `--manifest` token
+ *                 in option position is rejected by the command-line parser,
+ *                 so a manifest cannot recursively replace itself; the same
+ *                 token is still legal when consumed as an option value.
  *   [ui:gameframe]  <component>=<interface_id> or
  *                 <parent_interface>:<component>=<interface_id>, one per line
  *                 Sub-interfaces to mount into component slots once the tree is
@@ -66,17 +75,25 @@
  * the load with a stated reason (user input, not an internal invariant).
  *
  * Relative path values (dir, revconfig_ui, revconfig_cache) resolve against the
- * directory containing the manifest file; absolute paths pass through.
+ * directory containing the manifest file; absolute paths pass through. Values
+ * in [client:args] retain command-line semantics and are not path-resolved.
  *
- * Lifetime: BootManifest_ApplyToConfig points AppConfig string fields straight
- * into this struct's buffers, so a BootManifest handed to App_Init must outlive
- * the App (declare it `static` in main, as main.c does).
+ * Lifetime: BootManifest_ApplyToConfig and main's [client:args] pass can point
+ * AppConfig string fields straight into this struct's buffers, so a
+ * BootManifest handed to App_Init must outlive the App (declare it `static` in
+ * main, as main.c does).
  */
 
 struct AppConfig; /* fwd; src/app.h */
 
 /* Void's rev-634 login opens 25 sub-interfaces; leave room to grow. */
 #define BOOTMANIFEST_GAMEFRAME_MAX 64
+
+/* INIElement values hold at most 511 bytes plus NUL. Sixty-four tokens covers
+ * every current boot option while keeping storage fixed-size and valid for XP
+ * and browser builds. */
+#define BOOTMANIFEST_CLIENT_ARG_MAX 64
+#define BOOTMANIFEST_CLIENT_ARG_CAP 512
 
 /** One `[ui:gameframe]` entry: mount `interface_id` into component slot
  *  `component` of `parent_interface_id` (0 = the root interface). */
@@ -96,6 +113,11 @@ struct BootManifestVarcSeed
 
 struct BootManifest
 {
+    /* [client:args]: lower-priority command-line layer, in file order. */
+    char client_args[BOOTMANIFEST_CLIENT_ARG_MAX][BOOTMANIFEST_CLIENT_ARG_CAP];
+    int client_arg_count;
+    int client_args_error; /* argument-count overflow */
+
     /* [cache:boot] — identity (all four required) */
     int cache_game;      /* enum RSCache_Game; UNSET until parsed */
     int cache_epoch;     /* enum RSCache_Epoch; UNSET until parsed */
