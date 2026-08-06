@@ -4818,6 +4818,21 @@ handle_if_button_op(
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = sub;
     srv->active_player->last_verb = op_num;
+
+    /* The rev-239 Display dropdown has three rows, but WINDOW_STATUS does not:
+     * the golden client writes 1 for fixed and 2 for either resizable layout
+     * (Statics.method5862 -> method10079).  The dynamic IF op is therefore the
+     * authoritative callback which distinguishes Classic from Modern.  Latch
+     * it before content runs ~gameframe_set_mode, so the WINDOW_STATUS emitted
+     * by its echoed clientscript cannot undo the selected resizable root. */
+    if( op_num == 1 && sub >= 1 && sub <= 3 )
+    {
+        int layout_buttons = mock230_content_symbol(
+            MOCK230_PACK_COMPONENT,
+            "settings_side:display_dynamic_setting_1_buttons");
+        if( layout_buttons > 0 && uid == layout_buttons )
+            srv->active_player->client_layout_mode = sub - 1;
+    }
     /*
      * Latch first, then resume — same order as LostCity's IfButtonHandler.
      * Choice menus (`~p_choice*`) park on p_pausebutton with chatmenu:options
@@ -5730,8 +5745,10 @@ handle_chat_setmode(
 }
 
 /*
- * WINDOW_STATUS: p1 clientMode (0/1/2), p2 width, p2 height.
- * Drives ~gameframe_set_mode so the Display dropdown remounts 548/161/164.
+ * Revision-239 WINDOW_STATUS: p1 windowMode (1 fixed / 2 resizable), then
+ * p2 width and p2 height.  Classic and Modern are deliberately indistinct on
+ * this wire; their dynamic Display-row IF_BUTTON callback latches the precise
+ * layout before this packet arrives.
  */
 static void
 handle_window_status(
@@ -5741,7 +5758,8 @@ handle_window_status(
     int len)
 {
     struct Mock230Player* player = srv->active_player;
-    int mode;
+    int window_mode;
+    int layout_mode;
     int width;
     int height;
     int32_t args[1];
@@ -5749,24 +5767,39 @@ handle_window_status(
     (void)name;
     if( !player || len < 5 )
         return;
-    mode = payload[0];
+    window_mode = payload[0];
     width = (payload[1] << 8) | payload[2];
     height = (payload[3] << 8) | payload[4];
     if( srv->verbose )
-        fprintf(stderr, "mock230: <- WINDOW_STATUS mode=%d canvas=%dx%d (was %d)\n", mode,
-                width, height, player->client_layout_mode);
-    if( mode < 0 || mode > 2 )
+        fprintf(stderr,
+                "mock230: <- WINDOW_STATUS window=%d canvas=%dx%d layout=%d\n",
+                window_mode, width, height, player->client_layout_mode);
+    if( srv->wire && srv->wire->revision >= 239 )
+    {
+        if( window_mode != 1 && window_mode != 2 )
+            return;
+        if( window_mode == 1 )
+            layout_mode = 0;
+        else if( player->client_layout_mode == 1 || player->client_layout_mode == 2 )
+            layout_mode = player->client_layout_mode;
+        else
+            layout_mode = 1; /* leaving fixed defaults to Resizable Classic */
+    }
+    else if( window_mode >= 0 && window_mode <= 2 )
+        layout_mode = window_mode; /* mock230's extended three-way convention */
+    else
         return;
-    if( player->client_layout_mode == mode )
+
+    if( player->client_layout_mode == layout_mode )
         return;
-    player->client_layout_mode = mode;
+    player->client_layout_mode = layout_mode;
     /* WINDOW_STATUS is emitted before MAP_BUILD_COMPLETE during the rev-239
      * login. Remember the real canvas mode, but do not mount a gameframe into
      * the WorldView that is still being replaced. login_finish consumes the
      * latched mode once the client acknowledges the scene. */
     if( player->login_scene_pending )
         return;
-    args[0] = mode;
+    args[0] = layout_mode;
     mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
 }
 
@@ -13452,7 +13485,8 @@ mock230_world_selftest(void)
         {
             uint8_t status[5];
             uint8_t move[5];
-            int mode = player->client_layout_mode == 0 ? 1 : 0;
+            int const window_mode = 1; /* literal golden fixed-window value */
+            int const expected_layout = 0;
 
             SELFTEST_CHECK(player->login_scene_pending,
                            "rev 239 must wait for MAP_BUILD_COMPLETE after its rebuild");
@@ -13467,7 +13501,7 @@ mock230_world_selftest(void)
 
             /* WINDOW_STATUS precedes the map acknowledgement in the golden
              * client. Latch it without mounting a root interface early. */
-            status[0] = (uint8_t)mode;
+            status[0] = (uint8_t)window_mode;
             status[1] = 3;
             status[2] = 0; /* 768 */
             status[3] = 1;
@@ -13475,9 +13509,9 @@ mock230_world_selftest(void)
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_WINDOW_STATUS, status, 5);
             mock230_capture_end(&srv);
-            SELFTEST_CHECK(player->client_layout_mode == mode,
-                           "pre-ack WINDOW_STATUS should latch mode %d, got %d", mode,
-                           player->client_layout_mode);
+            SELFTEST_CHECK(player->client_layout_mode == expected_layout,
+                           "pre-ack WINDOW_STATUS window %d should latch layout %d, got %d",
+                           window_mode, expected_layout, player->client_layout_mode);
             SELFTEST_CHECK(mock230_capture_find(&capture, opentop, 0) < 0,
                            "pre-ack WINDOW_STATUS must not send IF_OPENTOP");
 
@@ -13683,6 +13717,51 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->gameframe_iface == ids->iface_toplevel,
                        "saved Fixed should open toplevel (%d) at login, got %d",
                        ids->iface_toplevel, player->gameframe_iface);
+
+        /* Literal rev-239 dynamic IF op: uid(settings_side:40), g2 sub=3,
+         * op=1. WINDOW_STATUS cannot distinguish the two resizable choices;
+         * this callback must latch Modern, synchronize varbit 4607 and remount
+         * root 164 after the local onOp has had time to finish. */
+        if( srv.scripts_ok )
+        {
+            static struct Mock230Capture capture;
+            uint8_t button[6];
+            struct RSAreaBuf out;
+            int layout_buttons = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT,
+                "settings_side:display_dynamic_setting_1_buttons");
+            int arrangement = mock230_content_symbol(
+                MOCK230_PACK_VARBIT,
+                "resizable_stone_arrangement");
+
+            SELFTEST_CHECK(layout_buttons > 0 && arrangement >= 0,
+                           "layout callback/varbit symbols should resolve (%d/%d)",
+                           layout_buttons, arrangement);
+            rsab_wrap(&out, button, sizeof(button));
+            rsab_p4(&out, layout_buttons);
+            rsab_p2(&out, 3);
+            mock230_capture_begin(&srv, &capture);
+            handle_if_button_op(&srv, PKTOUT_NAME_IF_BUTTON1,
+                                button, (int)rsab_len(&out));
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(player->client_layout_mode == 2,
+                           "layout row sub 3 should latch Modern, got %d",
+                           player->client_layout_mode);
+            SELFTEST_CHECK(arrangement < 0 || mock230_varbit_get(player, arrangement) == 1,
+                           "Modern should synchronize resizable_stone_arrangement");
+            SELFTEST_CHECK(player->gameframe_iface == ids->iface_toplevel_pre_eoc,
+                           "Modern should remount root %d, got %d",
+                           ids->iface_toplevel_pre_eoc, player->gameframe_iface);
+            SELFTEST_CHECK(mock230_capture_find(
+                               &capture,
+                               mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENTOP),
+                               0) >= 0,
+                           "layout selection should emit IF_OPENTOP");
+        }
 
         /* Put later fixtures back on the stretch login default. */
         player->client_layout_mode = 1;

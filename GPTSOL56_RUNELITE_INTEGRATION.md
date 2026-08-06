@@ -576,6 +576,85 @@ report, and contains no uncaught shutdown exception. RuneLite still logs its
 pre-existing, caught INFO-level `setupCompilerControl` missing-resource warning;
 it occurs before login and is not a client/game-thread failure.
 
+### Client layout selection was a callback and widget-lifecycle defect
+
+The authoritative revision-239 client does not encode Fixed, Resizable Classic,
+and Resizable Modern as `WINDOW_STATUS` values 0/1/2. Its outbound writer sends
+one byte with window mode 1 for Fixed or 2 for either resizable layout, followed
+by the big-endian canvas width and height. The distinction between the two
+resizable roots exists in varbit 4607 (`resizable_stone_arrangement`) and in the
+selected dynamic dropdown row.
+
+The Display dropdown is created by script 4568. Its rows are dynamic children
+`116:40` subids 1..3, and selecting a row runs script 4569. The golden script
+updates the row label/timer and emits the normal component operation, but does
+not call script 3998 for this row type. The exact revision-239 outbound callback
+is opcode 47 (`IF_BUTTON1` after normalisation) with the `116:40` uid and the
+selected subid. mock230 had not armed those dynamic children, so the rows looked
+interactive but had no server callback.
+
+Content now arms subids 1..3 and maps them to Fixed, Classic, and Modern. The
+server latches the precise selection before content resumes, because the later
+`WINDOW_STATUS` packet cannot recover that information. A queued apply runs
+client script 3998, opens root 548/161/164, synchronises varbit 4607, and then
+runs script 7990 to recreate the Display panel's dynamic children. That last
+step is essential: `IF_OPENTOP` replaces the root while preserving the mounted
+settings group id, so its onLoad does not otherwise recreate the dropdown.
+
+Live proof in `build/run239-regressions/layout_final2/proof` first established
+the fix independently. The final combined session repeats all three choices:
+`14-layout-modern.png` has root 164, varbit 4607=1, and label `Resizable -
+Modern layout`; `15-layout-fixed.png` has root 548, varbit 0, label `Fixed -
+Classic layout`, and server `WINDOW_STATUS window=1`; `16-layout-classic.png`
+returns to root 161, varbit 0, label `Resizable - Classic layout`, and server
+`WINDOW_STATUS window=2`. Each recreated dropdown retained effective op-1 masks
+on subids 1..3.
+
+### The revision-239 widget layout arithmetic is intact
+
+The reported interface geometry was audited against the compilable 239 deob,
+not inferred from content. `Statics.method3791` implements width/height modes
+0 (absolute), 1 (parent minus inset), 2 (14-bit proportional), and 4 (aspect
+ratio). `Statics.method6166` implements the corresponding absolute, centred,
+right/bottom, proportional, proportional-centred, and proportional-right/bottom
+position modes. The rebuilt instrumented jar's bytecode preserves those
+operations; differences in the Java source are equivalent decompiler branch
+forms, not altered arithmetic.
+
+JCTL now reports original/relative geometry, all four alignment modes, parent
+identity and bounds, and on-op listeners. Live probes such as `116:27`, its
+dynamic label `116:27:4`, and layout row `116:40:3` match the authoritative
+formulas in Fixed, Classic, and Modern roots. The Hans frame in
+`combined-five-final3/proof/02-hans-dialogue.png` also matches the supplied
+reference structure: wide lower chatbox, left portrait, centred speaker/name
+and continue prompt. The apparent layout corruption came from the wrong root,
+unarmed dynamic rows, and lost CC-created children after root replacement—not
+from a remaining core decompilation math defect.
+
+### Final five-regression acceptance run
+
+`build/run239-regressions/combined-five-final3/proof/events.log` is the blocking
+EVENTS subscriber connected before RuneLite launched. The run used only real
+AWT input through JCTL and retained 22 complete framebuffers, focused CS2 traces,
+widget/GPI/camera state, complete packet logging, and server logging.
+
+In one clean login it completed the Hans conversation from a live NPC hull,
+made 24 independent terrain clicks with running enabled, changed camera FOV by
+the normal slider (497→1345), changed it again through the All settings slider
+(1345→1399), changed it by wheel input (1399→1198), selected Modern, Fixed, and
+Classic layouts, and closed the side-only house interface. Final GPI was
+`high=1 low=2046 pending=0 entity=true`; group 370 was absent from the final
+mount table; the final layout was root 161 with varbit 4607=0.
+
+The ordered record includes both `wheel_awt` and `wheel_poll`, exact layout
+IF_BUTTON packets and roots, CLOSE_MODAL opcode 95 followed by IF_CLOSESUB, and
+all NPC_INFO traffic. The pre-quit scan found no game runtime exception, packet
+decode error, unknown inbound opcode, interface writer gap, unexpected
+disconnect, or profiler shutdown failure. The only exception text is RuneLite's
+known caught, pre-login `setupCompilerControl` warning. Explicit JCTL quit wrote
+the complete profiler report, and only this run's recorded server/jav_config
+PIDs were stopped afterward.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -817,3 +896,42 @@ it occurs before login and is not a client/game-thread failure.
   mock230, jav_config, and duplicate EVENTS subscribers using only the PIDs in
   `build/run239-regressions/movement_fixed`; no client from this regression run
   was left idle.
+- 2026-08-06: Added the reported client-layout regression and supplied Hans
+  reference frame to the acceptance scope. Reproduced the dead Display dropdown
+  in an isolated worktree and identified its CC-created rows as `116:40`
+  subids 1..3 with no effective server op masks.
+- 2026-08-06: Decompiled and traced authoritative scripts 3962, 3998, 4568,
+  4569, and 7990. Established that `WINDOW_STATUS` is window mode 1/2 plus
+  dimensions, the dynamic IF_BUTTON callback carries the three-way choice,
+  script 4569 does not invoke 3998 for this row, and root replacement discards
+  the dropdown's CC-created children.
+- 2026-08-06: Armed the three layout rows, added exact selection validation and
+  varbit synchronisation, latched Classic versus Modern before `WINDOW_STATUS`,
+  queued script 3998/root replacement after the onOp, and replayed script 7990
+  after `IF_OPENTOP`. Added a literal six-byte revision-239 IF_BUTTON1 layout
+  persistence/root-remount self-test.
+- 2026-08-06: Audited golden `Statics.method3791` and `method6166` against the
+  rebuilt instrumented bytecode. Added live widget alignment, parent-bounds,
+  listener, NPC hull, and deterministic NPC menu telemetry to JCTL. Found no
+  remaining decompilation arithmetic defect; live geometry matched the golden
+  width, height, x, and y modes.
+- 2026-08-06: Proved layout switching independently under
+  `build/run239-regressions/layout_final2`: Modern root 164/varbit 1, Fixed root
+  548/window 1, and Classic root 161/window 2, with the dynamic dropdown
+  recreated and correctly labelled after every root replacement.
+- 2026-08-06: Recompiled 12,536 content scripts, rebuilt mock230, passed the
+  five focused revision-239 suites (including all 48 inbound checks), rebuilt
+  the instrumented deob and passed API verification. The correctly cache-backed
+  broad self-test retained 23 pre-existing failures and introduced no layout
+  failure; its log is `build/run239-regressions/broad-selftest-cache-final.log`.
+- 2026-08-06: Ran `combined-five-final3` with a blocking EVENTS subscriber
+  connected before launch. Used real AWT input to complete Hans, execute 24 run
+  clicks, operate wheel and both sliders independently, select all three layouts,
+  and open/close house options. Captured 22 screenshots and focused CS2 traces;
+  final GPI, mounts, camera, and profiler state were healthy with no game fatal,
+  decode failure, writer gap, or unexpected disconnect.
+- 2026-08-06: Committed and pushed the OSRS-Content layout implementation as
+  `92bca783ab` on `codex/runelite239-regressions`. Rebuilt and API-verified the
+  deob after its final JCTL changes, then committed and pushed them as `45aa607`
+  on the matching Deob branch. The original dirty primary worktrees remained
+  untouched.
