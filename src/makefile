@@ -198,9 +198,10 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
+SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(PLATFORM_SRCS) \
+	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
@@ -334,7 +335,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
 	net/mock/mock239_playerinfo.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
@@ -424,7 +425,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -508,6 +509,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o -lm
@@ -517,11 +519,50 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
+
+# Protocol + persistence integration against a caller-supplied, read-only
+# canonical cache. The binary creates and owns its disposable target directory;
+# only the mock response builder reads JS5_TEST_CACHE.
+JS5_TEST_CACHE ?= $(REPO_ROOT)/cache.osrs239
+ifeq ($(OS),Windows_NT)
+JS5_SOCKET_LIBS := -lws2_32
+JS5_EXE_SUFFIX := .exe
+else
+JS5_SOCKET_LIBS :=
+JS5_EXE_SUFFIX :=
+endif
+JS5_TEST_PYTHON ?= python
+test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/js5_server_cache.c js5/test/js5_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_test "$(JS5_TEST_CACHE)"
+
+test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_test \
+		js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+		js5/server/test/js5_server_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/test/js5_server_client_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_server_test "$(JS5_TEST_CACHE)"
+	$(JS5_TEST_PYTHON) $(REPO_ROOT)/tools/test_js5_server.py \
+		--server $(SRC_DIR)/$(OBJ_DIR)/js5_server$(JS5_EXE_SUFFIX) \
+		--client $(SRC_DIR)/$(OBJ_DIR)/js5_server_client_test$(JS5_EXE_SUFFIX) \
+		--cache "$(JS5_TEST_CACHE)"
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
@@ -1116,7 +1157,7 @@ test-revconfig: $(OBJ_DIR)
 # §3.4 — a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/mock230 disagree).
 MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
-# The JS5 (cache download) service, standalone.
+# Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from mock230 because a client uses ONE port for JS5 and the
 # game, choosing with its first byte — so the two cannot both own 43594 in a
@@ -1124,17 +1165,26 @@ MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CO
 # This binary exists because it is the half that can be verified today against
 # a real OldSchool client and against Jagex's own service:
 #
-#   src/build/mock_js5 cache.osrs239 43594 239
+#   src/build/js5_server --cache cache.osrs239 --revision 239
 #   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
 #
 # See docs/RSPROT_OSRS239_PORT.md.
+JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c
+
+js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(JS5_SERVER_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/js5_server"
+
 mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 \
-		net/mock/mock_js5_main.c net/mock/mock_js5.c \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	@echo "built $(OBJ_DIR)/mock_js5"
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -1612,7 +1662,7 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c features/features.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c executor_config.c features/features.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \

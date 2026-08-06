@@ -22,6 +22,12 @@
  *                 page has no TCP, so the web build's sockets are WebSockets
  *                 (see BootManifest_ApplyWebEndpoint). LostCity, for one,
  *                 serves the game on 43594/tcp and upgrades / on its web port.
+ *   [js5:boot]   enabled=true|false  host=<h>  port=<n>
+ *                fallback_port=<n>  revision=<n>
+ *                Optional executor-only incremental-cache settings. Omitted
+ *                host/port/revision inherit the finalized [net:boot] endpoint
+ *                and [cache:boot] revision. fallback_port defaults to 443 only
+ *                when the resolved primary is 43594; 0 explicitly disables it.
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
  *                 computes a click's route, and which approach model decides
@@ -85,6 +91,7 @@
  */
 
 struct AppConfig; /* fwd; src/app.h */
+struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
 
 /* Void's rev-634 login opens 25 sub-interfaces; leave room to grow. */
 #define BOOTMANIFEST_GAMEFRAME_MAX 64
@@ -153,6 +160,15 @@ struct BootManifest
      * server answers "invalid username or password". --user/--pass still win. */
     char user[64];
     char pass[64];
+
+    /* [js5:boot] -- executor-owned, never copied into AppConfig. */
+    int js5_enabled; /* -1 = unset, otherwise 0|1 */
+    char js5_host[128];
+    int js5_port; /* 0 = unset/inherit */
+    int js5_fallback_port;
+    int js5_fallback_port_set; /* distinguishes omitted from explicit 0 */
+    int js5_revision;          /* 0 = unset/inherit */
+    int js5_revision_set;
 
     /* [features:boot] — client-behaviour era name; "" = derive from the cache
      * identity (ToriRS_Features_ForCache). */
@@ -244,6 +260,14 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path);
  * flags override by plain assignment (precedence: CLI > manifest > defaults). */
 void
 BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg);
+
+/* Copy only set [js5:boot] fields into the executor-owned configuration.
+ * This is intentionally separate from ApplyToConfig: AppConfig is the stable
+ * core-client boundary and must not acquire JS5/network-cache state. */
+void
+BootManifest_ApplyToExecutorConfig(
+    struct BootManifest const* bm,
+    struct ToriRS_ExecutorConfig* cfg);
 
 /*
  * Repoint cfg at the endpoint a browser can reach, for hosts whose sockets are

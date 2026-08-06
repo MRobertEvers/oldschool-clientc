@@ -2,6 +2,7 @@
 #define RSCACHE_ARCHIVE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct RSCache_Dat2DiskArchive;
@@ -17,6 +18,36 @@ bool
 RSCache_ArchiveDecryptDecompress(
     struct RSCache_Dat2DiskArchive* archive,
     uint32_t* xtea_key_nullable);
+
+/**
+ * Determine the exact length of a framed dat2 container at the start of `data`.
+ *
+ * The returned length includes the compression byte, length field(s), and
+ * compressed payload. It deliberately excludes any u32/u16 revision trailer.
+ * `data_size` may therefore be larger than the returned length. Unknown
+ * compression modes, truncated headers/payloads, and overflowing lengths fail.
+ */
+bool
+RSCache_ArchiveRawContainerLength(
+    const uint8_t* data,
+    size_t data_size,
+    size_t* out_container_size);
+
+/**
+ * Validate an exact raw dat2 archive against reference-table metadata.
+ *
+ * CRC-32 covers only the framed container, never its revision trailer. Modern
+ * caches append the revision as a big-endian u32; legacy caches append its low
+ * 16 bits as a big-endian u16. No missing trailer or trailing garbage is
+ * accepted. `out_container_size` is optional and is written only on success.
+ */
+bool
+RSCache_ArchiveRawValidate(
+    const uint8_t* data,
+    size_t data_size,
+    uint32_t expected_crc,
+    uint32_t expected_version,
+    size_t* out_container_size);
 
 bool
 RSCache_ArchiveDecompressDat(

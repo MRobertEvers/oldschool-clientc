@@ -1,6 +1,8 @@
 #ifndef SOCKSTREAM_H
 #define SOCKSTREAM_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,7 +103,7 @@ sockstream_poll_connect(struct SockStream* stream);
  * @param stream The socket stream
  * @return Socket file descriptor, or -1 if invalid
  */
-int
+intptr_t
 sockstream_get_fd(struct SockStream* stream);
 
 /**

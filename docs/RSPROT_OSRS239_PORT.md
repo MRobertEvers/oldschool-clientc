@@ -84,7 +84,7 @@ login screen without it, which is why a private server that implements only the
 game protocol shows a client that never starts.
 
 The service serves the archive **exactly as it sits on disk**, minus the 2-byte
-version trailer — not a decode-and-re-encode. `src/net/mock/mock_js5.c` reads
+version trailer — not a decode-and-re-encode. `src/js5/server/js5_server_cache.c` reads
 `.idx`/`.dat2` sectors itself for that reason, and checks all four sector-header
 self-check fields so a chain that drifts is caught rather than returning a
 plausible mixture of two archives.
@@ -309,7 +309,7 @@ Not done, in the order that unblocks the most:
 
 ```sh
 make -C src mock-js5
-src/build/mock_js5 cache.osrs239 43594 239 &
+src/build/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
 python3 tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239 &
 
 python3 tools/runelite_patch.py --modulus <MOCK230_RSA_PUBLIC_MODULUS>

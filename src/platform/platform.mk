@@ -73,6 +73,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   # Windowing/audio/IO backends for this host. The lists are subtracted from
   # and added to the shared SRCS in the makefile, so a backend swap is local.
   PLATFORM_SRCS     := platform/platform_x_io.c \
+                       platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c
   # The desktop-GL binding. The web lane builds the same renderer against
@@ -80,6 +81,10 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   # D3D9 in their regular platform source and need no binding object here.
   PLATFORM_GPU_OBJ_NAMES := opengl3_sdlgl.o
   PLATFORM_EXE_SUFFIX :=
+  # The JS5 cache producer is executor-side and currently native-only. Tests
+  # live under js5/test, so this non-recursive wildcard picks production units
+  # without accidentally linking test mains into the client.
+  JS5_SRCS          := $(wildcard js5/*.c)
 
   SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
   SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
@@ -138,9 +143,13 @@ else ifeq ($(PLATFORM),win32)
   # IO is the portable stdio backend; audio is the null backend (no sound on XP
   # for now). No GL renderer, no SDL audio.
   PLATFORM_SRCS     := platform/platform_x_io.c \
+                       platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9.c
+  # Keep the executor-side JS5 producer native-only. The wildcard is
+  # deliberately non-recursive so server and test mains cannot enter the client.
+  JS5_SRCS          := $(wildcard js5/*.c)
   # TRSPK's CPU retained-mode core is already linked through trspk_unity.o.
   # D3D9 calls live in the regular platform source above, so there is no extra
   # out-of-tree binding object (and in particular no WebGL object) here.
@@ -218,9 +227,13 @@ else ifeq ($(PLATFORM),win64)
   # wrapper stages this as dist/win64/torirs.exe.
   PLATFORM_TARGET   := torirs_win64.exe
   PLATFORM_SRCS     := platform/platform_x_io.c \
+                       platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9.c
+  # Keep the executor-side JS5 producer native-only. The wildcard is
+  # deliberately non-recursive so server and test mains cannot enter the client.
+  JS5_SRCS          := $(wildcard js5/*.c)
   PLATFORM_GPU_OBJ_NAMES :=
   PLATFORM_EXE_SUFFIX := .exe
   PLATFORM_WINDOW_SRC := platform/platform_win32gdi.c
@@ -268,6 +281,7 @@ else ifeq ($(PLATFORM),web)
   # alongside a web build are native and take the host's suffix, which on the
   # machines this lane runs on is none.
   PLATFORM_EXE_SUFFIX :=
+  JS5_SRCS          :=
 
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it

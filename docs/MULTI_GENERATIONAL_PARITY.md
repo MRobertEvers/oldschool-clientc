@@ -645,7 +645,7 @@ ever matters.
     and NPC_INFO v5 are unwritten, so `osrs239_parse.c` refuses them (along with
     REBUILD_NORMAL/REGION V2, IF_SETEVENTS V2, IF_SETMODEL V2 and CAM_MOVETO/
     LOOKAT V2) rather than decoding them with the 230 layout.
-  - **JS5 landed** as `src/net/mock/mock_js5.c` + `make -C src mock-js5`. It is
+  - **JS5 landed** as `src/js5/server/` + `make -C src js5-server`. It is
     a login-prot branch, not a service — one socket, opcode 14 game vs 15 JS5 —
     so it must move into `mock230_session`'s handshake; it is standalone today
     because that is the half testable against a real client now.
