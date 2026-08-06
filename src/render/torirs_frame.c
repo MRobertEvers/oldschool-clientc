@@ -40,25 +40,113 @@ frame_take_queued(
     return true;
 }
 
-/** Translate a ToriDraw scene event into a retained-mode unload/clear command.
- * Load events are skipped: GL3 lazy-bakes on DRAW; Soft3D ignores loads. */
+/** Translate ToriDraw resource events into the retained renderer command
+ * stream.  Static models and all of their animation poses must be baked before
+ * DRAW; texture loads must also reach a retained VBO after asynchronous cache
+ * loading.  Soft3D safely ignores the resource-only commands. */
 static bool
 frame_translate_scene_event(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_Event const* ev,
     struct ToriRS_RenderCommand* out)
 {
+    struct ToriDraw_SceneElement* element;
     assert(ev);
     assert(out);
     memset(out, 0, sizeof(*out));
     switch( ev->kind )
     {
+    case TORIDRAW_EVENT_MODEL_LOAD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        /* Dynamic entities are rebuilt in the per-frame TRSPK group.  Their
+         * MODEL_LOAD event is emitted just before the creator marks them
+         * dynamic, so baking that snapshot would only leak persistent arena
+         * space at its pre-position origin. */
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_MODEL_LOAD;
+        out->u.model_load.element_id = ev->element_id;
+        out->u.model_load.model = element->model;
+        out->u.model_load.world_position = element->world_position;
+        return true;
     case TORIDRAW_EVENT_MODEL_UNLOAD:
         out->kind = TORIRSRC_MODEL_UNLOAD;
         out->u.model_load.element_id = ev->element_id;
         return true;
+    case TORIDRAW_EVENT_ANIM_LOAD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_ANIM_LOAD;
+        out->u.anim_load.element_id = ev->element_id;
+        out->u.anim_load.anim_index = ev->anim_index;
+        out->u.anim_load.animation =
+            ev->anim_index == 0 ? element->animation : element->secondary_animation;
+        if( !out->u.anim_load.animation )
+            return false;
+        out->u.anim_load.model = element->model;
+        out->u.anim_load.world_position = element->world_position;
+        return true;
     case TORIDRAW_EVENT_ANIM_UNLOAD:
         out->kind = TORIRSRC_ANIM_UNLOAD;
         out->u.anim_load.element_id = ev->element_id;
+        return true;
+    case TORIDRAW_EVENT_TEX_LOAD:
+        out->kind = TORIRSRC_TEX_LOAD;
+        out->u.tex_load.texture_id = ev->texture_id;
+        out->u.tex_load.texture =
+            scene && ToriDraw_SceneTexState(scene)
+                ? ToriDraw_TextureMapGet(
+                      &ToriDraw_SceneTexState(scene)->texture_map,
+                      ev->texture_id)
+                : NULL;
+        if( !out->u.tex_load.texture )
+            return false;
+        return true;
+    case TORIDRAW_EVENT_TEX_UNLOAD:
+        out->kind = TORIRSRC_TEX_UNLOAD;
+        out->u.tex_load.texture_id = ev->texture_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_BEGIN:
+        out->kind = TORIRSRC_BATCH3D_BEGIN;
+        out->u.batch.batch_id = ev->batch_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_MODEL_ADD:
+        /* SceneBatchAddElement emits a NONE placeholder before the real model
+         * is assigned.  Do not resolve that sentinel to the element's later
+         * live handle and bake the same geometry twice. */
+        if( ev->model.kind == TORIDRAWMK_NONE )
+            return false;
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_BATCH3D_MODEL_ADD;
+        out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.element_id = ev->element_id;
+        out->u.batch.pose_id = ev->pose_id;
+        out->u.batch.model = element->model;
+        out->u.batch.world_position = element->world_position;
+        return true;
+    case TORIDRAW_EVENT_BATCH_ANIM_ADD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        out->kind = TORIRSRC_BATCH3D_ANIM_ADD;
+        out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.element_id = ev->element_id;
+        out->u.batch.pose_id = ev->pose_id;
+        out->u.batch.anim_index = ev->anim_index;
+        out->u.batch.model = ev->model;
+        out->u.batch.world_position = ev->world_position;
+        return true;
+    case TORIDRAW_EVENT_BATCH_END:
+        out->kind = TORIRSRC_BATCH3D_END;
+        out->u.batch.batch_id = ev->batch_id;
         return true;
     case TORIDRAW_EVENT_BATCH_CLEAR:
     case TORIDRAW_EVENT_SCENE_RESET:
@@ -85,7 +173,7 @@ frame_take_scene_event(
     while( frame->event_index < eq->count )
     {
         struct ToriDraw_Event const* ev = &eq->events[frame->event_index++];
-        if( frame_translate_scene_event(ev, out) )
+        if( frame_translate_scene_event(frame->scene, ev, out) )
             return true;
     }
     return false;
@@ -1624,8 +1712,8 @@ ToriRS_FrameNextCommand(
     if( frame_take_queued(frame, out) )
         return true;
 
-    /* Drain scene unload/clear events before any DRAW_MODEL so GL3's pose
-     * table does not serve stale verts after element-id reuse. */
+    /* Drain ordered scene resource events before any DRAW_MODEL so retained
+     * model/pose buffers and asynchronous textures are ready for the pass. */
     if( frame_take_scene_event(frame, out) )
         return true;
 

@@ -121,7 +121,12 @@ cs2_remove_dead_code(struct cs2_dfa* dfa, struct RSCache_CS2_Function* function)
             insn = insn->next;
             continue;
         }
+        struct RSCache_CS2_Insn* returned = insn;
         insn = insn->next;
+        /* Record the one thing the deletion destroys that the source needs:
+         * whether a `goto` sat here. See RSCache_CS2_Insn::dead_goto_follows. */
+        if( insn && insn->kind == RSCACHE_CS2_INSN_GOTO )
+            returned->dead_goto_follows = true;
         while( insn && insn->kind != RSCACHE_CS2_INSN_LABEL )
         {
             if( insn->kind == RSCACHE_CS2_INSN_ASSIGNMENT )

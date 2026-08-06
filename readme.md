@@ -4,6 +4,36 @@ Rewrite of the osrs renderer.
 
 ## Building
 
+<<<<<<< HEAD
+The current client is built by [`src/makefile`](src/makefile). The root CMake
+project and the `v0`/`v1` trees are historical snapshots, not alternate build
+lanes.
+
+```sh
+make -C src all          # native debug -> src/torirs
+make -C src release      # native -O3  -> src/torirs
+make -C src web          # optimized browser module -> build-web/
+make -C src web-debug    # debug browser module
+make -C src io-server    # cache/boot server used by the browser build
+```
+
+On Windows, use `./build_windows.ps1 -Opt` for the modern x86_64 artifact or
+`./build_winxp.ps1 -Opt` for the XP-compatible i686 artifact. Omitting `-Opt`
+intentionally builds the corresponding debug lane. Both compiler toolchains
+are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
+Platform selection, prerequisites, renderer flags, compatibility constraints,
+and known defects are centralized in
+[Platform quirks and contracts](docs/platform_quirks.md). Detailed active guides
+cover the [web build](docs/web_build.md) and the
+[Windows XP D3D9 renderer](docs/windows_xp_d3d9.md).
+
+## Engine notes
+
+The remaining material is an engineering notebook, not a platform build or
+compatibility contract. Platform guidance belongs in the registry linked above.
+
+### TODO
+=======
 Plain make, **not CMake** — the CMake tree is deprecated and no longer
 configures (its sources moved to `v0/`). One variable, `PLATFORM`, picks the
 whole host: compiler, windowing/audio/IO backends, object directory and link
@@ -207,6 +237,7 @@ When building to debug wasm, you need to make sure there is no `.wasm.map` file 
 and compile with `-O0 -g`.
 
 ### TODOS
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 1. Contour Ground
 2. Minimap
@@ -767,32 +798,8 @@ Frame timing: each frame is shown for `frameLengths[frame]` client cycles at 50h
 
 ## Profiling
 
-```
-sudo ../profile.d -c ./scene_tile_test > out.stacks
-
-sudo ../profile.d -c ./main_client > out.stacks
-sudo ../profile.d -c ./sdl2 > out.stacks
-sudo ../profile.d -c "./sdl2 --renderer=metal" > out.stacks
-
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/src2/programs/sdl2/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
-```
-
-Then using flamegraph
-
-Which you can get from here:
-https://github.com/brendangregg/FlameGraph
-
-```
-# /Users/matthewevers/Documents/git_repos/FlameGraph
-
-./stackcollapse.pl ./build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
-```
+The current counters, CSV format, work-versus-pacing boundary, and reproducible
+benchmarks are documented in [the performance harness](docs/PERF_HARNESS.md).
 
 ### Profiling without sudo (macOS `sample`)
 
@@ -1137,18 +1144,15 @@ new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 2
 On linux
 
 ```
-valgrind --leak-check=full ./scene_tile_test
-
-valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
-valgrind --leak-check=full ./osx > log.txt 2>&1
+valgrind --leak-check=full src/torirs --manifest manifest_osrs230.ini --offline
 
 # Callgrind must be built without ASan
-valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
-valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
+valgrind --tool=callgrind src/torirs --manifest manifest_osrs230.ini --offline > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
-valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out \
+  src/torirs --manifest manifest_osrs230.ini --offline
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```
@@ -1392,8 +1396,36 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ![go_frame_time](./res/danes_frame_time.png)
 
-### Windows
+### Historical platform benchmarks
 
+<<<<<<< HEAD
+The CMake/MSVC/SDL Windows recipes that used to precede these captures targeted
+the retired renderer stack and have been removed. Current Windows builds use
+the raw-Win32 backend through distinct modern x86_64 and XP-compatible i686
+lanes documented in
+[Platform quirks and contracts](docs/platform_quirks.md#windows-raw-win32-d3d9-and-soft3dgdi).
+
+#### Performance
+
+Windows s4 performance (sorting triangle points before rendering) is slower with msvc. Faster with GCC. GCC is about the same on Linux.
+
+MSVC
+![msvc_release_s4_slower_than_deob](./res/perf/windows/win64_msvc_release_s4_slower.png.png)
+
+GCC with MingGW
+![mingw_release](./res/perf/windows/win64_mingw_s4_faster.png.png)
+
+Thinkpad 14
+
+Wasm
+![wasm_emscripten](./res/perf/windows/thinkpad14_wasm.png)
+
+Native Mingw Static
+![native_msvg_static](./res/perf/windows/thinkpad14_native_msvc.png)
+
+Also noticing that the deob is faster for big screens.
+Update: No that's not true, it just doesn't work on big screens.
+=======
 Windows is the `win32` lane — see [The build matrix](#the-build-matrix) at the
 top of this file:
 
@@ -1416,18 +1448,13 @@ block of [`src/platform/platform.mk`](src/platform/platform.mk) and asserted by
 > deprecated and can no longer configure — its sources moved to `v0/` — so none
 > of those commands could be followed. For the web build see
 > [docs/web_build.md](docs/web_build.md) and `make -C src web`.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 # World and model coords
 
 +y is down
 +z is away from camera (into)
 +x is to the right.
-
-# WebGL
-
-My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
-See here.
-https://issues.chromium.org/issues/40114751
 
 # Software Renderer integer limits
 
@@ -1890,21 +1917,6 @@ Side Icons hmid
 496, 466
 ```
 
-## Emscripten
-
-python3 -m http.server 8080
-python3 -m http.server -d build_emscripten 8080
-
-// Serve cache
-cd test/datserver
-./a.out
-
-// Serve lua
-node ./serve-lua-scripts.js
-
-// Serve build
-python3 -m http.server -d build_emscripten 8080
-
 ## Painter
 
 ```
@@ -1929,21 +1941,6 @@ painter bench (avg over 30 frames): paint_w3d=1.971 ms paint_bucket=1.556 ms
 painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
 ```
 
-# Debugging On Target
-
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe ./build-winxp/win32.exe
-
-```
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe win32.exe
-
-strings win32.exe | grep .pdb
-
-# Place the pdb file where this path points on the dest machine.
-mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-winxp
-$ strings win32.exe | grep .pdb
-C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
-```
-
 ## Air Strike 245
 
 659=strike_travel
@@ -1960,12 +1957,6 @@ recol2d=32767
 recol3s=31649
 recol3d=31
 
-# Serving to winxp
-
-```
-python3 -m http.server -b 0.0.0.0 -d . 8000
-```
-
 ## Rendering Features Needed
 
 1. Textures U clamp
@@ -1978,7 +1969,7 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 
 ## Empty Models??
 
-Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. The crash is the engine's own invariant in src2/toridraw/toridraw_model_transform.c
+Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. A crash on one is an engine invariant failure, not a loading failure.
 
 ## Bellemorde
 
@@ -2321,7 +2312,10 @@ Without layer clipping the line extends ~11px past the vertical border. With cli
 
 Scanned all **917** interface archives in `cache/` with `tools/dump_interface/dump_interface`. **22** distinct nonzero `clientCode` values appear on **54** widgets.
 
-`clientCode` is decoded from each component record (see [`dat2a_component.h`](src/osrs/rscache/dat2a/dat2a_component.h)). In interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as `client_code`.
+`clientCode` is decoded from each component record (see
+[`dat2_component.h`](3rd/rscache/src/datatypes/dat2_component.h)). In
+interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as
+`client_code`.
 
 Many codes from [`Client-TS/src/client/ClientCode.ts`](Client-TS/src/client/ClientCode.ts) (friends list slots 1–203, ignores 401–503, friends2 701–900, player design 300–327, etc.) are assigned **at runtime** by the client to dynamic list rows — they do not appear as baked `clientCode` fields in the cache dump. Only values actually stored on widgets are listed below.
 
@@ -2519,8 +2513,8 @@ Task_InterfaceX_Main()
 
 ## Running against a LostCity server
 
-Build with `make -C src torirs` (target binary: `src/torirs`), or `make -C src release`
-for an optimized `-O2` build (objects in `src/build_opt/`; both flavors link the same
+Build with `make -C src all` (target binary: `src/torirs`), or `make -C src release`
+for an optimized `-O3` build (objects in `src/build_opt/`; both flavors link the same
 `src/torirs`, and switching flavors relinks automatically). The client caps at 50 fps
 by default; pass `--uncapped` to free-run (profiling/benchmarks). With a LostCity_Server
 (Engine-TS rev 254) running locally — game port 43594, web/CRC on port 80 — run from

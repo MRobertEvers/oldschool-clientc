@@ -58,4 +58,10 @@ trspk_pose_table_remove_element(
     struct TRSPK_PoseTable* table,
     int element_id);
 
+void
+trspk_pose_table_remove_track(
+    struct TRSPK_PoseTable* table,
+    int element_id,
+    int anim_index);
+
 #endif

@@ -1,5 +1,14 @@
 <#
 .SYNOPSIS
+<<<<<<< HEAD
+    Build the Windows XP client (raw Win32 + fixed-function D3D9, no SDL) with the embedded server.
+
+.DESCRIPTION
+    Produces a standalone torirs.exe for Windows XP:
+      * PLATFORM=win32  -> uses classic Direct3D 9 fixed-function rendering by
+        default, with no D3D9Ex, D3DX, shaders, SDL, or GL. Pass --soft3d at
+        runtime for the top-down DIB + GDI fallback in platform_win32gdi.c.
+=======
     Build the Windows XP client (win32 + GDI, no SDL) with the embedded server.
 
 .DESCRIPTION
@@ -7,6 +16,7 @@
       * PLATFORM=win32  -> presents through src/platform/platform_win32gdi.c
         (a top-down DIB + BitBlt implementation of the PlatformSDL2 interface),
         no SDL and no GL.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
       * EMBED_SERVER=1  -> links the rev-230 server into the client, so it runs
         standalone (no separate game server needed) -- what you want on XP.
 
@@ -15,8 +25,15 @@
     it on XP with the RemoteProxyDesktopXP build server (rpdxpctl).
 
 .PARAMETER Toolchain
+<<<<<<< HEAD
+    Path to a MinGW root or 'bin' directory (must contain gcc, mingw32-make,
+    and objdump).
+    Defaults to the repository-owned lib\mingw32-win32-toolchain.zip, extracted
+    on demand under the ignored toolchain\mingw32 directory.
+=======
     Path to a MinGW 'bin' directory (must contain gcc/g++ and mingw32-make).
     Defaults to the RemoteProxyDesktopXP vendored toolchain if present.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 .PARAMETER Opt
     Release build (OPT=1). Default is a debug build.
@@ -34,6 +51,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = $PSScriptRoot
+<<<<<<< HEAD
+. (Join-Path $repo "scripts\windows_toolchain.ps1")
+
+# --- repository-owned compiler + POSIX recipe shell -----------------------
+$originalPath = $env:PATH
+try {
+$resolvedToolchain = Resolve-ToriRSWindowsToolchain -RepoRoot $repo -Lane win32 -Override $Toolchain
+$buildEnvironment = Enable-ToriRSWindowsBuildEnvironment -ToolchainBin $resolvedToolchain.Bin
+$Toolchain = $resolvedToolchain.Bin
+$make = $resolvedToolchain.Make
+Write-Host "[winxp] toolchain: $Toolchain ($($resolvedToolchain.Triple))"
+Write-Host "[winxp] sh: $($buildEnvironment.Sh)"
+=======
 
 # --- locate a MinGW toolchain ---------------------------------------------
 if (-not $Toolchain) {
@@ -75,6 +105,7 @@ if (-not (Get-Command sh.exe -ErrorAction SilentlyContinue)) {
     $env:PATH = "$shDir;$env:PATH"
     Write-Host "[winxp] sh: $shDir\sh.exe"
 }
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 # --- build ----------------------------------------------------------------
 # All build knowledge lives in the makefile's lane targets: `winxp` is
@@ -99,8 +130,13 @@ try {
     }
 
     # Read the XP contract back off the binary: 32-bit PE, subsystem version
+<<<<<<< HEAD
+    # 5.01, classic d3d9.dll!Direct3DCreate9, and no Ex/D3DX/shader/SDL imports.
+    # These are the failures that otherwise only show up on the XP target.
+=======
     # 5.01, no SDL. These are the failures that otherwise only show up as XP
     # refusing to start the image, with no diagnostic on either side.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     & $make -C src --no-print-directory EMBED_SERVER=1 PLATFORM=win32 lane-check-artifact
     if ($LASTEXITCODE -ne 0) {
         Write-Error "lane-check-artifact failed (exit $LASTEXITCODE) - not staging."
@@ -120,5 +156,15 @@ $dist = Join-Path $repo "dist\win32"
 New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item $built (Join-Path $dist "torirs.exe") -Force
 Write-Host ("[winxp] done -> dist\win32\torirs.exe  ({0:N0} KB)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
+<<<<<<< HEAD
+Write-Host "[winxp] local run (nonpacked OSRS239, fixed-function D3D9):"
+Write-Host "        .\src\torirs.exe --manifest .\manifest_osrs239.ini"
 Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
 Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
+} finally {
+    $env:PATH = $originalPath
+}
+=======
+Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
+Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c

@@ -46,9 +46,11 @@ prints a per-group open/close ledger every 250 logic ticks. `TORIRS_NET_CHEAT_RO
 fires one semicolon-separated cheat per EVERY cycle (soak-ui). Embed transport
 requires `EMBED_SERVER=1`.
 
-**Frame work vs pacing:** `TORIRS_PERF_FRAME_END` runs *before* the 50 fps
-`Delay` / uncapped `Delay(1)`. Capped runs that timed the sleep used to report
-a flat ~20 ms residual and could not see work drift.
+**Frame work vs pacing:** `TORIRS_PERF_FRAME_END` runs *before* the native
+capped absolute-deadline wait. `--uncapped` performs no artificial delay. The
+capped deadline begins before `TORIRS_PERF_FRAME_BEGIN`, so pre-instrumentation
+frame work still consumes the 20 ms budget, but the pacing wait is excluded
+from stage timings. Measure wall-clock effective fps separately.
 
 ## Flamegraphs
 
@@ -189,7 +191,7 @@ even when command count drops.
 | incremental `LayoutResolve` + memoized depth pass + mount-scan hoist + CS1 scan skip |    **6.30 ms** | keep                             |
 | emit drag pass only when something is being dragged                                  |    **5.67 ms** | keep (emit p95 0.201 → 0.075 ms) |
 | CS2 call stack grown on demand instead of reserved inline                            |   *no change*  | keep for footprint, not for time |
-| windowed perf + `server` stage + FRAME_END before Delay                              |   harness only | keep                             |
+| windowed perf + `server` stage + FRAME_END before pacing wait                       |   harness only | keep                             |
 | `SceneAnimatedElements` walks live intrusive chain (not high-water slots)            |   structural   | keep                             |
 | Soft3D outline/shadow LRU (stops per-frame `SpriteNewGraphicOutline` calloc)         |   see below    | keep                             |
 | Pre-baked `cc_setoutline(1)` obj icons + Soft3D outline LRU 32→256 (collection log)  |   see above    | keep                             |

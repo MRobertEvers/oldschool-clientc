@@ -34,6 +34,18 @@ struct RSCache_CS2_CompileOptions
     /** Callee signatures for `~proc` calls and hook registrations. */
     struct RSCache_CS2_ScriptSource scripts;
     struct RSCache_CS2_ParamTypes param_types;
+    /**
+     * What a dbtable column holds, for the same reason the decompiler needs it:
+     * `db_getfield` on a four-field column pushes four values and on a
+     * one-field column pushes one, and which it is lives in the cache's config
+     * rather than in the opcode (EXCEPTIONS G8).
+     *
+     * Optional. Without it a db call in statement position gets no
+     * `pop_*_discard`, which is a stack imbalance the compiler cannot see —
+     * so supply it whenever the cache is at hand. `tools/common/cs2_db_columns.c`
+     * is the provider both `cs2` and `cachepack` use.
+     */
+    struct RSCache_CS2_DbColumnTypes db_columns;
     /** Symbolic constant and script-name resolution; optional. */
     const struct RSCache_CS2_Names* names;
 };

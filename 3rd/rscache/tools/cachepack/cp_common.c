@@ -225,6 +225,159 @@ cp_resolve_ref(
     return 0;
 }
 
+/*
+ * Load every `^name = value` the tree declares.
+ *
+ * The grammar is one line: an optional indent, `^name`, `=`, a value, and an
+ * optional `//` comment. Anything else — a blank, a comment line, a constant
+ * whose value is not an integer — is skipped, because the only consumer here is
+ * a param value and that is an integer slot.
+ *
+ * Not an error to find none: a tree with no `.constant` file is a tree whose
+ * configs never spell a caret, and the resolver reports the miss at the use.
+ */
+static void
+cp_constants_load(struct CP_Ctx* ctx)
+{
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count;
+
+    ctx->constants_loaded = 1;
+    found_count = cp_walk_find(&ctx->walk, "constant", found, CP_PACK_MAX_SOURCES);
+
+    for( int f = 0; f < found_count; f++ )
+    {
+        FILE* fp = fopen(found[f], "rb");
+        char line[1024];
+
+        if( !fp )
+            continue;
+        while( fgets(line, sizeof(line), fp) )
+        {
+            char* p = line;
+            char* eq;
+            char* name_end;
+            char* value;
+            char* cut;
+            int parsed = 0;
+
+            while( *p == ' ' || *p == '\t' )
+                p++;
+            if( *p != '^' )
+                continue;
+            p++;
+            eq = strchr(p, '=');
+            if( !eq )
+                continue;
+            name_end = eq;
+            while( name_end > p && (name_end[-1] == ' ' || name_end[-1] == '\t') )
+                name_end--;
+            *name_end = '\0';
+            if( !*p )
+                continue;
+
+            value = eq + 1;
+            while( *value == ' ' || *value == '\t' )
+                value++;
+            /* Trim the line ending, then a trailing comment, then the space
+             * before it — `^stab_style = 0   // rolled against stab` is one of
+             * these and the value is `0`, not `0   `. */
+            cut = strpbrk(value, "\r\n");
+            if( cut )
+                *cut = '\0';
+            cut = strstr(value, "//");
+            if( cut )
+                *cut = '\0';
+            cut = value + strlen(value);
+            while( cut > value && (cut[-1] == ' ' || cut[-1] == '\t') )
+                cut--;
+            *cut = '\0';
+
+            if( !cp_parse_int(value, &parsed) )
+                continue;
+
+            if( ctx->constants_count == ctx->constants_capacity )
+            {
+                int grown = ctx->constants_capacity ? ctx->constants_capacity * 2 : 256;
+                struct CP_Constant* bigger =
+                    realloc(ctx->constants, (size_t)grown * sizeof(*bigger));
+                if( !bigger )
+                    break;
+                ctx->constants = bigger;
+                ctx->constants_capacity = grown;
+            }
+            ctx->constants[ctx->constants_count].name = strdup(p);
+            ctx->constants[ctx->constants_count].value = parsed;
+            if( ctx->constants[ctx->constants_count].name )
+                ctx->constants_count++;
+        }
+        fclose(fp);
+    }
+}
+
+int
+cp_resolve_caret(
+    struct CP_Ctx* ctx,
+    const char* text,
+    int* out_value)
+{
+    if( !text || text[0] != '^' )
+        return 0;
+    text++;
+
+    /* The two the language itself defines rather than the tree — sscompile
+     * treats them the same way (see ssc_compile.c's `true`/`false`). */
+    if( strcmp(text, "true") == 0 )
+    {
+        *out_value = 1;
+        return 1;
+    }
+    if( strcmp(text, "false") == 0 )
+    {
+        *out_value = 0;
+        return 1;
+    }
+
+    if( !ctx->constants_loaded )
+        cp_constants_load(ctx);
+    for( int i = 0; i < ctx->constants_count; i++ )
+    {
+        if( strcmp(ctx->constants[i].name, text) == 0 )
+        {
+            *out_value = ctx->constants[i].value;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int
+cp_resolve_ref_or_null(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* text,
+    int* out_id)
+{
+    /*
+     * The one spelling of -1 that is an answer rather than a miss.
+     *
+     * LostCity writes "no value" as the literal `null`, in a param value and as a
+     * param default alike, and the server already resolves it that way in one
+     * place for the same reason — see mock230_content_symbol_checked, whose note
+     * this mirrors. Stated here rather than at the two call sites so the
+     * convention has one home.
+     *
+     * Not 0: obj 0 and npc 0 are real records, so answering `null` with 0 would
+     * silently name one of them instead of naming nothing.
+     */
+    if( text && strcmp(text, "null") == 0 )
+    {
+        *out_id = -1;
+        return 1;
+    }
+    return cp_resolve_ref(ctx, type, text, out_id);
+}
+
 int
 cp_resolve_category(
     struct CP_Ctx* ctx,
@@ -691,6 +844,20 @@ cp_parse_param(
         text = first + 1;
 
         /*
+         * A `^name` value is a constant, whatever the param's type.
+         *
+         * `param=undead,^true` and `param=damagetype,^crush_style` are both in
+         * this tree. It runs before the reference clause below because a caret is
+         * never a record name — the two cannot be confused — and after the kind
+         * is known so the resolved integer goes to the right slot.
+         */
+        if( text[0] == '^' && cp_resolve_caret(ctx, text, &resolved) )
+        {
+            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
+            text = resolved_buf;
+        }
+
+        /*
          * And a *reference* type's value is a name.
          *
          * `param=next_loc_stage,poordooropen` is loc 11403 because
@@ -700,7 +867,7 @@ cp_parse_param(
          */
         if( ref >= 0 && !cp_parse_int(text, &resolved) )
         {
-            if( !cp_resolve_ref(ctx, (enum CP_TypeId)ref, text, &resolved) )
+            if( !cp_resolve_ref_or_null(ctx, (enum CP_TypeId)ref, text, &resolved) )
                 return 0;
             snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
             text = resolved_buf;

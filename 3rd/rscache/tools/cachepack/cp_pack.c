@@ -546,6 +546,7 @@ struct CP_Routing
     /* client-side populations */
     int client_by_name;
     int client_by_substrate;
+    int client_by_rank0;
     int client_by_default;
     int cell_b;      /**< server-only entities that state a client field */
     int server_only; /**< records the client side refused, cell (b) or not */
@@ -718,6 +719,32 @@ routing_client_member(
         routing->client_by_substrate++;
         return 1;
     }
+    if( rec->origin_rank == 0 )
+    {
+        /*
+         * A rank-0 block is a cache record by construction.
+         *
+         * `configs/all.<type>` is the machine export *of the cache*, so a record
+         * the tree did not add is the client's whether or not it also has a
+         * server half — which is exactly what pack/<type>.server's own header
+         * says: "the two files overlap rather than partition ... 'in the server
+         * pack' means 'has a server half', not 'is exclusively ours'".
+         *
+         * The substrate clause above is the same statement asked of a base cache,
+         * and it is the only one that used to be made. That works while `--base`
+         * is given and silently inverts without it: `in_cache` can never be 1, so
+         * every record named in <type>.server fell through to cell (b) and was
+         * dropped from the client cache. On this tree that was 776 locs — the
+         * doors among them, which is how it was found: castledoubledoorl loaded
+         * as `pos -1`, absent from a group holding 61,418 of the namespace's
+         * 62,194 records.
+         *
+         * Provenance, not the cache, is the authority here, so this answers the
+         * same in both modes rather than depending on what was opened.
+         */
+        routing->client_by_rank0++;
+        return 1;
+    }
     if( cp_membership_has(&routing->server, rec->debugname) )
     {
         /* §2 cell (b): a server-only entity carrying a client field. Counted and
@@ -858,10 +885,11 @@ routing_report(
     const struct CP_Fields* fields,
     const struct CP_Routing* routing)
 {
-    if( routing->client_by_name || routing->client_by_substrate )
+    if( routing->client_by_name || routing->client_by_substrate || routing->client_by_rank0 )
         printf("  %-11s   client: %d by pack/%s.client, %d because the base cache holds "
-               "them\n",
-               type->name, routing->client_by_name, type->name, routing->client_by_substrate);
+               "them, %d because rank 0 states them\n",
+               type->name, routing->client_by_name, type->name, routing->client_by_substrate,
+               routing->client_by_rank0);
     routing_report_server(type, routing);
     if( routing->server_only )
         printf("  %-11s   %d record(s) are not the client's: %d of them state a field "

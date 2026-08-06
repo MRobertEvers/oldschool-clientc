@@ -693,6 +693,29 @@ ever matters.
     external: RuneLite ships a rev-240 client; the newest RSProt module and
     every archived cache are 239.
 
+<<<<<<< HEAD
+- **2026-08-06 — Manifests gained a lower-priority command-line layer.**
+  - `[client:args]` carries repeated `arg=` entries, one exact argv token per
+    line in file order. It deliberately reuses the browser query string's
+    repeated-`arg` model instead of inventing a POSIX- or Windows-specific shell
+    tokenizer: spaces, quotes, backslashes and punctuation remain literal.
+  - Boot precedence is now typed manifest fields → manifest arguments → process
+    argv. Each layer gets fresh positional slots, so an explicit cache directory
+    or interface id replaces the manifest's positional value. Connectivity is
+    also resolved per layer: an explicit `--offline` clears a manifest
+    `--connect`, while an explicit `--connect` replaces manifest `--offline`.
+  - Argument backing is fixed storage inside the process-lifetime
+    `BootManifest`, because CLI values such as `--user`, `--connect`, and
+    `--revconfig` can become `AppConfig` pointers that must outlive parsing.
+    Empty entries are preserved like real argv values. Overflow beyond 64
+    tokens is a load error, while a `--manifest` token is rejected contextually
+    only when it occupies option position (so it remains legal as a password or
+    another option's literal value).
+  - The web boot preloader also inspects manifest arguments for `--revconfig`
+    and `--revconfig-cache`, ensuring those CLI-named files exist in MEMFS before
+    `main()`. Typed RevConfig keys remain manifest-relative; argument paths keep
+    ordinary CLI/working-directory semantics.
+=======
 - **2026-08-04 (later still) — the 239 handshake and PLAYER_INFO v5.**
   - `mock230_session` reads the real 239 login block: `serverVersion`, the OTP
     discriminator, the XTEA body (username), and the RSA encryption-check byte.
@@ -786,3 +809,4 @@ ever matters.
     headless `torirs --manifest manifest_osrs230_embed.ini` run
     (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`
     confirming the local player still renders equipped gear end to end.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c

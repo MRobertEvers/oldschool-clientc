@@ -175,6 +175,18 @@ cp_pack_param(
              * whole reading on the declared type — which is why this runs after
              * it:
              *
+<<<<<<< HEAD
+             * `[death_drop] type=namedobj default=bones` is obj 526, and the only
+             * thing that says so is the type — which is why this runs after it.
+             * Falling back to `cp_parse_int` would turn `bones` into a failure and
+             * `0` into obj 0, and those are different mistakes.
+             *
+             * Three spellings below are the author's rather than the exporter's.
+             * The machine export writes `default=` only for the *int* slot and
+             * puts a string in `defaultstr=`, so each of these used to fail the
+             * whole record — 20 of them in this tree, and a param that fails to
+             * encode is a param the cache does not carry at all.
+=======
              *   string   `default=` IS the string, and `null` is the empty one
              *   any ref  a name; `null` is the stated absence and packs as -1
              *   boolean  yes/no/true/false/1/0
@@ -184,18 +196,55 @@ cp_pack_param(
              * only thing that says so is the type. Falling back to
              * `cp_parse_int` would turn `bones` into a failure and `0` into obj
              * 0, and those are different mistakes.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
              */
             int ref = cp_param_ref_type(entry.type);
 
             if( entry.type == 's' )
             {
+<<<<<<< HEAD
+                /*
+                 * A string param's default is a string, and `default=` is how a
+                 * person writes it. Routed to the string slot (opcode 5) because
+                 * an *integer* default on a string type has no meaning — so there
+                 * is nothing for this to be ambiguous with. Export still writes
+                 * `defaultstr=`; both spellings read back the same.
+                 */
+                char buf[4096];
+                cp_unescape(value, buf, sizeof(buf));
+=======
                 char buf[4096];
                 cp_unescape(strcmp(value, "null") == 0 ? "" : value, buf, sizeof(buf));
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
                 free(entry.default_string);
                 entry.default_string = strdup(buf);
                 ok = entry.default_string != NULL;
             }
             else if( strcmp(value, "null") == 0 )
+<<<<<<< HEAD
+            {
+                /*
+                 * "no value" — see cp_resolve_ref_or_null for why it is -1.
+                 *
+                 * Accepted on any non-string type, not only a reference one:
+                 * `[gnome_cooking_type] type=int default=null` is in this tree,
+                 * and the sentinel means the same thing there. The string case is
+                 * already handled above, where `null` would be a literal string.
+                 */
+                entry.default_int = -1;
+            }
+            else if( entry.type == '1' )
+            {
+                /* `yes`/`no` as well as 0/1 — the same two spellings autodisable
+                 * below already accepts, and what content authors write. */
+                bool flag = false;
+                if( cp_parse_bool(value, &flag) )
+                    entry.default_int = flag ? 1 : 0;
+                else
+                    ok = cp_parse_int(value, &entry.default_int);
+            }
+            else if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
+=======
                 entry.default_int = -1;
             else if( cp_parse_int(value, &entry.default_int) )
             {
@@ -209,6 +258,7 @@ cp_pack_param(
                 entry.default_int = flag ? 1 : 0;
             }
             else if( ref >= 0 )
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
                 ok = cp_resolve_ref(ctx, (enum CP_TypeId)ref, value, &entry.default_int);
             else
                 ok = 0;

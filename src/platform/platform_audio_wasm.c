@@ -1,11 +1,9 @@
 /*
  * WebAudio backend (Emscripten).
  *
- * Compiled only for __EMSCRIPTEN__. There is no WebAssembly build of src/ yet —
- * src/makefile is native+SDL2 — so this file exists to pin the browser side of
- * audio/torirs_audio.h down while the interface is being designed, rather than
- * discovering later that a native-shaped interface does not survive the move.
- * It is written to compile and run as-is under emcc; it is not yet exercised.
+ * Compiled only for __EMSCRIPTEN__ and selected by the current PLATFORM=web
+ * lane. The browser-specific constraints below are registered centrally in
+ * docs/platform_quirks.md.
  *
  * What the browser forces on the design, and why the interface looks the way it
  * does:

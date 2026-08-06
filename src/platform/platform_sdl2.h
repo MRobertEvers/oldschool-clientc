@@ -29,6 +29,11 @@ PlatformSDL2_InitForOpenGL3(
 struct SDL_Window*
 PlatformSDL2_Window(struct PlatformSDL2* platform);
 
+/** Return the platform's native window handle without exposing OS headers.
+ *  The SDL-free Win32 backend returns its HWND as a void pointer. */
+void*
+PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* platform);
+
 void
 PlatformSDL2_Free(struct PlatformSDL2* platform);
 
@@ -136,7 +141,8 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* platform);
 uint64_t
 PlatformSDL2_Ticks64(void);
 
+/** Wait until an absolute PlatformSDL2_Ticks64() deadline. */
 void
-PlatformSDL2_Delay(uint32_t ms);
+PlatformSDL2_SleepUntil(uint64_t deadline_ms);
 
 #endif

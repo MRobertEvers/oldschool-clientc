@@ -1,5 +1,10 @@
 # Building src/ for the web
 
+> The authoritative cross-platform registry is
+> [Platform quirks and contracts](platform_quirks.md). This page owns the
+> detailed browser build and runtime design; register platform differences and
+> open defects in the shared registry as well.
+
 The client runs in a browser as a WebAssembly module. Everything above the
 platform layer is the same code the desktop build runs — same task pipeline,
 same decoders, same renderer — with three things swapped underneath it: where
@@ -29,8 +34,13 @@ directory, link output. It is defined in [`src/platform/platform.mk`](../src/pla
 adding a host means adding one block there plus its `platform/*.c` backends.
 
 ```sh
+<<<<<<< HEAD
+make -C src all              # native, debug      -> src/torirs
+make -C src release          # native, optimized  -> src/torirs
+=======
 make -C src                  # host native, debug -> src/torirs
 make -C src release          # host native, -O3   -> src/torirs
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
 make -C src winxp            # Windows XP i686    -> src/torirs.exe
@@ -113,6 +123,44 @@ string. `run-live.sh` forwards every `TORIRS_*` variable in its environment the
 same way, so `TORIRS_BOOT_STATS=1 ./run-live.sh web …` behaves as it does
 natively. With no query at all the default is
 `--manifest manifest_rs254.ini --offline`.
+
+### Arguments carried by a manifest
+
+A boot manifest may provide an additional, lower-priority argv layer. Use one
+`arg=` line per token, in order:
+
+```ini
+[client:args]
+arg=--offline
+arg=--window
+arg=1024x768
+arg=--user
+arg=Jane Doe
+```
+
+The right-hand side is already one argument. It is not a shell command string:
+spaces, quotes, backslashes, commas, `=`, `;`, and `#` are literal, with no
+quote removal, escaping, variable expansion, or globbing. Thus `arg=Jane Doe`
+passes the single token `Jane Doe`; writing `arg="Jane Doe"` includes the quote
+characters. Since `;` and `#` are data on an `arg=` line, comments belong on
+their own lines. An empty right-hand side is an empty argv token. More than 64
+entries makes the manifest invalid. A `--manifest` token in option position is
+rejected, preventing recursive manifests, though it remains legal when
+consumed as an option's literal value.
+
+The order is typed manifest fields, then `[client:args]`, then the real process
+argv (the page's query-string argv in a web build). A later CLI option therefore
+overrides a manifest option when the command language has an overriding form;
+for example, a query `arg=--connect&arg=host` can replace manifest `--offline`,
+and `--soft3d` can replace a manifest renderer choice. One-way switches such as
+`--bmp` and `--uncapped` remain enabled because there is no opposite CLI flag.
+
+Typed manifest paths such as `revconfig_ui=` resolve relative to the manifest's
+directory. A path supplied through `arg=--revconfig` is an ordinary CLI value
+and remains relative to the process working directory. The web host scans both
+forms before `main()` and fetches the named INIs into its virtual filesystem.
+Keep shared manifests platform-neutral: a native-only `--opengl3` or
+Windows-only `--d3d9` is correctly rejected by a web build that cannot honor it.
 
 ### Switching manifests from the URL
 
