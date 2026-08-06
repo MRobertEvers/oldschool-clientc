@@ -79,6 +79,39 @@ cp_names_load(
          * the machine-owned files by construction. */
         snprintf(path, sizeof(path), "%s/pack/%s.alloc", srcdir, t->name);
         lc_pack_load(&names->alloc[i], path, t->name, 1);
+
+        /* The two layers must be disjoint — in ids and in names. A line bound
+         * in both is how a server name creeps back into the machine-owned file
+         * (and from there into `--gamevals`, the client cache's own symbol
+         * table), so it is a load error for every mode rather than a silent
+         * shadow — the same rule validate_name_layers stated for the old
+         * `names/` layer, and validate_symbols states in the runtime. */
+        for( int id = 0; id < names->alloc[i].max; id++ )
+        {
+            const char* aname = (id < names->alloc[i].capacity && names->alloc[i].names)
+                                    ? names->alloc[i].names[id]
+                                    : NULL;
+            if( !aname )
+                continue;
+            if( id < names->packs[i].capacity && names->packs[i].names &&
+                names->packs[i].names[id] )
+            {
+                fprintf(stderr,
+                        "cachepack: %s %d is bound in both configs/all.%s.compack (`%s`) "
+                        "and pack/%s.alloc (`%s`) — the layers must be disjoint\n",
+                        t->name, id, t->name, names->packs[i].names[id], t->name, aname);
+                return 0;
+            }
+            if( lc_pack_find(&names->packs[i], aname) >= 0 )
+            {
+                fprintf(stderr,
+                        "cachepack: `%s` is named by both configs/all.%s.compack (%s %d) "
+                        "and pack/%s.alloc (%s %d) — the layers must be disjoint\n",
+                        aname, t->name, t->name, lc_pack_find(&names->packs[i], aname),
+                        t->name, t->name, id);
+                return 0;
+            }
+        }
     }
 
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
