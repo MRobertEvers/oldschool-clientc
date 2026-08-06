@@ -47,6 +47,8 @@ cd "$ROOT"
 
 RUNDIR=${RUNDIR:-$ROOT/build/run239}
 GAME_PORT=${GAME_PORT:-43594}
+WORLD_ID=${WORLD_ID:-$((GAME_PORT - 40000))}
+ENVIRONMENT=${ENVIRONMENT:-$([ "$GAME_PORT" = 43594 ] && printf 0 || printf 1)}
 # 8080 by convention, because that is what the runelite checkout's
 # run-osrs239-deob.sh and instr/RUNNING.md hardcode — moving it would mean this
 # script and that one disagree about where the config lives. Anything already on
@@ -172,7 +174,7 @@ cmd_build() {
 
 preflight() {
     [ -x src/build/mock230 ] || die "no src/build/mock230 — run with --build"
-    [ -d "$CACHE" ] || die "no cache at $ROOT/$CACHE (JS5 serves it; see docs/RSPROT_OSRS239_PORT.md §4)"
+    [ -d "$CACHE" ] || die "no cache at $CACHE (JS5 serves it; see docs/RSPROT_OSRS239_PORT.md §4)"
     [ -f OSRS-Content/osrs239-content/server/scripts/build/script.dat ] \
         || die "no compiled scripts — run with --build (a fresh checkout has none)"
 
@@ -182,7 +184,7 @@ preflight() {
         [ -d "$SEEDED" ]  || warn "client cache not seeded at $SEEDED
     The client reads groups from its own on-disk cache after fetching the
     reference tables, so without this it stalls on the first group:
-        mkdir -p $SEEDED && cp $ROOT/$CACHE/main_file_cache.* $SEEDED/"
+        mkdir -p $SEEDED && cp $CACHE/main_file_cache.* $SEEDED/"
     fi
 }
 
@@ -224,7 +226,8 @@ start_javconfig() {
     fi
     say "starting jav_config on ${JAV_PORT} (internal)…"
     nohup python3 "$ROOT/tools/torirs_javconfig.py" --host 127.0.0.1 --port "$JAV_PORT" \
-        --revision 239 --cachedir "$CACHEDIR" > "$(logfile javconfig)" 2>&1 < /dev/null &
+        --revision 239 --world-id "$WORLD_ID" --environment "$ENVIRONMENT" \
+        --cachedir "$CACHEDIR" > "$(logfile javconfig)" 2>&1 < /dev/null &
     echo $! > "$(pidfile javconfig)"
     for _ in $(seq 1 20); do
         curl -sf -m 2 "http://127.0.0.1:$JAV_PORT/jav_config.ws" >/dev/null 2>&1 \

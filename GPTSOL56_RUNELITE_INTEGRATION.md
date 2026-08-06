@@ -23,7 +23,9 @@ through RuneLite, receives and decodes the relevant server packets, accepts
 controlled input through JCTL, emits the expected client packet or CS2 effect,
 the server observes and handles it, and the resulting framebuffer is captured.
 
-Artifacts for the current run live under `build/run239/proof/`.
+The original parity artifacts live under `build/run239/proof/`. The four
+regression investigation and final combined acceptance artifacts live under
+`build/run239-regressions/`, with the accepted run in `combined-final/`.
 
 ## Completion status
 
@@ -39,9 +41,14 @@ Loop, and Account Benefits open/close. The final report is
 RuneLite 239 full interface parity contract: PASS
 ```
 
-No requested interface-parity item remains open. The broader mock world still
-has unrelated content/combat/pathing self-test failures; they are not counted
-as interface success and are not hidden by this contract.
+The follow-up camera, house, Hans, and running regressions are also complete.
+Their final combined run used a blocking EVENTS subscriber attached before
+launch and passed all four workflows against the real compiled 239 deob. No
+game-runtime exception, packet decode error, interface writer gap, or unexpected
+disconnect occurred before the explicit quit, and the post-quit telemetry
+report completed normally. The broader mock world still has 25 unrelated
+content/combat/pathing self-test failures; they are not counted as interface
+success and are not hidden by this contract.
 
 ## How the authoritative CS2VM works
 
@@ -425,6 +432,150 @@ RuneLite. A second standalone `EVENTS` reader remained attached throughout the
 final run, writing `build/run239/proof/final_parity_events.log`; no screenshot
 polling or idle-client assumption is part of the verdict.
 
+### Camera zoom was blocked by uninitialised server-owned varcs, not input capture
+
+The baseline separated all three input paths before changing the server:
+
+- real AWT wheel input produced `wheel_awt rotation=-1 consumed=false`, the
+  client's wheel poll returned `-1`, and CS2 scripts 39 (`camera_zoom`) and 42
+  (`camera_do_zoom`) ran;
+- the normal Display slider ran scripts 1047/1048 and ultimately script 42;
+- the All settings `Camera zoom distance` row ran scripts 3895/3898/3899 and
+  ultimately script 42.
+
+All three nevertheless clamped to the same FOV. The authoritative 239 scripts
+show why: script 605 writes the four camera-bound varcs 1338..1341, script 626
+invokes it with `(128, 896, 128, 896)`, and script 42 clamps against those
+varcs. mock230 never sent that initialisation, so Java's zero defaults collapsed
+the range. `mock230_world_login_finish` now sends
+`RUNCLIENTSCRIPT 605(128,896,128,896)` for revision 239 and later. The final
+ordered event record contains the exact invocation at event 45.
+
+The final combined run proves the paths independently. Wheel input changes FOV
+512→536, the normal slider changes 536→127, and the All settings slider changes
+127→1314. The corresponding traces are
+`build/run239-regressions/combined-final/proof/camera_wheel_cs2.json`,
+`camera_normal_slider_cs2.json`, and `camera_allsettings_slider_cs2.json`; the
+before/after frames are `06_camera_wheel.png`, `07_display.png`,
+`08_normal_slider.png`, `09_allsettings_zoom.png`, and
+`10_allsettings_slider.png` in the same directory.
+
+The All settings slider is deliberately client-local. Its dynamically-created
+`134:19 sub=24` click zone has an on-op CS2 callback but no server
+`IF_SETEVENTS`, sends no IF_BUTTON packet, and therefore produces one diagnostic
+`arm_missing` event. That is not an interface writer gap; the packet writer is
+not involved, and the client trace plus FOV/varc transition is the acceptance
+signal.
+
+### House options is a side-only modal and CLOSE_MODAL has no component id
+
+House options is group 370 mounted at `164:71`, and its close component is
+`370:24`. The golden client runs script 29 (`if_close`) and sends the zero-byte
+`CLOSE_MODAL` packet (revision-239 opcode 95), followed by the ordinary collapsed
+IF_BUTTON traffic for the clicked component. The close packet does not identify
+which component or interface initiated it.
+
+mock230 tracked group 370 only as `sidemodal_group`; its close routine returned
+early whenever `mainmodal_group` was empty. The server therefore retained the
+mount after the client had closed its local copy. The close routine now snapshots
+both modal groups, runs `[if_close]` for each group that exists, and emits
+`IF_CLOSESUB` for a side-only mount as well as for main modal state. A focused
+self-test now constructs exactly the `main=0, side=poh_options` case.
+
+The final combined record shows `CLOSE_MODAL (main=0 side=370 chat=0)`, followed
+by `IF_CLOSESUB`; `11_house_open.png` contains the mounted panel and
+`12_house_closed.png` plus the final mount table prove it was removed.
+`house_close_cs2.json` contains script 29.
+
+### Hans exposed a six-byte dynamic choice callback
+
+The deterministic dialogue baseline found a separate callback defect before
+the actor-stream crash described below. Selecting a chatmenu row made the golden
+client send revision-239 `RESUME_PAUSEBUTTON` opcode 115 as
+`g4Alt3(parent uid) + g2(dynamic sub-id)`. For row 1 of `chatmenu:options` the
+literal body is `db 00 01 00 00 01`, which normalises to
+`00 db 00 01 00 01` (`219:1`, sub 1). The translator discarded the final two
+bytes, so `last_slot` stayed zero and the same choice reopened indefinitely.
+
+The inbound translator now preserves the complete six-byte callback. The world
+handler accepts both classic four-byte and revision-239 six-byte forms, maps
+`ffff` to no subcomponent, and sets `last_slot` before resuming the parked
+server script. The literal inbound test and the Hans self-test both use the
+six-byte packet rather than substituting IF_BUTTON1.
+
+The final clean session used an actual right-click `Talk-to Hans` menu action,
+not a direct server trigger. It walked to NPC slot 26, opened the dialogue,
+selected row 1 with real AWT input, logged
+`RESUME_PAUSEBUTTON 219:1 sub=1`, advanced to the selected player line, and
+completed the conversation. Evidence is `02_hans_menu.png` through
+`05_hans_progressed.png`, `hans_talk_cs2.json`, `hans_choice_cs2.json`, the
+ordered EVENTS record, and the server log under
+`build/run239-regressions/combined-final`.
+
+The reported "Hans crash" was therefore two observable failures: the lost
+choice sub-id when dialogue was invoked directly, and the NPC_INFO decoder
+failure encountered while physically approaching/interacting with Hans. There
+was no separate Hans-script Java exception in the direct-dialogue baseline.
+
+### The running crash was a revision-239 NPC_INFO boundary violation
+
+The independent movement reproduction retained the last completed framebuffer,
+ordered EVENTS tail, packet/CS2 traces, and both logs under
+`build/run239-regressions/diagnosis`. The fatal client condition was:
+
+```
+java.lang.RuntimeException: 66,9
+    at Statics.method13029(Statics.java:55602)
+    at client.method2413(client.java:3363)
+    at Statics.method1844(...)
+    at client.method2036(...)
+    at client.method1743(...)
+```
+
+The final NPC_INFO payload was the literal nine bytes
+`0d 3d e9 4a 81 c7 ff f8 00`. Golden-client bit traversal consumed 13 tracked
+entries and ended at bit 45 with one queued extended update. Its low-resolution
+loop only reads another NPC index when at least `16 + 12 = 28` bits remain.
+The old packet left 27 bits including its sentinel, so the client could not
+enter the loop to consume `ffff`; it byte-aligned, treated `ff` as the extended
+mask, and overran at offset 66 of a nine-byte packet.
+
+Two encoder errors combined at that boundary. A face-only NPC was marked as
+having extended information even though the v5 encoder intentionally has no
+FACE_ENTITY/FACE_COORD block, and sentinel emission used `queued_count > 0`
+instead of the golden 28-bit guard. The v5 pending-mask predicate now includes
+only blocks the v5 writer actually serialises, encodes the byte tail separately,
+and emits `ffff` exactly when padding plus the extended tail is at least 28
+bits. `mock239_npcinfo_tail_needs_sentinel` has focused bit-45 and byte-aligned
+threshold tests derived from the captured packet.
+
+The final combined session then used the real Hans approach plus 24 independent
+terrain clicks. Its NPC log repeatedly crosses the original tracked-count 13
+condition with legal packet lengths and `extended=0` for face-only changes;
+GPI remains `high=1 low=2046 pending=0 entity=true`. `13_movement_final.png`
+and `14_final_frame.png` are complete presented frames after the stress pass.
+
+### Final four-regression acceptance run
+
+`build/run239-regressions/combined-final/proof/events.log` is the blocking EVENTS
+subscriber attached before RuneLite launch. It retains 1,545 ordered lines from
+STARTING through all interactions. The final stack used the rebuilt authoritative
+239 deob, mock230 on 43630, jav_config on 8097, and JCTL on 43635.
+
+The run proves actual Hans NPC input, wheel zoom, normal slider zoom, All settings
+slider zoom, side-only house close, and independent movement in one login. The
+pre-quit health scan found no game/client runtime fatal, packet decode error,
+unknown inbound opcode, interface writer gap, or unexpected disconnect. The
+last framebuffer and GPI state were captured before the explicit JCTL quit.
+
+The first combined attempt revealed a telemetry-only shutdown race:
+`JProf.percentiles` read `ringUsed` repeatedly while the last game frame could
+increment it, selecting index N from an N-element snapshot. JProf now snapshots
+the length once. The repeated final run exits normally, writes the full profiler
+report, and contains no uncaught shutdown exception. RuneLite still logs its
+pre-existing, caught INFO-level `setupCompilerControl` missing-resource warning;
+it occurs before login and is not a client/game-thread failure.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -595,3 +746,58 @@ polling or idle-client assumption is part of the verdict.
 - 2026-08-06: Opened the authoritative Deob telemetry/renderer PR at
   `https://github.com/MRobertEvers/Deob/pull/1`; GitHub reports it cleanly
   mergeable into `perf-instrumentation`.
+- 2026-08-06: Read this integration record in full, fetched the root/content/deob
+  PR branches, inspected both PR diffs, and created clean isolated root,
+  OSRS-Content, Deob, and RuneLite worktrees. Left every pre-existing dirty
+  primary tree and lagging local branch ref untouched.
+- 2026-08-06: Started a blocking EVENTS subscriber before the baseline client
+  and reproduced dead wheel zoom with both `wheel_awt` and `wheel_poll`
+  present. Reproduced the normal Display slider and All settings slider with
+  their CS2 callbacks running but FOV unchanged.
+- 2026-08-06: Read golden scripts 39, 42, 605, 626, 833, 1043, 1047, 1048,
+  3895, 3898, and 3899. Identified zero varcs 1338..1341 as the common clamp and
+  added revision-239 login `RUNCLIENTSCRIPT 605(128,896,128,896)`.
+- 2026-08-06: Reproduced house options at mount `164:71->370`, component
+  `370:24`, with CS2 script 29 and outbound CLOSE_MODAL opcode 95. Proved the
+  server returned on `main=0, side=370`, then fixed side-only `[if_close]` and
+  IF_CLOSESUB lifecycle handling.
+- 2026-08-06: Reproduced Hans's chatmenu loop and retained its screenshots,
+  ordered events, packet and CS2 traces. Read the golden outbound decoder and
+  corrected opcode 115 translation to preserve its trailing dynamic sub-id.
+- 2026-08-06: Reproduced the independent running failure and retained the
+  exception stack, final EVENTS records, server/client tails, fatal nine-byte
+  NPC_INFO payload, and last completed framebuffer under
+  `build/run239-regressions/diagnosis`.
+- 2026-08-06: Walked the golden NPC traversal at the bit level: 13 tracked
+  entries ended at bit 45 and the 27-bit suffix could not satisfy the client's
+  28-bit add-record guard. Split the v5 tail, mirrored the exact sentinel
+  threshold, and stopped queueing unsupported face-only v5 masks.
+- 2026-08-06: Added literal revision-239 tests for opcode-115 uid/sub
+  normalisation and the NPC_INFO bit-45/byte-aligned sentinel thresholds.
+  Added a world self-test for the side-only poh_options close and changed the
+  Hans self-test to exercise the actual six-byte resume packet.
+- 2026-08-06: Ran `test-mock239-playerinfo` and `test-mock239-inbound` (48
+  inbound checks) plus a full mock230 build successfully. The broad cached
+  mock230 self-test reached the new side-only section without a new failure but
+  retains 25 pre-existing content-gap/shadow failures; the complete output is
+  `build/run239-regressions/selftest.log`.
+- 2026-08-06: Extended JCTL with real AWT wheel input and authoritative camera,
+  var, and NPC probes; instrumented both AWT wheel receipt and client polling.
+  Rebuilt the instrumented client and passed API-surface verification.
+- 2026-08-06: Proved the camera wheel and both sliders separately against live
+  RuneLite, with FOV/varc changes and per-path CS2 traces. Proved house options
+  opens and closes, including script 29, CLOSE_MODAL, and IF_CLOSESUB.
+- 2026-08-06: Ran a clean Hans-only live session. The golden client emitted
+  opcode 115 length 6 with sub 1, dialogue advanced to the selected player
+  line, completed, and left GPI/client state healthy.
+- 2026-08-06: Ran the first all-four session with EVENTS attached before launch;
+  actual Talk-to Hans, all camera paths, house close, and movement passed. Its
+  explicit quit exposed an instrumentation-only JProf percentile race, so the
+  session was rejected as final evidence.
+- 2026-08-06: Fixed JProf shutdown reporting by snapshotting `ringUsed` once,
+  rebuilt the deob, and passed API verification again.
+- 2026-08-06: Ran the final clean combined session with a pre-launch blocking
+  EVENTS subscriber. Captured 14 presented-frame screenshots, six focused CS2
+  traces, packet/GPI/NPC logs, and the final framebuffer. No game runtime fatal,
+  decode error, writer gap, unexpected disconnect, or shutdown exception was
+  present; the profiler report completed after explicit quit.

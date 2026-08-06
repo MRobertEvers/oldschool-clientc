@@ -4710,10 +4710,24 @@ handle_resume_pausebutton(
     (void)name;
     rsab_wrap(&resume, (void*)payload, (size_t)len);
     uid = rsab_g4(&resume);
+    int sub = -1;
+    if( len >= 6 )
+    {
+        sub = rsab_g2(&resume);
+        if( sub == 0xffff )
+            sub = -1;
+    }
     if( !rsab_ok(&resume) )
         return;
     if( srv->verbose )
-        fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+        fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d sub=%d\n", uid >> 16,
+                uid & 0xffff, sub);
+
+    /* Revision 239 sends a dynamic IF3 child as uid(parent) + sub.  Server
+     * scripts consume the row through last_slot before p_pausebutton resumes,
+     * exactly as the IF_BUTTON1 path does. */
+    if( sub > 0 )
+        srv->active_player->last_slot = sub;
     if( mock230_scripts_resume_button(srv, uid) )
         return;
 
@@ -5045,6 +5059,7 @@ mock230_world_close_modal_ex(
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
     int main_group;
+    int side_group;
     int bank_was_open;
     int abort_dialog;
 
@@ -5086,7 +5101,8 @@ mock230_world_close_modal_ex(
     close_chat_modal(srv);
 
     main_group = player->mainmodal_group;
-    if( main_group <= 0 )
+    side_group = player->sidemodal_group;
+    if( main_group <= 0 && side_group <= 0 )
         return;
 
     /*
@@ -5114,8 +5130,9 @@ mock230_world_close_modal_ex(
      * found. The only cost so far was the server transmitting to a screen the
      * player had closed.
      */
-    bank_was_open = player->bank.open;
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, main_group, -1, -1);
+    bank_was_open = main_group > 0 && player->bank.open;
+    if( main_group > 0 )
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, main_group, -1, -1);
 
     /* One screen keeps state of its own beyond the mount — the bank, which has
      * containers and a reorganise — so it closes through its own function.
@@ -5127,16 +5144,27 @@ mock230_world_close_modal_ex(
      * `inv_stoptransmit(bankmain:scrollbar)` clears the flag — and
      * `mock230_bank_close` returns early on a bank it thinks is already shut,
      * which would swallow the unmount a second way. */
-    if( bank_was_open )
+    if( main_group > 0 && bank_was_open )
     {
         player->bank.open = 1;
         mock230_bank_close(srv);
     }
-    else
+    else if( main_group > 0 )
     {
         mock230_send_if_closesub(srv->active_player, ids->com_gameframe_mainmodal);
-        if( player->sidemodal_group > 0 )
-            mock230_send_if_closesub(srv->active_player, ids->com_gameframe_sidemodal);
+    }
+
+    /* House options (370) is mounted by the settings tab into sidemodal with
+     * no mainmodal at all. CLOSE_MODAL carries no component id: the golden
+     * client merely reports that CS2 executed `if_close`, so the server must
+     * release every modal slot it owns. The old mainmodal early-return made a
+     * side-only mount immortal on the server; the next house-button click then
+     * found it already mounted and could not reopen it. Keep the group captured
+     * above because closing mainmodal may update the tracked mount table. */
+    if( side_group > 0 )
+    {
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_CLOSE, side_group, -1, -1);
+        mock230_send_if_closesub(srv->active_player, ids->com_gameframe_sidemodal);
     }
 }
 
@@ -7036,6 +7064,20 @@ mock230_world_login_finish(struct Mock230Player* player)
         mock230_gameframe_opentop(player, iface);
         args[0] = mode;
         mock230_scripts_run_proc(srv, "[proc,gameframe_login_mode]", args, 1);
+    }
+
+    /* Revision 239 moved the stock camera limits out of cache-script literals
+     * and into four server-initialised varcs. Clientscript 605 writes exactly
+     * (small min, small max, large min, large max); camera_do_zoom clamps both
+     * wheel and slider paths against them. Leaving them at Java's zero default
+     * collapses every input to a single FOV and makes all three controls look
+     * dead even though AWT and the CS2 callbacks ran. These are the stock
+     * limits used by the revision-239 scripts: 128 outer, 896 inner, for both
+     * viewport endpoints. */
+    if( srv->wire && srv->wire->revision >= 239 )
+    {
+        static const int zoom_limits[4] = { 128, 896, 128, 896 };
+        mock230_send_run_clientscript(player, 605, zoom_limits, 4);
     }
 
     /*
@@ -10049,11 +10091,10 @@ mock230_world_selftest(void)
 
                 if( rows_uid > 0 && player->active_script != NULL )
                 {
-                    /* IF_BUTTON1 on the container, sub = the row. That one
-                     * packet must both set last_slot and resume p_pausebutton
-                     * — a follow-up RESUME_PAUSEBUTTON used to paper over a
-                     * missing resume, which left last_slot at 0 and every
-                     * ~p_choice* took its last option. */
+                    /* The golden rev-239 client's CC_RESUME_PAUSEBUTTON packet
+                     * carries the container uid plus a trailing dynamic-child
+                     * sub. That one packet must both set last_slot and resume
+                     * p_pausebutton. */
                     button[0] = (uint8_t)(rows_uid >> 24);
                     button[1] = (uint8_t)(rows_uid >> 16);
                     button[2] = (uint8_t)(rows_uid >> 8);
@@ -10062,7 +10103,8 @@ mock230_world_selftest(void)
                     button[5] = 3; /* the third option */
 
                     mock230_capture_begin(&srv, &capture);
-                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                    mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button,
+                                         sizeof(button));
                     mock230_capture_end(&srv);
                     /* last_slot is latched for ~p_choice* then cleared when the
                      * branch's chatplayer arms its continue — do not assert the
@@ -10073,12 +10115,12 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(
                         player->resume_button_count == 1 &&
                             player->resume_buttons[0] != rows_uid,
-                        "IF_BUTTON1 alone must leave the choice pause "
+                        "six-byte RESUME_PAUSEBUTTON must leave the choice pause "
                         "(resume uid %d should not still be chatmenu:options %d)",
                         player->resume_button_count > 0 ? player->resume_buttons[0] : -1,
                         rows_uid);
                     SELFTEST_CHECK(mock230_capture_find(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
-                                   "IF_BUTTON1 alone should draw branch 3's chatplayer");
+                                   "six-byte resume should draw branch 3's chatplayer");
 
                     /*
                      * The next continue must reach ~chatnpc with the active npc
@@ -21085,6 +21127,25 @@ mock230_world_selftest(void)
                            "closing should clear the open flag even with a script bound");
             SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
                            "and the unmount must still reach the client");
+
+            /* House options is the revision-239 counterexample to the old
+             * `mainmodal_group <= 0` return: it occupies sidemodal by itself.
+             * CLOSE_MODAL has no uid, so the owned side mount must be closed
+             * even when no main modal exists. */
+            player->mainmodal_group = 0;
+            player->sidemodal_group = mock230_content_symbol(MOCK230_PACK_INTERFACE,
+                                                              "poh_options");
+            SELFTEST_CHECK(player->sidemodal_group > 0,
+                           "poh_options should resolve for the side-only close fixture");
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_close_modal(&srv);
+            mock230_capture_end(&srv);
+
+            SELFTEST_CHECK(player->sidemodal_group == 0,
+                           "CLOSE_MODAL must clear a side-only house-options mount");
+            SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+                           "and side-only CLOSE_MODAL must send IF_CLOSESUB");
         }
         mock230_scripts_free(&srv);
     }

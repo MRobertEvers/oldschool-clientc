@@ -259,6 +259,19 @@ main(void)
     for( int i = 0; i < (int)sizeof(appearance); i++ )
         appearance[i] = (uint8_t)(i * 7 + 1);
 
+    fprintf(stderr, "mock239-playerinfo: npc tail sentinel threshold\n");
+    /* The live failure packet had 13 high-resolution NPCs ending at bit 45,
+     * one byte of extended info and a writer-added sentinel: 3 + 8 + 16 = 27
+     * bits. The golden client requires 28 before it even reads an index. */
+    CHECK(!mock239_npcinfo_tail_needs_sentinel(45, 1),
+          "bit 45 + one-byte mask omits the unreachable sentinel (11 < 28 bits)");
+    CHECK(mock239_npcinfo_tail_needs_sentinel(45, 4),
+          "bit 45 + four-byte mask terminates before the decoder can read it as an add");
+    CHECK(!mock239_npcinfo_tail_needs_sentinel(48, 3),
+          "a byte-aligned three-byte tail remains below the 28-bit guard");
+    CHECK(mock239_npcinfo_tail_needs_sentinel(48, 4),
+          "a byte-aligned four-byte tail reaches the 28-bit guard");
+
     fprintf(stderr, "mock239-playerinfo: init block\n");
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
