@@ -777,6 +777,72 @@ rather than hardcoded twice.
 
 ---
 
+## 6.7 The server/client split, finished — the allocation ledger (2026-08-06)
+
+The complaint that finished the job: *implementing server content kept editing
+client-side files.* Four leaks, each now closed, each with a gate behind it:
+
+1. **The name ledger.** `ss_allocate.py` appended server ids below a marker in
+   `configs/all.<ns>.compack` — the machine-owned client mirror — and dbrow
+   names rode `--gamevals` into the client cache's own symbol table. The ledger
+   is now `pack/<ns>.alloc`, its own file, loaded as a second layer of the
+   namespace by all three symbol consumers and the five python gates. cachepack
+   holds it in a separate array that no save or gameval path walks, and refuses
+   a name or id bound in both layers. The compacks are pure cache mirrors again;
+   migration was by the substrate test (id not held by the pristine cache), not
+   the marker — server ids sat above markers too, and enum/varp keep their whole
+   machine layer below one.
+
+2. **Membership drift.** The 2026-08-02 seeding was stale within days — 560
+   varps/enums/params/structs allocated afterwards were all cell-(c) errors,
+   plus every authored dbrow once the merge learned their arity. The fix is
+   structural, not another seeding: **the allocation is the membership.** An
+   id in the ledger names a record the cache cannot hold, so the routing gate
+   claims it for the server with no `pack/<ns>.server` line. `cachepack pack`
+   exits 0 against the full tree for the first time since the merge fix.
+
+3. **The param projections.** npc combat stats and loc door stages were folded
+   into client-cache params 2634+ "so anyone holding the cache alone can read
+   them back". The runtime never read them back (`read_combat_params` reads
+   cache-native params 0..11/14 only; text + band carry the server half), and
+   the client never read them at all. Retired: `client = param:` rows became
+   `client = drop`, and the *runtime* binding they carried as a side effect —
+   which param an authored `param=` key maps to — got its own register key,
+   `param = <name>` (`content_fields.c`). The npc group shed 26,852 bytes, loc
+   8,558, and the param group is exactly the cache's 2,634 records.
+
+4. **The bake as the server's database.** The world booted from
+   `cache.osrs239.baked` while JS5 served RuneLite the pristine cache — and the
+   stale bake measurably drifted (32 selftest failures against it vs 23 against
+   pristine + tree). The **one-cache rule** replaces it: the world reads the
+   same directory JS5 serves, default pristine; a bake is only for
+   client-visible edits, and then both point at it together
+   (`MOCK230_CACHE_DIR_DEFAULT`, `run-osrs239.sh`).
+
+Server db ids also moved off the high-water mark (dbtable 2048+, dbrow 65536+,
+`content_register.c`) — future caches are patched in manually, and a base at
+the current max is a collision waiting for the next patch. The script staleness
+scan now watches `pack/*.alloc`, because compiled bytecode carries resolved ids
+and a renumbered ledger is otherwise silent.
+
+The property is pinned by `make -C src test-server-clean` (in `test-content`):
+after the full server pipeline, `git status` under `configs/`, `pack/*.pack`
+and `pack/*.client` must be empty. It fails on the tree this section replaced.
+
+The pure server loop is now:
+
+```sh
+$EDITOR server/scripts/...           # scripts, db tables, params, varps
+make -C src mock230-scripts          # ss_allocate (writes pack/<ns>.alloc) + sscompile
+make -C src mock230-servpack         # the band; opens no cache
+src/build/mock230 <port>             # boots from the pristine cache + tree + band
+```
+
+—and `git status` on the client-side files stays clean, which is the sentence
+this whole document was trying to make true.
+
+---
+
 ## 8. Who owns a rule — content or engine
 
 §1–§7 settle where a *name* lives. This section settles where a *rule* lives, and

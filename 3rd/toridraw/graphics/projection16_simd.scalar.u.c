@@ -20,13 +20,11 @@ project_vertices_array(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -112,13 +110,11 @@ project_vertices_array_notex(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
@@ -198,12 +194,11 @@ project_vertices_array_fused(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     for( int i = 0; i < num_vertices; i++ )
@@ -268,12 +263,11 @@ project_vertices_array_fused_notex(
     int scene_y,
     int scene_z,
     int near_plane_z,
-    int camera_fov,
+    int camera_cot16,
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = camera_cot16;
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     for( int i = 0; i < num_vertices; i++ )

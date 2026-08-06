@@ -424,6 +424,7 @@ WorldBuilder_RebuildInstanceZoneScenery(
          * the minimap registration needs, which is why it belongs here and not
          * in the square-offset walkers the ordinary path uses. */
         world_builder_minimap_add_loc(builder, &placed, config_loc, scene_x, scene_z);
+        world_builder_minimap_add_loc_mapfunction(builder, &placed, config_loc, scene_x, scene_z);
     }
 }
 
@@ -605,6 +606,27 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             }
         }
 
+        /*
+         * VIS_BELOW lowers a tile's DRAW LEVEL; it does not move geometry.
+         *
+         * Reference (rev-239 class112): buildScene calls method4195 with
+         * Statics.method8418's result, which sets tile flag 0x40; method4161
+         * (renderLevel) then answers 0 for such a tile, and the mark pass
+         * (method4241: `renderLevel <= field1653`) is the only place the level
+         * cull happens. Client-TS is the same shape: setLayer(level, x, z,
+         * getVisBelowLevel(...)) stores a cull level on the Square, and
+         * draw() gates on `tile.drawLevel <= maxLevel`. In both, the mesh
+         * stays on its own plane and pops in its own traversal slot — after
+         * the tile below fully retires, so the floor above paints over the
+         * walls below it.
+         *
+         * An earlier session relocated the flagged mesh into the lower
+         * level's terrain set instead ("hand the mesh down"). That drew the
+         * borrowed floor before the lower tile's walls — the reverse of the
+         * reference order — and its motivation (surviving the roof-hide
+         * level mask) was already covered: tile_excluded_by_bridge_or_draw_mask
+         * tests visible_gte_level, and bit 0 of the mask is always set.
+         */
         for( int x = 0; x < scene_size; x++ )
         {
             for( int z = 0; z < scene_size; z++ )
@@ -645,6 +667,30 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 
     world_build_scene_terrain(builder);
     world_build_lighting(builder);
+
+    /* A level with no terrain mesh emits nothing. The reference never queues a
+     * content-less tile at all (class112.method3940 gates marking on the
+     * has-content bit), whereas leaving the default set here emits a terrain
+     * command for all four levels of every column and lets the frame drop the
+     * dead ones at World_TerrainElementAt() < 0 — the 4x speculative emits of
+     * ORANGE_WEDGE.md §9.7(c). Runs after world_build_scene_terrain, the first
+     * point the mesh census exists. */
+    if( world->painter )
+    {
+        for( int x = 0; x < scene_size; x++ )
+            for( int z = 0; z < scene_size; z++ )
+                for( int g = 0; g < painter_max_levels(world->painter); g++ )
+                {
+                    unsigned set = painter_tile_get_terrain_levels(world->painter, x, z, g);
+                    unsigned kept = 0;
+                    for( int ml = 0; ml < WORLD_MAP_TERRAIN_LEVELS; ml++ )
+                        if( (set & (1u << ml)) != 0 &&
+                            World_TerrainElementAt(world, x, z, ml) >= 0 )
+                            kept |= 1u << ml;
+                    if( kept != set )
+                        painter_tile_set_terrain_levels(world->painter, x, z, g, kept);
+                }
+    }
 
     /* Bridge minimap push-down runs HERE, after world_build_scene_terrain has
      * set the per-level minimap colours — shuffling the planes any earlier moves

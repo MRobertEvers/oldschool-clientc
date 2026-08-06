@@ -234,6 +234,34 @@ world_terrain_apply_tile(
             return;
         }
 
+                /* TORIRS_TILEDATA=x,z: the raw floor record at one column, every
+                 * level. Answers "does this tile state any floor of its own"
+                 * without guessing from what did or did not get drawn. */
+                {
+                    const char* env = getenv("TORIRS_TILEDATA");
+                    int qx = -1, qz = -1;
+                    if( env && sscanf(env, "%d,%d", &qx, &qz) == 2 && offset_x == qx && offset_z == qz )
+                        fprintf(stderr,
+                                "tiledata src=%d,%d tile=%d,%d L%d/%d underlay=%d overlay=%d "
+                                "shape=%d rot=%d settings=0x%02x height=%d\n",
+                                tile_x, tile_z, offset_x, offset_z, src_level, dst_level,
+                                tile->underlay_id, tile->overlay_id, tile->shape,
+                                tile->rotation, tile->settings, tile->height);
+                    if( env && sscanf(env, "%d,%d", &qx, &qz) == 2 && offset_x == qx &&
+                        offset_z == qz && tile->overlay_id > 0 )
+                    {
+                        struct ToriRS_Flotype* f =
+                            CacheProvider_FlotypeGet(builder->cache, tile->overlay_id - 1);
+                        fprintf(stderr,
+                                "  overlay %d: flotype=%p texture=%d texture_loads=%s rgb=%06x\n",
+                                tile->overlay_id - 1, (void*)f, f ? f->texture : -2,
+                                (f && f->texture >= 0 &&
+                                 CacheProvider_TextureGet(builder->cache, f->texture))
+                                    ? "yes" : "NO",
+                                f ? (unsigned)f->rgb_color : 0u);
+                    }
+                }
+
                 int overlay_id = tile->overlay_id - 1;
                 int underlay_id = tile->underlay_id - 1;
                 struct ToriRS_Flotype* overlay_flotype = NULL;
@@ -314,7 +342,8 @@ world_terrain_apply_tile(
                     }
 
                     terrain_shape_map_set_tile(
-                        builder->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
+                        builder->terrain_shapemap, offset_x, offset_z, level, shape, rotation,
+                        underlay_id != -1);
                 }
 
                 /* Opacity half of the flat-floor occluder condition (Client-TS
@@ -484,9 +513,25 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 int light_ne = lightmap_get(builder->lightmap, x + 1, z + 1, level);
                 int light_nw = lightmap_get(builder->lightmap, x, z + 1, level);
 
-                int32_t underlay_hsl = blendmap_get_blended_hsl16(builder->blendmap, x, z, level);
-                if( underlay_hsl == BLENDMAP_HSL16_NONE )
-                    underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
+                /*
+                 * The blend supplies the underlay's COLOUR; the map supplies
+                 * whether there is an underlay at all. Conflating the two paints
+                 * a floor over holes the map left on purpose: the blend averages
+                 * a +-5 neighbourhood, so a tile stating no underlay still comes
+                 * back carrying its neighbours' colour.
+                 *
+                 * TzKal-Zuk's alcove is exactly that tile — no underlay, and an
+                 * overlay whose colour is the 0xFF00FF "draw nothing" sentinel —
+                 * and it rendered as a flat orange quad hanging in the wall where
+                 * the official client shows a hole.
+                 */
+                int32_t underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
+                if( shape_tile->has_underlay )
+                {
+                    underlay_hsl = blendmap_get_blended_hsl16(builder->blendmap, x, z, level);
+                    if( underlay_hsl == BLENDMAP_HSL16_NONE )
+                        underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
+                }
 
                 int overlay_hsl = 0;
                 int texture_id = -1;

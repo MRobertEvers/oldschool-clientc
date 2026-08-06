@@ -83,6 +83,28 @@ mock230_embed_start(void)
     mock230_boot_load(&embed->config);
 
     embed->srv.verbose = getenv("MOCK230_VERBOSE") != NULL;
+    /*
+     * Same choice as mock230_main: MOCK230_REV selects which bytes this world
+     * writes (and which login block it expects). Default remains osrs230 so a
+     * bare EMBED_SERVER=1 build keeps prior behaviour; run-live.sh exports the
+     * manifest's rev so client and embed cannot disagree.
+     */
+    {
+        char const* rev_name = getenv("MOCK230_REV");
+        const struct Mock230Wire* wire =
+            rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
+
+        if( !wire )
+        {
+            fprintf(stderr, "mock230: unknown MOCK230_REV '%s' (osrs230, osrs239)\n",
+                    rev_name);
+            mock230_boot_free();
+            free(embed);
+            return NULL;
+        }
+        embed->srv.wire = wire;
+        fprintf(stderr, "mock230: embedded wire %s\n", wire->name);
+    }
 
     g_embed_live = 1;
 

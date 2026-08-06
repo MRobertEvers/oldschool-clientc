@@ -192,7 +192,10 @@ def extract(helper_dir: Path, content: Path) -> dict:
         points.append((x, z, plane, worldpoint_to_coord(x, z, plane)))
 
     configs = content / "configs"
+    # Both layers of the namespace: the cache's member index and the server's
+    # allocation ledger (quest rows the server adds live in the latter).
     dbrow_names = load_compack_names(configs / "all.dbrow.compack")
+    dbrow_names |= load_compack_names(content / "pack" / "dbrow.alloc")
     resolved: dict[str, list[tuple[str, bool, str]]] = {}
     unresolved: list[tuple[str, str]] = []
     for kind, names in sorted(refs.items()):
@@ -200,6 +203,9 @@ def extract(helper_dir: Path, content: Path) -> dict:
         pack_names: set[str] = set()
         for fname in files:
             pack_names |= load_compack_names(configs / fname)
+            # ...and the namespace's server allocation ledger, if any.
+            ns = fname[len("all."):-len(".compack")]
+            pack_names |= load_compack_names(content / "pack" / f"{ns}.alloc")
         rows = []
         for n in sorted(names):
             ok = n in pack_names

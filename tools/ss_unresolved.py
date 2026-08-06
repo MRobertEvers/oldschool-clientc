@@ -73,6 +73,10 @@ def namespace_for(filename):
         return stem[len('all.'):] if stem.startswith('all.') else None
     if filename.endswith('.pack'):
         return filename[:-len('.pack')]
+    # The server's allocation ledger, `pack/<ns>.alloc` — the second layer of
+    # the namespace the compack indexes; same `id=name` grammar.
+    if filename.endswith('.alloc'):
+        return filename[:-len('.alloc')]
     return None
 
 
@@ -253,8 +257,14 @@ def config_references(root):
             table = tables.get(declared.get('table', ''), [])
             column_type = dict(table)
             for key, value in lines:
+                # Both spellings: FREE_TEXT_KEYS lists `op1`..`op5` explicitly,
+                # and the stem-strip alone turned `op1` into `op` — which the
+                # set does not hold — so the five entries were dead and the
+                # first authored `op1=Cross` failed the whole tree. The list's
+                # own comment states the rule: a key the grammar knows and this
+                # test misses is a hole in the gate, not a fact about content.
                 stem = re.sub(r'\d+$', '', key) or key
-                if stem in FREE_TEXT_KEYS:
+                if stem in FREE_TEXT_KEYS or key in FREE_TEXT_KEYS:
                     continue
                 fields = [f.strip() for f in value.split(',')]
 

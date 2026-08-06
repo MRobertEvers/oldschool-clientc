@@ -337,6 +337,19 @@ ContentFields_Load(
         else if( strcmp(element._keyval.name, "client") == 0 )
             current->client = parse_client(element._keyval.value, current->param_name,
                                            sizeof(current->param_name), current->client);
+        /*
+         * `param = <name>` — the field's *runtime* param binding, with no client
+         * projection. `client = param:<name>` used to carry both facts at once:
+         * which param the authored key maps to in the in-memory def, and that
+         * the packer folds it into the client-cache record. The projections are
+         * retired (the client never read them), but the runtime mapping is real
+         * — `lc_param($loc, next_loc_stage)` reaches the row this name binds —
+         * so it gets its own key. cachepack's cp_fields.c skips unknown keys by
+         * design and never sees this one.
+         */
+        else if( strcmp(element._keyval.name, "param") == 0 )
+            snprintf(current->param_name, sizeof(current->param_name), "%s",
+                     element._keyval.value);
     }
 
     free(data);

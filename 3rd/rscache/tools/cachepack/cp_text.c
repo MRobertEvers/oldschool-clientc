@@ -285,6 +285,97 @@ cp_config_file_load_memory(
     return config_file_read(file, f, label);
 }
 
+/*
+ * The `^constant` table, registered by cp_constants_load once per run.
+ *
+ * Borrowed pointers — the ctx owns the strings, and this file cannot see the
+ * ctx (it is the low-level text reader). LostCity substitutes constants into
+ * every config VALUE at parse time (PackShared.ts), and this is the one place
+ * every value passes through.
+ */
+static char* const* g_constant_names;
+static char* const* g_constant_values;
+static int g_constant_count;
+
+void
+cp_text_set_constants(
+    char* const* names,
+    char* const* values,
+    int count)
+{
+    g_constant_names = names;
+    g_constant_values = values;
+    g_constant_count = count;
+}
+
+/**
+ * LostCity's substitution, token for token: a `^` starts a token that runs to
+ * the next comma, space or end of value; a token the table names is replaced;
+ * one it does not is left exactly as written (some values legitimately carry a
+ * caret the packer does not know). Returns a malloc'd string either way.
+ */
+static char*
+substitute_constants(const char* value)
+{
+    size_t cap = strlen(value) + 1;
+    char* out;
+    size_t at = 0;
+
+    if( !g_constant_count || !strchr(value, '^') )
+        return dup_range(value, strlen(value));
+
+    /* Worst case every token grows; grow the buffer as needed instead of
+     * guessing. */
+    out = malloc(cap);
+    if( !out )
+        return NULL;
+    for( const char* p = value; *p; )
+    {
+        const char* rep = NULL;
+        size_t token_len = 0;
+
+        if( *p == '^' )
+        {
+            const char* end = p + 1;
+            while( *end && *end != ',' && *end != ' ' )
+                end++;
+            token_len = (size_t)(end - p);
+            for( int i = 0; i < g_constant_count; i++ )
+            {
+                if( strlen(g_constant_names[i]) == token_len - 1 &&
+                    strncmp(g_constant_names[i], p + 1, token_len - 1) == 0 )
+                {
+                    rep = g_constant_values[i];
+                    break;
+                }
+            }
+        }
+
+        {
+            const char* src = rep ? rep : p;
+            size_t n = rep ? strlen(rep) : (token_len ? token_len : 1);
+
+            if( at + n + 1 > cap )
+            {
+                char* grown;
+                cap = (at + n + 1) * 2;
+                grown = realloc(out, cap);
+                if( !grown )
+                {
+                    free(out);
+                    return NULL;
+                }
+                out = grown;
+            }
+            memcpy(out + at, src, n);
+            at += n;
+        }
+        p += token_len ? token_len : 1;
+    }
+    out[at] = '\0';
+    return out;
+}
+
 static int
 config_file_read(
     struct CP_ConfigFile* file,
@@ -366,7 +457,7 @@ config_file_read(
             break;
         }
         char* key = dup_range(line, (size_t)(eq - line));
-        char* value = dup_range(eq + 1, strlen(eq + 1));
+        char* value = substitute_constants(eq + 1);
         if( !key || !value || !config_push_line(current, key, value, line_no) )
         {
             free(key);

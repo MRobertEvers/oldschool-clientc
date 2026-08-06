@@ -45,6 +45,8 @@ enum
     MOCK230_DB_TUPLE_MAX = 8,
 };
 
+struct Mock230DbValue;
+
 struct Mock230DbColumn
 {
     const char* name;
@@ -56,6 +58,10 @@ struct Mock230DbColumn
     /** The pack a tuple position resolves against, or MOCK230_PACK_COUNT for a
      *  literal (`int`, `coord`, `string`). */
     enum Mock230PackKind kind[MOCK230_DB_TUPLE_MAX];
+    /** DBTABLE's optional value block. A DBROW which omits this column inherits
+     *  these tuples; DB_FIND and DB_GETFIELD both observe that inheritance. */
+    struct Mock230DbValue* defaults;
+    int default_count;
 };
 
 struct Mock230DbTable
@@ -162,6 +168,14 @@ mock230_db_column_define(
     const char* name,
     int type_count,
     const int* is_string);
+
+/** Replace a cache DBTABLE column's default tuples. String texts are strdup'd. */
+void
+mock230_db_column_defaults_set(
+    struct Mock230DbTable* table,
+    int col_id,
+    const struct Mock230DbValue* values,
+    int count);
 
 /** Replace the values stored at `col_id` on a row. Takes ownership of nothing —
  *  string texts are strdup'd. */

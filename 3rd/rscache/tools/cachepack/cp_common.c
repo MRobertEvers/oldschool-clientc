@@ -680,6 +680,102 @@ cp_param_types_load(struct CP_Ctx* ctx)
     return typed;
 }
 
+/**
+ * One `.constant` file: `^name = value` lines, `//` comments, blank lines.
+ *
+ * Later files override earlier names, matching the merge's rank rule — the walk
+ * hands files back in rank order and this is called in that order.
+ */
+static void
+constants_load_file(struct CP_Ctx* ctx, const char* path)
+{
+    FILE* f = fopen(path, "rb");
+    char* line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+
+    if( !f )
+        return;
+    while( (len = getline(&line, &cap, f)) > 0 )
+    {
+        char* name;
+        char* eq;
+        char* value;
+        char* end;
+
+        while( len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r' ||
+                           line[len - 1] == ' ' || line[len - 1] == '\t') )
+            line[--len] = '\0';
+        name = line;
+        while( *name == ' ' || *name == '\t' )
+            name++;
+        if( name[0] != '^' )
+            continue; /* comment, blank, or not a definition */
+        name++;
+        eq = strchr(name, '=');
+        if( !eq )
+            continue;
+        end = eq;
+        while( end > name && (end[-1] == ' ' || end[-1] == '\t') )
+            end--;
+        *end = '\0';
+        value = eq + 1;
+        while( *value == ' ' || *value == '\t' )
+            value++;
+        if( !*name )
+            continue;
+
+        {
+            int i;
+            for( i = 0; i < ctx->constant_count; i++ )
+                if( strcmp(ctx->constant_names[i], name) == 0 )
+                    break;
+            if( i < ctx->constant_count )
+            {
+                char* copy = strdup(value);
+                if( copy )
+                {
+                    free(ctx->constant_values[i]);
+                    ctx->constant_values[i] = copy;
+                }
+                continue;
+            }
+            {
+                char** grown_n = realloc(ctx->constant_names,
+                                         (size_t)(ctx->constant_count + 1) * sizeof(char*));
+                char** grown_v;
+                if( !grown_n )
+                    continue;
+                ctx->constant_names = grown_n;
+                grown_v = realloc(ctx->constant_values,
+                                  (size_t)(ctx->constant_count + 1) * sizeof(char*));
+                if( !grown_v )
+                    continue;
+                ctx->constant_values = grown_v;
+                ctx->constant_names[ctx->constant_count] = strdup(name);
+                ctx->constant_values[ctx->constant_count] = strdup(value);
+                if( ctx->constant_names[ctx->constant_count] &&
+                    ctx->constant_values[ctx->constant_count] )
+                    ctx->constant_count++;
+            }
+        }
+    }
+    free(line);
+    fclose(f);
+}
+
+int
+cp_constants_load(struct CP_Ctx* ctx)
+{
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count = cp_walk_find(&ctx->walk, "constant", found, CP_PACK_MAX_SOURCES);
+
+    for( int f = 0; f < found_count; f++ )
+        constants_load_file(ctx, found[f]);
+    cp_text_set_constants(ctx->constant_names, ctx->constant_values, ctx->constant_count);
+    return ctx->constant_count;
+}
+
 int
 cp_parse_param(
     struct CP_Ctx* ctx,
@@ -703,6 +799,23 @@ cp_parse_param(
     int param_id;
     if( !cp_resolve_ref(ctx, CP_TYPE_PARAM, unescaped, &param_id) )
         return 0;
+
+    /* LostCity's lookupParamValue: `null` is -1 for every non-string type —
+     * `param=death_drop,null` is "drops nothing", not a failed name. A string
+     * param's `null` is the empty string, handled by the str branch reading the
+     * text as-is being wrong for exactly one spelling, so map it here too. */
+    if( strcmp(first + 1, "null") == 0 && !second )
+    {
+        char code = cp_param_type_of(ctx, param_id);
+        if( code != 's' )
+        {
+            int* copy = malloc(sizeof(*copy));
+            if( !copy )
+                return 0;
+            *copy = -1;
+            return params_push(params, param_id, RSCACHE_PARAM_INT, copy);
+        }
+    }
 
     if( second )
     {

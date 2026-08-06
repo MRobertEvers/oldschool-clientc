@@ -13,6 +13,19 @@ reads those parameters too, and an absent one is not always a default.
 
 The `param=25` line is the revision. It is the number that has to match the
 server, and it is the first thing to check when a client says it is out of date.
+
+THE PARAMETER LIST IS THE WHOLE LIVE ONE, minus nothing. A first version of this
+file kept only the params that looked like they mattered — the revision, some
+flags — and dropped the ten that are URLs or tokens for Jagex account services
+this server has no equivalent of. The client dereferences several of those
+during applet init whether or not it ever uses them, and the result is a
+NullPointerException on a static deep inside the client
+(`Cannot read field "ap" because "cq.gh" is null`) before it issues a single
+JS5 request. Nothing in that failure points at a missing parameter.
+
+So the URLs below still point at Jagex. They are not reached by anything this
+server drives; they are here because their ABSENCE is what breaks. Trimming
+them is not a cleanup.
 """
 
 import argparse
@@ -22,7 +35,7 @@ import socketserver
 TEMPLATE = """title=ToriRS
 adverturl=http://{host}/
 codebase=http://{host}/
-cachedir=oldschool
+cachedir={cachedir}
 storebase=0
 initial_jar=gamepack.jar
 initial_class=client.class
@@ -41,7 +54,7 @@ applet_maxwidth=5760
 applet_maxheight=2160
 msg=lang0=English
 param=25={revision}
-param=12=386
+param=12=471
 param=7=0
 param=4=1
 param=14=0
@@ -49,11 +62,20 @@ param=15=0
 param=21=0
 param=6=0
 param=5=1
+param=10=5
 param=3=true
 param=8=true
 param=16=false
 param=13=.runescape.com
 param=18=
+param=9=ElZAIrq5NpKN6D3mDdihco3oPeYN2KFy2DCquj7JMmECPmLrDP3Bnw
+param=2=https://payments.jagex.com/
+param=11=https://auth.jagex.com/
+param=17=http://www.runescape.com/g=oldscape/slr.ws?order=LPWM
+param=19=196515767263-1oo20deqm6edn7ujlihl6rpadk9drhva.apps.googleusercontent.com
+param=20=https://social.auth.jagex.com/
+param=22=https://auth.runescape.com/
+param=28=https://account.jagex.com/
 """
 
 
@@ -63,11 +85,17 @@ def main():
                     help="host the CLIENT should connect to (goes into codebase)")
     ap.add_argument("--port", type=int, default=8080, help="port to serve this config on")
     ap.add_argument("--revision", type=int, default=239)
+    ap.add_argument("--cachedir", default="torirs",
+                    help="subdirectory of ~/jagexcache the client stores its cache in. "
+                         "NOT 'oldschool': that is the live client's, and a client of one "
+                         "revision reading a cache another revision wrote crashes on the "
+                         "first archive whose format moved.")
     ap.add_argument("--print", dest="dump", action="store_true",
                     help="print the config and exit")
     args = ap.parse_args()
 
-    body = TEMPLATE.format(host=args.host, revision=args.revision).encode()
+    body = TEMPLATE.format(host=args.host, revision=args.revision,
+                           cachedir=args.cachedir).encode()
     if args.dump:
         print(body.decode(), end="")
         return

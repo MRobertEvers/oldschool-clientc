@@ -420,6 +420,43 @@ struct CS2VM2_ThreadError
 extern int g_cs2_trace_mode;
 extern char g_cs2_trace_extra[512];
 
+/**
+ * One executed instruction, for comparing this VM against another.
+ *
+ * The stderr trace above is for reading; this is for diffing. The fields are
+ * the ones the official client's interpreter can also be made to report
+ * (Deobfuscator/instr/src/CS2Trace.java) and the ones tools/cs2_parity's
+ * artifact schema already names, so a record here lines up with a record there
+ * without either side being reinterpreted.
+ *
+ * State is sampled *after* the instruction runs, which is what makes a
+ * divergence point at the instruction that caused it rather than the one after.
+ */
+struct CS2VM2_TraceRecord
+{
+    int script_id;
+    int pc;
+    int opcode;
+    int operand;
+    int ints_top;
+    int strs_top;
+    int top_int;
+};
+
+/**
+ * Record the next `capacity` instructions into `out`.
+ *
+ * Independent of `g_cs2_trace_mode`: capturing is for a harness, printing is
+ * for a person, and a harness that had to turn on the stderr trace to collect
+ * anything would drown in it. Passing NULL stops capture.
+ */
+void
+CS2VM2_TraceCaptureBegin(struct CS2VM2_TraceRecord* out, int capacity);
+
+/** How many records were written; capture stops. */
+int
+CS2VM2_TraceCaptureEnd(void);
+
 void
 CS2VM2_Init(struct CS2VM2* vm);
 

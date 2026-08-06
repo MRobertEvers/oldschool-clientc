@@ -587,6 +587,7 @@ mock230_container_unbind(
     int32_t component)
 {
     int dropped = 0;
+    int cleared = 0;
 
     if( !player )
         return 0;
@@ -601,6 +602,17 @@ mock230_container_unbind(
         {
             if( row->listeners[r].component == component )
             {
+                /* IF_CLEARINV retires the item array embedded in this widget;
+                 * UPDATE_INV_STOPTRANSMIT is separate, inventory-global state
+                 * and is sent by inv_stoptransmit only when no other component
+                 * still listens. Clear before dropping the association so a
+                 * component moved to another inventory cannot retain old rows
+                 * underneath its immediate UPDATE_INV_FULL. */
+                if( !cleared )
+                {
+                    mock230_send_if_clearinv(player, component);
+                    cleared = 1;
+                }
                 dropped++;
                 continue;
             }

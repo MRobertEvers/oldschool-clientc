@@ -204,6 +204,29 @@ cs2_write_expr_list(struct cs2_writer* writer, struct RSCache_CS2_Expr** items, 
     }
 }
 
+/**
+ * An argument list, which is a fresh `calc` context.
+ *
+ * `in_calc` stops nested arithmetic from reopening a `calc(` it is already
+ * inside — right for `a + b * c`, wrong the moment an argument list intervenes.
+ * `calc($a - ~proc(0, $b - $c))` is inside a calc at the point `$b - $c` is
+ * written, but that subtraction sits in an argument, where bare arithmetic is
+ * not legal and the compiler rejects it on the closing paren. Eighteen scripts
+ * in cache.osrs239 decompiled to source that would not compile back.
+ */
+static void
+cs2_write_arg_list(struct cs2_writer* writer, struct RSCache_CS2_Expr** items, int count)
+{
+    cs2_write_expr_list(writer, items, count);
+}
+
+/** One argument in its own right — an array index, a `def_` size. */
+static void
+cs2_write_arg(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
+{
+    cs2_write_arg_list(writer, &expr, 1);
+}
+
 static void
 cs2_write_constant(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
 {
@@ -295,7 +318,7 @@ cs2_write_operation(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
         cs2_put_char(writer, ' ');
         cs2_write_var_access(writer, args[0]);
         cs2_put_char(writer, '(');
-        cs2_write_expr(writer, args[1]);
+        cs2_write_arg(writer, args[1]);
         cs2_put_char(writer, ')');
         return;
 
@@ -304,7 +327,7 @@ cs2_write_operation(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
             break;
         cs2_write_var_access(writer, args[0]);
         cs2_put_char(writer, '(');
-        cs2_write_expr(writer, args[1]);
+        cs2_write_arg(writer, args[1]);
         cs2_put_char(writer, ')');
         return;
 
@@ -313,7 +336,7 @@ cs2_write_operation(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
             break;
         cs2_write_var_access(writer, args[0]);
         cs2_put_char(writer, '(');
-        cs2_write_expr(writer, args[1]);
+        cs2_write_arg(writer, args[1]);
         cs2_put(writer, ") = ");
         cs2_write_expr(writer, args[2]);
         return;
@@ -380,7 +403,7 @@ cs2_write_operation(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
     if( arg_count > 0 )
     {
         cs2_put_char(writer, '(');
-        cs2_write_expr_list(writer, args, arg_count);
+        cs2_write_arg_list(writer, args, arg_count);
         cs2_put_char(writer, ')');
     }
 }
@@ -441,7 +464,7 @@ cs2_write_proc(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
     if( arg_count > 0 )
     {
         cs2_put_char(writer, '(');
-        cs2_write_expr_list(writer, args, arg_count);
+        cs2_write_arg_list(writer, args, arg_count);
         cs2_put_char(writer, ')');
     }
 }

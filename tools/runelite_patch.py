@@ -141,11 +141,13 @@ def patch(jar_path, out_jar, new_modulus):
     return entry, old
 
 
-def find_client_jar():
+def find_client_jar(explicit=None):
     """Newest client-*.jar. There is usually more than one left in the
     repository after an update, and both carry a logback.xml and a
     net.runelite.client.RuneLite, so putting them both on a classpath silently
     runs whichever sorts first -- which is the OLD one."""
+    if explicit:
+        return explicit
     jars = [
         os.path.join(RL_REPO, f)
         for f in os.listdir(RL_REPO)
@@ -263,6 +265,10 @@ def print_launch(patched_jar, jav_config_url):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jar", help="injected-client jar (default: newest in ~/.runelite/repository2)")
+    ap.add_argument("--client-jar",
+                    help="RuneLite client-*.jar to relax the host allowlist in. Defaults "
+                         "to the newest installed one; pass a jar built from source to "
+                         "patch a client for a REVISION other than the one installed.")
     ap.add_argument("--modulus", help="replacement RSA modulus, lowercase hex")
     ap.add_argument("--out", default=os.path.join(REPO, "build", "runelite"),
                     help="output directory for the patched jar")
@@ -296,7 +302,7 @@ def main():
     print(f"  new {args.modulus.lower()}", file=sys.stderr)
     print(f"  -> {out_jar}", file=sys.stderr)
 
-    client_jar = find_client_jar()
+    client_jar = find_client_jar(args.client_jar)
     client_out = os.path.join(args.out, os.path.basename(client_jar))
     old_suffix, new_suffix, dropped = patch_host_check(client_jar, client_out)
     print(

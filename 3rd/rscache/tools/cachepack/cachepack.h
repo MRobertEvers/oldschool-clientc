@@ -183,6 +183,29 @@ cp_type_by_name(const char* name);
 struct CP_Names
 {
     struct LC_Pack packs[CP_TYPE_COUNT];
+    /**
+     * The server's allocation ledger: `pack/<ns>.alloc`, ids `ss_allocate.py`
+     * handed out for records the cache does not hold.
+     *
+     * A second array and not more lines in `packs` — the separation is the
+     * point, on both sides of the tool:
+     *
+     *   - `cp_names_save` writes `packs` back to `configs/all.<ns>.compack`, so a
+     *     server name merged into it would be spliced into the machine-owned
+     *     member index — the exact mixing this layer exists to end.
+     *   - `--gamevals` emits `packs` into the cache's own symbol table, and a
+     *     server id in there is a name the client cache carries for a record it
+     *     does not hold.
+     *
+     * Both lookups (`cp_name_find`, `cp_name_get`) search `packs` first and this
+     * second; nothing writes it — `ss_allocate.py` is the one writer.
+     *
+     * Being listed here is also a *routing* statement: an id the server
+     * allocated names a record the cache cannot hold, so the packer routes it
+     * server-side without a membership line (`routing_client_member`). The
+     * allocation is the membership.
+     */
+    struct LC_Pack alloc[CP_TYPE_COUNT];
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
@@ -357,6 +380,19 @@ cp_name_find(
     enum CP_TypeId type,
     const char* name);
 
+/**
+ * Id for `name` in the server's allocation ledger alone, or -1.
+ *
+ * The routing gate's question — `cp_name_find` answers "what id", this answers
+ * "whose id". A name here is a record the server allocated past the cache's
+ * high-water mark, which is what routes it server-side with no membership line.
+ */
+int
+cp_name_find_alloc(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* name);
+
 /* The same three, over the asset packs. */
 
 const char*
@@ -458,6 +494,7 @@ struct CP_Ctx
     int param_types_count;
 
     /**
+<<<<<<< HEAD
      * The tree's `^constants`, as a param value can name one.
      *
      * `param=undead,^true` and `param=damagetype,^crush_style` are in this tree's
@@ -472,6 +509,17 @@ struct CP_Ctx
     int constants_count;
     int constants_capacity;
     int constants_loaded;
+=======
+     * `^name` -> text, from the tree's `.constant` files — LostCity substitutes
+     * these into every config *value* before parsing it (PackShared.ts), which
+     * is how `param=undead,^true` is a legal record. Built by
+     * `cp_constants_load` right after the walk and registered with cp_text, so
+     * the substitution happens at the one place config values are read.
+     */
+    char** constant_names;
+    char** constant_values;
+    int constant_count;
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
     /** Counted, not fatal: a record the decoder did not consume to the byte has
      *  fields this tool cannot see, and the count is the headline of the report. */
@@ -914,6 +962,24 @@ char
 cp_param_type_of(
     struct CP_Ctx* ctx,
     int param_id);
+
+/**
+ * Load every `^name = value` from the tree's `.constant` files and register the
+ * table with cp_text, which substitutes them into config values as they are
+ * read — LostCity's PackShared.ts semantics: a `^token` runs to the next comma,
+ * space or end of value, a name the table has is replaced, one it lacks is left
+ * exactly as written. Run right after `cp_walk_tree`, before anything loads a
+ * config. Returns the number of constants loaded.
+ */
+int
+cp_constants_load(struct CP_Ctx* ctx);
+
+/** cp_text's substitution hook; `cp_constants_load` is the only caller. */
+void
+cp_text_set_constants(
+    char* const* names,
+    char* const* values,
+    int count);
 
 /**
  * `op1..opN`, plus the rev-237 sub-ops and conditional ops.

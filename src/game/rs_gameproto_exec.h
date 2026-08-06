@@ -38,4 +38,11 @@ RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
     struct RevPacket* packet);
 
+/* Replay zone sub-packets that arrived while the world was async-loading
+ * (App::pending_zone), in arrival order. No-op until load_complete. Called
+ * lazily before any live zone sub-packet, and from the app tick so a queue
+ * with no follow-up traffic still drains. */
+void
+RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx);
+
 #endif

@@ -72,8 +72,17 @@ if (-not (Test-Path -LiteralPath $built)) {
 # renderer, cache, or embedded-server initialization and intentionally returns
 # 1 after printing usage. It caught an invalid PE subsystem stamp that otherwise
 # looked correct to both objdump and dumpbin.
-$smokeOutput = @(& $built --help 2>&1)
-$smokeExit = $LASTEXITCODE
+$savedErrorActionPreference = $ErrorActionPreference
+try {
+    # Windows PowerShell 5 promotes native stderr to a terminating
+    # NativeCommandError when the script-wide preference is Stop. Usage is
+    # intentionally written to stderr, so relax it for this one bounded call.
+    $ErrorActionPreference = "Continue"
+    $smokeOutput = @(& $built --help 2>&1)
+    $smokeExit = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+}
 if ($smokeExit -ne 1 -or (($smokeOutput -join "`n") -notmatch "(?i)usage")) {
     throw ("win64 launch smoke failed (exit {0}); the PE linked but did not reach main." -f $smokeExit)
 }

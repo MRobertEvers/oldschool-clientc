@@ -409,6 +409,213 @@ Two things the test got wrong first, both worth copying rather than repeating:
   prints four passes and then simply stops — which is indistinguishable from a
   pass. It tops the runner's hitpoints up every tick.
 
+## The damage that never landed (2026-08-04, third pass)
+
+Four defects, and three of them were engine-wide rather than Inferno's. They are
+grouped here because they had one symptom — "the mobs do no damage" — and four
+independent causes, each of which alone was enough to produce it.
+
+1. **`last_int` was a property of the player, not of the script state.** The
+   reference pushes `state.lastInt` and the npc queue seeds it per request
+   (`Npc.ts`: `state.lastInt = request.lastInt`). Ours read `player->last_int`,
+   which is correct for every player-context reader and returns 0 for the one
+   context with no player value to read: an `[ai_queue<n>]` on an npc. That is
+   where `npc_queue(2, $damage, $delay)` delivers its damage, so **every
+   npc-to-npc hit in the tree landed for zero**. `state->last_int` had been
+   declared for this and read by nothing.
+
+2. **`npc_setmode(none)` did not clear the target.** `NPC_SETMODE` in the
+   reference is `clearInteraction()` for the targetless modes, and
+   `clearInteraction` sets `target = null`. Ours set the mode field only, and
+   the npc phase skips any npc with a combat target ("combat and death own the
+   npc's movement") — so a script-driven npc that anything hit once stopped
+   walking permanently. The Ancestral Glyph binds `[ai_queue1] npc_setmode(none)`
+   precisely so being attacked does not stop its sweep, and it froze on the
+   first hit anyway.
+
+3. **The compiler never checked command arity.** `queue` states three arguments
+   (`[command,queue](queue $queue, int $delay, int $arg)`); ten sites passed
+   four. Four pushes into a three-value pop does not fail — it *shifts*, so the
+   script id came out of the delay slot and each of those queued a garbage id.
+   `QUEUEVARARG` — the reference's `queue*(script, delay)(args…)`, which is what
+   those sites actually wanted — was unhosted.
+
+4. **The projectile left from the wrong tile.** Kronos `Projectile.send` offsets
+   the source by `size / 2`; `npc_coord` is the south-west tile, so TzKal-Zuk
+   (size 7) threw from three tiles off his own middle.
+   `[proc,npc_projectile_source]` is that offset, over `nc_size` — which was
+   implemented and documented in content as "absent".
+
+### What the arity check found
+
+Adding it turned up ~160 sites, none of them theoretical:
+
+| command | sites | what was wrong |
+|---|---:|---|
+| `obj_add` | 120 | the DURATION was in the count slot, so every drop spawned 200 items |
+| `npc_del` | 19 | called with an argument; the command declares none |
+| `queue` | 10 | four arguments to a three-argument command (defect 3) |
+| `npc_changetype` | 4 | no duration |
+| `stat` | 3 | `mes("::boost <stat> …")` — see below |
+| others | 4 | `damage`, `map_findsquare`, `movecoord`, `map_playercount` |
+
+Two of those are worth reading past the count. `mes("::boost <stat> <constant>
+<percent>")` is a usage line, and `<stat>` compiled to a `stat` **call**: the
+interpolation test asked whether the name was a command and not whether the
+command took arguments, so `<displayname>` (which takes none) and `<stat>`
+(which takes one) were indistinguishable. And the first fix for `obj_add` was
+itself wrong at 107 of the 120 sites, because they pass `~randomherb` — a proc
+returning `(namedobj, int)` — which already supplies the count. **A check that
+only warned would not have caught that**; the count went back up and said so.
+
+The check is fatal now. It has two verdicts and only two, because only two are
+sound: more arguments than slots is always wrong (every expression pushes at
+least one value), and fewer is wrong only when nothing in the list could have
+pushed extra — a multi-return proc or a `db_getfield` on a `coord,coord` column
+legitimately fills several slots from one expression.
+
+### Stats, audited
+
+Every inferno npc against `kronos-server/data/npcs/combat/*.json`
+(attack/strength/defence/hitpoints/ranged/magic + `max_damage`). Three records
+and one constant disagreed:
+
+| record | field | was | Kronos |
+|---|---|---:|---:|
+| `inferno_creature_ranger` / `inferno_ranger_finalwave` | hitpoints | 125 | 130 |
+| `inferno_zuk_healer` | hitpoints | 75 | 80 |
+| `^inferno_zuk_maxhit` | — | 148 | 251 |
+
+Yt-HurKot reads as a mismatch and is not: Kronos carries two stat blocks for it
+(hp 60 and 90) and both of this tree's records use the 90 one. The max-hit
+constant is the one to note — the other five (46, 70, 113, 10, 18) match Kronos
+exactly, which is what made the odd one out worth checking at all.
+
+## The orange ground over the wall — six explanations measured and killed
+
+Still open, but narrowed, and the two obvious answers are both **wrong**. Both
+were measured rather than argued, which is the only reason they are written down:
+each is the kind of explanation that survives indefinitely if nobody checks it.
+
+**Not an overhanging model.** `TORIRS_EMIT_LOC=<id>` prints the model's own
+vertex extent beside its registered footprint. The seal wall (30337) reports
+`extent x[-128..128] z[-320..320]` at a 2x5 footprint — 256 by 640 units, which
+is exactly 2 by 5 tiles. The lava-edge floor pieces (30347/30348/30349) report
+`x[-64..64] z[-64..64]` at 1x1. Every one fills its footprint precisely, so no
+loc is sticking out past the tiles it waits for.
+
+**Not flattened terrain.** `TORIRS_HPROF` reads a single height (-240) across
+41x31 tiles of the arena, and the first instinct — "the rebuild flattened the
+heightmap" — is wrong twice over. The profile that appeared to disagree was
+Lumbridge, printed on the initial load before the teleport, and teleporting back
+to the same Lumbridge tiles reproduces its relief exactly. The Inferno arena is
+*supposed* to be flat: its depth is scenery, not terrain, which is why the lava
+overlay and the rock locs share one plane.
+
+**Not the draw order.** `TORIRS_DRAW_ORDER` dumps the whole emit sequence. The
+traversal makes two waves — west of the camera column, then east — because the
+wave propagates *inward* and cannot cross the eye's column; that is the
+reference's own structure, not a defect. Within it: terrain-vs-terrain order has
+no occlusion-relevant inversion (the only same-column "violations" are the tiles
+*behind* the camera, where north is nearer, so they are correct), and
+terrain-vs-loc has **zero** strict violations — no terrain in a loc's own columns,
+three or more tiles farther, is ever drawn after it.
+
+**Not a missing or failed loc.** The square places all 2,850 loc instances:
+`no_config=0 no_resolve=0 oob=0 added=2850`, and none of the EMPTY-model
+warnings in the run belong to it.
+
+**Not level-1 bleed.** Every terrain command in the frame is L0.
+
+**Not the prison roof**, which was the one plausible suspect left: loc 30356 is
+9x4 and emits at order 1127, later than everything around it. `::roofhide 1`
+takes it out of the emit list entirely (`grep -c loc=30356` goes to 0) and the
+orange region is pixel-for-pixel unchanged.
+
+What is left is that the opening is *real map geometry* — a genuine gap in the
+rock scenery, the alcove TzKal-Zuk occupies — and the flat orange is the
+underlay legitimately visible through it, drawn in the right order by a painter
+with nothing to complain about. It reads as a bug because in a live fight that
+opening is filled by Zuk and by the seal, and because a bare underlay quad has
+no detail of its own: the arena's texture is ground-decor locs and the lava's
+glow is rock locs, so the one place with neither renders as flat colour.
+
+### The squares, and whether they are real
+
+Checked because "the map data is stale" is the other explanation that would
+survive indefinitely unexamined. It is not stale:
+
+- The 239 map pack contains, in the whole 34-37 x 82-85 block, **three** terrain
+  squares: `m34_85`, `m35_83` (group 9043 — the arena) and `m36_84` (9300). The
+  scene at the arena loads exactly the two of those it spans. Everything else
+  around the Inferno is genuinely absent, which is why the heightmap north of
+  z~71 is the allocator's zero-fill — and that void is never drawn (the furthest
+  tile emitted is z=67).
+- The pack lists **no `l` groups at all**; loc groups resolve by name hash at
+  runtime, which is why 2,850 locs load for a square whose loc group the pack
+  never names.
+- Cross-checked against `cache.osrs230` with `find_named`, which should and does
+  agree: loc 30356 is 9x4 with `transform_varbit 5652` and `transforms 30331,-1`
+  in **both** caches; 30337 is 5x2 in both; 30338 (Ancestral Glyph) is 6x3 in
+  both. Not a prior-revision artifact.
+- `m35_83` carries real terrain on levels 0 **and 1**, and level 1 sits at the
+  *same* height as level 0 (-240 both). Levels 2 and 3 read -480 and -720, the
+  synthetic 240-per-level stack a square with no data there produces. The
+  coincident L0/L1 plane is worth knowing: it is what lets the encounter spawn
+  the flank rocks on plane 1 "coexisting with the L0 collapsing rocks on the same
+  anchors", and it is a standing hazard — the day the level mask admits level 1
+  here, its terrain draws after level 0's scenery at identical height.
+
+## The instance's lifetime, and the two ends that were not closed (2026-08-05)
+
+The encounter has been instanced since it landed — `~inferno_enter` and both Zuk
+debugprocs go through `~map_instance_from_square(^inferno_template)`, and a
+headless `TORIRS_NET_CHEAT="zuk"` with `MOCK230_VERBOSE=1` prints `map instance 1
+reserved 8x8 zones at 6400,64` followed by `instanced scene built at zone 803,13`.
+So "one instance per encounter" was already true, and **death already released
+it** (`[playerdeath,_]` → `player/death.rs2` → `~inferno_on_death` →
+`~inferno_free_instance`, exactly one release per run, measured).
+
+What was not closed was the other two ends, and both are the kind of defect that
+only bites the *next* session:
+
+1. **A session that ended any other way leaked the reservation.** No `[logout]`
+   trigger was dispatched at all — `SS_TRIGGER_LOGOUT` had existed in the
+   compiler since forever with nothing on the engine side — so a disconnect, a
+   `::logout` or the host shutting down mid-fight left the slot held. The pool is
+   eight wide, so the eighth abandoned run is the first symptom, and it surfaces
+   as "The Inferno could not be prepared right now" in whatever content asks
+   next. The saved coord was the worse half: `saves/testc.ini` read
+   `x = 6431, z = 104`, a tile inside a square the allocator was free to
+   re-issue, so the character logged back in on void with nothing to walk off.
+   Fixed on both sides — the engine dispatches `[logout]` from
+   `mock230_world_remove_player` *above* the save
+   (`osrs230_mockserver.md` §3.23), and `player/logout.rs2` calls
+   `~inferno_on_logout`, which clears the session, teleports to
+   `^inferno_exit_pad` and frees. The same run now saves `x = 2495, z = 5112`,
+   which is the exit pad to the tile.
+
+2. **Every teardown left the arena's npcs standing in it.** `npc_add`'s
+   `^inferno_npc_duration` is 5,000 ticks and the pool hands a released square
+   straight back out, so the next entry was dropped into the previous run's live
+   spawns. `~inferno_despawn_arena` (called from `~inferno_clear_session`, so all
+   four exits get it) deletes them, and it keys on **position** rather than on a
+   list of npc types: `map_instance_find(npc_coord) = %map_instance_handle`
+   cannot go stale the way a type list does the first time a wave gains a
+   monster — and a stale type list fails silently. `map_instance_free` now counts
+   what is left behind and says so under `MOCK230_VERBOSE`; measured, `freed with
+   2 npc(s) still inside` before, silent after.
+
+Both are pinned rather than described. The reservation half is the last leg of
+`mock230 --selftest` and goes red under either mutation (an empty `[logout,_]`
+body, or the engine dispatch removed). The npc half is the diagnostic line
+itself, which fires the moment `~inferno_despawn_arena` is dropped from
+`~inferno_clear_session`.
+
+The fight is unchanged by all of it — nothing on either new path can run during a
+live session — and `::zuktest` still reports the milestones at the ticks this
+document records: spawn 21, emerge 21, ready 35, first shot 35, first add wave 95.
+
 ## Re-running the export
 
 The full command is in

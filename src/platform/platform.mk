@@ -5,10 +5,16 @@
 # One variable picks the whole host: compiler, windowing/audio/IO backends,
 # object directory and link output.
 #
+<<<<<<< HEAD
 #   make -C src all                    host native, debug -> src/torirs
 #   make -C src release                host native, opt   -> src/torirs
 #   make -C src winxp                  Windows XP, opt    -> src/torirs.exe
 #   make -C src win64                  Windows 10+ x64    -> src/torirs_win64.exe
+=======
+#   make -C src                        host native, debug -> src/torirs
+#   make -C src release                host native, opt   -> src/torirs
+#   make -C src winxp                  Windows XP, opt    -> src/torirs.exe
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 #   make -C src web                    web, optimized     -> build-web/torirs.js
 #
 # Objects never mix: each (PLATFORM, OPT) pair owns its own OBJ_DIR, so
@@ -36,7 +42,11 @@
 #
 # and may override PLATFORM_WINDOW_SRC (defaulted at the bottom).
 
+<<<<<<< HEAD
 PLATFORM_LIST := macos linux win32 win64 web
+=======
+PLATFORM_LIST := macos linux win32 web
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 PLATFORM ?= native
 
@@ -44,8 +54,12 @@ PLATFORM ?= native
 # keeps every block below a declaration rather than a probe -- the old single
 # `native` block branched on uname *inside* itself, which is how an Apple-only
 # linker flag ended up on the Linux link line. $(OS) is set by Windows itself,
+<<<<<<< HEAD
 # so a native Windows build selects the modern x64 lane without needing uname.
 # The XP wrapper always requests the explicit win32 lane.
+=======
+# so a bare `make -C src` on the XP box picks win32 without needing uname.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 #
 # `override` is load-bearing: `native` also arrives from the command line (the
 # io-server target re-invokes make with PLATFORM=native), and a command-line
@@ -53,7 +67,11 @@ PLATFORM ?= native
 # `native`, match no block, and hit the unknown-PLATFORM error below.
 ifeq ($(PLATFORM),native)
   ifeq ($(OS),Windows_NT)
+<<<<<<< HEAD
     override PLATFORM := win64
+=======
+    override PLATFORM := win32
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   else ifeq ($(shell uname -s),Darwin)
     override PLATFORM := macos
   else
@@ -76,8 +94,12 @@ ifneq ($(filter $(PLATFORM),macos linux),)
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c
   # The desktop-GL binding. The web lane builds the same renderer against
+<<<<<<< HEAD
   # WebGL1 and needs its index-splitting object instead; the Windows lanes own
   # D3D9 in their regular platform source and need no binding object here.
+=======
+  # WebGL1 and needs its index-splitting object instead; win32 has no GPU path.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   PLATFORM_GPU_OBJ_NAMES := opengl3_sdlgl.o
   PLATFORM_EXE_SUFFIX :=
 
@@ -102,7 +124,11 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_LDFLAGS := -lm $(SDL_LIBS)
 
   # A traced binary must not share ./torirs with an untraced one: MEMTRACE is a
+<<<<<<< HEAD
   # long-running capture and `make -C src all` in another terminal would
+=======
+  # long-running capture and a plain `make -C src` in another terminal would
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   # silently replace it mid-session. Only the lanes whose output name is not
   # referenced from outside the build can afford the rename.
   PLATFORM_TARGET_MEMTRACE_SUFFIX := _mt
@@ -128,22 +154,36 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   endif
 
 else ifeq ($(PLATFORM),win32)
+<<<<<<< HEAD
   # Explicit Windows XP host: a raw Win32 window with fixed-function D3D9 by
   # default and the GDI Soft3D presenter behind explicit --soft3d. There is no
   # SDL, GL, D3D9Ex, D3DX or shader compiler dependency. The windowing source is
   # swapped in the Makefile via PLATFORM_WINDOW_SRC below.
+=======
+  # Native Windows / XP host: present through GDI instead of SDL, no GL.
+  # main.c uses only the software path (App_Render -> a CPU pixel buffer ->
+  # present); platform/platform_win32gdi.c implements the PlatformSDL2 interface
+  # with a top-down DIB + BitBlt, so no SDL and no GL are linked. The windowing
+  # source is swapped in the Makefile via PLATFORM_WINDOW_SRC below.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   PLATFORM_CC       := $(if $(filter default,$(origin CC)),gcc,$(CC))
   PLATFORM_OBJ_BASE := build_win32
   PLATFORM_TARGET   := torirs.exe
   # IO is the portable stdio backend; audio is the null backend (no sound on XP
   # for now). No GL renderer, no SDL audio.
   PLATFORM_SRCS     := platform/platform_x_io.c \
+<<<<<<< HEAD
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9.c
   # TRSPK's CPU retained-mode core is already linked through trspk_unity.o.
   # D3D9 calls live in the regular platform source above, so there is no extra
   # out-of-tree binding object (and in particular no WebGL object) here.
+=======
+                       platform/platform_audio_null.c
+  # No GPU binding at all: this lane is Soft3D only. Before this was declared,
+  # the makefile's "native or else" test put the *WebGL* object in this link.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   PLATFORM_GPU_OBJ_NAMES :=
   # The linker appends .exe here. Host tools (sscompile, cachepack) are invoked
   # by path, and a tracked macOS build of cachepack sits next to the Windows one
@@ -161,9 +201,15 @@ else ifeq ($(PLATFORM),win32)
   #                               post-XP import fails at compile time here
   #                               rather than as "procedure entry point not
   #                               found" on the target.
+<<<<<<< HEAD
   #   -march=i686                 Keep the executable usable on pre-SSE2 XP
   #     -mfpmath=387              machines. The i686 MinGW lane and x87 are the
   #                               conservative 32-bit compatibility baseline.
+=======
+  #   -march=pentium4 -msse2      XP SP3's own floor. -mfpmath=sse keeps FP off
+  #     -mfpmath=sse              the x87 stack, which is both faster and
+  #                               rounds like every other lane.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   #   -include win32_compat.h     setenv/unsetenv, which MinGW does not ship
   #                               and the embedded rev-230 server calls. It is
   #                               in BASE_CFLAGS, not CFLAGS, so it reaches the
@@ -173,12 +219,20 @@ else ifeq ($(PLATFORM),win32)
   # 32-bitness is deliberately *not* forced with -m32: on an x86_64 MinGW
   # without multilib that fails deep in the assembler. `make lane-check`
   # asserts the toolchain triple instead, which fails legibly.
+<<<<<<< HEAD
   PLATFORM_BASE_CFLAGS := -DTORIRS_HAVE_D3D9=1 -DD3D_DISABLE_9EX=1 \
                           -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
                           -D_WIN32_WINNT=0x0501 -DWINVER=0x0501 \
                           -march=i686 -mtune=generic -mfpmath=387 \
                           -include $(SRC_DIR)/platform/win32_compat.h
   # No TORIRS_HAVE_GL3: this lane selects the fixed-function D3D9 path instead.
+=======
+  PLATFORM_BASE_CFLAGS := -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
+                          -D_WIN32_WINNT=0x0501 -DWINVER=0x0501 \
+                          -march=pentium4 -msse2 -mfpmath=sse \
+                          -include $(SRC_DIR)/platform/win32_compat.h
+  # No TORIRS_HAVE_GL3: main.c compiles its GL paths out and uses software.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS)
   #
   # --subsystem,console:5.01 does two things and replaces a bare -mconsole. It
@@ -198,7 +252,11 @@ else ifeq ($(PLATFORM),win32)
   # stages the .exe and nothing else. Linking static makes the one file the
   # whole deliverable, which is what this lane is for.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:5.01 \
+<<<<<<< HEAD
                       -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+=======
+                      -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
   # See the linux note above: --gc-sections would be a no-op here too.
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
@@ -208,6 +266,7 @@ else ifeq ($(PLATFORM),win32)
   # less desktop output only.
   PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
+<<<<<<< HEAD
 else ifeq ($(PLATFORM),win64)
   # Modern Windows 10/11, x86_64. This deliberately shares the proven raw
   # Win32 + fixed-function D3D9/GDI backends with XP; the platform difference
@@ -251,6 +310,8 @@ else ifeq ($(PLATFORM),win64)
       -Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
   PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_OBJ_BASE := build_web
@@ -352,5 +413,9 @@ else
 endif
 
 # The windowing implementation of the PlatformSDL2 interface. SDL platforms use
+<<<<<<< HEAD
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
+=======
+# platform_sdl2.c; the win32 block overrides this with platform_win32gdi.c.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c

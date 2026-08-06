@@ -48,11 +48,13 @@ terrain_shape_map_set_tile(
     int z,
     int level,
     int shape,
-    int rotation)
+    int rotation,
+    int has_underlay)
 {
     int idx = terrain_shape_map_coord(terrain_shape_map, x, z, level);
     terrain_shape_map->tiles[idx] = (struct TerrainShapeMapTile){
         .active = true,
+        .has_underlay = has_underlay != 0,
         .shape = shape,
         .rotation = rotation,
     };

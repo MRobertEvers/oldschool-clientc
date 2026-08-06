@@ -115,19 +115,27 @@ def blocks(path):
 
 
 def pack_ids(namespace):
-    """name -> id from configs/all.<ns>.compack."""
+    """name -> id from the namespace's two layers: the cache's member index
+    (configs/all.<ns>.compack) and the server's allocation ledger
+    (pack/<ns>.alloc)."""
     out = {}
-    path = os.path.join(TREE, "configs", "all.%s.compack" % namespace)
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        for raw in handle:
-            text = raw.split("//")[0].strip()
-            if "=" not in text:
-                continue
-            number, name = text.split("=", 1)
-            try:
-                out[name.strip()] = int(number.strip())
-            except ValueError:
-                pass
+    layers = (
+        os.path.join(TREE, "configs", "all.%s.compack" % namespace),
+        os.path.join(TREE, "pack", "%s.alloc" % namespace),
+    )
+    for path in layers:
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                text = raw.split("//")[0].strip()
+                if "=" not in text:
+                    continue
+                number, name = text.split("=", 1)
+                try:
+                    out[name.strip()] = int(number.strip())
+                except ValueError:
+                    pass
     return out
 
 

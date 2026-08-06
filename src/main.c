@@ -5,6 +5,7 @@
 #include "cmd/cmdbus.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/cs2_harness.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
@@ -55,6 +56,7 @@ struct ToriRS_D3D9;
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+
 #endif
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
@@ -63,6 +65,21 @@ struct ToriRS_D3D9;
  * an interface id is opened directly instead. */
 #define DAT1_CACHE_DIR "cache254"
 #define DAT2_CACHE_DIR "cache.jan2026"
+
+/* Render one frame into a BMP for the CS2 harness. Same path TORIRS_EXIT_BMP
+ * uses, so a harness frame and an exit frame are the same picture. */
+static void
+harness_shot(void* user, char const* path)
+{
+    struct App* app = (struct App*)user;
+    int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+    if( !pixels )
+        return;
+    App_Render(app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    free(pixels);
+}
+
 #define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
 #define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
 #define CONFIG_DIR "config"
@@ -961,6 +978,36 @@ frame_loop_step(void)
                     rs_frame = -1;
                 }
             }
+            /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
+             * once the client is far enough in to have a cache, a host and a
+             * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
+             * the default is late enough for login to have completed against
+             * mock230, because a case that reads a varp needs the varps.
+             * The run ends the way every other headless run here ends, with
+             * TORIRS_MAX_FRAMES — the harness does not invent a second exit
+             * path. */
+            {
+                static int harness_done = 0;
+                char const* harness_cases = getenv("TORIRS_CS2_HARNESS");
+                if( !harness_done && harness_cases && *harness_cases )
+                {
+                    char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
+                    long harness_frame = at ? strtol(at, NULL, 0) : 400;
+                    if( frame_count >= harness_frame )
+                    {
+                        char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
+                        harness_done = 1;
+                        CS2Harness_Run(
+                            &app.host,
+                            &app.runner,
+                            harness_cases,
+                            out && *out ? out : "/tmp/cs2_harness_c",
+                            harness_shot,
+                            &app);
+                    }
+                }
+            }
+
             if( rs_frame >= 0 && frame_count >= rs_frame )
             {
                 fprintf(
@@ -1639,6 +1686,7 @@ frame_loop_tick(void)
 }
 #endif
 
+<<<<<<< HEAD
 struct MainArgState
 {
     int write_bmp;
@@ -1671,6 +1719,13 @@ main_parse_argument_layer(
     int from_manifest,
     char const* program,
     struct MainArgState* state)
+=======
+
+int
+main(
+    int argc,
+    char** argv)
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 {
     int argi;
     int positional = 0;

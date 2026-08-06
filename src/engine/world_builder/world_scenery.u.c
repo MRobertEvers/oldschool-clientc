@@ -1893,6 +1893,50 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
  * `chunk_pos_level` the destination level — the instance path rewrites both on
  * its copy before calling.
  */
+/*
+ * One loc's mapfunction icon, at a scene position the caller already knows.
+ *
+ * Same split, and for the same reason, as world_builder_minimap_add_loc: the
+ * square walker maps a loc through World_ToSceneX/Z, which only describes the
+ * contiguous map-square grid, so an instance assembled from remapped 8x8 chunks
+ * got no mapfunction icons at all.
+ */
+static void
+world_builder_minimap_add_loc_mapfunction(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc const* map_loc,
+    struct ToriRS_Location const* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+    int func;
+
+    if( map_loc->shape_select != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+        return;
+    if( map_loc->chunk_pos_level < 0 || map_loc->chunk_pos_level >= COLLISION_LEVELS )
+        return;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
+        return;
+
+    /* Loc mapfunction: dat1 atlas frame index, or dat2 mapelement id (resolved
+     * to a sprite at draw time). Negative means unset. */
+    func = config_loc->map_function_id;
+    if( func < 0 )
+        return;
+    if( world->mapfunc_count >= WORLD_MAPFUNC_MAX )
+        return;
+
+    {
+        struct World_MapFunctionIcon* icon = &world->mapfuncs[world->mapfunc_count++];
+        icon->x = scene_x;
+        icon->z = scene_z;
+        icon->level = map_loc->chunk_pos_level;
+        icon->func = func;
+    }
+}
+
 static void
 world_builder_minimap_add_loc(
     struct WorldBuilder* builder,

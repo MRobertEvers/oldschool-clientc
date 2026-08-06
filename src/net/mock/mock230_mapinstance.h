@@ -158,6 +158,19 @@ mock230_mapinstance_setchunk(
 int
 mock230_mapinstance_build(int handle);
 
+/**
+ * Which build this instance is on: a pool-wide counter bumped by every
+ * `_build`, so no two builds ever share a value. 0 = dead handle or unbuilt.
+ *
+ * Exists because handle and coordinates are both reused: freeing an instance
+ * and allocating another hands back the same handle at the same square, so
+ * they cannot tell a client's scene apart from the one built on its grave.
+ * `Mock230Player::scene_instance_generation` records what a client was last
+ * shown and a mismatch forces a rebuild (docs/ORANGE_WEDGE.md §18).
+ */
+int
+mock230_mapinstance_generation(int handle);
+
 /** Absolute south-west tile of the instance. Returns 0 for a dead handle. */
 int
 mock230_mapinstance_base(
@@ -169,6 +182,11 @@ mock230_mapinstance_base(
  *  player is standing in is content's bug; the engine does not cover it. */
 int
 mock230_mapinstance_free(int handle);
+
+/** How many reservations are live. For leak checks — a session that ends with
+ *  a non-zero count released nothing. */
+int
+mock230_mapinstance_live_count(void);
 
 /** The handle whose reserved area contains this absolute tile, or 0. */
 int

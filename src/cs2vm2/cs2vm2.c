@@ -328,6 +328,28 @@ CS2VM2_IsTargetingOpcode(int opcode)
     }
 }
 
+static struct CS2VM2_TraceRecord* g_cs2_trace_capture = NULL;
+static int g_cs2_trace_capacity = 0;
+static int g_cs2_trace_count = 0;
+
+void
+CS2VM2_TraceCaptureBegin(struct CS2VM2_TraceRecord* out, int capacity)
+{
+    g_cs2_trace_capture = out;
+    g_cs2_trace_capacity = out ? capacity : 0;
+    g_cs2_trace_count = 0;
+}
+
+int
+CS2VM2_TraceCaptureEnd(void)
+{
+    int count = g_cs2_trace_count;
+    g_cs2_trace_capture = NULL;
+    g_cs2_trace_capacity = 0;
+    g_cs2_trace_count = 0;
+    return count;
+}
+
 static void
 CS2VM2_TraceOpcode(
     struct CS2VM2_Thread* vm,
@@ -337,6 +359,18 @@ CS2VM2_TraceOpcode(
     int operand,
     int result)
 {
+    if( g_cs2_trace_capture && g_cs2_trace_count < g_cs2_trace_capacity )
+    {
+        struct CS2VM2_TraceRecord* record = &g_cs2_trace_capture[g_cs2_trace_count++];
+        record->script_id = frame->script ? frame->script->script_id : -1;
+        record->pc = op_pc;
+        record->opcode = opcode;
+        record->operand = operand;
+        record->ints_top = vm->ints_stack_top;
+        record->strs_top = vm->strs_stack_top;
+        record->top_int = vm->ints_stack_top > 0 ? vm->ints_stack[vm->ints_stack_top - 1] : 0;
+    }
+
     if( !g_cs2_trace_mode )
         return;
 #if !CS2VM2_DEBUG_OPS

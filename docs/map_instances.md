@@ -262,6 +262,28 @@ when the scene stops being a singleton.
 a handle cannot outlive the world that issued it, but within a session content
 owns the lifetime. `[debugproc,mapinstance_leave]` is the manual version.
 
+**The one exception, and it is content's too: the end of the session.** A run
+that ends because the client went away — a disconnect, a `::logout`, the host
+shutting down — used to leak its reservation *and* save the character standing
+inside it, which is the worse half: the pool re-issues the square and the next
+login draws void with nothing to walk off. `[logout,_]`
+(`player/logout.rs2`) now teleports out and frees, per activity where the
+activity has a policy (`~inferno_on_logout`) and through
+`~map_instance_logout_release` where it does not. The engine's half is dispatching
+the trigger at all, and dispatching it *above* the save —
+`mock230_world_remove_player`, `osrs230_mockserver.md` §3.23. Pinned by the last
+leg of `mock230 --selftest`.
+
+**A freed instance can still have npcs standing in it, and that is content's bug
+by design.** The engine will not delete them — a rule about when a minigame is
+over does not belong in the registry — but `map_instance_free` counts them and
+says so under `MOCK230_VERBOSE`, because the symptom otherwise appears one
+session later, as somebody else's boss already in the arena. Content's answer is
+a despawn keyed on *position* rather than on a list of npc types
+(`~inferno_despawn_arena`): an instance holds nothing but its own run's spawns,
+so `map_instance_find(npc_coord) = $handle` is the whole test, and it cannot go
+stale the way a type list does.
+
 **Heights are per-zone, so zone seams can show.** The static build writes heights
 across a square's boundary using the next square's data; a zone in an instance has
 no such neighbour, so the client writes heights for the 8x8 interior only. Real

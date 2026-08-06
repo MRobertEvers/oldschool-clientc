@@ -39,6 +39,11 @@
  *   IF_BUTTON9       -> IF_BUTTONX with op=9
  *   IF_BUTTON10      -> IF_BUTTONX with op=10
  *
+ * That list is operational, not just documentation: IF_BUTTONX and
+ * IF_SUBOP carry canonical names below, and net_out.c falls back to
+ * them for the collapsed classic families. An unmapped row silently
+ * makes every corresponding interaction unsendable.
+ *
  * The login prots (INIT_GAME_CONNECTION, GAMELOGIN, POW_REPLY) are not here:
  * they live in a different prot space and are built by the login driver.
  */
@@ -61,11 +66,11 @@ struct Osrs239PacketOutDef
 /* clang-format off */
 static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_IF_BUTTON,                 51, 4,                       "IF_BUTTON" },
-    { PKTOUT_NAME_NONE,                      47, 9,                       "IF_BUTTONX" },
-    { PKTOUT_NAME_NONE,                      40, 10,                      "IF_SUBOP" },
+    { PKTOUT_NAME_IF_BUTTONX,                47, 9,                       "IF_BUTTONX" },
+    { PKTOUT_NAME_IF_SUBOP,                  40, 10,                      "IF_SUBOP" },
     { PKTOUT_NAME_INV_BUTTOND,               48, 16,                      "IF_BUTTOND" },
-    { PKTOUT_NAME_NONE,                      27, 16,                      "IF_BUTTONT" },
-    { PKTOUT_NAME_NONE,                      56, PKTOUT_LENGTH_VARU16,    "IF_SCRIPT_TRIGGER" },
+    { PKTOUT_NAME_IF_BUTTONT,                27, 16,                      "IF_BUTTONT" },
+    { PKTOUT_NAME_IF_SCRIPT_TRIGGER,         56, PKTOUT_LENGTH_VARU16,    "IF_SCRIPT_TRIGGER" },
     { PKTOUT_NAME_OPNPC1,                   102, 4,                       "OPNPC1_V2" },
     { PKTOUT_NAME_OPNPC2,                    13, 4,                       "OPNPC2_V2" },
     { PKTOUT_NAME_OPNPC3,                    19, 4,                       "OPNPC3_V2" },
@@ -117,11 +122,11 @@ static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_EVENT_MOUSE_CLICK,         66, 6,                       "EVENT_MOUSE_CLICK_V1" },
     { PKTOUT_NAME_NONE,                      35, 7,                       "EVENT_MOUSE_CLICK_V2" },
     { PKTOUT_NAME_RESUME_PAUSEBUTTON,       115, 6,                       "RESUME_PAUSEBUTTON" },
-    { PKTOUT_NAME_NONE,                      26, PKTOUT_LENGTH_VARU8,     "RESUME_P_NAMEDIALOG" },
-    { PKTOUT_NAME_NONE,                      64, PKTOUT_LENGTH_VARU8,     "RESUME_P_STRINGDIALOG" },
+    { PKTOUT_NAME_RESUME_P_NAMEDIALOG,       26, PKTOUT_LENGTH_VARU8,     "RESUME_P_NAMEDIALOG" },
+    { PKTOUT_NAME_RESUME_P_STRINGDIALOG,     64, PKTOUT_LENGTH_VARU8,     "RESUME_P_STRINGDIALOG" },
     { PKTOUT_NAME_RESUME_P_COUNTDIALOG,      75, 4,                       "RESUME_P_COUNTDIALOG" },
-    { PKTOUT_NAME_NONE,                      63, 8,                       "RESUME_P_COUNTDIALOG_LONG" },
-    { PKTOUT_NAME_NONE,                      32, 2,                       "RESUME_P_OBJDIALOG" },
+    { PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG,   63, 8,                       "RESUME_P_COUNTDIALOG_LONG" },
+    { PKTOUT_NAME_RESUME_P_OBJDIALOG,        32, 2,                       "RESUME_P_OBJDIALOG" },
     { PKTOUT_NAME_NONE,                     101, PKTOUT_LENGTH_VARU8,     "FRIENDCHAT_KICK" },
     { PKTOUT_NAME_NONE,                      55, PKTOUT_LENGTH_VARU8,     "FRIENDCHAT_SETRANK" },
     { PKTOUT_NAME_NONE,                      20, PKTOUT_LENGTH_VARU8,     "FRIENDCHAT_JOIN_LEAVE" },
@@ -161,6 +166,25 @@ static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_WINDOW_STATUS,             10, 5,                       "WINDOW_STATUS" },
     { PKTOUT_NAME_NONE,                      44, 1,                       "SET_HEADING" },
     { PKTOUT_NAME_NONE,                     105, 1,                       "RSEVEN_STATUS" },
+
+    /* Client-table-only fixed packets. These are framing rows; the
+     * mock intentionally drops their bodies after consuming them. */
+    { PKTOUT_NAME_NONE,                      11, 7,                       "ANTICHEAT_11" },
+    { PKTOUT_NAME_NONE,                      18, 3,                       "ANTICHEAT_18" },
+    { PKTOUT_NAME_NONE,                      21, 3,                       "ANTICHEAT_21" },
+    { PKTOUT_NAME_NONE,                      25, 7,                       "ANTICHEAT_25" },
+    { PKTOUT_NAME_NONE,                      30, 7,                       "ANTICHEAT_30" },
+    { PKTOUT_NAME_NONE,                      36, 7,                       "ANTICHEAT_36" },
+    { PKTOUT_NAME_NONE,                      41, 3,                       "ANTICHEAT_41" },
+    { PKTOUT_NAME_NONE,                      42, 7,                       "ANTICHEAT_42" },
+    { PKTOUT_NAME_NONE,                      49, 3,                       "ANTICHEAT_49" },
+    { PKTOUT_NAME_NONE,                      68, 7,                       "ANTICHEAT_68" },
+    { PKTOUT_NAME_NONE,                      71, 3,                       "ANTICHEAT_71" },
+    { PKTOUT_NAME_NONE,                      81, 7,                       "ANTICHEAT_81" },
+    { PKTOUT_NAME_NONE,                      88, 7,                       "ANTICHEAT_88" },
+    { PKTOUT_NAME_NONE,                      94, 7,                       "ANTICHEAT_94" },
+    { PKTOUT_NAME_NONE,                     107, 7,                       "ANTICHEAT_107" },
+    { PKTOUT_NAME_NONE,                     109, 7,                       "ANTICHEAT_109" },
 };
 /* clang-format on */
 

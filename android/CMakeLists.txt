@@ -1,3 +1,8 @@
+# DEPRECATED — retired v0 Android build. Not maintained, not buildable.
+# Built the v0 tree (scene_tile_test_android) whose sources moved to v0/.
+# The live build is `make -C src` — see readme.md "Building". There is no
+# Android lane in src/platform/platform.mk today; adding one means adding a
+# block there, not reviving this file.
 cmake_minimum_required(VERSION 3.18.1)
 
 # Only set build type if Android Studio hasn't already set it

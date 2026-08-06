@@ -34,16 +34,35 @@ directory, link output. It is defined in [`src/platform/platform.mk`](../src/pla
 adding a host means adding one block there plus its `platform/*.c` backends.
 
 ```sh
+<<<<<<< HEAD
 make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
+=======
+make -C src                  # host native, debug -> src/torirs
+make -C src release          # host native, -O3   -> src/torirs
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
+make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
 make -C src PLATFORM=web <target>   # any target, web flavor
 ```
 
-Each `(PLATFORM, OPT)` pair owns its own object directory (`build`,
-`build_opt`, `build_web`, `build_web_opt`), so flavors never share a `.o`.
+`PLATFORM` values are `macos`, `linux`, `win32` and `web`; the default,
+`native`, resolves to whichever of the first three matches the host. Each
+`(PLATFORM, OPT)` pair owns its own object directory (`build`, `build_opt`,
+`build_web`, `build_web_opt`, `build_win32`, …), so flavors never share a `.o`.
+
+The web lane's invariants — WebGL1 pinned, and **no `-sASYNCIFY`** (the IO path
+below buys the same behaviour by yielding to the main loop instead) — are
+asserted rather than merely intended:
+
+```sh
+make -C src lane-check PLATFORM=web
+make -C src lane-check-all           # every lane, from any host
+```
+
+They are declared in [`src/platform/platform_check.mk`](../src/platform/platform_check.mk).
 
 What the web block swaps:
 

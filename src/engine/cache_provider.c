@@ -767,7 +767,9 @@ CacheProvider_SpriteNameMapPut(
     assert(provider);
     assert(archive_name);
     assert(provider->sprite_name_cache);
-    if( sprite_id < 0 )
+    /* CACHE_PROVIDER_SPRITE_ABSENT is a recordable answer; -1 is not — it is
+     * the lookup's own "never asked" and storing it would freeze that. */
+    if( sprite_id < 0 && sprite_id != CACHE_PROVIDER_SPRITE_ABSENT )
         return;
 
     name_hash = sprite_name_hash(archive_name);

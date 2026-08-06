@@ -1,4 +1,7 @@
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_npc_info.h"
+#include "net/rev/packets/pkt_player_appearance.h"
+#include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/revpacket.h"
 #include "packetin.h"
 #include "packetout.h"
@@ -6,6 +9,13 @@
 #include "net/loginproto_osrs239.h"
 
 #include <stdint.h>
+
+/* osrs239_entity_info.c -- the v5 entity streams. */
+int
+osrs239_player_info_read(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
+
+int
+osrs239_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
 
 /* osrs239_parse.c */
 int
@@ -38,6 +48,20 @@ static int
 rev_packetout_code(int pkt_out_name)
 {
     return packetout_code_osrs239(pkt_out_name);
+}
+
+/* The appearance block moved shape at this revision (two slot arrays, a
+ * different worn-obj tag, a string name, five trailing fields) — see
+ * `APPEARANCE_ENC_V5` in pkt_player_appearance.h. Everything downstream of the
+ * decode is unchanged: the reader emits the same command stream the classic
+ * block does. */
+static int
+rev_appearance_decode(
+    uint8_t const* data,
+    int len,
+    struct PktPlayerAppearance* out)
+{
+    return PktPlayerAppearance_DecodeAs(out, APPEARANCE_ENC_V5, data, len);
 }
 
 /*
@@ -89,6 +113,14 @@ static struct GameProtoRevTable k_rev_osrs239 = {
     .npc_type_bits = 14,
     .login = &g_osrs239_login_vtable,
     .parse = osrs239_parse,
+    .appearance_decode = rev_appearance_decode,
+    /*
+     * PLAYER_INFO and NPC_INFO are a different CODEC at this revision, not a
+     * different field order, which is why they are whole readers rather than
+     * `case`s in the parse. The classic readers stay for every other revision.
+     */
+    .player_info_read = osrs239_player_info_read,
+    .npc_info_read = osrs239_npc_info_read,
 };
 
 struct GameProtoRevTable const*

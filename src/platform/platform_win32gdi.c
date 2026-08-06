@@ -2,7 +2,11 @@
  * platform_win32gdi.c -- Win32 + GDI backend for the src/main.c App front-end.
  *
  * src/main.c programs to the PlatformSDL2 interface (platform_sdl2.h) and, when
+<<<<<<< HEAD
  * built without a GPU renderer, uses the software path:
+=======
+ * built without TORIRS_HAVE_GL3, only ever uses the software path:
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
  *
  *     App_Render(app, PlatformSDL2_Pixels(sdl), W, H);   // CPU raster into pixels
  *     PlatformSDL2_Present(sdl);                          // show the pixels
@@ -10,8 +14,12 @@
  * That is exactly what GDI does well: hand out a top-down 32bpp DIB section as
  * the pixel buffer, then BitBlt/StretchBlt it to the window. This file is a
  * drop-in implementation of the SAME PlatformSDL2_* symbols backed by Win32 GDI
+<<<<<<< HEAD
  * instead of SDL. It also owns the HWND used by both Windows lanes' fixed-
  * function D3D9 renderer; --soft3d keeps using the DIB presentation path below.
+=======
+ * instead of SDL, so main.c builds and runs on Windows XP with no SDL and no GL.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
  *
  * The pixel format matches SDL's ARGB8888 (what App_Render writes): on a
  * little-endian box a top-down BI_RGB 32bpp DIB is byte-order BGRA / word-order
@@ -22,6 +30,7 @@
  * the SDL backend emits (the retained-mode event system), so the client sees an
  * identical input stream regardless of platform.
  *
+<<<<<<< HEAD
  * Built in place of src/platform/platform_sdl2.c: the win32 and win64 lanes in
  * src/platform/platform.mk point PLATFORM_WINDOW_SRC here. Use build_winxp.ps1
  * for the i686 XP artifact or build_windows.ps1 for modern x86_64 Windows.
@@ -29,6 +38,14 @@
 
 #include "platform/platform_sdl2.h"
 #include "platform/platform_win32_timing.h"
+=======
+ * Built in place of src/platform/platform_sdl2.c: the win32 lane in
+ * src/platform/platform.mk points PLATFORM_WINDOW_SRC here. Build it with
+ * `make -C src winxp` (or build_winxp.ps1, which supplies the i686 toolchain).
+ */
+
+#include "platform/platform_sdl2.h"
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -45,9 +62,12 @@
 #  define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
 #  define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
 #endif
+<<<<<<< HEAD
 #ifndef WM_PRINTCLIENT
 #  define WM_PRINTCLIENT 0x0318
 #endif
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
 
@@ -60,8 +80,11 @@ struct PlatformSDL2
     int*    pixels;          /* DIB bits; App_Render writes here (ARGB8888)   */
     int     width;
     int     height;
+<<<<<<< HEAD
     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
     int     timing_active;
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
     int     quit;
     int     esc_quits;       /* TORIRS_ESC_QUIT: ESC closes the window        */
@@ -75,9 +98,12 @@ struct PlatformSDL2
     int     pending_resize_w;
     int     pending_resize_h;
     int     pending_repeat;
+<<<<<<< HEAD
 #if defined(TORIRS_WIN32_GDI_TEST_API)
     uint32_t paint_count;
 #endif
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 };
 
 /* ---- pixel buffer ------------------------------------------------------- */
@@ -108,6 +134,7 @@ gdi_make_dib(struct PlatformSDL2* p, int width, int height)
     /* Swap the new DIB in, retire the old one. */
     {
         HGDIOBJ prev = SelectObject(p->mem_dc, dib);
+<<<<<<< HEAD
         if( !prev || prev == HGDI_ERROR || (p->dib && prev != (HGDIOBJ)p->dib) )
         {
             /* Leave the platform's published buffer unchanged if the memory
@@ -121,12 +148,21 @@ gdi_make_dib(struct PlatformSDL2* p, int width, int height)
             p->old_bmp = (HBITMAP)prev; /* remember the DC's default bitmap */
         else
             DeleteObject(p->dib); /* resize: the old DIB is now unselected */
+=======
+        if( !p->dib )
+            p->old_bmp = prev; /* first bind: remember the DC's default bitmap */
+        else
+            DeleteObject(prev); /* resize: prev is our previous DIB */
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     }
     p->dib = dib;
     p->pixels = (int*)bits;
     p->width = width;
     p->height = height;
+<<<<<<< HEAD
     p->gdi_frame_valid = 0;
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     memset(p->pixels, 0, (size_t)width * (size_t)height * sizeof(int));
     return 1;
 }
@@ -208,6 +244,7 @@ map_mouse(struct PlatformSDL2* p, int win_x, int win_y, int* out_x, int* out_y)
     *out_y = y;
 }
 
+<<<<<<< HEAD
 /* Paint the last complete software frame. RECT.right/bottom in `box` are the
  * destination width/height (letterbox_dst predates this helper), not absolute
  * coordinates. Keeping every visible operation here makes normal presents,
@@ -268,6 +305,8 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     }
 }
 
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 /* ---- Win32 VK -> torirs key code (mirrors sdl_keycode_to_torirs) -------- */
 
 static enum LibToriRS_KeyCode
@@ -358,6 +397,7 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
     switch( msg )
     {
+<<<<<<< HEAD
     case WM_ERASEBKGND:
         /* The complete DIB below owns every client pixel. Default erasure used
          * to paint it black before the next out-of-band GetDC blit. */
@@ -384,6 +424,8 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             gdi_paint_latest(p, (HDC)wparam);
         return 0;
 
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     case WM_CLOSE:
     case WM_DESTROY:
         if( p )
@@ -487,6 +529,7 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         break;
 
     case WM_SIZE:
+<<<<<<< HEAD
         if( p && wparam != SIZE_MINIMIZED )
         {
             if( p->gdi_frame_valid )
@@ -496,6 +539,12 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                 p->pending_resize_w = LOWORD(lparam);
                 p->pending_resize_h = HIWORD(lparam);
             }
+=======
+        if( p && p->canvas_follows_window && wparam != SIZE_MINIMIZED )
+        {
+            p->pending_resize_w = LOWORD(lparam);
+            p->pending_resize_h = HIWORD(lparam);
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
         }
         break;
 
@@ -527,6 +576,7 @@ register_class(void)
     if( registered )
         return 1;
     memset(&wc, 0, sizeof(wc));
+<<<<<<< HEAD
     wc.style = CS_OWNDC;
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = GetModuleHandle(NULL);
@@ -534,6 +584,13 @@ register_class(void)
     /* The retained DIB repaints invalid regions; a class brush would erase the
      * frame before WM_PAINT and recreate the black flash this backend avoids. */
     wc.hbrBackground = NULL;
+=======
+    wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    wc.lpfnWndProc = wnd_proc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     wc.lpszClassName = RPD_WNDCLASS;
     if( !RegisterClassA(&wc) )
         return 0;
@@ -590,8 +647,11 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
         return false;
     }
 
+<<<<<<< HEAD
     p->timing_active = PlatformWin32Timing_Init() ? 1 : 0;
 
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     ShowWindow(p->hwnd, getenv("TORIRS_WIN32_HIDDEN") ? SW_HIDE : SW_SHOW);
     UpdateWindow(p->hwnd);
     return true;
@@ -617,12 +677,15 @@ PlatformSDL2_Window(struct PlatformSDL2* p)
     return NULL;
 }
 
+<<<<<<< HEAD
 void*
 PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* p)
 {
     return p ? (void*)p->hwnd : NULL;
 }
 
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 void
 PlatformSDL2_Free(struct PlatformSDL2* p)
 {
@@ -638,8 +701,11 @@ PlatformSDL2_Free(struct PlatformSDL2* p)
         DeleteObject(p->dib);
     if( p->hwnd )
         DestroyWindow(p->hwnd);
+<<<<<<< HEAD
     if( p->timing_active )
         PlatformWin32Timing_Shutdown();
+=======
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     free(p);
 }
 
@@ -786,21 +852,61 @@ void
 PlatformSDL2_Present(struct PlatformSDL2* p)
 {
     HDC dc;
+<<<<<<< HEAD
+=======
+    RECT client;
+    RECT box;
+    int win_w;
+    int win_h;
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
     assert(p);
     assert(p->pixels);
     if( !p->hwnd )
         return;
 
+<<<<<<< HEAD
     /* App_Render has returned, so WM_PAINT may now reuse this DIB. This flag
      * stays clear for D3D9, preventing repair paints from covering its surface
      * with the software buffer that renderer never populated. */
     p->gdi_frame_valid = 1;
+=======
+    GetClientRect(p->hwnd, &client);
+    win_w = client.right - client.left;
+    win_h = client.bottom - client.top;
+    letterbox_dst(p->width, p->height, win_w, win_h, &box);
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
     dc = GetDC(p->hwnd);
     if( !dc )
         return;
+<<<<<<< HEAD
     gdi_paint_latest(p, dc);
+=======
+
+    /* Black bars only when the image does not fill the window. */
+    if( box.left != 0 || box.top != 0 || box.right != win_w || box.bottom != win_h )
+    {
+        RECT full;
+        full.left = 0;
+        full.top = 0;
+        full.right = win_w;
+        full.bottom = win_h;
+        FillRect(dc, &full, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    }
+
+    if( box.right == p->width && box.bottom == p->height )
+    {
+        BitBlt(dc, box.left, box.top, p->width, p->height, p->mem_dc, 0, 0, SRCCOPY);
+    }
+    else
+    {
+        SetStretchBltMode(dc, COLORONCOLOR);
+        StretchBlt(
+            dc, box.left, box.top, box.right, box.bottom,
+            p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
+    }
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
     ReleaseDC(p->hwnd, dc);
 }
 
@@ -813,6 +919,7 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* p)
 uint64_t
 PlatformSDL2_Ticks64(void)
 {
+<<<<<<< HEAD
     return PlatformWin32Timing_NowMs();
 }
 
@@ -829,3 +936,15 @@ PlatformSDL2_Win32TestPaintCount(struct PlatformSDL2* p)
     return p ? p->paint_count : 0;
 }
 #endif
+=======
+    /* GetTickCount is XP-safe (GetTickCount64 is Vista+). It wraps after ~49
+     * days of uptime, which no benchmark run will span. */
+    return (uint64_t)GetTickCount();
+}
+
+void
+PlatformSDL2_Delay(uint32_t ms)
+{
+    Sleep(ms);
+}
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c

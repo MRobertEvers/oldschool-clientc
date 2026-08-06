@@ -4,6 +4,7 @@ Rewrite of the osrs renderer.
 
 ## Building
 
+<<<<<<< HEAD
 The current client is built by [`src/makefile`](src/makefile). The root CMake
 project and the `v0`/`v1` trees are historical snapshots, not alternate build
 lanes.
@@ -32,6 +33,211 @@ The remaining material is an engineering notebook, not a platform build or
 compatibility contract. Platform guidance belongs in the registry linked above.
 
 ### TODO
+=======
+Plain make, **not CMake** — the CMake tree is deprecated and no longer
+configures (its sources moved to `v0/`). One variable, `PLATFORM`, picks the
+whole host: compiler, windowing/audio/IO backends, object directory and link
+output. Every lane is declared in one place,
+[`src/platform/platform.mk`](src/platform/platform.mk), and nothing above that
+file tests `PLATFORM` — adding a platform means adding one block there.
+
+### The build matrix
+
+| Lane | Command | Artifact | Toolchain |
+|---|---|---|---|
+| macOS / Linux, debug | `make -C src` | `src/torirs` | host `cc` + SDL2 |
+| macOS / Linux, release | `make -C src release` | `src/torirs` | host `cc` + SDL2 |
+| Web, release | `make -C src web` | `build-web/torirs.js` | `emcc` |
+| Web, debug | `make -C src web-debug` | `build-web/torirs.js` | `emcc` |
+| Windows XP, release | `make -C src winxp` | `src/torirs.exe` | i686 MinGW |
+| Windows XP, debug | `make -C src winxp-debug` | `src/torirs.exe` | i686 MinGW |
+
+`make -C src` with no `PLATFORM` resolves `native` to `macos`, `linux` or
+`win32` from the host. To build a lane explicitly, pass it:
+`make -C src PLATFORM=web all`.
+
+Running the result:
+
+```
+./run-live.sh                   # native client
+./run-live.sh web               # web build + IO server on :8088
+./build_winxp.ps1 -Opt          # XP build + staging to dist\win32\torirs.exe
+./profile-mac.sh                # macOS flamegraph (see the file's header)
+```
+
+### Lane invariants
+
+Each lane has flags that are load-bearing rather than incidental — the XP
+subsystem version, the web build's WebGL1 pinning, the one linker that has
+`-dead_strip`. Those are asserted, not just documented:
+
+```
+make -C src lane-check                    # this host's lane
+make -C src lane-check PLATFORM=win32     # any lane, from any host
+make -C src lane-check-all                # all four
+make -C src lane-check-artifact PLATFORM=win32   # probe the linked binary
+```
+
+What each lane must and must not contain is declared in
+[`src/platform/platform_check.mk`](src/platform/platform_check.mk). `winxp` and
+`winxp-debug` run `lane-check` before compiling, so a 64-bit toolchain on
+`PATH` fails in one line instead of producing a binary XP silently refuses to
+load.
+
+### Build flavors
+
+Orthogonal to `PLATFORM`; each combination gets its own object directory so
+flavors never share a `.o`:
+
+| Variable | Effect |
+|---|---|
+| `OPT=1` | `-O3` (what `release` / `web` / `winxp` set) |
+| `EMBED_SERVER=1` | link the rev-230 server into the client — standalone, no separate server |
+| `TORIDRAW_OPT=1` | Soft3D/ToriDraw unity at `-O2` regardless of `OPT` |
+| `MEMTRACE=1` | interpose the heap and write `memtrace.bin` (see `tools/memtrace/README.md`) |
+| `ENABLE_ASAN=1` | AddressSanitizer (mutually exclusive with `MEMTRACE`) |
+
+`make -C src clean` removes every lane's objdirs and outputs; it recurses over
+the lane list rather than hardcoding directory names.
+
+### Host tools and the vendored toolchain
+
+`cachepack`, `sscompile` and the other helpers under `3rd/*/tools` run on *your*
+machine, not on the target, and are built with `HOST_CC` rather than the lane's
+`PLATFORM_CC`. That distinction matters on Windows: building them with the i686
+XP toolchain produced a 32-bit `cachepack`, and it is the one program here that
+has to chew through a whole cache.
+
+`HOST_CC` resolves in this order:
+
+1. `toolchain/mingw64/bin/gcc.exe` — a 64-bit MinGW-w64 unpacked into the repo
+2. `x86_64-w64-mingw32-gcc` on `PATH`
+3. the lane's compiler, so a machine with neither still builds
+
+`toolchain/` is gitignored, so the toolchain never enters git history. To set it
+up on Windows, unzip a [winlibs](https://github.com/brechtsanders/winlibs_mingw/releases)
+x86_64 release into it so that `toolchain/mingw64/bin/gcc.exe` exists. On macOS
+and Linux the system `cc` is already the host compiler and none of this applies.
+
+### Content pipeline
+
+The client boots from a cache, and the cache is built from
+`OSRS-Content/osrs239-content/`:
+
+| Step | Command | Output |
+|---|---|---|
+| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+
+The bake takes `--base` when a pristine cache is present, so records the tree
+does not change keep the bytes they had. **Without a base it creates the cache**,
+and what lands is exactly what the tree states — useful when there is no
+pristine cache to start from, and not what you want if you were relying on a
+base cache's untouched records. Aim it elsewhere with:
+
+```
+make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+```
+
+`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+table with no idx file is a table the client cannot read, and `idx255` — the
+reference-table index — is what makes every other table reachable at all.
+
+### Booting a packed cache
+
+[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
+`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+cache built from content rather than the pristine dump:
+
+```
+make -C src winxp
+src/torirs.exe --manifest manifest_osrs239_packed.ini --offline
+```
+
+Two things a from-scratch cache needs that a `--base` bake inherits for free,
+both of which the packer now does:
+
+- **`idx255` reference tables.** An archive is only reachable through one.
+- **Archive name identifiers.** Half the cache is addressed by name — the
+  client resolves a sprite by hashing the name (djb2) and scanning
+  `archives[i].identifier`. Without them the client boots to a frame with no
+  compass, no map scene and no hitmarks, everything looked up by name silently
+  absent, while every byte of every archive is present and correct.
+
+Headless verification, which is what proves the cache is bootable rather than
+merely complete:
+
+```
+TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
+    src/torirs.exe --manifest manifest_osrs239_packed.ini --offline
+```
+
+### Deprecated build files
+
+Kept for reference only, and made to fail loudly rather than confusingly:
+root `CMakeLists.txt`, `android/CMakeLists.txt`, `cmake/FindSDL2.cmake`,
+`v1/programs/*/Makefile`, `scripts/build_browser.{sh,ps1}`,
+`scripts/copy_browser_files.ps1`, and `www/BUILD_WINXP.md`.
+
+### C vs C++ ABI (shared headers)
+
+Parts of the tree compile the same headers as **both C and C++** (e.g. `test/win32.cpp` and `LibToriRS_GameNew` in `src/tori_rs_init.u.c` both use `struct GGame` from `src/osrs/game.h`). **The layout of every shared struct must be identical in both languages.** If it is not, fields are read at the wrong offset: pointers look like small integers (e.g. `0x14`), “works under the debugger” heisenbugs, or link errors from mangled C symbols.
+
+**How to avoid:**
+
+- **Do not nest struct types inside a shared aggregate** when MSVC or mixed C/C++ is in play unless you are sure both sides match. Prefer **file-scope** helper structs (see `struct UITraversalFrame` before `struct GGame` in `game.h`).
+- **Do not use empty structs** (`struct Foo {}`) in headers included from C: C and C++ give them **different sizes**. Use a **dummy `uint8_t` member** where a “marker” type is needed (`game_entity.h`, `lua_gametypes.h`, packet structs, etc.).
+- **Win32 `.cpp` files:** include **`<windows.h>` first**, then wrap **`graphics/dash.h`**, **`osrs/game.h`**, and other engine headers in **`extern "C" { #include … }`** before C++ platform headers. See `src/platforms/platform_impl2_win32.cpp` and the Win32 renderer `.cpp` files. Shared headers that declare C APIs should use **`#ifdef __cplusplus` / `extern "C"`** around declarations (`dash.h`, `cache_dat.h`, `nuklear_rawfb.h`).
+- **Macros in headers parsed as C++:** avoid MSVC designated-initializer forms in macros where C++ can parse `[` differently (see **`PACKET_DEFINITION`** in `src/osrs/packetin.h` — positional `{ name, code, length }` only).
+- **ToriRSPlatformKit / D3D8 SoAoS:** after `windows.h`, avoid fragile **`_Alignas`** on SoAoS members; use **`TRSPK_VERTEX_SOAOS_MEMBER_ALIGN`** and **plain integer** alignment constants in `trspk_vertex_soaos_config.h` (details in [docs/d3d8_renderer_architecture.md](docs/d3d8_renderer_architecture.md)).
+
+**Win32 D3D8 reference (monolithic baseline):** the last known-good **all-in-one** Win32 D3D8 implementation before the ToriRSPlatformKit split is commit `9c62ec2d` (message: `d3d8 3d working!`). Inspect the tree with `git show 9c62ec2d:src/platforms/platform_impl2_win32_renderer_d3d8.cpp` and compare device setup, fixed-function state (`D3DRS_LIGHTING`, depth, transforms), `SetIndices` base vertex + `DrawIndexedPrimitive`, and batching to `src/platforms/ToriRSPlatformKit/src/backends/d3d8/`.
+
+### Building - Linux
+
+For linux, install bzip
+
+```
+sudo apt-get update
+
+# GCC
+sudo apt install build-essential
+
+# FreeType, SDL2
+sudo apt install libfreetype6-dev libsdl2-dev
+```
+
+### Setup
+
+Required dependencies, by lane:
+
+| Lane | Needs |
+|---|---|
+| `macos` / `linux` | SDL2 (found via `pkg-config`, then `sdl2-config`, then a Homebrew / `/usr/local` fallback) |
+| `web` | the Emscripten SDK (`emcc` on `PATH`) |
+| `win32` | an i686 MinGW toolchain — nothing else; the lane links no SDL and no GL |
+
+CMake is **not** required for any lane.
+
+#### Mac
+
+Install SDL2.
+
+```
+brew install sdl2
+```
+
+### Debugging - WASM
+
+When building to debug wasm, you need to make sure there is no `.wasm.map` file in the output build folder. For some reason, that causes chrome to mess up line numbers and dwarf info. You need only to install the chrome debug extension here https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb
+
+and compile with `-O0 -g`.
+
+### TODOS
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 1. Contour Ground
 2. Minimap
@@ -1192,6 +1398,7 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ### Historical platform benchmarks
 
+<<<<<<< HEAD
 The CMake/MSVC/SDL Windows recipes that used to precede these captures targeted
 the retired renderer stack and have been removed. Current Windows builds use
 the raw-Win32 backend through distinct modern x86_64 and XP-compatible i686
@@ -1218,6 +1425,30 @@ Native Mingw Static
 
 Also noticing that the deob is faster for big screens.
 Update: No that's not true, it just doesn't work on big screens.
+=======
+Windows is the `win32` lane — see [The build matrix](#the-build-matrix) at the
+top of this file:
+
+```
+make -C src winxp             # Windows XP / i686  -> src/torirs.exe
+make -C src winxp-debug
+.\build_winxp.ps1 -Opt        # toolchain setup + staging to dist\win32\
+```
+
+It presents through GDI (`src/platform/platform_win32gdi.c`, a top-down DIB +
+BitBlt implementation of the `PlatformSDL2` interface) with no SDL and no GL,
+so the only external requirement is an i686 MinGW toolchain on `PATH`. The XP
+ABI contract — `-D_WIN32_WINNT=0x0501`, `-march=pentium4 -msse2 -mfpmath=sse`,
+`-static-libgcc`, and PE subsystem version 5.01 — is declared in the `win32`
+block of [`src/platform/platform.mk`](src/platform/platform.mk) and asserted by
+`make -C src lane-check PLATFORM=win32`.
+
+> **Removed:** this section previously held ~280 lines of vcpkg / MSVC / Ninja /
+> MSYS2 / `emcmake` instructions for the v0 CMake build. That build is
+> deprecated and can no longer configure — its sources moved to `v0/` — so none
+> of those commands could be followed. For the web build see
+> [docs/web_build.md](docs/web_build.md) and `make -C src web`.
+>>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 # World and model coords
 
@@ -2358,16 +2589,16 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 - `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
   transform (multiloc) table, and the shape -> model groups the build selects
   from. Reach for it when a loc looks like it is in the wrong place: a
-  misaligned shape/model table hands back a *different object* at the correct
+  misaligned shape/model table hands back a _different object_ at the correct
   position, and a multiloc's transform target can disagree with the base about
   the footprint (see the multiloc note under scenery placement below) — neither
   is visible from the placement arithmetic.
 - `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
   (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
-  "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+"x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
   — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
   loc drawn over its own tile", which nothing else can: every other diagnostic
-  reports what the *build* decided, and a loc placed right but drawn wrong is
+  reports what the _build_ decided, and a loc placed right but drawn wrong is
   indistinguishable from one placed wrong until you compare a loc's pick region
   against the terrain picks at the same pixels. Expect a loc's pick centroid to
   sit ~7px above its tile's and ~2px west — that is height parallax, not a
@@ -2502,7 +2733,6 @@ They turn.
 When facing directly back; 3-x-3 column
 When out of range, they turn towards the player.
 Becomes 1-x-5
-
 
 ### Server Vars
 
