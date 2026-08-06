@@ -368,3 +368,13 @@ mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
      */
     rsab_bytes(buf);
 }
+
+int
+mock239_npcinfo_tail_needs_sentinel(
+    size_t bit_position,
+    size_t extended_bytes)
+{
+    size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
+
+    return padding_bits + extended_bytes * 8u >= 28u;
+}

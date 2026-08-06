@@ -23,7 +23,10 @@ through RuneLite, receives and decodes the relevant server packets, accepts
 controlled input through JCTL, emits the expected client packet or CS2 effect,
 the server observes and handles it, and the resulting framebuffer is captured.
 
-Artifacts for the current run live under `build/run239/proof/`.
+The original parity artifacts live under `build/run239/proof/`. The expanded
+regression investigation and final combined acceptance artifacts live under
+`build/run239-regressions/`, with the accepted five-regression run in
+`combined-five-final3/`.
 
 ## Completion status
 
@@ -39,9 +42,14 @@ Loop, and Account Benefits open/close. The final report is
 RuneLite 239 full interface parity contract: PASS
 ```
 
-No requested interface-parity item remains open. The broader mock world still
-has unrelated content/combat/pathing self-test failures; they are not counted
-as interface success and are not hidden by this contract.
+The follow-up camera, house, Hans, running, and client-layout regressions are
+also complete. Their final combined run used a blocking EVENTS subscriber
+attached before launch and passed all five workflows against the real compiled
+239 deob. No game-runtime exception, packet decode error, interface writer gap,
+or unexpected disconnect occurred before the explicit quit, and the post-quit
+telemetry report completed normally. The correctly cache-backed broad mock
+world self-test still has 23 unrelated content/combat/pathing failures; they are
+not counted as interface success and are not hidden by this contract.
 
 ## How the authoritative CS2VM works
 
@@ -425,6 +433,229 @@ RuneLite. A second standalone `EVENTS` reader remained attached throughout the
 final run, writing `build/run239/proof/final_parity_events.log`; no screenshot
 polling or idle-client assumption is part of the verdict.
 
+### Camera zoom was blocked by uninitialised server-owned varcs, not input capture
+
+The baseline separated all three input paths before changing the server:
+
+- real AWT wheel input produced `wheel_awt rotation=-1 consumed=false`, the
+  client's wheel poll returned `-1`, and CS2 scripts 39 (`camera_zoom`) and 42
+  (`camera_do_zoom`) ran;
+- the normal Display slider ran scripts 1047/1048 and ultimately script 42;
+- the All settings `Camera zoom distance` row ran scripts 3895/3898/3899 and
+  ultimately script 42.
+
+All three nevertheless clamped to the same FOV. The authoritative 239 scripts
+show why: script 605 writes the four camera-bound varcs 1338..1341, script 626
+invokes it with `(128, 896, 128, 896)`, and script 42 clamps against those
+varcs. mock230 never sent that initialisation, so Java's zero defaults collapsed
+the range. `mock230_world_login_finish` now sends
+`RUNCLIENTSCRIPT 605(128,896,128,896)` for revision 239 and later. The final
+ordered event record contains the exact invocation at event 45.
+
+The final combined run proves the paths independently. Wheel input changes FOV
+512→536, the normal slider changes 536→127, and the All settings slider changes
+127→1314. The corresponding traces are
+`build/run239-regressions/combined-final/proof/camera_wheel_cs2.json`,
+`camera_normal_slider_cs2.json`, and `camera_allsettings_slider_cs2.json`; the
+before/after frames are `06_camera_wheel.png`, `07_display.png`,
+`08_normal_slider.png`, `09_allsettings_zoom.png`, and
+`10_allsettings_slider.png` in the same directory.
+
+The All settings slider is deliberately client-local. Its dynamically-created
+`134:19 sub=24` click zone has an on-op CS2 callback but no server
+`IF_SETEVENTS`, sends no IF_BUTTON packet, and therefore produces one diagnostic
+`arm_missing` event. That is not an interface writer gap; the packet writer is
+not involved, and the client trace plus FOV/varc transition is the acceptance
+signal.
+
+### House options is a side-only modal and CLOSE_MODAL has no component id
+
+House options is group 370 mounted at `164:71`, and its close component is
+`370:24`. The golden client runs script 29 (`if_close`) and sends the zero-byte
+`CLOSE_MODAL` packet (revision-239 opcode 95), followed by the ordinary collapsed
+IF_BUTTON traffic for the clicked component. The close packet does not identify
+which component or interface initiated it.
+
+mock230 tracked group 370 only as `sidemodal_group`; its close routine returned
+early whenever `mainmodal_group` was empty. The server therefore retained the
+mount after the client had closed its local copy. The close routine now snapshots
+both modal groups, runs `[if_close]` for each group that exists, and emits
+`IF_CLOSESUB` for a side-only mount as well as for main modal state. A focused
+self-test now constructs exactly the `main=0, side=poh_options` case.
+
+The final combined record shows `CLOSE_MODAL (main=0 side=370 chat=0)`, followed
+by `IF_CLOSESUB`; `11_house_open.png` contains the mounted panel and
+`12_house_closed.png` plus the final mount table prove it was removed.
+`house_close_cs2.json` contains script 29.
+
+### Hans exposed a six-byte dynamic choice callback
+
+The deterministic dialogue baseline found a separate callback defect before
+the actor-stream crash described below. Selecting a chatmenu row made the golden
+client send revision-239 `RESUME_PAUSEBUTTON` opcode 115 as
+`g4Alt3(parent uid) + g2(dynamic sub-id)`. For row 1 of `chatmenu:options` the
+literal body is `db 00 01 00 00 01`, which normalises to
+`00 db 00 01 00 01` (`219:1`, sub 1). The translator discarded the final two
+bytes, so `last_slot` stayed zero and the same choice reopened indefinitely.
+
+The inbound translator now preserves the complete six-byte callback. The world
+handler accepts both classic four-byte and revision-239 six-byte forms, maps
+`ffff` to no subcomponent, and sets `last_slot` before resuming the parked
+server script. The literal inbound test and the Hans self-test both use the
+six-byte packet rather than substituting IF_BUTTON1.
+
+The final clean session used an actual right-click `Talk-to Hans` menu action,
+not a direct server trigger. It walked to NPC slot 26, opened the dialogue,
+selected row 1 with real AWT input, logged
+`RESUME_PAUSEBUTTON 219:1 sub=1`, advanced to the selected player line, and
+completed the conversation. Evidence is `02_hans_menu.png` through
+`05_hans_progressed.png`, `hans_talk_cs2.json`, `hans_choice_cs2.json`, the
+ordered EVENTS record, and the server log under
+`build/run239-regressions/combined-final`.
+
+The reported "Hans crash" was therefore two observable failures: the lost
+choice sub-id when dialogue was invoked directly, and the NPC_INFO decoder
+failure encountered while physically approaching/interacting with Hans. There
+was no separate Hans-script Java exception in the direct-dialogue baseline.
+
+### The running crash was a revision-239 NPC_INFO boundary violation
+
+The independent movement reproduction retained the last completed framebuffer,
+ordered EVENTS tail, packet/CS2 traces, and both logs under
+`build/run239-regressions/diagnosis`. The fatal client condition was:
+
+```
+java.lang.RuntimeException: 66,9
+    at Statics.method13029(Statics.java:55602)
+    at client.method2413(client.java:3363)
+    at Statics.method1844(...)
+    at client.method2036(...)
+    at client.method1743(...)
+```
+
+The final NPC_INFO payload was the literal nine bytes
+`0d 3d e9 4a 81 c7 ff f8 00`. Golden-client bit traversal consumed 13 tracked
+entries and ended at bit 45 with one queued extended update. Its low-resolution
+loop only reads another NPC index when at least `16 + 12 = 28` bits remain.
+The old packet left 27 bits including its sentinel, so the client could not
+enter the loop to consume `ffff`; it byte-aligned, treated `ff` as the extended
+mask, and overran at offset 66 of a nine-byte packet.
+
+Two encoder errors combined at that boundary. A face-only NPC was marked as
+having extended information even though the v5 encoder intentionally has no
+FACE_ENTITY/FACE_COORD block, and sentinel emission used `queued_count > 0`
+instead of the golden 28-bit guard. The v5 pending-mask predicate now includes
+only blocks the v5 writer actually serialises, encodes the byte tail separately,
+and emits `ffff` exactly when padding plus the extended tail is at least 28
+bits. `mock239_npcinfo_tail_needs_sentinel` has focused bit-45 and byte-aligned
+threshold tests derived from the captured packet.
+
+The final combined session then used the real Hans approach plus 24 independent
+terrain clicks. Its NPC log repeatedly crosses the original tracked-count 13
+condition with legal packet lengths and `extended=0` for face-only changes;
+GPI remains `high=1 low=2046 pending=0 entity=true`. `13_movement_final.png`
+and `14_final_frame.png` are complete presented frames after the stress pass.
+
+### Final four-regression acceptance run
+
+`build/run239-regressions/combined-final/proof/events.log` is the blocking EVENTS
+subscriber attached before RuneLite launch. It retains 1,545 ordered lines from
+STARTING through all interactions. The final stack used the rebuilt authoritative
+239 deob, mock230 on 43630, jav_config on 8097, and JCTL on 43635.
+
+The run proves actual Hans NPC input, wheel zoom, normal slider zoom, All settings
+slider zoom, side-only house close, and independent movement in one login. The
+pre-quit health scan found no game/client runtime fatal, packet decode error,
+unknown inbound opcode, interface writer gap, or unexpected disconnect. The
+last framebuffer and GPI state were captured before the explicit JCTL quit.
+
+The first combined attempt revealed a telemetry-only shutdown race:
+`JProf.percentiles` read `ringUsed` repeatedly while the last game frame could
+increment it, selecting index N from an N-element snapshot. JProf now snapshots
+the length once. The repeated final run exits normally, writes the full profiler
+report, and contains no uncaught shutdown exception. RuneLite still logs its
+pre-existing, caught INFO-level `setupCompilerControl` missing-resource warning;
+it occurs before login and is not a client/game-thread failure.
+
+### Client layout selection was a callback and widget-lifecycle defect
+
+The authoritative revision-239 client does not encode Fixed, Resizable Classic,
+and Resizable Modern as `WINDOW_STATUS` values 0/1/2. Its outbound writer sends
+one byte with window mode 1 for Fixed or 2 for either resizable layout, followed
+by the big-endian canvas width and height. The distinction between the two
+resizable roots exists in varbit 4607 (`resizable_stone_arrangement`) and in the
+selected dynamic dropdown row.
+
+The Display dropdown is created by script 4568. Its rows are dynamic children
+`116:40` subids 1..3, and selecting a row runs script 4569. The golden script
+updates the row label/timer and emits the normal component operation, but does
+not call script 3998 for this row type. The exact revision-239 outbound callback
+is opcode 47 (`IF_BUTTON1` after normalisation) with the `116:40` uid and the
+selected subid. mock230 had not armed those dynamic children, so the rows looked
+interactive but had no server callback.
+
+Content now arms subids 1..3 and maps them to Fixed, Classic, and Modern. The
+server latches the precise selection before content resumes, because the later
+`WINDOW_STATUS` packet cannot recover that information. A queued apply runs
+client script 3998, opens root 548/161/164, synchronises varbit 4607, and then
+runs script 7990 to recreate the Display panel's dynamic children. That last
+step is essential: `IF_OPENTOP` replaces the root while preserving the mounted
+settings group id, so its onLoad does not otherwise recreate the dropdown.
+
+Live proof in `build/run239-regressions/layout_final2/proof` first established
+the fix independently. The final combined session repeats all three choices:
+`14-layout-modern.png` has root 164, varbit 4607=1, and label `Resizable -
+Modern layout`; `15-layout-fixed.png` has root 548, varbit 0, label `Fixed -
+Classic layout`, and server `WINDOW_STATUS window=1`; `16-layout-classic.png`
+returns to root 161, varbit 0, label `Resizable - Classic layout`, and server
+`WINDOW_STATUS window=2`. Each recreated dropdown retained effective op-1 masks
+on subids 1..3.
+
+### The revision-239 widget layout arithmetic is intact
+
+The reported interface geometry was audited against the compilable 239 deob,
+not inferred from content. `Statics.method3791` implements width/height modes
+0 (absolute), 1 (parent minus inset), 2 (14-bit proportional), and 4 (aspect
+ratio). `Statics.method6166` implements the corresponding absolute, centred,
+right/bottom, proportional, proportional-centred, and proportional-right/bottom
+position modes. The rebuilt instrumented jar's bytecode preserves those
+operations; differences in the Java source are equivalent decompiler branch
+forms, not altered arithmetic.
+
+JCTL now reports original/relative geometry, all four alignment modes, parent
+identity and bounds, and on-op listeners. Live probes such as `116:27`, its
+dynamic label `116:27:4`, and layout row `116:40:3` match the authoritative
+formulas in Fixed, Classic, and Modern roots. The Hans frame in
+`combined-five-final3/proof/02-hans-dialogue.png` also matches the supplied
+reference structure: wide lower chatbox, left portrait, centred speaker/name
+and continue prompt. The apparent layout corruption came from the wrong root,
+unarmed dynamic rows, and lost CC-created children after root replacement—not
+from a remaining core decompilation math defect.
+
+### Final five-regression acceptance run
+
+`build/run239-regressions/combined-five-final3/proof/events.log` is the blocking
+EVENTS subscriber connected before RuneLite launched. The run used only real
+AWT input through JCTL and retained 22 complete framebuffers, focused CS2 traces,
+widget/GPI/camera state, complete packet logging, and server logging.
+
+In one clean login it completed the Hans conversation from a live NPC hull,
+made 24 independent terrain clicks with running enabled, changed camera FOV by
+the normal slider (497→1345), changed it again through the All settings slider
+(1345→1399), changed it by wheel input (1399→1198), selected Modern, Fixed, and
+Classic layouts, and closed the side-only house interface. Final GPI was
+`high=1 low=2046 pending=0 entity=true`; group 370 was absent from the final
+mount table; the final layout was root 161 with varbit 4607=0.
+
+The ordered record includes both `wheel_awt` and `wheel_poll`, exact layout
+IF_BUTTON packets and roots, CLOSE_MODAL opcode 95 followed by IF_CLOSESUB, and
+all NPC_INFO traffic. The pre-quit scan found no game runtime exception, packet
+decode error, unknown inbound opcode, interface writer gap, unexpected
+disconnect, or profiler shutdown failure. The only exception text is RuneLite's
+known caught, pre-login `setupCompilerControl` warning. Explicit JCTL quit wrote
+the complete profiler report, and only this run's recorded server/jav_config
+PIDs were stopped afterward.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -595,3 +826,122 @@ polling or idle-client assumption is part of the verdict.
 - 2026-08-06: Opened the authoritative Deob telemetry/renderer PR at
   `https://github.com/MRobertEvers/Deob/pull/1`; GitHub reports it cleanly
   mergeable into `perf-instrumentation`.
+- 2026-08-06: Read this integration record in full, fetched the root/content/deob
+  PR branches, inspected both PR diffs, and created clean isolated root,
+  OSRS-Content, Deob, and RuneLite worktrees. Left every pre-existing dirty
+  primary tree and lagging local branch ref untouched.
+- 2026-08-06: Started a blocking EVENTS subscriber before the baseline client
+  and reproduced dead wheel zoom with both `wheel_awt` and `wheel_poll`
+  present. Reproduced the normal Display slider and All settings slider with
+  their CS2 callbacks running but FOV unchanged.
+- 2026-08-06: Read golden scripts 39, 42, 605, 626, 833, 1043, 1047, 1048,
+  3895, 3898, and 3899. Identified zero varcs 1338..1341 as the common clamp and
+  added revision-239 login `RUNCLIENTSCRIPT 605(128,896,128,896)`.
+- 2026-08-06: Reproduced house options at mount `164:71->370`, component
+  `370:24`, with CS2 script 29 and outbound CLOSE_MODAL opcode 95. Proved the
+  server returned on `main=0, side=370`, then fixed side-only `[if_close]` and
+  IF_CLOSESUB lifecycle handling.
+- 2026-08-06: Reproduced Hans's chatmenu loop and retained its screenshots,
+  ordered events, packet and CS2 traces. Read the golden outbound decoder and
+  corrected opcode 115 translation to preserve its trailing dynamic sub-id.
+- 2026-08-06: Reproduced the independent running failure and retained the
+  exception stack, final EVENTS records, server/client tails, fatal nine-byte
+  NPC_INFO payload, and last completed framebuffer under
+  `build/run239-regressions/diagnosis`.
+- 2026-08-06: Walked the golden NPC traversal at the bit level: 13 tracked
+  entries ended at bit 45 and the 27-bit suffix could not satisfy the client's
+  28-bit add-record guard. Split the v5 tail, mirrored the exact sentinel
+  threshold, and stopped queueing unsupported face-only v5 masks.
+- 2026-08-06: Added literal revision-239 tests for opcode-115 uid/sub
+  normalisation and the NPC_INFO bit-45/byte-aligned sentinel thresholds.
+  Added a world self-test for the side-only poh_options close and changed the
+  Hans self-test to exercise the actual six-byte resume packet.
+- 2026-08-06: Ran `test-mock239-playerinfo` and `test-mock239-inbound` (48
+  inbound checks) plus a full mock230 build successfully. The broad cached
+  mock230 self-test reached the new side-only section without a new failure but
+  retains 25 pre-existing content-gap/shadow failures; the complete output is
+  `build/run239-regressions/selftest.log`.
+- 2026-08-06: Extended JCTL with real AWT wheel input and authoritative camera,
+  var, and NPC probes; instrumented both AWT wheel receipt and client polling.
+  Rebuilt the instrumented client and passed API-surface verification.
+- 2026-08-06: Proved the camera wheel and both sliders separately against live
+  RuneLite, with FOV/varc changes and per-path CS2 traces. Proved house options
+  opens and closes, including script 29, CLOSE_MODAL, and IF_CLOSESUB.
+- 2026-08-06: Ran a clean Hans-only live session. The golden client emitted
+  opcode 115 length 6 with sub 1, dialogue advanced to the selected player
+  line, completed, and left GPI/client state healthy.
+- 2026-08-06: Ran the first all-four session with EVENTS attached before launch;
+  actual Talk-to Hans, all camera paths, house close, and movement passed. Its
+  explicit quit exposed an instrumentation-only JProf percentile race, so the
+  session was rejected as final evidence.
+- 2026-08-06: Fixed JProf shutdown reporting by snapshotting `ringUsed` once,
+  rebuilt the deob, and passed API verification again.
+- 2026-08-06: Ran the final clean combined session with a pre-launch blocking
+  EVENTS subscriber. Captured 14 presented-frame screenshots, six focused CS2
+  traces, packet/GPI/NPC logs, and the final framebuffer. No game runtime fatal,
+  decode error, writer gap, unexpected disconnect, or shutdown exception was
+  present; the profiler report completed after explicit quit.
+- 2026-08-06: Re-ran the literal camera RUNCLIENTSCRIPT fixture, 48-check
+  revision-239 inbound suite, NPC_INFO sentinel/player traversal suite, full
+  mock230 build, deob build/API verification, and whitespace checks. Created
+  root regression commit `16b94123` and deob instrumentation commit `845c2c7`.
+- 2026-08-06: Pushed `codex/runelite239-regressions` to both
+  `MRobertEvers/oldschool-clientc` and `MRobertEvers/Deob`. No OSRS-Content
+  change was needed: the defects were root protocol/lifecycle behavior and deob
+  telemetry. Fast-forwarded the existing Deob PR #1 head
+  `codex/runelite239-deob-telemetry` from `95a5db1` to `845c2c7`. GitHub CLI had
+  no authenticated session and no signed-in browser surface was available, so
+  the new root dependency PR creation URL was retained for handoff instead of
+  fabricating a PR number.
+- 2026-08-06: Found and stopped a retained task-specific movement client,
+  mock230, jav_config, and duplicate EVENTS subscribers using only the PIDs in
+  `build/run239-regressions/movement_fixed`; no client from this regression run
+  was left idle.
+- 2026-08-06: Added the reported client-layout regression and supplied Hans
+  reference frame to the acceptance scope. Reproduced the dead Display dropdown
+  in an isolated worktree and identified its CC-created rows as `116:40`
+  subids 1..3 with no effective server op masks.
+- 2026-08-06: Decompiled and traced authoritative scripts 3962, 3998, 4568,
+  4569, and 7990. Established that `WINDOW_STATUS` is window mode 1/2 plus
+  dimensions, the dynamic IF_BUTTON callback carries the three-way choice,
+  script 4569 does not invoke 3998 for this row, and root replacement discards
+  the dropdown's CC-created children.
+- 2026-08-06: Armed the three layout rows, added exact selection validation and
+  varbit synchronisation, latched Classic versus Modern before `WINDOW_STATUS`,
+  queued script 3998/root replacement after the onOp, and replayed script 7990
+  after `IF_OPENTOP`. Added a literal six-byte revision-239 IF_BUTTON1 layout
+  persistence/root-remount self-test.
+- 2026-08-06: Audited golden `Statics.method3791` and `method6166` against the
+  rebuilt instrumented bytecode. Added live widget alignment, parent-bounds,
+  listener, NPC hull, and deterministic NPC menu telemetry to JCTL. Found no
+  remaining decompilation arithmetic defect; live geometry matched the golden
+  width, height, x, and y modes.
+- 2026-08-06: Proved layout switching independently under
+  `build/run239-regressions/layout_final2`: Modern root 164/varbit 1, Fixed root
+  548/window 1, and Classic root 161/window 2, with the dynamic dropdown
+  recreated and correctly labelled after every root replacement.
+- 2026-08-06: Recompiled 12,536 content scripts, rebuilt mock230, passed the
+  five focused revision-239 suites (including all 48 inbound checks), rebuilt
+  the instrumented deob and passed API verification. The correctly cache-backed
+  broad self-test retained 23 pre-existing failures and introduced no layout
+  failure; its log is `build/run239-regressions/broad-selftest-cache-final.log`.
+- 2026-08-06: Ran `combined-five-final3` with a blocking EVENTS subscriber
+  connected before launch. Used real AWT input to complete Hans, execute 24 run
+  clicks, operate wheel and both sliders independently, select all three layouts,
+  and open/close house options. Captured 22 screenshots and focused CS2 traces;
+  final GPI, mounts, camera, and profiler state were healthy with no game fatal,
+  decode failure, writer gap, or unexpected disconnect.
+- 2026-08-06: Committed and pushed the OSRS-Content layout implementation as
+  `92bca783ab` on `codex/runelite239-regressions`. Rebuilt and API-verified the
+  deob after its final JCTL changes, then committed and pushed them as `45aa607`
+  on the matching Deob branch. The original dirty primary worktrees remained
+  untouched.
+- 2026-08-06: Merged the latest root `v3` into the regression branch and the
+  merged Deob `perf-instrumentation` base into its dependency branch. Deob
+  rebuilt and passed API verification at merge head `3a4e2c9`. A root
+  post-merge make invocation was blocked before compilation by conflict markers
+  already committed in `origin/v3`'s `src/makefile`; the focused suites had all
+  passed immediately before that base merge, and no unrelated base repair was
+  folded into this PR.
+- 2026-08-06: Opened root PR #10, OSRS-Content dependency PR #2, and Deob
+  dependency PR #2 from their pushed `codex/runelite239-regressions` branches.
