@@ -2752,16 +2752,16 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 - `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
   transform (multiloc) table, and the shape -> model groups the build selects
   from. Reach for it when a loc looks like it is in the wrong place: a
-  misaligned shape/model table hands back a *different object* at the correct
+  misaligned shape/model table hands back a _different object_ at the correct
   position, and a multiloc's transform target can disagree with the base about
   the footprint (see the multiloc note under scenery placement below) — neither
   is visible from the placement arithmetic.
 - `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
   (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
-  "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+"x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
   — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
   loc drawn over its own tile", which nothing else can: every other diagnostic
-  reports what the *build* decided, and a loc placed right but drawn wrong is
+  reports what the _build_ decided, and a loc placed right but drawn wrong is
   indistinguishable from one placed wrong until you compare a loc's pick region
   against the terrain picks at the same pixels. Expect a loc's pick centroid to
   sit ~7px above its tile's and ~2px west — that is height parallax, not a
@@ -2896,7 +2896,6 @@ They turn.
 When facing directly back; 3-x-3 column
 When out of range, they turn towards the player.
 Becomes 1-x-5
-
 
 ### Server Vars
 

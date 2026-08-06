@@ -671,6 +671,16 @@ osrs239_parse(
         return c.over ? 0 : 1;
     }
 
+    /* IfSetScrollPosEncoder: pCombinedIdAlt3 uid, p2 scrollPos. Six bytes —
+     * the shared parser's g2+g2 layout is the classic four and asserts here. */
+    case PKT_NAME_IF_SETSCROLLPOS:
+    {
+        struct PktIfSetScrollPos* p = &out->_if_setscrollpos;
+        p->component_id = g4_alt3(&c);
+        p->pos = g2(&c);
+        return c.over ? 0 : 1;
+    }
+
     /*
      * SetMapFlagV2Encoder: p4 packed CoordGrid.
      *

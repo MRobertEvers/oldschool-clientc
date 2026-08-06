@@ -372,8 +372,16 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                  * byte and a short to it, and OldSchool has apparently always
                  * done so. Reading the body by its own fixed size rather than
                  * by the stated length is what keeps that harmless.
+                 *
+                 * On an embed pipe the login burst is already sitting behind
+                 * this response in the same read. Those bytes must NOT be
+                 * counted as consumed here: login_free drops h->in, and the
+                 * server's ISAAC has already stepped through them. Returning
+                 * only the OK size leaves the burst for gameproto with both
+                 * ciphers at step 0.
                  */
-                if( h->in_len < 2 + OSRS239_OK_BODY_BYTES )
+                int const ok_size = 2 + OSRS239_OK_BODY_BYTES;
+                if( h->in_len < ok_size )
                     break;
                 struct RSCache_Buffer rbuf = { .data = h->in + 2,
                                                .size = OSRS239_OK_BODY_BYTES,
@@ -386,7 +394,11 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 h->local_index = index;
                 fprintf(stderr, "osrs239 login: OK, local player index %d\n", index);
                 h->state = OSRS239_DONE;
-                break;
+                {
+                    int extra = h->in_len - ok_size;
+                    h->in_len = 0;
+                    return off - extra;
+                }
             }
             fprintf(stderr, "osrs239 login: rejected reply=%d\n", reply);
             h->state = OSRS239_ERR;
