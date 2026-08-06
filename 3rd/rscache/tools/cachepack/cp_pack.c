@@ -314,6 +314,15 @@ resolve_field_value(
         return 1;
     if( !field->ref[0] )
         return -1;
+    /* LostCity's lookupParamValue: `null` is the stated absence for any
+     * ref-typed value and packs as -1 — `param=death_drop,null` is "drops
+     * nothing", not a name that failed to resolve. Only meaningful for fields
+     * whose wire width can carry it, which the u4 range check enforces. */
+    if( strcmp(text, "null") == 0 )
+    {
+        *out = -1;
+        return 1;
+    }
     /* A misspelled `ref` is already fatal at the top of pack_server_type, so a
      * type that does not resolve here cannot happen — treat it as the gap rather
      * than blaming the author for the register's typo. */
@@ -1600,6 +1609,7 @@ cp_pack_run(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     /*
@@ -1718,6 +1728,7 @@ cp_pack_server_run(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
@@ -2098,6 +2109,7 @@ cp_membership_emit(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     /* Before the type loop for the same reason `cp_pack_run` does it: a record
@@ -2524,6 +2536,7 @@ cp_membership_check(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));

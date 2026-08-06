@@ -442,6 +442,17 @@ struct CP_Ctx
     char* param_types;
     int param_types_count;
 
+    /**
+     * `^name` -> text, from the tree's `.constant` files — LostCity substitutes
+     * these into every config *value* before parsing it (PackShared.ts), which
+     * is how `param=undead,^true` is a legal record. Built by
+     * `cp_constants_load` right after the walk and registered with cp_text, so
+     * the substitution happens at the one place config values are read.
+     */
+    char** constant_names;
+    char** constant_values;
+    int constant_count;
+
     /** Counted, not fatal: a record the decoder did not consume to the byte has
      *  fields this tool cannot see, and the count is the headline of the report. */
     int warn_short_decode;
@@ -861,6 +872,24 @@ char
 cp_param_type_of(
     struct CP_Ctx* ctx,
     int param_id);
+
+/**
+ * Load every `^name = value` from the tree's `.constant` files and register the
+ * table with cp_text, which substitutes them into config values as they are
+ * read — LostCity's PackShared.ts semantics: a `^token` runs to the next comma,
+ * space or end of value, a name the table has is replaced, one it lacks is left
+ * exactly as written. Run right after `cp_walk_tree`, before anything loads a
+ * config. Returns the number of constants loaded.
+ */
+int
+cp_constants_load(struct CP_Ctx* ctx);
+
+/** cp_text's substitution hook; `cp_constants_load` is the only caller. */
+void
+cp_text_set_constants(
+    char* const* names,
+    char* const* values,
+    int count);
 
 /**
  * `op1..opN`, plus the rev-237 sub-ops and conditional ops.
