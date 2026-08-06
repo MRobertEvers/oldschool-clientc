@@ -2246,15 +2246,16 @@ load_loc_config(const char* path)
             *comma = '\0';
             {
                 /* Which params a loc may carry is the field register's to say, not a
-                 * name spelled twice. A row declared `client = param:<name>` is one
-                 * the encoder knows how to bake, so it is one this parser accepts. */
+                 * name spelled twice. The binding is `param = <name>` (or the retired
+                 * projection spelling `client = param:<name>`) — either fills
+                 * `param_name`, and that is what this parser accepts. */
                 const struct ContentField* field = ContentFields_Find(&g_loc_fields, value);
                 int param_id;
 
-                if( !field || field->client != CONTENT_CLIENT_PARAM )
+                if( !field || !field->param_name[0] )
                 {
-                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build bakes — "
-                                  "declare it in fields/loc.ini as `client = param:<name>`\n",
+                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build knows — "
+                                  "declare it in fields/loc.ini with `param = <name>`\n",
                                   path, line_number, value);
                     continue;
                 }
