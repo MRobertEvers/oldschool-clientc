@@ -801,3 +801,7 @@ it occurs before login and is not a client/game-thread failure.
   traces, packet/GPI/NPC logs, and the final framebuffer. No game runtime fatal,
   decode error, writer gap, unexpected disconnect, or shutdown exception was
   present; the profiler report completed after explicit quit.
+- 2026-08-06: Re-ran the literal camera RUNCLIENTSCRIPT fixture, 48-check
+  revision-239 inbound suite, NPC_INFO sentinel/player traversal suite, full
+  mock230 build, deob build/API verification, and whitespace checks. Created
+  root regression commit `16b94123` and deob instrumentation commit `845c2c7`.
