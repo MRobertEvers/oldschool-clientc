@@ -225,6 +225,36 @@ rsab_p3(
 }
 
 void
+rsab_p3_alt1(
+    struct RSAreaBuf* buf,
+    int32_t value)
+{
+    put(buf, value);
+    put(buf, value >> 8);
+    put(buf, value >> 16);
+}
+
+void
+rsab_p3_alt2(
+    struct RSAreaBuf* buf,
+    int32_t value)
+{
+    put(buf, value >> 16);
+    put(buf, value);
+    put(buf, value >> 8);
+}
+
+void
+rsab_p3_alt3(
+    struct RSAreaBuf* buf,
+    int32_t value)
+{
+    put(buf, value >> 8);
+    put(buf, value >> 16);
+    put(buf, value);
+}
+
+void
 rsab_p4(
     struct RSAreaBuf* buf,
     int32_t value)
@@ -440,6 +470,33 @@ rsab_g3(struct RSAreaBuf* buf)
     int32_t b1 = get(buf);
     int32_t b2 = get(buf);
     return (b0 << 16) | (b1 << 8) | b2;
+}
+
+int32_t
+rsab_g3_alt1(struct RSAreaBuf* buf)
+{
+    int32_t b0 = get(buf);
+    int32_t b1 = get(buf);
+    int32_t b2 = get(buf);
+    return (b2 << 16) | (b1 << 8) | b0;
+}
+
+int32_t
+rsab_g3_alt2(struct RSAreaBuf* buf)
+{
+    int32_t b0 = get(buf);
+    int32_t b1 = get(buf);
+    int32_t b2 = get(buf);
+    return (b0 << 16) | (b2 << 8) | b1;
+}
+
+int32_t
+rsab_g3_alt3(struct RSAreaBuf* buf)
+{
+    int32_t b0 = get(buf);
+    int32_t b1 = get(buf);
+    int32_t b2 = get(buf);
+    return (b1 << 16) | (b0 << 8) | b2;
 }
 
 int32_t

@@ -1,3 +1,17 @@
+# DEPRECATED -- retired v1 program build. Not maintained, not buildable:
+# it resolves sources under $(REPO_ROOT)/src2, a tree that no longer exists.
+#
+# The live build is one lane per platform, all from src/makefile:
+#
+#     make -C src            macOS / Linux   -> src/torirs
+#     make -C src web        Emscripten      -> build-web/torirs.js
+#     make -C src winxp      Windows XP i686 -> src/torirs.exe
+#
+# See readme.md "Building" and src/platform/platform.mk.
+ifndef TORIRS_ALLOW_DEPRECATED_V1
+$(error this v1 program build is deprecated and cannot work (src2/ is gone) -- use `make -C src` (see readme.md "Building"))
+endif
+
 # Emscripten build → dist/browser.js + dist/browser.wasm, plus dist/index.html
 # (copy of public/shell.html), every $(PLAT_DIR)/*.js, and every public/*.js copied into dist/.
 #

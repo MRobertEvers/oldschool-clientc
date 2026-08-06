@@ -1,4 +1,5 @@
 #include "asset_access.h"
+#include "tool_posix_compat.h" /* tool_mkdir, and the POSIX bits MinGW lacks */
 
 #include <assert.h>
 #include <stdio.h>
@@ -13,6 +14,54 @@ tool_bytes_free(struct Tool_Bytes* b)
     free(b->data);
     b->data = NULL;
     b->size = 0;
+}
+
+int
+tool_dat2_create(const char* cache_dir)
+{
+    /* Must match SECTOR_SIZE in src/dat2disk.c: the reserved sector 0 this
+     * writes is the one RSCache_Dat2DiskWriteArchive writes on a fresh file,
+     * and a short one would leave the first real archive overlapping it. */
+    enum
+    {
+        TOOL_DAT2_SECTOR_SIZE = 520
+    };
+    char path[1024];
+    FILE* f;
+    uint8_t reserved[TOOL_DAT2_SECTOR_SIZE];
+
+    assert(cache_dir);
+    tool_mkdir(cache_dir);
+
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_dir);
+
+    /* Already a cache here: leave it alone. An existing .dat2 is either a real
+     * cache or a previous run's, and truncating it would turn "pack into this
+     * directory" into "silently discard what was there". */
+    f = fopen(path, "rb");
+    if( f )
+    {
+        fclose(f);
+        return 1;
+    }
+
+    f = fopen(path, "wb");
+    if( !f )
+    {
+        fprintf(stderr, "Failed to create dat2 cache: %s\n", path);
+        return 0;
+    }
+
+    memset(reserved, 0, sizeof(reserved));
+    if( fwrite(reserved, 1, sizeof(reserved), f) != sizeof(reserved) )
+    {
+        fprintf(stderr, "Failed to write the reserved sector: %s\n", path);
+        fclose(f);
+        return 0;
+    }
+
+    fclose(f);
+    return 1;
 }
 
 int

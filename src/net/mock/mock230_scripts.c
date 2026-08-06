@@ -403,6 +403,15 @@ release_parked(struct Mock230Server* srv, struct SSVM_State* state)
     SSVM_StateRelease(state);
 }
 
+void
+mock230_scripts_release_state(
+    struct Mock230Server* srv,
+    struct SSVM_State* state)
+{
+    if( state )
+        release_parked(srv, state);
+}
+
 /*
  * `Player.canAccess()` — may the engine hand this player a script right now?
  *
@@ -1593,6 +1602,32 @@ mock230_scripts_run_trigger_on_loc(
     return run_trigger_impl(srv, trigger, type, category, -1, loc_slot, 1, 1);
 }
 
+/*
+ * Run one script by id, on the active player, with no trigger lookup.
+ *
+ * The walktrigger is the only caller and the only shape that needs this:
+ * `walktrigger(X)` stores the script *id* rather than arming a subject the
+ * provider could find later, so by the time the engine wants to fire it there
+ * is no (trigger, type) pair left to look up. Everything else in this file goes
+ * through `run_trigger_impl` and should keep doing so — this is not a general
+ * "call any script" hook, and giving it one would route around the trigger
+ * table that `test-ss-provider` exists to pin.
+ */
+void
+mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id)
+{
+    const struct SSVM_Script* script;
+
+    if( !srv->scripts_ok || !srv->scripts )
+        return;
+    if( script_id < 0 || script_id >= srv->scripts->count )
+        return;
+    script = &srv->scripts->scripts[script_id];
+    if( !script )
+        return;
+    run_trigger_script(srv, script, -1, -1);
+}
+
 int
 mock230_scripts_run_trigger_specific(
     struct Mock230Server* srv,
@@ -2597,6 +2632,8 @@ debugproc_arg_type(
     case 83: /* stat */
         *out_kind = MOCK230_PACK_STAT;
         return 2;
+    case 99: /* coord */
+        return 3;
     default:
         return 0;
     }
@@ -2649,6 +2686,19 @@ mock230_scripts_run_debugproc(
             strv[strc++] = word;
         else if( form == 2 )
             argv[argc++] = taken ? mock230_content_symbol(kind, word) : -1;
+        else if( form == 3 )
+        {
+            /* `level_mx_mz_lx_lz`, the coord literal's own spelling — the
+             * reference parses one here too (ClientCheatHandler's
+             * ScriptVarType.COORD arm) and it is the argument a test debugproc
+             * most wants, because every other way of naming a tile means
+             * hardcoding one in the script. */
+            int lvl = 0, mx = 0, mz = 0, lx = 0, lz = 0;
+            if( taken && sscanf(word, "%d_%d_%d_%d_%d", &lvl, &mx, &mz, &lx, &lz) == 5 )
+                argv[argc++] = mock230_coord_pack(lvl, mx * 64 + lx, mz * 64 + lz);
+            else
+                argv[argc++] = -1;
+        }
         else
             argv[argc++] = taken ? (int32_t)strtol(word, NULL, 10) : 0;
     }
@@ -2673,15 +2723,129 @@ mock230_scripts_run_debugproc(
 static struct Mock230SceneLoc*
 script_active_loc(struct SSVM_State* state)
 {
-    int slot = (int)((intptr_t)SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY)) - 1;
-    struct Mock230SceneLoc* loc;
+    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
 
-    if( slot < 0 )
-        return NULL;
-    loc = mock230_scene_loc(slot);
-    if( !loc || !loc->active )
-        return NULL;
-    return loc;
+    return mock230_script_loc_resolve(srv, SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+}
+
+/*
+ * Zone-backed active-loc handles: the active loc beyond the scene window.
+ *
+ * A scene slot can only name a loc the window covers, but the reference's
+ * `World.getLoc` reaches every zone in the world and content leans on that —
+ * puro-puro's crop circle rotates through eight farms and at most one is ever
+ * near a player. Out there the ZoneMap record *is* the loc, so the handle has
+ * to carry the record's key, `(x, z, level, shape)`. It cannot carry the
+ * record's index: `mock230_zone_loc_changed` retires records by swap-remove,
+ * so an index held across a suspend could come back naming a different loc,
+ * where a re-looked-up key either finds the same record or finds none — the
+ * same staleness contract the scene-slot convention already keeps.
+ *
+ * The two kinds share one intptr encoding: positive is `scene slot + 1`
+ * (unchanged), negative is `-(ring index + 1)` into the key table below. The
+ * ring recycles; a script parked across 256 fresh out-of-scene finds could see
+ * its entry reused, which resolves as "the active loc is gone" or a different
+ * out-of-scene loc — accepted, like slot reuse, because the resolver always
+ * re-validates against the live ZoneMap.
+ */
+#define SCRIPT_ZONE_LOC_HANDLE_MAX 256
+
+struct ScriptZoneLocKey
+{
+    int x, z, level;
+    int shape;
+    int used;
+};
+
+static struct ScriptZoneLocKey g_script_zone_loc_keys[SCRIPT_ZONE_LOC_HANDLE_MAX];
+static int g_script_zone_loc_next;
+
+void*
+mock230_script_zone_loc_handle(
+    int x,
+    int z,
+    int level,
+    int shape)
+{
+    int idx;
+
+    for( idx = 0; idx < SCRIPT_ZONE_LOC_HANDLE_MAX; idx++ )
+    {
+        struct ScriptZoneLocKey* key = &g_script_zone_loc_keys[idx];
+
+        if( key->used && key->x == x && key->z == z && key->level == level &&
+            key->shape == shape )
+            return (void*)(intptr_t) - (idx + 1);
+    }
+    idx = g_script_zone_loc_next;
+    g_script_zone_loc_next = (g_script_zone_loc_next + 1) % SCRIPT_ZONE_LOC_HANDLE_MAX;
+    g_script_zone_loc_keys[idx].x = x;
+    g_script_zone_loc_keys[idx].z = z;
+    g_script_zone_loc_keys[idx].level = level;
+    g_script_zone_loc_keys[idx].shape = shape;
+    g_script_zone_loc_keys[idx].used = 1;
+    return (void*)(intptr_t) - (idx + 1);
+}
+
+struct Mock230SceneLoc*
+mock230_script_loc_resolve(
+    struct Mock230Server* srv,
+    void* handle_ptr)
+{
+    intptr_t handle = (intptr_t)handle_ptr;
+
+    if( handle > 0 )
+    {
+        struct Mock230SceneLoc* loc = mock230_scene_loc((int)handle - 1);
+
+        if( !loc || !loc->active )
+            return NULL;
+        return loc;
+    }
+    if( handle < 0 )
+    {
+        /* A borrowed view with the resolver's lifetime: valid until the next
+         * resolve, which is enough because every consumer copies what it needs
+         * before doing anything that could resolve again. Mutations do not go
+         * through this pointer anyway — `loc_del`/`loc_change`/`loc_anim` all
+         * re-key on the coordinates. */
+        static struct Mock230SceneLoc view;
+        struct ScriptZoneLocKey* key;
+        struct Mock230ZoneLoc* rec;
+        int idx = (int)(-handle) - 1;
+        int width;
+        int length;
+
+        if( idx >= SCRIPT_ZONE_LOC_HANDLE_MAX )
+            return NULL;
+        key = &g_script_zone_loc_keys[idx];
+        if( !key->used || !srv )
+            return NULL;
+        rec = mock230_zone_loc_find(srv, key->x, key->z, key->level, key->shape);
+        if( !rec || rec->loc_id < 0 )
+            return NULL;
+        memset(&view, 0, sizeof(view));
+        view.loc_id = rec->loc_id;
+        view.shape = key->shape;
+        view.angle = rec->angle;
+        view.x = key->x;
+        view.z = key->z;
+        view.level = key->level;
+        mock230_loc_footprint(view.loc_id, &width, &length);
+        if( (view.angle & 1) != 0 )
+        {
+            view.size_x = length;
+            view.size_z = width;
+        }
+        else
+        {
+            view.size_x = width;
+            view.size_z = length;
+        }
+        view.active = 1;
+        return &view;
+    }
+    return NULL;
 }
 
 /*
@@ -4378,6 +4542,23 @@ mock230_script_command(
      * +1 convention `host_tag` uses, and it satisfies the VM's own
      * `SSVM_PTR_ACTIVE_LOC` requirement check without a second field.
      */
+    /*
+     * `[command,loc_find](coord $coord, loc $loc)(boolean)` — LocOps.ts:79,
+     * `World.getLoc(x, z, level, locType.id)` → `Zone.getLoc`, corner tile and
+     * type both exact.
+     *
+     * Two lookups this must NOT be: `mock230_scene_find_loc`, whose footprint
+     * match and any-loc fallback are the *click* resolver — through it,
+     * `loc_find(coord, X)` answered true for any loc on the tile, and
+     * puro-puro's clear pass `loc_del`ed whatever the map had standing there —
+     * and `_exact`, which matches tombstones.
+     *
+     * Beyond the scene window the ZoneMap record is the loc (the reference's
+     * World holds every zone; ours holds one window plus the diff), so an
+     * out-of-scene find falls through to the record and hands back a
+     * zone-backed handle. Static map locs out there stay invisible — the
+     * ZoneMap is the diff, not the map.
+     */
     case SS_OP_LOC_FIND:
     {
         int32_t coord;
@@ -4389,16 +4570,31 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = mock230_scene_find_loc(coord_x(coord), coord_z(coord), coord_level(coord),
-                                      loc_id);
-        if( slot < 0 )
+        slot = mock230_scene_find_loc_id(coord_x(coord), coord_z(coord), coord_level(coord),
+                                         loc_id);
+        if( slot >= 0 )
         {
-            SSVM_PushInt(state, 0);
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            SSVM_PushInt(state, 1);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
-        SSVM_PushInt(state, 1);
+        if( !mock230_scene_contains(coord_x(coord), coord_z(coord)) )
+        {
+            struct Mock230ZoneLoc* rec = mock230_zone_loc_find_id(
+                srv, coord_x(coord), coord_z(coord), coord_level(coord), loc_id);
+
+            if( rec )
+            {
+                SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                               mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                                                              coord_level(coord), rec->shape));
+                SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+                SSVM_PushInt(state, 1);
+                return 1;
+            }
+        }
+        SSVM_PushInt(state, 0);
         return 1;
     }
 
@@ -4562,8 +4758,15 @@ mock230_script_command(
         mock230_world_loc_revert_queue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         /* The reference leaves the added loc active, so the next `loc_change`
-         * or `loc_del` in the same script addresses it without a `loc_find`. */
-        SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+         * or `loc_del` in the same script addresses it without a `loc_find`.
+         * Outside the scene window there is no slot — the loc lives only in
+         * the ZoneMap — so the handle names the record instead. */
+        if( slot >= 0 )
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+        else
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                           mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                                                          coord_level(coord), shape));
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
     }
@@ -4729,7 +4932,24 @@ mock230_script_command(
         /* Through the gate, exactly like the engine's own animations — the
          * reference routes `anim` through `playAnimation` too, so a script that
          * plays a low-priority emote cannot cut off a swing already queued this
-         * tick. */
+         * tick.
+         *
+         * `anim(null, …)` is the exception, and it is not the gate's business:
+         * -1 CANCELS, and it reaches the client as 65535 ("stop what you are
+         * playing"). `mock230_anim_play_player` refuses a negative id on
+         * purpose — from C, -1 only ever means "the content named nothing" —
+         * but from a script it is the one way to end an animation, and the
+         * reference's own `death.rs2` ends with it. Without this, a death
+         * animation whose last frame holds for 20,000 cycles (which is what
+         * `human_death` states) never ends: the player respawns, walks, fights
+         * and banks lying on the ground. */
+        if( values[0] < 0 )
+        {
+            player->anim_id = -1;
+            player->anim_delay = (int)values[1];
+            player->masks |= MOCK230_PMASK_SEQUENCE;
+            return 1;
+        }
         mock230_anim_play_player(player, values[0], values[1]);
         return 1;
     }
@@ -4743,6 +4963,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: readyanim seq=%d\n", seq);
         player->readyanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4753,6 +4975,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: turnanim seq=%d\n", seq);
         player->turnanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4763,6 +4987,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: walkanim seq=%d\n", seq);
         player->walkanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4773,6 +4999,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: walkanim_b seq=%d\n", seq);
         player->walkanim_b = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4783,6 +5011,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: walkanim_l seq=%d\n", seq);
         player->walkanim_l = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4793,6 +5023,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: walkanim_r seq=%d\n", seq);
         player->walkanim_r = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
         return 1;
@@ -4803,6 +5035,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &seq) )
             return 1;
+        if( player->world->verbose )
+            fprintf(stderr, "mock230: runanim seq=%d\n", seq);
         /* LostCity allows -1 (null) to clear runanim. */
         player->runanim = seq;
         player->masks |= MOCK230_PMASK_APPEARANCE;
@@ -5563,8 +5797,10 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        local_x = coord_x(values[0]) - mock230_scene_base_x();
-        local_z = coord_z(values[0]) - mock230_scene_base_z();
+        /* The world coordinate, unconverted: which of the two the wire wants
+         * is the encoder's question now, because the revisions disagree. */
+        local_x = coord_x(values[0]);
+        local_z = coord_z(values[0]);
         if( opcode == SS_OP_CAM_MOVETO )
             mock230_send_cam_moveto(player, local_x, local_z, (int)values[1],
                                     (int)values[2], (int)values[3]);
@@ -5636,6 +5872,36 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `p_aprange(int)` — PlayerOps.ts:352, `apRange = n; apRangeCalled = true`.
+     *
+     * The script is saying "I am not finished; call me again when I am within
+     * n". Both halves matter and they fail differently:
+     *
+     *  - the range is what the *next* tick's at-range gate tests, so a ranged
+     *    attack resolves at the weapon's reach instead of walking into melee;
+     *  - `ap_range_called` is what stops `interaction_try` from treating this
+     *    run as a completed interaction. Without it the first `p_aprange`
+     *    clears the target and the attack never happens — which is the shape
+     *    the whole of `skill_combat` is built on, so "combat does nothing" is
+     *    the symptom rather than an error.
+     *
+     * `ap_tried` is re-armed for the same reason: it exists to stop the ap
+     * lookup running on every tick of a long walk, and a script that asked to
+     * be called again is the one case where it must.
+     */
+    case SS_OP_P_APRANGE:
+    {
+        int32_t range;
+
+        if( !SSVM_PopInt(state, &range) )
+            return 1;
+        player->interaction.ap_range = (int)range;
+        player->interaction.ap_range_called = 1;
+        player->interaction.ap_tried = 0;
+        return 1;
+    }
+
     case SS_OP_P_ARRIVEDELAY:
         /* Only waits when the player actually moved this tick; a stationary
          * player runs straight through. */
@@ -5645,6 +5911,42 @@ mock230_script_command(
             SSVM_Suspend(state, SSVM_SUSPENDED);
         }
         return 1;
+
+    case SS_OP_NPC_FREEZE:
+    {
+        int32_t ticks;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_freeze with no active npc");
+            return 1;
+        }
+        /*
+         * The longer freeze wins rather than the newer one. Re-freezing a
+         * target that is already frozen for longer must not shorten it, which
+         * is what a plain assignment would do — and the case is not exotic: it
+         * is a Barrage landing on an npc a Blitz already froze.
+         */
+        if( ticks > npc->frozen_ticks )
+            npc->frozen_ticks = (int)ticks;
+        return 1;
+    }
+
+    case SS_OP_NPC_FROZEN:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_frozen with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, npc->frozen_ticks);
+        return 1;
+    }
 
     case SS_OP_NPC_DELAY:
     {
@@ -6046,9 +6348,34 @@ mock230_script_command(
     case SS_OP_MAP_INSTANCE_FREE:
     {
         int32_t handle;
+        int left = 0;
 
         if( !SSVM_PopInt(state, &handle) )
             return 1;
+        /*
+         * Count what is still standing in it, and say so.
+         *
+         * The engine does not delete them — whose npcs those are is content's
+         * question, and a rule about when a minigame is over does not belong
+         * here (`map_instance_procs.rs2`'s header makes the same point). But an
+         * abandoned spawn is the one consequence of a sloppy teardown that
+         * nothing else reports: the pool re-issues a released square
+         * immediately, `npc_add`'s duration is measured in thousands of ticks,
+         * and the symptom is the *next* session finding somebody else's boss
+         * already in the arena. One line at the moment of the release is what
+         * turns that into something a run can be read for.
+         */
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( srv->npcs[i].active &&
+                mock230_mapinstance_find(srv->npcs[i].x, srv->npcs[i].z) == handle )
+                left++;
+        }
+        if( left > 0 && getenv("MOCK230_VERBOSE") )
+            fprintf(stderr,
+                    "mock230: map instance %d freed with %d npc(s) still inside — "
+                    "the next session on this square inherits them\n",
+                    (int)handle, left);
         mock230_mapinstance_free(handle);
         return 1;
     }

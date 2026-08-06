@@ -1,4 +1,7 @@
 #include "cp_assets.h"
+#include "tool_posix_compat.h"
+#include "tool_progress.h"
+#include "tool_prefetch.h"
 
 extern const struct CP_AssetCodec cp_codec_texture;
 extern const struct CP_AssetCodec cp_codec_interface;
@@ -370,7 +373,16 @@ ensure_dir(const char* path)
     struct stat info;
     if( stat(path, &info) == 0 )
         return S_ISDIR(info.st_mode) ? 0 : -1;
-    return cp_mkdir(path);
+    /*
+     * EEXIST is success -- the ordinary mkdir -p rule, and on Windows it is
+     * also what makes an ABSOLUTE path work: callers split on '/' from index 1,
+     * so the first component of "C:/Users/..." is the bare drive designator
+     * "C:", where MSVCRT's stat() fails with ENOENT and the mkdir then fails
+     * with EEXIST. Without this, every absolute path is an error.
+     */
+    if( cp_mkdir(path) == 0 )
+        return 0;
+    return errno == EEXIST ? 0 : -1;
 }
 
 /** mkdir -p, so "worldmap/geography" and a renamed model's "models/npc" work. */
@@ -1304,6 +1316,9 @@ put_archive(
     const char* out_cache_dir,
     int table_id,
     int archive_id,
+    /* The archive's pack name, so the reference table can carry the identifier
+     * the client resolves by. NULL where the caller has no name for it. */
+    const char* name,
     const uint8_t* payload,
     int payload_size,
     const int* file_ids,
@@ -1330,6 +1345,9 @@ put_archive(
     if( rc == 0 )
         cp_reference_sync(ctx, table_id, archive_id, container, (int)container_size, file_ids,
                           file_count, out_dirty);
+    /* The archive's name is only known here, and without it the entry the sync
+     * just made is unreachable by name (see cp_reference_set_name). */
+    cp_reference_set_name(ctx, table_id, archive_id, name, out_dirty);
     free(container);
     return rc == 0;
 }
@@ -1366,6 +1384,19 @@ import_one(
      * same rule the config side follows, and it is what makes an added asset a
      * two-step (name it, then place it) rather than a silent no-op.
      */
+    /*
+     * Warm this kind's files while the loop below consumes them.
+     *
+     * The loop reads one file per archive and each first touch costs ~12ms
+     * (tool_prefetch.h has the measurement); the prefetcher pays that same cost
+     * 16-way, so it runs about fifteen times faster than the loop that follows
+     * it and stays comfortably ahead after the first few files. It hands back
+     * no data and holds no state the loop can see — losing the race on a file
+     * just means that one file is read cold, exactly as before.
+     */
+    struct Tool_Prefetch prefetch;
+    tool_prefetch_begin(&prefetch, root);
+
     for( int archive_id = 0; archive_id < pack->max; archive_id++ )
     {
         const char* name = pack->names ? pack->names[archive_id] : NULL;
@@ -1563,7 +1594,7 @@ import_one(
              * ran as a full pack. */
             written++;
         }
-        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, payload,
+        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, name, payload,
                              payload_size, file_ids, file_count, key, &dirty) )
         {
             written++;
@@ -1575,6 +1606,8 @@ import_one(
         free(payload);
         free(file_ids);
     }
+
+    tool_prefetch_end(&prefetch);
 
     if( dirty && out_cache_dir && !cp_reference_write(ctx, out_cache_dir, table_id) )
         return 0;
@@ -1603,11 +1636,40 @@ cp_assets_import(
 
     int total = 0;
     int missing = 0;
+    struct Tool_Progress progress;
+
+    /*
+     * Over asset kinds rather than archives: the archive count is only known
+     * once each pack has been walked, and a bar that cannot start until the
+     * work is half done is not a bar. Kinds are known up front and each one
+     * names itself as it goes, which is the question being asked here anyway —
+     * "what is it doing", not "how many bytes are left".
+     */
+    tool_progress_begin(&progress, "assets", CP_ASSET_COUNT);
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
+        /*
+         * Per-kind wall time. The kinds are not remotely the same size — models
+         * alone is tens of thousands of archives against a handful for fonts —
+         * so a single total says nothing about where a slow run went, and
+         * "optimise the packer" without this is guesswork.
+         */
+        time_t kind_started = time(NULL);
+        int before = total;
+
         if( !import_one(ctx, i, out_cache_dir, &total, &missing) )
+        {
+            tool_progress_end(&progress);
             return 0;
+        }
+        tool_progress_step(&progress, 1);
+
+        long kind_secs = (long)(time(NULL) - kind_started);
+        if( kind_secs >= 1 || total != before )
+            printf("  %-14s %6d archive(s) in %ld:%02lds\n", cp_asset(i)->dir, total - before,
+                   kind_secs / 60, kind_secs % 60);
     }
+    tool_progress_end(&progress);
     /*
      * Always printed, including the zero, so a bar can grep for the line rather
      * than for its absence — an absent line and a passing run look identical.

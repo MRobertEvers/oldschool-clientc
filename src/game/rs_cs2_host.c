@@ -23,6 +23,7 @@
 #include "varp/varp_manager.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -676,6 +677,11 @@ RS_CS2Host_Init(
     host->viewport_fov_max = 896;
     host->viewport_zoom = 128;
     host->viewport_zoom_max = 896;
+    /* Reference default for the interpolation endpoints (class159 reads them
+     * before any SETFOV has run). Written here, read only by the env-gated
+     * TORIRS_WEDGE_SCALE path — nothing in the default build looks at them. */
+    host->viewport_zoom_near = 256;
+    host->viewport_zoom_far = 256;
     host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
@@ -1706,6 +1712,17 @@ exec_minimap(
  * (value, min, max, unused) from its established (4,0,0,0) stack signature —
  * there's no reference decompile to confirm it against.
  */
+
+/* Statics.method5659 (rev-239): (int)pow(2, arg/256 + 7), 256 when that is <= 0.
+ * The reference feeds SETFOV's args through this before storing them as the
+ * near/far endpoints of the viewport-height zoom interpolation. */
+static int
+rs_cs2_viewport_zoom_decode(int arg)
+{
+    int zoom = (int)pow(2.0, (double)arg / 256.0 + 7.0);
+    return zoom > 0 ? zoom : 256;
+}
+
 static int
 exec_viewport(
     struct RS_CS2Host* host,
@@ -1717,6 +1734,18 @@ exec_viewport(
     case CS2_OP_VIEWPORT_SETFOV:
         host->viewport_fov = request.args[0];
         host->viewport_fov_max = request.args[1];
+        /* Also keep the decoded near/far zoom endpoints (Statics.method5659).
+         * The raw pair above is what GETFOV must answer; these are what
+         * class159.method5357 actually projects with. Nothing in the default
+         * build reads them — see the TORIRS_WEDGE_SCALE gate in app.c. */
+        host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(request.args[0]);
+        host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(request.args[1]);
+        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+            fprintf(
+                stderr,
+                "wedge: VIEWPORT_SETFOV raw=%d,%d decoded near=%d far=%d\n",
+                request.args[0], request.args[1],
+                host->viewport_zoom_near, host->viewport_zoom_far);
         return CS2VM_EXECNO_OK;
     case CS2_OP_VIEWPORT_GETFOV:
     {

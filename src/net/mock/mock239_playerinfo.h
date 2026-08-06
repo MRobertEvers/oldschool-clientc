@@ -86,21 +86,87 @@ mock239_playerinfo_write_init(
 /**
  * One tick of PLAYER_INFO carrying only the local player.
  *
- * `teleported` selects how the position is stated: a teleport writes the
- * absolute 30-bit coord, otherwise the player is reported stationary. Both
- * forms carry the extended-info bit when `appearance` is non-NULL.
+ * `coord_delta` is a DELTA against the position the client already holds, not
+ * an absolute coordinate — packed (dLevel << 28) | (dX << 14) | dZ with each
+ * field masked to its width. The client adds it:
+ *
+ *     curX = (curX + deltaX) and 16383
+ *
+ * so passing an absolute coord moves the player by that much every tick. The
+ * symptom is a world that builds correctly and then goes black a few seconds
+ * later, as the player walks off the loaded scene — nothing errors, because
+ * every packet is well-formed.
+ *
+ * A stationary player is therefore a delta of 0, which is also what the first
+ * tick after the init block should send: the init block already stated the
+ * absolute position.
+ *
+ * `low_res_inactive` selects WHICH low-resolution section the untracked players
+ * are skipped in, and it is not cosmetic. The client carries a per-player cycle
+ * bit (`unmodifiedFlags`) that it sets on anyone it skipped and shifts down
+ * each tick, and it reads section 3 for players whose bit is set and section 4
+ * for those whose is not. So on the first tick after the init block every slot
+ * is "active" and the run goes in section 4; on every tick after that the same
+ * slots have been skipped once and the run must move to section 3.
+ *
+ * Writing it in the wrong section does not desynchronise immediately -- tick 1
+ * is correct either way -- it desynchronises on tick 2, which reads as the
+ * client working briefly and then dropping back to the login screen.
  *
  * `appearance` / `appearance_len` are the raw appearance block — the same bytes
  * the classic stream sends — which this wraps in the v5 extended-info framing.
- * NULL sends no extended info, which is correct for every tick after the first.
+ * NULL sends no appearance, which is correct for every tick after the first.
+ *
+ * `ext` carries the rest of the local player's extended info, or NULL. See
+ * the struct.
  */
+struct Mock239PlayerExt
+{
+    /** A hitsplat landing this tick: the hitmark TYPE from content, and the
+     *  damage. Zero `has_hit` when nothing was hit. */
+    int has_hit;
+    int hit_type;
+    int hit_value;
+    /** A sequence to play: `seq_id` < 0 cancels whatever is running. */
+    int has_seq;
+    int seq_id;
+    int seq_delay;
+};
+
 void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord,
-    int teleported,
+    int32_t coord_delta,
+    int low_res_inactive,
     const uint8_t* appearance,
-    int appearance_len);
+    int appearance_len,
+    const struct Mock239PlayerExt* ext);
+
+/**
+ * One tick of NPC_INFO v5 carrying no npcs.
+ *
+ * A far simpler codec than PLAYER_INFO: ONE bit section, not four.
+ *
+ *     8 bits    how many high-resolution npcs follow
+ *     ...       one update per high-resolution npc
+ *     16 bits   an index per npc entering view, terminated by 0xFFFF
+ *
+ * The index is 16 bits at this revision — the classic stream's is 14 — which is
+ * the same id-space widening that moved the npc type field, and a decoder built
+ * for the narrow form reads two npcs where there is one.
+ *
+ * The 0xFFFF terminator is not optional whenever extended info follows. The
+ * client's low-resolution loop keeps consuming 16-bit indices while the bit
+ * reader has bits left, and the bit reader spans the rest of the packet — so
+ * without it the extended-info bytes are read as npc indices.
+ *
+ * This writes the empty case only: no high-resolution npcs, no additions. That
+ * is what the server needs to be able to SEND the packet at all rather than
+ * refuse it; populating it is the next step and is a smaller job than
+ * PLAYER_INFO was.
+ */
+void
+mock239_npcinfo_write_empty(struct RSAreaBuf* buf);
 
 #endif

@@ -17,7 +17,7 @@ usage(void)
         "                   [--compare DIR] [--compare-rev NAME]\n"
         "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
-        "                   [--assets] [--binary]\n"
+        "                   [--assets] [--binary] [--gamevals]\n"
         "  cachepack pack   --src DIR --server-only\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
@@ -30,8 +30,13 @@ usage(void)
         "          configs/_unpack/<rev>/ (new ids, .merge for changed records, stale\n"
         "          pack lines).\n"
         "  pack    reads that tree and writes the config records into a cache. --base\n"
-        "          copies a cache first; without it --out is edited in place, which\n"
-        "          grows the file because the container appends rather than compacts.\n"
+        "          copies a cache first, so every record the tree does not change keeps\n"
+        "          the bytes it had. Without it the cache is CREATED at --out and holds\n"
+        "          exactly what the tree states and nothing else — which is what you\n"
+        "          want when there is no pristine cache to start from, and is not what\n"
+        "          you want if you expect a base cache's untouched records to survive.\n"
+        "          Either way the container appends rather than compacts, so re-packing\n"
+        "          the same --out repeatedly grows the file.\n"
         "          Also writes <src>/server/pack — the fields no client opcode can\n"
         "          express (hitpoints, respawnrate, door stages), one archive per\n"
         "          record at (config kind, id), under the opcodes fields/<type>.ini\n"
@@ -194,6 +199,26 @@ load_meta(
 int
 main(int argc, char** argv)
 {
+    /*
+     * Make the report appear as it is produced. Redirected to a file, stdout is
+     * block-buffered at 4K, so a pack running for twenty minutes and several
+     * types deep showed an empty log — the per-type lines were sitting in the
+     * buffer. It reads as a hang, and it cost real time diagnosing progress
+     * from the size of the .dat2 rather than from what the tool was saying.
+     *
+     * _IONBF rather than _IOLBF on Windows, and this is the point: MSVCRT does
+     * not implement line buffering. It accepts _IOLBF and silently gives you
+     * full buffering, so the obvious fix is a no-op there. stdout carries only
+     * the phase and per-type lines — a few hundred over a whole run — so
+     * unbuffered costs nothing. The per-archive volume is on stderr, which is
+     * already unbuffered and rate-limited by cp_warn.
+     */
+#if defined(_WIN32)
+    setvbuf(stdout, NULL, _IONBF, 0);
+#else
+    setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
+
     if( argc < 2 )
     {
         usage();
@@ -459,7 +484,20 @@ main(int argc, char** argv)
             rc = cp_pack_server_run(&ctx, &sel) ? 0 : 1;
         else
             rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
-        if( want_assets && ctx.cache_open )
+        /*
+         * `writable` and not just `cache_open`: cache_open is set before the
+         * config pass, so on an abort these three would have gone on writing
+         * into a cache with no config table — a directory that looks like a
+         * cache and cannot boot. --check-only writes nothing and is exempt.
+         */
+        bool writable = check_only || ctx.cache_committed;
+
+        if( want_assets && ctx.cache_open && !writable )
+            fprintf(stderr, "cachepack: the config pack did not commit — skipping "
+                            "--assets/--binary/--gamevals rather than writing them into a "
+                            "cache with no config table\n");
+
+        if( want_assets && ctx.cache_open && writable )
         {
             if( !cp_assets_import(&ctx, check_only ? NULL : out_dir) )
                 rc = 1;
@@ -467,12 +505,12 @@ main(int argc, char** argv)
         /* After the configs and the assets, because it writes the *names* of what
          * they wrote — and after `--binary`, which may replace the very table
          * this is emitting into. */
-        if( want_gamevals && ctx.cache_open && !check_only )
+        if( want_gamevals && ctx.cache_open && writable && !check_only )
         {
             if( !cp_names_emit_gamevals(&ctx, out_dir) )
                 rc = 1;
         }
-        if( want_binary && ctx.cache_open )
+        if( want_binary && ctx.cache_open && writable )
         {
             /* After the configs, so a binary import of the config table (if the
              * caller asked for one) is the version that lands. */
@@ -501,6 +539,14 @@ main(int argc, char** argv)
         usage();
         rc = 1;
     }
+
+    /* Before the closes below and before returning: the write path holds the
+     * .dat2 and the last .idxN open across archives, and those handles are the
+     * tool's, not the cache object's. Every write was flushed, so this is
+     * tidiness rather than durability — but leaving OS handles open past the
+     * point the cache is declared finished is how a later `rm -rf` on Windows
+     * starts failing for no visible reason. */
+    RSCache_Dat2DiskWriteFlush();
 
     if( ctx.cache_open )
         tool_dat2_close(&ctx.cache);

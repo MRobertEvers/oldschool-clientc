@@ -27,7 +27,11 @@
 #include "net/wordpack.h"
 
 /* The client's framing table, for the length check in mock230_send. */
+#include "net/mock/mock230_scene.h"
 #include "net/rev/osrs230/packetin.h"
+/* The appearance vocabulary and every wire spelling of it — the writers below
+ * choose an encoding, never a tag. */
+#include "net/rev/packets/pkt_player_appearance.h"
 
 #include "ss_trigger.h"
 
@@ -86,6 +90,7 @@ enum
     OP_UPDATE_RUNENERGY = PKT_NAME_UPDATE_RUNENERGY,
     OP_MESSAGE_GAME = PKT_NAME_MESSAGE_GAME,
     OP_NPC_INFO = PKT_NAME_NPC_INFO,
+    OP_SET_NPC_UPDATE_ORIGIN = PKT_NAME_SET_NPC_UPDATE_ORIGIN,
     OP_SERVER_TICK_END = PKT_NAME_SERVER_TICK_END,
     OP_UPDATE_STAT = PKT_NAME_UPDATE_STAT,
     OP_UPDATE_PID = PKT_NAME_UPDATE_PID,
@@ -153,14 +158,41 @@ check_frame_length(
     int var)
 {
     int framed;
-
-    if( var != 0 )
-        return;
     /* Through the wire adapter rather than the 230 table directly: the whole
      * point of the check is "does what this encoder wrote match what THIS
      * client frames", and which client that is now depends on the revision. */
+    int expect;
+
     framed = wire->payload_size ? wire->payload_size(opcode) : 0;
-    if( framed >= 0 && framed != len )
+    expect = framed == PKTIN_LENGTH_VARU8 ? 1 : framed == PKTIN_LENGTH_VARU16 ? 2 : 0;
+
+    /*
+     * The LENGTH CLASS is checked before the length, and it is the check that
+     * matters more.
+     *
+     * A fixed packet written at the wrong size costs one packet: the client
+     * reads the declared number of bytes either way and the next opcode is
+     * still on a boundary. Writing the wrong CLASS costs the connection --
+     * a one-byte length where the client reads two (or none) leaves every
+     * subsequent byte offset, so the client reads payload as opcodes until it
+     * hits something fatal and drops the socket. Nothing about that failure
+     * points back at the packet that caused it, and the packet itself was
+     * perfectly formed.
+     *
+     * This used to `return` whenever `var != 0`, which is to say it checked
+     * only the case that cannot desynchronise a stream and skipped the one
+     * that can.
+     */
+    if( expect != var )
+    {
+        static char const* const k_class[] = { "fixed", "var-u8", "var-u16" };
+
+        fprintf(stderr, "mock230: %s op %d (%s) sent as %s, client frames it as %s\n",
+                wire->name, opcode, mock230_wire_pkt_name(pkt_name),
+                k_class[var < 0 || var > 2 ? 0 : var], k_class[expect]);
+        return;
+    }
+    if( var == 0 && framed >= 0 && framed != len )
         fprintf(stderr,
                 "mock230: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
                 wire->name, opcode, mock230_wire_pkt_name(pkt_name), len, framed);
@@ -204,6 +236,48 @@ mock230_send(
         return;
 
     check_frame_length(wire, pkt_name, opcode, len, var);
+
+    /*
+     * MOCK230_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
+     * name for it.
+     *
+     * The only view of the stream that exists. The client is obfuscated: when
+     * it dies it prints a ring of recent opcodes and a stack of one-letter
+     * method names, and matching that ring against what was actually sent is
+     * the whole diagnosis. Named from the revision's table (`prot_name`) rather
+     * than the canonical enum so a line can be grepped straight into RSProt.
+     *
+     * Guarded by an env lookup cached in a static: this is on the path of every
+     * packet of every tick, and `getenv` per packet is measurable.
+     */
+    {
+        static int trace = -1;
+
+        if( trace < 0 )
+        {
+            char const* v = getenv("MOCK230_TRACE_OUT");
+            trace = (v && *v && *v != '0') ? (*v == '2' ? 2 : 1) : 0;
+        }
+        if( trace )
+        {
+            char const* prot = wire->prot_name ? wire->prot_name(opcode) : NULL;
+
+            fprintf(stderr, "mock230: -> op %3d %-28s %d byte(s)", opcode,
+                    prot ? prot : "?", len);
+            /* MOCK230_TRACE_OUT=2 adds the body. Capped because PLAYER_INFO's
+             * init block is 4608 bytes and would bury everything around it. */
+            if( trace > 1 )
+            {
+                int const cap = len < 48 ? len : 48;
+
+                for( int i = 0; i < cap; i++ )
+                    fprintf(stderr, " %02x", payload[i]);
+                if( cap < len )
+                    fprintf(stderr, " ...");
+            }
+            fprintf(stderr, "\n");
+        }
+    }
 
     /* Above the fd check on purpose: the selftest runs with no socket, and this
      * is the one point every encoder has already passed through with its
@@ -304,6 +378,14 @@ wire_payload(struct Mock230Player* player)
     return wire->payload;
 }
 
+/** The wire adapter behind a player, or the default when the world has none. */
+static const struct Mock230Wire*
+wire_for(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player ? player->world : NULL;
+    return (srv && srv->wire) ? srv->wire : mock230_wire_default();
+}
+
 /** Does this player's world speak the v5 entity streams? */
 static int
 wire_is_v5(struct Mock230Player* player)
@@ -370,6 +452,13 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
         mock239_playerinfo_write_init(&buf, mock230_wire_local_index(player->pid),
                                       coord);
         player->player_tracked[player->pid] = 1;
+        /* The init block resets the client's cycle bits, so the next
+         * PLAYER_INFO must place the crowd in section 4 again — and it stated
+         * the absolute position, so the next delta is measured from there. */
+        player->v5_playerinfo_sent = 0;
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
     }
 
     /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
@@ -446,34 +535,34 @@ mock230_send_rebuild_region(struct Mock230Player* player)
     mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
 
     open_packet(&buf, 8192);
-    rsab_p2(&buf, 0);
-    rsab_p2_alt2(&buf, srv->zone_x);
-    rsab_p2(&buf, srv->zone_z);
-
-    rsab_bits(&buf);
-    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
     {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_region )
         {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
-            {
-                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
-
-                if( !zone->set )
-                {
-                    rsab_pbit(&buf, 1, 0);
-                    continue;
-                }
-                rsab_pbit(&buf, 1, 1);
-                rsab_pbit(&buf, 26,
-                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
-                              ((zone->src_zone_x & 0x3ff) << 14) |
-                              ((zone->src_level & 3) << 24));
-            }
+            /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
+            pl->rebuild_region(&buf, srv->zone_x, srv->zone_z, 0);
+        }
+        else
+        {
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, srv->zone_x);
+            rsab_p2(&buf, srv->zone_z);
         }
     }
-    rsab_bytes(&buf);
 
+/*
+     * The distinct source map squares.
+     *
+     * Counted before the grid rather than after it, because revision 239 wants
+     * the number HERE -- `encodeRegionV2` back-patches a p2 in front of the bit
+     * buffer -- while the classic packet writes it afterwards as the length of
+     * a trailing XTEA key block. Same number, two different places, and V2 has
+     * no key block at all (map archives are stored plain from 237).
+     *
+     * Getting this wrong is what logs a client out: the grid is read as though
+     * the count were part of it, so every zone descriptor after the first is
+     * shifted and the packet ends somewhere the client does not expect.
+     */
     /* One key block per source square the descriptors name, which is what the
      * client would need if it were taking keys off the wire. Counted from the
      * window so the two never disagree about how many follow. */
@@ -507,9 +596,39 @@ mock230_send_rebuild_region(struct Mock230Player* player)
                     key_count++;
                 }
     }
-    rsab_p2(&buf, key_count);
-    for( int i = 0; i < key_count * 4; i++ )
-        rsab_p4(&buf, 0);
+    if( wire_is_v5(player) )
+        rsab_p2(&buf, key_count);
+
+    rsab_bits(&buf);
+    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+        {
+            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+            {
+                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+        }
+    }
+    rsab_bytes(&buf);
+
+    if( !wire_is_v5(player) )
+    {
+        rsab_p2(&buf, key_count);
+        for( int i = 0; i < key_count * 4; i++ )
+            rsab_p4(&buf, 0);
+    }
 
     flush(player, &buf, OP_REBUILD_REGION, 2);
     if( srv->verbose )
@@ -776,17 +895,25 @@ mock230_send_run_clientscript_mixed(
      * one string carrying every row (see PKT_RUNCLIENTSCRIPT_STR_LEN), and five
      * rows of dialogue is comfortably past a kilobyte. */
     open_packet(&buf, 4096);
-    for( int i = 0; i < argc; i++ )
-        rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
-    rsab_p1(&buf, '\n');
-    for( int i = argc - 1; i >= 0; i-- )
     {
-        if( types && types[i] == 's' )
-            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->run_clientscript )
+            pl->run_clientscript(&buf, script_id, types, intv, strv, argc);
         else
-            rsab_p4(&buf, intv ? intv[i] : 0);
+        {
+        for( int i = 0; i < argc; i++ )
+            rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
+        rsab_p1(&buf, '\n');
+        for( int i = argc - 1; i >= 0; i-- )
+        {
+            if( types && types[i] == 's' )
+                rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+            else
+                rsab_p4(&buf, intv ? intv[i] : 0);
+        }
+        rsab_p4(&buf, script_id);
+        }
     }
-    rsab_p4(&buf, script_id);
     flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
 }
 
@@ -850,8 +977,16 @@ mock230_send_if_settext(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 512);
-    rsab_p4(&buf, uid);
-    rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_settext )
+            pl->if_settext(&buf, uid, text);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+        }
+    }
     flush(player, &buf, OP_IF_SETTEXT, 2);
 }
 
@@ -864,8 +999,16 @@ mock230_send_if_setnpchead(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 16);
-    rsab_p4(&buf, uid);
-    rsab_p2(&buf, npc_id);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setnpchead )
+            pl->if_setnpchead(&buf, uid, npc_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, npc_id);
+        }
+    }
     flush(player, &buf, OP_IF_SETNPCHEAD, 0);
 }
 
@@ -877,7 +1020,15 @@ mock230_send_if_setplayerhead(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
-    rsab_p4(&buf, uid);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setplayerhead )
+            pl->if_setplayerhead(&buf, uid);
+        else
+        {
+            rsab_p4(&buf, uid);
+        }
+    }
     flush(player, &buf, OP_IF_SETPLAYERHEAD, 0);
 }
 
@@ -890,8 +1041,16 @@ mock230_send_if_setanim(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 16);
-    rsab_p4(&buf, uid);
-    rsab_p2(&buf, anim_id);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setanim )
+            pl->if_setanim(&buf, uid, anim_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, anim_id);
+        }
+    }
     flush(player, &buf, OP_IF_SETANIM, 0);
 }
 
@@ -1082,38 +1241,56 @@ mock230_send_cam_reset(struct Mock230Player* player)
 void
 mock230_send_cam_moveto(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p1(&buf, local_x);
-    rsab_p1(&buf, local_z);
-    rsab_p2(&buf, height);
-    rsab_p1(&buf, rate);
-    rsab_p1(&buf, rate2);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
+        if( pl && pl->cam_moveto )
+            pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
+        else
+        {
+            rsab_p1(&buf, world_x - mock230_scene_base_x());
+            rsab_p1(&buf, world_z - mock230_scene_base_z());
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
     flush(player, &buf, OP_CAM_MOVETO, 0);
 }
 
 void
 mock230_send_cam_lookat(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
-    rsab_p1(&buf, local_x);
-    rsab_p1(&buf, local_z);
-    rsab_p2(&buf, height);
-    rsab_p1(&buf, rate);
-    rsab_p1(&buf, rate2);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
+        if( pl && pl->cam_lookat )
+            pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
+        else
+        {
+            rsab_p1(&buf, world_x - mock230_scene_base_x());
+            rsab_p1(&buf, world_z - mock230_scene_base_z());
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
     flush(player, &buf, OP_CAM_LOOKAT, 0);
 }
 
@@ -1127,10 +1304,18 @@ mock230_send_cam_shake(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, axis);
-    rsab_p1(&buf, jitter);
-    rsab_p1(&buf, amplitude);
-    rsab_p1(&buf, frequency);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_shake )
+            pl->cam_shake(&buf, axis, jitter, amplitude, frequency);
+        else
+        {
+            rsab_p1(&buf, axis);
+            rsab_p1(&buf, jitter);
+            rsab_p1(&buf, amplitude);
+            rsab_p1(&buf, frequency);
+        }
+    }
     flush(player, &buf, OP_CAM_SHAKE, 0);
 }
 
@@ -1149,9 +1334,17 @@ mock230_send_synth_sound(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p2(&buf, id);
-    rsab_p1(&buf, loops);
-    rsab_p2(&buf, delay);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->synth_sound )
+            pl->synth_sound(&buf, id, loops, delay);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p1(&buf, loops);
+            rsab_p2(&buf, delay);
+        }
+    }
     flush(player, &buf, OP_SYNTH_SOUND, 0);
 }
 
@@ -1184,8 +1377,16 @@ mock230_send_message(
     if( getenv("MOCK230_ECHO_MES") )
         fprintf(stderr, "mes: %s\n", text ? text : "");
     open_packet(&buf, 512);
-    rsab_p1(&buf, 0); /* message type: plain game message */
-    rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->message_game )
+            pl->message_game(&buf, 0, text);
+        else
+        {
+            rsab_p1(&buf, 0); /* message type: plain game message */
+            rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
+        }
+    }
     flush(player, &buf, OP_MESSAGE_GAME, 1);
 }
 
@@ -1237,8 +1438,21 @@ mock230_send_update_ignorelist(
      * no single-entry form to pair with UPDATE_FRIENDLIST's. */
     struct RSAreaBuf buf;
     open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
-    for( int i = 0; i < count; i++ )
-        rsab_p8(&buf, names37[i]);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        for( int i = 0; i < count; i++ )
+        {
+            if( pl && pl->ignore_entry )
+            {
+                char name[16];
+                base37tostr((uint64_t)names37[i], name, (int)sizeof(name));
+                pl->ignore_entry(&buf, name);
+                continue;
+            }
+            rsab_p8(&buf, names37[i]);
+        }
+    }
     flush(player, &buf, OP_UPDATE_IGNORELIST, 2);
 }
 
@@ -1252,7 +1466,15 @@ mock230_send_friendlist_loaded(
      * `social.server_status`. */
     struct RSAreaBuf buf;
     open_packet(&buf, 4);
-    rsab_p1(&buf, status);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->friendlist_loaded )
+            pl->friendlist_loaded(&buf, status);
+        else
+        {
+            rsab_p1(&buf, status);
+        }
+    }
     flush(player, &buf, OP_FRIENDLIST_LOADED, 0);
 }
 
@@ -1298,9 +1520,17 @@ mock230_send_chat_filter_settings(
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, public_mode);
-    rsab_p1(&buf, private_mode);
-    rsab_p1(&buf, trade_mode);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->chat_filter )
+            pl->chat_filter(&buf, public_mode, private_mode, trade_mode);
+        else
+        {
+            rsab_p1(&buf, public_mode);
+            rsab_p1(&buf, private_mode);
+            rsab_p1(&buf, trade_mode);
+        }
+    }
     flush(player, &buf, OP_CHAT_FILTER_SETTINGS, 0);
 }
 
@@ -1310,8 +1540,18 @@ mock230_send_unset_map_flag(struct Mock230Player* player)
     /* SET_MAP_FLAG with the 255,255 "no flag" sentinel. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
-    rsab_p1(&buf, 255);
-    rsab_p1(&buf, 255);
+    {
+        /* No 255,255 clear sentinel at V2 -- the packet carries an absolute
+         * coord, and a cleared flag is coord 0. */
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, 0, 0, 0);
+        else
+        {
+            rsab_p1(&buf, 255);
+            rsab_p1(&buf, 255);
+        }
+    }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
@@ -1321,8 +1561,17 @@ mock230_send_set_map_flag(struct Mock230Player* player, int local_x, int local_z
     struct RSAreaBuf buf;
     assert(player);
     open_packet(&buf, 8);
-    rsab_p1(&buf, local_x & 0xff);
-    rsab_p1(&buf, local_z & 0xff);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, player->level, mock230_scene_origin(player->world->zone_x) + local_x,
+                             mock230_scene_origin(player->world->zone_z) + local_z);
+        else
+        {
+            rsab_p1(&buf, local_x & 0xff);
+            rsab_p1(&buf, local_z & 0xff);
+        }
+    }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
@@ -1369,11 +1618,30 @@ mock230_send_inv_full(
      * the only containers were the 28-slot backpack and the 14-slot worn set.
      * Sizing from the count keeps a full bank inside one packet. */
     open_packet(&buf, (size_t)(16 + ((slot_count > 0 ? slot_count : 0) * 7)));
-    rsab_p4(&buf, component);
-    rsab_p2(&buf, container);
-    rsab_p2(&buf, slot_count);
-    for( int i = 0; i < slot_count; i++ )
-        put_inv_slot(&buf, slots ? &slots[i] : NULL);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        if( pl && pl->inv_header && pl->inv_slot )
+        {
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_FULL, component, container,
+                           slot_count);
+            for( int i = 0; i < slot_count; i++ )
+            {
+                const struct Mock230Item* it = slots ? &slots[i] : NULL;
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_FULL, i,
+                             (it && it->count > 0) ? it->obj_id : -1,
+                             it ? it->count : 0);
+            }
+        }
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+            rsab_p2(&buf, slot_count);
+            for( int i = 0; i < slot_count; i++ )
+                put_inv_slot(&buf, slots ? &slots[i] : NULL);
+        }
+    }
     flush(player, &buf, OP_UPDATE_INV_FULL, 2);
 }
 
@@ -1390,14 +1658,31 @@ mock230_send_inv_partial(
     if( dirty == 0 )
         return;
     open_packet(&buf, 8192);
-    rsab_p4(&buf, component);
-    rsab_p2(&buf, container);
-    for( int i = 0; i < slot_count; i++ )
     {
-        if( !(dirty & (1u << i)) )
-            continue;
-        rsab_psmart(&buf, i);
-        put_inv_slot(&buf, &slots[i]);
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        int const v5 = pl && pl->inv_header && pl->inv_slot;
+
+        if( v5 )
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_PARTIAL, component, container, 0);
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+        }
+        for( int i = 0; i < slot_count; i++ )
+        {
+            if( !(dirty & (1u << i)) )
+                continue;
+            if( v5 )
+            {
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_PARTIAL, i,
+                             slots[i].count > 0 ? slots[i].obj_id : -1,
+                             slots[i].count);
+                continue;
+            }
+            rsab_psmart(&buf, i);
+            put_inv_slot(&buf, &slots[i]);
+        }
     }
     flush(player, &buf, OP_UPDATE_INV_PARTIAL, 2);
 }
@@ -1406,12 +1691,10 @@ mock230_send_inv_partial(
 /* PLAYER_INFO                                                         */
 /* ------------------------------------------------------------------ */
 
-/* The appearance blob the client's PktPlayerAppearance_Decode reads: gender,
- * head icon, 12 slots, 5 body colours, 7 movement animations, name37, combat
- * level. A slot is 0 when empty, 0x100 + idkId for a body kit, or 0x200 + objId
- * for a worn item — the same encoding PlayerModel_CollectAppearanceModelIds
- * splits on. The tag and the ordering are the wire's, so they are here; *which*
- * kit fills a bare slot is the player's character and is content's, in
+/* What a player looks like is decided once, here, in the canonical slot
+ * vocabulary (pkt_player_appearance.h); each writer below only spells that out
+ * in its revision's tags, through Appearance_WirePack. *Which* kit fills a bare
+ * slot is the player's character and is content's, in
  * `player/configs/appearance.enum`. */
 static int
 default_kit(int wearpos)
@@ -1427,42 +1710,180 @@ default_kit(int wearpos)
     return -1;
 }
 
+/*
+ * The player's canonical appearance: one slot per wear position, in the
+ * vocabulary every renderer and every wire encoding is expressed in.
+ *
+ * Both writers below build from this, so the rules live once:
+ *
+ *   - a worn item blanks the positions it claims through wearpos_2 / wearpos_3
+ *     — that is what makes a full helm hide hair and jaw, and a platebody hide
+ *     arms. Those claimed positions are body positions, never worn ones, so
+ *     blanking before placing the worn obj (the order RSProt's pEquipment uses)
+ *     and after it come to the same thing;
+ *   - an unclaimed position falls back to the body kit. That fallback is not
+ *     redundancy: an empty slot means "nothing here", not "see the kit", so a
+ *     character wearing nothing would otherwise render with no body at all —
+ *     the scene draws, the player is present and positioned, and there is
+ *     nothing to look at.
+ */
+static void
+appearance_slots(
+    const struct Mock230Player* player,
+    int slots[APPEARANCE_SLOT_COUNT])
+{
+    int covered[APPEARANCE_SLOT_COUNT] = { 0 };
+
+    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+    {
+        const struct Mock230ObjInfo* info;
+
+        if( player->worn[i].obj_id < 0 )
+            continue;
+        info = mock230_objinfo(player->worn[i].obj_id);
+        if( !info )
+            continue;
+        if( info->wearpos_2 >= 0 && info->wearpos_2 < APPEARANCE_SLOT_COUNT )
+            covered[info->wearpos_2] = 1;
+        if( info->wearpos_3 >= 0 && info->wearpos_3 < APPEARANCE_SLOT_COUNT )
+            covered[info->wearpos_3] = 1;
+    }
+
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int kit;
+
+        if( covered[i] )
+            slots[i] = 0;
+        else if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
+            slots[i] = Appearance_PackObj(player->worn[i].obj_id);
+        else if( (kit = default_kit(i)) >= 0 )
+            slots[i] = Appearance_PackKit(kit);
+        else
+            slots[i] = 0;
+    }
+}
+
+/** The body underneath, whatever is worn over it (239's second array). */
+static void
+appearance_identkit_slots(int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int kit = default_kit(i);
+        slots[i] = kit >= 0 ? Appearance_PackKit(kit) : 0;
+    }
+}
+
+/** One slot entry: an empty slot is a single zero byte, anything else is the
+ *  encoding's tagged word in two. */
+static void
+put_appearance_slots(
+    struct RSAreaBuf* buf,
+    enum AppearanceEncoding encoding,
+    const int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int wire = Appearance_WirePack(encoding, slots[i]);
+        if( wire == 0 )
+            rsab_p1(buf, 0);
+        else
+            rsab_p2(buf, wire);
+    }
+}
+
+/*
+ * The revision-239 appearance block.
+ *
+ * Not a reordering of the classic one — a different shape, and the differences
+ * are the kind that frame perfectly and render as nothing:
+ *
+ *   - the 12 wear slots become TWO arrays of 12: `equipment` (what is drawn)
+ *     and `identKit` (the body underneath). The classic packs both into one
+ *     array, so a 239 client reading it consumes the whole thing as equipment
+ *     and then reads the colours as an identKit;
+ *   - a worn obj is tagged `+ 0x800`, not `+ 0x200` — the classic tag lands
+ *     inside the kit range here and would draw some unrelated body part.
+ *     Appearance_WirePack owns that difference so it cannot be half-applied;
+ *   - a skull icon and a head icon sit right after the gender;
+ *   - the name is a NUL-terminated STRING, not the classic 8-byte base-37;
+ *   - and there are five trailing fields the classic has no room for at all
+ *     (skill level, hidden, a customisation flag, three name extras).
+ *
+ * Transcribed from RSProt's `PlayerAppearanceEncoder`.
+ */
+static void
+put_appearance_v5(
+    struct RSAreaBuf* buf,
+    const struct Mock230Player* player)
+{
+    int equipment[APPEARANCE_SLOT_COUNT];
+    int identkit[APPEARANCE_SLOT_COUNT];
+
+    appearance_slots(player, equipment);
+    appearance_identkit_slots(identkit);
+
+    rsab_p1(buf, (uint8_t)player->gender);
+    rsab_p1(buf, 255); /* skullIcon: -1, none */
+    rsab_p1(buf, 255); /* headIcon:  -1, none */
+
+    put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
+    put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);
+
+    for( int i = 0; i < 5; i++ )
+        rsab_p1(buf, 0); /* body colours */
+
+    {
+        int anims[7] = {
+            player->readyanim, player->turnanim, player->walkanim,
+            player->walkanim_b, player->walkanim_l, player->walkanim_r,
+            player->runanim
+        };
+        for( int i = 0; i < 7; i++ )
+            rsab_p2(buf, anims[i] < 0 ? 65535 : anims[i]);
+    }
+
+    rsab_pjstr(buf, player->display_name, RSAB_JSTR_NUL);
+    rsab_p1(buf, 3); /* combat level */
+    rsab_p2(buf, 0); /* skill level, shown only in some minigames */
+    rsab_p1(buf, 0); /* hidden */
+    /*
+     * The obj-customisation flag: bits 1..12 (one per wear position) each say a
+     * variable-length per-obj recolour/retexture block follows, and bit 15 is
+     * forceModelRefresh. This stays 0 until those blocks are written — a
+     * decoder that cannot skip a block it does not understand reads every later
+     * field at the wrong offset, which is why our own reader rejects the whole
+     * appearance when it sees one.
+     */
+    rsab_p2(buf, 0);
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* beforeName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterCombatLevel */
+    /*
+     * The pronoun, and it is the last byte of the block.
+     *
+     * Easy to miss: RSProt's reference DECODER stops after the three name
+     * strings, so a writer transcribed from that alone is one byte short. The
+     * real encoder writes this, and the length prefix counts it — so omitting
+     * it does not truncate a field, it shifts the whole block's length and the
+     * client rejects the packet.
+     */
+    rsab_p1(buf, 0);
+}
+
+/*
+ * The classic appearance block (lc254 / lc245_2 / xrsps233 / osrs230): one slot
+ * array, `0x100 + kit` / `0x200 + obj`, a base-37 name, and no trailing fields.
+ */
 static void
 put_appearance(
     struct RSAreaBuf* buf,
     const struct Mock230Player* player)
 {
-    /* Worn items win over the body kit in their own slot, and additionally
-     * blank the slots they claim through wearpos_2 / wearpos_3 — which is what
-     * makes a full helm hide hair and jaw, and a platebody hide arms. */
-    int slots[12];
-    int covered[12] = { 0 };
+    int slots[APPEARANCE_SLOT_COUNT];
 
-    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
-    {
-        const struct Mock230ObjInfo* info;
-        if( player->worn[i].obj_id < 0 )
-            continue;
-        info = mock230_objinfo(player->worn[i].obj_id);
-        if( info->wearpos_2 >= 0 && info->wearpos_2 < 12 )
-            covered[info->wearpos_2] = 1;
-        if( info->wearpos_3 >= 0 && info->wearpos_3 < 12 )
-            covered[info->wearpos_3] = 1;
-    }
-
-    for( int i = 0; i < 12; i++ )
-    {
-        int kit;
-
-        if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
-            slots[i] = 0x200 + player->worn[i].obj_id;
-        else if( covered[i] )
-            slots[i] = 0;
-        else if( (kit = default_kit(i)) >= 0 )
-            slots[i] = 0x100 + kit;
-        else
-            slots[i] = 0;
-    }
+    appearance_slots(player, slots);
 
     rsab_p1(buf, (uint8_t)player->gender);
     /*
@@ -1482,13 +1903,7 @@ put_appearance(
             fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
         rsab_p1(buf, headicons);
     }
-    for( int i = 0; i < 12; i++ )
-    {
-        if( slots[i] == 0 )
-            rsab_p1(buf, 0);
-        else
-            rsab_p2(buf, slots[i]);
-    }
+    put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
     for( int i = 0; i < 5; i++ )
         rsab_p1(buf, 0); /* body colours */
 
@@ -1713,11 +2128,21 @@ zone_base(
     return (zone_x * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_x);
 }
 
+/*
+ * `level` is the ZONE's plane, not the player's.
+ *
+ * It used to be `player->level`, which is right for every zone a player is
+ * standing in and wrong for every other plane of the same region — and since
+ * the flush only ever offered zones at the player's own level, nothing noticed.
+ * Both are fixed together: the window now spans all four planes
+ * (`rebuild_active`), so this has to be told which one it is describing.
+ */
 void
 mock230_send_zone_header(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     int full)
 {
     struct RSAreaBuf buf;
@@ -1725,8 +2150,18 @@ mock230_send_zone_header(
     int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
 
     open_packet(&buf, 8);
-    rsab_p1(&buf, base_x);
-    rsab_p1(&buf, base_z);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
     flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
           0);
 }
@@ -1781,6 +2216,32 @@ mock230_send_set_player_op(
  * carries it too — a tile can hold a wall and a scenery loc at once, and the
  * shape says which one is meant.
  */
+/**
+ * The length class this revision frames a packet with: 0 fixed, 1 var-u8,
+ * 2 var-u16 -- the `var` argument `flush` wants.
+ *
+ * Exists because the class is a property of the REVISION, and the callers that
+ * used to pass a literal were stating 230's. See `check_frame_length`.
+ */
+static int
+wire_var_class(const struct Mock230Wire* wire, int pkt_name)
+{
+    int opcode;
+    int size;
+
+    if( !wire || !wire->payload_size )
+        return 0;
+    opcode = mock230_wire_opcode(wire, pkt_name);
+    if( opcode < 0 )
+        return 0;
+    size = wire->payload_size(opcode);
+    if( size == PKTIN_LENGTH_VARU8 )
+        return 1;
+    if( size == PKTIN_LENGTH_VARU16 )
+        return 2;
+    return 0;
+}
+
 static int
 zone_sub_opcode(int kind)
 {
@@ -1819,8 +2280,25 @@ clamp16(int count)
 static int
 zone_sub_payload(
     struct RSAreaBuf* buf,
-    const struct Mock230ZoneEvent* event)
+    const struct Mock230ZoneEvent* event,
+    const struct Mock230Wire* wire)
 {
+    /*
+     * The revision's own writer first. Its absence is not a fallback to the
+     * classic layout — a revision with a payload set refuses what it has not
+     * transcribed, because these packets frame to the right length either way
+     * and decode to a different loc on a different tile.
+     */
+    if( wire && wire->payload && wire->payload->zone_payload )
+    {
+        int name = zone_sub_opcode(event->kind);
+        int props = ((event->shape & 0x1f) << 2) | (event->angle & 3);
+
+        if( name < 0 )
+            return 0;
+        return wire->payload->zone_payload(buf, name, event, event->pos, props);
+    }
+
     switch( event->kind )
     {
     case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
@@ -1927,9 +2405,21 @@ mock230_encode_zone_sub(
         return 0;
     rsab_wrap(&buf, dst, (size_t)max);
     rsab_p1(&buf, code);
-    if( !zone_sub_payload(&buf, event) || !rsab_ok(&buf) )
+    if( !zone_sub_payload(&buf, event, wire) || !rsab_ok(&buf) )
         return 0;
     return (int)rsab_len(&buf);
+}
+
+int
+mock230_zone_sub_standalone(
+    const struct Mock230Wire* wire,
+    int kind)
+{
+    int name = zone_sub_opcode(kind);
+
+    if( name < 0 )
+        return 0;
+    return mock230_wire_opcode(wire ? wire : mock230_wire_default(), name) >= 0;
 }
 
 void
@@ -1938,21 +2428,34 @@ mock230_send_zone_sub(
     const struct Mock230ZoneEvent* event)
 {
     struct RSAreaBuf buf;
+    const struct Mock230Wire* wire = wire_for(player);
     int opcode = zone_sub_opcode(event->kind);
 
     if( opcode < 0 )
         return;
-    open_packet(&buf, 16);
-    if( !zone_sub_payload(&buf, event) )
+    open_packet(&buf, 512);
+    if( !zone_sub_payload(&buf, event, wire) )
         return;
-    flush(player, &buf, opcode, 0);
+    /*
+     * The length class comes from the revision's table, not from a constant.
+     *
+     * These were all sent as fixed-size, which they are at 230. At 239
+     * LOC_ADD_CHANGE_V2 is VAR-U16, because it can carry a list of
+     * op-override strings; sending it fixed writes no length prefix at all,
+     * and the client reads the first two payload bytes as one and then keeps
+     * reading. The stream never recovers, so the symptom is the connection
+     * dropping some packets after a door opened -- not a wrong door.
+     */
+    flush(player, &buf, opcode, wire_var_class(wire, opcode));
 }
 
+/* `level` is the zone's plane — same reason as mock230_send_zone_header. */
 void
 mock230_send_zone_enclosed(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     const uint8_t* blob,
     int len)
 {
@@ -1963,8 +2466,18 @@ mock230_send_zone_enclosed(
     if( len <= 0 )
         return;
     open_packet(&buf, (size_t)len + 8);
-    rsab_p1(&buf, base_x);
-    rsab_p1(&buf, base_z);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
     rsab_pdata(&buf, blob, (size_t)len);
     flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
 }
@@ -2055,20 +2568,67 @@ mock230_send_player_info(struct Mock230Player* player)
         struct RSAreaBuf ap;
         int32_t coord;
 
-        rsab_wrap(&ap, appearance, sizeof(appearance));
-        put_appearance(&ap, player);
-
-        coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
-                          (player->z & 0x3fff));
         /*
-         * Always a teleport. The v5 stream's alternative is a delta against
-         * what the client last heard, and this server keeps no such per-session
-         * record; a wrong delta displaces the player silently where a restated
-         * absolute coord cannot.
+         * The appearance goes out once, on the tick after the init block, and
+         * then only when it changes. Re-sending it every tick is not merely
+         * wasteful: it forces the extended-info bit on, which keeps the player
+         * out of the skip path above and makes every tick an update.
          */
-        mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord, 1,
-                                 appearance,
-                                 (int)rsab_len(&ap));
+        rsab_wrap(&ap, appearance, sizeof(appearance));
+        if( !player->v5_playerinfo_sent || (player->masks & MOCK230_PMASK_APPEARANCE) )
+            put_appearance_v5(&ap, player);
+
+        /*
+         * A DELTA against what this client was last told, which the init block
+         * seeded with the absolute position. Zero while standing still.
+         *
+         * The 30-bit field is added to the client's own copy, so sending the
+         * absolute coord here moves the player by their whole world position
+         * every tick — a world that builds correctly and goes black seconds
+         * later as they leave the loaded scene, with no packet malformed.
+         */
+        coord = (int32_t)((((player->level - player->v5_last_level) & 0x3) << 28) |
+                          (((player->x - player->v5_last_x) & 0x3fff) << 14) |
+                          ((player->z - player->v5_last_z) & 0x3fff));
+        /*
+         * The rest of the local player's extended info, from the same masks the
+         * classic writer reads. Hitsplats and animations were absent here while
+         * the npc side had them, which reads as "npcs take damage and the player
+         * does not" -- the packets were fine, the block was simply never built.
+         */
+        {
+            struct Mock239PlayerExt ext;
+
+            memset(&ext, 0, sizeof(ext));
+            if( player->masks & (MOCK230_PMASK_DAMAGE | MOCK230_PMASK_DAMAGE2) )
+            {
+                ext.has_hit = 1;
+                ext.hit_type = player->damage_type;
+                ext.hit_value = player->damage;
+            }
+            if( player->masks & MOCK230_PMASK_SEQUENCE )
+            {
+                ext.has_seq = 1;
+                ext.seq_id = player->anim_id;
+                ext.seq_delay = player->anim_delay;
+            }
+            /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
+             * one since it was written; without the pair, "the animation did
+             * not play" cannot be split into "the server never set the mask"
+             * and "the client dropped the block". */
+            if( getenv("MOCK230_EXT_DEBUG") )
+                fprintf(stderr,
+                        "ext player: masks=0x%x hit=%d/%d seq=%d/%d appearance=%d\n",
+                        player->masks, ext.hit_type, ext.hit_value, ext.seq_id,
+                        ext.seq_delay, (int)rsab_len(&ap));
+            mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
+                                     player->v5_playerinfo_sent, appearance,
+                                     (int)rsab_len(&ap), &ext);
+        }
+        player->v5_playerinfo_sent = 1;
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
         flush(player, &buf, OP_PLAYER_INFO, 2);
         return;
     }
@@ -2243,6 +2803,158 @@ mock230_send_player_info(struct Mock230Player* player)
 /* NPC_INFO                                                            */
 /* ------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------ */
+/* Revision 239 extended info                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The npc extended-info block at revision 239.
+ *
+ * A DIFFERENT FLAG SPACE from the classic one-byte mask beside it, not a wider
+ * version of it. The classic bits are 0x01 DAMAGE2, 0x02 ANIM, 0x04
+ * FACE_ENTITY, ... in the client's own read order; at 239 the same eight
+ * concepts are scattered across 26 bits with no relationship to those values,
+ * and the ORDER the blocks are written in is a third thing again -- neither
+ * ascending flag order nor the classic order. Both come from RSProt's
+ * NpcAvatarExtendedInfoDesktopWriter, whose `convertFlags` exists precisely
+ * because the server-side constants and the client's bits are different sets.
+ *
+ * Getting either wrong is quiet: the flag byte frames, the blocks are read in
+ * whatever order the client wants them, and the npc plays some other npc's
+ * animation or none.
+ */
+enum
+{
+    /* "another flag byte follows" -- one per additional byte, and they are
+     * part of the flag, so they are set from the value rather than counted. */
+    V5_NEXT_BYTE_1 = 0x40,
+    V5_NEXT_BYTE_2 = 0x800,
+    V5_NEXT_BYTE_3 = 0x200000,
+
+    V5_NPC_TRANSFORMATION = 0x1,
+    V5_NPC_SAY = 0x2,
+    V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_SPOTANIM = 0x40000,
+    V5_NPC_HITMARKS = 0x80000,
+};
+
+/** pSmart1or2: 0..127 in one byte, anything larger in two with 0x8000 set. */
+static void
+v5_psmart1or2(struct RSAreaBuf* buf, int value)
+{
+    if( value >= 0 && value < 128 )
+        rsab_p1(buf, value);
+    else
+        rsab_p2(buf, (value & 0x7fff) | 0x8000);
+}
+
+/** The flag itself, plus the continuation bits its own width implies. */
+static void
+v5_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
+{
+    if( flag & 0xffffff00u )
+        flag |= V5_NEXT_BYTE_1;
+    if( flag & 0xffff0000u )
+        flag |= V5_NEXT_BYTE_2;
+    if( flag & 0xff000000u )
+        flag |= V5_NEXT_BYTE_3;
+
+    rsab_p1(buf, (int32_t)(flag & 0xff));
+    if( flag & V5_NEXT_BYTE_1 )
+        rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+    if( flag & V5_NEXT_BYTE_2 )
+        rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+    if( flag & V5_NEXT_BYTE_3 )
+        rsab_p1(buf, (int32_t)((flag >> 24) & 0xff));
+}
+
+static void
+put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_face_latch)
+{
+    uint32_t const classic = npc->masks;
+    uint32_t flag = 0;
+    int const hit = (classic & (MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2)) != 0;
+
+    (void)force_face_latch;
+
+    if( hit )
+        flag |= V5_NPC_HITMARKS;
+    if( classic & MOCK230_NMASK_ANIM )
+        flag |= V5_NPC_SEQUENCE;
+    if( classic & MOCK230_NMASK_SAY )
+        flag |= V5_NPC_SAY;
+    if( classic & MOCK230_NMASK_SPOTANIM )
+        flag |= V5_NPC_SPOTANIM;
+    if( classic & MOCK230_NMASK_CHANGE_TYPE )
+        flag |= V5_NPC_TRANSFORMATION;
+
+    if( getenv("MOCK230_EXT_DEBUG") )
+        fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
+                npc->damage_type, npc->damage, npc->anim_id);
+    v5_put_extended_flag(buf, flag);
+
+    /*
+     * Blocks in the writer's order, which is neither the flag order nor the
+     * classic order: HITMARKS before SEQUENCE before SAY before SPOTANIM before
+     * TRANSFORMATION. The client reads them in this sequence and nothing on the
+     * wire separates them, so a block out of place is read as the next one.
+     */
+    if( hit )
+    {
+        /* NpcHitmarkEncoder: p1Alt1 count, then per hit
+         * pSmart1or2 type, value, delay, limit. One hit per tick is all the
+         * classic mask could express, so one is all there is to convert. */
+        rsab_p1_alt1(buf, 1);
+        v5_psmart1or2(buf, npc->damage_type);
+        v5_psmart1or2(buf, npc->damage);
+        v5_psmart1or2(buf, 0); /* delay: lands this tick */
+        v5_psmart1or2(buf, 0); /* limit: uncapped */
+    }
+    if( classic & MOCK230_NMASK_ANIM )
+    {
+        /* NpcSequenceEncoder: p2 id, p1Alt2 delay. 65535 cancels. */
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1_alt2(buf, npc->anim_delay);
+    }
+    if( classic & MOCK230_NMASK_SAY )
+        rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    if( classic & MOCK230_NMASK_SPOTANIM )
+    {
+        /*
+         * NpcSpotAnimEncoder: p1Alt2 count, then per entry p1 slot, p2 id,
+         * p4Alt2 (delay | height << 16).
+         *
+         * A LIST at this revision -- an npc can carry several graphics at once,
+         * in numbered slots -- where the classic packet carried exactly one and
+         * had no slot. Slot 0 is the one the classic mask means.
+         */
+        rsab_p1_alt2(buf, 1);
+        rsab_p1(buf, 0);
+        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
+        rsab_p4_alt2(buf, npc->spotanim_height_delay);
+    }
+    if( classic & MOCK230_NMASK_CHANGE_TYPE )
+        rsab_p2_alt3(buf, npc->change_type); /* NpcTransformationEncoder */
+
+    /*
+     * NOT converted, and each for a reason rather than as a batch:
+     *
+     *   FACE_ENTITY / FACE_COORD  239 folds both into one FACING block whose
+     *                             first byte packs a walk mode, a 3-bit kind
+     *                             and an instant flag -- a different model, not
+     *                             a different layout, and the mock has no
+     *                             walk-mode concept to fill it from.
+     *   the health bar            a separate HEADBARS block keyed by a headbar
+     *                             CONFIG ID. That is content, and there is no
+     *                             name for it in this tree yet, so inventing
+     *                             one here would be exactly the hardcoded
+     *                             config id the porting guide forbids. Until it
+     *                             exists, damage numbers appear and the bar
+     *                             above the npc does not.
+     */
+}
+
 static int
 npc_extended_pending(const struct Mock230Npc* npc)
 {
@@ -2359,6 +3071,221 @@ mock230_send_npc_info(struct Mock230Player* player)
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
 
+    /*
+     * Revision 239's npc stream.
+     *
+     * The HIGH-RESOLUTION section is byte-for-byte the shape the classic
+     * encoder below already writes -- an 8-bit count, then per npc a
+     * "has update" bit and a 2-bit type (0 stay, 1 walk, 2 run/crawl,
+     * 3 remove). That is why it is duplicated here rather than shared: the
+     * agreement is a coincidence of two revisions, not a guarantee, and a
+     * shared body would silently follow whichever one changed first.
+     *
+     * The LOW-RESOLUTION adds are where it diverges, and every field moved:
+     *
+     *   classic   14-bit slot, 14-bit type, 5-bit dx, 5-bit dz, 1-bit extended
+     *   v5        16-bit index, 1-bit spawn-cycle flag (+32 bits if set),
+     *             1-bit extended, 6-bit dx, 3-bit direction, 6-bit dz,
+     *             1-bit jump, 14-bit id
+     *
+     * The id moved to the END and the deltas widened from 5 bits to 6, so a
+     * client reading the classic record takes the type as part of the index and
+     * places an npc that does not exist at a coordinate that is not there.
+     *
+     * The terminator is a 16-bit 0xFFFF and it is NOT written here; see the
+     * end of the low-resolution loop for why it is only correct once extended
+     * info follows it.
+     */
+    if( wire_is_v5(player) )
+    {
+        int adds[MOCK230_TRACKED_NPC_MAX];
+        int add_count = 0;
+
+        /*
+         * SET_NPC_UPDATE_ORIGIN first, every tick, and it is not optional.
+         *
+         * The low-resolution deltas below are relative to an origin the CLIENT
+         * holds, and since revision 222 the client does not infer it -- world
+         * entities mean the reference point is not always the local player, so
+         * the server states it. Two bytes, scene-local, "the player's
+         * coordinate in the current build area" for the ordinary case.
+         *
+         * Omitting it is silent in every way that matters: the client's origin
+         * stays 0,0, so an npc six tiles north-west of the player is placed six
+         * tiles from the scene's south-west CORNER. It is in the npc table with
+         * the right id, RuneLite's API reports it, extended info applies to it,
+         * and it is drawn nowhere near the player -- usually off the scene
+         * entirely, and so not drawn at all. Nothing about "no npcs appear"
+         * points at a missing two-byte packet.
+         *
+         * Sent unconditionally rather than on change: it costs four bytes on
+         * the wire, and the tick it is skipped is the tick after a rebuild
+         * moves the build area under a stationary player.
+         */
+        open_packet(&buf, 4);
+        rsab_p1(&buf, player->x - mock230_scene_base_x());
+        rsab_p1(&buf, player->z - mock230_scene_base_z());
+        flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
+
+        open_packet(&buf, 4096);
+        rsab_bits(&buf);
+
+        rsab_pbit(&buf, 8, player->tracked_count);
+        for( int i = 0; i < player->tracked_count; i++ )
+        {
+            int slot = player->tracked[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx = npc->x - player->x;
+            int dz = npc->z - player->z;
+            int in_range = npc->active && npc->level == player->level && dx >= -15 &&
+                           dx <= 15 && dz >= -15 && dz <= 15;
+
+            if( !in_range || npc->tele )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 3); /* remove */
+                /*
+                 * Clearing this is what lets the npc come BACK. `npc_tracked`
+                 * is the "this client already holds it" gate on the
+                 * entering-view scan below; leaving it set on a remove means
+                 * the npc is dropped from the client's list and can never be
+                 * re-added, so the world empties out one npc at a time as
+                 * things wander in and out of range -- a scene that starts
+                 * populated and is bare a few ticks later, with a perfectly
+                 * well-formed packet every tick.
+                 */
+                player->npc_tracked[slot] = 0;
+                continue;
+            }
+            kept[kept_count++] = slot;
+            {
+                int const extended = npc_extended_pending(npc);
+
+                if( npc->step_dir >= 0 )
+                {
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 1); /* walk */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( extended )
+                {
+                    /* "no movement, but something to say about it" -- update
+                     * type 0. Without this an npc that stands still and swings
+                     * has no way to carry its animation. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 0);
+                }
+                else
+                {
+                    rsab_pbit(&buf, 1, 0); /* unchanged */
+                }
+                if( extended )
+                    queued[queued_count++] = slot;
+            }
+        }
+
+        nearby_count = mock230_zone_npcs_near(srv, player->x, player->z, player->level, 15,
+                                              nearby, MOCK230_TRACKED_NPC_MAX);
+        for( int i = 0; i < nearby_count; i++ )
+        {
+            int slot = nearby[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx;
+            int dz;
+
+            if( !npc->active || player->npc_tracked[slot] )
+                continue;
+            dx = npc->x - player->x;
+            dz = npc->z - player->z;
+            /*
+             * The SAME radius the high-resolution loop keeps at, and it has to
+             * be. The 6-bit delta could carry +-31, but an npc added at 20 tiles
+             * is out of range on the very next tick, so it is removed, re-added,
+             * removed... every tick, and never renders. The wire's capacity is
+             * not the view distance.
+             */
+            if( dx < -15 || dx > 15 || dz < -15 || dz > 15 )
+                continue;
+            if( kept_count >= MOCK230_TRACKED_NPC_MAX )
+                break;
+            adds[add_count++] = slot;
+            player->npc_tracked[slot] = 1;
+            kept[kept_count++] = slot;
+        }
+
+        for( int i = 0; i < add_count; i++ )
+        {
+            int slot = adds[i];
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int dx = npc->x - player->x;
+            int dz = npc->z - player->z;
+
+            int const extended = npc_extended_pending(npc);
+
+            rsab_pbit(&buf, 16, slot);
+            rsab_pbit(&buf, 1, 0); /* no spawn cycle */
+            rsab_pbit(&buf, 1, extended);
+            rsab_pbit(&buf, 6, dx & 0x3f);
+            /*
+             * Facing, and the client applies it ONLY here -- `if (isNew)` in
+             * its own decode. An npc that enters view facing the wrong way
+             * stays that way until it walks, so this is not cosmetic for a boss
+             * that never moves.
+             */
+            rsab_pbit(&buf, 3, npc->face_dir & 7);
+            rsab_pbit(&buf, 6, dz & 0x3f);
+            rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
+            rsab_pbit(&buf, 14, npc->type);
+            if( extended )
+                queued[queued_count++] = slot;
+        }
+
+        /*
+         * The terminator, and ONLY when extended-info bytes follow it.
+         *
+         * The client's low-resolution loop has two exits and the sentinel is
+         * the second one: it first checks `readableBits() >= 16 + 12` and
+         * returns if the buffer cannot hold another record, and only then reads
+         * an index and compares it to 0xFFFF. `readableBits()` spans the WHOLE
+         * remaining packet, including the extended-info section, so the sentinel
+         * is what stops it from reading extended-info bytes as another add.
+         *
+         * With nothing after the bit section there is nothing to stop: byte
+         * alignment leaves at most 7 bits, the first check ends the loop, and a
+         * sentinel written anyway is 16 bits the client never consumes. It then
+         * fails its own end-of-packet check -- which is how the unconditional
+         * version was found:
+         *
+         *     Client error: 85,28,74,147,...
+         *     RuntimeException: 145,147
+         *
+         * 145 bytes read of the 147 sent, and the two were the sentinel.
+         *
+         * So it is conditional on the same thing the client's check is: whether
+         * there is anything after the bits. Both halves of that are load-bearing
+         * and they fail in opposite directions -- omit it with extended info
+         * present and the client reads an animation block as an npc record;
+         * write it with nothing following and the packet ends two bytes late.
+         */
+        if( queued_count > 0 )
+            rsab_pbit(&buf, 16, 0xffff);
+        rsab_bytes(&buf);
+
+        /*
+         * The extended blocks, byte-aligned, in the order the bit section
+         * queued them -- high resolution first, then the entering-view adds.
+         * Nothing on the wire says which npc a block belongs to; the client
+         * replays its own queue, so the two orders have to be the same walk.
+         */
+        for( int i = 0; i < queued_count; i++ )
+            put_npc_extended_v5(&buf, &srv->npcs[queued[i]], 0);
+
+        flush(player, &buf, OP_NPC_INFO, 2);
+        memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+        player->tracked_count = kept_count;
+        return;
+    }
     open_packet(&buf, 8192);
     rsab_bits(&buf);
 

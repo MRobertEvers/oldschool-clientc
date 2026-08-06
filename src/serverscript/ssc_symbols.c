@@ -565,6 +565,16 @@ has_suffix(
     return name_length >= suffix_length && strcmp(name + name_length - suffix_length, suffix) == 0;
 }
 
+/* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
+ * path with stat() instead -- portable across the unix and win32 builds. Same
+ * shape as mock230_path_is_dir() in src/net/mock/mock230_content.c. */
+static int
+ssc_path_is_dir(const char* path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+}
+
 int
 SSC_SymbolsLoadPackDir(
     struct SSC_Symbols* symbols,
@@ -588,7 +598,7 @@ SSC_SymbolsLoadPackDir(
          * Recurse. `SSC_SymbolsLoadConstantDir` below already does, and this one
          * not doing so is why nothing under a subdirectory was ever reachable.
          */
-        if( entry->d_type == DT_DIR )
+        if( ssc_path_is_dir(path) )
         {
             if( entry->d_name[0] != '.' )
             {

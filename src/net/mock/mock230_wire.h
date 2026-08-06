@@ -51,6 +51,7 @@
 #include <stdint.h>
 
 struct RSAreaBuf;
+struct Mock230ZoneEvent;
 
 /* ------------------------------------------------------------------ */
 /* Payload writers                                                     */
@@ -87,6 +88,97 @@ struct Mock230WirePayload
         int level,
         int xp,
         int boosted);
+    void (*cam_moveto)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int rate,
+        int rate2);
+    void (*cam_lookat)(
+        struct RSAreaBuf* buf,
+        int x,
+        int z,
+        int height,
+        int rate,
+        int rate2);
+    void (*cam_shake)(
+        struct RSAreaBuf* buf,
+        int axis,
+        int random,
+        int amplitude,
+        int rate);
+    /**
+     * One zone sub-packet's payload, by canonical name.
+     *
+     * A single slot rather than one per event because they share a shape --
+     * a packed coord-in-zone byte, a packed loc-properties byte, an id -- and
+     * differ only in field order and byte order. Returns 1 when it wrote the
+     * event, 0 when this revision has no writer for that kind, which the caller
+     * turns into a dropped sub-packet rather than a mis-encoded one.
+     *
+     * `props` is (shape << 2) | angle and `pos` is (x << 4) | z within the
+     * zone; both are already packed by the caller, identically at both
+     * revisions.
+     */
+    int (*zone_payload)(
+        struct RSAreaBuf* buf,
+        int pkt_name,
+        const struct Mock230ZoneEvent* event,
+        int pos,
+        int props);
+
+    /**
+     * A zone header: which zone the sub-packets that follow apply to.
+     *
+     * Three bytes at revision 239 against the hybrid's two — the level is a
+     * field the 230 table has no room for, so a 239 client reading our old
+     * header takes the first sub-packet's opcode as the level and everything
+     * after it is one byte out.
+     */
+    void (*zone_header)(struct RSAreaBuf* buf, int pkt_name, int zone_x, int zone_z,
+                        int level);
+
+    void (*message_game)(struct RSAreaBuf* buf, int type, const char* text);
+    void (*if_settext)(struct RSAreaBuf* buf, int uid, const char* text);
+    void (*if_setnpchead)(struct RSAreaBuf* buf, int uid, int npc_id);
+    void (*if_setanim)(struct RSAreaBuf* buf, int uid, int anim_id);
+    void (*if_setplayerhead)(struct RSAreaBuf* buf, int uid);
+    void (*set_map_flag)(struct RSAreaBuf* buf, int level, int x, int z);
+    void (*chat_filter)(struct RSAreaBuf* buf, int public_, int private_, int trade);
+    void (*synth_sound)(struct RSAreaBuf* buf, int id, int loops, int delay);
+    void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
+    /** The header of an inventory update; the slot loop follows in the caller,
+     *  which is the only thing that knows the container. */
+    void (*inv_header)(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
+                       int capacity);
+    /** One inventory slot. `slot` is ignored by the FULL form, which is
+     *  positional, and leads the PARTIAL form. */
+    void (*inv_slot)(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id,
+                     int count);
+
+    /**
+     * RUNCLIENTSCRIPT's argument block.
+     *
+     * The type string is NUL-terminated at this revision rather than
+     * newline-terminated, and the script id is a plain p4 after the arguments
+     * (which are still written in reverse). `types` is one char per argument.
+     */
+    void (*run_clientscript)(
+        struct RSAreaBuf* buf,
+        int script_id,
+        const char* types,
+        int const* intv,
+        const char* const* strv,
+        int argc);
+
+    /** One ignore-list entry. The list is name-based at this revision rather
+     *  than a flat array of base-37 longs. */
+    void (*ignore_entry)(struct RSAreaBuf* buf, const char* name);
+
+    /** REBUILD_REGION's header. The zone descriptor grid follows and is written
+     *  by the caller, which already knows how to bit-pack it. */
+    void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);
     void (*rebuild_normal)(
         struct RSAreaBuf* buf,
         int world_area,
@@ -138,6 +230,62 @@ struct Mock230Wire
      * packet whose contents are read as some other event.
      */
     int (*zone_sub_code)(int pkt_name);
+
+    /*
+     * The INBOUND table: what the client sends us.
+     *
+     * Separate slots because it is a separate table with its own numbering —
+     * MOVE_GAMECLICK is opcode 86 at revision 230 and 114 at 239 — and because
+     * forgetting it is a silent, total failure rather than a partial one. The
+     * outbound path was made revision-driven first and this was left reading
+     * the 230 table; every packet a 239 client sent was then framed with the
+     * wrong length, so the inbound stream desynchronised on the client's first
+     * word and the server misread everything after it. Nothing logs an error:
+     * unknown opcodes frame as zero-length by design.
+     */
+    /** Wire opcode -> payload size: >=0 fixed, -1 var-u8, -2 var-u16. */
+    int (*packetout_size)(int wire_opcode);
+    /** Wire opcode -> canonical PKTOUT_NAME_*, or PKTOUT_NAME_NONE. */
+    int (*packetout_name)(int wire_opcode);
+
+    /** Wire opcode -> the revision's own INBOUND name, for logs. A separate
+     *  slot from `prot_name` because the two directions are separate tables
+     *  with separate numbering: opcode 114 is MOVE_GAMECLICK arriving and
+     *  RUNCLIENTSCRIPT leaving, so naming one with the other's table produces
+     *  a trace that is not merely unhelpful but actively misleading. */
+    char const* (*packetout_prot_name)(int wire_opcode);
+
+    /**
+     * Rewrite an inbound body into the one `mock230_world.c` reads, or NULL
+     * when the revision's client already sends it.
+     *
+     * A THIRD slot rather than a smarter `packetout_name`, because inbound the
+     * client writes the bytes and we do not get to choose them. Two things a
+     * name lookup cannot express turn up at 239:
+     *
+     *  - the fields inside a packet moved. `OPLOC1_V2` is
+     *    `z, x, ctrl, subop, id` where the 230 body is `x, z, id`: the same
+     *    length, the same opcode after the table maps it, and not one field in
+     *    the same place. The packet frames, so the stream never desynchronises
+     *    and nothing is logged; the interaction just names a loc that is not
+     *    there;
+     *
+     *  - a family collapsed into one opcode. IF_BUTTON1..10, OPHELD1..5 and
+     *    INV_BUTTON1..5 are all `IF_BUTTONX` at 239 with the op number in the
+     *    payload, so ONE wire opcode has to resolve to one of twenty canonical
+     *    names -- which is why this returns a name and not a length.
+     *
+     * NULL for 230, whose client is this repo's own and writes what the
+     * handlers read by construction.
+     */
+    int (*translate_in)(
+        int wire_opcode,
+        int name,
+        uint8_t const* in,
+        int in_len,
+        uint8_t* out,
+        int out_cap,
+        int* out_len);
 
     /**
      * 1 = opcodes >= 0x80 are written as TWO stream-cipher bytes

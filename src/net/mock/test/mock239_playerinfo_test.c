@@ -16,6 +16,20 @@
  * runs and misaligned bit sections live — and those are the failures that
  * produce a stream decoding into the wrong players rather than an error.
  *
+ * THE LIMIT OF THAT, demonstrated: this test passed while the encoder wrote an
+ * ABSOLUTE coordinate into a field the client adds as a DELTA. A round-trip
+ * proves a value survives the bits; it cannot prove the value meant the right
+ * thing, because both ends of the round trip are this file's own reading. Only
+ * a real client caught it, as a world that built and then went black once the
+ * player had been displaced off the loaded scene.
+ *
+ * Nothing in this repo was masking it. The C client REFUSES PLAYER_INFO at
+ * revision 239 (osrs239_parse.c returns -1 rather than decode a moved layout),
+ * and the classic rev-230 decoder is a different codec — its local-player op 3
+ * is `2 bits level, 7 bits scene x, 7 bits scene z`, an absolute placement
+ * inside the scene, not a 30-bit delta. There is no shared reader in which one
+ * semantics could paper over the other.
+ *
  *     make -C src test-mock239-playerinfo
  */
 
@@ -157,6 +171,32 @@ decode_section(
     return consumed;
 }
 
+/**
+ * The same walk, but reading the crowd from section 3 -- which is where the
+ * client looks from the second tick onward, once it has set a cycle bit on
+ * everyone it skipped. Its own function rather than a flag, so the two orders
+ * are visibly different things.
+ */
+static void
+decode_tick_late(struct RSAreaBuf* buf, struct Decoded* out, int expect_extended)
+{
+    int const low_res_count = SLOTS - 1 - 1;
+
+    decode_section(buf, 1, out, 1);
+    decode_section(buf, 0, out, 1);
+    out->low_res_skipped = decode_section(buf, low_res_count, out, 0);
+    decode_section(buf, 0, out, 0);
+
+    if( expect_extended )
+    {
+        out->ext_flag = rsab_g1(buf);
+        out->ext_appearance_len = (128 - rsab_g1(buf)) & 0xff;
+        for( int i = 0; i < out->ext_appearance_len && i < (int)sizeof(out->ext_appearance);
+             i++ )
+            out->ext_appearance[i] = (uint8_t)((rsab_g1(buf) - 128) & 0xff);
+    }
+}
+
 static void
 decode_tick(struct RSAreaBuf* buf, struct Decoded* out, int expect_extended)
 {
@@ -215,7 +255,8 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, appearance, sizeof(appearance));
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, appearance,
+                             sizeof(appearance), NULL);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);
@@ -224,8 +265,8 @@ main(void)
         CHECK(got.hi_res_seen == 1, "exactly one high-resolution update (%d)",
               got.hi_res_seen);
         CHECK(got.hi_res_extended == 1, "the high-resolution update flags extended info");
-        CHECK(got.hi_res_teleported == 1, "the position is stated as a teleport");
-        CHECK(got.hi_res_coord == coord, "teleport coord round-trips (%d)",
+        CHECK(got.hi_res_teleported == 1, "the position is stated as a delta");
+        CHECK(got.hi_res_coord == coord, "coord delta round-trips (%d)",
               got.hi_res_coord);
         CHECK(got.low_res_skipped == SLOTS - 2,
               "section 4 covers all %d low-resolution players", got.low_res_skipped);
@@ -241,7 +282,7 @@ main(void)
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));
-    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, NULL, 0);
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 0, NULL, 0, NULL);
     {
         size_t written = rsab_len(&buf);
         rsab_wrap(&buf, storage, written);
@@ -249,6 +290,24 @@ main(void)
         CHECK(!got.section_underrun, "no bit section ends mid-skip-run");
         CHECK(got.hi_res_extended == 0, "no extended-info bit when nothing is attached");
         CHECK(got.low_res_skipped == SLOTS - 2, "section 4 still covers every low-res slot");
+    }
+
+    fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");
+    memset(&got, 0, sizeof(got));
+    got.local_index = LOCAL_INDEX;
+    rsab_wrap(&buf, storage, sizeof(storage));
+    mock239_playerinfo_write(&buf, LOCAL_INDEX, coord, 1, appearance,
+                             sizeof(appearance), NULL);
+    {
+        size_t written = rsab_len(&buf);
+        rsab_wrap(&buf, storage, written);
+        decode_tick_late(&buf, &got, 1);
+        CHECK(!got.section_underrun, "no bit section ends mid-skip-run");
+        CHECK(got.hi_res_seen == 1, "still exactly one high-resolution update");
+        CHECK(got.low_res_skipped == SLOTS - 2,
+              "section 3 now covers all %d low-resolution players",
+              got.low_res_skipped);
+        CHECK(got.ext_flag == 0x20, "appearance still follows the bit sections");
     }
 
     if( g_failures )

@@ -370,6 +370,30 @@ mock230_zone_loc_find(
     return zone ? loc_in(zone, x, z, shape) : NULL;
 }
 
+struct Mock230ZoneLoc*
+mock230_zone_loc_find_id(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int loc_id)
+{
+    struct Mock230Zone* zone = zone_find(srv, x, z, level);
+
+    if( !zone )
+        return NULL;
+    for( int i = 0; i < zone->loc_count; i++ )
+    {
+        struct Mock230ZoneLoc* loc = &zone->locs[i];
+
+        /* `loc_id < 0` records a deletion — the tile *had* this loc and no
+         * longer does, which is exactly what a find must not answer with. */
+        if( loc->x == x && loc->z == z && loc->loc_id == loc_id && loc->loc_id >= 0 )
+            return loc;
+    }
+    return NULL;
+}
+
 void
 mock230_zone_loc_changed(
     struct Mock230Server* srv,
@@ -509,6 +533,9 @@ mock230_zone_projanim(
      */
     event.dx_offset = dst_x - x;
     event.dz_offset = dst_z - z;
+    event.dst_x = dst_x;
+    event.dst_z = dst_z;
+    event.dst_level = level;
     event.target = target;
     event.src_height = src_height;
     event.dst_height = dst_height;
@@ -796,6 +823,11 @@ obj_event(
     event.id = obj->obj_id;
     event.count = new_count;
     event.old_count = old_count;
+    /* Only a *drop* expires; a map-square spawn stays until it is taken, which
+     * is what `despawn_tick < 0` means. Clamped at zero because a tick that has
+     * already passed is not a negative lifetime. */
+    if( obj->despawn_tick >= 0 )
+        event.despawn_ticks = obj->despawn_tick > srv->tick ? obj->despawn_tick - srv->tick : 0;
     queue_event(srv, zone, &event);
 }
 
@@ -830,12 +862,26 @@ mock230_zone_obj_counted(
 /* ------------------------------------------------------------------ */
 
 /*
- * The 7x7 window of zones this client is kept current on, clipped to the build
- * area — `BuildArea.rebuildZones` in the reference.
+ * The 7x7x4 window of zones this client is kept current on, clipped to the
+ * build area — `BuildArea.rebuildZones` in the reference.
  *
  * Recomputed only when the player changes zone, which is what the reference
  * does and what keeps a stationary player's client-out phase down to a set
  * membership test per zone.
+ *
+ * ALL FOUR PLANES, not just the player's. The window used to be built with
+ * `player->level`, which meant a loc change one storey up was not merely
+ * mis-addressed — the zone holding it was not in the set at all, so nothing
+ * ever considered flushing it. The client's scene holds every plane of the
+ * loaded region (that is how an upstairs is drawn), so the server has to be
+ * willing to talk about every plane of it.
+ *
+ * What that cost: content could only mutate a loc on a plane by standing the
+ * player on it. The Inferno's prison walls did exactly that — teleport to
+ * plane 1, spawn, teleport back — and the player saw themselves jump.
+ *
+ * The set is four times larger and the per-tick work is not: the flush skips a
+ * zone with no events in one test, and empty planes are the common case.
  */
 static void
 rebuild_active(struct Mock230Player* player)
@@ -857,10 +903,13 @@ rebuild_active(struct Mock230Player* player)
         {
             if( x < left || x > right || z < bottom || z > top )
                 continue;
-            if( player->active_zone_count >= MOCK230_ZONE_ACTIVE_MAX )
-                continue;
-            player->active_zones[player->active_zone_count++] =
-                mock230_zone_index(x << 3, z << 3, player->level);
+            for( int level = 0; level < MOCK230_ZONE_LEVELS; level++ )
+            {
+                if( player->active_zone_count >= MOCK230_ZONE_ACTIVE_MAX )
+                    continue;
+                player->active_zones[player->active_zone_count++] =
+                    mock230_zone_index(x << 3, z << 3, level);
+            }
         }
     }
 }
@@ -988,6 +1037,10 @@ mock230_zone_update_player(struct Mock230Player* player)
         struct Mock230Zone* zone = zone_by_index(srv, index);
         int zone_x = index & 0x7ff;
         int zone_z = (index >> 11) & 0x7ff;
+        /* Bits 22-23 of the key (mock230_zone_index). Recovering it is what
+         * lets a zone describe its own plane instead of borrowing the
+         * player's. */
+        int zone_level = (index >> 22) & 3;
         int loaded = holds(player->loaded_zones, player->loaded_zone_count, index);
 
         if( !loaded )
@@ -1015,9 +1068,30 @@ mock230_zone_update_player(struct Mock230Player* player)
              * state written above has to learn about receivers too, and this is
              * the line that changes with it.
              */
-            mock230_send_zone_header(player, zone_x, zone_z, 1);
-            if( zone )
-                write_state(player, zone);
+            /*
+             * The unconditional FULL is for the plane the player is ON, and
+             * only that one.
+             *
+             * FULL_FOLLOWS resets the client's memory of a zone, and sending it
+             * for an empty zone is deliberate *there*: the client may be
+             * holding objs from before a rebuild, and "nothing to say" is not
+             * "nothing to undo". That reasoning is about the plane the player
+             * just arrived on. It does not extend to the other three, and
+             * extending it was a mistake with teeth — the window is 7x7x4, so
+             * a client entering an instance got 196 of these instead of 49,
+             * 147 of them resetting planes it had nothing on. The arena
+             * rendered blank.
+             *
+             * A zone that exists on another plane still gets its FULL and its
+             * state; one that does not is simply marked loaded, and any later
+             * event in it flushes through the normal path below.
+             */
+            if( zone || zone_level == player->level )
+            {
+                mock230_send_zone_header(player, zone_x, zone_z, zone_level, 1);
+                if( zone )
+                    write_state(player, zone);
+            }
             if( player->loaded_zone_count < MOCK230_ZONE_ACTIVE_MAX )
                 player->loaded_zones[player->loaded_zone_count++] = index;
             continue;
@@ -1028,16 +1102,44 @@ mock230_zone_update_player(struct Mock230Player* player)
 
         build_shared(srv, zone);
         if( zone->shared_len > 0 )
-            mock230_send_zone_enclosed(player, zone_x, zone_z, zone->shared,
+            mock230_send_zone_enclosed(player, zone_x, zone_z, zone_level, zone->shared,
                                        zone->shared_len);
 
-        /* Whatever is addressed to one client goes out on its own. */
+        /*
+         * Whatever is addressed to one client goes out on its own -- as a
+         * top-level packet where the revision has one, and otherwise as a
+         * PARTIAL_ENCLOSED carrying a single event.
+         *
+         * Revision 239 has no top-level prot for the obj family or for
+         * MAP_PROJANIM_V2 at all; they exist only inside the enclosed blob.
+         * Sending them the 230 way resolves to opcode -1 and drops them, and
+         * the events this loop carries are precisely the ones scoped to one
+         * player -- loot only its killer may see. Nothing logs it and the
+         * shared events in the same zone keep arriving, so the symptom is one
+         * player's ground items missing rather than anything looking broken.
+         *
+         * A one-event blob is not a workaround: RSProt's own encoder says
+         * player-specific zone prots "cannot be grouped together and must be
+         * sent separately, as they also are in OldSchool RuneScape".
+         */
         for( int e = 0; e < zone->event_count; e++ )
         {
             if( zone->events[e].receiver_pid != player->pid )
                 continue;
-            mock230_send_zone_header(player, zone_x, zone_z, 0);
-            mock230_send_zone_sub(player, &zone->events[e]);
+            if( mock230_zone_sub_standalone(srv->wire, zone->events[e].kind) )
+            {
+                mock230_send_zone_header(player, zone_x, zone_z, zone_level, 0);
+                mock230_send_zone_sub(player, &zone->events[e]);
+                continue;
+            }
+            {
+                uint8_t one[256];
+                int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one),
+                                                     &zone->events[e]);
+
+                if( written > 0 )
+                    mock230_send_zone_enclosed(player, zone_x, zone_z, zone_level, one, written);
+            }
         }
     }
 }

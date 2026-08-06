@@ -51,6 +51,7 @@
 #include "bmp.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <rscache.h>
 #include <stdio.h>
@@ -1499,38 +1500,53 @@ app_minimenu_font_scene_id(struct App* app);
 
 /*
  * Reference getOverlayPos (Client.ts:5253): rotate the entity's
- * camera-relative fine offset by yaw then pitch and divide by depth.
- * `<< 9` is the same UNIT_SCALE_SHIFT the 3D raster projects with, and
- * `origin` is the viewport centre. Returns 0 when the point is behind the
- * near plane (reference sets projectX = -1) or off the map.
+ * camera-relative fine offset by yaw then pitch and divide by depth, from the
+ * viewport centre. Returns 0 when the point is behind the near plane
+ * (reference sets projectX = -1) or off the map.
+ *
+ * The linear scale is the camera's own, NOT the reference's `<< 9`:
+ * Client-TS could shift by UNIT_SCALE_SHIFT because its world scale was the
+ * constant 512, and ours stopped being one in §15. A hardcoded 512 here
+ * re-creates the §1 wedge for every overlay — outlines, health bars,
+ * hitsplats and overhead chat all landing 512/scale times too far from the
+ * viewport centre.
  */
 static int
-app_world_project(
+app_world_proj_scale(struct App* app)
+{
+    struct ToriDraw_Camera const* cam = &app->world_camera;
+    int scale;
+    if( cam->proj_mode == TORIDRAW_PROJ_MODE_FOV )
+        scale = toridraw_proj_scale_from_fov(cam->fov_rpi2048);
+    else
+        scale = cam->proj_scale;
+    return scale > 0 ? scale : TORIDRAW_PROJ_SCALE_DEFAULT;
+}
+
+/* Project a world point at an ABSOLUTE height. The height-above-ground
+ * spelling below samples terrain per point, which is right for entities but
+ * wrong for anything that must stay coplanar — a footprint outline on sloped
+ * ground warps if each corner samples its own column. */
+static int
+app_world_project_at(
     struct App* app,
     int fine_x,
     int fine_z,
-    int height_above_ground,
+    int world_y,
     int* out_x,
     int* out_y)
 {
     int dx, dy, dz, tmp;
     int sin_pitch, cos_pitch, sin_yaw, cos_yaw;
-    int ground_y;
-    int level = 0;
+    int scale;
 
     if( !app->world || !app->world_view_valid )
         return 0;
     if( fine_x < 128 || fine_z < 128 )
         return 0;
-    {
-        struct WorldEntity_Player* local = app_local_player(app);
-        if( local )
-            level = local->grid_position.level;
-    }
-    ground_y = app_world_height(app, fine_x, fine_z, level);
 
     dx = fine_x - app->world_camera_pos.x;
-    dy = (ground_y - height_above_ground) - app->world_camera_pos.y;
+    dy = world_y - app->world_camera_pos.y;
     dz = fine_z - app->world_camera_pos.z;
 
     sin_pitch = ToriDraw_Sin(app->world_camera.pitch);
@@ -1549,9 +1565,36 @@ app_world_project(
     if( dz < 50 )
         return 0;
 
-    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + ((dx << 9) / dz);
-    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + ((dy << 9) / dz);
+    scale = app_world_proj_scale(app);
+    *out_x = app->world_emit_desc.x + app->world_emit_desc.w / 2 + (dx * scale / dz);
+    *out_y = app->world_emit_desc.y + app->world_emit_desc.h / 2 + (dy * scale / dz);
     return 1;
+}
+
+static int
+app_world_project(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int height_above_ground,
+    int* out_x,
+    int* out_y)
+{
+    int ground_y;
+    int level = 0;
+
+    if( !app->world || !app->world_view_valid )
+        return 0;
+    if( fine_x < 128 || fine_z < 128 )
+        return 0;
+    {
+        struct WorldEntity_Player* local = app_local_player(app);
+        if( local )
+            level = local->grid_position.level;
+    }
+    ground_y = app_world_height(app, fine_x, fine_z, level);
+    return app_world_project_at(
+        app, fine_x, fine_z, ground_y - height_above_ground, out_x, out_y);
 }
 
 /* Reference ClientEntity.height = model.minY, which Client-TS accumulates as
@@ -1725,6 +1768,134 @@ app_overlay_build_player_headicons(
         };
         app_overlay_push(app, &spr);
         y_off -= 25;
+    }
+}
+
+/* Push one projected world segment as a LINE overlay (box + diagonal). */
+static void
+app_overlay_push_segment(
+    struct App* app,
+    int screen_x0,
+    int screen_y0,
+    int screen_x1,
+    int screen_y1,
+    uint32_t color)
+{
+    struct UITreeEntityOverlay seg = {
+        .kind = UITREE_ENTITY_OVERLAY_LINE,
+        .x = screen_x0 < screen_x1 ? screen_x0 : screen_x1,
+        .y = screen_y0 < screen_y1 ? screen_y0 : screen_y1,
+        .w = screen_x0 < screen_x1 ? screen_x1 - screen_x0 : screen_x0 - screen_x1,
+        .h = screen_y0 < screen_y1 ? screen_y1 - screen_y0 : screen_y0 - screen_y1,
+        .color = color,
+        .line_width = 2,
+        /* Direction 0 = TL->BR. The segment runs that diagonal when x and y
+         * grow together; otherwise it is the other one. */
+        .line_direction = ((screen_x0 < screen_x1) != (screen_y0 < screen_y1)) ? 1 : 0,
+    };
+    app_overlay_push(app, &seg);
+}
+
+/*
+ * TORIRS_HOVER_FOOTPRINT=1: outline the hovered loc's footprint tiles in red.
+ *
+ * The painter orders scenery by its FOOTPRINT (size_x x size_z from the loc
+ * config, orientation-swapped), while the model draws wherever its vertices
+ * land — and nothing on screen says which tiles the painter believed the loc
+ * covered. When a model overhangs its footprint, terrain on the overhung
+ * tiles legitimately draws later and paints over it, which reads as "the
+ * painter is broken" while every ordering rule is being honoured. This makes
+ * the footprint visible so model-vs-footprint mismatches are a hover, not an
+ * afternoon (the multiloc trap of loc-placement-debug fame).
+ *
+ * Each footprint tile is outlined at terrain height through the same
+ * projector the health bars use, so the outline hugs the contour.
+ */
+static void
+app_overlay_outline_scenery(
+    struct App* app,
+    struct WorldEntity_Scenery const* scenery)
+{
+    int base_x = scenery->grid_position.x;
+    int base_z = scenery->grid_position.z;
+    int size_x = scenery->debug.draw_size_x > 0 ? scenery->debug.draw_size_x : 1;
+    int size_z = scenery->debug.draw_size_z > 0 ? scenery->debug.draw_size_z : 1;
+    int plane_y;
+
+    /* One flat plane at the SW corner's ground height, the height the loc was
+     * placed against — not per-corner terrain samples. Sampling each corner's
+     * own column bends the outline over every slope and, on the raised ground
+     * an overhung footprint reaches into, floats it clear of the loc it is
+     * meant to describe. */
+    plane_y = app_world_height(app, base_x * 128, base_z * 128, scenery->grid_position.level);
+
+    for( int tz = base_z; tz < base_z + size_z; tz++ )
+    {
+        for( int tx = base_x; tx < base_x + size_x; tx++ )
+        {
+            /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
+            static const int corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+            int px[4];
+            int py[4];
+            int visible = 1;
+
+            for( int c = 0; c < 4 && visible; c++ )
+                visible = app_world_project_at(
+                    app, (tx + corner[c][0]) * 128, (tz + corner[c][1]) * 128, plane_y,
+                    &px[c], &py[c]);
+            if( !visible )
+                continue;
+            for( int c = 0; c < 4; c++ )
+            {
+                int next = (c + 1) & 3;
+                app_overlay_push_segment(app, px[c], py[c], px[next], py[next], 0xFFFF0000u);
+            }
+        }
+    }
+}
+
+static void
+app_overlay_build_hover_footprint(struct App* app)
+{
+    /* 0 = off; 1 = the hovered loc; >1 = every instance of that LOC ID.
+     * The id form exists for headless runs: TORIRS_SIM_HOVER parks the mouse
+     * before the frame loop, so an exit screenshot has no hover to read. */
+    static int mode = -1;
+
+    if( mode < 0 )
+    {
+        char const* env = getenv("TORIRS_HOVER_FOOTPRINT");
+        mode = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
+        if( mode < 0 )
+            mode = 0;
+    }
+    if( !mode || !app->world )
+        return;
+
+    if( mode == 1 )
+    {
+        /* The pickset is this frame's under-mouse set, nearest hits first
+         * (the same order the minimenu consumes). Take the first scenery. */
+        struct World_Picked const* hit = NULL;
+        struct WorldEntity_Scenery* scenery;
+        for( int i = 0; i < app->world_pickset.count && !hit; i++ )
+            if( app->world_pickset.items[i].type == WORLD_PICK_SCENERY )
+                hit = &app->world_pickset.items[i];
+        if( !hit )
+            return;
+        scenery = World_SceneryGetByElementId(app->world, hit->element_id);
+        if( scenery )
+            app_overlay_outline_scenery(app, scenery);
+        return;
+    }
+
+    struct World_EntityPool* pool = &app->world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
+        if( scenery && scenery->loc_id == mode )
+            app_overlay_outline_scenery(app, scenery);
     }
 }
 
@@ -1952,6 +2123,10 @@ app_build_entity_overlays(
                 app, player->element_id, &player->chat, &player->draw_position, chat_font);
         }
     }
+
+    /* Debug: hovered loc's painter footprint, in red (see the builder). Last
+     * so the outline layers above bars/splats/chat. */
+    app_overlay_build_hover_footprint(app);
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
@@ -2850,7 +3025,10 @@ App_Init(
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
-    app->world_camera.fov_rpi2048 = 512;
+    /* Both knobs are populated; proj_mode picks. See graphics/projection.h. */
+    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    app->world_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
     app->world_camera.near_plane_z = 50;
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
@@ -3801,6 +3979,100 @@ app_debug_log_position(struct App* app)
         app->world_camera.pitch);
 }
 
+/* TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene tiles,
+ * once per load.
+ *
+ * Flat terrain and correctly-varying terrain are indistinguishable from a
+ * screenshot, and "the heights must be wrong" is the first thing anyone reaches
+ * for when scenery and ground intersect oddly. This settles it in one run: the
+ * Inferno arena reads a single height across 41x31 tiles and is *supposed* to —
+ * its depth is scenery, not relief — while Lumbridge over the same span ramps
+ * -464 to -240. Without the second half of that comparison the first half reads
+ * as a bug. */
+static void
+app_debug_height_profile(struct App* app)
+{
+    static unsigned logged = (unsigned)-1;
+    const char* env = getenv("TORIRS_HPROF");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete )
+        return;
+    if( app->world->load_seq == logged )
+        return;
+    logged = app->world->load_seq;
+    int lvl = 0;
+    if( sscanf(env, "%d,%d,%d,%d,%d", &x0, &x1, &z0, &z1, &lvl) < 4 )
+        return;
+    for( int z = z1; z >= z0; z-- )
+    {
+        fprintf(stderr, "hprof L%d z=%3d:", lvl, z);
+        for( int x = x0; x <= x1; x++ )
+            fprintf(stderr, " %5d",
+                    app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
+        fprintf(stderr, "\n");
+    }
+}
+
+/* TORIRS_TFLAGS=x0,x1,z0,z1: per-tile terrain settings at every cache level,
+ * once per load. BLOCK 0x1, LINK_BELOW 0x2, REMOVE_ROOF 0x4, VIS_BELOW 0x8,
+ * FORCE_HIGH_DETAIL 0x10. VIS_BELOW is the one that drags a tile from an upper
+ * level down onto level 0's draw pass. */
+static void
+app_debug_tile_flags(struct App* app)
+{
+    static unsigned logged = (unsigned)-1;
+    const char* env = getenv("TORIRS_TFLAGS");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete )
+        return;
+    if( app->world->load_seq == logged )
+        return;
+    logged = app->world->load_seq;
+    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+        return;
+    for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
+    {
+        int n_vis = 0, n_link = 0;
+        for( int z = z0; z <= z1; z++ )
+            for( int x = x0; x <= x1; x++ )
+            {
+                unsigned f = (unsigned)World_TileFlagGet(app->world, x, z, lv);
+                if( f & RSCACHE_FLOFLAG_VIS_BELOW ) { n_vis++;
+                    if( n_vis <= 400 )
+                        fprintf(stderr,
+                                "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
+                                lv, x, z, f, World_TerrainElementAt(app->world, x, z, lv)); }
+                if( f & RSCACHE_FLOFLAG_LINK_BELOW ) n_link++;
+            }
+        fprintf(stderr, "tflags L%d: vis_below=%d link_below=%d\n", lv, n_vis, n_link);
+    }
+}
+
+/* TORIRS_TPROJ=x0,x1,z0,z1: project each tile centre to screen, once per load.
+ * Turns "which tile is that artifact" from a guess into a lookup. */
+static void
+app_debug_tile_project(struct App* app)
+{
+    static int ticks = 0;
+    const char* env = getenv("TORIRS_TPROJ");
+    int x0, x1, z0, z1;
+    if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
+        return;
+    /* After the camera has settled, not on the load callback: the projection
+     * reads app->world_camera, which the load has not written yet. */
+    if( ++ticks != 120 )
+        return;
+    if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )
+        return;
+    for( int z = z0; z <= z1; z++ )
+        for( int x = x0; x <= x1; x++ )
+        {
+            int sx = 0, sy = 0;
+            if( app_world_project(app, x * 128 + 64, z * 128 + 64, 0, &sx, &sy) )
+                fprintf(stderr, "tproj tile=%d,%d screen=%d,%d\n", x, z, sx, sy);
+        }
+}
+
 /* TORIRS_BRIDGE_DEBUG=1: list every LinkBelow column in the loaded scene with
  * the level-0/level-1 ground heights the getAvH bump chooses between. The
  * "am I standing on the deck or under it" one-liner. Prints once per load. */
@@ -3839,11 +4111,192 @@ app_debug_log_bridges(struct App* app)
     fprintf(stderr, "bridge: %d link-below columns in scene\n", count);
 }
 
+/*
+ * World projection scale — recomputed per layout, the reference behaviour
+ * (docs/ORANGE_WEDGE.md §4/§11/§12, promoted to the default per §11.7).
+ *
+ * The reference client recomputes the world projection scale from the world
+ * viewport HEIGHT on every layout (class159.method5357:
+ * scale = viewportHeight * zoom / 334, zoom interpolated between the two
+ * VIEWPORT_SETFOV endpoints over height-334 in [0,100]). Leaving it at the
+ * compile-time proj_scale = 512 is what drew the Inferno 2.68x magnified —
+ * at a 503-high world viewport the reference lands on 191/192.
+ *
+ * ON by default. TORIRS_WEDGE_SCALE values:
+ *   (unset) | 1 | auto        recompute per class159.method5357 (default)
+ *   0 | off                   legacy constant scale 512, for A/B comparison
+ *   <n>                       force the linear scale to n (n >= 8), for bisection
+ *   TORIRS_WEDGE_ZOOM=<n>,<f>   override the decoded SETFOV endpoints (auto mode)
+ *   TORIRS_WEDGE_FOV_DEBUG=1    log the SETFOV decode and the resulting scale
+ *
+ * The scale reaches the kernels exactly, through ToriDraw_Camera.proj_scale.
+ *
+ * TORIRS_WORLD_FOV=<n> drives the camera's OTHER knob instead: it switches the
+ * world camera to TORIDRAW_PROJ_MODE_FOV and sets fov_rpi2048 to n (units of
+ * 2*pi/2048, 512 = the default). Both spellings are configurable; the angle
+ * cannot express most integer scales, so it is the wrong tool for matching a
+ * reference projection and the right one for a free camera. It wins over
+ * TORIRS_WEDGE_SCALE when both are set, since it is the more explicit request.
+ */
+static int
+app_world_fov_override(void)
+{
+    static int cached = -2;
+    if( cached == -2 )
+    {
+        char const* e = getenv("TORIRS_WORLD_FOV");
+        int v;
+        cached = -1;
+        if( e && e[0] != '\0' && sscanf(e, "%d", &v) == 1 && v > 0 )
+        {
+            /* Clamped, not rejected: an out-of-domain angle would otherwise
+             * mirror the world (see TORIDRAW_PROJ_FOV_MAX). */
+            if( v < TORIDRAW_PROJ_FOV_MIN )
+                v = TORIDRAW_PROJ_FOV_MIN;
+            if( v > TORIDRAW_PROJ_FOV_MAX )
+                v = TORIDRAW_PROJ_FOV_MAX;
+            cached = v;
+        }
+    }
+    return cached;
+}
+
+/* 0 = auto (recompute — the default), -1 = forced off (legacy constant 512),
+ * >0 = forced linear scale. */
+static int
+app_wedge_scale_mode(void)
+{
+    static int cached = -2;
+    if( cached == -2 )
+    {
+        char const* e = getenv("TORIRS_WEDGE_SCALE");
+        cached = 0;
+        if( e && e[0] != '\0' )
+        {
+            if( strcmp(e, "0") == 0 || strcmp(e, "off") == 0 )
+                cached = -1;
+            else if( strcmp(e, "1") == 0 || strcmp(e, "auto") == 0 )
+                cached = 0;
+            else
+            {
+                int v = atoi(e);
+                cached = v >= 8 ? v : 0;
+            }
+        }
+    }
+    return cached;
+}
+
+static void
+app_apply_wedge_scale(struct App* app)
+{
+    int mode = app_wedge_scale_mode();
+    int fov_override = app_world_fov_override();
+    int vp_h;
+    int near_zoom;
+    int far_zoom;
+    int d;
+    int zoom;
+    int scale;
+
+    if( fov_override > 0 )
+    {
+        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_FOV;
+        app->world_camera.fov_rpi2048 = fov_override;
+        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        {
+            static int logged = 0;
+            if( !logged )
+            {
+                logged = 1;
+                fprintf(
+                    stderr,
+                    "wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
+                    fov_override,
+                    toridraw_proj_scale_from_cot16(
+                        toridraw_proj_cot16_from_fov(fov_override)));
+            }
+        }
+        return;
+    }
+    if( mode < 0 )
+        return;
+    if( !app->world_view_valid )
+        return;
+
+    vp_h = app->world_emit_desc.h;
+    if( vp_h < 1 )
+        return;
+
+    if( mode > 0 )
+    {
+        scale = mode;
+        zoom = 0;
+        near_zoom = 0;
+        far_zoom = 0;
+    }
+    else
+    {
+        near_zoom = app->host.viewport_zoom_near;
+        far_zoom = app->host.viewport_zoom_far;
+        {
+            char const* z = getenv("TORIRS_WEDGE_ZOOM");
+            int zn, zf;
+            if( z && sscanf(z, "%d,%d", &zn, &zf) == 2 )
+            {
+                near_zoom = zn;
+                far_zoom = zf;
+            }
+        }
+        if( near_zoom < 1 )
+            near_zoom = 256;
+        if( far_zoom < 1 )
+            far_zoom = 256;
+
+        d = vp_h - 334;
+        if( d < 0 )
+            zoom = near_zoom;
+        else if( d >= 100 )
+            zoom = far_zoom;
+        else
+            zoom = (far_zoom - near_zoom) * d / 100 + near_zoom;
+
+        scale = (int)((double)vp_h * (double)zoom / 334.0);
+    }
+    if( scale < 1 )
+        scale = 1;
+
+    /* Exact: the kernels multiply by proj_scale directly. */
+    app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    app->world_camera.proj_scale = scale;
+
+    if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+    {
+        static int last = -1;
+        if( scale != last )
+        {
+            last = scale;
+            fprintf(
+                stderr,
+                "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
+                "realised=%d\n",
+                mode, vp_h, near_zoom, far_zoom, zoom, scale,
+                toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
+                    app->world_camera.proj_mode,
+                    app->world_camera.proj_scale,
+                    app->world_camera.fov_rpi2048)));
+        }
+    }
+}
+
 static void
 app_update_world_viewport(struct App* app)
 {
     app_debug_log_position(app);
     app_debug_log_bridges(app);
+    app_debug_height_profile(app);
+    app_debug_tile_project(app);
+    app_debug_tile_flags(app);
     app->world_view_valid = 0;
     app->minimap_view_valid = 0;
     if( getenv("TORIRS_WORLD_VIEW_DEBUG") )
@@ -3894,6 +4347,9 @@ app_update_world_viewport(struct App* app)
             app->minimap_view_valid = 1;
         }
     }
+    /* Recomputes the projection scale from the world viewport height, the
+     * reference behaviour (TORIRS_WEDGE_SCALE=off reverts to constant 512). */
+    app_apply_wedge_scale(app);
 }
 
 int32_t
@@ -4593,7 +5049,8 @@ app_logic_tick(struct App* app)
 
         /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::
          * commands (';'-separated) right after login — headless harness hook
-         * (the dev server grants staffmod, so tele/give work).
+         * (the dev server grants staffmod, so tele/give work). The manifest's
+         * `[net:boot] cheat=` is the same hook with env > manifest precedence.
          * TORIRS_NET_CHEAT_EVERY=N: re-send the same cheats every N logic
          * cycles (menu open/close churn in drift-ui). N<=0 keeps one-shot. */
         if( app->net->state == TORIRS_NET_GAME )
@@ -4601,6 +5058,9 @@ app_logic_tick(struct App* app)
             static int cheat_every = -1;
             char const* cheat = getenv("TORIRS_NET_CHEAT");
             int fire = 0;
+
+            if( !cheat || !cheat[0] )
+                cheat = app->cfg.net_cheat;
 
             if( cheat_every < 0 )
             {
@@ -4682,6 +5142,8 @@ app_logic_tick(struct App* app)
                 {
                     int parts = 0;
                     char const* p = getenv("TORIRS_NET_CHEAT");
+                    if( !p || !p[0] )
+                        p = app->cfg.net_cheat;
                     while( p && p[0] )
                     {
                         char const* sep = strchr(p, ';');
@@ -4693,6 +5155,22 @@ app_logic_tick(struct App* app)
                 }
             }
         }
+    }
+
+    /* Zone sub-packets queued during an async world load drain here once the
+     * load completes — without this a queue with no follow-up zone traffic
+     * would sit forever (the lazy flush only runs ahead of a live packet). */
+    if( app->pending_zone_count > 0 && app->world && app->world->load_complete )
+    {
+        struct RS_GameProtoCtx flush_ctx = {
+            .tree = app->tree,
+            .invs = &app->invs,
+            .varps = &app->varps,
+            .stats = &app->stats,
+            .chat = &app->chat,
+            .app = app,
+        };
+        RS_GameProto_FlushPendingZone(&flush_ctx);
     }
 
     /* Sound queue on the client tick: the server's play delays are in ticks and
@@ -5566,8 +6044,19 @@ app_update_painter_cull(
     if( vw < 1 || vh < 1 )
         return;
 
-    /* Follow cam owns the orbit anchor; free/scripted cam is eye-centred. */
-    follow_cam = app->net && !app->cam_script.scripted;
+    /* The painter's draw box is centred on the EYE tile — the official does
+     * this unconditionally (class112.method4111 derives the window from
+     * field1755/field1765, the camera tile). Centring on the orbit anchor
+     * instead put nine extra z rows behind the camera in the box and dropped
+     * nine near ones, which is §9.7(b)'s share of the Inferno wedge
+     * (docs/ORANGE_WEDGE.md, promoted per §11.7).
+     * TORIRS_WEDGE_DRAWCENTER=orbit restores the old behaviour for A/B. */
+    follow_cam = 0;
+    {
+        char const* dc = getenv("TORIRS_WEDGE_DRAWCENTER");
+        if( dc && strcmp(dc, "orbit") == 0 )
+            follow_cam = app->net && !app->cam_script.scripted;
+    }
     if( follow_cam )
     {
         center_sx = app->orbit_x >> 7;
@@ -5635,7 +6124,16 @@ app_update_painter_cull(
             ToriDraw_TrigFnsFromTables(&trig, &tables);
 
             clock_gettime(CLOCK_MONOTONIC, &t0);
-            cm = painters_cullmap_build_toridraw(radius, near_z, vw, vh, &trig);
+            cm = painters_cullmap_build_toridraw(
+                radius,
+                near_z,
+                vw,
+                vh,
+                toridraw_proj_cot16(
+                    app->world_camera.proj_mode,
+                    app->world_camera.proj_scale,
+                    app->world_camera.fov_rpi2048),
+                &trig);
             clock_gettime(CLOCK_MONOTONIC, &t1);
         }
         if( !cm )
@@ -5709,9 +6207,11 @@ app_update_painter_cull(
     params.far_clip = far_z;
     params.screen_width = vw;
     params.screen_height = vh;
+    /* Same values the frame will be drawn with; the cull frustum must not
+     * assume a different projection scale than the rasterizer uses. */
+    params.proj_mode = app->world_camera.proj_mode;
+    params.proj_scale = app->world_camera.proj_scale;
     params.fov_rpi2048 = app->world_camera.fov_rpi2048;
-    if( params.fov_rpi2048 < 1 )
-        params.fov_rpi2048 = 512;
     /* Eye-relative row range covering the draw box around the orbit centre. */
     params.dz_min = (center_sz - radius) - cam_sz - 2;
     params.dz_max = (center_sz + radius) - cam_sz + 2;
@@ -5728,6 +6228,36 @@ app_update_painter_cull(
 static void
 app_world_paint(struct App* app)
 {
+    /* TORIRS_WEDGE_CAM=x,y,z,pitch,yaw — pin the eye so a draw-order capture can
+     * be taken at the same camera as the instrumented official client. Pitch/yaw
+     * are the C client's 2048-per-turn units (the official's 16384-per-turn value
+     * divided by 8). Off unless the env var is set; when set it is re-applied every
+     * frame *before* anything reads the camera, so the painter, the occluders and
+     * the frame the renderer draws all agree. Ordering telemetry is worthless if
+     * the two clients look from different places (the C settled eye is two tiles
+     * farther in z than the official's, and the bucket traversal is centred on the
+     * camera tile). */
+    {
+        static int resolved = 0;
+        static int have = 0;
+        static int px, py, pz, ppitch, pyaw;
+        if( !resolved )
+        {
+            char const* wc = getenv("TORIRS_WEDGE_CAM");
+            resolved = 1;
+            if( wc && sscanf(wc, "%d,%d,%d,%d,%d", &px, &py, &pz, &ppitch, &pyaw) == 5 )
+                have = 1;
+        }
+        if( have )
+        {
+            app->world_camera_pos.x = px;
+            app->world_camera_pos.y = py;
+            app->world_camera_pos.z = pz;
+            app->world_camera.pitch = ppitch;
+            app->world_camera.yaw = pyaw;
+        }
+    }
+
     /* >>7, not /128: the orbit eye can sit at negative coords past the scene
      * edge, and truncation toward zero would mis-seed the bucket flood-fill
      * origin by a tile. Clamp into the scene — the bucket's distance metric
@@ -5886,6 +6416,15 @@ app_world_paint(struct App* app)
         }
     }
 
+    /* Draw-order telemetry (TORIRS_WEDGELOG): hand the painter the eye and world
+     * viewport it is about to paint with, for the log header. No-op otherwise. */
+    painter_wedgelog_set_eye(
+        app->world_camera_pos.x,
+        app->world_camera_pos.y,
+        app->world_camera_pos.z,
+        app->world_view_valid ? app->world_emit_desc.w : 0,
+        app->world_view_valid ? app->world_emit_desc.h : 0);
+
     painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;
@@ -5920,6 +6459,99 @@ app_world_paint(struct App* app)
             if( by_kind[k] )
                 fprintf(stderr, " %d:%d", k, by_kind[k]);
         fprintf(stderr, "\n");
+    }
+
+    /* TORIRS_TILETABLE=x0,x1,z0,z1: one row per (tile, cache level) joining
+     * everything that decides when a ground mesh reaches the screen —
+     *
+     *   flags     the raw floor settings byte (VIS_BELOW 0x08 is the one that
+     *             moves a mesh onto another level's pass)
+     *   elem      the terrain element id, or -1 when the tile has no geometry
+     *             at all; a -1 row can carry any flag and still draw nothing
+     *   set       PaintersTile::terrain_levels, the meshes this level emits
+     *   order     the command-buffer index the mesh landed at, or "-" when it
+     *             was never emitted
+     *
+     * The point is the join: flags alone say what *should* happen, the emit
+     * order alone says what did, and only the two side by side say whether a
+     * tile that looks wrong on screen is mis-flagged, mis-ordered, or simply
+     * has no mesh to move. Prints once, after the paint that produced it. */
+    {
+        static int done = 0;
+        static int paints = 0;
+        const char* env = getenv("TORIRS_TILETABLE");
+        /* Wait for the paint the caller means. The table is only interesting
+         * after a teleport into an instance, and printing on the first paint
+         * silently describes wherever the player logged in — the same trap that
+         * made TORIRS_HPROF report Lumbridge's relief for the arena. */
+        const char* at = getenv("TORIRS_TILETABLE_AT");
+        int want_paint = at ? atoi(at) : 600;
+        int x0, x1, z0, z1;
+        paints++;
+        if( env && !done && paints >= want_paint &&
+            sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) == 4 )
+        {
+            done = 1;
+            fprintf(stderr, "tile     lvl flags elem  set order\n");
+            for( int z = z0; z <= z1; z++ )
+                for( int x = x0; x <= x1; x++ )
+                    for( int lv = 0; lv < WORLD_MAP_TERRAIN_LEVELS; lv++ )
+                    {
+                        int order = -1;
+                        /* Count, do not stop at the first: "the mesh is drawn
+                         * once, from the level that owns it" is only provable
+                         * by showing there is no second emission. A search that
+                         * breaks on the first hit reports a double-draw and a
+                         * single draw identically. */
+                        int order_count = 0;
+                        for( int i = 0; i < app->painter_buffer->command_count; i++ )
+                        {
+                            struct PaintersElementCommand* c = &app->painter_buffer->commands[i];
+                            if( c->_bf_kind != PNTR_CMD_TERRAIN )
+                                continue;
+                            if( (int)c->_terrain._bf_terrain_x != x ||
+                                (int)c->_terrain._bf_terrain_z != z ||
+                                (int)c->_terrain._bf_terrain_y != lv )
+                                continue;
+                            if( order < 0 )
+                                order = i;
+                            order_count++;
+                        }
+                        fprintf(stderr, "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
+                                x, z, lv,
+                                (unsigned)World_TileFlagGet(app->world, x, z, lv),
+                                World_TerrainElementAt(app->world, x, z, lv),
+                                painter_tile_get_terrain_levels(app->world->painter, x, z, lv));
+                        if( order < 0 )
+                            fprintf(stderr, "-\n");
+                        else if( order_count > 1 )
+                            fprintf(stderr, "%d  DRAWN %dx\n", order, order_count);
+                        else
+                            fprintf(stderr, "%d\n", order);
+                    }
+            /* The other half of the comparison. A terrain order is only
+             * meaningful against the scenery it is supposed to be behind, and
+             * both have to be read off the SAME buffer — the render-command
+             * sequence TORIRS_DRAW_ORDER prints is a filtered renumbering, so
+             * the two cannot be lined up across tools. */
+            fprintf(stderr, "locs overlapping the rect (same numbering)\n");
+            for( int i = 0; i < app->painter_buffer->command_count; i++ )
+            {
+                struct PaintersElementCommand* c = &app->painter_buffer->commands[i];
+                struct WorldEntity_Scenery* sc;
+                if( c->_bf_kind != PNTR_CMD_ELEMENT )
+                    continue;
+                sc = World_SceneryGetByElementId(app->world, (int)c->_entity._bf_entity);
+                if( !sc )
+                    continue;
+                if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
+                    sc->grid_position.z < z0 - 8 || sc->grid_position.z > z1 + 8 )
+                    continue;
+                fprintf(stderr, "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n", i,
+                        sc->loc_id, sc->grid_position.x, sc->grid_position.z,
+                        sc->grid_position.level, sc->debug.draw_size_x, sc->debug.draw_size_z);
+            }
+        }
     }
 }
 
@@ -6542,6 +7174,23 @@ app_world_camera_keys(
     const int move = APP_CAMERA_MOVEMENT_SPEED;
     const int rotate = APP_CAMERA_ROTATION_SPEED;
 
+    /* TORIRS_KEY_DEBUG: why a world/debug key did nothing. Every gate below
+     * silently swallows the whole key set, and "the hotkey is broken" and
+     * "the hotkey never ran" look identical from outside. Keyed off the raw
+     * key state rather than key_event_count — that counter only fills when a
+     * component carries an onKey hook, so it is 0 for exactly the debug keys
+     * this is meant to explain. */
+    if( getenv("TORIRS_KEY_DEBUG") &&
+        (LibToriRS_Input_IsKeyDown(input, TORIRSK_I) ||
+         LibToriRS_Input_IsKeyDown(input, TORIRSK_J) ||
+         LibToriRS_Input_IsKeyDown(input, TORIRSK_K) ||
+         LibToriRS_Input_IsKeyDown(input, TORIRSK_L) ||
+         LibToriRS_Input_IsKeyDown(input, TORIRSK_COMMA)) )
+        fprintf(stderr,
+                "camera_keys: paint-cap key seen; world_active=%d view_valid=%d chat=%d/%d/%d\n",
+                app->world_active, app->world_view_valid, app->chat_input_active,
+                app->chat.social_input_open, app->chat.dialog_input_open);
+
     /* No key_target gating: the reference broadcasts every key to onKey
      * scripts AND moves the camera in the same frame; there is no focused
      * text-input concept to defer to yet. The viewport still has to be on
@@ -6573,7 +7222,7 @@ app_world_camera_keys(
     app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
     app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
     app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
-    if( app->cam_script.scripted || !app->net )
+    if( app->cam_script.scripted || !app->net || app->camera_unlocked )
     {
         if( app->cam_key_left )
             app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, rotate);
@@ -6585,10 +7234,83 @@ app_world_camera_keys(
             app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
     }
 
+    /* U: unlock / relock the camera. Unlocked, the follow update stands down
+     * (app_world_camera_follow) and W/A/S/D + R/F fly the eye, arrows rotate
+     * it — the debug flight that only worked offline, available online.
+     * Relocking snaps back through the follow's own teleport path. */
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_U) )
+    {
+        app->camera_unlocked = !app->camera_unlocked;
+        fprintf(stderr, "camera: %s\n", app->camera_unlocked ? "UNLOCKED" : "locked");
+        app->need_redraw = 1;
+    }
+
     /* M: reload the world through the task system (assets cached -> fast;
      * rebuild clears world scene elements incl. spawned entities). */
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
         app_world_load_begin(app, NULL, 0);
+
+    /* Painter-command stepping, the v0 client's debug (docs/ORANGE_WEDGE.md):
+     * I toggles the cap (unlimited <-> 0), J/K step it +-1, L/, +-100.  The
+     * raster then draws exactly the first N painter commands, which is how a
+     * draw-order artefact is walked to the command that paints it.
+     *
+     * The steppers repeat while HELD, like the W/A/S/D camera keys and unlike
+     * the one-shot debug keys above: a scene is ~1700 commands, so finding the
+     * one that paints a pixel by tapping J is not a thing anyone will do. Only
+     * the toggle is edge-triggered — held, it would flip every frame. */
+    {
+        int limit = ToriRS_Frame_PaintLimitGet();
+        int next = limit;
+        int stepping = 0;
+        int toggled = 0;
+        /* One log line per gesture, not per frame: while a stepper is held the
+         * value changes every frame, and a hundred lines a second buries the
+         * number you are trying to read. Printed when the keys settle.
+         * Seeded with the starting cap so an untouched client says nothing. */
+        static int logged = INT_MIN;
+        if( logged == INT_MIN )
+            logged = limit;
+
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_I) )
+        {
+            next = limit < 0 ? 0 : -1;
+            toggled = 1;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_J) )
+        {
+            next = (next < 0 ? 0 : next) + 1;
+            stepping = 1;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_K) )
+        {
+            next = (next < 0 ? 0 : next) - 1;
+            stepping = 1;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
+        {
+            next = (next < 0 ? 0 : next) + 100;
+            stepping = 1;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_COMMA) )
+        {
+            next = (next < 0 ? 0 : next) - 100;
+            stepping = 1;
+        }
+
+        if( next != limit )
+        {
+            if( next < -1 )
+                next = -1;
+            ToriRS_Frame_PaintLimitSet(next);
+            app->need_redraw = 1;
+        }
+        if( (toggled || !stepping) && ToriRS_Frame_PaintLimitGet() != logged )
+        {
+            logged = ToriRS_Frame_PaintLimitGet();
+            fprintf(stderr, "paintlimit: %d\n", logged);
+        }
+    }
 }
 
 /*
@@ -8075,9 +8797,10 @@ Task_AppIfHead_Run(
         for( self->slot_i = 0; self->slot_i < 12; self->slot_i++ )
         {
             struct WorldEntity_Player* lp = app_local_player(app);
-            if( lp && lp->appearance.slots[self->slot_i] >= 0x200 )
-                TASK_AWAITSELF_IF(CreateTask_ObjLoad(
-                    app->provider, lp->appearance.slots[self->slot_i] - 0x200));
+            int slot = lp ? lp->appearance.slots[self->slot_i] : 0;
+            if( Appearance_SlotKind(slot) == APPEARANCE_SLOT_OBJ )
+                TASK_AWAITSELF_IF(
+                    CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
         }
         {
             struct WorldEntity_Player* lp = app_local_player(app);
@@ -9122,6 +9845,12 @@ app_world_camera_follow(struct App* app)
     int inv_pitch, inv_yaw;
     int off_x, off_y, off_z;
 
+    /* U unlocked the camera: the follow update stands down and the W/A/S/D +
+     * R/F debug keys own world_camera_pos until U relocks. Without this gate
+     * the follow overwrites the eye every frame, which is why free flight only
+     * ever worked offline. */
+    if( app->camera_unlocked )
+        return;
     if( app->cam_script.scripted || !app->net )
         return;
     if( !RS_EntitySync_FindPlayer(
@@ -12126,9 +12855,10 @@ app_world_apply_entity_anim_tracks(
  * no worn slots). Reference ClientPlayer.getSequencedModel: while the PRIMARY
  * seq is actually driving frames (delay 0), its replaceheldleft/right override
  * the left-hand (appearance slot 5) / right-hand (slot 3) worn item before the
- * model is composited. A value >= 0 but below the obj range (< 0x200) draws no
- * model there, i.e. the held item is hidden (e.g. many emotes drop the weapon
- * and shield); a value >= 0x200 swaps in a different obj. The appearance model
+ * model is composited. The override is an appearance slot: a value >= 0 that is
+ * not in the obj range draws no model there, i.e. the held item is hidden (e.g.
+ * many emotes drop the weapon and shield); an obj-range value swaps in a
+ * different obj (see pkt_player_appearance.h). The appearance model
  * is built once and cached on the scene element, so rebuild it only when the
  * effective override changes (anim start/stop), keyed by held_*_applied. */
 static void
@@ -12153,10 +12883,12 @@ app_world_apply_player_held_items(struct App* app, struct WorldEntity_Player* pl
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
         if( prim && prim->frame_count > 0 )
         {
+            /* Cache-sourced appearance slots — converted here so the override
+             * is in the same vocabulary as the appearance it overwrites. */
             if( prim->replaceheldleft >= 0 )
-                want_left = prim->replaceheldleft;
+                want_left = Appearance_FromCacheValue(prim->replaceheldleft);
             if( prim->replaceheldright >= 0 )
-                want_right = prim->replaceheldright;
+                want_right = Appearance_FromCacheValue(prim->replaceheldright);
         }
     }
 

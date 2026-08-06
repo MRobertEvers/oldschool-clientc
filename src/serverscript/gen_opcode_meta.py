@@ -367,6 +367,38 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # instead of being overwritten by `NpcType.respawnrate`.
     "NPC_SETRESPAWN": (11015, 1, 0, 0, 0),
 
+    # npc_freeze(int $ticks)
+    #
+    # Stop the active npc MOVING for `$ticks`. It keeps attacking anything
+    # already in reach, keeps retaliating and keeps draining its queues — which
+    # is what OldSchool's Ice spells do, and the reason this is not `npc_delay`
+    # (2511), whose `delayed_until` gates the queue drain and would quietly stop
+    # a frozen npc fighting as well.
+    #
+    # LostCity has no such command, and the shape of its absence is the whole
+    # justification. Its freeze is content: `%npc_stunned` (a **varn**) holds
+    # the expiry and `npc_walktrigger` arms a script that vetoes the step. That
+    # is the better design and it is not portable here yet, because
+    # `content.ini` declares no varn namespace — so content has nowhere to put
+    # the expiry and no amount of script can say "this npc cannot move".
+    #
+    # So the engine takes the mechanism and content keeps the policy, the same
+    # split map_instance_alloc records below: how long a freeze lasts comes from
+    # the spell's `freeze_time` column, which spell freezes comes from content,
+    # and all the engine knows is a tick count and that a frozen npc does not
+    # step. When a varn namespace lands, this should move back to the
+    # reference's walktrigger shape and this entry should go.
+    "NPC_FREEZE": (11018, 1, 0, 0, 0),
+
+    # npc_frozen()(int) — ticks of freeze the active npc has left, 0 if none.
+    #
+    # The read-back half of npc_freeze, and it is not optional decoration: the
+    # rule OldSchool actually has is that a frozen target cannot be re-frozen,
+    # and without a way to ask, content spamming Barrage would re-up the timer
+    # every cast and hold an npc still for ever. The refusal is the content's
+    # (it is the reference's `~pvm_freeze_allowed`); this is only how it asks.
+    "NPC_FROZEN": (11019, 0, 0, 1, 0),
+
     # ---- inv slot vars (11016..11017) ------------------------------------
     #
     # Per-item ints on an inventory slot, keyed by an obj id. LostCity declares
@@ -497,6 +529,10 @@ POINTER_BITS = {
 EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "P_COUNTDIALOG_NOPROMPT": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_SETRESPAWN": (1 << POINTER_BITS["active_npc"], 0),
+    # Freezing needs an npc to freeze; without the mask `npc_freeze` in a script
+    # with no active npc is a null deref rather than a refusal.
+    "NPC_FREEZE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FROZEN": (1 << POINTER_BITS["active_npc"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

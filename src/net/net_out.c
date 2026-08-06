@@ -47,6 +47,60 @@ out_begin(
     return 0;
 }
 
+/*
+ * IF_BUTTONX — the packet twenty-two canonical names collapse into.
+ *
+ * From revision ~237 OldSchool stopped giving each verb its own opcode:
+ * OPHELD1..5, INV_BUTTON1..5 and IF_BUTTON1..10 are all
+ * `p4 combinedId, p2 sub, p2 obj, p1 op`, and the op number is a FIELD. `obj`
+ * is the discriminator the server reads back — 0xffff means "not an item", so
+ * a plain widget click and an inventory verb differ by that alone.
+ *
+ * Returns -1 when this revision has no IF_BUTTONX row, which is what every
+ * revision before 237 looks like; the caller then builds its own opcode.
+ */
+static int
+out_if_buttonx(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int component_id,
+    int sub,
+    int obj_id)
+{
+    struct RSCache_Buffer b;
+
+    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_BUTTONX) < 0 )
+        return -1;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONX, 9, &b) < 0 )
+        return -1;
+    p4(&b, component_id);
+    p2(&b, sub & 0xffff);
+    p2(&b, obj_id & 0xffff);
+    p1(&b, op_num & 0xff);
+    return 1 + (int)b.position;
+}
+
+/** The sentinel IF_BUTTONX's `obj` carries when the click is not on an item. */
+#define OUT_IF_BUTTONX_OBJ_NONE 0xffff
+
+/* Defined beside the other alt-order writers it needs; used by the use-on
+ * builders above them. */
+static int
+out_if_buttont(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int target_com,
+    int target_sub,
+    int target_obj,
+    int selected_com,
+    int selected_sub,
+    int selected_obj);
+
 static int
 out_empty(
     struct GameProtoRevTable const* rev,
@@ -169,8 +223,17 @@ net_out_if_button_op(
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
 
+    int collapsed;
+
     if( op_num < 1 || op_num > 10 )
         return -1;
+    /* Same collapse as OPHELD, and this is the one that costs a tab click: a
+     * plain widget carries no item, so `obj` is the not-an-item sentinel and
+     * the server reads the row back as IF_BUTTON<op>. */
+    collapsed = out_if_buttonx(
+        rev, random_out, buf, cap, op_num, component_id, sub, OUT_IF_BUTTONX_OBJ_NONE);
+    if( collapsed >= 0 )
+        return collapsed;
     if( out_begin(
             rev,
             random_out,
@@ -469,8 +532,18 @@ net_out_opheld(
     int slot,
     int component_id)
 {
+    int collapsed;
+
     if( op_num < 1 || op_num > 5 )
         return -1;
+    /* Newer revisions have no OPHELD opcode at all — the verb is IF_BUTTONX's
+     * `op` field on the inventory component, with the obj id proving it is an
+     * item row. Tried first because `packetout_code` is what decides, not the
+     * revision number. */
+    collapsed =
+        out_if_buttonx(rev, random_out, buf, cap, op_num, component_id, slot, obj_id);
+    if( collapsed >= 0 )
+        return collapsed;
     return out_obj_slot_com(
         rev, random_out, buf, cap, PKTOUT_NAME_OPHELD1 + (op_num - 1), obj_id, slot, component_id);
 }
@@ -489,6 +562,14 @@ net_out_opheldt(
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
 
+    /* The spell is the TARGET component and carries no obj, so its obj field is
+     * the not-an-item sentinel — the same discriminator IF_BUTTONX uses. */
+    int collapsed = out_if_buttont(
+        rev, random_out, buf, cap, spell_component_id, -1, OUT_IF_BUTTONX_OBJ_NONE,
+        component_id, slot, obj_id);
+
+    if( collapsed >= 0 )
+        return collapsed;
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDT, 4 + 2 * width, &b) < 0 )
         return -1;
     p2(&b, obj_id);
@@ -514,6 +595,12 @@ net_out_opheldu(
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
 
+    int collapsed = out_if_buttont(
+        rev, random_out, buf, cap, component_id, slot, obj_id, use_component_id, use_slot,
+        use_obj_id);
+
+    if( collapsed >= 0 )
+        return collapsed;
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPHELDU, 8 + 2 * width, &b) < 0 )
         return -1;
     p2(&b, obj_id);
@@ -536,8 +623,16 @@ net_out_inv_button(
     int slot,
     int component_id)
 {
+    int collapsed;
+
     if( op_num < 1 || op_num > 5 )
         return -1;
+    /* Same collapse as OPHELD and IF_BUTTON: INV_BUTTON<n> has no opcode of its
+     * own from 237 on. */
+    collapsed =
+        out_if_buttonx(rev, random_out, buf, cap, op_num, component_id, slot, obj_id);
+    if( collapsed >= 0 )
+        return collapsed;
     return out_obj_slot_com(
         rev,
         random_out,
@@ -581,6 +676,59 @@ out_p4_alt1(struct RSCache_Buffer* b, int v)
     p1(b, (v >> 8) & 0xff);
     p1(b, (v >> 16) & 0xff);
     p1(b, (v >> 24) & 0xff);
+}
+
+/* p4Alt2: [v>>8, v, v>>24, v>>16]. */
+static void
+out_p4_alt2(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (v >> 8) & 0xff);
+    p1(b, v & 0xff);
+    p1(b, (v >> 24) & 0xff);
+    p1(b, (v >> 16) & 0xff);
+}
+
+/*
+ * IF_BUTTONT — "use the item I selected on this one", component to component.
+ *
+ * IfButtonTDecoder, in its own read order:
+ *   pCombinedId target, p2Alt2 selectedSub, p2Alt3 targetObj,
+ *   p2Alt1 targetSub, p2Alt2 selectedObj, pCombinedIdAlt2 selected
+ *
+ * Six fields, five different byte orders, and the two halves interleaved rather
+ * than written as two triples — which is why this cannot be assembled from the
+ * OPHELDU writer's field order with a different opcode. The TARGET is what was
+ * clicked and the SELECTED is what was carried, matching 230's OPHELDU where
+ * the first triple is the target.
+ *
+ * Returns -1 when the revision has no IF_BUTTONT row.
+ */
+static int
+out_if_buttont(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int target_com,
+    int target_sub,
+    int target_obj,
+    int selected_com,
+    int selected_sub,
+    int selected_obj)
+{
+    struct RSCache_Buffer b;
+
+    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_BUTTONT) < 0 )
+        return -1;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONT, 16, &b) < 0 )
+        return -1;
+    p4(&b, target_com);
+    out_p2_alt2(&b, selected_sub);
+    out_p2_alt3(&b, target_obj);
+    out_p2_alt1(&b, target_sub);
+    out_p2_alt2(&b, selected_obj);
+    out_p4_alt2(&b, selected_com);
+    return 1 + (int)b.position;
 }
 
 int

@@ -192,7 +192,26 @@ struct ToriDraw_ViewPort
 
 struct ToriDraw_Camera
 {
+    /** Which of the two knobs below drives the projection. Zero-initialising a
+     *  camera selects SCALE, so a memset camera projects at the reference's
+     *  default 512 rather than at whatever an unset angle would resolve to. */
+    enum ToriDraw_ProjMode proj_mode;
+
+    /** The reference client's viewport scale (class159.method5357 ->
+     *  client.field817): the integer multiplier in screen = coord * scale / z,
+     *  recomputed per layout from the world viewport height. Live when
+     *  proj_mode == TORIDRAW_PROJ_MODE_SCALE. 0 = TORIDRAW_PROJ_SCALE_DEFAULT.
+     *
+     *  The only way to match a reference projection exactly -- most integer
+     *  scales are not reachable through fov_rpi2048 at all. */
+    int proj_scale;
+
+    /** Field of view, in units of 2*pi/2048. Live when proj_mode ==
+     *  TORIDRAW_PROJ_MODE_FOV. 0 = TORIDRAW_PROJ_FOV_DEFAULT. Natural for a
+     *  free camera; lossy as a way to request a specific scale (see the ladder
+     *  note in graphics/projection.h). */
     int fov_rpi2048;
+
     int near_plane_z;
 
     int pitch;

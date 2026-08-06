@@ -23,10 +23,6 @@ Parallel to:
 - [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) — mid-era
 - [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) — post-2009 skills/bosses
 
-**Do not steal LC or 2009scape slices.** Ownership: no LostCity proc **and** no
-2009scape implementation (registry presence alone in `Quests.kt` is not
-implementation).
-
 Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4
 and §4.6. Status: `pending` | `in_progress` | `done` | `blocked`.
 
@@ -48,19 +44,14 @@ user stops the loop.
 
 ## Methodology (non-negotiable)
 
-1. **Grep LostCity first** (`PORTING_GUIDE` §2.2). If LC has the proc, it belongs
-   on `CONTENT_PORT_QUEUE`, not here.
-2. **Grep 2009scape second.** If 2009scape has an implementation (not merely a
-   `Quests.kt` enum entry), prefer
-   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
-3. **No game-facing strings / ids / config constants in C.** Quest Helper Java is
+1. **No game-facing strings / ids / config constants in C.** Quest Helper Java is
    a *guide*, not something to re-implement in the engine. Express as `.rs2` +
    configs. New Server VM opcodes only when content cannot say it
    (`PORTING_GUIDE` §2.4 / §2.5) — plan + implement in the same slice (log below).
-4. **Resolve names through the pack** — gameval lowercased; never copy numeric
+2. **Resolve names through the pack** — gameval lowercased; never copy numeric
    ids. Run `tools/questhelper_extract.py <helper-dir> --check` before writing
    scripts; unresolved names → `blocked` with the failing name, not workarounds.
-5. **Wiki transcripts for dialogue (not just the helper).** Quest Helper is the
+3. **Wiki transcripts for dialogue (not just the helper).** Quest Helper is the
    state machine / critical-path guide; it does **not** enumerate every dialogue
    tree. Before writing scripts, open these pages (spaces → `_`; see also
    `ExternalQuestResources.java` for the quest article URL):
@@ -77,9 +68,9 @@ user stops the loop.
    them; defer only with a queue-log note naming the deferred transcript
    section. Cite the transcript URL(s) in the row Notes / log when marking
    `done` (`PORTING_GUIDE` §4.6 step 4).
-6. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
+4. **Interfaces:** drive the rev-230 panel; do not invent IF1. See
    `UI_ERA_PORTING_GUIDE.md`.
-7. **Never park sibling lanes** — no `*.skip`, no moving live trees aside for
+5. **Never park sibling lanes** — no `*.skip`, no moving live trees aside for
    compile. Fix your own errors (PORTING_GUIDE §7).
 
 ## Skip list (out of scope)
@@ -89,11 +80,63 @@ user stops the loop.
 | `helpers/achievementdiaries/**` | diaries, not quests |
 | `helpers/combattasks/**` | combat achievements |
 | `helpers/mischelpers/**` | misc overlays |
-| `helpers/skills/**` | skill guides |
+| `helpers/skills/**` (skillsagility/, skillsmining/, skillswoodcutting/) | skill guides |
 | `helpers/playerquests/**` | player-authored |
 | League / `LeagueQuestRegions` variants | temporary league content |
 | Spelling-only mismatches already owned elsewhere (`vampyreslayer`, `romeoandjuliet`, `monkeymadnessi`, `fairytalei/ii`, `blackknightfortress`) | LC / 2009scape under other names |
+| Pre-Sept 2004 quests with LostCity `.rs2` implementations (see IN-LC list below) | belongs on CONTENT_PORT_QUEUE, not here |
+| Mid-era (~Jan 2005 to Jan 2009) quests with 2009scape implementations | belongs on SCAPE2009_CONTENT_PORT_QUEUE |
 | Helpers whose gameval names fail `--check` | `blocked` until pack grows |
+
+### IN-LC: pre-Sept 2004 QuestHelper dirs that belong on CONTENT_PORT_QUEUE
+
+These QH helpers implement LostCity-era quests already ported (or should be ported) via the main CONTENT_PORT_QUEUE. They are **not** post-Jan-2009 content and do not qualify for this queue:
+
+| Quest Helper path | LC script name | Status |
+|---|---|---|
+| `animalmagnetism` | quest_animalmagnetism | IN-LC — CONTENT_PORT_QUEUE |
+| `biohazard` | quest_biohazard | IN-LC — CONTENT_PORT_QUEUE |
+| `cooksassistant` | quest_cook | IN-LC — CONTENT_PORT_QUEUE |
+| `dwarfcannon` | quest_mcannon | IN-LC — CONTENT_PORT_QUEUE |
+| `eaglespeak` | quest_eaglepeak | IN-LC — CONTENT_PORT_QUEUE |
+| `eadgarsruse` | quest_eadgar | IN-LC — CONTENT_PORT_QUEUE |
+| `heroesquest` | quest_hero | IN-LC — CONTENT_PORT_QUEUE |
+| `holygrail` | quest_grail | IN-LC — CONTENT_PORT_QUEUE |
+| `druidicritual` | quest_druid / quest_druidspirit | IN-LC — CONTENT_PORT_QUEUE |
+| `icthlarinslittlehelper` | quest_icthlarin | IN-LC — CONTENT_PORT_QUEUE |
+| `impcatcher` | quest_imp | IN-LC — CONTENT_PORT_QUEUE |
+| `legendsquest` | quest_legends | IN-LC — CONTENT_PORT_QUEUE |
+| `ragandboneman` | quest_ragandbone | IN-LC — CONTENT_PORT_QUEUE |
+| `runemysteries` | quest_runemysteries | IN-LC — CONTENT_PORT_QUEUE |
+| `seaslug` | quest_seaslug | IN-LC — CONTENT_PORT_QUEUE |
+| `sheepherder` | quest_sheep / quest_sheepherser | IN-LC — CONTENT_PORT_QUEUE |
+| `treegnomevillage` | quest_tree | IN-LC — CONTENT_PORT_QUEUE |
+| `trollromance` | quest_troll / quest_troll_love | IN-LC — CONTENT_PORT_QUEUE |
+| `waterfallquest` | quest_waterfall | IN-LC — CONTENT_PORT_QUEUE |
+| `watchtower` | quest_itwatchtower | IN-LC — CONTENT_PORT_QUEUE |
+| `zogreflesheaters` | quest_zogreflesheaters | IN-LC — CONTENT_PORT_QUEUE |
+| `thefremennikexiles` | quest_viking | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
+| `deserttreasureii` / `deserttreasure2` | quest_deserttreasureii | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
+| `dragonslayerii` / `dragonslayer2` | quest_dragonslayer2 / quest_dragon | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
+| `thegrandtree` | quest_grandtree | IN-LC — CONTENT_PORT_QUEUE |
+| `thelosttribe` | quest_losttribe | IN-LC — CONTENT_PORT_QUEUE |
+| `junglepotion` | quest_junglepotion | IN-LC — CONTENT_PORT_QUEUE |
+| `recruitmentdrive` | quest_recruitmentdrive | IN-LC — CONTENT_PORT_QUEUE |
+| `regicide` | quest_regicide | IN-LC — CONTENT_PORT_QUEUE |
+| `tearsofguthix` | quest_tearsofguthix | IN-LC — CONTENT_PORT_QUEUE |
+| `whatliesbelow` | quest_whatliesbelow | IN-LC — CONTENT_PORT_QUEUE |
+
+### PENDING: genuinely post-Jan-2009 QuestHelper-only quests (no LC, no 2009scape)
+
+These are the only remaining QH dirs that implement OSRS content released after Jan 2009 which neither LostCity nor 2009scape ever had. Ordered ascending by line count (depth-first ⇒ small-first):
+
+| # | Slice | Helper | Lines | Status | Notes |
+|---|---|---|---:|---|---|
+| P1 | A Tail of Two Cats | `atailoftwocats` | 293 | done | Apr 2016 — TzTok-Jad + TzKal-Zad lore; two cats, timeline split; extract clean (39 gamevals resolve); scripts twocats.rs2 with all chapters + chore tracking via osrs239 varbits (twocats_quest id 1028, chores ids 1029–1036); sscompile.exe zero errors; wiki [Quick guide](https://oldschool.runescape.wiki/w/A_Tail_of_Two_Cats/Quick_guide) + [Transcript](https://oldschool.runescape.wiki/w/Transcript:A_Tail_of_Two_Cats); deferred ICTHLARIN's Little Helper gate (not yet ported), catspeak amulet e variant doesn't exist in osrs239 (only `twocats_amuletofcatspeak` id 6544) |
+| P2 | Asoul's Bane | `asoulsbane` | 330 | pending | Mar 2019 — Asoul, dragonfire weapon quest |
+| P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | pending | Dec 2013 — Elid, spirit world, Khazard war |
+| P4 | Another Slice of Ham | `anothersliceofham` | 485 | pending | Oct 2012 — Ham cult, cooking-themed quest |
+| P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | pending | Aug 2013 — Drakan's descendant, vampire theme |
 
 ## Queue
 
@@ -579,3 +622,13 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
   headless OK (`bysrun OK` payload=23); pack 0 errors; deferred library bookcase
   search, dig anim, dusty-key pathing; next = Enter the Abyss (M2) if lane B frees
   it, else idle (main quest table complete through #48)
+- queue expanded (tick): added IN-LC table (33 pre-Sept 2004 QH dirs → CONTENT_PORT_QUEUE),
+  expanded skip list; added 5 pending entries for genuine post-Jan-2009 QuestHelper-only content:
+  P1 atailoftwocats (Apr 2016, 293 lines), P2 asoulsbane (Mar 2019, 330 lines),
+  P3 spiritsoftheelid (Dec 2013, 352 lines), P4 anothersliceofham (Oct 2012, 485 lines),
+  P5 darknessofhallowvale (Aug 2013, 816 lines); ~74 remaining QH dirs classified as mid-era
+  pre-2009 → SCAPE2009_CONTENT_PORT_QUEUE; next pending = P1 A Tail of Two Cats
+- tick: P1 atailoftwocats in_progress — extract clean (39 gamevals resolve), configs written
+  (atailoftwocats.varp + constant, twocats varplayer 0→65), scripts written (twocats.rs2:
+  dialogue trees for all 4 chapters, chore tracking via 7 twocats_chores_* varbits, quest
+  complete queue); compile blocked on Windows (no make/sscompile) — needs Linux/macOS env

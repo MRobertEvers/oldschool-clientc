@@ -35,6 +35,11 @@
  *   p1_alt2   -v                    p2_alt2   [v>>8, v+128]
  *   p1_alt3   128-v                 p2_alt3   [v+128, v>>8]
  *
+ *   p3        [v>>16, v>>8, v]
+ *   p3_alt1   [v, v>>8, v>>16]               (LE)
+ *   p3_alt2   [v>>16, v, v>>8]
+ *   p3_alt3   [v>>8, v>>16, v]
+ *
  *   p4        [v>>24, v>>16, v>>8, v]
  *   p4_alt1   [v, v>>8, v>>16, v>>24]        (LE)
  *   p4_alt2   [v>>8, v, v>>24, v>>16]        (ME)
@@ -208,6 +213,18 @@ void
 rsab_p3(
     struct RSAreaBuf* buf,
     int32_t value);
+void
+rsab_p3_alt1(
+    struct RSAreaBuf* buf,
+    int32_t value);
+void
+rsab_p3_alt2(
+    struct RSAreaBuf* buf,
+    int32_t value);
+void
+rsab_p3_alt3(
+    struct RSAreaBuf* buf,
+    int32_t value);
 
 void
 rsab_p4(
@@ -293,6 +310,12 @@ rsab_g2_alt3(struct RSAreaBuf* buf);
 
 int32_t
 rsab_g3(struct RSAreaBuf* buf);
+int32_t
+rsab_g3_alt1(struct RSAreaBuf* buf);
+int32_t
+rsab_g3_alt2(struct RSAreaBuf* buf);
+int32_t
+rsab_g3_alt3(struct RSAreaBuf* buf);
 
 int32_t
 rsab_g4(struct RSAreaBuf* buf);

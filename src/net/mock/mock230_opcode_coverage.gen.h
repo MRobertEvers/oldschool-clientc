@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    205  host commands
+ *    212  host commands
  *      9  host commands (db)
  *      7  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    317  total, of 422 declared opcodes
+ *    324  total, of 424 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 317
-#define MOCK230_OPCODE_DECLARED_COUNT 422
+#define MOCK230_OPCODE_COVERAGE_COUNT 324
+#define MOCK230_OPCODE_DECLARED_COUNT 424
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11018
+#define MOCK230_OPCODE_VALUE_LIMIT 11020
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -126,7 +126,9 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2058, /* SS_OP_LAST_USEITEM (host commands) */
     2059, /* SS_OP_LAST_USESLOT (host commands) */
     2060, /* SS_OP_LONGQUEUE (host commands) */
+    2061, /* SS_OP_LONGQUEUEVARARG (host commands) */
     2063, /* SS_OP_MES (host commands) */
+    2069, /* SS_OP_P_APRANGE (host commands) */
     2070, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2072, /* SS_OP_P_COUNTDIALOG (host commands) */
     2073, /* SS_OP_P_DELAY (host commands) */
@@ -145,6 +147,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2093, /* SS_OP_P_WALK (host commands) */
     2095, /* SS_OP_PROJANIM_PL (host commands) */
     2096, /* SS_OP_QUEUE (host commands) */
+    2097, /* SS_OP_QUEUEVARARG (host commands) */
     2098, /* SS_OP_READYANIM (host commands) */
     2099, /* SS_OP_RUNANIM (host commands) */
     2101, /* SS_OP_SAY (host commands) */
@@ -165,6 +168,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2121, /* SS_OP_STAT_TOTAL (host commands) */
     2122, /* SS_OP_STAT (host commands) */
     2123, /* SS_OP_STRONGQUEUE (host commands) */
+    2124, /* SS_OP_STRONGQUEUEVARARG (host commands) */
     2125, /* SS_OP_TURNANIM (host commands) */
     2129, /* SS_OP_UID (host commands) */
     2130, /* SS_OP_WALKANIM_B (host commands) */
@@ -173,6 +177,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2133, /* SS_OP_WALKANIM (host commands) */
     2134, /* SS_OP_WALKTRIGGER (host commands) */
     2135, /* SS_OP_WEAKQUEUE (host commands) */
+    2136, /* SS_OP_WEAKQUEUEVARARG (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
     2503, /* SS_OP_NPC_ATTACKRANGE (host commands) */
@@ -357,6 +362,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11015, /* SS_OP_NPC_SETRESPAWN (host commands) */
     11016, /* SS_OP_INV_SETVAR (host commands) */
     11017, /* SS_OP_INV_GETVAR (host commands) */
+    11018, /* SS_OP_NPC_FREEZE (host commands) */
+    11019, /* SS_OP_NPC_FROZEN (host commands) */
 };
 
 #endif

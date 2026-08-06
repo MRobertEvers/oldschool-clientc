@@ -173,7 +173,8 @@ render_scene(
     memset(pixels, 0, (size_t)FB_W * FB_H * sizeof(int));
 
     struct ToriDraw_Camera camera = {
-        .fov_rpi2048 = 512,
+        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
+        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
         .near_plane_z = 50,
         .pitch = pitch,
         .yaw = yaw,

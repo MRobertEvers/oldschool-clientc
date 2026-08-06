@@ -32,6 +32,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+
+/* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
+ * path with stat() instead -- portable across the unix and win32 builds. */
+static int
+mock230_path_is_dir(const char* path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+}
 
 /* ------------------------------------------------------------------ */
 /* Diagnostics                                                         */
@@ -2826,7 +2836,7 @@ walk_configs(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( entry->d_type == DT_DIR )
+        if( mock230_path_is_dir(path) )
             walk_configs(path, suffix, load);
         else if( has_suffix(entry->d_name, suffix) )
             load(path);
@@ -3095,6 +3105,41 @@ mock230_content_load(const char* dir)
     /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */
     validate_symbols(&reg);
+
+    /*
+     * A varp the per-player array cannot hold, refused at boot.
+     *
+     * `Mock230Player.varps` is a flat array and its size is a constant, so the
+     * tree can outgrow it — and it has: the `%com_*` combat block reached
+     * 6223 against an array of 6216, and the seven ids over the end were not
+     * dropped quietly, they aborted `[proc,player_combat_stat]` on every npc
+     * swing. From the outside that is "npcs do not fight back", with the real
+     * message buried in a script trace nobody reads during a fight.
+     *
+     * Allocating a varp is content's to do, so this does not cap it — it says
+     * exactly which line of the engine has to move, and it says so once at
+     * boot instead of once per swing.
+     */
+    {
+        int highest = -1;
+        int count = mock230_content_symbol_walk(MOCK230_PACK_VARP, -1, NULL, NULL);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = -1;
+
+            mock230_content_symbol_walk(MOCK230_PACK_VARP, i, &id, NULL);
+            if( id > highest )
+                highest = id;
+        }
+        if( highest >= MOCK230_VARP_COUNT )
+            CONTENT_ERROR(
+                "the tree declares varp %d and Mock230Player.varps holds %d — raise "
+                "MOCK230_VARP_SERVER_HEADROOM by at least %d (mock230.h)\n",
+                highest,
+                MOCK230_VARP_COUNT,
+                highest - MOCK230_VARP_COUNT + 1);
+    }
 
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */

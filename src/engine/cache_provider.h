@@ -346,7 +346,17 @@ CacheProvider_SpriteHas(
 /**
  * Record / look up a sprites-table archive id by cache-native name
  * (e.g. "scrollbar"). Returns -1 if unknown.
+ *
+ * `CACHE_PROVIDER_SPRITE_ABSENT` may be recorded in place of an id: "the
+ * sprites table has been consulted and has no archive of this name". It is
+ * negative, so every `>= 0` caller already treats it as not-found; what it adds
+ * is that a by-name load can tell a name it has never tried from one that can
+ * never resolve, instead of re-walking the table (and re-logging the failure)
+ * on every interface open. -1 itself is rejected — it would be
+ * indistinguishable from the lookup's own "unknown".
  */
+#define CACHE_PROVIDER_SPRITE_ABSENT (-2)
+
 void
 CacheProvider_SpriteNameMapPut(
     struct CacheProvider* provider,

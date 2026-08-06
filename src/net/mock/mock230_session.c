@@ -332,8 +332,35 @@ step_js5_serve(struct Mock230Session* session)
             session->state = MOCK230_SESSION_DEAD;
             return 1;
         }
-        if( n <= 0 && session->verbose )
-            fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+        /*
+         * Log served groups too, not only missing ones.
+         *
+         * Logging failures alone reads as silence when everything is fine AND
+         * when the client is asking for nothing at all — and those are very
+         * different situations. A black screen with a healthy packet stream is
+         * exactly the case where the difference matters: it says whether the
+         * client is failing to load the map or failing to ask for it.
+         */
+        {
+            /* Its own switch (MOCK230_TRACE_JS5=1) rather than --verbose: the
+             * client issues six figures of prefetch requests, so this is the
+             * one trace that has to be separable from everything else. */
+            static int trace = -1;
+
+            if( trace < 0 )
+            {
+                char const* v = getenv("MOCK230_TRACE_JS5");
+                trace = (v && *v && *v != '0') ? 1 : 0;
+            }
+            if( trace || session->verbose )
+            {
+                if( n > 0 )
+                    fprintf(stderr, "mock230: JS5 %s %d/%d -> %d bytes\n",
+                            opcode == 1 ? "urgent" : "prefetch", archive, group, n);
+                else
+                    fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+            }
+        }
         free(out);
     }
     return served;
@@ -664,6 +691,10 @@ step_online(
     struct Mock230Server* srv)
 {
     int progressed = 0;
+    /* Which revision's client-prot table frames what arrives. See
+     * `packetout_size` in mock230_wire.h for why this is not the 230 one. */
+    const struct Mock230Wire* wire =
+        (srv && srv->wire) ? srv->wire : mock230_wire_default();
 
     for( ;; )
     {
@@ -681,7 +712,7 @@ step_online(
             consume(session, 1);
         }
 
-        size = osrs230_packetout_size(session->pending_opcode);
+        size = wire->packetout_size(session->pending_opcode);
         if( size == PKTOUT_LENGTH_VARU8 )
             len_bytes = 1;
         else if( size == PKTOUT_LENGTH_VARU16 )
@@ -702,8 +733,63 @@ step_online(
         if( session->in_len < len_bytes + payload_len )
             break; /* body still in flight; nothing consumed */
 
-        name = osrs230_packetout_name(session->pending_opcode);
-        if( name == PKTOUT_NAME_NONE )
+        name = wire->packetout_name(session->pending_opcode);
+
+        /*
+         * MOCK230_TRACE_IN=1 -- the client->server half, the mirror of
+         * MOCK230_TRACE_OUT. Prints the revision's own name for the opcode and
+         * whether anything routed it, because the two failures look identical
+         * from the game's side: a click that produces nothing because the
+         * opcode is unmapped, and one that produces nothing because the body
+         * was translated into the wrong numbers.
+         */
+        {
+            static int trace = -1;
+
+            if( trace < 0 )
+            {
+                char const* v = getenv("MOCK230_TRACE_IN");
+                trace = (v && *v && *v != '0') ? 1 : 0;
+            }
+            if( trace )
+            {
+                char const* prot = wire->packetout_prot_name
+                                       ? wire->packetout_prot_name(session->pending_opcode)
+                                       : NULL;
+
+                fprintf(stderr, "mock230: <- op %3d %-24s %d byte(s)%s\n",
+                        session->pending_opcode, prot ? prot : "?", payload_len,
+                        name == PKTOUT_NAME_NONE ? "  [no canonical name]" : "");
+            }
+        }
+
+        /*
+         * The body may not be the one the handlers read. `translate_in`
+         * rewrites it and can RENAME it -- at 239 one opcode covers what 230
+         * splits into twenty -- so the name is re-read from its return value
+         * rather than kept from the table. See mock230_wire.h.
+         */
+        if( wire->translate_in )
+        {
+            uint8_t xlat[MOCK230_SESSION_IN_MAX];
+            int xlat_len = 0;
+            int translated = wire->translate_in(session->pending_opcode, name,
+                                                session->in + len_bytes, payload_len, xlat,
+                                                (int)sizeof(xlat), &xlat_len);
+
+            if( translated == PKTOUT_NAME_NONE )
+            {
+                if( session->verbose )
+                    fprintf(stderr, "mock230: <- op %d (%d bytes) not translated, dropped\n",
+                            session->pending_opcode, payload_len);
+            }
+            else
+            {
+                (void)srv;
+                mock230_world_handle(session->player, translated, xlat, xlat_len);
+            }
+        }
+        else if( name == PKTOUT_NAME_NONE )
         {
             if( session->verbose )
                 fprintf(stderr, "mock230: <- unknown op %d (%d bytes)\n",

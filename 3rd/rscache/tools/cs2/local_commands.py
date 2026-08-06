@@ -190,7 +190,19 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # 1704 balances at three ints in and nothing out against 222, 1703 and 8003
     # across eleven scripts, and no other arity does in any of them. The rest
     # agree across two pairings each.
-    "_1704": (["INT", "INT", "INT"], [], False),
+    # 1704 was three ints from `infer-arity`. The rev-239 client says two:
+    # method12337's case pops a type code and a param id, and takes the
+    # component from the handler preamble's active-component slot, not the
+    # stack. It is named in 7 of the corpus's decompile failures.
+    "_1704": (["INT", "INT"], [], False),
+    # 2929 has NO fixed signature and this one is wrong. The rev-239 client
+    # calls `method989` — pop a descriptor string, then one value per character,
+    # 'i' from the int stack and anything else from the string stack — which is
+    # the hook-argument mechanism, and then pops three more ints. So it is a
+    # hook that also carries three plain arguments, a shape none of this tool's
+    # command kinds can express: CLIENTSCRIPT pops exactly one component for an
+    # opcode >= 2000. Left as recorded, wrongly, because removing it only trades
+    # eight mis-decompiles for eight refusals; it needs a kind of its own.
     "_2929": (["INT", "INT", "INT", "INT", "STRING"], [], False),
     "_1506": ([], ["INT"], False),
     "_213": ([], ["INT"], False),
@@ -252,13 +264,18 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # ARRAY_COUNT_MATCHES when the type names a string; Overview only uses
     # int. xrsps names the broader op ARRAY_INSERT (with an index); this
     # cache's sites have no index.
-    "_8024": (["STRING", "INT", "INT"], [], False),
+    # 8024 was three from the Overview call sites. The rev-239 client pops two:
+    # one int (a type code, fed to method6560) and one array handle. method12336.
+    "_8024": (["STRING", "INT"], [], False),
     # 2704: IF_SETPARAM. xrsps WidgetOps: (param, value, uid, child, type)
     # with typed value. Script 9176: five ints, nothing consumed. Override
     # scoring `--override 2704:5,0,0,0` recovers 9176; the vendored
     # if_haschild_modal (2i->1i) from an older deob does not. LOCAL_NAMES
     # renames the row away from that stale spelling.
-    "IF_SETPARAM": (["INT", "INT", "INT", "INT", "INT"], [], False),
+    # 2704 was five ints, from xrsps by way of a call-site count. The client
+    # says four: method3056's case pops three, resolves a component from the
+    # first two, then pops one more. Read the case, not the call site.
+    "IF_SETPARAM": (["INT", "INT", "INT", "INT"], [], False),
 
     # ---------------------------------------------------------------
     # Settled from call sites rather than by search, against cache.osrs239.
@@ -484,6 +501,237 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # decompiling 45 of its 87 scripts where no other arity in the space
     # decompiles any, and 45 more scripts across the cache besides.
     "_1703": (["INT"], ["INT"], True),
+
+    # ---------------------------------------------------------------
+    # Read out of the *rev-239* client, which the block above did not have.
+    #
+    # `Deobfuscator/src_osrs239_rl1_12_33/deob/Statics.java`, the same tree
+    # `Deobfuscator/instr/src/` compiles. `Statics.method6889` is a range ladder
+    # from opcode to group handler; the citation on each line is the handler and
+    # the case. Ranges used here, re-derived from the ladder rather than read by
+    # eye (reading it by eye put the 4000s off by one hundred):
+    #
+    #     100..1000 method4548   1700..1800 method12337   2500..2600 method4787
+    #     2600..2700 method8067  4100..4200 method5814    4200..4300 method2965
+    #     8000..8100 method12336
+    #
+    # The three stacks, and which is which, are not guessed: `method7522` is
+    # `pushValueOfType` -- the deobfuscation left its exception strings intact --
+    # and it switches on the base var type to
+    #
+    #     type 1 -> class42.field258 / field259    (Long) ..... the long stack
+    #     type 2 -> class42.field252 / field3897   Object ..... the STRING stack
+    #     type 3 -> class42.field254 / field257    (Integer) .. the INT stack
+    #
+    # so `field252` is where strings live, despite `field258` being the one that
+    # looks like a string stack from its neighbours. One slot is 818837815 on
+    # field257, 1907375409 on field259 and -1540699919 on field3897; a multi-slot
+    # move is written as the multiple wrapped to signed 32 bits, so
+    # `field257 -= -1838453851` is a pop of three ints, not a push.
+    #
+    # Two things make counting the idioms in a case body wrong on its own, and
+    # both bit before they were caught:
+    #
+    #  - a handler can pop in its *preamble*, before it looks at the opcode.
+    #    method4787 and method8067 both open by popping a component id, so every
+    #    opcode in 2500..2699 takes one more argument than its own case shows.
+    #    `if_getx` 2500 in the vendored table confirms it: one COMPONENT in.
+    #  - a case can push through a helper. `method2627` pushes 0 or 1 on every
+    #    path -- it is "set the active component and push whether it was found" --
+    #    so opcodes 210 and 217..221 push an int no idiom in their body shows.
+    #    Every opcode below was checked against a transitive closure of which
+    #    methods in the tree touch a stack pointer; none of them reach one.
+    #
+    # `dot` is whether the case reads the handler's `var2`, the per-instruction
+    # flag the interpreter builds from `Script.field272[pc]`. That matches the
+    # corpus: 208 reads it and is the one opcode here whose operand byte is 1 at
+    # its only call site, and 216, which does not read it, is 0 at all 56 of its.
+    "_208": ([], ["INT"], True),                    # method4548 case 208
+    "_216": (["INT", "INT"], ["INT"], False),       # method4548 case 216
+    "_1707": ([], ["INT"], True),                   # method12337 case 1707
+    # 2506/2624: nothing in the case body, one int from the handler preamble.
+    "_2506": (["COMPONENT"], ["INT"], False),       # method4787 preamble + case
+    "_2624": (["COMPONENT"], ["INT"], False),       # method8067 preamble + case
+    # 4127 is the least ambiguous case in the client: it is a literal
+    # `Integer.parseInt(String)` in a try/catch, pushing the value then 1, or
+    # 0 then 0 on NumberFormatException. One string in, two ints out.
+    "_4127": (["STRING"], ["INT", "INT"], False),   # method5814 case 4127
+    "_4223": ([], [], False),                       # method2965 case 4223
+    # The 8000 block is the array family (_8022 ARRAY_NEW above hands out the
+    # handles). The handle is a string -- `field252` -- and is the first push at
+    # every call site, so it leads the argument list, matching _8003/_8018/
+    # _8019/_8023/_8024. The trailing int of the four is a *type code*: the
+    # client feeds it to `method6560`, which resolves a base var type rather
+    # than reading a value, so all four arguments are int-stack.
+    "_8002": (["STRING"], ["INT"], False),                       # method12336
+    "_8005": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
+    "_8007": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
+    "_8010": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "_8011": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "_8014": (["STRING", "INT", "INT"], [], False),              # method12336
+    "_8015": (["STRING", "STRING", "INT", "INT", "INT"], [], False),  # method12336
+    "_8020": (["INT", "INT"], ["STRING"], False),                # method12336
+    # 8026 is polymorphic in the client -- it ends in `method7522`
+    # (pushValueOfType), so what it pushes is the array's element type, not a
+    # fixed stack. It is recorded statically anyway because every one of its 61
+    # call sites in cache.osrs239 indexes an int-typed array: each is followed
+    # immediately by `pop_int_discard` or an int-consuming op. If a string-typed
+    # array ever reaches it this needs a LOCAL_KINDS entry, as db_getfield has.
+    "_8026": (["STRING", "INT"], ["INT"], False),                # method12336
+    # Second pass, once the block above stopped hiding these behind other
+    # unknowns. Same tree, same method.
+    "_4224": (["INT"], ["INT"], False),          # method2965, the `var0 != 4224` arm
+    "_8025": (["STRING", "INT", "INT"], [], False),              # method12336
+    "_8027": (["STRING", "STRING"], [], False),                  # method12336
+    # 8009 is polymorphic like 8026 — it pushes to the int stack or the string
+    # stack depending on the array's element type. Recorded as int because all
+    # three of its call sites in cache.osrs239 are followed by `pop_int_local`
+    # or `max`, which only take one.
+    "_8009": (["STRING"], ["INT"], False),                       # method12336
+    # 7627 has no case in this client (method10020, the 7600 range, is a bare
+    # `return 2`). Solved instead by `cs2 infer-arity` against cache.osrs239:
+    # one witness script, and exactly one arity in the space lets it interpret
+    # to its end with every return matching its own epilogue.
+    "_7627": ([], [], False),
+
+    # ---------------------------------------------------------------
+    # No case in the rev-239 client either (their handlers exist but skip these
+    # ids), and `cs2 infer-arity` calls each one "2 candidates, under-determined".
+    # The two candidates are always the same pair — (n in, 1 out) against
+    # (n-1 in, 0 out) — which balance identically because they differ by one
+    # slot at each end. Balance alone cannot separate them; the call sites can,
+    # and they are unanimous. Every single use of all three reads
+    #
+    #     push <args> ; <opcode> ; push_constant_int 1 ; branch_equals
+    #
+    # and `branch_equals` pops two ints, one of which is that constant. So the
+    # opcode leaves an int behind, which settles it as the (n in, 1 out) member
+    # of each pair. All three are boolean queries, which is also what the rest
+    # of the 6700–6999 range looks like.
+    "_6758": (["INT"], ["INT"], False),          # 9 witnesses, every site
+    "_6803": (["INT", "INT"], ["INT"], False),   # 9 witnesses, every site
+    "_6951": (["INT"], ["INT"], False),          # 5 witnesses, every site
+
+    # ---------------------------------------------------------------
+    # The rest of the ids this client's handlers skip, settled the same way:
+    # what the ops around a call site consume is what the call site left.
+    # `infer-arity` reports "no arity works" for most of these because the
+    # scripts holding them hold other unknowns too, so no witness interprets
+    # end to end — but a single run between two statement boundaries still
+    # pins one opcode when everything else in it is known.
+    #
+    # The consumer named on each line is the whole argument:
+    #   6854/6859   `push $a; push $b; <op>; push 1; branch_equals` — and
+    #               branch_equals pops two ints, one of them that constant.
+    #   7043        `<a string>; push 6; <op>; push 1; branch_equals`. The
+    #               string is `push_string_local` at one site and `~script6690`
+    #               at the other, which returns one (its caller stores the
+    #               result with `pop_string_local`).
+    #   7451        `push $a; <op>; switch` — a switch pops exactly one int.
+    #   7600        four pushes, then a new statement begins; nothing consumes
+    #               a result. Same shape as _7628 beside it.
+    #   7800        a string and an int, then a new statement (`cc_find`,
+    #               `if_sethide`) which supplies its own operands.
+    #   7803/7804/7805/7813/7814
+    #               one int in, one out: each is followed either by
+    #               `pop_int_local` directly or by `push 1; add`. 7813/7814 sit
+    #               under `~script1045`, whose trailer says 2i — which is what
+    #               makes the push before them that proc's argument and not
+    #               theirs.
+    #   7807        no push before it at script 7551 pc 0 — it is the script's
+    #               first instruction — and `pop_int_local` after.
+    #   7820        `lowercase` gives it a string, and the `~script46` that
+    #               follows has a 1i/1s trailer: the int can only have come
+    #               from here, so it pushes one and not a string.
+    "_6854": (["INT", "INT"], ["INT"], False),
+    "_6859": (["INT", "INT"], ["INT"], False),
+    "_7043": (["STRING", "INT"], ["INT"], False),
+    "_7451": (["INT"], ["INT"], False),
+    "_7600": (["STRING", "INT", "INT", "INT"], [], False),
+    "_7800": (["STRING", "INT"], [], False),
+    "_7803": (["INT"], ["INT"], False),
+    "_7804": (["INT"], ["INT"], False),
+    "_7805": (["INT"], ["INT"], False),
+    "_7807": ([], ["INT"], False),
+    "_7813": (["INT"], ["INT"], False),
+    "_7814": (["INT"], ["INT"], False),
+    "_7820": (["STRING"], ["INT"], False),
+
+    # ---------------------------------------------------------------
+    # Measured in the running client, not read from it.
+    #
+    # `Deobfuscator/instr/src/CS2Trace.java` samples the three operand-stack
+    # pointers either side of every executed opcode; `3draster` drives the
+    # client through all 9,725 scripts in the cache with
+    # `tools/perf/cs2_sweep.sh`, so an opcode no screen reaches still runs.
+    # 560 opcodes executed; 307 of them agreed with this table exactly, which
+    # is the reason to believe the disagreements.
+    #
+    # A measured *net* is `pushes - pops`, so it does not by itself split an
+    # entry into arguments and results. Where the split below is stated it is
+    # because only one split is consistent with both the net and the handler
+    # source; where it was not, the entry was left alone rather than guessed.
+    "cc_setop": (["INT", "STRING"], [], True),            # net (-1,-1) x51047
+    "if_setop": (["COMPONENT", "INT", "STRING"], [], False),  # net (-2,-1) x3725
+    "if_getop": (["COMPONENT", "INT"], ["STRING"], False),    # net (-2,+1) x11
+    "oc_iop": (["OBJ", "INT"], ["STRING"], False),        # net (-2,+1) x47
+    "openurl": (["STRING", "INT"], [], False),            # net (-1,-1) x11
+    "mes": (["STRING"], [], False),                       # net (0,-1)
+    "clan_kickuser": (["STRING"], [], False),             # net (0,-1)
+    "chat_sendpublic": (["STRING", "INT"], [], False),    # net (-1,-1)
+    "chat_playername": ([], ["STRING"], False),           # net (0,+1) x186
+    "clan_getchatownername": ([], ["STRING"], False),     # net (0,+1) x7
+    "_4124": ([], ["INT"], False),                        # net (+1,0) x30 — was a string
+    "_6623": (["INT"], ["INT"], False),                   # net (0,0)
+    "mec_category": (["INT"], ["INT"], False),            # net (0,0)
+    "_8000": (["STRING", "STRING"], [], False),           # net (0,-2) x26
+    "_8001": (["STRING", "INT", "INT"], [], False),       # net (-2,-1)
+    "chat_gethistoryex_byuid": (["INT"], ["INT", "INT", "INT", "INT",
+                                          "STRING", "STRING", "STRING", "STRING"], False),
+
+    # ---------------------------------------------------------------
+    # Active-component ("dot") forms these rows had marked False.
+    #
+    # For a cc_* command the operand byte is not data, it is the flag that picks
+    # `.cc_foo` over `cc_foo` — the interpreter builds it from
+    # `Script.field272[pc]` and passes it to the group handler as `var2`, which
+    # selects `Statics.field5113` over `field2369`. The generator already writes
+    # `dot = 100 <= opcode < 2000` for anything it takes from the client's stack
+    # table; these eleven came from LOCAL_BASIC instead, which had to state it
+    # and stated False.
+    #
+    # A False here is not a harmless mislabel: the decompiler stops printing the
+    # '.', so the compiler writes operand 0 where the cache has 1.
+    #
+    # Membership is the client's, not the operand's. Thirteen BASIC opcodes hold
+    # operand 1 somewhere in cache.osrs239, but "holds a 1" is not evidence of a
+    # dot form, and taking it as such is wrong for four of them:
+    #
+    #   102  cc_deleteall  `method4548`'s case for it pops the component id off
+    #                      the int stack and never touches `var2`. Not a dot
+    #                      form, on the client's own evidence. (The RuneStar
+    #                      reference happens to agree; the client is why.)
+    #   103                no case in this client and no preamble flag: unknown,
+    #                      so left alone rather than guessed either way.
+    #   4123, 4124         outside the cc_ range, and `method5814` never reads
+    #                      `var2` — the client ignores that byte for them. Worth
+    #                      22 scripts, deliberately not taken: printing
+    #                      `._4123` would assert an active-component form that
+    #                      does not exist.
+    #
+    # The nine below are each confirmed at the client: 209/210/212/213 and 1927
+    # read `var2` in their own case, and 1128/1506/1624/1704 are in ranges whose
+    # handler preamble (method4754/method1470/method6296/method12337) selects
+    # field5113 over field2369 before it looks at the opcode at all.
+    "_209": ([], ["INT"], True),
+    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], [], True),
+    "_212": (["INT"], ["INT"], True),
+    "_213": ([], ["INT"], True),
+    "_1128": (["INT", "INT"], [], True),
+    "_1506": ([], ["INT"], True),
+    "_1624": ([], ["INT"], True),
+    "cc_setcomponentparam": (["INT", "INT"], [], True),
+    "cc_callonresize": (["BOOLEAN"], [], True),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed

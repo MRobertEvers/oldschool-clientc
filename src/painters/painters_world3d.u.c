@@ -179,7 +179,13 @@ painter_w3d_emit_ground_pass(
     }
 
     if( !ground_hidden )
-        push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_mesh_level(tile));
+        {
+            /* See PaintersTile::terrain_levels. */
+            unsigned set = tile->terrain_levels;
+            for( int ml = 0; ml < 4; ml++ )
+                if( set & (1u << ml) )
+                    push_command_terrain(buffer, tile_sx, tile_sz, ml);
+        }
 
     if( tile->wall_a != -1 )
     {
@@ -203,7 +209,7 @@ painter_w3d_emit_ground_pass(
             push_command_entity(buffer, element->_wall.entity);
     }
 
-    if( tile->ground_decor != -1 )
+    if( tile->ground_decor != -1 && painter_ground_decor_enabled() )
     {
         element = &painter->elements[tile->ground_decor];
         assert(element->kind == PNTRELEM_GROUND_DECOR);
@@ -653,11 +659,6 @@ painter_paint_world3d(
                             break;
                         }
                     }
-                }
-                if( !blocked && scenery_blocked_by_stack_base(painter, tile, element) )
-                {
-                    wp->draw_primaries = 1;
-                    blocked = 1;
                 }
                 if( !blocked )
                 {

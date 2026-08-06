@@ -262,7 +262,22 @@ enum
      * Still a flat per-player array (docs/osrs230_mockserver.md §6.1 wants it
      * sparse); this makes it correct before it makes it small. */
     MOCK230_VARP_CACHE_MAX = 5705,
-    MOCK230_VARP_SERVER_HEADROOM = 512,
+    /*
+     * Room above the cache for the tree's own varps, and it is a MEASUREMENT.
+     *
+     * 512 was a guess and the tree outgrew it: `configs/all.varp.compack` now
+     * reaches 6223 where the array reached 6216, and the seven ids over the end
+     * were the `%com_*` block the combat stats are computed into. The symptom
+     * was not "combat is slightly wrong" — `[proc,player_combat_stat]` aborted
+     * on `POP_VARP` every time an npc swung, so `[ai_opplayer2,_]` never
+     * finished, the goblin never hit back, and the fight ran to the selftest's
+     * 200-tick cap. A varp allocation is content's to make (PORTING_GUIDE
+     * §2.4 item 4) and this array is the engine's floor beneath it, so the
+     * floor is now checked rather than assumed: `mock230_content_load` refuses
+     * to boot when the tree declares a varp this cannot hold, and says by how
+     * much.
+     */
+    MOCK230_VARP_SERVER_HEADROOM = 1024,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
     /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
      * handful per kill, and they expire. */
@@ -1365,6 +1380,25 @@ struct Mock230Interaction
     int ap_tried;
 
     /**
+     * How far away the `[ap*]` trigger fires, and whether the script asked.
+     *
+     * `p_aprange(N)` is content saying "I am not finished — call me again when
+     * I am within N", and it is how a ranged action states its own reach: the
+     * combat scripts open with it, so an attack from ten tiles resolves at the
+     * weapon's range rather than by walking into melee. The reference resets
+     * both to (10, false) on every `setInteraction`/`clearInteraction`
+     * (`PathingEntity.ts:541`), which is what `MOCK230_AP_RANGE_DEFAULT` is.
+     *
+     * `ap_range_called` is what stops the interaction from being cleared after
+     * the trigger ran: an ap script that called `p_aprange` did NOT act, so the
+     * walk has to continue and the trigger has to be allowed to fire again.
+     * Without it the first `p_aprange` looks like a completed interaction and
+     * the attack silently never happens.
+     */
+    int ap_range;
+    int ap_range_called;
+
+    /**
      * "Use <this item> on it" rather than "do op <n> to it".
      *
      * A use-on click is an interaction like any other — it latches, it walks,
@@ -1430,6 +1464,10 @@ enum
     MOCK230_NPCMODE_APPLAYER5 = 16,
 };
 
+/** Index 6 of the client's turn-angle table {768,1024,1280,512,1536,256,0,1792}:
+ *  angle 0, due south, which is the resting facing the game gives an npc. */
+#define MOCK230_FACE_SOUTH 6
+
 struct Mock230Npc
 {
     int active;
@@ -1450,6 +1488,23 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    /**
+     * Which way the npc is FACING, in the same 0..7 space as `step_dir`
+     * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
+     *
+     * Separate from `step_dir` because it outlives a tick: `step_dir` is -1
+     * whenever the npc stood still, and an npc that stops does not turn back to
+     * face where it started. This is the value NPC_INFO's low-resolution add
+     * carries, and the client applies it only when the npc is NEW -- so it is
+     * the orientation the npc is drawn with from the moment it enters view, and
+     * nothing later corrects it.
+     *
+     * Seeded to MOCK230_FACE_SOUTH rather than 0, which is not a detail: the
+     * client's turn-angle table is {768, 1024, 1280, 512, 1536, 256, 0, 1792},
+     * so index 0 is NORTH-WEST and index 6 is the south the game treats as the
+     * resting direction. Every npc spawned with 0 faces diagonally away.
+     */
+    int face_dir;
     /**
      * This tick moved the npc somewhere its steps cannot explain — the npc half
      * of `place_dirty`, and `PathingEntity.tele` in the reference.
@@ -1538,6 +1593,27 @@ struct Mock230Npc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+
+    /**
+     * Tick at which this npc stops being frozen — `npc_freeze(ticks)`.
+     *
+     * A freeze stops *movement* and nothing else: a frozen npc still attacks
+     * anything already in reach, still retaliates and still runs its queues.
+     * That is what OldSchool's Ice spells do, and it is why this is not
+     * `delayed_until`, which gates the queue drain and would silently make a
+     * frozen npc stop fighting too.
+     *
+     * Gated in `npc_take_step` rather than at each caller: wandering, going
+     * home and closing on a target are three call sites of one step, and a
+     * freeze that only covered some of them is the bug this field exists to
+     * make impossible.
+     *
+     * A countdown of ticks remaining, not an absolute expiry tick, because
+     * `npc_take_step` is handed an npc and not the server — an absolute clock
+     * would mean threading `srv` through five call sites to answer "what tick
+     * is it". Decremented once per npc phase, next to the delay it sits beside.
+     */
+    int frozen_ticks;
 
     /**
      * What this npc is *doing*, from `npc_setmode` — LostCity's `npcmode`
@@ -1667,6 +1743,26 @@ mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
 
 struct Mock230Player
 {
+    /**
+     * Has a v5 PLAYER_INFO gone out since the init block?
+     *
+     * Selects which low-resolution section the untracked crowd is skipped in:
+     * section 4 on the first tick, section 3 thereafter, because the client
+     * sets a cycle bit on everyone it skips. Per player rather than per world,
+     * since it is a fact about what one client has been told.
+     */
+    int v5_playerinfo_sent;
+
+    /**
+     * The position this client was last told, for the v5 stream's DELTA.
+     *
+     * Seeded by the init block. Kept per player because it is a fact about what
+     * one client has been sent, not about where the player is.
+     */
+    int v5_last_x;
+    int v5_last_z;
+    int v5_last_level;
+
     /*
      * The world this player is in, and where its bytes go.
      *
@@ -1923,6 +2019,14 @@ struct Mock230Player
     /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
      *  else moved the world's origin, or it changed level. */
     int rebuild_pending;
+    /** Which map-instance build this client's scene is a copy of
+     *  (`mock230_mapinstance_generation`); 0 = not in an instance. A mismatch
+     *  against the instance the player is standing in means the scene it holds
+     *  was assembled from a map that no longer exists, and only a fresh
+     *  REBUILD_REGION fixes it. See phase_client_out and
+     *  docs/ORANGE_WEDGE.md §18: the allocator reuses handle AND square, so
+     *  nothing else distinguishes a re-entry from staying put. */
+    int scene_instance_generation;
     /** Set by the login burst, drained by phase 7, so [login] runs inside the
      *  tick rather than ahead of it — per player, so a second login does not
      *  re-run the first player's. */
@@ -3476,6 +3580,26 @@ mock230_scripts_run_trigger_on_loc(
     int loc_slot);
 
 /**
+ * Unpark and free one script state, wherever it is parked.
+ *
+ * The logout path's only caller: a `[logout]` script that suspends has parked
+ * itself on a player whose slot is about to be reused, and the reference's
+ * answer (defer the logout until `canAccess()`) is not available to a socket
+ * that has already closed.
+ */
+void
+mock230_scripts_release_state(
+    struct Mock230Server* srv,
+    struct SSVM_State* state);
+
+/**
+ * Run a script by id on the active player. The walktrigger's firing path; see
+ * the definition for why it is not a general script-call hook.
+ */
+void
+mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id);
+
+/**
  * One rung, no chain — `ScriptProvider.getByTriggerSpecific`.
  *
  * `type` if it is not -1, else `category` if it is not -1, else the global form.
@@ -3943,6 +4067,30 @@ mock230_script_command(
     int dot);
 
 /*
+ * The active-loc handle, both kinds (mock230_scripts.c).
+ *
+ * Positive is `scene slot + 1`; negative names a ZoneMap record by key, which
+ * is how a script addresses a loc the scene window does not cover — the
+ * reference's `World.getLoc` reaches every zone and content leans on that.
+ * `mock230_script_loc_resolve` decodes either, re-validating against the live
+ * scene / ZoneMap, and returns NULL when the loc is gone. A zone-backed result
+ * is a borrowed view valid until the next resolve; consumers copy what they
+ * need, and mutations re-key on coordinates anyway.
+ */
+struct Mock230SceneLoc*
+mock230_script_loc_resolve(
+    struct Mock230Server* srv,
+    void* handle_ptr);
+
+/** A handle for the ZoneMap record at this key, for SSVM_SetActive. */
+void*
+mock230_script_zone_loc_handle(
+    int x,
+    int z,
+    int level,
+    int shape);
+
+/*
  * Per-domain opcode handlers (`mock230_ops_*.c`).
  *
  * `mock230_script_command` offers each the opcode in turn; each returns 1 when it
@@ -4161,19 +4309,34 @@ mock230_send_if_sethide(
     int hide);
 void
 mock230_send_cam_reset(struct Mock230Player* player);
+/**
+ * Move / point the camera at a WORLD coordinate.
+ *
+ * World, not scene-local, and the distinction is the packet's whole content at
+ * revision 239: CamMoveToV2 and CamLookAtV2 carry 16-bit ABSOLUTE coordinates
+ * ("a specific coordinate in the root world"), where the classic packet carries
+ * a byte each of scene-local 0..103. Passing scene-local into the V2 body puts
+ * the camera near the world origin, thousands of tiles from the scene -- which
+ * renders as a black viewport with the subject a dot in the distance, not as
+ * anything that looks like a camera bug.
+ *
+ * So the caller states the coordinate and the encoder decides how to say it;
+ * the scene-local subtraction that used to be at the call site now lives beside
+ * the classic writer that needs it.
+ */
 void
 mock230_send_cam_moveto(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2);
 void
 mock230_send_cam_lookat(
     struct Mock230Player* player,
-    int local_x,
-    int local_z,
+    int world_x,
+    int world_z,
     int height,
     int rate,
     int rate2);
@@ -4338,6 +4501,7 @@ mock230_send_zone_header(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     int full);
 
 /** One sub-packet, applied to whichever zone was last named. */
@@ -4345,6 +4509,24 @@ void
 mock230_send_zone_sub(
     struct Mock230Player* player,
     const struct Mock230ZoneEvent* event);
+
+/**
+ * Can this revision send this zone event as a packet of its own?
+ *
+ * At revision 230 every zone sub-packet is also a top-level opcode, so a
+ * receiver-scoped event (loot only its killer may see) goes out on its own
+ * after a PARTIAL_FOLLOWS header. At 239 the obj family and MAP_PROJANIM_V2
+ * have NO top-level prot -- they exist only inside
+ * UPDATE_ZONE_PARTIAL_ENCLOSED -- so the same send resolves to opcode -1 and
+ * is dropped, silently, for exactly the events that matter to one player.
+ *
+ * The answer is per revision and per event, which is why it is a function and
+ * not a flag on the event.
+ */
+int
+mock230_zone_sub_standalone(
+    const struct Mock230Wire* wire,
+    int kind);
 
 /** The same sub-packet, encoded into a caller-owned buffer instead of sent —
  *  this is what makes a zone's shared blob shared. Returns the bytes written. */
@@ -4370,6 +4552,7 @@ mock230_send_zone_enclosed(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     const uint8_t* blob,
     int len);
 
