@@ -573,3 +573,6 @@ polling or idle-client assumption is part of the verdict.
 - 2026-08-06: Re-ran the five focused revision-239 interface/player-info C test
   targets, the DB test, Python compilation, deob build/API verification, and
   cached-diff whitespace checks before creating the root integration commit.
+- 2026-08-06: Created root integration commit `018fb17b`, pushed all three
+  `codex/` branches, and opened
+  `https://github.com/MRobertEvers/oldschool-clientc/pull/7` against `v3`.
