@@ -639,6 +639,21 @@ RS_GameProto_Exec(
         if( top == cur )
             break;
         fprintf(stderr, "if-opentop: switching root %d -> %d\n", cur, top);
+        /*
+         * The arming goes with the old root, and that is not tidiness.
+         *
+         * A real client rebuilds its whole widget state on an IF_OPENTOP and
+         * the events map goes with it: measured against RuneLite, everything
+         * armed before a second open answered no click afterwards, with
+         * `pkt.log.arm` reporting `(component default)` for every cell.
+         *
+         * Keeping it here made this client MORE forgiving than the one the
+         * server has to satisfy, which is the worst way to differ: a server
+         * that opens a top twice and arms in between works perfectly in-house
+         * and is dead in the real client. Dropping it is what made that bug
+         * visible from this side too.
+         */
+        App_IfEventsClear(ctx->app);
         App_OpenRootInterface(ctx->app, top);
         break;
     }

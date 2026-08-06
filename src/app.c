@@ -257,6 +257,21 @@ App_IfEventsSet(
     app->need_redraw = 1;
 }
 
+void
+App_IfEventsClear(struct App* app)
+{
+    /*
+     * Everything IF_SETEVENTS armed, dropped.
+     *
+     * Called on IF_OPENTOP, because that is when the real client drops it: the
+     * root change rebuilds the widget state and the events map is part of it.
+     * The table is not freed, only emptied — the next root re-arms into the
+     * same allocation.
+     */
+    if( app )
+        app->if_event_count = 0;
+}
+
 int
 App_IfEventsGet(
     struct App const* app,

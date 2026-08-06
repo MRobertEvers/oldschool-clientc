@@ -957,11 +957,17 @@ App_IfHideSet(
     int com_id,
     int hide);
 
+/** Drop every IF_SETEVENTS arming. Called on IF_OPENTOP, because that is when
+ *  the real client drops it — see the call site in rs_gameproto_exec.c. */
+void
+App_IfEventsClear(struct App* app);
+
 /**
  * IF_SETEVENTS: mark slots `from`..`to` of a component as accepting input.
  *
- * Persisting, like App_IfHideSet, because the server enables events before the
- * interface holding the component has mounted.
+ * Persisting WITHIN a root, like App_IfHideSet, because the server enables
+ * events before the interface holding the component has mounted. Not across
+ * one: `App_IfEventsClear` drops the table on IF_OPENTOP.
  */
 void
 App_IfEventsSet(

@@ -6620,7 +6620,11 @@ mock230_world_login(struct Mock230Player* player)
             iface = ids->iface_toplevel_pre_eoc;
         mock230_gameframe_opentop(player, iface);
         args[0] = mode;
-        mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
+        /* The LOGIN variant: it syncs the client canvas and does NOT queue a
+         * second if_opentop. The toplevel is already open (the line above), and
+         * a remount on the next tick destroys every `if_setevents` the login
+         * procs send in between — see [proc,gameframe_login_mode]. */
+        mock230_scripts_run_proc(srv, "[proc,gameframe_login_mode]", args, 1);
     }
 
     /*
