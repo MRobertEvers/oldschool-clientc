@@ -78,17 +78,10 @@ $(BUILD)/%: test/%.c $(LIB_OBJS) | $(BUILD)
 # tools and the content tree, and a contract wants a test that runs on every
 # `make test` — not only when someone remembers to build the tools.
 $(BUILD)/lc_pack.o: tools/port_lostcity/lc_pack.c | $(BUILD)
-<<<<<<< HEAD
 	$(CC) $(CFLAGS) -Itools/common -Itools/port_lostcity -c $< -o $@
 
 $(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -Itools/common -Itools/port_lostcity -o $@ $< $(BUILD)/lc_pack.o
-=======
-	$(CC) $(CFLAGS) -Itools/port_lostcity -Itools/common -c $< -o $@
-
-$(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
-	$(CC) $(CFLAGS) -Itest -Itools/port_lostcity -Itools/common -o $@ $< $(BUILD)/lc_pack.o
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 
 # The field-register suite, for the same reason as the pack suite above:
 # `fields/<type>.ini` is the contract between the packer that writes a server band
