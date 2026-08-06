@@ -1278,6 +1278,14 @@ mock230-servpack:
 # `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
 # CS2, interfaces and configs are read out of the cache and do.
 #
+# When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
+# interface imports, sprites, native config fields, authored client patches.
+# Pure server work — scripts, db tables, params, varps, npc/loc server fields —
+# travels by `mock230-scripts` + `mock230-servpack` alone, and the world boots
+# from the pristine cache by default (the one-cache rule: the world reads what
+# JS5 serves; MOCK230_CACHE_DIR_DEFAULT in mock230.h). When you do bake, point
+# BOTH the world and JS5 at the result.
+#
 # `--base` copies the pristine cache first, so every record the tree does not
 # change keeps the bytes it had, and the output is a fresh 440M rather than an
 # in-place append that grows without bound.
