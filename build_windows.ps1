@@ -67,6 +67,18 @@ if (-not (Test-Path -LiteralPath $built)) {
     throw "build reported success but $built was not found."
 }
 
+# Header/import inspection cannot prove that the Windows loader accepts the
+# image. Keep this bounded pre-stage launch check: --help exits before window,
+# renderer, cache, or embedded-server initialization and intentionally returns
+# 1 after printing usage. It caught an invalid PE subsystem stamp that otherwise
+# looked correct to both objdump and dumpbin.
+$smokeOutput = @(& $built --help 2>&1)
+$smokeExit = $LASTEXITCODE
+if ($smokeExit -ne 1 -or (($smokeOutput -join "`n") -notmatch "(?i)usage")) {
+    throw ("win64 launch smoke failed (exit {0}); the PE linked but did not reach main." -f $smokeExit)
+}
+Write-Host "[win64] launch smoke: ok (--help reached main)"
+
 $dist = Join-Path $repo "dist\win64"
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 $staged = Join-Path $dist "torirs.exe"

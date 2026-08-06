@@ -201,7 +201,9 @@ one lane only.
   loader contract, not the Windows marketing/API version: stamping it 10.0
   caused Windows 11 to reject the image before `main` with `0xC000007B`.
 - **Verification:** `make -C src PLATFORM=win64 lane-check` before linking and
-  `make -C src PLATFORM=win64 lane-check-artifact` afterward.
+  `make -C src PLATFORM=win64 lane-check-artifact` afterward. The
+  `build_windows.ps1` wrapper additionally launches `--help` before staging;
+  successful header/import inspection alone does not prove loader acceptance.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
 
