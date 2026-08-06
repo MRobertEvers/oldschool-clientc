@@ -23,9 +23,10 @@ through RuneLite, receives and decodes the relevant server packets, accepts
 controlled input through JCTL, emits the expected client packet or CS2 effect,
 the server observes and handles it, and the resulting framebuffer is captured.
 
-The original parity artifacts live under `build/run239/proof/`. The four
+The original parity artifacts live under `build/run239/proof/`. The expanded
 regression investigation and final combined acceptance artifacts live under
-`build/run239-regressions/`, with the accepted run in `combined-final/`.
+`build/run239-regressions/`, with the accepted five-regression run in
+`combined-five-final3/`.
 
 ## Completion status
 
@@ -41,14 +42,14 @@ Loop, and Account Benefits open/close. The final report is
 RuneLite 239 full interface parity contract: PASS
 ```
 
-The follow-up camera, house, Hans, and running regressions are also complete.
-Their final combined run used a blocking EVENTS subscriber attached before
-launch and passed all four workflows against the real compiled 239 deob. No
-game-runtime exception, packet decode error, interface writer gap, or unexpected
-disconnect occurred before the explicit quit, and the post-quit telemetry
-report completed normally. The broader mock world still has 25 unrelated
-content/combat/pathing self-test failures; they are not counted as interface
-success and are not hidden by this contract.
+The follow-up camera, house, Hans, running, and client-layout regressions are
+also complete. Their final combined run used a blocking EVENTS subscriber
+attached before launch and passed all five workflows against the real compiled
+239 deob. No game-runtime exception, packet decode error, interface writer gap,
+or unexpected disconnect occurred before the explicit quit, and the post-quit
+telemetry report completed normally. The correctly cache-backed broad mock
+world self-test still has 23 unrelated content/combat/pathing failures; they are
+not counted as interface success and are not hidden by this contract.
 
 ## How the authoritative CS2VM works
 
@@ -935,3 +936,12 @@ PIDs were stopped afterward.
   deob after its final JCTL changes, then committed and pushed them as `45aa607`
   on the matching Deob branch. The original dirty primary worktrees remained
   untouched.
+- 2026-08-06: Merged the latest root `v3` into the regression branch and the
+  merged Deob `perf-instrumentation` base into its dependency branch. Deob
+  rebuilt and passed API verification at merge head `3a4e2c9`. A root
+  post-merge make invocation was blocked before compilation by conflict markers
+  already committed in `origin/v3`'s `src/makefile`; the focused suites had all
+  passed immediately before that base merge, and no unrelated base repair was
+  folded into this PR.
+- 2026-08-06: Opened root PR #10, OSRS-Content dependency PR #2, and Deob
+  dependency PR #2 from their pushed `codex/runelite239-regressions` branches.
