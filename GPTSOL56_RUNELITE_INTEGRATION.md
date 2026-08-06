@@ -811,3 +811,7 @@ it occurs before login and is not a client/game-thread failure.
   telemetry. GitHub CLI had no authenticated session and no signed-in browser
   surface was available, so the dependency PR creation URLs were retained for
   handoff instead of fabricating PR numbers.
+- 2026-08-06: Found and stopped a retained task-specific movement client,
+  mock230, jav_config, and duplicate EVENTS subscribers using only the PIDs in
+  `build/run239-regressions/movement_fixed`; no client from this regression run
+  was left idle.
