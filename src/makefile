@@ -431,7 +431,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels rsprot test-rsprot
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-server-clean test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1465,10 +1465,31 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content test-port test-membership
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-port
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
+
+# The separation property, pinned as a command: pure server work touches no
+# client-side file. After the full server pipeline (allocator, compiler, band —
+# all run by this target's prerequisites), the machine-owned client mirrors must
+# be exactly as git left them: configs/ (the cache's member indexes and text
+# exports), pack/*.pack (layer-0 name tables) and pack/*.client (explicit client
+# claims). The allocator writes pack/<ns>.alloc, the compiler writes
+# server/scripts/build, the band writes server/pack — and nothing else moves.
+# This is the gate that turns "server content stays out of the client cache"
+# from a design intent into a failure you can see, and it fails on the tree
+# this refactor started from (ss_allocate appended to the compacks).
+test-server-clean: mock230-scripts mock230-servpack
+	@echo "--- server-clean: a server build must not touch client-side files ---"
+	@cd $(MOCK230_CONTENT_DIR) && \
+	DIRTY=$$(git status --porcelain -- configs 'pack/*.pack' 'pack/*.client' 2>/dev/null); \
+	if [ -n "$$DIRTY" ]; then \
+		echo "test-server-clean: the server pipeline modified client-side files:"; \
+		echo "$$DIRTY"; \
+		exit 1; \
+	fi
+	@echo "test-server-clean: configs/ and client packs untouched"
 
 # The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md §3.3).
 #
