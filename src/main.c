@@ -18,6 +18,12 @@
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
  * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
 #include "platform/platform_sdl2_renderer_gl3.h"
+#else
+/* Software-only builds (e.g. the Win32/GDI backend) never include the GL header,
+ * so struct ToriRS_GL3 needs a file-scope forward declaration -- otherwise the
+ * opaque `gl3` pointer in interactive_render_present() and the file-scope `gl3`
+ * are two distinct incomplete types and the call is a type error. */
+struct ToriRS_GL3;
 #endif
 /* The GPU renderer is opt-in on every host: --opengl3 natively, --webgl1 in
  * the browser. Soft3D is what a plain run gets, so a rendering difference is

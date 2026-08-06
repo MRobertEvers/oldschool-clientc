@@ -144,19 +144,19 @@ $(BUILD)/common_%.o: $(TOOLS)/common/%.c | $(BUILD)
 -include $(BUILD)/*.d
 
 $(TOOLS)/find_anims/find_anims: $(TOOLS)/find_anims/main.c $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 $(TOOLS)/find_named/find_named: $(TOOLS)/find_named/main.c $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 $(TOOLS)/anim_compare/anim_compare: $(TOOLS)/anim_compare/main.c $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 $(TOOLS)/port_lostcity/port_lostcity: $(LC_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^ -lm
+	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
 
 # No cache is opened here — pack files are text — so this links neither the
 # rscache unity nor the codecs.
@@ -166,7 +166,7 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 cachepack: $(TOOLS)/cachepack/cachepack
 
 $(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm
+	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
 
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
@@ -178,7 +178,7 @@ clean:
 cs2: $(TOOLS)/cs2/cs2
 
 $(TOOLS)/cs2/cs2: $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 # poser-gl — the animation editor. SDL2 + OpenGL 3.3 core.
 #

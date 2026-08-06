@@ -4,10 +4,12 @@
 # flavors link the same ./torirs, whichever was built last.
 #
 # Which host to build for is one variable, PLATFORM (see platform/platform.mk):
-#   make -C src                 native debug     -> src/torirs
-#   make -C src release         native optimized -> src/torirs
-#   make -C src web             emscripten       -> build-web/torirs.js
+#   make -C src                 host native debug -> src/torirs
+#   make -C src release         host native opt   -> src/torirs
+#   make -C src web             emscripten        -> build-web/torirs.js
+#   make -C src winxp           Windows XP (i686) -> src/torirs.exe
 #   make -C src io-server       the web build's cache backend (always native)
+#   make -C src lane-check-all  assert every lane's invariants still hold
 # Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
 # own OBJ_DIR, so flavors never share .o's.
 #
@@ -38,7 +40,22 @@ EMBED_SERVER ?= 0
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 
+# Every recipe here is POSIX sh (rm -rf, mkdir -p, cp, `for` loops). On Windows
+# GNU make looks for sh.exe on PATH and falls back to cmd.exe when it cannot
+# find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
+# recipe dies with "p was unexpected at this time" -- which says nothing about
+# the actual cause. Catch it here instead. Git for Windows ships a usable sh at
+# <Git>\usr\bin; build_winxp.ps1 puts it on PATH for you.
+ifeq ($(SHELL),sh.exe)
+$(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
+one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use build_winxp.ps1, \
+which does it for you)
+endif
+
 include $(SRC_DIR)/platform/platform.mk
+# Lane invariant assertions (`make lane-check`). Separate from platform.mk so
+# that file stays a pure set of declarations.
+include $(SRC_DIR)/platform/platform_check.mk
 
 CC := $(PLATFORM_CC)
 ifeq ($(MEMTRACE),1)
@@ -66,13 +83,45 @@ endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
 # join them: MEMTRACE is a long-running capture, and a plain `make -C src` in
 # another terminal would silently replace it mid-session — the symptom being a
-# run that writes no trace at all. The web target keeps its name, which the
-# page's <script src> is written against.
-ifeq ($(MEMTRACE)$(PLATFORM),1native)
-TARGET = $(PLATFORM_TARGET)_mt
+# run that writes no trace at all. Which lanes can afford the rename is
+# PLATFORM_TARGET_MEMTRACE_SUFFIX in platform.mk (the web target keeps its
+# name, which the page's <script src> is written against).
+ifeq ($(MEMTRACE),1)
+TARGET = $(PLATFORM_TARGET)$(PLATFORM_TARGET_MEMTRACE_SUFFIX)
 else
 TARGET = $(PLATFORM_TARGET)
 endif
+# The compiler for tools that run on THIS machine — cachepack, the port
+# helpers, anything under 3rd/*/tools. It is deliberately not $(CC).
+#
+# $(CC) is the *target* compiler: on the win32 lane that is the i686 XP
+# toolchain, and building cachepack with it produced a 32-bit tool — which is
+# the one program here that has to chew through a whole cache, and the reason a
+# bake ran for tens of minutes. A host tool has no reason to be built for the
+# target; XP never runs it.
+#
+# Preference order: the toolchain vendored at toolchain/mingw64 (see
+# tools/toolchain/README.md), then a 64-bit cross-compiler on PATH, then
+# whatever the lane uses — so this degrades to the old behaviour rather than
+# failing on a machine with neither.
+TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchain/mingw64/bin/gcc.exe
+HOST_CC ?= $(strip \
+    $(if $(wildcard $(TOOLCHAIN_MINGW64_CC)),$(TOOLCHAIN_MINGW64_CC), \
+    $(if $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null),x86_64-w64-mingw32-gcc, \
+    $(CC))))
+
+# Sub-make into a vendored tool tree. Those makefiles default to `CC ?= cc`,
+# which exists on macOS and Linux but not in a MinGW toolchain (gcc only), so
+# `make -C src mock230-servpack` on Windows died in the child with a bare
+# "The system cannot find the file specified". `?=` there means this wins
+# without the vendored files needing to change.
+SUBMAKE = $(MAKE) CC=$(HOST_CC)
+
+# Host tools are invoked by path, so their executable suffix has to be spelled
+# out -- see PLATFORM_EXE_SUFFIX in platform.mk for why the shell's .exe
+# fallback is not good enough here.
+CACHEPACK_BIN = $(RSCACHE_DIR)/tools/cachepack/cachepack$(PLATFORM_EXE_SUFFIX)
+
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 RSPROT_DIR   := $(REPO_ROOT)/3rd/rsprot
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
@@ -138,7 +187,7 @@ RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
 RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
-LDFLAGS = $(PLATFORM_LDFLAGS)
+LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer
@@ -149,8 +198,9 @@ endif
 # -fno-builtin-* has to reach every translation unit, not just the tracer: the
 # compiler is otherwise free to fold a malloc/free pair away or lower calloc to
 # its own inline sequence, and those allocations then never reach the hooks.
-# On macOS the tracer defines malloc/free as strong symbols and finds the real
-# ones through dlsym(RTLD_NEXT); everywhere else the linker's --wrap does it.
+# How the hooks are reached differs per platform (dlsym interposition on macOS,
+# the linker's --wrap elsewhere, a shorter wrap list on emscripten), so that is
+# PLATFORM_MEMTRACE_WRAP_LDFLAGS in platform.mk rather than a test here.
 # ASan hooks the same functions, so the two cannot be combined.
 ifeq ($(MEMTRACE),1)
 ifeq ($(ENABLE_ASAN),1)
@@ -163,20 +213,12 @@ RSCACHE_CFLAGS  += $(MEMTRACE_CFLAGS)
 RSPROT_CFLAGS   += $(MEMTRACE_CFLAGS)
 COMPRESS_CFLAGS += $(MEMTRACE_CFLAGS)
 TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
-ifeq ($(PLATFORM),web)
-# emscripten's musl only routes these four through --wrap; reallocf and
-# posix_memalign are not separate symbols there, and strdup is inlined to a
-# malloc it already sees.
-LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free
-else ifneq ($(shell uname -s),Darwin)
-LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \
-	-Wl,--wrap=reallocf -Wl,--wrap=posix_memalign -Wl,--wrap=strdup
-endif
+LDFLAGS += $(PLATFORM_MEMTRACE_WRAP_LDFLAGS)
 endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c app.c platform/platform_sdl2.c \
+SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(PLATFORM_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
@@ -363,17 +405,15 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # out-of-tree/unity extras that have their own rules below. The world_builder
 # pipeline ($(WB_OBJS), incl. wb_minimap.o — the Minimap world.h is written
 # against) links into the app; $(sort) dedupes objects shared with WB_OBJS.
-# The desktop-GL binding is native-only; the web build gets the WebGL1 pieces
-# the renderer needs instead (index splitting — see webgl1_index16.h).
-ifeq ($(PLATFORM),native)
-GL_OBJS = $(OBJ_DIR)/opengl3_sdlgl.o
-else
-WEBGL1_OBJS = $(OBJ_DIR)/webgl1_index16.o
-endif
+# Which GPU-binding objects to link is the platform's call, not this file's --
+# platform.mk names them (PLATFORM_GPU_OBJ_NAMES) and OBJ_DIR is prefixed here
+# because it does not exist yet when that file is read. The previous "native or
+# else" test silently gave win32, which has no GPU path at all, the WebGL one.
+GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
-	$(OBJ_DIR)/trspk_unity.o $(GL_OBJS) $(WEBGL1_OBJS) \
+	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/tommath.o \
@@ -390,7 +430,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels rsprot test-rsprot
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -431,6 +471,20 @@ web:
 web-debug:
 	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+
+# --- Windows XP target ---------------------------------------------------
+# `make -C src winxp` is the XP lane's entry point, shaped like `web` above so
+# every platform is reached the same way. It needs an i686 MinGW toolchain on
+# PATH; build_winxp.ps1 is the wrapper that puts one there and stages the
+# result. lane-check runs first so a wrong-architecture toolchain fails here
+# rather than as an unhelpful loader error on the XP box.
+winxp:
+	$(MAKE) PLATFORM=win32 lane-check
+	$(MAKE) PLATFORM=win32 OPT=1 all
+
+winxp-debug:
+	$(MAKE) PLATFORM=win32 lane-check
+	$(MAKE) PLATFORM=win32 OPT=0 all
 
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
@@ -645,7 +699,7 @@ rsprot: $(OBJ_DIR) $(OBJ_DIR)/rsprot_unity.o
 # rsprot's own unit tests. Shelled out because the test binaries link against
 # rsprot's private build/ objects (its makefile builds its own isaac/rsa/mpi).
 test-rsprot:
-	$(MAKE) -C $(RSPROT_DIR) test
+	$(SUBMAKE) -C $(RSPROT_DIR) test
 
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
@@ -836,7 +890,7 @@ test-inv: $(OBJ_DIR) inv/inv_manager.c inv/inv_manager_test.c
 	./$(OBJ_DIR)/inv_manager_test
 
 test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm -Wl,-dead_strip -o $(OBJ_DIR)/world_test \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_test \
 		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
@@ -959,7 +1013,7 @@ check-no-drain:
 
 # Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
 test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
-	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/walkmerge_test \
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/walkmerge_test \
 		world/test/walkmerge_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/walkmerge_test
 
@@ -984,7 +1038,7 @@ scanline-compare: $(OBJ_DIR) $(OBJS)
 
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
 test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
-	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/rotate_blit_test \
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
 		render/test/rotate_blit_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/rotate_blit_test
 
@@ -1176,7 +1230,7 @@ MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 mock230-scripts: sscompile
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	./$(OBJ_DIR)/sscompile --src $(MOCK230_CONTENT_DIR)/server/scripts \
+	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
 		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs
@@ -1189,8 +1243,8 @@ mock230-scripts: sscompile
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
 mock230-servpack:
-	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
-	cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack pack \
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src OSRS-Content/osrs239-content --server-only
 
 # The client half of the same bake: the tree written back into a cache the
@@ -1206,7 +1260,19 @@ mock230-servpack:
 # `--base` copies the pristine cache first, so every record the tree does not
 # change keeps the bytes it had, and the output is a fresh 440M rather than an
 # in-place append that grows without bound.
-MOCK230_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.baked
+#
+# Base and output are variables, not literals, so a bake can be aimed somewhere
+# else without editing this file:
+#
+#   make -C src mock230-cache MOCK230_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
+#
+# The default output stays `cache.osrs239.baked` because manifest_osrs239_net.ini
+# and the rev-230 manifests name that directory. Previously `--base`/`--out`
+# were spelled literally in the recipe while MOCK230_CACHE_DIR was used only by
+# the `rm -rf` above them, so the two could disagree and the wrong tree would be
+# cleared.
+MOCK230_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
+MOCK230_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
 # Optional RuneStar CS2 name tables (script/graphic/…). Without them, ~proc
 # calls into .cs2b-only scripts cannot resolve (PROC no longer falls back to a
 # sole clientscript alias — that rebound trampoline wrappers to themselves).
@@ -1214,17 +1280,47 @@ MOCK230_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.baked
 # real proc id.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
 mock230-cache:
-	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@# --base is optional. With one, the pristine cache is copied and every record
+	@# the tree does not change keeps the bytes it had. Without one, cachepack
+	@# creates the cache and what lands is exactly what the content tree states --
+	@# so a missing base is a narrower cache, not an error.
 	rm -rf $(MOCK230_CACHE_DIR)
 	cd $(REPO_ROOT) && \
 		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
 			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
 		fi; \
-		3rd/rscache/tools/cachepack/cachepack pack \
-		--src OSRS-Content/osrs239-content \
-		--base cache.osrs239 \
-		--out cache.osrs239.baked \
-		--rev osrs239 --assets --binary
+		$(CACHEPACK_BIN) pack \
+		--src $(MOCK230_CONTENT_DIR) \
+		$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
+		--out $(MOCK230_CACHE_DIR) \
+		--rev osrs239 --assets --binary --gamevals
+	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(MOCK230_CACHE_DIR)
+
+# Every dat2 table an OldSchool cache carries, by idx id — the OSRS column of
+# DAT2_TABLE_IDS_OSRS in 3rd/rscache/src/dat2disk.c. 16/17 and 23 are unused in
+# this era; 255 is the reference-table index, without which nothing else in the
+# cache is reachable.
+#
+# A bake is only "the whole cache" if every one of these lands. They come from
+# three different writers (configs from the pack itself, the asset tables from
+# --assets/--binary, gamevals from --gamevals), so a missing flag silently costs
+# a table rather than failing — which is exactly what --gamevals did before it
+# was added above.
+MOCK230_CACHE_TABLES = 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255
+
+mock230-cache-check:
+	@test -f "$(MOCK230_CACHE_DIR)/main_file_cache.dat2" || { \
+		echo "mock230-cache-check: no cache at $(MOCK230_CACHE_DIR)" >&2; exit 1; }
+	@missing=""; for t in $(MOCK230_CACHE_TABLES); do \
+		[ -f "$(MOCK230_CACHE_DIR)/main_file_cache.idx$$t" ] || missing="$$missing $$t"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "mock230-cache-check: $(MOCK230_CACHE_DIR) is missing idx:$$missing" >&2; \
+		echo "  A table with no .idx file is a table the client cannot read." >&2; \
+		exit 1; \
+	fi; \
+	echo "mock230-cache-check: all $(words $(MOCK230_CACHE_TABLES)) tables present in $(MOCK230_CACHE_DIR)"
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
@@ -1342,7 +1438,7 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 .PHONY: test-servercodec test-content test-port test-membership
 test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-port
 	@echo "--- content: validating the tree against the cache ---"
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
 
 # The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md §3.3).
@@ -1367,8 +1463,8 @@ test-content: test-content-register test-servercodec test-ss-symbols mock230-scr
 # ask what the files say, and these ask whether what they say is true of the tree.
 test-membership:
 	@echo "--- membership: entities against provenance ---"
-	$(MAKE) -C $(RSCACHE_DIR)/tools cachepack
-	@cd $(REPO_ROOT) && 3rd/rscache/tools/cachepack/cachepack membership \
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) membership \
 		--src $(MOCK230_CONTENT_DIR) --check-only
 
 # The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md §9 step 2).
@@ -1541,21 +1637,38 @@ test-bootmanifest: $(OBJ_DIR)
 
 # Actor vs scene model-light regimes (toridraw profiles + LightSetProfiles).
 test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
-	$(CC) $(CFLAGS) -lm -Wl,-dead_strip -o $(OBJ_DIR)/light_model_test \
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/light_model_test \
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/light_model_test
 
+# Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
+# correct when a platform is added -- the old hardcoded list had already gone
+# stale and never removed build_win32*/ or torirs.exe. Each pass re-includes
+# platform.mk with that PLATFORM, so $(PLATFORM_OBJ_BASE)/$(PLATFORM_TARGET)
+# below are that lane's, and the glob covers every flavor suffix
+# (_opt/_mt/_tdo/_es) OBJ_DIR can grow.
 clean:
-	rm -rf build build_opt build_web build_web_opt torirs .last_flavor
-	rm -rf build_mt build_opt_mt build_web_mt build_web_opt_mt torirs_mt
-	rm -rf build_es build_opt_es build_web_es build_web_opt_es
-	rm -rf build_tdo_es build_opt_tdo_es
+	@for p in $(PLATFORM_LIST); do $(MAKE) --no-print-directory PLATFORM=$$p clean-lane; done
+	rm -f .last_flavor
 	# Only our own outputs: build-web/ is a plain output directory that other
 	# experiments have also written into.
 	rm -f $(REPO_ROOT)/build-web/torirs.js $(REPO_ROOT)/build-web/torirs.wasm \
 		$(REPO_ROOT)/build-web/torirs.data $(REPO_ROOT)/build-web/torirs.wasm.map \
 		$(REPO_ROOT)/build-web/index.html $(REPO_ROOT)/build-web/torirs_host.js \
 		$(REPO_ROOT)/build-web/viewer.html
+
+# Every flavor suffix OBJ_DIR can grow, in the order the top of this file
+# appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
+# values are prefixes of one another (build, build_web, build_win32), so
+# `build_*` from the macos lane would delete the web and win32 objects too.
+CLEAN_FLAVOR_SUFFIXES := _opt _mt _opt_mt _tdo _opt_tdo _es _opt_es \
+	_mt_es _opt_mt_es _tdo_es _opt_tdo_es
+
+# One lane's objdirs and link outputs. `clean` below runs this once per lane.
+clean-lane:
+	rm -rf $(PLATFORM_OBJ_BASE) \
+		$(foreach s,$(CLEAN_FLAVOR_SUFFIXES),$(PLATFORM_OBJ_BASE)$(s)) \
+		$(PLATFORM_TARGET) $(PLATFORM_TARGET)$(PLATFORM_TARGET_MEMTRACE_SUFFIX)
 
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read

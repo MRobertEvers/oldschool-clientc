@@ -1,4 +1,5 @@
 #include "cp_text.h"
+#include "tool_posix_compat.h"
 
 #include <ctype.h>
 #include <errno.h>

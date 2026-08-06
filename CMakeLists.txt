@@ -1,5 +1,30 @@
+# ============================================================================
+# DEPRECATED — retired v0 build. Not maintained, not buildable.
+#
+# Every source path below (src/platforms/, src/3rd/lua, src/tori_rs.c,
+# src/nuklear/, src2/platforms/asan_compat.c) was relocated to v0/ or deleted,
+# so configure fails with "Cannot find source file" regardless of toolchain.
+# It is kept only as a record of how the v0 targets were assembled.
+#
+# The live build is plain make, one lane per platform:
+#
+#     make -C src            macOS / Linux   -> src/torirs
+#     make -C src web        Emscripten      -> build-web/torirs.js
+#     make -C src winxp      Windows XP i686 -> src/torirs.exe
+#
+# See readme.md "Building", src/platform/platform.mk, and docs/PORTING_GUIDE.md
+# §"Build". Fail loudly here rather than 900 lines further down, where the
+# missing-source error says nothing about which tree moved.
+# ============================================================================
 cmake_minimum_required(VERSION 3.7)
 project(RSClient LANGUAGES C CXX)
+
+if(NOT TORIRS_ALLOW_DEPRECATED_CMAKE)
+    message(FATAL_ERROR
+        "This CMake build is deprecated and cannot configure: its sources moved to v0/.\n"
+        "Use the make lane instead:  make -C src | make -C src web | make -C src winxp\n"
+        "(-DTORIRS_ALLOW_DEPRECATED_CMAKE=ON to proceed anyway, for archaeology only.)")
+endif()
 
 # clangd/IDE: emit build/compile_commands.json (refreshed when you re-run CMake)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

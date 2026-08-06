@@ -1,4 +1,25 @@
-# Building for Windows XP
+# Building for Windows XP — DEPRECATED
+
+> **This document is retired.** It describes the v0 CMake build of
+> `scene_tile_test.exe` / `model_viewer.exe`, neither of which exists any more;
+> the CMake lane itself cannot configure since its sources moved to `v0/`.
+>
+> **The current XP build is:**
+>
+> ```
+> make -C src winxp          # -> src/torirs.exe  (i686 MinGW on PATH)
+> .\build_winxp.ps1 -Opt     # same, plus toolchain setup and staging to dist\win32\
+> ```
+>
+> The XP ABI contract (`-D_WIN32_WINNT=0x0501`, `-march=pentium4 -msse2
+> -mfpmath=sse`, `-static-libgcc`, PE subsystem 5.01) now lives in the `win32`
+> block of [`src/platform/platform.mk`](../src/platform/platform.mk), and
+> `make -C src lane-check PLATFORM=win32` asserts it. See **readme.md
+> "Building"**.
+>
+> Kept only for the background sections below — the toolchain/SSE2 notes and the
+> XP troubleshooting table are still accurate as *reference*, even though the
+> commands are not.
 
 This guide explains how to build `scene_tile_test.exe` and `model_viewer.exe` for Windows XP using MinGW-w64 i686 toolchain.
 

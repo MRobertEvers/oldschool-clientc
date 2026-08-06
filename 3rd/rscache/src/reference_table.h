@@ -36,6 +36,20 @@ struct RSCache_ReferenceTable
     int* ids;
     struct RSCache_ReferenceTableArchive* archives;
     int archive_count;
+
+    /*
+     * Allocation bookkeeping. Not part of the encoded form — the encoder walks
+     * id_count/archive_count and never sees these.
+     *
+     * They exist because growing a table one archive at a time reallocated both
+     * arrays to exactly count+1 on every insert. Packing a tree with no base
+     * cache adds every archive that way, and `models` alone is tens of
+     * thousands, so the copying was quadratic in bytes. A decoded table leaves
+     * these at 0, which the growth code reads as "capacity is whatever count
+     * says" and takes over from there.
+     */
+    int id_capacity;
+    int archive_capacity;
 };
 
 #define RSCACHE_REFTABLE_FLAG_IDENTIFIERS 0x1

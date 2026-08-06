@@ -1,4 +1,5 @@
 #include "cp_assets.h"
+#include "tool_posix_compat.h"
 
 #include "dat2disk.h"
 #include "bmp.h"
@@ -106,10 +107,10 @@ ensure_dir_path(const char* path)
         if( *p != '/' )
             continue;
         *p = '\0';
-        mkdir(buf, 0755);
+        tool_mkdir(buf);
         *p = '/';
     }
-    return mkdir(buf, 0755) == 0 || errno == EEXIST ? 0 : -1;
+    return tool_mkdir(buf) == 0 || errno == EEXIST ? 0 : -1;
 }
 
 /* ---- member packs -------------------------------------------------------- */

@@ -4,56 +4,153 @@ Rewrite of the osrs renderer.
 
 ## Building
 
-```
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake -B build_release -DCMAKE_BUILD_TYPE=Release
-cmake -B build-mingw-release -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+Plain make, **not CMake** — the CMake tree is deprecated and no longer
+configures (its sources moved to `v0/`). One variable, `PLATFORM`, picks the
+whole host: compiler, windowing/audio/IO backends, object directory and link
+output. Every lane is declared in one place,
+[`src/platform/platform.mk`](src/platform/platform.mk), and nothing above that
+file tests `PLATFORM` — adding a platform means adding one block there.
 
-# For compiler invocations
-make VERBOSE=1
-```
+### The build matrix
 
-### Presets
+| Lane | Command | Artifact | Toolchain |
+|---|---|---|---|
+| macOS / Linux, debug | `make -C src` | `src/torirs` | host `cc` + SDL2 |
+| macOS / Linux, release | `make -C src release` | `src/torirs` | host `cc` + SDL2 |
+| Web, release | `make -C src web` | `build-web/torirs.js` | `emcc` |
+| Web, debug | `make -C src web-debug` | `build-web/torirs.js` | `emcc` |
+| Windows XP, release | `make -C src winxp` | `src/torirs.exe` | i686 MinGW |
+| Windows XP, debug | `make -C src winxp-debug` | `src/torirs.exe` | i686 MinGW |
 
-```
-# Configure
-cmake --preset sse1-only
-cmake --preset sse2
-cmake --preset avx2
-cmake --preset neon
+`make -C src` with no `PLATFORM` resolves `native` to `macos`, `linux` or
+`win32` from the host. To build a lane explicitly, pass it:
+`make -C src PLATFORM=web all`.
 
-# Build
-cmake --build build_sse1
-cmake --build sse2
-cmake --build avx
-cmake --build neon
-```
-
-### Pound Defines
+Running the result:
 
 ```
-# Disables manual vector functions
-SSE_DISABLED
-SSE2_DISABLED
-AVX2_DISABLED
-NEON_DISABLED
+./run-live.sh                   # native client
+./run-live.sh web               # web build + IO server on :8088
+./build_winxp.ps1 -Opt          # XP build + staging to dist\win32\torirs.exe
+./profile-mac.sh                # macOS flamegraph (see the file's header)
 ```
 
-### Building - Emscripten
+### Lane invariants
+
+Each lane has flags that are load-bearing rather than incidental — the XP
+subsystem version, the web build's WebGL1 pinning, the one linker that has
+`-dead_strip`. Those are asserted, not just documented:
 
 ```
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug
-
-cd build.em
-
-emmake make
+make -C src lane-check                    # this host's lane
+make -C src lane-check PLATFORM=win32     # any lane, from any host
+make -C src lane-check-all                # all four
+make -C src lane-check-artifact PLATFORM=win32   # probe the linked binary
 ```
+
+What each lane must and must not contain is declared in
+[`src/platform/platform_check.mk`](src/platform/platform_check.mk). `winxp` and
+`winxp-debug` run `lane-check` before compiling, so a 64-bit toolchain on
+`PATH` fails in one line instead of producing a binary XP silently refuses to
+load.
+
+### Build flavors
+
+Orthogonal to `PLATFORM`; each combination gets its own object directory so
+flavors never share a `.o`:
+
+| Variable | Effect |
+|---|---|
+| `OPT=1` | `-O3` (what `release` / `web` / `winxp` set) |
+| `EMBED_SERVER=1` | link the rev-230 server into the client — standalone, no separate server |
+| `TORIDRAW_OPT=1` | Soft3D/ToriDraw unity at `-O2` regardless of `OPT` |
+| `MEMTRACE=1` | interpose the heap and write `memtrace.bin` (see `tools/memtrace/README.md`) |
+| `ENABLE_ASAN=1` | AddressSanitizer (mutually exclusive with `MEMTRACE`) |
+
+`make -C src clean` removes every lane's objdirs and outputs; it recurses over
+the lane list rather than hardcoding directory names.
+
+### Host tools and the vendored toolchain
+
+`cachepack`, `sscompile` and the other helpers under `3rd/*/tools` run on *your*
+machine, not on the target, and are built with `HOST_CC` rather than the lane's
+`PLATFORM_CC`. That distinction matters on Windows: building them with the i686
+XP toolchain produced a 32-bit `cachepack`, and it is the one program here that
+has to chew through a whole cache.
+
+`HOST_CC` resolves in this order:
+
+1. `toolchain/mingw64/bin/gcc.exe` — a 64-bit MinGW-w64 unpacked into the repo
+2. `x86_64-w64-mingw32-gcc` on `PATH`
+3. the lane's compiler, so a machine with neither still builds
+
+`toolchain/` is gitignored, so the toolchain never enters git history. To set it
+up on Windows, unzip a [winlibs](https://github.com/brechtsanders/winlibs_mingw/releases)
+x86_64 release into it so that `toolchain/mingw64/bin/gcc.exe` exists. On macOS
+and Linux the system `cc` is already the host compiler and none of this applies.
+
+### Content pipeline
+
+The client boots from a cache, and the cache is built from
+`OSRS-Content/osrs239-content/`:
+
+| Step | Command | Output |
+|---|---|---|
+| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+
+The bake takes `--base` when a pristine cache is present, so records the tree
+does not change keep the bytes they had. **Without a base it creates the cache**,
+and what lands is exactly what the tree states — useful when there is no
+pristine cache to start from, and not what you want if you were relying on a
+base cache's untouched records. Aim it elsewhere with:
+
+```
+make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+```
+
+`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+table with no idx file is a table the client cannot read, and `idx255` — the
+reference-table index — is what makes every other table reachable at all.
+
+### Booting a packed cache
+
+[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
+`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+cache built from content rather than the pristine dump:
+
+```
+make -C src winxp
+src/torirs.exe --manifest manifest_osrs239_packed.ini --offline
+```
+
+Two things a from-scratch cache needs that a `--base` bake inherits for free,
+both of which the packer now does:
+
+- **`idx255` reference tables.** An archive is only reachable through one.
+- **Archive name identifiers.** Half the cache is addressed by name — the
+  client resolves a sprite by hashing the name (djb2) and scanning
+  `archives[i].identifier`. Without them the client boots to a frame with no
+  compass, no map scene and no hitmarks, everything looked up by name silently
+  absent, while every byte of every archive is present and correct.
+
+Headless verification, which is what proves the cache is bootable rather than
+merely complete:
+
+```
+TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
+    src/torirs.exe --manifest manifest_osrs239_packed.ini --offline
+```
+
+### Deprecated build files
+
+Kept for reference only, and made to fail loudly rather than confusingly:
+root `CMakeLists.txt`, `android/CMakeLists.txt`, `cmake/FindSDL2.cmake`,
+`v1/programs/*/Makefile`, `scripts/build_browser.{sh,ps1}`,
+`scripts/copy_browser_files.ps1`, and `www/BUILD_WINXP.md`.
 
 ### C vs C++ ABI (shared headers)
 
@@ -85,10 +182,15 @@ sudo apt install libfreetype6-dev libsdl2-dev
 
 ### Setup
 
-Required dependencies
+Required dependencies, by lane:
 
-- SDL2
-- CMake
+| Lane | Needs |
+|---|---|
+| `macos` / `linux` | SDL2 (found via `pkg-config`, then `sdl2-config`, then a Homebrew / `/usr/local` fallback) |
+| `web` | the Emscripten SDK (`emcc` on `PATH`) |
+| `win32` | an i686 MinGW toolchain — nothing else; the lane links no SDL and no GL |
+
+CMake is **not** required for any lane.
 
 #### Mac
 
@@ -1292,287 +1394,28 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ### Windows
 
-In order for ninja to work, you need to set up your visual studio vars for powershell. See the microsoft powershell profile in scripts.
-
-.\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
-
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/insw lled/x64-windows'
-
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -G "Visual Studio 17 2022" -A x64 -B build-vs -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'
-
-Your Visual Studio 2017 installation is probably missing the C packages (they are not automatically included with the Desktop development with C++ workload).
-
-To install it, start the Visual Studio Installer, go to Individual components, and check Windows Universal C Runtime:
-
-#### Building with MSVC
-
-Configure your powershell terminal with vcvars.
+Windows is the `win32` lane — see [The build matrix](#the-build-matrix) at the
+top of this file:
 
 ```
-# Visual Studio 2022 Community Environment Setup
-# This automatically sets up the Visual Studio environment variables
-# so you don't need to run vcvars64.bat before ninja commands
-
-$vcvarsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-
-if (Test-Path $vcvarsPath) {
-    # Call the batch file and capture its environment variables
-    cmd /c "`"$vcvarsPath`" && set" | ForEach-Object {
-        if ($_ -match "^([^=]+)=(.*)$") {
-            $name = $matches[1]
-            $value = $matches[2]
-            [Environment]::SetEnvironmentVariable($name, $value, "Process")
-        }
-    }
-
-    Write-Host "Visual Studio 2022 Community environment loaded successfully!" -ForegroundColor Green
-} else {
-    Write-Host "Warning: Visual Studio 2022 Community not found at expected path: $vcvarsPath" -ForegroundColor Yellow
-    Write-Host "Please update the path in your PowerShell profile if Visual Studio is installed elsewhere." -ForegroundColor Yellow
-}
+make -C src winxp             # Windows XP / i686  -> src/torirs.exe
+make -C src winxp-debug
+.\build_winxp.ps1 -Opt        # toolchain setup + staging to dist\win32\
 ```
 
-You must also set up vcpkg for SDL2.
-
-```
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-TODO: How to set up vcpkg and SDL2.
-
-Then using cmake.
-
-```
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-#### Win32 vendored MinGW toolchain (i686)
-
-The repository ships a vendored **32-bit (i686) MinGW-w64** toolchain under `lib/mingw32-win32-toolchain.zip` (stored in Git LFS). This is the toolchain used by `src2/programs/sdl2/Makefile` and the `win32` CMake target for Windows XP SP3-oriented builds. You must unpack it once before those targets will build.
-
-**One-time setup:**
-
-PowerShell:
-
-```powershell
-git lfs pull
-New-Item -ItemType Directory -Force -Path toolchain\win32 | Out-Null
-Expand-Archive -Path lib\mingw32-win32-toolchain.zip -DestinationPath toolchain\win32
-```
-
-Bash (MSYS2 or Linux):
-
-```bash
-git lfs pull
-mkdir -p toolchain/win32
-unzip -q lib/mingw32-win32-toolchain.zip -d toolchain/win32
-```
-
-Sanity check — this path must exist after unpacking:
-
-```
-toolchain/win32/mingw32/bin/gcc.exe
-```
-
-**Example build** (from the repo root):
-
-```bash
-cd src2/programs/sdl2
-mingw32-make
-```
-
-The `toolchain/` directory is gitignored; only the zip (via LFS) is committed.
-
----
-
-#### Building with GCC and MinGW
-
-MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
-
-> The instructions below cover **host** (x86-64) MinGW builds using MSYS2. For the **vendored i686 / WinXP-oriented** toolchain used by `src2/programs/sdl2`, see the section above.
-
-Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
-
-Also set up and a .bashrc script so you can type `make` instead of `mingw32-make`.
-
-**Prerequisites:**
-
-- Install MinGW-w64 (recommended: MSYS2 or standalone installer)
-  `winget install --id MSYS2.MSYS2`
-
-  ```
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -Syu --noconfirm"
-
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-SDL2 mingw-w64-x86_64-freetype mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib"
-
-  cmake -B build-mingw -DCMAKE_BUILD_TYPE=Release -G 'MinGW Makefiles'
-
-  mingw32-make -j4
-  ```
-
-**Terminal Configuration**
-
-```
-   "MSYS2 Terminal": {
-            "path": "C:\\msys64\\msys2_shell.cmd",
-            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
-            "icon": "terminal-bash",
-            "env": {
-                "CHERE_INVOKING": "1",
-                "MSYSTEM": "MINGW64",
-                "HOME": "${workspaceFolder}/scripts"
-            }
-        },
-```
-
-**Installation Options:**
-
-1. **MSYS2 (Recommended):**
-
-   ```bash
-   # Download and install MSYS2 from https://www.msys2.org/
-   # Then install MinGW-w64 toolchain:
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make
-   ```
-
-   Or using winget
-
-   ```
-   winget install --id MSYS2.MSYS2
-   ```
-
-2. **MSYS2 Terminal (Alternative):**
-   - Install MSYS2 from https://www.msys2.org/
-   - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
-   - Install packages with: `pacman -S gcc cmake make`
-   - Note: This uses the MSYS2 environment, not native Windows MinGW
-
-3. **Standalone MinGW-w64:**
-   - Download from https://www.mingw-w64.org/downloads/
-   - Add `bin` directory to your PATH
-
-**Dependencies:**
-
-For MinGW builds, it's recommended to use MSYS2 packages rather than vcpkg:
-
-```bash
-# Using MSYS2 MinGW64 packages (recommended for native Windows MinGW)
-pacman -S mingw-w64-x86_64-SDL2 mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib mingw-w64-x86_64-freetype mingw-w64-x86_64-opengl
-
-# Using MSYS2 terminal packages (Unix-like environment)
-pacman -S SDL2 freetype2 mesa
-```
-
-**Building:**
-
-```bash
-# Configure with MinGW (using MSYS2 packages)
-cmake -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Build (recommended - works regardless of make availability)
-cmake --build build-mingw
-
-# Alternative: Using mingw32-make (MinGW's make)
-cd build-mingw
-mingw32-make -j$(nproc)
-```
-
-**Static Linking (Optional):**
-
-```bash
-# Using MSYS2 static packages (recommended)
-pacman -S mingw-w64-x86_64-SDL2-static mingw-w64-x86_64-bzip2-static mingw-w64-x86_64-zlib-static mingw-w64-x86_64-freetype-static
-
-# Configure for static linking
-cmake -B build-mingw-static -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build build-mingw-static
-```
-
-#### Performance
-
-Windows s4 performance (sorting triangle points before rendering) is slower with msvc. Faster with GCC. GCC is about the same on Linux.
-
-MSVC
-![msvc_release_s4_slower_than_deob](./res/perf/windows/win64_msvc_release_s4_slower.png.png)
-
-GCC with MingGW
-![mingw_release](./res/perf/windows/win64_mingw_s4_faster.png.png)
-
-Thinkpad 14
-
-Wasm
-![wasm_emscripten](./res/perf/windows/thinkpad14_wasm.png)
-
-Native Mingw Static
-![native_msvg_static](./res/perf/windows/thinkpad14_native_msvc.png)
-
-Also noticing that the deob is faster for big screens.
-Update: No that's not true, it just doesn't work on big screens.
-
-### Building For Emscripten
-
-Install emscripten with it's sdk
-
-```
-git clone https://github.com/emscripten-core/emsdk.git
-
-# Windows
-.\emsdk\emsdk.bat install latest
-.\emsdk\emsdk.bat activate latest
-
-.\emsdk\emsdk_env.ps1
-
-# Test if found
-.\emsdk\upstream\emscripten\emcc.bat --version
-
-# Create build files
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-
-# Unix Like
-.\emsdk\emsdk install latest
-.\emsdk\emsdk activate latest
-
-.\emsdk\upstream\emscripten\emcc --version
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-```
-
-Then building=
-
-```
-cd build.em
-
-emmake ninja
-
-# or on unixlike
-
-emmake make
-
-# Then copy the build files.
-# Windows
-powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
-```
-
-Then copy the output to public/build
-
-`python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
-`python3 -m http.server -b 0.0.0.0 -d . 8010 `
-
-./scripts/serve_emscripten.py -d public/build 8000
-
-`http://localhost:8000/main.html`
+It presents through GDI (`src/platform/platform_win32gdi.c`, a top-down DIB +
+BitBlt implementation of the `PlatformSDL2` interface) with no SDL and no GL,
+so the only external requirement is an i686 MinGW toolchain on `PATH`. The XP
+ABI contract — `-D_WIN32_WINNT=0x0501`, `-march=pentium4 -msse2 -mfpmath=sse`,
+`-static-libgcc`, and PE subsystem version 5.01 — is declared in the `win32`
+block of [`src/platform/platform.mk`](src/platform/platform.mk) and asserted by
+`make -C src lane-check PLATFORM=win32`.
+
+> **Removed:** this section previously held ~280 lines of vcpkg / MSVC / Ninja /
+> MSYS2 / `emcmake` instructions for the v0 CMake build. That build is
+> deprecated and can no longer configure — its sources moved to `v0/` — so none
+> of those commands could be followed. For the web build see
+> [docs/web_build.md](docs/web_build.md) and `make -C src web`.
 
 # World and model coords
 
