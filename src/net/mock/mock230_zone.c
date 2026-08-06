@@ -1068,9 +1068,30 @@ mock230_zone_update_player(struct Mock230Player* player)
              * state written above has to learn about receivers too, and this is
              * the line that changes with it.
              */
-            mock230_send_zone_header(player, zone_x, zone_z, zone_level, 1);
-            if( zone )
-                write_state(player, zone);
+            /*
+             * The unconditional FULL is for the plane the player is ON, and
+             * only that one.
+             *
+             * FULL_FOLLOWS resets the client's memory of a zone, and sending it
+             * for an empty zone is deliberate *there*: the client may be
+             * holding objs from before a rebuild, and "nothing to say" is not
+             * "nothing to undo". That reasoning is about the plane the player
+             * just arrived on. It does not extend to the other three, and
+             * extending it was a mistake with teeth — the window is 7x7x4, so
+             * a client entering an instance got 196 of these instead of 49,
+             * 147 of them resetting planes it had nothing on. The arena
+             * rendered blank.
+             *
+             * A zone that exists on another plane still gets its FULL and its
+             * state; one that does not is simply marked loaded, and any later
+             * event in it flushes through the normal path below.
+             */
+            if( zone || zone_level == player->level )
+            {
+                mock230_send_zone_header(player, zone_x, zone_z, zone_level, 1);
+                if( zone )
+                    write_state(player, zone);
+            }
             if( player->loaded_zone_count < MOCK230_ZONE_ACTIVE_MAX )
                 player->loaded_zones[player->loaded_zone_count++] = index;
             continue;
