@@ -4501,6 +4501,7 @@ mock230_send_zone_header(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     int full);
 
 /** One sub-packet, applied to whichever zone was last named. */
@@ -4551,6 +4552,7 @@ mock230_send_zone_enclosed(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     const uint8_t* blob,
     int len);
 
