@@ -125,6 +125,15 @@ CANON_OUT = {
     "MOVE_MINIMAPCLICK": "MOVE_MINIMAPCLICK",
     "IF_BUTTON": "IF_BUTTON",
     "IF_BUTTOND": "INV_BUTTOND",
+    # The two the whole OPHELD*/INV_BUTTON*/IF_BUTTON1..10 family collapses
+    # into. They MUST carry canonical names even though no single canonical
+    # name maps to them one-for-one: `net_out.c` falls back to IF_BUTTONX when
+    # the revision has no row for the name it was asked for, and it can only do
+    # that if the row is reachable. Left as PKTOUT_NAME_NONE, every equip, every
+    # use-on and every tab click is built and then silently dropped.
+    "IF_BUTTONX": "IF_BUTTONX",
+    "IF_SUBOP": "IF_SUBOP",
+    "IF_BUTTONT": "IF_BUTTONT",
     "CLICKWORLDMAP": "CLICK_WORLD_MAP",
     "RESUME_PAUSEBUTTON": "RESUME_PAUSEBUTTON",
     "CLOSE_MODAL": "CLOSE_MODAL",

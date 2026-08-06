@@ -39,6 +39,13 @@
  *   IF_BUTTON9       -> IF_BUTTONX with op=9
  *   IF_BUTTON10      -> IF_BUTTONX with op=10
  *
+ * That list is not just documentation: `net_out.c` reads it back off this
+ * table. IF_BUTTONX and IF_SUBOP carry their canonical names below, and the
+ * builders for the twenty-two names above fall through to them when the
+ * revision has no row of their own. Leaving those two rows at
+ * PKTOUT_NAME_NONE — which is how this file was generated — made every one of
+ * the twenty-two unsendable, and `net_out_opcode` refuses without a word.
+ *
  * The login prots (INIT_GAME_CONNECTION, GAMELOGIN, POW_REPLY) are not here:
  * they live in a different prot space and are built by the login driver.
  */
@@ -61,10 +68,10 @@ struct Osrs239PacketOutDef
 /* clang-format off */
 static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_IF_BUTTON,                 51, 4,                       "IF_BUTTON" },
-    { PKTOUT_NAME_NONE,                      47, 9,                       "IF_BUTTONX" },
-    { PKTOUT_NAME_NONE,                      40, 10,                      "IF_SUBOP" },
+    { PKTOUT_NAME_IF_BUTTONX,                47, 9,                       "IF_BUTTONX" },
+    { PKTOUT_NAME_IF_SUBOP,                  40, 10,                      "IF_SUBOP" },
     { PKTOUT_NAME_INV_BUTTOND,               48, 16,                      "IF_BUTTOND" },
-    { PKTOUT_NAME_NONE,                      27, 16,                      "IF_BUTTONT" },
+    { PKTOUT_NAME_IF_BUTTONT,                27, 16,                      "IF_BUTTONT" },
     { PKTOUT_NAME_NONE,                      56, PKTOUT_LENGTH_VARU16,    "IF_SCRIPT_TRIGGER" },
     { PKTOUT_NAME_OPNPC1,                   102, 4,                       "OPNPC1_V2" },
     { PKTOUT_NAME_OPNPC2,                    13, 4,                       "OPNPC2_V2" },

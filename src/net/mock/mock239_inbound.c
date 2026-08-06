@@ -13,6 +13,7 @@
  */
 #define OSRS239_OP_IF_BUTTONX 47
 #define OSRS239_OP_IF_SUBOP 40
+#define OSRS239_OP_IF_BUTTONT 27
 
 /** The sentinel the client sends in IF_BUTTONX's obj field for "not an item". */
 #define OBJ_NONE 0xffff
@@ -131,6 +132,43 @@ mock239_inbound_translate(
         rsab_p2(&w, (uint16_t)sub);
         *out_len = (int)rsab_len(&w);
         return PKTOUT_NAME_IF_BUTTON1 + (op - 1);
+    }
+
+    /*
+     * IfButtonTDecoder: pCombinedId target, p2Alt2 selectedSub, p2Alt3
+     * targetObj, p2Alt1 targetSub, p2Alt2 selectedObj, pCombinedIdAlt2
+     * selected.
+     *
+     * 230's OPHELDU, with the two halves interleaved and in five byte orders.
+     * The TARGET is what was clicked and the SELECTED is what was carried,
+     * which is the order `handle_opheldu` reads: `obj, slot, com` first is the
+     * target, `useObj, useSlot, useCom` second is the selection.
+     *
+     * OPHELDT (item on spell) arrives here too and is not separable on the
+     * wire: the spell is simply a target component whose obj is the
+     * not-an-item sentinel. It translates to OPHELDU with that sentinel intact
+     * rather than being guessed at, so a use-on-spell reaches a handler that
+     * can see what it is instead of being dropped here.
+     */
+    case OSRS239_OP_IF_BUTTONT:
+    {
+        int target_com = rsab_g4(&r);
+        int selected_sub = rsab_g2_alt2(&r);
+        int target_obj = rsab_g2_alt3(&r);
+        int target_sub = rsab_g2_alt1(&r);
+        int selected_obj = rsab_g2_alt2(&r);
+        int selected_com = rsab_g4_alt2(&r);
+
+        if( !rsab_ok(&r) )
+            return PKTOUT_NAME_NONE;
+        rsab_p2(&w, (uint16_t)target_obj);
+        rsab_p2(&w, (uint16_t)target_sub);
+        rsab_p4(&w, (uint32_t)target_com);
+        rsab_p2(&w, (uint16_t)selected_obj);
+        rsab_p2(&w, (uint16_t)selected_sub);
+        rsab_p4(&w, (uint32_t)selected_com);
+        *out_len = (int)rsab_len(&w);
+        return PKTOUT_NAME_OPHELDU;
     }
 
     default:
