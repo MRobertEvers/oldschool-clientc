@@ -248,9 +248,12 @@ print_component_details(
     {
         fprintf(
             fp,
-            "      font=%d  text='%s'",
+            "      font=%d  text='%s'  halign=%d valign=%d lineheight=%d",
             c->textFont,
-            c->text ? c->text : "");
+            c->text ? c->text : "",
+            c->textHorizontalAlignment,
+            c->textVerticalAlignment,
+            c->textLineHeight);
         if( c->activeText && c->activeText[0] != '\0' )
             fprintf(fp, "  activeText='%s'", c->activeText);
         fputc('\n', fp);
@@ -487,7 +490,14 @@ print_json_child(
     {
         fprintf(fp, ",\n      \"text\": \"");
         json_escape(fp, c->text);
-        fprintf(fp, "\",\n      \"font\": %d", c->textFont);
+        fprintf(
+            fp,
+            "\",\n      \"font\": %d,\n"
+            "      \"text_halign\": %d, \"text_valign\": %d, \"line_height\": %d",
+            c->textFont,
+            c->textHorizontalAlignment,
+            c->textVerticalAlignment,
+            c->textLineHeight);
     }
     else if( c->type == COMPONENT_TYPE_MODEL || (c->if3 && c->type == 6) )
     {

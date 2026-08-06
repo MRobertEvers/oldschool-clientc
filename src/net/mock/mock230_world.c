@@ -9910,6 +9910,53 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 4),
                            "a dialogue should set the head, anim and text, then mount");
+            {
+                /*
+                 * The rev-239 cache defines chat_left:text as top-aligned.
+                 * Golden clientscript 600 (if_settextalign) is therefore part
+                 * of the NPC-chat contract: four ints, emitted in reverse on
+                 * the wire, followed by the script id. Without it Hans's body
+                 * copy renders roughly one text line too high.
+                 */
+                const int text_uid = (231 << 16) | 6;
+                int found_align = 0;
+
+                for( int p = 0; p < capture.count && !found_align; p++ )
+                {
+                    struct RSAreaBuf run;
+                    char types[8];
+                    int argc = 0;
+                    int argv[4] = { 0, 0, 0, 0 };
+                    int script_id;
+
+                    if( capture.packets[p].opcode != 84 /* RUNCLIENTSCRIPT */ )
+                        continue;
+
+                    rsab_wrap(&run, capture.packets[p].data,
+                              (size_t)capture.packets[p].len);
+                    while( argc < (int)sizeof(types) - 1 )
+                    {
+                        int c = rsab_g1(&run);
+                        if( c == '\n' || !rsab_ok(&run) )
+                            break;
+                        types[argc++] = (char)c;
+                    }
+                    types[argc] = '\0';
+                    if( strcmp(types, "iiii") != 0 )
+                        continue;
+
+                    for( int a = argc - 1; a >= 0; a-- )
+                        argv[a] = rsab_g4(&run);
+                    script_id = rsab_g4(&run);
+                    if( rsab_ok(&run) && script_id == 600 && argv[0] == 1 &&
+                        argv[1] == 1 && argv[2] == 16 && argv[3] == text_uid )
+                        found_align = 1;
+                }
+
+                SELFTEST_CHECK(found_align,
+                               "NPC chat must send literal rev-239 script600 "
+                               "if_settextalign(1,1,16,231:6)");
+            }
             SELFTEST_CHECK(player->active_script != NULL,
                            "p_pausebutton should park the script");
             SELFTEST_CHECK(player->resume_button_count == 1,

@@ -49,7 +49,10 @@ attached before launch and passed all five workflows against the real compiled
 or unexpected disconnect occurred before the explicit quit, and the post-quit
 telemetry report completed normally. The correctly cache-backed broad mock
 world self-test still has 23 unrelated content/combat/pathing failures; they are
-not counted as interface success and are not hidden by this contract.
+not counted as interface success and are not hidden by this contract. A later
+Hans-only visual audit corrected the NPC body alignment omitted from that
+combined run; its clean proof is
+`build/run239-regressions/hans-vertical-final3/proof`.
 
 ## How the authoritative CS2VM works
 
@@ -518,6 +521,42 @@ choice sub-id when dialogue was invoked directly, and the NPC_INFO decoder
 failure encountered while physically approaching/interacting with Hans. There
 was no separate Hans-script Java exception in the direct-dialogue baseline.
 
+### Hans NPC body alignment is authoritative clientscript 600
+
+The first combined screenshot was functionally healthy but did **not** match the
+supplied reference vertically: `chat_left:text` rendered the sentence at the
+top of its 67-pixel body box. The raw revision-239 cache explains why. Component
+`231:6` is `halign=1, valign=0, lineheight=16`, whereas the corresponding player
+component `217:6` is already `halign=1, valign=1, lineheight=16`. The old content
+comment that the NPC body "centres by itself" was therefore false.
+
+The golden cache also supplies the missing server-callable behavior. Client
+script 600 is exactly `if_settextalign(h, v, lineheight, component)`. There is
+no `IF_SETTEXTALIGN` server packet in revision 239. Both NPC-chat entry points
+now mount `chat_left` and then send literal
+`RUNCLIENTSCRIPT 600(1,1,16,231:6)` before arming Continue. The client applies
+that to the mounted widget, producing `textAlign=1,1 lineHeight=16` without
+altering the cache or inventing server-side rendering behavior.
+
+The possible decompilation/recompilation defect was tested directly. The
+original `gamepack-deob.jar` bytecode and rebuilt `class671.method14513` retain
+equivalent vertical text placement, and `class308.method7396` decodes all three
+text-alignment fields with the correct multipliers. Thus this defect was a
+missing CS2 lifecycle call, not broken font or widget arithmetic. JCTL now
+reports text alignment and line height, and its NPC menu control also matches
+the menu entry's NPC index so an overlapping Man cannot masquerade as Hans.
+
+The clean post-fix run connected its blocking EVENTS subscriber before launch,
+used a real indexed `Talk-to` menu action, and recorded opcode 114 length 25 as
+`run_clientscript types=iiii args=[600, 1, 1, 16, 15138822]`. It completed the
+dynamic choice, player reply, final Hans reply, and close. The final GPI was
+`high=1 low=2046 pending=0 entity=true`; no game exception, decode error, writer
+gap, or unexpected disconnect occurred. Evidence is
+`hans-vertical-final3/proof/01-hans-centered.png`, the ordered `events.log`,
+server/client logs, and retained CS2 trace. The world self-test additionally
+parses the literal reverse-argument revision-239 packet and requires script 600
+with `(1,1,16,231:6)`.
+
 ### The running crash was a revision-239 NPC_INFO boundary violation
 
 The independent movement reproduction retained the last completed framebuffer,
@@ -625,12 +664,15 @@ forms, not altered arithmetic.
 JCTL now reports original/relative geometry, all four alignment modes, parent
 identity and bounds, and on-op listeners. Live probes such as `116:27`, its
 dynamic label `116:27:4`, and layout row `116:40:3` match the authoritative
-formulas in Fixed, Classic, and Modern roots. The Hans frame in
-`combined-five-final3/proof/02-hans-dialogue.png` also matches the supplied
-reference structure: wide lower chatbox, left portrait, centred speaker/name
-and continue prompt. The apparent layout corruption came from the wrong root,
-unarmed dynamic rows, and lost CC-created children after root replacement—not
-from a remaining core decompilation math defect.
+formulas in Fixed, Classic, and Modern roots. The broad geometry arithmetic is
+intact, but the Hans body text exposed a separate lifecycle omission: raw
+`231:6` is intentionally top-aligned and must be changed after mount by
+authoritative clientscript 600. The earlier
+`combined-five-final3/proof/02-hans-dialogue.png` is therefore retained as the
+before frame, not accepted as a reference match. The corrected frame is
+`hans-vertical-final3/proof/01-hans-centered.png`. In short, no remaining core
+decompilation math defect was found; the layout regression and Hans alignment
+had distinct callback/lifecycle causes.
 
 ### Final five-regression acceptance run
 
@@ -945,3 +987,24 @@ PIDs were stopped afterward.
   folded into this PR.
 - 2026-08-06: Opened root PR #10, OSRS-Content dependency PR #2, and Deob
   dependency PR #2 from their pushed `codex/runelite239-regressions` branches.
+- 2026-08-06: Rejected the prior Hans screenshot as visual acceptance after
+  comparing it directly with the supplied reference. Dumped raw cache group 231
+  and found `chat_left:text` is `halign=1, valign=0, lineheight=16`; group 217's
+  player text is already vertically centred.
+- 2026-08-06: Read authoritative clientscript 600 and established that
+  `if_settextalign(1,1,16,chat_left:text)` is the missing post-mount behavior.
+  Added it to both NPC-chat entry points and recompiled all 12,536 scripts.
+- 2026-08-06: Audited the original jar and rebuilt deob bytecode for widget text
+  decoding and vertical font placement. Found equivalent arithmetic, so this
+  defect is not a remaining decompilation/recompilation math error. Extended
+  JCTL widget telemetry with text alignment/line height and made `clicknpc`
+  select the menu entry with the requested NPC index when actors overlap.
+- 2026-08-06: Added a world regression assertion that parses the literal
+  revision-239 reverse-argument RUNCLIENTSCRIPT packet and requires script 600
+  with `(1,1,16,231:6)`. The focused Hans assertion passes; the broad selftest
+  retains the same 23 unrelated baseline content/combat/pathing failures.
+- 2026-08-06: Ran clean `hans-vertical-final3` with a blocking EVENTS subscriber
+  connected before launch and real AWT input. Captured the corrected reference
+  line, completed choice/player/NPC/close lifecycle, retained packet/CS2 logs,
+  and ended with healthy GPI and no runtime fatal, decode error, writer gap, or
+  unexpected disconnect before explicit quit.
