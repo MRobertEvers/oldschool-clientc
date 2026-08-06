@@ -33,71 +33,104 @@ counter to say so.
 | 1. codec byte-exact | 9,744 / 9,745 | **9,744 / 9,745** | 9,744 — met (D1) |
 | 2. decompiled | 9,524 / 9,745 | **9,524** | 9,745 |
 | 3. compiled | 9,457 / 9,524 | **9,468** | = stage 2 |
-| 4. **byte-exact** | 3,086 / 9,457 — **32.6%** | **8,303 / 9,468 — 87.7%** | = stage 3 |
-| — same length | 3,856 | 8,815 | |
-| 5. source fixed point | 6,939 / 6,995 (99.2%, quoted) | **8,145 / 8,148 — 99.96%** | see caveat |
+| 4. **byte-exact** | 3,086 / 9,457 — **32.6%** | **8,430 / 9,468 — 89.0%** | = stage 3 |
+| — same length | 3,856 | 9,020 | |
+| 5. source fixed point | 6,939 / 6,995 (99.2%, quoted) | **8,190 / 8,193 — 99.96%** | see caveat |
 
 Baseline is the state at the start of this work, measured on this machine, not
-quoted. Stage 4 is where all the movement is: **+5,217 scripts**, from six
-compiler defects and one decompiler one.
+quoted. Stage 4 is where the movement is: **+5,344 scripts**, from nine compiler
+defects and one decompiler one.
 
 Stage 5's comparison set is smaller than stage 3's because it is measured
 through `--raw`, which has no cache to read param types or dbtable columns from;
-1,301 of the 9,449 recompiled scripts will not re-decompile without them. That
+1,256 of the 9,449 recompiled scripts will not re-decompile without them. That
 is a limitation of the measurement, not of the compiler — see Procedures.
+
+### Why this is not 100%, and what 100% would take
+
+**Stage 4 is capped at about 8,900 by one missing bit per return slot** (D6),
+and that is a property of the source language rather than of either half. 471 of
+the 1,038 remaining differences — the largest bucket by four times — are a
+script's epilogue pushing `-1` where the compiler emits `0`. The constant is the
+default of the *declared* return type; the decompiler prints `int` both for a
+slot it solved and for one it could not, and only the first has default `0`.
+
+I tried to predict it from the source and measured that it cannot be: over 2,378
+`int` return slots, "every value returned into this slot is `0`/`1`" agrees with
+the epilogue constant **83% of the time** (1,973 / 2,378), with 296 slots
+returning non-boolean values and still defaulting `-1`. That is a correlation,
+not a rule, and installing it would produce confidently wrong bytes on a sixth
+of the corpus.
+
+Reaching 100% therefore needs the source to carry the bit — a language change,
+described under D6 — and that decision belongs to whoever owns the content tree,
+because every `.cs2` in it and the reference comparison are in scope.
+
+A second cluster of about 170 scripts sits behind the same wall: where a
+switch's `default` body *is* the epilogue, the decompiler cannot tell it from
+real code without knowing the exact per-slot default (D15).
+
+**Stage 2 is capped at 9,635** by 110 scripts on 31 opcodes with no signature.
+`cs2 infer-arity` solved one more this session and reports the rest
+under-determined; opcode 216, the largest at 26 scripts, has exactly two
+surviving candidates that produce *different programs* (D18). EXCEPTIONS G4's
+verdict stands: they need a client that implements them.
 
 ---
 
 ## TODO
 
-Ordered by what each is worth. Counts are scripts still differing, from the
-current run.
+Counts are scripts still differing, from the current run.
+
+### Done
 
 - [x] Build the `cs2` tool on Windows (mingw64) — it was Mach-O in the tree.
 - [x] Split stage 1 into its own gate (`cs2 codec`).
 - [x] `roundtrip --dump DIR` + `disassemble --raw --rev` so a byte difference can
       be read as instructions.
 - [x] **D2** redundant `branch` to the next instruction — **+2,701**
+- [x] **D4** hook descriptors carried type letters, not stack letters — **+1,489**
+- [x] **D8** markup tags are their own string push — **+564**
 - [x] **D3** missing `pop_*_discard` after a statement-position call — **+259**,
       and a real miscompile
-- [x] **D4** hook descriptors carried type letters, not stack letters — **+1,489**
-- [x] **D5** epilogue default per return type (`-1`, not `0`) — **+33**
 - [x] **D7** switch default body belongs last, not first — **+159**
-- [x] **D8** markup tags are their own string push — **+564**
+- [x] **D14** `else` vs two `if`s, recovered from the dead jump the DFA deletes
+      — **+82**
+- [x] **D16** db calls in statement position now get their discards — **+36**
+- [x] **D5** epilogue default per return type (`-1`, not `0`) — **+33**
+- [x] **D13** `enum(…)` / `*_param(…)` as a hook argument — **+11**, and the
+      first thing to move stage 3 (9,457 → 9,468)
+- [x] **D15** the bare `return` before the epilogue — **+9**, and a miscompile:
+      a script falling out of its body returned nothing where its declared arity
+      said otherwise
 - [x] **D9** `else if` chain built even when the `if` never rejoins — **+1**
-- [x] **D13** `enum(…)` / `*_param(…)` as a hook argument — **+11**, and stage 3
-      moved for the first time (9,457 → 9,468)
 
-### Stage 4 — 1,165 scripts still differ
+### Stage 4 — 1,038 scripts still differ
 
-- [ ] **490** — jump targets disagree. D9 was one cause and a small one; **D12**
-      is a measured wrong turn on another. The largest remaining bucket and the
-      least understood.
-- [ ] **423** — **D6**, the epilogue's `int` ambiguity. Blocked on a decision
-      about the source language, not on evidence. Two designs written up; both
-      have costs, and design 1 needs D10 first.
-- [ ] **78** — same length, and identical up to the end of the shorter listing.
-      Not yet looked at.
-- [ ] **33** — no discard after a `db_find*` call. Its result shape is in the
-      dbtable config, which the *decompiler* is given through `db_columns` and
-      the compiler is not. Plumbing the same provider into
-      `RSCache_CS2_CompileOptions` closes it; the provider
-      (`tools/common/cs2_db_columns.c`) already exists.
-- [ ] **30** — string operands still differing after D8.
-- [ ] **32** — `push_constant_int`/`push_constant_string` where the cache has a
-      `branch`: more switch/`else` shape, related to D7's residue.
+- [ ] **471** — **D6**, the epilogue's `int` ambiguity. *Blocked on a language
+      decision, not on evidence.* Measured this session: not predictable from the
+      source (83%, D17). Four times the next bucket.
+- [ ] **~170** — a switch `default` body that *is* the epilogue: the extra break
+      and the duplicated epilogue (D15's residue). Needs the exact per-slot
+      default to be safe, so it is behind D6.
+- [ ] **39** — the duplicated epilogue itself, same cause.
+- [ ] **32** — jump targets still disagreeing with the same op sequence.
+- [ ] **29** — same op sequence, same operands, different length.
+- [ ] **23** — `push_constant_string` runs the cache splits and we do not: D8's
+      residue, in `join_string` arguments rather than markup.
 - [ ] **22** — `_4123` / `_4124` operand 0 against 1: the dot-form flag on two
       unnamed opcodes. Likely `dot_capable` missing from their table rows.
+- [ ] **9** — the cache has a second `return` we do not emit.
 
 ### Stage 2 — 221 scripts do not decompile
 
 - [ ] **110** blocked on 31 opcodes with no signature. **Opcode 216 alone is 26
       of them**, then 8005 (11), 6758 (9), 6803 (8), 2506 (7). `cs2 infer-arity`
-      is the tool; EXCEPTIONS G4 says the residue needs a client that implements
-      them, and 28 of the unknowns are numbered 7600+.
+      and the scoring pass are both exhausted on them — D18.
 - [ ] **65** operand-stack shape disagreements on *signed* opcodes — a recorded
       signature has drifted from what rev 239 does. G4 names this and notes the
-      same solver could be pointed at signed opcodes to find which. Nobody has.
+      same solver could be pointed at signed opcodes to find which. Nobody has,
+      and it is the most promising unexplored lead in stage 2.
 - [ ] **18** `return leaves K values, the script declares K`.
 - [ ] **28** the rest: array element type (4), enum/hook descriptor bytes (5),
       gosub argument stack types (3), one flow graph with no single entry point,
@@ -106,9 +139,11 @@ current run.
 ### Stage 3 — 56 scripts do not compile
 
 - [ ] **39** parse errors in the decompiled source — the generator emitting text
-      its own parser rejects. Two shapes, both visible in script 465: a bare
-      local as a statement (`$int0;`) and an array passed to a proc without its
-      `$` (`~script465(intarray0, …)`). EXCEPTIONS G9 lists both.
+      its own parser rejects. Two shapes, both in script 465: a bare local as a
+      statement (`$int0;`) and an array pointer printed without its `$`
+      (`~script465(intarray0, …)`, an `EXPR_POINTER`). The second is a parser
+      gap and should be fixed there, since the spelling is upstream's; the first
+      is spurious output that `cs2_delete_nops` ought to have removed.
 - [ ] **7** a callback string containing nested quotes:
       `if_setonclick("script2470(event_com, "B", $string0)", …)`. The lexer ends
       the outer literal at the inner quote. There is no escape in the dialect,
@@ -120,8 +155,8 @@ current run.
 ### Blocking everything above it
 
 - [ ] **Get the reference corpus.** `test_cs2` is the only external control on
-      the decompiler and it cannot run here (**D10**). Only D9 touched the
-      decompiler, and it changed 45 files — that change is unvalidated.
+      the decompiler and it cannot run here (**D10**). Two changes this session
+      touched the decompiler (D9, D14); both are unvalidated against it.
 
 ---
 
@@ -224,6 +259,22 @@ $CS2 disassemble --raw /tmp/rt/rebuilt --rev osrs239 $(cat ids) > dis_rebuilt.tx
 Batch the id list at ~800 per call: Windows refuses a longer command line, and
 the failure is `[WinError 206] The filename or extension is too long`, which
 does not mention the argument list.
+
+### Bucket the differences by *structure* — the sharper instrument
+
+`scratchpad/align.py` takes the same two bulk disassemblies and runs a sequence
+diff over the opcode names, reporting the first structural edit — what the
+rebuild has extra, or is missing — with the two instructions before it as
+context, grouped and counted.
+
+This is the one to reach for once `classify.py` stops separating things.
+`classify.py` said "490 scripts: the first difference is a `branch` operand",
+which is a symptom and names nothing. `align.py` said "roughly 300 scripts
+differ by one unreachable `branch` after a `return`, and 132 of them have it in
+the cache while 164 have it in the rebuild". **Both directions at once is the
+tell**: a difference that goes both ways is not a rule the compiler is getting
+wrong, it is information the source is failing to carry. That reading is what
+produced D14.
 
 ### Bucket the stage-2 failures by cause
 
@@ -418,10 +469,10 @@ So the default is `0` for `int` and `-1` for everything else on the int stack.
 `RSCache_CS2_TypeEpilogueDefault` now says so; the compiler emitted `0` for all
 of them before.
 
-### D6. The `int` half of D5 is information the source does not carry — 423 open
+### D6. The `int` half of D5 is information the source does not carry — 471 open
 
-The 587 `int → -1` slots are the largest single remaining bucket after the jump
-targets, and no amount of further measurement will settle them, because the
+The largest remaining bucket by four times, and the one that decides whether
+100% is reachable. No amount of further measurement will settle it, because the
 ambiguity is not in the cache. It is in the source text.
 
 The decompiler prints `int` for two different things: a return slot it solved to
@@ -429,7 +480,7 @@ The decompiler prints `int` for two different things: a return slot it solved to
 modern descriptor "is no longer a claim, it is the absence of one"). The
 epilogue constant distinguishes them and the printed type does not.
 
-What the slots look like is suggestive. Sampling the 549 affected scripts, the
+What the slots look like is suggestive. Sampling the affected scripts, the
 returns are almost all bare `0` and `1` literals:
 
 ```
@@ -439,26 +490,26 @@ returns are almost all bare `0` and `1` literals:
     return(0);                          return(1);
 ```
 
-Those are `boolean` returns whose type the solver had no evidence for — script
-1972 returns `on_mobile` in the same shape and *is* typed `boolean`, because a
-command signature said so. But `boolean` is not established here, only likely:
-`component`, `obj` and every other `-1`-defaulting type looks the same from a
-pair of literals.
+Those look like `boolean` returns the solver had no evidence for — script 1972
+returns `on_mobile` in the same shape and *is* typed `boolean`, because a command
+signature said so.
 
-Two designs, neither free:
+**So I measured whether that reading is a rule, and it is not** (D17). Two
+designs remain, neither free:
 
 1. **Teach the solver.** Feed the epilogue's default in as a constraint — "this
-   slot's type is not `int`" — and let usage resolve the rest, falling back to
-   `boolean` where every returned value is 0 or 1. The round trip is a real
-   oracle for this: a wrong guess stays non-exact, so it cannot make anything
-   worse than it is. It changes the decompiler's output, which is what D10 makes
-   unverifiable.
+   slot's type is not `int`" — and let usage resolve the rest. The round trip is
+   a real oracle: a wrong guess stays non-exact, so it cannot make anything
+   worse. It changes the decompiler's output, which is what D10 makes
+   unverifiable, and D17 says usage will not resolve most of them anyway.
 2. **Carry it in the source.** One bit per int return slot, written somewhere in
    the signature. Lossless and dull, and it changes the language, which puts
    every `.cs2` in the content tree and the reference comparison in scope.
 
-Design 1 is the better answer and needs D10 resolved first. Recorded rather than
-attempted.
+Design 2 is the only one that reaches 100%, and it is a decision rather than a
+discovery. It also unblocks about 170 more scripts (D15's residue), because
+knowing the exact per-slot default is what would let the decompiler tell a
+switch `default` body that *is* the epilogue from one that is real code.
 
 ### D7. The switch default body belongs last — +159
 
@@ -610,6 +661,133 @@ an unnamed opcode's signature, or the db column provider.
 
 ---
 
+### D14. `else` versus two `if`s, recovered from a jump that is deleted — +82
+
+`if (a) { return; } else if (b) { … }` and `if (a) { return; } if (b) { … }` run
+identically and compile differently: the first needs a jump past the else, the
+second does not. The jump is unreachable either way — the body returned — so
+nothing at run time can tell, and `cs2_remove_dead_code` deletes it before the
+flow graph is built. Both spellings then reconstruct from identical reachable
+graphs, and the decompiler picked one.
+
+The cache is the only evidence for which the source was, and it holds both:
+before this, 132 scripts had a jump we did not emit and 164 had one we emitted
+and the cache did not.
+
+`RSCache_CS2_Insn::dead_goto_follows` is that jump, recorded on the `return` as
+the dead-code pass removes it. `cs2_reconstruct_block` reads it to decide
+whether there is an `else` at all, in one place that both the plain-`else` and
+the `else if` arms consult — they disagreed before, which is what D9 was.
+
+All the "cache has extra branch" buckets went to zero. The "rebuild has extra"
+ones did not, and they turned out to be D15's shape rather than this one.
+
+### D15. The bare `return` before the epilogue — +9, and a miscompile
+
+Every script ends with an epilogue: one default per declared return type, then a
+`return`. The compiler emitted a bare `return` *first* whenever the body did not
+end in one.
+
+For a script with no declared returns that is right — the epilogue is that bare
+return. For one that has them it is wrong twice over. The extra instruction
+returns with an empty stack where the declared arity says otherwise, which is a
+miscompile; and it displaced the epilogue by one, so every `break` in a trailing
+`switch` aimed at the wrong address. Script 376 is the smallest example: 13
+instructions in the cache, 15 here, and its switch is the whole body.
+
+The epilogue is now the only thing emitted there, unconditionally.
+
+**What this did not fix**, and it is the second-largest bucket in the file: when
+a switch has no `default` in the cache, control falls through to the epilogue —
+so the epilogue *is* reachable, and the decompiler renders it as
+`case default : return(0)`. Compiling that emits a default body *and* an
+epilogue.
+
+I tried teaching the decompiler that the trailing block is never source
+(`cs2_block_is_epilogue`). It cost 106 byte-exact scripts, and the reason is
+worth recording: the flow graph knows only the *stack* type of a return slot, so
+the check had to accept either `0` or `-1` for an int — and that means a body
+genuinely ending `return(0)` for a `component` gets replaced by `return(-1)`.
+Not a byte difference, a **behaviour** difference. Reverted. Doing it safely
+needs the exact declared type, which is D6.
+
+### D16. db calls in statement position — +36
+
+`db_find_with_count(335872, $int0, 0);` as a statement pushes a value the cache
+discards and the compiler did not — the same defect as D3, left open there
+because a db call's result shape "is a property of an operand".
+
+It is, and the operand is available. `RSCache_CS2_CompileOptions.db_columns` now
+carries the same provider the decompiler is given
+(`tools/common/cs2_db_columns.c`, so there is still one reading of what a column
+holds). `db_getfield` resolves the `dbcolumn` literal two instructions back and
+drops one value per field — four for a whole-tuple read, one for a single field.
+
+`db_find` and its siblings push one int whatever the column is, so they need no
+operand at all, which is what the first cut got wrong: it demanded a literal in
+the second argument slot, and for the find family the column is the *first*. The
+fix measured +0 until that was noticed, which is a good argument for checking
+that a change moved the number rather than assuming it did.
+
+`enum` and `param` remain uncovered here, their shape being an argument the
+finished instruction list no longer shows.
+
+### D17. The epilogue default is not predictable from the source — measured
+
+D6 turns on whether the missing bit can be recovered from what the source *does*
+say. The best candidate: an `int` return slot defaults to `-1` when every value
+the script returns into it is `0` or `1` — i.e. it was really a `boolean`.
+
+Cross-tabulated over every `int` return slot in cache.osrs239
+(`scratchpad/epi_predicate.py`):
+
+| all returns are 0/1 | epilogue | slots |
+|---|---|---|
+| no | `0` | 1,682 |
+| no | `-1` | 296 |
+| yes | `-1` | 291 |
+| yes | `0` | 109 |
+
+**1,973 of 2,378 — 83%.** The 296 that return non-boolean values and still
+default `-1` are not noise, and the 109 the other way are not either. Installing
+this would put confidently wrong bytes in a sixth of the corpus, which is the one
+failure mode this layer exists to refuse.
+
+So D6 is not solvable by inference. Recorded so the next reader does not spend
+the afternoon I did on it.
+
+### D18. Opcode 216 has two candidates and they are different programs
+
+216 is the largest single stage-2 blocker: 26 scripts. `cs2 infer-arity` reports
+it under-determined with two surviving candidates, so I ran the README's third
+method — install each with `--override`, decompile only the scripts that use it,
+and count.
+
+```
+opcode 216: 26 witness scripts
+    23/26  --override 216:3,0,1,0
+    23/26  --override 216:2,0,0,0
+```
+
+An exact tie, and the two are **not output-equivalent**, which is the precedent
+for taking the smaller of a tie:
+
+```
+216:2,0,0,0   ->        _216($int21, 0);
+216:3,0,1,0   ->  $int27 = _216(2320, $int21, 0);
+```
+
+Same net stack effect, different programs: one consumes a preceding constant and
+yields a value, the other leaves that constant to whatever came before. Choosing
+either is guessing which, and a wrong pop count is the error that produces a
+confident listing of a different program.
+
+The same run solved opcode 7627 uniquely (`in 0/0 out 0/0`, one witness) and
+found the remaining 23 either under-determined or blocked by a second problem in
+every witness. `infer-arity` and scoring are both exhausted on this cache;
+EXCEPTIONS G4's conclusion stands — they need a client that implements them.
+
+
 ## Decisions
 
 ### Stage 1 gets its own gate
@@ -652,10 +830,30 @@ switch belongs when a cache exists to verify it against.
 
 ### A change that costs more than it earns is reverted, and the measurement kept
 
-Twice: the unreachable jump after a returning `if` body (−25), and the last
-switch break (−59, D12). Both looked obviously right. Both are now comments in
-the code with the number attached, so the next person tries something else. The
-first is what led to D9.
+Three times: the unreachable jump after a returning `if` body (−25), the last
+switch break (−59, D12), and treating the trailing block as never-source
+(−106, D15). All three looked obviously right, and one of them would have
+changed behaviour rather than only bytes. Each is now a comment in the code with
+its number attached, so the next person tries something else. The first is what
+led to D9 and then to D14.
+
+### The cache is the arbiter, both implementations are opinions
+
+Four of the findings here (D4, D7, D8, D14) were settled by scanning
+cache.osrs239's own instructions rather than by reading this code or RuneStar's.
+`scratchpad/descriptors.py` and `epilogue.py` are the pattern and both fit on a
+page. Where the two implementations disagree with each other there is no way to
+tell who is right; where either disagrees with the cache, the cache wins.
+
+### Nothing is installed on a tie
+
+Opcode 216 would be worth 26 scripts and its two candidate arities score
+identically. `enum` and `param` result shapes in statement position would be
+worth a few more and are not recoverable from the finished instruction list.
+D6's `boolean` reading would be worth 471 and is right 83% of the time. All
+three are left undone, and the reason is the same one the README gives: a wrong
+pop count or a wrong default does not fail, it produces a plausible listing of a
+different program. 83% is not a rule.
 
 ### Measure, don't quote
 
@@ -738,16 +936,52 @@ agree exactly and are still not a rule.
 hook-argument type failures split into two commands whose result shape is in an
 operand, and both operands are readable. 9,457 → 9,468 compiled.
 
-**Where it stands.** Stage 4 at 87.7% of what compiles, up from 32.6%. Stage 5's
-source fixed point at 99.96%. The library suite is green, `test_roundtrip`'s
-`cs2script` row still 100%, and the codec gate over all 9,745 records still
-9,744.
+---
 
-Two buckets left worth more than a hundred scripts each: the 490 unexplained
-jump targets and D6's 423. Neither is a tooling mystery now — `classify.py` and
-`dis_diff.sh` read them out — and D6 is blocked on a decision, not on evidence.
+**Second pass: to 89%.** Picking up at 8,303 with an instruction to get to 100%.
 
-The gap that would most change confidence in all of this is D10: the reference
-corpus is not obtainable from RuneStar's repository, so the decompiler's only
-external control has not run. Six of the seven fixes are outside what it
-measures; D9 is not.
+The instrument that made the difference was `scratchpad/align.py` — instead of
+reporting the first differing *byte position*, run a sequence diff over the two
+op listings and report the first structural edit with its context. That turned
+"490 jump targets disagree" into "roughly 300 scripts differ by one unreachable
+`branch` after a `return`, and it goes both ways". Both ways is the tell: it is
+not a rule about when to emit a jump, it is information the source is failing to
+carry.
+
+**D14** followed from that in about twenty minutes once the question was right.
+The jump is deleted by the dead-code pass, so record its existence on the
+`return` before deleting it. All the "cache has extra branch" buckets went to
+zero.
+
+**D15** is the one I would flag to a reviewer. Chasing the buckets that did *not*
+go to zero led to script 376, where the compiler emitted a bare `return` before
+the epilogue — a script falling out of its body returned nothing where its
+declared arity said two values. That is a miscompile of the same family as D3,
+and again the round trip found it while looking for something else.
+
+The other half of 376 — a switch whose `default` body *is* the epilogue — I could
+not fix safely, and the attempt is written up because the failure is instructive:
+the flow graph knows a return slot's stack but not its type, so the check had to
+accept `0` or `-1` interchangeably, and that turns a body ending `return(0)` into
+`return(-1)`. It cost 106 scripts and would have changed behaviour. Reverted.
+
+**D16** cost more time than it should have. The fix measured +0, which I nearly
+filed as "the plumbing does not help"; it was a wrong argument index for the find
+family, and the second attempt was +36. Check that a change moved the number.
+
+**D17 and D18** are both negative results, and both are the point. D6 is the
+whole remaining gap and I wanted it badly enough to test the `boolean` reading
+properly rather than install it and watch the number go up on the scripts it
+happened to fit. 83% is not a rule. Opcode 216's two arities score 23/26 each and
+produce different programs; there is no honest way to pick.
+
+**Where it stands.** Stage 4 at 89.0% of what compiles, from 32.6% at the start
+of the first pass. Stage 5's source fixed point at 99.96%. Stage 3 moved for the
+first time. The library suite is green, `test_roundtrip`'s `cs2script` row still
+100%, and the codec gate over all 9,745 records still 9,744.
+
+**100% is reachable and it is not free.** The residue is no longer a collection
+of bugs — it is one missing bit per return slot, measured and cornered, plus 110
+scripts on opcodes nobody has a client for. The first is a language decision; the
+second is EXCEPTIONS G4's standing conclusion. Everything either side of them
+that I could find and prove, I fixed.
