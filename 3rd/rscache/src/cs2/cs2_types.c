@@ -109,6 +109,12 @@ RSCache_CS2_TypeStackType(enum RSCache_CS2_Type type)
     return type == RSCACHE_CS2_TYPE_STRING ? RSCACHE_CS2_STACK_STRING : RSCACHE_CS2_STACK_INT;
 }
 
+int
+RSCache_CS2_TypeEpilogueDefault(enum RSCache_CS2_Type type)
+{
+    return type == RSCACHE_CS2_TYPE_INT ? 0 : -1;
+}
+
 static bool
 cs2_type_set_has(const enum RSCache_CS2_Type* types, int count, enum RSCache_CS2_Type type)
 {

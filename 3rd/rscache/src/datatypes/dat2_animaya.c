@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -76,6 +77,18 @@ method6869(
     for( int i = last_index - 1; i >= 0; i-- )
         output = output * var2 + values[i];
     return output;
+}
+
+/* Animaya encodes stepped curve segments with Java Float.MAX_VALUE in both
+ * outgoing tangent fields.  Comparing against a decimal float literal is not
+ * reliable when an i686 build evaluates the comparison in x87 extended
+ * precision, so recognize the serialized IEEE-754 value directly. */
+static int
+curve_tangent_is_max_value(float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits == UINT32_C(0x7f7fffff);
 }
 
 static void
@@ -581,7 +594,9 @@ interpolate_curve_at(
 
     /* Check boolean shortcuts */
     int bool0 = (point->field4 == 0.0f && point->field5 == 0.0f);
-    int bool1 = (point->field4 == 3.4028235e+38f && point->field5 == 3.4028235e+38f);
+    int bool1 =
+        curve_tangent_is_max_value(point->field4) &&
+        curve_tangent_is_max_value(point->field5);
     if( pidx + 1 >= c->point_count )
         bool0 = 1;
 

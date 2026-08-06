@@ -1,13 +1,14 @@
-# From repo root: make -C src
+# From repo root: make -C src all
 # Optimized build: make -C src release (or make -C src OPT=1 <target>).
 # Objects go to build_opt/ so debug and optimized objects never mix; both
 # flavors link the same ./torirs, whichever was built last.
 #
 # Which host to build for is one variable, PLATFORM (see platform/platform.mk):
-#   make -C src                 host native debug -> src/torirs
+#   make -C src all             host native debug -> src/torirs
 #   make -C src release         host native opt   -> src/torirs
 #   make -C src web             emscripten        -> build-web/torirs.js
 #   make -C src winxp           Windows XP (i686) -> src/torirs.exe
+#   make -C src win64           Windows 10+ (x64) -> src/torirs_win64.exe
 #   make -C src io-server       the web build's cache backend (always native)
 #   make -C src lane-check-all  assert every lane's invariants still hold
 # Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
@@ -45,11 +46,11 @@ SRC_DIR      := $(REPO_ROOT)/src
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
 # recipe dies with "p was unexpected at this time" -- which says nothing about
 # the actual cause. Catch it here instead. Git for Windows ships a usable sh at
-# <Git>\usr\bin; build_winxp.ps1 puts it on PATH for you.
+# <Git>\usr\bin; the Windows PowerShell wrappers put it on PATH for you.
 ifeq ($(SHELL),sh.exe)
 $(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
-one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use build_winxp.ps1, \
-which does it for you)
+one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use \
+build_winxp.ps1/build_windows.ps1, which do it for you)
 endif
 
 include $(SRC_DIR)/platform/platform.mk
@@ -81,7 +82,7 @@ OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SE
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
-# join them: MEMTRACE is a long-running capture, and a plain `make -C src` in
+# join them: MEMTRACE is a long-running capture, and `make -C src all` in
 # another terminal would silently replace it mid-session — the symptom being a
 # run that writes no trace at all. Which lanes can afford the rename is
 # PLATFORM_TARGET_MEMTRACE_SUFFIX in platform.mk (the web target keeps its
@@ -408,22 +409,22 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
 # Make does not otherwise notice compiler/linker flag changes: an object built
-# with the old Pentium-4/SSE2 XP flags could be silently relinked after the lane
-# moved to the i686/x87 floor. Keep the Win32 effective flags in a timestamped
+# with old lane flags could be silently relinked after its ABI contract
+# changed. Keep each Windows lane's effective flags in a timestamped
 # prerequisite and update it only when their contents actually change.
-ifeq ($(PLATFORM),win32)
-WIN32_FLAGS_STAMP := $(OBJ_DIR)/.effective_flags
-.PHONY: FORCE_WIN32_FLAGS
-FORCE_WIN32_FLAGS:
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WINDOWS_FLAGS_STAMP := $(OBJ_DIR)/.effective_flags
+.PHONY: FORCE_WINDOWS_FLAGS
+FORCE_WINDOWS_FLAGS:
 
-$(WIN32_FLAGS_STAMP): FORCE_WIN32_FLAGS | $(OBJ_DIR)
+$(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 	@{ printf '%s\n' '$(CC)'; printf '%s\n' '$(CFLAGS)'; printf '%s\n' '$(LDFLAGS)'; } > '$@.tmp'
 	@if ! cmp -s '$@.tmp' '$@'; then mv '$@.tmp' '$@'; else rm -f '$@.tmp'; fi
 
-$(OBJS): $(WIN32_FLAGS_STAMP)
+$(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -478,6 +479,18 @@ winxp:
 winxp-debug:
 	$(MAKE) PLATFORM=win32 lane-check
 	$(MAKE) PLATFORM=win32 OPT=0 all
+
+# --- Modern Windows target -----------------------------------------------
+# The wrapper selects the repository's x86_64 compiler and stages the unique
+# source artifact. Keeping this lane explicit also prevents a native Windows
+# invocation from accidentally inheriting the XP ABI floor.
+win64:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=1 all
+
+win64-debug:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=0 all
 
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
@@ -1612,9 +1625,23 @@ test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/light_model_test
 
+# CPU-only, but deliberately compiled with the Win32 compiler: it links the
+# real fixed-function D3D9 command dispatcher and drives its retained resource
+# path without creating a window or D3D device.
+.PHONY: test-retained-renderer-leak
+ifeq ($(PLATFORM),win32)
+test-retained-renderer-leak:
+	$(MAKE) -C $(REPO_ROOT)/test/trspk_leak check CC="$(CC)"
+else
+test-retained-renderer-leak:
+	@echo "test-retained-renderer-leak requires PLATFORM=win32"
+	@false
+endif
+
 # Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
 # correct when a platform is added -- the old hardcoded list had already gone
-# stale and never removed build_win32*/ or torirs.exe. Each pass re-includes
+# stale and never removed build_win32*/, build_win64*/, or their executables.
+# Each pass re-includes
 # platform.mk with that PLATFORM, so $(PLATFORM_OBJ_BASE)/$(PLATFORM_TARGET)
 # below are that lane's, and the glob covers every flavor suffix
 # (_opt/_mt/_tdo/_es) OBJ_DIR can grow.
@@ -1630,8 +1657,8 @@ clean:
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
-# values are prefixes of one another (build, build_web, build_win32), so
-# `build_*` from the macos lane would delete the web and win32 objects too.
+# values are prefixes of one another (build, build_web, build_win32,
+# build_win64), so `build_*` from the macos lane would delete other lanes too.
 CLEAN_FLAVOR_SUFFIXES := _opt _mt _opt_mt _tdo _opt_tdo _es _opt_es \
 	_mt_es _opt_mt_es _tdo_es _opt_tdo_es
 

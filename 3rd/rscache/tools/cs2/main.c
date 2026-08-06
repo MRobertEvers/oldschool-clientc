@@ -26,15 +26,14 @@
 #include "datatypes/dat2_configs.h"
 #include "rscache.h"
 #include "cs2_db_columns.h"
+#include "tool_posix_compat.h"
 #include "tool_profile.h"
 
-#include <dirent.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 /* -------------------------------------------------------------------------
  * Script sources
@@ -152,8 +151,14 @@ store_load(void* user, int script_id)
         /* Keep the payload, as raw mode does. `roundtrip` compares the compiled
          * bytes against these, and in cache mode there were none to compare
          * against — so it reported "0 same-length, 0 exact" for every cache and
-         * the mode that matters most to cachepack measured nothing at all. */
-        if( entry->script && archive->data_size > 0 )
+         * the mode that matters most to cachepack measured nothing at all.
+         *
+         * Kept even when the decode failed, because that is exactly the case
+         * worth looking at: `codec --dump` writes the bytes out so the record
+         * that would not decode can be read, and conditioning on success meant
+         * the one archive that needs diagnosing was the one with nothing to
+         * diagnose. */
+        if( archive->data_size > 0 )
         {
             entry->bytes = (uint8_t*)malloc((size_t)archive->data_size);
             if( entry->bytes )
@@ -320,6 +325,11 @@ struct options
     const char* source_path;
     const char* out_directory;
     const char* revision_name;
+    /* `roundtrip --dump DIR` writes DIR/orig/<id> and DIR/rebuilt/<id> for every
+     * script whose compiled bytes differ from the cache's. A stage-4 difference
+     * is a bytecode difference, and the only way to read one is to disassemble
+     * both sides — which `--raw` mode already does, given the bytes. */
+    const char* dump_directory;
     bool quiet;
     int* ids;
     int id_count;
@@ -333,7 +343,8 @@ usage(void)
         "usage:\n"
         "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 compile   --src (DIR|FILE) [--raw DIR] [--names DIR] [--out DIR] [id ...]\n"
-        "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [id ...]\n"
+        "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [--dump DIR] [id ...]\n"
+        "  cs2 codec     (--cache DIR | --raw DIR) [--dump DIR] [id ...]\n"
         "  cs2 disassemble (--cache DIR | --raw DIR) id ...\n"
         "  cs2 infer-arity (--cache DIR | --raw DIR) [--names DIR] [id ...]\n");
 }
@@ -362,6 +373,112 @@ write_file(const char* path, const char* data, size_t length)
     return ok;
 }
 
+/*
+ * Write one script's bytes under DIR/<side>/<id>, creating the directories on
+ * first use. The layout is deliberately `--raw`'s, so the two sides of a
+ * difference can be fed straight back to `cs2 disassemble --raw`.
+ */
+static void
+dump_side(const char* directory, const char* side, int id, const uint8_t* bytes, int length)
+{
+    char path[2048];
+
+    if( !directory || !bytes || length <= 0 )
+        return;
+
+    tool_mkdir(directory);
+    snprintf(path, sizeof(path), "%s/%s", directory, side);
+    tool_mkdir(path);
+    snprintf(path, sizeof(path), "%s/%s/%d", directory, side, id);
+    write_file(path, (const char*)bytes, (size_t)length);
+}
+
+/*
+ * `codec` — stage 1 on its own: the cache's bytes decoded to a script and
+ * encoded straight back, with no language layer in between.
+ *
+ * It exists because `roundtrip`'s numbers conflate two independent things. A
+ * script that comes back with different bytes may have lost something in the
+ * decompiler, in the compiler, *or* in the container codec — and the third is
+ * the one nothing else in this tool can see, since every other mode has to
+ * decode before it can start. Splitting it off makes the later stages' figures
+ * mean what they claim: a stage-4 miss with stage 1 at 100% is a language
+ * problem and nothing else.
+ */
+static int
+run_codec(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    int decoded = 0;
+    int encoded_ok = 0;
+    int same_length = 0;
+    int exact = 0;
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        /* store_load decodes and caches both the script and its source bytes. */
+        if( !store_load(store, ids[i]) )
+        {
+            struct script_entry* failed = store_find(store, ids[i]);
+            if( !options->quiet )
+                fprintf(stderr, "DECODE %d: failed (%d bytes in the archive)\n", ids[i],
+                        failed ? failed->byte_count : 0);
+            if( failed )
+                dump_side(options->dump_directory, "orig", ids[i], failed->bytes,
+                          failed->byte_count);
+            continue;
+        }
+        decoded++;
+
+        struct script_entry* entry = store_find(store, ids[i]);
+        if( !entry || !entry->script || !entry->bytes )
+            continue;
+
+        uint32_t bound = RSCache_ClientScriptEncodeBound(entry->script);
+        uint8_t* bytes = (uint8_t*)malloc(bound);
+        uint32_t written =
+            bytes ? RSCache_ClientScriptEncodeFlags(entry->script, store->trailer_flags, bytes,
+                                                    bound)
+                  : 0;
+        if( !written )
+        {
+            if( !options->quiet )
+                fprintf(stderr, "ENCODE %d: failed\n", ids[i]);
+            free(bytes);
+            continue;
+        }
+        encoded_ok++;
+
+        if( (int)written == entry->byte_count )
+        {
+            same_length++;
+            if( memcmp(bytes, entry->bytes, written) == 0 )
+                exact++;
+            else
+            {
+                if( !options->quiet )
+                    fprintf(stderr, "DIFF %d: same length, different bytes\n", ids[i]);
+                dump_side(options->dump_directory, "orig", ids[i], entry->bytes,
+                          entry->byte_count);
+                dump_side(options->dump_directory, "rebuilt", ids[i], bytes, (int)written);
+            }
+        }
+        else
+        {
+            if( !options->quiet )
+                fprintf(stderr, "DIFF %d: %u bytes vs %d\n", ids[i], written,
+                        entry->byte_count);
+            dump_side(options->dump_directory, "orig", ids[i], entry->bytes, entry->byte_count);
+            dump_side(options->dump_directory, "rebuilt", ids[i], bytes, (int)written);
+        }
+
+        free(bytes);
+    }
+
+    fprintf(stderr, "codec: %d/%d decoded, %d encoded, %d same-length, %d exact\n", decoded,
+            id_count, encoded_ok, same_length, exact);
+    return 0;
+}
+
 static int
 run_decompile(struct options* options, struct script_store* store, int* ids, int id_count)
 {
@@ -385,7 +502,7 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     decompile_options.names = &names;
 
     if( options->out_directory )
-        mkdir(options->out_directory, 0777);
+        tool_mkdir(options->out_directory);
 
     /* An abort inside the library leaves no clue which script triggered it, and
      * the corpus is thousands of scripts; this names the one in flight. */
@@ -468,7 +585,7 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
         return 2;
     }
     if( options->out_directory )
-        mkdir(options->out_directory, 0777);
+        tool_mkdir(options->out_directory);
 
     DIR* dir = opendir(options->source_path);
     int ok = 0;
@@ -1276,13 +1393,24 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
                 same_length++;
                 if( memcmp(encoded, entry->bytes, written) == 0 )
                     exact++;
-                else if( !options->quiet )
-                    fprintf(stderr, "DIFF %d: same length, different bytes\n", ids[i]);
+                else
+                {
+                    if( !options->quiet )
+                        fprintf(stderr, "DIFF %d: same length, different bytes\n", ids[i]);
+                    dump_side(options->dump_directory, "orig", ids[i], entry->bytes,
+                              entry->byte_count);
+                    dump_side(options->dump_directory, "rebuilt", ids[i], encoded,
+                              (int)written);
+                }
             }
-            else if( !options->quiet )
+            else
             {
-                fprintf(
-                    stderr, "DIFF %d: %u bytes vs %d\n", ids[i], written, entry->byte_count);
+                if( !options->quiet )
+                    fprintf(stderr, "DIFF %d: %u bytes vs %d\n", ids[i], written,
+                            entry->byte_count);
+                dump_side(options->dump_directory, "orig", ids[i], entry->bytes,
+                          entry->byte_count);
+                dump_side(options->dump_directory, "rebuilt", ids[i], encoded, (int)written);
             }
         }
 
@@ -1332,6 +1460,8 @@ main(int argc, char** argv)
             options.source_path = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             options.out_directory = argv[++i];
+        else if( strcmp(argv[i], "--dump") == 0 && i + 1 < argc )
+            options.dump_directory = argv[++i];
         else if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
             options.revision_name = argv[++i];
         else if( strcmp(argv[i], "--override") == 0 && i + 1 < argc )
@@ -1425,8 +1555,19 @@ main(int argc, char** argv)
         /* A bare script dump carries no revision, so the trailer width cannot
          * be resolved from a profile. Legacy is what the library defaults to
          * for an unidentified cache, and the decoder validates the footer, so a
-         * wrong guess fails cleanly rather than misparsing. */
-        store.trailer_flags = RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
+         * wrong guess fails cleanly rather than misparsing.
+         *
+         * `--rev` alongside `--raw` says which cache the dump came out of, and
+         * that is not a guess. Without it, disassembling a dump taken from an
+         * osrs239 cache reported "not in this cache" for every id — the width
+         * is modern there — which reads as a missing file rather than as the
+         * wrong trailer, and makes `roundtrip --dump` unreadable for exactly
+         * the era the tool targets. */
+        if( options.revision_name &&
+            tool_resolve_profile(options.revision_name, NULL, NULL, NULL, NULL, &store.profile) )
+            store.trailer_flags = RSCache_ClientScriptFlags(&store.profile);
+        else
+            store.trailer_flags = RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY;
     }
 
     int* ids = options.ids;
@@ -1459,6 +1600,8 @@ main(int argc, char** argv)
         status = run_infer(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "roundtrip") == 0 )
         status = run_roundtrip(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "codec") == 0 )
+        status = run_codec(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "disassemble") == 0 )
         status = run_disassemble(&options, &store, ids, id_count);
     else

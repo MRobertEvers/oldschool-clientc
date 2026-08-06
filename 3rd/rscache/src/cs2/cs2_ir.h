@@ -235,6 +235,22 @@ struct RSCache_CS2_Insn
     struct RSCache_CS2_Insn** case_labels;
     int case_count;
 
+    /**
+     * RETURN: an unreachable `goto` followed this return in the bytecode.
+     *
+     * Set by `cs2_remove_dead_code` as it deletes that goto, because it is the
+     * only evidence of a distinction the source has to keep and the CFG cannot
+     * see. `if (a) { return; } else if (b) { … }` and
+     * `if (a) { return; } if (b) { … }` reconstruct from identical reachable
+     * graphs; what tells them apart is that the first compiles a jump past the
+     * else and the second does not, and that jump is unreachable, so the
+     * dead-code pass removes it before the flow graph is built.
+     *
+     * Both spellings run the same. They compile to different bytes, and the
+     * cache holds one of them.
+     */
+    bool dead_goto_follows;
+
     /* Set while decoding, before labels exist; resolved to pointers by
      * cs2_interp's label pass and meaningless afterwards. */
     int target_id;

@@ -66,6 +66,7 @@ test/ui_tree/output/
 /src/torirs_*
 /src/build_*/
 /src/torirs_mt
+/dist/win64/
 /interfacex_*.bmp
 
 # poser-gl writes its settings into the working directory, as the reference does

@@ -704,8 +704,10 @@ ever matters.
   - Argument backing is fixed storage inside the process-lifetime
     `BootManifest`, because CLI values such as `--user`, `--connect`, and
     `--revconfig` can become `AppConfig` pointers that must outlive parsing.
-    Empty entries, overflow beyond 64 tokens, and nested `--manifest` are load
-    errors rather than partially applied command lines.
+    Empty entries are preserved like real argv values. Overflow beyond 64
+    tokens is a load error, while a `--manifest` token is rejected contextually
+    only when it occupies option position (so it remains legal as a password or
+    another option's literal value).
   - The web boot preloader also inspects manifest arguments for `--revconfig`
     and `--revconfig-cache`, ensuring those CLI-named files exist in MEMFS before
     `main()`. Typed RevConfig keys remain manifest-relative; argument paths keep

@@ -924,18 +924,27 @@ scenery_load_animation(
     /* v1 ToriAuxLibTD_ElementSetSequenceId: bind the preloaded animation onto
      * the element. Task_WorldLoad registers each referenced loc sequence in
      * the scene before the rebuild; a NULL lookup means "not preloaded" and
-     * the calloc'd empty sentinel means "decode failed / maya-only" — skip
-     * both. SetAnimationSeq captures original vertices; SetAnimation supplies
-     * the frames the tick loop and frame emitter read. */
+     * the calloc'd empty sentinel means "decode failed" — skip both.
+     * SetAnimationSeq captures original vertices; SetAnimation supplies the
+     * frames the tick loop and frame emitter read. */
     struct ToriDraw_Animation* anim;
+    struct ToriDraw_SceneElement* element;
 
     if( element_id < 0 || seq_id < 0 )
         return;
     anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
-    if( !anim || anim->frame_count <= 0 || !anim->frames || !anim->base )
+    if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
         return;
+    element = ToriDraw_SceneElementGet(builder->scene, element_id);
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
     ToriDraw_SceneElementSetAnimation(builder->scene, element_id, anim, true);
+    if( element )
+    {
+        element->animation = anim;
+        element->is_skeletal = anim->skeletal != NULL;
+        element->skeletal_animation = anim->skeletal;
+        element->skeletal_play_frames = element->is_skeletal ? anim->frame_count : 0;
+    }
 }
 
 static void

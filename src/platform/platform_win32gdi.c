@@ -10,8 +10,8 @@
  * That is exactly what GDI does well: hand out a top-down 32bpp DIB section as
  * the pixel buffer, then BitBlt/StretchBlt it to the window. This file is a
  * drop-in implementation of the SAME PlatformSDL2_* symbols backed by Win32 GDI
- * instead of SDL. It also owns the HWND used by the XP lane's fixed-function
- * D3D9 renderer; --soft3d keeps using the DIB presentation path below.
+ * instead of SDL. It also owns the HWND used by both Windows lanes' fixed-
+ * function D3D9 renderer; --soft3d keeps using the DIB presentation path below.
  *
  * The pixel format matches SDL's ARGB8888 (what App_Render writes): on a
  * little-endian box a top-down BI_RGB 32bpp DIB is byte-order BGRA / word-order
@@ -22,9 +22,9 @@
  * the SDL backend emits (the retained-mode event system), so the client sees an
  * identical input stream regardless of platform.
  *
- * Built in place of src/platform/platform_sdl2.c: the win32 lane in
- * src/platform/platform.mk points PLATFORM_WINDOW_SRC here. Build it with
- * `make -C src winxp` (or build_winxp.ps1, which supplies the i686 toolchain).
+ * Built in place of src/platform/platform_sdl2.c: the win32 and win64 lanes in
+ * src/platform/platform.mk point PLATFORM_WINDOW_SRC here. Use build_winxp.ps1
+ * for the i686 XP artifact or build_windows.ps1 for modern x86_64 Windows.
  */
 
 #include "platform/platform_sdl2.h"

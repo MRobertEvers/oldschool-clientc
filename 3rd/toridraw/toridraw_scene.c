@@ -883,8 +883,10 @@ ToriDraw_SceneClearPool(
 {
     int i;
     int next;
+    bool clear_retained_batch;
 
     assert(scene);
+    clear_retained_batch = pool == TORIDRAW_SCENE_POOL_STATIC;
 
     for( i = scene->elements.head; i != TORIDRAW_INTRUSIVE_NIL; i = next )
     {
@@ -895,7 +897,7 @@ ToriDraw_SceneClearPool(
         if( !element || element->pool != (uint8_t)pool )
             continue;
 
-        if( element->anim_seq_id != -1 )
+        if( !clear_retained_batch && element->anim_seq_id != -1 )
         {
             td_scene_emit(
                 scene,
@@ -908,16 +910,17 @@ ToriDraw_SceneClearPool(
                 NULL,
                 NULL);
         }
-        td_scene_emit(
-            scene,
-            TORIDRAW_EVENT_MODEL_UNLOAD,
-            0,
-            i,
-            0,
-            0,
-            element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
-            NULL,
-            NULL);
+        if( !clear_retained_batch )
+            td_scene_emit(
+                scene,
+                TORIDRAW_EVENT_MODEL_UNLOAD,
+                0,
+                i,
+                0,
+                0,
+                element->model.kind == TORIDRAWMK_MODEL ? &element->model : NULL,
+                NULL,
+                NULL);
         td_scene_dispose_element_model(element);
         td_scene_reset_element(element);
         ToriDraw_IntrusiveListRelease(&scene->elements, i);
@@ -931,6 +934,10 @@ ToriDraw_SceneClearPool(
         scene->current_batch_id = 0;
         scene->current_batch_element_count = 0;
         scene->next_batch_id = 0;
+        /* Static geometry and all prebaked poses share one retained arena.
+         * Clear it wholesale on a map rebuild instead of issuing thousands of
+         * append-only per-element unloads. */
+        td_scene_emit(scene, TORIDRAW_EVENT_BATCH_CLEAR, 0, 0, 0, 0, NULL, NULL, NULL);
     }
 }
 
@@ -1120,6 +1127,8 @@ ToriDraw_SceneElementSetAnimation(
         *slot = animation;
         if( !element->dynamic )
         {
+            struct ToriDraw_Event* event;
+            int old_event_count = scene->event_queue.count;
             td_scene_emit(
                 scene,
                 TORIDRAW_EVENT_ANIM_LOAD,
@@ -1130,6 +1139,14 @@ ToriDraw_SceneElementSetAnimation(
                 &element->model,
                 animation,
                 NULL);
+            /* Retained renderers keep primary and secondary poses in separate
+             * TRSPK pose tracks.  Preserve the track on the load event just as
+             * BatchElementAddPose does for explicitly prebaked poses. */
+            if( scene->event_queue.count > old_event_count )
+            {
+                event = &scene->event_queue.events[scene->event_queue.count - 1];
+                event->anim_index = primary ? 0 : 1;
+            }
         }
     }
     else
@@ -1476,12 +1493,14 @@ ToriDraw_SceneBatchElementAddPose(
     struct ToriDraw_ModelHandle baked)
 {
     struct ToriDraw_Event* event;
+    int old_event_count;
 
     assert(scene);
     assert(scene->batch_building);
     assert(baked.kind == TORIDRAWMK_MODEL);
     assert(td_scene_element_valid(scene, element_id));
 
+    old_event_count = scene->event_queue.count;
     td_scene_emit(
         scene,
         TORIDRAW_EVENT_BATCH_ANIM_ADD,
@@ -1494,7 +1513,7 @@ ToriDraw_SceneBatchElementAddPose(
         NULL);
 
     /* Back-patch anim_index onto the event we just pushed. */
-    if( scene->event_queue.count > 0 )
+    if( scene->event_queue.count > old_event_count )
     {
         event = &scene->event_queue.events[scene->event_queue.count - 1];
         event->anim_index = anim_index;

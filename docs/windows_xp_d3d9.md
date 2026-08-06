@@ -1,8 +1,14 @@
 # Windows XP SP3 fixed-function D3D9 renderer
 
+> The authoritative cross-platform registry is
+> [Platform quirks and contracts](platform_quirks.md). This page owns the
+> detailed XP/D3D9 design; register platform differences and open defects in
+> the shared registry as well.
+
 ## Scope
 
-The native Windows lane targets 32-bit Windows XP SP3. Its default renderer is
+The explicit `PLATFORM=win32` lane targets 32-bit Windows XP SP3. Its default
+renderer is
 Direct3D 9 using the fixed-function pipeline and the current TRSPK retained
 geometry code. `--soft3d` remains the explicit CPU/GDI fallback. If D3D9 device
 initialization fails after process startup, the client falls back to the same
@@ -98,12 +104,36 @@ must never wrap an index. Draw-range storage must cover the command stream's
 worst case or grow safely. The historical v1 fixed capacity of 4096 is not a
 valid bound because alternating face textures can create one range per face.
 
-Static model vertices live in the retained static group. Per-frame animated or
-otherwise transient vertices live in the dynamic group. Texture IDs are mapped
-to dense atlas slots rather than used as array indices. Atlas dimensions are
-power-of-two and constrained by `MaxTextureWidth`/`MaxTextureHeight`, with a
-visible resource failure if the active set cannot fit; this avoids relying on
-non-power-of-two texture support on early D3D9 hardware.
+Static model vertices live in the retained static group. Every pose of a static
+classic or skeletal animation is pre-baked there and selected by
+`(element_id, animation_track, frame)` at draw time; only genuinely dynamic
+entities and other transient geometry use the per-frame dynamic group. Scene
+resource events must reach the renderer in order so model, animation, texture,
+and batch loads populate those retained buffers. A static-pool rebuild emits one
+batch clear rather than leaving obsolete vertices in the append-only arena.
+
+Texture IDs are mapped to dense atlas slots rather than used as array indices.
+The slot is reserved while geometry is baked, even if asynchronous texture
+decoding has not finished, so a later texture-load event fills the UVs' existing
+slot instead of leaving retained faces on the white fallback tile. Atlas
+dimensions are power-of-two and constrained by
+`MaxTextureWidth`/`MaxTextureHeight`, with a visible resource failure if the
+active set cannot fit; this avoids relying on non-power-of-two texture support
+on early D3D9 hardware.
+
+### Texture-coordinate interpolation and animation
+
+Only static textures are packed into the atlas. Each animated texture has its
+own managed 128x128 D3D9 texture, matching v1, so texture stage 0 can use
+`ADDRESSU=CLAMP`, `ADDRESSV=WRAP` and a fixed-function texture transform without
+sampling a neighboring atlas tile.
+
+Local UVs are inset-clamped to `0.008..0.992` while baking vertices. They must
+not be reduced with `fract()` per vertex: the canonical ground triangle has V
+coordinates 0, 0, 1, and per-vertex `fract` changes all three to 0 before
+interpolation, collapsing the texture to one texel row. v1 fixed this exact
+failure by preserving the triangle's interpolation and doing animated V wrap
+in the sampler after interpolation. The static atlas remains CLAMP/CLAMP.
 
 ## CPU 2D segments and fixed-function composition
 
@@ -188,10 +218,12 @@ retain their own renderer selection rules.
 
 ## Build and artifact verification
 
-Use the repository wrapper from a PowerShell prompt. It finds or accepts an
-i686 MinGW toolchain, adds a POSIX shell for the make recipes, builds with the
-embedded server, runs the artifact contract, and stages
-`dist\win32\torirs.exe`.
+Use the repository wrapper from a PowerShell prompt. By default it extracts the
+committed `lib\mingw32-win32-toolchain.zip` into the ignored
+`toolchain\mingw32` directory, adds a POSIX shell for the make recipes, builds
+with the embedded server, runs the artifact contract, and stages
+`dist\win32\torirs.exe`. `-Toolchain` remains an explicit override, and the
+wrapper rejects anything except the `i686-w64-mingw32` target triple.
 
 ```powershell
 # Debug build
@@ -204,11 +236,11 @@ embedded server, runs the artifact contract, and stages
 .\build_winxp.ps1 -Toolchain C:\mingw32\bin -Opt
 
 # Run the optimized client from the repository root with the pristine,
-# nonpacked OSRS239 cache selected by manifest_osrs239.ini
-.\src\torirs.exe --manifest .\manifest_osrs239.ini --offline
+# nonpacked OSRS239 cache selected by manifest_osrs239.ini, explicit D3D9 path
+.\src\torirs.exe --manifest .\manifest_osrs239.ini --d3d9
 
 # Explicit CPU/GDI fallback using the same manifest
-.\src\torirs.exe --manifest .\manifest_osrs239.ini --offline --soft3d
+.\src\torirs.exe --manifest .\manifest_osrs239.ini --soft3d
 ```
 
 The equivalent lane checks can be invoked directly after the toolchain is on
@@ -218,7 +250,14 @@ The equivalent lane checks can be invoked directly after the toolchain is on
 mingw32-make -C src PLATFORM=win32 lane-check
 mingw32-make -C src EMBED_SERVER=1 winxp-debug
 mingw32-make -C src --no-print-directory EMBED_SERVER=1 PLATFORM=win32 lane-check-artifact
+mingw32-make -C src PLATFORM=win32 test-retained-renderer-leak CC=gcc
 ```
+
+The retained-renderer test is CPU-only: it creates no window or D3D device,
+but links the real D3D9 command dispatcher. It interposes the C allocator and
+repeatedly replaces multi-page pre-baked animation tracks, checks every remapped
+pose, exercises batch clear/reload, and requires renderer teardown to return
+live heap ownership to its entry baseline.
 
 The artifact gate must verify at least:
 
@@ -245,6 +284,8 @@ visual/stress coverage; a modern-Windows smoke run is not a substitute.
   toolchain.
 - [x] Run `lane-check` and `lane-check-artifact`; manually inspect
   `objdump -p src/torirs.exe` imports when the gate changes.
+- [x] Run `test-retained-renderer-leak`; verify multi-page model/animation
+  replacement plateaus and `ToriRS_D3D9_Free` returns tracked heap ownership.
 - [x] Smoke the optimized artifact on a modern Windows host through both the
   default D3D9 path and explicit `--soft3d`, including the nonpacked OSRS239
   world manifest and a resizable-window run.

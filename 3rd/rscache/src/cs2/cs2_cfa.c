@@ -390,6 +390,29 @@ cs2_construct_is_empty_seq(const struct RSCache_CS2_Construct* construct)
 }
 
 /**
+ * True when this construct's last statement is a `return` that had an
+ * unreachable `goto` after it in the bytecode — the marker that the branch it
+ * ends was written with an `else`.
+ *
+ * Walks to the end of the construct chain and takes the last instruction of the
+ * last sequence. A body ending in a nested `if` or `switch` answers false,
+ * which is the safe direction: the flattened spelling is what this produced for
+ * everything before the flag existed.
+ */
+static bool
+cs2_construct_ends_in_else_marked_return(const struct RSCache_CS2_Construct* construct)
+{
+    const struct RSCache_CS2_Construct* last = NULL;
+    for( const struct RSCache_CS2_Construct* c = construct; c; c = c->next )
+        last = c;
+    if( !last || last->kind != RSCACHE_CS2_CONSTRUCT_SEQ || last->instructions.count == 0 )
+        return false;
+    const struct RSCache_CS2_Insn* insn =
+        (const struct RSCache_CS2_Insn*)last->instructions.items[last->instructions.count - 1];
+    return insn && insn->kind == RSCACHE_CS2_INSN_RETURN && insn->dead_goto_follows;
+}
+
+/**
  * Emit `block` and everything it dominates into `prev`.
  *
  * Returns the block where control rejoins the enclosing region — the "what
@@ -546,16 +569,39 @@ cs2_reconstruct_block(
         if( flow->failed )
             return NULL;
 
+        /*
+         * Is there an `else` at all?
+         *
+         * When the `if` side rejoins, yes — the two paths meet, so the second
+         * one is an else. When it does not (the body returns), the else side is
+         * just what follows, and printing it as an else adds a level for
+         * nothing... except that the *source* it came from may have had one,
+         * and the two compile differently. An `else` needs a jump past it from
+         * the end of the `if` body; two separate statements do not. That jump
+         * is unreachable, so nothing at run time can tell, and the dead-code
+         * pass deletes it before this function ever sees the graph.
+         *
+         * `dead_goto_follows` is that jump, recorded on the `return` as it was
+         * deleted. Reading it here is what keeps `if (a) { return; } else …`
+         * and `if (a) { return; } …` distinct through a round trip, in both
+         * directions — roughly 300 scripts had one spelling and got the other.
+         */
+        bool has_else = after_if || cs2_construct_ends_in_else_marked_return(body);
+
         if( otherwise->instructions.count == 0 && otherwise->next == NULL )
         {
             branch->otherwise = NULL;
         }
         else if(
-            otherwise->instructions.count == 0 && otherwise->next &&
+            has_else && otherwise->instructions.count == 0 && otherwise->next &&
             otherwise->next->kind == RSCACHE_CS2_CONSTRUCT_IF &&
             otherwise->next->next == NULL )
         {
-            /* An else whose whole body is another if becomes `else if`. */
+            /* An else whose whole body is another if becomes `else if`.
+             *
+             * EXCEPTIONS G2 records the symptom from the far end: source with
+             * an `else if` chain that comes back as two separate `if`s. It is
+             * this, and `has_else` is the fix. */
             struct RSCache_CS2_Construct* inner = otherwise->next;
             for( int i = 0; i < inner->branch_conditions.count; i++ )
             {
@@ -568,13 +614,15 @@ cs2_reconstruct_block(
 
         if( !after_if )
         {
-            /* The `if` side never rejoins, so the `else` side is simply what
-             * follows — printing it as an else would add a level for nothing. */
-            branch->next = branch->otherwise;
-            branch->otherwise = NULL;
+            struct RSCache_CS2_Construct* tail_construct = branch;
+            if( !has_else )
+            {
+                branch->next = branch->otherwise;
+                branch->otherwise = NULL;
+                tail_construct = branch->next ? branch->next : branch;
+            }
             if( after_else )
-                return cs2_reconstruct_block(
-                    flow, branch->next ? branch->next : branch, block, after_else);
+                return cs2_reconstruct_block(flow, tail_construct, block, after_else);
             return NULL;
         }
         return cs2_reconstruct_block(flow, branch, block, after_if);

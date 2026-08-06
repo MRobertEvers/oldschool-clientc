@@ -5,6 +5,10 @@ Provides CPU-side vertex buffers, texture atlases, pose tables, and
 per-frame index chains. There is no virtual backend — platform code
 owns the `TORIRSRC_*` switch and calls TRSPK helpers directly.
 
+Platform ownership, renderer selection, compatibility constraints, and known
+defects are registered in
+[`docs/platform_quirks.md`](../../docs/platform_quirks.md).
+
 ## Layout
 
 - `core/` — shared VBO/IBO/atlas/arena/pose/draw-range helpers

@@ -103,6 +103,13 @@ trspk_modelarena_unload_element(
 void
 trspk_modelarena_clear(struct TRSPK_ModelArena* arena);
 
+/**
+ * Reclaim unloaded ranges in a flat VBO, packing live slots across pages while
+ * preserving the rule that one slot never crosses a page boundary.  A compact
+ * result may change live slots' vertex_base values; callers that cache those
+ * bases (for example TRSPK_PoseTable) must rebuild the cache when did_compact
+ * is true.  Allocated capacities are intentionally retained for reuse.
+ */
 struct TRSPK_ModelArenaGCResult
 trspk_modelarena_gc(struct TRSPK_ModelArena* arena);
 

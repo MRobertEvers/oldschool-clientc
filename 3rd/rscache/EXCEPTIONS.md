@@ -1594,7 +1594,13 @@ divergence.
 Everything else about those two scripts matches, and an identifier is a naming
 hint with no effect on what the script does.
 
-### G2. The compiler reaches a source fixed point on 99.2% of what it compiles *(Gap)*
+### G2. The compiler reaches a source fixed point on 99.2% of what it compiles *(Gap — figures superseded, see G11)*
+
+> Both figures below are from before the work in G11. On cache.osrs239 the byte
+> comparison is now 8,303 of 9,468 compiled and the fixed point 8,145 of 8,148
+> compared. The reasoning in this section still stands; the numbers it defends
+> were mostly six mechanical compiler defects rather than the `else`-collapse
+> cap it attributes them to.
 
 Two different questions, and they answer differently.
 
@@ -2384,6 +2390,62 @@ classes, both confirmed by inspection rather than assumed:
 
 Both are decoder-side losses that predate this work and neither is introduced by
 the registry; recording them is the whole reason the numbers are worth taking.
+
+---
+
+### G11. The `else`-collapse cap was defending six mechanical defects *(Gap, mostly closed)*
+
+G2 says byte-exactness is "limited by information the decompiler deliberately
+discards" and reports 2,877 of 6,614 compiled scripts coming back byte-exact.
+The claim is true and the cap is small; it was not what most of the gap was.
+
+Re-measured on cache.osrs239 (9,745 scripts — G2's figures are against a 9,725
+one), and split so the codec is not conflated with the language layer:
+
+| Stage | Before | After |
+|---|---|---|
+| decode + encode, no language layer (`cs2 codec`) | 9,744 / 9,745 | 9,744 |
+| decompiled | 9,524 | 9,524 |
+| compiled | 9,457 | **9,468** |
+| **byte-exact** | 3,086 (32.6%) | **8,303 (87.7%)** |
+| source fixed point | — | 8,145 / 8,148 |
+
+Six defects in the compiler and one in the reconstruction, each found by
+bucketing the differences and reading both sides as instructions rather than as
+bytes:
+
+1. an unconditional `branch` to the next instruction, emitted by `cs2_cc_if`
+   whether or not an `else` followed (+2,701);
+2. **no `pop_*_discard` after a statement-position call** — a miscompile, not a
+   size difference: the rebuilt script ran with a value stranded on the operand
+   stack and every later argument one slot off (+259);
+3. hook descriptors written with the type letter where every one of the 29,346
+   descriptor characters in this cache is `i`, `s` or `Y` (+1,489) — which is
+   G7 and G9's own conclusion, never applied to the compiler;
+4. the epilogue's per-type default, `-1` for every int-stack type but `int`
+   (+33);
+5. the switch default body emitted first rather than last (+159);
+6. a markup tag merged into its neighbouring literal instead of pushed on its
+   own — `"Blue token:<br>"` is two values in the cache, not one (+564);
+7. `cs2_reconstruct_block` building an `else if` chain even where the `if` side
+   never rejoins, which is the shape G2's own residue describes (+1).
+
+`enum(…)` and `*_param(…)` as callback arguments are now typed from their
+operands, which moved the compiler for the first time in this pass
+(9,457 → 9,468).
+
+**Full record, method and open items: `CS2VM_Robustness.md` at the repo root.**
+It carries the remaining buckets (490 jump targets, 423 epilogue-`int`
+ambiguities, 221 undecompilable, 56 uncompilable), the procedures that found
+these, and two measured wrong turns kept as comments in the code so they are not
+retried.
+
+One thing it records that belongs here: **`test_cs2` cannot run without the
+reference corpus, and the corpus is not obtainable from RuneStar's repository** —
+`input/` and `scripts/` are in that project's `.gitignore`, so a clone supplies
+the name tables and nothing to compare against. Six of the seven fixes above are
+compiler-side and outside what G1 measures; the seventh is not, and is
+unvalidated.
 
 ---
 

@@ -105,6 +105,26 @@ enum RSCache_CS2_StackType
 RSCache_CS2_TypeStackType(enum RSCache_CS2_Type type);
 
 /**
+ * The int-stack value a script's epilogue pushes for a declared return of this
+ * type: 0 for `int`, -1 for everything else. Meaningless for `string`, whose
+ * epilogue pushes `""`.
+ *
+ * The epilogue is unreachable — one default per declared return type, then a
+ * `return` — and exists only so the arity and stack shape can be read back off
+ * the bytecode. The constants are still part of the record, so reproducing them
+ * is what makes a round trip byte-exact.
+ *
+ * Measured over cache.osrs239: every `graphic`, `obj`, `namedobj`, `struct`,
+ * `boolean`, `component`, `coord`, `enum` and `stat` return slot pushes -1
+ * (one `obj` slot pushes 0), and `string` pushes `""`. `int` is the ambiguous
+ * one — 1,791 slots push 0 and 587 push -1 — because the decompiler prints
+ * `int` both for a genuine `int` and for a type its solver could not recover.
+ * See CS2VM_Robustness.md D6.
+ */
+int
+RSCache_CS2_TypeEpilogueDefault(enum RSCache_CS2_Type type);
+
+/**
  * Merge rules for the type solver.
  *
  * A value flowing *into* a typing widens (union): obj and namedobj meet at obj,

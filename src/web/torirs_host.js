@@ -187,14 +187,19 @@
       var section = '';
       text.split('\n').forEach(function (raw) {
         var line = raw.replace(/\r$/, '');
-        if (line.charAt(0) === '[' && line.charAt(line.length - 1) === ']') {
-          section = line.substring(1, line.length - 1);
+        // The C reader skips indentation before each element, but preserves
+        // everything after `=` as the value. Use a separate structural view
+        // so leading whitespace is ignored without altering the argv token.
+        var structural = line.replace(/^[ \t]+/, '');
+        if (structural.charAt(0) === '[') {
+          var close = structural.indexOf(']');
+          if (close < 0) { return; }
+          section = structural.substring(1, close);
           return;
         }
         if (section !== 'client:args') { return; }
-        var eq = line.indexOf('=');
-        if (eq < 0 || line.substring(0, eq) !== 'arg') { return; }
-        out.push(line.substring(eq + 1));
+        if (structural.substring(0, 4) !== 'arg=') { return; }
+        out.push(structural.substring(4));
       });
       return out;
     },
@@ -209,23 +214,33 @@
         return self.fetch(path);
       }
 
+      function argumentTakesValue(argument) {
+        return argument === '--manifest' || argument === '--port' ||
+          argument === '--revconfig' || argument === '--revconfig-cache' ||
+          argument === '--connect' || argument === '--user' ||
+          argument === '--pass' || argument === '--rev' ||
+          argument === '--windowmode' || argument === '--window';
+      }
+
       function takeArgFiles(argv) {
-        for (var j = 0; j < argv.length - 1; j++) {
+        for (var j = 0; j < argv.length; j++) {
           var flag = argv[j];
           var value = argv[j + 1];
-          if (flag === '--revconfig' || flag === '--revconfig-cache') {
+          if ((flag === '--revconfig' || flag === '--revconfig-cache') &&
+              j + 1 < argv.length) {
             take(value);
             // main.c probes for a sibling _cache.ini when only the _ui.ini was
             // given; fetch it so the probe finds it or honestly does not.
             if (/_ui\.ini$/.test(value)) { take(value.replace(/_ui\.ini$/, '_cache.ini')); }
           }
+          if (argumentTakesValue(flag) && j + 1 < argv.length) { j++; }
         }
       }
 
-      for (var i = 0; i < args.length - 1; i++) {
+      for (var i = 0; i < args.length; i++) {
         var flag = args[i];
         var value = args[i + 1];
-        if (flag === '--manifest') {
+        if (flag === '--manifest' && i + 1 < args.length) {
           var bytes = take(value);
           if (bytes) {
             var dir = value.indexOf('/') >= 0 ? value.replace(/\/[^/]*$/, '/') : '';
@@ -234,7 +249,9 @@
             // revconfig keys they are not relative to the manifest directory.
             takeArgFiles(self.clientArgs(bytes));
           }
+          break; // main.c bootstraps from the first real --manifest option.
         }
+        if (argumentTakesValue(flag) && i + 1 < args.length) { i++; }
       }
       takeArgFiles(args);
     }

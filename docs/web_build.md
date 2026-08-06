@@ -1,5 +1,10 @@
 # Building src/ for the web
 
+> The authoritative cross-platform registry is
+> [Platform quirks and contracts](platform_quirks.md). This page owns the
+> detailed browser build and runtime design; register platform differences and
+> open defects in the shared registry as well.
+
 The client runs in a browser as a WebAssembly module. Everything above the
 platform layer is the same code the desktop build runs — same task pipeline,
 same decoders, same renderer — with three things swapped underneath it: where
@@ -29,7 +34,7 @@ directory, link output. It is defined in [`src/platform/platform.mk`](../src/pla
 adding a host means adding one block there plus its `platform/*.c` backends.
 
 ```sh
-make -C src                  # native, debug      -> src/torirs
+make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
@@ -119,8 +124,10 @@ spaces, quotes, backslashes, commas, `=`, `;`, and `#` are literal, with no
 quote removal, escaping, variable expansion, or globbing. Thus `arg=Jane Doe`
 passes the single token `Jane Doe`; writing `arg="Jane Doe"` includes the quote
 characters. Since `;` and `#` are data on an `arg=` line, comments belong on
-their own lines. Empty arguments, more than 64 entries, and a nested
-`arg=--manifest` make the manifest invalid.
+their own lines. An empty right-hand side is an empty argv token. More than 64
+entries makes the manifest invalid. A `--manifest` token in option position is
+rejected, preventing recursive manifests, though it remains legal when
+consumed as an option's literal value.
 
 The order is typed manifest fields, then `[client:args]`, then the real process
 argv (the page's query-string argv in a web build). A later CLI option therefore
