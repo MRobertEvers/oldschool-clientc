@@ -1123,8 +1123,26 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/dev_mock230"
 
+# MallocScribble is not a debugging flourish here, it is what makes this
+# suite a gate at all.
+#
+# Measured 2026-08-06: six identical runs produce exactly TWO distinct failure
+# sets, three each, differing in a pair of npc-pathing checks. Under
+# MallocScribble/MallocPreScribble the result is the same every run. That
+# signature — varies with heap contents, stabilises when the heap is poisoned —
+# is an uninitialised read, and it is somewhere under the interaction re-flood
+# path (`collision_flood` initialises its own dir/dist maps, so it is not those).
+#
+# The site is NOT found yet. Running under scribble is therefore a gate, not a
+# cure, and it deliberately errs the loud way: poisoned memory makes the
+# affected checks FAIL consistently rather than pass consistently, so the bug
+# stays visible and the count stays comparable between runs. A suite whose
+# failure count wandered 10..14 could not answer "did I break something", which
+# is exactly how four regressions reached a user with "baseline, no regression"
+# attached to them.
 test-mock230-dev: mock230-dev
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/dev_mock230 --selftest
+	cd $(REPO_ROOT) && MallocScribble=1 MallocPreScribble=1 \
+		./src/$(OBJ_DIR)/dev_mock230 --selftest
 
 # A third binary on 43599, same deal as mock230-dev above — one more parallel
 # session that owns its own port and its own output file.
@@ -1516,10 +1534,19 @@ test-content-register: $(OBJ_DIR)
 # two-client half of the test drives the *client's* encoder for a ground click
 # and the client's own readers for PLAYER_INFO and NPC_INFO — asserting on the
 # server's own view of its stream would be asserting the encoder against itself.
+#
+# `net/bitbuffer.c` is NOT in that list even though those readers need it: it is
+# already in $(NET_CORE_OBJS) as $(OBJ_DIR)/bitbuffer.o, and naming it here too
+# compiles it a second time into the same link — four duplicate symbols and a
+# link failure. This target had been unbuildable for that reason, which is worse
+# than it sounds: it is the only test that asserts the two-peer zone replay (a
+# door one client opens being open for a client that connects later), so the
+# whole multi-client half of the zone work was going unverified with nothing
+# saying so.
 test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
 		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
-		net/net_out.c net/bitbuffer.c net/rev/packets/pkt_player_info.c \
+		net/net_out.c net/rev/packets/pkt_player_info.c \
 		net/rev/packets/pkt_npc_info.c \
 		net/rev/packets/pkt_player_appearance.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
