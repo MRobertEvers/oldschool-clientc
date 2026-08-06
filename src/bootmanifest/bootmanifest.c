@@ -1,6 +1,7 @@
 #include "bootmanifest.h"
 
 #include "app.h"
+#include "executor_config.h"
 #include "features/features.h"
 
 #include "3rd/ini/ini.h"
@@ -113,6 +114,36 @@ bm_parse_int(char const* key, char const* value, int* out)
     return 1;
 }
 
+static int
+bm_parse_bounded_int(
+    char const* section,
+    char const* key,
+    char const* value,
+    int min,
+    int max,
+    int* out)
+{
+    char* end = NULL;
+    long parsed;
+
+    assert(section && key && value && out);
+    parsed = strtol(value, &end, 10);
+    if( end == value || *end != '\0' || parsed < min || parsed > max )
+    {
+        fprintf(
+            stderr,
+            "bootmanifest: [%s] %s must be in %d..%d, got '%s'\n",
+            section,
+            key,
+            min,
+            max,
+            value);
+        return 0;
+    }
+    *out = (int)parsed;
+    return 1;
+}
+
 /* "x,y,z" signed triple for actor_light / scene_light. */
 static int
 bm_parse_xyz(char const* key, char const* value, int* x, int* y, int* z)
@@ -147,6 +178,7 @@ enum bm_section
     BM_SECTION_CLIENT_ARGS,
     BM_SECTION_CACHE,
     BM_SECTION_NET,
+    BM_SECTION_JS5,
     BM_SECTION_UI,
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
@@ -165,6 +197,8 @@ bm_section_of(char const* header)
         return BM_SECTION_CACHE;
     if( strncmp(header, "net:", 4) == 0 )
         return BM_SECTION_NET;
+    if( strncmp(header, "js5:", 4) == 0 )
+        return BM_SECTION_JS5;
     if( strcmp(header, "ui:gameframe") == 0 )
         return BM_SECTION_UI_GAMEFRAME;
     if( strcmp(header, "ui:varc") == 0 )
@@ -357,6 +391,46 @@ bm_set_kv(
                 bm->jag_crc_set = 1;
             else
                 fprintf(stderr, "bootmanifest: [net] jag_crc needs exactly 9 int32s\n");
+            return;
+        }
+        break;
+
+    case BM_SECTION_JS5:
+        if( strcmp(key, "enabled") == 0 )
+        {
+            if( strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+                bm->js5_enabled = 1;
+            else if( strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+                bm->js5_enabled = 0;
+            else
+                fprintf(
+                    stderr,
+                    "bootmanifest: [js5] enabled must be true|false, got '%s'\n",
+                    value);
+            return;
+        }
+        if( strcmp(key, "host") == 0 )
+        {
+            snprintf(bm->js5_host, sizeof(bm->js5_host), "%s", value);
+            return;
+        }
+        if( strcmp(key, "port") == 0 )
+        {
+            bm_parse_bounded_int("js5", key, value, 1, 65535, &bm->js5_port);
+            return;
+        }
+        if( strcmp(key, "fallback_port") == 0 )
+        {
+            if( bm_parse_bounded_int(
+                    "js5", key, value, 0, 65535, &bm->js5_fallback_port) )
+                bm->js5_fallback_port_set = 1;
+            return;
+        }
+        if( strcmp(key, "revision") == 0 )
+        {
+            if( bm_parse_bounded_int(
+                    "js5", key, value, 1, 2147483647, &bm->js5_revision) )
+                bm->js5_revision_set = 1;
             return;
         }
         break;
@@ -692,6 +766,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->cache_game = RSCACHE_GAME_UNSET;
     bm->cache_epoch = RSCACHE_EPOCH_UNSET;
     bm->cache_revision = -1;
+    bm->js5_enabled = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
     bm->spawn_npc_id = -1;
@@ -956,6 +1031,32 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
     if( bm->spawn_proj_seq_id >= 0 )
         cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
+}
+
+void
+BootManifest_ApplyToExecutorConfig(
+    struct BootManifest const* bm,
+    struct ToriRS_ExecutorConfig* cfg)
+{
+    assert(bm);
+    assert(cfg);
+
+    if( bm->js5_enabled >= 0 )
+        cfg->js5_enabled = bm->js5_enabled;
+    if( bm->js5_host[0] )
+        snprintf(cfg->js5_host, sizeof(cfg->js5_host), "%s", bm->js5_host);
+    if( bm->js5_port > 0 )
+        cfg->js5_port = bm->js5_port;
+    if( bm->js5_fallback_port_set )
+    {
+        cfg->js5_fallback_port = bm->js5_fallback_port;
+        cfg->js5_fallback_port_set = 1;
+    }
+    if( bm->js5_revision_set )
+    {
+        cfg->js5_revision = bm->js5_revision;
+        cfg->js5_revision_explicit = 1;
+    }
 }
 
 void
