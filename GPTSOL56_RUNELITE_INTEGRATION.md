@@ -805,3 +805,9 @@ it occurs before login and is not a client/game-thread failure.
   revision-239 inbound suite, NPC_INFO sentinel/player traversal suite, full
   mock230 build, deob build/API verification, and whitespace checks. Created
   root regression commit `16b94123` and deob instrumentation commit `845c2c7`.
+- 2026-08-06: Pushed `codex/runelite239-regressions` to both
+  `MRobertEvers/oldschool-clientc` and `MRobertEvers/Deob`. No OSRS-Content
+  change was needed: the defects were root protocol/lifecycle behavior and deob
+  telemetry. GitHub CLI had no authenticated session and no signed-in browser
+  surface was available, so the dependency PR creation URLs were retained for
+  handoff instead of fabricating PR numbers.
