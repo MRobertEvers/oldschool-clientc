@@ -4274,8 +4274,25 @@ handle_cheat(
      * skill_prayer/scripts/cheat_prayer.rs2 now, and it toggles a prayer
      * through the same proc the prayer book's button does.
      */
-    if( mock230_scripts_run_debugproc(srv, text) )
-        return;
+    /*
+     * Always logged, not gated on verbose.
+     *
+     * A cheat that "does nothing" has three distinct causes that look identical
+     * from the chatbox — the line never arrived, no `[debugproc]` claimed it, or
+     * one claimed it and its body did nothing — and telling them apart is the
+     * whole reason to type a cheat in the first place. `::crystal_set` cost
+     * several rounds precisely here: the debugproc existed in the tree, the tree
+     * did not compile, and the server was running a `script.dat` that predated
+     * it. `claimed=no` says that in one line.
+     */
+    {
+        int claimed = mock230_scripts_run_debugproc(srv, text);
+
+        fprintf(stderr, "mock230: cheat '%s' -> debugproc claimed=%s\n",
+                text, claimed ? "yes" : "no");
+        if( claimed )
+            return;
+    }
 
     if( strncmp(text, "talk", 4) == 0 )
     {
@@ -14737,6 +14754,52 @@ mock230_world_selftest(void)
                        "::pray 18 is protect from melee");
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(&srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
+
+        /*
+         * `::crystal_set`, asserted on the inventory rather than on the return.
+         *
+         * This cheat was reported broken repeatedly and was never debugged from
+         * the right end. Two different things were true at different times and
+         * both present as "I typed it and got nothing": for a while no
+         * `[debugproc,crystal_set]` existed at all, and after one was written the
+         * content tree stopped compiling (an ambiguous `%twocats_quest` in an
+         * unrelated quest lane), so `script.dat` kept a build that predated it.
+         * In neither case does the chatbox distinguish the cheat from a typo.
+         *
+         * `run_debugproc` returning 1 only proves a script claimed the line, so
+         * that is not what this asserts. It asserts the six objects are in the
+         * backpack, which is the only claim a caller of this cheat cares about,
+         * and it fails if the debugproc is missing, if the pack is stale, or if
+         * the body silently stops partway through.
+         */
+        {
+            static const char* const CRYSTAL[] = {
+                "crystal_helmet", "crystal_platelegs", "crystal_chestplate",
+                "crystal_bow",    "crystal_halberd",   "crystal_shield",
+            };
+            struct Mock230Player* who = &srv.players[0];
+
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "crystal_set"),
+                           "::crystal_set should reach [debugproc,crystal_set]");
+            for( size_t ci = 0; ci < sizeof(CRYSTAL) / sizeof(CRYSTAL[0]); ci++ )
+            {
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, CRYSTAL[ci]);
+                int found = 0;
+
+                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                {
+                    if( who->inv[slot].obj_id == obj && who->inv[slot].count > 0 )
+                    {
+                        found = 1;
+                        break;
+                    }
+                }
+                SELFTEST_CHECK(obj > 0, "%s must resolve through the pack",
+                               CRYSTAL[ci]);
+                SELFTEST_CHECK(found, "::crystal_set must leave %s (obj %d) in the"
+                                      " backpack", CRYSTAL[ci], obj);
+            }
+        }
 
         /*
          * Binding table, both ends. prayerbook:prayer4 is 541:12 (asserted with

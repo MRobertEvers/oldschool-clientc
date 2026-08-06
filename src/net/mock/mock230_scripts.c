@@ -22,6 +22,8 @@
  * silently disagreeing implementation of the game now that they are not.
  */
 
+#include <dirent.h>
+
 #include "mock230.h"
 
 #include "mock230_container.h"
@@ -106,6 +108,71 @@ coord_z(int32_t coord)
 /* Container                                                           */
 /* ------------------------------------------------------------------ */
 
+/* The source extensions the pack is compiled from. */
+static int
+scripts_is_source(const char* name)
+{
+    const char* dot = strrchr(name, '.');
+
+    if( !dot )
+        return 0;
+    return strcmp(dot, ".rs2") == 0 || strcmp(dot, ".constant") == 0 ||
+           strcmp(dot, ".dbrow") == 0 || strcmp(dot, ".dbtable") == 0 ||
+           strcmp(dot, ".varp") == 0;
+}
+
+/*
+ * First source file newer than `pack_mtime`, depth-first, stopping at the first
+ * hit. Returns 1 and fills `out_path` / `out_delta`, or 0.
+ */
+static int
+scripts_scan_newer(
+    const char* dir,
+    time_t pack_mtime,
+    char* out_path,
+    size_t out_len,
+    long* out_delta)
+{
+    DIR* dirp = opendir(dir);
+    struct dirent* ent;
+    int stale = 0;
+
+    if( !dirp )
+        return 0;
+
+    while( !stale && (ent = readdir(dirp)) != NULL )
+    {
+        char child[1024];
+        struct stat sbuf;
+
+        if( ent->d_name[0] == '.' )
+            continue; /* `.`, `..`, and dotfiles the compiler does not read */
+        /* `build` holds the pack itself; comparing it to itself proves nothing. */
+        if( strcmp(ent->d_name, "build") == 0 )
+            continue;
+
+        snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
+        if( lstat(child, &sbuf) != 0 )
+            continue;
+
+        if( S_ISDIR(sbuf.st_mode) )
+        {
+            stale = scripts_scan_newer(child, pack_mtime, out_path, out_len,
+                                       out_delta);
+        }
+        else if( S_ISREG(sbuf.st_mode) && scripts_is_source(ent->d_name) &&
+                 sbuf.st_mtime > pack_mtime )
+        {
+            snprintf(out_path, out_len, "%s", child);
+            *out_delta = (long)(sbuf.st_mtime - pack_mtime);
+            stale = 1;
+        }
+    }
+
+    closedir(dirp);
+    return stale;
+}
+
 /*
  * Is the compiled pack older than the content it was compiled from?
  *
@@ -115,9 +182,26 @@ coord_z(int32_t coord)
  * loaded a script.dat from days earlier. Nothing anywhere said so. The C was
  * current, the scripts were stale, and every symptom pointed at the content.
  *
- * Newest source mtime vs the pack's. Cheap, and it does not need to be exact:
- * one `.rs2` newer than `script.dat` is already proof the pack does not
- * describe the tree. Returns the offending path so the message can name it.
+ * One source newer than `script.dat` is already proof the pack does not
+ * describe the tree, so the walk stops at the first one and names it.
+ *
+ * **This used to be a shell pipeline** — `find | xargs stat | sort -rn | head -1`
+ * through popen — which is how it came to hang a login. Three things were wrong
+ * with it and all three mattered:
+ *
+ *   - `sort` cannot emit until its input closes, so `head -1` does not shorten
+ *     anything: the pipeline walked the entire content tree and forked a `stat`
+ *     per batch every single time, on a path a player is waiting on.
+ *   - `head` exiting killed `sort` mid-write, which is the `sort: Broken pipe`
+ *     that appeared in the server log with nothing to attribute it to.
+ *   - `pclose` then blocks in `wait4` for every member of that pipeline. The
+ *     login response has already gone out at this point, so the client sits on
+ *     "Connecting to server..." with no error at either end — and the server
+ *     looks idle at 0% CPU, because it is: it is waiting on `sort`.
+ *
+ * A directory walk that returns at the first hit has none of that, and it is a
+ * diagnostic, so it must never be the most expensive thing in the function it
+ * decorates.
  *
  * Deliberately a warning and not a refusal — a stale pack still runs, and
  * someone deliberately testing an old pack against new C should be able to.
@@ -127,40 +211,24 @@ static int
 scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* out_delta)
 {
     char pack[1024];
+    char tree[1024];
     struct stat pack_st;
-    const char* tree;
-    char cmd[2048];
-    FILE* pipe;
-    int stale = 0;
+    char* slash;
 
     snprintf(pack, sizeof(pack), "%s/script.dat", dir);
     if( stat(pack, &pack_st) != 0 )
         return 0; /* no pack at all is the louder banner below */
 
     /* `dir` is <tree>/build; the sources are its parent. */
-    tree = dir;
-    snprintf(cmd, sizeof(cmd),
-             "find '%s/..' -name '*.rs2' -o -name '*.constant' -o -name '*.dbrow' "
-             "-o -name '*.dbtable' -o -name '*.varp' 2>/dev/null "
-             "| xargs stat -f '%%m %%N' 2>/dev/null | sort -rn | head -1",
-             tree);
-    pipe = popen(cmd, "r");
-    if( !pipe )
-        return 0;
-    {
-        long newest = 0;
-        char path[1024] = { 0 };
+    snprintf(tree, sizeof(tree), "%s", dir);
+    slash = strrchr(tree, '/');
+    if( slash )
+        *slash = '\0';
+    else
+        snprintf(tree, sizeof(tree), "%s", ".");
 
-        if( fscanf(pipe, "%ld %1023[^\n]", &newest, path) == 2 &&
-            newest > (long)pack_st.st_mtime )
-        {
-            stale = 1;
-            snprintf(out_path, out_len, "%s", path);
-            *out_delta = newest - (long)pack_st.st_mtime;
-        }
-    }
-    pclose(pipe);
-    return stale;
+    return scripts_scan_newer(tree, pack_st.st_mtime, out_path, out_len,
+                              out_delta);
 }
 
 int

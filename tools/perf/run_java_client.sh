@@ -7,6 +7,11 @@
 #   src/build/mock230 43594 --rev osrs239        (with MOCK230_JS5_* set)
 #   tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239
 #
+# JAV_CONFIG overrides where the client fetches its config, so a caller that
+# started its own config server on a free port can point at it. RuneLite fetches
+# this over HTTP (OkHttp's HttpUrl.get, which refuses file://), so there is no
+# way to hand it a local file — something has to serve it.
+#
 # JAVA_EXTRA_OPTS passes JVM flags through, for the instrumentation that is off
 # by default — e.g. JAVA_EXTRA_OPTS=-Dcs2.stacktrace=true to have the CS2
 # interpreter record each opcode's operand-stack delta (instr/src/CS2Trace.java).
@@ -59,5 +64,5 @@ exec env \
   --add-exports java.desktop/sun.java2d=ALL-UNNAMED \
   -cp "$CP" \
   net.runelite.client.RuneLite \
-  --jav_config=http://127.0.0.1:8080/jav_config.ws \
+  --jav_config="${JAV_CONFIG:-http://127.0.0.1:8080/jav_config.ws}" \
   --safe-mode

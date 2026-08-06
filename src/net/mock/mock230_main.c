@@ -332,6 +332,19 @@ main(
         return failures ? 1 : 0;
     }
 
+    /*
+     * Compile-check and load the script pack now, not at first login.
+     *
+     * `mock230_scripts_load` is idempotent (`scripts_ok`), so the login path can
+     * still call it and this is purely a matter of *when* the cost is paid. It
+     * used to be paid by the first player: the login response had already gone
+     * out, so every second spent here was a second the client spent on
+     * "Connecting to server..." with nothing to attribute it to at either end.
+     * Boot is the honest place — the server is not claiming to be ready yet.
+     */
+    srv.wire = wire;
+    mock230_scripts_load(&srv, config.script_dir);
+
     /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr,
             "mock230: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d)\n",
