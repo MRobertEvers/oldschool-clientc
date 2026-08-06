@@ -3105,6 +3105,30 @@ container_row(
     return mock230_container_resolve(srv, srv->active_player, inv_id);
 }
 
+/** The inventory currently listening on `component`, before stoptransmit drops
+ *  that association. Revision 239's stop packet names the inventory rather
+ *  than the component, so the host must retain this piece of server state long
+ *  enough to transcribe the command faithfully. */
+static struct Mock230Container*
+container_listener_row(
+    struct Mock230Player* player,
+    int32_t component)
+{
+    if( !player )
+        return NULL;
+    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    {
+        struct Mock230Container* row = &player->containers[i];
+
+        if( !row->used )
+            continue;
+        for( int listener = 0; listener < row->listener_count; listener++ )
+            if( row->listeners[listener].component == component )
+                return row;
+    }
+    return NULL;
+}
+
 static struct Mock230Item*
 container_for(
     struct Mock230Server* srv,
@@ -5414,6 +5438,19 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_IF_SETCOLOUR:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setcolour(srv->active_player, values[0], values[1]);
+        return 1;
+    }
+
     case SS_OP_IF_SETHIDE:
     {
         int32_t values[2];
@@ -5424,6 +5461,60 @@ mock230_script_command(
                 return 1;
         }
         mock230_send_if_sethide(srv->active_player, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETMODEL:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setmodel(srv->active_player, values[0], values[1]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETOBJECT:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setobject(
+            srv->active_player, values[0], values[1], values[2]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETPOSITION:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setposition(
+            srv->active_player, values[0], values[1], values[2]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETSCROLLPOS:
+    {
+        int32_t values[2];
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        mock230_send_if_setscroll(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -7270,6 +7361,19 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_MIDI_SONG:
+    {
+        int32_t id;
+
+        if( !SSVM_PopInt(state, &id) )
+            return 1;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: midi_song(%d)\n", id);
+        if( player != NULL )
+            mock230_send_midi_song(player, id);
+        return 1;
+    }
+
     /* ---- containers ------------------------------------------------ */
 
     /*
@@ -7541,12 +7645,42 @@ mock230_script_command(
     case SS_OP_INV_STOPTRANSMIT:
     {
         int32_t component;
+        struct Mock230Container* row;
+        const struct Mock230Wire* wire;
+        int bank_scrollbar;
+        int stop_inv = -1;
 
         if( !SSVM_PopInt(state, &component) )
             return 1;
-        if( MOCK230_COM_GROUP(component) == mock230_ids()->iface_bankmain )
-            srv->active_player->bank.open = 0;
+
+        /* Remember the inventory before unbind erases the only component ->
+         * inv association available to this command. If another component is
+         * still listening, keep the rev-239 client's global inventory alive:
+         * UPDATE_INV_STOPTRANSMIT removes it by inv id, not by component.
+         * Revision 230 addresses the component and therefore always receives
+         * the stop for the listener that was removed. */
+        row = container_listener_row(srv->active_player, component);
         mock230_container_unbind(srv->active_player, component);
+        wire = srv->wire ? srv->wire : mock230_wire_default();
+        if( row && (wire->revision < 239 || row->listener_count == 0) )
+            stop_inv = row->inv_id;
+
+        /* The bank owns its transmit outside the generic listener registry.
+         * Its close script names bankmain:scrollbar even though the payload
+         * that was transmitted paints bankmain:items, matching the content's
+         * authoritative stoptransmit convention. bankside:items is the normal
+         * backpack and must not clear that still-live global inventory. */
+        bank_scrollbar =
+            mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:scrollbar");
+        if( component == bank_scrollbar )
+        {
+            srv->active_player->bank.open = 0;
+            stop_inv = mock230_ids()->inv_bank;
+        }
+
+        if( stop_inv >= 0 )
+            mock230_send_inv_stop_transmit(
+                srv->active_player, (int)component, stop_inv);
         return 1;
     }
 
@@ -7672,6 +7806,23 @@ mock230_script_command(
             MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
             (int)group,
             0);
+        return 1;
+    }
+
+    case SS_OP_IF_OPENOVERLAY:
+    {
+        int32_t group;
+        int floater;
+
+        if( !SSVM_PopInt(state, &group) )
+            return 1;
+        floater = mock230_player_floater(srv->active_player);
+        mock230_send_if_opensub(
+            srv->active_player,
+            MOCK230_COM_GROUP(floater),
+            MOCK230_COM_CHILD(floater),
+            (int)group,
+            1);
         return 1;
     }
 

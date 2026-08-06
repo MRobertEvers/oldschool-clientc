@@ -105,14 +105,27 @@ resolve_column(
 static int
 row_holds(
     const struct Mock230DbRow* row,
+    const struct Mock230DbColumn* definition,
     int column,
+    int tuple_position,
     int value)
 {
     const struct Mock230DbRowColumn* store = &row->columns[column];
+    const struct Mock230DbValue* values = store->values;
+    int count = store->count;
 
-    for( int i = 0; i < store->count; i++ )
+    if( count == 0 )
     {
-        if( store->values[i].value == value )
+        values = definition->defaults;
+        count = definition->default_count;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( tuple_position >= 0 && definition->type_count > 0 &&
+            i % definition->type_count != tuple_position )
+            continue;
+        if( values[i].value == value )
             return 1;
     }
     return 0;
@@ -132,11 +145,15 @@ query_row(
     int index)
 {
     int seen = 0;
+    const struct Mock230DbTable* table;
 
     if( index < 0 )
         return NULL;
     if( player->db_query_column < 0 )
         return mock230_db_row_in_table(player->db_query_table, index);
+    table = mock230_db_table(player->db_query_table);
+    if( !table || player->db_query_column >= table->column_count )
+        return NULL;
 
     for( int i = 0;; i++ )
     {
@@ -144,7 +161,9 @@ query_row(
 
         if( !row )
             return NULL;
-        if( !row_holds(row, player->db_query_column, player->db_query_value) )
+        if( !row_holds(row, &table->columns[player->db_query_column],
+                       player->db_query_column, player->db_query_tuple,
+                       player->db_query_value) )
             continue;
         if( seen == index )
             return row;
@@ -221,8 +240,16 @@ mock230_ops_db(
         for( int i = first; i < last; i++ )
         {
             int offset = (values[2] * column->type_count) + i;
+            const struct Mock230DbValue* source = store->values;
+            int source_count = store->count;
 
-            if( row->table_id != table->table_id || offset < 0 || offset >= store->count )
+            if( source_count == 0 )
+            {
+                source = column->defaults;
+                source_count = column->default_count;
+            }
+
+            if( row->table_id != table->table_id || offset < 0 || offset >= source_count )
             {
                 /* Past the end, or a row from another table. Push the type's zero
                  * so the stack shape still matches what the script declared —
@@ -235,11 +262,11 @@ mock230_ops_db(
                 continue;
             }
             if( column->is_string[i] )
-                SSVM_PushStr(state, store->values[offset].text
-                                        ? store->values[offset].text
+                SSVM_PushStr(state, source[offset].text
+                                        ? source[offset].text
                                         : "");
             else
-                SSVM_PushInt(state, store->values[offset].value);
+                SSVM_PushInt(state, source[offset].value);
         }
         return 1;
     }
@@ -280,7 +307,12 @@ mock230_ops_db(
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_PushInt(state, row->columns[column_index].count / column->type_count);
+        {
+            int count = row->columns[column_index].count;
+            if( count == 0 )
+                count = column->default_count;
+            SSVM_PushInt(state, count / column->type_count);
+        }
         return 1;
     }
 
@@ -325,6 +357,7 @@ mock230_ops_db(
         player->db_query_table = table_id;
         player->db_query_index = -1;
         player->db_query_column = -1;
+        player->db_query_tuple = -1;
         if( opcode == SS_OP_DB_LISTALL_WITH_COUNT )
             SSVM_PushInt(state, mock230_db_row_count(table_id));
         return 1;
@@ -364,6 +397,7 @@ mock230_ops_db(
         player->db_query_table = table->table_id;
         player->db_query_index = -1;
         player->db_query_column = column_index;
+        player->db_query_tuple = tuple_index;
         player->db_query_value = value;
         if( opcode == SS_OP_DB_FIND_WITH_COUNT )
         {

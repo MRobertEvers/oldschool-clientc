@@ -20,13 +20,14 @@
  *   3. a whole FAMILY collapsed        -- IF_BUTTON1..10, OPHELD1..5 and
  *                                         INV_BUTTON1..5 are one opcode at 239
  *                                         (IF_BUTTONX) with the op number in
- *                                         the payload. One wire opcode has to
- *                                         become one of twenty canonical names,
- *                                         which a `opcode -> name` function
- *                                         cannot do.
+ *                                         the payload. The unified body stays
+ *                                         intact until the interface router so
+ *                                         item ops 6..10 and IF_SUBOP's final
+ *                                         byte are not discarded.
  *
- * Case 3 is why the return value is a NAME rather than just a length: the
- * demultiplex is part of the translation.
+ * Case 3 is why the return value is a NAME rather than just a length: even a
+ * packet retained in unified form must be renamed from an unmapped wire row
+ * into the canonical interface callback.
  *
  * None of this fails loudly on its own. A packet read in the wrong field order
  * frames perfectly -- the length is right, so the stream stays in sync -- and
@@ -42,9 +43,11 @@
  * @param wire_opcode  the 239 opcode as it arrived, for the cases where one
  *                     opcode fans out to several canonical names.
  * @param name         what the 239 table called it, or PKTOUT_NAME_NONE.
- * @param out          receives the 230-shaped body. Must hold `in_len + 8`;
- *                     no translation here grows a packet, but the slack means
- *                     a future one that does cannot silently truncate.
+ * @param out          receives either the 230-shaped body or a validated,
+ *                     losslessly retained 239 interface body. Must hold
+ *                     `in_len + 8`; no translation here grows a packet, but
+ *                     the slack means a future one that does cannot silently
+ *                     truncate.
  * @return the canonical PKTOUT_NAME_* to route with `*out_len` bytes of `out`,
  *         or PKTOUT_NAME_NONE to drop the packet.
  */

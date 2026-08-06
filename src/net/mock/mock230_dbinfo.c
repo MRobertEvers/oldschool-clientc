@@ -92,6 +92,23 @@ import_table(
         for( int i = 0; i < src->type_count; i++ )
             is_string[i] = RSCache_DbTypeIsString(src->types[i]) ? 1 : 0;
         mock230_db_column_define(table, col, NULL, src->type_count, is_string);
+        if( src->tuple_count > 0 && src->values )
+        {
+            int total = src->tuple_count * src->type_count;
+            struct Mock230DbValue* defaults = calloc((size_t)total, sizeof(*defaults));
+
+            if( defaults )
+            {
+                for( int i = 0; i < total; i++ )
+                {
+                    defaults[i].value = src->values[i].int_value;
+                    defaults[i].text = src->values[i].is_string
+                        ? src->values[i].string_value : NULL;
+                }
+                mock230_db_column_defaults_set(table, col, defaults, total);
+                free(defaults);
+            }
+        }
     }
     g_cache_tables++;
 }

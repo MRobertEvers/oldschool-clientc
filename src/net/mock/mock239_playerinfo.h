@@ -54,12 +54,9 @@
  * holds every other index in low resolution. That is the milestone that makes a
  * client render itself and its scene.
  *
- * It does not yet add, move or remove other players — the high-resolution
- * movement opcodes (walk, run, teleport, the 12- and 30-bit coord forms) and
- * the low-to-high transition are read by the client and written by nobody here.
- * The bit-level helpers below are shaped so that adding them is filling in
- * branches rather than restructuring, and `mock239_playerinfo_write` states
- * where.
+ * It does not yet add, move or remove other players.  The local player's
+ * high-resolution walk, run and teleport forms are implemented; the
+ * low-to-high transition for other slots is not.
  */
 
 #include <stdint.h>
@@ -86,9 +83,11 @@ mock239_playerinfo_write_init(
 /**
  * One tick of PLAYER_INFO carrying only the local player.
  *
- * `coord_delta` is a DELTA against the position the client already holds, not
- * an absolute coordinate — packed (dLevel << 28) | (dX << 14) | dZ with each
- * field masked to its width. The client adds it:
+ * `movement` selects NOMOVE, WALK, RUN or TELEPORT. `movement_value` is the
+ * matching direction or coordinate delta. A TELEPORT value is a DELTA against
+ * the position the client already holds, not an absolute coordinate — packed
+ * (dLevel << 28) | (dX << 14) | dZ with each field masked to its width. The
+ * client adds it:
  *
  *     curX = (curX + deltaX) and 16383
  *
@@ -97,9 +96,9 @@ mock239_playerinfo_write_init(
  * later, as the player walks off the loaded scene — nothing errors, because
  * every packet is well-formed.
  *
- * A stationary player is therefore a delta of 0, which is also what the first
- * tick after the init block should send: the init block already stated the
- * absolute position.
+ * A stationary player uses NOMOVE; when it has no extended info the writer
+ * expresses that as a stationary skip, which is the client codec's canonical
+ * form.
  *
  * `low_res_inactive` selects WHICH low-resolution section the untracked players
  * are skipped in, and it is not cosmetic. The client carries a per-player cycle
@@ -131,13 +130,31 @@ struct Mock239PlayerExt
     int has_seq;
     int seq_id;
     int seq_delay;
+    /** One-step traversal override. Revision 239 separates the RUN position
+     * opcode from the locomotion speed used to animate that step: value 2 is
+     * run, value 1 is the default walk. Without this block a player advances
+     * two tiles per update while visibly playing the walk sequence. */
+    int has_temp_move_speed;
+    int temp_move_speed;
+};
+
+/** The rev-239 high-resolution movement opcode.  `movement_value` below is a
+ * 3-bit direction for WALK, a 4-bit direction for RUN, and a packed 30-bit
+ * coordinate delta for TELEPORT. */
+enum Mock239PlayerMovement
+{
+    MOCK239_PLAYER_NOMOVE = 0,
+    MOCK239_PLAYER_WALK = 1,
+    MOCK239_PLAYER_RUN = 2,
+    MOCK239_PLAYER_TELEPORT = 3,
 };
 
 void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord_delta,
+    enum Mock239PlayerMovement movement,
+    int32_t movement_value,
     int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len,
