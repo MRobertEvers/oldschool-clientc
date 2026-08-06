@@ -1638,6 +1638,32 @@ test-retained-renderer-leak:
 	@false
 endif
 
+# Real Win32 message/timer regressions with a hidden HWND. These are standalone
+# so they run under either repository MinGW lane without booting the client.
+.PHONY: test-win32-platform
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g -I$(SRC_DIR) \
+	$(PLATFORM_BASE_CFLAGS)
+WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
+	-lgdi32 -luser32 -lwinmm -lkernel32
+test-win32-platform: $(OBJ_DIR)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
+		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
+		platform/platform_win32_timing.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
+		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_timing_test.c platform/platform_win32_timing.c \
+		$(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX)
+else
+test-win32-platform:
+	@echo "test-win32-platform requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+endif
+
 # Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
 # correct when a platform is added -- the old hardcoded list had already gone
 # stale and never removed build_win32*/, build_win64*/, or their executables.

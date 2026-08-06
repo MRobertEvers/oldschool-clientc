@@ -41,7 +41,7 @@ LANE_FORBID_win32  := -dead_strip -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
 
 # --- Modern Windows: explicit Windows 10+, x86_64, standalone D3D9 ----------
 LANE_REQUIRE_win64 := _WIN32_WINNT=0x0A00 WINVER=0x0A00 -march=x86-64 \
-                      console:10.0 -static -static-libgcc win32_compat.h \
+                      console:6.0 -static -static-libgcc win32_compat.h \
                       TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
 LANE_FORBID_win64  := -march=i686 -mfpmath=387 console:5.01 -dead_strip \
                       -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
@@ -131,7 +131,7 @@ lane-check-artifact:
 	@if [ ! -e '$(TARGET)' ]; then echo "lane-check-artifact: no $(TARGET) — build first" >&2; exit 1; fi
 	@case '$(PLATFORM)' in \
 		win32) expected_fmt=pei-i386; expected_subsystem=5.1; artifact_name='XP i686' ;; \
-		win64) expected_fmt=pei-x86-64; expected_subsystem=10.0; artifact_name='modern x86_64' ;; \
+		win64) expected_fmt=pei-x86-64; expected_subsystem=6.0; artifact_name='modern x86_64' ;; \
 		*) echo "lane-check-artifact: PLATFORM=$(PLATFORM) ok (nothing to probe)"; exit 0 ;; \
 	esac; \
 	fmt=`objdump -f '$(TARGET)' | sed -n 's/.*file format //p'`; \
@@ -155,6 +155,12 @@ lane-check-artifact:
 		echo "lane-check-artifact: $(TARGET) imports SDL — Windows lanes are raw Win32" >&2; exit 1; fi; \
 	if printf '%s\n' "$$imports_lc" | grep -Eq 'dll name:[[:space:]]*(libgcc_s_[^.]*|libwinpthread-1|libstdc\+\+-6)\.dll'; then \
 		echo "lane-check-artifact: $(TARGET) imports a MinGW runtime DLL instead of being standalone" >&2; exit 1; fi; \
+	for timing_api in queryperformancecounter queryperformancefrequency timebeginperiod timeendperiod; do \
+		if ! printf '%s\n' "$$imports_lc" | grep -Eq "(^|[[:space:]])$$timing_api$$"; then \
+			echo "lane-check-artifact: $(TARGET) is missing XP-safe pacing import $$timing_api" >&2; exit 1; fi; \
+	done; \
+	if printf '%s\n' "$$imports_lc" | grep -Eq '(^|[[:space:]])(gettickcount64|createwaitabletimerex[aw]?|setwaitabletimerex)$$'; then \
+		echo "lane-check-artifact: $(TARGET) imports a post-XP timing API" >&2; exit 1; fi; \
 	if [ '$(PLATFORM)' = 'win32' ] && printf '%s\n' "$$imports_lc" | grep -Eq '(^|[[:space:]])_?putenv_s$$'; then \
 		echo "lane-check-artifact: $(TARGET) imports _putenv_s, which XP msvcrt.dll does not export" >&2; exit 1; fi; \
-	echo "lane-check-artifact: $(TARGET) ok ($$expected_fmt, subsystem $$expected_subsystem, fixed-function d3d9, standalone)"
+	echo "lane-check-artifact: $(TARGET) ok ($$expected_fmt, subsystem $$expected_subsystem, fixed-function d3d9, QPC pacing, standalone)"

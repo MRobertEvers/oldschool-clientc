@@ -193,11 +193,13 @@ one lane only.
 - **Applies to:** Win64 build lane
 - **Behavior:** Build with an `x86_64-w64-mingw32` compiler,
   `_WIN32_WINNT`/`WINVER` at `0x0A00`, an x86-64 baseline, static runtimes, and
-  PE console subsystem version 10.0. The one-file artifact must not import a
+  PE console subsystem version 6.0. The one-file artifact must not import a
   MinGW runtime DLL.
-- **Reason:** Modern Windows must not inherit the XP ABI merely because both
-  lanes share raw Win32 and D3D9 sources; it also must not depend on DLLs found
-  only beside the build compiler.
+- **Reason:** Modern Windows must not inherit the XP API floor merely because
+  both lanes share raw Win32 and D3D9 sources; it also must not depend on DLLs
+  found only beside the build compiler. PE subsystem version is a distinct
+  loader contract, not the Windows marketing/API version: stamping it 10.0
+  caused Windows 11 to reject the image before `main` with `0xC000007B`.
 - **Verification:** `make -C src PLATFORM=win64 lane-check` before linking and
   `make -C src PLATFORM=win64 lane-check-artifact` afterward.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
@@ -219,6 +221,35 @@ one lane only.
   `make -C src PLATFORM=win32 lane-check-artifact` afterward.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
+
+### WINXP-ANIMAYA-001 - Step tangents require bitwise sentinel recognition
+
+- **Status:** Resolved guardrail
+- **Applies to:** Animaya decoding on the Win32 i686/x87 lane; all lanes keep
+  the architecture-independent check
+- **Behavior:** An Animaya stepped segment stores Java `Float.MAX_VALUE` in
+  both outgoing tangent fields, serialized as IEEE-754 bits `0x7f7fffff`.
+  Recognize that bit pattern directly before curve interpolation. Do not
+  replace the bit check with equality against a decimal floating-point
+  literal, even when the literal appears to round to the same `float` value.
+- **Failure mode:** The i686/x87 build can evaluate that decimal comparison at
+  extended precision and fail to match a decoded sentinel. The curve then
+  enters Hermite interpolation with maximum-float tangents. In the OSRS239
+  Whisperer animation this added about `0.983403` to otherwise constant
+  channels, changed unit bone scales to about `1.9834`, and compounded through
+  the parent hierarchy into enormous matrices and fullscreen triangles.
+- **Renderer impact:** Curve sampling and palette baking happen before
+  rendering. Both retained D3D9 animation buffers and the dynamic Soft3D path
+  consume the same corrupted palette, so this must not be worked around in a
+  renderer or by clamping transformed vertices.
+- **Verification:** `3rd/rscache/test/test_animaya.c` decodes a stepped curve with raw
+  `Float.MAX_VALUE` tangents and checks its interior ticks. Run it at least once
+  as PE-i386 with `-mfpmath=387`; a native x64-only run does not reproduce the
+  comparison failure that established this guardrail.
+- **Sources:**
+  [`3rd/rscache/src/datatypes/dat2_animaya.c`](../3rd/rscache/src/datatypes/dat2_animaya.c),
+  [`3rd/rscache/test/test_animaya.c`](../3rd/rscache/test/test_animaya.c),
+  [`docs/skeletal/CurveInterp.ts`](skeletal/CurveInterp.ts)
 
 ### WINDOWS-HOST-001 - Windows is not an SDL lane
 
@@ -265,45 +296,65 @@ one lane only.
   [`3rd/trspk/core/trspk_drawrangelist.c`](../3rd/trspk/core/trspk_drawrangelist.c),
   [D3D9 range contract](windows_xp_d3d9.md#indices-and-ranges)
 
-### WIN32-TIMER-001 - The 50 fps cap runs near 32 fps
+### WIN32-TIMER-001 - Native pacing uses XP-safe absolute deadlines
 
-- **Status:** Open defect
-- **Applies to:** Win32, both D3D9 and Soft3D
-- **Symptom:** Motion feels laggy even when the measured frame work is below the
-  20 ms budget. `--uncapped` still incurs a coarse delay.
-- **Cause:** The native loop measures with millisecond `GetTickCount` and calls
-  `Sleep(20 - elapsed)` for capped frames or `Sleep(1)` for uncapped frames.
-  The process does not request a finer Windows timer period. On the profiled
-  host, sleeps quantized around the 15.625 ms scheduler interval.
-- **Measurement (2026-08-06):** The optimized embedded-server 765x503 Soft3D
-  artifact completed 500 capped frames in 15.6286 seconds: 31.99 effective
-  fps. Its mean measured work was 15.87 ms, confirming that pacing, not just
-  work, filled the gap.
-- **Fix direction:** Use an XP-safe high-resolution clock/wait strategy and do
-  not include the pacing wait in `TORIRS_PERF` work stages. Treat
-  `--uncapped` as a profiling mode, not a precise workaround, until its forced
-  `Sleep(1)` is removed or replaced.
+- **Status:** Resolved guardrail
+- **Applies to:** Win32 and Win64, both D3D9 and Soft3D
+- **Behavior:** Native capped frames wait for an absolute 20 ms deadline
+  measured from the start of frame work. The Windows clock uses
+  `QueryPerformanceCounter`, with an extended `GetTickCount` fallback, and the
+  wait lazily requests the finest supported WinMM timer period. `--uncapped`
+  performs no artificial wait.
+- **Precision tradeoff:** After the blocking portion, the final sub-millisecond
+  interval uses bounded `Sleep(0)` yield/rechecks. A full final `Sleep(1)`
+  measurably lowered steady cadence, while the yield can consume roughly
+  2--6% of one core during capped runs on the profiled host. Returned clock
+  values are clamped monotonically for XP-era QPC migration anomalies.
+- **Failure mode:** The old loop measured with millisecond `GetTickCount` and
+  called `Sleep(20 - elapsed)`, while uncapped frames still called `Sleep(1)`.
+  Without a finer timer period, sleeps quantized around the host's 15.625 ms
+  scheduler interval and a nominal 50 fps cap ran near 32 fps.
+- **Before fix (2026-08-06):** The optimized embedded-server 765x503 Soft3D
+  artifact completed 500 capped frames in 15.6286 seconds: 31.99 wall fps. Its
+  mean measured work was 15.87 ms, confirming that pacing, not just work,
+  filled the gap.
+- **After fix (2026-08-06):** The same i686 Soft3D scenario completed 500
+  capped frames in 10.6462 seconds: 46.97 wall fps including cache/bootstrap,
+  with 3/500 frame-work samples over budget. The standalone cadence check
+  measures the wait itself without startup overhead.
+- **Verification:** Run `make -C src PLATFORM=win32 test-win32-platform` and
+  `make -C src PLATFORM=win64 test-win32-platform`. The timing regression
+  requires a monotonic clock and a 20 ms median cadence, rejects the former
+  approximately 31 ms cadence, and exercises timer-period shutdown/restart.
+  Current i686 median/p95/mean is 20/23/20.52 ms; x86-64 is 20/24/20.64 ms.
 - **Sources:** [`src/main.c`](../src/main.c),
-  [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+  [`src/platform/platform_win32_timing.c`](../src/platform/platform_win32_timing.c),
+  [`src/platform/test/win32_timing_test.c`](../src/platform/test/win32_timing_test.c)
 
-### WIN32-GDI-001 - Invalidation can expose a black frame
+### WIN32-GDI-001 - Invalidations repaint the retained Soft3D frame
 
-- **Status:** Open defect
-- **Applies to:** Win32 `--soft3d`
-- **Symptom:** The client flickers black during invalidation, resize, uncover,
-  or other paint activity. Letterboxed presentation can also show a black
-  clear before the image arrives.
-- **Cause:** The window class owns a black background brush and redraw styles,
-  but the window procedure does not handle `WM_PAINT` or `WM_ERASEBKGND`.
-  Soft3D instead calls `GetDC` and blits outside the paint transaction. When
-  letterboxed, it clears the entire client to black and performs the image blit
-  as a second GDI operation. There is no synchronized or vsynced present.
-- **Measurement (2026-08-06):** Forced invalidation produced 24 observed black
+- **Status:** Resolved guardrail
+- **Applies to:** Win32 and Win64 `--soft3d`
+- **Behavior:** After Soft3D completes its first frame, normal presents,
+  `WM_PAINT`, and `WM_PRINTCLIENT` all paint the same retained DIB.
+  `WM_ERASEBKGND` is suppressed, the window class owns no background brush or
+  whole-window redraw styles, and letterboxed presentation paints only the
+  bars before blitting the image; it never clears the image rectangle first.
+- **Renderer isolation:** The retained frame remains invalid until the first
+  Soft3D present. Paint messages therefore leave a D3D9-owned client untouched
+  instead of covering it with an uninitialized software surface.
+- **Failure mode:** The old backend had a black class brush and redraw styles
+  but no `WM_PAINT` or `WM_ERASEBKGND` handling. It presented only through
+  `GetDC`, and letterboxing cleared the full client before a separate image
+  blit, exposing black frames during resize, uncover, and invalidation.
+- **Before fix (2026-08-06):** Forced invalidation produced 24 observed black
   gaps with a 14.93 ms mean, 19.67 ms p95, and 27.18 ms maximum.
-- **Workaround:** Use the default D3D9 renderer. A GDI fix should preserve and
-  repaint the latest DIB from `WM_PAINT`, suppress redundant background erase,
-  and update only dirty letterbox bars rather than clearing the full client.
-- **Source:** [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+- **Verification:** Run `make -C src PLATFORM=win32 test-win32-platform` and
+  `make -C src PLATFORM=win64 test-win32-platform`. The hidden-HWND regression
+  checks background-erasure suppression, exact retained-DIB repair painting,
+  isolated black bars, and the pre-Soft3D/D3D9 no-paint invariant.
+- **Sources:** [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c),
+  [`src/platform/test/win32_gdi_test.c`](../src/platform/test/win32_gdi_test.c)
 
 ### WIN32-SOFT3D-001 - Raster cost grows with the resizable canvas
 
@@ -500,8 +551,9 @@ For Windows, use the repository toolchain through the matching wrapper:
 ```
 
 For performance investigations, enable `TORIRS_PERF=1` and write
-`TORIRS_PERF_CSV=<path>`. Frame work closes before the pacing sleep by design;
-wall-clock effective fps is a separate quantity. See
+`TORIRS_PERF_CSV=<path>`. Frame work closes before the capped pacing wait by
+design, and `--uncapped` adds no artificial delay; wall-clock effective fps is
+a separate quantity. See
 [the performance harness](PERF_HARNESS.md).
 
 When adding an entry, use a stable platform-prefixed ID and include enough to

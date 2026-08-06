@@ -141,7 +141,8 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* platform);
 uint64_t
 PlatformSDL2_Ticks64(void);
 
+/** Wait until an absolute PlatformSDL2_Ticks64() deadline. */
 void
-PlatformSDL2_Delay(uint32_t ms);
+PlatformSDL2_SleepUntil(uint64_t deadline_ms);
 
 #endif

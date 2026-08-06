@@ -139,6 +139,7 @@ else ifeq ($(PLATFORM),win32)
   # for now). No GL renderer, no SDL audio.
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_audio_null.c \
+                       platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9.c
   # TRSPK's CPU retained-mode core is already linked through trspk_unity.o.
   # D3D9 calls live in the regular platform source above, so there is no extra
@@ -218,6 +219,7 @@ else ifeq ($(PLATFORM),win64)
   PLATFORM_TARGET   := torirs_win64.exe
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_audio_null.c \
+                       platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9.c
   PLATFORM_GPU_OBJ_NAMES :=
   PLATFORM_EXE_SUFFIX := .exe
@@ -236,10 +238,13 @@ else ifeq ($(PLATFORM),win64)
 
   # One-file delivery, just like XP. This Winlibs compiler uses POSIX threads;
   # without -static it can pull in libwinpthread-1.dll even though the client
-  # does not create a pthread. Subsystem 10.0 makes the Windows floor visible
-  # in the PE header instead of inheriting the toolchain's historical default.
-  PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:10.0 \
-                      -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+  # does not create a pthread.
+  # PE subsystem versions are not Windows marketing/API versions. MSVC uses
+  # 6.0 for modern x64 console programs; stamping 10.0 makes the Windows 11
+  # loader reject the image with STATUS_INVALID_IMAGE_FORMAT before main.
+  # _WIN32_WINNT/WINVER above remain the actual Windows 10 API floor.
+  PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:6.0 \
+                       -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
       -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \

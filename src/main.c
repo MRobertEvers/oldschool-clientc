@@ -547,10 +547,19 @@ frame_loop_step(void)
         return 0;
 
     uint64_t now;
+#if !defined(__EMSCRIPTEN__)
+    uint64_t frame_start_ms;
+#endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
 
+#if !defined(__EMSCRIPTEN__)
+    /* The pacing budget starts before any frame work. The input timestamp
+     * below is intentionally separate: using it as the origin omitted the
+     * pre-poll work and made nominal 20 ms frames longer than 20 ms. */
+    frame_start_ms = PlatformSDL2_Ticks64();
+#endif
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -1378,19 +1387,11 @@ frame_loop_step(void)
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
 #if !defined(__EMSCRIPTEN__)
-    if( !replay )
-    {
-        if( uncapped )
-            PlatformSDL2_Delay(1);
-        else
-        {
-            /* 50 fps cap: one frame per 20ms client cycle (--uncapped
-             * frees the loop for profiling/benchmarks). */
-            uint64_t elapsed = PlatformSDL2_Ticks64() - now;
-            if( elapsed < 20 )
-                PlatformSDL2_Delay((uint32_t)(20 - elapsed));
-        }
-    }
+    /* 50 fps cap: wait to an absolute deadline so early wakeups are retried
+     * and the frame's complete workload counts against its 20 ms budget.
+     * --uncapped is a true profiling mode and performs no artificial wait. */
+    if( !replay && !uncapped )
+        PlatformSDL2_SleepUntil(frame_start_ms + 20);
 #endif
     return 1;
 }
