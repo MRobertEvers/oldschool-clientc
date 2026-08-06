@@ -1,3 +1,15 @@
+# DEPRECATED — drove the retired v0 CMake web build via ninja targets
+# (scene_tile_test_browser, scene_tile_test_imgui_browser) that no longer exist
+# in any CMakeLists. The live web build is:
+#
+#     make -C src web          # optimized -> build-web/torirs.js
+#     make -C src web-debug
+#     ./run-live.sh web        # build + serve via the IO server
+#
+# See docs/web_build.md.
+Write-Error "scripts/build_browser.ps1 is deprecated — use 'make -C src web' (see docs/web_build.md)."
+exit 1
+
 # Build script for browser version using Emscripten (PowerShell)
 param(
     [switch]$Clean,

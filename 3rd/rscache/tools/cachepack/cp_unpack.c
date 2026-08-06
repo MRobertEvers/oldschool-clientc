@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "tool_posix_compat.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -46,7 +47,17 @@ ensure_dir(const char* path)
     struct stat st;
     if( stat(path, &st) == 0 )
         return S_ISDIR(st.st_mode) ? 0 : -1;
-    return cp_mkdir(path);
+    /*
+     * EEXIST is success. That is the ordinary mkdir -p rule (another process
+     * may have won the race), and on Windows it is also what makes an ABSOLUTE
+     * path work at all: the callers below split on '/' from index 1, so the
+     * first component of "C:/Users/..." is the bare drive designator "C:",
+     * where MSVCRT's stat() fails with ENOENT and _mkdir() then fails with
+     * EEXIST. Without this, every absolute path is an error.
+     */
+    if( cp_mkdir(path) == 0 )
+        return 0;
+    return errno == EEXIST ? 0 : -1;
 }
 
 /** mkdir -p for a path with at most a few components under srcdir. */

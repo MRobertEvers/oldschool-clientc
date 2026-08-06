@@ -388,6 +388,19 @@ RSCache_Dat2DiskIndexFileWriteRecord(
     int entry_idx,
     struct RSCache_Dat2DiskIndexRecord* record);
 
+/*
+ * Close the cached write handles.
+ *
+ * RSCache_Dat2DiskWriteArchive keeps the .dat2 and the current .idxN open
+ * between calls (an open per archive was a measurable share of a pack on
+ * Windows). Every write is flushed, so readers always see the bytes — but a
+ * caller that DELETES or MOVES a cache file must call this first, and so must
+ * anything finishing up before exit.
+ */
+void
+RSCache_Dat2DiskWriteFlush(void);
+
+
 /**
  * Write one already-framed archive container into a cache directory.
  *

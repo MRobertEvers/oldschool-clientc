@@ -139,7 +139,17 @@ ensure_dir(const char* path)
 
     if( stat(path, &st) == 0 )
         return S_ISDIR(st.st_mode) ? 0 : -1;
-    return cp_mkdir(path);
+    /*
+     * EEXIST is success. That is the ordinary mkdir -p rule (another process
+     * may have won the race), and on Windows it is also what makes an ABSOLUTE
+     * path work at all: the callers below split on '/' from index 1, so the
+     * first component of "C:/Users/..." is the bare drive designator "C:",
+     * where MSVCRT's stat() fails with ENOENT and _mkdir() then fails with
+     * EEXIST. Without this, every absolute path is an error.
+     */
+    if( cp_mkdir(path) == 0 )
+        return 0;
+    return errno == EEXIST ? 0 : -1;
 }
 
 static int
@@ -176,6 +186,12 @@ server_pack_clear(const char* dir)
     char path[1200];
     int group_count = 0;
     const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
+
+    /* The write path keeps the .dat2 and .idxN open between archives. Windows
+     * will not delete a file that still has an open handle, so a stale cached
+     * handle here would turn "rebuild the server pack from nothing" into
+     * "append to yesterday's" — silently, because remove() just fails. */
+    RSCache_Dat2DiskWriteFlush();
 
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", dir);
     remove(path);
@@ -1535,6 +1551,22 @@ cp_pack_run(
             return 0;
         }
     }
+    else
+    {
+        /*
+         * No --base: build the cache out of the content tree alone.
+         *
+         * The write path never needed a donor cache -- WriteArchive creates the
+         * .dat2 and each .idxN on demand, and the commit builds a reference
+         * table for every table it touches. Only the open needed a file to
+         * already be there, which is what this creates. What lands is then
+         * exactly what the tree states, with none of a base cache's untouched
+         * records carried along.
+         */
+        printf("Creating %s (no --base: packing the tree alone)\n", out_cache_dir);
+        if( !tool_dat2_create(out_cache_dir) )
+            return 0;
+    }
 
     if( !tool_dat2_open(out_cache_dir, &ctx->profile, &ctx->cache) )
         return 0;
@@ -1636,6 +1668,9 @@ cp_pack_run(
         fprintf(stderr, "cachepack: commit failed\n");
         return 0;
     }
+    /* The config table is on disk. Everything after this may safely add to the
+     * cache; before it, there is nothing to add to (see CP_Ctx.cache_committed). */
+    ctx->cache_committed = true;
 
     printf("Done. %d records written, %d failed, %d unknown keys, %d unresolved names.\n", total,
            failed, ctx->warn_unknown_key, ctx->warn_unresolved_name);

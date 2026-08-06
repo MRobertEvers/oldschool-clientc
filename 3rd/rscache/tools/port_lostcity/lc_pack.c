@@ -1,4 +1,5 @@
 #include "lc_pack.h"
+#include "tool_posix_compat.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -831,7 +832,7 @@ lc_packs_write(
     assert(packs && content_dir);
     char dir[1024];
     snprintf(dir, sizeof(dir), "%s/pack", content_dir);
-    mkdir(dir, 0755);
+    tool_mkdir(dir);
 
     for( int i = 0; i < LC_PACK_COUNT; i++ )
     {

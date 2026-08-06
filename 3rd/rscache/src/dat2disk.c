@@ -351,6 +351,113 @@ RSCache_Dat2DiskDat2FileAppendArchive(
     return sector_no;
 }
 
+/*
+ * Open-handle cache for the write path.
+ *
+ * This function used to open and close BOTH the .dat2 and the .idxN on every
+ * call. A pack writes one archive per record and one per asset — six figures of
+ * them — so that was ~4 opens and closes per archive, and on Windows an open is
+ * not cheap: path resolution, a security check, and the on-access virus scan.
+ *
+ * Archives are written table by table, so caching one handle of each hits
+ * essentially every time. What is NOT cached is correctness-relevant: every
+ * write is still followed by fflush, so the bytes reach the OS and a separate
+ * FILE* opened on the same path — which is how the reference-table loader reads
+ * — sees them. Only the open/close disappears.
+ *
+ * Callers that delete or move a cache file mid-run must call
+ * RSCache_Dat2DiskWriteFlush first, or the handle will point at a file that is
+ * no longer the one on disk (and on Windows the delete will simply fail).
+ */
+static struct
+{
+    char directory[1024];
+    FILE* file;
+} g_dat2_write;
+
+static struct
+{
+    char directory[1024];
+    int table_id;
+    FILE* file;
+} g_idx_write;
+
+void
+RSCache_Dat2DiskWriteFlush(void)
+{
+    if( g_dat2_write.file )
+    {
+        fclose(g_dat2_write.file);
+        g_dat2_write.file = NULL;
+        g_dat2_write.directory[0] = '\0';
+    }
+    if( g_idx_write.file )
+    {
+        fclose(g_idx_write.file);
+        g_idx_write.file = NULL;
+        g_idx_write.directory[0] = '\0';
+        g_idx_write.table_id = -1;
+    }
+}
+
+/* "r+b" then fall back to "w+b": opening an existing cache for update must not
+ * truncate it, but a fresh one has to be created. */
+static FILE*
+dat2disk_open_rw(const char* path)
+{
+    FILE* f = fopen(path, "r+b");
+
+    if( !f )
+        f = fopen(path, "w+b");
+    return f;
+}
+
+static FILE*
+dat2disk_dat2_handle(const char* directory)
+{
+    char path[1024];
+
+    if( g_dat2_write.file && strcmp(g_dat2_write.directory, directory) == 0 )
+        return g_dat2_write.file;
+
+    if( g_dat2_write.file )
+    {
+        fclose(g_dat2_write.file);
+        g_dat2_write.file = NULL;
+    }
+
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", directory);
+    g_dat2_write.file = dat2disk_open_rw(path);
+    if( !g_dat2_write.file )
+        return NULL;
+    snprintf(g_dat2_write.directory, sizeof(g_dat2_write.directory), "%s", directory);
+    return g_dat2_write.file;
+}
+
+static FILE*
+dat2disk_idx_handle(const char* directory, int table_id)
+{
+    char path[1024];
+
+    if( g_idx_write.file && g_idx_write.table_id == table_id &&
+        strcmp(g_idx_write.directory, directory) == 0 )
+        return g_idx_write.file;
+
+    if( g_idx_write.file )
+    {
+        fclose(g_idx_write.file);
+        g_idx_write.file = NULL;
+    }
+
+    snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, table_id);
+    g_idx_write.file = dat2disk_open_rw(path);
+    if( !g_idx_write.file )
+        return NULL;
+    snprintf(g_idx_write.directory, sizeof(g_idx_write.directory), "%s", directory);
+    g_idx_write.table_id = table_id;
+    return g_idx_write.file;
+}
+
 int
 RSCache_Dat2DiskWriteArchive(
     const char* directory,
@@ -362,14 +469,7 @@ RSCache_Dat2DiskWriteArchive(
     if( !directory || !data || data_size <= 0 || archive_id < 0 )
         return -1;
 
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", directory);
-
-    /* "r+b" then fall back to "w+b": opening an existing cache for update must not
-     * truncate it, but a fresh one has to be created. */
-    FILE* dat2_file = fopen(path, "r+b");
-    if( !dat2_file )
-        dat2_file = fopen(path, "w+b");
+    FILE* dat2_file = dat2disk_dat2_handle(directory);
     if( !dat2_file )
         return -1;
 
@@ -381,22 +481,21 @@ RSCache_Dat2DiskWriteArchive(
         uint8_t reserved[SECTOR_SIZE] = { 0 };
         if( fwrite(reserved, 1, sizeof(reserved), dat2_file) != sizeof(reserved) )
         {
-            fclose(dat2_file);
+            RSCache_Dat2DiskWriteFlush();
             return -1;
         }
     }
 
     int sector = RSCache_Dat2DiskDat2FileAppendArchive(
         dat2_file, table_id, archive_id, (uint8_t*)data, data_size);
-    fclose(dat2_file);
+    /* Flush rather than close: the bytes have to be visible to a reader opening
+     * this path separately, but the handle is worth keeping. */
+    fflush(dat2_file);
 
     if( sector <= 0 )
         return -1;
 
-    snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, table_id);
-    FILE* index_file = fopen(path, "r+b");
-    if( !index_file )
-        index_file = fopen(path, "w+b");
+    FILE* index_file = dat2disk_idx_handle(directory, table_id);
     if( !index_file )
         return -1;
 
@@ -408,7 +507,7 @@ RSCache_Dat2DiskWriteArchive(
     };
 
     int result = RSCache_Dat2DiskIndexFileWriteRecord(index_file, archive_id, &record);
-    fclose(index_file);
+    fflush(index_file);
     return result == 0 ? 0 : -1;
 }
 

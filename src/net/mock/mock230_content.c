@@ -32,6 +32,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+
+/* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
+ * path with stat() instead -- portable across the unix and win32 builds. */
+static int
+mock230_path_is_dir(const char* path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+}
 
 /* ------------------------------------------------------------------ */
 /* Diagnostics                                                         */
@@ -2826,7 +2836,7 @@ walk_configs(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( entry->d_type == DT_DIR )
+        if( mock230_path_is_dir(path) )
             walk_configs(path, suffix, load);
         else if( has_suffix(entry->d_name, suffix) )
             load(path);

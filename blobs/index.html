@@ -1,0 +1,773 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RemoteProxyDesktopXP</title>
+<style>
+  :root {
+    --bg:#0d0f12; --panel:#171b21; --panel2:#1d222a; --line:#262c35;
+    --fg:#c9d1d9; --dim:#7d8794; --accent:#4c8eda; --ok:#3fb950;
+    --bad:#f85149; --warn:#d29922;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+              font:13px/1.45 "Segoe UI",Tahoma,sans-serif; overflow:hidden; }
+
+  /* ---- shell ---- */
+  #bar { display:flex; align-items:center; gap:6px; height:42px; padding:0 12px;
+         background:var(--panel); border-bottom:1px solid var(--line);
+         user-select:none; position:relative; z-index:5; }
+  #brand { font-weight:600; letter-spacing:.3px; margin-right:10px; white-space:nowrap; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--bad);
+         display:inline-block; margin-right:7px; vertical-align:middle; }
+  .dot.on { background:var(--ok); }
+  .tab { background:none; border:1px solid transparent; color:var(--dim);
+         padding:5px 13px; border-radius:5px; cursor:pointer; font-size:13px; }
+  .tab:hover { color:var(--fg); background:var(--panel2); }
+  .tab.sel { color:#fff; background:var(--panel2); border-color:var(--line); }
+  .sp { flex:1; }
+  #host { color:var(--dim); font-family:Consolas,monospace; font-size:11px; }
+  #stats { color:var(--dim); font-family:Consolas,monospace; font-size:11px; }
+
+  button, select { background:#21262d; color:var(--fg); border:1px solid var(--line);
+                   border-radius:5px; padding:5px 11px; cursor:pointer; font-size:12px; }
+  button:hover:not(:disabled), select:hover { background:#2d333b; }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover:not(:disabled) { background:#5b9ae4; }
+  button.danger:hover:not(:disabled) { background:#5b2422; border-color:var(--bad); }
+  label { color:var(--dim); cursor:pointer; white-space:nowrap; }
+  label input { vertical-align:middle; margin:0 4px 0 0; }
+
+  .page { position:absolute; inset:42px 0 0 0; display:none; }
+  .page.sel { display:flex; flex-direction:column; }
+
+  /* ---- desktop ---- */
+  #stage { flex:1; display:flex; align-items:center; justify-content:center;
+           background:#000; overflow:hidden; position:relative; }
+  #screen { max-width:100%; max-height:100%; image-rendering:pixelated;
+            cursor:crosshair; outline:none; touch-action:none; }
+  #screen.fit { width:100%; height:100%; object-fit:contain; }
+  #msg { position:absolute; inset:0; display:flex; align-items:center;
+         justify-content:center; color:var(--dim); pointer-events:none; }
+
+  /* ---- shared toolbar ---- */
+  .tools { display:flex; align-items:center; gap:8px; padding:8px 12px;
+           background:var(--panel); border-bottom:1px solid var(--line);
+           flex-wrap:wrap; }
+
+  /* ---- files ---- */
+  #crumbs { flex:1; display:flex; align-items:center; gap:2px; overflow:hidden;
+            font-family:Consolas,monospace; font-size:12px; min-width:120px; }
+  #crumbs a { color:var(--accent); text-decoration:none; cursor:pointer;
+              padding:2px 4px; border-radius:3px; white-space:nowrap; }
+  #crumbs a:hover { background:var(--panel2); text-decoration:underline; }
+  #crumbs span { color:var(--dim); }
+  #fwrap { flex:1; overflow:auto; position:relative; }
+  table { width:100%; border-collapse:collapse; }
+  th { position:sticky; top:0; background:var(--panel); text-align:left;
+       font-weight:600; color:var(--dim); font-size:11px; text-transform:uppercase;
+       letter-spacing:.5px; padding:7px 12px; border-bottom:1px solid var(--line); }
+  td { padding:5px 12px; border-bottom:1px solid #1b2028; vertical-align:middle; }
+  tr.row:hover { background:var(--panel2); }
+  td.nm { cursor:pointer; }
+  td.nm .ic { display:inline-block; width:18px; opacity:.75; }
+  td.sz, td.dt { color:var(--dim); font-family:Consolas,monospace; font-size:11px;
+                 white-space:nowrap; }
+  td.sz { text-align:right; }
+  td.ac { text-align:right; white-space:nowrap; }
+  td.ac button { padding:2px 8px; font-size:11px; }
+  tr.hid td.nm { opacity:.5; }
+  #drop { position:absolute; inset:0; display:none; align-items:center;
+          justify-content:center; background:rgba(76,142,218,.12);
+          border:2px dashed var(--accent); font-size:16px; color:#fff;
+          pointer-events:none; z-index:3; }
+  #drop.on { display:flex; }
+  #ups { border-top:1px solid var(--line); background:var(--panel);
+         max-height:150px; overflow:auto; display:none; }
+  #ups.on { display:block; }
+  .up { display:flex; align-items:center; gap:10px; padding:6px 12px;
+        border-bottom:1px solid #1b2028; font-size:12px; }
+  .up .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up .pb { width:160px; height:5px; background:#0d1117; border-radius:3px; overflow:hidden; }
+  .up .pb i { display:block; height:100%; background:var(--accent); width:0; transition:width .12s; }
+  .up .st { width:74px; text-align:right; color:var(--dim);
+            font-family:Consolas,monospace; font-size:11px; }
+  .up.done .st { color:var(--ok); }
+  .up.err  .st { color:var(--bad); }
+
+  /* ---- devices ---- */
+  #devwrap { flex:1; overflow:auto; padding:14px; }
+  #grid { display:grid; gap:12px;
+          grid-template-columns:repeat(auto-fill,minmax(275px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:13px 14px; }
+  .card.cap { border-color:#2a4a6d; }
+  .card .ip { font-family:Consolas,monospace; font-size:15px; color:#fff; }
+  .card .meta { color:var(--dim); font-size:11px; font-family:Consolas,monospace;
+                margin-top:3px; min-height:15px; }
+  .tags { margin:9px 0 11px; display:flex; gap:5px; flex-wrap:wrap; }
+  .tag { font-size:10px; padding:2px 7px; border-radius:9px; border:1px solid var(--line);
+         color:var(--dim); text-transform:uppercase; letter-spacing:.4px; }
+  .tag.cap { color:#9ecbff; border-color:#2a4a6d; background:#14243a; }
+  .tag.me  { color:var(--warn); border-color:#4a3a12; background:#2a2210; }
+  .card .acts { display:flex; gap:7px; }
+  .card .acts button { flex:1; }
+  #scanbar { flex:1; height:5px; background:#0d1117; border-radius:3px; overflow:hidden;
+             max-width:260px; }
+  #scanbar i { display:block; height:100%; background:var(--accent); width:0; transition:width .2s; }
+  .empty { color:var(--dim); text-align:center; padding:40px; }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <span id="brand"><span class="dot" id="led"></span>RemoteProxyDesktopXP</span>
+  <button class="tab sel" data-page="desktop">Desktop</button>
+  <button class="tab" data-page="files">Files</button>
+  <button class="tab" data-page="devices">Devices</button>
+  <span class="sp"></span>
+  <span id="host"></span>
+  <span id="stats"></span>
+</div>
+
+<!-- ===================== DESKTOP ===================== -->
+<div class="page sel" id="page-desktop">
+  <div class="tools">
+    <label><input type="checkbox" id="kbd" checked>Capture keyboard</label>
+    <label><input type="checkbox" id="fit">Scale to fit</label>
+    <button id="full">Fullscreen</button>
+    <span class="sp"></span>
+    <span id="dstat" style="color:var(--dim);font-family:Consolas,monospace;font-size:11px"></span>
+  </div>
+  <div id="stage">
+    <canvas id="screen" width="640" height="480" tabindex="0"></canvas>
+    <div id="msg">connecting&hellip;</div>
+  </div>
+</div>
+
+<!-- ====================== FILES ====================== -->
+<div class="page" id="page-files">
+  <div class="tools">
+    <select id="drives" title="Drives"></select>
+    <button id="fup" title="Parent directory">&#8593; Up</button>
+    <button id="frefresh" title="Refresh">&#8635;</button>
+    <div id="crumbs"></div>
+    <label><input type="checkbox" id="showhidden">Hidden</label>
+    <button id="fmkdir">New folder</button>
+    <button class="primary" id="fupload">Upload&hellip;</button>
+    <input type="file" id="filepick" multiple hidden>
+  </div>
+  <div id="fwrap">
+    <div id="drop">Drop files to upload here</div>
+    <table>
+      <thead><tr>
+        <th style="width:60%">Name</th><th style="width:14%;text-align:right">Size</th>
+        <th style="width:18%">Modified</th><th style="width:8%"></th>
+      </tr></thead>
+      <tbody id="ftbody"></tbody>
+    </table>
+    <div class="empty" id="fempty" style="display:none"></div>
+  </div>
+  <div id="ups"></div>
+</div>
+
+<!-- ===================== DEVICES ===================== -->
+<div class="page" id="page-devices">
+  <div class="tools">
+    <button class="primary" id="scan">Scan network</button>
+    <div id="scanbar"><i></i></div>
+    <span id="scantxt" style="color:var(--dim);font-size:12px"></span>
+    <span class="sp"></span>
+    <span style="color:var(--dim);font-size:11px">probing this server&rsquo;s port + SMB 445</span>
+  </div>
+  <div id="devwrap"><div id="grid"></div><div class="empty" id="devempty">No scan run yet.</div></div>
+</div>
+
+<script>
+"use strict";
+(function () {
+
+var $ = function (id) { return document.getElementById(id); };
+var info = { w: 640, h: 480, x: 0, y: 0, files: 1, net: 1, port: location.port || 80 };
+var page = "desktop";
+
+/* ==================================================================== shell */
+
+function show(p) {
+  if (p === page) return;
+  /* Leaving the desktop drops the stream: with no viewer attached the server
+     stops capturing entirely, which matters on a Pentium 4. */
+  if (page === "desktop") stopStream();
+  page = p;
+  var i, tabs = document.querySelectorAll(".tab");
+  for (i = 0; i < tabs.length; i++) tabs[i].classList.toggle("sel", tabs[i].dataset.page === p);
+  ["desktop", "files", "devices"].forEach(function (n) {
+    $("page-" + n).classList.toggle("sel", n === p);
+  });
+  if (location.hash !== "#" + p) location.hash = "#" + p;
+  if (p === "desktop") connect();
+  if (p === "files" && !fsPath) fsInit();
+  if (p === "devices" && !devLoaded) devPoll();
+}
+
+document.querySelectorAll(".tab").forEach(function (t) {
+  t.addEventListener("click", function () { show(t.dataset.page); });
+});
+window.addEventListener("hashchange", function () {
+  var h = location.hash.replace("#", "");
+  if (h === "desktop" || h === "files" || h === "devices") show(h);
+});
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  var u = ["KB", "MB", "GB", "TB"], i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < 3);
+  return (n < 10 ? n.toFixed(1) : Math.round(n)) + " " + u[i];
+}
+function fmtDate(ms) {
+  if (!ms) return "";
+  var d = new Date(ms), p = function (v) { return (v < 10 ? "0" : "") + v; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+         " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+
+/* ================================================================== desktop */
+
+var cv = $("screen"), ctx = cv.getContext("2d", { alpha: false }),
+    led = $("led"), msg = $("msg"), dstat = $("dstat"),
+    frames = 0, bytes = 0, running = false, reader = null, wantStream = false;
+
+ctx.imageSmoothingEnabled = false;
+
+function say(t) { msg.textContent = t || ""; msg.style.display = t ? "flex" : "none"; }
+function live(on) { led.classList.toggle("on", !!on); }
+
+var buf = new Uint8Array(1 << 20), len = 0, head = 0;
+
+function push(chunk) {
+  if (head === len) { head = 0; len = 0; }
+  if (len + chunk.length > buf.length) {
+    if (head > 0) { buf.copyWithin(0, head, len); len -= head; head = 0; }
+    if (len + chunk.length > buf.length) {
+      var nb = new Uint8Array(Math.max(buf.length * 2, len + chunk.length));
+      nb.set(buf.subarray(0, len)); buf = nb;
+    }
+  }
+  buf.set(chunk, len); len += chunk.length;
+}
+
+function findCRLF2() {
+  for (var i = head; i + 3 < len; i++)
+    if (buf[i] === 13 && buf[i+1] === 10 && buf[i+2] === 13 && buf[i+3] === 10)
+      return i + 4;
+  return -1;
+}
+
+function parseHeaders(end) {
+  var txt = "", i;
+  for (i = head; i < end; i++) txt += String.fromCharCode(buf[i]);
+  var out = { len: -1, rect: null };
+  txt.split("\r\n").forEach(function (line) {
+    var c = line.indexOf(":");
+    if (c < 0) return;
+    var k = line.slice(0, c).trim().toLowerCase(), v = line.slice(c + 1).trim();
+    if (k === "content-length") out.len = parseInt(v, 10);
+    else if (k === "x-rect") {
+      var p = v.split(/\s+/).map(Number);
+      if (p.length === 4) out.rect = { x: p[0], y: p[1], w: p[2], h: p[3] };
+    }
+  });
+  return out;
+}
+
+var draw = (typeof createImageBitmap === "function")
+  ? function (blob, r) {
+      return createImageBitmap(blob).then(function (bm) {
+        ctx.drawImage(bm, r.x, r.y);
+        if (bm.close) bm.close();
+      });
+    }
+  : function (blob, r) {
+      return new Promise(function (res) {
+        var url = URL.createObjectURL(blob), im = new Image();
+        im.onload = im.onerror = function () {
+          if (im.width) ctx.drawImage(im, r.x, r.y);
+          URL.revokeObjectURL(url); res();
+        };
+        im.src = url;
+      });
+    };
+
+function pump(rd, onErr) {
+  var pending = null;
+  function step() {
+    rd.read().then(function (res) {
+      if (res.done) throw new Error("stream closed");
+      push(res.value);
+      bytes += res.value.length;
+      return consume();
+    }).then(function () { step(); }, onErr);
+  }
+  function consume() {
+    if (!pending) {
+      var end = findCRLF2();
+      if (end < 0) return Promise.resolve();
+      pending = parseHeaders(end);
+      head = end;
+      if (!(pending.len >= 0)) { pending = null; return Promise.resolve(); }
+    }
+    if (len - head < pending.len) return Promise.resolve();
+    var part = pending, body = buf.subarray(head, head + part.len);
+    head += part.len;
+    pending = null;
+    frames++;
+    if (!part.rect) return consume();
+    var blob = new Blob([body.slice(0)], { type: "image/jpeg" });
+    return draw(blob, part.rect).then(consume);
+  }
+  step();
+}
+
+function stopStream() {
+  wantStream = false;
+  running = false;
+  live(false);
+  if (reader) { try { reader.cancel(); } catch (e) {} reader = null; }
+}
+
+function dropped(e) {
+  reader = null;
+  running = false;
+  live(false);
+  if (!wantStream) return;                 /* deliberate tab switch */
+  say("disconnected (" + (e && e.message ? e.message : e) + ") â€” retryingâ€¦");
+  setTimeout(function () { if (wantStream) connect(); }, 1500);
+}
+
+function connect() {
+  if (running || reader) return;
+  wantStream = true;
+  say("connectingâ€¦");
+  fetch("info", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      applyInfo(j);
+      cv.width = j.w; cv.height = j.h;
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, j.w, j.h);
+      if (!window.ReadableStream || !window.fetch) return legacy();
+      return fetch("stream", { cache: "no-store" }).then(function (r) {
+        if (!r.ok || !r.body) throw new Error("HTTP " + r.status);
+        head = len = 0;
+        reader = r.body.getReader();
+        running = true; live(true); say(""); cv.focus();
+        pump(reader, dropped);
+      });
+    })
+    .catch(dropped);
+}
+
+function legacy() {
+  var im = document.createElement("img");
+  im.id = "screen"; im.src = "mjpeg";
+  cv.parentNode.replaceChild(im, cv);
+  cv = im; running = true; live(true);
+  say("legacy MJPEG mode (no streaming fetch)");
+}
+
+function applyInfo(j) {
+  info = j;
+  $("host").textContent = location.hostname + ":" + (j.port || location.port) +
+                          "  " + j.w + "\u00d7" + j.h;
+  if (!j.files) { $("fupload").disabled = true; $("fmkdir").disabled = true; }
+  if (!j.net)   { $("scan").disabled = true; $("scantxt").textContent = "discovery disabled on this server"; }
+}
+
+/* ---- input ---- */
+var q = [], sending = false, flushTimer = 0;
+
+function send(cmd) {
+  if (!running || page !== "desktop") return;
+  q.push(cmd);
+  if (!flushTimer) flushTimer = setTimeout(flush, 12);
+}
+function flush() {
+  flushTimer = 0;
+  if (sending || !q.length) return;
+  var body = q.join("\n") + "\n";
+  q.length = 0; sending = true;
+  fetch("input", { method: "POST", body: body, cache: "no-store" })
+    .catch(function () {})
+    .then(function () {
+      sending = false;
+      if (q.length && !flushTimer) flushTimer = setTimeout(flush, 0);
+    });
+}
+function toScreen(e) {
+  var r = cv.getBoundingClientRect();
+  return {
+    x: info.x + Math.round((e.clientX - r.left) * info.w / r.width),
+    y: info.y + Math.round((e.clientY - r.top)  * info.h / r.height)
+  };
+}
+var lastMove = 0;
+function onMove(e) {
+  var t = e.timeStamp || Date.now();
+  if (t - lastMove < 12) return;
+  lastMove = t;
+  var p = toScreen(e);
+  send("m " + p.x + " " + p.y);
+}
+function btn(e) { return e.button === 1 ? 2 : e.button === 2 ? 1 : 0; }
+
+cv.addEventListener("mousemove", onMove);
+cv.addEventListener("mousedown", function (e) {
+  e.preventDefault(); cv.focus();
+  var p = toScreen(e);
+  send("m " + p.x + " " + p.y); send("d " + btn(e));
+});
+window.addEventListener("mouseup", function (e) { send("u " + btn(e)); });
+cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+cv.addEventListener("wheel", function (e) {
+  e.preventDefault();
+  var d = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  send("w " + (-Math.round(d / 100 * 120) || (d > 0 ? -120 : 120)));
+}, { passive: false });
+
+var VK = {
+  Escape:27, Tab:9, CapsLock:20, ShiftLeft:16, ShiftRight:16, ControlLeft:17,
+  ControlRight:17, AltLeft:18, AltRight:18, MetaLeft:91, MetaRight:92,
+  ContextMenu:93, Space:32, Enter:13, Backspace:8, Insert:45, Delete:46,
+  Home:36, End:35, PageUp:33, PageDown:34, ArrowLeft:37, ArrowUp:38,
+  ArrowRight:39, ArrowDown:40, PrintScreen:44, ScrollLock:145, Pause:19,
+  NumLock:144, NumpadDivide:111, NumpadMultiply:106, NumpadSubtract:109,
+  NumpadAdd:107, NumpadEnter:13, NumpadDecimal:110,
+  Minus:189, Equal:187, BracketLeft:219, BracketRight:221, Backslash:220,
+  Semicolon:186, Quote:222, Backquote:192, Comma:188, Period:190, Slash:191
+};
+(function () {
+  var i;
+  for (i = 0; i < 26; i++) VK["Key" + String.fromCharCode(65 + i)] = 65 + i;
+  for (i = 0; i < 10; i++) { VK["Digit" + i] = 48 + i; VK["Numpad" + i] = 96 + i; }
+  for (i = 1; i <= 12; i++) VK["F" + i] = 111 + i;
+})();
+
+function onKey(down) {
+  return function (e) {
+    if (!running || page !== "desktop" || !$("kbd").checked) return;
+    if (e.key === "F5" || e.key === "F11" || e.key === "F12") return;
+    var vk = VK[e.code] || e.keyCode || 0;
+    if (!vk) return;
+    e.preventDefault();
+    send("k " + (down ? 1 : 0) + " " + vk);
+  };
+}
+window.addEventListener("keydown", onKey(true));
+window.addEventListener("keyup",   onKey(false));
+window.addEventListener("blur", function () {
+  [16, 17, 18, 91].forEach(function (v) { send("k 0 " + v); });
+});
+
+$("fit").addEventListener("change", function () { cv.classList.toggle("fit", this.checked); });
+$("full").addEventListener("click", function () {
+  var s = $("stage");
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (s.requestFullscreen) s.requestFullscreen();
+});
+
+setInterval(function () {
+  dstat.textContent = running
+    ? frames + " patch/s   " + (bytes / 1024 | 0) + " KB/s"
+    : "";
+  frames = 0; bytes = 0;
+}, 1000);
+
+/* ==================================================================== files */
+
+var fsPath = "", fsEntries = [];
+
+function api(url, opts) {
+  return fetch(url, opts || {}).then(function (r) {
+    return r.text().then(function (t) {
+      var j = null;
+      try { j = JSON.parse(t); } catch (e) {}
+      if (!r.ok) throw new Error((j && j.err) || ("HTTP " + r.status));
+      return j;
+    });
+  });
+}
+
+function fsInit() {
+  api("fs/drives").then(function (j) {
+    var sel = $("drives");
+    sel.innerHTML = "";
+    j.drives.forEach(function (d) {
+      var o = document.createElement("option");
+      o.value = d.p; o.textContent = d.p;
+      sel.appendChild(o);
+    });
+    if (j.drives.length) fsGo(j.drives[0].p);
+  }).catch(function (e) { fsError(e.message); });
+}
+
+$("drives").addEventListener("change", function () { fsGo(this.value); });
+
+function fsError(m) {
+  $("ftbody").innerHTML = "";
+  $("fempty").style.display = "block";
+  $("fempty").textContent = m;
+}
+
+function fsGo(p) {
+  api("fs/list?path=" + encodeURIComponent(p))
+    .then(function (j) { fsPath = j.path; fsEntries = j.entries; fsRender(j.truncated); })
+    .catch(function (e) { fsError(e.message); });
+}
+
+function parentOf(p) {
+  var q = p.replace(/\\+$/, "");
+  var i = q.lastIndexOf("\\");
+  if (i < 0) return null;
+  if (i <= 2) return q.slice(0, 3);          /* C:\ */
+  return q.slice(0, i);
+}
+
+function join(dir, name) {
+  return dir.replace(/\\+$/, "") + "\\" + name;
+}
+
+function fsRender(truncated) {
+  /* crumbs */
+  var cr = $("crumbs"); cr.innerHTML = "";
+  var segs = fsPath.split("\\").filter(function (s) { return s.length; });
+  var acc = "";
+  segs.forEach(function (s, i) {
+    acc = i === 0 ? s + "\\" : join(acc, s);
+    var a = document.createElement("a");
+    a.textContent = s;
+    a.dataset.p = acc;
+    a.addEventListener("click", function () { fsGo(this.dataset.p); });
+    if (i) { var sp = document.createElement("span"); sp.textContent = "\\"; cr.appendChild(sp); }
+    cr.appendChild(a);
+  });
+
+  var hid = $("showhidden").checked;
+  var rows = fsEntries.filter(function (e) { return hid || !e.h; });
+  rows.sort(function (a, b) {
+    if (a.d !== b.d) return b.d - a.d;
+    return a.n.toLowerCase() < b.n.toLowerCase() ? -1 : 1;
+  });
+
+  var tb = $("ftbody");
+  tb.innerHTML = "";
+  rows.forEach(function (e) {
+    var tr = document.createElement("tr");
+    tr.className = "row" + (e.h ? " hid" : "");
+    tr.innerHTML =
+      '<td class="nm"><span class="ic">' + (e.d ? "&#128193;" : "&#128196;") + "</span>" +
+        esc(e.n) + "</td>" +
+      '<td class="sz">' + (e.d ? "" : fmtSize(e.s)) + "</td>" +
+      '<td class="dt">' + fmtDate(e.m) + "</td>" +
+      '<td class="ac"><button class="danger" title="Delete">&#10005;</button></td>';
+    var full = join(fsPath, e.n);
+    tr.querySelector("td.nm").addEventListener("click", function () {
+      if (e.d) fsGo(full);
+      else {
+        var a = document.createElement("a");
+        a.href = "fs/get?path=" + encodeURIComponent(full);
+        a.download = e.n;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+    });
+    tr.querySelector("button").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      if (!confirm("Delete " + e.n + " ?")) return;
+      api("fs/del?path=" + encodeURIComponent(full), { method: "POST" })
+        .then(function () { fsGo(fsPath); })
+        .catch(function (er) { alert("Delete failed: " + er.message); });
+    });
+    tb.appendChild(tr);
+  });
+
+  $("fempty").style.display = rows.length ? "none" : "block";
+  $("fempty").textContent = truncated ? "Listing truncated." : "Empty folder.";
+  if (truncated && rows.length) {
+    $("fempty").style.display = "block";
+    $("fempty").textContent = "Listing truncated at " + rows.length + " entries.";
+  }
+}
+
+$("fup").addEventListener("click", function () {
+  var p = parentOf(fsPath);
+  if (p) fsGo(p);
+});
+$("frefresh").addEventListener("click", function () { if (fsPath) fsGo(fsPath); });
+$("showhidden").addEventListener("change", function () { fsRender(0); });
+$("fmkdir").addEventListener("click", function () {
+  var n = prompt("New folder name:");
+  if (!n) return;
+  api("fs/mkdir?path=" + encodeURIComponent(join(fsPath, n)), { method: "POST" })
+    .then(function () { fsGo(fsPath); })
+    .catch(function (e) { alert("Create failed: " + e.message); });
+});
+
+/* ---- uploads: one at a time, XHR for progress events ---- */
+var upq = [], upbusy = false;
+
+function upload(files) {
+  if (!fsPath) return;
+  var i;
+  for (i = 0; i < files.length; i++) upq.push({ f: files[i], dir: fsPath });
+  $("ups").classList.add("on");
+  upNext();
+}
+
+function upNext() {
+  if (upbusy || !upq.length) return;
+  upbusy = true;
+  var job = upq.shift(), f = job.f;
+
+  var row = document.createElement("div");
+  row.className = "up";
+  row.innerHTML = '<span class="n"></span><span class="pb"><i></i></span><span class="st">0%</span>';
+  row.querySelector(".n").textContent = f.name + "  (" + fmtSize(f.size) + ")";
+  $("ups").appendChild(row);
+  $("ups").scrollTop = $("ups").scrollHeight;
+
+  var bar = row.querySelector("i"), st = row.querySelector(".st");
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "fs/put?path=" + encodeURIComponent(join(job.dir, f.name)));
+  xhr.upload.onprogress = function (e) {
+    if (!e.lengthComputable) return;
+    var pc = Math.round(e.loaded / e.total * 100);
+    bar.style.width = pc + "%"; st.textContent = pc + "%";
+  };
+  xhr.onload = function () {
+    upbusy = false;
+    if (xhr.status === 200) { row.className = "up done"; bar.style.width = "100%"; st.textContent = "done"; }
+    else { row.className = "up err"; st.textContent = "failed"; }
+    if (fsPath === job.dir) fsGo(fsPath);
+    upNext();
+  };
+  xhr.onerror = function () {
+    upbusy = false; row.className = "up err"; st.textContent = "error"; upNext();
+  };
+  xhr.send(f);
+}
+
+$("fupload").addEventListener("click", function () { $("filepick").click(); });
+$("filepick").addEventListener("change", function () { upload(this.files); this.value = ""; });
+
+var dragDepth = 0;
+["dragenter", "dragover"].forEach(function (ev) {
+  $("fwrap").addEventListener(ev, function (e) {
+    e.preventDefault();
+    if (ev === "dragenter") dragDepth++;
+    $("drop").classList.add("on");
+  });
+});
+$("fwrap").addEventListener("dragleave", function () {
+  if (--dragDepth <= 0) { dragDepth = 0; $("drop").classList.remove("on"); }
+});
+$("fwrap").addEventListener("drop", function (e) {
+  e.preventDefault();
+  dragDepth = 0;
+  $("drop").classList.remove("on");
+  if (e.dataTransfer && e.dataTransfer.files.length) upload(e.dataTransfer.files);
+});
+
+/* ================================================================== devices */
+
+var devLoaded = false, devTimer = 0;
+
+$("scan").addEventListener("click", function () {
+  $("scan").disabled = true;
+  $("scantxt").textContent = "scanningâ€¦";
+  api("net/scan").then(devPoll).catch(function (e) {
+    $("scan").disabled = false;
+    $("scantxt").textContent = e.message;
+  });
+});
+
+function devPoll() {
+  clearTimeout(devTimer);
+  api("net/devices").then(function (j) {
+    devLoaded = true;
+    devRender(j);
+    if (j.scanning) devTimer = setTimeout(devPoll, 600);
+    else {
+      $("scan").disabled = false;
+      $("scantxt").textContent = j.total
+        ? j.devices.length + " device" + (j.devices.length === 1 ? "" : "s") + " found"
+        : "";
+      $("scanbar").querySelector("i").style.width = "100%";
+    }
+  }).catch(function (e) {
+    $("scan").disabled = false;
+    $("scantxt").textContent = e.message;
+  });
+}
+
+function devRender(j) {
+  $("scanbar").querySelector("i").style.width =
+    (j.total ? Math.round(j.done / j.total * 100) : 0) + "%";
+  if (j.scanning) $("scantxt").textContent = "scanningâ€¦ " + j.done + "/" + j.total;
+
+  var g = $("grid");
+  g.innerHTML = "";
+  $("devempty").style.display = j.devices.length ? "none" : "block";
+  $("devempty").textContent = j.scanning ? "Scanningâ€¦" : "No devices responded.";
+
+  j.devices.forEach(function (d) {
+    var url = location.protocol + "//" + d.ip + ":" + j.port + "/";
+    var c  = document.createElement("div");
+    c.className = "card" + (d.rpdxp ? " cap" : "");
+    var tags = "";
+    if (d.self)  tags += '<span class="tag me">this machine</span>';
+    if (d.rpdxp) tags += '<span class="tag cap">rpdxp ' + esc(d.ver || "") + "</span>";
+    if (d.smb)   tags += '<span class="tag">smb</span>';
+    if (!d.rpdxp && !d.smb) tags += '<span class="tag">arp only</span>';
+
+    c.innerHTML =
+      '<div class="ip">' + esc(d.ip) + "</div>" +
+      '<div class="meta">' + esc(d.mac || "") +
+        (d.rpdxp && d.w ? "  &middot;  " + d.w + "\u00d7" + d.h : "") + "</div>" +
+      '<div class="tags">' + tags + "</div>" +
+      '<div class="acts">' +
+        '<button class="primary" ' + (d.rpdxp ? "" : "disabled") + '>Remote Desktop</button>' +
+        "<button " + (d.rpdxp ? "" : "disabled") + ">Files</button>" +
+      "</div>";
+
+    var b = c.querySelectorAll("button");
+    b[0].addEventListener("click", function () { goTo(d, "desktop", url); });
+    b[1].addEventListener("click", function () { goTo(d, "files",   url); });
+    g.appendChild(c);
+  });
+}
+
+/* Each server hosts its own UI, so switching machines is a navigation rather
+   than a cross-origin fetch -- no CORS grant to hand out, no shared session. */
+function goTo(d, want, url) {
+  if (d.self) { show(want); return; }
+  window.location.href = url + "#" + want;
+}
+
+/* ===================================================================== boot */
+
+var start = location.hash.replace("#", "");
+if (start !== "files" && start !== "devices") start = "desktop";
+fetch("info", { cache: "no-store" }).then(function (r) { return r.json(); })
+  .then(applyInfo).catch(function () {});
+if (start === "desktop") connect(); else { page = "desktop"; show(start); }
+
+})();
+</script>
+</body>
+</html>

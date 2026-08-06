@@ -1294,12 +1294,26 @@ cp_names_emit_gamevals(
     if( !ctx->cache_open )
         return 1;
     table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_GAMEVALS);
-    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !ctx->cache.disk->tables[table_id] )
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
-        /* Absent in the pre-dat2 epoch, and a normal state rather than a fault. */
-        printf("Gamevals: the target cache has no symbol table; nothing emitted\n");
+        /* Absent in the pre-dat2 epoch, and a normal state rather than a fault.
+         * This is a property of the REVISION, so it is the only thing that can
+         * legitimately skip the emit. */
+        printf("Gamevals: this revision has no symbol table; nothing emitted\n");
         return 1;
     }
+    /*
+     * `!disk->tables[table_id]` used to skip here too, and that conflated the
+     * revision not having a gameval table with this cache not having one YET.
+     * disk->tables is populated from the .idxN present when the cache was
+     * opened, so on a cache packed from the tree alone it is empty for every
+     * table — and the emit silently did nothing, leaving idx24 the one table a
+     * from-scratch bake never produced.
+     *
+     * Nothing needs to be created here: the writes below go through
+     * cp_reference_sync, which builds the reference table when the cache has
+     * none (see cp_reference_ensure).
+     */
 
     printf("Emitting gamevals from the pack files\n");
     for( int t = 0; t < CP_TYPE_COUNT; t++ )

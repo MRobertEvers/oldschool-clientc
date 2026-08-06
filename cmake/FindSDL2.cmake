@@ -1,3 +1,11 @@
+# DEPRECATED — orphaned, and was orphaned before it was deprecated.
+#
+# Nothing ever loaded this module: CMAKE_MODULE_PATH is never set, and the root
+# CMakeLists.txt (itself deprecated) hand-rolls the same find_path/find_library
+# search inline. The live build is `make -C src`; the make lane finds SDL2 with
+# pkg-config, then sdl2-config, then a Homebrew/usr-local fallback — see the
+# desktop block in src/platform/platform.mk.
+#
 # FindSDL2.cmake
 # Locate SDL2 library
 # This module defines:

@@ -24,6 +24,27 @@ struct Tool_Dat2Cache
     struct RSCache_Dat2Disk* disk;
 };
 
+/*
+ * Create an empty dat2 cache at cache_dir, so a pack with no --base has
+ * somewhere to write.
+ *
+ * Everything needed to grow a cache from nothing was already here:
+ * RSCache_Dat2DiskWriteArchive creates main_file_cache.dat2 and each
+ * main_file_cache.idxN on demand, and Dat2EditCommit builds and writes a
+ * reference table for every table it touches (dat2_edit_ensure_table). The one
+ * gap was the front door -- RSCache_Dat2DiskNewFromDirectory opens the .dat2
+ * with "rb+" and fails when it does not exist, so a from-scratch pack could
+ * never get past the open.
+ *
+ * This writes the reserved sector 0 that WriteArchive would have written, for
+ * the same reason: the index reader treats sector 0 as "absent", so an archive
+ * placed there would be invisible.
+ *
+ * Returns 1 on success, 0 on failure. Succeeds if a cache is already there.
+ */
+int
+tool_dat2_create(const char* cache_dir);
+
 int
 tool_dat2_open(
     const char* cache_dir,

@@ -14781,6 +14781,12 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "crystal_set"),
                            "::crystal_set should reach [debugproc,crystal_set]");
+            fprintf(stderr, "PROBE active=%p players0=%p count=%d\n",
+                    (void*)srv.active_player, (void*)&srv.players[0], srv.player_count);
+            for( int pslot = 0; pslot < MOCK230_INV_SLOTS; pslot++ )
+                if( who->inv[pslot].obj_id > 0 )
+                    fprintf(stderr, "PROBE inv[%d] = %d x%d\n", pslot,
+                            who->inv[pslot].obj_id, who->inv[pslot].count);
             for( size_t ci = 0; ci < sizeof(CRYSTAL) / sizeof(CRYSTAL[0]); ci++ )
             {
                 int obj = mock230_content_symbol(MOCK230_PACK_OBJ, CRYSTAL[ci]);

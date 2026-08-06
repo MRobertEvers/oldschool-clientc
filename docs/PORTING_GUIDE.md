@@ -692,12 +692,7 @@ LostCity stops at Sept 2004; 2009scape covers authentic mid-era through ~Jan
 quests 2009scape never shipped — live as **guides** in the RuneLite Quest
 Helper. Port them as content, not as engine:
 
-1. Confirm LostCity has no proc (§2.2). If it does, use
-   [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md) instead.
-2. Confirm 2009scape has no *implementation* (a `Quests.kt` enum row alone is
-   not enough). If it does, use
-   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
-3. Read the helper under
+1. Read the helper under
    `quest-helper/src/main/java/com/questhelper/helpers/quests/<dir>/`
    for the **state machine** (`steps.put(N, …)` = quest varbit values) and
    **named subjects** (`NpcID`/`ObjectID`/`ItemID`/`VarbitID` gamevals →
@@ -1212,9 +1207,15 @@ broken file in *your* slice — silencing a sibling drops their binds from
 forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
 (alwaysApply). Every `*_CONTENT_PORT_QUEUE.md` loop prompt must restate this.
 
-- **Build:** `make -C src` (plain make, not CMake). Script pack:
-  `make -C src mock230-scripts`. Agents sharing the repo must set a private
-  objdir (`PLATFORM_OBJ_BASE`) — stale-`.o` races are real.
+- **Build:** `make -C src` (plain make, not CMake — the CMake tree is
+  deprecated and no longer configures). Other lanes: `make -C src web`,
+  `make -C src winxp`. Every lane is one block in
+  [`src/platform/platform.mk`](../src/platform/platform.mk) and nothing above
+  that file tests `PLATFORM`; if you need a per-platform flag, add it there
+  rather than branching in `src/makefile`. `make -C src lane-check-all` asserts
+  each lane's invariants. Script pack: `make -C src mock230-scripts`. Agents
+  sharing the repo must set a private objdir (`PLATFORM_OBJ_BASE`) —
+  stale-`.o` races are real.
 - **Tests:** `make -C src test-db`, `test-mock230-coverage` (fails if the
   generated coverage header is stale), `test-ss-provider` (the trigger lookup
   order — every way of getting it wrong still finds *a* script),
