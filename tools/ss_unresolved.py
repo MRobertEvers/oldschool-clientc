@@ -73,6 +73,10 @@ def namespace_for(filename):
         return stem[len('all.'):] if stem.startswith('all.') else None
     if filename.endswith('.pack'):
         return filename[:-len('.pack')]
+    # The server's allocation ledger, `pack/<ns>.alloc` — the second layer of
+    # the namespace the compack indexes; same `id=name` grammar.
+    if filename.endswith('.alloc'):
+        return filename[:-len('.alloc')]
     return None
 
 

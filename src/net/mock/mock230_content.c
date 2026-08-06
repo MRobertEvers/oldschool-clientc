@@ -3098,6 +3098,14 @@ mock230_content_load(const char* dir)
         else
             snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
         symbols += pack_load(&g_packs[kind], path);
+        /* The server's allocation ledger, layered into the same namespace. The
+         * compack is the cache's member index and `pack/<ns>.alloc` holds the
+         * ids ss_allocate.py handed out past its high-water mark — one
+         * namespace, two files, so a rename in either is caught by
+         * `validate_symbols` exactly as a duplicate inside one file is. Absent
+         * for most kinds, and `pack_load` reads absence as zero symbols. */
+        snprintf(path, sizeof(path), "%s/pack/%s.alloc", dir, name);
+        symbols += pack_load(&g_packs[kind], path);
     }
     /* After the loop: it needs the interface pack to already be loaded. */
     symbols += load_component_symbols(dir);

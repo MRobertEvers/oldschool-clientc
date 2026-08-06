@@ -71,6 +71,14 @@ cp_names_load(
             fprintf(stderr, "cachepack: failed to read %s\n", path);
             return 0;
         }
+        /* The server's allocation ledger, layered beside the member index.
+         * Absence is the common case — a namespace the server never allocated
+         * into has no file — and `lc_pack_load` reports it by zeroing the
+         * struct. Loaded into `alloc`, never `packs`: the save and gameval
+         * paths walk `packs` alone, which is what keeps a server name out of
+         * the machine-owned files by construction. */
+        snprintf(path, sizeof(path), "%s/pack/%s.alloc", srcdir, t->name);
+        lc_pack_load(&names->alloc[i], path, t->name, 1);
     }
 
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
@@ -1031,15 +1039,18 @@ cp_name_get(
     enum CP_TypeId type,
     int id)
 {
-    /* One file, so one lookup. There is no precedence question left to answer:
-     * `configs/all.param.compack` holds the 36 authored names *and* nothing else, because
-     * the filler resolves from `cp_name_find`'s synthetic rule instead of being
-     * stored. */
+    /* The member index first, then the allocation ledger. The two never bind
+     * the same id — an alloc id is past the cache's high-water mark by
+     * construction, and the migration is checked — so this is a union, not a
+     * precedence. */
     struct LC_Pack* pack = &ctx->names.packs[type];
+    struct LC_Pack* alloc = &ctx->names.alloc[type];
 
-    if( id < 0 || id >= pack->capacity || !pack->names )
-        return NULL;
-    return pack->names[id];
+    if( id >= 0 && id < pack->capacity && pack->names && pack->names[id] )
+        return pack->names[id];
+    if( id >= 0 && id < alloc->capacity && alloc->names )
+        return alloc->names[id];
+    return NULL;
 }
 
 const char*
@@ -1075,7 +1086,19 @@ cp_name_find(
      * Every record has a line now (`cp_names_save`), so a miss here is a real miss
      * and is reported as one rather than guessed at.
      */
-    return lc_pack_find(&ctx->names.packs[type], name);
+    int id = lc_pack_find(&ctx->names.packs[type], name);
+    if( id >= 0 )
+        return id;
+    return lc_pack_find(&ctx->names.alloc[type], name);
+}
+
+int
+cp_name_find_alloc(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* name)
+{
+    return lc_pack_find(&ctx->names.alloc[type], name);
 }
 
 /* ---- asset names -------------------------------------------------------- */

@@ -322,7 +322,10 @@ ContentRegister_ForPackFile(
         if( !dot )
             return NULL;
     }
-    else if( strcmp(dot, ".pack") != 0 )
+    /* `dbrow.alloc` -> `dbrow`: the server's allocation ledger — `id=name` like
+     * the member index it layers beside, holding only the ids ss_allocate.py
+     * handed out past the cache's high-water mark. */
+    else if( strcmp(dot, ".pack") != 0 && strcmp(dot, ".alloc") != 0 )
         return NULL;
     length = (size_t)(dot - filename);
     if( length == 0 || length >= sizeof(stem) )
