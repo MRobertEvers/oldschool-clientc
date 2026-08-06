@@ -808,9 +808,11 @@ it occurs before login and is not a client/game-thread failure.
 - 2026-08-06: Pushed `codex/runelite239-regressions` to both
   `MRobertEvers/oldschool-clientc` and `MRobertEvers/Deob`. No OSRS-Content
   change was needed: the defects were root protocol/lifecycle behavior and deob
-  telemetry. GitHub CLI had no authenticated session and no signed-in browser
-  surface was available, so the dependency PR creation URLs were retained for
-  handoff instead of fabricating PR numbers.
+  telemetry. Fast-forwarded the existing Deob PR #1 head
+  `codex/runelite239-deob-telemetry` from `95a5db1` to `845c2c7`. GitHub CLI had
+  no authenticated session and no signed-in browser surface was available, so
+  the new root dependency PR creation URL was retained for handoff instead of
+  fabricating a PR number.
 - 2026-08-06: Found and stopped a retained task-specific movement client,
   mock230, jav_config, and duplicate EVENTS subscribers using only the PIDs in
   `build/run239-regressions/movement_fixed`; no client from this regression run
