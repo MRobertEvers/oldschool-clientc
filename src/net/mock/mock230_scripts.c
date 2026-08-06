@@ -41,6 +41,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -104,6 +105,63 @@ coord_z(int32_t coord)
 /* ------------------------------------------------------------------ */
 /* Container                                                           */
 /* ------------------------------------------------------------------ */
+
+/*
+ * Is the compiled pack older than the content it was compiled from?
+ *
+ * This exists because a whole session was spent chasing a `[debugproc]` that
+ * "did not work" and was correct the entire time: the pack is a separate build
+ * from the binary, `run-live.sh` built only the binary, and the running server
+ * loaded a script.dat from days earlier. Nothing anywhere said so. The C was
+ * current, the scripts were stale, and every symptom pointed at the content.
+ *
+ * Newest source mtime vs the pack's. Cheap, and it does not need to be exact:
+ * one `.rs2` newer than `script.dat` is already proof the pack does not
+ * describe the tree. Returns the offending path so the message can name it.
+ *
+ * Deliberately a warning and not a refusal — a stale pack still runs, and
+ * someone deliberately testing an old pack against new C should be able to.
+ * The point is that they know they are doing it.
+ */
+static int
+scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* out_delta)
+{
+    char pack[1024];
+    struct stat pack_st;
+    const char* tree;
+    char cmd[2048];
+    FILE* pipe;
+    int stale = 0;
+
+    snprintf(pack, sizeof(pack), "%s/script.dat", dir);
+    if( stat(pack, &pack_st) != 0 )
+        return 0; /* no pack at all is the louder banner below */
+
+    /* `dir` is <tree>/build; the sources are its parent. */
+    tree = dir;
+    snprintf(cmd, sizeof(cmd),
+             "find '%s/..' -name '*.rs2' -o -name '*.constant' -o -name '*.dbrow' "
+             "-o -name '*.dbtable' -o -name '*.varp' 2>/dev/null "
+             "| xargs stat -f '%%m %%N' 2>/dev/null | sort -rn | head -1",
+             tree);
+    pipe = popen(cmd, "r");
+    if( !pipe )
+        return 0;
+    {
+        long newest = 0;
+        char path[1024] = { 0 };
+
+        if( fscanf(pipe, "%ld %1023[^\n]", &newest, path) == 2 &&
+            newest > (long)pack_st.st_mtime )
+        {
+            stale = 1;
+            snprintf(out_path, out_len, "%s", path);
+            *out_delta = newest - (long)pack_st.st_mtime;
+        }
+    }
+    pclose(pipe);
+    return stale;
+}
 
 int
 mock230_scripts_load(
@@ -171,6 +229,22 @@ mock230_scripts_load(
 
     srv->scripts_ok = 1;
     fprintf(stderr, "mock230: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
+    {
+        char newer[1024] = { 0 };
+        long delta = 0;
+
+        if( scripts_newer_than_pack(dir, newer, sizeof(newer), &delta) )
+            fprintf(stderr,
+                    "mock230: ============================================================\n"
+                    "mock230: STALE SCRIPT PACK — the tree is newer than script.dat\n"
+                    "mock230:   %s\n"
+                    "mock230:   is %ld second(s) newer than the compiled pack.\n"
+                    "mock230: This server is running content that does NOT match the tree.\n"
+                    "mock230: A script you just edited is not the one about to run.\n"
+                    "mock230: Rebuild it:  make -C src mock230-scripts\n"
+                    "mock230: ============================================================\n",
+                    newer, delta);
+    }
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
     mock230_scripts_report_gaps(srv);
