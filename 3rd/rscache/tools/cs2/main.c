@@ -569,6 +569,8 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     if( store->have_cache )
         load_param_types_from_cache(store, &names);
 
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
+
     struct param_source param_source = { &names };
     struct RSCache_CS2_CompileOptions compile_options;
     memset(&compile_options, 0, sizeof(compile_options));
@@ -576,11 +578,14 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     compile_options.scripts.load = store_load;
     compile_options.param_types.user = &param_source;
     compile_options.param_types.load = param_type_load;
+    compile_options.db_columns.user = db_columns;
+    compile_options.db_columns.load = tool_db_columns_lookup;
     compile_options.names = &names;
 
     if( !options->source_path )
     {
         fprintf(stderr, "compile needs --src\n");
+        tool_db_columns_free(db_columns);
         RSCache_CS2_NamesFree(&names);
         return 2;
     }
@@ -639,6 +644,7 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
         closedir(dir);
 
     fprintf(stderr, "compiled %d, failed %d\n", ok, failed);
+    tool_db_columns_free(db_columns);
     RSCache_CS2_NamesFree(&names);
     return failed == 0 ? 0 : 1;
 }
@@ -1346,6 +1352,8 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
     compile_options.scripts.load = store_load;
     compile_options.param_types.user = &param_source;
     compile_options.param_types.load = param_type_load;
+    compile_options.db_columns.user = db_columns;
+    compile_options.db_columns.load = tool_db_columns_lookup;
     compile_options.names = &names;
 
     int decompiled = 0;

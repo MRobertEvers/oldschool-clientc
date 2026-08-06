@@ -2637,10 +2637,69 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
  * that one instruction's result shape. Values come off top-first, so the
  * discards are emitted in reverse of the order the results were pushed.
  *
- * A call whose result shape is not statically known (the enum and db families,
- * which read it off an operand) emits nothing rather than a guess: a wrong
- * discard count desynchronises the stack in the same way the missing one did.
+ * A call whose result shape is not statically known emits nothing rather than a
+ * guess: a wrong discard count desynchronises the stack in the same way the
+ * missing one did. The db family used to be in that category and no longer is —
+ * its shape is in the dbtable config, which the caller now supplies through
+ * `RSCache_CS2_CompileOptions.db_columns`, exactly as the decompiler is given
+ * it. `enum` and `param` remain, their shape being an argument this cannot see
+ * from the finished instruction list.
  */
+/**
+ * What a db call leaves on the stacks, from the `dbcolumn` literal it was given.
+ *
+ * The literal packs `(table << 12) | (column << 4) | (field + 1)` and field 0
+ * means the whole tuple, so the same opcode on the same column pushes four
+ * values or one depending on the low nibble (EXCEPTIONS G8). Returns the count,
+ * or -1 when there is no provider or the column is not in this cache — a
+ * refusal, not an empty column.
+ *
+ * `db_find` and friends push one int however wide the column is: the count of
+ * matching rows, not the rows.
+ */
+static int
+cs2_cc_db_result_stacks(
+    struct cs2_cc_compiler* cc,
+    enum RSCache_CS2_CommandKind kind,
+    int packed,
+    enum RSCache_CS2_StackType* out,
+    int capacity)
+{
+    if( kind == RSCACHE_CS2_CMD_DB_FIND )
+    {
+        if( capacity < 1 )
+            return -1;
+        out[0] = RSCACHE_CS2_STACK_INT;
+        return 1;
+    }
+
+    if( !cc->options || !cc->options->db_columns.load )
+        return -1;
+
+    int table_id = (packed >> 12) & 0xFFFFF;
+    int column_id = (packed >> 4) & 0xFF;
+    int field = (packed & 0xF) - 1;
+
+    enum RSCache_CS2_Type types[32];
+    int count = cc->options->db_columns.load(
+        cc->options->db_columns.user, table_id, column_id, types, 32);
+    if( count <= 0 )
+        return -1;
+
+    if( field < 0 )
+    {
+        if( count > capacity )
+            return -1;
+        for( int i = 0; i < count; i++ )
+            out[i] = RSCache_CS2_TypeStackType(types[i]);
+        return count;
+    }
+    if( field >= count || capacity < 1 )
+        return -1;
+    out[0] = RSCache_CS2_TypeStackType(types[field]);
+    return 1;
+}
+
 static void
 cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
 {
@@ -2687,10 +2746,35 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
         case RSCACHE_CS2_CMD_PUSH_ARRAY_INT:
             stacks[count++] = RSCACHE_CS2_STACK_INT;
             break;
+        case RSCACHE_CS2_CMD_DB_FIND:
+            /* One int — the number of matching rows — however wide the column
+             * is, so no operand needs reading. */
+            count = cs2_cc_db_result_stacks(cc, info->kind, 0, stacks, 64);
+            if( count < 0 )
+                return;
+            break;
+        case RSCACHE_CS2_CMD_DB_GETFIELD:
+        {
+            /* The `dbcolumn` literal is the argument that says what comes back.
+             * It is the second of `(dbrow, dbcolumn, index)`, and a decompiled
+             * db call writes its ids as literals, so it is the instruction two
+             * before the call. Anything else and the shape is unread and
+             * nothing is dropped. */
+            if( index - 2 < mark )
+                return;
+            if( cc->ops.opcodes[index - 2] != RSCACHE_CS2_OP_PUSH_CONSTANT_INT )
+                return;
+            count = cs2_cc_db_result_stacks(cc, info->kind, cc->ops.int_operands[index - 2],
+                                            stacks, 64);
+            if( count < 0 )
+                return;
+            break;
+        }
         default:
             /* Every other kind either pushes nothing (assign, discard, branch,
-             * return, switch, define_array) or has a shape only its operand
-             * knows (param, enum, db). Neither wants a discard from here. */
+             * return, switch, define_array) or has a shape only an argument
+             * knows and this cannot recover (param, enum). Neither wants a
+             * discard from here. */
             return;
         }
     }
@@ -3239,30 +3323,33 @@ RSCache_CS2_Compile(
     cs2_cc_signature(&cc);
     cs2_cc_statements_until(&cc, 0);
 
-    /* A script that returns nothing has its trailing `return` omitted by the
-     * decompiler, and every script ends with an epilogue that pushes one
-     * default per declared return type. Both are restored here — the epilogue
-     * is also what the decoder reads the return types back off. */
+    /*
+     * The epilogue — one default per declared return type, then a `return`.
+     *
+     * Emitted for every script, unconditionally, and it is the *only* thing
+     * emitted here. It has two jobs at once, which is why one suffices: it is
+     * where the decoder reads the return arity and stack shape back off, and it
+     * is the path a body that falls out of the bottom takes.
+     *
+     * This used to add a bare `return` first whenever the body did not end in
+     * one. That is right for a script with no declared returns — the epilogue
+     * *is* that bare return — and wrong for one that has them: the extra
+     * instruction returns with an empty stack where the declared arity says
+     * otherwise, which is a miscompile, and it displaced the epilogue by one so
+     * every `break` in a trailing `switch` aimed at the wrong address. Script
+     * 376 is the smallest example, 13 instructions in the cache against 15.
+     */
     if( !cc.failed )
     {
-        if( cc.ops.count == 0 || cc.ops.opcodes[cc.ops.count - 1] != RSCACHE_CS2_OP_RETURN )
-            cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
-        if( cc.return_type_count > 0 )
+        for( int i = 0; i < cc.return_type_count; i++ )
         {
-            /* The epilogue: one default per declared return type, then a
-             * return. It is unreachable, and the decompiler's dead-code pass
-             * drops it — but it is also the only place the return types are
-             * recorded, so the decoder reads them straight back off it. */
-            for( int i = 0; i < cc.return_type_count; i++ )
-            {
-                if( RSCache_CS2_TypeStackType(cc.return_types[i]) == RSCACHE_CS2_STACK_STRING )
-                    cs2_cc_emit_string(&cc, "");
-                else
-                    cs2_cc_emit(&cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
-                                RSCache_CS2_TypeEpilogueDefault(cc.return_types[i]));
-            }
-            cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
+            if( RSCache_CS2_TypeStackType(cc.return_types[i]) == RSCACHE_CS2_STACK_STRING )
+                cs2_cc_emit_string(&cc, "");
+            else
+                cs2_cc_emit(&cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
+                            RSCache_CS2_TypeEpilogueDefault(cc.return_types[i]));
         }
+        cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
     }
 
     /* After the epilogue, so the instruction list is final and the last op is
