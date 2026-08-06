@@ -94,11 +94,19 @@ static const struct ContentNamespace k_defaults[] = {
      * whole time, so the allocation worked and the two authorities disagreed in
      * silence — docs/CONTENT_ARCHITECTURE.md §8.2(c), the third occurrence.
      *
-     * dbrow's base stays 0: allocation comes off the high-water mark alone, which
-     * for 16,940 needs no floor to read as ours.
+     * The bases are fixed and deliberately far above the cache: future caches
+     * are patched in manually, and Jagex adds tables every revision (246 at
+     * rev 230, 259 by 239), so a base at the current high-water mark is a
+     * collision waiting for the next patch. dbtable 2048 absorbs ~1,790 tables
+     * of growth; dbrow 65536 likewise, and a nonzero base finally brings dbrow
+     * under `validate_id_bases`. Width caps, verified before choosing: the
+     * server VM unpacks a column ref as `(packed >> 12) & 0xffff`
+     * (mock230_ops_db.c), so a table id caps at 65,535; the client host allows
+     * 20 bits; the compiler packs `(table << 12) | (column << 4)` into int32 —
+     * 2048 is far inside every one. A dbrow id is only ever a plain int value.
      */
-    { "dbrow",                 CONTENT_NAMES_CACHE,    0,   9,      0,  -1 },
-    { "dbtable",               CONTENT_NAMES_CACHE,    0,  10,    259,  -1 },
+    { "dbrow",                 CONTENT_NAMES_CACHE,    0,   9,  65536,  -1 },
+    { "dbtable",               CONTENT_NAMES_CACHE,    0,  10,   2048,  -1 },
     /* ---- config types the cache does not name ------------------------ */
     /* Every name here is filler or authored. Declaring any of them `cache` is
      * what licensed cachepack to rewrite the file and drop its comments. */
