@@ -79,15 +79,8 @@ enum
      */
     MOCK230_ZONE_VIEW_RADIUS = 3,
     MOCK230_ZONE_BUILD_RADIUS = 6,
-    /**
-     * The four map planes. A client's scene holds all of them at once — that is
-     * how a building has an upstairs — so the zone window is per (x, z, level)
-     * and not per (x, z) at the player's own level.
-     */
-    MOCK230_ZONE_LEVELS = 4,
     MOCK230_ZONE_ACTIVE_MAX = (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
-                              (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
-                              MOCK230_ZONE_LEVELS,
+                              (MOCK230_ZONE_VIEW_RADIUS * 2 + 1),
 };
 
 /** The wire packets a zone event turns into. See mock230_encode.c. */
