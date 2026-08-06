@@ -11,11 +11,12 @@
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #
-# For osrs230 (not --offline), this script always runs the in-process server:
-# it builds with EMBED_SERVER=1 and sets TORIRS_TRANSPORT=embed, so there is no
-# separate mock230 process and no port to fight over. Hand-start
-# `src/build/mock230` + a TCP manifest yourself when you need a socket server
-# (debugger, multiplayer, MOCK230_VERBOSE against a live listener).
+# For osrs230 / osrs239 (not --offline), this script always runs the in-process
+# server: it builds with EMBED_SERVER=1, sets TORIRS_TRANSPORT=embed, and exports
+# MOCK230_REV from the manifest so the embed world writes the same wire the
+# client speaks. Hand-start `src/build/mock230 --rev …` + a TCP manifest
+# yourself when you need a socket server (debugger, multiplayer, MOCK230_VERBOSE
+# against a live listener).
 #
 # `web` runs the emscripten build instead. The client is the same program with
 # the same command line — it just arrives through the URL rather than argv, and
@@ -76,11 +77,13 @@ case " $* " in
     *" --offline "*) OFFLINE=1 ;;
 esac
 
-# osrs230 live runs use the in-process server (no socket, no mock230 child).
+# osrs230 / osrs239 live runs use the in-process server (no socket, no mock230 child).
 USE_EMBED=0
-if [ "$REV" = "osrs230" ] && [ "$OFFLINE" = 0 ]; then
+if { [ "$REV" = "osrs230" ] || [ "$REV" = "osrs239" ]; } && [ "$OFFLINE" = 0 ]; then
     USE_EMBED=1
     export TORIRS_TRANSPORT=embed
+    # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
+    export MOCK230_REV="${MOCK230_REV:-$REV}"
 fi
 
 # lc254 live login checks cache CRCs; fetch the 9 big-endian int32s from the
@@ -103,9 +106,24 @@ print(','.join(str(x) for x in struct.unpack('>%di' % (len(d) // 4), d)))
     export TORIRS_JAG_CRC
 fi
 
+# The script pack is a SEPARATE build from the binary, and an embedded server
+# loads whatever `script.dat` was last compiled — not whatever the tree says
+# today. Building the binary and not the pack is how a session ends up running
+# content nobody has written for weeks: the C is current, the scripts are
+# stale, and nothing anywhere reports the mismatch. A `[debugproc]` added an
+# hour ago simply does not exist, which reads as "the cheat is broken".
+#
+# So the pack is built here, next to the binary that will load it, for every
+# embedded run.
+build_scripts() {
+    echo "run-live.sh: building the server script pack..." >&2
+    make -C src mock230-scripts || exit 1
+}
+
 if [ "$MODE" = native ]; then
     if [ "$USE_EMBED" = 1 ]; then
-        echo "run-live.sh: osrs230 — building with EMBED_SERVER=1 (in-process server)" >&2
+        echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
+        build_scripts
         make -C src EMBED_SERVER=1 torirs
     elif [ ! -x src/torirs ]; then
         echo "run-live.sh: building src/torirs..." >&2
@@ -125,7 +143,8 @@ WEB_TARGET=web
 # string names from the server, so a build never has to be redone for a new
 # manifest, and nothing here depends on which one this run uses.
 if [ "$USE_EMBED" = 1 ]; then
-    echo "run-live.sh: osrs230 — building web with EMBED_SERVER=1 (in-process server)" >&2
+    echo "run-live.sh: $REV — building web with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
+    build_scripts
     make -C src EMBED_SERVER=1 "$WEB_TARGET"
 else
     make -C src "$WEB_TARGET"
