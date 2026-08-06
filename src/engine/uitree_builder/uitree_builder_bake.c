@@ -12,6 +12,7 @@
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
+#include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -44,6 +45,16 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_REDSTONE_TAB;
     if( strcmp(type, "builtin_tab_icons") == 0 || strcmp(type, "tab_icon") == 0 )
         return UIELEM_BUILTIN_TAB_ICONS;
+    if( strcmp(type, "debug_overlay") == 0 )
+        return UIELEM_BUILTIN_DEBUG_OVERLAY;
+    /*
+     * `rs_iface` is a mount point, not a widget: the node itself draws nothing
+     * and the cache pack is baked underneath it (bake_rs_subtree_for_op). A
+     * plain container layer is exactly that — uitree_emit skips a layer with no
+     * if3 and no scroll extents, and it does not eat clicks.
+     */
+    if( strcmp(type, "rs_iface") == 0 )
+        return UIELEM_RS_LAYER;
     if( strcmp(type, "rs_model") == 0 )
         return UIELEM_RS_MODEL;
     if( strcmp(type, "rs_inv") == 0 )
@@ -409,10 +420,18 @@ push_builtin_op(
     assert(tree && builder && op);
 
     enum UITreeComponentType type = type_from_string(op->type);
+    int is_iface_mount = strcmp(op->type, "rs_iface") == 0;
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));
     spec.type = type;
-    spec.component_id = op->componentno;
+    /*
+     * An rs_iface owner keeps componentno as the group it mounts, not as its own
+     * uid: the pack's own child 0 already owns (group << 16), and an unpacked
+     * group id would collide with some other interface's uid in
+     * UITree_FindByComponentId. -1 also keeps the owner out of the
+     * unmounted-spillover sweep, which is what it is there for.
+     */
+    spec.component_id = is_iface_mount ? -1 : op->componentno;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
     spec.slot_tag = (uint8_t)slot_tag_from_string(op->slot);
@@ -478,6 +497,22 @@ push_builtin_op(
     case UIELEM_BUILTIN_MINIMAP:
         spec.always_dirty = 1;
         spec.u.minimap.scene_id = sprite_id;
+        break;
+    case UIELEM_BUILTIN_DEBUG_OVERLAY:
+        /* The overlay's own dirty tracking decides what it repaints; the tree
+         * only has to keep asking it, so the node never goes clean. Fonts are
+         * baked in rather than named by the config: the overlay has to work on
+         * a cache that failed to open, which is when it is most wanted. */
+        spec.always_dirty = 1;
+        spec.u.debug_overlay.font_id_small = -1;
+        spec.u.debug_overlay.font_id_menu = -1;
+        if( builder->bridge )
+        {
+            spec.u.debug_overlay.font_id_small =
+                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIDBG_FONT_SMALL);
+            spec.u.debug_overlay.font_id_menu =
+                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIDBG_FONT_MENU);
+        }
         break;
     case UIELEM_BUILTIN_CHAT:
         if( op->has_font_ref && op->font_ref[0] )
@@ -773,4 +808,113 @@ uitree_builder_bake(
     uitree_builder_inv_bind_tree(tree, builder, manifest, invs);
     bake_hotkeys(tree, manifest, node_index);
     free(node_index);
+}
+
+/*
+ * True when `group` hosts at least one mounted sub-interface.
+ *
+ * Such a group is part of the live tree by definition — something is mounted
+ * inside it — so it is never spillover, however many levels down the mount
+ * target happens to be.
+ */
+static int
+group_hosts_a_mount(
+    struct UITree const* tree,
+    int group)
+{
+    for( int i = 0; i < tree->interface_parent_count; i++ )
+    {
+        if( ((tree->interface_parents[i].container_uid >> 16) & 0xffff) == group )
+            return 1;
+    }
+    return 0;
+}
+
+void
+uitree_builder_hide_unmounted_spillover(
+    struct UITree* tree,
+    int opening_group,
+    int target_uid)
+{
+    int32_t root;
+    assert(tree);
+    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        int cid = tree->components[root].component_id;
+        int group = (cid >> 16) & 0xffff;
+        if( cid < 0 || group <= 0 )
+            continue;
+        /* App-pushed chrome (world viewport, cross, minimenu) lives in the
+         * reserved group 0x7FFE — never interface spillover. */
+        if( group == 0x7FFE )
+            continue;
+        if( opening_group >= 0 && group == opening_group )
+            continue;
+        if( UITree_InterfaceParentIsMountedGroup(tree, group) )
+            continue;
+        /* Keep already-mounted groups and chrome that parents them. A pack baked
+         * under a revconfig `rs_iface` owner is parented by construction, which
+         * is what makes a declared mount immune to this sweep. */
+        if( tree->components[root].parent >= 0 )
+            continue;
+        /* Never hide the active toplevel root group (e.g. 161) while subs are
+         * mounted into it — only hide accidental sibling spillover packs.
+         *
+         * The mount target's own group is the obvious case, but it is not the
+         * only one: mounting into a *nested* sub-interface leaves every group
+         * above it unprotected. Opening the chat dialogue (231) into 162:561
+         * gave host_group 162 and then hid 161 — the entire gameframe — which
+         * renders as a blank frame with no error anywhere.
+         *
+         * Hosting a mount is the general form of "part of the live tree", and
+         * it covers the immediate host as well, so one test replaces both. */
+        if( group_hosts_a_mount(tree, group) )
+            continue;
+        if( target_uid >= 0 )
+        {
+            int host_group = (target_uid >> 16) & 0xffff;
+            if( group == host_group )
+                continue;
+        }
+        /* Mark it as ours: a pack the CS2 runtime baked ahead of its mount is
+         * hidden here, and mount_pack_under_target must be able to tell that
+         * hide apart from a cache/script one when the mount finally lands. */
+        /* Kept: this is exactly the print that identified the bug above, and
+         * "which root did the tree just hide" is invisible from anywhere else. */
+        if( getenv("TORIRS_SPILLOVER_DEBUG") )
+            fprintf(
+                stderr,
+                "spillover: hiding root group %d (opening %d, target %d:%d)\n",
+                group,
+                opening_group,
+                (target_uid >> 16) & 0xffff,
+                target_uid & 0xffff);
+        if( !tree->components[root].behavior.hide )
+            tree->components[root].behavior.hide_unmounted = 1;
+        tree->components[root].behavior.hide = 1;
+    }
+}
+
+void
+uitree_builder_reassert_player_idle_anim(struct UITree* tree)
+{
+    int mi;
+    assert(tree);
+    for( mi = 0; mi < tree->models.count; mi++ )
+    {
+        int32_t i = tree->models.slots[mi];
+        struct UITreeComponent* c;
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
+        if( c->type != UIELEM_RS_MODEL )
+            continue;
+        if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
+            continue;
+        if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
+            continue;
+        c->u.rs_model.anim_seq_id = UITREE_BUILDER_PLAYER_IDLE_SEQ;
+        c->u.rs_model.anim_frame = 0;
+        c->u.rs_model.anim_frame_cycle = 0;
+        c->u.rs_model.anim_hold = 1;
+    }
 }

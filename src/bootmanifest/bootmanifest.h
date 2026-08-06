@@ -40,8 +40,25 @@
  *                 scene_light=<x>,<y>,<z>
  *                 npc_type_ambient_contrast=0|1
  *                 player_head_ambient=<n>   (0 = scene-light like Client-TS)
- *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
+ *   [ui:boot]     logic=cs1|cs2  chrome=revconfig
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *                 Every root tree is built by the RevConfig builder — there is
+ *                 no second "open interface_id and hope" path. `interface_id` is
+ *                 the group a `type=rs_iface` component mounts when it declares
+ *                 no `componentno=` of its own, which is how a CS2 gameframe
+ *                 gets placed *among* the other root elements instead of being
+ *                 the root. (chrome=cache is accepted as a synonym so older
+ *                 manifests still load.)
+ *   [revconfig:…] Inline RevConfig. Any section the RevConfig loader
+ *                 understands can appear in this file under a `revconfig:`
+ *                 prefix — `[revconfig:component:world]`,
+ *                 `[revconfig:layout:fixed]`, `[revconfig:sprite:…]`, and so on
+ *                 — with exactly the syntax the standalone .ini files use. The
+ *                 prefix is what keeps the two dialects apart: [ui:gameframe]
+ *                 uses free-form keys, several of which (`left`, `top`, …) would
+ *                 otherwise read as layout fields. Inline sections load *after*
+ *                 revconfig_ui/revconfig_cache, so a manifest can extend a
+ *                 shared UI file rather than restate it.
  *   [client:args] arg=<one exact command-line argument>, repeated in argv order
  *                 Optional lower-priority argv parsed after the typed manifest
  *                 fields and before the process command line. The whole value
@@ -183,10 +200,14 @@ struct BootManifest
 
     /* [ui:boot] */
     int ui_logic;  /* enum AppUiLogic; 0 = unset/default */
-    int chrome;    /* 0 unset, 1 revconfig, 2 cache */
+    int chrome;    /* 0 unset, 1 revconfig, 2 cache (legacy synonym) */
     char revconfig_ui[512];    /* resolved */
     char revconfig_cache[512]; /* resolved */
     int interface_id;          /* 0 = unset */
+    /* Path this manifest was loaded from, kept so the RevConfig builder can read
+     * the file's own `[revconfig:…]` sections back. Set only when at least one
+     * such section was seen — an empty string means "no inline RevConfig". */
+    char revconfig_inline[512];
     /* `windowmode = fixed|resizable` — enum CS2VM_WindowMode, 0 = unset.
      * Declared rather than derived: which of the two the client boots in is a
      * display preference, and the client has nowhere else to keep one (there is

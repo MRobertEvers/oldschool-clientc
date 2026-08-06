@@ -1032,6 +1032,66 @@ translate_ui_cmd(
         }
     }
 
+    case UITREE_EMIT_DEBUG_OVERLAY:
+    {
+        /* One display-list primitive per multi-step. The prims are already in
+         * absolute screen pixels and carry their own scissor box, so this is a
+         * straight field copy — no layout, no measurement, no allocation. */
+        struct ToriDbgPrim const* prim;
+        int font_id;
+
+        if( !desc->debug_prims || frame->scrollbar_step >= desc->debug_prim_count )
+            return false;
+        prim = &desc->debug_prims[frame->scrollbar_step];
+
+        if( prim->kind == TORIDBG_PRIM_TEXT )
+        {
+            if( !prim->text || prim->text[0] == '\0' )
+                return false;
+            if( prim->font_slot < 0 || prim->font_slot >= TORIDBG_FONT_SLOT_COUNT )
+                return false;
+            font_id = desc->debug_font_id[prim->font_slot];
+            /* >= 0: scene font ids are cache ids, and 0 is a real one. A
+             * negative id means the host never registered that baked face. */
+            if( font_id < 0 )
+                return false;
+            out->kind = TORIRSRC_FONT;
+            out->u.font.font_id = font_id;
+            out->u.font.text = prim->text;
+            out->u.font.x = prim->x;
+            out->u.font.y = prim->y;
+            out->u.font.color = (int)prim->color;
+            out->u.font.shadowed = prim->shadowed;
+            /* The overlay lays out from the baked advance tables and places a
+             * baseline, matching ToriDraw2D_DrawString's `y -= line_height`. */
+            out->u.font.baseline = prim->baseline;
+            out->u.font.scissor_x = prim->clip.x;
+            out->u.font.scissor_y = prim->clip.y;
+            out->u.font.scissor_w = prim->clip.w;
+            out->u.font.scissor_h = prim->clip.h;
+            return true;
+        }
+
+        /* RECT. filled == 0 reaches ToriDraw2D_DrawRectOutline, which is what
+         * makes a bordered background one primitive instead of four. */
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = prim->x;
+        out->u.fill_rect.y = prim->y;
+        out->u.fill_rect.w = prim->w;
+        out->u.fill_rect.h = prim->h;
+        /* Prims carry 0xRRGGBB, the same convention the UITree colour fields
+         * use; the alpha byte is this layer's to supply. ToriDraw2D_FillRect
+         * early-outs on alpha 0, so a raw copy here draws nothing at all. The
+         * overlay is developer chrome and never translucent, hence trans 0. */
+        out->u.fill_rect.argb = emit_color_argb((int)prim->color, 0);
+        out->u.fill_rect.filled = prim->filled;
+        out->u.fill_rect.scissor_x = prim->clip.x;
+        out->u.fill_rect.scissor_y = prim->clip.y;
+        out->u.fill_rect.scissor_w = prim->clip.w;
+        out->u.fill_rect.scissor_h = prim->clip.h;
+        return true;
+    }
+
     case UITREE_EMIT_WORLD:
     case UITREE_EMIT_NONE:
         return false;
@@ -1559,6 +1619,15 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = 1 + desc->worldmap_tile_count;
+        }
+        /* Debug overlay: one step per display-list primitive. Stepping the
+         * host's array in place is the reason the overlay's whole per-frame
+         * cost is a pointer copy — an emit desc per prim would mean copying
+         * ~300 bytes each, every frame, for a list that rarely changes. */
+        if( desc->kind == UITREE_EMIT_DEBUG_OVERLAY && desc->debug_prim_count > 0 )
+        {
+            is_scrollbar = 1;
+            sb_steps = desc->debug_prim_count;
         }
 
         if( desc->kind == UITREE_EMIT_WORLD )

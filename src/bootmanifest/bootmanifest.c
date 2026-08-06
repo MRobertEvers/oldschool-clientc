@@ -153,6 +153,10 @@ enum bm_section
     BM_SECTION_SPAWN,
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
+    /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
+     * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
+     * file for them, because only the RevConfig parser knows that dialect. */
+    BM_SECTION_REVCONFIG,
 };
 
 static enum bm_section
@@ -177,6 +181,8 @@ bm_section_of(char const* header)
         return BM_SECTION_FEATURES;
     if( strncmp(header, "render:", 7) == 0 )
         return BM_SECTION_RENDER;
+    if( strncmp(header, "revconfig:", 10) == 0 )
+        return BM_SECTION_REVCONFIG;
     return BM_SECTION_NONE;
 }
 
@@ -654,6 +660,7 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_REVCONFIG:
     case BM_SECTION_NONE:
         return;
     }
@@ -747,7 +754,9 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         {
         case INI_ELEMENT_SECTION:
             section = bm_section_of(element._section.name);
-            if( section == BM_SECTION_NONE )
+            if( section == BM_SECTION_REVCONFIG )
+                snprintf(bm->revconfig_inline, sizeof(bm->revconfig_inline), "%s", path);
+            else if( section == BM_SECTION_NONE )
                 fprintf(
                     stderr,
                     "bootmanifest: ignoring unknown section '[%s]'\n",
@@ -902,6 +911,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->revconfig_ui_ini = bm->revconfig_ui;
     if( bm->revconfig_cache[0] )
         cfg->revconfig_cache_ini = bm->revconfig_cache;
+    if( bm->revconfig_inline[0] )
+        cfg->revconfig_inline_ini = bm->revconfig_inline;
     if( bm->interface_id > 0 )
         cfg->interface_id = bm->interface_id;
     if( bm->window_mode )

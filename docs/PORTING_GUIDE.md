@@ -1316,6 +1316,12 @@ For any substantial task, in this order:
      [`PATHING_INTERACTION_PARITY.md`](PATHING_INTERACTION_PARITY.md) §7
    - UI-facing features → [`REV230_UI_BLANK_PANELS.md`](REV230_UI_BLANK_PANELS.md),
      [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md)
+   - the **root** UI layout — what the tree is built from, what order its root
+     siblings are in, or adding a client-owned overlay to it →
+     [`debug_overlay.md`](debug_overlay.md). There is one root-build path and it
+     is RevConfig; a manifest carries its layout inline under a `[revconfig:…]`
+     section prefix, and a cache gameframe is a `type=rs_iface` component inside
+     that layout rather than a path around it
    - anything that reads or writes the client canvas size, the gameframe
      layout, or the window mode →
      [`gameframe_layout_resize.md`](gameframe_layout_resize.md). Its §2 is the

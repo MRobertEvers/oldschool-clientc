@@ -1,1 +1,7 @@
 lib/mingw32-win32-toolchain.zip filter=lfs diff=lfs merge=lfs -text
+
+# Byte-exact test fixtures. test_emit_golden compares the checked-in snapshot
+# against one it writes itself with fopen(..., "wb"), i.e. LF. With the default
+# core.autocrlf=true on Windows the checkout would rewrite the fixture to CRLF
+# and the compare fails on line endings alone. Never eol-convert these.
+src/ui/test/golden/** -text

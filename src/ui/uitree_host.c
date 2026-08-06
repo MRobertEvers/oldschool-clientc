@@ -43,6 +43,7 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
     case UITREE_HOST_GET_WORLDMAP_TILES:
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
+    case UITREE_HOST_GET_DEBUG_OVERLAY:
     case UITREE_HOST_GET_IF_EVENTS:
         return 0;
     case UITREE_HOST_APPLY_BUTTON_CLICK:

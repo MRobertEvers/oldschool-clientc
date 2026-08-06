@@ -679,6 +679,9 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_CHAT_BUTTON:
     case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_BUILTIN_HOVERTEXT:
+    /* Emitted by emit_debug_overlay_pass after every walk pass, so that it
+     * lands above the drag ghosts too. Nothing for the tree walk to do. */
+    case UIELEM_BUILTIN_DEBUG_OVERLAY:
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:
         return false;
@@ -2268,6 +2271,76 @@ emit_walk_pass(
     }
 }
 
+/*
+ * The debug overlay's own pass. It is not a layout walk: the overlay's content
+ * is a display list the host already built in screen space, so the pass only
+ * has to find the nodes and make one host call each. Running it after the walk
+ * passes — rather than emitting the node in tree order — is what makes the
+ * overlay unconditionally topmost, drag ghosts included, which is the whole
+ * point of a debug overlay.
+ *
+ * It does descend the tree rather than scanning root siblings: the boot
+ * manifest's RevConfig can park the overlay under any container it likes
+ * (`p=<some_panel>` in the layout record), and a nested overlay that silently
+ * stopped drawing would be a miserable thing to debug with.
+ *
+ * One desc for the entire display list. The render layer walks the prims
+ * itself (torirs_frame's sb_steps expansion), so nothing here copies per-prim
+ * state into the emit buffer.
+ */
+static void
+emit_debug_overlay_in(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    int32_t first)
+{
+    for( int32_t i = first; i >= 0; i = tree->components[i].next_sibling )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        struct UITreeEmitDesc desc;
+        struct UITreeHostRequest req;
+
+        if( c->freed )
+            continue;
+
+        if( c->type != UIELEM_BUILTIN_DEBUG_OVERLAY )
+        {
+            emit_debug_overlay_in(tree, host, out, c->first_child);
+            continue;
+        }
+
+        memset(&desc, 0, sizeof(desc));
+        req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+        req.u.get_debug_overlay.out_prims = &desc.debug_prims;
+        desc.debug_prim_count = UITree_Host(host, &req);
+        if( desc.debug_prim_count <= 0 || !desc.debug_prims )
+            continue;
+
+        desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
+        desc.node_index = i;
+        desc.component_id = c->component_id;
+        desc.debug_font_id[TORIDBG_FONT_SMALL] = c->u.debug_overlay.font_id_small;
+        desc.debug_font_id[TORIDBG_FONT_MENU] = c->u.debug_overlay.font_id_menu;
+        /* Screen-space, not laid out: every prim already carries absolute
+         * pixels and its own scissor box. The desc clip is the canvas. */
+        desc.clip.x = 0;
+        desc.clip.y = 0;
+        desc.clip.w = UITREE_LAYOUT_ROOT_W;
+        desc.clip.h = UITREE_LAYOUT_ROOT_H;
+        emit_buffer_append(out, &desc);
+    }
+}
+
+static void
+emit_debug_overlay_pass(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    emit_debug_overlay_in(tree, host, out, tree->root_index);
+}
+
 void
 UITree_EmitWalk(
     struct UITree const* tree,
@@ -2304,4 +2377,6 @@ UITree_EmitWalk(
         emit_walk_pass(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
+    /* Last, so developer chrome is over everything including drag ghosts. */
+    emit_debug_overlay_pass(tree, host, out);
 }

@@ -1063,6 +1063,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "hovertext";
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         return "entity_overlay";
+    case UIELEM_BUILTIN_DEBUG_OVERLAY:
+        return "debug_overlay";
     case UIELEM_BUILTIN_MINIMAP:
         return "minimap";
     case UIELEM_BUILTIN_WORLD:
@@ -1750,6 +1752,11 @@ UITree_Push(
 
     case UIELEM_BUILTIN_HOVERTEXT:
         component->u.hovertext.font_id = spec->u.hovertext.font_id;
+        break;
+
+    case UIELEM_BUILTIN_DEBUG_OVERLAY:
+        component->u.debug_overlay.font_id_small = spec->u.debug_overlay.font_id_small;
+        component->u.debug_overlay.font_id_menu = spec->u.debug_overlay.font_id_menu;
         break;
 
     case UIELEM_BUILTIN_CHAT:
