@@ -11,6 +11,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "net/rev/revpacket.h"
 #include "game/rs_chat_widgets.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
@@ -156,6 +157,11 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
+     * send once right after login, e.g. "zuk" to enter the Inferno instance.
+     * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var
+     * still overrides. NULL/"" = none. */
+    char const* net_cheat;
     /** Protocol revision name ("lc254", "lc245_2"). NULL = lc254, the
      * authoritative LostCity_Server build. Mock/loopback tests pass
      * lc245_2 explicitly. */
@@ -309,6 +315,10 @@ struct App
      * The free camera dollies instead and ignores this. */
     int world_zoom_pct;
     int world_active; /* 1 once Task_WorldLoad completed */
+    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
+     *  world_camera_pos freely; relocking eases back onto the player (the
+     *  follow's own >500-unit teleport snap handles the return). */
+    int camera_unlocked;
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
 
@@ -671,6 +681,28 @@ struct App
     /** Zone base for follows-mode zone packets (scene-local tiles). */
     int zone_base_x;
     int zone_base_z;
+    /**
+     * Zone sub-packets that arrived while the world was still async-loading.
+     *
+     * The reference cannot receive one mid-build — its scene build runs
+     * synchronously inside the packet loop, so every zone update processes
+     * after the build it follows. Our REBUILD is an async task, and dropping
+     * what arrives in that window diverges: the Inferno's flank walls and
+     * rubble land two ticks after REBUILD_REGION and vanished whenever the
+     * load was still in flight (docs/ORANGE_WEDGE.md §17). Each entry keeps
+     * the zone base and the local player's plane AS OF ARRIVAL — the wire
+     * addresses the player's plane at send time (the flank adds happen inside
+     * a tele-to-plane-1 window), so resolving at replay time would misplace
+     * them. Replayed in arrival order once load_complete flips.
+     */
+    struct AppPendingZonePkt
+    {
+        struct PktZoneSubPacket pkt;
+        int base_x; /* app->zone_base_* as of arrival */
+        int base_z;
+        int level; /* local player's plane as of arrival */
+    } pending_zone[256];
+    int pending_zone_count;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
      * Client-TS mapBuildCenterZoneX/Z). -1 until the first rebuild. Same-zone
      * packets early-out when the world is already active. */

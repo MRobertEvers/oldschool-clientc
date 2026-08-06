@@ -6,6 +6,8 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* Client-TS `(Math.atan2(dstX, dstZ) * 325.949) | 0` — radians to the
  * 2048-step yaw unit, truncated toward zero like the JS `| 0`. */
@@ -436,6 +438,21 @@ World_StepEntityAnimation(
         if( anim->primary.delay == 0 )
         {
             int count = cycle_seq_frame_count(world, seq);
+
+            /*
+             * A seq whose frames are not resident cannot advance and cannot
+             * end, so the entity holds frame 0 of it for the rest of the
+             * session. That is what a corpse stuck in its death pose is: the
+             * animation never played and never finished, and both halves are
+             * silent — `count > 0` simply skips the whole block.
+             *
+             * The guard is still right (a seq that is still loading must wait,
+             * not expire instantly at frame 0 >= count 0), so what is missing
+             * is not a different rule but a way to see it happen.
+             */
+            if( count <= 0 && getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(
+                    stderr, "anim: primary seq %d has no frames; held at frame 0\n", seq);
             if( count > 0 )
             {
                 anim->primary.cycle++;

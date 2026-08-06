@@ -2412,6 +2412,46 @@ inactive, `is_static` set, its slot never handed to a `loc_add` — because the
 square still has a loc on that tile and "it has been removed" has to stay
 addressable.
 
+### The loc family reaches the whole world, not the scene window
+
+The reference's `World.getLoc` / `World.addLoc` resolve through
+`gameMap.getZone(x, z, level)` — every zone, always resident. Ours held one
+104×104 window, and the mutating loc opcodes refused everything outside it:
+`loc_add` aborted ("outside the scene"), `loc_find` answered false, `loc_del`
+had nothing to address. Content is entitled to the reference's reach —
+puro-puro's crop circle rotates through eight farms and at most one is ever
+near a player, so its softtimer aborted every 50 ticks from login onward.
+
+Since the ZoneMap is already the world-indexed durable authority (above), the
+window was only ever a *scene* limitation, not a world one:
+
+- **`mock230_world_loc_set` out of scene** records the mutation in the ZoneMap
+  and skips the scene halves (collision, the slot array);
+  `mock230_world_locs_reapply` puts the record onto the scene if the window
+  ever moves over it, and the zone event still queues for whoever holds the
+  zone. What this cannot capture is the map square's own loc on that tile —
+  `base` stays -1 — so an out-of-scene add onto a tile whose square holds a
+  same-shape static loc records "nothing was here" and a later revert removes
+  rather than restores. Reading the square from the cache on that path would
+  fix it; nothing needs it yet.
+- **The active-loc handle has two kinds** (`mock230_script_loc_resolve`):
+  positive is `scene slot + 1` as before; negative names a ZoneMap record by
+  its `(x, z, level, shape)` key through a small recycling key table in
+  mock230_scripts.c — a key rather than a record index because
+  `mock230_zone_loc_changed` retires records by swap-remove. `loc_find` hands
+  one back for an out-of-scene runtime loc; `loc_add` leaves one active when
+  it adds beyond the window; `loc_del`/`loc_change`/`loc_anim` work through it
+  because they re-key on coordinates anyway. Static map locs outside the
+  window stay invisible to `loc_find` — the ZoneMap is the diff, not the map.
+
+Same commit, adjacent bug: `loc_find` was answering through
+`mock230_scene_find_loc`, the *click* resolver, whose any-loc fallback exists
+so a stale OPLOC id still opens the door somebody else already opened. Through
+it, `loc_find(coord, X)` reported true for **any** loc on the tile — puro's
+clear pass `loc_del`ed whatever the map had standing near a circle site. It
+now asks `mock230_scene_find_loc_id`: corner tile and type both exact, the
+reference's `Zone.getLoc(x, z, locId)`.
+
 ### The npc cap was a wire field standing in for a world capacity
 
 `MOCK230_NPC_MAX` was 256, annotated "the tracked count is an 8-bit field on the
@@ -3783,8 +3823,11 @@ observable difference between the kinds is *when they are cleared*:
 - **WEAK** is discarded whenever a modal closes (`Player.closeModal`'s first
   statement). Implementing `weakqueue` without that would have been a synonym for
   `queue` that content could not tell apart.
-- **LONG** carries a logout action. It is stored and not yet read, because
-  `phase_logouts` is empty.
+- **LONG** carries a logout action. It is stored and not yet read: the reference
+  reads it to decide whether a *pending* logout may proceed
+  (`World.ts`'s `queueDiscardable`), and this engine's logout cannot be pending —
+  it dispatches `[logout]` from `mock230_world_remove_player` and removes the
+  player in the same breath (§3.23).
 
 ENGINE and SOFT are deliberately **absent**. ENGINE's only producer is the zone
 family (step 5c) and SOFT is declared in the reference and never used — a kind
@@ -3903,9 +3946,10 @@ through the real `RESUME_PAUSEBUTTON` handler instead.
 ### Still open after this
 
 `[logout]` does not clear queues or timers (`Player.cleanup()` does) — noted and
-not landed, because `phase_logouts` is empty and `mock230_save.c` still has no
-callers, so "a returning player" is not a case anything can be tested against.
-The npc queue stores its `arg` and the drain does not pass it: `[ai_queue<n>]`
+not landed. (The trigger itself is dispatched as of 2026-08-05, §3.23; the
+cleanup half is what is still open, and it is now testable, because
+`mock230_world_remove_player` writes a save and a returning player is a real
+case.) The npc queue stores its `arg` and the drain does not pass it: `[ai_queue<n>]`
 gets no `last_int`, where the reference sets `state.lastInt = request.lastInt`.
 And `MOCK230_QUEUE_MAX` is a cap the reference does not have.
 
@@ -4307,7 +4351,8 @@ visible in the transcript rather than asserted only in C.
 ### Still open
 
 `[logout]` still clears neither queues nor timers nor the engine queue
-(`Player.cleanup()` clears all three) — `phase_logouts` is empty. The engine
+(`Player.cleanup()` clears all three); the trigger runs (§3.23), the cleanup
+does not. The engine
 queue has a cap (`MOCK230_ENGINE_QUEUE_MAX`, 8) where the reference's list has
 none; an overflow is reported, for the same reason `queue_hook`'s is. And
 `updateMovement`'s "players cannot walk with a modal open *and* something
@@ -4538,15 +4583,15 @@ surface. It closed eleven families of it.
 | `inv_buttond` | **4** | the packet is decoded and goes straight to the bank |
 | `opplayer<n>` / `applayer<n>` | **4** | player-target ops |
 | `opplayeru` / `applayeru` | **5** | rev 230 assigns no `OPPLAYERU` wire opcode — there is no packet to route, so this is a revision limit and not an omission |
-| `logout` | **1** | `phase_logouts` is empty |
+| ~~`logout`~~ | **1** | **dispatched as of 2026-08-05** — see §3.22 |
 | `tutorial` | **1** | |
 | `ai_despawn`, `apobju`, `aploct` | **0** each | the constants exist; the reference binds them zero times |
 
-Two of those rows are load-bearing rather than trivia. `[logout]` is the one that
-already has consequences: `Player.cleanup()` clears the queue, the weak queue, the
-engine queue and the timers, and nothing here clears any of them — which is
-harmless only for as long as `mock230_save.c` has no callers and a returning
-player is a fresh `Mock230Player`. And `advancestat`'s 19 uses are all in
+Two of those rows were load-bearing rather than trivia. `[logout]` was the one
+with consequences and it is dispatched now (§3.22); what is still true of it is
+the *cleanup* half: `Player.cleanup()` clears the queue, the weak queue, the
+engine queue and the timers, and nothing here clears any of them. And
+`advancestat`'s 19 uses are all in
 `levelup/scripts/levelup.rs2` — one file, and it is the level-up handler, so what
 an undispatched `advancestat` looks like from outside is an XP bug.
 
@@ -4573,6 +4618,75 @@ an undispatched `advancestat` looks like from outside is an XP bug.
   which binds the scene slot as the active loc, is a sibling and not a sixth
   parameter. Only the two call sites that are actually about a loc changed; every
   other one still reads exactly as it did.
+
+## 3.23 `[logout]`, and the thing only a session can give back (2026-08-05)
+
+The twelfth family off §3.22's list, and the one that was not a dispatch
+problem so much as a *resource* problem: a session can hold something the world
+has a finite amount of, and nothing but the session's own end can hand it back.
+Today that is a map-instance reservation (§`map_instances.md`); tomorrow it is
+whatever else gets a pool.
+
+**What was measured, before anything was written.** `SS_TRIGGER_LOGOUT` (158)
+has existed in `ss_trigger.h` and in the compiler the whole time and nothing
+ever dispatched it. The consequence, headless, `TORIRS_NET_CHEAT="zuk"` with
+`MOCK230_VERBOSE=1`: `map instance 1 reserved`, no release line, and
+`saves/testc.ini` reading `x = 6431, z = 104`. Two separate permanent failures
+from one omission — the pool is `MOCK230_MAPINSTANCE_MAX` (8) wide, so the
+eighth abandoned run is the first symptom and it surfaces in whatever content
+asks next; and the character is stored *inside* a square the allocator is free
+to re-issue, so the next login draws void with nothing to walk off.
+
+**Where it is dispatched, and why not in `phase_logouts`.** The reference runs
+it in the logout phase (`World.ts:780`, `getByTriggerSpecific(LOGOUT, -1, -1)`,
+protected active player, immediately before `removePlayer`). Here it hangs off
+**`mock230_world_remove_player`**, because that function is the only logout path
+either host has: the socket server calls it when the session dies and the embed
+host calls it on disconnect, neither through a tick phase. A phase-only dispatch
+would have skipped exactly the case the feature exists for — the client that
+vanished mid-encounter. `phase_logouts` stays empty and now says so; what is
+genuinely missing there is the reference's *deferral* (`canAccess()`, a draining
+engine queue), and nothing in this engine requests a logout and then waits.
+
+**Above the save, and that is the load-bearing half.** A logout script's whole
+job may be to *move* the player. `mock230_world_remove_player` writes the save
+first on purpose — everything below that line takes something away — so the
+trigger goes above it, and the ordering is what the selftest's second assertion
+pins. Measured both ways: dispatch below the save (or no dispatch at all) and
+the save reads `x = 6431`; above it, `x = 2495, z = 5112`, which is
+`^inferno_exit_pad` to the tile.
+
+Two divergences from the reference, stated rather than hidden. It cannot defer,
+as above. And a `[logout]` script that **suspends** is dropped rather than
+parked (`mock230_scripts_release_state`, with a line on stderr), because the
+slot it would park on is about to be reused — the reference simply waits, and a
+closed socket cannot.
+
+**Content.** `player/logout.rs2`, and it copies the reference's shape rather
+than its contents: a list of per-feature teardowns
+(`content/scripts/login_logout/logout.rs2` is `~duel_arena_logout`,
+`~castlewars_logout`, the follower, the skull) and nothing else. Two entries
+today — `~inferno_on_logout`, then `~map_instance_logout_release` as the
+backstop for an activity that has no logout policy of its own. The reference's
+`(boolean)` return is not copied; its own comment asks for it to go, and nothing
+here reads one.
+
+**Pinned.** `mock230 --selftest`, last leg: `::mapinstance` puts the player in
+an instance, `mock230_world_remove_player` takes them out, and the two
+assertions are that the reservation count is back to 0 and that the player's
+coord is no longer inside the pool. Both go red under either mutation — an empty
+`[logout,_]` body, or the engine dispatch removed — which is what makes it a
+test rather than a description. It loads its own script pack, because an earlier
+leg deliberately frees the shared one.
+
+**One diagnostic came out of it.** `SS_OP_MAP_INSTANCE_FREE` now counts the npcs
+still standing inside the instance being released and says so under
+`MOCK230_VERBOSE`. It does not delete them — whose npcs those are is content's
+question — but an abandoned spawn is otherwise invisible until the *next*
+session finds somebody else's boss in the arena, because the pool re-issues a
+released square immediately and `npc_add`'s durations run to thousands of ticks.
+Measured on the Inferno: `freed with 2 npc(s) still inside` before
+`~inferno_despawn_arena` existed, silent after.
 
 ---
 

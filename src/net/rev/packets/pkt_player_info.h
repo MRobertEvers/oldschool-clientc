@@ -42,6 +42,25 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OPBITS_WALKDIR,
     PKT_PLAYER_INFO_OPBITS_RUNDIR,
     PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL,
+    /*
+     * An ABSOLUTE coordinate, where LOCAL_XZLEVEL carries a scene-local one.
+     *
+     * The v5 stream states every high-resolution position in world coordinates
+     * and the classic stream states the local player's in 7-bit scene tiles.
+     * They share `_local_xz_level`; what differs is the frame, and the decoder
+     * cannot convert because it does not know the scene origin. The executor
+     * subtracts it.
+     */
+    PKT_PLAYER_INFO_OP_ABS_XZLEVEL,
+    /*
+     * Drop a player by INDEX, not by a position in the previous packet's list.
+     *
+     * v5 addresses players by their slot in the client's own 1..2047 table, so
+     * a de-resolution names the slot directly. CLEAR_PLAYER_OPBITS_IDX cannot
+     * express that -- its payload indexes the old tracked list, which v5 does
+     * not have.
+     */
+    PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID,
     PKT_PLAYER_INFO_OP_DELTA_XZ,
     PKT_PLAYER_INFO_OP_APPEARANCE,
     PKT_PLAYER_INFO_OP_SEQUENCE,

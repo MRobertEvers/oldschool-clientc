@@ -161,6 +161,15 @@ player_target_op(
         self->cur_element_id = -1;
         return 1;
     }
+    case PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID:
+        /* The v5 form of the drop: the payload IS the pid, because that stream
+         * addresses players by their slot rather than by a position in the
+         * previous packet's tracked list. */
+        RS_EntitySync_RemovePlayer(esync, self->app->world, (int)op->_bitvalue);
+        self->cur_pid = -1;
+        self->cur_world_idx = -1;
+        self->cur_element_id = -1;
+        return 1;
     case PKT_PLAYER_INFO_OPBITS_COUNT_RESET:
     {
         /* Client-TS getPlayerPosOldVis: when the wire 8-bit count is less than
@@ -252,6 +261,30 @@ player_apply_op(
             op->_local_xz_level.z);
         if( player )
             player->grid_position.level = op->_local_xz_level.level;
+        break;
+    }
+    case PKT_PLAYER_INFO_OP_ABS_XZLEVEL:
+    {
+        /* The v5 stream's world coordinate, brought into the scene the same way
+         * the projectile and map-flag decoders do: the scene's south-west
+         * corner is the rebuild's centre zone less the six zones of margin the
+         * client keeps on each side. */
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+        int origin_x = (app->rebuild_zone_x - 6) * 8;
+        int origin_z = (app->rebuild_zone_z - 6) * 8;
+
+        World_PlayerPathJump(
+            world,
+            idx,
+            op->_local_xz_level.jump,
+            op->_local_xz_level.x - origin_x,
+            op->_local_xz_level.z - origin_z);
+        if( player )
+            player->grid_position.level = op->_local_xz_level.level;
+        entity_debug_log(
+            "entity_sync: abs move to scene %d,%d\n",
+            op->_local_xz_level.x - origin_x,
+            op->_local_xz_level.z - origin_z);
         break;
     }
     case PKT_PLAYER_INFO_OP_DELTA_XZ:
@@ -416,8 +449,19 @@ Task_ExecPlayerInfo_Run(
 
     self->ops = calloc(ENTITY_INFO_OPS_MAX, sizeof(*self->ops));
     assert(self->ops);
-    self->op_count = pkt_player_info_reader_read(
-        &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+    /* A revision whose stream is a different CODEC states its own reader
+     * (GameProtoRevTable.player_info_read); NULL means the classic bitstream.
+     * Both produce the same op array, so nothing below this line branches. */
+    {
+        struct GameProtoRevTable const* rev = app->net ? app->net->rev : NULL;
+
+        self->op_count =
+            rev && rev->player_info_read
+                ? rev->player_info_read(
+                      self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX)
+                : pkt_player_info_reader_read(
+                      &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+    }
 
     /* Snapshot the tracked list: ADD_OLD indexes the PREVIOUS packet's
      * order while the walk rebuilds the live list in place. */
@@ -894,8 +938,15 @@ Task_ExecNpcInfo_Run(
         &self->reader,
         app->net && app->net->rev ? app->net->rev->npc_slot_bits : 0,
         app->net && app->net->rev ? app->net->rev->npc_type_bits : 0);
-    self->op_count = pkt_npc_info_reader_read(
-        &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+    {
+        struct GameProtoRevTable const* rev = app->net ? app->net->rev : NULL;
+
+        self->op_count =
+            rev && rev->npc_info_read
+                ? rev->npc_info_read(self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX)
+                : pkt_npc_info_reader_read(
+                      &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+    }
 
     self->old_count = app->esync.active_npc_count;
     memcpy(

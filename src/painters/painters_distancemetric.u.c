@@ -528,7 +528,7 @@ painter_paint_distancemetric(
                     push_command_entity(buffer, element->_wall.entity);
             }
 
-            if( tile->ground_decor != -1 )
+            if( tile->ground_decor != -1 && painter_ground_decor_enabled() )
             {
                 element = &painter->elements[tile->ground_decor];
                 assert(element->kind == PNTRELEM_GROUND_DECOR);
@@ -690,12 +690,6 @@ painter_paint_distancemetric(
                             goto step_scenery;
                         }
                     }
-                }
-
-                if( scenery_blocked_by_stack_base(painter, tile, element) )
-                {
-                    waiting_spanning_scenery = true;
-                    goto step_scenery;
                 }
 
                 scenery_queue[scenery_queue_length++] = scenery_element;

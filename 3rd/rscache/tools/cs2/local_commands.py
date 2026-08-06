@@ -658,6 +658,38 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7820": (["STRING"], ["INT"], False),
 
     # ---------------------------------------------------------------
+    # Measured in the running client, not read from it.
+    #
+    # `Deobfuscator/instr/src/CS2Trace.java` samples the three operand-stack
+    # pointers either side of every executed opcode; `3draster` drives the
+    # client through all 9,725 scripts in the cache with
+    # `tools/perf/cs2_sweep.sh`, so an opcode no screen reaches still runs.
+    # 560 opcodes executed; 307 of them agreed with this table exactly, which
+    # is the reason to believe the disagreements.
+    #
+    # A measured *net* is `pushes - pops`, so it does not by itself split an
+    # entry into arguments and results. Where the split below is stated it is
+    # because only one split is consistent with both the net and the handler
+    # source; where it was not, the entry was left alone rather than guessed.
+    "cc_setop": (["INT", "STRING"], [], True),            # net (-1,-1) x51047
+    "if_setop": (["COMPONENT", "INT", "STRING"], [], False),  # net (-2,-1) x3725
+    "if_getop": (["COMPONENT", "INT"], ["STRING"], False),    # net (-2,+1) x11
+    "oc_iop": (["OBJ", "INT"], ["STRING"], False),        # net (-2,+1) x47
+    "openurl": (["STRING", "INT"], [], False),            # net (-1,-1) x11
+    "mes": (["STRING"], [], False),                       # net (0,-1)
+    "clan_kickuser": (["STRING"], [], False),             # net (0,-1)
+    "chat_sendpublic": (["STRING", "INT"], [], False),    # net (-1,-1)
+    "chat_playername": ([], ["STRING"], False),           # net (0,+1) x186
+    "clan_getchatownername": ([], ["STRING"], False),     # net (0,+1) x7
+    "_4124": ([], ["INT"], False),                        # net (+1,0) x30 — was a string
+    "_6623": (["INT"], ["INT"], False),                   # net (0,0)
+    "mec_category": (["INT"], ["INT"], False),            # net (0,0)
+    "_8000": (["STRING", "STRING"], [], False),           # net (0,-2) x26
+    "_8001": (["STRING", "INT", "INT"], [], False),       # net (-2,-1)
+    "chat_gethistoryex_byuid": (["INT"], ["INT", "INT", "INT", "INT",
+                                          "STRING", "STRING", "STRING", "STRING"], False),
+
+    # ---------------------------------------------------------------
     # Active-component ("dot") forms these rows had marked False.
     #
     # For a cc_* command the operand byte is not data, it is the flag that picks

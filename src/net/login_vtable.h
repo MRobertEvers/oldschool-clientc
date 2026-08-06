@@ -27,6 +27,15 @@ struct NetLoginVTable
     int (*send)(void* handle, uint8_t* out, int out_size);
     /** Advance the machine. Returns a loginproto.h status code. */
     int (*poll)(void* handle);
+    /**
+     * The local player's index, once the handshake has succeeded, or -1.
+     *
+     * Revision 239 has no UPDATE_PID packet: the client learns which slot is
+     * itself from the login response and nowhere else, and the PLAYER_INFO v5
+     * stream is keyed on that index. A revision whose handshake does not state
+     * it leaves this NULL and keeps using UPDATE_PID.
+     */
+    int (*local_index)(void* handle);
     void (*free_)(void* handle);
 };
 

@@ -26,16 +26,17 @@
  * where `lc_name(loc $loc)(string)` names one.
  *
  * ------------------------------------------------------------------
- * Holding the active loc by slot
+ * Holding the active loc by handle
  * ------------------------------------------------------------------
  *
  * The VM's pointer table (require 0x040 = SSVM_PTR_ACTIVE_LOC) has already
  * refused the opcode if no loc is active, so `active_loc` below is not
  * re-checking that. It is checking something the table cannot: a script can
  * suspend between `loc_find` and here, and a scene rebuild reallocates the loc
- * array underneath it. The slot rides in the VM's active-entity pointer as
- * `slot + 1` (mock230_scripts.c keeps the same convention for the same reason),
- * so a resumed script either finds the same loc or finds none.
+ * array underneath it. The handle rides in the VM's active-entity pointer —
+ * `slot + 1` for a scene loc, negative for a ZoneMap record beyond the scene
+ * window — and `mock230_script_loc_resolve` re-validates either kind, so a
+ * resumed script either finds the same loc or finds none.
  *
  * Note what is deliberately NOT used for this: `mock230_scene_find_loc` ends in
  * `return loc_id >= 0 ? fallback : fallback`, so its loc_id argument does not
@@ -79,16 +80,11 @@ active_loc(
     struct SSVM_State* state,
     int opcode)
 {
-    int slot = (int)((intptr_t)SSVM_Active(state, SSVM_ENT_LOC)) - 1;
-    struct Mock230SceneLoc* loc;
+    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct Mock230SceneLoc* loc =
+        mock230_script_loc_resolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
 
-    if( slot < 0 )
-    {
-        SSVM_Abort(state, "%s: the active loc is gone", SSVM_OpcodeName(opcode));
-        return NULL;
-    }
-    loc = mock230_scene_loc(slot);
-    if( !loc || !loc->active )
+    if( !loc )
     {
         SSVM_Abort(state, "%s: the active loc is gone", SSVM_OpcodeName(opcode));
         return NULL;

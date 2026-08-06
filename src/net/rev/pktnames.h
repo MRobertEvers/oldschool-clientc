@@ -249,6 +249,29 @@ enum GameProtoPktOutName
     PKTOUT_NAME_IF_BUTTON8,
     PKTOUT_NAME_IF_BUTTON9,
     PKTOUT_NAME_IF_BUTTON10,
+    /*
+     * IF_BUTTONX / IF_SUBOP — the one packet the whole family above collapses
+     * into from revision ~237.
+     *
+     * `p4 combinedId, p2 sub, p2 obj, p1 op` (IF_SUBOP adds `p1 subop`), and
+     * the OP NUMBER IS A FIELD rather than the opcode. That is why the newer
+     * table has no OPHELD1..5, no INV_BUTTON1..5 and no IF_BUTTON1..10: twenty-
+     * two opcodes became two, and `obj` (0xffff for "not an item") is what
+     * separates an inventory verb from a plain widget click.
+     *
+     * The server already reads them (`mock239_inbound.c` fans them back out to
+     * the canonical names); these exist so the *client* can name them, because
+     * `net_out_opcode` refuses a canonical name the revision's table does not
+     * carry — and refusing is silent. With no row, every equip, every use-on
+     * and every tab click at 239 was built, encrypted, and dropped before it
+     * reached the socket.
+     */
+    PKTOUT_NAME_IF_BUTTONX,
+    PKTOUT_NAME_IF_SUBOP,
+    /* IF_BUTTONT: the use-on, component to component — 230's OPHELDU and
+     * OPHELDT in one packet, with the target and the selected item
+     * interleaved rather than written as two triples. */
+    PKTOUT_NAME_IF_BUTTONT,
     /* CLICK_WORLD_MAP: a click on the open world map surface, as the absolute
      * tile it landed on (packed level<<28 | x<<14 | z). */
     PKTOUT_NAME_CLICK_WORLD_MAP,

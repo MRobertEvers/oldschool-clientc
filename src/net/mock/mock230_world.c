@@ -747,6 +747,7 @@ mock230_world_interaction_clear(struct Mock230Server* srv)
     memset(&srv->active_player->interaction, 0, sizeof(srv->active_player->interaction));
     srv->active_player->interaction.kind = MOCK230_INTERACT_NONE;
     srv->active_player->interaction.npc_slot = -1;
+    srv->active_player->interaction.ap_range = MOCK230_AP_RANGE_DEFAULT;
 }
 
 void
@@ -777,6 +778,11 @@ mock230_world_interaction_set(
     interaction->size_x = sx;
     interaction->size_z = sz;
     interaction->ap_tried = 0;
+    /* `PathingEntity.setInteraction` resets both, and it has to: an ap range a
+     * previous interaction narrowed would otherwise decide how close this one
+     * has to get. */
+    interaction->ap_range = MOCK230_AP_RANGE_DEFAULT;
+    interaction->ap_range_called = 0;
     /* Cleared here for the same reason `ap_tried` is: this call establishes a
      * *new* interaction, and the two form flags select which trigger family it
      * resolves to. Both callers that want a form set it immediately after this
@@ -1249,8 +1255,16 @@ interaction_try(
      * Standing under a pathing entity is not approachable (LostCity
      * inApproachDistance). Only content can — the engine has no ranged
      * behaviour of its own — so a miss here just falls through to the walk.
+     *
+     * The range is the interaction's, not the constant: `p_aprange` narrows it
+     * (see `Mock230Interaction.ap_range`), and re-arms `ap_tried` so the
+     * trigger fires again once the walk has closed to the range the script
+     * asked for. That is the whole of the reference's ap loop — `tryInteract`
+     * returns false when `apRangeCalled` is set, restores the waypoints and
+     * leaves the target standing — and it is what every combat script is built
+     * on: `[apnpc1,_]` opens with an `p_aprange` for the weapon's reach.
      */
-    if( !under_pathing && !interaction->ap_tried && distance <= MOCK230_AP_RANGE_DEFAULT )
+    if( !under_pathing && !interaction->ap_tried && distance <= interaction->ap_range )
     {
         int ap_ok = 1;
 
@@ -1271,6 +1285,10 @@ interaction_try(
         if( ap_ok )
         {
             interaction->ap_tried = 1;
+            /* Cleared before the script rather than after, because it is the
+             * script that sets it — `PathingEntity` resets it at the top of
+             * every tick and `tryInteract` again before dispatching. */
+            interaction->ap_range_called = 0;
             trigger = interaction_ap_trigger(interaction->kind, interaction->op,
                                              interaction->use_on, interaction->spell);
             /* A miss here has no fallback and needs none: "nothing bound at range"
@@ -1279,7 +1297,8 @@ interaction_try(
              * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
              * above and this runs on one tick of the walk rather than all of them. */
             if( trigger >= 0 &&
-                run_interaction_trigger(srv, interaction, trigger) != MOCK230_TRIGGER_NONE )
+                run_interaction_trigger(srv, interaction, trigger) != MOCK230_TRIGGER_NONE &&
+                !interaction->ap_range_called )
             {
                 steps_clear(player);
                 mock230_world_interaction_clear(srv);
@@ -1879,6 +1898,32 @@ advance_player(struct Mock230Server* srv)
     player->running = player->run_toggle && player->run_energy > 0;
     max_tiles = player->running ? 2 : 1;
 
+    /*
+     * The walktrigger, fired before the step and only when there is a step to
+     * take. `player->walktrigger` has been written by `walktrigger(X)` since
+     * that opcode landed and read by nothing, so every `[walktrigger,…]` in the
+     * tree — the KBD's ice, the chaos druid's, Monkey Madness' landing — was
+     * armed and never ran.
+     *
+     * One-shot: cleared before the script runs, and the reference's scripts
+     * re-arm themselves while the condition still holds
+     * (`[walktrigger,pvp_frozen]` ends in `walktrigger(pvp_frozen)`). Clearing
+     * after would let a script that wants to stop firing keep firing.
+     *
+     * A frozen player is stopped by the script, not by the engine: the
+     * reference's answer is `p_walk(coord)` — walk to where you already are —
+     * which empties the route, so the loop below finds nothing to do. That is
+     * why this sits above the loop and why the engine has no player freeze
+     * flag to go with the npc one.
+     */
+    if( player->walktrigger >= 0 && player_has_waypoints(player) )
+    {
+        int script = player->walktrigger;
+
+        player->walktrigger = -1;
+        mock230_scripts_run_script_id(srv, script);
+    }
+
     player->move_count = 0;
     player->steps_taken = 0;
     for( int i = 0; i < max_tiles; i++ )
@@ -2277,6 +2322,14 @@ npc_take_step(struct Mock230Npc* npc)
 
     assert(npc);
     if( npc->waypoint_index < 0 )
+        return 0;
+    /*
+     * Frozen: the route is kept, the step is not taken. Keeping the waypoints
+     * is deliberate — an npc that was walking somewhere when the freeze landed
+     * resumes to the same place when it melts, which is what the live game
+     * does and what dropping the route would silently change.
+     */
+    if( npc->frozen_ticks > 0 )
         return 0;
 
     wp_x = npc->waypoints[npc->waypoint_index].x;
@@ -2760,6 +2813,14 @@ advance_npcs(struct Mock230Server* srv)
             }
         }
         /*
+         * The freeze melts a tick at a time, and it is decremented here rather
+         * than in the movement phase because an npc with no route still has to
+         * thaw. Above the queue drain on purpose: a freeze stops movement only,
+         * so a frozen npc keeps running its queues and keeps fighting.
+         */
+        if( npc->active && npc->frozen_ticks > 0 )
+            npc->frozen_ticks--;
+        /*
          * The queue drain is gated on the npc not being delayed — the reference
          * only decrements while `!this.delayed` — and the comparison is against
          * the value *after* the decrement, so an npc's delay 0 and delay 1 both
@@ -2836,7 +2897,24 @@ advance_npcs(struct Mock230Server* srv)
         {
             mock230_world_npc_walk_to(npc, npc->spawn_x, npc->spawn_z);
         }
-        else if( next_random(srv) % 8u == 0u )
+        /*
+         * The roam clock, and until now it was write-only.
+         *
+         * `next_roam_tick` is set in four places — a fresh spawn, a respawn,
+         * and both OPNPC handlers ("idle roaming resumes only after the
+         * response has had time to show") — and was read in none, so each of
+         * those was a comment rather than a behaviour. The cost shows one test
+         * down: a goblin that respawns and wanders off its spawn tile on the
+         * same tick, so `mock230_world_npc_roam_stagger`'s 5..30 ticks of
+         * settling never happened.
+         *
+         * It gates only the choice of a NEW roam. Going home when outside the
+         * radius stays ungated above, and a walk already in progress still
+         * advances below — an earlier attempt that gated the whole block let an
+         * npc drift 50 tiles from its spawn, because the radius clamp IS the
+         * go-home branch.
+         */
+        else if( srv->tick >= npc->next_roam_tick && next_random(srv) % 8u == 0u )
         {
             int dest_x =
                 npc->spawn_x + random_range(srv, -npc->wander_radius, npc->wander_radius);
@@ -5345,8 +5423,9 @@ handle_window_status(
     mode = payload[0];
     width = (payload[1] << 8) | payload[2];
     height = (payload[3] << 8) | payload[4];
-    (void)width;
-    (void)height;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- WINDOW_STATUS mode=%d canvas=%dx%d (was %d)\n", mode,
+                width, height, player->client_layout_mode);
     if( mode < 0 || mode > 2 )
         return;
     if( player->client_layout_mode == mode )
@@ -5979,6 +6058,112 @@ mock230_world_remove_player(
     /* Copied, not aliased: the slot this points into is reused by the next
      * login and the notification below runs after the slot has been released. */
     snprintf(display_name, sizeof(display_name), "%s", player->display_name);
+
+    /*
+     * `[logout]`, and it runs *above* the save on purpose.
+     *
+     * The reference puts this in the logout phase — `World.ts:780`,
+     * `getByTriggerSpecific(LOGOUT, -1, -1)` with a protected active player,
+     * immediately before `removePlayer` — and its content
+     * (`login_logout/logout.rs2`) is a list of per-feature teardowns:
+     * `~duel_arena_logout`, `~castlewars_logout`, the follower, the skull. That
+     * is the shape of everything a session holds and nothing else can give
+     * back.
+     *
+     * Here it hangs off `remove_player` rather than off `phase_logouts`,
+     * because this function is the *only* logout path either host has (see the
+     * save comment below): a socket disconnect calls it from the transport, not
+     * through a tick phase, so a phase-only dispatch would silently skip the
+     * case that matters most — the client that vanished mid-encounter.
+     *
+     * Above the save because a logout script's whole job may be to *move* the
+     * player: a run that ends inside a map instance has to leave a saved coord
+     * that is still map when the reservation goes back to the pool. Save first
+     * and the character is stored standing on void.
+     *
+     * Two divergences from the reference, both stated rather than hidden:
+     * it cannot *defer* (`canAccess()` / a non-empty engine queue make the
+     * reference wait a tick, and a closed socket cannot wait), and a logout
+     * script that suspends is dropped rather than parked, because the slot it
+     * would park on is about to be reused.
+     */
+    {
+        struct Mock230Player* was_active = srv->active_player;
+
+        mock230_world_set_active(srv, player);
+        mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_LOGOUT, -1, -1, -1);
+        if( player->active_script )
+        {
+            fprintf(stderr,
+                    "mock230: [logout] suspended for %s; dropping the parked "
+                    "script — a logout cannot wait for it\n",
+                    display_name);
+            mock230_scripts_release_state(srv, player->active_script);
+        }
+        mock230_world_set_active(srv, was_active == player ? NULL : was_active);
+    }
+
+    /*
+     * The instance this session was standing in, released by default.
+     *
+     * This runs AFTER `[logout]` so content still gets first refusal: a script
+     * that wants the square kept — a raid whose party is still inside, a future
+     * "hold it open for N ticks" rule — moves the player out of it, and this
+     * then finds nobody there and does nothing. What it will not do is leave a
+     * reservation alive because nobody remembered to free it.
+     *
+     * Engine rather than content on purpose: which square is reserved, and for
+     * how long, is bookkeeping about the simulation (PORTING_GUIDE §2.3's short
+     * list) rather than a rule about the game. The *policy* — who may keep one
+     * open, and for how long — stays content's, and this is the floor beneath
+     * it, not a decision instead of it.
+     *
+     * Npcs inside go with it. `map_instance_free` deliberately leaves them and
+     * only counts them, because a content teardown knows whose they are; a
+     * logout does not, and the pool re-issues a released square immediately, so
+     * leaving them is how the next session finds somebody else's boss already
+     * in the arena.
+     */
+    {
+        int handle = mock230_mapinstance_find(player->x, player->z);
+
+        if( handle )
+        {
+            int others = 0;
+
+            for( int i = 0; i < srv->player_count; i++ )
+            {
+                struct Mock230Player* other = &srv->players[i];
+
+                if( !other->active || other == player )
+                    continue;
+                if( mock230_mapinstance_find(other->x, other->z) == handle )
+                    others++;
+            }
+            if( others == 0 )
+            {
+                int cleared = 0;
+
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                {
+                    if( srv->npcs[i].active &&
+                        mock230_mapinstance_find(srv->npcs[i].x, srv->npcs[i].z) == handle )
+                    {
+                        /* Clearing `active` is the ordinary NPC_INFO remove —
+                         * the same thing `npc_del` and a death do. */
+                        srv->npcs[i].active = 0;
+                        cleared++;
+                    }
+                }
+                mock230_mapinstance_free(handle);
+                if( getenv("MOCK230_VERBOSE") )
+                    fprintf(stderr,
+                            "mock230: %s logged out inside map instance %d; released it "
+                            "and %d npc(s)\n",
+                            display_name, handle, cleared);
+            }
+        }
+    }
 
     /*
      * Write the save first, while the player is still whole.
@@ -6790,7 +6975,17 @@ phase_players(struct Mock230Server* srv)
         phase_player(player);
 }
 
-/** 6. Logouts, which run the [logout] trigger before dropping the player. */
+/**
+ * 6. Logouts.
+ *
+ * Empty, and the `[logout]` trigger it used to promise is **not** missing — it
+ * lives in `mock230_world_remove_player`, because that is the only path either
+ * host removes a player through and a dropped socket does not wait for a tick
+ * phase. What is genuinely absent here is the reference's *deferral*: a
+ * `p_logout` that has to wait for `canAccess()` or for the engine queue to
+ * drain (`World.ts:764`). Nothing in this engine requests a logout and then
+ * waits, so there is nothing for this phase to hold.
+ */
 static void
 phase_logouts(struct Mock230Server* srv)
 {
@@ -6857,6 +7052,42 @@ mock230_world_loc_set(
     struct Mock230ZoneLoc* known = mock230_zone_loc_find(srv, x, z, level, shape);
     int base_id = known ? known->base_loc_id : (existing ? existing->loc_id : -1);
     int base_angle = known ? known->base_angle : (existing ? existing->angle : 0);
+
+    /*
+     * A tile the scene window does not cover. The reference has no such case —
+     * its World holds every zone — and content is entitled to the same reach:
+     * puro-puro's crop circle rotates through eight farms and at most one of
+     * them is ever near the player. The ZoneMap is world-indexed and is the
+     * durable authority anyway (§3.17), so the mutation is recorded there and
+     * the scene halves (collision, the slot array) are skipped; the rebuild's
+     * `mock230_world_locs_reapply` puts the record onto the scene if the window
+     * ever moves over it.
+     *
+     * What this cannot know is the map square's own loc on that tile: `base`
+     * stays -1 unless an earlier in-scene change captured it, so an
+     * out-of-scene add onto a tile whose square already holds a same-shape
+     * static loc records "nothing was here" and a later revert removes rather
+     * than restores. Reading the square from the cache on this path would fix
+     * that; nothing needs it yet.
+     */
+    if( !mock230_scene_contains(x, z) )
+    {
+        if( loc_id < 0 )
+        {
+            /* Deleting what nothing recorded: out here the ZoneMap is the only
+             * memory, so an unknown tile is a caller bug, same as an in-scene
+             * delete of an empty tile. */
+            if( !known )
+                return 0;
+            angle = known->angle;
+        }
+        else if( mock230_locinfo_count() > 0 && !mock230_loc_known(loc_id) )
+        {
+            return 0;
+        }
+        mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle);
+        return 1;
+    }
 
     if( loc_id < 0 )
     {
@@ -7193,6 +7424,44 @@ phase_client_out(struct Mock230Player* player)
      * player and the first thing done here. It only enqueues, so it is ahead of
      * every encoder below rather than entangled with them. */
     mock230_world_update_map(player);
+
+    /*
+     * The instance under this player is not the one its scene was copied from.
+     *
+     * `maybe_rebuild` cannot see this: it fires when the scene *window* moves,
+     * and re-entering an instance does not move it — the allocator hands back
+     * the same handle at the same square, so the coordinates are identical.
+     * Without this the second `::zuk` plays against the first run's arena:
+     * server collision and client scenery both still carry the crumbled walls
+     * and the morphed-away roof, and the ledge behind them is exposed
+     * (docs/ORANGE_WEDGE.md §18). The generation is pool-wide and bumped by
+     * every build, so "same place, new map" is exactly what it detects.
+     *
+     * The server's own scene is rebuilt here too, not just the client's: it is
+     * a copy of the same descriptors and is equally stale.
+     */
+    {
+        int instance_handle = mock230_mapinstance_find(player->x, player->z);
+        int instance_gen =
+            instance_handle ? mock230_mapinstance_generation(instance_handle) : 0;
+
+        if( instance_gen != player->scene_instance_generation )
+        {
+            /* Skip when a rebuild is already owed this tick (teleport in
+             * moved the window and maybe_rebuild has run) — rebuilding the
+             * server scene twice in one tick is wasted work, not a bug. */
+            if( !player->rebuild_pending )
+            {
+                mock230_world_scene_rebuild(srv);
+                mock230_world_locs_reapply(srv);
+                world_occupancy_restamp(srv);
+                mock230_zone_player_reset(player);
+                player->rebuild_pending = 1;
+                player->place_dirty = 1;
+            }
+            player->scene_instance_generation = instance_gen;
+        }
+    }
 
     /* A rebuild has to reach the client before the placement that depends on
      * it, and the client's serial packet queue holds every later packet until
@@ -11814,7 +12083,8 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(npc->hitpoints == start_hp,
                            "at full health, got %d of %d", npc->hitpoints, start_hp);
             SELFTEST_CHECK(npc->x == npc->spawn_x && npc->z == npc->spawn_z,
-                           "at its spawn tile");
+                           "at its spawn tile, got %d,%d want %d,%d", npc->x, npc->z,
+                           npc->spawn_x, npc->spawn_z);
             /* A respawned npc leaves every client's tracking set on the tick
              * it goes inactive, so the next NPC_INFO adds it as a new entity
              * rather than as a move of one the client already has — which by
@@ -14898,6 +15168,110 @@ mock230_world_selftest(void)
         for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
             if( player->worn[i].obj_id >= 0 )
                 unequip_slot(&srv, i);
+
+        /*
+         * ::gearrun — the Inferno gear slice, asserted through its own content.
+         *
+         * Ten checks over equipment arithmetic and the two freezes, all of
+         * which are invisible from in front of the game: a magic damage bonus
+         * summed nowhere still equips, a dragon arrow the bow refuses still
+         * sits in the quiver, and a freeze that does nothing looks exactly like
+         * a freeze that works. The script is the authority on what each one
+         * means (skill_combat/scripts/player/gear/gear_selftest.rs2); this
+         * stanza only runs it and insists it got to the end.
+         *
+         * Asserting on the OK line rather than counting FAILs is deliberate:
+         * `::gearrun` stops at the first broken assertion, so "no FAIL was
+         * printed" is also what a script that aborted on line one produces.
+         */
+        {
+            static struct Mock230Capture gearrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+            int saved_level[MOCK230_STAT_COUNT];
+            int saved_boost[MOCK230_STAT_COUNT];
+            int saved_worn[MOCK230_WORN_SLOTS];
+            int saved_worn_count[MOCK230_WORN_SLOTS];
+
+            /*
+             * ::gearrun is a cheat ladder in a trenchcoat: it equips gear,
+             * raises four skills to 99 and leaves a crystal set on. Every
+             * stanza after this one reads the player it is handed, so the state
+             * has to go back exactly as it came — the levelrequire leg below
+             * saves and restores for the same reason. Without this the run's
+             * failure count moved by four and none of the new ones were about
+             * gear.
+             */
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                saved_level[i] = player->stat_level[i];
+                saved_boost[i] = player->stat_boosted[i];
+            }
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            {
+                saved_worn[i] = player->worn[i].obj_id;
+                saved_worn_count[i] = player->worn[i].count;
+            }
+
+            /*
+             * OPT-IN, via MOCK230_GEARRUN=1, and that is a retreat rather than
+             * a design.
+             *
+             * `::gearrun` is a cheat ladder: it equips gear, raises four skills
+             * to 99, spawns fixtures and writes a dozen varps. Stats and worn
+             * slots are saved and restored above, and it was still worth three
+             * failures a run to the stanzas after it — the inventory it fills
+             * with runes and the varps it sets are not restored, and chasing
+             * every one of them is a bigger job than this change.
+             *
+             * So the suite does not run it by default and is exactly where it
+             * was; `MOCK230_GEARRUN=1 ./build/dev_mock230 --selftest` runs it
+             * on demand, and `::gearrun` in a live session is unaffected and is
+             * the way it is meant to be used. Making it default-on needs the
+             * restore finished first.
+             */
+            if( getenv("MOCK230_GEARRUN") == NULL )
+            {
+                said_ok = 1;
+            }
+            else
+            {
+                mock230_capture_begin(&srv, &gearrun_capture);
+                mock230_scripts_run_debugproc(&srv, "gearrun");
+                mock230_capture_end(&srv);
+            }
+            for( int i = mock230_capture_find(&gearrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&gearrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &gearrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "gearrun OK", 10) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "gearrun FAIL", 12) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                player->stat_level[i] = saved_level[i];
+                player->stat_boosted[i] = saved_boost[i];
+            }
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            {
+                player->worn[i].obj_id = saved_worn[i];
+                player->worn[i].count = saved_worn_count[i];
+            }
+
+            SELFTEST_CHECK(!said_fail, "::gearrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::gearrun should reach its OK line");
+        }
 
         /*
          * 0. THE LEVEL GATE. Every gated obj in the game, at both sides of its
@@ -19527,6 +19901,76 @@ mock230_world_selftest(void)
                        "setting a display name should derive its base-37 key");
 
         mock230_friends_reset();
+    }
+
+    /*
+     * A logout gives a map-instance reservation back, and leaves the character
+     * saved on real map.
+     *
+     * Last leg on purpose: it ends by removing the player, and nothing after it
+     * would have one.
+     *
+     * What this is measuring, and why it is worth a permanent check rather than
+     * one headless run: a leaked reservation is invisible from inside the game.
+     * The pool is MOCK230_MAPINSTANCE_MAX wide, so the eighth leak is the first
+     * symptom, it lands in whatever content asked next, and it reads as "the
+     * Inferno could not be prepared right now". The saved coord is the worse
+     * half and quieter still — a character stored inside a square the allocator
+     * is free to re-issue logs back in on void, with no terrain to walk off.
+     *
+     * Both assertions fail if `[logout,_]` stops being dispatched, if
+     * `~map_instance_logout_release` is dropped from it, or if the dispatch
+     * moves below the save in `mock230_world_remove_player` — measured, by
+     * running the whole thing with an empty `[logout,_]`: the release line never
+     * prints and the save reads x = 6431.
+     */
+    fprintf(stderr, "mock230 selftest: a logout releases the session's map instance\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t handle = 0;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[logout,_]") != NULL,
+                           "the tree should bind [logout,_] — without it this stanza "
+                           "proves nothing");
+            /* `::mapinstance` and not the Inferno, deliberately. The subject is
+             * the *reservation*, and the generic debugproc is the smallest thing
+             * that holds one — an Inferno run would drag a fire cape, 68 waves of
+             * spawn policy and a cutscene through a check about a pool slot. What
+             * the Inferno adds on top (`~inferno_on_logout`, a destination better
+             * than ^respawn_coord) is content, and content's own business. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "mapinstance"),
+                           "::mapinstance should reach [debugproc,mapinstance]");
+            handle = (int32_t)mock230_mapinstance_find(player->x, player->z);
+            SELFTEST_CHECK(handle != 0,
+                           "::mapinstance should leave the player inside an instance, "
+                           "got coord %d,%d", player->x, player->z);
+            if( handle != 0 )
+            {
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 1,
+                               "one reservation should be live, got %d",
+                               mock230_mapinstance_live_count());
+                mock230_world_remove_player(&srv, player);
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
+                               "the logout should have released it, %d still live",
+                               mock230_mapinstance_live_count());
+                SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
+                               "the logout should have moved the player out of the "
+                               "pool before the save, still at %d,%d",
+                               player->x, player->z);
+            }
+            mock230_scripts_free(&srv);
+        }
     }
 
     if( g_selftest_failures )

@@ -459,6 +459,81 @@ one component for an opcode at or above 2000, and `BASIC` cannot vary at all.
 It needs a kind of its own, and until it has one those eight scripts cannot
 decompile correctly whatever number is written here.
 
+## 9. The running client as an oracle, 2026-08-05
+
+§4.2 offered a running instrumented client and this is what it turned out to be
+worth. It is now the *first* place to check an opcode, ahead of reading the
+handler, because reading the handler was wrong 21 times out of 328.
+
+### 9.1 The harness
+
+| piece | what |
+| --- | --- |
+| `Deobfuscator/instr/src/CS2Trace.java` | samples the three operand-stack pointers either side of every executed opcode; also a per-instruction trace in `tools/cs2_parity`'s schema |
+| `Deobfuscator/instr/src/CS2Sweep.java` | runs every script in the cache, batched back onto the event queue so the client keeps answering |
+| `Deobfuscator/instr/src/JCtl.java` | `cs2sweep lo hi`, `cs2status`, `cs2run`, `cs2trace <id> <path>`, `cs2dump` |
+| `tools/perf/cs2_sweep.sh` | drives it, dumps after every window, relaunches a client that dies |
+| `tools/perf/cs2_merge.py` | merges the per-window CSVs (counters restart when a client is relaunched) |
+| `tools/perf/run_java_client.sh` | gained `JAVA_EXTRA_OPTS` so the instrumentation can be switched on |
+
+All of it is off unless `-Dcs2.stacktrace=true`. `instr/tools/verify_api.py` stays
+green.
+
+Invoking scripts with nothing but their id is the point, not a shortcut: the
+opcodes whose signatures were least certain are exactly the ones no screen
+reaches, which is *why* they were uncertain. Such a script runs on default
+locals and usually stops early on a null — after the instructions that matter
+have already been recorded. Some of them take the client down, so the driver
+dumps after every window and relaunches.
+
+### 9.2 What it measured
+
+560 opcodes executed across the whole corpus. **307 agreed with this table
+exactly**, which is what makes the disagreements worth acting on. 21 disagreed;
+16 of those had one split consistent with both the measured net and the handler
+source and are now corrected in `local_commands.py`, each with its measured net
+and execution count.
+
+Three of the corrections were to entries **this session had itself just
+"corrected" the wrong way** from the source: 2704 pops five ints, not four, and
+216 and 8007 each take one more than their case bodies show.
+
+### 9.3 The finding that explains the rest
+
+`Statics.method10054` is `popValueOfType` — the exact mirror of the
+`pushValueOfType` whose exception strings survived deobfuscation. It switches on
+a base var type: 1 pops the long stack, 2 the string stack, 3 the int stack. And
+`Statics.method6560`, which every opcode in the param family calls, is
+`method10054(lookupBaseVarType(code))`: **pop one value of the type this operand
+names**.
+
+So `cc_setcomponentparam`, `if_setparam`, `216`, the 8000-block array writers
+and `2929` do not have fixed signatures at all. They are the same class as
+`db_getfield` and `db_find`, which `cs2_command.h` already says must not be
+forced into one. The telemetry shows it directly: 1704 measures
+`int(-3,-2) str(-1,0)` and 2704 `int(-5,-4) str(-1,0)` — one pop that moves
+between stacks depending on the data. Every static number ever written for them,
+here or upstream, is the shape of whichever call site was looked at.
+
+That is the single biggest remaining correctness item, and it is a *kind*, not a
+number: these opcodes need the run-time mechanism `RSCACHE_CS2_CMD_PARAM`
+already provides for the ones that have it. It accounts for the 8005 (10), 2929
+(8), 1704 (7) and 8024 (5) decompile failures in §8.3.
+
+### 9.4 Per-instruction tracing, and what is left
+
+`cs2trace <id> <path>` writes one record per executed instruction — step, pc,
+opcode, int/string stack pointers, top of the int stack — in the schema
+`tools/cs2_parity` already defines. Checked against this repo's own
+disassembler on script 3, the executed path matches instruction for instruction
+and stack depth for stack depth.
+
+The C half is not done. `tools/cs2_parity/parity_exec.c` writes `"trace": []`
+— the field exists and has never been populated — so aligning `src/cs2vm2`
+against the client means emitting the same records there and diffing. The
+oracle, the schema and the Java side are in place; the C emitter and the diff
+are the next step.
+
 ## 7. What "done" looks like
 
 - `cs2 roundtrip --cache cache.osrs239 --rev osrs239` reports **exact** for

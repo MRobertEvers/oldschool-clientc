@@ -20,6 +20,12 @@ struct ParityScriptEntry
     struct ToriAuxLibCore_ClientScript* loaded;
 };
 
+/* Captured instruction trace for the artifact's "trace" field. 200k is well
+ * past any script in the cache; the longest in osrs239 is under 2000 ops. */
+#define PARITY_TRACE_MAX 200000
+static struct CS2VM2_TraceRecord s_trace[PARITY_TRACE_MAX];
+static int s_trace_count;
+
 static struct RSCacheDat2Disk* s_cache;
 static struct ParityScriptEntry s_scripts[PARITY_SCRIPT_CACHE_MAX];
 static int s_script_count;
@@ -217,7 +223,24 @@ parity_write_exec_artifact(
             fprintf(fp, "null");
     }
     fprintf(fp, "],\n");
+    /* The trace was captured during the run; see parity_exec_case. Emitting it
+     * is what lets a divergence be located at an instruction instead of
+     * inferred from a final stack that is already several ops downstream. */
     fprintf(fp, "  \"trace\": [\n");
+    for( int i = 0; i < s_trace_count; i++ )
+    {
+        fprintf(
+            fp,
+            "    {\"step\": %d, \"pc\": %d, \"opcode\": %d, \"intSp\": %d, "
+            "\"strSp\": %d, \"topInt\": %d}%s\n",
+            i,
+            s_trace[i].pc,
+            s_trace[i].opcode,
+            s_trace[i].ints_top,
+            s_trace[i].strs_top,
+            s_trace[i].top_int,
+            i + 1 < s_trace_count ? "," : "");
+    }
     fprintf(fp, "  ]\n}\n");
     fclose(fp);
     return 0;
@@ -263,6 +286,8 @@ parity_exec_case(
 {
     s_cache = cache;
     s_script_count = 0;
+    CS2VM2_TraceCaptureBegin(s_trace, PARITY_TRACE_MAX);
+    s_trace_count = 0;
 
     static uint16_t opcodes[32];
     static int operands[32];
@@ -334,6 +359,7 @@ parity_exec_case(
                 status = CS2VM_EXECNO_ERROR;
         }
 
+        s_trace_count = CS2VM2_TraceCaptureEnd();
         int rc = parity_write_exec_artifact(out_path, cs_case, &ctx.cs2vm, status);
 
         interface161_cs2_context_free(&ctx);
@@ -364,5 +390,6 @@ parity_exec_case(
     if( CS2VMX_PushCallScript(&vm, &script) != CS2VM_EXECNO_OK )
         return -1;
     int status = CS2VMX_RunScript(&vm);
+    s_trace_count = CS2VM2_TraceCaptureEnd();
     return parity_write_exec_artifact(out_path, cs_case, &vm, status) != 0 ? -1 : 0;
 }

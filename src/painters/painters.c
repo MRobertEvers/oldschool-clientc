@@ -987,6 +987,24 @@ painter_set_suppress_slot_registration(struct Painter* painter, int suppress)
     painter->suppress_slot_registration = suppress ? 1 : 0;
 }
 
+int
+painter_ground_decor_enabled(void)
+{
+    /* TORIRS_NO_GROUND_DECOR=1: drop every ground-decor emit. A bisection
+     * knob — ground decor is a whole class of geometry (shape 22 locs: floor
+     * plates, paths, the Inferno's lava floor planes) that is easy to mistake
+     * for terrain in a screenshot, and turning it off answers "is that thing
+     * decor or floor?" in one frame instead of by pixel attribution. Read
+     * once; it changes nothing when unset. */
+    static int enabled = -1;
+    if( enabled < 0 )
+    {
+        char const* env = getenv("TORIRS_NO_GROUND_DECOR");
+        enabled = (env && env[0] && env[0] != '0') ? 0 : 1;
+    }
+    return enabled;
+}
+
 void
 painter_reset_to_static(struct Painter* painter)
 {

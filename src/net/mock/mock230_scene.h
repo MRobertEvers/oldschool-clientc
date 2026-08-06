@@ -141,6 +141,22 @@ mock230_scene_find_loc_exact(
     int level,
     int shape);
 
+/**
+ * The *live* loc with this id whose south-west corner is this tile, or -1.
+ *
+ * `loc_find`'s lookup — the reference's `Zone.getLoc(x, z, locId)`, corner tile
+ * and type both exact. Distinct from `mock230_scene_find_loc`, whose footprint
+ * match and any-loc fallback exist for stale OPLOC clicks and must not answer a
+ * find, and from `_exact`, which matches tombstones because a mutation has to
+ * address a deleted map loc.
+ */
+int
+mock230_scene_find_loc_id(
+    int x,
+    int z,
+    int level,
+    int loc_id);
+
 /* ------------------------------------------------------------------ */
 /* Collision                                                           */
 /* ------------------------------------------------------------------ */

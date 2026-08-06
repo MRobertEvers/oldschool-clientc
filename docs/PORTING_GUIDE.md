@@ -1006,9 +1006,15 @@ small-wide) → ~~undispatched triggers~~ **done** (queue/timer
 four of the last, both granularities. What they needed was *name*-keyed dispatch,
 `[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, which the numeric-subject
 `mock230_scripts_run_trigger` cannot express, plus two coordinate latches on the
-player; the ZoneMap was not the blocker and is not in the path). Still
+player; the ZoneMap was not the blocker and is not in the path) → ~~`logout`~~
+**done 2026-08-05** (`osrs230_mockserver.md` §3.23 — dispatched from
+`mock230_world_remove_player` and not from `phase_logouts`, because a dropped
+socket never reaches a tick phase, and *above* the save, because a logout script's
+job may be to move the player. What it unblocked was a resource: a session that
+ended inside a map instance leaked the reservation and saved the character on a
+square the pool was about to re-issue). Still
 undispatched after step 5: `walktrigger`/`ai_walktrigger`,
-`advancestat`/`changestat`, `inv_buttond`, `logout`, `ai_despawn`, `tutorial`,
+`advancestat`/`changestat`, `inv_buttond`, `ai_despawn`, `tutorial`,
 and the `*t` spell-target family (89 uses). Track via the generated
 `mock230_opcode_coverage.gen.h` (**260/401** on 2026-08-02, 246/399 two days
 before; this line said 224 and was 22 low, which is the reason the sentence

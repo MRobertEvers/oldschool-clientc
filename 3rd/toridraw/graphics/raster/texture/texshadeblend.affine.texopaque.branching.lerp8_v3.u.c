@@ -10,7 +10,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3_ordered(
     int stride,
     int screen_width,
     int screen_height,
-    int camera_fov,
+    int camera_cot16,
     int x0,
     int x1,
     int x2,
@@ -112,9 +112,9 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3_ordered(
         y1 = 0;
     }
 
-    au = project_scale_unit(vOVPlane_normal_zhat, camera_fov);
-    bv = project_scale_unit(vUOPlane_normal_zhat, camera_fov);
-    cw = project_scale_unit(vUVPlane_normal_zhat, camera_fov);
+    au = project_scale_unit(vOVPlane_normal_zhat, camera_cot16);
+    bv = project_scale_unit(vUOPlane_normal_zhat, camera_cot16);
+    cw = project_scale_unit(vUVPlane_normal_zhat, camera_cot16);
 
     int dy = y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
@@ -275,7 +275,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
     int stride,
     int screen_width,
     int screen_height,
-    int camera_fov,
+    int camera_cot16,
     int x0,
     int x1,
     int x2,
@@ -309,7 +309,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x0,
                 x1,
                 x2,
@@ -341,7 +341,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x0,
                 x2,
                 x1,
@@ -376,7 +376,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x1,
                 x2,
                 x0,
@@ -408,7 +408,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x1,
                 x0,
                 x2,
@@ -443,7 +443,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x2,
                 x0,
                 x1,
@@ -475,7 +475,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_v3(
                 stride,
                 screen_width,
                 screen_height,
-                camera_fov,
+                camera_cot16,
                 x2,
                 x1,
                 x0,

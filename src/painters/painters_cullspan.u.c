@@ -4,7 +4,7 @@
  * Included from painters.c — do not compile as a separate translation unit.
  *
  * Derivation (camera at origin, pitch/yaw applied, perspective screen =
- * (coord * focal) / z with focal = 512 * cot(fov/2)):
+ * (coord * focal) / z with focal = the camera's proj_scale):
  *   u = X cosYaw + Z sinYaw
  *   v = Z cosYaw - X sinYaw
  *   Y sampled in [Y0, Y1] = eye_height + [y_lo, y_hi]
@@ -105,7 +105,6 @@ painters_cullspan_build(
     double cP;
     double sY;
     double cY;
-    double half_fov;
     double focal;
     double a;
     double b;
@@ -170,19 +169,12 @@ painters_cullspan_build(
         return;
     }
 
-    {
-        int fov = p->fov_rpi2048;
-        if( fov < 1 )
-            fov = 512;
-        half_fov = ((double)fov * 0.5) * (2.0 * M_PI / 2048.0);
-        /* Match project_perspective_fast_trig: screen = x * (512*cot(half)) / z. */
-        if( fabs(tan(half_fov)) < 1e-9 )
-        {
-            painters_cullspan_set_all_visible(span, dz_min, dz_max, dx_limit);
-            return;
-        }
-        focal = 512.0 / tan(half_fov);
-    }
+    /* The frustum must assume the same projection scale the rasterizer will
+     * actually use, or this culls tiles that would have drawn (and keeps ones
+     * that would not). Same single knob as ToriDraw_Camera, resolved by the
+     * same helper, so there is no second copy of the rule to drift. */
+    focal = (double)toridraw_proj_scale_from_cot16(
+        toridraw_proj_cot16(p->proj_mode, p->proj_scale, p->fov_rpi2048));
 
     a = ((double)p->screen_width * 0.5) / focal;
     b = ((double)p->screen_height * 0.5) / focal;

@@ -3106,6 +3106,41 @@ mock230_content_load(const char* dir)
      * resolved silently later. */
     validate_symbols(&reg);
 
+    /*
+     * A varp the per-player array cannot hold, refused at boot.
+     *
+     * `Mock230Player.varps` is a flat array and its size is a constant, so the
+     * tree can outgrow it — and it has: the `%com_*` combat block reached
+     * 6223 against an array of 6216, and the seven ids over the end were not
+     * dropped quietly, they aborted `[proc,player_combat_stat]` on every npc
+     * swing. From the outside that is "npcs do not fight back", with the real
+     * message buried in a script trace nobody reads during a fight.
+     *
+     * Allocating a varp is content's to do, so this does not cap it — it says
+     * exactly which line of the engine has to move, and it says so once at
+     * boot instead of once per swing.
+     */
+    {
+        int highest = -1;
+        int count = mock230_content_symbol_walk(MOCK230_PACK_VARP, -1, NULL, NULL);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = -1;
+
+            mock230_content_symbol_walk(MOCK230_PACK_VARP, i, &id, NULL);
+            if( id > highest )
+                highest = id;
+        }
+        if( highest >= MOCK230_VARP_COUNT )
+            CONTENT_ERROR(
+                "the tree declares varp %d and Mock230Player.varps holds %d — raise "
+                "MOCK230_VARP_SERVER_HEADROOM by at least %d (mock230.h)\n",
+                highest,
+                MOCK230_VARP_COUNT,
+                highest - MOCK230_VARP_COUNT + 1);
+    }
+
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */
     init_defaults();

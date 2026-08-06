@@ -1,6 +1,8 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
+#include "graphics/projection.h"
+
 #include <stddef.h>
 #include <stdint.h>
 /**
@@ -89,20 +91,20 @@ struct PaintersTile
 
     /*
      * Which cache levels' terrain meshes this tile's ground pass emits, as a
-     * bitmask over levels 0..3. Normally just its own (1 << mesh_level).
+     * bitmask over levels 0..3. Normally just its own (1 << mesh_level);
+     * painter_tile_copyto carries the source's bit through the bridge shuffle
+     * so a shifted tile keeps emitting the mesh it came with.
      *
-     * VisBelow is why it is a set and not a single level. A tile flagged
-     * FLOFLAG_VIS_BELOW is meant to appear on the floor below rather than on
-     * its own, and it is real geometry with a real colour — the Inferno's
-     * alcove floor is an orange tile at cache level 1 that belongs on level 0.
-     * Emitting it during its OWN level's pass puts it at the wrong point in the
-     * back-to-front order, which is how it ended up painted over the wall in
-     * front of it. So the flagged tile clears its bit and the tile below adds
-     * it: one ground pass, at the lower level's depth, emitting both meshes in
-     * ascending level order so the upper one lands on top of the lower.
+     * Zero is legal and means "emit nothing" — the world builder clears the
+     * bits of levels that decoded no terrain mesh, so a content-less level
+     * costs no command (the reference never queues such tiles at all).
      *
-     * Zero is legal and means "emit nothing" — a VisBelow tile whose mesh has
-     * moved down has no terrain of its own left to draw.
+     * VIS_BELOW does NOT edit this set. The flag lowers visible_gte_level (the
+     * reference's renderLevel, class112.method4161) and nothing else — the
+     * mesh stays on its own level and pops in its own traversal slot, after
+     * the tile below fully retires. An earlier revision relocated the flagged
+     * mesh into the lower level's set, which drew it before the lower tile's
+     * walls — the reverse of the reference order.
      */
     uint8_t terrain_levels;
 
@@ -403,7 +405,7 @@ typedef void (*PaintersProjectFn)(
     int scene_z,
     int camera_pitch,
     int camera_yaw,
-    int fov,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height,
@@ -475,6 +477,11 @@ struct PaintersCullSpanParams
     int far_clip;
     int screen_width;
     int screen_height;
+    /** Mirror of ToriDraw_Camera's projection knobs, and they must be the SAME
+     *  values the frame is drawn with — see the note at the focal computation
+     *  in painters_cullspan.u.c. proj_mode selects; see graphics/projection.h. */
+    int proj_mode;
+    int proj_scale;
     int fov_rpi2048;
     int dz_min;
     int dz_max;
@@ -495,13 +502,20 @@ painters_cullspan_build(
     const struct PaintersCullSpanParams* params);
 
 /** Build cullmap at runtime (CPU bake).
- * project and sin_fn are required; both receive the same user pointer. */
+ * project and sin_fn are required; both receive the same user pointer.
+ *
+ * camera_cot16 is the resolved projection multiplier the bake assumes (see
+ * toridraw_proj_cot16). It used to be a bare 512 buried in the frustum test,
+ * which silently baked a scale-512 frustum no matter what the camera projected
+ * with; pass what the frame will actually use. The bake is conservative
+ * (padding + dilation), so it tolerates being slightly wide but not narrow. */
 struct PaintersCullMap*
 painters_cullmap_build(
     int radius,
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     PaintersProjectFn project,
     void* user,
     PaintersSinFn sin_fn);
@@ -719,6 +733,13 @@ painter_mark_static_count(struct Painter* painter);
  *  slots; the spawned loc draws via the per-frame scenery pass instead. */
 void
 painter_set_suppress_slot_registration(struct Painter* painter, int suppress);
+
+/** 0 when TORIRS_NO_GROUND_DECOR is set: every painter variant skips its
+ *  ground-decor emit. A bisection knob for "is that geometry decor or floor?",
+ *  which a screenshot cannot answer — shape-22 locs (floor plates, paths, the
+ *  Inferno's lava floor planes) read exactly like terrain. Read once. */
+int
+painter_ground_decor_enabled(void);
 
 void
 painter_reset_to_static(struct Painter* painter);

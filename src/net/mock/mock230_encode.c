@@ -2128,11 +2128,21 @@ zone_base(
     return (zone_x * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_x);
 }
 
+/*
+ * `level` is the ZONE's plane, not the player's.
+ *
+ * It used to be `player->level`, which is right for every zone a player is
+ * standing in and wrong for every other plane of the same region — and since
+ * the flush only ever offered zones at the player's own level, nothing noticed.
+ * Both are fixed together: the window now spans all four planes
+ * (`rebuild_active`), so this has to be told which one it is describing.
+ */
 void
 mock230_send_zone_header(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     int full)
 {
     struct RSAreaBuf buf;
@@ -2145,7 +2155,7 @@ mock230_send_zone_header(
         int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
 
         if( pl && pl->zone_header )
-            pl->zone_header(&buf, name, base_x, base_z, player->level);
+            pl->zone_header(&buf, name, base_x, base_z, level);
         else
         {
             rsab_p1(&buf, base_x);
@@ -2439,11 +2449,13 @@ mock230_send_zone_sub(
     flush(player, &buf, opcode, wire_var_class(wire, opcode));
 }
 
+/* `level` is the zone's plane — same reason as mock230_send_zone_header. */
 void
 mock230_send_zone_enclosed(
     struct Mock230Player* player,
     int zone_x,
     int zone_z,
+    int level,
     const uint8_t* blob,
     int len)
 {
@@ -2459,7 +2471,7 @@ mock230_send_zone_enclosed(
 
         if( pl && pl->zone_header )
             pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
-                            player->level);
+                            level);
         else
         {
             rsab_p1(&buf, base_x);
@@ -2600,6 +2612,15 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
+             * one since it was written; without the pair, "the animation did
+             * not play" cannot be split into "the server never set the mask"
+             * and "the client dropped the block". */
+            if( getenv("MOCK230_EXT_DEBUG") )
+                fprintf(stderr,
+                        "ext player: masks=0x%x hit=%d/%d seq=%d/%d appearance=%d\n",
+                        player->masks, ext.hit_type, ext.hit_value, ext.seq_id,
+                        ext.seq_delay, (int)rsab_len(&ap));
             mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
                                      player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);

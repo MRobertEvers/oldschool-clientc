@@ -303,7 +303,7 @@ SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
@@ -332,6 +332,7 @@ SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
+	net/rev/osrs239/osrs239_entity_info.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -858,6 +859,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
+	$(OBJ_DIR)/osrs239_entity_info.o \
 	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/bitbuffer.o \
@@ -914,7 +916,8 @@ test-painters-terrain-levels: $(OBJ_DIR)
 		-o $(OBJ_DIR)/painters_test_terrain_levels \
 		painters/test/painters_test_terrain_levels.c \
 		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
-		perf/torirs_perf.c
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_terrain_levels
 
 test-uitree: $(OBJ_DIR)
