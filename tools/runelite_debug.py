@@ -175,6 +175,107 @@ def cmd_tables(args):
     return 1
 
 
+DEOB_DEFAULT = os.path.expanduser("~/Documents/git_repos/Deobfuscator/instr/src")
+
+# The two prot tables inside the deobfuscated client. Both are plain lists of
+# `new classNNN(opcode, size)`, and which direction each carries is not written
+# anywhere in the jar -- it was established by finding the outbound packet
+# allocator (`Statics.method13536`), which takes a class246, and the inbound
+# decode switch (`client.method2413`), which compares against class243.
+DEOB_PROT_CLASS = {"server": "class243", "client": "class246"}
+
+
+def load_deob_table(direction, deob_src=DEOB_DEFAULT):
+    """{opcode: size} straight out of the client's own prot list.
+
+    This is the only table that is authoritative about what the real client
+    will accept: RSProt is a faithful transcription of it and our own header is
+    a transcription of RSProt, and a transcription can be wrong. A size that
+    disagrees here is not a cosmetic difference — the client frames the stream
+    by it, so one wrong row desynchronises everything after it.
+    """
+    name = DEOB_PROT_CLASS[direction]
+    path = os.path.join(deob_src, name + ".java")
+    if not os.path.exists(path):
+        return None
+    out = {}
+    row = re.compile(r"new %s\((-?\d+),\s*(-?\d+)\)" % name)
+    for hit in row.finditer(open(path).read()):
+        out[int(hit.group(1))] = int(hit.group(2))
+    return out
+
+
+def cmd_prots(args):
+    """Diff our revision table against the client's own."""
+    direction = args.direction
+    deob = load_deob_table(direction, args.deob_src)
+    if deob is None:
+        sys.exit("no deob source at %s — point --deob-src at Deobfuscator/instr/src"
+                 % args.deob_src)
+
+    fname = "packetin.h" if direction == "server" else "packetout.h"
+    path = os.path.join(ROOT, "src", "net", "rev", "osrs%d" % args.rev, fname)
+    ours = {}
+    names = {}
+    row = re.compile(
+        r"\{\s*(PKT\w*_NAME_\w+)\s*,\s*(-?\d+)\s*,\s*([-\w]+)\s*,\s*\"([A-Z0-9_]+)\"\s*\}"
+    )
+    if direction == "server":
+        row = re.compile(
+            r"\{\s*(-?\d+)\s*,\s*([-\w]+)\s*,\s*(PKT\w*_NAME_\w+)\s*,\s*\"([A-Z0-9_]+)\"\s*\}"
+        )
+    for line in open(path):
+        hit = row.search(line)
+        if not hit:
+            continue
+        if direction == "server":
+            opcode, size, _canon, prot = int(hit.group(1)), hit.group(2), hit.group(3), hit.group(4)
+        else:
+            _canon, opcode, size, prot = hit.group(1), int(hit.group(2)), hit.group(3), hit.group(4)
+        ours[opcode] = size_to_int(size)
+        names[opcode] = prot
+
+    missing, extra, mismatched = [], [], []
+    for opcode, size in sorted(deob.items()):
+        if opcode not in ours:
+            missing.append((opcode, size))
+        elif ours[opcode] != size:
+            mismatched.append((opcode, names[opcode], ours[opcode], size))
+    for opcode in sorted(ours):
+        if opcode not in deob:
+            extra.append((opcode, names[opcode]))
+
+    print("revision %d, %s -> %s"
+          % (args.rev, "server" if direction == "server" else "client",
+             "client" if direction == "server" else "server"))
+    print("  client declares %d prots, we declare %d" % (len(deob), len(ours)))
+    for opcode, prot, ourside, theirs in mismatched:
+        print("  SIZE %d (%s): we say %s, the client says %s"
+              % (opcode, prot, ourside, theirs))
+    for opcode, size in missing:
+        print("  MISSING opcode %d (client size %d) — we have no row; a packet on it"
+              " cannot be framed" % (opcode, size))
+    for opcode, prot in extra:
+        print("  EXTRA opcode %d (%s) — the client has no such prot; sending it"
+              " desynchronises the stream" % (opcode, prot))
+    total = len(mismatched) + len(missing) + len(extra)
+    print("  %d disagreement(s)" % total)
+    return 1 if total else 0
+
+
+def size_to_int(size):
+    """The two headers spell the variable lengths differently; the client spells
+    them as the raw -1/-2 the prot table carries."""
+    if size in ("PKTOUT_LENGTH_VARU8", "PKTIN_LENGTH_VARU8", "-1"):
+        return -1
+    if size in ("PKTOUT_LENGTH_VARU16", "PKTIN_LENGTH_VARU16", "-2"):
+        return -2
+    try:
+        return int(size)
+    except ValueError:
+        return None
+
+
 TRACE = re.compile(r"mock230: -> op\s+(\d+)\s+(\S+)\s+(\d+) byte")
 
 
@@ -223,6 +324,13 @@ def main():
     t = sub.add_parser("tables", help="audit the engine's tables against RSProt")
     t.add_argument("--rev", type=int, default=239)
     t.set_defaults(func=cmd_tables)
+
+    p = sub.add_parser("prots", help="diff our revision table against the deob client's own")
+    p.add_argument("--rev", type=int, default=239)
+    p.add_argument("--direction", choices=["server", "client"], default="server",
+                   help="'server' = server->client (packetin), 'client' = client->server")
+    p.add_argument("--deob-src", default=DEOB_DEFAULT)
+    p.set_defaults(func=cmd_prots)
 
     r = sub.add_parser("trace", help="validate a captured outbound stream")
     r.add_argument("log")

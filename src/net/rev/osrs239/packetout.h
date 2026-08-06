@@ -168,6 +168,40 @@ static const struct Osrs239PacketOutDef g_packet_out_definitions_osrs239[] = {
     { PKTOUT_NAME_WINDOW_STATUS,             10, 5,                       "WINDOW_STATUS" },
     { PKTOUT_NAME_NONE,                      44, 1,                       "SET_HEADING" },
     { PKTOUT_NAME_NONE,                     105, 1,                       "RSEVEN_STATUS" },
+
+    /*
+     * The sixteen prots RSProt does not model, taken from the CLIENT'S OWN
+     * table (`class246` in the deob — see Deobfuscator/instr/RENAMES.md).
+     *
+     * Eleven of seven bytes and five of three: the anticheat family the client
+     * emits on its own schedule and the server is never expected to act on.
+     * They carry no canonical name because nothing here reads them — what they
+     * need is a ROW, so the framer knows their length.
+     *
+     * Without a row the server cannot frame one. It does not lose that packet,
+     * it loses the STREAM: the length is unknown, so the next opcode is read
+     * out of this packet's body and nothing resynchronises. That is why they
+     * are here even though every one of them is dropped on arrival.
+     *
+     * `tools/runelite_debug.py prots --direction client` is what found them and
+     * is what keeps this honest — it diffs this table against the client's.
+     */
+    { PKTOUT_NAME_NONE,                      11, 7,                       "ANTICHEAT_11" },
+    { PKTOUT_NAME_NONE,                      18, 3,                       "ANTICHEAT_18" },
+    { PKTOUT_NAME_NONE,                      21, 3,                       "ANTICHEAT_21" },
+    { PKTOUT_NAME_NONE,                      25, 7,                       "ANTICHEAT_25" },
+    { PKTOUT_NAME_NONE,                      30, 7,                       "ANTICHEAT_30" },
+    { PKTOUT_NAME_NONE,                      36, 7,                       "ANTICHEAT_36" },
+    { PKTOUT_NAME_NONE,                      41, 3,                       "ANTICHEAT_41" },
+    { PKTOUT_NAME_NONE,                      42, 7,                       "ANTICHEAT_42" },
+    { PKTOUT_NAME_NONE,                      49, 3,                       "ANTICHEAT_49" },
+    { PKTOUT_NAME_NONE,                      68, 7,                       "ANTICHEAT_68" },
+    { PKTOUT_NAME_NONE,                      71, 3,                       "ANTICHEAT_71" },
+    { PKTOUT_NAME_NONE,                      81, 7,                       "ANTICHEAT_81" },
+    { PKTOUT_NAME_NONE,                      88, 7,                       "ANTICHEAT_88" },
+    { PKTOUT_NAME_NONE,                      94, 7,                       "ANTICHEAT_94" },
+    { PKTOUT_NAME_NONE,                     107, 7,                       "ANTICHEAT_107" },
+    { PKTOUT_NAME_NONE,                     109, 7,                       "ANTICHEAT_109" },
 };
 /* clang-format on */
 

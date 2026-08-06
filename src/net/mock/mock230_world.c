@@ -5423,8 +5423,9 @@ handle_window_status(
     mode = payload[0];
     width = (payload[1] << 8) | payload[2];
     height = (payload[3] << 8) | payload[4];
-    (void)width;
-    (void)height;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- WINDOW_STATUS mode=%d canvas=%dx%d (was %d)\n", mode,
+                width, height, player->client_layout_mode);
     if( mode < 0 || mode > 2 )
         return;
     if( player->client_layout_mode == mode )
