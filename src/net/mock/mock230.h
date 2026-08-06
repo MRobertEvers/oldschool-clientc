@@ -89,7 +89,9 @@
 #define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239.baked"
 
 #include "mock230_bank.h"
+#include "mock230_interface_state.h"
 #include "mock230_wire.h"
+#include "mock239_runclientscript.h"
 #include "mock230_zone.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -1850,6 +1852,10 @@ struct Mock230Player
     int gameframe_mainmodal;
     int gameframe_sidemodal;
     int gameframe_floater;
+    /** Complete root/mount/event authority used to build IF_RESYNC_V2. The
+     * gameframe_* fields above are cached aliases for legacy call sites; every
+     * interface encoder mutates this registry before writing the packet. */
+    struct Mock230InterfaceState interfaces;
     /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
      *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
@@ -2027,6 +2033,10 @@ struct Mock230Player
      *  docs/ORANGE_WEDGE.md §18: the allocator reuses handle AND square, so
      *  nothing else distinguishes a re-entry from staying put. */
     int scene_instance_generation;
+    /** Revision-239 login barrier. REBUILD/GPI has gone out, but the client
+     *  has not yet reported MAP_BUILD_COMPLETE for that scene. While set, no
+     *  player tick state or login/UI burst may advance or be discarded. */
+    int login_scene_pending;
     /** Set by the login burst, drained by phase 7, so [login] runs inside the
      *  tick rather than ahead of it — per player, so a second login does not
      *  re-run the first player's. */
@@ -2087,7 +2097,8 @@ struct Mock230Player
      *
      * `last_slot` is the grid cell, `last_targetslot` the cell a drag landed
      * on, `last_item` the obj that was in it, `last_verb` the 1-based op index,
-     * and `last_int` the number a p_countdialog collected. All -1 / 0 when the
+     * `last_subop` the rev-239 submenu index (or -1 for a normal op), and
+     * `last_int` the number a p_countdialog collected. All -1 / 0 when the
      * last trigger did not carry one, which is the same thing the reference
      * does — a script reading one it was not given gets a sentinel, not a
      * stale value from an unrelated click.
@@ -2096,6 +2107,7 @@ struct Mock230Player
     int last_targetslot;
     int last_item;
     int last_verb;
+    int last_subop;
     int32_t last_int;
     /*
      * The other half of a use-on: the item the player was *carrying* when they
@@ -2140,6 +2152,9 @@ struct Mock230Player
      * edited between the find and the walk. Content cannot do that.
      */
     int db_query_column;
+    /** -1 searches every tuple position; otherwise the packed DB column's
+     *  selected tuple position. */
+    int db_query_tuple;
     int db_query_value;
 
     /** The name typed at the login screen, which is what `displayname` returns.
@@ -2237,6 +2252,8 @@ mock230_player_set_face_entity(struct Mock230Player* player)
 static inline int
 mock230_player_gameframe_iface(struct Mock230Player const* player)
 {
+    if( player && player->interfaces.root_interface > 0 )
+        return player->interfaces.root_interface;
     if( player && player->gameframe_iface > 0 )
         return player->gameframe_iface;
     return mock230_ids()->iface_gameframe;
@@ -4251,6 +4268,30 @@ mock230_send_if_setevents(
     int from,
     int to,
     int events);
+/** Explicit revision-239 event words. The classic wrapper above moves old
+ * op bits 1..10 into events2 before calling this. */
+void
+mock230_send_if_setevents_v2(
+    struct Mock230Player* player,
+    int uid,
+    int from,
+    int to,
+    uint32_t events1,
+    uint32_t events2);
+/** Send one authoritative snapshot. Revision 230 is deliberately a no-op: its
+ * IF_RESYNC layout is different and its existing traffic remains unchanged. */
+void
+mock230_send_if_resync_v2(struct Mock230Player* player);
+/** Clear the old-style item array held directly by one interface component.
+ * Revision 239 IF_CLEARINV; no-op on the unchanged revision-230 wire. */
+void
+mock230_send_if_clearinv(
+    struct Mock230Player* player,
+    int uid);
+/** Cause the golden client to run every onDialogAbort listener. Emitted before
+ * any IF_CLOSESUB belonging to an interrupted dialogue. */
+void
+mock230_send_trigger_ondialogabort(struct Mock230Player* player);
 /** RUNCLIENTSCRIPT: run a CS2 clientscript on the client with int arguments.
  *  The world map's `worldmap_transmitdata` is the one the mock needs — it is
  *  how the server tells the map where the player is standing. */
@@ -4282,6 +4323,23 @@ mock230_send_run_clientscript_mixed(
     int const* intv,
     const char* const* strv,
     int argc);
+
+/**
+ * Revision-239 RUNCLIENTSCRIPT with the complete golden wire alphabet.
+ *
+ * `s`, `W`, `X` and byte 0xcf select string, int-array, string-array and long
+ * respectively; every other type byte is a scalar int. This is intentionally
+ * rev239-only because the classic client has no array/long decoder. Returns 1
+ * when the payload was valid and queued, 0 for another revision or invalid /
+ * oversized input.
+ */
+int
+mock230_send_run_clientscript_typed(
+    struct Mock230Player* player,
+    int script_id,
+    const char* types,
+    const struct Mock239ClientScriptArg* args,
+    int argc);
 /* Interface setters. `uid` is the packed (interface << 16) | child. */
 void
 mock230_send_if_settext(
@@ -4303,10 +4361,79 @@ mock230_send_if_setanim(
     int uid,
     int anim_id);
 void
+mock230_send_if_setcolour(
+    struct Mock230Player* player,
+    int uid,
+    int colour);
+void
 mock230_send_if_sethide(
     struct Mock230Player* player,
     int uid,
     int hide);
+void
+mock230_send_if_setmodel(
+    struct Mock230Player* player,
+    int uid,
+    int model_id);
+void
+mock230_send_if_setobject(
+    struct Mock230Player* player,
+    int uid,
+    int obj_id,
+    int value);
+void
+mock230_send_if_setposition(
+    struct Mock230Player* player,
+    int uid,
+    int x,
+    int y);
+void
+mock230_send_if_setscroll(
+    struct Mock230Player* player,
+    int uid,
+    int position);
+/** Revision-239 model-component setters. The authoritative protocol has no
+ * compatible packet for these on this project's revision-230 wire, so all
+ * seven are deliberate no-ops there rather than guessed legacy encodings. */
+void
+mock230_send_if_setrotatespeed(
+    struct Mock230Player* player,
+    int uid,
+    int x_speed,
+    int y_speed);
+void
+mock230_send_if_setangle(
+    struct Mock230Player* player,
+    int uid,
+    int zoom,
+    int angle_x,
+    int angle_y);
+void
+mock230_send_if_setnpchead_active(
+    struct Mock230Player* player,
+    int uid,
+    int index);
+void
+mock230_send_if_setplayermodel_basecolour(
+    struct Mock230Player* player,
+    int uid,
+    int index,
+    int colour);
+void
+mock230_send_if_setplayermodel_bodytype(
+    struct Mock230Player* player,
+    int uid,
+    int body_type);
+void
+mock230_send_if_setplayermodel_obj(
+    struct Mock230Player* player,
+    int uid,
+    int obj_id);
+void
+mock230_send_if_setplayermodel_self(
+    struct Mock230Player* player,
+    int uid,
+    int copy_objs);
 void
 mock230_send_cam_reset(struct Mock230Player* player);
 /**
@@ -4397,6 +4524,11 @@ void
 mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms);
+/** Revision-adapted MIDI_SONG; rev 239 writes the 10-byte V2 envelope. */
+void
+mock230_send_midi_song(
+    struct Mock230Player* player,
+    int id);
 void
 mock230_send_message(
     struct Mock230Player* player,
@@ -4430,6 +4562,11 @@ mock230_send_update_friendlist(
     struct Mock230Player* player,
     int64_t name37,
     int world);
+
+/** Empty UPDATE_FRIENDLIST: required to promote rev-239's social store from
+ * FRIENDLIST_LOADED's "loading" state when the account has no entries. */
+void
+mock230_send_update_friendlist_empty(struct Mock230Player* player);
 
 /** The whole ignore list: p8 name37 * count. The client replaces its store
  *  wholesale, so there is no single-entry form. */
@@ -4483,6 +4620,14 @@ mock230_send_inv_partial(
     const struct Mock230Item* slots,
     int slot_count,
     uint32_t dirty);
+
+/** Stop the client's global transmit listener for `container`. Revision 230
+ *  identifies the component; revision 239 identifies the inventory id. */
+void
+mock230_send_inv_stop_transmit(
+    struct Mock230Player* player,
+    int component,
+    int container);
 
 /*
  * Zone updates.

@@ -34,6 +34,7 @@ enum
 {
     EXTINFO_APPEARANCE = 0x20,
     EXTINFO_SEQUENCE = 0x40,
+    EXTINFO_TEMP_MOVE_SPEED = 0x1000,
     EXTINFO_HITMARKS = 0x40000,
     /* "another flag byte follows" -- the player's are 0x8 and 0x800, where an
      * npc's are 0x40 and 0x800. Only the second one is shared. */
@@ -117,7 +118,8 @@ void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord_delta,
+    enum Mock239PlayerMovement movement,
+    int32_t movement_value,
     int low_res_inactive,
     const uint8_t* appearance,
     int appearance_len,
@@ -126,7 +128,9 @@ mock239_playerinfo_write(
     int const has_appearance = appearance && appearance_len > 0;
     int const has_hit = ext && ext->has_hit;
     int const has_seq = ext && ext->has_seq;
-    int const has_extended = has_appearance || has_hit || has_seq;
+    int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_extended =
+        has_appearance || has_hit || has_seq || has_temp_move_speed;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -160,7 +164,7 @@ mock239_playerinfo_write(
      * the extended-info bit set -- without it the client throws outright for
      * the local index. Skipping needs no such care.)
      */
-    if( coord_delta == 0 && !has_extended )
+    if( movement == MOCK239_PLAYER_NOMOVE && !has_extended )
     {
         rsab_pbit(buf, 1, 0);
         write_stationary(buf, 0);
@@ -168,25 +172,33 @@ mock239_playerinfo_write(
     }
     else
     {
-    rsab_pbit(buf, 1, 1); /* not skipped */
-    rsab_pbit(buf, 1, has_extended ? 1 : 0);
-    /*
-     * Always the far teleport form, carrying a delta that is usually zero.
-     *
-     * The alternative for a stationary player is NOMOVE, which is one bit
-     * cheaper and carries a trap: NOMOVE without the extended-info bit means
-     * "drop to low resolution" for a normal player, and for the LOCAL index the
-     * client throws outright. A zero delta says the same thing with no state to
-     * get wrong.
-     *
-     * The near form (12 bits) would be smaller again but is a signed delta
-     * against what the client last heard, so it needs the same tracking with a
-     * narrower range and a worse failure.
-     */
-    rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
-    rsab_pbit(buf, 1, 1);
-    rsab_pbit(buf, 30, coord_delta);
-    rsab_bytes(buf);
+        rsab_pbit(buf, 1, 1); /* not skipped */
+        rsab_pbit(buf, 1, has_extended ? 1 : 0);
+        switch( movement )
+        {
+        case MOCK239_PLAYER_NOMOVE:
+            /* NOMOVE is legal for the local index only when extended info
+             * follows.  The no-extended case took the skip branch above. */
+            rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
+            break;
+        case MOCK239_PLAYER_WALK:
+            rsab_pbit(buf, 2, HIRES_OP_WALK);
+            rsab_pbit(buf, 3, movement_value & 0x7);
+            break;
+        case MOCK239_PLAYER_RUN:
+            rsab_pbit(buf, 2, HIRES_OP_RUN);
+            rsab_pbit(buf, 4, movement_value & 0xf);
+            break;
+        case MOCK239_PLAYER_TELEPORT:
+        default:
+            /* Far form. `movement_value` is a delta against the coordinate
+             * seeded by REBUILD_LOGIN / the preceding PLAYER_INFO. */
+            rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
+            rsab_pbit(buf, 1, 1);
+            rsab_pbit(buf, 30, movement_value);
+            break;
+        }
+        rsab_bytes(buf);
     }
 
     /*
@@ -248,8 +260,8 @@ mock239_playerinfo_write(
     {
         /*
          * The flag, then the blocks in the WRITER's order -- HITMARKS first,
-         * then SEQUENCE, then APPEARANCE. That is not ascending flag order and
-         * not the order they are listed in anywhere; it is
+         * then SEQUENCE, TEMP_MOVE_SPEED, and APPEARANCE. That is not ascending
+         * flag order and not the order they are listed in anywhere; it is
          * PlayerAvatarExtendedInfoDesktopWriter's, and the client replays the
          * same sequence with nothing on the wire separating the blocks.
          *
@@ -264,6 +276,8 @@ mock239_playerinfo_write(
             flag |= EXTINFO_HITMARKS;
         if( has_seq )
             flag |= EXTINFO_SEQUENCE;
+        if( has_temp_move_speed )
+            flag |= EXTINFO_TEMP_MOVE_SPEED;
         if( has_appearance )
             flag |= EXTINFO_APPEARANCE;
 
@@ -313,6 +327,14 @@ mock239_playerinfo_write(
              */
             rsab_p2_alt2(buf, ext->seq_id < 0 ? 65535 : ext->seq_id);
             rsab_p1(buf, ext->seq_delay);
+        }
+        if( has_temp_move_speed )
+        {
+            /* PlayerTempMoveSpeedEncoder: raw signed p1. The golden client
+             * reads this with class617.method13129(), not one of the Alt byte
+             * transforms. class174 value 2 makes locomotion run for this
+             * staged step without changing the player's persistent default. */
+            rsab_p1(buf, ext->temp_move_speed);
         }
         if( !has_appearance )
             return;

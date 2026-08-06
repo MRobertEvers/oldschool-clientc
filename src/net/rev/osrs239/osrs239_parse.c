@@ -731,6 +731,21 @@ osrs239_parse(
         return c.over ? 0 : 1;
     }
 
+    /* MidiSongV2Encoder v14: keep the canonical executor's id while consuming
+     * the complete envelope so fixed-length validation remains exact. */
+    case PKT_NAME_MIDI_SONG:
+    {
+        struct PktMidiSong* p = &out->_midi_song;
+        (void)g2_alt1(&c); /* fade-in delay */
+        (void)g2(&c);      /* fade-out delay */
+        p->id = g2_alt3(&c);
+        (void)g2(&c);      /* fade-in speed */
+        (void)g2_alt3(&c); /* fade-out speed */
+        if( p->id == 65535 )
+            p->id = -1;
+        return c.over ? 0 : 1;
+    }
+
     /*
      * UpdateInvFullEncoder:    p4 combinedId, p2 inventoryId, p2 capacity,
      *                          then per slot p1Alt3 count (255 escapes to

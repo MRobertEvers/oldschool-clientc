@@ -1,6 +1,9 @@
 #include "mock230_wire.h"
 
+#include "mock230_interface_state.h"
+#include "mock239_interface_setters.h"
 #include "mock239_inbound.h"
+#include "mock239_runclientscript.h"
 
 #include "net/rev/osrs230/packetin.h"
 #include "net/rev/osrs230/packetout.h"
@@ -164,6 +167,73 @@ w239_if_closesub(struct RSAreaBuf* buf, int dest_uid)
 }
 
 /*
+ * The remaining interface layouts are transcribed from the authoritative
+ * client's handlers, not inferred from neighbouring packets. In the golden
+ * deob these are class243 opcodes 123/55/63/142/106/102/82 in client.java:
+ * every method13xxx call below has been matched to class617's concrete byte
+ * reader. Most fields use a different transform despite all addressing the
+ * same packed component uid.
+ */
+
+/* opcode 123: dest g4Alt1, source g4. */
+static void
+w239_if_movesub(struct RSAreaBuf* buf, int source_uid, int dest_uid)
+{
+    rsab_p4_alt1(buf, dest_uid);
+    rsab_p4(buf, source_uid);
+}
+
+/* opcode 55: colour g2, uid g4Alt2. */
+static void
+w239_if_setcolour(struct RSAreaBuf* buf, int component_uid, int colour)
+{
+    rsab_p2(buf, colour);
+    rsab_p4_alt2(buf, component_uid);
+}
+
+/* opcode 63: uid g4Alt3, hidden g1Alt1. */
+static void
+w239_if_sethide(struct RSAreaBuf* buf, int component_uid, int hide)
+{
+    rsab_p4_alt3(buf, component_uid);
+    rsab_p1_alt1(buf, hide ? 1 : 0);
+}
+
+/* opcode 142 (IF_SETMODEL_V2): model g4Alt2, uid g4Alt1. */
+static void
+w239_if_setmodel(struct RSAreaBuf* buf, int component_uid, int model_id)
+{
+    rsab_p4_alt2(buf, model_id);
+    rsab_p4_alt1(buf, component_uid);
+}
+
+/* opcode 106: uid g4Alt2, obj g2Alt2, object value g4. */
+static void
+w239_if_setobject(struct RSAreaBuf* buf, int component_uid, int obj_id, int value)
+{
+    rsab_p4_alt2(buf, component_uid);
+    rsab_p2_alt2(buf, obj_id);
+    rsab_p4(buf, value);
+}
+
+/* opcode 102: y g2Alt3, uid g4Alt2, x g2Alt3. */
+static void
+w239_if_setposition(struct RSAreaBuf* buf, int component_uid, int x, int y)
+{
+    rsab_p2_alt3(buf, y);
+    rsab_p4_alt2(buf, component_uid);
+    rsab_p2_alt3(buf, x);
+}
+
+/* opcode 82: uid g4Alt3, scroll position g2. */
+static void
+w239_if_setscroll(struct RSAreaBuf* buf, int component_uid, int position)
+{
+    rsab_p4_alt3(buf, component_uid);
+    rsab_p2(buf, position);
+}
+
+/*
  * IfSetEventsV2Encoder:
  *   p2Alt2(end), p4(events2), p4Alt2(events1), p2(start), pCombinedIdAlt3(uid)
  *
@@ -191,19 +261,11 @@ w239_if_setevents(
     int component_uid,
     int start,
     int end,
-    uint32_t events)
+    uint32_t events1,
+    uint32_t events2)
 {
-    /* Bits 1..10 of the classic mask are buttons 1..10; events2 bit N is
-     * button N+1. They are left set in events1 as well -- the client ignores
-     * them there, and clearing them would make the two revisions' masks differ
-     * by more than where the buttons live. */
-    uint32_t const buttons = (events >> 1) & 0x3ff;
-
-    rsab_p2_alt2(buf, end);
-    rsab_p4(buf, (int32_t)buttons);
-    rsab_p4_alt2(buf, (int32_t)events);
-    rsab_p2(buf, start);
-    rsab_p4_alt3(buf, component_uid);
+    mock230_ifstate_encode_setevents_v2(
+        buf, component_uid, start, end, events1, events2);
 }
 
 /*
@@ -462,6 +524,24 @@ w239_synth_sound(struct RSAreaBuf* buf, int id, int loops, int delay)
     rsab_p2(buf, delay);
 }
 
+/* MidiSongV2Encoder v14. The five p2 transforms are independently confirmed
+ * by the golden client's field2969 handler (client.java) and RSProt 239. */
+static void
+w239_midi_song(
+    struct RSAreaBuf* buf,
+    int id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
+{
+    rsab_p2_alt1(buf, fade_in_delay);
+    rsab_p2(buf, fade_out_delay);
+    rsab_p2_alt3(buf, id);
+    rsab_p2(buf, fade_in_speed);
+    rsab_p2_alt3(buf, fade_out_speed);
+}
+
 /* FriendListLoadedEncoder writes nothing: the packet is zero-length at this
  * revision where the classic carries a status byte. */
 static void
@@ -469,6 +549,30 @@ w239_friendlist_loaded(struct RSAreaBuf* buf, int status)
 {
     (void)buf;
     (void)status;
+}
+
+/*
+ * UpdateFriendListDecoder in the authoritative 239 deob:
+ * p1 renamed, pjstr name, pjstr previousName, p2 world, p1 rank, p1 flags;
+ * an online-only pjstr/g1/g4 block; then a trailing pjstr note.
+ */
+static void
+w239_friend_entry(struct RSAreaBuf* buf, const char* name, int world)
+{
+    const char* safe = name ? name : "";
+    rsab_p1(buf, 0);                 /* not renamed */
+    rsab_pjstr(buf, safe, RSAB_JSTR_NUL);
+    rsab_pjstr(buf, safe, RSAB_JSTR_NUL); /* previousName */
+    rsab_p2(buf, (uint16_t)world);
+    rsab_p1(buf, 0);                 /* rank */
+    rsab_p1(buf, 0);                 /* flags */
+    if( world > 0 )
+    {
+        rsab_pjstr(buf, "", RSAB_JSTR_NUL);
+        rsab_p1(buf, 0);
+        rsab_p4(buf, 0);
+    }
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* note */
 }
 
 /*
@@ -558,6 +662,16 @@ w239_inv_slot(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id, int cou
         rsab_p4(buf, count);
 }
 
+/* UPDATE_INV_STOPTRANSMIT, opcode 45: inventory id g2Alt2. The golden
+ * client's field2979 handler removes class36.field209[var0], proving this is
+ * the inventory id rather than the component uid rev 230 carries. */
+static void
+w239_inv_stop_transmit(struct RSAreaBuf* buf, int component_uid, int inv_id)
+{
+    (void)component_uid;
+    rsab_p2_alt2(buf, inv_id);
+}
+
 /*
  * RunClientScriptEncoder: pjstr types, then the arguments in REVERSE order,
  * then p4 the script id.
@@ -579,17 +693,23 @@ w239_run_clientscript(
     const char* const* strv,
     int argc)
 {
-    for( int i = 0; i < argc; i++ )
-        rsab_p1(buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
-    rsab_p1(buf, 0); /* NUL, not the classic newline */
-    for( int i = argc - 1; i >= 0; i-- )
+    struct Mock239ClientScriptArg args[MOCK239_RUNCLIENTSCRIPT_ARG_MAX] = { 0 };
+
+    if( argc < 0 || argc > MOCK239_RUNCLIENTSCRIPT_ARG_MAX )
     {
-        if( types && types[i] == 's' )
-            rsab_pjstr(buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NUL);
-        else
-            rsab_p4(buf, intv ? intv[i] : 0);
+        /* Preserve the vtable's void contract while making invalid input
+         * visible to the caller's ordinary rsab_ok()/drop path. */
+        buf->overflow = 1;
+        return;
     }
-    rsab_p4(buf, script_id);
+
+    for( int i = 0; i < argc; i++ )
+    {
+        args[i].int_value = intv ? intv[i] : 0;
+        args[i].string_value = strv ? strv[i] : NULL;
+    }
+    if( !mock239_encode_runclientscript(buf, script_id, types, args, argc) )
+        buf->overflow = 1;
 }
 
 /*
@@ -868,6 +988,20 @@ w239_zone_payload(
 }
 
 static const struct Mock230WirePayload k_payload_osrs239 = {
+    .if_movesub = w239_if_movesub,
+    .if_setcolour = w239_if_setcolour,
+    .if_sethide = w239_if_sethide,
+    .if_setmodel = w239_if_setmodel,
+    .if_setobject = w239_if_setobject,
+    .if_setposition = w239_if_setposition,
+    .if_setscroll = w239_if_setscroll,
+    .if_setrotatespeed = mock239_encode_if_setrotatespeed,
+    .if_setangle = mock239_encode_if_setangle,
+    .if_setnpchead_active = mock239_encode_if_setnpchead_active,
+    .if_setplayermodel_basecolour = mock239_encode_if_setplayermodel_basecolour,
+    .if_setplayermodel_bodytype = mock239_encode_if_setplayermodel_bodytype,
+    .if_setplayermodel_obj = mock239_encode_if_setplayermodel_obj,
+    .if_setplayermodel_self = mock239_encode_if_setplayermodel_self,
     .message_game = w239_message_game,
     .if_settext = w239_if_settext,
     .if_setnpchead = w239_if_setnpchead,
@@ -876,9 +1010,12 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .set_map_flag = w239_set_map_flag,
     .chat_filter = w239_chat_filter,
     .synth_sound = w239_synth_sound,
+    .midi_song = w239_midi_song,
     .friendlist_loaded = w239_friendlist_loaded,
+    .friend_entry = w239_friend_entry,
     .inv_header = w239_inv_header,
     .inv_slot = w239_inv_slot,
+    .inv_stop_transmit = w239_inv_stop_transmit,
     .run_clientscript = w239_run_clientscript,
     .ignore_entry = w239_ignore_entry,
     .zone_header = w239_zone_header,
@@ -918,7 +1055,17 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
  */
 static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_OPENTOP,       PKT_NAME_IF_OPENSUB,      PKT_NAME_IF_CLOSESUB,
-    PKT_NAME_IF_SETEVENTS,     PKT_NAME_VARP_SMALL,      PKT_NAME_VARP_LARGE,
+    PKT_NAME_IF_MOVESUB,       PKT_NAME_IF_RESYNC_V2,    PKT_NAME_IF_CLEARINV,
+    PKT_NAME_IF_SETEVENTS,     PKT_NAME_IF_SETCOLOUR,
+    PKT_NAME_IF_SETHIDE,       PKT_NAME_IF_SETMODEL,     PKT_NAME_IF_SETOBJECT,
+    PKT_NAME_IF_SETPOSITION,   PKT_NAME_IF_SETSCROLLPOS,
+    PKT_NAME_IF_SETROTATESPEED, PKT_NAME_IF_SETANGLE,
+    PKT_NAME_IF_SETNPCHEAD_ACTIVE,
+    PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+    PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+    PKT_NAME_IF_SETPLAYERMODEL_OBJ,
+    PKT_NAME_IF_SETPLAYERMODEL_SELF,
+    PKT_NAME_VARP_SMALL,       PKT_NAME_VARP_LARGE,
     PKT_NAME_UPDATE_RUNENERGY, PKT_NAME_UPDATE_RUNWEIGHT, PKT_NAME_UPDATE_STAT,
     PKT_NAME_REBUILD_NORMAL,   PKT_NAME_REBUILD_REGION,
     PKT_NAME_CAM_MOVETO,       PKT_NAME_CAM_LOOKAT,      PKT_NAME_CAM_SHAKE,
@@ -930,9 +1077,11 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
-    PKT_NAME_SYNTH_SOUND,      PKT_NAME_FRIENDLIST_LOADED,
+    PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,
-    PKT_NAME_RUNCLIENTSCRIPT,  PKT_NAME_UPDATE_IGNORELIST,
+    PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
+    PKT_NAME_RUNCLIENTSCRIPT,  PKT_NAME_UPDATE_FRIENDLIST,
+    PKT_NAME_UPDATE_IGNORELIST,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
      * whole packet is built by mock239_playerinfo.c, which mock230_encode.c
@@ -957,6 +1106,7 @@ static const int k_transcribed_osrs239[] = {
 
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
+    PKT_NAME_TRIGGER_ONDIALOGABORT,
 };
 
 static const struct Mock230Wire k_wire_osrs230 = {
@@ -1032,6 +1182,8 @@ mock230_wire_pkt_name(int pkt_name)
     case PKT_NAME_IF_OPENSUB: return "IF_OPENSUB";
     case PKT_NAME_IF_CLOSESUB: return "IF_CLOSESUB";
     case PKT_NAME_IF_MOVESUB: return "IF_MOVESUB";
+    case PKT_NAME_IF_RESYNC_V2: return "IF_RESYNC_V2";
+    case PKT_NAME_IF_CLEARINV: return "IF_CLEARINV";
     case PKT_NAME_IF_SETEVENTS: return "IF_SETEVENTS";
     case PKT_NAME_IF_SETTEXT: return "IF_SETTEXT";
     case PKT_NAME_IF_SETHIDE: return "IF_SETHIDE";
@@ -1043,6 +1195,13 @@ mock230_wire_pkt_name(int pkt_name)
     case PKT_NAME_IF_SETCOLOUR: return "IF_SETCOLOUR";
     case PKT_NAME_IF_SETPOSITION: return "IF_SETPOSITION";
     case PKT_NAME_IF_SETSCROLLPOS: return "IF_SETSCROLLPOS";
+    case PKT_NAME_IF_SETROTATESPEED: return "IF_SETROTATESPEED";
+    case PKT_NAME_IF_SETANGLE: return "IF_SETANGLE";
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE: return "IF_SETNPCHEAD_ACTIVE";
+    case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR: return "IF_SETPLAYERMODEL_BASECOLOUR";
+    case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE: return "IF_SETPLAYERMODEL_BODYTYPE";
+    case PKT_NAME_IF_SETPLAYERMODEL_OBJ: return "IF_SETPLAYERMODEL_OBJ";
+    case PKT_NAME_IF_SETPLAYERMODEL_SELF: return "IF_SETPLAYERMODEL_SELF";
     case PKT_NAME_UPDATE_INV_FULL: return "UPDATE_INV_FULL";
     case PKT_NAME_UPDATE_INV_PARTIAL: return "UPDATE_INV_PARTIAL";
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT: return "UPDATE_INV_STOP_TRANSMIT";
@@ -1062,6 +1221,7 @@ mock230_wire_pkt_name(int pkt_name)
     case PKT_NAME_MESSAGE_PRIVATE: return "MESSAGE_PRIVATE";
     case PKT_NAME_RUNCLIENTSCRIPT: return "RUNCLIENTSCRIPT";
     case PKT_NAME_P_COUNTDIALOG: return "P_COUNTDIALOG";
+    case PKT_NAME_TRIGGER_ONDIALOGABORT: return "TRIGGER_ONDIALOGABORT";
     case PKT_NAME_SET_PLAYER_OP: return "SET_PLAYER_OP";
     case PKT_NAME_UNSET_MAP_FLAG: return "SET_MAP_FLAG";
     case PKT_NAME_CHAT_FILTER_SETTINGS: return "CHAT_FILTER_SETTINGS";

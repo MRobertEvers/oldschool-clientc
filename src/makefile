@@ -356,7 +356,11 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock230_interface_state.c \
 	net/mock/mock239_playerinfo.c \
+	net/mock/mock239_interface_setters.c \
+	net/mock/mock239_interface_inbound.c \
+	net/mock/mock239_runclientscript.c \
 	net/mock/mock239_inbound.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
@@ -431,7 +435,7 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels rsprot test-rsprot
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -874,6 +878,42 @@ test-mock239-playerinfo: $(OBJ_DIR)
 		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
+
+# Golden client->server interface callback layouts. Kept independent of the
+# world/server link so byte order, inner framing and typed-tail losslessness can
+# fail directly rather than only as a click that appears to do nothing.
+test-mock239-inbound: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
+		net/mock/test/mock239_interface_inbound_test.c \
+		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
+		$(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_interface_inbound_test
+
+# Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
+# scalar, array, string-array and long paths rather than round-tripping through
+# a second implementation with the same possible mistake.
+test-mock239-runclientscript: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_runclientscript_test \
+		net/mock/test/mock239_runclientscript_test.c \
+		net/mock/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_runclientscript_test
+
+# Every additional fixed-body rev239 model/interface setter. The expected
+# bodies are independent literal RSProt fixtures, not a decode round-trip.
+test-mock239-interface-setters: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_setters_test \
+		net/mock/test/mock239_interface_setters_test.c \
+		net/mock/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_interface_setters_test
+
+# Server->client revision-239 interface authority and golden packet bodies.
+# Expected bytes are literal fixtures taken from RSProt's encoders rather than
+# decoded through a mirror of this implementation.
+test-mock230-interface-state: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_interface_state_test \
+		net/mock/test/mock230_interface_state_test.c \
+		net/mock/mock230_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock230_interface_state_test
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \

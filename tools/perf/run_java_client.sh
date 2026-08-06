@@ -33,11 +33,11 @@ cd "$ROOT"
 DEOB=${DEOB_REPO:-/Users/matthewevers/Documents/git_repos/Deobfuscator}
 RL=${RL_REPO:-$HOME/.runelite/repository2}
 PATCHED=$ROOT/build/rl239
-INSTR=$DEOB/instr/build/out/injected-client-1.12.33-instr.jar
+INSTR=${INJECTED_CLIENT_JAR:-$DEOB/instr/build/out/injected-client-1.12.33-instr.jar}
 CSV=${1:-$ROOT/tools/perf/results/cvj/java-idle.csv}
 JAVA_HOME=${JAVA_HOME:-/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home}
 
-[ -f "$INSTR" ] || { echo "no instrumented jar: $INSTR (run instr/build.sh)" >&2; exit 1; }
+[ -f "$INSTR" ] || { echo "no injected client jar: $INSTR (run instr/build.sh)" >&2; exit 1; }
 [ -f "$PATCHED/client-1.12.33.jar" ] || { echo "no patched client jar in $PATCHED" >&2; exit 1; }
 
 CP="$PATCHED/client-1.12.33.jar:$INSTR"
@@ -54,6 +54,7 @@ done
 
 mkdir -p "$(dirname "$CSV")"
 echo "run_java_client: csv=$CSV"
+echo "run_java_client: injected=$INSTR"
 exec env \
   JPROF=1 JPROF_CSV="$CSV" JPROF_WINDOW="${JPROF_WINDOW:-500}" \
   JCTL=1 JCTL_PORT="${JCTL_PORT:-43601}" \

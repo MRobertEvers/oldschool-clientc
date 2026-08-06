@@ -666,6 +666,15 @@ player_extended(
                 op->_sequence.delay = (uint8_t)delay;
             }
         }
+        if( (flag & V5_PLAYER_TEMP_MOVE_SPEED) != 0 )
+        {
+            /* Raw signed byte. The C client currently applies v5 positions as
+             * absolute ops and has no traversal op in its common stream, but
+             * it must consume this block here: it precedes APPEARANCE and
+             * otherwise shifts every following byte. */
+            if( pos < len )
+                (void)(int8_t)data[pos++];
+        }
         if( (flag & V5_PLAYER_APPEARANCE) != 0 )
         {
             if( !player_appearance_block(r, data, len, &pos) )
@@ -673,7 +682,8 @@ player_extended(
         }
 
         known = V5_PLAYER_EXT_SHORT | V5_PLAYER_EXT_MEDIUM | V5_PLAYER_HITMARKS |
-                V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_APPEARANCE;
+                V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_TEMP_MOVE_SPEED |
+                V5_PLAYER_APPEARANCE;
         if( (flag & ~known) != 0 )
         {
             fprintf(

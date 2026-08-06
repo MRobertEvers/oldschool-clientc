@@ -192,9 +192,13 @@ start_server() {
         return 0
     fi
     say "starting mock230 on $GAME_PORT (JS5 cache $CACHE)…"
-    MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
+    # Detach from the invoking terminal.  CI/agent command runners close their
+    # pseudo-terminal as soon as this orchestration script exits; without
+    # nohup all three children receive SIGHUP together and a healthy stack
+    # looks like a protocol crash a few lines into boot.
+    nohup env MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
         "$ROOT/src/build/mock230" "$GAME_PORT" --rev osrs239 \
-        > "$(logfile server)" 2>&1 &
+        > "$(logfile server)" 2>&1 < /dev/null &
     echo $! > "$(pidfile server)"
     # The boot reads the cache, the content tree and the script pack; it is tens
     # of seconds on a cold page cache, and connecting before it listens is the
@@ -214,8 +218,8 @@ start_javconfig() {
         return 0
     fi
     say "starting jav_config on ${JAV_PORT} (internal)…"
-    python3 "$ROOT/tools/torirs_javconfig.py" --host 127.0.0.1 --port "$JAV_PORT" \
-        --revision 239 --cachedir "$CACHEDIR" > "$(logfile javconfig)" 2>&1 &
+    nohup python3 "$ROOT/tools/torirs_javconfig.py" --host 127.0.0.1 --port "$JAV_PORT" \
+        --revision 239 --cachedir "$CACHEDIR" > "$(logfile javconfig)" 2>&1 < /dev/null &
     echo $! > "$(pidfile javconfig)"
     for _ in $(seq 1 20); do
         curl -sf -m 2 "http://127.0.0.1:$JAV_PORT/jav_config.ws" >/dev/null 2>&1 \
@@ -229,8 +233,8 @@ start_client() {
     # The client learns the game host from this and nowhere else.
     export JAV_CONFIG="http://127.0.0.1:$JAV_PORT/jav_config.ws"
     say "starting RuneLite (jav_config $JAV_CONFIG)…"
-    JAVA_EXTRA_OPTS="${JAVA_EXTRA_OPTS:-}" \
-        "$ROOT/tools/perf/run_java_client.sh" > "$(logfile client)" 2>&1 &
+    nohup env JAVA_EXTRA_OPTS="${JAVA_EXTRA_OPTS:-}" \
+        "$ROOT/tools/perf/run_java_client.sh" > "$(logfile client)" 2>&1 < /dev/null &
     echo $! > "$(pidfile client)"
     say "client: launching (log $(logfile client))"
 }

@@ -38,6 +38,10 @@ enum GameProtoPktName
     PKT_NAME_IF_CLOSESUB,
     /** Move a mounted sub from one component slot to another (RSProt op 42). */
     PKT_NAME_IF_MOVESUB,
+    /** Atomic revision-239 root + mounts + dual-word event-range snapshot. */
+    PKT_NAME_IF_RESYNC_V2,
+    /** Clear the item array embedded directly in an old-style component. */
+    PKT_NAME_IF_CLEARINV,
 
     /* interface mutators */
     PKT_NAME_IF_SETCOLOUR,
@@ -51,6 +55,17 @@ enum GameProtoPktName
     PKT_NAME_IF_SETNPCHEAD,
     PKT_NAME_IF_SETPOSITION,
     PKT_NAME_IF_SETSCROLLPOS,
+    /** Rotate a model component automatically around its X/Y axes. */
+    PKT_NAME_IF_SETROTATESPEED,
+    /** Set a model component's camera angles and zoom. */
+    PKT_NAME_IF_SETANGLE,
+    /** Render one of the active NPC head slots in a model component. */
+    PKT_NAME_IF_SETNPCHEAD_ACTIVE,
+    /** Mutate one aspect of a component's player-composition model. */
+    PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+    PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+    PKT_NAME_IF_SETPLAYERMODEL_OBJ,
+    PKT_NAME_IF_SETPLAYERMODEL_SELF,
 
     /* tutorial */
     PKT_NAME_TUT_FLASH,
@@ -97,6 +112,8 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /** Run the current root's CS2 onDialogAbort listeners before teardown. */
+    PKT_NAME_TRIGGER_ONDIALOGABORT,
     /** End of a server tick's packet group. The client uses it to know a tick's
      *  worth of state has arrived whole; it carries no payload. Named here
      *  because the mock emits it and a canonical name is what lets the mock's
@@ -268,6 +285,9 @@ enum GameProtoPktOutName
      */
     PKTOUT_NAME_IF_BUTTONX,
     PKTOUT_NAME_IF_SUBOP,
+    /* IF_TRIGGEROPLOCAL (CS2 2929). Unlike IF_BUTTONX, its typed tail has no
+     * on-wire type tags: crc selects the server-side signature. */
+    PKTOUT_NAME_IF_SCRIPT_TRIGGER,
     /* IF_BUTTONT: the use-on, component to component — 230's OPHELDU and
      * OPHELDT in one packet, with the target and the selected item
      * interleaved rather than written as two triples. */
@@ -278,6 +298,10 @@ enum GameProtoPktOutName
     PKTOUT_NAME_RESUME_PAUSEBUTTON,
     PKTOUT_NAME_CLOSE_MODAL,
     PKTOUT_NAME_RESUME_P_COUNTDIALOG,
+    PKTOUT_NAME_RESUME_P_NAMEDIALOG,
+    PKTOUT_NAME_RESUME_P_STRINGDIALOG,
+    PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG,
+    PKTOUT_NAME_RESUME_P_OBJDIALOG,
     PKTOUT_NAME_TUT_CLICKSIDE,
 
     PKTOUT_NAME_MAP_BUILD_COMPLETE,

@@ -22,6 +22,7 @@
 #include "mock230_ids.h"
 #include "mock230_save.h"
 #include "mock230_scene.h"
+#include "mock239_interface_inbound.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
 #include "ss_meta.h"
@@ -35,6 +36,7 @@
 #include <rsareabuf.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +52,9 @@ static int g_home_z = 3218;
 
 static void
 mock230_world_build_entities(struct Mock230Server* srv);
+
+static void
+mock230_world_login_finish(struct Mock230Player* player);
 
 /* Where the scene reads its map squares from. Set once beside the other cache
  * loaders; kept here rather than threaded through every rebuild path because
@@ -4709,7 +4714,18 @@ handle_resume_pausebutton(
         return;
     if( srv->verbose )
         fprintf(stderr, "mock230: <- RESUME_PAUSEBUTTON %d:%d\n", uid >> 16, uid & 0xffff);
-    mock230_scripts_resume_button(srv, uid);
+    if( mock230_scripts_resume_button(srv, uid) )
+        return;
+
+    /*
+     * IF3 onOp listeners may choose RESUME_PAUSEBUTTON even for a component
+     * which is not currently parking a server script.  The rev-239 world-map
+     * close X (595:38) and its escape target (595:4) do exactly that: the
+     * packet arrived and decoded correctly, but treating a failed resume as a
+     * terminal no-op left the overlay mounted forever.  Give the same
+     * world-map router used by IF_BUTTON/IF_BUTTON1 the unresolved resume.
+     */
+    (void)mock230_worldmap_handle_button(srv, uid, 1);
 }
 
 static void
@@ -4832,6 +4848,123 @@ handle_if_button_op(
         mock230_bank_handle_button(srv, uid, sub, -1, op_num);
 }
 
+/**
+ * Revision 239 keeps all IF3 ops in two packets. Decode them here, while every
+ * field is still present, then enter the established 230 handlers.
+ *
+ * Object ops 1..5 retain OPHELD semantics. An item-backed row can also carry a
+ * component op 6..10; those are IF_BUTTON6..10, not nonexistent OPHELD6..10.
+ * IF_SUBOP's last byte is latched before either route so selecting a submenu
+ * entry is no longer indistinguishable from selecting its parent.
+ */
+static void
+handle_if_buttonx_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock239IfButton button;
+    struct Mock230Player* player = srv->active_player;
+    int has_subop = name == PKTOUT_NAME_IF_SUBOP;
+
+    if( !mock239_if_button_decode(payload, len, has_subop, &button) )
+        return;
+    player->last_subop = button.subop;
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: <- %s %d:%d sub=%d obj=%d op=%d subop=%d\n",
+                has_subop ? "IF_SUBOP" : "IF_BUTTONX",
+                (button.component_id >> 16) & 0xffff,
+                button.component_id & 0xffff,
+                button.sub,
+                button.object_id,
+                button.op,
+                button.subop);
+
+    if( mock239_if_button_route(&button) == MOCK239_IF_ROUTE_OPHELD )
+    {
+        uint8_t held[8];
+        struct RSAreaBuf out;
+
+        rsab_wrap(&out, held, sizeof(held));
+        rsab_p2(&out, button.object_id);
+        rsab_p2(&out, button.sub);
+        rsab_p4(&out, button.component_id);
+        handle_opheld(srv, button.op, held, (int)rsab_len(&out));
+        return;
+    }
+
+    {
+        uint8_t component_op[6];
+        struct RSAreaBuf out;
+
+        /* Preserve the row's object even though old IF_BUTTON payloads have no
+         * object field. This is diagnostic/state parity; the numbered trigger
+         * is still selected by op. */
+        player->last_item = button.object_id == MOCK239_IF_OBJ_NONE
+                                ? -1
+                                : button.object_id;
+        rsab_wrap(&out, component_op, sizeof(component_op));
+        rsab_p4(&out, button.component_id);
+        rsab_p2(&out, button.sub);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1 + (button.op - 1),
+                            component_op, (int)rsab_len(&out));
+    }
+}
+
+/* IF_TRIGGEROPLOCAL's signature is selected by crc and is not on the wire.
+ * The only server-side consumer currently implemented is clientscript 9189's
+ * skill-guide View-journal bridge, whose authoritative source declares `"i"`.
+ * Unknown CRCs remain losslessly decoded and logged, but are not guessed into
+ * a RuneScript argument list. */
+static void
+handle_if_script_trigger(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock239IfScriptTrigger trigger;
+    int skill_guide_trigger = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "skill_guide_v2:quest_journal_button_trigger");
+
+    (void)name;
+    if( !mock239_if_script_trigger_decode(payload, len, NULL, &trigger) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: <- IF_SCRIPT_TRIGGER crc=%d com=%d:%d child=%d obj=%d "
+                "typed=%d byte(s)\n",
+                trigger.crc,
+                (trigger.component_id >> 16) & 0xffff,
+                trigger.component_id & 0xffff,
+                trigger.child,
+                trigger.object_id,
+                trigger.typed_len);
+
+    {
+        uint8_t component_op[6];
+        struct RSAreaBuf out;
+        int32_t sub;
+        int32_t object_id;
+
+        if( skill_guide_trigger < 0 ||
+            !mock239_if_script_trigger_skill_guide_sub(
+                payload, len, skill_guide_trigger, &sub, &object_id) )
+            return;
+
+        srv->active_player->last_item =
+            object_id == MOCK239_IF_OBJ_NONE ? -1 : object_id;
+        srv->active_player->last_subop = -1;
+        rsab_wrap(&out, component_op, sizeof(component_op));
+        rsab_p4(&out, trigger.component_id);
+        rsab_p2(&out, sub);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1,
+                            component_op, (int)rsab_len(&out));
+    }
+}
+
 static void
 handle_click_world_map(
     struct Mock230Server* srv,
@@ -4913,6 +5046,7 @@ mock230_world_close_modal_ex(
     const struct Mock230Ids* ids = mock230_ids();
     int main_group;
     int bank_was_open;
+    int abort_dialog;
 
     if( !srv || !srv->active_player )
         return;
@@ -4927,6 +5061,18 @@ mock230_world_close_modal_ex(
      */
     if( clear_weak_queue )
         mock230_scripts_clear_weak_queue(player);
+
+    /* TRIGGER_ONDIALOGABORT is not a generic close notification. It runs only
+     * when server action interrupts a script whose continuation is parked on
+     * dialogue UI, and it must reach the golden client's CS2 listeners before
+     * either the state or its mounted component is released. A dialogue that
+     * completed normally has already left active_script and sends nothing. */
+    abort_dialog =
+        player->active_script &&
+        (player->active_script->execution == SSVM_PAUSEBUTTON ||
+         player->active_script->execution == SSVM_COUNTDIALOG);
+    if( abort_dialog )
+        mock230_send_trigger_ondialogabort(player);
 
     /*
      * The parked script goes first, and unconditionally.
@@ -5026,6 +5172,72 @@ handle_close_modal(
     mock230_world_close_modal(srv);
 }
 
+/* Framed and named so revision telemetry can distinguish a healthy idle
+ * heartbeat from an unknown opcode; it intentionally mutates no world state. */
+static void
+handle_idle_timer(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)srv;
+    (void)name;
+    (void)payload;
+    (void)len;
+}
+
+/*
+ * Revision 239 does not apply packets queued behind REBUILD_NORMAL until its
+ * asynchronous WorldView load has finished. The authoritative client reports
+ * that exact transition with MAP_BUILD_COMPLETE. Treating it as an idle packet
+ * made the server race PLAYER_INFO, IF_OPENTOP and every login setevents packet
+ * against a scene which did not exist yet.
+ *
+ * A second rebuild may become necessary while the first one is loading (for
+ * example another player moves the world's shared scene origin). In that case
+ * acknowledge the old scene by sending the new rebuild and wait for a second
+ * completion; state for the login burst still must not escape between them.
+ */
+static void
+handle_map_build_complete(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    (void)name;
+    (void)payload;
+    (void)len;
+    if( !player )
+        return;
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: <- MAP_BUILD_COMPLETE pending=%d rebuild_pending=%d\n",
+                player->login_scene_pending, player->rebuild_pending);
+    if( !player->login_scene_pending )
+        return;
+
+    if( player->rebuild_pending )
+    {
+        if( srv->verbose )
+            fprintf(stderr,
+                    "mock230: login scene changed while loading; sending replacement "
+                    "rebuild and retaining barrier\n");
+        mock230_send_rebuild(player);
+        player->rebuild_pending = 0;
+        return;
+    }
+
+    player->login_scene_pending = 0;
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: login scene barrier complete; sending player/UI/state burst\n");
+    mock230_world_login_finish(player);
+}
+
 /* The number a p_countdialog collected — "Withdraw-X". */
 static void
 handle_resume_countdialog(
@@ -5049,6 +5261,74 @@ handle_resume_countdialog(
      * waiting does the engine's own pending "-X" row get it. */
     if( !mock230_scripts_resume_countdialog(srv, value) )
         mock230_bank_resume_countdialog(srv, (int)value);
+}
+
+/* These callbacks exist as separate prots at 239. The current RuneScript VM
+ * only has PAUSEBUTTON and COUNTDIALOG parked-state kinds, so text and object
+ * answers are decoded and routed (rather than silently dropped) but are not
+ * mis-delivered to a different wait kind. */
+static void
+handle_resume_textdialog(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock239ByteString text;
+
+    if( !mock239_resume_text_decode(payload, len, &text) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- %s \"%.*s\"\n",
+                name == PKTOUT_NAME_RESUME_P_NAMEDIALOG
+                    ? "RESUME_P_NAMEDIALOG"
+                    : "RESUME_P_STRINGDIALOG",
+                text.len, (const char*)text.bytes);
+}
+
+static void
+handle_resume_countdialog_long(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    int64_t value;
+
+    (void)name;
+    if( !mock239_resume_count_long_decode(payload, len, &value) )
+        return;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- RESUME_P_COUNTDIALOG_LONG %lld\n",
+                (long long)value);
+    /* SSVM's declared last_int is int32. Values it can represent answer the
+     * same COUNTDIALOG wait; larger values stay decoded and logged rather than
+     * wrapping into a different number. */
+    if( value >= INT32_MIN && value <= INT32_MAX )
+    {
+        srv->active_player->last_int = (int32_t)value;
+        if( !mock230_scripts_resume_countdialog(srv, (int32_t)value) )
+            mock230_bank_resume_countdialog(srv, (int)value);
+    }
+}
+
+static void
+handle_resume_objdialog(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    int32_t object_id;
+
+    (void)name;
+    if( !mock239_resume_object_decode(payload, len, &object_id) )
+        return;
+    /* There is no OBJDIALOG execution kind yet, but retaining last_item is the
+     * lossless server-side state a future waiter will consume. */
+    srv->active_player->last_item = object_id;
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- RESUME_P_OBJDIALOG obj=%d\n", object_id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -5216,9 +5496,11 @@ social_notify_followers(
  * The login dump — `sendFriendsListToPlayer` + `sendIgnoreListToPlayer` +
  * `FriendlistLoaded(2)`, then the follower broadcast.
  *
- * Order matters for one of these: FRIENDLIST_LOADED(2) has to come *after* the
- * entries, because the client's panel treats a negative/unloaded count as
- * "Loading friends list" and 2 is what ends that state.
+ * Order matters. In the authoritative rev-239 client FRIENDLIST_LOADED is a
+ * zero-length marker whose handler sets social state 1 ("loading"); parsing
+ * UPDATE_FRIENDLIST sets state 2. The marker must therefore come first and the
+ * snapshot — including an explicit empty snapshot — must finish the sequence.
+ * The older revision's status byte is still encoded by its wire adapter.
  *
  * The ignore list goes out even when it is empty. The client replaces its store
  * wholesale on this packet, so an empty one is the statement "you have no
@@ -5234,7 +5516,11 @@ mock230_world_social_login(struct Mock230Player* player)
     if( me == 0 )
         return;
 
+    mock230_send_friendlist_loaded(player, 2);
+
     count = mock230_friends_count(me);
+    if( count == 0 )
+        mock230_send_update_friendlist_empty(player);
     for( int i = 0; i < count; i++ )
     {
         int64_t friend37 = 0;
@@ -5243,8 +5529,6 @@ mock230_world_social_login(struct Mock230Player* player)
         if( mock230_friends_get(me, i, &friend37, &world) )
             mock230_send_update_friendlist(player, friend37, world);
     }
-    mock230_send_friendlist_loaded(player, 2);
-
     {
         int64_t ignores[MOCK230_SOCIAL_IGNORES_MAX];
         int n = mock230_friends_ignore_count(me);
@@ -5448,6 +5732,12 @@ handle_window_status(
     if( player->client_layout_mode == mode )
         return;
     player->client_layout_mode = mode;
+    /* WINDOW_STATUS is emitted before MAP_BUILD_COMPLETE during the rev-239
+     * login. Remember the real canvas mode, but do not mount a gameframe into
+     * the WorldView that is still being replaced. login_finish consumes the
+     * latched mode once the client acknowledges the scene. */
+    if( player->login_scene_pending )
+        return;
     args[0] = mode;
     mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
 }
@@ -5594,11 +5884,23 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_IF_BUTTON8, handle_if_button_op },
     { PKTOUT_NAME_IF_BUTTON9, handle_if_button_op },
     { PKTOUT_NAME_IF_BUTTON10, handle_if_button_op },
+    { PKTOUT_NAME_IF_BUTTONX, handle_if_buttonx_packet },
+    { PKTOUT_NAME_IF_SUBOP, handle_if_buttonx_packet },
+    { PKTOUT_NAME_IF_SCRIPT_TRIGGER, handle_if_script_trigger },
 
     { PKTOUT_NAME_RESUME_PAUSEBUTTON, handle_resume_pausebutton },
     { PKTOUT_NAME_RESUME_P_COUNTDIALOG, handle_resume_countdialog },
+    { PKTOUT_NAME_RESUME_P_NAMEDIALOG, handle_resume_textdialog },
+    { PKTOUT_NAME_RESUME_P_STRINGDIALOG, handle_resume_textdialog },
+    { PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, handle_resume_countdialog_long },
+    { PKTOUT_NAME_RESUME_P_OBJDIALOG, handle_resume_objdialog },
     { PKTOUT_NAME_CLICK_WORLD_MAP, handle_click_world_map },
     { PKTOUT_NAME_CLOSE_MODAL, handle_close_modal },
+    { PKTOUT_NAME_IDLE_TIMER, handle_idle_timer },
+    { PKTOUT_NAME_NO_TIMEOUT, handle_idle_timer },
+    { PKTOUT_NAME_EVENT_MOUSE_MOVE, handle_idle_timer },
+    { PKTOUT_NAME_MAP_BUILD_COMPLETE, handle_map_build_complete },
+    { PKTOUT_NAME_EVENT_APPLET_FOCUS, handle_idle_timer },
     { PKTOUT_NAME_CLIENT_CHEAT, handle_cheat_packet },
 
     { PKTOUT_NAME_FRIENDLIST_ADD, handle_social_list },
@@ -5626,6 +5928,20 @@ mock230_world_handle(
         return;
     srv = player->world;
     mock230_world_set_active(srv, player);
+
+    /* A loading rev-239 WorldView is not a playable client. It may report its
+     * canvas and liveness, but clicks/resumes/movement must not start scripts
+     * whose interface and entity state have not been installed yet. */
+    if( player->login_scene_pending && name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
+        name != PKTOUT_NAME_WINDOW_STATUS && name != PKTOUT_NAME_IDLE_TIMER &&
+        name != PKTOUT_NAME_NO_TIMEOUT && name != PKTOUT_NAME_EVENT_MOUSE_MOVE &&
+        name != PKTOUT_NAME_EVENT_APPLET_FOCUS )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- packet name %d dropped behind login scene barrier\n",
+                    name);
+        return;
+    }
 
     for( size_t i = 0; i < sizeof(k_packet_routes) / sizeof(k_packet_routes[0]); i++ )
     {
@@ -6048,6 +6364,7 @@ mock230_world_add_player(
         player->world = srv;
         player->pid = i;
         player->session = session;
+        mock230_ifstate_init(&player->interfaces);
         if( i >= srv->player_count )
             srv->player_count = i + 1;
         mock230_world_set_active(srv, player);
@@ -6351,6 +6668,7 @@ mock230_world_player_init(struct Mock230Player* player)
         player->session = session;
         player->pid = pid;
         player->active = 1;
+        mock230_ifstate_init(&player->interfaces);
     }
     /* On the home tile, not in the middle of the scene: the scene is 104 tiles
      * of whatever the origin zone happens to cover, and standing in the middle
@@ -6389,6 +6707,7 @@ mock230_world_player_init(struct Mock230Player* player)
     player->db_query_table = -1;
     player->db_query_index = -1;
     player->db_query_column = -1;
+    player->db_query_tuple = -1;
     /* -1, not the memset's 0, because 0 is a real obj id and a real backpack
      * slot: a script reading `last_useitem` outside a use-on must get a sentinel
      * rather than "the player used a Dwarf remains on it". `Player.ts:371-374`
@@ -6396,6 +6715,7 @@ mock230_world_player_init(struct Mock230Player* player)
      * 0, which is a divergence this stage found rather than one it made. */
     player->last_useitem = -1;
     player->last_useslot = -1;
+    player->last_subop = -1;
     /*
      * The two `updateMap` latches. -1 is what makes login fire `[zone]` and
      * `[mapzone]` with no `[zoneexit]`/`[mapzoneexit]` before them — the
@@ -6435,6 +6755,7 @@ mock230_world_player_init(struct Mock230Player* player)
      * this the floor becomes 0/0 and the first damage event is a death. */
     player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
     mock230_combat_sync_hitpoints(player);
+
     player->dest_x = -1;
     player->dest_z = -1;
     player->waypoint_index = -1;
@@ -6558,7 +6879,6 @@ void
 mock230_world_login(struct Mock230Player* player)
 {
     struct Mock230Server* srv = player->world;
-    const struct Mock230Ids* ids = mock230_ids();
 
     /* Everything below is this player's, and several of the calls still reach
      * the world for it. */
@@ -6594,6 +6914,34 @@ mock230_world_login(struct Mock230Player* player)
     mock230_combat_sync_hitpoints(player);
 
     /*
+     * The save may put this player outside the scene the world happened to
+     * build at process startup.  Align the shared scene before the login
+     * REBUILD/GPI init is encoded.  If this is deferred to phase_info on the
+     * first tick, the client receives a perfectly valid GPI coordinate that is
+     * outside its current WorldView: the tracker is high-resolution but no
+     * local Player entity can be materialized.  RuneLite then enters
+     * LOGGED_IN and delivers StatChanged/GameTick callbacks with
+     * getLocalPlayer() == null until the corrective rebuild arrives.
+     *
+     * maybe_rebuild marks every active player as owing the newly centred
+     * scene.  The explicit login rebuild below fulfils that debt for this
+     * player; existing players retain theirs and receive it in phase 10.
+     */
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: login scene preflight player=%d,%d level=%d "
+                "zone=%d,%d origin=%d,%d players=%d active=%d\n",
+                player->x, player->z, player->level, srv->zone_x, srv->zone_z,
+                mock230_scene_origin(srv->zone_x), mock230_scene_origin(srv->zone_z),
+                srv->player_count, player->active);
+    maybe_rebuild(srv);
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: login scene ready zone=%d,%d origin=%d,%d pending=%d\n",
+                srv->zone_x, srv->zone_z, mock230_scene_origin(srv->zone_x),
+                mock230_scene_origin(srv->zone_z), player->rebuild_pending);
+
+    /*
      * 0. Presence, before any packet.
      *
      * The reference's `player_login` message to the friend server
@@ -6613,16 +6961,66 @@ mock230_world_login(struct Mock230Player* player)
     mock230_friends_login(player->name37, /* public */ 0, MOCK230_CHAT_PRIVATE_ON,
                           /* trade */ 0, /* staff level */ 0);
 
-    /* 1. The scene. Everything after this is applied by the client behind the
-     *    world load, because the packet queue is serial. */
+    /*
+     * 1. The scene.
+     *
+     * Revision 230 applies its rebuild synchronously and retains the legacy
+     * one-piece login burst. Revision 239 swaps WorldViews asynchronously and
+     * explicitly reports completion with MAP_BUILD_COMPLETE; packets sent now
+     * are not evidence that the new scene consumed them. Hold every dependent
+     * packet until that acknowledgement reaches handle_map_build_complete.
+     */
+    player->login_pending = 0;
+    player->login_scene_pending = srv->wire && srv->wire->revision >= 239;
     mock230_send_rebuild(player);
+    player->rebuild_pending = 0;
+    if( player->login_scene_pending )
+    {
+        if( srv->verbose )
+            fprintf(stderr,
+                    "mock230: login scene barrier armed; waiting for MAP_BUILD_COMPLETE\n");
+        return;
+    }
+
+    mock230_world_login_finish(player);
+}
+
+/* Everything that requires the rebuilt scene and its embedded GPI init. */
+static void
+mock230_world_login_finish(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+    const struct Mock230Ids* ids = mock230_ids();
+
+    mock230_world_set_active(srv, player);
+
+    /*
+     * 1b. Establish the local actor before any plugin-visible client state.
+     *
+     * UPDATE_STAT posts RuneLite StatChanged events synchronously while the
+     * packet is decoded.  When the first PLAYER_INFO used to live at the end of
+     * the login burst, getLocalPlayer() was still null during all 23 events;
+     * the stock Agility plugin consequently threw on login.  A painted scene
+     * hid the ordering bug because the actor appeared a few packets later.
+     *
+     * Classic revisions need UPDATE_PID first. Revision 239 receives the same
+     * index in the login response (its UPDATE_PID encoder deliberately emits
+     * nothing), then the rebuild's embedded GPI init seeds that index. In both
+     * cases the following PLAYER_INFO is the transition that materializes the
+     * actor in the freshly rebuilt world view.
+     */
+    mock230_send_update_pid(player, player->pid);
+    mock230_send_player_info(player);
 
     /* 2. Gameframe root + the HUD and sidebar panels mounted into it.
      *    Mount table is content `gameframe.enum`. Open the top that matches the
      *    saved Display-panel preference immediately (Fixed / Classic / Modern);
-     *    ~gameframe_set_mode then syncs the client canvas and queues the same
-     *    remount WINDOW_STATUS uses mid-session. Mode defaults to 1 in player
-     *    init; the save overlays it. Do not reset it here. */
+     *    ~gameframe_login_mode then syncs the client canvas without queuing a
+     *    second IF_OPENTOP.  A second open on the following tick rebuilds every
+     *    widget and discards all IF_SETEVENTS sent by the login procs.  Actual
+     *    WINDOW_STATUS mode changes still use ~gameframe_set_mode and remount.
+     *    Mode defaults to 1 in player init; the save overlays it. Do not reset
+     *    it here. */
     {
         int mode = player->client_layout_mode;
         int iface = ids->iface_gameframe;
@@ -6637,7 +7035,7 @@ mock230_world_login(struct Mock230Player* player)
             iface = ids->iface_toplevel_pre_eoc;
         mock230_gameframe_opentop(player, iface);
         args[0] = mode;
-        mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
+        mock230_scripts_run_proc(srv, "[proc,gameframe_login_mode]", args, 1);
     }
 
     /*
@@ -6656,20 +7054,8 @@ mock230_world_login(struct Mock230Player* player)
     /*    …and on the world map orb, whose verbs are the server's alone. */
     mock230_worldmap_login(srv);
 
-    /* 4. Player state. The pid comes first: it decides which entity in the
-     *    stream the client treats as itself, and several things it drives —
-     *    the npc menu's level suffix among them — are computed the moment the
-     *    first PLAYER_INFO lands.
-     *
-     *    The player's *real* pool slot, which is what the reference sends
-     *    (`Player.onLogin` -> `new UpdatePid(this.slot, this.members)`). It used
-     *    to be the 2047 sentinel — "you are the local player" — and that made
-     *    every client's self-pid the same number, so any absolute reference to a
-     *    player (an npc's FACE_ENTITY above all) could not name one. Order is
-     *    load-bearing: this precedes the PLAYER_INFO/NPC_INFO at step 6, so the
-     *    client registers its own entity under this pid rather than under the
-     *    2047 fallback in `local_player_pid()`. */
-    mock230_send_update_pid(player, player->pid);
+    /* 4. Player state. The pid and first PLAYER_INFO were deliberately sent in
+     *    step 1b, before anything here can post a RuneLite event. */
     /* Both orb numbers, unconditionally: the per-tick flush only sends what
      * changed, and a session that starts full would otherwise never send one. */
     player->run_energy_sent = player->run_energy * 100 / MOCK230_RUN_ENERGY_MAX;
@@ -6763,8 +7149,8 @@ mock230_world_login(struct Mock230Player* player)
      */
     mock230_world_social_login(player);
 
-    /* 6. First info tick places the player and spawns the npcs. */
-    mock230_send_player_info(player);
+    /* 6. The local player was placed in step 1b; now spawn the npcs and close
+     *    the login tick. */
     mock230_send_npc_info(player);
     mock230_send_tick_end(player);
 }
@@ -6989,7 +7375,11 @@ phase_players(struct Mock230Server* srv)
     struct Mock230Player* player;
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        if( player->login_scene_pending )
+            continue;
         phase_player(player);
+    }
 }
 
 /**
@@ -7360,6 +7750,8 @@ phase_info(struct Mock230Server* srv)
      * nothing. */
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
+        if( player->login_scene_pending )
+            continue;
         mock230_world_set_active(srv, player);
         mock230_world_sync_combat_varbits(srv);
     }
@@ -7562,7 +7954,11 @@ phase_clients_out(struct Mock230Server* srv)
     struct Mock230Player* player;
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        if( player->login_scene_pending )
+            continue;
         phase_client_out(player);
+    }
 }
 
 /** 11. Drop everything that described only this tick. */
@@ -7609,7 +8005,11 @@ phase_cleanup(struct Mock230Server* srv)
     struct Mock230Player* player;
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        if( player->login_scene_pending )
+            continue;
         phase_cleanup_player(player);
+    }
 
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
@@ -7658,6 +8058,8 @@ mock230_world_tick(struct Mock230Server* srv)
      * player will actually be reported on. */
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
+        if( player->login_scene_pending )
+            continue;
         mock230_world_set_active(srv, player);
         mock230_worldmap_tick(srv);
     }
@@ -8468,6 +8870,245 @@ mock230_world_selftest(void)
                        capture.count);
     }
 
+    fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");
+    {
+        /* Golden-deob packet bodies, byte for byte. These deliberately use
+         * asymmetric values: every g2/g4 alternative transform can otherwise
+         * agree with the wrong transform on zero-heavy interface ids. */
+        static const uint8_t movesub[] = {
+            0x88, 0x77, 0x66, 0x55, 0x11, 0x22, 0x33, 0x44,
+        };
+        static const uint8_t setcolour[] = {
+            0x55, 0x66, 0x33, 0x44, 0x11, 0x22,
+        };
+        static const uint8_t sethide[] = {
+            0x22, 0x11, 0x44, 0x33, 0x81,
+        };
+        static const uint8_t setmodel[] = {
+            0x77, 0x88, 0x55, 0x66, 0x44, 0x33, 0x22, 0x11,
+        };
+        static const uint8_t setobject[] = {
+            0x33, 0x44, 0x11, 0x22, 0x55, 0xe6, 0x77, 0x88, 0x99, 0xaa,
+        };
+        static const uint8_t setposition[] = {
+            0xf8, 0x56, 0x33, 0x44, 0x11, 0x22, 0xb4, 0x12,
+        };
+        static const uint8_t setscroll[] = {
+            0x22, 0x11, 0x44, 0x33, 0x55, 0x66,
+        };
+        static const uint8_t setrotatespeed[] = {
+            0x77, 0x88, 0x55, 0xe6, 0x22, 0x11, 0x44, 0x33,
+        };
+        static const uint8_t setangle[] = {
+            0x22, 0x11, 0x44, 0x33, 0x55, 0x66, 0x77, 0x88, 0x2a, 0x99,
+        };
+        static const uint8_t setnpchead_active[] = {
+            0x55, 0xe6, 0x33, 0x44, 0x11, 0x22,
+        };
+        static const uint8_t setplayermodel_basecolour[] = {
+            0x55, 0x66, 0x11, 0x22, 0x33, 0x44,
+        };
+        static const uint8_t setplayermodel_bodytype[] = {
+            0x33, 0x44, 0x11, 0x22, 0x55,
+        };
+        static const uint8_t setplayermodel_obj[] = {
+            0x33, 0x44, 0x11, 0x22, 0x66, 0x55, 0x88, 0x77,
+        };
+        static const uint8_t setplayermodel_self[] = {
+            0x7f, 0x11, 0x22, 0x33, 0x44,
+        };
+        static const uint8_t stoptransmit[] = { 0x12, 0xb4 };
+        static const struct
+        {
+            int name;
+            const char* label;
+            const uint8_t* bytes;
+            int len;
+        } expected[] = {
+            { PKT_NAME_IF_MOVESUB, "IF_MOVESUB", movesub, sizeof(movesub) },
+            { PKT_NAME_IF_SETCOLOUR, "IF_SETCOLOUR", setcolour, sizeof(setcolour) },
+            { PKT_NAME_IF_SETHIDE, "IF_SETHIDE", sethide, sizeof(sethide) },
+            { PKT_NAME_IF_SETMODEL, "IF_SETMODEL_V2", setmodel, sizeof(setmodel) },
+            { PKT_NAME_IF_SETOBJECT, "IF_SETOBJECT", setobject, sizeof(setobject) },
+            { PKT_NAME_IF_SETPOSITION, "IF_SETPOSITION", setposition,
+              sizeof(setposition) },
+            { PKT_NAME_IF_SETSCROLLPOS, "IF_SETSCROLLPOS", setscroll,
+              sizeof(setscroll) },
+            { PKT_NAME_IF_SETROTATESPEED, "IF_SETROTATESPEED", setrotatespeed,
+              sizeof(setrotatespeed) },
+            { PKT_NAME_IF_SETANGLE, "IF_SETANGLE", setangle, sizeof(setangle) },
+            { PKT_NAME_IF_SETNPCHEAD_ACTIVE, "IF_SETNPCHEAD_ACTIVE",
+              setnpchead_active, sizeof(setnpchead_active) },
+            { PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+              "IF_SETPLAYERMODEL_BASECOLOUR", setplayermodel_basecolour,
+              sizeof(setplayermodel_basecolour) },
+            { PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+              "IF_SETPLAYERMODEL_BODYTYPE", setplayermodel_bodytype,
+              sizeof(setplayermodel_bodytype) },
+            { PKT_NAME_IF_SETPLAYERMODEL_OBJ, "IF_SETPLAYERMODEL_OBJ",
+              setplayermodel_obj, sizeof(setplayermodel_obj) },
+            { PKT_NAME_IF_SETPLAYERMODEL_SELF, "IF_SETPLAYERMODEL_SELF",
+              setplayermodel_self, sizeof(setplayermodel_self) },
+            { PKT_NAME_UPDATE_INV_STOP_TRANSMIT, "UPDATE_INV_STOPTRANSMIT",
+              stoptransmit, sizeof(stoptransmit) },
+        };
+        static struct Mock230Capture capture;
+        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+
+        SELFTEST_CHECK(wire239 != NULL, "the osrs239 wire adapter should exist");
+        if( wire239 )
+        {
+            srv.wire = wire239;
+            mock230_capture_begin(&srv, &capture);
+            mock230_send_if_movesub(player, 0x11223344, 0x55667788);
+            mock230_send_if_setcolour(player, 0x11223344, 0x5566);
+            mock230_send_if_sethide(player, 0x11223344, 1);
+            mock230_send_if_setmodel(player, 0x11223344, 0x55667788);
+            mock230_send_if_setobject(player, 0x11223344, 0x5566, 0x778899aa);
+            mock230_send_if_setposition(player, 0x11223344, 0x1234, 0x5678);
+            mock230_send_if_setscroll(player, 0x11223344, 0x5566);
+            mock230_send_if_setrotatespeed(player, 0x11223344, 0x5566, 0x7788);
+            mock230_send_if_setangle(
+                player, 0x11223344, 0x5566, 0x7788, 0x99aa);
+            mock230_send_if_setnpchead_active(player, 0x11223344, 0x5566);
+            mock230_send_if_setplayermodel_basecolour(
+                player, 0x11223344, 0x55, 0x66);
+            mock230_send_if_setplayermodel_bodytype(player, 0x11223344, 0x55);
+            mock230_send_if_setplayermodel_obj(
+                player, 0x11223344, 0x55667788);
+            mock230_send_if_setplayermodel_self(player, 0x11223344, 1);
+            mock230_send_inv_stop_transmit(player, 0x11223344, 0x1234);
+            mock230_capture_end(&srv);
+            srv.wire = saved_wire;
+
+            SELFTEST_CHECK(!capture.overflow, "rev239 writer capture did not overflow");
+            SELFTEST_CHECK(capture.count == (int)(sizeof(expected) / sizeof(expected[0])),
+                           "all fifteen canonical writers emitted (got %d)", capture.count);
+            for( int i = 0; i < (int)(sizeof(expected) / sizeof(expected[0])); i++ )
+            {
+                int opcode = mock230_wire_opcode(wire239, expected[i].name);
+                int at = mock230_capture_find(&capture, opcode, 0);
+
+                SELFTEST_CHECK(opcode >= 0, "%s has a rev239 opcode", expected[i].label);
+                SELFTEST_CHECK(at >= 0, "%s was emitted", expected[i].label);
+                if( at >= 0 )
+                {
+                    const struct Mock230CapturedPacket* packet = &capture.packets[at];
+
+                    SELFTEST_CHECK(packet->len == expected[i].len,
+                                   "%s length is %d, got %d", expected[i].label,
+                                   expected[i].len, packet->len);
+                    if( packet->len == expected[i].len )
+                        SELFTEST_CHECK(memcmp(packet->data, expected[i].bytes,
+                                              (size_t)expected[i].len) == 0,
+                                       "%s matches the golden-deob byte order",
+                                       expected[i].label);
+                }
+            }
+        }
+        else
+            srv.wire = saved_wire;
+
+        /* The two pre-existing interface encoders and stoptransmit keep their
+         * classic bodies when the server is selected back to revision 230. */
+        {
+            static const uint8_t movesub230[] = {
+                0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,
+            };
+            static const uint8_t sethide230[] = {
+                0x11, 0x22, 0x33, 0x44, 0x01,
+            };
+            static const uint8_t stop230[] = {
+                0x11, 0x22, 0x33, 0x44,
+            };
+            const struct Mock230Wire* wire230 = mock230_wire_by_name("osrs230");
+
+            SELFTEST_CHECK(wire230 != NULL, "the osrs230 wire adapter should exist");
+            if( wire230 )
+            {
+                int at;
+
+                srv.wire = wire230;
+                mock230_capture_begin(&srv, &capture);
+                mock230_send_if_movesub(player, 0x11223344, 0x55667788);
+                mock230_send_if_sethide(player, 0x11223344, 1);
+                mock230_send_inv_stop_transmit(player, 0x11223344, 0x1234);
+                mock230_send_if_setrotatespeed(
+                    player, 0x11223344, 0x5566, 0x7788);
+                mock230_send_if_setangle(
+                    player, 0x11223344, 0x5566, 0x7788, 0x99aa);
+                mock230_send_if_setnpchead_active(player, 0x11223344, 0x5566);
+                mock230_send_if_setplayermodel_basecolour(
+                    player, 0x11223344, 0x55, 0x66);
+                mock230_send_if_setplayermodel_bodytype(player, 0x11223344, 0x55);
+                mock230_send_if_setplayermodel_obj(
+                    player, 0x11223344, 0x55667788);
+                mock230_send_if_setplayermodel_self(player, 0x11223344, 1);
+                mock230_capture_end(&srv);
+                srv.wire = saved_wire;
+
+                SELFTEST_CHECK(capture.count == 3,
+                               "rev230 ignores rev239-only setter APIs (got %d packets)",
+                               capture.count);
+
+                at = mock230_capture_find(
+                    &capture, mock230_wire_opcode(wire230, PKT_NAME_IF_MOVESUB), 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   capture.packets[at].len == (int)sizeof(movesub230) &&
+                                   memcmp(capture.packets[at].data, movesub230,
+                                          sizeof(movesub230)) == 0,
+                               "rev230 IF_MOVESUB body is unchanged");
+                at = mock230_capture_find(
+                    &capture, mock230_wire_opcode(wire230, PKT_NAME_IF_SETHIDE), 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   capture.packets[at].len == (int)sizeof(sethide230) &&
+                                   memcmp(capture.packets[at].data, sethide230,
+                                          sizeof(sethide230)) == 0,
+                               "rev230 IF_SETHIDE body is unchanged");
+                at = mock230_capture_find(
+                    &capture,
+                    mock230_wire_opcode(wire230, PKT_NAME_UPDATE_INV_STOP_TRANSMIT),
+                    0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   capture.packets[at].len == (int)sizeof(stop230) &&
+                                   memcmp(capture.packets[at].data, stop230,
+                                          sizeof(stop230)) == 0,
+                               "rev230 UPDATE_INV_STOPTRANSMIT names the component");
+            }
+            else
+                srv.wire = saved_wire;
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: world-map close resume\n");
+    {
+        /* The rev-239 close X owns an onOp listener and therefore sends
+         * RESUME_PAUSEBUTTON, not IF_BUTTON1.  It is not a parked-script
+         * resume; falling out of mock230_scripts_resume_button must still
+         * reach the world-map router. */
+        static struct Mock230Capture capture;
+        int close_uid = mock230_ids()->com_worldmap_close;
+        uint8_t resume[4] = {
+            (uint8_t)(close_uid >> 24),
+            (uint8_t)(close_uid >> 16),
+            (uint8_t)(close_uid >> 8),
+            (uint8_t)close_uid,
+        };
+
+        mock230_worldmap_open(&srv);
+        SELFTEST_CHECK(player->worldmap_open,
+                       "world map should be open before its close-X resume");
+        mock230_capture_begin(&srv, &capture);
+        mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
+                             sizeof(resume));
+        mock230_capture_end(&srv);
+        SELFTEST_CHECK(!player->worldmap_open,
+                       "an unresolved RESUME_PAUSEBUTTON on worldmap:close must close it");
+        SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+                       "the close-X resume must send IF_CLOSESUB");
+    }
+
     fprintf(stderr, "mock230 selftest: script-driven triggers\n");
     {
         static struct Mock230Capture capture;
@@ -8506,6 +9147,375 @@ mock230_world_selftest(void)
              */
             SELFTEST_CHECK(mock230_scripts_report_script_id_args(&srv) == 0,
                            "every script-id argument should name a script of that kind");
+
+            fprintf(stderr, "mock230 selftest: rev239 interface host VM/content\n");
+            /* Exercise the interface host opcodes through real compiled
+             * content, not just direct encoder calls. This pins stack argument
+             * order, symbol resolution and host dispatch in addition to the
+             * golden bytes checked above. Force the 239 wire locally so the
+             * default (rev230) selftest still covers the authoritative client. */
+            {
+                static const char* const model_components[] = {
+                    "barrows_puzzle:puzzle_q0", "barrows_puzzle:puzzle_q1",
+                    "barrows_puzzle:puzzle_q2", "barrows_puzzle:pic_a",
+                    "barrows_puzzle:pic_b", "barrows_puzzle:pic_c",
+                };
+                static const char* const shield_components[] = {
+                    "pest_status_overlay:purple_shield",
+                    "pest_status_overlay:blue_shield",
+                    "pest_status_overlay:yellow_shield",
+                    "pest_status_overlay:red_shield",
+                };
+                static struct Mock230Capture iface_capture;
+                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                const struct Mock230Wire* wire230 = mock230_wire_by_name("osrs230");
+                int32_t model_args[] = { 101, 202, 303, 404, 505, 606 };
+                int model_opcode;
+                int hide_opcode;
+                int opensub_opcode;
+
+                SELFTEST_CHECK(wire239 != NULL,
+                               "content interface test has the osrs239 adapter");
+                if( wire239 )
+                {
+                    int at;
+
+                    srv.wire = wire239;
+                    model_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_SETMODEL);
+                    hide_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_SETHIDE);
+                    opensub_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_OPENSUB);
+
+                    mock230_capture_begin(&srv, &iface_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_proc(
+                                       &srv, "[proc,barrows_puzzle_set_models]",
+                                       model_args, 6),
+                                   "barrows model proc executes through IF_SETMODEL");
+                    mock230_capture_end(&srv);
+                    at = 0;
+                    for( int model_i = 0; model_i < 6; model_i++ )
+                    {
+                        int expected_uid = mock230_content_symbol(
+                            MOCK230_PACK_COMPONENT, model_components[model_i]);
+
+                        at = mock230_capture_find(&iface_capture, model_opcode, at);
+                        SELFTEST_CHECK(at >= 0,
+                                       "barrows model %d emitted IF_SETMODEL", model_i);
+                        if( at >= 0 )
+                        {
+                            const struct Mock230CapturedPacket* packet =
+                                &iface_capture.packets[at++];
+                            int decoded_model = packet->len >= 4
+                                                    ? ((int)packet->data[2] << 24) |
+                                                          ((int)packet->data[3] << 16) |
+                                                          ((int)packet->data[0] << 8) |
+                                                          packet->data[1]
+                                                    : -1;
+                            int decoded_uid = packet->len >= 8
+                                                  ? ((int)packet->data[7] << 24) |
+                                                        ((int)packet->data[6] << 16) |
+                                                        ((int)packet->data[5] << 8) |
+                                                        packet->data[4]
+                                                  : -1;
+
+                            SELFTEST_CHECK(packet->len == 8,
+                                           "content IF_SETMODEL has eight bytes");
+                            SELFTEST_CHECK(decoded_model == model_args[model_i],
+                                           "model argument %d preserved (got %d)",
+                                           model_args[model_i], decoded_model);
+                            SELFTEST_CHECK(expected_uid >= 0 && decoded_uid == expected_uid,
+                                           "%s resolves onto the wire (got %d, expected %d)",
+                                           model_components[model_i], decoded_uid,
+                                           expected_uid);
+                        }
+                    }
+                    SELFTEST_CHECK(mock230_capture_find(
+                                       &iface_capture, model_opcode, at) < 0,
+                                   "barrows proc emits exactly six model packets");
+
+                    mock230_capture_begin(&srv, &iface_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_proc(
+                                       &srv, "[proc,pest_overlay_open]", NULL, 0),
+                                   "pest overlay proc executes through IF_SETHIDE");
+                    mock230_capture_end(&srv);
+                    at = 0;
+                    for( int shield_i = 0; shield_i < 4; shield_i++ )
+                    {
+                        int expected_uid = mock230_content_symbol(
+                            MOCK230_PACK_COMPONENT, shield_components[shield_i]);
+
+                        at = mock230_capture_find(&iface_capture, hide_opcode, at);
+                        SELFTEST_CHECK(at >= 0,
+                                       "pest shield %d emitted IF_SETHIDE", shield_i);
+                        if( at >= 0 )
+                        {
+                            const struct Mock230CapturedPacket* packet =
+                                &iface_capture.packets[at++];
+                            int decoded_uid = packet->len >= 4
+                                                  ? ((int)packet->data[1] << 24) |
+                                                        ((int)packet->data[0] << 16) |
+                                                        ((int)packet->data[3] << 8) |
+                                                        packet->data[2]
+                                                  : -1;
+
+                            SELFTEST_CHECK(packet->len == 5 && packet->data[4] == 0x80,
+                                           "content IF_SETHIDE encodes false with g1Alt1");
+                            SELFTEST_CHECK(expected_uid >= 0 && decoded_uid == expected_uid,
+                                           "%s resolves onto the wire (got %d, expected %d)",
+                                           shield_components[shield_i], decoded_uid,
+                                           expected_uid);
+                        }
+                    }
+                    SELFTEST_CHECK(mock230_capture_find(
+                                       &iface_capture, hide_opcode, at) < 0,
+                                   "pest proc emits exactly four hide packets");
+
+                    /* A minimal ServerScript fixture exercises the VM/host
+                     * seam without borrowing one of the tree's conditional
+                     * gameplay procs. Its exact stack is group ->
+                     * IF_OPENOVERLAY -> RETURN. */
+                    {
+                        uint16_t overlay_ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_IF_OPENOVERLAY,
+                            SS_OP_RETURN,
+                        };
+                        int32_t overlay_operands[] = {
+                            mock230_content_symbol(
+                                MOCK230_PACK_INTERFACE, "darkness_medium"),
+                            0,
+                            0,
+                        };
+                        char* overlay_strings[] = { NULL, NULL, NULL };
+                        struct SSVM_Script overlay_script = {
+                            .id = -1,
+                            .name = "[selftest,if_openoverlay]",
+                            .source_path = "<selftest>",
+                            .lookup_key = -1,
+                            .op_count = 3,
+                            .opcodes = overlay_ops,
+                            .int_operands = overlay_operands,
+                            .string_operands = overlay_strings,
+                        };
+
+                        SELFTEST_CHECK(overlay_operands[0] >= 0,
+                                       "darkness_medium resolves for overlay fixture");
+                        mock230_capture_begin(&srv, &iface_capture);
+                        SELFTEST_CHECK(mock230_scripts_run_hook(
+                                           &srv, &overlay_script, NULL, 0),
+                                       "VM executes IF_OPENOVERLAY host opcode");
+                        mock230_capture_end(&srv);
+                    }
+                    at = mock230_capture_find(&iface_capture, opensub_opcode, 0);
+                    SELFTEST_CHECK(at >= 0, "IF_OPENOVERLAY emits IF_OPENSUB");
+                    if( at >= 0 )
+                    {
+                        const struct Mock230CapturedPacket* packet =
+                            &iface_capture.packets[at];
+                        int decoded_group = packet->len >= 2
+                                                ? ((int)packet->data[1] << 8) |
+                                                      ((packet->data[0] - 128) & 0xff)
+                                                : -1;
+                        int decoded_dest = packet->len >= 6
+                                               ? ((int)packet->data[3] << 24) |
+                                                     ((int)packet->data[2] << 16) |
+                                                     ((int)packet->data[5] << 8) |
+                                                     packet->data[4]
+                                               : -1;
+                        int darkness = mock230_content_symbol(
+                            MOCK230_PACK_INTERFACE, "darkness_medium");
+
+                        SELFTEST_CHECK(packet->len == 7 && packet->data[6] == 1,
+                                       "IF_OPENOVERLAY mounts with IF_OPENSUB type 1");
+                        SELFTEST_CHECK(decoded_group == darkness,
+                                       "the content overlay group reaches the packet");
+                        SELFTEST_CHECK(decoded_dest == mock230_player_floater(player),
+                                       "IF_OPENOVERLAY targets the live floater (%d, got %d)",
+                                       mock230_player_floater(player), decoded_dest);
+                    }
+
+                    /* The actual equipment close trigger supplies the
+                     * component-only ServerScript command. The host must
+                     * recover the inv id before unbinding it because that is
+                     * all revision 239 carries on the wire. */
+                    {
+                        int equipment = mock230_content_symbol(
+                            MOCK230_PACK_INTERFACE, "equipment");
+                        int universe = mock230_content_symbol(
+                            MOCK230_PACK_COMPONENT, "equipment:universe");
+                        int wornitems = MOCK230_COM(mock230_ids()->iface_wornitems, 0);
+                        struct Mock230Container* worn = mock230_container_resolve(
+                            &srv, player, mock230_ids()->inv_worn);
+                        int stop_opcode = mock230_wire_opcode(
+                            wire239, PKT_NAME_UPDATE_INV_STOP_TRANSMIT);
+                        int clear_opcode = mock230_wire_opcode(
+                            wire239, PKT_NAME_IF_CLEARINV);
+
+                        SELFTEST_CHECK(equipment >= 0 && universe >= 0 && worn,
+                                       "equipment close test resolves its interface/container");
+                        if( equipment >= 0 && universe >= 0 && worn )
+                        {
+                            mock230_container_unbind(player, universe);
+                            mock230_container_unbind(player, wornitems);
+                            SELFTEST_CHECK(mock230_container_bind(
+                                               &srv, player, mock230_ids()->inv_worn,
+                                               universe),
+                                           "equipment universe listens to worn");
+
+                            mock230_capture_begin(&srv, &iface_capture);
+                            SELFTEST_CHECK(mock230_scripts_run_trigger(
+                                               &srv, SS_TRIGGER_IF_CLOSE, equipment,
+                                               -1, -1) != MOCK230_TRIGGER_NONE,
+                                           "[if_close,equipment] runs");
+                            mock230_capture_end(&srv);
+                            at = mock230_capture_find(
+                                &iface_capture, stop_opcode, 0);
+                            {
+                                int clear_at = mock230_capture_find(
+                                    &iface_capture, clear_opcode, 0);
+
+                                SELFTEST_CHECK(clear_at >= 0,
+                                               "equipment close emits IF_CLEARINV");
+                                SELFTEST_CHECK(clear_at >= 0 && at >= 0 && clear_at < at,
+                                               "IF_CLEARINV must precede the final "
+                                               "UPDATE_INV_STOPTRANSMIT");
+                            }
+                            SELFTEST_CHECK(worn->listener_count == 0,
+                                           "equipment close removes its listener");
+                            SELFTEST_CHECK(at >= 0,
+                                           "last listener emits UPDATE_INV_STOPTRANSMIT");
+                            if( at >= 0 )
+                            {
+                                const struct Mock230CapturedPacket* packet =
+                                    &iface_capture.packets[at];
+                                int decoded_inv = packet->len >= 2
+                                                      ? ((int)packet->data[0] << 8) |
+                                                            ((packet->data[1] - 128) & 0xff)
+                                                      : -1;
+
+                                SELFTEST_CHECK(packet->len == 2,
+                                               "rev239 stoptransmit has the golden length");
+                                SELFTEST_CHECK(decoded_inv == mock230_ids()->inv_worn,
+                                               "stoptransmit carries worn inv id (got %d)",
+                                               decoded_inv);
+                            }
+
+                            /* One global inv may paint two components. Closing
+                             * one must not erase it from the rev239 client while
+                             * the other still listens. */
+                            SELFTEST_CHECK(mock230_container_bind(
+                                               &srv, player, mock230_ids()->inv_worn,
+                                               wornitems),
+                                           "worn tab remains a listener");
+                            SELFTEST_CHECK(mock230_container_bind(
+                                               &srv, player, mock230_ids()->inv_worn,
+                                               universe),
+                                           "equipment becomes the second listener");
+                            mock230_capture_begin(&srv, &iface_capture);
+                            mock230_scripts_run_trigger(
+                                &srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
+                            mock230_capture_end(&srv);
+                            SELFTEST_CHECK(worn->listener_count == 1 &&
+                                               worn->listeners[0].component == wornitems,
+                                           "closing equipment keeps the worn-tab listener");
+                            SELFTEST_CHECK(mock230_capture_find(
+                                               &iface_capture, stop_opcode, 0) < 0,
+                                           "a surviving listener suppresses the global stop");
+                            SELFTEST_CHECK(mock230_capture_find(
+                                               &iface_capture, clear_opcode, 0) >= 0,
+                                           "but the unbound component still receives "
+                                           "IF_CLEARINV");
+
+                            /* Revision 230's packet is component-specific, so
+                             * the same two-listener close must still send its
+                             * four-byte component body. */
+                            SELFTEST_CHECK(wire230 != NULL,
+                                           "dual-listener fallback has the osrs230 adapter");
+                            if( wire230 )
+                            {
+                                int stop230 = mock230_wire_opcode(
+                                    wire230, PKT_NAME_UPDATE_INV_STOP_TRANSMIT);
+
+                                srv.wire = wire230;
+                                SELFTEST_CHECK(mock230_container_bind(
+                                                   &srv, player,
+                                                   mock230_ids()->inv_worn,
+                                                   universe),
+                                               "rev230 equipment becomes second listener");
+                                mock230_capture_begin(&srv, &iface_capture);
+                                mock230_scripts_run_trigger(
+                                    &srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
+                                mock230_capture_end(&srv);
+                                at = mock230_capture_find(
+                                    &iface_capture, stop230, 0);
+                                SELFTEST_CHECK(at >= 0,
+                                               "rev230 stops the removed component even with "
+                                               "another listener");
+                                if( at >= 0 )
+                                {
+                                    const struct Mock230CapturedPacket* packet =
+                                        &iface_capture.packets[at];
+                                    int decoded_component = packet->len >= 4
+                                                                ? ((int)packet->data[0] << 24) |
+                                                                      ((int)packet->data[1] << 16) |
+                                                                      ((int)packet->data[2] << 8) |
+                                                                      packet->data[3]
+                                                                : -1;
+
+                                    SELFTEST_CHECK(packet->len == 4 &&
+                                                       decoded_component == universe,
+                                                   "rev230 stoptransmit carries equipment:universe");
+                                }
+                                srv.wire = wire239;
+                            }
+                            mock230_container_unbind(player, wornitems);
+                        }
+                    }
+
+                    /* Bank transmission is intentionally outside the generic
+                     * registry, so its real close trigger is the regression
+                     * test for the explicit bankmain:scrollbar -> bank map. */
+                    {
+                        int stop_opcode = mock230_wire_opcode(
+                            wire239, PKT_NAME_UPDATE_INV_STOP_TRANSMIT);
+                        int bankmain = mock230_ids()->iface_bankmain;
+
+                        player->bank.open = 1;
+                        mock230_capture_begin(&srv, &iface_capture);
+                        SELFTEST_CHECK(mock230_scripts_run_trigger(
+                                           &srv, SS_TRIGGER_IF_CLOSE, bankmain,
+                                           -1, -1) != MOCK230_TRIGGER_NONE,
+                                       "[if_close,bankmain] runs");
+                        mock230_capture_end(&srv);
+                        at = mock230_capture_find(&iface_capture, stop_opcode, 0);
+                        SELFTEST_CHECK(!player->bank.open,
+                                       "bank stoptransmit clears the open flag");
+                        SELFTEST_CHECK(at >= 0,
+                                       "bank close emits UPDATE_INV_STOPTRANSMIT");
+                        if( at >= 0 )
+                        {
+                            const struct Mock230CapturedPacket* packet =
+                                &iface_capture.packets[at];
+                            int decoded_inv = packet->len >= 2
+                                                  ? ((int)packet->data[0] << 8) |
+                                                        ((packet->data[1] - 128) & 0xff)
+                                                  : -1;
+
+                            SELFTEST_CHECK(decoded_inv == mock230_ids()->inv_bank,
+                                           "bank close carries the bank inv id (got %d)",
+                                           decoded_inv);
+                            SELFTEST_CHECK(mock230_capture_find(
+                                               &iface_capture, stop_opcode, at + 1) < 0,
+                                           "bankside backpack close does not clear backpack");
+                        }
+                    }
+
+                    srv.wire = saved_wire;
+                }
+                else
+                    srv.wire = saved_wire;
+            }
+            fprintf(stderr, "mock230 selftest: script-driven trigger basics\n");
             uint8_t payload[2];
             int before;
             int hans;
@@ -8618,6 +9628,7 @@ mock230_world_selftest(void)
         }
         else
         {
+            static struct Mock230Capture capture;
             uint8_t payload[2];
             uint8_t move[5];
             int hans;
@@ -8645,7 +9656,43 @@ mock230_world_selftest(void)
             move[2] = (uint8_t)(player->x + 3);
             move[3] = (uint8_t)(player->z >> 8);
             move[4] = (uint8_t)player->z;
-            mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+            {
+                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                int abort_at;
+                int close_at;
+
+                SELFTEST_CHECK(wire239 != NULL,
+                               "dialog-abort test has the osrs239 adapter");
+                if( wire239 )
+                    srv.wire = wire239;
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+                mock230_capture_end(&srv);
+                srv.wire = saved_wire;
+
+                abort_at = wire239
+                               ? mock230_capture_find(
+                                     &capture,
+                                     mock230_wire_opcode(
+                                         wire239, PKT_NAME_TRIGGER_ONDIALOGABORT),
+                                     0)
+                               : -1;
+                close_at = wire239
+                               ? mock230_capture_find(
+                                     &capture,
+                                     mock230_wire_opcode(wire239, PKT_NAME_IF_CLOSESUB),
+                                     0)
+                               : -1;
+                SELFTEST_CHECK(abort_at >= 0,
+                               "click-away must emit TRIGGER_ONDIALOGABORT");
+                SELFTEST_CHECK(close_at >= 0,
+                               "click-away must still emit IF_CLOSESUB");
+                SELFTEST_CHECK(abort_at >= 0 && close_at >= 0 && abort_at < close_at,
+                               "TRIGGER_ONDIALOGABORT must precede IF_CLOSESUB "
+                               "(got %d then %d)",
+                               abort_at, close_at);
+            }
 
             SELFTEST_CHECK(player->active_script == NULL,
                            "walking away should end the parked conversation");
@@ -9595,6 +10642,40 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(armed == CELL_COUNT,
                                "all %d skill cells should be armed at login, %d were",
                                CELL_COUNT, armed);
+
+                /* The frame X is a separate static component.  Proving the
+                 * stat cells does not prove that the guide can be dismissed:
+                 * without this op-1 range the authoritative client highlights
+                 * a perfectly drawn close button but never builds IF_BUTTON1.
+                 */
+                {
+                    int close = mock230_content_symbol(
+                        MOCK230_PACK_COMPONENT, "skill_guide_v2:close");
+                    int mask = -1;
+                    int from = -2;
+                    int to = -2;
+
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        struct RSAreaBuf ev;
+
+                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            continue;
+                        rsab_wrap(&ev, capture.packets[p].data,
+                                  (size_t)capture.packets[p].len);
+                        if( rsab_g4_alt3(&ev) != close )
+                            continue;
+                        from = rsab_g2_alt2(&ev);
+                        mask = rsab_g4_alt1(&ev);
+                        to = rsab_g2(&ev);
+                        break;
+                    }
+                    SELFTEST_CHECK(close > 0,
+                                   "the content pack should name skill_guide_v2:close");
+                    SELFTEST_CHECK(mask == 2 && from == 0 && to == 0,
+                                   "skill guide close should arm op 1 over sub 0 exactly, "
+                                   "got mask=%d range=%d..%d", mask, from, to);
+                }
             }
 
             /*
@@ -12271,19 +13352,210 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: login burst\n");
     {
         static struct Mock230Capture capture;
-        /* UPDATE_PID before the stats: it is what tells the client which entity
-         * in the stream is itself, which everything asking "what is my combat
-         * level" depends on — the npc menu's (level-N) suffix most visibly. */
-        static const int k_burst[] = {
-            68 /* REBUILD_NORMAL */, 60 /* IF_OPENTOP */, 127 /* UPDATE_PID */,
-            114 /* UPDATE_STAT */,   10 /* UPDATE_INV_FULL */,
-        };
+        int old_x = player->x;
+        int old_z = player->z;
+        int login_x = 2495;
+        int login_z = 5112;
+        int waits_for_scene = srv.wire->revision >= 239;
+        int rebuild = mock230_wire_opcode(srv.wire, PKT_NAME_REBUILD_NORMAL);
+        int player_info = mock230_wire_opcode(srv.wire, PKT_NAME_PLAYER_INFO);
+        int opentop = mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENTOP);
+        int stat = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_STAT);
+        int inv_full = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_INV_FULL);
+        int tick_end = mock230_wire_opcode(srv.wire, PKT_NAME_SERVER_TICK_END);
+        /* PLAYER_INFO must precede interfaces/stats; classic wires identify
+         * self with UPDATE_PID first, while revision 239 states the index in
+         * LoginResponse.Ok and has no such packet. Resolve actual opcodes from
+         * the selected wire so `MOCK230_REV=osrs239 --selftest` exercises 239
+         * instead of comparing its traffic to hard-coded revision-230 ids. */
+        int k_burst[6];
+        int k_finish[] = { player_info, opentop, stat, inv_full, tick_end };
+        int burst_count = 0;
 
+        k_burst[burst_count++] = rebuild;
+        {
+            int update_pid = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_PID);
+            if( update_pid >= 0 )
+                k_burst[burst_count++] = update_pid;
+        }
+        k_burst[burst_count++] = player_info;
+        k_burst[burst_count++] = opentop;
+        k_burst[burst_count++] = stat;
+        k_burst[burst_count++] = inv_full;
+
+        /*
+         * A packet-order assertion cannot catch a valid GPI coordinate paired
+         * with the wrong WorldView.  Put the fixture far outside the current
+         * scene without calling selftest_park_player (that helper recentres on
+         * its own): login itself must align the rebuild after loading state.
+         * The golden client only materializes the local actor when the GPI
+         * coordinate is strictly inside the rebuild's 104x104 bounds.
+         */
+        player->x = login_x;
+        player->z = login_z;
+        player->place_dirty = 1;
         mock230_capture_begin(&srv, &capture);
         mock230_world_login(player);
         mock230_capture_end(&srv);
-        SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_burst, 5),
-                       "the login burst should place, open, identify, then fill");
+        SELFTEST_CHECK(mock230_capture_find(&capture, rebuild, 0) >= 0,
+                       "login must start with a scene rebuild");
+        if( !waits_for_scene )
+        {
+            SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_burst, burst_count),
+                           "the classic login burst should identify/place before UI state");
+            SELFTEST_CHECK(!player->login_scene_pending,
+                           "the classic wire must not arm the asynchronous scene barrier");
+        }
+        else
+        {
+            uint8_t status[5];
+            uint8_t move[5];
+            int mode = player->client_layout_mode == 0 ? 1 : 0;
+
+            SELFTEST_CHECK(player->login_scene_pending,
+                           "rev 239 must wait for MAP_BUILD_COMPLETE after its rebuild");
+            SELFTEST_CHECK(!player->login_pending,
+                           "[login] must not be eligible before the scene is complete");
+            SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
+                               mock230_capture_find(&capture, opentop, 0) < 0 &&
+                               mock230_capture_find(&capture, stat, 0) < 0 &&
+                               mock230_capture_find(&capture, inv_full, 0) < 0 &&
+                               mock230_capture_find(&capture, tick_end, 0) < 0,
+                           "rev 239's pre-ack flight must contain only scene state");
+
+            /* WINDOW_STATUS precedes the map acknowledgement in the golden
+             * client. Latch it without mounting a root interface early. */
+            status[0] = (uint8_t)mode;
+            status[1] = 3;
+            status[2] = 0; /* 768 */
+            status[3] = 1;
+            status[4] = 247; /* 503 */
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_WINDOW_STATUS, status, 5);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(player->client_layout_mode == mode,
+                           "pre-ack WINDOW_STATUS should latch mode %d, got %d", mode,
+                           player->client_layout_mode);
+            SELFTEST_CHECK(mock230_capture_find(&capture, opentop, 0) < 0,
+                           "pre-ack WINDOW_STATUS must not send IF_OPENTOP");
+
+            /* Gameplay input and every per-player tick phase remain behind the
+             * same barrier. The dirty fields make cleanup suppression directly
+             * observable instead of inferring it from an idle capture. */
+            mock230_world_steps_clear(player);
+            move[0] = 0;
+            move[1] = (uint8_t)((player->x + 1) >> 8);
+            move[2] = (uint8_t)(player->x + 1);
+            move[3] = (uint8_t)(player->z >> 8);
+            move[4] = (uint8_t)player->z;
+            mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
+            SELFTEST_CHECK(player->waypoint_index == -1,
+                           "movement input must be rejected while the scene is loading");
+            player->masks |= MOCK230_PMASK_APPEARANCE;
+            player->place_dirty = 1;
+            player->stat_dirty |= 1u;
+            player->inv_dirty |= 1u;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
+                               mock230_capture_find(&capture, opentop, 0) < 0 &&
+                               mock230_capture_find(&capture, stat, 0) < 0 &&
+                               mock230_capture_find(&capture, inv_full, 0) < 0 &&
+                               mock230_capture_find(&capture, tick_end, 0) < 0,
+                           "ticks before MAP_BUILD_COMPLETE must not leak player/UI/state");
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_APPEARANCE) != 0 &&
+                               player->place_dirty && (player->stat_dirty & 1u) != 0 &&
+                               (player->inv_dirty & 1u) != 0,
+                           "pending tick cleanup must preserve appearance/place/stat/inv state");
+            SELFTEST_CHECK(!player->login_pending,
+                           "a pending tick must not run or consume the [login] latch");
+
+            /* If the shared scene moved while loading, the first acknowledgement
+             * starts a replacement rebuild and deliberately retains the barrier. */
+            player->rebuild_pending = 1;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, rebuild, 0) >= 0 &&
+                               mock230_capture_find(&capture, player_info, 0) < 0 &&
+                               mock230_capture_find(&capture, opentop, 0) < 0 &&
+                               mock230_capture_find(&capture, stat, 0) < 0,
+                           "an obsolete scene acknowledgement must send only its replacement");
+            SELFTEST_CHECK(player->login_scene_pending && !player->rebuild_pending,
+                           "replacement rebuild should retain the barrier and consume its debt");
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(
+                mock230_capture_has_sequence(
+                    &capture, k_finish, (int)(sizeof(k_finish) / sizeof(k_finish[0]))),
+                "the acknowledged rev-239 scene should place before UI/stats and tick end");
+            SELFTEST_CHECK(!player->login_scene_pending && player->login_pending,
+                           "scene acknowledgement should release exactly one [login] latch");
+
+            /* A duplicate completion is normal client noise, not a second login. */
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
+                               mock230_capture_find(&capture, opentop, 0) < 0 &&
+                               mock230_capture_find(&capture, stat, 0) < 0 &&
+                               mock230_capture_find(&capture, tick_end, 0) < 0,
+                           "duplicate MAP_BUILD_COMPLETE must not replay the login burst");
+        }
+        {
+            int origin_x = mock230_scene_origin(srv.zone_x);
+            int origin_z = mock230_scene_origin(srv.zone_z);
+
+            SELFTEST_CHECK(srv.zone_x == (login_x >> 3) && srv.zone_z == (login_z >> 3),
+                           "login rebuild must centre saved coord %d,%d; got zone %d,%d",
+                           login_x, login_z, srv.zone_x, srv.zone_z);
+            SELFTEST_CHECK(login_x > origin_x && login_z > origin_z &&
+                               login_x < origin_x + MOCK230_SCENE_TILES &&
+                               login_z < origin_z + MOCK230_SCENE_TILES,
+                           "saved coord must be strictly inside login WorldView "
+                           "base=%d,%d dims=%dx%d",
+                           origin_x, origin_z, MOCK230_SCENE_TILES, MOCK230_SCENE_TILES);
+        }
+
+        /* Keep all later fixtures at the location this section inherited. */
+        player->x = old_x;
+        player->z = old_z;
+        player->place_dirty = 1;
+        maybe_rebuild(&srv);
+        player->rebuild_pending = 0;
+        /* The generic selftest player is intentionally unnamed, so the login
+         * above cannot exercise the name-keyed social service. Give it a
+         * fresh, isolated identity for the empty-list wire contract. */
+        {
+            int64_t old_name37 = player->name37;
+            int64_t empty_name37 = (int64_t)strtobase37("empty_social_test");
+            int empty_friends;
+            int loaded;
+
+            player->name37 = empty_name37;
+            mock230_friends_login(empty_name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_social_login(player);
+            mock230_capture_end(&srv);
+            player->name37 = old_name37;
+
+            empty_friends = mock230_capture_find(
+                &capture,
+                mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_FRIENDLIST),
+                0);
+            loaded = mock230_capture_find(
+                &capture,
+                mock230_wire_opcode(srv.wire, PKT_NAME_FRIENDLIST_LOADED),
+                0);
+            SELFTEST_CHECK(loaded >= 0 && empty_friends > loaded,
+                           "FRIENDLIST_LOADED must precede empty UPDATE_FRIENDLIST so "
+                           "rev 239 finishes in social state 2 instead of loading state 1");
+            SELFTEST_CHECK(empty_friends < 0 || capture.packets[empty_friends].len == 0,
+                           "the fresh-account friend snapshot should be explicitly empty");
+        }
 
         /*
          * The combat tab's varps are content, not burst.
@@ -12314,9 +13586,15 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(com_mode >= 0 && sa_energy >= 0,
                            "com_mode and sa_energy should be in pack/varp.pack");
-            SELFTEST_CHECK(mock230_capture_find(&capture, 35 /* VARP_SMALL */, 0) >= 0,
+            SELFTEST_CHECK(mock230_capture_find(
+                               &capture,
+                               mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                               0) >= 0,
                            "[login] should transmit the small varps");
-            SELFTEST_CHECK(mock230_capture_find(&capture, 82 /* VARP_LARGE */, 0) >= 0,
+            SELFTEST_CHECK(mock230_capture_find(
+                               &capture,
+                               mock230_wire_opcode(srv.wire, PKT_NAME_VARP_LARGE),
+                               0) >= 0,
                            "and the spec bar through the wide form");
             SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 1000,
                            "^sa_max_energy should be 1000, got %d",
@@ -12355,6 +13633,8 @@ mock230_world_selftest(void)
                        player->client_layout_mode);
 
         mock230_world_login(player);
+        if( player->login_scene_pending )
+            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
         SELFTEST_CHECK(player->client_layout_mode == 0,
                        "login must keep the saved Fixed layout, got %d",
                        player->client_layout_mode);

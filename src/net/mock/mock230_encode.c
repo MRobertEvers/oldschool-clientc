@@ -20,6 +20,7 @@
 #include "mock230_ids.h"
 #include "mock230_mapinstance.h"
 #include "mock230_session.h"
+#include "mock239_runclientscript.h"
 #include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
@@ -79,9 +80,24 @@ enum
     OP_IF_SETNPCHEAD = PKT_NAME_IF_SETNPCHEAD,
     OP_IF_SETPLAYERHEAD = PKT_NAME_IF_SETPLAYERHEAD,
     OP_IF_SETANIM = PKT_NAME_IF_SETANIM,
+    OP_IF_SETCOLOUR = PKT_NAME_IF_SETCOLOUR,
     OP_IF_SETHIDE = PKT_NAME_IF_SETHIDE,
+    OP_IF_SETMODEL = PKT_NAME_IF_SETMODEL,
+    OP_IF_SETOBJECT = PKT_NAME_IF_SETOBJECT,
+    OP_IF_SETPOSITION = PKT_NAME_IF_SETPOSITION,
+    OP_IF_SETSCROLLPOS = PKT_NAME_IF_SETSCROLLPOS,
+    OP_IF_SETROTATESPEED = PKT_NAME_IF_SETROTATESPEED,
+    OP_IF_SETANGLE = PKT_NAME_IF_SETANGLE,
+    OP_IF_SETNPCHEAD_ACTIVE = PKT_NAME_IF_SETNPCHEAD_ACTIVE,
+    OP_IF_SETPLAYERMODEL_BASECOLOUR = PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+    OP_IF_SETPLAYERMODEL_BODYTYPE = PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+    OP_IF_SETPLAYERMODEL_OBJ = PKT_NAME_IF_SETPLAYERMODEL_OBJ,
+    OP_IF_SETPLAYERMODEL_SELF = PKT_NAME_IF_SETPLAYERMODEL_SELF,
     OP_IF_CLOSESUB = PKT_NAME_IF_CLOSESUB,
     OP_IF_MOVESUB = PKT_NAME_IF_MOVESUB,
+    OP_IF_RESYNC_V2 = PKT_NAME_IF_RESYNC_V2,
+    OP_IF_CLEARINV = PKT_NAME_IF_CLEARINV,
+    OP_UPDATE_INV_STOP_TRANSMIT = PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
     OP_RUNCLIENTSCRIPT = PKT_NAME_RUNCLIENTSCRIPT,
     OP_P_COUNTDIALOG = PKT_NAME_P_COUNTDIALOG,
     OP_IF_OPENTOP = PKT_NAME_IF_OPENTOP,
@@ -113,6 +129,8 @@ enum
     OP_CAM_LOOKAT = PKT_NAME_CAM_LOOKAT,
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
+    OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
+    OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
 };
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
  * the mock produces (a full REBUILD_NORMAL key block). */
@@ -733,6 +751,11 @@ mock230_send_if_opentop(
     int group)
 {
     struct RSAreaBuf buf;
+
+    /* Mutate authority before the packet is observable. A resync built from a
+     * send-after-the-fact cache can otherwise preserve mounts the new root has
+     * already destroyed in the golden client. */
+    mock230_ifstate_open_top(&player->interfaces, group);
     open_packet(&buf, 8);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
@@ -750,14 +773,22 @@ mock230_send_if_movesub(
     int source_uid,
     int dest_uid)
 {
-    /* RSProt IfMoveSubEncoder: destinationCombinedId then sourceCombinedId,
-     * each p4Alt1 (little-endian). */
     struct RSAreaBuf buf;
     source_uid = mock230_remap_gameframe_slot_uid(player, source_uid);
     dest_uid = mock230_remap_gameframe_slot_uid(player, dest_uid);
+    mock230_ifstate_move_sub(&player->interfaces, source_uid, dest_uid);
     open_packet(&buf, 16);
-    rsab_p4_alt1(&buf, dest_uid);
-    rsab_p4_alt1(&buf, source_uid);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_movesub )
+            pl->if_movesub(&buf, source_uid, dest_uid);
+        else
+        {
+            /* Rev 230 IfMoveSubEncoder: destination then source, both p4Alt1. */
+            rsab_p4_alt1(&buf, dest_uid);
+            rsab_p4_alt1(&buf, source_uid);
+        }
+    }
     flush(player, &buf, OP_IF_MOVESUB, 0);
 }
 
@@ -823,6 +854,7 @@ mock230_gameframe_opentop(
         fprintf(stderr,
                 "mock230: no `%s` gameframe enum — HUD/tabs will be empty\n",
                 top_name);
+        mock230_send_if_resync_v2(player);
         return;
     }
     for( int i = 0; i < frame->count; i++ )
@@ -832,6 +864,10 @@ mock230_gameframe_opentop(
             frame->values[i].key & 0xffff,
             frame->values[i].value,
             1);
+    /* The V2 snapshot is the authoritative commit for this root. It also
+     * removes stale client-side mounts/event ranges left by an interrupted
+     * layout switch. Revision 230's sender is deliberately a no-op. */
+    mock230_send_if_resync_v2(player);
 }
 
 void
@@ -850,6 +886,17 @@ mock230_send_if_opensub(
 
     parent = (uid >> 16) & 0xffff;
     child = uid & 0xffff;
+
+    if( !mock230_ifstate_open_sub(&player->interfaces, uid, group, type) )
+    {
+        fprintf(stderr,
+                "mock230: cannot register IF_OPENSUB %d:%d <- %d type %d\n",
+                parent, child, group, type);
+        /* Revision 239 must never send a mutation its later IF_RESYNC_V2
+         * cannot reproduce. The classic wire has no V2 registry contract. */
+        if( wire_is_v5(player) )
+            return;
+    }
 
     open_packet(&buf, 16);
     {
@@ -927,6 +974,32 @@ mock230_send_run_clientscript(
     mock230_send_run_clientscript_mixed(player, script_id, NULL, args, NULL, argc);
 }
 
+int
+mock230_send_run_clientscript_typed(
+    struct Mock230Player* player,
+    int script_id,
+    const char* types,
+    const struct Mock239ClientScriptArg* args,
+    int argc)
+{
+    struct RSAreaBuf buf;
+
+    if( !player || !wire_is_v5(player) )
+        return 0;
+
+    /* RUNCLIENTSCRIPT is VAR_SHORT, so 65535 is the protocol ceiling. Leave
+     * headroom in the packet arena for ordinary adjacent server work; an
+     * argument set larger than this fails closed through rsab_ok(). */
+    open_packet(&buf, 60 * 1024);
+    if( !mock239_encode_runclientscript(&buf, script_id, types, args, argc) )
+    {
+        fprintf(stderr, "mock230: refused invalid rev239 RUNCLIENTSCRIPT %d\n", script_id);
+        return 0;
+    }
+    flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
+    return 1;
+}
+
 void
 mock230_send_if_setevents(
     struct Mock230Player* player,
@@ -935,23 +1008,96 @@ mock230_send_if_setevents(
     int to,
     int events)
 {
+    uint32_t events1;
+    uint32_t events2;
+
+    mock230_ifstate_split_classic_events((uint32_t)events, &events1, &events2);
+    mock230_send_if_setevents_v2(player, uid, from, to, events1, events2);
+}
+
+void
+mock230_send_if_setevents_v2(
+    struct Mock230Player* player,
+    int uid,
+    int from,
+    int to,
+    uint32_t events1,
+    uint32_t events2)
+{
     /* RSProt IfSetEventsEncoder: p4Alt3 combinedId, p2Alt2 start, p4Alt1
      * events, p2 end. */
     struct RSAreaBuf buf;
+
+    if( !mock230_ifstate_setevents_v2(
+            &player->interfaces, uid, from, to, events1, events2) )
+    {
+        fprintf(stderr,
+                "mock230: cannot register IF_SETEVENTS %d:%d range %d..%d\n",
+                (uid >> 16) & 0xffff, uid & 0xffff, from, to);
+        if( wire_is_v5(player) )
+            return;
+    }
+
     open_packet(&buf, 16);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
         if( pl && pl->if_setevents )
-            pl->if_setevents(&buf, uid, from, to, (uint32_t)events);
+            pl->if_setevents(&buf, uid, from, to, events1, events2);
         else
         {
+            uint32_t classic = events1 | ((events2 & UINT32_C(0x3ff)) << 1);
+
             rsab_p4_alt3(&buf, uid);
             rsab_p2_alt2(&buf, from);
-            rsab_p4_alt1(&buf, events);
+            rsab_p4_alt1(&buf, (int32_t)classic);
             rsab_p2(&buf, to);
         }
     }
     flush(player, &buf, OP_IF_SETEVENTS, 0);
+}
+
+void
+mock230_send_if_resync_v2(struct Mock230Player* player)
+{
+    struct RSAreaBuf buf;
+    size_t capacity;
+
+    if( !wire_is_v5(player) )
+        return;
+    capacity = mock230_ifstate_resync_payload_size(&player->interfaces);
+    if( capacity == 0 || capacity > MOCK230_IF_RESYNC_MAX_PAYLOAD )
+    {
+        fprintf(stderr, "mock230: invalid IF_RESYNC_V2 registry size %zu\n", capacity);
+        return;
+    }
+    open_packet(&buf, capacity);
+    mock230_ifstate_encode_resync_v2(&buf, &player->interfaces);
+    flush(player, &buf, OP_IF_RESYNC_V2, 2);
+}
+
+void
+mock230_send_if_clearinv(
+    struct Mock230Player* player,
+    int uid)
+{
+    struct RSAreaBuf buf;
+
+    if( !wire_is_v5(player) )
+        return;
+    open_packet(&buf, 4);
+    mock230_ifstate_encode_clearinv(&buf, uid);
+    flush(player, &buf, OP_IF_CLEARINV, 0);
+}
+
+void
+mock230_send_trigger_ondialogabort(struct Mock230Player* player)
+{
+    struct RSAreaBuf buf;
+
+    if( !wire_is_v5(player) )
+        return;
+    open_packet(&buf, 1);
+    flush(player, &buf, OP_TRIGGER_ONDIALOGABORT, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1055,6 +1201,28 @@ mock230_send_if_setanim(
 }
 
 void
+mock230_send_if_setcolour(
+    struct Mock230Player* player,
+    int uid,
+    int colour)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setcolour )
+            pl->if_setcolour(&buf, uid, colour);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, colour);
+        }
+    }
+    flush(player, &buf, OP_IF_SETCOLOUR, 0);
+}
+
+void
 mock230_send_if_sethide(
     struct Mock230Player* player,
     int uid,
@@ -1063,9 +1231,228 @@ mock230_send_if_sethide(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
-    rsab_p4(&buf, uid);
-    rsab_p1(&buf, hide ? 1 : 0);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_sethide )
+            pl->if_sethide(&buf, uid, hide);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p1(&buf, hide ? 1 : 0);
+        }
+    }
     flush(player, &buf, OP_IF_SETHIDE, 0);
+}
+
+void
+mock230_send_if_setmodel(
+    struct Mock230Player* player,
+    int uid,
+    int model_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setmodel )
+            pl->if_setmodel(&buf, uid, model_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, model_id);
+        }
+    }
+    flush(player, &buf, OP_IF_SETMODEL, 0);
+}
+
+void
+mock230_send_if_setobject(
+    struct Mock230Player* player,
+    int uid,
+    int obj_id,
+    int value)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setobject )
+            pl->if_setobject(&buf, uid, obj_id, value);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, obj_id);
+            rsab_p4(&buf, value);
+        }
+    }
+    flush(player, &buf, OP_IF_SETOBJECT, 0);
+}
+
+void
+mock230_send_if_setposition(
+    struct Mock230Player* player,
+    int uid,
+    int x,
+    int y)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setposition )
+            pl->if_setposition(&buf, uid, x, y);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, x);
+            rsab_p2(&buf, y);
+        }
+    }
+    flush(player, &buf, OP_IF_SETPOSITION, 0);
+}
+
+void
+mock230_send_if_setscroll(
+    struct Mock230Player* player,
+    int uid,
+    int position)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setscroll )
+            pl->if_setscroll(&buf, uid, position);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, position);
+        }
+    }
+    flush(player, &buf, OP_IF_SETSCROLLPOS, 0);
+}
+
+void
+mock230_send_if_setrotatespeed(
+    struct Mock230Player* player,
+    int uid,
+    int x_speed,
+    int y_speed)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    /* These seven packets do not exist in the hybrid revision-230 table.
+     * Refuse rather than inventing a classic body and preserve that wire's
+     * established behaviour exactly. */
+    if( !pl || !pl->if_setrotatespeed )
+        return;
+    open_packet(&buf, 8);
+    pl->if_setrotatespeed(&buf, uid, x_speed, y_speed);
+    flush(player, &buf, OP_IF_SETROTATESPEED, 0);
+}
+
+void
+mock230_send_if_setangle(
+    struct Mock230Player* player,
+    int uid,
+    int zoom,
+    int angle_x,
+    int angle_y)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setangle )
+        return;
+    open_packet(&buf, 10);
+    pl->if_setangle(&buf, uid, zoom, angle_x, angle_y);
+    flush(player, &buf, OP_IF_SETANGLE, 0);
+}
+
+void
+mock230_send_if_setnpchead_active(
+    struct Mock230Player* player,
+    int uid,
+    int index)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setnpchead_active )
+        return;
+    open_packet(&buf, 6);
+    pl->if_setnpchead_active(&buf, uid, index);
+    flush(player, &buf, OP_IF_SETNPCHEAD_ACTIVE, 0);
+}
+
+void
+mock230_send_if_setplayermodel_basecolour(
+    struct Mock230Player* player,
+    int uid,
+    int index,
+    int colour)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_basecolour )
+        return;
+    open_packet(&buf, 6);
+    pl->if_setplayermodel_basecolour(&buf, uid, index, colour);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_BASECOLOUR, 0);
+}
+
+void
+mock230_send_if_setplayermodel_bodytype(
+    struct Mock230Player* player,
+    int uid,
+    int body_type)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_bodytype )
+        return;
+    open_packet(&buf, 5);
+    pl->if_setplayermodel_bodytype(&buf, uid, body_type);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_BODYTYPE, 0);
+}
+
+void
+mock230_send_if_setplayermodel_obj(
+    struct Mock230Player* player,
+    int uid,
+    int obj_id)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_obj )
+        return;
+    open_packet(&buf, 8);
+    pl->if_setplayermodel_obj(&buf, uid, obj_id);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_OBJ, 0);
+}
+
+void
+mock230_send_if_setplayermodel_self(
+    struct Mock230Player* player,
+    int uid,
+    int copy_objs)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_self )
+        return;
+    open_packet(&buf, 5);
+    pl->if_setplayermodel_self(&buf, uid, copy_objs);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_SELF, 0);
 }
 
 void
@@ -1077,6 +1464,7 @@ mock230_send_if_closesub(
     struct RSAreaBuf buf;
 
     uid = mock230_remap_gameframe_slot_uid(player, uid);
+    mock230_ifstate_close_sub(&player->interfaces, uid);
 
     open_packet(&buf, 8);
     {
@@ -1101,6 +1489,17 @@ void
 mock230_send_if_opencountdialog(struct Mock230Player* player)
 {
     struct RSAreaBuf buf;
+
+    if( wire_is_v5(player) )
+    {
+        const char* strings[] = { "Enter amount:" };
+
+        /* P_COUNTDIALOG was removed before rev239. The golden client exposes
+         * the same prompt through clientscript 108 and returns the existing
+         * RESUME_P_COUNTDIALOG packet (op 75). */
+        mock230_send_run_clientscript_mixed(player, 108, "s", NULL, strings, 1);
+        return;
+    }
 
     open_packet(&buf, 4);
     flush(player, &buf, OP_P_COUNTDIALOG, 0);
@@ -1349,6 +1748,25 @@ mock230_send_synth_sound(
 }
 
 void
+mock230_send_midi_song(
+    struct Mock230Player* player,
+    int id)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->midi_song )
+        {
+            /* Old MIDI_SONG semantics expressed through V2: immediate fade
+             * out, 60-cycle fade, 60-cycle start delay, immediate fade in. */
+            pl->midi_song(&buf, id, 0, 60, 60, 0);
+        }
+    }
+    flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+void
 mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms)
@@ -1421,9 +1839,34 @@ mock230_send_update_friendlist(
      * the reference's (FriendServer.sendPlayerWorldUpdate) and is the whole of
      * how "Private chat: off" hides a player from their own friends. */
     struct RSAreaBuf buf;
-    open_packet(&buf, 16);
-    rsab_p8(&buf, name37);
-    rsab_p1(&buf, world);
+    open_packet(&buf, 64);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->friend_entry )
+        {
+            char name[16];
+            base37tostr((uint64_t)name37, name, (int)sizeof(name));
+            pl->friend_entry(&buf, name, world);
+        }
+        else
+        {
+            rsab_p8(&buf, name37);
+            rsab_p1(&buf, world);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+void
+mock230_send_update_friendlist_empty(struct Mock230Player* player)
+{
+    /* Rev 239's zero-length FRIENDLIST_LOADED packet only moves the client to
+     * state 1 (loading). UPDATE_FRIENDLIST's decoder is what sets state 2, even
+     * for an empty list. Without this explicit empty var-short packet a fresh
+     * account's Friends and Ignore panels say "Loading ... Please wait"
+     * forever although login otherwise completed successfully. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 1);
     flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
 }
 
@@ -1643,6 +2086,29 @@ mock230_send_inv_full(
         }
     }
     flush(player, &buf, OP_UPDATE_INV_FULL, 2);
+}
+
+void
+mock230_send_inv_stop_transmit(
+    struct Mock230Player* player,
+    int component,
+    int container)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+
+        if( pl && pl->inv_stop_transmit )
+            pl->inv_stop_transmit(&buf, component, container);
+        else
+        {
+            /* Rev 230 UpdateInvStopTransmitEncoder names the component. */
+            rsab_p4(&buf, component);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_INV_STOP_TRANSMIT, 0);
 }
 
 void
@@ -2567,6 +3033,8 @@ mock230_send_player_info(struct Mock230Player* player)
         uint8_t appearance[512];
         struct RSAreaBuf ap;
         int32_t coord;
+        enum Mock239PlayerMovement movement = MOCK239_PLAYER_NOMOVE;
+        int32_t movement_value = 0;
 
         /*
          * The appearance goes out once, on the tick after the init block, and
@@ -2590,6 +3058,57 @@ mock230_send_player_info(struct Mock230Player* player)
         coord = (int32_t)((((player->level - player->v5_last_level) & 0x3) << 28) |
                           (((player->x - player->v5_last_x) & 0x3fff) << 14) |
                           ((player->z - player->v5_last_z) & 0x3fff));
+
+        /*
+         * PLAYER_INFO v5 has dedicated walk/run opcodes.  Sending every delta
+         * as TELEPORT kept coordinates correct but told the golden client the
+         * player had jumped, so it never selected walkanim/runanim.
+         *
+         * Its 3-bit direction table has south first, while this server's
+         * World_CoordStep table has north first.  Derive from the measured
+         * coordinate delta so the conversion is explicit.  The 4-bit run
+         * table is the outer ring of a 5x5 square, exactly as class109's
+         * authoritative decoder spells it.
+         *
+         * A two-step turn can finish one diagonal tile away (for example east
+         * then north).  That displacement is representable by WALK, not RUN;
+         * using WALK preserves both the coordinate and a locomotion pose.
+         */
+        {
+            int dx = player->x - player->v5_last_x;
+            int dz = player->z - player->v5_last_z;
+
+            if( player->place_dirty || player->level != player->v5_last_level )
+            {
+                movement = MOCK239_PLAYER_TELEPORT;
+                movement_value = coord;
+            }
+            else if( dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 &&
+                     (dx != 0 || dz != 0) )
+            {
+                movement = MOCK239_PLAYER_WALK;
+                movement_value = mock230_step_direction(dx, -dz);
+            }
+            else if( dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
+                     (dx == -2 || dx == 2 || dz == -2 || dz == 2) )
+            {
+                static const int k_run_dir[5][5] = {
+                    { 0, 1, 2, 3, 4 },
+                    { 5, -1, -1, -1, 6 },
+                    { 7, -1, -1, -1, 8 },
+                    { 9, -1, -1, -1, 10 },
+                    { 11, 12, 13, 14, 15 },
+                };
+
+                movement = MOCK239_PLAYER_RUN;
+                movement_value = k_run_dir[dz + 2][dx + 2];
+            }
+            else if( dx != 0 || dz != 0 )
+            {
+                movement = MOCK239_PLAYER_TELEPORT;
+                movement_value = coord;
+            }
+        }
         /*
          * The rest of the local player's extended info, from the same masks the
          * classic writer reads. Hitsplats and animations were absent here while
@@ -2612,17 +3131,27 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            if( movement == MOCK239_PLAYER_RUN )
+            {
+                /* Opcode 2 states a two-tile displacement; it does not select
+                 * the run locomotion by itself. Revision 239 stages movement
+                 * using TEMP_MOVE_SPEED=2 in the extended tail. */
+                ext.has_temp_move_speed = 1;
+                ext.temp_move_speed = 2;
+            }
             /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
              * one since it was written; without the pair, "the animation did
              * not play" cannot be split into "the server never set the mask"
              * and "the client dropped the block". */
             if( getenv("MOCK230_EXT_DEBUG") )
                 fprintf(stderr,
-                        "ext player: masks=0x%x hit=%d/%d seq=%d/%d appearance=%d\n",
-                        player->masks, ext.hit_type, ext.hit_value, ext.seq_id,
-                        ext.seq_delay, (int)rsab_len(&ap));
-            mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), coord,
-                                     player->v5_playerinfo_sent, appearance,
+                        "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
+                        "seq=%d/%d appearance=%d\n",
+                        player->masks, movement, movement_value,
+                        ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
+                        ext.hit_value, ext.seq_id, ext.seq_delay, (int)rsab_len(&ap));
+            mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), movement,
+                                     movement_value, player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);
         }
         player->v5_playerinfo_sent = 1;

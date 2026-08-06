@@ -226,7 +226,7 @@ js5_cache(void)
         if( !dir )
             dir = getenv("MOCK230_CACHE");
         if( !dir )
-            dir = "cache.osrs239";
+            dir = MOCK230_CACHE_DIR_DEFAULT;
         g_js5_tried = 1;
         g_js5 = mock_js5_open(dir);
     }
@@ -623,13 +623,38 @@ step_login(
         struct RSAreaBuf out;
         int index = mock230_wire_local_index(
             session->player ? session->player->pid : 0);
+        int staff_mod_level = 0;
+        char const* configured_staff = getenv("MOCK230_STAFF_LEVEL");
+
+        /*
+         * Keep normal sessions at the golden value 0, but let an isolated
+         * integration run opt into the client's own CLIENT_CHEAT path.  The
+         * mock already exposes ::commands specifically so a session can be
+         * steered repeatably; rev239 will only encode those commands as
+         * CLIENT_CHEAT when the login response advertises staff privileges.
+         * Without this switch, real AWT input silently becomes public chat and
+         * never reaches handle_cheat().
+         */
+        if( configured_staff && configured_staff[0] )
+        {
+            char* end = NULL;
+            long parsed = strtol(configured_staff, &end, 10);
+            if( end != configured_staff && *end == '\0' )
+            {
+                if( parsed < 0 )
+                    parsed = 0;
+                if( parsed > 3 )
+                    parsed = 3;
+                staff_mod_level = (int)parsed;
+            }
+        }
 
         rsab_wrap(&out, body, sizeof(body));
         rsab_p1(&out, OSRS239_LOGINRES_OK);
         rsab_p1(&out, 34 + 3);
         rsab_p1(&out, 0); /* no authenticator */
         rsab_p4(&out, 0); /* ...and no code */
-        rsab_p1(&out, 0); /* staffModLevel */
+        rsab_p1(&out, staff_mod_level);
         rsab_p1(&out, 0); /* playerMod */
         rsab_p2(&out, index);
         rsab_p1(&out, 1); /* member */
@@ -641,6 +666,9 @@ step_login(
             session->state = MOCK230_SESSION_DEAD;
             return 1;
         }
+        if( staff_mod_level > 0 )
+            fprintf(stderr, "mock230: rev239 control privilege staffModLevel=%d\n",
+                    staff_mod_level);
     }
     else if( mock230_session_send(session, &ok, 1) < 0 )
     {

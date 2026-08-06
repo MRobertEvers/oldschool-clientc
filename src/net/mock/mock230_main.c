@@ -24,6 +24,9 @@
  *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
  *                       courtyard, beside Hans; the scene's origin zone is
  *                       derived from it)
+ *   MOCK230_STAFF_LEVEL=0..3 advertise rev239 staff privilege; isolated UI
+ *                       harnesses use 2 so typed ::commands take the golden
+ *                       CLIENT_CHEAT path (default 0)
  */
 #include "mock230.h"
 

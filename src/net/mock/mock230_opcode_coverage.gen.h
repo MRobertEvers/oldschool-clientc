@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    212  host commands
+ *    219  host commands
  *      9  host commands (db)
  *      7  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    324  total, of 424 declared opcodes
+ *    331  total, of 424 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 324
+#define MOCK230_OPCODE_COVERAGE_COUNT 331
 #define MOCK230_OPCODE_DECLARED_COUNT 424
 
 /*
@@ -112,11 +112,17 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2034, /* SS_OP_IF_OPENCHAT (host commands) */
     2035, /* SS_OP_IF_OPENMAIN_SIDE (host commands) */
     2036, /* SS_OP_IF_OPENMAIN (host commands) */
+    2037, /* SS_OP_IF_OPENOVERLAY (host commands) */
     2039, /* SS_OP_IF_SETANIM (host commands) */
+    2040, /* SS_OP_IF_SETCOLOUR (host commands) */
     2041, /* SS_OP_IF_SETHIDE (host commands) */
+    2042, /* SS_OP_IF_SETMODEL (host commands) */
     2043, /* SS_OP_IF_SETNPCHEAD (host commands) */
+    2044, /* SS_OP_IF_SETOBJECT (host commands) */
     2045, /* SS_OP_IF_SETPLAYERHEAD (host commands) */
+    2046, /* SS_OP_IF_SETPOSITION (host commands) */
     2047, /* SS_OP_IF_ADDRESUMEBUTTON (host commands) */
+    2048, /* SS_OP_IF_SETSCROLLPOS (host commands) */
     2051, /* SS_OP_IF_SETTEXT (host commands) */
     2052, /* SS_OP_LAST_COM (host commands) */
     2053, /* SS_OP_LAST_INT (host commands) */
@@ -128,6 +134,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2060, /* SS_OP_LONGQUEUE (host commands) */
     2061, /* SS_OP_LONGQUEUEVARARG (host commands) */
     2063, /* SS_OP_MES (host commands) */
+    2065, /* SS_OP_MIDI_SONG (host commands) */
     2069, /* SS_OP_P_APRANGE (host commands) */
     2070, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2072, /* SS_OP_P_COUNTDIALOG (host commands) */

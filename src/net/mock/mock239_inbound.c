@@ -1,9 +1,9 @@
 #include "net/mock/mock239_inbound.h"
 
+#include "net/mock/mock239_interface_inbound.h"
 #include "net/rev/pktnames.h"
 
 #include <rsareabuf.h>
-
 #include <string.h>
 
 /*
@@ -14,15 +14,18 @@
 #define OSRS239_OP_IF_BUTTONX 47
 #define OSRS239_OP_IF_SUBOP 40
 #define OSRS239_OP_IF_BUTTONT 27
-
-/** The sentinel the client sends in IF_BUTTONX's obj field for "not an item". */
-#define OBJ_NONE 0xffff
+#define OSRS239_OP_IF_SCRIPT_TRIGGER 56
 
 /* ------------------------------------------------------------------ */
 
 /** Byte-for-byte, for the packets whose body genuinely did not move. */
 static int
-passthrough(uint8_t const* in, int in_len, uint8_t* out, int out_cap, int* out_len)
+passthrough(
+    uint8_t const* in,
+    int in_len,
+    uint8_t* out,
+    int out_cap,
+    int* out_len)
 {
     if( in_len > out_cap )
         return 0;
@@ -37,7 +40,11 @@ passthrough(uint8_t const* in, int in_len, uint8_t* out, int out_cap, int* out_l
  * argument order is the only thing that distinguishes them.
  */
 static void
-put_tile_target(struct RSAreaBuf* w, int x, int z, int id)
+put_tile_target(
+    struct RSAreaBuf* w,
+    int x,
+    int z,
+    int id)
 {
     rsab_p2(w, (uint16_t)x);
     rsab_p2(w, (uint16_t)z);
@@ -56,7 +63,11 @@ put_tile_target(struct RSAreaBuf* w, int x, int z, int id)
  * because anything reads it.
  */
 static void
-put_useon_tail(struct RSAreaBuf* w, int use_obj, int use_slot, int use_com)
+put_useon_tail(
+    struct RSAreaBuf* w,
+    int use_obj,
+    int use_slot,
+    int use_com)
 {
     rsab_p2(w, (uint16_t)use_obj);
     rsab_p2(w, (uint16_t)use_slot);
@@ -103,35 +114,35 @@ mock239_inbound_translate(
      * gameframe routes inventory ops through both.
      */
     case OSRS239_OP_IF_BUTTONX:
-    case OSRS239_OP_IF_SUBOP: /* ...plus a trailing subop byte we do not read */
+    case OSRS239_OP_IF_SUBOP:
     {
-        int uid = rsab_g4(&r);
-        int sub = rsab_g2(&r);
-        int obj = rsab_g2(&r);
-        int op = rsab_g1(&r);
+        struct Mock239IfButton button;
+        int has_subop = wire_opcode == OSRS239_OP_IF_SUBOP;
 
-        if( !rsab_ok(&r) || op < 1 || op > 10 )
+        if( !mock239_if_button_decode(in, in_len, has_subop, &button) )
             return PKTOUT_NAME_NONE;
+        /* Keep the unified packet unified until the world handler. Besides
+         * preserving IF_SUBOP's trailing subop, this retains the object id on
+         * item-backed component ops 6..10; the old fan-out dropped those
+         * packets because OPHELD stops at 5. */
+        if( !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return has_subop ? PKTOUT_NAME_IF_SUBOP : PKTOUT_NAME_IF_BUTTONX;
+    }
 
-        if( obj != OBJ_NONE )
-        {
-            /* handle_opheld: p2 obj, p2 slot, p4 component. Ops above 5 have
-             * no OPHELD form; the component families stop at 5 too, so a
-             * higher op on an item row is a packet 230 cannot express. */
-            if( op > 5 )
-                return PKTOUT_NAME_NONE;
-            rsab_p2(&w, (uint16_t)obj);
-            rsab_p2(&w, (uint16_t)sub);
-            rsab_p4(&w, (uint32_t)uid);
-            *out_len = (int)rsab_len(&w);
-            return PKTOUT_NAME_OPHELD1 + (op - 1);
-        }
+    /* Golden opcode 2929 / IF_TRIGGEROPLOCAL. The typed tail cannot be
+     * interpreted without crc's signature, but the fixed fields can be
+     * validated here and the entire body is preserved for the interface
+     * router. The session already consumed this prot's outer p2 length. */
+    case OSRS239_OP_IF_SCRIPT_TRIGGER:
+    {
+        struct Mock239IfScriptTrigger trigger;
 
-        /* handle_if_button_op: p4 uid, p2 sub. */
-        rsab_p4(&w, (uint32_t)uid);
-        rsab_p2(&w, (uint16_t)sub);
-        *out_len = (int)rsab_len(&w);
-        return PKTOUT_NAME_IF_BUTTON1 + (op - 1);
+        if( !mock239_if_script_trigger_decode(in, in_len, NULL, &trigger) )
+            return PKTOUT_NAME_NONE;
+        if( !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return PKTOUT_NAME_IF_SCRIPT_TRIGGER;
     }
 
     /*
@@ -397,6 +408,40 @@ mock239_inbound_translate(
         return name;
     }
 
+    /* The two text dialogs are byte-identical gjstr bodies at 239. Validate
+     * the terminator so a malformed var-byte packet cannot be routed as a
+     * different callback after its framing has already succeeded. */
+    case PKTOUT_NAME_RESUME_P_NAMEDIALOG:
+    case PKTOUT_NAME_RESUME_P_STRINGDIALOG:
+    {
+        struct Mock239ByteString text;
+
+        if( !mock239_resume_text_decode(in, in_len, &text) ||
+            !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return name;
+    }
+
+    case PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG:
+    {
+        int64_t count;
+
+        if( !mock239_resume_count_long_decode(in, in_len, &count) ||
+            !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return name;
+    }
+
+    case PKTOUT_NAME_RESUME_P_OBJDIALOG:
+    {
+        int32_t object_id;
+
+        if( !mock239_resume_object_decode(in, in_len, &object_id) ||
+            !passthrough(in, in_len, out, out_cap, out_len) )
+            return PKTOUT_NAME_NONE;
+        return name;
+    }
+
     /*
      * Verified identical at both revisions, one decoder at a time, and listed
      * rather than left to fall through so that "unchanged" is a claim someone
@@ -419,6 +464,11 @@ mock239_inbound_translate(
     case PKTOUT_NAME_INV_BUTTOND:
     case PKTOUT_NAME_RESUME_P_COUNTDIALOG:
     case PKTOUT_NAME_CLOSE_MODAL:
+    case PKTOUT_NAME_IDLE_TIMER:
+    case PKTOUT_NAME_NO_TIMEOUT:
+    case PKTOUT_NAME_EVENT_MOUSE_MOVE:
+    case PKTOUT_NAME_MAP_BUILD_COMPLETE:
+    case PKTOUT_NAME_EVENT_APPLET_FOCUS:
     case PKTOUT_NAME_WINDOW_STATUS:
     case PKTOUT_NAME_CLIENT_CHEAT:
     case PKTOUT_NAME_FRIENDLIST_ADD:

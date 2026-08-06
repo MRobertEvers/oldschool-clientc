@@ -72,12 +72,49 @@ struct Mock230WirePayload
     void (*if_opentop)(struct RSAreaBuf* buf, int interface_id);
     void (*if_opensub)(struct RSAreaBuf* buf, int interface_id, int dest_uid, int type);
     void (*if_closesub)(struct RSAreaBuf* buf, int dest_uid);
+    void (*if_movesub)(struct RSAreaBuf* buf, int source_uid, int dest_uid);
     void (*if_setevents)(
         struct RSAreaBuf* buf,
         int component_uid,
         int start,
         int end,
-        uint32_t events);
+        uint32_t events1,
+        uint32_t events2);
+    void (*if_setcolour)(struct RSAreaBuf* buf, int component_uid, int colour);
+    void (*if_sethide)(struct RSAreaBuf* buf, int component_uid, int hide);
+    void (*if_setmodel)(struct RSAreaBuf* buf, int component_uid, int model_id);
+    void (*if_setobject)(struct RSAreaBuf* buf, int component_uid, int obj_id, int value);
+    void (*if_setposition)(struct RSAreaBuf* buf, int component_uid, int x, int y);
+    void (*if_setscroll)(struct RSAreaBuf* buf, int component_uid, int position);
+    void (*if_setrotatespeed)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int x_speed,
+        int y_speed);
+    void (*if_setangle)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int zoom,
+        int angle_x,
+        int angle_y);
+    void (*if_setnpchead_active)(struct RSAreaBuf* buf, int component_uid, int index);
+    void (*if_setplayermodel_basecolour)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int index,
+        int colour);
+    void (*if_setplayermodel_bodytype)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int body_type);
+    void (*if_setplayermodel_obj)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int obj_id);
+    void (*if_setplayermodel_self)(
+        struct RSAreaBuf* buf,
+        int component_uid,
+        int copy_objs);
     void (*varp_small)(struct RSAreaBuf* buf, int varp, int value);
     void (*varp_large)(struct RSAreaBuf* buf, int varp, int value);
     void (*update_runenergy)(struct RSAreaBuf* buf, int hundredths);
@@ -147,7 +184,17 @@ struct Mock230WirePayload
     void (*set_map_flag)(struct RSAreaBuf* buf, int level, int x, int z);
     void (*chat_filter)(struct RSAreaBuf* buf, int public_, int private_, int trade);
     void (*synth_sound)(struct RSAreaBuf* buf, int id, int loops, int delay);
+    void (*midi_song)(
+        struct RSAreaBuf* buf,
+        int id,
+        int fade_out_delay,
+        int fade_out_speed,
+        int fade_in_delay,
+        int fade_in_speed);
     void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
+    /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
+     *  the classic p8 base37 + p1 world tuple. */
+    void (*friend_entry)(struct RSAreaBuf* buf, const char* name, int world);
     /** The header of an inventory update; the slot loop follows in the caller,
      *  which is the only thing that knows the container. */
     void (*inv_header)(struct RSAreaBuf* buf, int pkt_name, int uid, int container,
@@ -156,6 +203,9 @@ struct Mock230WirePayload
      *  positional, and leads the PARTIAL form. */
     void (*inv_slot)(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id,
                      int count);
+    /** Stop one inventory transmit. Rev 230 addresses the component; rev 239
+     *  removes the client-side container by inventory id. */
+    void (*inv_stop_transmit)(struct RSAreaBuf* buf, int component_uid, int inv_id);
 
     /**
      * RUNCLIENTSCRIPT's argument block.
