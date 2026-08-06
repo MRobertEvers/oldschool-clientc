@@ -191,12 +191,17 @@ start_server() {
         say "server: already running on $GAME_PORT (--keep)"
         return 0
     fi
-    say "starting mock230 on $GAME_PORT (JS5 cache $CACHE)…"
+    say "starting mock230 on $GAME_PORT (world + JS5 cache $CACHE)…"
+    # One cache: the world reads the same directory JS5 serves. The two used to
+    # differ (world on the bake, RuneLite served pristine), which meant the
+    # world could act on config values no connected client had — point BOTH at
+    # a baked cache when client-visible content matters, never just one.
     # Detach from the invoking terminal.  CI/agent command runners close their
     # pseudo-terminal as soon as this orchestration script exits; without
     # nohup all three children receive SIGHUP together and a healthy stack
     # looks like a protocol crash a few lines into boot.
-    nohup env MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
+    nohup env MOCK230_CACHE="$CACHE" \
+        MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
         "$ROOT/src/build/mock230" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 < /dev/null &
     echo $! > "$(pidfile server)"

@@ -576,3 +576,22 @@ polling or idle-client assumption is part of the verdict.
 - 2026-08-06: Created root integration commit `018fb17b`, pushed all three
   `codex/` branches, and opened
   `https://github.com/MRobertEvers/oldschool-clientc/pull/7` against `v3`.
+- 2026-08-06: Merged current `v3` (`2c8b891b`) and its
+  `lane-servsplit` content (`9d9f34f1c7`) in isolated worktrees, preserving
+  the unrelated dirty files in the primary root and content checkouts.
+- 2026-08-06: Resolved the content varp conflict in favor of `v3`'s split
+  allocation ledger: cache-owned music carriers remain in
+  `configs/all.varp.compack`, while server allocations remain in
+  `pack/varp.alloc`. The latest allocator produced no drift and the merged tree
+  compiled all 12,534 scripts.
+- 2026-08-06: Resolved the launcher conflict by retaining both `v3`'s single
+  world/JS5 cache and detached `nohup` child lifecycle. Retained both
+  `test-server-clean` and every revision-239 interface fixture in the merged
+  Makefile.
+- 2026-08-06: Re-ran the inbound, `RUNCLIENTSCRIPT`, interface-setter,
+  interface-state, player-info/run-traversal, and DB suites after the merge;
+  all passed. Python control/verifier compilation and whitespace checks also
+  passed.
+- 2026-08-06: Opened the authoritative Deob telemetry/renderer PR at
+  `https://github.com/MRobertEvers/Deob/pull/1`; GitHub reports it cleanly
+  mergeable into `perf-instrumentation`.

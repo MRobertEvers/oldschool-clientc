@@ -314,6 +314,15 @@ resolve_field_value(
         return 1;
     if( !field->ref[0] )
         return -1;
+    /* LostCity's lookupParamValue: `null` is the stated absence for any
+     * ref-typed value and packs as -1 — `param=death_drop,null` is "drops
+     * nothing", not a name that failed to resolve. Only meaningful for fields
+     * whose wire width can carry it, which the u4 range check enforces. */
+    if( strcmp(text, "null") == 0 )
+    {
+        *out = -1;
+        return 1;
+    }
     /* A misspelled `ref` is already fatal at the top of pack_server_type, so a
      * type that does not resolve here cannot happen — treat it as the gap rather
      * than blaming the author for the register's typo. */
@@ -542,6 +551,8 @@ struct CP_Routing
     int server_only; /**< records the client side refused, cell (b) or not */
     /* server-side populations */
     int server_by_name;
+    int server_by_alloc; /**< claimed by pack/<ns>.alloc — the allocation is the membership */
+    int band_by_alloc;   /**< the same clause, asked by the band gate */
     int server_by_default;
     /* errors */
     int cell_a;
@@ -717,6 +728,21 @@ routing_client_member(
             routing->cell_b++;
         return 0;
     }
+    if( cp_name_find_alloc(ctx, type_id, rec->debugname) >= 0 )
+    {
+        /* The allocation ledger claims it. A `pack/<ns>.alloc` id is one
+         * `ss_allocate.py` handed out past the cache's high-water mark, so the
+         * record cannot be the cache's — and restating every allocated name in
+         * `pack/<ns>.server` would be a roster that has to agree with the
+         * ledger by hand, which is the drift cell (c) kept finding (560 varps,
+         * enums, params and structs allocated after the 2026-08-02 seeding,
+         * plus every dbrow). The allocation is the membership; `<ns>.client`
+         * can still put one on the client explicitly, which is why this clause
+         * sits below the two files and the substrate. */
+        routing->server_by_alloc++;
+        routing->server_only++;
+        return 0;
+    }
     if( in_cache == 0 )
     {
         /* §2 cell (c): nothing claims it. The default still routes it, so the
@@ -772,6 +798,15 @@ routing_server_member(
         routing->server_by_name++;
         return 1;
     }
+    if( cp_name_find_alloc(ctx, type_id, rec->debugname) >= 0 )
+    {
+        /* The allocation ledger claims it for the server side, so it may carry
+         * a band — the same clause the client gate applies, asked from the
+         * other direction. `pack --server-only` can answer it identically: the
+         * ledger is a tree file, no cache is consulted. */
+        routing->band_by_alloc++;
+        return 1;
+    }
     if( !routing->server.present )
     {
         /* Nobody has stated this namespace's membership, so the old gate — field
@@ -812,6 +847,9 @@ routing_report_server(
     if( routing->server_by_name || routing->server_by_default )
         printf("  %-11s   server: %d by pack/%s.server, %d by the field gate (no file)\n",
                type->name, routing->server_by_name, type->name, routing->server_by_default);
+    if( routing->band_by_alloc )
+        printf("  %-11s   server: %d band(s) claimed by pack/%s.alloc\n",
+               type->name, routing->band_by_alloc, type->name);
 }
 
 static void
@@ -829,6 +867,10 @@ routing_report(
         printf("  %-11s   %d record(s) are not the client's: %d of them state a field "
                "declared for the client (plan §2 cell (b), counted)\n",
                type->name, routing->server_only, routing->cell_b);
+    if( routing->server_by_alloc )
+        printf("  %-11s   %d of those are claimed by pack/%s.alloc — the allocation is "
+               "the membership\n",
+               type->name, routing->server_by_alloc, type->name);
     if( routing->client_by_default )
         printf("  %-11s   %d record(s) no file names and the base cache does not hold "
                "reached the client through the gate membership replaced (rank 0, or "
@@ -1600,6 +1642,7 @@ cp_pack_run(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     /*
@@ -1718,6 +1761,7 @@ cp_pack_server_run(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
@@ -2098,6 +2142,7 @@ cp_membership_emit(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     /* Before the type loop for the same reason `cp_pack_run` does it: a record
@@ -2263,6 +2308,7 @@ struct CP_MembershipVerdict
     int client_cache_record;  /**< rank 0 states it; the file says the tree adds it */
     int client_authored;      /**< agreed */
     /* records neither file names */
+    int server_by_alloc;      /**< claimed by pack/<ns>.alloc — the allocation is the membership */
     int unclaimed_new;        /**< rank-1-only and in neither file — ERROR, cell (c) */
     int unclaimed_overlay;    /**< an authored overlay on a cache record, unclaimed */
     int unclaimed_unrouted;   /**< ...and it states a field that reaches neither side */
@@ -2475,6 +2521,14 @@ membership_check_type(
         if( cp_membership_has(client, rec->debugname) ||
             cp_membership_has(server, rec->debugname) )
             continue;
+        if( cp_name_find_alloc(ctx, (enum CP_TypeId)cp_type_by_name(type->name),
+                               rec->debugname) >= 0 )
+        {
+            /* The allocation ledger claims it — the same clause the routing
+             * gate applies. A roster line would restate the ledger by hand. */
+            v->server_by_alloc++;
+            continue;
+        }
         if( rec->origin_rank > 0 )
         {
             cp_warn(ctx, &v->unclaimed_new,
@@ -2524,6 +2578,7 @@ cp_membership_check(
         static const int RANKS[] = { 0, 1 };
 
         cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_constants_load(ctx);
     }
 
     printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));
@@ -2634,12 +2689,22 @@ cp_membership_check(
             int overlays = 0;
             int unrouted = 0;
             int invented = 0;
+            int alloc_claimed = 0;
             const char* unrouted_key = NULL;
 
             for( int r = 0; r < merged.count; r++ )
             {
                 if( merged.records[r].origin_rank > 0 )
-                    invented++;
+                {
+                    /* The allocation ledger claims it, so the absence of a pair
+                     * is not an absence of a statement — see the routing gate's
+                     * alloc clause. */
+                    if( cp_name_find_alloc(ctx, (enum CP_TypeId)i,
+                                           merged.records[r].debugname) >= 0 )
+                        alloc_claimed++;
+                    else
+                        invented++;
+                }
                 else if( merged.records[r].overlaid )
                 {
                     overlays++;
@@ -2648,6 +2713,9 @@ cp_membership_check(
                         unrouted++;
                 }
             }
+            if( alloc_claimed )
+                printf("  %-11s no membership pair; %d record(s) claimed by pack/%s.alloc\n",
+                       type->name, alloc_claimed, type->name);
             if( invented )
             {
                 fprintf(stderr,
@@ -2710,6 +2778,10 @@ cp_membership_check(
                 printf("  %-11s   %d client name(s) are records configs/all.%s already "
                        "states\n",
                        type->name, v.client_cache_record, type->name);
+            if( v.server_by_alloc )
+                printf("  %-11s   %d record(s) named by neither file and claimed by "
+                       "pack/%s.alloc\n",
+                       type->name, v.server_by_alloc, type->name);
             if( v.unclaimed_overlay )
             {
                 printf("  %-11s   %d authored overlay(s) named by neither file, every "

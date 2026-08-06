@@ -117,9 +117,11 @@ struct ContentField
     enum ContentFieldServer server;
     int opcode;
     enum ContentFieldWire wire;
-    /** For `CONTENT_CLIENT_PARAM`: the param's *name*, resolved through
-     *  `pack/param.pack` at bake time. A name and not a number, because which
-     *  number `hitpoints` is is the pack file's business and it has already been
+    /** The field's runtime param binding: which param an authored
+     *  `param=<name>,...` line maps to in the in-memory def. Filled by
+     *  `param = <name>`, or by the retired projection spelling
+     *  `client = param:<name>`. A name and not a number, because which number
+     *  `next_loc_stage` is is the pack file's business and it has already been
      *  renumbered once. */
     char param_name[48];
 };

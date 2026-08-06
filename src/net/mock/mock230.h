@@ -86,7 +86,17 @@
  * not the wire.
  */
 #define MOCK230_CACHE_REVISION 239
-#define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239.baked"
+/*
+ * The pristine cache, deliberately: the world reads the same directory JS5
+ * serves. Every server-authored value reaches the runtime through the content
+ * tree's text and the server band — nothing server-side needs a bake — and
+ * booting from one is how the world drifted from its own tree (a stale
+ * cache.osrs239.baked carried old params and door counts: 32 selftest failures
+ * against it vs 23 against pristine + tree, measured 2026-08-06). When
+ * client-visible content matters, point BOTH the world and JS5 at the baked
+ * cache; run-osrs239.sh makes that one knob ($CACHE).
+ */
+#define MOCK230_CACHE_DIR_DEFAULT "cache.osrs239"
 
 #include "mock230_bank.h"
 #include "mock230_interface_state.h"

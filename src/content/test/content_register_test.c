@@ -126,12 +126,11 @@ main(void)
     ns = ContentRegister_Find(&reg, "dbrow");
     check(ns && ns->gameval_archive == 9, "gameval archive 9 names dbrows");
     check(ns && ns->names == CONTENT_NAMES_CACHE, "and dbrow names come from the cache too");
-    /* Not `server_base > 0` like dbtable's above: dbrow's base is 0, which means
-     * "no declared floor" rather than "never allocate" — tools/ss_allocate.py
-     * derives one from layer 0's high-water mark instead. dbrow declared
-     * `ids = server` while carrying base 0, which is one more place that axis
-     * disagreed with the field that actually decides. */
-    check(ns && ns->server_base == 0, "dbrow declares no base; the allocator derives one");
+    /* A fixed base far above the cache (2026-08-06). It was 0 — "derive from the
+     * high-water mark" — which parked server rows at 16940+, exactly where a
+     * manually patched future cache lands its own new rows. The nonzero base
+     * also brings dbrow under validate_id_bases for the first time. */
+    check(ns && ns->server_base == 65536, "dbrow's base is fixed above any cache's reach");
 
     /* Archive 14 carries an interface *and* its components in one record, so it
      * is the evidence for two namespaces rather than one. */
