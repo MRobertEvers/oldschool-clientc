@@ -610,12 +610,17 @@ SSC_SymbolsLoadPackDir(
             continue;
         }
         /*
-         * Two extensions, because there are two levels of index: `pack/7_models.pack`
-         * names the archives of a cache index, `configs/all.npc.compack` names the
-         * records inside one archive. Both are `id=name` and both are ours to read.
-         * Filtering on `.pack` alone silently dropped every config type.
+         * Three extensions, because there are two levels of index plus a ledger:
+         * `pack/7_models.pack` names the archives of a cache index,
+         * `configs/all.npc.compack` names the records inside one archive, and
+         * `pack/<ns>.alloc` is the server's allocation ledger — the ids
+         * `ss_allocate.py` handed out past the cache's high-water mark. All are
+         * `id=name` and all are ours to read. Filtering on `.pack` alone
+         * silently dropped every config type; dropping `.alloc` would load a
+         * server dbtable's columns typed and lose the table's own name.
          */
-        if( !has_suffix(entry->d_name, ".pack") && !has_suffix(entry->d_name, ".compack") )
+        if( !has_suffix(entry->d_name, ".pack") && !has_suffix(entry->d_name, ".compack") &&
+            !has_suffix(entry->d_name, ".alloc") )
             continue;
         kind = kind_for_pack(entry->d_name);
         /*

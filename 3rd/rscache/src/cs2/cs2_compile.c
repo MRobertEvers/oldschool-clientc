@@ -37,7 +37,6 @@
 
 #define CS2_CC_MAX_LOCALS 512
 #define CS2_CC_MAX_SWITCHES 256
-#define CS2_CC_MAX_JUMPS 256
 
 /* -------------------------------------------------------------------------
  * Tokens
@@ -60,6 +59,12 @@ struct cs2_cc_token
     enum cs2_cc_token_kind kind;
     /* Arena-owned. For a string literal, the raw span between the quotes. */
     const char* text;
+    /**
+     * For a string literal, the offset of its first character in the source
+     * being lexed. A hook callback needs to re-read its own span with different
+     * bracket rules — see cs2_cc_hook — and that is where it starts.
+     */
+    int start;
     int int_value;
     int line;
     char punct;
@@ -91,6 +96,9 @@ struct cs2_cc_switch
     int* targets;
     int count;
     int capacity;
+    /* Index of the SWITCH instruction itself. Case targets are stored relative
+     * to it, so anything that renumbers instructions has to move both. */
+    int pc;
 };
 
 struct cs2_cc_local
@@ -273,19 +281,39 @@ cs2_cc_patch(struct cs2_cc_compiler* cc, int jump_index, int target)
         cc->ops.int_operands[jump_index] = target - jump_index - 1;
 }
 
+/*
+ * A set of jump sites waiting on one target.
+ *
+ * Grown from the compiler's arena rather than sized up front: the count is one
+ * per `else if` in a chain or one per case in a switch, and cache.osrs239 has
+ * switches with several hundred cases (script 7300 is 1960 instructions over
+ * one). A fixed `[256]` refused four scripts outright, in the same way the
+ * decoder's switch tables had to stop being `[32]`. Arena-backed, so the early
+ * returns scattered through the statement parsers cannot leak it.
+ */
 struct cs2_cc_jumps
 {
-    int items[CS2_CC_MAX_JUMPS];
+    int* items;
     int count;
+    int capacity;
 };
 
 static void
 cs2_cc_jumps_add(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* jumps, int index)
 {
-    if( jumps->count == CS2_CC_MAX_JUMPS )
+    if( jumps->count == jumps->capacity )
     {
-        cs2_cc_fail(cc, "condition or switch is too large");
-        return;
+        int capacity = jumps->capacity ? jumps->capacity * 2 : 16;
+        int* items = (int*)RSCache_CS2_ArenaAlloc(&cc->arena, (size_t)capacity * sizeof(int));
+        if( !items )
+        {
+            cs2_cc_fail(cc, "out of memory");
+            return;
+        }
+        if( jumps->count > 0 )
+            memcpy(items, jumps->items, (size_t)jumps->count * sizeof(int));
+        jumps->items = items;
+        jumps->capacity = capacity;
     }
     jumps->items[jumps->count++] = index;
 }
@@ -371,6 +399,7 @@ cs2_cc_scan(struct cs2_cc_compiler* cc, struct cs2_cc_token* token)
         if( cc->source[cc->position] == '"' )
             cc->position++;
         token->kind = CS2_CC_TOK_STRING;
+        token->start = start;
         token->text = RSCache_CS2_ArenaStrDupN(&cc->arena, cc->source + start, (size_t)length);
         return;
     }
@@ -594,9 +623,22 @@ cs2_cc_declare_local(
     cc->locals[index].type = type;
     cc->locals[index].slot = slot;
     cc->locals[index].is_array = is_array;
-    /* An array is a handle in an int slot; only a plain string local lives in
-     * the string bank. */
-    cc->locals[index].is_string = !is_array && type == RSCACHE_CS2_TYPE_STRING;
+    /*
+     * Which bank the name lives in.
+     *
+     * A plain string local is the obvious case. An array *argument* is the
+     * other one: at this revision the elements live in the interpreter's own
+     * table (`Statics.field5246`, indexed by the array slot — see opcodes 44/45/
+     * 46 in the client), and what a caller actually passes is a handle, pushed
+     * with `push_string_local`. Script 465 in cache.osrs239 is the plain
+     * example: `[proc,script465](intarray, int, int)` and a trailer that reads
+     * `args 2i/1s`, with the recursive call pushing string local 0 first.
+     *
+     * A locally *defined* array is not an argument and gets no handle: it is
+     * reached only through its slot, so it stays where it was.
+     */
+    cc->locals[index].is_string =
+        is_array ? is_argument : type == RSCACHE_CS2_TYPE_STRING;
 
     if( cc->locals[index].is_string )
     {
@@ -881,6 +923,28 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected);
 static void
 cs2_cc_calc(struct cs2_cc_compiler* cc, int max_precedence);
 
+/**
+ * One argument, anywhere an argument can appear.
+ *
+ * The generator writes a single `calc(` at the outside of an arithmetic
+ * expression and leaves everything nested inside it bare — a command's
+ * arguments, a proc's, an `enum`'s, an array's index. So while a `calc` is open
+ * an argument has to accept operators that are a syntax error anywhere else.
+ * `cs2_cc_command_arguments` had this rule; nothing else did, and the gap
+ * refused 21 scripts of cache.osrs239 on a closing parenthesis — one of them
+ * `calc($intarray0(1 + $int4) - %varbit14815)`, where it is the array index
+ * that is bare.
+ */
+static void
+cs2_cc_argument(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
+{
+    if( cc->calc_depth > 0 &&
+        (expected == RSCACHE_CS2_TYPE_INT || expected == RSCACHE_CS2_TYPE_NONE) )
+        cs2_cc_calc(cc, 6);
+    else
+        cs2_cc_expression(cc, expected);
+}
+
 static void
 cs2_cc_statement(struct cs2_cc_compiler* cc);
 
@@ -1103,7 +1167,13 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
     {
         while( !cs2_cc_at_punct(cc, ')') && !cc->failed && cc->token.kind != CS2_CC_TOK_END )
         {
-            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+            /* Same rule as a command's arguments: the generator writes one
+             * `calc(` at the outside and leaves everything nested inside it
+             * bare, so `calc($a - ~proc(0, $b - $c))` reaches here with the
+             * inner subtraction unwrapped. `cs2_cc_command_arguments` already
+             * allowed for that; a proc call did not, and refused 18 scripts of
+             * cache.osrs239 on the closing parenthesis. */
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_NONE);
             if( !cs2_cc_accept_punct(cc, ',') )
                 break;
         }
@@ -1135,6 +1205,12 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
     case CS2_CC_TOK_LOCAL:
     {
         int index = cs2_cc_find_local(cc, text);
+        /* A callback can be the first mention of a local — the hook is written
+         * before the statement that assigns it, or the script never assigns it
+         * at all. The printed name carries the type either way, which is the
+         * same thing `cs2_cc_expression` relies on. */
+        if( index < 0 )
+            index = cs2_cc_declare_local_from_name(cc, text);
         return index >= 0 ? cc->locals[index].type : RSCACHE_CS2_TYPE_NONE;
     }
     case CS2_CC_TOK_IDENT:
@@ -1157,7 +1233,18 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
         const struct RSCache_CS2_CommandInfo* info =
             opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
         if( info && info->kind == RSCACHE_CS2_CMD_BASIC && info->def_count > 0 )
-            return RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, 0))->type;
+        {
+            const struct RSCache_CS2_Prototype* proto =
+                RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, 0));
+            /* An opcode solved by arity rather than by meaning pushes
+             * `UNKNOWNINT`: no type, but a known bank, and its identifier is
+             * what names that bank. A descriptor letter only records the bank
+             * at this revision, so that is enough — and it is the difference
+             * between `_7253` being writable in a callback and not. */
+            if( proto->type == RSCACHE_CS2_TYPE_NONE && proto->identifier )
+                return RSCache_CS2_TypeOfIdentifier(proto->identifier);
+            return proto->type;
+        }
 
         /* An `event_*` value has a fixed type. */
         for( int i = 0; i < RSCACHE_CS2_EVENT_COUNT; i++ )
@@ -1221,6 +1308,97 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
     default:
         return RSCACHE_CS2_TYPE_NONE;
     }
+}
+
+/**
+ * The type of a callback argument, including the two commands whose result type
+ * is a property of their own arguments rather than of the opcode.
+ *
+ * `cs2_cc_infer_type` answers from one token, which is enough for a local or a
+ * literal and not enough for these:
+ *
+ *   enum(int, string, $enum6, $key)    pushes the *second* type literal
+ *   struct_param($struct0, param_1279) pushes whatever param 1279 is declared
+ *
+ * Both are ordinary things to write in a hook — `script526(…, enum(…), …)`
+ * alone accounts for six scripts in cache.osrs239 — and neither can be guessed
+ * from the command name, so this reads ahead for the argument that decides and
+ * rewinds. Reading ahead rather than compiling: the descriptor has to be
+ * written before the argument is emitted.
+ */
+static enum RSCache_CS2_Type
+cs2_cc_infer_call_type(struct cs2_cc_compiler* cc)
+{
+    if( cc->token.kind != CS2_CC_TOK_IDENT )
+        return cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
+
+    int opcode = RSCache_CS2_CommandOfName(cc->token.text);
+    const struct RSCache_CS2_CommandInfo* info =
+        opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
+    if( !info ||
+        (info->kind != RSCACHE_CS2_CMD_ENUM && info->kind != RSCACHE_CS2_CMD_PARAM) )
+        return cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
+
+    int position = cc->position;
+    int line = cc->line;
+    struct cs2_cc_token token = cc->token;
+    struct cs2_cc_token ahead = cc->ahead;
+    bool has_ahead = cc->has_ahead;
+
+    enum RSCache_CS2_Type result = RSCACHE_CS2_TYPE_NONE;
+    cs2_cc_next(cc);
+    if( cs2_cc_accept_punct(cc, '(') )
+    {
+        if( info->kind == RSCACHE_CS2_CMD_ENUM )
+        {
+            /* enum(<input type>, <output type>, …) — the second one. */
+            if( cc->token.kind == CS2_CC_TOK_IDENT )
+            {
+                cs2_cc_next(cc);
+                if( cs2_cc_accept_punct(cc, ',') && cc->token.kind == CS2_CC_TOK_IDENT )
+                    result = RSCache_CS2_TypeOfLiteral(cc->token.text);
+            }
+        }
+        else if( cc->options && cc->options->param_types.load )
+        {
+            /* <receiver>_param(<receiver>, <param>) — skip to the param, which
+             * may itself be a parenthesised expression. */
+            int depth = 0;
+            while( cc->token.kind != CS2_CC_TOK_END && !cc->failed )
+            {
+                if( cs2_cc_at_punct(cc, '(') )
+                    depth++;
+                else if( cs2_cc_at_punct(cc, ')') && depth > 0 )
+                    depth--;
+                else if( cs2_cc_at_punct(cc, ',') && depth == 0 )
+                    break;
+                cs2_cc_next(cc);
+            }
+            if( cs2_cc_accept_punct(cc, ',') && cc->token.kind == CS2_CC_TOK_IDENT )
+            {
+                int param_id = -1;
+                if( RSCache_CS2_NamesLookupId(
+                        cs2_cc_names(cc), RSCACHE_CS2_NAMES_PARAM, cc->token.text,
+                        &param_id) ||
+                    cs2_cc_parse_id_suffixed(cc->token.text, &param_id) )
+                    result = cc->options->param_types.load(
+                        cc->options->param_types.user, param_id);
+            }
+        }
+    }
+
+    cc->position = position;
+    cc->line = line;
+    cc->token = token;
+    cc->ahead = ahead;
+    cc->has_ahead = has_ahead;
+    cc->failed = false;
+    if( cc->error && cc->error_capacity > 0 )
+        cc->error[0] = '\0';
+
+    if( result != RSCACHE_CS2_TYPE_NONE )
+        return result;
+    return cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
 }
 
 static void
@@ -1403,7 +1581,46 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
             cs2_cc_fail(cc, "expected a quoted callback");
             return;
         }
-        char* callback = RSCache_CS2_ArenaStrDup(&cc->arena, cc->token.text);
+        /*
+         * Re-read the callback with the bracket rule a callback needs.
+         *
+         * A callback's arguments can be string literals — `if_setonclick(
+         * "script2470(event_com, "B", $string0)", …)` — and the reference
+         * decompiler writes those inner quotes plain, with no escape (checked
+         * against its expected output). So the general string lexer, which
+         * stops at the first unnested `"`, cuts this one short and the parse
+         * derails a few tokens later on the unbalanced '('.
+         *
+         * The lexer already suspends termination inside `<...>`, for exactly
+         * this reason; a callback needs `(...)` counted too. It cannot have
+         * that rule generally — 354 of the corpus's 33,232 string constants
+         * hold an unbalanced parenthesis, `" ("` and `")"` among them — so the
+         * span is re-scanned here, where the callback is the only thing it can
+         * be, and the lexer is resynchronised to the true closing quote.
+         */
+        char* callback = NULL;
+        {
+            const char* text = cc->source;
+            int cursor = cc->token.start;
+            int depth = 0;
+            while( text[cursor] )
+            {
+                char current = text[cursor];
+                if( current == '"' && depth == 0 )
+                    break;
+                if( current == '(' || current == '<' )
+                    depth++;
+                else if( (current == ')' || current == '>') && depth > 0 )
+                    depth--;
+                cursor++;
+            }
+            callback = RSCache_CS2_ArenaStrDupN(
+                &cc->arena, text + cc->token.start, (size_t)(cursor - cc->token.start));
+            if( text[cursor] == '"' )
+                cursor++;
+            cc->position = cursor;
+            cc->has_ahead = false;
+        }
         cs2_cc_next(cc);
 
         /* `name(args){triggers}` — braces and parentheses are the only
@@ -1581,8 +1798,7 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                     }
                 }
 
-                enum RSCache_CS2_Type type =
-                    cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
+                enum RSCache_CS2_Type type = cs2_cc_infer_call_type(cc);
                 /* `event_*` values stand in for a value supplied when the hook
                  * fires; each has a fixed type. */
                 if( cc->token.kind == CS2_CC_TOK_IDENT &&
@@ -1719,7 +1935,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
                 expected = RSCache_CS2_ProtoGet(
                                (enum RSCache_CS2_ProtoId)info->extra)
                                ->type;
-            cs2_cc_expression(cc, expected);
+            cs2_cc_argument(cc, expected);
         }
         cs2_cc_expect_punct(cc, ')');
         cs2_cc_emit(cc, opcode, 0);
@@ -1884,7 +2100,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         if( cc->locals[index].is_array && cs2_cc_at_punct(cc, '(') )
         {
             cs2_cc_next(cc);
-            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_INT);
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_INT);
             cs2_cc_expect_punct(cc, ')');
             cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_ARRAY_INT, cc->locals[index].slot);
             return;
@@ -1966,6 +2182,34 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
             else
                 cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, (-2147483647 - 1) + i);
             return;
+        }
+
+        /*
+         * A bare array name — `~script465(intarray0, …)`.
+         *
+         * An array is passed by *name*, not by `$name`: the decompiler writes it
+         * as a pointer (RSCACHE_CS2_EXPR_POINTER) precisely because it is the
+         * array itself and not a read of it. What goes on the stack is the
+         * handle, from the bank `cs2_cc_declare_local` put the argument in.
+         *
+         * Checked against the declared locals rather than the spelling, so a
+         * command that happened to end in a digit could never be mistaken for
+         * one. Every array argument is declared by the signature before any
+         * statement can name it.
+         */
+        {
+            int array_index = cs2_cc_find_local(cc, name);
+            if( array_index >= 0 && cc->locals[array_index].is_array &&
+                !cs2_cc_at_punct(cc, '(') )
+            {
+                cs2_cc_next(cc);
+                cs2_cc_emit(
+                    cc,
+                    cc->locals[array_index].is_string ? RSCACHE_CS2_OP_PUSH_STRING_LOCAL
+                                                      : RSCACHE_CS2_OP_PUSH_INT_LOCAL,
+                    cc->locals[array_index].slot);
+                return;
+            }
         }
 
         /* `interface:component` is the only two-token literal. */
@@ -2119,7 +2363,7 @@ cs2_cc_condition_and(
 {
     for( ;; )
     {
-        struct cs2_cc_jumps term_pass = { { 0 }, 0 };
+        struct cs2_cc_jumps term_pass = { NULL, 0, 0 };
         cs2_cc_condition_term(cc, &term_pass, fail);
         if( cc->failed )
             return;
@@ -2150,7 +2394,7 @@ cs2_cc_condition(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, struct c
 {
     for( ;; )
     {
-        struct cs2_cc_jumps group_fail = { { 0 }, 0 };
+        struct cs2_cc_jumps group_fail = { NULL, 0, 0 };
         cs2_cc_condition_and(cc, pass, &group_fail);
         if( cc->failed )
             return;
@@ -2174,15 +2418,14 @@ cs2_cc_condition(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, struct c
 static void
 cs2_cc_if(struct cs2_cc_compiler* cc)
 {
-    struct cs2_cc_jumps ends;
-    ends.count = 0;
+    struct cs2_cc_jumps ends = { NULL, 0, 0 };
 
     for( ;; )
     {
         if( !cs2_cc_expect_punct(cc, '(') )
             return;
-        struct cs2_cc_jumps pass = { { 0 }, 0 };
-        struct cs2_cc_jumps fail = { { 0 }, 0 };
+        struct cs2_cc_jumps pass = { NULL, 0, 0 };
+        struct cs2_cc_jumps fail = { NULL, 0, 0 };
         cs2_cc_condition(cc, &pass, &fail);
         if( !cs2_cc_expect_punct(cc, ')') || cc->failed )
             return;
@@ -2234,8 +2477,8 @@ cs2_cc_while(struct cs2_cc_compiler* cc)
     int top = cc->ops.count;
     if( !cs2_cc_expect_punct(cc, '(') )
         return;
-    struct cs2_cc_jumps pass = { { 0 }, 0 };
-    struct cs2_cc_jumps fail = { { 0 }, 0 };
+    struct cs2_cc_jumps pass = { NULL, 0, 0 };
+    struct cs2_cc_jumps fail = { NULL, 0, 0 };
     cs2_cc_condition(cc, &pass, &fail);
     if( !cs2_cc_expect_punct(cc, ')') || cc->failed )
         return;
@@ -2299,6 +2542,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     if( !cs2_cc_expect_punct(cc, ')') || cc->failed )
         return;
     int switch_pc = cs2_cc_emit(cc, RSCACHE_CS2_OP_SWITCH, table);
+    entries->pc = switch_pc;
     if( !cs2_cc_expect_punct(cc, '{') )
         return;
 
@@ -2467,8 +2711,7 @@ cs2_cc_switch(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type subject_type)
     if( !cs2_cc_expect_punct(cc, '}') || cc->failed )
         goto done;
 
-    struct cs2_cc_jumps ends;
-    ends.count = 0;
+    struct cs2_cc_jumps ends = { NULL, 0, 0 };
 
     /* The no-match path, jumping over every case body to the default body. */
     int no_match = cs2_cc_emit(cc, RSCACHE_CS2_OP_BRANCH, 0);
@@ -2921,7 +3164,7 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
                 return;
             }
             cs2_cc_next(cc);
-            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_INT);
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_INT);
             if( !cs2_cc_expect_punct(cc, ')') || !cs2_cc_expect_punct(cc, '=') )
                 return;
             cs2_cc_expression(cc, cc->locals[index].type);

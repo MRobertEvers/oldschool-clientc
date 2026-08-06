@@ -130,6 +130,15 @@ Task_Dat2SpriteLoadByName_Run(
 
     PT_BEGIN(&task->pt);
 
+    /* A name the table has already answered "no archive" for. Without this the
+     * failure is re-walked and re-logged on every scheduling — the static-sprite
+     * pass runs per interface open, and a dat1-era name like "hitmark" (osrs
+     * splats are per-type archives hitmark_0.., driven by the hitsplat configs)
+     * turned every open into a stderr line. */
+    if( CacheProvider_SpriteIdByName(&task->bc->base, task->archive_name) ==
+        CACHE_PROVIDER_SPRITE_ABSENT )
+        PT_EXIT(&task->pt);
+
     if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_SPRITES) )
     {
         RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_SPRITES);
@@ -154,6 +163,8 @@ Task_Dat2SpriteLoadByName_Run(
             stderr,
             "Dat2SpriteLoadByName: archive '%s' not found in sprites table\n",
             task->archive_name);
+        CacheProvider_SpriteNameMapPut(
+            &task->bc->base, task->archive_name, CACHE_PROVIDER_SPRITE_ABSENT);
         PT_EXIT(&task->pt);
     }
 

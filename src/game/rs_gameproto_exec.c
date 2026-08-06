@@ -111,31 +111,146 @@ exec_update_inv_partial(
         RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
 }
 
-/* Zone sub-packet tile: base (scene-local, set by the FOLLOWS packets) +
- * packed nibbles. Level = the local player's plane. */
+/* The local player's plane — the level every zone sub-packet addresses (the
+ * wire carries no plane; reference applies to the player's current one). */
+static int
+zone_player_level(struct App* app)
+{
+    int world_idx;
+    int pid = app->esync.local_pid >= 0 ? app->esync.local_pid : 2047;
+    if( RS_EntitySync_FindPlayer(&app->esync, pid, &world_idx, NULL) )
+    {
+        struct WorldEntity_Player* player =
+            World_EntityPoolGet(&app->world->entities.player, world_idx);
+        if( player )
+            return player->grid_position.level;
+    }
+    return 0;
+}
+
+/* Where a zone sub-packet applies: base + packed nibbles, at `level`. The
+ * base/level pair is captured by the caller — live packets use the app's
+ * current state, replayed ones the state as of arrival. */
+struct ZoneAt
+{
+    int base_x;
+    int base_z;
+    int level;
+};
+
 static void
-zone_tile(
-    struct App* app,
+zone_tile_at(
+    struct ZoneAt const* at,
     int pos,
     int* out_x,
     int* out_z,
     int* out_level)
 {
-    int world_idx;
-    *out_x = app->zone_base_x + ((pos >> 4) & 7);
-    *out_z = app->zone_base_z + (pos & 7);
-    *out_level = 0;
-    if( app->esync.local_pid >= 0 || 1 )
+    *out_x = at->base_x + ((pos >> 4) & 7);
+    *out_z = at->base_z + (pos & 7);
+    *out_level = at->level;
+}
+
+/* Copy one zone sub-packet payload into a PktZoneSubPacket by name. Returns 0
+ * for a name that is not a zone sub-packet (nothing to queue). */
+static int
+zone_sub_packet_copy(
+    struct PktZoneSubPacket* dst,
+    enum GameProtoPktName name,
+    void const* payload)
+{
+    dst->name = name;
+    switch( name )
     {
-        int pid = app->esync.local_pid >= 0 ? app->esync.local_pid : 2047;
-        if( RS_EntitySync_FindPlayer(&app->esync, pid, &world_idx, NULL) )
-        {
-            struct WorldEntity_Player* player =
-                World_EntityPoolGet(&app->world->entities.player, world_idx);
-            if( player )
-                *out_level = player->grid_position.level;
-        }
+    case PKT_NAME_OBJ_ADD:
+        dst->_obj_add = *(struct PktObjAdd const*)payload;
+        return 1;
+    case PKT_NAME_OBJ_DEL:
+        dst->_obj_del = *(struct PktObjDel const*)payload;
+        return 1;
+    case PKT_NAME_OBJ_COUNT:
+        dst->_obj_count = *(struct PktObjCount const*)payload;
+        return 1;
+    case PKT_NAME_OBJ_REVEAL:
+        dst->_obj_reveal = *(struct PktObjReveal const*)payload;
+        return 1;
+    case PKT_NAME_LOC_DEL:
+        dst->_loc_del = *(struct PktLocDel const*)payload;
+        return 1;
+    case PKT_NAME_LOC_ADD_CHANGE:
+        dst->_loc_add_change = *(struct PktLocAddChange const*)payload;
+        return 1;
+    case PKT_NAME_LOC_ANIM:
+        dst->_loc_anim = *(struct PktLocAnim const*)payload;
+        return 1;
+    case PKT_NAME_LOC_MERGE:
+        dst->_loc_merge = *(struct PktLocMerge const*)payload;
+        return 1;
+    case PKT_NAME_MAP_ANIM:
+        dst->_map_anim = *(struct PktMapAnim const*)payload;
+        return 1;
+    case PKT_NAME_MAP_PROJANIM:
+        dst->_map_projanim = *(struct PktMapProjAnim const*)payload;
+        return 1;
+    default:
+        return 0;
     }
+}
+
+static void
+exec_zone_sub_packet_at(
+    struct RS_GameProtoCtx const* ctx,
+    enum GameProtoPktName name,
+    void const* payload,
+    struct ZoneAt const* at);
+
+/*
+ * A zone sub-packet arriving while the world is still async-loading cannot be
+ * dropped: the reference's scene build is synchronous inside its packet loop,
+ * so there every zone update processes after the rebuild it follows. Queue it
+ * with the zone base and player plane as of NOW (the wire addresses the
+ * player's plane at send time — the Inferno spawns its plane-1 flank walls
+ * inside a tele-to-plane-1 window, docs/ORANGE_WEDGE.md §17) and replay once
+ * the load completes.
+ */
+static void
+zone_pending_push(
+    struct App* app,
+    enum GameProtoPktName name,
+    void const* payload)
+{
+    struct AppPendingZonePkt* entry;
+    int cap = (int)(sizeof(app->pending_zone) / sizeof(app->pending_zone[0]));
+
+    if( app->pending_zone_count >= cap )
+    {
+        fprintf(stderr, "gameproto_exec: pending-zone queue full, dropping pkt %d\n", (int)name);
+        return;
+    }
+    entry = &app->pending_zone[app->pending_zone_count];
+    if( !zone_sub_packet_copy(&entry->pkt, name, payload) )
+        return;
+    entry->base_x = app->zone_base_x;
+    entry->base_z = app->zone_base_z;
+    entry->level = zone_player_level(app);
+    app->pending_zone_count++;
+}
+
+void
+RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
+{
+    struct App* app = ctx->app;
+    int i;
+
+    if( !app || !app->world || !app->world->load_complete )
+        return;
+    for( i = 0; i < app->pending_zone_count; i++ )
+    {
+        struct AppPendingZonePkt const* entry = &app->pending_zone[i];
+        struct ZoneAt at = { entry->base_x, entry->base_z, entry->level };
+        exec_zone_sub_packet_at(ctx, entry->pkt.name, &entry->pkt._loc_add_change, &at);
+    }
+    app->pending_zone_count = 0;
 }
 
 static void
@@ -145,24 +260,49 @@ exec_zone_sub_packet(
     void const* payload)
 {
     struct App* app = ctx->app;
-    int tile_x, tile_z, level;
+    struct ZoneAt at;
 
-    if( !app || !app->world || !app->world->load_complete )
+    if( !app || !app->world )
         return;
+    if( !app->world->load_complete )
+    {
+        zone_pending_push(app, name, payload);
+        return;
+    }
+    /* Keep arrival order: anything still queued from the load window applies
+     * before this live packet. */
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+
+    at.base_x = app->zone_base_x;
+    at.base_z = app->zone_base_z;
+    at.level = zone_player_level(app);
+    exec_zone_sub_packet_at(ctx, name, payload, &at);
+}
+
+static void
+exec_zone_sub_packet_at(
+    struct RS_GameProtoCtx const* ctx,
+    enum GameProtoPktName name,
+    void const* payload,
+    struct ZoneAt const* at)
+{
+    struct App* app = ctx->app;
+    int tile_x, tile_z, level;
 
     switch( name )
     {
     case PKT_NAME_OBJ_ADD:
     {
         struct PktObjAdd const* pkt = payload;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
         break;
     }
     case PKT_NAME_OBJ_DEL:
     {
         struct PktObjDel const* pkt = payload;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
         break;
     }
@@ -170,7 +310,7 @@ exec_zone_sub_packet(
     {
         struct PktObjCount const* pkt = payload;
         int idx;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         idx = World_ObjStackFind(app->world, tile_x, tile_z, level, pkt->obj_id);
         if( idx >= 0 )
             World_ObjStackSetCount(app->world, idx, pkt->new_count);
@@ -182,14 +322,14 @@ exec_zone_sub_packet(
         struct PktObjReveal const* pkt = payload;
         if( ctx->app->esync.local_pid >= 0 && pkt->receiver != ctx->app->esync.local_pid )
             break;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
         break;
     }
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         /* Remove the loc in this shape's layer (scene + collision). shape =
          * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
          * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
@@ -206,7 +346,7 @@ exec_zone_sub_packet(
          * preload, so the change applies once they're resident (reference
          * changeLocAvailable gate in locChangeDoQueue). */
         struct PktLocAddChange const* pkt = payload;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldLocChange(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
         if( getenv("TORIRS_NET_DEBUG") )
@@ -223,7 +363,7 @@ exec_zone_sub_packet(
     case PKT_NAME_LOC_ANIM:
     {
         struct PktLocAnim const* pkt = payload;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
         break;
     }
@@ -234,7 +374,7 @@ exec_zone_sub_packet(
         struct PktMapAnim const* pkt = payload;
         if( pkt->id != 65535 )
         {
-            zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+            zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
             App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
         }
         break;
@@ -248,11 +388,29 @@ exec_zone_sub_packet(
          * pkt->target names the entity the arc then homes on each cycle. */
         struct PktMapProjAnim const* pkt = payload;
         int src_tx, src_tz, dst_tx, dst_tz;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         src_tx = tile_x;
         src_tz = tile_z;
-        dst_tx = tile_x + pkt->dx_offset;
-        dst_tz = tile_z + pkt->dz_offset;
+        if( pkt->dst_abs )
+        {
+            /* Revision 239 states the landing point as an absolute CoordGrid;
+             * everything below the parse works in scene-local tiles, and the
+             * scene origin is the zone the last rebuild centred on, minus the
+             * six zones of margin the client keeps on each side. Applied as
+             * offsets, an absolute coord puts the arc a few tiles from the
+             * scene's south-west corner and the shot flies off the map. */
+            int origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
+            int origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+
+            dst_tx = pkt->dst_abs_x - origin_x;
+            dst_tz = pkt->dst_abs_z - origin_z;
+            level = pkt->dst_abs_level;
+        }
+        else
+        {
+            dst_tx = tile_x + pkt->dx_offset;
+            dst_tz = tile_z + pkt->dz_offset;
+        }
         App_WorldProjectileSpawn(
             app,
             src_tx,
@@ -276,7 +434,7 @@ exec_zone_sub_packet(
          * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
         struct PktLocMerge const* pkt = payload;
         int pid;
-        zone_tile(app, pkt->pos, &tile_x, &tile_z, &level);
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
         pid = pkt->pid;
         App_WorldLocMerge(
             app,
@@ -481,6 +639,21 @@ RS_GameProto_Exec(
         if( top == cur )
             break;
         fprintf(stderr, "if-opentop: switching root %d -> %d\n", cur, top);
+        /*
+         * The arming goes with the old root, and that is not tidiness.
+         *
+         * A real client rebuilds its whole widget state on an IF_OPENTOP and
+         * the events map goes with it: measured against RuneLite, everything
+         * armed before a second open answered no click afterwards, with
+         * `pkt.log.arm` reporting `(component default)` for every cell.
+         *
+         * Keeping it here made this client MORE forgiving than the one the
+         * server has to satisfy, which is the worst way to differ: a server
+         * that opens a top twice and arms in between works perfectly in-house
+         * and is dead in the real client. Dropping it is what made that bug
+         * visible from this side too.
+         */
+        App_IfEventsClear(ctx->app);
         App_OpenRootInterface(ctx->app, top);
         break;
     }
@@ -939,6 +1112,15 @@ RS_GameProto_Exec(
             {
                 ctx->app->minimap_flag_x = -1;
                 ctx->app->minimap_flag_z = -1;
+            }
+            else if( packet->_set_map_flag.absolute )
+            {
+                /* SetMapFlagV2 carries an absolute coord; the minimap draws in
+                 * scene-local tiles. Same origin the projectile decode uses. */
+                ctx->app->minimap_flag_x =
+                    packet->_set_map_flag.x - (ctx->app->rebuild_zone_x - 6) * 8;
+                ctx->app->minimap_flag_z =
+                    packet->_set_map_flag.z - (ctx->app->rebuild_zone_z - 6) * 8;
             }
             else
             {

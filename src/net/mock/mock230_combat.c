@@ -1096,6 +1096,9 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->combat_target = -1;
         npc->attack_clock = 0;
         npc->step_dir = -1;
+        /* A respawn is a fresh npc to every observer, so it faces the way a
+         * fresh npc does rather than wherever it was walking when it died. */
+        npc->face_dir = MOCK230_FACE_SOUTH;
         npc->masks = 0;
         npc->last_step_x = npc->x - 1;
         npc->last_step_z = npc->z;

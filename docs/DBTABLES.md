@@ -85,8 +85,8 @@ The full per-table numbers are in §7.
 ## 3. Two populations, one id space
 
 ```
-dbtable   0..258      the cache's, 246 tables with gaps   |   259+     the server's
-dbrow     0..16939    the cache's, 16,711 rows with gaps  |   16940+   the server's
+dbtable   0..258      the cache's, 246 tables with gaps   |   2048+    the server's
+dbrow     0..16939    the cache's, 16,711 rows with gaps  |   65536+   the server's
 ```
 
 They must not collide, because `table:column` compiles to
@@ -94,8 +94,15 @@ They must not collide, because `table:column` compiles to
 on a cache table's number would make `db_getfield` read whichever the loader
 inserted last.
 
-**Server ids come from the high-water mark**, one past the largest the cache
-holds. `content.ini` declares both namespaces `ids = server`, `names = cache` —
+**Server ids come from fixed bases far above the cache** (2026-08-06; they used
+to sit at the high-water mark, 259+/16940+, which a manually patched future
+cache would land on — Jagex added 13 tables between rev 230 and 239 alone).
+The bases live in `content_register.c`; the allocator reads them, and the ids
+live in `pack/dbtable.alloc` / `pack/dbrow.alloc` — the server's allocation
+ledger, not the compack. Width caps verified before choosing: the VM's column
+unpack masks the table id to 0xffff, the client host allows 20 bits, and a
+dbrow id is only ever a plain int value. The old rule follows this paragraph
+for history. `content.ini` declares both namespaces `ids = server`, `names = cache` —
 the only two namespaces in the tree where those two axes disagree, and the
 disagreement is the point: the cache names its own tables and this tree must not
 rename them, while the ids above the mark are ours.
@@ -377,8 +384,9 @@ the content directory, and `configs/all.dbtable` matches.
 
 Four steps, verified end to end on table 0 (`quest`):
 
-1. **The name line** in `configs/all.dbtable.compack`, above the allocator
-   marker. Never below it — 259+ are `ss_allocate.py`'s.
+1. **The name line** in `configs/all.dbtable.compack` — the compack is now
+   purely the cache's (server allocations live in `pack/dbtable.alloc`), so
+   there is no marker discipline left to respect; every line is a cache id.
 2. **Re-key the data files with the tool**, never by hand:
 
    ```
@@ -714,22 +722,16 @@ with §2's caveats.
 
 ## 8. Known gaps
 
-**`cachepack pack` cannot run against this tree, for an unrelated reason.** The
-config half of the round trip is proved by `verify` (which reads the cache) and
-was proved by `pack` against a tree carrying only `configs/`. Against the real
-tree `pack` stops in the overlay merge before writing anything:
-
-```
-cachepack: [weapon_2h_sword_table] states `data` twice in the authored layer —
-           …/skill_combat/configs/combat.dbrow and …/skill_combat/configs/combat.dbrow
-```
-
-`cp_merge` treats a repeated key in one authored file as a conflict, and a
-`.dbrow` repeats `data=` by design — that is how a column accumulates tuples, and
-it is exactly what makes the spear row of §5 four entries long. **Pre-existing:
-confirmed by restoring the four pre-rename config files and getting the identical
-error.** Nothing to do with naming, but it means the server-overlay path of
-`cachepack pack` is currently unreachable for any tree with a `.dbrow`.
+**~~`cachepack pack` cannot run against this tree~~ — closed twice over
+(2026-08-06).** The merge blocker fell first: `cp_merge` learned that a rank-1
+key rank 0 never states (`data=`, `column=`) is multi-valued by observation
+(`key_seen_rank0`), so `.dbrow` trees merge. That immediately exposed the next
+layer — 1,004 authored dbrows and 48 dbtables hit the routing gate with no
+membership statement and failed the pack — and the answer is the allocation
+ledger: an id in `pack/dbrow.alloc` routes its record server-side with no
+roster (`routing_client_member`'s alloc clause). `cachepack pack` now exits 0
+against the full tree, with the authored db population attributed to the
+ledger in its report.
 
 **Column names now live in `columndef=`** — this gap is closed. See §4.1a. The
 seeder keeps archive 10's column names in `CP_Names.dbtable_columns`, and both

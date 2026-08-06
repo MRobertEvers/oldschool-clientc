@@ -1,0 +1,363 @@
+torirs: dat2 cache=/Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.baked iface=161
+torirs_perf: enabled (ring=2048 window=500 budget=20ms) csv=/Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/cvj/torirs-O0-idle.csv
+mock230: features era=osrs approach=rect op_nearest=10
+mock230: obj metadata loaded (33747 records from cache.osrs239.baked, 53853 params in 1262 KB)
+mock230: npc metadata loaded (16292 records from cache.osrs239.baked, 29869 params in 700 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+mock230: loc configs loaded (62194 records from cache.osrs239.baked; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+mock230: struct params loaded (3988 records from cache.osrs239.baked, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19008 records from cache.osrs239.baked)
+mock230: 1117 param types from configs/all.param
+mock230: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
+mock230: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
+mock230: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
+mock230: 10 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
+mock230: 9 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
+mock230: 40 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
+mock230: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (215126 symbols, 4860 constants, 202 npc defs, 2330 loc defs, 886 varp defs, 1496 equip reqs (675 from the cache), 67 npc spawns, 12 obj spawns)
+mock230: 13 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+mock230: server band: npc.attack stays text-loaded on 42 record(s) — the band has no wire for it
+mock230: server band: npc.defence stays text-loaded on 42 record(s) — the band has no wire for it
+mock230: server band: npc.strength stays text-loaded on 42 record(s) — the band has no wire for it
+mock230: server band: npc.hitpoints stays text-loaded on 46 record(s) — the band has no wire for it
+mock230: server band: npc.magic stays text-loaded on 23 record(s) — the band has no wire for it
+mock230: server band: npc.attackrate stays text-loaded on 4 record(s) — the band has no wire for it
+mock230: server band: npc.death_drop stays text-loaded on 42 record(s) — the band has no wire for it
+mock230: server band: npc.attack_anim stays text-loaded on 44 record(s) — the band has no wire for it
+mock230: server band: npc.defend_anim stays text-loaded on 44 record(s) — the band has no wire for it
+mock230: server band: npc.death_anim stays text-loaded on 38 record(s) — the band has no wire for it
+mock230: server band: npc.wanderrange stays text-loaded on 39 record(s) — the band has no wire for it
+mock230: server band: npc.maxrange stays text-loaded on 25 record(s) — the band has no wire for it
+mock230: server band: npc.huntrange stays text-loaded on 35 record(s) — the band has no wire for it
+mock230: server band: npc.respawnrate stays text-loaded on 43 record(s) — the band has no wire for it
+mock230: server band: npc.moverestrict stays text-loaded on 15 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 63 record(s) — the band has no wire for it
+mock230: server band: loc.next_loc_stage stays text-loaded on 75 record(s) — the band has no wire for it
+mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (869 overlay authored defs, 674 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+mock230: db tables loaded (293 tables, 16343 rows from cache.osrs239.baked; 243 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+boot: 13575ms  frames=1 steps=242 capped=0
+mock230: login user='testc' session=ok
+mock230: 12319 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 10 opcode(s) this content uses are not implemented:
+  HINT_NPC                     first wanted by [queue,spawn_jungle_demon]
+  IF_OPENOVERLAY               first wanted by [proc,soulsbane_anger_on_damage]
+  IF_SETMODEL                  first wanted by [proc,barrows_puzzle_set_models]
+  P_APRANGE                    first wanted by [apnpc1,death_barman]
+  P_EXACTMOVE                  first wanted by [oploc1,upass_ledge]
+  QUEUEVARARG                  first wanted by [label,gwd_kril_attack]
+  NPC_ARRIVEDELAY              first wanted by [ai_queue3,ghast_vis]
+  NPC_FINDALLZONE              first wanted by [proc,rd_spawn_leye]
+  NPC_STATADD                  first wanted by [proc,slayer_after_player_hit]
+  INV_CHANGESLOT               first wanted by [timer,desert_heat]
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: content binds a trigger over a verb the engine answers itself:
+  [opnpc2,lathastrainingogre]        takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,godwars_armadyl_avatar]    takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,godwars_armadyl_bodyguard_skree] takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,godwars_armadyl_bodyguard_geerin] takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,godwars_armadyl_bodyguard_kilisa] takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_1]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_2]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_3]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_4]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_5]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_6]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_man_7]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_1]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_2]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_3]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_4]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_5]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,misc_woman_6]              takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,etc_guard1]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,etc_guard2]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,arcquest_ghost1]           takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,arcquest_ghost2]           takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,arcquest_soul]             takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,bim_golem_boss]            takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,hosidiusquest_snake]       takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,ghast_vis]                 takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,ga_beast]                  takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,cowboss]                   takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,irvig_senay]               takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,ranalph_devere]            takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,san_tojalon]               takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,porcine_sourhog_second]    takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,sailing_charting_drink_crate_prying_times_effect_troll] takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,frog_quest_cuthbert_combat] takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator1]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator2]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator3]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator4]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator5]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator6]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,troll_spectator7]          takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc2,trollromance_arrg_attackable] takes "Attack" without re-issuing it (P_OPNPC)
+mock230: 43 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+mock230: npc roster 67 spawn(s), slot_max=67
+textures: sprite-backed system (no materials table)
+Failed to load dat2 texture 65535
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+mock230: scene built at zone 803,13 (base 6376,56 — 0 locs)
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+client_layout: mode=1
+Failed to load dat2 idk 307
+spawn_player: element=19359 tile=52,52 level=0
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+No terrain archive for map (99,0)
+No scenery archive for map (99,0)
+world_load: map 99,0 unavailable (missing archive)
+No terrain archive for map (99,1)
+No scenery archive for map (99,1)
+world_load: map 99,1 unavailable (missing archive)
+No terrain archive for map (99,2)
+No scenery archive for map (99,2)
+world_load: map 99,2 unavailable (missing archive)
+No terrain archive for map (100,0)
+No scenery archive for map (100,0)
+world_load: map 100,0 unavailable (missing archive)
+No terrain archive for map (100,1)
+No scenery archive for map (100,1)
+world_load: map 100,1 unavailable (missing archive)
+No terrain archive for map (100,2)
+No scenery archive for map (100,2)
+world_load: map 100,2 unavailable (missing archive)
+No terrain archive for map (101,0)
+No scenery archive for map (101,0)
+world_load: map 101,0 unavailable (missing archive)
+No terrain archive for map (101,1)
+No scenery archive for map (101,1)
+world_load: map 101,1 unavailable (missing archive)
+No terrain archive for map (101,2)
+No scenery archive for map (101,2)
+world_load: map 101,2 unavailable (missing archive)
+world_load: 9 chunks, 0 underlays, 0 overlays, 0 textures, 0 locs, 0 models, 0 seqs
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+torirs_perf: window=500 writing /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/cvj/torirs-O0-idle.csv.windows.csv
+torirs_perf: window=0 frame_p95=2.98ms
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+torirs_perf: window=1 frame_p95=2.69ms
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+mock230: loc_add 24988 at 2953,3444 failed — unknown loc or outside the scene
+  at [proc,puro_circle_build] - puropuro.rs2:241 (pc 14, op LOC_ADD)
+  from [proc,puro_circle_sync] - puropuro.rs2:254
+  from [softtimer,puro_circle_tick] - puropuro.rs2:263
+mock230: abort context host_tag=0 pointers=0x1 active_npc=0
+post-boot: busy_frames=1 busy_steps=32 (frames that used the whole budget with work still queued)
+torirs_perf: window=2 frame_p95=2.39ms
+
+=== torirs_perf report ===
+frames=1200 ring=1200 over_20ms=11 (0.9%) eff_fps=72.6
+frame_ns mean=13765561 p50=1533000 p95=2781000 max=13574042000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async             64589          0       1000   75972000
+logic            611001       4000     325000  218598000
+cs2              601668          0     311000  218584000
+layout            26469          0     191000     472000
+interact          23413      20000      40000      98000
+emit             110507     107000     215000     414000
+paint            349979     319000     545000    1197000
+build            350091     320000     546000    1198000
+render           784833     672000    1665000    2259000
+present          170966     147000     253000     305000
+server           164043          0       2000  110147000
+residual       10508002  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                         918822       765.68
+uitree_find_id_probes                 2166183      1805.15
+uitree_id_rebuild                        3289         2.74
+uitree_find_child                       27202        22.67
+uitree_find_child_hit                   17335        14.45
+uitree_find_child_ceil_miss              8891         7.41
+uitree_walk_emit                      3156722      2630.60
+uitree_walk_hit                        700445       583.70
+uitree_walk_hover                      111065        92.55
+uitree_emit_skip                      3020994      2517.49
+uitree_layout_resolve                     528         0.44
+uitree_layout_skip                        201         0.17
+uitree_layout_nodes                   2079765      1733.14
+uitree_layout_node_skip               1981583      1651.32
+uitree_layout_depth_recompute             308         0.26
+uitree_ensure_layout                    14298        11.91
+uitree_cc_create                        11997        10.00
+uitree_cc_deleteall                       574         0.48
+uitree_cc_deleteall_rows                 3430         2.86
+uitree_apply_geo                        28740        23.95
+uitree_apply_content                    37939        31.62
+uitree_apply_hook                        8615         7.18
+uitree_apply_other                     628008       523.34
+uitree_components                     7881210      6567.68
+uitree_capacity                       9234432      7695.36
+uitree_node_bytes                 19207618560  16006348.80
+cs2_scripts                              7409         6.17
+cs2_opcodes                           2300200      1916.83
+cs2_host_ops                           318325       265.27
+cs2_cycles                            2300200      1916.83
+cs2_vm_acquire                           5331         4.44
+cs2_vm_pool_hit                          5329         4.44
+cs2_vm_pool_miss                            2         0.00
+cs2_vm_init_ns                        4184000      3486.67
+cs2_frame_pool_hit                      13037        10.86
+cs2_frame_pool_miss                        12         0.01
+cache_model_hit                         11526         9.61
+cache_model_miss                         2141         1.78
+cache_sprite_hit                         6330         5.28
+cache_sprite_miss                        1025         0.85
+painter_pops                          8494256      7078.55
+painter_gate_rejects                  3750397      3125.33
+painter_pushes                        8494256      7078.55
+painter_push_dedup                    4168551      3473.79
+painter_drain_events                     4353         3.63
+painter_commands                      4769428      3974.52
+painter_tiles_remaining_set           4724876      3937.40
+scene_elements                        3639672      3033.06
+scene_anim_list                          3000         2.50
+zone_map_count                          53616        44.68
+zone_map_capacity                      306944       255.79
+npc_slot_max                            80333        66.94
+cache_model_size                       204286       170.24
+cache_sprite_size                      109667        91.39
+iface_open                                 49         0.04
+iface_close                                 2         0.00
+iface_bake                                 21         0.02
+iface_bake_reuse                           28         0.02
+iface_mount_ns                        7221000      6017.50
+iface_groups_resident                    5118         4.26
+uitree_hidden                          825694       688.08
+uitree_unmounted                          214         0.18
+uitree_hook_blocks                     157636       131.36
+uitree_hook_bytes                  1607887200   1339906.00
+host_inv_hooks                           3538         2.95
+host_var_hooks                          30483        25.40
+host_stat_hooks                         11950         9.96
+bridge_sprite_map                      101662        84.72
+bridge_obj_icon_map                      6717         5.60
+cache_clientscript_size                 93203        77.67
+uitree_anim_scan                          458         0.38
+iface_group_scan_nodes                   9338         7.78
+
+torirs_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/cvj/torirs-O0-idle.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=6 mounts=0
+Failed to load map terrain 99, 0 (archive_id: -1)
+Failed to load map terrain 99, 1 (archive_id: -1)
+Failed to load map terrain 99, 2 (archive_id: -1)
+Failed to load map terrain 100, 0 (archive_id: -1)
+Failed to load map terrain 100, 1 (archive_id: -1)
+Failed to load map terrain 100, 2 (archive_id: -1)
+Failed to load map terrain 101, 0 (archive_id: -1)
+Failed to load map terrain 101, 1 (archive_id: -1)
+Failed to load map terrain 101, 2 (archive_id: -1)
+Failed to load map 99, 0 (archive_id)
+Failed to load map 99, 1 (archive_id)
+Failed to load map 99, 2 (archive_id)
+Failed to load map 100, 0 (archive_id)
+Failed to load map 100, 1 (archive_id)
+Failed to load map 100, 2 (archive_id)
+Failed to load map 101, 0 (archive_id)
+Failed to load map 101, 1 (archive_id)
+Failed to load map 101, 2 (archive_id)

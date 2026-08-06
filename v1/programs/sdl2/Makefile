@@ -1,3 +1,17 @@
+# DEPRECATED -- retired v1 program build. Not maintained, not buildable:
+# it resolves sources under $(REPO_ROOT)/src2, a tree that no longer exists.
+#
+# The live build is one lane per platform, all from src/makefile:
+#
+#     make -C src            macOS / Linux   -> src/torirs
+#     make -C src web        Emscripten      -> build-web/torirs.js
+#     make -C src winxp      Windows XP i686 -> src/torirs.exe
+#
+# See readme.md "Building" and src/platform/platform.mk.
+ifndef TORIRS_ALLOW_DEPRECATED_V1
+$(error this v1 program build is deprecated and cannot work (src2/ is gone) -- use `make -C src` (see readme.md "Building"))
+endif
+
 # Build tiny host that exercises platform_x_lua (sdl2.c name is historical).
 
 REPO_ROOT := ../../..

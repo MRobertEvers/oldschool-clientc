@@ -306,6 +306,8 @@ cs2_find_array_args_calls(struct cs2_dfa* dfa, int script_id)
                 &dfa->fs->arena,
                 RSCache_CS2_VarIntern(dfa->fs, RSCACHE_CS2_VAR_ARRAY, function->id, 0));
 
+            struct RSCache_CS2_Expr* replaced = items[0];
+
             struct RSCache_CS2_Vec new_args;
             RSCache_CS2_VecInit(&new_args);
             RSCache_CS2_VecPush(&new_args, new_arg);
@@ -316,6 +318,27 @@ cs2_find_array_args_calls(struct cs2_dfa* dfa, int script_id)
                 (struct RSCache_CS2_Expr* const*)new_args.items,
                 new_args.count);
             RSCache_CS2_VecFree(&new_args);
+
+            /* The argument that just lost its only consumer.
+             *
+             * At this revision the array handle is passed as a real value —
+             * `push_string_local` of the slot the caller defined it in — so
+             * dropping it from the call list orphans the instruction that
+             * produced it. Left in place it prints as a bare `$int0;` statement
+             * (bare, and misnamed `int`, because removing the old variable's
+             * typing takes the identifier with it), which is not a statement
+             * the language has and which the compiler refuses. It cost all 20
+             * of the corpus's array-passing procs, twice each.
+             *
+             * Only an ACCESS is dropped, and only one with no definitions. That
+             * shape cannot be a real `pop_*_discard`: a discard in this cache
+             * always follows an operation — 1195 times a `gosub`, then
+             * db_find_with_count, _204, _211, _212 — and never once a bare
+             * variable read, which has nothing to discard. */
+            /* The value that fed this argument no longer has a consumer;
+             * `cs2_drop_orphan_reads` clears it up once the stack definitions
+             * have been inlined and the orphan is visible as one. */
+            (void)replaced;
 
             if( function->id != script_id )
             {
@@ -1505,6 +1528,15 @@ RSCache_CS2_Transform(struct RSCache_CS2_FunctionSet* fs, char* error, int error
     if( !cs2_run_function_pass(&dfa, cs2_combine_same_line) )
         return false;
     if( !cs2_run_function_pass(&dfa, cs2_inline_stack_definitions) )
+        return false;
+    /* Again, and not redundantly. `cs2_find_array_args_calls` rewrites a proc
+     * call's first argument into an array pointer, which strands whatever used
+     * to fill it; the strand only becomes recognisable as a nop — an assignment
+     * defining nothing whose value is a bare read — once the stack definitions
+     * above have been inlined into it. Twenty scripts in cache.osrs239, every
+     * one that passes an array to a proc, otherwise decompile to a `$int0;`
+     * statement the language does not have and the compiler refuses. */
+    if( !cs2_run_function_pass(&dfa, cs2_delete_nops) )
         return false;
     if( !cs2_calc_types(&dfa) )
         return false;

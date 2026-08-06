@@ -38,12 +38,27 @@ make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
+make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
 make -C src PLATFORM=web <target>   # any target, web flavor
 ```
 
-Each `(PLATFORM, OPT)` pair owns its own object directory (`build`,
-`build_opt`, `build_web`, `build_web_opt`), so flavors never share a `.o`.
+`PLATFORM` values are `macos`, `linux`, `win32`, `win64`, and `web`; the
+default, `native`, resolves to `macos`, `linux`, or modern Windows `win64`.
+The XP-compatible `win32` lane is always explicit. Each
+`(PLATFORM, OPT)` pair owns its own object directory (`build`, `build_opt`,
+`build_web`, `build_web_opt`, `build_win32`, …), so flavors never share a `.o`.
+
+The web lane's invariants — WebGL1 pinned, and **no `-sASYNCIFY`** (the IO path
+below buys the same behaviour by yielding to the main loop instead) — are
+asserted rather than merely intended:
+
+```sh
+make -C src lane-check PLATFORM=web
+make -C src lane-check-all           # every lane, from any host
+```
+
+They are declared in [`src/platform/platform_check.mk`](../src/platform/platform_check.mk).
 
 What the web block swaps:
 

@@ -38,6 +38,10 @@ enum GameProtoPktName
     PKT_NAME_IF_CLOSESUB,
     /** Move a mounted sub from one component slot to another (RSProt op 42). */
     PKT_NAME_IF_MOVESUB,
+    /** Atomic revision-239 root + mounts + dual-word event-range snapshot. */
+    PKT_NAME_IF_RESYNC_V2,
+    /** Clear the item array embedded directly in an old-style component. */
+    PKT_NAME_IF_CLEARINV,
 
     /* interface mutators */
     PKT_NAME_IF_SETCOLOUR,
@@ -51,6 +55,17 @@ enum GameProtoPktName
     PKT_NAME_IF_SETNPCHEAD,
     PKT_NAME_IF_SETPOSITION,
     PKT_NAME_IF_SETSCROLLPOS,
+    /** Rotate a model component automatically around its X/Y axes. */
+    PKT_NAME_IF_SETROTATESPEED,
+    /** Set a model component's camera angles and zoom. */
+    PKT_NAME_IF_SETANGLE,
+    /** Render one of the active NPC head slots in a model component. */
+    PKT_NAME_IF_SETNPCHEAD_ACTIVE,
+    /** Mutate one aspect of a component's player-composition model. */
+    PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+    PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+    PKT_NAME_IF_SETPLAYERMODEL_OBJ,
+    PKT_NAME_IF_SETPLAYERMODEL_SELF,
 
     /* tutorial */
     PKT_NAME_TUT_FLASH,
@@ -97,6 +112,8 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /** Run the current root's CS2 onDialogAbort listeners before teardown. */
+    PKT_NAME_TRIGGER_ONDIALOGABORT,
     /** End of a server tick's packet group. The client uses it to know a tick's
      *  worth of state has arrived whole; it carries no payload. Named here
      *  because the mock emits it and a canonical name is what lets the mock's
@@ -137,6 +154,19 @@ enum GameProtoPktName
     PKT_NAME_OBJ_COUNT,
     PKT_NAME_MAP_ANIM,
     PKT_NAME_OBJ_ADD,
+
+    /*
+     * The origin NPC_INFO's low-resolution deltas are relative to, as a
+     * scene-local (build-area) tile pair. Its own packet since revision 222:
+     * world entities mean the reference point is no longer always the local
+     * player, so the server states it instead of the client assuming it.
+     *
+     * A revision that has it and is never sent it does not fail -- the client's
+     * origin is simply 0,0, and every npc is placed at its raw delta, in the
+     * south-west corner of the scene or off it entirely. They decode, they are
+     * in the client's npc table with the right ids, and none of them is drawn.
+     */
+    PKT_NAME_SET_NPC_UPDATE_ORIGIN,
 
     PKT_NAME_COUNT
 };
@@ -236,12 +266,42 @@ enum GameProtoPktOutName
     PKTOUT_NAME_IF_BUTTON8,
     PKTOUT_NAME_IF_BUTTON9,
     PKTOUT_NAME_IF_BUTTON10,
+    /*
+     * IF_BUTTONX / IF_SUBOP — the one packet the whole family above collapses
+     * into from revision ~237.
+     *
+     * `p4 combinedId, p2 sub, p2 obj, p1 op` (IF_SUBOP adds `p1 subop`), and
+     * the OP NUMBER IS A FIELD rather than the opcode. That is why the newer
+     * table has no OPHELD1..5, no INV_BUTTON1..5 and no IF_BUTTON1..10: twenty-
+     * two opcodes became two, and `obj` (0xffff for "not an item") is what
+     * separates an inventory verb from a plain widget click.
+     *
+     * The server already reads them (`mock239_inbound.c` fans them back out to
+     * the canonical names); these exist so the *client* can name them, because
+     * `net_out_opcode` refuses a canonical name the revision's table does not
+     * carry — and refusing is silent. With no row, every equip, every use-on
+     * and every tab click at 239 was built, encrypted, and dropped before it
+     * reached the socket.
+     */
+    PKTOUT_NAME_IF_BUTTONX,
+    PKTOUT_NAME_IF_SUBOP,
+    /* IF_TRIGGEROPLOCAL (CS2 2929). Unlike IF_BUTTONX, its typed tail has no
+     * on-wire type tags: crc selects the server-side signature. */
+    PKTOUT_NAME_IF_SCRIPT_TRIGGER,
+    /* IF_BUTTONT: the use-on, component to component — 230's OPHELDU and
+     * OPHELDT in one packet, with the target and the selected item
+     * interleaved rather than written as two triples. */
+    PKTOUT_NAME_IF_BUTTONT,
     /* CLICK_WORLD_MAP: a click on the open world map surface, as the absolute
      * tile it landed on (packed level<<28 | x<<14 | z). */
     PKTOUT_NAME_CLICK_WORLD_MAP,
     PKTOUT_NAME_RESUME_PAUSEBUTTON,
     PKTOUT_NAME_CLOSE_MODAL,
     PKTOUT_NAME_RESUME_P_COUNTDIALOG,
+    PKTOUT_NAME_RESUME_P_NAMEDIALOG,
+    PKTOUT_NAME_RESUME_P_STRINGDIALOG,
+    PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG,
+    PKTOUT_NAME_RESUME_P_OBJDIALOG,
     PKTOUT_NAME_TUT_CLICKSIDE,
 
     PKTOUT_NAME_MAP_BUILD_COMPLETE,

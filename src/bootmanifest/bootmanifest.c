@@ -370,6 +370,11 @@ bm_set_kv(
             snprintf(bm->pass, sizeof(bm->pass), "%s", value);
             return;
         }
+        if( strcmp(key, "cheat") == 0 )
+        {
+            snprintf(bm->cheat, sizeof(bm->cheat), "%s", value);
+            return;
+        }
         if( strcmp(key, "rsa_exp") == 0 )
         {
             snprintf(bm->rsa_exp, sizeof(bm->rsa_exp), "%s", value);
@@ -922,6 +927,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->connect_user = bm->user;
     if( bm->pass[0] )
         cfg->connect_pass = bm->pass;
+    if( bm->cheat[0] )
+        cfg->net_cheat = bm->cheat;
 
     if( bm->features_era[0] )
         cfg->features_era = bm->features_era;

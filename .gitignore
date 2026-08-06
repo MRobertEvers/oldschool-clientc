@@ -75,3 +75,7 @@ poser-gl.settings
 # Python bytecode from tools/ (tools are run as scripts, never imported).
 __pycache__/
 *.pyc
+
+# Build artifacts - Windows executables
+src/*.exe
+3rd/rscache/tools/cachepack/*.exe

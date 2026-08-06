@@ -3,15 +3,15 @@
 # can crash or restart clangd.
 #
 # Per-OS compile DB dirs are set in .vscode/settings.json ([darwin]/[win32]) via
-# clangd --compile-commands-dir. Default here matches native CMake (macOS/Linux).
+# clangd --compile-commands-dir. The default is src/, i.e. src/compile_flags.txt:
+# the whole client is built by src/makefile, and the CMake build that used to
+# populate build/compile_commands.json is deprecated (its sources moved to v0/).
 CompileFlags:
-  CompilationDatabase: build/
+  CompilationDatabase: src/
   Add:
     # Fallback include roots when a TU has no compile_commands entry
     - -I.
     - -Isrc
-    - -Isrc2
-    - -Isrc2/scripting
     - -I3rd/rscache/include
   Remove:
     - -W*
@@ -70,12 +70,6 @@ If:
   PathMatch: src/.*\.(c|h)$
 CompileFlags:
   CompilationDatabase: src/
----
-# src2/ is built via Makefile, not CMake — use src2/compile_flags.txt, not build-winxp/.
-If:
-  PathMatch: src2/.*\.(c|h|u\.c)$
-CompileFlags:
-  CompilationDatabase: src2/
 ---
 # test/gamecache/ is built via Makefile — do not infer flags from build/compile_commands.json.
 If:

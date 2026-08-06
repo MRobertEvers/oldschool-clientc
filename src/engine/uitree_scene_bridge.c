@@ -3,6 +3,7 @@
 #include "engine/cache_provider.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
+#include "net/rev/packets/pkt_player_appearance.h" /* the slot vocabulary */
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
@@ -398,18 +399,18 @@ UITreeSceneBridge_EnsureModel(
     return cache_model_id;
 }
 
-/* The design's seven body parts as a PLAYER_INFO appearance: an identity kit
- * is slot value 0x100+id, and the compositor merges in slot order — which is
- * design part order, matching the reference's combineForAnim(models, count). */
+/* The design's seven body parts as a PLAYER_INFO appearance: each is an
+ * identity-kit slot, and the compositor merges in slot order — which is design
+ * part order, matching the reference's combineForAnim(models, count). */
 static void
 bridge_design_slots(
     int const kits[PLAYER_APPEARANCE_PARTS],
-    int slots[12])
+    int slots[APPEARANCE_SLOT_COUNT])
 {
-    for( int i = 0; i < 12; i++ )
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
         slots[i] = 0;
     for( int p = 0; p < PLAYER_APPEARANCE_PARTS; p++ )
-        slots[p] = (kits && kits[p] >= 0) ? 0x100 + kits[p] : 0;
+        slots[p] = (kits && kits[p] >= 0) ? Appearance_PackKit(kits[p]) : 0;
 }
 
 int

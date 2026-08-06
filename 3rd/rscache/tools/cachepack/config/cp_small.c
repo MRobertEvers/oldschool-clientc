@@ -171,7 +171,9 @@ cp_pack_param(
         else if( strcmp(key, "default") == 0 )
         {
             /*
-             * A reference type's default is a name.
+             * The authored grammar (LostCity's lookupParamValue), which keys the
+             * whole reading on the declared type — which is why this runs after
+             * it:
              *
              * `[death_drop] type=namedobj default=bones` is obj 526, and the only
              * thing that says so is the type — which is why this runs after it.

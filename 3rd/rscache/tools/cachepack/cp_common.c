@@ -236,12 +236,14 @@ cp_resolve_ref(
  * Not an error to find none: a tree with no `.constant` file is a tree whose
  * configs never spell a caret, and the resolver reports the miss at the use.
  */
-static void
+void
 cp_constants_load(struct CP_Ctx* ctx)
 {
     const char* found[CP_PACK_MAX_SOURCES];
     int found_count;
 
+    if( ctx->constants_loaded )
+        return;
     ctx->constants_loaded = 1;
     found_count = cp_walk_find(&ctx->walk, "constant", found, CP_PACK_MAX_SOURCES);
 
@@ -703,6 +705,23 @@ cp_parse_param(
     int param_id;
     if( !cp_resolve_ref(ctx, CP_TYPE_PARAM, unescaped, &param_id) )
         return 0;
+
+    /* LostCity's lookupParamValue: `null` is -1 for every non-string type —
+     * `param=death_drop,null` is "drops nothing", not a failed name. A string
+     * param's `null` is the empty string, handled by the str branch reading the
+     * text as-is being wrong for exactly one spelling, so map it here too. */
+    if( strcmp(first + 1, "null") == 0 && !second )
+    {
+        char code = cp_param_type_of(ctx, param_id);
+        if( code != 's' )
+        {
+            int* copy = malloc(sizeof(*copy));
+            if( !copy )
+                return 0;
+            *copy = -1;
+            return params_push(params, param_id, RSCACHE_PARAM_INT, copy);
+        }
+    }
 
     if( second )
     {

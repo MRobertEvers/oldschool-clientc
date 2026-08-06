@@ -183,6 +183,29 @@ cp_type_by_name(const char* name);
 struct CP_Names
 {
     struct LC_Pack packs[CP_TYPE_COUNT];
+    /**
+     * The server's allocation ledger: `pack/<ns>.alloc`, ids `ss_allocate.py`
+     * handed out for records the cache does not hold.
+     *
+     * A second array and not more lines in `packs` — the separation is the
+     * point, on both sides of the tool:
+     *
+     *   - `cp_names_save` writes `packs` back to `configs/all.<ns>.compack`, so a
+     *     server name merged into it would be spliced into the machine-owned
+     *     member index — the exact mixing this layer exists to end.
+     *   - `--gamevals` emits `packs` into the cache's own symbol table, and a
+     *     server id in there is a name the client cache carries for a record it
+     *     does not hold.
+     *
+     * Both lookups (`cp_name_find`, `cp_name_get`) search `packs` first and this
+     * second; nothing writes it — `ss_allocate.py` is the one writer.
+     *
+     * Being listed here is also a *routing* statement: an id the server
+     * allocated names a record the cache cannot hold, so the packer routes it
+     * server-side without a membership line (`routing_client_member`). The
+     * allocation is the membership.
+     */
+    struct LC_Pack alloc[CP_TYPE_COUNT];
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
@@ -357,6 +380,19 @@ cp_name_find(
     enum CP_TypeId type,
     const char* name);
 
+/**
+ * Id for `name` in the server's allocation ledger alone, or -1.
+ *
+ * The routing gate's question — `cp_name_find` answers "what id", this answers
+ * "whose id". A name here is a record the server allocated past the cache's
+ * high-water mark, which is what routes it server-side with no membership line.
+ */
+int
+cp_name_find_alloc(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* name);
+
 /* The same three, over the asset packs. */
 
 const char*
@@ -461,8 +497,8 @@ struct CP_Ctx
      * The tree's `^constants`, as a param value can name one.
      *
      * `param=undead,^true` and `param=damagetype,^crush_style` are in this tree's
-     * `.npc` overlays, and a `^name` is declared in a `server/scripts/**\/*.constant`
-     * file (4,878 of them across 265 files). Loaded lazily — most packs never
+     * `.npc` overlays, and a `^name` is declared in a `.constant` file under
+     * `server/scripts` (4,878 of them across 265 files). Loaded lazily — most packs never
      * meet a caret, and the walk is only worth doing for one that does.
      *
      * Integer-valued constants only. A constant whose value is a name is not a
@@ -914,6 +950,11 @@ char
 cp_param_type_of(
     struct CP_Ctx* ctx,
     int param_id);
+
+/** Load the tree's integer-valued `^constants` once. `cp_resolve_caret` calls
+ *  this lazily; pack passes may call it after walking the tree to prime it. */
+void
+cp_constants_load(struct CP_Ctx* ctx);
 
 /**
  * `op1..opN`, plus the rev-237 sub-ops and conditional ops.

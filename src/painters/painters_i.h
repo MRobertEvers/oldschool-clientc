@@ -39,6 +39,9 @@ struct TilePaint
     uint8_t queue_count; /* distancemetric painter only */
     uint8_t near_wall_flags;
     uint8_t in_queue;
+    /** Scenery chain already in reference emission order this paint (see
+     *  scenery_chain_sort_once). Cleared in the classify pass. */
+    uint8_t scenery_sorted;
     /**
      * Per-frame ground-occlusion tri-state for this tile:
      *   0 = not yet computed
@@ -205,34 +208,136 @@ scenery_footprint_contains(
            i_max_x <= o_max_x && i_max_z <= o_max_z;
 }
 
-/**
- * True when any undrawn STACK_BASE scenery on this tile's chain has a footprint
- * that strictly contains `el`. Chains are short (max ~5), so the walk is cheap.
+/*
+ * Reference class112.method3971: a ready entity's draw-order key is the
+ * Manhattan distance from the camera tile to the FARTHEST corner of its
+ * footprint (max extent per axis, summed). The drain draws the ready batch
+ * max-key first, ties broken by the squared fine distance of the entity
+ * centre (class112.java:1030-1058). This is the whole of the reference's
+ * loc-vs-loc ordering — there is no containment rule and no static/dynamic
+ * distinction; an earlier containment heuristic here inverted the order
+ * around every multi-tile loc (docs/ORANGE_WEDGE.md §24-25).
  */
 static inline int
-scenery_blocked_by_stack_base(
+scenery_far_corner_dist(
+    const struct PaintersElement* el,
+    int camera_sx,
+    int camera_sz)
+{
+    int span_x = camera_sx - (int)el->sx;
+    int span_x2 = (int)el->sx + (int)el->_scenery.size_x - 1 - camera_sx;
+    int span_z = camera_sz - (int)el->sz;
+    int span_z2 = (int)el->sz + (int)el->_scenery.size_z - 1 - camera_sz;
+    if( span_x2 > span_x )
+        span_x = span_x2;
+    if( span_z2 > span_z )
+        span_z = span_z2;
+    return span_x + span_z;
+}
+
+/* The reference tie-break: squared fine distance from the camera position to
+ * the entity's centre (class112.java:1040-1046 uses the entity's stored fine
+ * coords; ours is the footprint centre, the same point placement uses). */
+static inline int64_t
+scenery_centre_dist_sq(
+    const struct PaintersElement* el,
+    int camera_fine_x,
+    int camera_fine_z)
+{
+    int64_t cx = (int64_t)el->sx * 128 + (int64_t)el->_scenery.size_x * 64;
+    int64_t cz = (int64_t)el->sz * 128 + (int64_t)el->_scenery.size_z * 64;
+    int64_t dx = cx - camera_fine_x;
+    int64_t dz = cz - camera_fine_z;
+    return dx * dx + dz * dz;
+}
+
+/*
+ * Sort a tile's scenery CHAIN into reference emission order, once per paint:
+ * farthest-corner key descending, centre-distance tie-break.
+ *
+ * The chain is fixed before the drain (registration happens at build /
+ * per-frame re-add, never mid-paint) and the keys depend only on the camera
+ * tile, which is constant for the whole paint — so one sort per tile per
+ * paint is complete. Every later pop of the tile emits its READY subset in
+ * chain order, and an in-order subset of a sorted list is sorted. The
+ * `scenery_sorted` latch on TilePaint is cleared in the classify pass.
+ *
+ * The permutation moves (element_idx, span) PAIRS between nodes and leaves
+ * the node topology alone: `span` is per (tile, element), and
+ * tile_remove_scenery_element unlinks by element payload, so a permuted
+ * chain stays reset-safe when dynamic elements are stripped.
+ *
+ * Chains are tiny (the official caps at 5 per tile); anything past the cap
+ * keeps its unsorted tail rather than growing the scratch.
+ */
+#define SCENERY_SORT_BATCH_MAX 64
+
+static inline void
+scenery_chain_sort_once(
     struct Painter* painter,
     struct PaintersTile* tile,
-    const struct PaintersElement* el)
+    struct TilePaint* tile_paint,
+    int camera_sx,
+    int camera_sz)
 {
-    assert(painter && tile && el);
-    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+    int32_t nodes[SCENERY_SORT_BATCH_MAX];
+    int16_t elems[SCENERY_SORT_BATCH_MAX];
+    uint8_t spans[SCENERY_SORT_BATCH_MAX];
+    int keys[SCENERY_SORT_BATCH_MAX];
+    int64_t tie[SCENERY_SORT_BATCH_MAX];
+    int count = 0;
+    int camera_fine_x = camera_sx * 128 + 64;
+    int camera_fine_z = camera_sz * 128 + 64;
+
+    if( tile_paint->scenery_sorted )
+        return;
+    tile_paint->scenery_sorted = 1;
+
+    for( int32_t sn = tile->scenery_head; sn != -1 && count < SCENERY_SORT_BATCH_MAX;
+         sn = painter->scenery_pool[sn].next )
     {
-        int si = painter->scenery_pool[sn].element_idx;
-        struct PaintersElement* other;
-        if( painter->element_paints[si].drawn )
-            continue;
-        other = &painter->elements[si];
-        if( other->kind != PNTRELEM_SCENERY )
-            continue;
-        if( other == el )
-            continue;
-        if( (other->_scenery.flags & PNTR_SCENERY_STACK_BASE) == 0 )
-            continue;
-        if( scenery_footprint_contains(other, el) )
-            return 1;
+        struct SceneryNode const* node = &painter->scenery_pool[sn];
+        nodes[count] = sn;
+        elems[count] = node->element_idx;
+        spans[count] = node->span;
+        keys[count] =
+            scenery_far_corner_dist(&painter->elements[node->element_idx], camera_sx, camera_sz);
+        tie[count] = scenery_centre_dist_sq(
+            &painter->elements[node->element_idx], camera_fine_x, camera_fine_z);
+        count++;
     }
-    return 0;
+    if( count <= 1 )
+        return;
+
+    for( int a = 0; a < count; a++ )
+    {
+        int best = a;
+        for( int b = a + 1; b < count; b++ )
+        {
+            if( keys[b] > keys[best] || (keys[b] == keys[best] && tie[b] > tie[best]) )
+                best = b;
+        }
+        if( best != a )
+        {
+            int16_t tmp_e = elems[a];
+            uint8_t tmp_s = spans[a];
+            int tmp_k = keys[a];
+            int64_t tmp_t = tie[a];
+            elems[a] = elems[best];
+            spans[a] = spans[best];
+            keys[a] = keys[best];
+            tie[a] = tie[best];
+            elems[best] = tmp_e;
+            spans[best] = tmp_s;
+            keys[best] = tmp_k;
+            tie[best] = tmp_t;
+        }
+    }
+    for( int a = 0; a < count; a++ )
+    {
+        painter->scenery_pool[nodes[a]].element_idx = elems[a];
+        painter->scenery_pool[nodes[a]].span = spans[a];
+    }
 }
 
 #endif

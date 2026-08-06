@@ -40,21 +40,30 @@ CANON_IN = {
     "IF_OPENSUB": "IF_OPENSUB",
     "IF_CLOSESUB": "IF_CLOSESUB",
     "IF_MOVESUB": "IF_MOVESUB",
+    "IF_RESYNC_V2": "IF_RESYNC_V2",
+    "IF_CLEARINV": "IF_CLEARINV",
     # V2 widened the events bitmask from 12 to 16 bytes (two extra shorts for
     # the sub-op range). The reader is per-rev; see osrs239_parse.c.
     "IF_SETEVENTS_V2": "IF_SETEVENTS",
     "IF_SETPOSITION": "IF_SETPOSITION",
     "IF_SETSCROLLPOS": "IF_SETSCROLLPOS",
+    "IF_SETROTATESPEED": "IF_SETROTATESPEED",
     "IF_SETTEXT": "IF_SETTEXT",
     "IF_SETHIDE": "IF_SETHIDE",
+    "IF_SETANGLE": "IF_SETANGLE",
     "IF_SETOBJECT": "IF_SETOBJECT",
     "IF_SETCOLOUR": "IF_SETCOLOUR",
     "IF_SETANIM": "IF_SETANIM",
     "IF_SETNPCHEAD": "IF_SETNPCHEAD",
+    "IF_SETNPCHEAD_ACTIVE": "IF_SETNPCHEAD_ACTIVE",
     "IF_SETPLAYERHEAD": "IF_SETPLAYERHEAD",
     # V2 carries a 4-byte combined component uid where the old one carried a
     # 2-byte flat id.
     "IF_SETMODEL_V2": "IF_SETMODEL",
+    "IF_SETPLAYERMODEL_BASECOLOUR": "IF_SETPLAYERMODEL_BASECOLOUR",
+    "IF_SETPLAYERMODEL_BODYTYPE": "IF_SETPLAYERMODEL_BODYTYPE",
+    "IF_SETPLAYERMODEL_OBJ": "IF_SETPLAYERMODEL_OBJ",
+    "IF_SETPLAYERMODEL_SELF": "IF_SETPLAYERMODEL_SELF",
     "MIDI_SONG_V2": "MIDI_SONG",
     "MIDI_JINGLE": "MIDI_JINGLE",
     "SYNTH_SOUND": "SYNTH_SOUND",
@@ -73,6 +82,7 @@ CANON_IN = {
     "MAP_PROJANIM_V2": "MAP_PROJANIM",
     "PLAYER_INFO": "PLAYER_INFO",
     "NPC_INFO_SMALL_V5": "NPC_INFO",
+    "SET_NPC_UPDATE_ORIGIN": "SET_NPC_UPDATE_ORIGIN",
     "REBUILD_NORMAL_V2": "REBUILD_NORMAL",
     "REBUILD_REGION_V2": "REBUILD_REGION",
     "VARP_SMALL": "VARP_SMALL",
@@ -100,6 +110,7 @@ CANON_IN = {
     "SET_PLAYER_OP": "SET_PLAYER_OP",
     "UPDATE_STAT_V2": "UPDATE_STAT",
     "RUNCLIENTSCRIPT": "RUNCLIENTSCRIPT",
+    "TRIGGER_ONDIALOGABORT": "TRIGGER_ONDIALOGABORT",
     "MESSAGE_GAME": "MESSAGE_GAME",
     "CHAT_FILTER_SETTINGS": "CHAT_FILTER_SETTINGS",
     "HINT_ARROW": "HINT_ARROW",
@@ -124,10 +135,27 @@ CANON_OUT = {
     "MOVE_MINIMAPCLICK": "MOVE_MINIMAPCLICK",
     "IF_BUTTON": "IF_BUTTON",
     "IF_BUTTOND": "INV_BUTTOND",
+    # The two the whole OPHELD*/INV_BUTTON*/IF_BUTTON1..10 family collapses
+    # into. They MUST carry canonical names even though no single canonical
+    # name maps to them one-for-one: `net_out.c` falls back to IF_BUTTONX when
+    # the revision has no row for the name it was asked for, and it can only do
+    # that if the row is reachable. Left as PKTOUT_NAME_NONE, every equip, every
+    # use-on and every tab click is built and then silently dropped.
+    "IF_BUTTONX": "IF_BUTTONX",
+    "IF_SUBOP": "IF_SUBOP",
+    "IF_BUTTONT": "IF_BUTTONT",
+    # The trigger payload is decoded against the authoritative client method
+    # at the mock boundary.  Script CRC -> signature is intentionally kept in
+    # that decoder rather than guessed by this protocol-name generator.
+    "IF_SCRIPT_TRIGGER": "IF_SCRIPT_TRIGGER",
     "CLICKWORLDMAP": "CLICK_WORLD_MAP",
     "RESUME_PAUSEBUTTON": "RESUME_PAUSEBUTTON",
     "CLOSE_MODAL": "CLOSE_MODAL",
     "RESUME_P_COUNTDIALOG": "RESUME_P_COUNTDIALOG",
+    "RESUME_P_NAMEDIALOG": "RESUME_P_NAMEDIALOG",
+    "RESUME_P_STRINGDIALOG": "RESUME_P_STRINGDIALOG",
+    "RESUME_P_COUNTDIALOG_LONG": "RESUME_P_COUNTDIALOG_LONG",
+    "RESUME_P_OBJDIALOG": "RESUME_P_OBJDIALOG",
     "OPNPC1_V2": "OPNPC1",
     "OPNPC2_V2": "OPNPC2",
     "OPNPC3_V2": "OPNPC3",
@@ -194,6 +222,32 @@ NO_PROT_OUT = {
     "IF_BUTTON8": "IF_BUTTONX with op=8",
     "IF_BUTTON9": "IF_BUTTONX with op=9",
     "IF_BUTTON10": "IF_BUTTONX with op=10",
+}
+
+# Prots present in the authoritative client's own table but absent from
+# RSProt's model. They still need framing rows: treating one as an unknown
+# zero-length packet consumes its first body byte as the next opcode and loses
+# the entire stream. These have no canonical handler; their only contract is
+# the fixed body length observed in the deob's class246 table.
+EXTRA_OUT = {
+    "239": [
+        (11, 7, "ANTICHEAT_11"),
+        (18, 3, "ANTICHEAT_18"),
+        (21, 3, "ANTICHEAT_21"),
+        (25, 7, "ANTICHEAT_25"),
+        (30, 7, "ANTICHEAT_30"),
+        (36, 7, "ANTICHEAT_36"),
+        (41, 3, "ANTICHEAT_41"),
+        (42, 7, "ANTICHEAT_42"),
+        (49, 3, "ANTICHEAT_49"),
+        (68, 7, "ANTICHEAT_68"),
+        (71, 3, "ANTICHEAT_71"),
+        (81, 7, "ANTICHEAT_81"),
+        (88, 7, "ANTICHEAT_88"),
+        (94, 7, "ANTICHEAT_94"),
+        (107, 7, "ANTICHEAT_107"),
+        (109, 7, "ANTICHEAT_109"),
+    ],
 }
 
 BANNER = """/*
@@ -334,6 +388,11 @@ def gen_packetout(rev, rows, src):
         lines.append(f" *   {k:<16} -> {v}")
     lines += [
         " *",
+        " * That list is operational, not just documentation: IF_BUTTONX and",
+        " * IF_SUBOP carry canonical names below, and net_out.c falls back to",
+        " * them for the collapsed classic families. An unmapped row silently",
+        " * makes every corresponding interaction unsendable.",
+        " *",
         " * The login prots (INIT_GAME_CONNECTION, GAMELOGIN, POW_REPLY) are not here:",
         " * they live in a different prot space and are built by the login driver.",
         " */",
@@ -363,6 +422,18 @@ def gen_packetout(rev, rows, src):
             "    { %-36s %4d, %-24s \"%s\" },"
             % (nm + ",", r["code"], size_literal(r["size"], "PKTOUT") + ",", r["name"])
         )
+    extras = EXTRA_OUT.get(str(rev), [])
+    if extras:
+        lines += [
+            "",
+            "    /* Client-table-only fixed packets. These are framing rows; the",
+            "     * mock intentionally drops their bodies after consuming them. */",
+        ]
+        for code, size, name in extras:
+            lines.append(
+                "    { %-36s %4d, %-24s \"%s\" },"
+                % ("PKTOUT_NAME_NONE,", code, str(size) + ",", name)
+            )
     lines += [
         "};",
         "/* clang-format on */",

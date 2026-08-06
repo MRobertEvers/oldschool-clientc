@@ -26,6 +26,57 @@ and known defects are centralized in
 cover the [web build](docs/web_build.md) and the
 [Windows XP D3D9 renderer](docs/windows_xp_d3d9.md).
 
+### Content pipeline
+
+The client boots from a cache, and the cache is built from
+`OSRS-Content/osrs239-content/`:
+
+| Step | Command | Output |
+|---|---|---|
+| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+
+The bake takes `--base` when a pristine cache is present, so records the tree
+does not change keep the bytes they had. **Without a base it creates the cache**,
+and what lands is exactly what the tree states. Aim it elsewhere with:
+
+```
+make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+```
+
+`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+table with no idx file is a table the client cannot read, and `idx255` — the
+reference-table index — is what makes every other table reachable at all.
+
+### Booting a packed cache
+
+[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
+`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+cache built from content rather than the pristine dump:
+
+```
+make -C src winxp
+src/torirs.exe --manifest manifest_osrs239_packed.ini
+```
+
+Two things a from-scratch cache needs that a `--base` bake inherits for free,
+both of which the packer now does:
+
+- **`idx255` reference tables.** An archive is only reachable through one.
+- **Archive name identifiers.** The client resolves a sprite by hashing its
+  name (djb2) and scanning `archives[i].identifier`; without those identifiers,
+  name-addressed cache content is silently absent.
+
+Headless verification proves the cache is bootable rather than merely complete:
+
+```
+TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
+    src/torirs.exe --manifest manifest_osrs239_packed.ini
+```
+
 ## Engine notes
 
 The remaining material is an engineering notebook, not a platform build or
@@ -2358,16 +2409,16 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 - `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
   transform (multiloc) table, and the shape -> model groups the build selects
   from. Reach for it when a loc looks like it is in the wrong place: a
-  misaligned shape/model table hands back a *different object* at the correct
+  misaligned shape/model table hands back a _different object_ at the correct
   position, and a multiloc's transform target can disagree with the base about
   the footprint (see the multiloc note under scenery placement below) — neither
   is visible from the placement arithmetic.
 - `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
   (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
-  "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+"x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
   — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
   loc drawn over its own tile", which nothing else can: every other diagnostic
-  reports what the *build* decided, and a loc placed right but drawn wrong is
+  reports what the _build_ decided, and a loc placed right but drawn wrong is
   indistinguishable from one placed wrong until you compare a loc's pick region
   against the terrain picks at the same pixels. Expect a loc's pick centroid to
   sit ~7px above its tile's and ~2px west — that is height parallax, not a
@@ -2502,7 +2553,6 @@ They turn.
 When facing directly back; 3-x-3 column
 When out of range, they turn towards the player.
 Becomes 1-x-5
-
 
 ### Server Vars
 

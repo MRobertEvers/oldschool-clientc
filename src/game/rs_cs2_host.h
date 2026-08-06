@@ -298,6 +298,16 @@ struct RS_CS2Host
     int viewport_zoom;
     int viewport_zoom_max;
 
+    /** VIEWPORT_SETFOV's two arguments, decoded the way the reference client
+     *  decodes them (Statics.method5659: (int)pow(2, arg/256 + 7), falling back
+     *  to 256 when that is <= 0). They are the NEAR and FAR endpoints of a zoom
+     *  interpolated over the world viewport HEIGHT in class159.method5357, not a
+     *  value/max pair — see docs/ORANGE_WEDGE.md 2. Stored alongside the raw
+     *  args (which GETFOV must keep answering); read only by the env-gated
+     *  TORIRS_WEDGE_SCALE experiment in app.c. */
+    int viewport_zoom_near;
+    int viewport_zoom_far;
+
     /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
      *  not read from here). Host-owned so it round-trips like the other
      *  settings values above. */

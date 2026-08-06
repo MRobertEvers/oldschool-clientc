@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -904,6 +905,240 @@ ToriRS_Soft3D_Execute(
     }
 }
 
+/*
+ * Pixel ownership: which draw command last wrote each pixel of a rect.
+ *
+ * TORIRS_PIXOWNER=x0,x1,y0,y1[,RRGGBB] snapshots the rect after every command
+ * and attributes the pixels that changed to that command. Filtering by a final
+ * colour answers the question a screenshot cannot — "what is painting THIS" —
+ * naming the loc id or terrain tile rather than leaving the reader to guess
+ * from a draw-order dump. Written to TORIRS_PIXOWNER_OUT (default stderr) at
+ * frame TORIRS_PIXOWNER_AT (default: the last frame rendered).
+ *
+ * O(commands x rect), so keep the rect small; it is inert unless armed and the
+ * unarmed render loop is untouched.
+ */
+struct PixOwnerRec
+{
+    int cmd_index;
+    int kind;      /* enum ToriRS_RenderCommandKind */
+    int element_id;
+    int loc_id;
+    int terrain;   /* 1 = terrain tile */
+    int tile_x, tile_z, tile_level;
+    int world_x, world_y, world_z;
+};
+
+static int g_pixowner_armed = -1;
+static int g_pixowner_rect[4];
+static int g_pixowner_want_colour = -1;
+static long g_pixowner_at = -1;
+static long g_pixowner_frame;
+static uint32_t* g_pixowner_prev;
+static struct PixOwnerRec* g_pixowner_owner; /* one per rect pixel */
+static int g_pixowner_cmd_index;
+static int g_pixowner_active; /* this frame is the one being recorded */
+
+static int
+soft3d_pixowner_armed(void)
+{
+    if( g_pixowner_armed < 0 )
+    {
+        char const* env = getenv("TORIRS_PIXOWNER");
+        char const* at = getenv("TORIRS_PIXOWNER_AT");
+        char colour[16] = { 0 };
+        g_pixowner_armed = 0;
+        if( env && env[0] )
+        {
+            int got = sscanf(env, "%d,%d,%d,%d,%15s", &g_pixowner_rect[0], &g_pixowner_rect[1],
+                             &g_pixowner_rect[2], &g_pixowner_rect[3], colour);
+            if( got >= 4 )
+            {
+                g_pixowner_armed = 1;
+                if( got >= 5 && colour[0] )
+                    g_pixowner_want_colour = (int)strtol(colour, NULL, 16);
+            }
+        }
+        g_pixowner_at = (at && at[0]) ? strtol(at, NULL, 0) : -1;
+    }
+    return g_pixowner_armed;
+}
+
+static void
+soft3d_pixowner_begin(struct ToriRS_Soft3D* soft)
+{
+    int rect_w = g_pixowner_rect[1] - g_pixowner_rect[0] + 1;
+    int rect_h = g_pixowner_rect[3] - g_pixowner_rect[2] + 1;
+    size_t count;
+
+    g_pixowner_frame++;
+    /* -1 = "the last frame": record every frame and let the final one win. */
+    g_pixowner_active = (g_pixowner_at < 0 || g_pixowner_frame == g_pixowner_at);
+    g_pixowner_cmd_index = 0;
+    if( !g_pixowner_active || rect_w <= 0 || rect_h <= 0 )
+        return;
+    count = (size_t)rect_w * (size_t)rect_h;
+    if( !g_pixowner_prev )
+    {
+        g_pixowner_prev = calloc(count, sizeof(*g_pixowner_prev));
+        g_pixowner_owner = calloc(count, sizeof(*g_pixowner_owner));
+    }
+    if( !g_pixowner_prev || !g_pixowner_owner )
+        return;
+    for( size_t i = 0; i < count; i++ )
+    {
+        g_pixowner_owner[i].cmd_index = -1;
+        g_pixowner_owner[i].element_id = -1;
+        g_pixowner_owner[i].loc_id = -1;
+    }
+    (void)soft;
+}
+
+static void
+soft3d_pixowner_after_command(
+    struct ToriRS_Soft3D* soft,
+    struct ToriRS_RenderCommand const* cmd)
+{
+    int x0 = g_pixowner_rect[0], x1 = g_pixowner_rect[1];
+    int y0 = g_pixowner_rect[2], y1 = g_pixowner_rect[3];
+    int rect_w = x1 - x0 + 1;
+    int index = g_pixowner_cmd_index++;
+
+    if( !g_pixowner_active || !g_pixowner_prev || !g_pixowner_owner )
+        return;
+    if( x1 >= soft->width )
+        x1 = soft->width - 1;
+    if( y1 >= soft->height )
+        y1 = soft->height - 1;
+
+    for( int y = y0; y <= y1; y++ )
+    {
+        for( int x = x0; x <= x1; x++ )
+        {
+            size_t slot = (size_t)(y - y0) * (size_t)rect_w + (size_t)(x - x0);
+            uint32_t now = (uint32_t)soft->pixels[y * soft->stride + x] & 0xFFFFFFu;
+            if( now == g_pixowner_prev[slot] )
+                continue;
+            g_pixowner_prev[slot] = now;
+            g_pixowner_owner[slot].cmd_index = index;
+            g_pixowner_owner[slot].kind = (int)cmd->kind;
+            if( cmd->kind == TORIRSRC_DRAW_MODEL )
+            {
+                g_pixowner_owner[slot].element_id = cmd->u.model.element_id;
+                g_pixowner_owner[slot].terrain = cmd->u.model.pick_terrain ? 1 : 0;
+                g_pixowner_owner[slot].tile_x = cmd->u.model.pick_tile_x;
+                g_pixowner_owner[slot].tile_z = cmd->u.model.pick_tile_z;
+                g_pixowner_owner[slot].tile_level = cmd->u.model.pick_tile_level;
+                g_pixowner_owner[slot].world_x = cmd->u.model.world_position.x;
+                g_pixowner_owner[slot].world_y = cmd->u.model.world_position.y;
+                g_pixowner_owner[slot].world_z = cmd->u.model.world_position.z;
+                /* No loc id here: the renderer has no World to resolve an
+                 * element through. `cmd=` indexes the same stream
+                 * TORIRS_DRAW_ORDER prints, which carries the loc id — that is
+                 * the join, and it keeps this probe free of a world lookup. */
+                g_pixowner_owner[slot].loc_id = -1;
+            }
+            else
+            {
+                g_pixowner_owner[slot].element_id = -1;
+                g_pixowner_owner[slot].loc_id = -1;
+                g_pixowner_owner[slot].terrain = 0;
+            }
+        }
+    }
+}
+
+static void
+soft3d_pixowner_end(void)
+{
+    int x0 = g_pixowner_rect[0], x1 = g_pixowner_rect[1];
+    int y0 = g_pixowner_rect[2], y1 = g_pixowner_rect[3];
+    int rect_w = x1 - x0 + 1;
+    int rect_h = y1 - y0 + 1;
+    char const* out_path;
+    FILE* out;
+
+    if( !g_pixowner_active || !g_pixowner_prev || !g_pixowner_owner )
+        return;
+
+    /* With no TORIRS_PIXOWNER_AT every frame is recorded and every frame
+     * prints; the file is opened "w" so the last frame is what survives, which
+     * is the usual want. Point _OUT at a file rather than reading stderr. */
+    out_path = getenv("TORIRS_PIXOWNER_OUT");
+    out = (out_path && out_path[0]) ? fopen(out_path, "w") : stderr;
+    if( !out )
+        out = stderr;
+
+    fprintf(out, "# pixel owners, rect x%d..%d y%d..%d, frame %ld\n", x0, x1, y0, y1,
+            g_pixowner_frame);
+    if( g_pixowner_want_colour >= 0 )
+        fprintf(out, "# filtered to colour %06x\n", (unsigned)g_pixowner_want_colour);
+    fprintf(out, "# colour cmd kind elem loc terrain tile pixels\n");
+    {
+        /* Aggregate: one row per (owner, colour), sorted by pixel count. */
+        struct Agg
+        {
+            uint32_t colour;
+            struct PixOwnerRec rec;
+            int pixels;
+        };
+        struct Agg* agg = calloc((size_t)rect_w * (size_t)rect_h, sizeof(*agg));
+        int agg_count = 0;
+        if( !agg )
+        {
+            if( out != stderr )
+                fclose(out);
+            return;
+        }
+        for( int i = 0; i < rect_w * rect_h; i++ )
+        {
+            uint32_t colour = g_pixowner_prev[i];
+            struct PixOwnerRec* rec = &g_pixowner_owner[i];
+            int found = -1;
+            if( rec->cmd_index < 0 )
+                continue;
+            if( g_pixowner_want_colour >= 0 && colour != (uint32_t)g_pixowner_want_colour )
+                continue;
+            for( int a = 0; a < agg_count && found < 0; a++ )
+                if( agg[a].colour == colour && agg[a].rec.cmd_index == rec->cmd_index )
+                    found = a;
+            if( found < 0 )
+            {
+                found = agg_count++;
+                agg[found].colour = colour;
+                agg[found].rec = *rec;
+            }
+            agg[found].pixels++;
+        }
+        for( int a = 0; a < agg_count; a++ )
+        {
+            int best = a;
+            for( int b = a + 1; b < agg_count; b++ )
+                if( agg[b].pixels > agg[best].pixels )
+                    best = b;
+            if( best != a )
+            {
+                struct Agg tmp = agg[a];
+                agg[a] = agg[best];
+                agg[best] = tmp;
+            }
+            fprintf(out, "%06x cmd=%d kind=%d elem=%d loc=%d %s", (unsigned)agg[a].colour,
+                    agg[a].rec.cmd_index, agg[a].rec.kind, agg[a].rec.element_id,
+                    agg[a].rec.loc_id, agg[a].rec.terrain ? "TERRAIN" : "loc");
+            if( agg[a].rec.terrain )
+                fprintf(out, " tile=%d,%d L%d", agg[a].rec.tile_x, agg[a].rec.tile_z,
+                        agg[a].rec.tile_level);
+            else
+                fprintf(out, " wpos=%d,%d,%d", agg[a].rec.world_x, agg[a].rec.world_y,
+                        agg[a].rec.world_z);
+            fprintf(out, " pixels=%d\n", agg[a].pixels);
+        }
+        free(agg);
+    }
+    if( out != stderr )
+        fclose(out);
+}
+
 void
 ToriRS_Soft3D_RenderFrame(
     struct ToriRS_Soft3D* soft,
@@ -942,7 +1177,20 @@ ToriRS_Soft3D_RenderFrame(
 
     soft->has_3d = false;
     ToriRS_FrameBegin(frame);
-    while( ToriRS_FrameNextCommand(frame, &cmd) )
-        ToriRS_Soft3D_Execute(soft, &cmd);
+    if( soft3d_pixowner_armed() )
+    {
+        soft3d_pixowner_begin(soft);
+        while( ToriRS_FrameNextCommand(frame, &cmd) )
+        {
+            ToriRS_Soft3D_Execute(soft, &cmd);
+            soft3d_pixowner_after_command(soft, &cmd);
+        }
+        soft3d_pixowner_end();
+    }
+    else
+    {
+        while( ToriRS_FrameNextCommand(frame, &cmd) )
+            ToriRS_Soft3D_Execute(soft, &cmd);
+    }
     ToriRS_FrameEnd(frame);
 }

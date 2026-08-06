@@ -681,7 +681,14 @@ mock230_db_free(void)
     {
         free((void*)g_tables[i].symbol);
         for( int col = 0; col < g_tables[i].column_count; col++ )
+        {
+            struct Mock230DbColumn* column = &g_tables[i].columns[col];
+
+            for( int val = 0; val < column->default_count; val++ )
+                free((void*)column->defaults[val].text);
+            free(column->defaults);
             free((void*)g_tables[i].columns[col].name);
+        }
     }
     free(g_tables);
     g_tables = NULL;
@@ -805,6 +812,11 @@ mock230_db_column_define(
     assert(is_string);
 
     column = &table->columns[col_id];
+    for( int i = 0; i < column->default_count; i++ )
+        free((void*)column->defaults[i].text);
+    free(column->defaults);
+    column->defaults = NULL;
+    column->default_count = 0;
     if( column->name )
         free((void*)column->name);
     column->name = name ? strdup(name) : NULL;
@@ -818,6 +830,34 @@ mock230_db_column_define(
     }
     if( col_id + 1 > table->column_count )
         table->column_count = col_id + 1;
+}
+
+void
+mock230_db_column_defaults_set(
+    struct Mock230DbTable* table,
+    int col_id,
+    const struct Mock230DbValue* values,
+    int count)
+{
+    struct Mock230DbColumn* column;
+
+    assert(table);
+    assert(col_id >= 0);
+    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(count >= 0);
+    assert(values || count == 0);
+
+    column = &table->columns[col_id];
+    for( int i = 0; i < column->default_count; i++ )
+        free((void*)column->defaults[i].text);
+    free(column->defaults);
+    column->defaults = count > 0 ? calloc((size_t)count, sizeof(*column->defaults)) : NULL;
+    column->default_count = column->defaults ? count : 0;
+    for( int i = 0; i < column->default_count; i++ )
+    {
+        column->defaults[i].value = values[i].value;
+        column->defaults[i].text = values[i].text ? strdup(values[i].text) : NULL;
+    }
 }
 
 void

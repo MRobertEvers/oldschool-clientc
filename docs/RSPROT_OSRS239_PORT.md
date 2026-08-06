@@ -5,6 +5,28 @@
 > take for an unmodified OldSchool client to talk to this server**, and how far
 > along that is.
 
+## 0a. `3rd/rsprot` — a standalone C port of RSProt itself
+
+Everything below this point is about the **hand-transcribed** tables in
+`src/net/rev/osrs230/` and `src/net/rev/osrs239/`. As of 2026-08-04 there is
+also `3rd/rsprot/` — a standalone library (unity build, single header, own
+`makefile`, own tests) that ports RSProt's *runtime* rather than transcribing
+one revision's opcode table by hand: `JagByteBuf` (every byte/bit access
+method, all Alt1-3 orders, smart/varint encodings — `rsprot_buf.c`), the
+ISAAC/XTEA/RSA crypto as thin adapters over this project's existing
+`src/net/isaac.c` / `3rd/xteas` / `src/net/rsa.c` rather than a second copy,
+the Huffman chat codec and Base37 name codec (full port), and **generated
+`{name, opcode, size}` prot tables for all 19 revisions RSProt vendors**
+(221..239 — `tools/rsprot_gen_tables.py`, cross-checked against the facts in
+§5a/§5b of this doc). See `3rd/rsprot/README.md` for full scope and status,
+including what is deliberately **not** done yet: message-struct/encoder/
+decoder codec bodies (the ~65k lines of Kotlin under RSProt's `osrs-239-desktop`
+and `osrs-239-model`) and the PLAYER_INFO/NPC_INFO v5 info streams, which
+`mock239_playerinfo.c` (§5c below) still owns. The library is standalone by
+design — it does not yet replace or feed `mock230_wire.c` /
+`src/net/rev/osrs239/` / `3rd/rsareabuf`, which this doc continues to describe
+as they exist today.
+
 ## 0. The one-paragraph state
 
 The revision-239 wire tables, the framing change they need, the login block and
@@ -253,6 +275,60 @@ were wrong with nothing to catch them). It reports **205 failures** against
 **13** at 230 — that gap is the distance to parity, and it is a number that
 comes down as writers land rather than a pass/fail.
 
+## 5c. PLAYER_INFO v5, and the three-way index
+
+`src/net/mock/mock239_playerinfo.c` writes the v5 player stream. It is a
+different **codec** from the classic bitstream, not a different field order,
+so `mock230_encode.c` forks to it before writing a bit rather than branching
+per field.
+
+Two things are sent and they are not the same thing. The **init block** rides
+inside the login REBUILD (30 bits of absolute coord, then 18 bits per other
+index) and seeds the client's 2048-slot table. The **per-tick packet** is four
+byte-aligned bit sections — high-res active, high-res inactive, low-res
+inactive, low-res active — then the extended-info blocks.
+
+Transcribed against RSProt's reference **decoder** (`PlayerInfoClient.kt` in its
+test tree) rather than its 7,600-line production encoder: the decoder is what a
+client actually does, and a wire format is easier to get right by reading what
+consumes it.
+
+`make -C src test-mock239-playerinfo` round-trips the encoder against a decoder
+written independently in the opposite direction. It is mutation-tested: an
+off-by-one in the skip run turns it red. It also turned up a correction worth
+keeping — **an empty bit section emits zero bytes**, so deleting sections 2 and
+3 produces an identical packet. The obvious reading ("four sections, four
+markers on the wire") is wrong and would send someone hunting for separators
+that do not exist.
+
+### The three-way index
+
+The pool is 0-based; the client's player table is **1..2047 with index 0
+unused**. That is one fact with three consumers, and getting it wrong is not
+cosmetic:
+
+- the init block skips the local index, so a local index of 0 skips nothing and
+  writes 2047 entries where the client reads 2046 — every entry after the first
+  lands on the wrong slot, and the block is two bytes too long;
+- PLAYER_INFO's high-resolution section keys on the same index;
+- the **login response** has to state it, because the client learns which slot
+  is itself from there and nowhere else.
+
+`mock230_wire_local_index()` is the one definition so the three cannot disagree.
+The bug that exposed it was arithmetic, not a symptom: REBUILD_NORMAL came out
+at 4616 bytes where 4614 was predicted, and the two-byte gap is exactly
+`(2047 - 2046) * 18 bits` rounded up.
+
+Fixing it surfaced a second, larger one. This server answered login with a bare
+`0x02`, and at 239 that is not "a shorter response" — `LoginResponse.Ok` is 34
+bytes behind a var-byte length, so the client read a length and then **swallowed
+the first 35 bytes of the login burst** as the response body. Nothing errors;
+the client simply never sees the packets it ate, which reads as "the server
+didn't send them".
+
+Verified: client reports `local player index 1`, REBUILD_NORMAL is 4614 bytes,
+PLAYER_INFO is 57.
+
 ## 6. The measured result, and what is left
 
 ```
@@ -279,13 +355,60 @@ reached the same place: `client connected` -> `JS5 session opened at revision
 240` -> the client crashes in its own decode. The server now survives the
 disconnect cleanly rather than dying on SIGPIPE.
 
+### Which RuneLite is the rev-239 client
+
+**1.12.33.** Not what the source history suggests, and the difference matters:
+
+| RuneLite | injected-client revision |
+|---|---|
+| 1.12.34.1 (installed) | 240 |
+| 1.12.34 (tag, "rev239" commits) | **240** |
+| 1.12.33 | **239** |
+
+The commits reading `Update GameVals to 2026-07-29-rev239` are *content data*
+updates — item and npc ids — not the client revision. `injected-client` is
+`runtimeOnly("net.runelite:injected-client:${project.version}")`, and RuneLite
+**republishes that artifact at the same coordinates** when Jagex updates the
+game. So building from the 1.12.34 tag pulls a rev-**240** client: the source
+tag's era does not determine the client's revision, and the only reliable way
+to find out is to ask one. Our JS5 server logs the revision a client announces,
+which is what settled it.
+
+Two smaller findings from the same exercise:
+
+- The jav_config **host allowlist does not exist at 1.12.34** — it was added
+  after. `runelite_patch.py` refuses to patch what it cannot find rather than
+  guessing, which is how this was noticed.
+- RuneLite builds its own client jar **unsigned** (`jarSign SKIPPED`), so a
+  source build needs no unsigning step; only the published jars do.
+
+`tools/runelite_patch.py` now takes `--jar` and `--client-jar`, so it can patch
+an arbitrary pair rather than only the installed RuneLite.
+
+### Where 1.12.33 stops
+
+It passes the revision gate — `mock230: JS5 session opened at revision 239` —
+and then crashes inside its own initialisation before issuing a single JS5
+request:
+
+```
+java.lang.NullPointerException: Cannot read field "ap" because "cq.gh" is null
+    at dl.al(dl.java:89) ... at client.ia(client.java:8272)
+```
+
+Zero requests reached the server, so this is not a response we got wrong. Ruled
+out: plugin-hub plugins built against a newer API (`--safe-mode`, same crash)
+and a `jagexcache` written by the rev-240 client (fresh `cachedir`, same crash).
+What is not ruled out is running a 1.12.33 client jar beside the 1.12.34.1-era
+dependency jars and on-disk RuneLite profile state — the next thing to try is a
+full source build at the 1.12.33 tag with its own dependency set.
+
 Not done, in the order that unblocks the most:
 
-1. **PLAYER_INFO / NPC_INFO v5 are not written.** No vanilla client reaches the
-   world without them. The largest remaining piece, and the one
-   `MULTI_GENERATIONAL_PARITY.md` §5.4 already calls "the biggest new build".
-   They are absent from the 239 writer set, so the server refuses them rather
-   than sending a 230 bitstream a 239 client would read as garbage.
+1. **NPC_INFO v5 is not written**, and PLAYER_INFO v5 carries only the local
+   player — other players are held in low resolution and never promoted, so the
+   high-resolution movement opcodes and the low-to-high transition are read by
+   the client and written by nobody. `mock239_playerinfo.h` says where.
 2. ~~**The server's login block is still the 230 shape.**~~ **Done** — see §5b.
    The server reads `serverVersion`, the OTP discriminator and the XTEA body,
    and checks the RSA encryption-check byte. It does not verify the 23 archive

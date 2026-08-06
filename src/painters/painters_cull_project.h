@@ -15,19 +15,21 @@ painters_cull_project(
     int scene_z,
     int camera_pitch,
     int camera_yaw,
-    int fov,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height,
     void* user);
 
-/** Convenience: bake with toridraw projection + trig callbacks. */
+/** Convenience: bake with toridraw projection + trig callbacks.
+ *  camera_cot16 is the resolved projection multiplier (toridraw_proj_cot16). */
 struct PaintersCullMap*
 painters_cullmap_build_toridraw(
     int radius,
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     const struct ToriDrawTrigFns* trig);
 
 #endif /* PAINTERS_CULL_PROJECT_H */

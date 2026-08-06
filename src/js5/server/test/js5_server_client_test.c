@@ -25,7 +25,13 @@ static uint64_t
 now_ms(void)
 {
 #ifdef _WIN32
-    return (uint64_t)GetTickCount64();
+    static DWORD previous_tick;
+    static uint64_t tick_epoch;
+    DWORD tick = GetTickCount();
+    if( tick < previous_tick )
+        tick_epoch += (uint64_t)1u << 32u;
+    previous_tick = tick;
+    return tick_epoch + (uint64_t)tick;
 #else
     struct timespec now;
     if( clock_gettime(CLOCK_MONOTONIC, &now) != 0 )

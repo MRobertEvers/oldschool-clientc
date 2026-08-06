@@ -63,7 +63,7 @@ struct ToriDrawModelRasterContext
     int screen_width;
     int screen_height;
     int stride;
-    int camera_fov;
+    int camera_cot16;
     struct ToriDraw_TextureMap* texture_map;
     int flags;
     bool allow_near_clip;
@@ -359,7 +359,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -391,7 +391,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -422,7 +422,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -488,7 +488,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -518,7 +518,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -547,7 +547,7 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->camera_fov,
+                    ctx->camera_cot16,
                     face,
                     tp_vertex,
                     tm_vertex,
@@ -647,7 +647,7 @@ context_from_handle(
         }
         ctx->near_plane_z = camera->near_plane_z;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
-        ctx->camera_fov = camera->fov_rpi2048;
+        ctx->camera_cot16 = toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
         ctx->cache_texture_id = -1;
         ctx->cache_texels = NULL;

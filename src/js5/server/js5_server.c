@@ -53,12 +53,54 @@ static uint64_t
 js5_server_now_ms(void)
 {
 #ifdef _WIN32
-    return (uint64_t)GetTickCount64();
+    /* GetTickCount64 is newer than the Windows XP target. The server reactor
+     * is single-threaded, so extending the 32-bit XP clock here is sufficient
+     * to preserve monotonic timeout accounting across its 49-day wrap. */
+    static DWORD previous_tick;
+    static uint64_t tick_epoch;
+    DWORD tick = GetTickCount();
+    if( tick < previous_tick )
+        tick_epoch += (uint64_t)1u << 32u;
+    previous_tick = tick;
+    return tick_epoch + (uint64_t)tick;
 #else
     struct timespec now;
     if( clock_gettime(CLOCK_MONOTONIC, &now) != 0 )
         return 0u;
     return (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u;
+#endif
+}
+
+static bool
+js5_server_parse_ipv4(const char* text, struct in_addr* address)
+{
+#ifdef _WIN32
+    /* inet_pton is unavailable on XP. inet_addr is sufficient here because
+     * the dedicated server deliberately accepts numeric IPv4 bind addresses. */
+    unsigned long encoded = inet_addr(text);
+    if( encoded == INADDR_NONE && strcmp(text, "255.255.255.255") != 0 )
+        return false;
+    address->s_addr = encoded;
+    return true;
+#else
+    return inet_pton(AF_INET, text, address) == 1;
+#endif
+}
+
+static void
+js5_server_format_peer(
+    const struct sockaddr_in* peer_address,
+    char* peer,
+    size_t peer_size)
+{
+#ifdef _WIN32
+    /* inet_ntop is unavailable on XP. Copy inet_ntoa's static result before
+     * the reactor performs another address conversion. */
+    const char* text = inet_ntoa(peer_address->sin_addr);
+    snprintf(peer, peer_size, "%s", text ? text : "peer");
+#else
+    if( !inet_ntop(AF_INET, &peer_address->sin_addr, peer, peer_size) )
+        snprintf(peer, peer_size, "peer");
 #endif
 }
 
@@ -193,7 +235,7 @@ js5_server_open_listener(const struct Js5ServerConfig* config)
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_port = htons(config->port);
-    if( inet_pton(AF_INET, config->bind_address, &address.sin_addr) != 1 ||
+    if( !js5_server_parse_ipv4(config->bind_address, &address.sin_addr) ||
         bind(listener, (struct sockaddr*)&address, sizeof(address)) != 0 ||
         listen(listener, (int)config->backlog) != 0 ||
         !js5_server_set_nonblocking(listener) )
@@ -276,12 +318,10 @@ js5_server_accept_clients(
             continue;
         }
         clients[slot].socket = socket;
-        if( !inet_ntop(
-                AF_INET,
-                &peer_address.sin_addr,
-                clients[slot].peer,
-                sizeof(clients[slot].peer)) )
-            snprintf(clients[slot].peer, sizeof(clients[slot].peer), "peer");
+        js5_server_format_peer(
+            &peer_address,
+            clients[slot].peer,
+            sizeof(clients[slot].peer));
         if( config->verbose )
             fprintf(
                 stderr,
