@@ -55,9 +55,25 @@ OUT_DIR = os.path.join(REPO_ROOT, "3rd", "rsprot", "gen", "codec")
 # they are stateful multi-packet subsystems (bit-packed avatar streams with
 # their own per-observer state machines) that need a hand port, not codegen.
 EXCLUDE_DIR_PARTS = (
-    "playerinfo",
-    "npcinfo",
+    # The per-observer extended-info blocks: appearance, movement, hits. These
+    # are bit-packed streams with their own state machines, not flat encoders.
+    "extendedinfo",
     "worldentity",
+)
+
+# The info STREAMS themselves, by class name.
+#
+# This used to be a directory exclusion covering all of `playerinfo/` and
+# `npcinfo/`, which was too coarse: `SetNpcUpdateOriginEncoder` lives in
+# `npcinfo/` and is an ordinary flat encoder. Excluding it by folder made a
+# perfectly generatable packet look like one RSProt does not carry, and it was
+# reported that way. Naming the stateful classes says what is actually being
+# excluded and why, and lets a flat encoder sharing their folder through.
+EXCLUDE_CLASSES = (
+    "PlayerInfoEncoder",
+    "NpcInfoLargeV5Encoder",
+    "NpcInfoSmallV5Encoder",
+    "DesktopLowResolutionChangeEncoder",
 )
 
 # Encoder/decoder classes with no encode()/decode() body at all (NoOp, or a
@@ -297,8 +313,19 @@ class ExprParser:
         raise SyntaxError(f"unexpected token {v!r}")
 
 
+# Kotlin's cast/smart-cast: `value as String`, `value as IntArray`,
+# `value as Array<*>`. It narrows a static type and moves no bytes, so for a
+# generator it is punctuation -- the C field already has one concrete type. The
+# expression parser has no grammar for it and reported "trailing tokens", which
+# reads like a malformed encoder rather than an unmodelled keyword.
+#
+# Anchored on ` as ` followed by a capitalised type name so it cannot eat an
+# identifier that merely contains "as".
+_AS_CAST_RE = re.compile(r"\s+as\s+[A-Z]\w*(?:<[^>]*>)?(?:\?)?")
+
+
 def parse_expr(text):
-    return ExprParser(tokenize(text)).parse()
+    return ExprParser(tokenize(_AS_CAST_RE.sub("", text))).parse()
 
 
 # --- statement-level splitting -----------------------------------------------
@@ -374,7 +401,16 @@ CLASS_RE = re.compile(
     r"(MessageEncoder|MessageDecoder|ZoneProtEncoder|NoOpMessageEncoder)\s*<\s*([\w.]+)\s*>",
 )
 
-PROT_RE = re.compile(r"override val prot:\s*\w+\s*=\s*([\w.]+)")
+# Kotlin spells this two ways and both appear in the vendored tree:
+#
+#     override val prot: ServerProt = GameServerProt.IF_OPENTOP
+#     override val prot: ServerProt
+#         get() = GameServerProt.SET_NPC_UPDATE_ORIGIN
+#
+# Matching only the first made the second look like a class with no prot at
+# all, which the driver reports as "no prot name in any revision" -- a refusal
+# that reads like RSProt does not carry the packet.
+PROT_RE = re.compile(r"override val prot:\s*\w+\s*(?:=|\n?\s*get\(\)\s*=)\s*([\w.]+)")
 
 
 def find_method_body(src, method_name, has_buffer_first_param):
@@ -494,6 +530,105 @@ class Unsupported(Exception):
     pass
 
 
+WHEN_HEAD_RE = re.compile(r"^when\s*\(\s*(.*?)\s*\)\s*\{(.*)\}\s*$", re.S)
+
+
+def parse_when(s, is_decoder):
+    """`when (subject) { label -> {...}  else -> {...} }` -> a switch IR op.
+
+    Two shapes appear in the vendored tree and only one is modelled here:
+
+      * `when (type) { 'W' -> ...; else -> ... }` — the subject is a VALUE, and
+        if it is a field the codec already transferred, decoding can switch on
+        it exactly as encoding does. This is the shape that generates.
+
+      * `when (entry) { is AddedEntry -> ...; is RemovedEntry -> ... }` — the
+        subject is a SEALED TYPE and there is no discriminator field at all.
+        Each arm merely happens to write a distinguishing first byte, so
+        decoding would have to infer the arm from that byte. That is the
+        generator guessing semantics rather than transcribing them, and a wrong
+        guess encodes correctly and decodes into the wrong union arm. Refused
+        by name; see docs/RSPROT_CODEC_GENERATOR_PLAN.md §4.
+    """
+    m = WHEN_HEAD_RE.match(s)
+    if not m:
+        raise Unsupported(f"when-statement not understood: {s[:60]}")
+    subject_text, body = m.groups()
+
+    if subject_text.startswith("val "):
+        # `when (val u = message.updateType)` — a binding subject. The binding
+        # is only a name for the subject expression; take what it binds to.
+        subject_text = subject_text.split("=", 1)[1].strip()
+
+    arms = []
+    for label, arm_body in _split_when_arms(body):
+        if label.startswith("is "):
+            raise Unsupported(
+                f"when over a sealed type ({label.strip()}): no discriminator "
+                f"field on the wire, so decoding would have to infer the arm")
+        arms.append({
+            "labels": None if label.strip() == "else" else
+                      [parse_expr(p.strip()) for p in _split_top_commas(label)],
+            "body": parse_block(arm_body, is_decoder),
+        })
+    return {
+        "op": "when",
+        "subject": parse_expr(subject_text),
+        "arms": arms,
+    }
+
+
+def _split_top_commas(text):
+    out, depth, cur = [], 0, []
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        out.append("".join(cur))
+    return out
+
+
+def _split_when_arms(body):
+    """Yield (label, arm-body) for each `label -> { ... }` or `label -> stmt`."""
+    arms, i, n = [], 0, len(body)
+    while i < n:
+        arrow = body.find("->", i)
+        if arrow < 0:
+            break
+        label = body[i:arrow].strip()
+        j = arrow + 2
+        while j < n and body[j] in " \t\r\n":
+            j += 1
+        if j < n and body[j] == "{":
+            depth, k = 0, j
+            while k < n:
+                if body[k] == "{":
+                    depth += 1
+                elif body[k] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k += 1
+            arms.append((label, body[j + 1:k]))
+            i = k + 1
+        else:
+            k = body.find("\n", j)
+            if k < 0:
+                k = n
+            arms.append((label, body[j:k]))
+            i = k
+    if not arms:
+        raise Unsupported("when-statement with no arms")
+    return arms
+
+
 def parse_statements(chunks, is_decoder):
     ops = []
     i = 0
@@ -519,6 +654,8 @@ def parse_one(s, is_decoder):
         return parse_for(s, is_decoder)
     if s.startswith("if (") or s.startswith("if("):
         return parse_if_stmt(s, is_decoder)
+    if s.startswith("when (") or s.startswith("when("):
+        return parse_when(s, is_decoder)
     if s.startswith("return "):
         return parse_return(s)
     if s == "continue" or s == "break":
@@ -1129,6 +1266,11 @@ def emit_call(ast, scope, ctx):
         # (Type) cast -- values are already the right C width.
         return emit_expr(recv, scope, ctx)
 
+    if name == "wrap" and len(args) == 1:
+        # `CharBuffer.wrap(types)` — an adapter so JagByteBuf's pjstr can take a
+        # CharSequence. It changes no bytes; the argument is the string.
+        return emit_expr(args[0], scope, ctx)
+
     if name == "coerceAtMost":
         a = emit_expr(recv, scope, ctx)
         b = emit_expr(args[0], scope, ctx)
@@ -1152,6 +1294,14 @@ def emit_call(ast, scope, ctx):
         if target_scope is not None and len(args) == 1:
             field = c_escape_ident(deprefix_getter(name))
             idx_c = emit_expr(args[0], scope, ctx)
+            # Subscripting a field already known to be a STRING is not an
+            # indexed array accessor -- it is Kotlin reading a character out of
+            # a CharSequence, which this generator does not model. Registering
+            # it as an int32_t array anyway emitted `m->types[i]` against a
+            # `const char *` and produced C that did not compile.
+            if target_scope.fields.get(field) == "const char *":
+                raise Unsupported(
+                    f"`{field}[i]` indexes a string; character access is not modelled")
             target_scope.add_field(field, "int32_t")
             target_scope.array_fields.setdefault(field, True)
             ptr = struct_ptr_expr(target_scope, ctx)
@@ -1184,6 +1334,39 @@ _INT_LITERAL_RE = re.compile(r"^-?(?:0[xX][0-9a-fA-F]+|\d+)$")
 
 def _is_int_literal_c(expr_c):
     return bool(_INT_LITERAL_RE.match(expr_c.strip()))
+
+
+def _match_offset_expr(ast, scope, ctx):
+    """`<field> + N` / `<field> - N` -> (field_c, delta), else None.
+
+    Deliberately shallow. Only a binary +/- whose left side resolves to a
+    single field and whose right side is an integer literal: that is the shape
+    RSProt uses for "0 means absent" fields, and its inverse is exact. Anything
+    deeper (a shift, a second field, a nested arithmetic) is not obviously
+    invertible and stays refused.
+    """
+    if not isinstance(ast, dict) or ast.get("kind") != "bin":
+        return None
+    if ast.get("op") not in ("+", "-"):
+        return None
+    left, right = ast.get("left"), ast.get("right")
+    if not (isinstance(right, dict) and right.get("kind") == "num"):
+        return None
+    try:
+        delta = int(right["text"], 0)
+    except (ValueError, KeyError):
+        return None
+    if ast["op"] == "-":
+        delta = -delta
+    # Unwrap the `.toInt()` style casts RSProt puts on map keys.
+    node = left
+    while isinstance(node, dict) and node.get("kind") == "call" and node.get("name") in CAST_CALLS:
+        node = node["recv"]
+    try:
+        base_c = emit_expr(node, scope, ctx)
+    except Unsupported:
+        return None
+    return (base_c, delta)
 
 
 # --- IR -> C statement emission ------------------------------------------------
@@ -1223,6 +1406,34 @@ def gen_op(op, scope, em, indent, ctx):
         fn_kt = op["fn"]
         macro, ctype = wire_c_fn(fn_kt)
         expr_ast = op["expr"]
+
+        # `buffer.p1(if (message.flag) 1 else 0)` IS a boolean field.
+        #
+        # RSProt spells a bool this way rather than calling pboolean, and the
+        # naive reading is "a computed expression", which gets refused because a
+        # ternary has no lvalue to decode into. But the wire form is exactly
+        # what RSPROT_BOOL moves -- one byte, 0 or 1 -- and the field behind the
+        # condition is a perfectly good lvalue. Recognising it turns a refusal
+        # into the right codec.
+        #
+        # Any width-1 write, plain or Alt-transformed. `RSPROT_BOOL` is only
+        # right for plain `p1`, because rsprot_x_boolean writes the value
+        # unmodified -- but the Alt forms compose cleanly anyway: `p1Alt1` of a
+        # 0/1 value puts 128/129 on the wire and `g1Alt1` reads 0/1 back, so the
+        # matching `RSPROT_U1_ALT*` on the same field IS the round trip. The
+        # field is an int32_t holding 0 or 1, which is what BOOL stores too.
+        if fn_kt in ("p1", "g1", "p1Alt1", "g1Alt1", "p1Alt2", "g1Alt2",
+                     "p1Alt3", "g1Alt3") and expr_ast.get("kind") == "ternary":
+            t, e = expr_ast.get("then"), expr_ast.get("els")
+            if (t and e and t.get("kind") == "num" and e.get("kind") == "num"
+                    and t.get("text") == "1" and e.get("text") == "0"):
+                _pre_register(expr_ast["cond"], scope, "int32_t", ctx)
+                cond_c = emit_expr(expr_ast["cond"], scope, ctx)
+                if _is_lvalue_c(cond_c):
+                    bool_macro = "RSPROT_BOOL" if fn_kt in ("p1", "g1") else macro
+                    em.emit(f"{bool_macro}(x, {cond_c});", indent)
+                    em.mark_transferred(cond_c)
+                    return
         # register the field if the expr is a direct field/member reference
         _pre_register(expr_ast, scope, ctype, ctx)
         expr_c = emit_expr(expr_ast, scope, ctx)
@@ -1232,6 +1443,18 @@ def gen_op(op, scope, em, indent, ctx):
         # is a computed expression rather than a plain field reference has no
         # lvalue to hand it, so it is refused here instead of being emitted as
         # something that would only work while encoding.
+        # `p2Alt1(getId(obj) + 1)` / `p1(key - 1)`: the wire value differs from
+        # the field by a constant. Invertible, so both directions are exact --
+        # unlike a general computed expression, which is refused below.
+        xf = _match_offset_expr(expr_ast, scope, ctx)
+        if xf is not None:
+            base_c, delta = xf
+            if _is_lvalue_c(base_c) and macro.startswith("RSPROT_"):
+                em.emit(
+                    f"RSPROT_XFORM(x, {macro[len('RSPROT_'):]}, {base_c}, {delta});", indent)
+                em.mark_transferred(base_c)
+                return
+
         if not _is_lvalue_c(expr_c):
             # A literal the layout pins (a format byte, a reserved zero) has no
             # field behind it, but it IS a wire field. RSPROT_CONST carries it:
@@ -1373,22 +1596,122 @@ def gen_op(op, scope, em, indent, ctx):
             raise Unsupported("for-each over an unresolved iterable")
         owner, segs = path
         field = flatten_field_name(segs)
-        elem_struct = f"Rsprot_{c_escape_ident(scope.struct_name)}_{c_escape_ident(field)}Elem"
+        # NOT c_escape_ident'd. `scope.struct_name` is already a C identifier,
+        # and running it through the snake_case fold here produced
+        # `Rsprot_rsprot_msg_if_resync_v2_eventsElem` for the typedef while
+        # render_struct spelled the field's type `Rsprot_RsprotMsg_IfResyncV2_
+        # eventsElem` from the raw name -- two names for one struct, and a file
+        # that does not compile. `field` arrives already escaped by
+        # flatten_field_name.
+        elem_struct = f"Rsprot_{scope.struct_name}_{field}Elem"
         child = Scope(elem_struct, parent=scope, recv_name=op["var"])
         owner.add_field(field, "int32_t")
         owner.array_fields[field] = child
         owner.count_field_for[field] = f"{field}_count"
         elem_var = c_escape_ident(op["var"])
         ptr = struct_ptr_expr(owner, ctx)
-        em.emit(
-            f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {ptr}->{field}_count; rs_i_{elem_var}++) {{",
-            indent,
-        )
-        decl_kw = "const " if ctx == "encode" else ""
-        em.emit(f"{decl_kw}{elem_struct} *elem = ({decl_kw}{elem_struct} *)&{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
+
+        # THE BRANCH RULE, in loop form.
+        #
+        # The loop is bounded by `<field>_count`, and that only means anything
+        # while decoding if the count came off the wire FIRST. RSProt's trailing
+        # arrays are often written with no count at all -- the reader consumes
+        # to the end of a VAR_SHORT payload -- and a generated loop over an
+        # untransferred count reads an uninitialised bound and then walks an
+        # array that was never allocated.
+        #
+        # Refused rather than emitted, same as the `if` case: encoding would
+        # work (the caller set the count) and decoding would be memory
+        # corruption, which is the worst possible split.
+        count_expr = f"{ptr}->{field}_count"
+        if count_expr in em.transferred:
+            em.emit(
+                f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {count_expr}; "
+                f"rs_i_{elem_var}++) {{",
+                indent,
+            )
+        else:
+            # No count on the wire: the array runs to the end of the payload.
+            # RSPROT_MORE reconciles the two directions -- the caller's count
+            # drives encoding, the remaining bytes drive decoding -- and bounds
+            # decoding by the caller's buffer. See rsprot_exec.h.
+            em.emit(
+                f"for (int32_t rs_i_{elem_var} = 0; "
+                f"RSPROT_MORE(x, {count_expr}, rs_i_{elem_var}, "
+                f"{RSPROT_ARRAY_CAP}); rs_i_{elem_var}++) {{",
+                indent,
+            )
+        # No `const`: one codec runs in both directions, so an element the
+        # encoder reads is the same element the decoder writes.
+        em.emit(f"{elem_struct} *elem = &{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
         scope.locals[op["var"]] = ("elem_alias", child)
         gen_ops(op["body"], child, em, indent + 1, ctx)
         del scope.locals[op["var"]]
+        em.emit("}", indent)
+        return
+
+    if kind == "when":
+        # A tagged-union payload is a switch, and the discriminator has to be a
+        # field the codec already moved -- the same rule `if` obeys, for the
+        # same reason. `RSPROT_BRANCH` is the enforcement point.
+        untransferred = _cond_untransferred_fields(op["subject"], scope, em, ctx)
+        if untransferred:
+            raise Unsupported(
+                f"when switches on {', '.join(sorted(untransferred))}, which "
+                f"{'has' if len(untransferred) == 1 else 'have'} not been "
+                f"transferred yet")
+        subj_c = emit_expr(op["subject"], scope, ctx)
+        em.emit(f"switch (RSPROT_BRANCH(x, {subj_c})) {{", indent)
+        for arm in op["arms"]:
+            if arm["labels"] is None:
+                em.emit("default: {", indent)
+            else:
+                for lbl in arm["labels"]:
+                    em.emit(f"case {emit_expr(lbl, scope, ctx)}: {{", indent)
+            gen_ops(arm["body"], scope, em, indent + 1, ctx)
+            em.emit("} break;", indent)
+        em.emit("}", indent)
+        return
+
+    if kind == "for_each_pair":
+        # `for ((key, value) in someMap)`.
+        #
+        # Structurally identical to for_each -- a counted loop over an element
+        # struct -- with the element holding two named members instead of the
+        # loop variable's own fields. The map's ORDER is the wire order, which
+        # is why this decodes at all: a C array of {key, value} preserves it
+        # where a hash map would not.
+        path = resolve_path(op["iter"], scope)
+        if path is None or not path[1]:
+            raise Unsupported("for-each-pair over an unresolved map")
+        owner, segs = path
+        field = flatten_field_name(segs)
+        elem_struct = f"Rsprot_{scope.struct_name}_{field}Elem"
+        child = Scope(elem_struct, parent=scope, recv_name=None)
+        owner.add_field(field, "int32_t")
+        owner.array_fields[field] = child
+        owner.count_field_for[field] = f"{field}_count"
+        ptr = struct_ptr_expr(owner, ctx)
+
+        count_expr = f"{ptr}->{field}_count"
+        if count_expr not in em.transferred:
+            raise Unsupported(
+                f"map `{field}` is bounded by {field}_count, which is never "
+                f"transferred -- decoding cannot know how many pairs to read")
+
+        em.emit(
+            f"for (int32_t rs_i_{field} = 0; rs_i_{field} < {count_expr}; rs_i_{field}++) {{",
+            indent)
+        em.emit(f"{elem_struct} *elem = &{ptr}->{field}[rs_i_{field}];", indent + 1)
+        # The two destructured names resolve to fields on the element struct,
+        # so `key` and `value` in the body read as `elem->key` / `elem->value`.
+        scope.locals[op["key"]] = ("field", "elem", "key")
+        scope.locals[op["val"]] = ("field", "elem", "value")
+        child.add_field("key", "int32_t")
+        child.add_field("value", "const char *")
+        gen_ops(op["body"], child, em, indent + 1, ctx)
+        del scope.locals[op["key"]]
+        del scope.locals[op["val"]]
         em.emit("}", indent)
         return
 
@@ -1445,10 +1768,23 @@ def _collect_field_refs(ast, scope, ctx, out):
 def _cond_untransferred_fields(cond_ast, scope, em, ctx):
     refs = set()
     _collect_field_refs(cond_ast, scope, ctx, refs)
-    # A count field is transferred by its own length prefix, which the array
-    # handling emits separately; not a branch-rule violation.
-    return {r for r in refs
-            if r not in em.transferred and not r.endswith("_count")}
+
+    def satisfied(r):
+        if r in em.transferred or r.endswith("_count"):
+            return True
+        # A guard over an ARRAY whose count is already on the wire.
+        #
+        #     buffer.p1Alt1(opCount)              <- count transferred
+        #     if (!ops.isNullOrEmpty()) { for (...) }
+        #
+        # The predicate names `ops`, which is never itself transferred, so the
+        # naive check calls this a branch-rule violation. It is not: the guard
+        # is redundant with the loop bound, and the bound came off the wire.
+        # Decoding reads the count and loops that many times, which is exactly
+        # what the guard was protecting.
+        return f"{r}_count" in em.transferred
+
+    return {r for r in refs if not satisfied(r)}
 
 
 def _try_null_flag_idiom(op, scope, em, indent, ctx):
@@ -1513,13 +1849,28 @@ def emit_cond(ast, scope, ctx):
                     owner, field = info[1], info[2]
                     cnt = f"{struct_ptr_expr(scope, ctx)}->{field}_count"
             if cnt is None:
-                target_scope = resolve_recv_scope(a["recv"], scope)
-                if target_scope is not None:
-                    fname = None
-                    # bare `message.isNullOrEmpty()`-style not expected; skip
+                # `val ops = message.ops` binds an alias_path, not a count
+                # alias, so the lookup above misses it -- but the array's own
+                # `<field>_count` is exactly what "is it empty" asks about.
+                # Resolving through the path is what lets
+                # `if (!ops.isNullOrEmpty())` compile to a count test.
+                path = resolve_path(a["recv"], scope)
+                if path is not None and path[1]:
+                    owner, segs = path
+                    fname = flatten_field_name(segs)
+                    if fname in owner.array_fields:
+                        cnt = f"{struct_ptr_expr(owner, ctx)}->{fname}_count"
                 if cnt is None:
                     raise Unsupported("isNullOrEmpty on unresolved receiver")
-            expr = f"({cnt} > 0)"
+            # `expr` must mean isNullOrEmpty ITSELF -- that is, "the collection
+            # is absent or has no elements" -- so that the `negate` flag from a
+            # leading `!` flips it correctly.
+            #
+            # This previously built `(cnt > 0)`, which is already the negation,
+            # and then negated it again for `!isNullOrEmpty()`. The result ran
+            # the loop exactly when the collection was EMPTY. Nothing caught it
+            # until LOC_ADD_CHANGE became the first packet to use the construct.
+            expr = f"({cnt} == 0)"
             return f"(!{expr})" if negate else expr
         return None
 
@@ -1620,7 +1971,9 @@ def render_struct(scope, struct_c_name):
             lines.append(f"\tint32_t {name}_count;")
         elif isinstance(av, Scope):
             elem_name = f"Rsprot_{struct_c_name}_{name}Elem"
-            lines.append(f"\tconst {elem_name} *{name};")
+            # Not const: one codec runs both directions, so the decoder writes
+            # through this pointer.
+            lines.append(f"\t{elem_name} *{name};")
             lines.append(f"\tint32_t {name}_count;")
         else:
             lines.append(f"\t{ctype} {name};")
@@ -1670,6 +2023,22 @@ def build_message(info, msg_type, fn_suffix):
     ops = parse_statements(chunks, info["is_decoder"])
     gen_ops(ops, scope, em, 1, ctx)
 
+    # A field cannot be both a string and an indexed array.
+    #
+    # RUNCLIENTSCRIPT writes `pjstr(types)` and then reads `types[i]` as a
+    # per-argument discriminator: one Kotlin field used as a CharSequence and as
+    # a subscriptable sequence. The two registrations happen in either order
+    # depending on which statement is seen first, so catching it at the use site
+    # only worked half the time -- and the half that got through emitted
+    # `m->types[i]` against a `const char *` and did not compile. Checked here,
+    # after the whole body, where the order cannot hide it.
+    for _sc in [scope] + [c for c in scope.array_fields.values() if isinstance(c, Scope)]:
+        for _f, _t in _sc.fields.items():
+            if _t == "const char *" and _f in _sc.array_fields:
+                raise Unsupported(
+                    f"`{_f}` is used as both a string and an indexed array; "
+                    f"character access into a transferred string is not modelled")
+
     struct_text = render_all_structs(scope, msg_type)
     # The body only; the caller wraps it in a per-version signature, because
     # one message type has several layouts and each needs its own function.
@@ -1711,6 +2080,12 @@ def process_dir(base_dir, label):
             continue
         if info is None:
             continue  # not a recognizable Encoder/Decoder class -- e.g. a helper file
+        if info["class"] in EXCLUDE_CLASSES:
+            skipped.append((rel, "stateful info stream -- see EXCLUDE_CLASSES"))
+            continue
+        if info["class"] in REFUSE_CLASSES:
+            skipped.append((rel, REFUSE_CLASSES[info["class"]]))
+            continue
         msg_type = info["msg_type"]
         fn_suffix = class_fn_suffix(info["class"])
         try:
@@ -1795,7 +2170,48 @@ REV_LO, REV_HI = 221, 239
 #
 # A name here that stops matching a hand-written file is reported, not ignored:
 # silently skipping a packet nobody wrote is how a gap becomes permanent.
-HAND_WRITTEN_PROTS = {"IF_OPENTOP"}
+HAND_WRITTEN_PROTS = {
+    "IF_OPENTOP",
+    # The five this generator cannot model, hand-written into packets/ instead.
+    # Each file's header states which construct defeated the generator AND what
+    # the decode rule is -- which is the point of writing them out rather than
+    # teaching the generator to infer. See docs/RSPROT_CODEC_GENERATOR_PLAN.md.
+    "UPDATE_INV_FULL",     # accessors on a packed value + clamp-with-escape
+    "UPDATE_INV_PARTIAL",  # the above, plus a count-less entry list
+    "UPDATE_FRIENDLIST",   # sealed-type `when`; the tag is world_id > 0
+    "UPDATE_IGNORELIST",   # sealed-type `when`; the tag is the 0x4 bit
+    "RUNCLIENTSCRIPT",     # character access into a transferred string
+}
+
+# Capacity a generated codec assumes for a COUNT-LESS array -- one whose length
+# is the payload's length rather than a field.
+#
+# The number is a contract with the caller, not a guess: a caller decoding one
+# of these packets must supply a buffer of at least this many elements, and the
+# codec fails the exec rather than writing past it. It appears in the generated
+# header beside the field so the requirement is visible where the struct is.
+#
+# 256 because every count-less array at 239 is a per-slot or per-entry list
+# bounded by an interface's component count or a friend list's size, and both
+# are far below it; a payload long enough to carry more would have to be larger
+# than the VAR_SHORT frame allows.
+RSPROT_ARRAY_CAP = 256
+
+# Classes whose layout this generator can parse but cannot model correctly, and
+# which must be refused rather than emitted.
+#
+# RunClientScript writes a `types` STRING and then subscripts it -- `types[i]` --
+# as the per-argument discriminator, so one field is a CharSequence and a
+# subscriptable sequence at once. The parser accepts both spellings and emits
+# `m->types[i]` against a `const char *`, which does not compile; the several
+# narrower guards tried first each caught only the registration order they were
+# written for. Character access into a transferred string is the missing
+# feature, and until it exists a refusal is the honest output.
+#
+# Everything else in this file refuses at the construct that defeats it. This
+# list is for the case where the construct is recognised too late to refuse
+# cleanly, and it should stay short -- a name here is a TODO, not a policy.
+REFUSE_CLASSES = {}
 
 
 def load_ledger(path=LEDGER_PATH):
@@ -2166,47 +2582,77 @@ def main():
         # the struct has no wire meaning -- the codec names fields explicitly --
         # so this only has to be stable, and ascending revision makes a diff
         # between two generator runs track the source rather than dict order.
-        flat = all(not by_rev[r]["scope"].array_fields for r in rev_to_ver)
-        if flat:
-            union = {}
-            for rev in sorted(rev_to_ver):
-                for fname, ctype in by_rev[rev]["scope"].fields.items():
-                    if fname in union and union[fname] != ctype:
-                        # Same name, two C types across revisions. Not
-                        # mergeable, and picking one would silently truncate
-                        # the other -- exactly the class of bug this refuses.
-                        union[fname] = None
-                    else:
-                        union.setdefault(fname, ctype)
-            bad = [f for f, t in union.items() if t is None]
-            if bad:
-                refused.append(
-                    (cls, direction, f"field(s) {', '.join(bad)} change C type across revisions"))
-                continue
-            lines = [f"typedef struct {{"]
-            if not union:
-                # A zero-payload packet (SERVER_TICK_END, RESET_ANIMS). C has no
-                # empty struct, so it gets a member nothing reads -- rather than
-                # the packet being refused, because "this packet carries no
-                # bytes" is a layout, not a gap.
-                lines.append("\t/* No payload at any version. C has no empty")
-                lines.append("\t * struct; nothing reads this. */")
-                lines.append("\tint32_t _unused;")
-            for fname, ctype in union.items():
-                sep = "" if ctype.endswith("*") else " "
-                lines.append(f"\t{ctype}{sep}{fname};")
-            struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
-        else:
-            # Arrays/nested element structs: the union rule would have to merge
-            # element structs too. Not modeled, so these still require exact
-            # agreement and are refused (visibly) when they disagree.
-            structs = {by_rev[r]["struct"] for r in rev_to_ver if by_rev[r]["struct"]}
-            if len(structs) > 1:
-                refused.append(
-                    (cls, direction,
-                     f"{len(structs)} disagreeing struct shapes (array/nested -- union not modeled)"))
-                continue
-            struct_text = structs.pop() if structs else None
+        # ONE struct per packet, holding the union of every version's fields.
+        #
+        # The layer above fills a message without knowing the revision, and a
+        # field a version does not carry is simply not transferred. Requiring
+        # the versions to agree instead would refuse every packet that ever
+        # gained a field, which at 239 is most of the interesting ones.
+        #
+        # Ordering: ascending revision, first-seen wins. A field's position has
+        # no wire meaning -- the codec names fields explicitly -- so this only
+        # has to be stable, and ascending revision makes a diff between two
+        # generator runs track the source rather than dict order.
+        union = {}          # field -> ctype, for scalars
+        arrays = {}         # field -> element struct name
+        elem_fields = {}    # element struct name -> {field: ctype}
+        conflict = None
+
+        for rev in sorted(rev_to_ver):
+            sc = by_rev[rev]["scope"]
+            for fname, ctype in sc.fields.items():
+                av = sc.array_fields.get(fname)
+                if av is True:
+                    # An indexed scalar array: `int32_t *f; int32_t f_count;`
+                    arrays.setdefault(fname, None)
+                    continue
+                if isinstance(av, Scope):
+                    arrays.setdefault(fname, av.struct_name)
+                    ef = elem_fields.setdefault(av.struct_name, {})
+                    for en, et in av.fields.items():
+                        if en in ef and ef[en] != et:
+                            conflict = (
+                                f"element field {av.struct_name}.{en} changes C type "
+                                f"across revisions")
+                        ef.setdefault(en, et)
+                    continue
+                if fname in union and union[fname] != ctype:
+                    conflict = f"field {fname} changes C type across revisions"
+                union.setdefault(fname, ctype)
+
+        if conflict:
+            refused.append((cls, direction, conflict))
+            continue
+
+        lines = []
+        # Element structs first: the message struct points at them.
+        for ename in sorted(elem_fields):
+            lines.append(f"typedef struct {ename} {{")
+            for en, et in elem_fields[ename].items():
+                sep = "" if et.endswith("*") else " "
+                lines.append(f"\t{et}{sep}{en};")
+            lines.append(f"}} {ename};")
+            lines.append("")
+
+        lines.append("typedef struct {")
+        if not union and not arrays:
+            # A zero-payload packet. C has no empty struct, so it gets a member
+            # nothing reads -- rather than the packet being refused, because
+            # "this packet carries no bytes" is a layout, not a gap.
+            lines.append("\t/* No payload at any version. C has no empty")
+            lines.append("\t * struct; nothing reads this. */")
+            lines.append("\tint32_t _unused;")
+        for fname, ctype in union.items():
+            sep = "" if ctype.endswith("*") else " "
+            lines.append(f"\t{ctype}{sep}{fname};")
+        for fname in arrays:
+            ename = arrays[fname]
+            # Not const: one codec runs both directions, so the decoder writes
+            # through this pointer.
+            lines.append(f"\t{ename if ename else 'int32_t'} *{fname};")
+            lines.append(f"\tint32_t {fname}_count;")
+        struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
+
         if struct_text is None:
             refused.append((cls, direction, "no struct produced"))
             continue
@@ -2216,10 +2662,21 @@ def main():
         # gives `MsgIfOpenTop`, where re-casing the snake would give
         # `MsgIfOpentop` and lose a word boundary the source already knows.
         msg_struct = f"Msg{class_fn_suffix(cls)}"
+        msg_type = by_rev[max(rev_to_ver)]["msg_type"]
         struct_text = struct_text.replace("}} PLACEHOLDER;", f"}} {msg_struct};")
         struct_text = struct_text.replace(
             "typedef struct {", f"typedef struct {msg_struct} {{", 1)
+        # Exact substring, NOT a \b-anchored regex: the element structs embed
+        # the message name mid-identifier (`Rsprot_RsprotMsg_X_fElem`), where a
+        # word boundary does not match and half the file would keep the old
+        # name while the other half got the new one.
+        struct_text = struct_text.replace(f"RsprotMsg_{msg_type}", msg_struct)
         struct_text = re.sub(r"\bRsprotMsg_\w+\b", msg_struct, struct_text)
+        # The bodies name the element structs too (`Rsprot_RsprotMsg_X_fElem
+        # *elem = ...`), so they take the same rename. Renaming only the struct
+        # text is what left the two halves spelling one type differently.
+        for slot in versions.values():
+            slot["body"] = slot["body"].replace(f"RsprotMsg_{msg_type}", msg_struct)
 
         emit_packet_files({
             "snake": snake, "prot": prot, "cls": cls, "dir": direction,

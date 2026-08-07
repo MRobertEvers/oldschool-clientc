@@ -10,6 +10,21 @@
 #include <string.h>
 
 #include "rsprot_buffer.h"
+#include "rsprot_exec.h"
+
+#include "packets/loc_anim.h"
+#include "packets/loc_del.h"
+#include "packets/loc_merge.h"
+#include "packets/map_anim.h"
+#include "packets/map_projanim_v2.h"
+#include "packets/obj_count.h"
+#include "packets/obj_del.h"
+#include "packets/loc_add_change_v2.h"
+#include "packets/rebuild_normal_v2.h"
+#include "packets/rebuild_region_v2.h"
+#include "packets/update_zone_partial_enclosed.h"
+#include "packets/obj_add.h"
+#include "packets/obj_enabled_ops.h"
 
 /*
  * Revision-239 parse (server -> this client).
@@ -167,11 +182,50 @@ osrs239_zone_name(int ordinal)
 }
 
 /*
- * One zone sub-packet, transcribed from RSProt's zone/payload encoders. Returns
- * 1 on success, 0 for an ordinal this client has no decoder for -- which ends
- * the enclosed walk, because the rest of the stream is unreadable without
- * knowing this record's length.
+ * One zone sub-packet, decoded by the GENERATED rsprot codec for its layout.
+ *
+ * The codecs in `3rd/rsprot/packets/` are the statement of what these bytes
+ * are, per layout version, for every vendored revision. This function used to
+ * re-transcribe all ten of them by hand, which is the thing the codec layer
+ * exists to stop: a second transcription that can disagree with the first and
+ * has nothing to say so.
+ *
+ * A zone sub-packet is decoded from the ENCLOSED stream's shared cursor rather
+ * than from a payload of its own, which is why this does not go through
+ * `rsprot_bridge_parse` like a top-level packet. It does not need to:
+ * `RSProt_Buffer` IS `RsprotBuf`, so an executor can run a codec against this
+ * cursor in place and the reads advance it exactly as the hand-written ones
+ * did. That is the whole reason the buffer types were unified.
+ *
+ * What remains here is the mapping from RSProt's field names to this project's
+ * canonical `Pkt*` structs, plus the handful of real conversions the client
+ * needs (the projectile height scale, the target-index numbering). Those are
+ * adapter decisions, not wire layout, and stating them beside the packet is
+ * where they belong.
+ *
+ * Returns 1 on success, 0 for an ordinal this client has no decoder for --
+ * which ends the enclosed walk, because the rest of the stream is unreadable
+ * without knowing this record's length.
  */
+static int
+zone_run(RSProt_Buffer* c, RsprotVersionRange const* ranges, int count, void* msg)
+{
+    RsprotExec x;
+    RsprotCodecFn fn = rsprot_version_pick(ranges, count, 239);
+
+    if( !fn )
+        return 0;
+    rsprot_exec_decode(&x, c);
+    fn(&x, msg);
+    return rsprot_exec_ok(&x) && !c->err;
+}
+
+#define ZONE_RUN(table, type, var)                                            \
+    type var;                                                                 \
+    memset(&var, 0, sizeof(var));                                             \
+    if( !zone_run(c, table, table##_count, &var) )                            \
+    return 0
+
 static int
 osrs239_read_zone_sub(
     RSProt_Buffer* c,
@@ -181,80 +235,112 @@ osrs239_read_zone_sub(
     out->name = name;
     switch( name )
     {
-    /* LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
-     * p1Alt1 locProperties, p1Alt2 coordInZone, p2Alt3 id.
+    /*
+     * LOC_ADD_CHANGE is the one still decoded by hand. Its rev239 layout iterates a
+     * MAP of (op index, replacement text) pairs and writes the index as `key - 1`,
+     * so generating it needs two constructs the generator does not have: map
+     * iteration (`for_each_pair`, parsed but never emitted) and an offset-encoded
+     * field, which has no lvalue for the decode direction to write back through.
+     * Both are features, not bugs; OBJ_ADD was the bug and is generated now.
      *
-     * `opCount` leads, and a non-zero count is followed by that many
-     * `p1 op-1, pjstr text` pairs that REPLACE the loctype's own right-click
-     * options. Skipping the pairs rather than assuming zero is what keeps the
-     * cursor honest for the next record in the enclosed stream. */
+     * The old note follows: it is the one that
+     * cannot be generated yet: its layout carries a COUNTED ARRAY of
+     * `p1 op-1, pjstr text` pairs replacing the loctype's right-click options,
+     * and the generator refuses array/nested element structs rather than emit a
+     * struct union it cannot model (see tools/rsprot_gen_codec.py). Skipping the
+     * pairs rather than assuming zero is what keeps the cursor honest for the
+     * next record in the enclosed stream.
+     *
+     * LocAddChangeV2Encoder: p1Alt1 opCount, [ops], p1Alt3 opFlags,
+     * p1Alt1 locProperties, p1Alt2 coordInZone, p2Alt3 id.
+     */
     case PKT_NAME_LOC_ADD_CHANGE:
     {
-        int op_count = RSProt_BufferG1_add128(c);
+        /*
+         * The op array decodes into a caller-provided buffer: the codec loops
+         * `ops_count` times writing through `m.ops`, and nothing else allocates
+         * it.
+         *
+         * 256 entries, and the size is the safety argument rather than a
+         * guess. `opCount` is a single byte (`p1Alt1`), so it cannot exceed 255
+         * whatever the wire says — the buffer cannot be overrun by a malformed
+         * packet. Checking the count after the fact would be too late: the
+         * codec reads it and loops on it in the same call.
+         *
+         * The op text is borrowed into the payload and dropped, because
+         * PktLocAddChange has no home for replacement right-click options. The
+         * hand-written decoder read and freed them for the same reason.
+         */
+        Rsprot_MsgLocAddChangeV2_opsElem ops[256];
+        MsgLocAddChangeV2 m;
 
-        for( int i = 0; i < op_count && !c->err; i++ )
-        {
-            (void)RSProt_BufferG1(c); /* op - 1 */
-            free(gjstr_nul(c));
-        }
-        (void)RSProt_BufferG1_sub128(c); /* opFlags -- which options are shown */
-        out->_loc_add_change.info = RSProt_BufferG1_add128(c);
-        out->_loc_add_change.pos = RSProt_BufferG1_neg(c);
-        out->_loc_add_change.loc_id = RSProt_BufferG2Le_add128(c);
+        memset(&m, 0, sizeof(m));
+        m.ops = ops;
+        if( !zone_run(c, rsprot_loc_add_change_v2_out,
+                      rsprot_loc_add_change_v2_out_count, &m) )
+            return 0;
+        out->_loc_add_change.info = m.loc_properties_packed;
+        out->_loc_add_change.pos = m.coord_in_zone_packed;
+        out->_loc_add_change.loc_id = m.id;
         return 1;
     }
 
-    /* LocDelEncoder: p1 locProperties, p1Alt2 coordInZone. */
     case PKT_NAME_LOC_DEL:
-        out->_loc_del.info = RSProt_BufferG1(c);
-        out->_loc_del.pos = RSProt_BufferG1_neg(c);
+    {
+        ZONE_RUN(rsprot_loc_del_out, MsgLocDel, m);
+        out->_loc_del.info = m.loc_properties_packed;
+        out->_loc_del.pos = m.coord_in_zone_packed;
         return 1;
+    }
 
-    /* LocAnimEncoder: p1 locProperties, p1Alt3 coordInZone, p2Alt3 id. */
     case PKT_NAME_LOC_ANIM:
-        out->_loc_anim.info = RSProt_BufferG1(c);
-        out->_loc_anim.pos = RSProt_BufferG1_sub128(c);
-        out->_loc_anim.seq_id = RSProt_BufferG2Le_add128(c);
+    {
+        ZONE_RUN(rsprot_loc_anim_out, MsgLocAnim, m);
+        out->_loc_anim.info = m.loc_properties_packed;
+        out->_loc_anim.pos = m.coord_in_zone_packed;
+        out->_loc_anim.seq_id = m.id;
         return 1;
+    }
 
-    /* MapAnimEncoder: p1 height, p2Alt1 id, p2Alt1 delay, p1 coordInZone. */
     case PKT_NAME_MAP_ANIM:
-        out->_map_anim.height = RSProt_BufferG1(c);
-        out->_map_anim.id = RSProt_BufferG2Le(c);
-        out->_map_anim.delay = RSProt_BufferG2Le(c);
-        out->_map_anim.pos = RSProt_BufferG1(c);
+    {
+        ZONE_RUN(rsprot_map_anim_out, MsgMapAnim, m);
+        out->_map_anim.height = m.height;
+        out->_map_anim.id = m.id;
+        out->_map_anim.delay = m.delay;
+        out->_map_anim.pos = m.coord_in_zone_packed;
         return 1;
-
-    /* LocMergeEncoder: p1 minX, p2Alt1 index, p1 locProperties, p1 minZ,
-     * p2Alt1 id, p2 end, p2Alt3 start, p1Alt1 maxX, p1Alt3 coordInZone,
-     * p1Alt3 maxZ. Fourteen bytes at both revisions and every field in a
-     * different place. */
-    case PKT_NAME_LOC_MERGE:
-        out->_loc_merge.west = (int8_t)RSProt_BufferG1(c);
-        out->_loc_merge.pid = RSProt_BufferG2Le(c);
-        out->_loc_merge.info = RSProt_BufferG1(c);
-        out->_loc_merge.south = (int8_t)RSProt_BufferG1(c);
-        out->_loc_merge.loc_id = RSProt_BufferG2Le(c);
-        out->_loc_merge.end = RSProt_BufferG2Be(c);
-        out->_loc_merge.start = RSProt_BufferG2Le_add128(c);
-        out->_loc_merge.east = (int8_t)RSProt_BufferG1_add128(c);
-        out->_loc_merge.pos = RSProt_BufferG1_sub128(c);
-        out->_loc_merge.north = (int8_t)RSProt_BufferG1_sub128(c);
-        return 1;
+    }
 
     /*
-     * MapProjAnimV2Encoder: p2 startTime, p1 coordInZone, p2Alt2 progress,
-     * p2Alt2 id, p2Alt1 endTime, p4Alt1 end.packed, p2Alt3 endHeight,
-     * p3Alt2 sourceIndex, p1Alt2 angle, p2 startHeight, p3 targetIndex.
-     *
-     * Twenty-four bytes against the classic fifteen, and the shape changed
-     * rather than just the order. Two conversions belong here rather than
-     * downstream:
+     * The four min/max fields are signed bytes on the wire and the canonical
+     * struct stores them signed; the codec hands back the raw byte, so the cast
+     * is this adapter's job rather than the codec's.
+     */
+    case PKT_NAME_LOC_MERGE:
+    {
+        ZONE_RUN(rsprot_loc_merge_out, MsgLocMerge, m);
+        out->_loc_merge.west = (int8_t)m.min_x;
+        out->_loc_merge.pid = m.index;
+        out->_loc_merge.info = m.loc_properties_packed;
+        out->_loc_merge.south = (int8_t)m.min_z;
+        out->_loc_merge.loc_id = m.id;
+        out->_loc_merge.end = m.end;
+        out->_loc_merge.start = m.start;
+        out->_loc_merge.east = (int8_t)m.max_x;
+        out->_loc_merge.pos = m.coord_in_zone_packed;
+        out->_loc_merge.north = (int8_t)m.max_z;
+        return 1;
+    }
+
+    /*
+     * Two real conversions, and they are the reason this arm is longer than the
+     * others. Neither is wire layout:
      *
      *  - the destination is an absolute packed CoordGrid where the classic
-     *    sends a pair of signed tile offsets from the source. The offsets are
-     *    what the executor consumes, and it knows the zone base, so the
-     *    absolute coord is carried through `dst_abs` and resolved there.
+     *    packet sends a pair of signed tile offsets from the source. The
+     *    offsets are what the executor consumes and it knows the zone base, so
+     *    the absolute coord is carried through `dst_abs` and resolved there.
      *  - the heights lost their implicit *4 in the client at this revision, so
      *    the wire states them four times larger. `World_ProjectileSpawn` still
      *    applies the multiplier, so they are divided back here; leaving them
@@ -263,19 +349,17 @@ osrs239_read_zone_sub(
     case PKT_NAME_MAP_PROJANIM:
     {
         struct PktMapProjAnim* p = &out->_map_projanim;
-        int end_packed;
 
-        p->start_delay = RSProt_BufferG2Be(c);
-        p->pos = RSProt_BufferG1(c);
-        p->arc = RSProt_BufferG2Be_add128(c);
-        p->spotanim = RSProt_BufferG2Be_add128(c);
-        p->end_delay = RSProt_BufferG2Le(c);
-        end_packed = RSProt_BufferG4Le(c);
-        p->dst_height = RSProt_BufferG2Le_add128(c) / 4;
-        (void)sign24(RSProt_BufferG3_132(c)); /* sourceIndex -- always 0 from this server */
-        p->peak = RSProt_BufferG1_neg(c);
-        p->src_height = RSProt_BufferG2Be(c) / 4;
-        p->target = sign24(RSProt_BufferG3Be(c));
+        ZONE_RUN(rsprot_map_projanim_v2_out, MsgMapProjAnimV2, m);
+        p->start_delay = m.start_time;
+        p->pos = m.coord_in_zone_packed;
+        p->arc = m.progress;
+        p->spotanim = m.id;
+        p->end_delay = m.end_time;
+        p->dst_height = m.end_height / 4;
+        p->peak = m.angle;
+        p->src_height = m.start_height / 4;
+        p->target = sign24(m.target_index);
         /*
          * Keep the CLIENT index verbatim. The rev-239 PLAYER_INFO/GPI path
          * stores that same 1-based index in WorldEntity_Player.server_pid, and
@@ -284,55 +368,55 @@ osrs239_read_zone_sub(
          * every player target miss the world entity it was meant to follow.
          */
         p->dst_abs = 1;
-        p->dst_abs_level = (end_packed >> 28) & 0x3;
-        p->dst_abs_x = (end_packed >> 14) & 0x3fff;
-        p->dst_abs_z = end_packed & 0x3fff;
+        p->dst_abs_level = (m.end_packed >> 28) & 0x3;
+        p->dst_abs_x = (m.end_packed >> 14) & 0x3fff;
+        p->dst_abs_z = m.end_packed & 0x3fff;
         p->dx_offset = 0;
         p->dz_offset = 0;
         return 1;
     }
 
-    /* ObjEnabledOpsEncoder: p1Alt1 coordInZone, p2Alt3 id, p1 opFlags.
-     * The classic OBJ_REVEAL's count and receiver do not exist here -- this
-     * packet only enables ops on an obj that is already on the tile. */
+    /* The classic OBJ_REVEAL's count and receiver do not exist at this
+     * revision -- ObjEnabledOps only enables ops on an obj already on the
+     * tile -- so they are stated as absent rather than left uninitialised. */
     case PKT_NAME_OBJ_REVEAL:
-        out->_obj_reveal.pos = RSProt_BufferG1_add128(c);
-        out->_obj_reveal.obj_id = RSProt_BufferG2Le_add128(c);
-        (void)RSProt_BufferG1(c); /* opFlags */
+    {
+        ZONE_RUN(rsprot_obj_enabled_ops_out, MsgObjEnabledOps, m);
+        out->_obj_reveal.pos = m.coord_in_zone_packed;
+        out->_obj_reveal.obj_id = m.id;
         out->_obj_reveal.count = 0;
         out->_obj_reveal.receiver = -1;
         return 1;
+    }
 
-    /* ObjDelEncoder: p2 id, p1 coordInZone, p4Alt2 quantity. */
     case PKT_NAME_OBJ_DEL:
-        out->_obj_del.obj_id = RSProt_BufferG2Be(c);
-        out->_obj_del.pos = RSProt_BufferG1(c);
-        (void)RSProt_BufferG4_3412(c); /* quantity */
+    {
+        ZONE_RUN(rsprot_obj_del_out, MsgObjDel, m);
+        out->_obj_del.obj_id = m.id;
+        out->_obj_del.pos = m.coord_in_zone_packed;
         return 1;
+    }
 
-    /* ObjCountEncoder: p4Alt3 oldQuantity, p1Alt1 coordInZone,
-     * p4Alt1 newQuantity, p2Alt3 id. Both quantities are four bytes here and
-     * two at 230. */
     case PKT_NAME_OBJ_COUNT:
-        out->_obj_count.old_count = RSProt_BufferG4_2143(c);
-        out->_obj_count.pos = RSProt_BufferG1_add128(c);
-        out->_obj_count.new_count = RSProt_BufferG4Le(c);
-        out->_obj_count.obj_id = RSProt_BufferG2Le_add128(c);
+    {
+        ZONE_RUN(rsprot_obj_count_out, MsgObjCount, m);
+        out->_obj_count.old_count = m.old_quantity;
+        out->_obj_count.pos = m.coord_in_zone_packed;
+        out->_obj_count.new_count = m.new_quantity;
+        out->_obj_count.obj_id = m.id;
         return 1;
+    }
 
-    /* ObjAddEncoder: p1Alt1 coordInZone, p2 timeUntilPublic, p1 ownershipType,
-     * p2Alt2 id, p1 neverBecomesPublic, p1Alt2 opFlags, p2Alt3 timeUntilDespawn,
-     * p4Alt1 quantity. Fourteen bytes against the classic five. */
+    /* Fourteen bytes against the classic five; most of them are fields this
+     * client has no home for, which is why only three are copied out. */
     case PKT_NAME_OBJ_ADD:
-        out->_obj_add.pos = RSProt_BufferG1_add128(c);
-        (void)RSProt_BufferG2Be(c); /* timeUntilPublic */
-        (void)RSProt_BufferG1(c); /* ownershipType */
-        out->_obj_add.obj_id = RSProt_BufferG2Be_add128(c);
-        (void)RSProt_BufferG1(c); /* neverBecomesPublic */
-        (void)RSProt_BufferG1_neg(c); /* opFlags */
-        (void)RSProt_BufferG2Le_add128(c); /* timeUntilDespawn */
-        out->_obj_add.count = RSProt_BufferG4Le(c);
+    {
+        ZONE_RUN(rsprot_obj_add_out, MsgObjAdd, m);
+        out->_obj_add.pos = m.coord_in_zone_packed;
+        out->_obj_add.obj_id = m.id;
+        out->_obj_add.count = m.quantity;
         return 1;
+    }
 
     default:
         return 0;
@@ -403,10 +487,27 @@ osrs239_parse(
          */
         if( len > 6 )
             osrs239_playerinfo_init(data, len - 6);
+        /*
+         * Seek to the trailing six bytes and run the codec there.
+         *
+         * The seek stays in this file rather than becoming a codec feature: the
+         * fields are last because the LOGIN variant prepends a GPI init block
+         * and shares this opcode, so "where the fields start" is a property of
+         * the frame's length, not of the layout. Teaching a codec to seek
+         * relative to the payload end would make every codec's start position a
+         * question; doing it here keeps that to one packet.
+         */
         c.rpos = len - 6;
-        (void)RSProt_BufferG2Le(&c); /* worldArea */
-        p->zonez = RSProt_BufferG2Be_add128(&c);
-        p->zonex = RSProt_BufferG2Be_add128(&c);
+        {
+            MsgRebuildNormalV2 hdr;
+
+            memset(&hdr, 0, sizeof(hdr));
+            if( !zone_run(&c, rsprot_rebuild_normal_v2_out,
+                          rsprot_rebuild_normal_v2_out_count, &hdr) )
+                return 0;
+            p->zonez = hdr.zone_z;
+            p->zonex = hdr.zone_x;
+        }
         p->region_count = 0;
         p->region_ids = NULL;
         p->region_keys = NULL;
@@ -892,9 +993,20 @@ osrs239_parse(
         return 1;
     }
 
+    /*
+     * UpdateInvStopTransmitEncoder: p2Alt2(inventoryId) -- NOT a plain p2.
+     *
+     * This arm read it big-endian, which is 128 too high in the low byte: the
+     * backpack (93) arrived as 221 and the client stopped transmitting a
+     * container that does not exist. Found by src/net/rev/test/
+     * rsprot_bridge_test.c when the generated codec was compared against this
+     * arm -- the first time in this lane the HAND-WRITTEN side was the wrong
+     * one, which is the direction the differential test was always as likely
+     * to catch and had not yet.
+     */
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
         out->_update_inv_stop_transmit.component_id = -1;
-        out->_update_inv_stop_transmit.inv_id = RSProt_BufferG2Be(&c);
+        out->_update_inv_stop_transmit.inv_id = RSProt_BufferG2Be_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_FRIENDLIST_LOADED:
@@ -1098,9 +1210,19 @@ osrs239_parse(
         struct PktUpdateZoneEnclosed* enc = &out->_update_zone_enclosed;
         int cap = 16;
 
-        enc->level = RSProt_BufferG1_neg(&c);
-        enc->base_z = RSProt_BufferG1_add128(&c);
-        enc->base_x = RSProt_BufferG1_add128(&c);
+        /* Header via its codec; the sub-packet walk below is a stream and
+         * stays hand-driven -- each record runs its OWN codec in zone_run. */
+        {
+            MsgDesktopUpdateZonePartialEnclosed hdr;
+
+            memset(&hdr, 0, sizeof(hdr));
+            if( !zone_run(&c, rsprot_update_zone_partial_enclosed_out,
+                          rsprot_update_zone_partial_enclosed_out_count, &hdr) )
+                return 0;
+            enc->level = hdr.level;
+            enc->base_z = hdr.zone_z;
+            enc->base_x = hdr.zone_x;
+        }
         enc->count = 0;
         enc->entries =
             (struct PktZoneSubPacket*)malloc((size_t)cap * sizeof(*enc->entries));
@@ -1238,10 +1360,21 @@ osrs239_parse(
         int bit_pos;
         int ok = 1;
 
+        MsgRebuildRegionV2 hdr;
+
         memset(p, 0, sizeof(*p));
-        p->zonez = RSProt_BufferG2Be(&c);
-        p->zonex = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG1_add128(&c); /* reload: region rebuilds are forced downstream */
+        /*
+         * The three-field HEADER runs its generated codec against this cursor;
+         * what follows is a bit-packed descriptor grid, which is not part of the
+         * payload codec and stays here. `reload` is read and dropped -- a region
+         * rebuild is forced downstream regardless.
+         */
+        memset(&hdr, 0, sizeof(hdr));
+        if( !zone_run(&c, rsprot_rebuild_region_v2_out,
+                      rsprot_rebuild_region_v2_out_count, &hdr) )
+            return 0;
+        p->zonez = hdr.zone_z;
+        p->zonex = hdr.zone_x;
         source_square_count = RSProt_BufferG2Be(&c);
         if( c.err || source_square_count < 0 ||
             source_square_count > PKT_MAP_REBUILD_ZONES )

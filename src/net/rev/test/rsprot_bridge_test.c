@@ -39,6 +39,38 @@
 #include "packets/update_runenergy.h"
 #include "packets/varp_large.h"
 #include "packets/varp_small.h"
+#include "packets/if_clearinv.h"
+#include "packets/if_movesub.h"
+#include "packets/if_setangle.h"
+#include "packets/if_setcolour.h"
+#include "packets/if_setevents_v2.h"
+#include "packets/if_setmodel_v2.h"
+#include "packets/if_setnpchead.h"
+#include "packets/if_setnpchead_active.h"
+#include "packets/if_setobject.h"
+#include "packets/if_setplayerhead.h"
+#include "packets/if_setposition.h"
+#include "packets/if_setrotatespeed.h"
+#include "packets/if_setscrollpos.h"
+#include "packets/midi_song_v2.h"
+#include "packets/synth_sound.h"
+#include "packets/update_stat_v2.h"
+#include "packets/update_zone_full_follows.h"
+#include "packets/update_zone_partial_follows.h"
+#include "packets/cam_lookat_v2.h"
+#include "packets/cam_moveto_v2.h"
+#include "packets/cam_shake.h"
+#include "packets/chat_filter_settings.h"
+#include "packets/if_sethide.h"
+#include "packets/if_setplayermodel_basecolour.h"
+#include "packets/if_setplayermodel_bodytype.h"
+#include "packets/if_setplayermodel_obj.h"
+#include "packets/if_setplayermodel_self.h"
+#include "packets/friendlist_loaded.h"
+#include "packets/server_tick_end.h"
+#include "packets/set_map_flag_v2.h"
+#include "packets/set_npc_update_origin.h"
+#include "packets/update_inv_stoptransmit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,6 +154,16 @@ parse_both(int pkt_name, int len, struct RevPacket* via_rsprot, struct RevPacket
 
     memset(via_rsprot, 0, sizeof(*via_rsprot));
     memset(via_hand, 0, sizeof(*via_hand));
+
+    /*
+     * Both get `packet_type` up front, exactly as net.c sets it before calling
+     * either parser. Without this the hand-written side leaves it zero while
+     * the bridge sets it, and a whole-struct comparison reports every packet as
+     * disagreeing — which is what it did, on all eighteen at once. Eighteen
+     * identical failures are a harness bug, not eighteen mapping bugs.
+     */
+    via_rsprot->packet_type = (enum GameProtoPktName)pkt_name;
+    via_hand->packet_type = (enum GameProtoPktName)pkt_name;
 
     a = rsprot_bridge_parse(rev, pkt_name, g_bytes, len, via_rsprot);
     b = osrs239_parse(rev, pkt_name, g_bytes, len, via_hand);
@@ -360,6 +402,105 @@ test_message_game(uint32_t seed, int with_name)
     gameproto_free(&h);
 }
 
+
+/*
+ * The rest of the migrated packets, checked the same way but generically.
+ *
+ * Every packet whose canonical struct holds no pointers can be compared with a
+ * whole-RevPacket memcmp: fill, encode at 239, then run BOTH parsers over the
+ * bytes and require the union to come out identical. That covers the field
+ * mapping, the byte order, and the payload length in one assertion, and it
+ * scales to a packet per line — which matters, because the alternative is a
+ * hand-written comparison per packet and the ones nobody writes are the ones
+ * that break.
+ *
+ * String-carrying packets (IF_SETTEXT, MESSAGE_GAME) are NOT here: their arms
+ * hold heap pointers that differ by construction. Those have their own cases
+ * above, which compare with strcmp.
+ */
+#define GENERIC_CASE(pkt, table, msgtype, label)                                          \
+    do {                                                                                  \
+        msgtype m;                                                                        \
+        struct RevPacket r, h;                                                            \
+        int len;                                                                          \
+        g_case = (label);                                                                  \
+        memset(&m, 0, sizeof(m));                                                         \
+        len = encode_at_239((table), (table##_count), &m, seed);                          \
+        /* len == 0 is a zero-payload packet, not a failure. */                           \
+        if (len < 0) {                                                                   \
+            printf("FAIL [%s] no rev239 codec\n", (label));                               \
+            g_failures++;                                                                  \
+            break;                                                                        \
+        }                                                                                 \
+        if (!parse_both((pkt), len, &r, &h))                                              \
+            break;                                                                        \
+        if (memcmp(&r, &h, sizeof(r)) != 0) {                                             \
+            printf("FAIL [%s] rsprot and osrs239_parse disagree on the packet\n",         \
+                   (label));                                                              \
+            g_failures++;                                                                  \
+        }                                                                                 \
+        gameproto_free(&r);                                                               \
+        gameproto_free(&h);                                                               \
+    } while (0)
+
+static void
+test_generic_packets(uint32_t seed)
+{
+GENERIC_CASE(PKT_NAME_IF_CLEARINV, rsprot_if_clearinv_out, MsgIfClearInv, "IF_CLEARINV");
+    GENERIC_CASE(PKT_NAME_IF_MOVESUB, rsprot_if_movesub_out, MsgIfMoveSub, "IF_MOVESUB");
+    GENERIC_CASE(PKT_NAME_IF_SETANGLE, rsprot_if_setangle_out, MsgIfSetAngle, "IF_SETANGLE");
+    GENERIC_CASE(PKT_NAME_IF_SETCOLOUR, rsprot_if_setcolour_out, MsgIfSetColour, "IF_SETCOLOUR");
+    GENERIC_CASE(PKT_NAME_IF_SETEVENTS, rsprot_if_setevents_v2_out, MsgIfSetEventsV2, "IF_SETEVENTS");
+    GENERIC_CASE(PKT_NAME_IF_SETMODEL, rsprot_if_setmodel_v2_out, MsgIfSetModelV2, "IF_SETMODEL");
+    GENERIC_CASE(PKT_NAME_IF_SETNPCHEAD, rsprot_if_setnpchead_out, MsgIfSetNpcHead, "IF_SETNPCHEAD");
+    GENERIC_CASE(PKT_NAME_IF_SETNPCHEAD_ACTIVE, rsprot_if_setnpchead_active_out, MsgIfSetNpcHeadActive, "IF_SETNPCHEAD_ACTIVE");
+    GENERIC_CASE(PKT_NAME_IF_SETOBJECT, rsprot_if_setobject_out, MsgIfSetObject, "IF_SETOBJECT");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERHEAD, rsprot_if_setplayerhead_out, MsgIfSetPlayerHead, "IF_SETPLAYERHEAD");
+    GENERIC_CASE(PKT_NAME_IF_SETPOSITION, rsprot_if_setposition_out, MsgIfSetPosition, "IF_SETPOSITION");
+    GENERIC_CASE(PKT_NAME_IF_SETROTATESPEED, rsprot_if_setrotatespeed_out, MsgIfSetRotateSpeed, "IF_SETROTATESPEED");
+    GENERIC_CASE(PKT_NAME_IF_SETSCROLLPOS, rsprot_if_setscrollpos_out, MsgIfSetScrollPos, "IF_SETSCROLLPOS");
+    GENERIC_CASE(PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, rsprot_update_zone_full_follows_out, MsgUpdateZoneFullFollows, "UPDATE_ZONE_FULL_FOLLOWS");
+    GENERIC_CASE(PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS, rsprot_update_zone_partial_follows_out, MsgUpdateZonePartialFollows, "UPDATE_ZONE_PARTIAL_FOLLOWS");
+    GENERIC_CASE(PKT_NAME_UPDATE_STAT, rsprot_update_stat_v2_out, MsgUpdateStatV2, "UPDATE_STAT");
+    GENERIC_CASE(PKT_NAME_SYNTH_SOUND, rsprot_synth_sound_out, MsgSynthSound, "SYNTH_SOUND");
+    GENERIC_CASE(PKT_NAME_MIDI_SONG, rsprot_midi_song_v2_out, MsgMidiSongV2, "MIDI_SONG");
+    GENERIC_CASE(PKT_NAME_CAM_SHAKE, rsprot_cam_shake_out, MsgCamShake, "CAM_SHAKE");
+    GENERIC_CASE(PKT_NAME_CAM_LOOKAT, rsprot_cam_lookat_v2_out,
+                 MsgCamLookAtV2, "CAM_LOOKAT");
+    GENERIC_CASE(PKT_NAME_CAM_MOVETO, rsprot_cam_moveto_v2_out,
+                 MsgCamMoveToV2, "CAM_MOVETO");
+    GENERIC_CASE(PKT_NAME_CHAT_FILTER_SETTINGS, rsprot_chat_filter_settings_out,
+                 MsgChatFilterSettings, "CHAT_FILTER_SETTINGS");
+    GENERIC_CASE(PKT_NAME_IF_SETHIDE, rsprot_if_sethide_out, MsgIfSetHide, "IF_SETHIDE");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+                 rsprot_if_setplayermodel_basecolour_out,
+                 MsgIfSetPlayerModelBaseColour, "IF_SETPLAYERMODEL_BASECOLOUR");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+                 rsprot_if_setplayermodel_bodytype_out,
+                 MsgIfSetPlayerModelBodyType, "IF_SETPLAYERMODEL_BODYTYPE");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_OBJ, rsprot_if_setplayermodel_obj_out,
+                 MsgIfSetPlayerModelObj, "IF_SETPLAYERMODEL_OBJ");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_SELF, rsprot_if_setplayermodel_self_out,
+                 MsgIfSetPlayerModelSelf, "IF_SETPLAYERMODEL_SELF");
+    GENERIC_CASE(PKT_NAME_SET_NPC_UPDATE_ORIGIN, rsprot_set_npc_update_origin_out,
+                 MsgSetNpcUpdateOrigin, "SET_NPC_UPDATE_ORIGIN");
+    GENERIC_CASE(PKT_NAME_UNSET_MAP_FLAG, rsprot_set_map_flag_v2_out,
+                 MsgSetMapFlagV2, "UNSET_MAP_FLAG");
+    GENERIC_CASE(PKT_NAME_UPDATE_INV_STOP_TRANSMIT, rsprot_update_inv_stoptransmit_out,
+                 MsgUpdateInvStopTransmit, "UPDATE_INV_STOP_TRANSMIT");
+    /*
+     * Zero-payload packets, which is exactly why they are here. They carry no
+     * fields to get wrong, so they look untestable -- but the ADAPTER still
+     * sets canonical fields from nothing, and one of them (FRIENDLIST_LOADED)
+     * shipped with status=2 where the hand-written arm says 1, purely because
+     * nothing compared them.
+     */
+    GENERIC_CASE(PKT_NAME_FRIENDLIST_LOADED, rsprot_friendlist_loaded_out,
+                 MsgFriendListLoaded, "FRIENDLIST_LOADED");
+    GENERIC_CASE(PKT_NAME_SERVER_TICK_END, rsprot_server_tick_end_out,
+                 MsgServerTickEnd, "SERVER_TICK_END");
+}
+
 int
 main(void)
 {
@@ -381,6 +522,7 @@ main(void)
         test_update_runenergy(seed);
         test_message_game(seed, 0);
         test_message_game(seed, 1);
+        test_generic_packets(seed);
 
         if( g_failures )
         {
