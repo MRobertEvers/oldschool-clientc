@@ -5028,11 +5028,13 @@ handle_if_buttonx_packet(
                 button.op,
                 button.subop);
 
-    /* RuneLite's rev239 client sends the worn tab's static leaves with the
-     * no-item sentinel. They are nevertheless inventory-button actions: the
-     * component resolves the wear slot and content owns [inv_buttonN,...]. */
-    if( button.object_id == MOCK239_IF_OBJ_NONE &&
-        mock230_equipment_worn_slot(button.component_id) >= 0 )
+    /* A worn component is an inventory-button surface regardless of the item
+     * field. The official client normally emits the no-item sentinel for the
+     * static leaf, but the component is the durable address and is what
+     * selects content's [inv_buttonN,wornitems:slotN] binding. Routing only
+     * the sentinel variant made the C client's item-backed leaf click fall
+     * through as IF_BUTTONN, where no Remove binding exists. */
+    if( mock230_equipment_worn_slot(button.component_id) >= 0 )
     {
         handle_worn_inv_button(srv, button.component_id, button.op);
         return;
@@ -17751,6 +17753,9 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(helm_slot >= 0, "bronze full helm is in the starting kit");
         if( helm_slot >= 0 )
         {
+            uint8_t button[9];
+            int worn_head_com = mock230_equipment_worn_component(MOCK230_WEAR_HEAD);
+
             player->masks = 0;
             player->worn_dirty = 0;
             /* The real click. A full helm claims head + hair + jaw, so it also
@@ -17771,31 +17776,54 @@ mock230_world_selftest(void)
             /* RuneLite rev239 emits one IF_BUTTONX for the static worn leaf,
              * with obj=0xffff rather than the item it paints. That packet must
              * still reach the content-owned INV_BUTTON1 binding. */
+            SELFTEST_CHECK(worn_head_com >= 0,
+                           "content should expose a worn component for the head slot");
+            if( worn_head_com >= 0 )
             {
-                uint8_t button[9];
-                int worn_head_com = mock230_equipment_worn_component(MOCK230_WEAR_HEAD);
+                button[0] = (uint8_t)(worn_head_com >> 24);
+                button[1] = (uint8_t)(worn_head_com >> 16);
+                button[2] = (uint8_t)(worn_head_com >> 8);
+                button[3] = (uint8_t)worn_head_com;
+                button[4] = 0xff; /* no dynamic sub */
+                button[5] = 0xff;
+                button[6] = 0xff; /* RuneLite's no-item sentinel */
+                button[7] = 0xff;
+                button[8] = 1;    /* Remove */
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTONX, button,
+                                     sizeof(button));
+            }
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1 &&
+                               selftest_find(player, helm) >= 0,
+                           "a rev239 IF_BUTTONX on a static worn leaf reaches "
+                           "[inv_button1,wornitems:slot0] and unequips the helm");
 
-                SELFTEST_CHECK(worn_head_com >= 0,
-                               "content should expose a worn component for the head slot");
+            /* The C tree represents the painted item on this leaf, so its
+             * IF_BUTTONX carries that item rather than RuneLite's static-leaf
+             * sentinel. The component, not that incidental field, owns the
+             * callback route. Re-equip and prove that form reaches the same
+             * content binding. */
+            helm_slot = selftest_find(player, helm);
+            if( helm_slot >= 0 )
+            {
+                selftest_opheld(&srv, 2, helm_slot);
                 if( worn_head_com >= 0 )
                 {
                     button[0] = (uint8_t)(worn_head_com >> 24);
                     button[1] = (uint8_t)(worn_head_com >> 16);
                     button[2] = (uint8_t)(worn_head_com >> 8);
                     button[3] = (uint8_t)worn_head_com;
-                    button[4] = 0xff; /* no dynamic sub */
+                    button[4] = 0xff;
                     button[5] = 0xff;
-                    button[6] = 0xff; /* RuneLite's no-item sentinel */
-                    button[7] = 0xff;
-                    button[8] = 1;    /* Remove */
+                    button[6] = (uint8_t)(helm >> 8);
+                    button[7] = (uint8_t)helm;
+                    button[8] = 1;
                     mock230_world_handle(player, PKTOUT_NAME_IF_BUTTONX, button,
                                          sizeof(button));
                 }
             }
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1 &&
                                selftest_find(player, helm) >= 0,
-                           "a rev239 IF_BUTTONX on a static worn leaf reaches "
-                           "[inv_button1,wornitems:slot0] and unequips the helm");
+                           "an item-backed IF_BUTTONX on the C worn leaf also unequips");
 
             /* And `::equip`, which is how a headless session reaches the same
              * proc without a menu. It is a separate path, not a duplicate: the
@@ -18159,6 +18187,33 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->inv[to_slot].obj_id == from_obj, "slots swapped (to)");
         SELFTEST_CHECK((player->inv_dirty & (1u << from_slot)) != 0, "from slot marked dirty");
         SELFTEST_CHECK((player->inv_dirty & (1u << to_slot)) != 0, "to slot marked dirty");
+
+        /* class108.method3759 sends -1 for an empty target's item field. This
+         * is the ordinary drag-to-empty-slot path, not a failed filled-cell
+         * swap with a missing icon. */
+        {
+            int empty_slot = inv_first_free(player);
+
+            SELFTEST_CHECK(empty_slot >= 0, "an empty inventory slot accepts a drag");
+            if( empty_slot >= 0 )
+            {
+                from_obj = player->inv[from_slot].obj_id;
+                rsab_wrap(&buf, payload, sizeof(payload));
+                rsab_p4_alt1(&buf, com);
+                rsab_p2_alt1(&buf, from_obj);
+                rsab_p2_alt3(&buf, from_slot);
+                rsab_p4(&buf, com);
+                rsab_p2_alt2(&buf, -1);
+                rsab_p2_alt2(&buf, empty_slot);
+                mock230_world_handle(
+                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+
+                SELFTEST_CHECK(player->inv[from_slot].obj_id < 0,
+                               "dragging to an empty slot clears the source");
+                SELFTEST_CHECK(player->inv[empty_slot].obj_id == from_obj,
+                               "and puts the item in the named empty destination");
+            }
+        }
     }
 
     fprintf(stderr, "mock230 selftest: the container registry\n");
@@ -19349,6 +19404,51 @@ mock230_world_selftest(void)
             "last-X varbit written by content");
         SELFTEST_CHECK(bank->slots[0].count == 60, "Withdraw-X 40 should leave 60, got %d",
                        bank->slots[0].count);
+
+        /* Exercise the modern item-backed bank-side IF_BUTTONX packet rather
+         * than calling its RuneScript binding directly, so component/sub/item
+         * dispatch cannot silently regress while the ladder checks still pass. */
+        {
+            int item = -1;
+            int item_slot = -1;
+            int bank_slot = -1;
+            int inv_before;
+            uint8_t button[9];
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id >= 0 )
+                {
+                    item = player->inv[i].obj_id;
+                    item_slot = i;
+                    break;
+                }
+            SELFTEST_CHECK(item_slot >= 0, "an inventory item is available for a bank-side op");
+            if( item_slot >= 0 )
+            {
+                inv_before = player->inv[item_slot].count;
+                button[0] = (uint8_t)(ids->com_bankside_items >> 24);
+                button[1] = (uint8_t)(ids->com_bankside_items >> 16);
+                button[2] = (uint8_t)(ids->com_bankside_items >> 8);
+                button[3] = (uint8_t)ids->com_bankside_items;
+                button[4] = (uint8_t)(item_slot >> 8);
+                button[5] = (uint8_t)item_slot;
+                button[6] = (uint8_t)(item >> 8);
+                button[7] = (uint8_t)item;
+                button[8] = 3;
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTONX, button,
+                                     sizeof(button));
+                for( int i = 0; i < bank->size; i++ )
+                    if( bank->slots[i].obj_id == item )
+                    {
+                        bank_slot = i;
+                        break;
+                    }
+                SELFTEST_CHECK(player->inv[item_slot].count == inv_before - 1,
+                               "item-backed bank IF_BUTTONX removes one inventory item");
+                SELFTEST_CHECK(bank_slot >= 0 && bank->slots[bank_slot].count > 0,
+                               "and reaches its content binding");
+            }
+        }
 
         mock230_bank_close(&srv);
     bank_ladder_done:;

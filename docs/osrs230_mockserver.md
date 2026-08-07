@@ -1183,6 +1183,15 @@ before testing their bounds. Without that conversion, releasing into an empty
 slot under a scrolled bank/list resolves no destination and the server never
 receives `INV_BUTTOND`.
 
+`IF_BUTTOND` names both endpoint item fields. The official deob's
+`class108.method3759` writes `-1` for an empty destination; it is a valid drop,
+not an absent target. The mock verifies this form moves the source item into the
+empty backpack slot. Likewise, an item-backed `IF_BUTTONX` from the bank side is
+dispatched as `IF_BUTTONN` so content's deposit binding receives the component
+and slot. Worn-slot callbacks route by their resolved component, not by the
+optional item field: the official static leaf uses the no-item sentinel, while
+the C tree can carry its painted item's id.
+
 ## 3.11j Who an npc is facing, when more than one client is watching
 
 The last shared-state remainder of the multiplayer change (§6.1 step 1), and the
