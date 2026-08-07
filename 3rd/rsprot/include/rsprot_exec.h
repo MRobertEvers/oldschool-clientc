@@ -350,6 +350,39 @@ void rsprot_xclamp(
     const char *name);
 
 /**
+ * Loop condition for an array the wire carries with NO count.
+ *
+ * Some trailing arrays are delimited by the payload itself: the reader consumes
+ * elements until the bytes run out. That is only decodable because the length
+ * came from the frame, and it is the one place where the two directions
+ * genuinely disagree about what bounds the loop — encoding knows the count,
+ * decoding discovers it.
+ *
+ * Rather than emit two different loops (which would put direction-dependent
+ * control flow in a codec, the thing this design forbids), both run:
+ *
+ *     for (int32_t i = 0; RSPROT_MORE(x, m->entries_count, i, CAP); i++) { ... }
+ *
+ * and this decides:
+ *
+ *   ENCODE / FILL   i < *count          -- the caller's count drives it
+ *   DECODE          bytes remain, and i < cap; on the final call it WRITES
+ *                   `*count = i`, so the caller learns how many arrived
+ *   DESCRIBE        one element, so a schema dump shows the element's shape
+ *                   without pretending to know a length
+ *
+ * `cap` is not optional. An unbounded loop over a length an attacker controls
+ * is exactly what `rsprot_xcount` exists to prevent, and a count-less array has
+ * no length field to bound it — so the bound is the caller's buffer, and
+ * exceeding it fails the exec rather than writing past the end.
+ */
+int rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap);
+
+/** Bytes left unread in this payload. DECODE only; 0 in every other direction,
+ *  where "what is left" is not a question the buffer can answer. */
+int32_t rsprot_remaining(RsprotExec *x);
+
+/**
  * A length-prefixed count, transferred as `prim` and then bounded.
  *
  * Returns the count to loop on. A decoded count above `max` is an error and
@@ -442,6 +475,8 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 /* Wire carries `min(src, cap)`; the full value lives in `src`. */
 #define RSPROT_CLAMP(x, prim, f, src, cap)                                                         \
     rsprot_xclamp((x), RSPROT_PRIM_##prim, &(f), &(src), (cap), #f)
+/* Loop condition for a count-less trailing array. See rsprot_more(). */
+#define RSPROT_MORE(x, f, i, cap) rsprot_more((x), &(f), (i), (cap))
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
 #define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2, &(f), (max), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)

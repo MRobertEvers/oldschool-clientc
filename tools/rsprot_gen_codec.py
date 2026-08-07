@@ -1499,15 +1499,23 @@ def gen_op(op, scope, em, indent, ctx):
         # work (the caller set the count) and decoding would be memory
         # corruption, which is the worst possible split.
         count_expr = f"{ptr}->{field}_count"
-        if count_expr not in em.transferred:
-            raise Unsupported(
-                f"array `{field}` is bounded by {field}_count, which is never "
-                f"transferred -- decoding cannot know how many to read")
-
-        em.emit(
-            f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {count_expr}; rs_i_{elem_var}++) {{",
-            indent,
-        )
+        if count_expr in em.transferred:
+            em.emit(
+                f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {count_expr}; "
+                f"rs_i_{elem_var}++) {{",
+                indent,
+            )
+        else:
+            # No count on the wire: the array runs to the end of the payload.
+            # RSPROT_MORE reconciles the two directions -- the caller's count
+            # drives encoding, the remaining bytes drive decoding -- and bounds
+            # decoding by the caller's buffer. See rsprot_exec.h.
+            em.emit(
+                f"for (int32_t rs_i_{elem_var} = 0; "
+                f"RSPROT_MORE(x, {count_expr}, rs_i_{elem_var}, "
+                f"{RSPROT_ARRAY_CAP}); rs_i_{elem_var}++) {{",
+                indent,
+            )
         # No `const`: one codec runs in both directions, so an element the
         # encoder reads is the same element the decoder writes.
         em.emit(f"{elem_struct} *elem = &{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
@@ -1996,6 +2004,20 @@ REV_LO, REV_HI = 221, 239
 # A name here that stops matching a hand-written file is reported, not ignored:
 # silently skipping a packet nobody wrote is how a gap becomes permanent.
 HAND_WRITTEN_PROTS = {"IF_OPENTOP"}
+
+# Capacity a generated codec assumes for a COUNT-LESS array -- one whose length
+# is the payload's length rather than a field.
+#
+# The number is a contract with the caller, not a guess: a caller decoding one
+# of these packets must supply a buffer of at least this many elements, and the
+# codec fails the exec rather than writing past it. It appears in the generated
+# header beside the field so the requirement is visible where the struct is.
+#
+# 256 because every count-less array at 239 is a per-slot or per-entry list
+# bounded by an interface's component count or a friend list's size, and both
+# are far below it; a payload long enough to carry more would have to be larger
+# than the VAR_SHORT frame allows.
+RSPROT_ARRAY_CAP = 256
 
 
 def load_ledger(path=LEDGER_PATH):

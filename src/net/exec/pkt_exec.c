@@ -315,6 +315,52 @@ rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name)
     }
 }
 
+int32_t
+rsprot_remaining(RsprotExec *x)
+{
+    if (x->dir != RSPROT_DECODE || !x->buf)
+        return 0;
+    return x->buf->cap - x->buf->rpos;
+}
+
+int
+rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap)
+{
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+    case RSPROT_FILL:
+        return i < *count;
+
+    case RSPROT_DECODE:
+        if (x->error || x->buf->err)
+            return 0;
+        if (rsprot_remaining(x) <= 0) {
+            /* The array ended because the payload did. Tell the caller how
+             * many arrived — nothing else on the wire says. */
+            *count = i;
+            return 0;
+        }
+        if (i >= cap) {
+            /*
+             * More elements than the caller's buffer holds. Fail rather than
+             * stop quietly: stopping would report a short array that framed
+             * cleanly, and the bytes left over would be read as the next
+             * packet.
+             */
+            rsprot_exec_fail(x, "count-less array exceeds the caller's capacity");
+            *count = i;
+            return 0;
+        }
+        return 1;
+
+    case RSPROT_DESCRIBE:
+        /* One element: enough to show its shape, without claiming a length the
+         * layout does not carry. */
+        return i < 1;
+    }
+    return 0;
+}
+
 void
 rsprot_xform_add(
     RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t delta, const char *name)

@@ -1,5 +1,5 @@
 rsprot packet-codec generation status
-revisions 221-239; 211 packets emitted, 2 refused
+revisions 221-239; 215 packets emitted, 2 refused
 
 --- emitted (prot, file, dir, layouts, revisions covered) ---
   OK   ACCOUNT_FLAGS                    account_flags.c out   1 layout(s)  7 rev(s)
@@ -74,8 +74,12 @@ revisions 221-239; 211 packets emitted, 2 refused
   OK   IF_CLEARINV                      if_clearinv.c out   5 layout(s) 19 rev(s)
   OK   IF_CLOSESUB                      if_closesub.c out   2 layout(s) 19 rev(s)
   OK   IF_CRMVIEW_OP                    if_crmview_op.c in   19 layout(s) 19 rev(s)
+  OK   IF_INITIALSTATE                  if_initialstate.c out   2 layout(s)  2 rev(s)
   OK   IF_MOVESUB                       if_movesub.c out  14 layout(s) 19 rev(s)
   OK   IF_OPENSUB                       if_opensub.c out  18 layout(s) 19 rev(s)
+  OK   IF_RESYNC                        if_resync.c out   1 layout(s)  8 rev(s)
+  OK   IF_RESYNC_V1                     if_resync_v1.c out   1 layout(s)  1 rev(s)
+  OK   IF_RESYNC_V2                     if_resync_v2.c out   1 layout(s)  9 rev(s)
   OK   IF_SETANGLE                      if_setangle.c out  19 layout(s) 19 rev(s)
   OK   IF_SETANIM                       if_setanim.c out  14 layout(s) 19 rev(s)
   OK   IF_SETCOLOUR                     if_setcolour.c out  13 layout(s) 19 rev(s)
@@ -279,7 +283,6 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev221 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev221 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev221 out  interfaces/IfInitialStateEncoder.kt                          array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev221 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev221 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev221 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
@@ -375,7 +378,6 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev222 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev222 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev222 out  interfaces/IfInitialStateEncoder.kt                          array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev222 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev222 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev222 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
@@ -474,7 +476,6 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev223 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev223 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev223 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev223 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev223 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev223 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
@@ -572,7 +573,6 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev224 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev224 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev224 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev224 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev224 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev224 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
@@ -670,10 +670,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev225 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev225 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev225 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev225 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev225 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev225 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev225 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev225 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev225 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -762,10 +761,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev226 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev226 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev226 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev226 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev226 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev226 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev226 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev226 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev226 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -849,10 +847,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev227 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev227 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev227 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev227 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev227 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev227 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev227 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev227 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev227 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -936,10 +933,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev228 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev228 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev228 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev228 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev228 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev228 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev228 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev228 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev228 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1023,10 +1019,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev229 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev229 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev229 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev229 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev229 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev229 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev229 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev229 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev229 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1110,10 +1105,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev230 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev230 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev230 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev230 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev230 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev230 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev230 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev230 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev230 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1198,11 +1192,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev231 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev231 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev231 out  interfaces/IfResyncV1Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev231 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev231 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev231 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev231 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev231 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev231 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev231 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1288,10 +1280,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev232 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev232 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev232 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev232 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev232 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev232 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev232 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev232 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev232 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1383,10 +1374,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev233 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev233 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev233 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev233 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev233 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev233 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev233 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev233 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev233 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1478,10 +1468,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev234 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev234 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev234 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev234 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev234 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev234 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev234 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev234 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev234 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1573,10 +1562,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev235 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev235 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev235 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev235 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev235 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev235 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev235 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev235 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev235 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1667,10 +1655,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev236 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev236 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev236 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev236 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev236 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev236 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev236 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev236 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev236 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1778,10 +1765,9 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev237 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev237 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev237 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev237 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev237 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev237 out  map/RebuildNormalV1Encoder.kt                                array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
+  rev237 out  map/RebuildNormalV1Encoder.kt                                bare 'intKey' has no wire value
   rev237 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev237 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1876,7 +1862,6 @@ revisions 221-239; 211 packets emitted, 2 refused
   rev238 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
             is Upda
   rev238 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev238 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev238 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev238 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev238 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
@@ -1977,7 +1962,6 @@ revisions 221-239; 211 packets emitted, 2 refused
                 is GroupFull.GroupDelete -> 
   rev239 out  group/GroupVarEncoder.kt                                     buffer expression not understood: when (val variable = update.variable) {
                 is G
-  rev239 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev239 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev239 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev239 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
