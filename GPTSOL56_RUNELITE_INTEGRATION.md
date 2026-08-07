@@ -1214,3 +1214,6 @@ pre-login `setupCompilerControl` warning.
   already-landed `lane-servsplit` base, and pushed dependency head `4289ffe312`.
   Opened OSRS-Content PR #3 and added it beside Deob PR #3 in the updated root
   PR #14 dependency/verification record.
+- 2026-08-06: Committed and pushed the root dependency pointer, focused server
+  regression, live evidence, and findings as `461181f9fc` on
+  `codex/runelite239-zuk`.
