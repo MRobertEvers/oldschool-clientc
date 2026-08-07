@@ -1,6 +1,7 @@
 #include "bootmanifest.h"
 
 #include "app.h"
+#include "executor_config.h"
 #include "features/features.h"
 
 #include "3rd/ini/ini.h"
@@ -113,6 +114,36 @@ bm_parse_int(char const* key, char const* value, int* out)
     return 1;
 }
 
+static int
+bm_parse_bounded_int(
+    char const* section,
+    char const* key,
+    char const* value,
+    int min,
+    int max,
+    int* out)
+{
+    char* end = NULL;
+    long parsed;
+
+    assert(section && key && value && out);
+    parsed = strtol(value, &end, 10);
+    if( end == value || *end != '\0' || parsed < min || parsed > max )
+    {
+        fprintf(
+            stderr,
+            "bootmanifest: [%s] %s must be in %d..%d, got '%s'\n",
+            section,
+            key,
+            min,
+            max,
+            value);
+        return 0;
+    }
+    *out = (int)parsed;
+    return 1;
+}
+
 /* "x,y,z" signed triple for actor_light / scene_light. */
 static int
 bm_parse_xyz(char const* key, char const* value, int* x, int* y, int* z)
@@ -144,24 +175,34 @@ bad:
 enum bm_section
 {
     BM_SECTION_NONE = 0,
+    BM_SECTION_CLIENT_ARGS,
     BM_SECTION_CACHE,
     BM_SECTION_NET,
+    BM_SECTION_JS5,
     BM_SECTION_UI,
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
     BM_SECTION_SPAWN,
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
+    /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
+     * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
+     * file for them, because only the RevConfig parser knows that dialect. */
+    BM_SECTION_REVCONFIG,
 };
 
 static enum bm_section
 bm_section_of(char const* header)
 {
     /* Headers are "type:name"; we only care about the type prefix. */
+    if( strcmp(header, "client:args") == 0 )
+        return BM_SECTION_CLIENT_ARGS;
     if( strncmp(header, "cache:", 6) == 0 )
         return BM_SECTION_CACHE;
     if( strncmp(header, "net:", 4) == 0 )
         return BM_SECTION_NET;
+    if( strncmp(header, "js5:", 4) == 0 )
+        return BM_SECTION_JS5;
     if( strcmp(header, "ui:gameframe") == 0 )
         return BM_SECTION_UI_GAMEFRAME;
     if( strcmp(header, "ui:varc") == 0 )
@@ -174,6 +215,8 @@ bm_section_of(char const* header)
         return BM_SECTION_FEATURES;
     if( strncmp(header, "render:", 7) == 0 )
         return BM_SECTION_RENDER;
+    if( strncmp(header, "revconfig:", 10) == 0 )
+        return BM_SECTION_REVCONFIG;
     return BM_SECTION_NONE;
 }
 
@@ -190,6 +233,28 @@ bm_set_kv(
 
     switch( section )
     {
+    case BM_SECTION_CLIENT_ARGS:
+        if( strcmp(key, "arg") == 0 )
+        {
+            if( bm->client_arg_count >= BOOTMANIFEST_CLIENT_ARG_MAX )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [client:args] holds at most %d arguments\n",
+                    BOOTMANIFEST_CLIENT_ARG_MAX);
+                bm->client_args_error = 1;
+                return;
+            }
+            snprintf(
+                bm->client_args[bm->client_arg_count],
+                sizeof(bm->client_args[bm->client_arg_count]),
+                "%s",
+                value);
+            bm->client_arg_count++;
+            return;
+        }
+        break;
+
     case BM_SECTION_CACHE:
         if( strcmp(key, "epoch") == 0 )
         {
@@ -332,6 +397,46 @@ bm_set_kv(
                 bm->jag_crc_set = 1;
             else
                 fprintf(stderr, "bootmanifest: [net] jag_crc needs exactly 9 int32s\n");
+            return;
+        }
+        break;
+
+    case BM_SECTION_JS5:
+        if( strcmp(key, "enabled") == 0 )
+        {
+            if( strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+                bm->js5_enabled = 1;
+            else if( strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+                bm->js5_enabled = 0;
+            else
+                fprintf(
+                    stderr,
+                    "bootmanifest: [js5] enabled must be true|false, got '%s'\n",
+                    value);
+            return;
+        }
+        if( strcmp(key, "host") == 0 )
+        {
+            snprintf(bm->js5_host, sizeof(bm->js5_host), "%s", value);
+            return;
+        }
+        if( strcmp(key, "port") == 0 )
+        {
+            bm_parse_bounded_int("js5", key, value, 1, 65535, &bm->js5_port);
+            return;
+        }
+        if( strcmp(key, "fallback_port") == 0 )
+        {
+            if( bm_parse_bounded_int(
+                    "js5", key, value, 0, 65535, &bm->js5_fallback_port) )
+                bm->js5_fallback_port_set = 1;
+            return;
+        }
+        if( strcmp(key, "revision") == 0 )
+        {
+            if( bm_parse_bounded_int(
+                    "js5", key, value, 1, 2147483647, &bm->js5_revision) )
+                bm->js5_revision_set = 1;
             return;
         }
         break;
@@ -634,6 +739,7 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_REVCONFIG:
     case BM_SECTION_NONE:
         return;
     }
@@ -667,6 +773,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->cache_game = RSCACHE_GAME_UNSET;
     bm->cache_epoch = RSCACHE_EPOCH_UNSET;
     bm->cache_revision = -1;
+    bm->js5_enabled = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
     bm->spawn_npc_id = -1;
@@ -727,7 +834,9 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         {
         case INI_ELEMENT_SECTION:
             section = bm_section_of(element._section.name);
-            if( section == BM_SECTION_NONE )
+            if( section == BM_SECTION_REVCONFIG )
+                snprintf(bm->revconfig_inline, sizeof(bm->revconfig_inline), "%s", path);
+            else if( section == BM_SECTION_NONE )
                 fprintf(
                     stderr,
                     "bootmanifest: ignoring unknown section '[%s]'\n",
@@ -776,6 +885,12 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     if( !bm->cache_quirks_set )
     {
         fprintf(stderr, "bootmanifest: '%s' missing required [cache:boot] quirks=\n", path);
+        return -1;
+    }
+
+    if( bm->client_args_error )
+    {
+        fprintf(stderr, "bootmanifest: invalid [client:args] in '%s'\n", path);
         return -1;
     }
 
@@ -878,6 +993,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->revconfig_ui_ini = bm->revconfig_ui;
     if( bm->revconfig_cache[0] )
         cfg->revconfig_cache_ini = bm->revconfig_cache;
+    if( bm->revconfig_inline[0] )
+        cfg->revconfig_inline_ini = bm->revconfig_inline;
     if( bm->interface_id > 0 )
         cfg->interface_id = bm->interface_id;
     if( bm->window_mode )
@@ -925,6 +1042,32 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
     if( bm->spawn_proj_seq_id >= 0 )
         cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
+}
+
+void
+BootManifest_ApplyToExecutorConfig(
+    struct BootManifest const* bm,
+    struct ToriRS_ExecutorConfig* cfg)
+{
+    assert(bm);
+    assert(cfg);
+
+    if( bm->js5_enabled >= 0 )
+        cfg->js5_enabled = bm->js5_enabled;
+    if( bm->js5_host[0] )
+        snprintf(cfg->js5_host, sizeof(cfg->js5_host), "%s", bm->js5_host);
+    if( bm->js5_port > 0 )
+        cfg->js5_port = bm->js5_port;
+    if( bm->js5_fallback_port_set )
+    {
+        cfg->js5_fallback_port = bm->js5_fallback_port;
+        cfg->js5_fallback_port_set = 1;
+    }
+    if( bm->js5_revision_set )
+    {
+        cfg->js5_revision = bm->js5_revision;
+        cfg->js5_revision_explicit = 1;
+    }
 }
 
 void

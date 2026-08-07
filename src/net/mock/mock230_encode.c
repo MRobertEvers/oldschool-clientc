@@ -3438,7 +3438,9 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
         v5_psmart1or2(buf, npc->damage_type);
         v5_psmart1or2(buf, npc->damage);
         v5_psmart1or2(buf, 0); /* delay: lands this tick */
-        v5_psmart1or2(buf, 0); /* limit: uncapped */
+        /* Actor.method3560 only inserts the hitmark when this slot limit is
+         * positive. Revision 239 actors retain four concurrent hitmarks. */
+        v5_psmart1or2(buf, 4);
     }
     if( classic & MOCK230_NMASK_ANIM )
     {
@@ -3488,6 +3490,29 @@ static int
 npc_extended_pending(const struct Mock230Npc* npc)
 {
     return npc->masks != 0;
+}
+
+/*
+ * Revision 239 cannot carry every classic NPC mask yet.  In particular its
+ * FACING block is not a byte-layout variant of FACE_ENTITY/FACE_COORD (see
+ * put_npc_extended_v5), so those two masks are intentionally omitted.  They
+ * must also be omitted from the traversal's "extended info follows" bit.
+ *
+ * Queueing a face-only NPC while writing an empty v5 flag is not harmless.
+ * The low-resolution reader decides whether it can read another 16-bit slot
+ * from the number of bits left in the *whole* packet.  A short face-only block
+ * can leave only 27 bits after the tracked section: too few for the reader to
+ * consume our 0xffff terminator.  It then byte-aligns onto the terminator,
+ * reads 0xff as the extended flag and walks beyond the packet (the captured
+ * failure was "66,9" on NPC_INFO).
+ */
+static int
+npc_extended_pending_v5(const struct Mock230Npc* npc)
+{
+    uint32_t const supported = MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2 |
+                               MOCK230_NMASK_ANIM | MOCK230_NMASK_SAY |
+                               MOCK230_NMASK_SPOTANIM | MOCK230_NMASK_CHANGE_TYPE;
+    return (npc->masks & supported) != 0;
 }
 
 /*
@@ -3627,6 +3652,8 @@ mock230_send_npc_info(struct Mock230Player* player)
      */
     if( wire_is_v5(player) )
     {
+        uint8_t extended_data[4096];
+        struct RSAreaBuf extended_buf;
         int adds[MOCK230_TRACKED_NPC_MAX];
         int add_count = 0;
 
@@ -3688,7 +3715,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             }
             kept[kept_count++] = slot;
             {
-                int const extended = npc_extended_pending(npc);
+                int const extended = npc_extended_pending_v5(npc);
 
                 if( npc->step_dir >= 0 )
                 {
@@ -3750,7 +3777,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
-            int const extended = npc_extended_pending(npc);
+            int const extended = npc_extended_pending_v5(npc);
 
             rsab_pbit(&buf, 16, slot);
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
@@ -3770,8 +3797,18 @@ mock230_send_npc_info(struct Mock230Player* player)
                 queued[queued_count++] = slot;
         }
 
+        /* Encode the byte-aligned tail separately. Whether a sentinel is
+         * needed depends on its exact size, which cannot be inferred from the
+         * number of queued NPCs: a bare zero mask is one byte while SAY,
+         * hitmarks and spotanims are variable-length blocks. */
+        memset(extended_data, 0, sizeof(extended_data));
+        rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
+        for( int i = 0; i < queued_count; i++ )
+            put_npc_extended_v5(&extended_buf, &srv->npcs[queued[i]], 0);
+
         /*
-         * The terminator, and ONLY when extended-info bytes follow it.
+         * The terminator, only when the golden client's low-resolution guard
+         * can actually reach it.
          *
          * The client's low-resolution loop has two exits and the sentinel is
          * the second one: it first checks `readableBits() >= 16 + 12` and
@@ -3791,13 +3828,15 @@ mock230_send_npc_info(struct Mock230Player* player)
          *
          * 145 bytes read of the 147 sent, and the two were the sentinel.
          *
-         * So it is conditional on the same thing the client's check is: whether
-         * there is anything after the bits. Both halves of that are load-bearing
-         * and they fail in opposite directions -- omit it with extended info
-         * present and the client reads an animation block as an npc record;
-         * write it with nothing following and the packet ends two bytes late.
+         * The guard is not "does extended info exist". It is exactly
+         * `readableBits >= 16 + 12`. With 13 tracked NPCs, one NOMOVE extended
+         * update leaves the bit cursor at 45 and a one-byte mask after three
+         * padding bits: 11 readable bits without a sentinel, but only 27 even
+         * after adding one. The client exits before reading the sentinel and
+         * then decodes 0xffff as the mask, producing RuntimeException 66,9 on
+         * the literal nine-byte packet. Mirror the guard instead.
          */
-        if( queued_count > 0 )
+        if( mock239_npcinfo_tail_needs_sentinel(buf.bit_pos, rsab_len(&extended_buf)) )
             rsab_pbit(&buf, 16, 0xffff);
         rsab_bytes(&buf);
 
@@ -3807,9 +3846,18 @@ mock230_send_npc_info(struct Mock230Player* player)
          * Nothing on the wire says which npc a block belongs to; the client
          * replays its own queue, so the two orders have to be the same walk.
          */
-        for( int i = 0; i < queued_count; i++ )
-            put_npc_extended_v5(&buf, &srv->npcs[queued[i]], 0);
+        rsab_pdata(&buf, extended_data, rsab_len(&extended_buf));
 
+        if( getenv("MOCK230_NPC_INFO_DEBUG") )
+        {
+            size_t const len = rsab_len(&buf);
+            fprintf(stderr,
+                    "mock230: NPC_INFO v5 tracked=%d kept=%d added=%d extended=%d len=%zu hex=",
+                    player->tracked_count, kept_count, add_count, queued_count, len);
+            for( size_t i = 0; i < len; i++ )
+                fprintf(stderr, "%02x", buf.data[i]);
+            fputc('\n', stderr);
+        }
         flush(player, &buf, OP_NPC_INFO, 2);
         memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
         player->tracked_count = kept_count;

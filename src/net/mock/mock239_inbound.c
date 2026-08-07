@@ -452,15 +452,21 @@ mock239_inbound_translate(
     }
 
     /* ResumePauseButtonDecoder: gCombinedIdAlt3 uid, g2 sub.
-     * handle_resume_pausebutton reads a plain p4 -- alt3 is [v>>16, v>>24, v,
-     * v>>8], so reading it as one would resume some other component. */
+     *
+     * The sub-id is semantic, not padding. Dynamic chatmenu rows all share
+     * chatmenu:options as their uid; the trailing g2 is the only value that
+     * distinguishes row 1 from row 2. Discarding it turns the golden client's
+     * six-byte row answer into a bare parent resume, loses last_slot, and
+     * reopens the same choice forever. Keep the canonical p4 + p2 pair; the
+     * world handler also accepts the classic four-byte form. */
     case PKTOUT_NAME_RESUME_PAUSEBUTTON:
     {
         int uid = rsab_g4_alt3(&r);
-        (void)rsab_g2(&r); /* sub */
+        int sub = rsab_g2(&r);
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         rsab_p4(&w, (uint32_t)uid);
+        rsab_p2(&w, (uint16_t)sub);
         *out_len = (int)rsab_len(&w);
         return name;
     }

@@ -1,5 +1,6 @@
 #include "app.h"
 #include "bootmanifest/bootmanifest.h"
+#include "executor_config.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
@@ -15,6 +16,9 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
+#if !defined(TORIRS_PLATFORM_WEB)
+#include "platform/platform_x_io_js5.h"
+#endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
  * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
@@ -26,10 +30,19 @@
  * are two distinct incomplete types and the call is a type error. */
 struct ToriRS_GL3;
 #endif
-/* The GPU renderer is opt-in on every host: --opengl3 natively, --webgl1 in
- * the browser. Soft3D is what a plain run gets, so a rendering difference is
- * always attributable to a flag someone passed. */
+#if defined(TORIRS_HAVE_D3D9)
+#include "platform/platform_win32_renderer_d3d9.h"
+#else
+struct ToriRS_D3D9;
+#endif
+/* GL/WebGL remains opt-in. The XP lane instead defaults to classic fixed-
+ * function D3D9; --soft3d explicitly selects its GDI fallback. */
 #define TORIRS_GPU_DEFAULT 0
+#if defined(TORIRS_HAVE_D3D9)
+#define TORIRS_D3D9_DEFAULT 1
+#else
+#define TORIRS_D3D9_DEFAULT 0
+#endif
 #include "render/torirs_frame.h"
 #include "toridraw_math.h"
 #include "ui/uitree_hover.h"
@@ -293,18 +306,79 @@ dump_hooks(struct App* app)
     }
 }
 
+/*
+ * Find `group_id`'s top-level nodes in a sibling list, descending through mount
+ * owners. A `type=rs_iface` node from the boot manifest's RevConfig carries no
+ * uid of its own (component_id -1) and the group's pack hangs beneath it, so a
+ * root-siblings-only scan dumps nothing on a config-built tree.
+ */
+static void
+dump_tree_group_in(
+    struct App* app,
+    int32_t first,
+    int group_id)
+{
+    for( int32_t i = first; i >= 0; i = app->tree->components[i].next_sibling )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        if( c->freed )
+            continue;
+        if( c->component_id >= 0 )
+        {
+            if( ((c->component_id >> 16) & 0xFFFF) == group_id )
+                dump_tree_node(app, i, 0);
+            continue;
+        }
+        dump_tree_group_in(app, c->first_child, group_id);
+    }
+}
+
 static void
 dump_tree(
     struct App* app,
     int group_id)
 {
-    int32_t root = app->tree ? app->tree->root_index : -1;
-    while( root >= 0 )
+    if( !app->tree )
+        return;
+    dump_tree_group_in(app, app->tree->root_index, group_id);
+}
+
+/*
+ * TORIRS_DUMP_ROOTS=1: the root sibling list in paint order.
+ *
+ * Root order is the boot manifest's RevConfig layout order, and it has to stay
+ * that way for the life of the tree — a debug overlay declared after the
+ * gameframe must still paint after it once the CS2 scripts have finished
+ * rearranging the frame. That only holds because a cache pack is baked *under*
+ * its `rs_iface` owner, so this list is the direct check on it: it should read
+ * back exactly as the layout section declared, however many mounts and
+ * reparents happened in between. Kept out of dump_tree so that stays
+ * byte-comparable with the reference client's widgetTreeDump.
+ */
+static void
+dump_roots(struct App* app)
+{
+    int n = 0;
+    if( !app->tree )
+        return;
+    for( int32_t i = app->tree->root_index; i >= 0;
+         i = app->tree->components[i].next_sibling )
     {
-        struct UITreeComponent const* c = &app->tree->components[root];
-        if( !c->freed && ((c->component_id >> 16) & 0xFFFF) == group_id )
-            dump_tree_node(app, root, 0);
-        root = c->next_sibling;
+        struct UITreeComponent const* c = &app->tree->components[i];
+        int children = 0;
+        for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
+            children++;
+        printf(
+            "ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
+            n++,
+            (int)i,
+            (int)c->type,
+            (unsigned)c->component_id,
+            (c->component_id >> 16) & 0xFFFF,
+            c->component_id & 0xFFFF,
+            c->behavior.hide,
+            children,
+            c->freed ? " freed" : "");
     }
 }
 
@@ -348,14 +422,63 @@ sim_render_frame(struct App* app)
     App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
-/** Interactive present: Soft3D writes pixels then blits; GL3 drains the frame
- * command stream and swaps. Headless/BMP paths keep using App_Render. */
+/** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
+ * same retained frame and present it. Headless/BMP paths keep using App_Render. */
 static void
 interactive_render_present(
     struct App* app,
     struct PlatformSDL2* sdl,
-    struct ToriRS_GL3* gl3)
+    struct ToriRS_GL3* gl3,
+    struct ToriRS_D3D9* d3d9)
 {
+#if defined(TORIRS_HAVE_D3D9)
+    if( d3d9 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        if( App_IsBooting(app, &progress) )
+        {
+            ToriRS_D3D9_DrawBootBar(d3d9, progress);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_D3D9_SetPick(d3d9, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_D3D9_RenderFrame(d3d9, &frame);
+            }
+            if( getenv("TORIRS_FRAME_DEBUG") )
+                fprintf(
+                    stderr,
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_D3D9_PickHits(d3d9));
+                }
+            }
+        }
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            ToriRS_D3D9_Present(d3d9);
+        }
+        return;
+    }
+#else
+    (void)d3d9;
+#endif
+
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
     {
@@ -387,23 +510,27 @@ interactive_render_present(
                     frame.dbg_drop_not_live,
                     frame.dbg_drop_no_model);
             if( pick_armed )
-                App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+                }
+            }
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
             PlatformSDL2_PresentGL(sdl);
         }
+        return;
     }
-    else
 #else
     (void)gl3;
 #endif
+
+    App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
     {
-        App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            PlatformSDL2_Present(sdl);
-        }
+        PlatformSDL2_Present(sdl);
     }
 }
 
@@ -421,6 +548,7 @@ interactive_render_present(
  * browser hands it to requestAnimationFrame.
  */
 static struct App app;
+static struct ToriRS_ExecutorConfig executor_cfg;
 static struct AppConfig cfg = {
     .cache_dir = NULL, /* resolved from cache_kind below */
     .config_dir = CONFIG_DIR,
@@ -449,6 +577,8 @@ static FILE* replay;
 static uint64_t replay_now;
 /* NULL unless the desktop-GL renderer was built AND --opengl3 was passed. */
 static struct ToriRS_GL3* gl3;
+/* NULL unless the Win32 fixed-function D3D9 renderer was selected. */
+static struct ToriRS_D3D9* d3d9;
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
 static int sim_sound_id = -1;
@@ -510,10 +640,20 @@ frame_loop_step(void)
         return 0;
 
     uint64_t now;
+    int app_redraw;
+#if !defined(__EMSCRIPTEN__)
+    uint64_t frame_start_ms;
+#endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
 
+#if !defined(__EMSCRIPTEN__)
+    /* The pacing budget starts before any frame work. The input timestamp
+     * below is intentionally separate: using it as the origin omitted the
+     * pre-poll work and made nominal 20 ms frames longer than 20 ms. */
+    frame_start_ms = PlatformSDL2_Ticks64();
+#endif
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -663,11 +803,16 @@ frame_loop_step(void)
     }
     else
     {
-        now = PlatformSDL2_Ticks64();
-        CmdBus_PushFrame(&bus, now);
-        PlatformSDL2_PollCommands(sdl, &bus);
-        if( sock )
-            NetTransport_Poll(sock, app.net, &bus);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
+        {
+            now = PlatformSDL2_Ticks64();
+            CmdBus_PushFrame(&bus, now);
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
+            {
+                PlatformSDL2_PollCommands(sdl, &bus);
+                if( sock )
+                    NetTransport_Poll(sock, app.net, &bus);
+            }
 
         /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
          * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
@@ -1237,11 +1382,27 @@ frame_loop_step(void)
                 wz_frame = -1;
             }
         }
+        }
     }
 
-    LibToriRS_Input_Begin(input, now);
-    App_DrainCommands(&app, &bus, input);
-    LibToriRS_Input_End(input);
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_cfg.js5_enabled &&
+        PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64()) < 0 )
+    {
+        fprintf(
+            stderr,
+            "torirs: JS5 cache producer stopped (error=%d)\n",
+            (int)PlatformXIO_Js5LastError(app.runner.px));
+        return 0;
+    }
+#endif
+
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
+    {
+        LibToriRS_Input_Begin(input, now);
+        App_DrainCommands(&app, &bus, input);
+        LibToriRS_Input_End(input);
+    }
 
     /* Reconcile the presentation surfaces with the canvas the drain just
      * settled on. The canvas is the authority (App_SetCanvasSize clamps it to a
@@ -1250,14 +1411,40 @@ frame_loop_step(void)
      * UITREE_LAYOUT_ROOT_W x _H ints, so any disagreement here is a buffer
      * overrun rather than a cosmetic bug. Below the floor the window letterboxes
      * the clamped canvas, which is also what fixed mode does. */
-    PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-#if defined(TORIRS_HAVE_GL3)
-    if( gl3 )
-        ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SURFACE_SYNC)
+    {
+        PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#if defined(TORIRS_HAVE_D3D9)
+        if( d3d9 )
+            ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
+#if defined(TORIRS_HAVE_GL3)
+        if( gl3 )
+            ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
+    }
 
-    if( App_RunOnce(&app, now, input) )
-        interactive_render_present(&app, sdl, gl3);
+    app_redraw = 0;
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
+    {
+        app_redraw = App_RunOnce(&app, now, input);
+    }
+    if( app_redraw )
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
+        {
+            interactive_render_present(&app, sdl, gl3, d3d9);
+        }
+    }
+#if defined(TORIRS_HAVE_D3D9)
+    else if( d3d9 )
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+            ToriRS_D3D9_Present(d3d9);
+        }
+    }
+#endif
 #if defined(TORIRS_HAVE_GL3)
     else if( gl3 )
     {
@@ -1280,16 +1467,18 @@ frame_loop_step(void)
      * and the strip sits outside it. Must run after App_RunOnce so open/close
      * layout (5354) has already widened/collapsed the strip. The next frame's
      * drain/resize/present picks up the new size. */
-    if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
-        App_SyncFixedChromeInset(&app) )
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_WINDOW_SYNC)
     {
-        int const fw = UITREE_LAYOUT_ROOT_W;
-        int const fh = UITREE_LAYOUT_ROOT_H;
-        PlatformSDL2_SetWindowSize(sdl, fw, fh);
-        PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
-        if( getenv("TORIRS_RESIZE_DEBUG") )
-            fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
-    }
+        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
+            App_SyncFixedChromeInset(&app) )
+        {
+            int const fw = UITREE_LAYOUT_ROOT_W;
+            int const fh = UITREE_LAYOUT_ROOT_H;
+            PlatformSDL2_SetWindowSize(sdl, fw, fh);
+            PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
+            if( getenv("TORIRS_RESIZE_DEBUG") )
+                fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+        }
 
     /*
      * A clientscript changed the window mode (the Display panel's client-mode
@@ -1340,16 +1529,19 @@ frame_loop_step(void)
             }
         }
     }
+    }
 
     /* The game asked; the platform plays. Once per frame, after the tick
      * that queued the requests and before the next one recycles their
      * PCM (App_DrainAudio lends it for exactly this long). */
-    PlatformAudio_SubmitAll(
-        audio,
-        audio_commands,
-        App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
-
-    update_window_title(sdl, &app, cfg.interface_id);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_FRAME_POST)
+    {
+        PlatformAudio_SubmitAll(
+            audio,
+            audio_commands,
+            App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
+        update_window_title(sdl, &app, cfg.interface_id);
+    }
     /* Close the work timer before pacing sleeps — otherwise capped runs always
      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
      * flat 1 ms that hides real drift. */
@@ -1358,19 +1550,11 @@ frame_loop_step(void)
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
 #if !defined(__EMSCRIPTEN__)
-    if( !replay )
-    {
-        if( uncapped )
-            PlatformSDL2_Delay(1);
-        else
-        {
-            /* 50 fps cap: one frame per 20ms client cycle (--uncapped
-             * frees the loop for profiling/benchmarks). */
-            uint64_t elapsed = PlatformSDL2_Ticks64() - now;
-            if( elapsed < 20 )
-                PlatformSDL2_Delay((uint32_t)(20 - elapsed));
-        }
-    }
+    /* 50 fps cap: wait to an absolute deadline so early wakeups are retried
+     * and the frame's complete workload counts against its 20 ms budget.
+     * --uncapped is a true profiling mode and performs no artificial wait. */
+    if( !replay && !uncapped )
+        PlatformSDL2_SleepUntil(frame_start_ms + 20);
 #endif
     return 1;
 }
@@ -1415,6 +1599,8 @@ frame_loop_teardown(void)
          * frame loop so server-driven interface mounts are visible. */
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
             dump_tree(&app, cfg.interface_id);
+        if( getenv("TORIRS_DUMP_ROOTS") && app.tree )
+            dump_roots(&app);
         if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
             dump_hooks(&app);
         /* Post-network emit dump: the actual draw list for the last frame,
@@ -1543,7 +1729,8 @@ frame_loop_teardown(void)
                     fprintf(
                         stderr,
                         "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
-                        "abs=%d,%d wh=%dx%d font=%d color=0x%x parent=%d\n",
+                        "abs=%d,%d wh=%dx%d font=%d color=0x%x "
+                        "textalign=%d,%d lineheight=%d parent=%d\n",
                         want,
                         i,
                         (int)c->type,
@@ -1557,6 +1744,9 @@ frame_loop_teardown(void)
                         c->position.abs_h,
                         c->type == UIELEM_RS_TEXT ? c->u.rs_text.font_id : -1,
                         c->type == UIELEM_RS_TEXT ? c->u.rs_text.color : 0,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.center : -1,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.y_align : -1,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.line_height : -1,
                         c->parent);
                 }
             }
@@ -1594,6 +1784,9 @@ frame_loop_teardown(void)
 
     NetTransport_Free(sock);
     PlatformAudio_Free(audio);
+#if defined(TORIRS_HAVE_D3D9)
+    ToriRS_D3D9_Free(d3d9);
+#endif
 #if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
 #endif
@@ -1610,57 +1803,183 @@ frame_loop_tick(void)
     if( frame_loop_step() )
         return;
     emscripten_cancel_main_loop();
+    /* Close the final CPU calibration interval before capture/destruction. */
+    TorirsPerf_Shutdown();
     frame_loop_teardown();
     App_Shutdown(&app);
 }
 #endif
 
-
-int
-main(
-    int argc,
-    char** argv)
+static int
+parse_executor_cli_int(
+    char const* flag,
+    char const* value,
+    int min,
+    int max,
+    int* out)
 {
-    static char derived_cache_ini[512];
-    static struct BootManifest boot_manifest; /* must outlive app: cfg points into it */
-    int write_bmp = 0;
-    int offline = 0;
-    int cli_connect = 0;
-    int use_opengl3 = TORIRS_GPU_DEFAULT;
-    int positional = 0;
-    int argi;
+    char* end = NULL;
+    long parsed = strtol(value, &end, 10);
 
-    /* Pre-scan for --manifest so its values seed cfg before the flag loop;
-     * explicit CLI flags below then override (precedence CLI > manifest). */
-    for( argi = 1; argi < argc; argi++ )
+    if( end == value || *end != '\0' || parsed < min || parsed > max )
     {
-        if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
-        {
-            if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
-                return 1;
-            BootManifest_ApplyToConfig(&boot_manifest, &cfg);
-#if defined(TORIRS_PLATFORM_WEB)
-            /* This host's sockets are WebSockets (emscripten maps connect() to
-             * ws://host:port), so the manifest's tcp host:port is the wrong
-             * endpoint whenever the server keeps its WebSocket somewhere else —
-             * LostCity serves the game on 43594/tcp and upgrades / on its web
-             * port. Still before the flag loop, so --connect/--port win. */
-            BootManifest_ApplyWebEndpoint(&boot_manifest, &cfg);
-#endif
-            break;
-        }
+        fprintf(stderr, "torirs: %s takes an integer in %d..%d\n", flag, min, max);
+        return -1;
+    }
+    *out = (int)parsed;
+    return 0;
+}
+
+static int
+set_executor_js5_host(char const* value)
+{
+    size_t len = strlen(value);
+    if( len == 0 || len >= sizeof(executor_cfg.js5_host) )
+    {
+        fprintf(
+            stderr,
+            "torirs: --js5-host must contain 1..%zu characters\n",
+            sizeof(executor_cfg.js5_host) - 1);
+        return -1;
+    }
+    memcpy(executor_cfg.js5_host, value, len + 1);
+    return 0;
+}
+
+#if !defined(TORIRS_PLATFORM_WEB)
+static int
+executor_prepare_js5_cache(void)
+{
+    struct RSCache_Dat2Disk* sparse;
+
+    if( !executor_cfg.js5_enabled )
+        return 0;
+    sparse = RSCache_Dat2DiskNewSparseFromDirectory(cfg.cache_dir);
+    if( !sparse )
+    {
+        fprintf(
+            stderr,
+            "torirs: cannot create/open incremental dat2 cache at %s "
+            "(the directory must already exist)\n",
+            cfg.cache_dir);
+        return -1;
+    }
+    RSCache_Dat2DiskFree(sparse);
+    return 0;
+}
+
+static int
+executor_attach_and_prime_js5(void)
+{
+    struct Js5Config js5;
+    int status;
+
+    if( !executor_cfg.js5_enabled )
+        return 0;
+
+    Js5ConfigInit(&js5);
+    js5.host = executor_cfg.js5_host;
+    js5.primary_port = (uint16_t)executor_cfg.js5_port;
+    js5.fallback_port = (uint16_t)executor_cfg.js5_fallback_port;
+    js5.revision = (uint32_t)executor_cfg.js5_revision;
+    if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
+    {
+        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        return -1;
     }
 
-    for( argi = 1; argi < argc; argi++ )
+    /*
+     * The master index is always requested from the server. Valid local
+     * reference tables may satisfy the subsequent checks, but no core task is
+     * stepped until all server-authoritative metadata is installed.
+     */
+    while( (status = PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64())) == 0 )
+        PlatformSDL2_SleepUntil(PlatformSDL2_Ticks64() + 1u);
+    if( status < 0 )
     {
-        if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
+        struct Js5Progress progress;
+        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        fprintf(
+            stderr,
+            "torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
+            (int)progress.last_error,
+            (int)progress.state,
+            (unsigned)progress.handshake_status,
+            (unsigned)progress.current_port);
+        return -1;
+    }
+
+    {
+        struct Js5Progress progress;
+        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        fprintf(
+            stderr,
+            "torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
+            (unsigned)progress.references_ready,
+            (unsigned long long)progress.bytes_received);
+    }
+    return 0;
+}
+#endif
+
+struct MainArgState
+{
+    int write_bmp;
+    int use_opengl3;
+    int use_d3d9;
+};
+
+static void
+main_print_usage(char const* program)
+{
+    fprintf(
+        stderr,
+        "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
+        "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
+        "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
+        "[--pass P] [--rev lc254|lc245_2|xrsps233] "
+        "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
+        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
+        "[--windowmode fixed|resizable] [--window WxH] "
+        "[--opengl3|--webgl1|--d3d9|--soft3d]\n",
+        program);
+}
+
+/* Apply one argv layer. Manifest-provided tokens are applied first and the
+ * process argv second; every layer gets fresh positional slots, so an explicit
+ * cache/interface positional replaces rather than follows a manifest one. */
+static int
+main_parse_argument_layer(
+    int argc,
+    char* const* argv,
+    int first,
+    int from_manifest,
+    char const* program,
+    struct MainArgState* state)
+{
+    int argi;
+    int positional = 0;
+    int saw_offline = 0;
+    int saw_connect = 0;
+    int saw_js5_enable = 0;
+
+    for( argi = first; argi < argc; argi++ )
+    {
+        if( strcmp(argv[argi], "--manifest") == 0 )
         {
-            argi++; /* consumed in the pre-scan */
+            if( from_manifest )
+            {
+                fprintf(stderr, "torirs: [client:args] cannot contain --manifest\n");
+                return 0;
+            }
+            if( argi + 1 >= argc )
+                goto invalid;
+            argi++; /* consumed by main's manifest pre-scan */
             continue;
         }
         if( strcmp(argv[argi], "--offline") == 0 )
         {
-            offline = 1;
+            saw_offline = 1;
             continue;
         }
         if( strcmp(argv[argi], "--port") == 0 && argi + 1 < argc )
@@ -1668,15 +1987,63 @@ main(
             cfg.connect_port = atoi(argv[++argi]);
             continue;
         }
+        if( strcmp(argv[argi], "--js5") == 0 )
+        {
+            executor_cfg.js5_enabled = 1;
+            saw_js5_enable = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--no-js5") == 0 )
+        {
+            executor_cfg.js5_enabled = 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-host") == 0 && argi + 1 < argc )
+        {
+            if( set_executor_js5_host(argv[++argi]) != 0 )
+                return 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-port") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-port", argv[++argi], 1, 65535, &executor_cfg.js5_port) != 0 )
+                return 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-fallback-port") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-fallback-port",
+                    argv[++argi],
+                    0,
+                    65535,
+                    &executor_cfg.js5_fallback_port) != 0 )
+                return 0;
+            executor_cfg.js5_fallback_port_set = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-revision") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-revision",
+                    argv[++argi],
+                    1,
+                    2147483647,
+                    &executor_cfg.js5_revision) != 0 )
+                return 0;
+            executor_cfg.js5_revision_explicit = 1;
+            continue;
+        }
         if( strcmp(argv[argi], "--bmp") == 0 )
         {
-            write_bmp = 1;
+            state->write_bmp = 1;
             continue;
         }
         if( strcmp(argv[argi], "--dat1") == 0 )
         {
             cfg.cache_kind = APP_CACHE_DAT1;
-            cfg.cache_epoch = 1; /* RSCACHE_EPOCH_DAT1 — keep identity coherent */
+            cfg.cache_epoch = 1; /* RSCACHE_EPOCH_DAT1: keep identity coherent */
             continue;
         }
         if( strcmp(argv[argi], "--dat2") == 0 )
@@ -1698,7 +2065,7 @@ main(
         if( strcmp(argv[argi], "--connect") == 0 && argi + 1 < argc )
         {
             cfg.connect_target = argv[++argi];
-            cli_connect = 1;
+            saw_connect = 1;
             continue;
         }
         if( strcmp(argv[argi], "--user") == 0 && argi + 1 < argc )
@@ -1721,17 +2088,13 @@ main(
             uncapped = 1;
             continue;
         }
-        /* --windowmode fixed|resizable, --window WxH: the display half of the
-         * boot config, same keys as [ui:boot]. CLI > manifest, and
-         * TORIRS_ROOT_SIZE still beats both for --window (it is the debug knob
-         * that predates the setting). */
         if( strcmp(argv[argi], "--windowmode") == 0 && argi + 1 < argc )
         {
             cfg.window_mode = CS2VM_WindowModeFromName(argv[++argi]);
             if( !cfg.window_mode )
             {
                 fprintf(stderr, "torirs: --windowmode takes fixed|resizable\n");
-                return 1;
+                return 0;
             }
             continue;
         }
@@ -1743,44 +2106,52 @@ main(
             if( w <= 0 || h <= 0 )
             {
                 fprintf(stderr, "torirs: --window takes WxH\n");
-                return 1;
+                return 0;
             }
             cfg.window_w = (int)w;
             cfg.window_h = (int)h;
             continue;
         }
-        /* Two spellings for one renderer, because they are not the same
-         * renderer to the person passing them: --opengl3 is desktop GL 3.2,
-         * --webgl1 is GLES2 in a browser. Each build accepts only the one it
-         * can actually do, so a flag that would silently do nothing is an
-         * error with the right alternative named instead. */
         if( strcmp(argv[argi], "--opengl3") == 0 )
         {
 #if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
-            use_opengl3 = 1;
+            state->use_opengl3 = 1;
+            state->use_d3d9 = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
             fprintf(stderr, "torirs: this build renders through WebGL1 — use --webgl1\n");
-            return 1;
+            return 0;
 #else
             fprintf(stderr, "torirs: --opengl3 is not available in this build\n");
-            return 1;
+            return 0;
 #endif
         }
         if( strcmp(argv[argi], "--webgl1") == 0 )
         {
 #if defined(TORIRS_GL_ES2)
-            use_opengl3 = 1;
+            state->use_opengl3 = 1;
+            state->use_d3d9 = 0;
             continue;
 #else
             fprintf(stderr, "torirs: --webgl1 is the browser build's flag — use --opengl3\n");
-            return 1;
+            return 0;
 #endif
         }
-        /* Explicit software rasterizer, for a host where the GPU path is on. */
+        if( strcmp(argv[argi], "--d3d9") == 0 )
+        {
+#if defined(TORIRS_HAVE_D3D9)
+            state->use_d3d9 = 1;
+            state->use_opengl3 = 0;
+            continue;
+#else
+            fprintf(stderr, "torirs: --d3d9 is not available in this build\n");
+            return 0;
+#endif
+        }
         if( strcmp(argv[argi], "--soft3d") == 0 )
         {
-            use_opengl3 = 0;
+            state->use_opengl3 = 0;
+            state->use_d3d9 = 0;
             continue;
         }
         if( positional == 0 && argv[argi][0] != '-' )
@@ -1795,25 +2166,115 @@ main(
             if( cfg.interface_id <= 0 )
             {
                 fprintf(stderr, "invalid interface id: %s\n", argv[argi]);
-                return 1;
+                return 0;
             }
             positional++;
             continue;
         }
+
+    invalid:
         fprintf(
             stderr,
-            "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
-            "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
-            "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-            "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] [--opengl3|--webgl1|--soft3d]\n",
-            argv[0]);
-        return 1;
+            "torirs: invalid %s argument '%s'\n",
+            from_manifest ? "[client:args]" : "command-line",
+            argv[argi]);
+        main_print_usage(program);
+        return 0;
     }
 
-    /* --offline suppresses a manifest-provided host so a live-boot manifest can
-     * be reused for cache-only inspection. An explicit --connect still wins. */
-    if( offline && !cli_connect )
+    /* Resolve connectivity per layer. This lets a real `--offline` clear a
+     * manifest-provided --connect, while a real --connect overrides manifest
+     * offline. Within one layer, connect wins just as it did before. */
+    if( saw_offline && !saw_connect )
         cfg.connect_target = NULL;
+    /* Offline also suppresses an inherited JS5 producer. An explicit --js5 in
+     * this same layer opts back into cache networking without reconnecting the
+     * game transport. Later layers can override either result. */
+    if( saw_offline && !saw_js5_enable )
+        executor_cfg.js5_enabled = 0;
+    return 1;
+}
+
+/* Used only while locating the boot manifest. It must understand which
+ * options consume a value so a literal value equal to `--manifest` is not
+ * mistaken for the bootstrap option before the real parser sees it. */
+static int
+main_argument_takes_value(char const* argument)
+{
+    return strcmp(argument, "--manifest") == 0 ||
+           strcmp(argument, "--port") == 0 ||
+           strcmp(argument, "--revconfig") == 0 ||
+           strcmp(argument, "--revconfig-cache") == 0 ||
+           strcmp(argument, "--connect") == 0 ||
+           strcmp(argument, "--user") == 0 ||
+           strcmp(argument, "--pass") == 0 ||
+           strcmp(argument, "--rev") == 0 ||
+           strcmp(argument, "--js5-host") == 0 ||
+           strcmp(argument, "--js5-port") == 0 ||
+           strcmp(argument, "--js5-fallback-port") == 0 ||
+           strcmp(argument, "--js5-revision") == 0 ||
+           strcmp(argument, "--windowmode") == 0 ||
+           strcmp(argument, "--window") == 0;
+}
+
+int
+main(
+    int argc,
+    char** argv)
+{
+    static char derived_cache_ini[512];
+    static struct BootManifest boot_manifest; /* must outlive app: cfg points into it */
+    char* manifest_argv[BOOTMANIFEST_CLIENT_ARG_MAX];
+    struct MainArgState arg_state = {
+        .write_bmp = 0,
+        .use_opengl3 = TORIRS_GPU_DEFAULT,
+        .use_d3d9 = TORIRS_D3D9_DEFAULT,
+    };
+    int argi;
+    int i;
+
+    ToriRS_ExecutorConfig_Init(&executor_cfg);
+
+    /* Pre-scan for --manifest so its values seed cfg before the flag loop;
+     * explicit CLI flags below then override (precedence CLI > manifest). */
+    for( argi = 1; argi < argc; argi++ )
+    {
+        if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
+        {
+            if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
+                return 1;
+            BootManifest_ApplyToConfig(&boot_manifest, &cfg);
+            BootManifest_ApplyToExecutorConfig(&boot_manifest, &executor_cfg);
+#if defined(TORIRS_PLATFORM_WEB)
+            /* This host's sockets are WebSockets (emscripten maps connect() to
+             * ws://host:port), so the manifest's tcp host:port is the wrong
+             * endpoint whenever the server keeps its WebSocket somewhere else —
+             * LostCity serves the game on 43594/tcp and upgrades / on its web
+             * port. Still before the flag loop, so --connect/--port win. */
+            BootManifest_ApplyWebEndpoint(&boot_manifest, &cfg);
+#endif
+            break;
+        }
+        if( main_argument_takes_value(argv[argi]) && argi + 1 < argc )
+            argi++;
+    }
+
+    for( i = 0; i < boot_manifest.client_arg_count; i++ )
+        manifest_argv[i] = boot_manifest.client_args[i];
+    if( !main_parse_argument_layer(
+            boot_manifest.client_arg_count,
+            manifest_argv,
+            0,
+            1,
+            argv[0],
+            &arg_state) )
+        return 1;
+    if( !main_parse_argument_layer(argc, argv, 1, 0, argv[0], &arg_state) )
+        return 1;
+
+    int const write_bmp = arg_state.write_bmp;
+    int const use_opengl3 = arg_state.use_opengl3;
+    int const use_d3d9 = arg_state.use_d3d9;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
@@ -1848,6 +2309,31 @@ main(
      * RevConfig; dat2 keeps opening interface_id unless one is given. */
     if( !cfg.cache_dir )
         cfg.cache_dir = cfg.cache_kind == APP_CACHE_DAT1 ? DAT1_CACHE_DIR : DAT2_CACHE_DIR;
+
+    {
+        char error[192];
+        if( ToriRS_ExecutorConfig_ResolveJs5(&executor_cfg, &cfg, error, sizeof(error)) != 0 )
+        {
+            fprintf(stderr, "torirs: %s\n", error);
+            return 1;
+        }
+        if( executor_cfg.js5_enabled )
+            fprintf(
+                stderr,
+                "torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
+                executor_cfg.js5_host,
+                executor_cfg.js5_port,
+                executor_cfg.js5_fallback_port,
+                executor_cfg.js5_revision,
+                cfg.cache_dir);
+    }
+#if defined(TORIRS_PLATFORM_WEB)
+    if( executor_cfg.js5_enabled )
+    {
+        fprintf(stderr, "torirs: JS5 incremental cache loading is native-only\n");
+        return 1;
+    }
+#endif
     if( !cfg.revconfig_ui_ini && cfg.cache_kind == APP_CACHE_DAT1 )
     {
         cfg.revconfig_ui_ini = DEFAULT_REVCONFIG_UI;
@@ -1929,7 +2415,18 @@ main(
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }
 
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_prepare_js5_cache() != 0 )
+        return 1;
+#endif
     App_Init(&app, &cfg);
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_attach_and_prime_js5() != 0 )
+    {
+        App_Shutdown(&app);
+        return 1;
+    }
+#endif
     TorirsPerf_Init(0);
     /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
      * whose default the manifest is entitled to override, and the root
@@ -2639,7 +3136,7 @@ main(
         snprintf(title, sizeof(title), "torirs iface=%d", cfg.interface_id);
         if( !sdl )
         {
-            fprintf(stderr, "SDL alloc failed\n");
+            fprintf(stderr, "window platform alloc failed\n");
             App_Shutdown(&app);
             return 1;
         }
@@ -2673,11 +3170,30 @@ main(
 #endif
         if( !PlatformSDL2_Init(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
-            fprintf(stderr, "SDL init failed\n");
+            fprintf(stderr, "window init failed\n");
             PlatformSDL2_Free(sdl);
             App_Shutdown(&app);
             return 1;
         }
+
+#if defined(TORIRS_HAVE_D3D9)
+        if( use_d3d9 )
+        {
+            d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            if( !d3d9 ||
+                !ToriRS_D3D9_Init(
+                    d3d9, PlatformSDL2_NativeWindowHandle(sdl), app.scene) )
+            {
+                fprintf(
+                    stderr,
+                    "D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
+                ToriRS_D3D9_Free(d3d9);
+                d3d9 = NULL;
+            }
+        }
+#else
+        (void)use_d3d9;
+#endif
 
         CmdBus_Init(&bus);
 
@@ -2781,7 +3297,7 @@ main(
             }
         }
 
-        interactive_render_present(&app, sdl, gl3);
+        interactive_render_present(&app, sdl, gl3, d3d9);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
@@ -2886,6 +3402,8 @@ main(
         while( frame_loop_step() )
         {
         }
+        /* Close the final CPU calibration interval before capture/destruction. */
+        TorirsPerf_Shutdown();
         frame_loop_teardown();
 #endif
     }

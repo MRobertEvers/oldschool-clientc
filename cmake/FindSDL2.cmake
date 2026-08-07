@@ -122,7 +122,7 @@ endif()
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDL2
     REQUIRED_VARS SDL2_LIBRARIES SDL2_INCLUDE_DIRS
-    FAIL_MESSAGE "SDL2 not found. Please install SDL2 development files. See BUILD_WINXP.md for instructions."
+    FAIL_MESSAGE "SDL2 not found. Install SDL2 development files. Current client platform setup is documented in docs/platform_quirks.md."
 )
 
 # Debug output

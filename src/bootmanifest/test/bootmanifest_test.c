@@ -1,10 +1,30 @@
 #include "bootmanifest.h"
 
 #include "app.h"
+#include "executor_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_WIN32)
+static int
+test_setenv(const char* name, const char* value, int overwrite)
+{
+    if( !overwrite && getenv(name) )
+        return 0;
+    return _putenv_s(name, value);
+}
+
+static int
+test_unsetenv(const char* name)
+{
+    return _putenv_s(name, "");
+}
+
+#define setenv test_setenv
+#define unsetenv test_unsetenv
+#endif
 
 static int g_fail = 0;
 
@@ -50,6 +70,25 @@ test_load_fields(void)
     for( int i = 0; i < 9; i++ )
         CHECK(bm.jag_crc[i] == i);
 
+    CHECK(bm.client_arg_count == 9);
+    CHECK(strcmp(bm.client_args[0], "--offline") == 0);
+    CHECK(strcmp(bm.client_args[1], "--window") == 0);
+    CHECK(strcmp(bm.client_args[2], "1024x768") == 0);
+    CHECK(strcmp(bm.client_args[3], "--user") == 0);
+    CHECK(strcmp(bm.client_args[4], "Jane Doe") == 0);
+    CHECK(strcmp(bm.client_args[5], "--pass") == 0);
+    CHECK(strcmp(bm.client_args[6], "p;#&=, \"quoted\"") == 0);
+    CHECK(strcmp(bm.client_args[7], "--revconfig") == 0);
+    CHECK(strcmp(bm.client_args[8], "C:\\Program Files\\ui.ini") == 0);
+
+    CHECK(bm.js5_enabled == 1);
+    CHECK(strcmp(bm.js5_host, "js5.example.com") == 0);
+    CHECK(bm.js5_port == 43594);
+    CHECK(bm.js5_fallback_port_set == 1);
+    CHECK(bm.js5_fallback_port == 443);
+    CHECK(bm.js5_revision_set == 1);
+    CHECK(bm.js5_revision == 233);
+
     CHECK(bm.ui_logic == APP_UI_LOGIC_CS2);
     CHECK(bm.chrome == 2 /* cache */);
     /* Absolute path passes through; relative joins against the manifest dir. */
@@ -83,6 +122,25 @@ test_load_fields(void)
     CHECK(bm.npc_type_ambient_contrast == 1);
     CHECK(bm.player_head_ambient_set == 1);
     CHECK(bm.player_head_ambient == 128);
+}
+
+static void
+test_apply_to_executor_config(void)
+{
+    struct BootManifest bm;
+    struct ToriRS_ExecutorConfig executor;
+
+    CHECK(BootManifest_LoadFile(&bm, FIXTURE) == 0);
+    ToriRS_ExecutorConfig_Init(&executor);
+    BootManifest_ApplyToExecutorConfig(&bm, &executor);
+
+    CHECK(executor.js5_enabled == 1);
+    CHECK(strcmp(executor.js5_host, "js5.example.com") == 0);
+    CHECK(executor.js5_port == 43594);
+    CHECK(executor.js5_fallback_port_set == 1);
+    CHECK(executor.js5_fallback_port == 443);
+    CHECK(executor.js5_revision_explicit == 1);
+    CHECK(executor.js5_revision == 233);
 }
 
 static void
@@ -166,6 +224,103 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.spawn_npc_id == -1);
     /* Set: host became the connect target. */
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
+
+    struct ToriRS_ExecutorConfig executor;
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    snprintf(executor.js5_host, sizeof(executor.js5_host), "cli-js5-host");
+    executor.js5_port = 40000;
+    executor.js5_fallback_port = 0;
+    executor.js5_fallback_port_set = 1;
+    executor.js5_revision = 240;
+    executor.js5_revision_explicit = 1;
+    bm.js5_enabled = -1;
+    BootManifest_ApplyToExecutorConfig(&bm, &executor);
+    CHECK(executor.js5_enabled == 1);
+    CHECK(strcmp(executor.js5_host, "cli-js5-host") == 0);
+    CHECK(executor.js5_port == 40000);
+    CHECK(executor.js5_fallback_port_set == 1);
+    CHECK(executor.js5_fallback_port == 0);
+    CHECK(executor.js5_revision == 240);
+    CHECK(executor.js5_revision_explicit == 1);
+}
+
+static void
+test_executor_js5_resolution(void)
+{
+    struct AppConfig app_cfg = { 0 };
+    struct ToriRS_ExecutorConfig executor;
+    char error[160];
+
+    app_cfg.cache_kind = APP_CACHE_DAT2;
+    app_cfg.cache_identity_set = 1;
+    app_cfg.cache_revision = 239;
+    app_cfg.connect_target = "oldschool.example.com";
+
+    /* --js5 by itself inherits the effective game endpoint and cache revision. */
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(strcmp(executor.js5_host, "oldschool.example.com") == 0);
+    CHECK(executor.js5_port == 43594);
+    CHECK(executor.js5_fallback_port == 443);
+    CHECK(executor.js5_revision == 239);
+
+    /* --connect host:port is one endpoint to the game transport. JS5 inherits
+     * both halves rather than handing the colon to DNS as part of the host. */
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    app_cfg.connect_target = "oldschool.example.com:44000";
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(strcmp(executor.js5_host, "oldschool.example.com") == 0);
+    CHECK(executor.js5_port == 44000);
+    CHECK(executor.js5_fallback_port == 0);
+    app_cfg.connect_target = "oldschool.example.com";
+
+    /* A custom primary gets no implicit fallback. */
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    snprintf(executor.js5_host, sizeof(executor.js5_host), "cache.example.com");
+    executor.js5_port = 40000;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(executor.js5_fallback_port == 0);
+
+    /* An explicit fallback, including explicit zero, beats the derived value. */
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    executor.js5_fallback_port = 8443;
+    executor.js5_fallback_port_set = 1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(executor.js5_fallback_port == 8443);
+
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    executor.js5_fallback_port = 0;
+    executor.js5_fallback_port_set = 1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(executor.js5_fallback_port == 0);
+
+    /* Revision drift is rejected unless the manifest/CLI explicitly opted out. */
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    executor.js5_revision = 240;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) != 0);
+    executor.js5_revision_explicit = 1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) == 0);
+    CHECK(executor.js5_revision == 240);
+
+    char overlong_host[TORIRS_EXECUTOR_JS5_HOST_MAX + 1];
+    memset(overlong_host, 'x', sizeof(overlong_host) - 1);
+    overlong_host[sizeof(overlong_host) - 1] = '\0';
+    app_cfg.connect_target = overlong_host;
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) != 0);
+
+    ToriRS_ExecutorConfig_Init(&executor);
+    executor.js5_enabled = 1;
+    app_cfg.cache_kind = APP_CACHE_DAT1;
+    CHECK(ToriRS_ExecutorConfig_ResolveJs5(&executor, &app_cfg, error, sizeof(error)) != 0);
 }
 
 /*
@@ -218,14 +373,29 @@ test_required_identity_keys(void)
     CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_missing_epoch.ini") != 0);
 }
 
+static void
+test_exact_manifest_tokens_preserved(void)
+{
+    struct BootManifest bm;
+    CHECK(BootManifest_LoadFile(
+              &bm, "bootmanifest/test/fixture_nested_manifest_arg.ini") == 0);
+    CHECK(bm.client_arg_count == 3);
+    CHECK(strcmp(bm.client_args[0], "--manifest") == 0);
+    CHECK(strcmp(bm.client_args[1], "another.ini") == 0);
+    CHECK(strcmp(bm.client_args[2], "") == 0);
+}
+
 int
 main(void)
 {
     test_load_fields();
     test_apply_to_config();
+    test_apply_to_executor_config();
     test_partial_apply_preserves_unset();
+    test_executor_js5_resolution();
     test_web_endpoint();
     test_required_identity_keys();
+    test_exact_manifest_tokens_preserved();
 
     if( g_fail )
     {

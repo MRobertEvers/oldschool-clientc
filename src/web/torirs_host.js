@@ -178,6 +178,32 @@
       return out;
     },
 
+    // `[client:args]` is intentionally one exact argv token per `arg=` line,
+    // matching the repeated query-string form above. Do not trim or interpret
+    // quotes/comments: the C INI reader does neither for a value.
+    clientArgs: function (bytes) {
+      var text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      var out = [];
+      var section = '';
+      text.split('\n').forEach(function (raw) {
+        var line = raw.replace(/\r$/, '');
+        // The C reader skips indentation before each element, but preserves
+        // everything after `=` as the value. Use a separate structural view
+        // so leading whitespace is ignored without altering the argv token.
+        var structural = line.replace(/^[ \t]+/, '');
+        if (structural.charAt(0) === '[') {
+          var close = structural.indexOf(']');
+          if (close < 0) { return; }
+          section = structural.substring(1, close);
+          return;
+        }
+        if (section !== 'client:args') { return; }
+        if (structural.substring(0, 4) !== 'arg=') { return; }
+        out.push(structural.substring(4));
+      });
+      return out;
+    },
+
     load: function () {
       var self = this;
       var seen = {};
@@ -188,22 +214,46 @@
         return self.fetch(path);
       }
 
-      for (var i = 0; i < args.length - 1; i++) {
+      function argumentTakesValue(argument) {
+        return argument === '--manifest' || argument === '--port' ||
+          argument === '--revconfig' || argument === '--revconfig-cache' ||
+          argument === '--connect' || argument === '--user' ||
+          argument === '--pass' || argument === '--rev' ||
+          argument === '--windowmode' || argument === '--window';
+      }
+
+      function takeArgFiles(argv) {
+        for (var j = 0; j < argv.length; j++) {
+          var flag = argv[j];
+          var value = argv[j + 1];
+          if ((flag === '--revconfig' || flag === '--revconfig-cache') &&
+              j + 1 < argv.length) {
+            take(value);
+            // main.c probes for a sibling _cache.ini when only the _ui.ini was
+            // given; fetch it so the probe finds it or honestly does not.
+            if (/_ui\.ini$/.test(value)) { take(value.replace(/_ui\.ini$/, '_cache.ini')); }
+          }
+          if (argumentTakesValue(flag) && j + 1 < argv.length) { j++; }
+        }
+      }
+
+      for (var i = 0; i < args.length; i++) {
         var flag = args[i];
         var value = args[i + 1];
-        if (flag === '--manifest') {
+        if (flag === '--manifest' && i + 1 < args.length) {
           var bytes = take(value);
           if (bytes) {
             var dir = value.indexOf('/') >= 0 ? value.replace(/\/[^/]*$/, '/') : '';
             self.revconfigPaths(bytes).forEach(function (rel) { take(dir + rel); });
+            // Additional CLI paths keep CLI/CWD semantics; unlike typed
+            // revconfig keys they are not relative to the manifest directory.
+            takeArgFiles(self.clientArgs(bytes));
           }
-        } else if (flag === '--revconfig' || flag === '--revconfig-cache') {
-          take(value);
-          // main.c probes for a sibling _cache.ini when only the _ui.ini was
-          // given; fetch it so the probe finds it or honestly does not.
-          if (/_ui\.ini$/.test(value)) { take(value.replace(/_ui\.ini$/, '_cache.ini')); }
+          break; // main.c bootstraps from the first real --manifest option.
         }
+        if (argumentTakesValue(flag) && i + 1 < args.length) { i++; }
       }
+      takeArgFiles(args);
     }
   };
 

@@ -98,10 +98,25 @@ struct Decoded
     int section_underrun;  /* a section ended with skipped != 0 */
 
     int ext_flag;
+    int ext_hit_count;
+    int ext_hit_type;
+    int ext_hit_value;
+    int ext_hit_delay;
+    int ext_hit_slots;
     int ext_temp_move_speed;
     int ext_appearance_len;
     uint8_t ext_appearance[256];
 };
+
+static int
+read_smart1or2(struct RSAreaBuf* buf)
+{
+    int first = rsab_g1(buf);
+
+    if( first < 128 )
+        return first;
+    return ((first << 8) | rsab_g1(buf)) - 32768;
+}
 
 static void
 decode_extended(struct RSAreaBuf* buf, struct Decoded* out)
@@ -114,8 +129,18 @@ decode_extended(struct RSAreaBuf* buf, struct Decoded* out)
         flag |= rsab_g1(buf) << 16;
     out->ext_flag = flag;
 
-    /* These are the blocks exercised by this focused codec test, in the
-     * golden client's field order. */
+    /* Golden client field order: hitmarks precede traversal and appearance. */
+    if( flag & 0x40000 )
+    {
+        out->ext_hit_count = (128 - rsab_g1(buf)) & 0xff;
+        if( out->ext_hit_count > 0 )
+        {
+            out->ext_hit_type = read_smart1or2(buf);
+            out->ext_hit_value = read_smart1or2(buf);
+            out->ext_hit_delay = read_smart1or2(buf);
+            out->ext_hit_slots = read_smart1or2(buf);
+        }
+    }
     if( flag & 0x1000 )
         out->ext_temp_move_speed = (int)(int8_t)rsab_g1(buf);
     if( flag & 0x20 )
@@ -259,6 +284,19 @@ main(void)
     for( int i = 0; i < (int)sizeof(appearance); i++ )
         appearance[i] = (uint8_t)(i * 7 + 1);
 
+    fprintf(stderr, "mock239-playerinfo: npc tail sentinel threshold\n");
+    /* The live failure packet had 13 high-resolution NPCs ending at bit 45,
+     * one byte of extended info and a writer-added sentinel: 3 + 8 + 16 = 27
+     * bits. The golden client requires 28 before it even reads an index. */
+    CHECK(!mock239_npcinfo_tail_needs_sentinel(45, 1),
+          "bit 45 + one-byte mask omits the unreachable sentinel (11 < 28 bits)");
+    CHECK(mock239_npcinfo_tail_needs_sentinel(45, 4),
+          "bit 45 + four-byte mask terminates before the decoder can read it as an add");
+    CHECK(!mock239_npcinfo_tail_needs_sentinel(48, 3),
+          "a byte-aligned three-byte tail remains below the 28-bit guard");
+    CHECK(mock239_npcinfo_tail_needs_sentinel(48, 4),
+          "a byte-aligned four-byte tail reaches the 28-bit guard");
+
     fprintf(stderr, "mock239-playerinfo: init block\n");
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
@@ -331,6 +369,39 @@ main(void)
         CHECK(got.hi_res_opcode == 1 && got.hi_res_direction == 7,
               "walk opcode/direction survive (op=%d dir=%d)", got.hi_res_opcode,
               got.hi_res_direction);
+    }
+
+    fprintf(stderr, "mock239-playerinfo: drawable hitmark block\n");
+    memset(&got, 0, sizeof(got));
+    got.local_index = LOCAL_INDEX;
+    rsab_wrap(&buf, storage, sizeof(storage));
+    {
+        struct Mock239PlayerExt ext;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_hit = 1;
+        ext.hit_type = 28;
+        ext.hit_value = 73;
+        mock239_playerinfo_write(
+            &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 0, NULL, 0, &ext);
+    }
+    {
+        size_t written = rsab_len(&buf);
+        rsab_wrap(&buf, storage, written);
+        decode_tick(&buf, &got, 1);
+        CHECK(!got.section_underrun, "hitmark leaves every section aligned");
+        CHECK(got.ext_flag == 0x40808,
+              "hitmark extended flag carries both continuation bytes (0x%x)",
+              got.ext_flag);
+        CHECK(got.ext_hit_count == 1, "one hitmark is encoded (%d)", got.ext_hit_count);
+        CHECK(got.ext_hit_type == 28 && got.ext_hit_value == 73,
+              "hitmark type/value survive (%d/%d)", got.ext_hit_type,
+              got.ext_hit_value);
+        CHECK(got.ext_hit_delay == 0, "hitmark lands immediately (delay %d)",
+              got.ext_hit_delay);
+        CHECK(got.ext_hit_slots == 4,
+              "golden Actor.method3560 receives four drawable slots, got %d",
+              got.ext_hit_slots);
     }
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;

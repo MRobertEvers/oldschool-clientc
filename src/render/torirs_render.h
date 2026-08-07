@@ -126,6 +126,7 @@ struct ToriRS_RenderCommand_ModelLoad
 struct ToriRS_RenderCommand_AnimLoad
 {
     int element_id;
+    int anim_index;
     struct ToriDraw_Animation* animation;
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position world_position;
@@ -134,6 +135,7 @@ struct ToriRS_RenderCommand_AnimLoad
 struct ToriRS_RenderCommand_Batch
 {
     int batch_id;
+    bool clear_all;
     int element_id;
     int pose_id;
     int anim_index;

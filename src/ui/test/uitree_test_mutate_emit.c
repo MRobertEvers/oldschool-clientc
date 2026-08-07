@@ -144,6 +144,20 @@ test_mutate_emit(void)
         TEST_ASSERT(desc.kind == UITREE_EMIT_TEXT, "kind text");
         TEST_ASSERT(desc.text && desc.text[0] == 'o', "text ptr");
 
+        /* Golden clientscript 600 uses this exact setter for NPC body text.
+         * Pin both the live widget mutation and the values handed to either
+         * renderer; a host-only opcode test cannot catch a dropped UITree
+         * field. */
+        TEST_ASSERT(UITree_ApplyTextAlign(tree, 502, 1, 1, 16), "apply text alignment");
+        TEST_ASSERT(tree->components[ti].u.rs_text.center == 1, "text horizontal centre set");
+        TEST_ASSERT(tree->components[ti].u.rs_text.y_align == 1, "text vertical centre set");
+        TEST_ASSERT(tree->components[ti].u.rs_text.line_height == 16, "text line height set");
+        TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[ti], ti, -1, &desc),
+                    "emit aligned text");
+        TEST_ASSERT(desc.text_center == 1, "emit horizontal centre");
+        TEST_ASSERT(desc.text_y_align == 1, "emit vertical centre");
+        TEST_ASSERT(desc.text_line_height == 16, "emit revision-239 line height");
+
         TEST_ASSERT(UITree_EmitFill(tree, &host, &tree->components[gi], gi, -1, &desc), "emit graphic");
         TEST_ASSERT(desc.kind == UITREE_EMIT_SPRITE, "kind sprite");
         TEST_ASSERT(desc.scene_id == 9, "sprite scene_id");

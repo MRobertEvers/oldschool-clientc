@@ -79,7 +79,6 @@ Comments (“null if mode is LIGHTING_FLAT”) stay; allocation size becomes `fa
 | [`test/scene_tile_test.cpp`](test/scene_tile_test.cpp)                                                                                 | Passes lit colors to renderer                                                           |
 | [`test/scene_tile_test_imgui_browser.cpp`](test/scene_tile_test_imgui_browser.cpp)                                                     | Manual lighting alloc + `apply_lighting`                                                |
 | [`test/model_viewer.cpp`](test/model_viewer.cpp)                                                                                       | Reads `lighting->face_colors_hsl_*` per face; passes to APIs                            |
-| [`docs/painter_algorithm_example.c`](docs/painter_algorithm_example.c)                                                                 | Example struct field names only—update if it must compile with new types                |
 
 No separate `struct` definition elsewhere should duplicate `int*` for these fields; fix any test harness that manually builds `DashModelLighting`.
 

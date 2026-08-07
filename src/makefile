@@ -1,13 +1,14 @@
-# From repo root: make -C src
+# From repo root: make -C src all
 # Optimized build: make -C src release (or make -C src OPT=1 <target>).
 # Objects go to build_opt/ so debug and optimized objects never mix; both
 # flavors link the same ./torirs, whichever was built last.
 #
 # Which host to build for is one variable, PLATFORM (see platform/platform.mk):
-#   make -C src                 host native debug -> src/torirs
+#   make -C src all             host native debug -> src/torirs
 #   make -C src release         host native opt   -> src/torirs
 #   make -C src web             emscripten        -> build-web/torirs.js
 #   make -C src winxp           Windows XP (i686) -> src/torirs.exe
+#   make -C src win64           Windows 10+ (x64) -> src/torirs_win64.exe
 #   make -C src io-server       the web build's cache backend (always native)
 #   make -C src lane-check-all  assert every lane's invariants still hold
 # Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
@@ -50,11 +51,11 @@ SRC_DIR      := $(REPO_ROOT)/src
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
 # recipe dies with "p was unexpected at this time" -- which says nothing about
 # the actual cause. Catch it here instead. Git for Windows ships a usable sh at
-# <Git>\usr\bin; build_winxp.ps1 puts it on PATH for you.
+# <Git>\usr\bin; the Windows PowerShell wrappers put it on PATH for you.
 ifeq ($(SHELL),sh.exe)
 $(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
-one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use build_winxp.ps1, \
-which does it for you)
+one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use \
+build_winxp.ps1/build_windows.ps1, which do it for you)
 endif
 
 include $(SRC_DIR)/platform/platform.mk
@@ -86,7 +87,7 @@ OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SE
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
-# join them: MEMTRACE is a long-running capture, and a plain `make -C src` in
+# join them: MEMTRACE is a long-running capture, and `make -C src all` in
 # another terminal would silently replace it mid-session — the symptom being a
 # run that writes no trace at all. Which lanes can afford the rename is
 # PLATFORM_TARGET_MEMTRACE_SUFFIX in platform.mk (the web target keeps its
@@ -223,9 +224,10 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
+SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(PLATFORM_SRCS) \
+	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
@@ -315,7 +317,8 @@ SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
-	ui/uitree_hovertext.c \
+	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
+	engine/torirs_debug_font_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -360,7 +363,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
 	net/mock/mock230_interface_state.c \
 	net/mock/mock239_playerinfo.c \
 	net/mock/mock239_interface_setters.c \
@@ -450,7 +453,24 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-server-clean test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
+# Make does not otherwise notice compiler/linker flag changes: an object built
+# with old lane flags could be silently relinked after its ABI contract
+# changed. Keep each Windows lane's effective flags in a timestamped
+# prerequisite and update it only when their contents actually change.
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WINDOWS_FLAGS_STAMP := $(OBJ_DIR)/.effective_flags
+.PHONY: FORCE_WINDOWS_FLAGS
+FORCE_WINDOWS_FLAGS:
+
+$(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
+	@{ printf '%s\n' '$(CC)'; printf '%s\n' '$(CFLAGS)'; printf '%s\n' '$(LDFLAGS)'; } > '$@.tmp'
+	@if ! cmp -s '$@.tmp' '$@'; then mv '$@.tmp' '$@'; else rm -f '$@.tmp'; fi
+
+$(OBJS): $(WINDOWS_FLAGS_STAMP)
+endif
+
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -506,6 +526,18 @@ winxp-debug:
 	$(MAKE) PLATFORM=win32 lane-check
 	$(MAKE) PLATFORM=win32 OPT=0 all
 
+# --- Modern Windows target -----------------------------------------------
+# The wrapper selects the repository's x86_64 compiler and stages the unique
+# source artifact. Keeping this lane explicit also prevents a native Windows
+# invocation from accidentally inheriting the XP ABI floor.
+win64:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=1 all
+
+win64-debug:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=0 all
+
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
 # locally is answered by this process, which opens the cache and runs the
@@ -522,6 +554,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o -lm
@@ -531,11 +564,50 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
+
+# Protocol + persistence integration against a caller-supplied, read-only
+# canonical cache. The binary creates and owns its disposable target directory;
+# only the mock response builder reads JS5_TEST_CACHE.
+JS5_TEST_CACHE ?= $(REPO_ROOT)/cache.osrs239
+ifeq ($(OS),Windows_NT)
+JS5_SOCKET_LIBS := -lws2_32
+JS5_EXE_SUFFIX := .exe
+else
+JS5_SOCKET_LIBS :=
+JS5_EXE_SUFFIX :=
+endif
+JS5_TEST_PYTHON ?= python
+test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/js5_server_cache.c js5/test/js5_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_test "$(JS5_TEST_CACHE)"
+
+test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_test \
+		js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+		js5/server/test/js5_server_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/test/js5_server_client_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_server_test "$(JS5_TEST_CACHE)"
+	$(JS5_TEST_PYTHON) $(REPO_ROOT)/tools/test_js5_server.py \
+		--server $(SRC_DIR)/$(OBJ_DIR)/js5_server$(JS5_EXE_SUFFIX) \
+		--client $(SRC_DIR)/$(OBJ_DIR)/js5_server_client_test$(JS5_EXE_SUFFIX) \
+		--cache "$(JS5_TEST_CACHE)"
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
@@ -628,6 +700,11 @@ test-cs2-component-param: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_component_param_ops_test \
 		cs2vm2/test/component_param_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_component_param_ops_test
+
+test-cs2-text-align: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_text_align_ops_test \
+		cs2vm2/test/text_align_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_text_align_ops_test
 
 test-cs2-triggerop: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_trigger_op_test \
@@ -976,11 +1053,12 @@ test-painters-terrain-levels: $(OBJ_DIR)
 	./$(OBJ_DIR)/painters_test_terrain_levels
 
 test-uitree: $(OBJ_DIR)
+	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
-		ui/uitree_hovertext.c \
+		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
@@ -991,8 +1069,30 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
-		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c
+		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
+		ui/test/uitree_test_debug_overlay.c
 	./$(OBJ_DIR)/uitree_test
+
+# Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
+# with the *baked* fonts, one BMP per feature into build/. This is the only test
+# that proves the pictures are right (baselines, scissor boxes, the slot -> font
+# mapping); test-uitree covers the model. It links the real frame translator and
+# the real software rasteriser but NOT world.c — torirs_frame.c only reaches the
+# two World_* symbols on the UITREE_EMIT_WORLD path, which an overlay-only emit
+# buffer never takes, and the test closes the link itself rather than dragging
+# painters/collision/heightmap/minimap into a rectangles-and-text test.
+test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
+	@mkdir -p build
+	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual \
+		ui/test/uitree_debug_overlay_visual.c \
+		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
+		render/torirs_frame.c render/torirs_pick.c \
+		platform/platform_sdl2_renderer_soft3d.c \
+		$(BMP_DIR)/bmp.c \
+		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(OBJ_DIR)/toridraw_model_sprite.o -lm
+	./$(OBJ_DIR)/debug_overlay_visual
 
 # The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
 test-chat-widgets: $(OBJ_DIR)
@@ -1190,7 +1290,7 @@ test-revconfig: $(OBJ_DIR)
 # §3.4 — a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/mock230 disagree).
 MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
-# The JS5 (cache download) service, standalone.
+# Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from mock230 because a client uses ONE port for JS5 and the
 # game, choosing with its first byte — so the two cannot both own 43594 in a
@@ -1198,17 +1298,26 @@ MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CO
 # This binary exists because it is the half that can be verified today against
 # a real OldSchool client and against Jagex's own service:
 #
-#   src/build/mock_js5 cache.osrs239 43594 239
+#   src/build/js5_server --cache cache.osrs239 --revision 239
 #   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
 #
 # See docs/RSPROT_OSRS239_PORT.md.
+JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c
+
+js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(JS5_SERVER_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/js5_server"
+
 mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 \
-		net/mock/mock_js5_main.c net/mock/mock_js5.c \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	@echo "built $(OBJ_DIR)/mock_js5"
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -1749,7 +1858,7 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c features/features.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c executor_config.c features/features.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
@@ -1762,9 +1871,49 @@ test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/light_model_test
 
+# CPU-only, but deliberately compiled with the Win32 compiler: it links the
+# real fixed-function D3D9 command dispatcher and drives its retained resource
+# path without creating a window or D3D device.
+.PHONY: test-retained-renderer-leak
+ifeq ($(PLATFORM),win32)
+test-retained-renderer-leak:
+	$(MAKE) -C $(REPO_ROOT)/test/trspk_leak check CC="$(CC)"
+else
+test-retained-renderer-leak:
+	@echo "test-retained-renderer-leak requires PLATFORM=win32"
+	@false
+endif
+
+# Real Win32 message/timer regressions with a hidden HWND. These are standalone
+# so they run under either repository MinGW lane without booting the client.
+.PHONY: test-win32-platform
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g -I$(SRC_DIR) \
+	$(PLATFORM_BASE_CFLAGS)
+WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
+	-lgdi32 -luser32 -lwinmm -lkernel32
+test-win32-platform: $(OBJ_DIR)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
+		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
+		platform/platform_win32_timing.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
+		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_timing_test.c platform/platform_win32_timing.c \
+		$(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX)
+else
+test-win32-platform:
+	@echo "test-win32-platform requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+endif
+
 # Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
 # correct when a platform is added -- the old hardcoded list had already gone
-# stale and never removed build_win32*/ or torirs.exe. Each pass re-includes
+# stale and never removed build_win32*/, build_win64*/, or their executables.
+# Each pass re-includes
 # platform.mk with that PLATFORM, so $(PLATFORM_OBJ_BASE)/$(PLATFORM_TARGET)
 # below are that lane's, and the glob covers every flavor suffix
 # (_opt/_mt/_tdo/_es) OBJ_DIR can grow.
@@ -1780,8 +1929,8 @@ clean:
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
-# values are prefixes of one another (build, build_web, build_win32), so
-# `build_*` from the macos lane would delete the web and win32 objects too.
+# values are prefixes of one another (build, build_web, build_win32,
+# build_win64), so `build_*` from the macos lane would delete other lanes too.
 CLEAN_FLAVOR_SUFFIXES := _opt _mt _opt_mt _tdo _opt_tdo _es _opt_es \
 	_mt_es _opt_mt_es _tdo_es _opt_tdo_es
 

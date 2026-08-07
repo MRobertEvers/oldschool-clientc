@@ -311,7 +311,14 @@ mock239_playerinfo_write(
             ext_psmart1or2(buf, ext->hit_type);
             ext_psmart1or2(buf, ext->hit_value);
             ext_psmart1or2(buf, 0); /* delay: lands this tick */
-            ext_psmart1or2(buf, 0); /* limit: uncapped */
+            /*
+             * The fourth smart is not an optional cap. Actor.method3560 only
+             * allocates a drawable hitmark when this value is positive, and
+             * revision 239's actor keeps four concurrent hitmark slots.
+             * Sending zero still posts RuneLite's HitsplatApplied callback but
+             * deliberately inserts nothing into the render list.
+             */
+            ext_psmart1or2(buf, 4); /* concurrent hitmark slots */
         }
         if( has_seq )
         {
@@ -367,4 +374,14 @@ mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
      * writer, not here.
      */
     rsab_bytes(buf);
+}
+
+int
+mock239_npcinfo_tail_needs_sentinel(
+    size_t bit_position,
+    size_t extended_bytes)
+{
+    size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
+
+    return padding_bits + extended_bytes * 8u >= 28u;
 }

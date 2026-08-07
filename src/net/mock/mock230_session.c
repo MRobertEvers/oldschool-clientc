@@ -10,7 +10,7 @@
 
 #include "net/rev/osrs239/loginblock.h"
 
-#include "mock_js5.h"
+#include "js5/server/js5_server_cache.h"
 
 #include <stdlib.h>
 
@@ -214,10 +214,10 @@ login_is_239(const struct Mock230Server* srv)
  * world boots from, because serving one revision's content while the world
  * reads another is a mismatch nothing downstream can detect.
  */
-static struct MockJs5* g_js5;
+static struct Js5ServerCache* g_js5;
 static int g_js5_tried;
 
-static struct MockJs5*
+static struct Js5ServerCache*
 js5_cache(void)
 {
     if( !g_js5_tried )
@@ -228,7 +228,7 @@ js5_cache(void)
         if( !dir )
             dir = MOCK230_CACHE_DIR_DEFAULT;
         g_js5_tried = 1;
-        g_js5 = mock_js5_open(dir);
+        g_js5 = Js5ServerCacheOpen(dir);
     }
     return g_js5;
 }
@@ -294,7 +294,7 @@ step_js5_init(struct Mock230Session* session)
 static int
 step_js5_serve(struct Mock230Session* session)
 {
-    struct MockJs5* js5 = js5_cache();
+    struct Js5ServerCache* js5 = js5_cache();
     int served = 0;
 
     while( session->in_len >= 4 )
@@ -302,9 +302,8 @@ step_js5_serve(struct Mock230Session* session)
         int opcode = session->in[0];
         int archive = session->in[1];
         int group = (session->in[2] << 8) | session->in[3];
-        int cap;
-        int n;
-        uint8_t* out;
+        size_t out_size = 0u;
+        uint8_t* out = NULL;
 
         consume(session, 4);
         served = 1;
@@ -318,15 +317,10 @@ step_js5_serve(struct Mock230Session* session)
             return 1;
         }
 
-        cap = mock_js5_max_response_bytes(js5) + 4096;
-        out = malloc((size_t)cap);
-        if( !out )
-        {
-            session->state = MOCK230_SESSION_DEAD;
-            return 1;
-        }
-        n = mock_js5_build_response(js5, archive, group, out, cap);
-        if( n > 0 && mock230_session_send(session, out, n) < 0 )
+        enum Js5ServerCacheResult result =
+            Js5ServerCacheBuildResponse(js5, archive, group, &out, &out_size);
+        if( result == JS5_SERVER_CACHE_OK &&
+            mock230_session_send(session, out, (int)out_size) < 0 )
         {
             free(out);
             session->state = MOCK230_SESSION_DEAD;
@@ -354,9 +348,10 @@ step_js5_serve(struct Mock230Session* session)
             }
             if( trace || session->verbose )
             {
-                if( n > 0 )
-                    fprintf(stderr, "mock230: JS5 %s %d/%d -> %d bytes\n",
-                            opcode == 1 ? "urgent" : "prefetch", archive, group, n);
+                if( result == JS5_SERVER_CACHE_OK )
+                    fprintf(stderr, "mock230: JS5 %s %d/%d -> %zu bytes\n",
+                            opcode == 1 ? "urgent" : "prefetch", archive, group,
+                            out_size);
                 else
                     fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
             }

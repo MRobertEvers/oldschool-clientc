@@ -290,7 +290,11 @@ check_resumes(void)
     /* Existing callbacks included as control cases: 595:38 under p4Alt3 plus
      * sub -1, and normal p4 count 123456. */
     static const uint8_t pause_body[] = { 0x53, 0x02, 0x26, 0x00, 0xff, 0xff };
-    static const uint8_t pause_normalized[] = { 0x02, 0x53, 0x00, 0x26 };
+    static const uint8_t pause_normalized[] = { 0x02, 0x53, 0x00, 0x26, 0xff, 0xff };
+    /* chatmenu:options (219:1), dynamic row 1. The uid is g4Alt3 on the
+     * revision-239 wire; the row is the trailing plain g2. */
+    static const uint8_t choice_body[] = { 0xdb, 0x00, 0x01, 0x00, 0x00, 0x01 };
+    static const uint8_t choice_normalized[] = { 0x00, 0xdb, 0x00, 0x01, 0x00, 0x01 };
     static const uint8_t count_body[] = { 0x00, 0x01, 0xe2, 0x40 };
     static const uint8_t name_body[] = { 'Z', 'e', 'z', 'i', 'm', 'a', 0 };
     static const uint8_t string_body[] = { 'r', 'u', 'n', 'e', 0 };
@@ -313,7 +317,19 @@ check_resumes(void)
             &translated_len) == PKTOUT_NAME_RESUME_PAUSEBUTTON &&
             translated_len == (int)sizeof(pause_normalized) &&
             memcmp(translated, pause_normalized, sizeof(pause_normalized)) == 0,
-        "existing RESUME_PAUSEBUTTON control decodes p4Alt3 exactly");
+        "RESUME_PAUSEBUTTON decodes p4Alt3 and preserves its dynamic-child sub-id");
+    CHECK(
+        mock239_inbound_translate(
+            115,
+            PKTOUT_NAME_RESUME_PAUSEBUTTON,
+            choice_body,
+            sizeof(choice_body),
+            translated,
+            sizeof(translated),
+            &translated_len) == PKTOUT_NAME_RESUME_PAUSEBUTTON &&
+            translated_len == (int)sizeof(choice_normalized) &&
+            memcmp(translated, choice_normalized, sizeof(choice_normalized)) == 0,
+        "chatmenu row 1 retains sub=1 after the golden six-byte decode");
     CHECK(
         mock239_inbound_translate(
             75,

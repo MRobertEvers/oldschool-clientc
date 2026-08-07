@@ -2025,9 +2025,9 @@ app_overlay_build_entity(
          * Two eras, two sources, and the type index means a different thing in
          * each. dat1 packs every splat into one "hitmarks" sprite archive and
          * the damage type is the frame within it. OldSchool gives each type its
-         * own *config record* naming an ordinary sprite id (group 32 — damage is
-         * sprite 2270, block is 3521), so the type is a table lookup and the
-         * resulting sprite has one frame.
+         * own *config record* naming an ordinary sprite id (group 32 — rev 239
+         * damage is type 28 / sprite 1359 and block is type 26 / sprite 1358),
+         * so the type is a table lookup and the resulting sprite has one frame.
          *
          * Preferring the config table means the OldSchool path works; falling
          * back to the archive means the dat1 path is untouched. Neither
@@ -4462,41 +4462,25 @@ Task_AppBoot_Run(
         printf("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
     }
 
-    if( app->builder_active )
-    {
-        TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
-        printf(
-            "RevConfigBuild done: ui=%s tree_components=%u sprites=%d fonts=%d onloads=%d\n",
-            app->cfg.revconfig_ui_ini,
-            app->tree->component_count,
-            app->builder.sprite_count,
-            app->builder.font_count,
-            app->builder.onload_count);
-    }
-    else
-    {
-        /* Open the requested interface directly as the tree root (TS parity:
-         * WidgetManager.setRootInterface(groupId) — any group can be the root;
-         * no hardcoded 161 chrome required). */
-        TASK_AWAITSELF(CreateTask_InterfaceOpen(
-            app->provider,
-            app->tree,
-            &app->host,
-            &app->invs,
-            &app->bridge,
-            app->boot_interface_id,
-            &app->open_stats));
-        printf(
-            "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
-            "inv_hooks=%d var_hooks=%d mounts=%d\n",
-            app->open_stats.interface_id,
-            app->open_stats.pack_component_count,
-            app->tree->component_count,
-            app->open_stats.onload_count,
-            app->host.inv_transmit_hook_count,
-            app->host.var_transmit_hook_count,
-            app->tree->interface_parent_count);
-    }
+    /* One root-build path. A manifest that names no RevConfig at all still comes
+     * through here: the builder synthesises the single rs_iface mount of
+     * boot_interface_id, which is what the old open-the-interface-directly
+     * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
+     * group can be the root, no hardcoded 161 chrome required). */
+    TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+    printf(
+        "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
+        "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
+        app->boot_interface_id,
+        app->cfg.revconfig_ui_ini ? app->cfg.revconfig_ui_ini : "-",
+        app->cfg.revconfig_inline_ini ? app->cfg.revconfig_inline_ini : "-",
+        app->tree->component_count,
+        app->builder.sprite_count,
+        app->builder.font_count,
+        app->builder.onload_count,
+        app->host.inv_transmit_hook_count,
+        app->host.var_transmit_hook_count,
+        app->tree->interface_parent_count);
 
     app->boot_progress = 60;
 
@@ -4623,25 +4607,37 @@ App_OpenRootInterface(
         app->host.stat_transmit_hook_count = 0;
     }
 
-    if( app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] )
-    {
-        /* RevConfig build: the INI names the whole gameframe (chrome widgets
-         * plus the cache interface packs mounted under them), so it replaces
-         * the interface open rather than wrapping it. The CS2 host is passed
-         * only for dat2 — dat1 interface packs carry IF1 scripts, which the
-         * CS1 host evaluates on the tick instead. */
-        UITreeBuilder_InitEx(
-            &app->builder,
-            app->provider,
-            app->tree,
-            &app->invs,
-            App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
-            app->cfg.revconfig_ui_ini,
-            app->cfg.revconfig_cache_ini);
-        /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
-        app->builder.bridge = &app->bridge;
-        app->builder_active = 1;
-    }
+    /* RevConfig build, always: the config names the whole gameframe (chrome
+     * widgets plus the cache interface packs mounted under them), and a manifest
+     * that declares none of it still gets the plain `interface_id` mount
+     * synthesised for it. That is what keeps declared sibling order meaningful —
+     * a pack is baked *under* the rs_iface node its layout record placed, so
+     * whatever the CS2 scripts then do to it stays inside that subtree.
+     *
+     * The CS2 host is passed only for dat2 — dat1 interface packs carry IF1
+     * scripts, which the CS1 host evaluates on the tick instead. */
+    if( app->builder_active )
+        UITreeBuilder_Free(&app->builder); /* display-mode remount: re-Init below */
+    UITreeBuilder_InitEx(
+        &app->builder,
+        app->provider,
+        app->tree,
+        &app->invs,
+        App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini);
+    if( app->cfg.revconfig_inline_ini )
+        strncpy(
+            app->builder.inline_ini_path,
+            app->cfg.revconfig_inline_ini,
+            sizeof(app->builder.inline_ini_path) - 1);
+    /* A componentno-less rs_iface means "the root", which is whatever we are
+     * being asked to root to — the manifest's boot interface on the first call,
+     * the server's IF_SETTOPLEVEL group on a display-mode remount. */
+    app->builder.root_interface_id = interface_id;
+    /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
+    app->builder.bridge = &app->bridge;
+    app->builder_active = 1;
 
     app->app_state = APP_STATE_BOOTING;
     app->boot_interface_id = interface_id;
@@ -9961,6 +9957,12 @@ app_world_damage_test(struct App* app)
 {
     struct World_EntityPool* pool;
     int damage = 1 + (app->logic_cycle % 30);
+    /* Rev 239 does not use the legacy type-0/type-1 convention: its canonical
+     * red damage splat is type 28 (sprite 1359). Keep type 0 only as the
+     * supported fallback for older cache families with no rev-239 record. */
+    int hitsplat_type = app->hitsplats.count > RS_HITSPLAT_OSRS239_DAMAGE
+                            ? RS_HITSPLAT_OSRS239_DAMAGE
+                            : 0;
 
     if( !app->world )
         return;
@@ -9968,7 +9970,7 @@ app_world_damage_test(struct App* app)
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
-        World_PlayerAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_PlayerAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
         World_PlayerSetChat(app->world, i, "Hello there!", 0, 0);
         /* Exercise the overhead headicon pass too: icons 0 + 2 stacked. */
         {
@@ -9981,7 +9983,7 @@ app_world_damage_test(struct App* app)
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
-        World_NpcAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_NpcAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
         World_NpcSetChat(app->world, i, "Grrr!", 0, 0);
     }
 }
@@ -12028,7 +12030,11 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     /* Script 5355 docks the popout strip on the canvas right edge at full
      * height. Measure that geometry rather than naming interface 728 or the
      * 42/312 widths the CS2 embeds — those are content, and the strip width
-     * changes when a panel opens. */
+     * changes when a panel opens. The mode checks matter: mounted interface
+     * roots also commonly fill from a positive X to the right edge. Treating
+     * one of those fill-width roots as chrome makes the canvas feed back into
+     * its own next width and grow every frame. The strip itself is fixed-width,
+     * parent-height, and right-anchored. */
     for( i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &app->tree->components[i];
@@ -12038,7 +12044,10 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         if( c->freed || c->behavior.hide )
             continue;
         w = c->position.abs_w;
-        if( w <= 0 || c->position.abs_x <= 0 )
+        if( w <= 0 || c->position.abs_x <= 0 ||
+            c->position.width_mode != 0 ||
+            c->position.height_mode != 1 ||
+            c->position.x_mode != 2 )
             continue;
         /* Near full canvas height: the strip, not a minimap orb or tab icon. */
         if( c->position.abs_h < canvas_h - 2 )

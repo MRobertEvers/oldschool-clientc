@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include "tool_posix_compat.h"
 
 #ifndef RSCACHE_TEST_TMP
 #define RSCACHE_TEST_TMP "build/membership_fixtures"
@@ -43,7 +43,7 @@ tmp_path(
     size_t out_size,
     const char* leaf)
 {
-    mkdir(RSCACHE_TEST_TMP, 0755);
+    tool_mkdir(RSCACHE_TEST_TMP);
     snprintf(out, out_size, "%s/%s", RSCACHE_TEST_TMP, leaf);
 }
 

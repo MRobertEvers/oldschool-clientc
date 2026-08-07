@@ -31,6 +31,7 @@
 
 #include <SDL.h>
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -3535,10 +3536,6 @@ gl3_ev_model_unload(
     trspk_pose_table_remove_element(&renderer->poses, element_id);
 }
 
-/* Stride used to encode (anim_index, frame) into the model arena's flat pose_id.
-   Must exceed the maximum number of frames any animation can have. */
-#define GL3_POSE_ARENA_TRACK_STRIDE 4096
-
 /** Ensure `tex_id` is resident in the atlas. Returns the atlas slot, or -1. */
 static int
 gl3_ensure_texture(
@@ -3595,7 +3592,11 @@ gl3_bake_into_arena(
     const uint32_t vert_count = (uint32_t)face_count_faces * 3u;
     const uint32_t tri_count = (uint32_t)face_count_faces;
 
-    const int arena_pose_id = anim_index * GL3_POSE_ARENA_TRACK_STRIDE + pose_id;
+    int arena_pose_id;
+    if( anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 ||
+        pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+        return UINT32_MAX;
+    arena_pose_id = pose_id * TRSPK_POSE_TRACK_COUNT + anim_index;
 
     uint32_t slot_index = TRSPK_MODELSLOT_NULL_IDX;
 
@@ -3674,6 +3675,31 @@ gl3_bake_into_arena(
 }
 
 static void
+gl3_animation_track_unload(
+    struct ToriRS_GL3* renderer,
+    int element_id,
+    int anim_index)
+{
+    struct TRSPK_ModelArena* arena;
+
+    if( !renderer || element_id < 0 || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT )
+        return;
+    arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
+    if( !arena )
+        return;
+
+    for( uint32_t slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
+    {
+        const struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id &&
+            slot->pose_id % TRSPK_POSE_TRACK_COUNT == anim_index )
+            trspk_modelarena_unload(arena, slot_index);
+    }
+    trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
+}
+
+static void
 gl3_ev_anim_load(
     struct ToriRS_GL3* renderer,
     struct ToriRS_RenderCommand* command)
@@ -3682,21 +3708,56 @@ gl3_ev_anim_load(
 
     const int element_id = command->u.anim_load.element_id;
     struct ToriDraw_Animation* animation = command->u.anim_load.animation;
+    struct ToriDraw_SkeletalAnim* skeletal = animation ? animation->skeletal : NULL;
     const struct ToriDraw_ModelHandle* base_handle = &command->u.anim_load.model;
     const struct ToriDraw_Position* world_position = &command->u.anim_load.world_position;
+    int anim_index = command->u.anim_load.anim_index;
 
-    assert(base_handle->kind == TORIDRAWMK_MODEL && base_handle->u.model.model);
+    if( !animation || animation->frame_count <= 0 ||
+        (!skeletal && (!animation->base || !animation->frames)) ||
+        anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT ||
+        base_handle->kind != TORIDRAWMK_MODEL ||
+        !base_handle->u.model.model )
+        return;
 
     struct ToriDraw_Model* source = base_handle->u.model.model;
+
+    /* Pose keys do not carry a sequence id.  Clear the old track so frame zero
+     * cannot keep resolving to MODEL_LOAD's rest pose and a shorter replacement
+     * cannot serve stale tail frames. */
+    gl3_animation_track_unload(renderer, element_id, anim_index);
 
     for( int frame = 0; frame < animation->frame_count; frame++ )
     {
         struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
         assert(baked);
 
+        if( source->original_vertices_x && source->original_vertices_y &&
+            source->original_vertices_z && baked->vertex_count == source->vertex_count )
+        {
+            size_t vertex_bytes =
+                (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
+            memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
+            memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
+            memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
+        }
+        if( baked->face_alphas && source->original_face_alphas &&
+            baked->face_count == source->face_count )
+            memcpy(
+                baked->face_alphas,
+                source->original_face_alphas,
+                (size_t)baked->face_count * sizeof(*baked->face_alphas));
         ToriDraw_ModelCaptureOriginalVertices(baked);
-        ToriDraw_ModelAnimateReset(baked);
-        ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+        if( skeletal )
+        {
+            int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
+            if( skeletal->frame_count > 0 && skeletal->matrices &&
+                baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
+                baked->animaya_groups && baked->animaya_scales )
+                ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+        }
+        else if( animation->frames[frame].length > 0 )
+            ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
 
         struct ToriDraw_ModelHandle baked_handle = {
             .kind = TORIDRAWMK_MODEL,
@@ -3704,7 +3765,7 @@ gl3_ev_anim_load(
         };
         gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             element_id,
-            0,
+            anim_index,
             frame,
             baked_handle,
             world_position,
@@ -3719,9 +3780,14 @@ gl3_ev_model_load(
     struct ToriRS_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
+    int element_id;
     assert(command->kind == TORIRSRC_MODEL_LOAD);
+    element_id = command->u.model_load.element_id;
+    trspk_modelarena_unload_element(
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
+    trspk_pose_table_remove_element(&renderer->poses, element_id);
     gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-        command->u.model_load.element_id,
+        element_id,
         0,
         0,
         command->u.model_load.model,
@@ -3744,6 +3810,10 @@ gl3_ev_batch3d_model_add(
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_BATCH3D_MODEL_ADD);
+    trspk_modelarena_unload_element(
+        renderer->groups[TRSPK_VBO_GROUP_STATIC].arena,
+        command->u.batch.element_id);
+    trspk_pose_table_remove_element(&renderer->poses, command->u.batch.element_id);
     gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         command->u.batch.element_id,
         0,
@@ -3827,8 +3897,17 @@ gl3_ev_model_draw(
         int* face_order;
         if( face_count <= 0 )
             return;
-        anim_index = mcmd->dynamic ? mcmd->anim_index : 0;
-        pose_id = mcmd->dynamic ? mcmd->anim_frame : 0;
+        anim_index = mcmd->anim_index;
+        if( anim_index < 0 )
+            anim_index = 0;
+        else if( anim_index >= TRSPK_POSE_TRACK_COUNT )
+            anim_index = TRSPK_POSE_TRACK_COUNT - 1;
+        pose_id = mcmd->animation && mcmd->anim_frame >= 0
+                      ? mcmd->anim_frame
+                      : 0;
+        if( mcmd->animation && mcmd->animation->frame_count > 0 &&
+            pose_id >= mcmd->animation->frame_count )
+            pose_id = 0;
         if( mcmd->dynamic )
         {
             vertex_base = gl3_bake_into_arena(renderer, &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC],

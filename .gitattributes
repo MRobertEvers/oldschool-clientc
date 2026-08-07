@@ -1,1 +1,2 @@
 lib/mingw32-win32-toolchain.zip filter=lfs diff=lfs merge=lfs -text
+lib/mingw64-win64-toolchain.zip filter=lfs diff=lfs merge=lfs -text

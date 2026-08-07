@@ -414,6 +414,18 @@ mock230_zone_locs_foreach(
     void (*fn)(struct Mock230ZoneLoc* loc, void* user),
     void* user);
 
+/** Forget durable loc mutations and unsent loc events inside an absolute tile
+ *  rectangle. Map-instance teardown calls this before returning a pooled
+ *  destination to the allocator; otherwise the next tenant's rebuild reapplies
+ *  the previous tenant's doors, walls, and collapsed scenery. */
+void
+mock230_zone_locs_clear_rect(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int width,
+    int height);
+
 /* ------------------------------------------------------------------ */
 /* Obj events                                                          */
 /* ------------------------------------------------------------------ */

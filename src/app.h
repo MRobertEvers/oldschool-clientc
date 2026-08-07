@@ -126,12 +126,16 @@ struct AppConfig
     int spawn_spotanim_delay;
     int spawn_proj_model_id;
     int spawn_proj_seq_id;
-    /** RevConfig layout INI. When set, the tree is built from it instead of
-     * opening interface_id out of the cache (the only path a dat1 cache has:
-     * its interfaces have no gameframe root). NULL/"" = open interface_id. */
+    /** RevConfig layout INI — the tree's shape. Every root tree comes from the
+     * RevConfig builder; a cache gameframe is one *element* of that layout
+     * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the
+     * builder synthesises the single-element layout that mounts interface_id. */
     char const* revconfig_ui_ini;
     /** Companion RevConfig sprite/font INI. NULL/"" = none. */
     char const* revconfig_cache_ini;
+    /** File carrying inline `[revconfig:…]` sections — in practice the boot
+     * manifest itself. Loaded after the two above, so it extends them. */
+    char const* revconfig_inline_ini;
     /** `[ui:gameframe]` — sub-interfaces to mount into the root's component
      *  slots once the tree is built, in order.
      *
@@ -820,8 +824,10 @@ App_SetCanvasSize(
 
 /**
  * Width of the right-docked chrome strip (popout launcher / open panel) after
- * the live layout pass. Measured from the UITree: the widest full-height
- * component whose right edge is the canvas right edge. 0 when absent.
+ * the live layout pass. Measured from the UITree: the widest full-height,
+ * fixed-width, parent-height, right-anchored component whose right edge is the
+ * canvas right edge. 0 when absent. The layout-mode signature keeps fill-width
+ * interface roots from feeding the canvas width back into itself.
  *
  * Script 5355 carves this strip out of the canvas. In fixed mode the classic
  * frame is authored for APP_CANVAS_MIN_W, so the shell must grow the canvas by

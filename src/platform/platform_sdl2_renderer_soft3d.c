@@ -356,12 +356,18 @@ soft3d_draw_sprite(
      * every one of those copies is the identity when the sprite is drawn
      * plain, which is the overwhelmingly common case.
      */
-    if( cmd->outline <= 0 && cmd->graphic_shadow == 0 && cmd->trans <= 0 &&
-        !cmd->flip_h && !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 )
+    if( cmd->outline <= 0 && cmd->graphic_shadow == 0 && !cmd->flip_h && !cmd->flip_v &&
+        cmd->sprite_angle_r2pi65536 == 0 )
     {
+        alpha = 255 - cmd->trans;
+        if( alpha < 0 )
+            alpha = 0;
+        else if( alpha > 255 )
+            alpha = 255;
+
         if( cmd->tiled )
         {
-            ToriDraw2D_BlitArgbTiled(
+            ToriDraw2D_BlitArgbTiledAlpha(
                 &vp,
                 cmd->x,
                 cmd->y,
@@ -372,13 +378,21 @@ soft3d_draw_sprite(
                 sh,
                 cmd->x + ox,
                 cmd->y + oy,
+                alpha,
                 soft->pixels);
             return;
         }
         if( !cmd->if3 )
         {
-            ToriDraw2D_BlitArgb(
-                &vp, cmd->x + ox, cmd->y + oy, spr->pixels_argb, sw, sh, soft->pixels);
+            ToriDraw2D_BlitArgbAlpha(
+                &vp,
+                cmd->x + ox,
+                cmd->y + oy,
+                spr->pixels_argb,
+                sw,
+                sh,
+                alpha,
+                soft->pixels);
             return;
         }
         /* if3 scales the *nominal* box, so a crop offset is only skippable when
@@ -388,7 +402,7 @@ soft3d_draw_sprite(
         {
             int draw_w = cmd->w > 0 ? cmd->w : sw;
             int draw_h = cmd->h > 0 ? cmd->h : sh;
-            ToriDraw2D_BlitArgbScaled(
+            ToriDraw2D_BlitArgbScaledAlpha(
                 &vp,
                 cmd->x,
                 cmd->y,
@@ -397,6 +411,7 @@ soft3d_draw_sprite(
                 spr->pixels_argb,
                 sw,
                 sh,
+                alpha,
                 soft->pixels);
             return;
         }
@@ -712,7 +727,7 @@ soft3d_draw_model_widget(
 
     assert(soft);
     assert(cmd);
-    if( cmd->model.kind == TORIDRAWMK_NONE )
+    if( cmd->model.kind != TORIDRAWMK_MODEL || !cmd->model.u.model.model )
         return;
 
     (void)ToriDraw_RenderModelExtentsAtWidget(

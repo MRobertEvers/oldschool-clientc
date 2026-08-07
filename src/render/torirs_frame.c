@@ -40,30 +40,124 @@ frame_take_queued(
     return true;
 }
 
-/** Translate a ToriDraw scene event into a retained-mode unload/clear command.
- * Load events are skipped: GL3 lazy-bakes on DRAW; Soft3D ignores loads. */
+/** Translate ToriDraw resource events into the retained renderer command
+ * stream.  Static models and all of their animation poses must be baked before
+ * DRAW; texture loads must also reach a retained VBO after asynchronous cache
+ * loading.  Soft3D safely ignores the resource-only commands. */
 static bool
 frame_translate_scene_event(
+    struct ToriDraw_Scene* scene,
     struct ToriDraw_Event const* ev,
     struct ToriRS_RenderCommand* out)
 {
+    struct ToriDraw_SceneElement* element;
     assert(ev);
     assert(out);
     memset(out, 0, sizeof(*out));
     switch( ev->kind )
     {
+    case TORIDRAW_EVENT_MODEL_LOAD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        /* Dynamic entities are rebuilt in the per-frame TRSPK group.  Their
+         * MODEL_LOAD event is emitted just before the creator marks them
+         * dynamic, so baking that snapshot would only leak persistent arena
+         * space at its pre-position origin. */
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_MODEL_LOAD;
+        out->u.model_load.element_id = ev->element_id;
+        out->u.model_load.model = element->model;
+        out->u.model_load.world_position = element->world_position;
+        return true;
     case TORIDRAW_EVENT_MODEL_UNLOAD:
         out->kind = TORIRSRC_MODEL_UNLOAD;
         out->u.model_load.element_id = ev->element_id;
         return true;
+    case TORIDRAW_EVENT_ANIM_LOAD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_ANIM_LOAD;
+        out->u.anim_load.element_id = ev->element_id;
+        out->u.anim_load.anim_index = ev->anim_index;
+        out->u.anim_load.animation =
+            ev->anim_index == 0 ? element->animation : element->secondary_animation;
+        if( !out->u.anim_load.animation )
+            return false;
+        out->u.anim_load.model = element->model;
+        out->u.anim_load.world_position = element->world_position;
+        return true;
     case TORIDRAW_EVENT_ANIM_UNLOAD:
         out->kind = TORIRSRC_ANIM_UNLOAD;
         out->u.anim_load.element_id = ev->element_id;
+        out->u.anim_load.anim_index = ev->anim_index;
+        return true;
+    case TORIDRAW_EVENT_TEX_LOAD:
+        out->kind = TORIRSRC_TEX_LOAD;
+        out->u.tex_load.texture_id = ev->texture_id;
+        out->u.tex_load.texture =
+            scene && ToriDraw_SceneTexState(scene)
+                ? ToriDraw_TextureMapGet(
+                      &ToriDraw_SceneTexState(scene)->texture_map,
+                      ev->texture_id)
+                : NULL;
+        if( !out->u.tex_load.texture )
+            return false;
+        return true;
+    case TORIDRAW_EVENT_TEX_UNLOAD:
+        out->kind = TORIRSRC_TEX_UNLOAD;
+        out->u.tex_load.texture_id = ev->texture_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_BEGIN:
+        out->kind = TORIRSRC_BATCH3D_BEGIN;
+        out->u.batch.batch_id = ev->batch_id;
+        return true;
+    case TORIDRAW_EVENT_BATCH_MODEL_ADD:
+        /* SceneBatchAddElement emits a NONE placeholder before the real model
+         * is assigned.  Do not resolve that sentinel to the element's later
+         * live handle and bake the same geometry twice. */
+        if( ev->model.kind == TORIDRAWMK_NONE )
+            return false;
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        element = ToriDraw_SceneElementGet(scene, ev->element_id);
+        if( !element || element->dynamic || element->model.kind == TORIDRAWMK_NONE )
+            return false;
+        out->kind = TORIRSRC_BATCH3D_MODEL_ADD;
+        out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.element_id = ev->element_id;
+        out->u.batch.pose_id = ev->pose_id;
+        out->u.batch.model = element->model;
+        out->u.batch.world_position = element->world_position;
+        return true;
+    case TORIDRAW_EVENT_BATCH_ANIM_ADD:
+        if( !scene || !ToriDraw_SceneElementIsLive(scene, ev->element_id) )
+            return false;
+        out->kind = TORIRSRC_BATCH3D_ANIM_ADD;
+        out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.element_id = ev->element_id;
+        out->u.batch.pose_id = ev->pose_id;
+        out->u.batch.anim_index = ev->anim_index;
+        out->u.batch.model = ev->model;
+        out->u.batch.world_position = ev->world_position;
+        return true;
+    case TORIDRAW_EVENT_BATCH_END:
+        out->kind = TORIRSRC_BATCH3D_END;
+        out->u.batch.batch_id = ev->batch_id;
         return true;
     case TORIDRAW_EVENT_BATCH_CLEAR:
-    case TORIDRAW_EVENT_SCENE_RESET:
         out->kind = TORIRSRC_BATCH3D_CLEAR;
         out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.clear_all = ev->batch_id == TORIDRAW_SCENE_INVALID_BATCH_ID;
+        return true;
+    case TORIDRAW_EVENT_SCENE_RESET:
+        out->kind = TORIRSRC_BATCH3D_CLEAR;
+        out->u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;
+        out->u.batch.clear_all = true;
         return true;
     default:
         return false;
@@ -85,7 +179,7 @@ frame_take_scene_event(
     while( frame->event_index < eq->count )
     {
         struct ToriDraw_Event const* ev = &eq->events[frame->event_index++];
-        if( frame_translate_scene_event(ev, out) )
+        if( frame_translate_scene_event(frame->scene, ev, out) )
             return true;
     }
     return false;
@@ -731,7 +825,7 @@ translate_ui_cmd(
         if( desc->model_id < 0 )
             return false;
         hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
-        if( hnd.kind == TORIDRAWMK_NONE )
+        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;
         out->u.model_widget.model = hnd;
@@ -1045,6 +1139,66 @@ translate_ui_cmd(
             out->u.fill_rect.scissor_h = desc->clip.h;
             return true;
         }
+    }
+
+    case UITREE_EMIT_DEBUG_OVERLAY:
+    {
+        /* One display-list primitive per multi-step. The prims are already in
+         * absolute screen pixels and carry their own scissor box, so this is a
+         * straight field copy — no layout, no measurement, no allocation. */
+        struct ToriDbgPrim const* prim;
+        int font_id;
+
+        if( !desc->debug_prims || frame->scrollbar_step >= desc->debug_prim_count )
+            return false;
+        prim = &desc->debug_prims[frame->scrollbar_step];
+
+        if( prim->kind == TORIDBG_PRIM_TEXT )
+        {
+            if( !prim->text || prim->text[0] == '\0' )
+                return false;
+            if( prim->font_slot < 0 || prim->font_slot >= TORIDBG_FONT_SLOT_COUNT )
+                return false;
+            font_id = desc->debug_font_id[prim->font_slot];
+            /* >= 0: scene font ids are cache ids, and 0 is a real one. A
+             * negative id means the host never registered that baked face. */
+            if( font_id < 0 )
+                return false;
+            out->kind = TORIRSRC_FONT;
+            out->u.font.font_id = font_id;
+            out->u.font.text = prim->text;
+            out->u.font.x = prim->x;
+            out->u.font.y = prim->y;
+            out->u.font.color = (int)prim->color;
+            out->u.font.shadowed = prim->shadowed;
+            /* The overlay lays out from the baked advance tables and places a
+             * baseline, matching ToriDraw2D_DrawString's `y -= line_height`. */
+            out->u.font.baseline = prim->baseline;
+            out->u.font.scissor_x = prim->clip.x;
+            out->u.font.scissor_y = prim->clip.y;
+            out->u.font.scissor_w = prim->clip.w;
+            out->u.font.scissor_h = prim->clip.h;
+            return true;
+        }
+
+        /* RECT. filled == 0 reaches ToriDraw2D_DrawRectOutline, which is what
+         * makes a bordered background one primitive instead of four. */
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = prim->x;
+        out->u.fill_rect.y = prim->y;
+        out->u.fill_rect.w = prim->w;
+        out->u.fill_rect.h = prim->h;
+        /* Prims carry 0xRRGGBB, the same convention the UITree colour fields
+         * use; the alpha byte is this layer's to supply. ToriDraw2D_FillRect
+         * early-outs on alpha 0, so a raw copy here draws nothing at all. The
+         * overlay is developer chrome and never translucent, hence trans 0. */
+        out->u.fill_rect.argb = emit_color_argb((int)prim->color, 0);
+        out->u.fill_rect.filled = prim->filled;
+        out->u.fill_rect.scissor_x = prim->clip.x;
+        out->u.fill_rect.scissor_y = prim->clip.y;
+        out->u.fill_rect.scissor_w = prim->clip.w;
+        out->u.fill_rect.scissor_h = prim->clip.h;
+        return true;
     }
 
     case UITREE_EMIT_WORLD:
@@ -1624,8 +1778,8 @@ ToriRS_FrameNextCommand(
     if( frame_take_queued(frame, out) )
         return true;
 
-    /* Drain scene unload/clear events before any DRAW_MODEL so GL3's pose
-     * table does not serve stale verts after element-id reuse. */
+    /* Drain ordered scene resource events before any DRAW_MODEL so retained
+     * model/pose buffers and asynchronous textures are ready for the pass. */
     if( frame_take_scene_event(frame, out) )
         return true;
 
@@ -1677,6 +1831,15 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = 1 + desc->worldmap_tile_count;
+        }
+        /* Debug overlay: one step per display-list primitive. Stepping the
+         * host's array in place is the reason the overlay's whole per-frame
+         * cost is a pointer copy — an emit desc per prim would mean copying
+         * ~300 bytes each, every frame, for a list that rarely changes. */
+        if( desc->kind == UITREE_EMIT_DEBUG_OVERLAY && desc->debug_prim_count > 0 )
+        {
+            is_scrollbar = 1;
+            sb_steps = desc->debug_prim_count;
         }
 
         if( desc->kind == UITREE_EMIT_WORLD )

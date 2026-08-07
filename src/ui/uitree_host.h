@@ -2,6 +2,9 @@
 #define SRC_UITREE_HOST_H
 
 #include "uitree.h"
+/* Leaf header: `static const` advance tables plus POD structs, no includes of
+ * its own. It is here so the emit desc can carry a typed display-list pointer. */
+#include "uitree_debug_overlay.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -218,6 +221,15 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_OBJ_ICON_BORDERED,
     /**
+     * Writes the debug overlay's display list to u.get_debug_overlay.out_prims
+     * and returns the primitive count (0 = no overlay, which is the normal
+     * case — the pass then costs one host call and nothing else). The array is
+     * host-owned and lives as long as the ToriDbgUI, so unlike the other
+     * host-owned arrays here it is not same-frame-only; it is still only read
+     * during the frame it was fetched for.
+     */
+    UITREE_HOST_GET_DEBUG_OVERLAY,
+    /**
      * Server IF_SETEVENTS mask for u.get_if_events.com_id, including a dynamic
      * child's inheritance of its parent's armed sub range. Hit-test uses this
      * so choice-menu rows (plain TEXT, no cache clickmask) are clickable once
@@ -405,6 +417,10 @@ struct UITreeHostRequest
         {
             int com_id;
         } get_if_events;
+        struct
+        {
+            struct ToriDbgPrim const** out_prims;
+        } get_debug_overlay;
     } u;
 };
 

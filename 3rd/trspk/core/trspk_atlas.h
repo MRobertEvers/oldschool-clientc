@@ -39,6 +39,22 @@ struct TRSPK_AtlasFreeRect
 };
 
 /* ------------------------------------------------------------------ */
+/* Dirty pixel bounds                                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Bounding rectangle of all CPU-side pixel writes since the last
+ * trspk_atlas_clear_dirty().  Coordinates and dimensions are in pixels.
+ */
+struct TRSPK_AtlasDirtyRect
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t w;
+    uint32_t h;
+};
+
+/* ------------------------------------------------------------------ */
 /* Atlas mode                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -84,6 +100,8 @@ struct TRSPK_Atlas
     uint32_t free_rects_count;
     uint32_t free_rects_cap;
 
+    struct TRSPK_AtlasDirtyRect dirty_rect;
+
     uint32_t flags;
 };
 
@@ -114,6 +132,15 @@ trspk_atlas_is_dirty(const struct TRSPK_Atlas* atlas)
 static inline void
 trspk_atlas_set_dirty(struct TRSPK_Atlas* atlas)
 {
+    /*
+     * Backward-compatible conservative behavior for callers which mutate
+     * atlas->pixels directly: without write bounds, the entire atlas may
+     * have changed.
+     */
+    atlas->dirty_rect.x = 0;
+    atlas->dirty_rect.y = 0;
+    atlas->dirty_rect.w = atlas->width;
+    atlas->dirty_rect.h = atlas->height;
     trspk_flags_set(&atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
 }
 
@@ -121,7 +148,64 @@ static inline void
 trspk_atlas_clear_dirty(struct TRSPK_Atlas* atlas)
 {
     trspk_flags_clear(&atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
+    atlas->dirty_rect.x = 0;
+    atlas->dirty_rect.y = 0;
+    atlas->dirty_rect.w = 0;
+    atlas->dirty_rect.h = 0;
 }
+
+/*
+ * Merge a changed pixel rectangle into the atlas dirty bounds.
+ * The rectangle must be non-empty and wholly inside the atlas.
+ * Returns false for invalid bounds without changing dirty state.
+ */
+bool
+trspk_atlas_mark_dirty_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t x,
+    uint32_t y,
+    uint32_t w,
+    uint32_t h);
+
+/*
+ * Copy the current merged dirty bounds into rect_out.
+ * Returns false when the atlas is clean. rect_out may be NULL.
+ */
+bool
+trspk_atlas_get_dirty_rect(
+    const struct TRSPK_Atlas* atlas,
+    struct TRSPK_AtlasDirtyRect* rect_out);
+
+/* ------------------------------------------------------------------ */
+/* Pixel updates                                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Copy a rectangular pixel block into the atlas and merge its exact
+ * destination bounds into the dirty rectangle.
+ */
+bool
+trspk_atlas_update_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t dst_x,
+    uint32_t dst_y,
+    const uint8_t* src_pixels,
+    uint32_t src_stride,
+    uint32_t src_w,
+    uint32_t src_h);
+
+/* Zero a pixel rectangle and merge its exact bounds into the dirty rectangle. */
+bool
+trspk_atlas_clear_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t x,
+    uint32_t y,
+    uint32_t w,
+    uint32_t h);
+
+/* Zero all atlas pixels and mark the complete atlas dirty. */
+void
+trspk_atlas_clear(struct TRSPK_Atlas* atlas);
 
 /* ------------------------------------------------------------------ */
 /* Lifetime                                                            */

@@ -79,6 +79,18 @@ ToriDraw2D_BlitArgb(
     int src_h,
     int* pixel_buffer);
 
+/* Source-over ARGB blit with an additional 0..255 opacity multiplier. */
+void
+ToriDraw2D_BlitArgbAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha,
+    int* pixel_buffer);
+
 void
 ToriDraw2D_BlitArgbScaled(
     struct ToriDraw_ViewPort* view_port,
@@ -89,6 +101,19 @@ ToriDraw2D_BlitArgbScaled(
     uint32_t const* src,
     int src_w,
     int src_h,
+    int* pixel_buffer);
+
+void
+ToriDraw2D_BlitArgbScaledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha,
     int* pixel_buffer);
 
 void
@@ -103,6 +128,21 @@ ToriDraw2D_BlitArgbTiled(
     int src_h,
     int origin_x,
     int origin_y,
+    int* pixel_buffer);
+
+void
+ToriDraw2D_BlitArgbTiledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int rect_x,
+    int rect_y,
+    int rect_w,
+    int rect_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int origin_x,
+    int origin_y,
+    int alpha,
     int* pixel_buffer);
 
 void

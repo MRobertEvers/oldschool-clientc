@@ -101,6 +101,12 @@ struct UITreeSceneBridge
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
 #define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
 
+/* Reserved scene font ids for the two baked debug-overlay faces. Scene font ids
+ * are cache font ids everywhere else (see EnsureFont), so these sit out of that
+ * range alongside the reserved model/sprite ids above. */
+#define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
+#define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,
@@ -152,6 +158,20 @@ int
 UITreeSceneBridge_EnsureFont(
     struct UITreeSceneBridge* bridge,
     int cache_font_id);
+
+/**
+ * Register one of the two baked debug faces (enum ToriDbgFontSlot) in the scene
+ * and return its reserved scene font id.
+ *
+ * Needs no cache and no provider: the faces are compiled in. They are also
+ * `static`, and ToriDraw_SceneGraphShutdown frees every font it holds, so this
+ * registers a deep copy (~4 KB of glyph alpha per face) rather than the baked
+ * struct itself.
+ */
+int
+UITreeSceneBridge_EnsureDebugFont(
+    struct UITreeSceneBridge* bridge,
+    int font_slot);
 
 /** Ensure model in scene. Returns scene model id or -1. */
 int

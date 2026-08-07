@@ -466,6 +466,26 @@ mock230_mapinstance_base(
 }
 
 int
+mock230_mapinstance_bounds(
+    int handle,
+    int* out_x,
+    int* out_z,
+    int* out_width,
+    int* out_height)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    assert(out_x && out_z && out_width && out_height);
+    if( !inst )
+        return 0;
+    *out_x = inst->base_x;
+    *out_z = inst->base_z;
+    *out_width = inst->square_w * 64;
+    *out_height = inst->square_h * 64;
+    return 1;
+}
+
+int
 mock230_mapinstance_free(int handle)
 {
     struct Mock230MapInstance* inst = mapinstance_get(handle);

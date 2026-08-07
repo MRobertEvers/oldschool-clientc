@@ -28,13 +28,21 @@ Derived-but-independent sub-axes that follow from these:
   (`src/cs2vm2`). Currently keyed implicitly off `cache_kind`
   (`src/app.c` passes the CS2 host only for dat2). Should become an explicit
   `ui_logic` field of the generation profile.
-- **UI chrome sourcing**: RevConfig INI gameframe (dat1 has no gameframe
-  interface in cache) vs cache-driven root interface (dat2/xrsps —
-  `WIDGET_SET_ROOT` names a cache interface group; no RevConfig needed).
+- ~~**UI chrome sourcing**: RevConfig INI gameframe vs cache-driven root
+  interface~~ — **no longer an axis.** There is one root-build path and it is
+  RevConfig. A cache gameframe is not a path around it but a component type
+  inside it: `type=rs_iface` with no `componentno=` is a mount point for the
+  root interface (`[ui:boot] interface_id=`, or whatever `IF_SETTOPLEVEL` last
+  re-rooted to), and the cache pack is baked as that node's **children**. The
+  generational difference is now only whether a layout has such a record.
+  A manifest can carry its layout inline under a `[revconfig:…]` section
+  prefix, and one that declares no RevConfig at all still boots — the builder
+  synthesises exactly that single mount. See
+  [`debug_overlay.md`](debug_overlay.md) §1–§3.
 
 A **generation profile** is a tuple: `(cache_kind, proto_rev, transport,
-ui_logic, chrome_source)`. Old gen = `(dat1, lc254, tcp+isaac, cs1, revconfig)`.
-xrsps = `(dat2, xrsps233, websocket, cs2, cache-root)`.
+ui_logic)`. Old gen = `(dat1, lc254, tcp+isaac, cs1)`.
+xrsps = `(dat2, xrsps233, websocket, cs2)`.
 
 ---
 
@@ -306,9 +314,13 @@ No RSA/ISAAC state; `jag_checksum`, `uid`, seeds unused (NULL/zero in table).
 
 ### 5.7 UI: ClientCode, RevConfig, and the VM split (🔶)
 
-- **RevConfig becomes old-gen-only chrome.** xrsps needs none: root group +
-  sub-mounts arrive over the wire and everything else is cache IF3 + CS2. Keep
-  RevConfig for dat1; the profile's `chrome_source` decides.
+- ~~**RevConfig becomes old-gen-only chrome.**~~ **Superseded — it is every
+  generation's chrome now.** xrsps still declares no widgets of its own: its
+  root group and sub-mounts arrive over the wire and everything else is cache
+  IF3 + CS2. But it goes through the same builder, with a one-record layout —
+  a single `type=rs_iface` mount, synthesised for it if the manifest declares
+  nothing. What dat1 adds is the rest of the records, not a different path.
+  See [`debug_overlay.md`](debug_overlay.md) §1–§2.
 - **ClientCode (`rs_clientcode.c`) is old-gen-only.** Modern behaviors are CS2
   scripts + enums/structs/params. Gate `RS_ClientCode_Tick/Button` on the
   profile, not unconditionally.
@@ -647,7 +659,7 @@ ever matters.
     and NPC_INFO v5 are unwritten, so `osrs239_parse.c` refuses them (along with
     REBUILD_NORMAL/REGION V2, IF_SETEVENTS V2, IF_SETMODEL V2 and CAM_MOVETO/
     LOOKAT V2) rather than decoding them with the 230 layout.
-  - **JS5 landed** as `src/net/mock/mock_js5.c` + `make -C src mock-js5`. It is
+  - **JS5 landed** as `src/js5/server/` + `make -C src js5-server`. It is
     a login-prot branch, not a service — one socket, opcode 14 game vs 15 JS5 —
     so it must move into `mock230_session`'s handshake; it is standalone today
     because that is the half testable against a real client now.
@@ -786,3 +798,25 @@ ever matters.
     headless `torirs --manifest manifest_osrs230_embed.ini` run
     (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`
     confirming the local player still renders equipped gear end to end.
+
+- **2026-08-06 — Manifests gained a lower-priority command-line layer.**
+  - `[client:args]` carries repeated `arg=` entries, one exact argv token per
+    line in file order. It deliberately reuses the browser query string's
+    repeated-`arg` model instead of inventing a POSIX- or Windows-specific shell
+    tokenizer: spaces, quotes, backslashes and punctuation remain literal.
+  - Boot precedence is now typed manifest fields → manifest arguments → process
+    argv. Each layer gets fresh positional slots, so an explicit cache directory
+    or interface id replaces the manifest's positional value. Connectivity is
+    also resolved per layer: an explicit `--offline` clears a manifest
+    `--connect`, while an explicit `--connect` replaces manifest `--offline`.
+  - Argument backing is fixed storage inside the process-lifetime
+    `BootManifest`, because CLI values such as `--user`, `--connect`, and
+    `--revconfig` can become `AppConfig` pointers that must outlive parsing.
+    Empty entries are preserved like real argv values. Overflow beyond 64
+    tokens is a load error, while a `--manifest` token is rejected contextually
+    only when it occupies option position (so it remains legal as a password or
+    another option's literal value).
+  - The web boot preloader also inspects manifest arguments for `--revconfig`
+    and `--revconfig-cache`, ensuring those CLI-named files exist in MEMFS before
+    `main()`. Typed RevConfig keys remain manifest-relative; argument paths keep
+    ordinary CLI/working-directory semantics.

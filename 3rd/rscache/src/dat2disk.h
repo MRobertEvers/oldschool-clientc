@@ -272,6 +272,8 @@ struct RSCache_Dat2Disk
      *  Unset (ProfileZero) until RSCache_Dat2DiskSetProfile. */
     struct RSCache profile;
     int profile_set;
+    /** Non-zero when opened through NewReadOnlyFromDirectory. */
+    int read_only;
 };
 
 bool
@@ -309,6 +311,23 @@ RSCache_Dat2DiskTableId(
 
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewFromDirectory(char const* directory);
+
+/**
+ * Open an existing cache using read-only file handles. This is intended for
+ * cache-serving processes and guarantees that mutating disk helpers reject
+ * the handle.
+ */
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory);
+
+/**
+ * Open a cache directory for incremental population, creating an empty dat2
+ * file when needed. Existing dat2 bytes are never truncated. The directory
+ * itself must already exist.
+ */
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewSparseFromDirectory(const char* directory);
+
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewUninitialized(void);
 void
@@ -318,6 +337,18 @@ struct RSCache_Dat2DiskArchive*
 RSCache_Dat2DiskArchiveNewReferenceTableLoad(
     struct RSCache_Dat2Disk* disk,
     int table_id);
+
+/**
+ * Read the exact idx-record bytes without decrypting or decompressing them.
+ * The returned archive owns its data and must be freed with
+ * RSCache_Dat2DiskArchiveFree.
+ */
+struct RSCache_Dat2DiskArchive*
+RSCache_Dat2DiskArchiveNewLoadRaw(
+    struct RSCache_Dat2Disk* disk,
+    int table_id,
+    int archive_id);
+
 struct RSCache_Dat2DiskArchive*
 RSCache_Dat2DiskArchiveNewLoad(
     struct RSCache_Dat2Disk* disk,
@@ -425,6 +456,21 @@ RSCache_Dat2DiskWriteArchive(
     const char* directory,
     int table_id,
     int archive_id,
+    const uint8_t* data,
+    int data_size);
+
+/**
+ * Persist and install one raw reference-table container for table N.
+ *
+ * The input is borrowed and written byte-for-byte as archive 255/N. The
+ * function also creates the non-truncating idxN sentinel used during cache
+ * discovery, decodes a private copy, and replaces disk->tables[N] only after
+ * every step succeeds. Existing table metadata is freed after the swap.
+ */
+bool
+RSCache_Dat2DiskInstallReferenceTableRaw(
+    struct RSCache_Dat2Disk* disk,
+    int table_id,
     const uint8_t* data,
     int data_size);
 

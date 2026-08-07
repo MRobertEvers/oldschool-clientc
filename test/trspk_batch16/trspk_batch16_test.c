@@ -1,182 +1,242 @@
-/**
- * Standalone test for trspk_batch16: chunk roll at uint16 limits and clear/destroy cleanup.
- * Links ToriRS tools without full dash.c / trspk_math.c — stubs below satisfy vertex_buffer.c.
- */
-
 #include "trspk_batch16.h"
-#include "trspk_vertex_format.h"
 
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-/* Satisfy trspk_vertex_buffer.c via trspk_math.h inlines (no dash.c / trspk_math.c). */
-int
-dash_hsl16_to_rgb(int hsl16)
-{
-    (void)hsl16;
-    return 0;
-}
-
-float
-trspk_pack_gpu_uv_mode_float(float anim_u, float anim_v)
-{
-    unsigned mag_u = (unsigned)fmaxf(0.0f, fminf(255.0f, anim_u * 256.0f + 0.5f));
-    unsigned mag_v = (unsigned)fmaxf(0.0f, fminf(255.0f, anim_v * 256.0f + 0.5f));
-    unsigned enc = 0u;
-    if( mag_u > 0u )
-        enc = 1u + mag_u;
-    else if( mag_v > 0u )
-        enc = 257u + mag_v;
-    return 2.0f * (float)enc;
-}
-
-#define FAIL(...)                                                                                  \
-    do                                                                                             \
-    {                                                                                              \
-        fprintf(stderr, __VA_ARGS__);                                                              \
-        fprintf(stderr, "\n");                                                                     \
-        return 1;                                                                                  \
+#define CHECK(condition, ...)                                                                       \
+    do                                                                                              \
+    {                                                                                               \
+        if( !(condition) )                                                                          \
+        {                                                                                           \
+            fprintf(stderr, "trspk_batch16_test: ");                                               \
+            fprintf(stderr, __VA_ARGS__);                                                           \
+            fprintf(stderr, "\n");                                                                \
+            return 1;                                                                               \
+        }                                                                                           \
     } while( 0 )
 
 static int
-test_minimal_create_destroy(void)
+test_format_and_build_guards(void)
 {
-    TRSPK_Batch16* b = trspk_batch16_create(1024u, 3072u, TRSPK_VERTEX_FORMAT_TRSPK);
-    if( !b )
-        FAIL("trspk_batch16_create failed");
-    trspk_batch16_begin(b);
-    TRSPK_Vertex tri[3] = { 0 };
-    if( !trspk_batch16_append_triangle(b, tri, (TRSPK_ModelId)1u, 0u, 0u) )
+    struct TRSPK_Batch16Reservation reservation;
+    struct TRSPK_Batch16* batch = trspk_batch16_create(TRSPK_VERTEX_FORMAT_D3D9);
+    CHECK(batch != NULL, "D3D9 create failed");
+    CHECK(
+        trspk_batch16_create(TRSPK_VERTEX_FORMAT_TRSPK) == NULL,
+        "CPU-only vertex format should be rejected");
+
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 1, -1, 0, 3u, &reservation),
+        "reserve outside begin succeeded");
+    CHECK(
+        reservation.vbo == NULL && reservation.triangles == NULL &&
+            reservation.chunk_index == TRSPK_BATCH16_INVALID_CHUNK,
+        "failed reservation was not cleared");
+
+    trspk_batch16_begin(batch);
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 1, -1, 0, 0u, &reservation),
+        "zero-sized reservation succeeded");
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 1, -1, 0, 4u, &reservation),
+        "non-triangle reservation succeeded");
+    CHECK(
+        !trspk_batch16_reserve_pose(
+            batch, 1, -1, 0, TRSPK_BATCH16_MAX_VERTICES + 1u, &reservation),
+        "oversized reservation succeeded");
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 1, -1, 0, 3u, NULL),
+        "reservation without output succeeded");
+
+    trspk_batch16_destroy(batch);
+    trspk_batch16_destroy(NULL);
+    return 0;
+}
+
+static int
+test_chunk_roll_lookup_and_reuse(void)
+{
+    struct TRSPK_Batch16* batch = trspk_batch16_create(TRSPK_VERTEX_FORMAT_D3D9);
+    struct TRSPK_Batch16Reservation first;
+    struct TRSPK_Batch16Reservation duplicate;
+    struct TRSPK_Batch16Reservation second;
+    struct TRSPK_Batch16Reservation third;
+    CHECK(batch != NULL, "create failed");
+
+    trspk_batch16_begin(batch);
+    CHECK(
+        trspk_batch16_reserve_pose(
+            batch, 42, -1, 7, TRSPK_BATCH16_MAX_VERTICES, &first),
+        "full-chunk reservation failed");
+    CHECK(
+        first.chunk_index == 0u && first.vertex_base == 0u && first.vbo != NULL &&
+            first.triangles != NULL,
+        "first reservation location is wrong");
+    CHECK(
+        trspk_batch16_chunk_count(batch) == 1u && trspk_batch16_entry_count(batch) == 1u,
+        "first reservation counts are wrong");
+
+    struct TRSPK_Batch16Chunk* chunk0 = trspk_batch16_get_chunk(batch, 0u);
+    CHECK(chunk0 != NULL, "chunk zero missing");
+    CHECK(
+        chunk0->vertex_count == TRSPK_BATCH16_MAX_VERTICES &&
+            chunk0->vbo->vertex_count == TRSPK_BATCH16_MAX_VERTICES &&
+            chunk0->vbo->capacity >= TRSPK_BATCH16_MAX_VERTICES,
+        "full chunk VBO counts are wrong");
+    CHECK(
+        chunk0->triangles.cap >= TRSPK_BATCH16_MAX_VERTICES / 3u,
+        "triangle config capacity is too small");
+    CHECK(trspk_vbo_is_dirty(chunk0->vbo), "reserved VBO was not marked dirty");
+
+    trspk_triangles_set(first.triangles, first.vertex_base / 3u, 123);
+    first.vbo->vertices.as_d3d9[first.vertex_base].position[0] = 42.0f;
+
+    CHECK(
+        trspk_batch16_reserve_pose(
+            batch, 42, -1, 7, TRSPK_BATCH16_MAX_VERTICES, &duplicate),
+        "duplicate key was not idempotent");
+    CHECK(
+        duplicate.vbo == first.vbo && duplicate.triangles == first.triangles &&
+            duplicate.chunk_index == first.chunk_index &&
+            duplicate.vertex_base == first.vertex_base &&
+            trspk_batch16_entry_count(batch) == 1u,
+        "duplicate key allocated another entry");
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 42, -1, 7, 3u, &duplicate),
+        "duplicate key accepted a different vertex count");
+
+    CHECK(
+        trspk_batch16_reserve_pose(batch, 43, 2, 9, 3u, &second),
+        "roll reservation failed");
+    CHECK(second.chunk_index == 1u && second.vertex_base == 0u, "batch did not roll");
+    CHECK(
+        trspk_batch16_reserve_pose(batch, 44, 2, 10, 65532u, &third),
+        "exact-fill reservation failed");
+    CHECK(
+        third.chunk_index == 1u && third.vertex_base == 3u,
+        "exact-fill reservation rolled too early");
+
+    struct TRSPK_Batch16Reservation rolled;
+    CHECK(
+        trspk_batch16_reserve_pose(batch, 45, 3, 11, 3u, &rolled),
+        "second roll reservation failed");
+    CHECK(
+        rolled.chunk_index == 2u && rolled.vertex_base == 0u &&
+            trspk_batch16_chunk_count(batch) == 3u,
+        "second roll location is wrong");
+
+    const struct TRSPK_Batch16Entry* entry =
+        trspk_batch16_find_entry(batch, 43, 2, 9);
+    CHECK(
+        entry != NULL && entry->chunk_index == 1u && entry->vertex_base == 0u &&
+            entry->vertex_count == 3u,
+        "key lookup returned wrong metadata");
+    CHECK(
+        trspk_batch16_find_entry(batch, 43, 99, 9) == NULL,
+        "lookup ignored anim_index");
+    CHECK(
+        trspk_batch16_get_entry(batch, 0u) != NULL &&
+            trspk_batch16_get_entry(batch, trspk_batch16_entry_count(batch)) == NULL &&
+            trspk_batch16_get_chunk(batch, trspk_batch16_chunk_count(batch)) == NULL,
+        "bounds accessors are wrong");
+
+    struct TRSPK_VBO* const old_vbo0 = chunk0->vbo;
+    struct TRSPK_VertexD3D9* const old_vertices0 = chunk0->vbo->vertices.as_d3d9;
+    int* const old_triangles0 = chunk0->triangles.config;
+    const uint32_t old_vbo_capacity0 = chunk0->vbo->capacity;
+    const uint32_t old_triangle_capacity0 = chunk0->triangles.cap;
+    struct TRSPK_Batch16Chunk* const old_chunk1 = trspk_batch16_get_chunk(batch, 1u);
+    struct TRSPK_VBO* const old_vbo1 = old_chunk1->vbo;
+
+    trspk_batch16_end(batch);
+    CHECK(
+        trspk_batch16_find_entry(batch, 42, -1, 7) != NULL &&
+            trspk_batch16_get_chunk(batch, 0u) == chunk0 &&
+            chunk0->vbo->vertices.as_d3d9[0].position[0] == 42.0f &&
+            trspk_triangles_get(&chunk0->triangles, 0u) == 123,
+        "end discarded retained entry/vertex/triangle data");
+    CHECK(
+        !trspk_batch16_reserve_pose(batch, 46, 0, 0, 3u, &duplicate),
+        "reserve after end succeeded");
+
+    trspk_batch16_clear(batch);
+    CHECK(
+        trspk_batch16_chunk_count(batch) == 0u && trspk_batch16_entry_count(batch) == 0u,
+        "clear did not empty live counts");
+    CHECK(
+        trspk_batch16_find_entry(batch, 42, -1, 7) == NULL,
+        "clear retained a live key");
+
+    trspk_batch16_begin(batch);
+    CHECK(
+        trspk_batch16_reserve_pose(
+            batch, 50, -1, 0, TRSPK_BATCH16_MAX_VERTICES, &first) &&
+            trspk_batch16_reserve_pose(batch, 51, -1, 0, 3u, &second),
+        "rebuild reservations failed");
+    chunk0 = trspk_batch16_get_chunk(batch, 0u);
+    CHECK(
+        chunk0 != NULL && chunk0->vbo == old_vbo0 &&
+            chunk0->vbo->vertices.as_d3d9 == old_vertices0 &&
+            chunk0->triangles.config == old_triangles0 &&
+            chunk0->vbo->capacity == old_vbo_capacity0 &&
+            chunk0->triangles.cap == old_triangle_capacity0,
+        "chunk zero allocations were not reused");
+    CHECK(
+        trspk_batch16_get_chunk(batch, 1u) == old_chunk1 && second.vbo == old_vbo1,
+        "rolled chunk object/VBO was not reused");
+
+    trspk_batch16_destroy(batch);
+    return 0;
+}
+
+static int
+test_lookup_growth(void)
+{
+    enum
     {
-        trspk_batch16_destroy(b);
-        FAIL("append_triangle on minimal batch failed");
+        ENTRY_COUNT = 4096
+    };
+    struct TRSPK_Batch16* batch = trspk_batch16_create(TRSPK_VERTEX_FORMAT_OPENGL3);
+    CHECK(batch != NULL, "OpenGL3 create failed");
+    trspk_batch16_begin(batch);
+
+    for( int i = 0; i < ENTRY_COUNT; i++ )
+    {
+        struct TRSPK_Batch16Reservation reservation;
+        CHECK(
+            trspk_batch16_reserve_pose(batch, i - 2048, i % 17 - 8, i * 3, 3u, &reservation),
+            "lookup-growth reserve %d failed",
+            i);
     }
-    trspk_batch16_end(b);
-    trspk_batch16_destroy(b);
+    CHECK(
+        trspk_batch16_entry_count(batch) == ENTRY_COUNT &&
+            trspk_batch16_chunk_count(batch) == 1u,
+        "lookup-growth counts are wrong");
+
+    for( int i = 0; i < ENTRY_COUNT; i++ )
+    {
+        const struct TRSPK_Batch16Entry* entry =
+            trspk_batch16_find_entry(batch, i - 2048, i % 17 - 8, i * 3);
+        CHECK(
+            entry != NULL && entry->vertex_base == (uint32_t)i * 3u,
+            "lookup-growth find %d failed",
+            i);
+    }
+
+    trspk_batch16_destroy(batch);
     return 0;
 }
 
 int
 main(void)
 {
-    trspk_batch16_destroy(NULL);
-
-    if( test_minimal_create_destroy() != 0 )
+    if( test_format_and_build_guards() != 0 )
+        return 1;
+    if( test_chunk_roll_lookup_and_reuse() != 0 )
+        return 1;
+    if( test_lookup_growth() != 0 )
         return 1;
 
-    const uint32_t n = 65535u;
-    TRSPK_Vertex* verts = (TRSPK_Vertex*)calloc((size_t)n, sizeof(TRSPK_Vertex));
-    uint16_t* indices = (uint16_t*)malloc((size_t)n * sizeof(uint16_t));
-    if( !verts || !indices )
-    {
-        free(verts);
-        free(indices);
-        FAIL("calloc/malloc for full-chunk mesh failed");
-    }
-
-    for( uint32_t t = 0u; t < 21845u; ++t )
-    {
-        indices[3u * t + 0u] = (uint16_t)(3u * t + 0u);
-        indices[3u * t + 1u] = (uint16_t)(3u * t + 1u);
-        indices[3u * t + 2u] = (uint16_t)(3u * t + 2u);
-    }
-
-    TRSPK_Batch16* batch = trspk_batch16_create(0u, 0u, TRSPK_VERTEX_FORMAT_TRSPK);
-    if( !batch )
-    {
-        free(verts);
-        free(indices);
-        FAIL("trspk_batch16_create failed");
-    }
-
-    trspk_batch16_begin(batch);
-
-    if( trspk_batch16_add_mesh(
-            batch,
-            verts,
-            n,
-            indices,
-            n,
-            (TRSPK_ModelId)42u,
-            7u,
-            99u) < 0 )
-    {
-        trspk_batch16_destroy(batch);
-        free(verts);
-        free(indices);
-        FAIL("add_mesh (full chunk) failed");
-    }
-
-    free(verts);
-    free(indices);
-    verts = NULL;
-    indices = NULL;
-
-    if( trspk_batch16_chunk_count(batch) != 1u )
-        FAIL("expected 1 chunk after full mesh, got %u", trspk_batch16_chunk_count(batch));
-
-    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_TRSPK);
-    const void* cv = NULL;
-    const void* ci = NULL;
-    uint32_t vb = 0u;
-    uint32_t ib = 0u;
-    trspk_batch16_get_chunk(batch, 0u, &cv, &vb, &ci, &ib);
-    if( vb != n * stride || ib != n * (uint32_t)sizeof(uint16_t) )
-        FAIL(
-            "chunk 0 sizes wrong: vb=%u (want %u), ib=%u (want %u)",
-            vb,
-            n * stride,
-            ib,
-            n * (uint32_t)sizeof(uint16_t));
-
-    if( trspk_batch16_entry_count(batch) != 1u )
-        FAIL("entry_count after first mesh: %u", trspk_batch16_entry_count(batch));
-
-    const TRSPK_Batch16Entry* e0 = trspk_batch16_get_entry(batch, 0u);
-    if( !e0 || e0->chunk_index != 0u || e0->vbo_offset != 0u || e0->ebo_offset != 0u )
-        FAIL("first entry metadata wrong");
-
-    TRSPK_Vertex tri[3] = { 0 };
-    if( !trspk_batch16_append_triangle(
-            batch, tri, (TRSPK_ModelId)43u, 8u, 100u) )
-    {
-        trspk_batch16_destroy(batch);
-        FAIL("append_triangle after full chunk failed (roll)");
-    }
-
-    if( trspk_batch16_chunk_count(batch) != 2u )
-        FAIL("expected 2 chunks after roll, got %u", trspk_batch16_chunk_count(batch));
-
-    trspk_batch16_get_chunk(batch, 0u, &cv, &vb, &ci, &ib);
-    if( vb != n * stride || ib != n * (uint32_t)sizeof(uint16_t) )
-        FAIL("chunk 0 changed after roll");
-
-    trspk_batch16_get_chunk(batch, 1u, &cv, &vb, &ci, &ib);
-    if( vb != 3u * stride || ib != 3u * (uint32_t)sizeof(uint16_t) )
-        FAIL("chunk 1 size wrong: vb=%u ib=%u", vb, ib);
-
-    if( trspk_batch16_entry_count(batch) != 2u )
-        FAIL("entry_count after roll: %u", trspk_batch16_entry_count(batch));
-
-    const TRSPK_Batch16Entry* e1 = trspk_batch16_get_entry(batch, 1u);
-    if( !e1 || e1->chunk_index != 1u || e1->vbo_offset != 0u || e1->ebo_offset != 0u ||
-        e1->element_count != 3u )
-        FAIL("second entry metadata wrong (chunk_index=%u)", e1 ? (unsigned)e1->chunk_index : 999u);
-
-    trspk_batch16_end(batch);
-
-    trspk_batch16_clear(batch);
-    if( trspk_batch16_chunk_count(batch) != 0u || trspk_batch16_entry_count(batch) != 0u )
-        FAIL("clear did not reset counts: chunks=%u entries=%u",
-             trspk_batch16_chunk_count(batch),
-             trspk_batch16_entry_count(batch));
-
-    trspk_batch16_destroy(batch);
-    trspk_batch16_destroy(NULL);
-
-    printf("trspk_batch16_test: ok\n");
+    printf("trspk_batch16_test: PASS\n");
     return 0;
 }
