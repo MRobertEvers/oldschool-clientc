@@ -828,12 +828,15 @@ load timing made the result look random. The content now sends both falling-wall
 changes together, waits one complete server/client turn, and then sends both
 animations together.
 
-The cache and original Inferno content also settle which sequence and duration
-belong here. Falling locs 30344 and 30343 both use
-`safe_spot_distructible_pillar_collapse`, sequence 7561: 22 frames totalling 60
-client cycles. Sequences 7560 and 7559 are separate 91-frame side-wall tracks;
-using them on the two falling seal locs made the side and centre pieces drift.
-Both locs now start 7561 on the same tick and are removed two server ticks later.
+The cache settles which sequence and duration belong here, and corrects the
+earlier conclusion in this record. Falling loc 30344 is the left side wall and
+uses sequence 7560; loc 30343 is the mirrored right wall and uses sequence 7559.
+Each track is 91 frames at two client cycles per frame, or 182 client cycles.
+Sequence 7561 is the destructible *safespot pillar* collapse: only 22 frames and
+60 client cycles. Applying 7561 to the side walls was exactly the reported
+too-fast collapse. The two state2 locs now receive 7560/7559 on the same tick
+and are removed together after seven server-tick intervals (queue delay eight),
+the first 600 ms boundary after both 182-cycle tracks complete.
 
 The first scene transition needed a separate lifecycle correction. The player
 queue is frozen behind revision 239's moved-instance `MAP_BUILD_COMPLETE`
@@ -863,21 +866,25 @@ delay expires.
 The literal revision-239 packet regression walks the real enclosed stream (top
 opcodes 33/110, enclosed opcode 105, ordinals 7/9 and their V2 transforms). It
 runs two consecutive real `::zuk 1200` sessions and requires, on each run, one
-30344 change, one 30343 change, two 7561 animations exactly one tick later, no
-7559/7560 animation, and both removals after the shared duration. The NPC timer
+30344 change, one 30343 change, exactly one 7560 left animation and one 7559
+right animation on the following tick, and zero 7561 pillar animations. The NPC
+timer
 regression independently proves that an AI timer neither fires nor increments
 during `npc_delay`, then fires exactly once on expiry. The broad cache-backed
 self-test reaches the Zuk seal, death, and delay sections without a focused
 failure; its retained log is
 `build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
 
-Final live acceptance is under `build/run239-zuk/cutscene-live-final5`. A
+The earlier live run under `build/run239-zuk/cutscene-live-final5` remains
+evidence for the scene barrier, repeated instance cleanup, and death lifecycle,
+but its 7561 wall timing is superseded by this correction. A
 blocking EVENTS subscriber connected before RuneLite and all commands were real
 AWT keyboard input. The first cutscene changed both walls at tick 34, animated
 both at tick 35, and removed both at tick 36. The real repeated `::zuk 1200`
 path did the same at ticks 62/63/64, proving the pooled square did not inherit
-the first arena. Event-triggered frames show both walls present before the
-collapse, both sides at the same animation phase, and the completed opening.
+the first arena. Corrected live frames under `build/hitsplat-zuk-live/proof/`
+show the 7560/7559 walls continuing through `15-wall-a.png` to `20-wall-f.png`
+instead of disappearing on the old 60-cycle pillar track.
 The fight then continued to a natural death: the Inferno NPC roster became zero
 at sample 65, instance 1 was released, and ordered GPI returned to Lumbridge at
 sample 68. Post-death JCTL reported `LOGGED_IN`, valid GPI, no Inferno mounts,
@@ -886,6 +893,47 @@ found no queue overflow, parked-script collision, script abort, runtime fatal,
 CS2 error, packet decode error, writer gap, or unexpected disconnect. The only
 exception text is RuneLite's known caught pre-login `setupCompilerControl`
 warning.
+
+### Revision-239 hitsplats survive the golden actor gate and use canonical art
+
+RuneLite's missing hitsplats were not an input, renderer, or RuneLite overlay
+problem. The authoritative player update handler reads the revision-239 hit
+count with `p1Alt3`, then four `Smart1or2` values for each hit: type, value,
+delay, and concurrent-slot limit. The server sent the last value as zero under
+the mistaken description “uncapped.” Golden `class105.method3560` only inserts
+the decoded hit into the actor's render list when that limit is positive, so
+RuneLite correctly decoded and published the hit callback but stored no
+drawable hitmark. Both PLAYER_INFO and NPC_INFO now send the revision-239 actor
+limit of four.
+
+The literal player-info regression sends type 28/value 73 and decodes the exact
+wire body. It requires extended flag `0x40808`, the transformed count byte,
+three first smart values, and final smart value 4. Live diagnostic telemetry
+then independently recorded `hitsplat_decode ... slots=4` followed by
+`hitsplat_store`; those temporary actor probes were removed and the deob rebuilt
+API-complete with no source diff.
+
+The C client had a different defect. Its hotkey fixture still emitted legacy
+type 0/1, while revision 239 defines the ordinary block/damage pair as type
+26/sprite 1358 and type 28/sprite 1359. The authored records for those renamed
+types had also retained stale legacy payloads. The content cache now matches the
+pristine revision-239 bytes for both records, and the C fixture emits type 28
+when that table is present while retaining type 0 as the old-cache fallback.
+
+RuneLite proof is retained in
+`build/hitsplat-zuk-live/final-clean3/05-hit-event.png`: it was captured from the
+server's next `hit=28/10` event, not screenshot polling, and visibly shows the
+red damage splat. In the same session both side sequences began at server tick
+44 and both walls were removed at tick 51; start/mid/late frames retain the
+wall throughout that seven-interval lifetime. The pre-launch blocking
+subscriber retained 590 ordered
+events; GPI then returned from the Inferno to Lumbridge, and the final interface
+audit reported 6,124 widgets with zero dead actions. The rebuilt official C
+client proof is `build/hitsplat-zuk-live/proof/c-client-hitsplat.png`, which
+shows canonical red splats over the player and several NPCs. Server/client logs
+contain no decode failure, writer gap, runtime fatal, unexpected disconnect, or
+CS2 error; the only exception is RuneLite's known caught pre-login
+`setupCompilerControl` warning.
 
 ### Hans's authoritative menu needs five server rows and the packed chatmenu layout
 
@@ -1397,3 +1445,61 @@ RuneLite's known caught pre-login `setupCompilerControl` warning.
   confirmed neither remote had advanced. Committed and pushed the authoritative
   Hans content as `1fd5699874` to the existing OSRS-Content PR #3 head; the
   primary dirty worktrees and telemetry-free Deob tree remained untouched.
+- 2026-08-07: Reproduced RuneLite's missing hitmarks against the actual
+  revision-239 deob and traced the fourth Smart1or2 actor-hit value through the
+  player/NPC decoders into golden `class105.method3560`; proved that the
+  server's zero limit prevented insertion into the drawable hitmark list.
+- 2026-08-07: Changed both revision-239 hit writers to send four concurrent
+  actor slots and extended the literal PLAYER_INFO fixture to decode the
+  transformed hit count, type/value/delay, final slot limit, and full extended
+  flag `0x40808`. The focused suite passes.
+- 2026-08-07: Temporarily instrumented the golden actor store, captured ordered
+  `hitsplat_decode ... slots=4` and `hitsplat_store` events plus a visible live
+  RuneLite splat, then removed the probes. Rebuilt the telemetry-free injected
+  client and passed the full API-surface verification.
+- 2026-08-07: Independently unpacked the pristine and test caches and corrected
+  the authored revision-239 type-26/type-28 records to sprites 1358/1359 with
+  their authoritative opcode values and order.
+- 2026-08-07: Corrected the official C client's hit fixture from legacy type
+  0/1 to revision-239 damage type 28 when that table is loaded. Rebuilt the full
+  client and retained a close-timed Soft3D frame showing canonical red splats
+  over the player and NPCs.
+- 2026-08-07: Re-audited locs 30344/30343 and sequences 7560/7559/7561. Corrected
+  the prior record: the mirrored side walls use the two 91-frame, 182-cycle
+  tracks; 7561 is the 60-cycle destructible-pillar animation that caused the
+  reported premature collapse.
+- 2026-08-07: Assigned 7560 to the left wall and 7559 to the right wall,
+  synchronized their start tick, and moved their shared removal boundary to
+  seven server-tick intervals (queue delay eight). Updated the consecutive-
+  instance literal enclosed-packet regression to require one of each side
+  sequence and zero pillar sequences.
+- 2026-08-07: Regenerated the complete server pack after the hitsplat-only
+  cache bake, recompiled 12,538 scripts, rebuilt mock230, and passed the focused
+  player-info and both consecutive Zuk seal sections. The broad suite still has
+  unrelated baseline content/combat failures recorded in
+  `build/hitsplat-zuk-live/proof/selftest-osrs239.log`.
+- 2026-08-07: Ran clean RuneLite acceptance with the blocking EVENTS subscriber
+  connected before launch and real AWT `::zuk 1200` input. A server hit event
+  triggered the proof framebuffer showing the red type-28 splat; natural death
+  returned GPI to Lumbridge, cleared the Inferno, and left 6,124 widgets with
+  zero dead actions.
+- 2026-08-07: Explicitly quit the final client, retained the complete profiler,
+  ordered EVENTS, client/server logs, interface audits, wall/hitsplat frames,
+  and removed this task's generated test-account saves. No task process remains
+  running and the pre-existing dirty `shot.png` and `cache.osrs239` were left
+  untouched.
+- 2026-08-07: Strengthened the wall regression to observe the state2 locs'
+  actual removal tick. It exposed that queue delay seven meant only six elapsed
+  intervals (180 client cycles); raised it to delay eight and passed the new
+  `removal == animation + 7` assertion.
+- 2026-08-07: Rejected a long post-fix acceptance run because RuneLite's
+  unrelated world-hopper plugin logged a caught external ping timeout. Ran the
+  shorter clean combined session under `build/hitsplat-zuk-live/final-clean3`:
+  7560/7559 started together at tick 44, both walls remained through the late
+  frame and were removed together at tick 51, the next type-28 hit rendered,
+  death cleared the instance, and the log contains only the known caught
+  pre-login compiler-control warning.
+- 2026-08-07: Fetched both existing remote PR branches and confirmed neither
+  had advanced. Committed and pushed the cache and Inferno content as
+  `9633efba1c` on `codex/runelite239-zuk-instance`, preserving the dirty primary
+  worktrees and all unrelated files in the isolated root worktree.

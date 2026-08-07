@@ -21609,10 +21609,12 @@ mock230_world_selftest(void)
                 MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_right");
             int change_tick = -1;
             int anim_tick = -1;
+            int removal_tick = -1;
             int total_left = 0;
             int total_right = 0;
-            int total_collapse = 0;
-            int total_wrong = 0;
+            int total_left_seq = 0;
+            int total_right_seq = 0;
+            int total_pillar_seq = 0;
             int barrier_seen = 0;
 
             /* Literal revision-239 cache ids make this a packet-layout
@@ -21634,8 +21636,9 @@ mock230_world_selftest(void)
             {
                 int tick_left;
                 int tick_right;
-                int tick_collapse;
-                int tick_wrong;
+                int tick_left_seq;
+                int tick_right_seq;
+                int tick_pillar_seq;
 
                 mock230_capture_begin(&srv, &capture);
                 mock230_world_tick(&srv);
@@ -21645,55 +21648,71 @@ mock230_world_selftest(void)
                     &capture, PKT_NAME_LOC_ADD_CHANGE, left);
                 tick_right = selftest_rev239_zone_count(
                     &capture, PKT_NAME_LOC_ADD_CHANGE, right);
-                tick_collapse = selftest_rev239_zone_count(
+                tick_left_seq = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, long_left);
+                tick_right_seq = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, long_right);
+                tick_pillar_seq = selftest_rev239_zone_count(
                     &capture, PKT_NAME_LOC_ANIM, collapse);
-                tick_wrong = selftest_rev239_zone_count(
-                    &capture, PKT_NAME_LOC_ANIM, long_left) +
-                             selftest_rev239_zone_count(
-                                 &capture, PKT_NAME_LOC_ANIM, long_right);
 
                 total_left += tick_left;
                 total_right += tick_right;
-                total_collapse += tick_collapse;
-                total_wrong += tick_wrong;
+                total_left_seq += tick_left_seq;
+                total_right_seq += tick_right_seq;
+                total_pillar_seq += tick_pillar_seq;
 
                 if( player->rebuild_scene_pending && !barrier_seen )
                 {
                     barrier_seen = 1;
                     SELFTEST_CHECK(total_left == 0 && total_right == 0 &&
-                                       total_collapse == 0,
+                                       total_left_seq == 0 && total_right_seq == 0 &&
+                                       total_pillar_seq == 0,
                                    "no Zuk loc event may outrun MAP_BUILD_COMPLETE, got "
-                                   "%d/%d changes and %d animations",
-                                   total_left, total_right, total_collapse);
+                                   "%d/%d changes and %d/%d/%d animations",
+                                   total_left, total_right, total_left_seq,
+                                   total_right_seq, total_pillar_seq);
                     mock230_world_handle(
                         player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
                     continue;
                 }
                 if( tick_left && tick_right && change_tick < 0 )
                     change_tick = tick;
-                if( tick_collapse && anim_tick < 0 )
+                if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
+                if( anim_tick >= 0 && removal_tick < 0 &&
+                    mock230_scene_find_loc_id(
+                        player->x - 3, player->z + 12, player->level, left) < 0 &&
+                    mock230_scene_find_loc_id(
+                        player->x + 2, player->z + 12, player->level, right) < 0 )
+                    removal_tick = tick;
 
-                SELFTEST_CHECK(!(tick_left && tick_collapse) &&
-                                   !(tick_right && tick_collapse),
+                SELFTEST_CHECK(!(tick_left && (tick_left_seq || tick_right_seq)) &&
+                                   !(tick_right && (tick_left_seq || tick_right_seq)),
                                "LOC_ANIM must not share tick %d with either pending "
-                               "LOC_ADD_CHANGE (%d/%d changes, %d animations)",
-                               tick, tick_left, tick_right, tick_collapse);
+                               "LOC_ADD_CHANGE (%d/%d changes, %d/%d animations)",
+                               tick, tick_left, tick_right, tick_left_seq,
+                               tick_right_seq);
             }
 
             SELFTEST_CHECK(total_left == 1 && total_right == 1,
                            "the cutscene should transmit each state2 wall once, got %d/%d",
                            total_left, total_right);
-            SELFTEST_CHECK(total_collapse == 2,
-                           "both walls should receive the shared sequence in one turn, got %d",
-                           total_collapse);
-            SELFTEST_CHECK(total_wrong == 0,
-                           "the two 91-frame side-wall tracks must not animate the seal, got %d",
-                           total_wrong);
+            SELFTEST_CHECK(total_left_seq == 1 && total_right_seq == 1,
+                           "each wall should receive its mirrored 91-frame sequence once, "
+                           "got left=%d right=%d",
+                           total_left_seq, total_right_seq);
+            SELFTEST_CHECK(total_pillar_seq == 0,
+                           "the 60-cycle safespot pillar sequence must not animate a side wall, "
+                           "got %d",
+                           total_pillar_seq);
             SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
                            "rev239 needs one complete client cycle between change and animation; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
+            SELFTEST_CHECK(removal_tick == anim_tick + 7,
+                           "the 182-cycle side walls must share the seven-tick removal "
+                           "boundary; got anim=%d removal=%d",
+                           anim_tick, removal_tick);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
 
@@ -21707,8 +21726,9 @@ mock230_world_selftest(void)
                            "a repeated ::zuk should regenerate the instance");
             total_left = 0;
             total_right = 0;
-            total_collapse = 0;
-            total_wrong = 0;
+            total_left_seq = 0;
+            total_right_seq = 0;
+            total_pillar_seq = 0;
             change_tick = -1;
             anim_tick = -1;
             int repeat_rebuild = 0;
@@ -21716,7 +21736,8 @@ mock230_world_selftest(void)
             {
                 int tick_left;
                 int tick_right;
-                int tick_collapse;
+                int tick_left_seq;
+                int tick_right_seq;
 
                 mock230_capture_begin(&srv, &capture);
                 mock230_world_tick(&srv);
@@ -21727,20 +21748,22 @@ mock230_world_selftest(void)
                     &capture, PKT_NAME_LOC_ADD_CHANGE, left);
                 tick_right = selftest_rev239_zone_count(
                     &capture, PKT_NAME_LOC_ADD_CHANGE, right);
-                tick_collapse = selftest_rev239_zone_count(
-                    &capture, PKT_NAME_LOC_ANIM, collapse);
+                tick_left_seq = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, long_left);
+                tick_right_seq = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, long_right);
                 total_left += tick_left;
                 total_right += tick_right;
-                total_collapse += tick_collapse;
-                total_wrong += selftest_rev239_zone_count(
-                                   &capture, PKT_NAME_LOC_ANIM, long_left) +
-                               selftest_rev239_zone_count(
-                                   &capture, PKT_NAME_LOC_ANIM, long_right);
+                total_left_seq += tick_left_seq;
+                total_right_seq += tick_right_seq;
+                total_pillar_seq += selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, collapse);
                 if( tick_left && tick_right && change_tick < 0 )
                     change_tick = tick;
-                if( tick_collapse && anim_tick < 0 )
+                if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
-                SELFTEST_CHECK(!(tick_collapse && (tick_left || tick_right)),
+                SELFTEST_CHECK(!((tick_left_seq || tick_right_seq) &&
+                                   (tick_left || tick_right)),
                                "the repeated seal must also change before it animates");
             }
             SELFTEST_CHECK(repeat_rebuild,
@@ -21749,10 +21772,11 @@ mock230_world_selftest(void)
                            "a pooled instance must restore both walls before its next collapse, "
                            "got %d/%d state2 changes",
                            total_left, total_right);
-            SELFTEST_CHECK(total_collapse == 2 && total_wrong == 0,
-                           "the repeated seal should synchronize two shared collapse sequences, "
-                           "got shared=%d wrong=%d",
-                           total_collapse, total_wrong);
+            SELFTEST_CHECK(total_left_seq == 1 && total_right_seq == 1 &&
+                               total_pillar_seq == 0,
+                           "the repeated seal should synchronize its mirrored side-wall tracks, "
+                           "got left=%d right=%d pillar=%d",
+                           total_left_seq, total_right_seq, total_pillar_seq);
             SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
                            "the repeated seal should preserve the one-tick client binding gap; "
                            "got change=%d anim=%d",
