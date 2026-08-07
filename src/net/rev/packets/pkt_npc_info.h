@@ -54,7 +54,14 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_DAMAGE,
     PKT_NPC_INFO_OP_FACE_COORD,
     PKT_NPC_INFO_OP_CHANGE_TYPE,
-    PKT_NPC_INFO_OP_SPOTANIM
+    PKT_NPC_INFO_OP_SPOTANIM,
+    PKT_NPC_INFO_OP_EXACT_MOVE,
+    PKT_NPC_INFO_OP_FACE_ANGLE,
+    PKT_NPC_INFO_OP_SPAWN_CYCLE,
+    PKT_NPC_INFO_OP_VISIBLE_OPS,
+    PKT_NPC_INFO_OP_NAME_CHANGE,
+    PKT_NPC_INFO_OP_LEVEL_CHANGE,
+    PKT_NPC_INFO_OP_BAS_CHANGE
 };
 
 struct PktNpcInfo_DeltaXZ
@@ -73,6 +80,9 @@ struct PktNpcInfo_Sequence
 struct PktNpcInfo_FaceEntity
 {
     int32_t entity_id;
+    uint16_t fallback_angle;
+    bool has_fallback_angle;
+    bool instant;
 };
 
 struct PktNpcInfo_Say
@@ -82,16 +92,19 @@ struct PktNpcInfo_Say
 
 struct PktNpcInfo_Damage
 {
-    uint8_t damage_type;
-    uint8_t damage;
+    int damage_type;
+    int damage;
     uint8_t health;
     uint8_t total_health;
+    uint16_t delay;
+    uint16_t duration;
 };
 
 struct PktNpcInfo_FaceCoord
 {
     int16_t x;
     int16_t z;
+    bool instant;
 };
 
 struct PktNpcInfo_ChangeType
@@ -101,8 +114,44 @@ struct PktNpcInfo_ChangeType
 
 struct PktNpcInfo_SpotAnim
 {
+    uint8_t slot;
     int32_t spotanim_id; /* 65535 -> -1 */
     int32_t height_delay;
+};
+
+struct PktNpcInfo_ExactMove
+{
+    int16_t start_x;
+    int16_t start_z;
+    int16_t end_x;
+    int16_t end_z;
+    uint16_t start_cycle_delta;
+    uint16_t end_cycle_delta;
+    uint16_t facing;
+    bool relative;
+};
+
+struct PktNpcInfo_FaceAngle
+{
+    uint16_t angle;
+    bool instant;
+};
+
+struct PktNpcInfo_NameChange
+{
+    char* name; /* heap */
+};
+
+struct PktNpcInfo_BasChange
+{
+    uint32_t mask;
+    int readyanim;
+    int walkanim;
+    int turnanim;
+    int runanim;
+    int walkanim_b;
+    int walkanim_r;
+    int walkanim_l;
 };
 
 struct PktNpcInfoOp
@@ -120,6 +169,10 @@ struct PktNpcInfoOp
         struct PktNpcInfo_FaceCoord _face_coord;
         struct PktNpcInfo_ChangeType _change_type;
         struct PktNpcInfo_SpotAnim _spotanim;
+        struct PktNpcInfo_ExactMove _exactmove;
+        struct PktNpcInfo_FaceAngle _face_angle;
+        struct PktNpcInfo_NameChange _name_change;
+        struct PktNpcInfo_BasChange _bas_change;
     };
 };
 

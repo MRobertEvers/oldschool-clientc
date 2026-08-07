@@ -340,7 +340,12 @@ player_apply_op(
     case PKT_PLAYER_INFO_OP_FACE_ENTITY:
     {
         int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
-        World_PlayerFaceEntity(world, idx, entity_id);
+        World_PlayerFaceEntityDetailed(
+            world,
+            idx,
+            entity_id,
+            op->_face_entity.has_fallback_angle ? op->_face_entity.fallback_angle : -1,
+            op->_face_entity.instant);
         break;
     }
     case PKT_PLAYER_INFO_OP_FACE_COORD:
@@ -348,6 +353,12 @@ player_apply_op(
          * faceSquareX/Z absolute and subtracts mapBuildBase at use time, so
          * 0,0 stays the "no target" sentinel). */
         World_PlayerFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+        if( op->_face_coord.instant )
+        {
+            struct WorldEntity_Player* player =
+                World_EntityPoolGet(&world->entities.player, idx);
+            player->facing.instant = true;
+        }
         entity_debug_log(
             "entity_sync: player faces coord %d,%d\n", op->_face_coord.x, op->_face_coord.z);
         break;
@@ -391,13 +402,15 @@ player_apply_op(
         break;
     case PKT_PLAYER_INFO_OP_DAMAGE:
     case PKT_PLAYER_INFO_OP_DAMAGE2:
-        World_PlayerAddHitmark(
+        World_PlayerAddHitmarkTimed(
             world,
             idx,
             op->_damage.damage_type,
             op->_damage.damage,
             op->_damage.health,
-            op->_damage.total_health);
+            op->_damage.total_health,
+            op->_damage.delay,
+            op->_damage.duration);
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         World_PlayerSetSpotanim(
@@ -408,17 +421,35 @@ player_apply_op(
             op->_spotanim.height_delay & 0xffff);
         break;
     case PKT_PLAYER_INFO_OP_EXACT_MOVE:
-        /* Exact-move tile coords are classic-scene local. */
+    {
+        int sx = op->_exactmove.start_x;
+        int sz = op->_exactmove.start_z;
+        int ex = op->_exactmove.end_x;
+        int ez = op->_exactmove.end_z;
+
+        if( op->_exactmove.relative )
+        {
+            struct WorldEntity_Player* player =
+                World_EntityPoolGet(&world->entities.player, idx);
+            sx += player->pathing.route_x[0];
+            sz += player->pathing.route_z[0];
+            ex += player->pathing.route_x[0];
+            ez += player->pathing.route_z[0];
+        }
         World_PlayerSetExactMove(
             world,
             idx,
-            op->_exactmove.start_x,
-            op->_exactmove.start_z,
-            op->_exactmove.end_x,
-            op->_exactmove.end_z,
+            sx,
+            sz,
+            ex,
+            ez,
             op->_exactmove.start_cycle_delta,
             op->_exactmove.end_cycle_delta,
             op->_exactmove.facing);
+        break;
+    }
+    case PKT_PLAYER_INFO_OP_FACE_ANGLE:
+        World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
         break;
     default:
         break;
@@ -891,7 +922,12 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
-            World_NpcFaceEntity(world, idx, entity_id);
+            World_NpcFaceEntityDetailed(
+                world,
+                idx,
+                entity_id,
+                op->_face_entity.has_fallback_angle ? op->_face_entity.fallback_angle : -1,
+                op->_face_entity.instant);
             entity_debug_log("entity_sync: npc %d faces entity %d\n", self->cur_slot, entity_id);
         }
         break;
@@ -900,6 +936,12 @@ npc_apply_op(
         if( idx >= 0 )
         {
             World_NpcFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+            if( op->_face_coord.instant )
+            {
+                struct WorldEntity_NPC* npc =
+                    World_EntityPoolGet(&world->entities.npc, idx);
+                npc->facing.instant = true;
+            }
             entity_debug_log(
                 "entity_sync: npc faces coord %d,%d\n", op->_face_coord.x, op->_face_coord.z);
         }
@@ -911,13 +953,15 @@ npc_apply_op(
         break;
     case PKT_NPC_INFO_OP_DAMAGE:
         if( idx >= 0 )
-            World_NpcAddHitmark(
+            World_NpcAddHitmarkTimed(
                 world,
                 idx,
                 op->_damage.damage_type,
                 op->_damage.damage,
                 op->_damage.health,
-                op->_damage.total_health);
+                op->_damage.total_health,
+                op->_damage.delay,
+                op->_damage.duration);
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:
         self->pending_npc_type = op->_change_type.npc_type;
@@ -932,6 +976,88 @@ npc_apply_op(
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
                 op->_spotanim.height_delay & 0xffff);
+        break;
+    case PKT_NPC_INFO_OP_EXACT_MOVE:
+        if( idx >= 0 )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            int sx = op->_exactmove.start_x;
+            int sz = op->_exactmove.start_z;
+            int ex = op->_exactmove.end_x;
+            int ez = op->_exactmove.end_z;
+
+            if( op->_exactmove.relative )
+            {
+                sx += npc->pathing.route_x[0];
+                sz += npc->pathing.route_z[0];
+                ex += npc->pathing.route_x[0];
+                ez += npc->pathing.route_z[0];
+            }
+            World_NpcSetExactMove(
+                world,
+                idx,
+                sx,
+                sz,
+                ex,
+                ez,
+                op->_exactmove.start_cycle_delta,
+                op->_exactmove.end_cycle_delta,
+                op->_exactmove.facing);
+        }
+        break;
+    case PKT_NPC_INFO_OP_FACE_ANGLE:
+        if( idx >= 0 )
+            World_NpcFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
+        break;
+    case PKT_NPC_INFO_OP_SPAWN_CYCLE:
+        if( idx >= 0 )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            npc->spawn_cycle = (uint32_t)op->_bitvalue;
+        }
+        break;
+    case PKT_NPC_INFO_OP_VISIBLE_OPS:
+        if( idx >= 0 )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            npc->visible_ops = (uint8_t)op->_bitvalue;
+        }
+        break;
+    case PKT_NPC_INFO_OP_NAME_CHANGE:
+        if( idx >= 0 && op->_name_change.name )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            strncpy(npc->name, op->_name_change.name, sizeof(npc->name) - 1);
+            npc->name[sizeof(npc->name) - 1] = '\0';
+        }
+        break;
+    case PKT_NPC_INFO_OP_LEVEL_CHANGE:
+        if( idx >= 0 )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            npc->combat_level = (int)(uint32_t)op->_bitvalue;
+        }
+        break;
+    case PKT_NPC_INFO_OP_BAS_CHANGE:
+        if( idx >= 0 )
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            uint32_t mask = op->_bas_change.mask;
+
+            if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->_bas_change.turnanim;
+            if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->_bas_change.walkanim;
+            if( mask & (1u << 3) ) npc->idle_animations.walkanim_b = op->_bas_change.walkanim_b;
+            if( mask & (1u << 4) ) npc->idle_animations.walkanim_l = op->_bas_change.walkanim_l;
+            if( mask & (1u << 5) ) npc->idle_animations.walkanim_r = op->_bas_change.walkanim_r;
+            if( mask & (1u << 6) ) npc->idle_animations.runanim = op->_bas_change.runanim;
+            if( mask & (1u << 14) ) npc->idle_animations.readyanim = op->_bas_change.readyanim;
+        }
         break;
     default:
         break;

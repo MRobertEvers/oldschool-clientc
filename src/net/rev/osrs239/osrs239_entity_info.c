@@ -49,13 +49,16 @@
 #define V5_PLAYER_RESET 0x2
 #define V5_PLAYER_SAY 0x4
 #define V5_PLAYER_EXT_SHORT 0x8
+#define V5_PLAYER_AUX_SHORT 0x10
 #define V5_PLAYER_APPEARANCE 0x20
 #define V5_PLAYER_SEQUENCE 0x40
+#define V5_PLAYER_AUX_MESSAGE 0x80
 #define V5_PLAYER_CHAT 0x100
 #define V5_PLAYER_TINTING 0x200
 #define V5_PLAYER_MOVE_SPEED 0x400
 #define V5_PLAYER_EXT_MEDIUM 0x800
 #define V5_PLAYER_TEMP_MOVE_SPEED 0x1000
+#define V5_PLAYER_MINIMENU 0x2000
 #define V5_PLAYER_EXACT_MOVE 0x4000
 #define V5_PLAYER_HEADBARS 0x10000
 #define V5_PLAYER_SPOTANIM 0x20000
@@ -68,7 +71,9 @@
  * 0x8, and only the second (0x800) is shared. */
 #define V5_NPC_TRANSFORMATION 0x1
 #define V5_NPC_SAY 0x2
+#define V5_NPC_AUX_BYTES 0x4
 #define V5_NPC_FACING 0x8
+#define V5_NPC_AUX_SHORT 0x10
 #define V5_NPC_FREEZE 0x20
 #define V5_NPC_EXT_SHORT 0x40
 #define V5_NPC_SEQUENCE 0x80
@@ -77,8 +82,10 @@
 #define V5_NPC_TRANSPARENCY 0x400
 #define V5_NPC_EXT_MEDIUM 0x800
 #define V5_NPC_OPS 0x1000
+#define V5_NPC_AUX_BLOCK 0x2000
 #define V5_NPC_NAME_CHANGE 0x4000
 #define V5_NPC_LEVEL_CHANGE 0x8000
+#define V5_NPC_AUX_MEDIUM 0x10000
 #define V5_NPC_HEAD_CUSTOMISATION 0x20000
 #define V5_NPC_SPOTANIM 0x40000
 #define V5_NPC_HITMARKS 0x80000
@@ -619,6 +626,126 @@ tail_smart2or4null(uint8_t const* data, int len, int* pos)
     return value == 32767 ? -1 : value;
 }
 
+static int
+tail_smart1or2null(uint8_t const* data, int len, int* pos)
+{
+    int value = tail_smart(data, len, pos);
+
+    return value - 1;
+}
+
+static int
+tail_g1(uint8_t const* data, int len, int* pos)
+{
+    return *pos < len ? data[(*pos)++] : 0;
+}
+
+static int
+tail_g1_alt1(uint8_t const* data, int len, int* pos)
+{
+    return (tail_g1(data, len, pos) - 128) & 0xff;
+}
+
+static int
+tail_g1_alt2(uint8_t const* data, int len, int* pos)
+{
+    return (-tail_g1(data, len, pos)) & 0xff;
+}
+
+static int
+tail_g1_alt3(uint8_t const* data, int len, int* pos)
+{
+    return (128 - tail_g1(data, len, pos)) & 0xff;
+}
+
+static int
+tail_g2(uint8_t const* data, int len, int* pos)
+{
+    int hi = tail_g1(data, len, pos);
+    int lo = tail_g1(data, len, pos);
+
+    return (hi << 8) | lo;
+}
+
+static int
+tail_g2_alt1(uint8_t const* data, int len, int* pos)
+{
+    int lo = tail_g1(data, len, pos);
+    int hi = tail_g1(data, len, pos);
+
+    return (hi << 8) | lo;
+}
+
+static int
+tail_g2_alt2(uint8_t const* data, int len, int* pos)
+{
+    int hi = tail_g1(data, len, pos);
+    int lo = (tail_g1(data, len, pos) - 128) & 0xff;
+
+    return (hi << 8) | lo;
+}
+
+static int
+tail_g2_alt3(uint8_t const* data, int len, int* pos)
+{
+    int lo = (tail_g1(data, len, pos) - 128) & 0xff;
+    int hi = tail_g1(data, len, pos);
+
+    return (hi << 8) | lo;
+}
+
+static uint32_t
+tail_g4(uint8_t const* data, int len, int* pos)
+{
+    uint32_t b0 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b1 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b2 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b3 = (uint32_t)tail_g1(data, len, pos);
+
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+static uint32_t
+tail_g4_alt1(uint8_t const* data, int len, int* pos)
+{
+    uint32_t b0 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b1 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b2 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b3 = (uint32_t)tail_g1(data, len, pos);
+
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+}
+
+static uint32_t
+tail_g4_alt2(uint8_t const* data, int len, int* pos)
+{
+    uint32_t b0 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b1 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b2 = (uint32_t)tail_g1(data, len, pos);
+    uint32_t b3 = (uint32_t)tail_g1(data, len, pos);
+
+    return (b0 << 8) | b1 | (b2 << 24) | (b3 << 16);
+}
+
+static char*
+tail_string(uint8_t const* data, int len, int* pos)
+{
+    int start = *pos;
+    char* text;
+
+    while( *pos < len && data[*pos] != 0 )
+        (*pos)++;
+    text = (char*)malloc((size_t)(*pos - start) + 1);
+    if( text )
+    {
+        memcpy(text, data + start, (size_t)(*pos - start));
+        text[*pos - start] = '\0';
+    }
+    if( *pos < len )
+        (*pos)++;
+    return text;
+}
+
 /*
  * The extended-info tail, byte-aligned, in the order the indices were flagged.
  *
@@ -669,6 +796,17 @@ player_extended(
                 op->_bitvalue = (uint64_t)idx;
         }
 
+        if( (flag & V5_PLAYER_MINIMENU) != 0 )
+        {
+            /* The three player-option strings are global UI state in the
+             * reference. They are still structural here: each is NUL-ended. */
+            for( int option = 0; option < 3; option++ )
+            {
+                char* ignored = tail_string(data, len, &pos);
+                free(ignored);
+            }
+        }
+
         if( (flag & V5_PLAYER_HITMARKS) != 0 )
         {
             /* PlayerHitEncoder: p1Alt3 count, then per hit pSmart1or2 type,
@@ -682,27 +820,36 @@ player_extended(
                 int type = tail_smart(data, len, &pos);
                 int value = tail_smart(data, len, &pos);
 
-                (void)tail_smart(data, len, &pos); /* delay */
-                (void)tail_smart(data, len, &pos); /* limit */
+                int delay = tail_smart(data, len, &pos);
+                int duration = tail_smart(data, len, &pos);
                 {
                     struct PktPlayerInfoOp* op =
                         player_op(r, PKT_PLAYER_INFO_OP_DAMAGE);
 
                     if( op )
                     {
-                        op->_damage.damage_type = (uint8_t)type;
-                        op->_damage.damage = (uint8_t)value;
+                        op->_damage.damage_type = type;
+                        op->_damage.damage = value;
+                        op->_damage.delay = (uint16_t)delay;
+                        op->_damage.duration = (uint16_t)duration;
                     }
                 }
             }
+        }
+        if( (flag & V5_PLAYER_RESET) != 0 )
+        {
+            /* Reset's first half clears cached avatar state before the tail is
+             * read; its p1Alt2 byte is nevertheless part of this record. */
+            (void)tail_g1_alt2(data, len, &pos);
         }
         if( (flag & V5_PLAYER_FACE) != 0 )
         {
             /* PlayerFacingEncoder: g1Alt2 header.  Preserve the legacy op
              * vocabulary for the common executor while translating Face.Loc's
              * tile/size coordinates back to a half-tile centre. */
-            int header = pos < len ? ((-data[pos++]) & 0xff) : 0;
+            int header = tail_g1_alt2(data, len, &pos);
             int kind = (header >> 3) & 0x7;
+            bool instant = ((header >> 6) & 1) != 0;
 
             if( kind == 0 ) /* Entity */
             {
@@ -710,13 +857,19 @@ player_extended(
                 int index = tail_smart2or4null(data, len, &pos);
                 struct PktPlayerInfoOp* op;
 
-                (void)tail_smart(data, len, &pos); /* fallback angle */
+                int fallback_angle = tail_smart(data, len, &pos);
                 if( type == 1 || type == 2 )
                 {
                     op = player_op(r, PKT_PLAYER_INFO_OP_FACE_ENTITY);
                     if( op )
                         op->_face_entity.entity_id =
                             type == 2 && index >= 0 ? 32768 + index : index;
+                    if( op )
+                    {
+                        op->_face_entity.fallback_angle = (uint16_t)fallback_angle;
+                        op->_face_entity.has_fallback_angle = true;
+                        op->_face_entity.instant = instant;
+                    }
                 }
             }
             else if( kind == 1 ) /* Loc */
@@ -731,10 +884,22 @@ player_extended(
                 {
                     op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
                     op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
+                    op->_face_coord.instant = instant;
                 }
             }
             else if( kind == 2 ) /* Angle */
-                (void)tail_smart(data, len, &pos);
+            {
+                struct PktPlayerInfoOp* op =
+                    player_op(r, PKT_PLAYER_INFO_OP_FACE_ANGLE);
+
+                if( op )
+                {
+                    op->_face_angle.angle = (uint16_t)tail_smart(data, len, &pos);
+                    op->_face_angle.instant = instant;
+                }
+                else
+                    (void)tail_smart(data, len, &pos);
+            }
             else if( kind == 3 ) /* Reset */
             {
                 struct PktPlayerInfoOp* op =
@@ -743,6 +908,18 @@ player_extended(
                 if( op )
                     op->_face_entity.entity_id = -1;
             }
+        }
+        if( (flag & V5_PLAYER_AUX_MESSAGE) != 0 )
+        {
+            int message_len;
+
+            (void)tail_g2_alt3(data, len, &pos);
+            (void)tail_g1(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+            message_len = tail_g1_alt3(data, len, &pos);
+            pos += message_len;
+            if( pos > len )
+                pos = len;
         }
         if( (flag & V5_PLAYER_MOVE_SPEED) != 0 )
         {
@@ -753,6 +930,108 @@ player_extended(
                                     PKT_PLAYER_TRAVERSAL_WALK;
 
             player_set_move_speed(r, idx, speed, 1);
+        }
+        if( (flag & V5_PLAYER_SPOTANIM) != 0 )
+        {
+            int entries = tail_g1(data, len, &pos);
+
+            for( int e = 0; e < entries; e++ )
+            {
+                struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_SPOTANIM);
+                int slot = tail_g1_alt2(data, len, &pos);
+                int spot = tail_g2_alt2(data, len, &pos);
+                uint32_t height_delay =
+                    ((uint32_t)tail_g1(data, len, &pos) << 24) |
+                    ((uint32_t)tail_g1(data, len, &pos) << 16) |
+                    ((uint32_t)tail_g1(data, len, &pos) << 8) |
+                    (uint32_t)tail_g1(data, len, &pos);
+
+                if( op )
+                {
+                    op->_spotanim.slot = (uint8_t)slot;
+                    op->_spotanim.spotanim_id = spot == 65535 ? -1 : spot;
+                    op->_spotanim.height_delay = (int32_t)height_delay;
+                }
+            }
+        }
+        if( (flag & V5_PLAYER_AUX_SHORT) != 0 )
+        {
+            (void)tail_g2_alt1(data, len, &pos);
+            (void)tail_g1(data, len, &pos);
+        }
+        if( (flag & V5_PLAYER_CHAT) != 0 )
+        {
+            int colour_effect = tail_g2_alt2(data, len, &pos);
+            int type = tail_g1_alt2(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos); /* auto-typed */
+            int payload_len = tail_g1_alt2(data, len, &pos);
+            uint8_t* payload = NULL;
+            int pattern_len = 0;
+
+            if( payload_len > 0 && pos + payload_len <= len )
+            {
+                payload = (uint8_t*)malloc((size_t)payload_len);
+                if( payload )
+                    for( int b = 0; b < payload_len; b++ )
+                        payload[payload_len - b - 1] = data[pos + b];
+            }
+            pos += payload_len;
+            if( pos > len )
+                pos = len;
+            if( (colour_effect >> 8) >= 13 && (colour_effect >> 8) <= 20 )
+                pattern_len = (colour_effect >> 8) - 12;
+            for( int p = 0; p < pattern_len; p++ )
+                (void)tail_g1_alt2(data, len, &pos);
+            {
+                struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_CHAT);
+
+                if( op )
+                {
+                    op->_chat.colour_effect = (uint16_t)colour_effect;
+                    op->_chat.type = (uint8_t)type;
+                    op->_chat.length = (uint8_t)payload_len;
+                    op->_chat.data = payload;
+                }
+                else
+                    free(payload);
+            }
+        }
+        if( (flag & V5_PLAYER_TRANSPARENCY) != 0 )
+        {
+            (void)tail_g2_alt2(data, len, &pos); /* start cycle */
+            (void)tail_g2(data, len, &pos);      /* end cycle */
+            (void)tail_g1_alt3(data, len, &pos); /* start alpha */
+            (void)tail_g1_alt3(data, len, &pos); /* end alpha */
+            (void)tail_g1_alt3(data, len, &pos); /* use start */
+        }
+        if( (flag & V5_PLAYER_TINTING) != 0 )
+        {
+            (void)tail_g2_alt1(data, len, &pos); /* start cycle */
+            (void)tail_g2(data, len, &pos);      /* end cycle */
+            (void)tail_g1_alt2(data, len, &pos); /* hue */
+            (void)tail_g1(data, len, &pos);      /* saturation */
+            (void)tail_g1_alt3(data, len, &pos); /* lightness */
+            (void)tail_g1_alt3(data, len, &pos); /* weight */
+        }
+        if( (flag & V5_PLAYER_HEADBARS) != 0 )
+        {
+            int bars = tail_g1_alt1(data, len, &pos);
+
+            for( int b = 0; b < bars; b++ )
+            {
+                (void)tail_smart(data, len, &pos); /* type */
+                {
+                    int end_time = tail_smart(data, len, &pos);
+
+                    if( end_time != 32767 )
+                    {
+                        (void)tail_smart(data, len, &pos); /* start time */
+                        (void)tail_g1_alt1(data, len, &pos); /* start fill */
+                        if( end_time > 0 )
+                            (void)tail_g1_alt2(data, len, &pos); /* end fill */
+                    }
+                }
+            }
         }
         if( (flag & V5_PLAYER_SAY) != 0 )
         {
@@ -806,9 +1085,41 @@ player_extended(
             if( !player_appearance_block(r, data, len, &pos) )
                 return;
         }
+        if( (flag & V5_PLAYER_EXACT_MOVE) != 0 )
+        {
+            struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_EXACT_MOVE);
+            int sx = (int8_t)tail_g1(data, len, &pos);
+            int sz = (int8_t)tail_g1_alt1(data, len, &pos);
+            int ex = (int8_t)tail_g1_alt2(data, len, &pos);
+            int ez = (int8_t)tail_g1_alt3(data, len, &pos);
+            int start = tail_g2(data, len, &pos);
+            int end = tail_g2_alt1(data, len, &pos);
+            int facing = tail_g2_alt3(data, len, &pos);
+
+            if( op )
+            {
+                op->_exactmove.start_x = (int16_t)sx;
+                op->_exactmove.start_z = (int16_t)sz;
+                op->_exactmove.end_x = (int16_t)ex;
+                op->_exactmove.end_z = (int16_t)ez;
+                op->_exactmove.start_cycle_delta = (uint16_t)start;
+                op->_exactmove.end_cycle_delta = (uint16_t)end;
+                op->_exactmove.facing = (uint16_t)facing;
+                op->_exactmove.relative = true;
+            }
+        }
+        if( (flag & V5_PLAYER_FREEZE) != 0 )
+        {
+            (void)tail_g2_alt3(data, len, &pos); /* delay */
+            (void)tail_g2_alt3(data, len, &pos); /* duration */
+            (void)tail_g1_alt1(data, len, &pos); /* cancel sequence */
+        }
 
         known = V5_PLAYER_EXT_SHORT | V5_PLAYER_EXT_MEDIUM | V5_PLAYER_FACE |
-                V5_PLAYER_HITMARKS |
+                V5_PLAYER_RESET | V5_PLAYER_AUX_SHORT | V5_PLAYER_AUX_MESSAGE |
+                V5_PLAYER_MINIMENU | V5_PLAYER_HITMARKS | V5_PLAYER_CHAT |
+                V5_PLAYER_TINTING | V5_PLAYER_TRANSPARENCY | V5_PLAYER_HEADBARS |
+                V5_PLAYER_SPOTANIM | V5_PLAYER_EXACT_MOVE | V5_PLAYER_FREEZE |
                 V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_MOVE_SPEED |
                 V5_PLAYER_TEMP_MOVE_SPEED |
                 V5_PLAYER_APPEARANCE;
@@ -930,6 +1241,34 @@ npc_extended(
                 op->_bitvalue = (uint64_t)r->extended[i];
         }
 
+        if( (flag & V5_NPC_LEVEL_CHANGE) != 0 )
+        {
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_LEVEL_CHANGE);
+            uint32_t level = tail_g4_alt1(data, len, &pos);
+
+            if( op )
+                op->_bitvalue = level;
+        }
+        if( (flag & V5_NPC_HEADICON_CUSTOMISATION) != 0 )
+        {
+            int slots = tail_g1_alt3(data, len, &pos);
+
+            for( int slot = 0; slot < 8; slot++ )
+                if( (slots & (1 << slot)) != 0 )
+                {
+                    (void)tail_smart2or4null(data, len, &pos);
+                    (void)tail_smart1or2null(data, len, &pos);
+                }
+        }
+        if( (flag & V5_NPC_OPS) != 0 )
+        {
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_VISIBLE_OPS);
+            int visible = tail_g1_alt2(data, len, &pos);
+
+            if( op )
+                op->_bitvalue = (uint64_t)visible;
+        }
+
         if( (flag & V5_NPC_HITMARKS) != 0 )
         {
             /* NpcHitmarkEncoder: p1Alt1 count (`n + 128`), NOT the player
@@ -941,15 +1280,94 @@ npc_extended(
                 int type = tail_smart(data, len, &pos);
                 int value = tail_smart(data, len, &pos);
 
-                (void)tail_smart(data, len, &pos); /* delay */
-                (void)tail_smart(data, len, &pos); /* limit */
+                int delay = tail_smart(data, len, &pos);
+                int duration = tail_smart(data, len, &pos);
                 {
                     struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_DAMAGE);
 
                     if( op )
                     {
-                        op->_damage.damage_type = (uint8_t)type;
-                        op->_damage.damage = (uint8_t)value;
+                        op->_damage.damage_type = type;
+                        op->_damage.damage = value;
+                        op->_damage.delay = (uint16_t)delay;
+                        op->_damage.duration = (uint16_t)duration;
+                    }
+                }
+            }
+        }
+        if( (flag & V5_NPC_EXACT_MOVE) != 0 )
+        {
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_EXACT_MOVE);
+            int sx = (int8_t)tail_g1_alt3(data, len, &pos);
+            int sz = (int8_t)tail_g1(data, len, &pos);
+            int ex = (int8_t)tail_g1_alt1(data, len, &pos);
+            int ez = (int8_t)tail_g1(data, len, &pos);
+            int start = tail_g2_alt3(data, len, &pos);
+            int end = tail_g2_alt2(data, len, &pos);
+            int facing = tail_g2_alt2(data, len, &pos);
+
+            if( op )
+            {
+                op->_exactmove.start_x = (int16_t)sx;
+                op->_exactmove.start_z = (int16_t)sz;
+                op->_exactmove.end_x = (int16_t)ex;
+                op->_exactmove.end_z = (int16_t)ez;
+                op->_exactmove.start_cycle_delta = (uint16_t)start;
+                op->_exactmove.end_cycle_delta = (uint16_t)end;
+                op->_exactmove.facing = (uint16_t)facing;
+                op->_exactmove.relative = true;
+            }
+        }
+        if( (flag & V5_NPC_BODY_CUSTOMISATION) != 0 )
+        {
+            int body = tail_g1_alt2(data, len, &pos);
+
+            if( (body & 1) == 0 )
+            {
+                if( (body & 2) != 0 )
+                {
+                    int models = tail_g1_alt1(data, len, &pos);
+                    for( int m = 0; m < models; m++ )
+                        (void)tail_g4(data, len, &pos);
+                }
+                if( (body & 4) != 0 )
+                {
+                    int colours = tail_g1_alt2(data, len, &pos);
+                    for( int c = 0; c < colours; c++ )
+                        (void)tail_g2_alt1(data, len, &pos);
+                }
+                if( (body & 8) != 0 )
+                {
+                    int textures = tail_g1_alt2(data, len, &pos);
+                    for( int t = 0; t < textures; t++ )
+                        (void)tail_g2_alt3(data, len, &pos);
+                }
+                if( (body & 0x20) != 0 )
+                {
+                    (void)tail_g1_alt1(data, len, &pos); /* gender/body flag */
+                    {
+                        int equipment = tail_g1_alt1(data, len, &pos);
+                        for( int e = 0; e < equipment; e++ )
+                            (void)tail_g2(data, len, &pos);
+                    }
+                }
+            }
+        }
+        if( (flag & V5_NPC_HEADBARS) != 0 )
+        {
+            int bars = tail_g1_alt2(data, len, &pos);
+
+            for( int b = 0; b < bars; b++ )
+            {
+                (void)tail_smart(data, len, &pos);
+                {
+                    int end_time = tail_smart(data, len, &pos);
+                    if( end_time != 32767 )
+                    {
+                        (void)tail_smart(data, len, &pos);
+                        (void)tail_g1_alt1(data, len, &pos);
+                        if( end_time > 0 )
+                            (void)tail_g1_alt3(data, len, &pos);
                     }
                 }
             }
@@ -996,6 +1414,105 @@ npc_extended(
                     free(text);
             }
         }
+        if( (flag & V5_NPC_TINTING) != 0 )
+        {
+            (void)tail_g2_alt1(data, len, &pos);
+            (void)tail_g2_alt2(data, len, &pos);
+            (void)tail_g1(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+        }
+        if( (flag & V5_NPC_TRANSPARENCY) != 0 )
+        {
+            (void)tail_g2_alt3(data, len, &pos);
+            (void)tail_g2(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+            (void)tail_g1_alt2(data, len, &pos);
+            (void)tail_g1_alt2(data, len, &pos);
+        }
+        if( (flag & V5_NPC_BAS_CHANGE) != 0 )
+        {
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_BAS_CHANGE);
+            uint32_t bas = tail_g4_alt1(data, len, &pos);
+            int values[15];
+
+            for( int v = 0; v < 15; v++ )
+                values[v] = -1;
+            if( (bas & (1u << 0)) != 0 ) values[0] = tail_g2(data, len, &pos);
+            if( (bas & (1u << 1)) != 0 ) values[1] = tail_g2_alt3(data, len, &pos);
+            if( (bas & (1u << 2)) != 0 ) values[2] = tail_g2_alt3(data, len, &pos);
+            if( (bas & (1u << 3)) != 0 ) values[3] = tail_g2_alt1(data, len, &pos);
+            if( (bas & (1u << 4)) != 0 ) values[4] = tail_g2(data, len, &pos);
+            if( (bas & (1u << 5)) != 0 ) values[5] = tail_g2_alt3(data, len, &pos);
+            if( (bas & (1u << 6)) != 0 ) values[6] = tail_g2_alt3(data, len, &pos);
+            if( (bas & (1u << 7)) != 0 ) values[7] = tail_g2_alt3(data, len, &pos);
+            if( (bas & (1u << 8)) != 0 ) values[8] = tail_g2_alt2(data, len, &pos);
+            if( (bas & (1u << 9)) != 0 ) values[9] = tail_g2_alt2(data, len, &pos);
+            if( (bas & (1u << 10)) != 0 ) values[10] = tail_g2(data, len, &pos);
+            if( (bas & (1u << 11)) != 0 ) values[11] = tail_g2_alt1(data, len, &pos);
+            if( (bas & (1u << 12)) != 0 ) values[12] = tail_g2_alt2(data, len, &pos);
+            if( (bas & (1u << 13)) != 0 ) values[13] = tail_g2_alt1(data, len, &pos);
+            if( (bas & (1u << 14)) != 0 ) values[14] = tail_g2(data, len, &pos);
+            if( op )
+            {
+                op->_bas_change.mask = bas;
+                op->_bas_change.turnanim = values[0];
+                op->_bas_change.walkanim = values[2];
+                op->_bas_change.walkanim_b = values[3];
+                op->_bas_change.walkanim_l = values[4];
+                op->_bas_change.walkanim_r = values[5];
+                op->_bas_change.runanim = values[6];
+                op->_bas_change.readyanim = values[14];
+            }
+        }
+        if( (flag & V5_NPC_FREEZE) != 0 )
+        {
+            (void)tail_g2(data, len, &pos);
+            (void)tail_g2(data, len, &pos);
+            (void)tail_g1_alt2(data, len, &pos);
+        }
+        if( (flag & V5_NPC_AUX_MEDIUM) != 0 )
+        {
+            (void)tail_g2_alt1(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+        }
+        if( (flag & V5_NPC_AUX_BLOCK) != 0 )
+        {
+            (void)tail_g1_alt2(data, len, &pos);
+            (void)tail_g1(data, len, &pos);
+            (void)tail_g2_alt3(data, len, &pos);
+            (void)tail_g2_alt1(data, len, &pos);
+            (void)tail_g2_alt2(data, len, &pos);
+            (void)tail_g1(data, len, &pos);
+        }
+        if( (flag & V5_NPC_HEAD_CUSTOMISATION) != 0 )
+        {
+            int head = tail_g1_alt1(data, len, &pos);
+
+            if( (head & 1) == 0 )
+            {
+                if( (head & 2) != 0 )
+                {
+                    int models = tail_g1_alt3(data, len, &pos);
+                    for( int m = 0; m < models; m++ )
+                        (void)tail_g4_alt2(data, len, &pos);
+                }
+                if( (head & (4 | 8)) != 0 )
+                {
+                    /* These two arrays deliberately have no wire count: their
+                     * lengths come from the current NpcType recolour/retexture
+                     * arrays. This pure decoder has no cache access, so lying
+                     * about a length would corrupt every later npc block. */
+                    fprintf(stderr,
+                            "osrs239: NPC head customisation needs NpcType array lengths; "
+                            "tail stopped\n");
+                    return;
+                }
+                if( (head & 0x10) != 0 )
+                    (void)tail_g1_alt2(data, len, &pos);
+            }
+        }
         if( (flag & V5_NPC_SPOTANIM) != 0 )
         {
             /* NpcSpotAnimEncoder: p1Alt2 count, then per entry p1 slot, p2 id,
@@ -1008,7 +1525,7 @@ npc_extended(
                 int spot;
                 int height_delay;
 
-                pos++; /* slot */
+                int slot = tail_g1(data, len, &pos);
                 spot = (data[pos] << 8) | data[pos + 1];
                 pos += 2;
                 height_delay = (data[pos + 2] << 24) | (data[pos + 3] << 16) |
@@ -1021,9 +1538,25 @@ npc_extended(
                     {
                         op->_spotanim.spotanim_id = spot == 65535 ? -1 : spot;
                         op->_spotanim.height_delay = height_delay;
+                        op->_spotanim.slot = (uint8_t)slot;
                     }
                 }
             }
+        }
+        if( (flag & V5_NPC_AUX_SHORT) != 0 )
+        {
+            (void)tail_g2_alt3(data, len, &pos);
+            (void)tail_g1_alt1(data, len, &pos);
+        }
+        if( (flag & V5_NPC_NAME_CHANGE) != 0 )
+        {
+            struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_NAME_CHANGE);
+            char* name = tail_string(data, len, &pos);
+
+            if( op )
+                op->_name_change.name = name;
+            else
+                free(name);
         }
         if( (flag & V5_NPC_TRANSFORMATION) != 0 )
         {
@@ -1039,8 +1572,9 @@ npc_extended(
         {
             /* NpcFaceEncoder differs from PlayerFacingEncoder only in its
              * g1Alt1 header transform. */
-            int header = pos < len ? ((data[pos++] - 128) & 0xff) : 0;
+            int header = tail_g1_alt1(data, len, &pos);
             int kind = (header >> 3) & 0x7;
+            bool instant = ((header >> 6) & 1) != 0;
 
             if( kind == 0 ) /* Entity */
             {
@@ -1048,13 +1582,19 @@ npc_extended(
                 int index = tail_smart2or4null(data, len, &pos);
                 struct PktNpcInfoOp* op;
 
-                (void)tail_smart(data, len, &pos); /* fallback angle */
+                int fallback_angle = tail_smart(data, len, &pos);
                 if( type == 1 || type == 2 )
                 {
                     op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
                     if( op )
                         op->_face_entity.entity_id =
                             type == 2 && index >= 0 ? 32768 + index : index;
+                    if( op )
+                    {
+                        op->_face_entity.fallback_angle = (uint16_t)fallback_angle;
+                        op->_face_entity.has_fallback_angle = true;
+                        op->_face_entity.instant = instant;
+                    }
                 }
             }
             else if( kind == 1 ) /* Loc */
@@ -1068,10 +1608,21 @@ npc_extended(
                 {
                     op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
                     op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
+                    op->_face_coord.instant = instant;
                 }
             }
             else if( kind == 2 ) /* Angle */
-                (void)tail_smart(data, len, &pos);
+            {
+                struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_FACE_ANGLE);
+
+                if( op )
+                {
+                    op->_face_angle.angle = (uint16_t)tail_smart(data, len, &pos);
+                    op->_face_angle.instant = instant;
+                }
+                else
+                    (void)tail_smart(data, len, &pos);
+            }
             else if( kind == 3 ) /* Reset */
             {
                 struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
@@ -1080,10 +1631,23 @@ npc_extended(
                     op->_face_entity.entity_id = -1;
             }
         }
+        if( (flag & V5_NPC_AUX_BYTES) != 0 )
+        {
+            (void)tail_g1_alt1(data, len, &pos);
+            (void)tail_g1_alt2(data, len, &pos);
+            (void)tail_g1_alt2(data, len, &pos);
+            (void)tail_g1_alt3(data, len, &pos);
+        }
 
         known = V5_NPC_EXT_SHORT | V5_NPC_EXT_MEDIUM | V5_NPC_EXT_INT | V5_NPC_FACING |
-                V5_NPC_HITMARKS |
-                V5_NPC_SEQUENCE | V5_NPC_SAY | V5_NPC_SPOTANIM | V5_NPC_TRANSFORMATION;
+                V5_NPC_AUX_BYTES | V5_NPC_AUX_SHORT | V5_NPC_AUX_BLOCK |
+                V5_NPC_AUX_MEDIUM | V5_NPC_HITMARKS | V5_NPC_EXACT_MOVE |
+                V5_NPC_BODY_CUSTOMISATION | V5_NPC_HEAD_CUSTOMISATION |
+                V5_NPC_HEADICON_CUSTOMISATION | V5_NPC_HEADBARS | V5_NPC_SEQUENCE |
+                V5_NPC_SAY | V5_NPC_TINTING | V5_NPC_TRANSPARENCY |
+                V5_NPC_BAS_CHANGE | V5_NPC_FREEZE | V5_NPC_OPS |
+                V5_NPC_LEVEL_CHANGE | V5_NPC_NAME_CHANGE | V5_NPC_SPOTANIM |
+                V5_NPC_TRANSFORMATION;
         if( (flag & ~known) != 0 )
         {
             fprintf(
@@ -1194,16 +1758,23 @@ osrs239_npc_info_read(
      * BEFORE them and no facing at all, so reading one as the other places an
      * npc that does not exist at a coordinate that is not there.
      *
-     * The 21-bit guard is the client's own: the terminator is only written when
+     * The 28-bit guard is the client's own: the terminator is only written when
      * extended-info bytes follow, so with nothing after the bit section the
      * loop has to stop on remaining width instead.
      */
-    while( Net_BitBufferBitPos(&buf) + 21 < len * 8 )
+    while( Net_BitBufferBitPos(&buf) + 28 <= len * 8 )
     {
+        static uint16_t const k_spawn_facing[8] = {
+            768, 1024, 1280, 512, 1536, 256, 0, 1792,
+        };
         int slot = Net_BitBufferGbits(&buf, 16);
+        int has_spawn_cycle;
+        uint32_t spawn_cycle = 0;
         int extended;
         int dx;
         int dz;
+        int facing;
+        int jump;
         int npc_type;
         struct PktNpcInfoOp* op;
 
@@ -1214,16 +1785,18 @@ osrs239_npc_info_read(
         if( op )
             op->_bitvalue = (uint64_t)slot;
 
-        (void)Net_BitBufferGbits(&buf, 1); /* spawn cycle */
+        has_spawn_cycle = Net_BitBufferGbits(&buf, 1);
+        if( has_spawn_cycle )
+            spawn_cycle = Net_BitBufferGbits(&buf, 32);
         extended = Net_BitBufferGbits(&buf, 1);
         dx = Net_BitBufferGbits(&buf, 6);
         if( dx > 31 )
             dx -= 64;
-        (void)Net_BitBufferGbits(&buf, 3); /* facing, applied on enter-view only */
+        facing = Net_BitBufferGbits(&buf, 3);
         dz = Net_BitBufferGbits(&buf, 6);
         if( dz > 31 )
             dz -= 64;
-        (void)Net_BitBufferGbits(&buf, 1); /* jump */
+        jump = Net_BitBufferGbits(&buf, 1);
         npc_type = Net_BitBufferGbits(&buf, 14);
 
         op = npc_op(&r, PKT_NPC_INFO_OPBITS_NPCTYPE);
@@ -1234,7 +1807,19 @@ osrs239_npc_info_read(
         {
             op->_delta_xz.dx = (int16_t)dx;
             op->_delta_xz.dz = (int16_t)dz;
-            op->_delta_xz.jump = false;
+            op->_delta_xz.jump = jump != 0;
+        }
+        op = npc_op(&r, PKT_NPC_INFO_OP_FACE_ANGLE);
+        if( op )
+        {
+            op->_face_angle.angle = k_spawn_facing[facing];
+            op->_face_angle.instant = true;
+        }
+        if( has_spawn_cycle )
+        {
+            op = npc_op(&r, PKT_NPC_INFO_OP_SPAWN_CYCLE);
+            if( op )
+                op->_bitvalue = spawn_cycle;
         }
         if( extended )
             npc_queue_extended(&r, list_idx);

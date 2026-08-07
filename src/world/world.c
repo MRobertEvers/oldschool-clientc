@@ -496,7 +496,9 @@ World_PlayerSpawn(
         /* Reference ClientEntity defaults: faceEntity -1, turnspeed 32
          * (players always have the constant; NPCs take NpcType.turnspeed,
          * applied by App_WorldApplyNpcType). */
-        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
+        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE,
+                    .fallback_angle = -1,
+                    .turn_speed = 32 },
         .server_pid = -1,
         .held_left_applied = -1,
         .held_right_applied = -1,
@@ -555,7 +557,10 @@ World_NpcSpawn(
         .npc_id = npc_id,
         .size = size,
         .idle_animations = idle_animations,
-        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE, .turn_speed = 32 },
+        .facing = { .entity_id = WORLD_FACING_ENTITY_NONE,
+                    .fallback_angle = -1,
+                    .turn_speed = 32 },
+        .visible_ops = 0x1f,
         .server_slot = -1,
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
@@ -1153,11 +1158,24 @@ World_PlayerFaceEntity(
     int idx,
     int entity_id)
 {
+    World_PlayerFaceEntityDetailed(world, idx, entity_id, -1, false);
+}
+
+void
+World_PlayerFaceEntityDetailed(
+    struct World* world,
+    int idx,
+    int entity_id,
+    int fallback_angle,
+    bool instant)
+{
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
     player->facing.entity_id = entity_id;
+    player->facing.fallback_angle = fallback_angle;
+    player->facing.instant = instant;
 }
 
 void
@@ -1166,11 +1184,24 @@ World_NpcFaceEntity(
     int idx,
     int entity_id)
 {
+    World_NpcFaceEntityDetailed(world, idx, entity_id, -1, false);
+}
+
+void
+World_NpcFaceEntityDetailed(
+    struct World* world,
+    int idx,
+    int entity_id,
+    int fallback_angle,
+    bool instant)
+{
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
     npc->facing.entity_id = entity_id;
+    npc->facing.fallback_angle = fallback_angle;
+    npc->facing.instant = instant;
 }
 
 void
@@ -1201,6 +1232,40 @@ World_NpcFaceCoord(
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
     npc->facing.square_x = square_x;
     npc->facing.square_z = square_z;
+}
+
+void
+World_PlayerFaceAngle(
+    struct World* world,
+    int idx,
+    int angle,
+    bool instant)
+{
+    struct WorldEntity_Player* player;
+
+    assert(world);
+    assert(World_EntityPoolIsActive(&world->entities.player, idx));
+    player = World_EntityPoolGet(&world->entities.player, idx);
+    player->orientation.dst_yaw = (uint16_t)(angle & 0x7ff);
+    if( instant )
+        player->orientation.yaw = player->orientation.dst_yaw;
+}
+
+void
+World_NpcFaceAngle(
+    struct World* world,
+    int idx,
+    int angle,
+    bool instant)
+{
+    struct WorldEntity_NPC* npc;
+
+    assert(world);
+    assert(World_EntityPoolIsActive(&world->entities.npc, idx));
+    npc = World_EntityPoolGet(&world->entities.npc, idx);
+    npc->orientation.dst_yaw = (uint16_t)(angle & 0x7ff);
+    if( instant )
+        npc->orientation.yaw = npc->orientation.dst_yaw;
 }
 
 static void
@@ -1668,6 +1733,21 @@ World_PlayerAddHitmark(
     int health,
     int total_health)
 {
+    World_PlayerAddHitmarkTimed(
+        world, idx, damage_type, damage, health, total_health, 0, 70);
+}
+
+void
+World_PlayerAddHitmarkTimed(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health,
+    int delay,
+    int duration)
+{
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
@@ -1678,7 +1758,9 @@ World_PlayerAddHitmark(
         player->combat.damage_cycles,
         world->cycle,
         damage_type,
-        damage);
+        damage,
+        delay,
+        duration);
     player->combat.health = health;
     player->combat.total_health = total_health;
     player->combat.combat_cycle = world->cycle + 400;
@@ -1883,6 +1965,21 @@ World_NpcAddHitmark(
     int health,
     int total_health)
 {
+    World_NpcAddHitmarkTimed(
+        world, idx, damage_type, damage, health, total_health, 0, 70);
+}
+
+void
+World_NpcAddHitmarkTimed(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health,
+    int delay,
+    int duration)
+{
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
@@ -1893,7 +1990,9 @@ World_NpcAddHitmark(
         npc->combat.damage_cycles,
         world->cycle,
         damage_type,
-        damage);
+        damage,
+        delay,
+        duration);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
     npc->combat.combat_cycle = world->cycle + 400;

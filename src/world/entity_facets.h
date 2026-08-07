@@ -1,6 +1,7 @@
 #ifndef WORLD_ENTITY_FACETS_H
 #define WORLD_ENTITY_FACETS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct WorldEntityFacet_IdleAnimations
@@ -137,6 +138,11 @@ struct WorldEntityFacet_Facing
      *  (scene tile 0 is a legitimate target). Cleared once consumed. */
     int square_x;
     int square_z;
+    /** Angle used while an entity target is temporarily absent, or the direct
+     * Face.Angle target. -1 means no fallback/direct angle is pending. */
+    int fallback_angle;
+    /** Face immediately instead of stepping by turn_speed. */
+    bool instant;
     /** NpcType.turnspeed (players: 32). 0 = the entity never turns and
      *  entityFace returns immediately. */
     int turn_speed;

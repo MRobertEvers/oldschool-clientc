@@ -310,5 +310,7 @@ pkt_npc_info_ops_free(
     {
         if( ops[i].kind == PKT_NPC_INFO_OP_SAY )
             free(ops[i]._say.text);
+        else if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE )
+            free(ops[i]._name_change.name);
     }
 }

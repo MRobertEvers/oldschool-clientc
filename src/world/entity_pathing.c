@@ -9,15 +9,21 @@ World_EntityAddHitmark(
     int* damage_cycles,
     int loop_cycle,
     int damage_type,
-    int damage_value)
+    int damage_value,
+    int delay,
+    int duration)
 {
+    int start_cycle = loop_cycle + delay;
+
+    if( duration <= 0 )
+        duration = 70;
     for( int i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
     {
         if( damage_cycles[i] <= loop_cycle )
         {
             damage_values[i] = (uint8_t)damage_value;
             damage_types[i] = (uint8_t)damage_type;
-            damage_cycles[i] = loop_cycle + 70;
+            damage_cycles[i] = start_cycle + duration;
             return;
         }
     }

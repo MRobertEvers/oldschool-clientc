@@ -22,6 +22,9 @@ struct WorldEntity_NPC
     int combat_level;
     char name[32];
     struct WorldEntityFacet_Action actions[5];
+    /** Bit i controls whether action i is offered by the minimenu. */
+    uint8_t visible_ops;
+    uint32_t spawn_cycle;
     struct WorldEntityFacet_IdleAnimations idle_animations;
     struct WorldEntityFacet_Animation animation;
     struct WorldEntityFacet_Facing facing;

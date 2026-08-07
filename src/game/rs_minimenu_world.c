@@ -158,6 +158,8 @@ add_npc_rows(
      * client does not track yet, so attack stays normal priority). */
     for( int i = 4; i >= 0; i-- )
     {
+        if( (npc->visible_ops & (1u << i)) == 0 )
+            continue;
         if( npc->actions[i].name[0] == '\0' )
             continue;
         if( strcasecmp(npc->actions[i].name, "attack") == 0 )
@@ -167,6 +169,8 @@ add_npc_rows(
     }
     for( int i = 4; i >= 0; i-- )
     {
+        if( (npc->visible_ops & (1u << i)) == 0 )
+            continue;
         if( npc->actions[i].name[0] == '\0' )
             continue;
         if( strcasecmp(npc->actions[i].name, "attack") != 0 )

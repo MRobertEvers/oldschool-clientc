@@ -565,6 +565,22 @@ World_NpcFaceEntity(
     int idx,
     int entity_id);
 
+void
+World_PlayerFaceEntityDetailed(
+    struct World* world,
+    int idx,
+    int entity_id,
+    int fallback_angle,
+    bool instant);
+
+void
+World_NpcFaceEntityDetailed(
+    struct World* world,
+    int idx,
+    int entity_id,
+    int fallback_angle,
+    bool instant);
+
 /** One-shot face-coord (reference faceSquareX/Z). Coordinates are the raw
  * wire form — absolute half-tiles, (tile << 1) + 1 — because 0,0 is the
  * reference's "none" sentinel and converting to scene tiles first would make
@@ -582,6 +598,20 @@ World_NpcFaceCoord(
     int idx,
     int square_x,
     int square_z);
+
+void
+World_PlayerFaceAngle(
+    struct World* world,
+    int idx,
+    int angle,
+    bool instant);
+
+void
+World_NpcFaceAngle(
+    struct World* world,
+    int idx,
+    int angle,
+    bool instant);
 
 void
 World_PlayerSetAnimation(
@@ -696,6 +726,17 @@ World_PlayerAddHitmark(
     int total_health);
 
 void
+World_PlayerAddHitmarkTimed(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health,
+    int delay,
+    int duration);
+
+void
 World_NpcAddHitmark(
     struct World* world,
     int idx,
@@ -703,6 +744,17 @@ World_NpcAddHitmark(
     int damage,
     int health,
     int total_health);
+
+void
+World_NpcAddHitmarkTimed(
+    struct World* world,
+    int idx,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health,
+    int delay,
+    int duration);
 
 /** Set an entity's overhead chat text (reference chatMessage/Colour/Effect,
  * chatTimer reset to 150). colour/effect select the render style; pass 0/0 for

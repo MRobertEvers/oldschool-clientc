@@ -49,6 +49,8 @@ World_EntityAddHitmark(
     int* damage_cycles,
     int loop_cycle,
     int damage_type,
-    int damage_value);
+    int damage_value,
+    int delay,
+    int duration);
 
 #endif

@@ -239,6 +239,10 @@ World_EntityFace(
                                       WORLD_YAW_FROM_RADIANS)) &
                                0x7ff);
         }
+        else if( facing->fallback_angle >= 0 )
+        {
+            orientation->dst_yaw = (uint16_t)(facing->fallback_angle & 0x7ff);
+        }
     }
 
     /* FaceSquare is in absolute half-tiles; `- base - base` converts the
@@ -263,6 +267,13 @@ World_EntityFace(
         int remaining_yaw = (orientation->dst_yaw - orientation->yaw) & 0x7ff;
         if( remaining_yaw == 0 )
             return -1;
+
+        if( facing->instant )
+        {
+            orientation->yaw = orientation->dst_yaw;
+            facing->instant = false;
+            return -1;
+        }
 
         if( remaining_yaw < facing->turn_speed || remaining_yaw > 2048 - facing->turn_speed )
             orientation->yaw = orientation->dst_yaw;

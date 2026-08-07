@@ -134,12 +134,12 @@ test_pathing_helpers(void)
     uint8_t dvals[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     uint8_t dtypes[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dcycles[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 10, 2, 15);
+    World_EntityAddHitmark(dvals, dtypes, dcycles, 10, 2, 15, 0, 70);
     TEST_ASSERT(dvals[0] == 15 && dtypes[0] == 2 && dcycles[0] == 80, "hitmark slot0");
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 20, 1, 7);
+    World_EntityAddHitmark(dvals, dtypes, dcycles, 20, 1, 7, 0, 70);
     TEST_ASSERT(dvals[1] == 7 && dcycles[1] == 90, "hitmark slot1");
     /* Expire slot0 and overwrite */
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 80, 3, 99);
+    World_EntityAddHitmark(dvals, dtypes, dcycles, 80, 3, 99, 0, 70);
     TEST_ASSERT(dvals[0] == 99 && dtypes[0] == 3, "hitmark reuse expired");
 }
 

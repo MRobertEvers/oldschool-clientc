@@ -71,7 +71,8 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OP_FACE_COORD,
     PKT_PLAYER_INFO_OP_CHAT,
     PKT_PLAYER_INFO_OP_SPOTANIM,
-    PKT_PLAYER_INFO_OP_EXACT_MOVE
+    PKT_PLAYER_INFO_OP_EXACT_MOVE,
+    PKT_PLAYER_INFO_OP_FACE_ANGLE
 };
 
 struct PktPlayerInfo_LocalXZLevel
@@ -117,6 +118,9 @@ struct PktPlayerInfo_Sequence
 struct PktPlayerInfo_FaceEntity
 {
     int32_t entity_id;
+    uint16_t fallback_angle;
+    bool has_fallback_angle;
+    bool instant;
 };
 
 struct PktPlayerInfo_Say
@@ -126,16 +130,19 @@ struct PktPlayerInfo_Say
 
 struct PktPlayerInfo_Damage
 {
-    uint8_t damage_type;
-    uint8_t damage;
+    int damage_type;
+    int damage;
     uint8_t health;
     uint8_t total_health;
+    uint16_t delay;
+    uint16_t duration;
 };
 
 struct PktPlayerInfo_FaceCoord
 {
     int16_t x;
     int16_t z;
+    bool instant;
 };
 
 struct PktPlayerInfo_Chat
@@ -148,19 +155,27 @@ struct PktPlayerInfo_Chat
 
 struct PktPlayerInfo_SpotAnim
 {
+    uint8_t slot;
     int32_t spotanim_id; /* 65535 -> -1 */
     int32_t height_delay; /* height = >>16, cycle delay = &0xffff */
 };
 
 struct PktPlayerInfo_ExactMove
 {
-    uint8_t start_x; /* scene-local tiles */
-    uint8_t start_z;
-    uint8_t end_x;
-    uint8_t end_z;
+    int16_t start_x;
+    int16_t start_z;
+    int16_t end_x;
+    int16_t end_z;
     uint16_t end_cycle_delta;   /* + client loop cycle at apply time */
     uint16_t start_cycle_delta; /* + client loop cycle at apply time */
-    uint8_t facing;             /* * 512 = yaw */
+    uint16_t facing;            /* protocol yaw */
+    bool relative;              /* deltas from route[0] in the v5 stream */
+};
+
+struct PktPlayerInfo_FaceAngle
+{
+    uint16_t angle;
+    bool instant;
 };
 
 struct PktPlayerInfoOp
@@ -179,6 +194,7 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_Chat _chat;
         struct PktPlayerInfo_SpotAnim _spotanim;
         struct PktPlayerInfo_ExactMove _exactmove;
+        struct PktPlayerInfo_FaceAngle _face_angle;
         struct PktPlayerInfo_LocalXZLevel _local_xz_level;
         struct PktPlayerInfo_DeltaXZ _delta_xz;
     };
