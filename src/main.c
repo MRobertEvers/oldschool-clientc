@@ -1927,6 +1927,7 @@ struct MainArgState
     int write_bmp;
     int use_opengl3;
     int use_d3d9;
+    int d3d9_zbuffer;
 };
 
 static void
@@ -1941,7 +1942,7 @@ main_print_usage(char const* program)
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
         "[--windowmode fixed|resizable] [--window WxH] "
-        "[--opengl3|--webgl1|--d3d9|--soft3d]\n",
+        "[--opengl3|--webgl1|--d3d9|--d3d9-zbuffer|--soft3d]\n",
         program);
 }
 
@@ -2117,6 +2118,7 @@ main_parse_argument_layer(
 #if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
             state->use_opengl3 = 1;
             state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
             fprintf(stderr, "torirs: this build renders through WebGL1 — use --webgl1\n");
@@ -2131,6 +2133,7 @@ main_parse_argument_layer(
 #if defined(TORIRS_GL_ES2)
             state->use_opengl3 = 1;
             state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
             continue;
 #else
             fprintf(stderr, "torirs: --webgl1 is the browser build's flag — use --opengl3\n");
@@ -2142,9 +2145,22 @@ main_parse_argument_layer(
 #if defined(TORIRS_HAVE_D3D9)
             state->use_d3d9 = 1;
             state->use_opengl3 = 0;
+            state->d3d9_zbuffer = 0;
             continue;
 #else
             fprintf(stderr, "torirs: --d3d9 is not available in this build\n");
+            return 0;
+#endif
+        }
+        if( strcmp(argv[argi], "--d3d9-zbuffer") == 0 )
+        {
+#if defined(TORIRS_HAVE_D3D9)
+            state->use_d3d9 = 1;
+            state->use_opengl3 = 0;
+            state->d3d9_zbuffer = 1;
+            continue;
+#else
+            fprintf(stderr, "torirs: --d3d9-zbuffer is not available in this build\n");
             return 0;
 #endif
         }
@@ -2152,6 +2168,7 @@ main_parse_argument_layer(
         {
             state->use_opengl3 = 0;
             state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
             continue;
         }
         if( positional == 0 && argv[argi][0] != '-' )
@@ -2229,6 +2246,7 @@ main(
         .write_bmp = 0,
         .use_opengl3 = TORIRS_GPU_DEFAULT,
         .use_d3d9 = TORIRS_D3D9_DEFAULT,
+        .d3d9_zbuffer = 0,
     };
     int argi;
     int i;
@@ -2275,6 +2293,7 @@ main(
     int const write_bmp = arg_state.write_bmp;
     int const use_opengl3 = arg_state.use_opengl3;
     int const use_d3d9 = arg_state.use_d3d9;
+    int const d3d9_zbuffer = arg_state.d3d9_zbuffer;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
@@ -3182,7 +3201,10 @@ main(
             d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             if( !d3d9 ||
                 !ToriRS_D3D9_Init(
-                    d3d9, PlatformSDL2_NativeWindowHandle(sdl), app.scene) )
+                    d3d9,
+                    PlatformSDL2_NativeWindowHandle(sdl),
+                    app.scene,
+                    d3d9_zbuffer != 0) )
             {
                 fprintf(
                     stderr,
@@ -3190,9 +3212,14 @@ main(
                 ToriRS_D3D9_Free(d3d9);
                 d3d9 = NULL;
             }
+            else
+                App_SetWorldRenderMode(
+                    &app,
+                    d3d9_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
         }
 #else
         (void)use_d3d9;
+        (void)d3d9_zbuffer;
 #endif
 
         CmdBus_Init(&bus);
