@@ -3,6 +3,8 @@
 
 #include "rsprot_exec.h"
 
+#include "packets/cam_lookat_v2.h"
+#include "packets/cam_moveto_v2.h"
 #include "packets/cam_shake.h"
 #include "packets/runclientscript.h"
 #include "packets/set_map_flag_v2.h"
@@ -890,6 +892,39 @@ bridge_update_inv_stop_transmit(
     return 1;
 }
 
+/*
+ * Both camera packets carry an ABSOLUTE coordinate at this revision where the
+ * classic pair sent scene-local tiles, so `absolute` is set for the executor to
+ * subtract the scene origin -- which this layer does not know. RSProt names the
+ * axes x/z; the canonical struct calls them local_x/local_z and the name is now
+ * a slight lie, kept because every consumer reads it.
+ */
+static int
+bridge_cam_lookat(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_lookat_v2_out, MsgCamLookAtV2)
+    out->_cam_lookat.local_x = msg.x;
+    out->_cam_lookat.local_z = msg.z;
+    out->_cam_lookat.height = msg.height;
+    out->_cam_lookat.rate = msg.rate;
+    out->_cam_lookat.rate2 = msg.rate2;
+    out->_cam_lookat.absolute = 1;
+    return 1;
+}
+
+static int
+bridge_cam_moveto(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_moveto_v2_out, MsgCamMoveToV2)
+    out->_cam_moveto.local_x = msg.x;
+    out->_cam_moveto.local_z = msg.z;
+    out->_cam_moveto.height = msg.height;
+    out->_cam_moveto.rate = msg.rate;
+    out->_cam_moveto.rate2 = msg.rate2;
+    out->_cam_moveto.absolute = 1;
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -930,6 +965,8 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },
+    { PKT_NAME_CAM_MOVETO, bridge_cam_moveto },
     { PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },
     { PKT_NAME_UPDATE_INV_PARTIAL, bridge_update_inv_partial },
     { PKT_NAME_UPDATE_INV_STOP_TRANSMIT, bridge_update_inv_stop_transmit },

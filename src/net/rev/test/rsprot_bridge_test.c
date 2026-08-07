@@ -57,6 +57,8 @@
 #include "packets/update_stat_v2.h"
 #include "packets/update_zone_full_follows.h"
 #include "packets/update_zone_partial_follows.h"
+#include "packets/cam_lookat_v2.h"
+#include "packets/cam_moveto_v2.h"
 #include "packets/cam_shake.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/if_sethide.h"
@@ -437,6 +439,10 @@ GENERIC_CASE(PKT_NAME_IF_CLEARINV, rsprot_if_clearinv_out, MsgIfClearInv, "IF_CL
     GENERIC_CASE(PKT_NAME_SYNTH_SOUND, rsprot_synth_sound_out, MsgSynthSound, "SYNTH_SOUND");
     GENERIC_CASE(PKT_NAME_MIDI_SONG, rsprot_midi_song_v2_out, MsgMidiSongV2, "MIDI_SONG");
     GENERIC_CASE(PKT_NAME_CAM_SHAKE, rsprot_cam_shake_out, MsgCamShake, "CAM_SHAKE");
+    GENERIC_CASE(PKT_NAME_CAM_LOOKAT, rsprot_cam_lookat_v2_out,
+                 MsgCamLookAtV2, "CAM_LOOKAT");
+    GENERIC_CASE(PKT_NAME_CAM_MOVETO, rsprot_cam_moveto_v2_out,
+                 MsgCamMoveToV2, "CAM_MOVETO");
     GENERIC_CASE(PKT_NAME_CHAT_FILTER_SETTINGS, rsprot_chat_filter_settings_out,
                  MsgChatFilterSettings, "CHAT_FILTER_SETTINGS");
     GENERIC_CASE(PKT_NAME_IF_SETHIDE, rsprot_if_sethide_out, MsgIfSetHide, "IF_SETHIDE");
