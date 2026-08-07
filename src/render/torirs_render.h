@@ -135,6 +135,7 @@ struct ToriRS_RenderCommand_AnimLoad
 struct ToriRS_RenderCommand_Batch
 {
     int batch_id;
+    bool clear_all;
     int element_id;
     int pose_id;
     int anim_index;

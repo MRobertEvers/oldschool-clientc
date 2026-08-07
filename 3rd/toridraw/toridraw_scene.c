@@ -937,7 +937,16 @@ ToriDraw_SceneClearPool(
         /* Static geometry and all prebaked poses share one retained arena.
          * Clear it wholesale on a map rebuild instead of issuing thousands of
          * append-only per-element unloads. */
-        td_scene_emit(scene, TORIDRAW_EVENT_BATCH_CLEAR, 0, 0, 0, 0, NULL, NULL, NULL);
+        td_scene_emit(
+            scene,
+            TORIDRAW_EVENT_BATCH_CLEAR,
+            TORIDRAW_SCENE_INVALID_BATCH_ID,
+            0,
+            0,
+            0,
+            NULL,
+            NULL,
+            NULL);
     }
 }
 

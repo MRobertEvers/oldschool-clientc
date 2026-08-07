@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-<<<<<<< HEAD
 /* XP's system msvcrt.dll exports _putenv, but not the Vista-era _putenv_s.
  * Keep the successful assignment allocation alive: that is safe for both
  * CRTs which copy the string and putenv implementations which retain it. */
@@ -50,12 +49,8 @@ torirs_win32_putenv(const char* name, const char* value)
     return result == 0 ? 0 : -1;
 }
 
-/* POSIX setenv over XP's CRT. overwrite is honoured: when 0 and the name
- * already exists, leave it. Returns 0 on success, -1 on error. */
-=======
-/* POSIX setenv over the CRT's _putenv_s. overwrite is honoured: when 0 and the
+/* POSIX setenv over XP's CRT. overwrite is honoured: when 0 and the
  * name already exists, leave it. Returns 0 on success, -1 on error. */
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 static __inline int
 setenv(const char* name, const char* value, int overwrite)
 {
@@ -67,23 +62,13 @@ setenv(const char* name, const char* value, int overwrite)
         if( existing )
             return 0;
     }
-<<<<<<< HEAD
     return torirs_win32_putenv(name, value);
-=======
-    return _putenv_s(name, value) == 0 ? 0 : -1;
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 }
 
 static __inline int
 unsetenv(const char* name)
 {
-<<<<<<< HEAD
     return torirs_win32_putenv(name, "");
-=======
-    if( !name )
-        return -1;
-    return _putenv_s(name, "") == 0 ? 0 : -1;
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 }
 #endif /* _WIN32 */
 

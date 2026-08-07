@@ -59,6 +59,34 @@ toridraw2d_blend_channels(
     return (int)0xFF000000 | (rr << 16) | (rg << 8) | rb;
 }
 
+/* The caller has already clipped the destination coordinate. */
+static inline void
+toridraw2d_blend_argb_unclipped(
+    int* dst,
+    uint32_t argb,
+    int alpha)
+{
+    int a = (int)(argb >> 24) & 0xFF;
+    if( alpha != 255 )
+        a = toridraw2d_div255(a * alpha);
+    if( a == 0 )
+        return;
+
+    if( a == 255 )
+    {
+        *dst = (int)(argb | 0xFF000000u);
+        return;
+    }
+
+    *dst = toridraw2d_blend_channels(
+        *dst,
+        (int)(argb >> 16) & 0xFF,
+        (int)(argb >> 8) & 0xFF,
+        (int)argb & 0xFF,
+        a,
+        255 - a);
+}
+
 void
 ToriDraw2D_BlendArgbPixel(
     struct ToriDraw_ViewPort* view_port,
@@ -298,17 +326,56 @@ ToriDraw2D_BlitArgb(
     int src_h,
     int* pixel_buffer)
 {
+    ToriDraw2D_BlitArgbAlpha(
+        view_port, dst_x, dst_y, src, src_w, src_h, 255, pixel_buffer);
+}
+
+void
+ToriDraw2D_BlitArgbAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha,
+    int* pixel_buffer)
+{
     assert(view_port);
     assert(pixel_buffer);
     assert(src);
-    if( src_w <= 0 || src_h <= 0 )
+    if( src_w <= 0 || src_h <= 0 || alpha <= 0 )
+        return;
+    if( alpha > 255 )
+        alpha = 255;
+
+    int64_t x0 = dst_x;
+    int64_t y0 = dst_y;
+    int64_t x1 = (int64_t)dst_x + src_w;
+    int64_t y1 = (int64_t)dst_y + src_h;
+    if( x0 < view_port->clip_left )
+        x0 = view_port->clip_left;
+    if( y0 < view_port->clip_top )
+        y0 = view_port->clip_top;
+    if( x1 > view_port->clip_right )
+        x1 = view_port->clip_right;
+    if( y1 > view_port->clip_bottom )
+        y1 = view_port->clip_bottom;
+    if( x0 >= x1 || y0 >= y1 )
         return;
 
-    for( int y = 0; y < src_h; y++ )
+    int const src_x0 = (int)(x0 - dst_x);
+    int const src_y0 = (int)(y0 - dst_y);
+    int const draw_w = (int)(x1 - x0);
+    int const draw_h = (int)(y1 - y0);
+    int const stride = view_port->stride;
+
+    for( int y = 0; y < draw_h; y++ )
     {
-        int sy = dst_y + y;
-        for( int x = 0; x < src_w; x++ )
-            ToriDraw2D_BlendArgbPixel(view_port, dst_x + x, sy, (int)src[y * src_w + x], pixel_buffer);
+        uint32_t const* srow = src + (size_t)(src_y0 + y) * src_w + src_x0;
+        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+        for( int x = 0; x < draw_w; x++ )
+            toridraw2d_blend_argb_unclipped(&drow[x], srow[x], alpha);
     }
 }
 
@@ -324,42 +391,91 @@ ToriDraw2D_BlitArgbScaled(
     int src_h,
     int* pixel_buffer)
 {
+    ToriDraw2D_BlitArgbScaledAlpha(
+        view_port, dst_x, dst_y, dst_w, dst_h, src, src_w, src_h, 255, pixel_buffer);
+}
+
+void
+ToriDraw2D_BlitArgbScaledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha,
+    int* pixel_buffer)
+{
     assert(view_port);
     assert(pixel_buffer);
     assert(src);
-    if( src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 )
+    if( src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 || alpha <= 0 )
         return;
+    if( alpha > 255 )
+        alpha = 255;
+
+    int64_t x0 = dst_x;
+    int64_t y0 = dst_y;
+    int64_t x1 = (int64_t)dst_x + dst_w;
+    int64_t y1 = (int64_t)dst_y + dst_h;
+    if( x0 < view_port->clip_left )
+        x0 = view_port->clip_left;
+    if( y0 < view_port->clip_top )
+        y0 = view_port->clip_top;
+    if( x1 > view_port->clip_right )
+        x1 = view_port->clip_right;
+    if( y1 > view_port->clip_bottom )
+        y1 = view_port->clip_bottom;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+
+    int const first_x = (int)(x0 - dst_x);
+    int const first_y = (int)(y0 - dst_y);
+    int const draw_w = (int)(x1 - x0);
+    int const draw_h = (int)(y1 - y0);
+    int const stride = view_port->stride;
+
+    int64_t const x_num = (int64_t)first_x * src_w;
+    int sx0 = (int)(x_num / dst_w);
+    int const x_rem0 = (int)(x_num % dst_w);
+    int const sx_step = src_w / dst_w;
+    int const x_rem_step = src_w % dst_w;
+
+    int64_t const y_num = (int64_t)first_y * src_h;
+    int sy = (int)(y_num / dst_h);
+    int y_rem = (int)(y_num % dst_h);
+    int const sy_step = src_h / dst_h;
+    int const y_rem_step = src_h % dst_h;
 
     /* Exact incremental replacement for the per-pixel (x * src_w) / dst_w.
      * Carrying the remainder reproduces floor(x * src_w / dst_w) for every x
      * with adds and compares only - a 16.16 DDA would not, because the
      * truncated step drifts one unit low wherever dst_w divides x * src_w. */
-    int sy = 0;
-    int y_rem = 0;
-    for( int y = 0; y < dst_h; y++ )
+    for( int y = 0; y < draw_h; y++ )
     {
-        int sy_clamped = sy >= src_h ? src_h - 1 : sy;
-        int dsty = dst_y + y;
-        uint32_t const* srow = src + (size_t)sy_clamped * src_w;
+        uint32_t const* srow = src + (size_t)sy * src_w;
+        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
 
-        int sx = 0;
-        int x_rem = 0;
-        for( int x = 0; x < dst_w; x++ )
+        int sx = sx0;
+        int x_rem = x_rem0;
+        for( int x = 0; x < draw_w; x++ )
         {
-            int sx_clamped = sx >= src_w ? src_w - 1 : sx;
-            ToriDraw2D_BlendArgbPixel(
-                view_port, dst_x + x, dsty, (int)srow[sx_clamped], pixel_buffer);
+            toridraw2d_blend_argb_unclipped(&drow[x], srow[sx], alpha);
 
-            x_rem += src_w;
-            while( x_rem >= dst_w )
+            sx += sx_step;
+            x_rem += x_rem_step;
+            if( x_rem >= dst_w )
             {
                 x_rem -= dst_w;
                 sx++;
             }
         }
 
-        y_rem += src_h;
-        while( y_rem >= dst_h )
+        sy += sy_step;
+        y_rem += y_rem_step;
+        if( y_rem >= dst_h )
         {
             y_rem -= dst_h;
             sy++;
@@ -381,39 +497,76 @@ ToriDraw2D_BlitArgbTiled(
     int origin_y,
     int* pixel_buffer)
 {
+    ToriDraw2D_BlitArgbTiledAlpha(
+        view_port,
+        rect_x,
+        rect_y,
+        rect_w,
+        rect_h,
+        src,
+        src_w,
+        src_h,
+        origin_x,
+        origin_y,
+        255,
+        pixel_buffer);
+}
+
+void
+ToriDraw2D_BlitArgbTiledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int rect_x,
+    int rect_y,
+    int rect_w,
+    int rect_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int origin_x,
+    int origin_y,
+    int alpha,
+    int* pixel_buffer)
+{
     assert(view_port);
     assert(pixel_buffer);
     assert(src);
-    if( src_w <= 0 || src_h <= 0 || rect_w <= 0 || rect_h <= 0 )
+    if( src_w <= 0 || src_h <= 0 || rect_w <= 0 || rect_h <= 0 || alpha <= 0 )
         return;
+    if( alpha > 255 )
+        alpha = 255;
 
-    int const clip_left = view_port->clip_left;
-    int const clip_top = view_port->clip_top;
-    int const clip_right = view_port->clip_right;
-    int const clip_bottom = view_port->clip_bottom;
-
-    int x0 = rect_x < clip_left ? clip_left : rect_x;
-    int y0 = rect_y < clip_top ? clip_top : rect_y;
-    int x1 = rect_x + rect_w;
-    int y1 = rect_y + rect_h;
-    if( x1 > clip_right )
-        x1 = clip_right;
-    if( y1 > clip_bottom )
-        y1 = clip_bottom;
+    int64_t x0 = rect_x;
+    int64_t y0 = rect_y;
+    int64_t x1 = (int64_t)rect_x + rect_w;
+    int64_t y1 = (int64_t)rect_y + rect_h;
+    if( x0 < view_port->clip_left )
+        x0 = view_port->clip_left;
+    if( y0 < view_port->clip_top )
+        y0 = view_port->clip_top;
+    if( x1 > view_port->clip_right )
+        x1 = view_port->clip_right;
+    if( y1 > view_port->clip_bottom )
+        y1 = view_port->clip_bottom;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
 
     /* One modulo at the top of the rect, then increment-and-wrap: the source
      * coordinate advances by exactly 1 per pixel, so the two per-pixel
      * divides the modulo pair compiled to are pure waste. */
-    int sy = (((y0 - origin_y) % src_h) + src_h) % src_h;
-    int const sx0 = (((x0 - origin_x) % src_w) + src_w) % src_w;
+    int sy = (int)(((y0 - origin_y) % src_h + src_h) % src_h);
+    int const sx0 = (int)(((x0 - origin_x) % src_w + src_w) % src_w);
+    int const draw_w = (int)(x1 - x0);
+    int const draw_h = (int)(y1 - y0);
+    int const stride = view_port->stride;
 
-    for( int y = y0; y < y1; y++ )
+    for( int y = 0; y < draw_h; y++ )
     {
         uint32_t const* srow = src + (size_t)sy * src_w;
+        int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
         int sx = sx0;
-        for( int x = x0; x < x1; x++ )
+        for( int x = 0; x < draw_w; x++ )
         {
-            ToriDraw2D_BlendArgbPixel(view_port, x, y, (int)srow[sx], pixel_buffer);
+            toridraw2d_blend_argb_unclipped(&drow[x], srow[sx], alpha);
             if( ++sx == src_w )
                 sx = 0;
         }

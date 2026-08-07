@@ -48,6 +48,15 @@
 #include <string.h>
 #include <time.h>
 
+/* MinGW exposes stat but not the POSIX lstat name. Windows directory entries
+ * cannot introduce the Unix symlink recursion this scan avoids with lstat, so
+ * the ordinary metadata call is the equivalent operation for that lane. */
+#if defined(_WIN32)
+#define scripts_lstat stat
+#else
+#define scripts_lstat lstat
+#endif
+
 /*
  * mock230_send_synth_sound is defined in mock230_encode.c (WEAPON_FX.md §6).
  * It is declared here rather than in mock230.h because mock230.h is out of
@@ -152,7 +161,7 @@ scripts_scan_newer(
             continue;
 
         snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
-        if( lstat(child, &sbuf) != 0 )
+        if( scripts_lstat(child, &sbuf) != 0 )
             continue;
 
         if( S_ISDIR(sbuf.st_mode) )
@@ -257,7 +266,7 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
             if( !dot || strcmp(dot, ".alloc") != 0 )
                 continue;
             snprintf(child, sizeof(child), "%s/%s", packdir, ent->d_name);
-            if( lstat(child, &sbuf) != 0 )
+            if( scripts_lstat(child, &sbuf) != 0 )
                 continue;
             if( sbuf.st_mtime > pack_st.st_mtime )
             {

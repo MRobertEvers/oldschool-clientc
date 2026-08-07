@@ -237,7 +237,7 @@ cp_resolve_ref(
  * configs never spell a caret, and the resolver reports the miss at the use.
  */
 static void
-cp_constants_load(struct CP_Ctx* ctx)
+cp_integer_constants_load(struct CP_Ctx* ctx)
 {
     const char* found[CP_PACK_MAX_SOURCES];
     int found_count;
@@ -339,7 +339,7 @@ cp_resolve_caret(
     }
 
     if( !ctx->constants_loaded )
-        cp_constants_load(ctx);
+        cp_integer_constants_load(ctx);
     for( int i = 0; i < ctx->constants_count; i++ )
     {
         if( strcmp(ctx->constants[i].name, text) == 0 )
@@ -690,14 +690,13 @@ static void
 constants_load_file(struct CP_Ctx* ctx, const char* path)
 {
     FILE* f = fopen(path, "rb");
-    char* line = NULL;
-    size_t cap = 0;
-    ssize_t len;
+    char line[4096];
 
     if( !f )
         return;
-    while( (len = getline(&line, &cap, f)) > 0 )
+    while( fgets(line, sizeof(line), f) )
     {
+        size_t len = strlen(line);
         char* name;
         char* eq;
         char* value;
@@ -760,7 +759,6 @@ constants_load_file(struct CP_Ctx* ctx, const char* path)
             }
         }
     }
-    free(line);
     fclose(f);
 }
 

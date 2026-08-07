@@ -161,12 +161,106 @@ execute_animation_load(
 }
 
 static void
+execute_model_unload(struct ToriRS_D3D9* renderer, int element_id)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_MODEL_UNLOAD;
+    command.u.model_load.element_id = element_id;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_animation_unload(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_ANIM_UNLOAD;
+    command.u.anim_load.element_id = element_id;
+    command.u.anim_load.anim_index = anim_index;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
 execute_batch_clear(struct ToriRS_D3D9* renderer)
 {
     struct ToriRS_RenderCommand command;
     memset(&command, 0, sizeof(command));
     command.kind = TORIRSRC_BATCH3D_CLEAR;
+    command.u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;
+    command.u.batch.clear_all = true;
     ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_batch_begin(struct ToriRS_D3D9* renderer, int batch_id)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_BATCH3D_BEGIN;
+    command.u.batch.batch_id = batch_id;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_batch_add(
+    struct ToriRS_D3D9* renderer,
+    int batch_id,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_Model* model,
+    int animated)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = animated ? TORIRSRC_BATCH3D_ANIM_ADD
+                            : TORIRSRC_BATCH3D_MODEL_ADD;
+    command.u.batch.batch_id = batch_id;
+    command.u.batch.element_id = element_id;
+    command.u.batch.anim_index = anim_index;
+    command.u.batch.pose_id = pose_id;
+    command.u.batch.model = model_handle(model);
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_batch_end(struct ToriRS_D3D9* renderer, int batch_id)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_BATCH3D_END;
+    command.u.batch.batch_id = batch_id;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_batch_target_clear(struct ToriRS_D3D9* renderer, int batch_id)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_BATCH3D_CLEAR;
+    command.u.batch.batch_id = batch_id;
+    command.u.batch.clear_all = false;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_static_batch(
+    struct ToriRS_D3D9* renderer,
+    int batch_id,
+    int element_id,
+    struct ToriDraw_Model* model,
+    int include_animated_pose)
+{
+    execute_batch_begin(renderer, batch_id);
+    execute_batch_add(renderer, batch_id, element_id, 0, 0, model, 0);
+    if( include_animated_pose )
+        execute_batch_add(renderer, batch_id, element_id, 1, 3, model, 1);
+    execute_batch_end(renderer, batch_id);
 }
 
 /* Alternating the two tracks is intentional.  Each replacement leaves the
@@ -482,10 +576,171 @@ cleanup:
     return failed;
 }
 
+static int
+test_d3d9_static_batch_lifecycle(void)
+{
+    enum
+    {
+        LEGACY_ELEMENT = 9,
+        BATCH_A_ELEMENT = 10,
+        BATCH_B_ELEMENT = 11,
+        BATCH_A = 101,
+        BATCH_B = 202,
+        REBUILD_CYCLES = 16
+    };
+    struct RetainedAllocSnapshot entry_alloc = retained_alloc_snapshot();
+    struct RetainedAllocSnapshot plateau_alloc;
+    struct RetainedAllocSnapshot current_alloc;
+    struct ToriRS_D3D9RetainedStats stats;
+    struct ToriDraw_Scene* scene = NULL;
+    struct ToriDraw_Model* model = NULL;
+    struct ToriRS_D3D9* renderer = NULL;
+    uint32_t batch_a_model_base;
+    uint32_t batch_a_anim_base;
+    uint32_t probe;
+    int failed = 0;
+    int cycle;
+
+    ToriDraw_Init();
+    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES);
+    model = make_untextured_model(ANCHOR_FACE_COUNT);
+    renderer = ToriRS_D3D9_New(320, 240);
+    if( !scene || !model || !renderer ||
+        !ToriRS_D3D9_AttachSceneHeadlessForTest(renderer, scene) )
+    {
+        failed = report_failure("static-batch fixture allocation failed");
+        goto cleanup;
+    }
+
+    execute_model_load(renderer, LEGACY_ELEMENT, model);
+    execute_static_batch(renderer, BATCH_A, BATCH_A_ELEMENT, model, 1);
+    execute_static_batch(renderer, BATCH_B, BATCH_B_ELEMENT, model, 0);
+    if( !ToriRS_D3D9_GetPoseBase(
+            renderer, LEGACY_ELEMENT, 0, 0, &probe) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 0, 0, &batch_a_model_base) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 1, 3, &batch_a_anim_base) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_B_ELEMENT, 0, 0, &probe) )
+    {
+        failed = report_failure("batch end did not retain every pose mapping");
+        goto cleanup;
+    }
+
+    execute_model_unload(renderer, BATCH_A_ELEMENT);
+    execute_animation_unload(renderer, BATCH_A_ELEMENT, 1);
+    if( !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 0, 0, &probe) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 1, 3, &probe) )
+    {
+        failed = report_failure(
+            "individual unload mutated geometry owned by a committed batch");
+        goto cleanup;
+    }
+
+    /* One identical rebuild warms all reusable pose/hash/page storage. */
+    execute_static_batch(renderer, BATCH_A, BATCH_A_ELEMENT, model, 1);
+    plateau_alloc = retained_alloc_snapshot();
+    for( cycle = 0; cycle < REBUILD_CYCLES; cycle++ )
+    {
+        uint32_t rebuilt_model_base;
+        uint32_t rebuilt_anim_base;
+        execute_static_batch(renderer, BATCH_A, BATCH_A_ELEMENT, model, 1);
+        if( !ToriRS_D3D9_GetPoseBase(
+                renderer, LEGACY_ELEMENT, 0, 0, &probe) ||
+            !ToriRS_D3D9_GetPoseBase(
+                renderer, BATCH_B_ELEMENT, 0, 0, &probe) ||
+            !ToriRS_D3D9_GetPoseBase(
+                renderer, BATCH_A_ELEMENT, 0, 0, &rebuilt_model_base) ||
+            !ToriRS_D3D9_GetPoseBase(
+                renderer, BATCH_A_ELEMENT, 1, 3, &rebuilt_anim_base) ||
+            rebuilt_model_base != batch_a_model_base ||
+            rebuilt_anim_base != batch_a_anim_base )
+        {
+            failed = report_failure("batch rebuild changed/lost a stable pose mapping");
+            goto cleanup;
+        }
+        current_alloc = retained_alloc_snapshot();
+        if( current_alloc.live_blocks != plateau_alloc.live_blocks ||
+            current_alloc.live_bytes != plateau_alloc.live_bytes )
+        {
+            failed = report_failure("batch rebuild did not reuse retained allocations");
+            goto cleanup;
+        }
+    }
+
+    execute_batch_target_clear(renderer, BATCH_A);
+    if( ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 0, 0, &probe) ||
+        ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 1, 3, &probe) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_B_ELEMENT, 0, 0, &probe) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, LEGACY_ELEMENT, 0, 0, &probe) )
+    {
+        failed = report_failure("targeted clear affected the wrong batch");
+        goto cleanup;
+    }
+
+    execute_static_batch(renderer, BATCH_A, BATCH_A_ELEMENT, model, 1);
+    execute_batch_target_clear(renderer, BATCH_B);
+    if( !ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 0, 0, &probe) ||
+        ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_B_ELEMENT, 0, 0, &probe) ||
+        !ToriRS_D3D9_GetPoseBase(
+            renderer, LEGACY_ELEMENT, 0, 0, &probe) )
+    {
+        failed = report_failure("second targeted clear affected the wrong owner");
+        goto cleanup;
+    }
+
+    execute_batch_clear(renderer);
+    if( ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 0, 0, &probe) ||
+        ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_A_ELEMENT, 1, 3, &probe) ||
+        ToriRS_D3D9_GetPoseBase(
+            renderer, BATCH_B_ELEMENT, 0, 0, &probe) ||
+        ToriRS_D3D9_GetPoseBase(
+            renderer, LEGACY_ELEMENT, 0, 0, &probe) ||
+        !ToriRS_D3D9_GetRetainedStats(renderer, &stats) ||
+        stats.groups[TRSPK_VBO_GROUP_STATIC].write_cursor != 0u ||
+        stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_count != 0u )
+    {
+        failed = report_failure("full clear left retained batch or legacy occupancy");
+        goto cleanup;
+    }
+    current_alloc = retained_alloc_snapshot();
+    if( current_alloc.live_blocks != plateau_alloc.live_blocks ||
+        current_alloc.live_bytes != plateau_alloc.live_bytes )
+    {
+        failed = report_failure("batch clear discarded reusable CPU allocations");
+        goto cleanup;
+    }
+
+cleanup:
+    ToriRS_D3D9_Free(renderer);
+    ToriDraw_ModelFree(model);
+    ToriDraw_SceneFree(scene);
+    current_alloc = retained_alloc_snapshot();
+    if( current_alloc.live_blocks != entry_alloc.live_blocks ||
+        current_alloc.live_bytes != entry_alloc.live_bytes )
+    {
+        failed = report_failure("static-batch teardown leaked heap ownership");
+    }
+    return failed;
+}
+
 int
 main(void)
 {
     if( test_d3d9_retained_execute_steady_state() != 0 )
+        return 1;
+    if( test_d3d9_static_batch_lifecycle() != 0 )
         return 1;
     printf("trspk_leak_test ok\n");
     return 0;

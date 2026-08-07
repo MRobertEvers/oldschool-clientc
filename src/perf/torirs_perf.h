@@ -8,14 +8,20 @@
  * a load-and-branch (or nothing under -DTORIRS_PERF_DISABLE). Stages and
  * counters are a fixed compile-time enum — no strings at runtime, no hashing.
  *
- * Report at exit via TorirsPerf_Report(): per-stage mean/p50/p95/max, counter
- * totals, frames over 20 ms, effective fps. Optional TORIRS_PERF_CSV=<path>
- * writes a machine-readable CSV for tools/perf/compare.py.
+ * Report at exit via TorirsPerf_Report(): per-stage mean/p50/p95/max, main
+ * thread CPU time (which excludes waits), counter totals, frames over 20 ms,
+ * and effective fps. On modern Windows, exact begin-to-frame-end thread cycles
+ * define the non-waiting work interval. The coarse GetThreadTimes interval is
+ * an aggregate scale calibration; the cycle API is runtime-resolved so XP
+ * remains loadable.
+ * Optional TORIRS_PERF_CSV=<path> writes both `cpu` distribution and `cpu_raw`
+ * aggregate rows in a machine-readable CSV for tools/perf/compare.py.
  *
  * Windowed drift: TORIRS_PERF_WINDOW=<N> (default 1000) also appends one row
- * per stage and per counter every N frames (kind=window_stage /
- * window_counter / window_gauge). Counters are deltas over the window;
- * gauges (COUNT_SET) are the last sample. compare.py --drift reads these.
+ * per stage, CPU metric, and counter every N frames (kind=window_stage /
+ * window_cpu / window_cpu_raw / window_counter / window_gauge). Counters are
+ * deltas over the window; gauges (COUNT_SET) are the last sample. compare.py
+ * --drift reads these.
  */
 
 #include <stdint.h>
@@ -36,9 +42,27 @@ enum TorirsPerfStage
     TORIRS_PERF_STAGE_PAINT,
     TORIRS_PERF_STAGE_BUILD,
     TORIRS_PERF_STAGE_RENDER,
+    /** Classifying renderer hits into the world hover/pick set. */
+    TORIRS_PERF_STAGE_PICK_FINISH,
     TORIRS_PERF_STAGE_PRESENT,
     /** Embedded mock230 pump + world tick (net_transport_embed). */
     TORIRS_PERF_STAGE_SERVER,
+    /** Native event/network polling before the command bus is drained. */
+    TORIRS_PERF_STAGE_PLATFORM_POLL,
+    /** Applying the queued platform/network commands to client state. */
+    TORIRS_PERF_STAGE_COMMAND_DRAIN,
+    /** Complete App_RunOnce duration; contains the finer app stages above. */
+    TORIRS_PERF_STAGE_APP_RUN,
+    /** Audio submission and window-title maintenance after presentation. */
+    TORIRS_PERF_STAGE_FRAME_POST,
+    /** Native test-input synthesis, including platform polling. */
+    TORIRS_PERF_STAGE_INPUT_PREP,
+    /** Canvas/backbuffer reconciliation after commands are applied. */
+    TORIRS_PERF_STAGE_SURFACE_SYNC,
+    /** Complete build/render/pick/present call; contains its detailed stages. */
+    TORIRS_PERF_STAGE_DISPLAY,
+    /** Fixed/resizable mode reconciliation after presentation. */
+    TORIRS_PERF_STAGE_WINDOW_SYNC,
     TORIRS_PERF_STAGE_COUNT
 };
 
@@ -173,6 +197,35 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_UITREE_OPKEY_SCAN_NODES,
     TORIRS_PERF_CTR_UITREE_HOOK_INDEX_REBUILD_NODES,
     TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES,
+
+    /* D3D9 retained-resource traffic. Steady-state static values should be 0. */
+    TORIRS_PERF_CTR_D3D9_WORLD_ATLAS_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_WORLD_ATLAS_UPLOADS,
+    TORIRS_PERF_CTR_D3D9_ANIMATED_TEXTURE_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_ANIMATED_TEXTURE_UPLOADS,
+    TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS,
+    TORIRS_PERF_CTR_D3D9_UI_MODEL_FALLBACKS,
+    TORIRS_PERF_CTR_D3D9_UI_BATCH_DRAWS,
+    TORIRS_PERF_CTR_D3D9_UI_WIDGET_DRAWS,
+    TORIRS_PERF_CTR_D3D9_UI_ROTMASK_DRAWS,
+    TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOADS,
+    TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOADS,
+    TORIRS_PERF_CTR_D3D9_STATIC_BATCH_BUILDS,
+    TORIRS_PERF_CTR_D3D9_STATIC_BATCH_ACTIVE_PAGES,
+    TORIRS_PERF_CTR_D3D9_IBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_D3D9_IBO_UPLOADS,
+    /* World-submit diagnostics.  These distinguish index bandwidth from the
+     * driver overhead of fragmented painter-order draw ranges. */
+    TORIRS_PERF_CTR_D3D9_IBO_INDICES,
+    TORIRS_PERF_CTR_D3D9_IBO_CHAIN_NODES,
+    TORIRS_PERF_CTR_D3D9_DRAW_RANGES,
+    TORIRS_PERF_CTR_D3D9_DRAW_CALLS,
+    TORIRS_PERF_CTR_D3D9_PAGE_SWITCHES,
+    TORIRS_PERF_CTR_D3D9_TEXTURE_SWITCHES,
+    TORIRS_PERF_CTR_D3D9_STREAM_SWITCHES,
 
     TORIRS_PERF_CTR_COUNT
 };

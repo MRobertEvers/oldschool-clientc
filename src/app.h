@@ -793,8 +793,10 @@ App_SetCanvasSize(
 
 /**
  * Width of the right-docked chrome strip (popout launcher / open panel) after
- * the live layout pass. Measured from the UITree: the widest full-height
- * component whose right edge is the canvas right edge. 0 when absent.
+ * the live layout pass. Measured from the UITree: the widest full-height,
+ * fixed-width, parent-height, right-anchored component whose right edge is the
+ * canvas right edge. 0 when absent. The layout-mode signature keeps fill-width
+ * interface roots from feeding the canvas width back into itself.
  *
  * Script 5355 carves this strip out of the canvas. In fixed mode the classic
  * frame is authored for APP_CANVAS_MIN_W, so the shell must grow the canvas by

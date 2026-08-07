@@ -49,6 +49,140 @@ blit_pixels(
     }
 }
 
+static bool
+rect_is_valid(
+    const struct TRSPK_Atlas* atlas,
+    uint32_t                  x,
+    uint32_t                  y,
+    uint32_t                  w,
+    uint32_t                  h)
+{
+    if( !atlas || !trspk_atlas_is_initialized(atlas) || !atlas->pixels || !w || !h )
+    {
+        return false;
+    }
+
+    /* Subtraction avoids overflow in x + w and y + h validation. */
+    return x < atlas->width && y < atlas->height &&
+           w <= atlas->width - x && h <= atlas->height - y;
+}
+
+bool
+trspk_atlas_mark_dirty_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t            x,
+    uint32_t            y,
+    uint32_t            w,
+    uint32_t            h)
+{
+    if( !rect_is_valid(atlas, x, y, w, h) )
+    {
+        return false;
+    }
+
+    if( !trspk_atlas_is_dirty(atlas) )
+    {
+        atlas->dirty_rect.x = x;
+        atlas->dirty_rect.y = y;
+        atlas->dirty_rect.w = w;
+        atlas->dirty_rect.h = h;
+        trspk_flags_set(&atlas->flags, TRSPK_ATLAS_FLAG_DIRTY);
+        return true;
+    }
+
+    uint32_t old_right  = atlas->dirty_rect.x + atlas->dirty_rect.w;
+    uint32_t old_bottom = atlas->dirty_rect.y + atlas->dirty_rect.h;
+    uint32_t right      = x + w;
+    uint32_t bottom     = y + h;
+    uint32_t merged_x   = x < atlas->dirty_rect.x ? x : atlas->dirty_rect.x;
+    uint32_t merged_y   = y < atlas->dirty_rect.y ? y : atlas->dirty_rect.y;
+    uint32_t merged_r   = right > old_right ? right : old_right;
+    uint32_t merged_b   = bottom > old_bottom ? bottom : old_bottom;
+
+    atlas->dirty_rect.x = merged_x;
+    atlas->dirty_rect.y = merged_y;
+    atlas->dirty_rect.w = merged_r - merged_x;
+    atlas->dirty_rect.h = merged_b - merged_y;
+    return true;
+}
+
+bool
+trspk_atlas_get_dirty_rect(
+    const struct TRSPK_Atlas*    atlas,
+    struct TRSPK_AtlasDirtyRect* rect_out)
+{
+    if( !atlas || !trspk_atlas_is_dirty(atlas) )
+    {
+        return false;
+    }
+    if( rect_out )
+    {
+        *rect_out = atlas->dirty_rect;
+    }
+    return true;
+}
+
+bool
+trspk_atlas_update_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t            dst_x,
+    uint32_t            dst_y,
+    const uint8_t*      src_pixels,
+    uint32_t            src_stride,
+    uint32_t            src_w,
+    uint32_t            src_h)
+{
+    if( !src_pixels || !rect_is_valid(atlas, dst_x, dst_y, src_w, src_h) )
+    {
+        return false;
+    }
+    if( atlas->channels > UINT32_MAX / src_w ||
+        src_stride < src_w * atlas->channels )
+    {
+        return false;
+    }
+
+    blit_pixels(
+        atlas->pixels, dst_x, dst_y, atlas->stride,
+        src_pixels, src_stride, src_w, src_h, atlas->channels);
+    return trspk_atlas_mark_dirty_rect(atlas, dst_x, dst_y, src_w, src_h);
+}
+
+bool
+trspk_atlas_clear_rect(
+    struct TRSPK_Atlas* atlas,
+    uint32_t            x,
+    uint32_t            y,
+    uint32_t            w,
+    uint32_t            h)
+{
+    if( !rect_is_valid(atlas, x, y, w, h) )
+    {
+        return false;
+    }
+
+    size_t row_bytes = (size_t)w * atlas->channels;
+    for( uint32_t row = 0; row < h; row++ )
+    {
+        uint8_t* dst_row = atlas->pixels + ((y + row) * atlas->stride) +
+                           (x * atlas->channels);
+        memset(dst_row, 0, row_bytes);
+    }
+    return trspk_atlas_mark_dirty_rect(atlas, x, y, w, h);
+}
+
+void
+trspk_atlas_clear(struct TRSPK_Atlas* atlas)
+{
+    if( !atlas || !trspk_atlas_is_initialized(atlas) || !atlas->pixels )
+    {
+        return;
+    }
+
+    memset(atlas->pixels, 0, (size_t)atlas->stride * atlas->height);
+    trspk_atlas_set_dirty(atlas);
+}
+
 /* ------------------------------------------------------------------ */
 /* Grid — lifetime                                                     */
 /* ------------------------------------------------------------------ */
@@ -100,6 +234,7 @@ trspk_atlas_init_grid(
     atlas->free_rects       = NULL;
     atlas->free_rects_count = 0;
     atlas->free_rects_cap   = 0;
+    trspk_atlas_clear_dirty(atlas);
     trspk_atlas_set_initialized(atlas);
     return true;
 }
@@ -116,7 +251,7 @@ trspk_atlas_grid_tile_for_slot(
 {
     assert(atlas);
     assert(tile_out);
-    if( atlas->mode != TRSPK_ATLAS_MODE_GRID )
+    if( !trspk_atlas_is_initialized(atlas) || atlas->mode != TRSPK_ATLAS_MODE_GRID )
     {
         return false;
     }
@@ -163,6 +298,12 @@ trspk_atlas_grid_insert_at(
     {
         return false;
     }
+    if( src_pixels && src_w && src_h &&
+        (atlas->channels > UINT32_MAX / src_w ||
+         src_stride < src_w * atlas->channels) )
+    {
+        return false;
+    }
 
     struct TRSPK_AtlasTile tile;
     if( !trspk_atlas_grid_tile_for_slot(atlas, slot, &tile) )
@@ -170,12 +311,13 @@ trspk_atlas_grid_insert_at(
         return false;
     }
 
-    if( src_pixels )
+    if( src_pixels && src_w && src_h )
     {
-        blit_pixels(
-            atlas->pixels, tile.x, tile.y, atlas->stride,
-            src_pixels, src_stride, src_w, src_h, atlas->channels);
-        trspk_atlas_set_dirty(atlas);
+        if( !trspk_atlas_update_rect(
+                atlas, tile.x, tile.y, src_pixels, src_stride, src_w, src_h) )
+        {
+            return false;
+        }
     }
 
     if( tile_out )
@@ -210,9 +352,14 @@ trspk_atlas_grid_insert(
         return false;
     }
 
-    uint32_t slot = atlas->grid_next++;
-    return trspk_atlas_grid_insert_at(
-        atlas, slot, src_pixels, src_stride, src_w, src_h, tile_out);
+    uint32_t slot = atlas->grid_next;
+    if( !trspk_atlas_grid_insert_at(
+            atlas, slot, src_pixels, src_stride, src_w, src_h, tile_out) )
+    {
+        return false;
+    }
+    atlas->grid_next++;
+    return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -268,6 +415,7 @@ trspk_atlas_init_binpack(
     atlas->free_rects       = free_rects;
     atlas->free_rects_count = 1;
     atlas->free_rects_cap   = TRSPK_ATLAS_BINPACK_INIT_CAP;
+    trspk_atlas_clear_dirty(atlas);
     trspk_atlas_set_initialized(atlas);
     return true;
 }
@@ -347,12 +495,18 @@ trspk_atlas_binpack_insert(
     struct TRSPK_AtlasTile* tile_out)
 {
     assert(atlas);
-    if( atlas->mode != TRSPK_ATLAS_MODE_BINPACK )
+    if( !trspk_atlas_is_initialized(atlas) || atlas->mode != TRSPK_ATLAS_MODE_BINPACK )
     {
         return false;
     }
     if( !src_w || !src_h )
         return false;
+    if( src_pixels &&
+        (atlas->channels > UINT32_MAX / src_w ||
+         src_stride < src_w * atlas->channels) )
+    {
+        return false;
+    }
     assert(tile_out);
 
     uint32_t best_idx   = UINT32_MAX;
@@ -408,10 +562,11 @@ trspk_atlas_binpack_insert(
 
     if( src_pixels )
     {
-        blit_pixels(
-            atlas->pixels, chosen.x, chosen.y, atlas->stride,
-            src_pixels, src_stride, src_w, src_h, atlas->channels);
-        trspk_atlas_set_dirty(atlas);
+        if( !trspk_atlas_update_rect(
+                atlas, chosen.x, chosen.y, src_pixels, src_stride, src_w, src_h) )
+        {
+            return false;
+        }
     }
 
     tile_fill(tile_out, chosen.x, chosen.y, src_w, src_h, atlas->width, atlas->height);

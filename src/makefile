@@ -4,18 +4,11 @@
 # flavors link the same ./torirs, whichever was built last.
 #
 # Which host to build for is one variable, PLATFORM (see platform/platform.mk):
-<<<<<<< HEAD
 #   make -C src all             host native debug -> src/torirs
 #   make -C src release         host native opt   -> src/torirs
 #   make -C src web             emscripten        -> build-web/torirs.js
 #   make -C src winxp           Windows XP (i686) -> src/torirs.exe
 #   make -C src win64           Windows 10+ (x64) -> src/torirs_win64.exe
-=======
-#   make -C src                 host native debug -> src/torirs
-#   make -C src release         host native opt   -> src/torirs
-#   make -C src web             emscripten        -> build-web/torirs.js
-#   make -C src winxp           Windows XP (i686) -> src/torirs.exe
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 #   make -C src io-server       the web build's cache backend (always native)
 #   make -C src lane-check-all  assert every lane's invariants still hold
 # Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
@@ -53,19 +46,11 @@ SRC_DIR      := $(REPO_ROOT)/src
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
 # recipe dies with "p was unexpected at this time" -- which says nothing about
 # the actual cause. Catch it here instead. Git for Windows ships a usable sh at
-<<<<<<< HEAD
 # <Git>\usr\bin; the Windows PowerShell wrappers put it on PATH for you.
 ifeq ($(SHELL),sh.exe)
 $(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
 one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use \
 build_winxp.ps1/build_windows.ps1, which do it for you)
-=======
-# <Git>\usr\bin; build_winxp.ps1 puts it on PATH for you.
-ifeq ($(SHELL),sh.exe)
-$(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
-one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use build_winxp.ps1, \
-which does it for you)
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 endif
 
 include $(SRC_DIR)/platform/platform.mk
@@ -451,7 +436,6 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o $(OBJ_DIR)/wb_minimap.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
-<<<<<<< HEAD
 # Make does not otherwise notice compiler/linker flag changes: an object built
 # with old lane flags could be silently relinked after its ABI contract
 # changed. Keep each Windows lane's effective flags in a timestamped
@@ -468,10 +452,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
-=======
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-server-clean test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -527,7 +508,6 @@ winxp-debug:
 	$(MAKE) PLATFORM=win32 lane-check
 	$(MAKE) PLATFORM=win32 OPT=0 all
 
-<<<<<<< HEAD
 # --- Modern Windows target -----------------------------------------------
 # The wrapper selects the repository's x86_64 compiler and stages the unique
 # source artifact. Keeping this lane explicit also prevents a native Windows
@@ -540,8 +520,6 @@ win64-debug:
 	$(MAKE) PLATFORM=win64 lane-check
 	$(MAKE) PLATFORM=win64 OPT=0 all
 
-=======
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
 # locally is answered by this process, which opens the cache and runs the
@@ -1791,7 +1769,6 @@ test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/light_model_test
 
-<<<<<<< HEAD
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource
 # path without creating a window or D3D device.
@@ -1835,11 +1812,6 @@ endif
 # correct when a platform is added -- the old hardcoded list had already gone
 # stale and never removed build_win32*/, build_win64*/, or their executables.
 # Each pass re-includes
-=======
-# Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
-# correct when a platform is added -- the old hardcoded list had already gone
-# stale and never removed build_win32*/ or torirs.exe. Each pass re-includes
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 # platform.mk with that PLATFORM, so $(PLATFORM_OBJ_BASE)/$(PLATFORM_TARGET)
 # below are that lane's, and the glob covers every flavor suffix
 # (_opt/_mt/_tdo/_es) OBJ_DIR can grow.
@@ -1855,13 +1827,8 @@ clean:
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
-<<<<<<< HEAD
 # values are prefixes of one another (build, build_web, build_win32,
 # build_win64), so `build_*` from the macos lane would delete other lanes too.
-=======
-# values are prefixes of one another (build, build_web, build_win32), so
-# `build_*` from the macos lane would delete the web and win32 objects too.
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 CLEAN_FLAVOR_SUFFIXES := _opt _mt _opt_mt _tdo _opt_tdo _es _opt_es \
 	_mt_es _opt_mt_es _tdo_es _opt_tdo_es
 

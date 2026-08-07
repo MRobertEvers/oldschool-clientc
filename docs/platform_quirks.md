@@ -8,12 +8,13 @@ only in a backend source comment or a renderer guide is not registered.
 [`src/platform/platform.mk`](../src/platform/platform.mk) is the machine-readable
 source of truth for compilers, sources, flags, outputs, and link dependencies.
 This document records the behavior those declarations protect and the reason it
-must not be casually normalized. Detailed implementation guides remain useful,
-but they are subordinate to this registry:
+must not be casually normalized. Implementation and test guides remain useful,
+but they are subordinate to this registry and must not redefine a platform
+contract:
 
-- [Windows XP fixed-function D3D9](windows_xp_d3d9.md)
 - [Web build and runtime](web_build.md)
 - [Performance harness](PERF_HARNESS.md)
+- [Repository Windows toolchains](../tools/toolchain/README.md)
 - [Current TRSPK layout](../3rd/trspk/README.md)
 
 Status terms used below:
@@ -68,6 +69,27 @@ one lane only.
 - **Sources:** [`src/main.c`](../src/main.c),
   [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
   [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+
+### COMMON-WINDOW-002 - Fixed cache chrome measurement must converge
+
+- **Status:** Resolved guardrail
+- **Applies to:** Interactive lanes using cache-owned fixed-mode chrome
+- **Behavior:** Fixed mode keeps the classic game frame at
+  `APP_CANVAS_MIN_W` and adds only the measured right popout strip to the total
+  canvas. A strip candidate must be fixed-width (`width_mode=0`), parent-height
+  (`height_mode=1`), right-anchored (`x_mode=2`), nearly full-height, and end at
+  the current canvas right edge. The host surface is resized only when that
+  converged total changes.
+- **Failure mode:** A mounted interface root can start at a positive X and fill
+  the remaining width. Treating that fill-width root as the strip created a
+  positive feedback loop: 765x503 became 1472x503, then 2179x503, then kept
+  growing. Windows consequently recreated an ever-larger GDI DIB or D3D9
+  viewport every frame, producing Soft3D flicker and lag in both render modes;
+  `surface_sync` alone grew to roughly 26 ms in the captured failure.
+- **Verification:** With `TORIRS_RESIZE_DEBUG=1`, the packed revision-239 fixed
+  scene settles once at 807x503 for its 42-pixel strip. It must not print a
+  resize every frame; steady `surface_sync` p95 should be effectively zero.
+- **Sources:** [`src/app.c`](../src/app.c), [`src/main.c`](../src/main.c)
 
 ### COMMON-INPUT-001 - Escape is an application key by default
 
@@ -271,32 +293,157 @@ one lane only.
 - **Behavior:** The default is classic fixed-function D3D9. `--soft3d` selects
   CPU rasterization and GDI presentation. A D3D9 initialization failure also
   falls back to Soft3D rather than leaving a partially initialized GPU path.
-- **Adapter constraints:** Initialization requires a 2048x2048 texture-capable
-  device. Presentation uses `D3DPRESENT_INTERVAL_DEFAULT`; device loss after a
-  successful initialization is handled through cooperative-level reset/skip
-  logic rather than switching renderers mid-session.
+- **Adapter and pacing constraints:** Initialization requires a 2048x2048
+  texture-capable device. Both lanes use `D3DPRESENT_INTERVAL_IMMEDIATE` because
+  the client loop already owns the absolute 50 Hz deadline; adding the display's
+  wait inside `Present` creates a second pacing policy and visible judder. Device
+  loss after a successful initialization is handled through cooperative-level
+  reset/skip logic rather than switching renderers mid-session.
 - **Reason:** D3D9 avoids the CPU and presentation costs documented below while
   remaining available without optional graphics runtimes.
-- **Detail:** [Windows XP fixed-function D3D9](windows_xp_d3d9.md)
 
-### WINDOWS-D3D9-001 - Draw-range storage is still fixed at 4,096
+### WINDOWS-D3D9-CORE-001 - Both Windows lanes use core fixed-function D3D9
 
-- **Status:** Open defect
+- **Status:** Contract
 - **Applies to:** Win32 and Win64 D3D9
-- **Symptom:** A sufficiently fragmented retained draw list can assert in
-  `trspk_drawrangelist_push`; a build with assertions disabled would write past
-  the allocated list instead.
-- **Cause:** The backend creates its draw-range list with
-  `D3D9_DRAWRANGE_CAP=4096`, although alternating face textures can require one
-  range per face and the detailed D3D9 contract already says 4,096 is not a
-  valid upper bound.
-- **Fix direction:** Grow draw-range storage safely or derive and enforce a
-  real command-stream bound. Do not merely raise the constant without a test
-  that constructs more than 4,096 ranges.
+- **Behavior:** The shared backend uses `IDirect3D9`/`IDirect3DDevice9`, the
+  fixed-function `XYZ | DIFFUSE | TEX1` vertex format, and classic
+  `d3d9.dll`. It must not acquire D3D9Ex, D3DX, D3DCompiler, shaders, DXGI,
+  Direct2D, DirectWrite, SDL, OpenGL, or a post-XP loader-time import. Win64 is
+  a modern ABI/toolchain lane, not a second renderer: its D3D9 path always uses
+  the same XP-era resource and index contract as Win32. There is no adapter-cap
+  or OS-version branch to a different geometry path.
+- **Geometry ownership:** TRSPK owns retained world models, animation poses,
+  paged 16-bit indices, and draw ranges. `TRSPK_Batch16` repacks static and
+  pre-baked animation poses once into chunks of at most 65,535 vertices. The
+  backend assigns each chunk a stable page in one managed static vertex buffer;
+  only genuinely transient geometry enters a dynamic vertex stream.
+- **Coordinates:** TRSPK projection matrices use OpenGL clip-space Z, so the
+  adapter remaps `[-w,+w]` to D3D's `[0,+w]`. D3D viewports keep their top-left
+  origin and pre-transformed 2D vertices keep the D3D9 half-pixel offset.
+- **Painter order:** Each frame walks visible models and their sorted faces in
+  command order, emitting page-local U16 indices into one dynamic IBO. Draw
+  ranges remain contiguous and split on a static page/dynamic binding change,
+  a texture/config change, or the device's `MaxPrimitiveCount`. A static page
+  is selected only through `BaseVertexIndex`; its local indices are never
+  widened or converted to absolute indices.
+- **Index contract:** Every GPU index resource is unconditionally
+  `D3DFMT_INDEX16`. Both lanes use the same page-local U16 IBO-chain path. There
+  is no identity IBO, presentation-VBO path, alternate reliability renderer,
+  32-bit index path, or capability-selected geometry path.
+- **Device lifetime:** Managed static vertex buffers and textures survive a
+  reset. Default-pool dynamic vertex/index resources are released before
+  `Reset` and recreated afterward; all fixed-function state is then reapplied.
+  Device loss skips GPU work until cooperative-level recovery, and
+  resize-triggered reset happens at a frame boundary rather than in `WM_SIZE`.
+- **Reason:** The same renderer source must remain a one-file XP artifact while
+  also serving modern x86_64 Windows. A convenience added for Win64 can
+  otherwise turn into an XP loader failure before fallback code can run.
 - **Sources:**
   [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
-  [`3rd/trspk/core/trspk_drawrangelist.c`](../3rd/trspk/core/trspk_drawrangelist.c),
-  [D3D9 range contract](windows_xp_d3d9.md#indices-and-ranges)
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`3rd/trspk/`](../3rd/trspk/)
+
+### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
+
+- **Status:** Contract
+- **Applies to:** Win32 and Win64 D3D9
+- **Behavior:** Static world textures and ordinary UI sprites live in retained
+  atlases. Atlas writes union an exact dirty rectangle, and the matching D3D9
+  lock/copy covers only that rectangle. Static model buffers are uploaded only
+  after their retained generation changes. A steady frame with unchanged
+  resources performs no static texture or static vertex upload.
+- **Animated and UI data:** Animated world textures keep their own exact-sized
+  buffers and change animation through texture coordinates; their texture
+  pixels upload only on load or replacement, not merely because a frame
+  advanced. UI sprite/font/variant textures are likewise retained until their
+  resource is invalidated. Rotated/masked UI retains separate source and mask
+  textures and combines them natively with an `XYZRHW | DIFFUSE | TEX2` draw;
+  changing the angle updates coordinates, not texture pixels.
+- **Per-frame geometry traffic:** Static-batch vertex pages upload only when a
+  batch is built, changed, or its managed buffer is recreated. Painter order can
+  change every frame, so the renderer intentionally rebuilds and uploads the
+  exact page-local U16 index stream every visible frame. Genuinely dynamic
+  models use the dynamic vertex buffer; unchanged static models do not.
+- **Invalidation seam:** Scene texture load/replacement, sprite/font load or
+  variant creation, atlas insertion, and explicit clear/update operations mark
+  the owned region dirty. Drawing or merely advancing a frame does not.
+- **Texture mapping:** Cache texture IDs map to dense atlas slots and a slot is
+  reserved before asynchronous decode completes, so a late load updates the
+  UVs already baked into retained geometry. Local UVs retain triangle
+  interpolation and use an inset clamp; do not apply `fract()` per vertex.
+  Animated V wrapping belongs to the sampler/texture transform after
+  interpolation, not to atlas-coordinate rewriting.
+- **Verification:** After bootstrap, an unchanged scene must report zero
+  retained texture-upload bytes and zero retained static-buffer uploads. A
+  single changed 128x128 `A8R8G8B8` tile copies 65,536 logical bytes, not the
+  complete 2048x2048 atlas (16 MiB). Tests for the atlas must cover insertion,
+  union, clipping, clear, and dirty-reset behavior.
+- **Profile counters:** In a steady unchanged scene,
+  `d3d9_world_atlas_upload_bytes`,
+  `d3d9_animated_texture_upload_bytes`, and
+  `d3d9_static_vbo_upload_bytes` must remain zero; unchanged UI also keeps
+  `d3d9_ui_texture_upload_bytes` at zero. One dynamic
+  `d3d9_ibo_upload_bytes` event per visible frame is expected because it carries
+  painter order. A static or texture upload in a steady unchanged window must be
+  investigated rather than treated as normal traffic.
+- **Sources:**
+  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
+  [`3rd/trspk/core/trspk_atlas.c`](../3rd/trspk/core/trspk_atlas.c),
+  [`3rd/trspk/core/trspk_atlas.h`](../3rd/trspk/core/trspk_atlas.h)
+
+### WINDOWS-D3D9-2D-001 - UI composition is native and single-pass
+
+- **Status:** Resolved guardrail
+- **Applies to:** Win32 and Win64 D3D9
+- **Behavior:** Sprites, fonts, rectangles, lines, scissoring, and widget
+  models preserve command-stream order through fixed-function D3D9 batches.
+  Widget models are projected, near-clipped, priority-sorted, and submitted as
+  transient native triangles; they do not pass through a software canvas.
+  Sprite and font pixels are retained at resource granularity and reused until
+  invalidated. If a source sprite uses the client convention
+  where nonzero RGB with alpha zero means opaque, normalize that alpha once as
+  the resource enters its retained texture; never rediscover it by scanning a
+  rendered canvas.
+- **Rotated masks:** Compass/minimap-style rotated masked sprites use two
+  retained texture coordinates (`TEX2`) and fixed-function texture stages.
+  Rotation changes only the source coordinates; the mask coordinates remain
+  tied to the destination. Static source and mask pixels are not recomposited
+  or reuploaded each frame.
+- **Forbidden regression:** Do not render each UI segment through Soft3D over
+  black and white, scan the canvas to reconstruct alpha, and upload a
+  next-power-of-two full-screen texture. That path rasterized the same UI
+  twice, made cost proportional to canvas area even when nothing changed, and
+  could upload 8 MiB for one 1440x900 segment (a 2048x1024 texture).
+- **Software boundary:** A command that cannot be expressed by the native
+  fixed-function path may use a bounded CPU fallback whose surface and upload
+  are the command's tight bounds. Falling back must be counted and visible in
+  a profile. It must never silently reinstate a whole-canvas dual pass. The
+  explicit `--soft3d` renderer remains a separate, supported full-renderer
+  choice.
+- **Verification:** A steady ordinary UI has no canvas-alpha scan, no software
+  UI raster pass in D3D9, no full-canvas texture upload, and zero
+  `d3d9_ui_model_fallbacks`. Compare interleaved 3D/2D ordering and sprite alpha,
+  masks, outline, shadow, flip, tile, rotation, font, fill, line, scissor, and
+  widget-model output against Soft3D.
+- **Source:**
+  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c)
+
+### WINDOWS-D3D9-001 - Draw-range storage grows past its initial 4,096 entries
+
+- **Status:** Resolved guardrail
+- **Applies to:** Win32 and Win64 D3D9
+- **Behavior:** `D3D9_DRAWRANGE_CAP=4096` is only the initial allocation for the
+  normal page-local U16 path. Before building ranges, the backend grows storage
+  geometrically to the worst-case number of submitted triangles plus one.
+  Alternating page or texture configurations therefore cannot turn the old
+  estimate into an out-of-bounds write.
+- **Failure mode:** Treating 4,096 as a hard bound let a sufficiently
+  fragmented retained draw list assert in `trspk_drawrangelist_push`; with
+  assertions disabled it could write past the allocation.
+- **Sources:**
+  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
+  [`3rd/trspk/core/trspk_drawrangelist.c`](../3rd/trspk/core/trspk_drawrangelist.c)
 
 ### WIN32-TIMER-001 - Native pacing uses XP-safe absolute deadlines
 
@@ -333,6 +480,55 @@ one lane only.
   [`src/platform/platform_win32_timing.c`](../src/platform/platform_win32_timing.c),
   [`src/platform/test/win32_timing_test.c`](../src/platform/test/win32_timing_test.c)
 
+### WIN32-PERF-001 - Main-thread CPU time is the non-waiting frame metric
+
+- **Status:** Contract
+- **Applies to:** Win32 and Win64, D3D9 and Soft3D profiling builds
+- **Behavior:** The `frame` stage is monotonic wall time closed before the
+  client frame limiter, but it may still include time blocked in a driver or
+  presentation call. The `cpu` metric is main-thread CPU consumed by the
+  frame, so sleeping, an event wait, a blocked `Present`, and the frame limiter
+  do not inflate it. Report both; do not infer active work by subtracting an
+  assumed 20 ms wait from wall time.
+- **Clocks:** `GetThreadTimes` is the XP-safe aggregate authority. Its per-frame
+  increments can be scheduler-quantized, so modern Windows also dynamically
+  resolves `QueryThreadCycleTime` and normalizes its distribution to the
+  aggregate CPU interval. Runtime resolution is mandatory: importing that
+  Vista-era API would break the XP artifact. On XP, judge the raw aggregate
+  mean and sufficiently large windows rather than a quantized one-frame
+  percentile alone.
+- **Regression gate:** Profile an optimized artifact after bootstrap with
+  `TORIRS_PERF=1`, a CSV path, and `--uncapped`. Exercise D3D9 and `--soft3d`
+  at 765x503 and 1440x900. Steady main-thread CPU should be near 5 ms, must
+  remain below 10 ms at p95, and must not trend upward across windows. Record
+  frame, CPU, render, present, upload bytes, and software-fallback counts
+  together; a missed gate remains an open performance defect even when capped
+  wall cadence happens to look correct.
+- **Current optimized measurement (2026-08-06):** Win64 `-O3`, pristine
+  revision-239 offline scene (`manifest_osrs239.ini`), uncapped. Each run used
+  6,000 frames in twelve 500-frame windows with a stable 1,072-component,
+  4,946-command workload. Times are milliseconds and include no frame-limiter
+  wait; aggregate distributions cover the profiler's retained last 2,048
+  frames, while the window files cover all 6,000.
+
+  | Renderer / canvas | CPU mean | CPU p95 | Frame p95 | Render p95 | Present p95 |
+  |---|---:|---:|---:|---:|---:|
+  | D3D9, 765x503 | 3.45 | 5.19 | 5.80 | 3.67 | 0.74 |
+  | Soft3D, 765x503 | 6.08 | 8.53 | 8.71 | 6.94 | 0.16 |
+  | D3D9, 1440x900 resizable | 3.45 | 4.73 | 5.34 | 3.32 | 0.69 |
+  | Soft3D, 1440x900 resizable | 9.98 | 14.72 | 14.86 | 12.52 | 0.48 |
+
+  D3D9 passes the CPU gate in every window. Soft3D's retained 765x503
+  aggregate passes, although three individual windows exceed 10 ms (maximum
+  10.96 ms); 1440x900 remains an open miss. `surface_sync` p95 was below
+  0.001 ms throughout. In D3D9 steady windows, world/animated/UI texture and
+  static-VB uploads were zero. The normal 765x503 painter-order U16 IBO was
+  227.46 KiB per frame. Page-local draw boundaries use `BaseVertexIndex` within
+  one persistent static VB; they are not separate vertex buffers.
+- **Sources:** [`src/perf/torirs_perf.c`](../src/perf/torirs_perf.c),
+  [`src/perf/torirs_perf.h`](../src/perf/torirs_perf.h),
+  [performance harness](PERF_HARNESS.md)
+
 ### WIN32-GDI-001 - Invalidations repaint the retained Soft3D frame
 
 - **Status:** Resolved guardrail
@@ -361,21 +557,57 @@ one lane only.
 ### WIN32-SOFT3D-001 - Raster cost grows with the resizable canvas
 
 - **Status:** Limitation
-- **Applies to:** Win32 `--soft3d`
+- **Applies to:** Win32 and Win64 `--soft3d`
 - **Symptom:** Enlarging a resizable client makes interaction and animation
   progressively slower.
 - **Cause:** Resizable mode grows the authoritative CPU pixel canvas; Soft3D
   shades that larger surface instead of rendering at a fixed resolution and
-  scaling only at presentation.
-- **Measurement (2026-08-06):** On the optimized embedded-server artifact at
+  scaling only at presentation. This path rasterizes the frame once into the
+  retained top-down DIB; GDI then blits that completed image. A render-stage
+  increase is therefore CPU raster work, while a present-stage increase is a
+  separate GDI/driver problem.
+- **Historical measurement (2026-08-06, before the clipped-blit pass):** On the
+  then-current optimized embedded-server artifact at
   1440x900, frame work p50/p95 was
   28.05/35.47 ms and render p50/p95 was 24.66/29.63 ms; 98.1% of frames missed
   the 20 ms work budget. At 765x503, render averaged 11.77 ms and GDI present
   averaged only 0.38 ms, so the CPU rasterizer was the dominant work stage.
+- **Current result:** The 2026-08-06 optimized full-cache 1440x900 run measured
+  9.98 ms main-thread CPU mean / 14.72 ms p95 and 12.52 ms render p95, so this
+  remains an open miss against the 10 ms CPU gate. With world painter output
+  suppressed, render p95 was only 0.41 ms: the remaining scale-dependent cost
+  is world projection, face sorting, and triangle rasterization, not GDI
+  presentation or a redundant full-canvas UI/alpha pass. The exact clipped
+  sprite blits below remove avoidable 2D overhead but do not change that
+  fundamental model/triangle cost.
 - **Workaround:** Prefer D3D9. If Soft3D is required, use fixed mode or a small
   `--window` size and avoid judging it from a debug build.
 - **Sources:** [`src/main.c`](../src/main.c),
   [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+
+### WIN32-SOFT3D-002 - ARGB blits clip once and apply command alpha at the destination
+
+- **Status:** Resolved guardrail
+- **Applies to:** All Soft3D hosts, including Win32 and Win64 `--soft3d`
+- **Behavior:** Plain, nearest-scaled, and tiled ARGB blits intersect the draw
+  bounds with the viewport once, then walk source/destination rows directly.
+  The inner loop retains the exact source-over channel arithmetic and the
+  scaled path retains exact remainder-based source stepping.
+- **Command alpha:** The global-alpha variants multiply source alpha by command
+  alpha using the same integer `(source_alpha * alpha) / 255` rule at the
+  destination. A plain translucent sprite therefore reads the retained source
+  directly; it does not allocate/copy a temporary image and scan every source
+  pixel solely to rewrite alpha. Transformed and outlined cases keep their
+  bounded transform/cache paths as required.
+- **Clarification:** Soft3D rasterizes the frame once. This optimization removes
+  repeated per-pixel clip tests and a source-sprite alpha rewrite; it is not a
+  canvas-alpha reconstruction pass and does not change GDI presentation.
+- **Verification:** `make -C test/toridraw_2d check` differentially compares the
+  optimized plain/scaled/tiled and global-alpha paths with the prior clipped
+  per-pixel reference, including clipping and opacity boundary cases.
+- **Sources:** [`3rd/toridraw/toridraw_2d.c`](../3rd/toridraw/toridraw_2d.c),
+  [`src/platform/platform_sdl2_renderer_soft3d.c`](../src/platform/platform_sdl2_renderer_soft3d.c),
+  [`test/toridraw_2d/toridraw_2d_blit_test.c`](../test/toridraw_2d/toridraw_2d_blit_test.c)
 
 ## Web (Emscripten and WebGL1)
 

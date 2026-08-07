@@ -494,22 +494,6 @@ struct CP_Ctx
     int param_types_count;
 
     /**
-<<<<<<< HEAD
-     * The tree's `^constants`, as a param value can name one.
-     *
-     * `param=undead,^true` and `param=damagetype,^crush_style` are in this tree's
-     * `.npc` overlays, and a `^name` is declared in a `server/scripts/**\/*.constant`
-     * file (4,878 of them across 265 files). Loaded lazily — most packs never
-     * meet a caret, and the walk is only worth doing for one that does.
-     *
-     * Integer-valued constants only. A constant whose value is a name is not a
-     * thing a param value can hold, so it is skipped rather than half-resolved.
-     */
-    struct CP_Constant* constants;
-    int constants_count;
-    int constants_capacity;
-    int constants_loaded;
-=======
      * `^name` -> text, from the tree's `.constant` files — LostCity substitutes
      * these into every config *value* before parsing it (PackShared.ts), which
      * is how `param=undead,^true` is a legal record. Built by
@@ -519,7 +503,12 @@ struct CP_Ctx
     char** constant_names;
     char** constant_values;
     int constant_count;
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
+
+    /** Integer-valued constants retained for typed param/reference parsing. */
+    struct CP_Constant* constants;
+    int constants_count;
+    int constants_capacity;
+    int constants_loaded;
 
     /** Counted, not fatal: a record the decoder did not consume to the byte has
      *  fields this tool cannot see, and the count is the headline of the report. */

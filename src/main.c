@@ -397,7 +397,12 @@ interactive_render_present(
                     frame.dbg_drop_not_live,
                     frame.dbg_drop_no_model);
             if( pick_armed )
-                App_PickFinish(app, ToriRS_D3D9_PickHits(d3d9));
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_D3D9_PickHits(d3d9));
+                }
+            }
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
@@ -440,7 +445,12 @@ interactive_render_present(
                     frame.dbg_drop_not_live,
                     frame.dbg_drop_no_model);
             if( pick_armed )
-                App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+                }
+            }
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
@@ -564,6 +574,7 @@ frame_loop_step(void)
         return 0;
 
     uint64_t now;
+    int app_redraw;
 #if !defined(__EMSCRIPTEN__)
     uint64_t frame_start_ms;
 #endif
@@ -726,11 +737,16 @@ frame_loop_step(void)
     }
     else
     {
-        now = PlatformSDL2_Ticks64();
-        CmdBus_PushFrame(&bus, now);
-        PlatformSDL2_PollCommands(sdl, &bus);
-        if( sock )
-            NetTransport_Poll(sock, app.net, &bus);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
+        {
+            now = PlatformSDL2_Ticks64();
+            CmdBus_PushFrame(&bus, now);
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PLATFORM_POLL)
+            {
+                PlatformSDL2_PollCommands(sdl, &bus);
+                if( sock )
+                    NetTransport_Poll(sock, app.net, &bus);
+            }
 
         /* TORIRS_SIM_DRAG="frame,x0,y0,x1,y1[,repeats[,button]]": press at
          * (x0,y0), move to (x1,y1) over 20 frames, release, and repeat
@@ -1300,11 +1316,15 @@ frame_loop_step(void)
                 wz_frame = -1;
             }
         }
+        }
     }
 
-    LibToriRS_Input_Begin(input, now);
-    App_DrainCommands(&app, &bus, input);
-    LibToriRS_Input_End(input);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
+    {
+        LibToriRS_Input_Begin(input, now);
+        App_DrainCommands(&app, &bus, input);
+        LibToriRS_Input_End(input);
+    }
 
     /* Reconcile the presentation surfaces with the canvas the drain just
      * settled on. The canvas is the authority (App_SetCanvasSize clamps it to a
@@ -1313,18 +1333,31 @@ frame_loop_step(void)
      * UITREE_LAYOUT_ROOT_W x _H ints, so any disagreement here is a buffer
      * overrun rather than a cosmetic bug. Below the floor the window letterboxes
      * the clamped canvas, which is also what fixed mode does. */
-    PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SURFACE_SYNC)
+    {
+        PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #if defined(TORIRS_HAVE_D3D9)
-    if( d3d9 )
-        ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( d3d9 )
+            ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_GL3)
-    if( gl3 )
-        ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( gl3 )
+            ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
+    }
 
-    if( App_RunOnce(&app, now, input) )
-        interactive_render_present(&app, sdl, gl3, d3d9);
+    app_redraw = 0;
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
+    {
+        app_redraw = App_RunOnce(&app, now, input);
+    }
+    if( app_redraw )
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
+        {
+            interactive_render_present(&app, sdl, gl3, d3d9);
+        }
+    }
 #if defined(TORIRS_HAVE_D3D9)
     else if( d3d9 )
     {
@@ -1356,16 +1389,18 @@ frame_loop_step(void)
      * and the strip sits outside it. Must run after App_RunOnce so open/close
      * layout (5354) has already widened/collapsed the strip. The next frame's
      * drain/resize/present picks up the new size. */
-    if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
-        App_SyncFixedChromeInset(&app) )
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_WINDOW_SYNC)
     {
-        int const fw = UITREE_LAYOUT_ROOT_W;
-        int const fh = UITREE_LAYOUT_ROOT_H;
-        PlatformSDL2_SetWindowSize(sdl, fw, fh);
-        PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
-        if( getenv("TORIRS_RESIZE_DEBUG") )
-            fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
-    }
+        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
+            App_SyncFixedChromeInset(&app) )
+        {
+            int const fw = UITREE_LAYOUT_ROOT_W;
+            int const fh = UITREE_LAYOUT_ROOT_H;
+            PlatformSDL2_SetWindowSize(sdl, fw, fh);
+            PlatformSDL2_SetCanvasFollowsWindow(sdl, &bus, false, fw, fh);
+            if( getenv("TORIRS_RESIZE_DEBUG") )
+                fprintf(stderr, "fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+        }
 
     /*
      * A clientscript changed the window mode (the Display panel's client-mode
@@ -1416,16 +1451,19 @@ frame_loop_step(void)
             }
         }
     }
+    }
 
     /* The game asked; the platform plays. Once per frame, after the tick
      * that queued the requests and before the next one recycles their
      * PCM (App_DrainAudio lends it for exactly this long). */
-    PlatformAudio_SubmitAll(
-        audio,
-        audio_commands,
-        App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
-
-    update_window_title(sdl, &app, cfg.interface_id);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_FRAME_POST)
+    {
+        PlatformAudio_SubmitAll(
+            audio,
+            audio_commands,
+            App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
+        update_window_title(sdl, &app, cfg.interface_id);
+    }
     /* Close the work timer before pacing sleeps — otherwise capped runs always
      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
      * flat 1 ms that hides real drift. */
@@ -1681,12 +1719,13 @@ frame_loop_tick(void)
     if( frame_loop_step() )
         return;
     emscripten_cancel_main_loop();
+    /* Close the final CPU calibration interval before capture/destruction. */
+    TorirsPerf_Shutdown();
     frame_loop_teardown();
     App_Shutdown(&app);
 }
 #endif
 
-<<<<<<< HEAD
 struct MainArgState
 {
     int write_bmp;
@@ -1719,13 +1758,6 @@ main_parse_argument_layer(
     int from_manifest,
     char const* program,
     struct MainArgState* state)
-=======
-
-int
-main(
-    int argc,
-    char** argv)
->>>>>>> 5cc78a2898eaf81842f0042a51fce58c1e512f0c
 {
     int argi;
     int positional = 0;
@@ -3074,6 +3106,8 @@ main(
         while( frame_loop_step() )
         {
         }
+        /* Close the final CPU calibration interval before capture/destruction. */
+        TorirsPerf_Shutdown();
         frame_loop_teardown();
 #endif
     }

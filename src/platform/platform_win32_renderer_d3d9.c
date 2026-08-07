@@ -1,6 +1,7 @@
 #include "platform/platform_win32_renderer_d3d9.h"
 
 #include "core/trspk_atlas.h"
+#include "core/trspk_batch16.h"
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_drawrangelist.h"
 #include "core/trspk_ibo.h"
@@ -9,14 +10,18 @@
 #include "core/trspk_pose.h"
 #include "core/trspk_triangles.h"
 #include "core/trspk_vbo.h"
+#include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
 #include "render/trspk_toridraw.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "render/trspk_sprite.h"
 
 #include "toridraw.h"
+#include "toridraw_font.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "toridraw_model_sprite.h"
 #include "toridraw_scene.h"
+#include "toridraw_sprite.h"
 #include "toridraw_types.h"
 
 #include <limits.h>
@@ -43,9 +48,28 @@
 #define D3D9_VBO_PAGE 65536u
 #define D3D9_DRAWRANGE_CAP 4096u
 #define D3D9_GPU_BUFFER_INIT 4096u
+#define D3D9_UI_ATLAS_DIM 2048u
+#define D3D9_UI_SPRITE_CAP 2048
+#define D3D9_UI_VARIANT_CAP 2048u
+#define D3D9_UI_FONT_CAP 32
+#define D3D9_UI_BATCH_MAX_VERTS 32768u
+#define D3D9_UI_ROTMASK_INIT_CAP 8u
+#define D3D9_UI_FONT_BOX_MAX_LINES 64
+#define D3D9_WIDGET_MODEL_NEAR 50.0f
+
+#define D3D9_WIDGET_CONFIG_ATLAS (-1)
+#define D3D9_WIDGET_CONFIG_NONE (-2)
+#define D3D9_WIDGET_CONFIG_SKIP (-3)
+
+#define D3D9_STATIC_PAGE_BINDING_BASE TRSPK_VBO_GROUP_COUNT
+#define D3D9_BATCH_POSE_FLAG 0x80000000u
+#define D3D9_BATCH_POSE_PAGE_MASK 0x7fffu
+#define D3D9_BATCH_POSE_BASE_MASK 0xffffu
+#define D3D9_BATCH_PAGE_LIMIT 32768u
 
 #define D3D9_WORLD_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 #define D3D9_OVERLAY_FVF (D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1)
+#define D3D9_ROTMASK_FVF (D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX2)
 
 struct D3D9OverlayVertex
 {
@@ -56,6 +80,117 @@ struct D3D9OverlayVertex
     D3DCOLOR color;
     float u;
     float v;
+};
+
+struct D3D9RotmaskVertex
+{
+    float x;
+    float y;
+    float z;
+    float rhw;
+    D3DCOLOR color;
+    float source_u;
+    float source_v;
+    float mask_u;
+    float mask_v;
+};
+
+struct D3D9UISpriteSlot
+{
+    int scene_id;
+    int count;
+    float* uvs;
+    uint8_t* loaded;
+};
+
+struct D3D9UISpriteVariant
+{
+    int scene_id;
+    int atlas_index;
+    int outline;
+    int graphic_shadow;
+    int angle;
+    uint8_t flip_h;
+    uint8_t flip_v;
+    uint8_t if3_transform;
+    float u0;
+    float v0;
+    float u1;
+    float v1;
+    int ox;
+    int oy;
+    int width;
+    int height;
+    bool valid;
+};
+
+struct D3D9UIFontSlot
+{
+    int font_id;
+    struct ToriDraw_Font* font;
+    IDirect3DTexture9* texture;
+    UINT texture_width;
+    UINT texture_height;
+    int atlas_width;
+    int atlas_height;
+    float glyph_uv[TORIDRAW_FONT_GLYPH_COUNT * 4];
+    bool baked;
+};
+
+struct D3D9UIRotmaskSlot
+{
+    int scene_id;
+    int atlas_index;
+    int mask_scene_id;
+    int mask_atlas_index;
+    int width;
+    int height;
+    int source_width;
+    int source_height;
+    IDirect3DTexture9* source_texture;
+    UINT source_texture_width;
+    UINT source_texture_height;
+    IDirect3DTexture9* mask_texture;
+    UINT mask_texture_width;
+    UINT mask_texture_height;
+    bool used;
+};
+
+struct D3D9UIBatch
+{
+    struct D3D9OverlayVertex* vertices;
+    uint32_t vertex_count;
+    IDirect3DTexture9* texture;
+    bool uses_sprite_atlas;
+    bool scissor_enabled;
+    RECT scissor;
+};
+
+struct D3D9WidgetVertex
+{
+    float cx;
+    float cy;
+    float cz;
+    float color[4];
+    float u;
+    float v;
+};
+
+struct D3D9StaticBatch
+{
+    int batch_id;
+    struct TRSPK_Batch16* cpu;
+    uint32_t* page_ids;
+    uint32_t page_id_capacity;
+    bool active;
+    bool building;
+};
+
+struct D3D9StaticPageRef
+{
+    uint32_t batch_slot;
+    uint32_t chunk_index;
+    bool valid;
 };
 
 struct D3D9ModelGroup
@@ -99,8 +234,30 @@ struct ToriRS_D3D9
     IDirect3DIndexBuffer9* ibo;
     uint32_t gpu_ibo_capacity;
     struct TRSPK_PoseTable poses;
+    struct TRSPK_PoseTable batch_poses;
     struct TRSPK_IBOChain* ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
+
+    /* Batch16 is retained build-time storage. Its logical pages (at most
+     * 65,535 live vertices in a 65,536-vertex stride) live in one managed D3D9
+     * VBO; a pose encodes a stable page id plus its page-local vertex base.
+     * Per-frame U16 indices select a page through
+     * DrawIndexedPrimitive(BaseVertexIndex), so page changes never rebind the
+     * vertex stream. */
+    struct D3D9StaticBatch* static_batches;
+    uint32_t static_batch_count;
+    uint32_t static_batch_capacity;
+    struct D3D9StaticPageRef* static_pages;
+    uint32_t static_page_count;
+    uint32_t static_page_capacity;
+    IDirect3DVertexBuffer9* static_batch_vbo;
+    uint32_t static_batch_gpu_page_capacity;
+    int current_batch_slot;
+    bool static_batch_upload_pending;
+
+    /* Reused scratch makes each sorted model one U16-chain append. */
+    uint16_t* model_indices;
+    uint32_t model_index_capacity;
 
     float view[16];
     float proj[16];
@@ -109,21 +266,39 @@ struct ToriRS_D3D9
     bool in3d;
     double frame_clock;
 
-    int* overlay_black;
-    int* overlay_white;
-    size_t overlay_pixel_capacity;
-    struct ToriRS_Soft3D soft_black;
-    struct ToriRS_Soft3D soft_white;
-    IDirect3DTexture9* overlay_texture;
-    UINT overlay_tex_w;
-    UINT overlay_tex_h;
     bool in2d;
+
+    /* Retained native 2D resources. Static pixels enter these caches once and
+     * normal frames only resubmit a compact vertex stream. */
+    struct TRSPK_Atlas ui_sprite_atlas;
+    IDirect3DTexture9* ui_sprite_atlas_texture;
+    struct D3D9UISpriteSlot ui_sprite_slots[D3D9_UI_SPRITE_CAP];
+    struct D3D9UISpriteVariant ui_variants[D3D9_UI_VARIANT_CAP];
+    struct D3D9UIFontSlot ui_fonts[D3D9_UI_FONT_CAP];
+    struct D3D9UIRotmaskSlot* ui_rotmasks;
+    uint32_t ui_rotmask_count;
+    uint32_t ui_rotmask_capacity;
+    struct D3D9UIBatch ui_batch;
+    uint64_t ui_texture_upload_bytes;
+    uint64_t ui_texture_upload_count;
 
     bool pick_enabled;
     int pick_mouse_x;
     int pick_mouse_y;
     struct ToriRS_PickHits pick_hits;
 };
+
+static void d3d9_set_no_texture(IDirect3DDevice9* device);
+static void d3d9_disable_texture_transform(IDirect3DDevice9* device);
+static void d3d9_bind_modulated_texture(IDirect3DDevice9* device, IDirect3DTexture9* texture);
+static void d3d9_set_full_viewport(struct ToriRS_D3D9* renderer);
+static bool d3d9_upload_atlas(struct ToriRS_D3D9* renderer);
+static int d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id);
+static int d3d9_ensure_static_texture(struct ToriRS_D3D9* renderer, int tex_id);
+static bool d3d9_ensure_animated_texture(struct ToriRS_D3D9* renderer, int tex_id);
+static void d3d9_map_atlas_uv(
+    int slot, float local_u, float local_v, float* out_u, float* out_v);
+static void d3d9_map_animated_uv(float* u, float* v);
 
 static void
 d3d9_log_hr(const char* where, HRESULT hr)
@@ -148,6 +323,251 @@ d3d9_clampi(int value, int lo, int hi)
     if( value > hi )
         return hi;
     return value;
+}
+
+static float
+d3d9_ui_x(const struct ToriRS_D3D9* renderer, float logical_x)
+{
+    return (float)renderer->lb_x + logical_x * (float)renderer->lb_w /
+            (float)renderer->width -
+        0.5f;
+}
+
+static float
+d3d9_ui_y(const struct ToriRS_D3D9* renderer, float logical_y)
+{
+    return (float)renderer->lb_y + logical_y * (float)renderer->lb_h /
+            (float)renderer->height -
+        0.5f;
+}
+
+static bool
+d3d9_ui_scissor_rect(
+    const struct ToriRS_D3D9* renderer,
+    int x,
+    int y,
+    int width,
+    int height,
+    RECT* out)
+{
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    if( !renderer || !out || width <= 0 || height <= 0 || renderer->width <= 0 ||
+        renderer->height <= 0 || renderer->lb_w <= 0 || renderer->lb_h <= 0 )
+        return false;
+    x0 = d3d9_clampi(x, 0, renderer->width);
+    y0 = d3d9_clampi(y, 0, renderer->height);
+    x1 = d3d9_clampi(x + width, 0, renderer->width);
+    y1 = d3d9_clampi(y + height, 0, renderer->height);
+    if( x1 <= x0 || y1 <= y0 )
+        return false;
+    out->left = renderer->lb_x + (LONG)((int64_t)x0 * renderer->lb_w / renderer->width);
+    out->top = renderer->lb_y + (LONG)((int64_t)y0 * renderer->lb_h / renderer->height);
+    out->right = renderer->lb_x +
+        (LONG)(((int64_t)x1 * renderer->lb_w + renderer->width - 1) / renderer->width);
+    out->bottom = renderer->lb_y +
+        (LONG)(((int64_t)y1 * renderer->lb_h + renderer->height - 1) / renderer->height);
+    out->left = d3d9_clampi((int)out->left, 0, renderer->client_w);
+    out->top = d3d9_clampi((int)out->top, 0, renderer->client_h);
+    out->right = d3d9_clampi((int)out->right, (int)out->left, renderer->client_w);
+    out->bottom = d3d9_clampi((int)out->bottom, (int)out->top, renderer->client_h);
+    return out->right > out->left && out->bottom > out->top;
+}
+
+static bool
+d3d9_ui_intersect_scissor_rect(
+    const struct ToriRS_D3D9* renderer,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    RECT* out)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    trspk_rect_intersect(
+        scissor_x,
+        scissor_y,
+        scissor_w,
+        scissor_h,
+        box_x,
+        box_y,
+        box_w,
+        box_h,
+        &x,
+        &y,
+        &w,
+        &h);
+    return d3d9_ui_scissor_rect(renderer, x, y, w, h, out);
+}
+
+static bool
+d3d9_ui_rect_equal(const RECT* a, const RECT* b)
+{
+    return a->left == b->left && a->top == b->top && a->right == b->right &&
+        a->bottom == b->bottom;
+}
+
+static bool
+d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer);
+
+static void
+d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DDevice9* device = renderer->device;
+    IDirect3DDevice9_SetVertexShader(device, NULL);
+    IDirect3DDevice9_SetPixelShader(device, NULL);
+    IDirect3DDevice9_SetFVF(device, D3D9_OVERLAY_FVF);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_CULLMODE, D3DCULL_NONE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, D3DZB_FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAREF, 1u);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, FALSE);
+    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetTexture(device, 1u, NULL);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    d3d9_disable_texture_transform(device);
+}
+
+static void
+d3d9_ui_batch_reset(struct ToriRS_D3D9* renderer)
+{
+    renderer->ui_batch.vertex_count = 0u;
+    renderer->ui_batch.texture = NULL;
+    renderer->ui_batch.uses_sprite_atlas = false;
+    renderer->ui_batch.scissor_enabled = false;
+    memset(&renderer->ui_batch.scissor, 0, sizeof(renderer->ui_batch.scissor));
+}
+
+static void
+d3d9_ui_flush(struct ToriRS_D3D9* renderer)
+{
+    struct D3D9UIBatch* batch;
+    if( !renderer || !renderer->device )
+        return;
+    batch = &renderer->ui_batch;
+    if( batch->vertex_count == 0u )
+        return;
+    if( batch->uses_sprite_atlas && trspk_atlas_is_dirty(&renderer->ui_sprite_atlas) &&
+        !d3d9_upload_ui_atlas(renderer) )
+    {
+        batch->vertex_count = 0u;
+        return;
+    }
+    if( batch->uses_sprite_atlas )
+        batch->texture = renderer->ui_sprite_atlas_texture;
+    if( batch->texture )
+        d3d9_bind_modulated_texture(renderer->device, batch->texture);
+    else
+        d3d9_set_no_texture(renderer->device);
+    IDirect3DDevice9_SetRenderState(
+        renderer->device, D3DRS_SCISSORTESTENABLE, batch->scissor_enabled ? TRUE : FALSE);
+    if( batch->scissor_enabled )
+        IDirect3DDevice9_SetScissorRect(renderer->device, &batch->scissor);
+    IDirect3DDevice9_DrawPrimitiveUP(
+        renderer->device,
+        D3DPT_TRIANGLELIST,
+        batch->vertex_count / 3u,
+        batch->vertices,
+        (UINT)sizeof(batch->vertices[0]));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_BATCH_DRAWS, 1);
+    batch->vertex_count = 0u;
+}
+
+static bool
+d3d9_ui_prepare_batch(
+    struct ToriRS_D3D9* renderer,
+    IDirect3DTexture9* texture,
+    bool uses_sprite_atlas,
+    const RECT* scissor,
+    uint32_t additional_vertices)
+{
+    struct D3D9UIBatch* batch = &renderer->ui_batch;
+    bool state_changed = batch->vertex_count > 0u &&
+        (batch->texture != texture || batch->uses_sprite_atlas != uses_sprite_atlas ||
+            batch->scissor_enabled != (scissor != NULL) ||
+            (scissor && !d3d9_ui_rect_equal(&batch->scissor, scissor)));
+    if( state_changed || batch->vertex_count + additional_vertices > D3D9_UI_BATCH_MAX_VERTS )
+        d3d9_ui_flush(renderer);
+    if( additional_vertices > D3D9_UI_BATCH_MAX_VERTS || !batch->vertices )
+        return false;
+    batch->texture = texture;
+    batch->uses_sprite_atlas = uses_sprite_atlas;
+    batch->scissor_enabled = scissor != NULL;
+    if( scissor )
+        batch->scissor = *scissor;
+    return true;
+}
+
+static void
+d3d9_ui_append_quad_vertices(
+    struct ToriRS_D3D9* renderer,
+    IDirect3DTexture9* texture,
+    bool uses_sprite_atlas,
+    const RECT* scissor,
+    const float positions[4][2],
+    const float uv[4][2],
+    D3DCOLOR color)
+{
+    static const uint8_t order[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
+    struct D3D9OverlayVertex* dst;
+    uint32_t i;
+    if( !d3d9_ui_prepare_batch(renderer, texture, uses_sprite_atlas, scissor, 6u) )
+        return;
+    dst = &renderer->ui_batch.vertices[renderer->ui_batch.vertex_count];
+    for( i = 0u; i < 6u; i++ )
+    {
+        uint8_t corner = order[i];
+        dst[i].x = d3d9_ui_x(renderer, positions[corner][0]);
+        dst[i].y = d3d9_ui_y(renderer, positions[corner][1]);
+        dst[i].z = 0.0f;
+        dst[i].rhw = 1.0f;
+        dst[i].color = color;
+        dst[i].u = uv ? uv[corner][0] : 0.0f;
+        dst[i].v = uv ? uv[corner][1] : 0.0f;
+    }
+    renderer->ui_batch.vertex_count += 6u;
+}
+
+static void
+d3d9_ui_append_quad(
+    struct ToriRS_D3D9* renderer,
+    IDirect3DTexture9* texture,
+    bool uses_sprite_atlas,
+    const RECT* scissor,
+    float x0,
+    float y0,
+    float x1,
+    float y1,
+    float u0,
+    float v0,
+    float u1,
+    float v1,
+    D3DCOLOR color)
+{
+    const float positions[4][2] = { { x0, y0 }, { x1, y0 }, { x1, y1 }, { x0, y1 } };
+    const float uv[4][2] = { { u0, v0 }, { u1, v0 }, { u1, v1 }, { u0, v1 } };
+    d3d9_ui_append_quad_vertices(
+        renderer, texture, uses_sprite_atlas, scissor, positions, uv, color);
 }
 
 static void
@@ -270,28 +690,48 @@ d3d9_bind_modulated_texture(IDirect3DDevice9* device, IDirect3DTexture9* texture
     IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 }
 
-static float
-d3d9_texture_animation_signed(int direction, int speed)
+static void
+d3d9_texture_animation_offsets(
+    int direction,
+    int speed,
+    float* out_u,
+    float* out_v)
 {
-    float amount;
-    if( direction == TORIDRAW_TEXANIM_DIRECTION_NONE || speed == 0 )
-        return 0.0f;
-    amount = (float)speed / 128.0f;
-    return direction == TORIDRAW_TEXANIM_DIRECTION_U_DOWN ||
-                   direction == TORIDRAW_TEXANIM_DIRECTION_U_UP
-               ? amount
-               : -amount;
+    float amount = (float)speed / 128.0f;
+    *out_u = 0.0f;
+    *out_v = 0.0f;
+    /* Match ToriDraw_TextureAnimate's source-coordinate shift: DOWN samples
+     * from the negative direction and UP from the positive direction. */
+    switch( direction )
+    {
+    case TORIDRAW_TEXANIM_DIRECTION_U_DOWN:
+        *out_u = -amount;
+        break;
+    case TORIDRAW_TEXANIM_DIRECTION_U_UP:
+        *out_u = amount;
+        break;
+    case TORIDRAW_TEXANIM_DIRECTION_V_DOWN:
+        *out_v = -amount;
+        break;
+    case TORIDRAW_TEXANIM_DIRECTION_V_UP:
+        *out_v = amount;
+        break;
+    default:
+        break;
+    }
 }
 
 static void
-d3d9_apply_texture_scroll(IDirect3DDevice9* device, float amount, float clock_value)
+d3d9_apply_texture_scroll(
+    IDirect3DDevice9* device,
+    float amount_u,
+    float amount_v,
+    float clock_value)
 {
     D3DMATRIX matrix;
     d3d9_identity(&matrix);
-    if( amount > 0.0f )
-        matrix._31 = clock_value * amount;
-    else if( amount < 0.0f )
-        matrix._32 = -fmodf(clock_value * -amount, 1.0f);
+    matrix._31 = fmodf(clock_value * amount_u, 1.0f);
+    matrix._32 = fmodf(clock_value * amount_v, 1.0f);
     IDirect3DDevice9_SetTextureStageState(
         device, 0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_COUNT2);
     IDirect3DDevice9_SetTransform(device, D3DTS_TEXTURE0, &matrix);
@@ -315,20 +755,31 @@ static void
 d3d9_bind_animated(struct ToriRS_D3D9* renderer, int tex_id)
 {
     struct ToriDraw_Texture* texture = NULL;
-    float amount = 0.0f;
+    float amount_u = 0.0f;
+    float amount_v = 0.0f;
     if( tex_id >= 0 && tex_id < TORIDRAW_TEXTURE_ID_CAPACITY && renderer->scene )
         texture = ToriDraw_TextureMapGet(
             &ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
     if( texture )
-        amount = d3d9_texture_animation_signed(
-            texture->animation_direction, texture->animation_speed);
+        d3d9_texture_animation_offsets(
+            texture->animation_direction,
+            texture->animation_speed,
+            &amount_u,
+            &amount_v);
 
     d3d9_bind_modulated_texture(renderer->device, renderer->animated_textures[tex_id]);
     IDirect3DDevice9_SetSamplerState(
-        renderer->device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+        renderer->device,
+        0,
+        D3DSAMP_ADDRESSU,
+        amount_u != 0.0f ? D3DTADDRESS_WRAP : D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(
-        renderer->device, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-    d3d9_apply_texture_scroll(renderer->device, amount, (float)renderer->frame_clock);
+        renderer->device,
+        0,
+        D3DSAMP_ADDRESSV,
+        amount_v != 0.0f ? D3DTADDRESS_WRAP : D3DTADDRESS_CLAMP);
+    d3d9_apply_texture_scroll(
+        renderer->device, amount_u, amount_v, (float)renderer->frame_clock);
 }
 
 static bool
@@ -369,13 +820,23 @@ d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
     /* SetIndices retains a device-side reference. Unbind it before dropping
      * our reference or Reset can still see a live DEFAULT-pool resource. */
     if( renderer->device )
+    {
         IDirect3DDevice9_SetIndices(renderer->device, NULL);
+        IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
+    }
     if( renderer->ibo )
     {
         IDirect3DIndexBuffer9_Release(renderer->ibo);
         renderer->ibo = NULL;
     }
     renderer->gpu_ibo_capacity = 0u;
+    if( renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu )
+    {
+        IDirect3DVertexBuffer9_Release(
+            renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu);
+        renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu = NULL;
+    }
+    renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].gpu_capacity = 0u;
 }
 
 static void
@@ -494,221 +955,2406 @@ d3d9_end_frame_scene(struct ToriRS_D3D9* renderer)
         d3d9_log_hr("EndScene", hr);
 }
 
-static bool
-d3d9_ensure_overlay_buffers(struct ToriRS_D3D9* renderer)
+static uint32_t
+d3d9_ui_normalize_argb(uint32_t pixel)
 {
-    size_t pixels;
-    int* black;
-    int* white;
-    if( renderer->width <= 0 || renderer->height <= 0 )
-        return false;
-    pixels = (size_t)renderer->width * (size_t)renderer->height;
-    if( pixels <= renderer->overlay_pixel_capacity &&
-        renderer->overlay_black && renderer->overlay_white )
-        return true;
-
-    black = (int*)malloc(pixels * sizeof(int));
-    white = (int*)malloc(pixels * sizeof(int));
-    if( !black || !white )
-    {
-        free(black);
-        free(white);
-        fprintf(stderr, "D3D9: failed to allocate the 2D compatibility buffers\n");
-        return false;
-    }
-    free(renderer->overlay_black);
-    free(renderer->overlay_white);
-    renderer->overlay_black = black;
-    renderer->overlay_white = white;
-    renderer->overlay_pixel_capacity = pixels;
-    return true;
+    uint32_t rgb = pixel & 0x00ffffffu;
+    uint32_t alpha = pixel >> 24;
+    if( alpha == 0u && rgb != 0u )
+        alpha = 255u;
+    return rgb | (alpha << 24);
 }
 
 static void
-d3d9_release_overlay_texture(struct ToriRS_D3D9* renderer)
+d3d9_ui_rotmask_release_slot(struct D3D9UIRotmaskSlot* slot)
 {
-    if( renderer->overlay_texture )
+    if( !slot )
+        return;
+    if( slot->source_texture )
+        IDirect3DTexture9_Release(slot->source_texture);
+    if( slot->mask_texture )
+        IDirect3DTexture9_Release(slot->mask_texture);
+    memset(slot, 0, sizeof(*slot));
+}
+
+static void
+d3d9_ui_rotmask_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
+{
+    uint32_t i;
+    if( !renderer || scene_id <= 0 )
+        return;
+    for( i = 0u; i < renderer->ui_rotmask_count; i++ )
     {
-        IDirect3DTexture9_Release(renderer->overlay_texture);
-        renderer->overlay_texture = NULL;
+        struct D3D9UIRotmaskSlot* slot = &renderer->ui_rotmasks[i];
+        if( slot->used &&
+            (slot->scene_id == scene_id || slot->mask_scene_id == scene_id) )
+            d3d9_ui_rotmask_release_slot(slot);
     }
-    renderer->overlay_tex_w = 0u;
-    renderer->overlay_tex_h = 0u;
+}
+
+static int
+d3d9_ui_sprite_slot_index(struct ToriRS_D3D9* renderer, int scene_id, bool create)
+{
+    int free_index = -1;
+    int i;
+    for( i = 0; i < D3D9_UI_SPRITE_CAP; i++ )
+    {
+        if( renderer->ui_sprite_slots[i].scene_id == scene_id )
+            return i;
+        if( free_index < 0 && renderer->ui_sprite_slots[i].scene_id <= 0 )
+            free_index = i;
+    }
+    if( !create || free_index < 0 )
+        return -1;
+    renderer->ui_sprite_slots[free_index].scene_id = scene_id;
+    renderer->ui_sprite_slots[free_index].count = 0;
+    free(renderer->ui_sprite_slots[free_index].uvs);
+    free(renderer->ui_sprite_slots[free_index].loaded);
+    renderer->ui_sprite_slots[free_index].uvs = NULL;
+    renderer->ui_sprite_slots[free_index].loaded = NULL;
+    return free_index;
+}
+
+static void
+d3d9_ui_sprite_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
+{
+    int slot_index;
+    uint32_t i;
+    slot_index = d3d9_ui_sprite_slot_index(renderer, scene_id, false);
+    if( slot_index >= 0 )
+    {
+        struct D3D9UISpriteSlot* slot = &renderer->ui_sprite_slots[slot_index];
+        free(slot->uvs);
+        free(slot->loaded);
+        memset(slot, 0, sizeof(*slot));
+    }
+    for( i = 0u; i < D3D9_UI_VARIANT_CAP; i++ )
+        if( renderer->ui_variants[i].valid &&
+            renderer->ui_variants[i].scene_id == scene_id )
+            renderer->ui_variants[i].valid = false;
+    d3d9_ui_rotmask_invalidate(renderer, scene_id);
 }
 
 static bool
-d3d9_ensure_overlay_texture(struct ToriRS_D3D9* renderer)
+d3d9_ui_upload_sprite_pixels(
+    struct ToriRS_D3D9* renderer,
+    const uint32_t* source,
+    int width,
+    int height,
+    float out_uv[4])
 {
-    UINT tex_w;
-    UINT tex_h;
-    HRESULT hr;
-    if( !renderer->device || renderer->width <= 0 || renderer->height <= 0 )
+    struct TRSPK_AtlasTile tile;
+    uint32_t* argb;
+    size_t count;
+    size_t i;
+    bool inserted;
+    if( !source || width <= 0 || height <= 0 )
         return false;
-    tex_w = d3d9_next_pow2((UINT)renderer->width);
-    tex_h = d3d9_next_pow2((UINT)renderer->height);
-    if( renderer->caps.TextureCaps & D3DPTEXTURECAPS_SQUAREONLY )
-    {
-        UINT side = tex_w > tex_h ? tex_w : tex_h;
-        tex_w = side;
-        tex_h = side;
-    }
-    else if( renderer->caps.MaxTextureAspectRatio != 0u )
-    {
-        const UINT ratio = renderer->caps.MaxTextureAspectRatio;
-        while( (uint64_t)tex_w > (uint64_t)tex_h * ratio &&
-               tex_h < renderer->caps.MaxTextureHeight )
-            tex_h <<= 1u;
-        while( (uint64_t)tex_h > (uint64_t)tex_w * ratio &&
-               tex_w < renderer->caps.MaxTextureWidth )
-            tex_w <<= 1u;
-    }
-    if( tex_w > renderer->caps.MaxTextureWidth || tex_h > renderer->caps.MaxTextureHeight ||
-        (renderer->caps.MaxTextureAspectRatio != 0u &&
-            ((uint64_t)tex_w >
-                    (uint64_t)tex_h * renderer->caps.MaxTextureAspectRatio ||
-                (uint64_t)tex_h >
-                    (uint64_t)tex_w * renderer->caps.MaxTextureAspectRatio)) )
-    {
-        fprintf(
-            stderr,
-            "D3D9: logical canvas %dx%d exceeds texture caps %lux%lu\n",
-            renderer->width,
-            renderer->height,
-            (unsigned long)renderer->caps.MaxTextureWidth,
-            (unsigned long)renderer->caps.MaxTextureHeight);
+    count = (size_t)width * (size_t)height;
+    argb = (uint32_t*)malloc(count * sizeof(*argb));
+    if( !argb )
         return false;
-    }
-    if( renderer->overlay_texture && renderer->overlay_tex_w == tex_w &&
-        renderer->overlay_tex_h == tex_h )
-        return true;
+    for( i = 0u; i < count; i++ )
+        argb[i] = d3d9_ui_normalize_argb(source[i]);
+    inserted = trspk_atlas_binpack_insert(
+        &renderer->ui_sprite_atlas,
+        (const uint8_t*)argb,
+        (uint32_t)width * 4u,
+        (uint32_t)width,
+        (uint32_t)height,
+        &tile);
+    free(argb);
+    if( !inserted )
+        return false;
+    out_uv[0] = tile.u_start;
+    out_uv[1] = tile.v_start;
+    out_uv[2] = tile.u_end;
+    out_uv[3] = tile.v_end;
+    return true;
+}
 
-    d3d9_release_overlay_texture(renderer);
+static bool
+d3d9_ui_sprite_ensure_base(
+    struct ToriRS_D3D9* renderer,
+    int scene_id,
+    int atlas_index,
+    struct ToriDraw_Sprite** out_sprite,
+    float out_uv[4])
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite* sprite;
+    struct D3D9UISpriteSlot* slot;
+    int count = 0;
+    int slot_index;
+    if( !renderer->scene || scene_id <= 0 )
+        return false;
+    sprites = ToriDraw_SceneSpriteGet(renderer->scene, scene_id, &count);
+    if( !sprites || atlas_index < 0 || atlas_index >= count )
+        return false;
+    sprite = sprites[atlas_index];
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return false;
+    slot_index = d3d9_ui_sprite_slot_index(renderer, scene_id, true);
+    if( slot_index < 0 )
+        return false;
+    slot = &renderer->ui_sprite_slots[slot_index];
+    if( slot->count != count )
+    {
+        float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
+        uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
+        if( !uvs || !loaded )
+        {
+            free(uvs);
+            free(loaded);
+            return false;
+        }
+        free(slot->uvs);
+        free(slot->loaded);
+        slot->uvs = uvs;
+        slot->loaded = loaded;
+        slot->count = count;
+    }
+    if( !slot->loaded[atlas_index] )
+    {
+        float uv[4];
+        if( !d3d9_ui_upload_sprite_pixels(
+                renderer, sprite->pixels_argb, sprite->width, sprite->height, uv) )
+            return false;
+        memcpy(&slot->uvs[atlas_index * 4], uv, sizeof(uv));
+        slot->loaded[atlas_index] = 1u;
+    }
+    *out_sprite = sprite;
+    memcpy(out_uv, &slot->uvs[atlas_index * 4], sizeof(float) * 4u);
+    return true;
+}
+
+static struct D3D9UISpriteVariant*
+d3d9_ui_sprite_variant(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Sprite* command,
+    bool create)
+{
+    struct D3D9UISpriteVariant* free_variant = NULL;
+    uint32_t i;
+    for( i = 0u; i < D3D9_UI_VARIANT_CAP; i++ )
+    {
+        struct D3D9UISpriteVariant* variant = &renderer->ui_variants[i];
+        if( !variant->valid )
+        {
+            if( !free_variant )
+                free_variant = variant;
+            continue;
+        }
+        if( variant->scene_id == command->scene_id &&
+            variant->atlas_index == command->atlas_index &&
+            variant->outline == command->outline &&
+            variant->graphic_shadow == command->graphic_shadow &&
+            variant->angle == command->sprite_angle_r2pi65536 &&
+            variant->flip_h == command->flip_h && variant->flip_v == command->flip_v &&
+            variant->if3_transform == (uint8_t)(command->if3 && !command->tiled) )
+            return variant;
+    }
+    if( !create || !free_variant )
+        return NULL;
+    memset(free_variant, 0, sizeof(*free_variant));
+    free_variant->scene_id = command->scene_id;
+    free_variant->atlas_index = command->atlas_index;
+    free_variant->outline = command->outline;
+    free_variant->graphic_shadow = command->graphic_shadow;
+    free_variant->angle = command->sprite_angle_r2pi65536;
+    free_variant->flip_h = command->flip_h;
+    free_variant->flip_v = command->flip_v;
+    free_variant->if3_transform = (uint8_t)(command->if3 && !command->tiled);
+    return free_variant;
+}
+
+static uint32_t*
+d3d9_ui_clamp_sprite(
+    const uint32_t* source,
+    int source_width,
+    int source_height,
+    int offset_x,
+    int offset_y,
+    int width,
+    int height)
+{
+    uint32_t* result;
+    int x;
+    int y;
+    if( !source || source_width <= 0 || source_height <= 0 || width <= 0 || height <= 0 )
+        return NULL;
+    result = (uint32_t*)calloc((size_t)width * (size_t)height, sizeof(*result));
+    if( !result )
+        return NULL;
+    for( y = 0; y < source_height; y++ )
+    {
+        int dst_y = y + offset_y;
+        if( dst_y < 0 || dst_y >= height )
+            continue;
+        for( x = 0; x < source_width; x++ )
+        {
+            int dst_x = x + offset_x;
+            if( dst_x >= 0 && dst_x < width )
+                result[dst_y * width + dst_x] = source[y * source_width + x];
+        }
+    }
+    return result;
+}
+
+static bool
+d3d9_ui_sprite_ensure_variant(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Sprite* command,
+    struct ToriDraw_Sprite** out_sprite,
+    float out_uv[4],
+    int* out_offset_x,
+    int* out_offset_y,
+    int* out_width,
+    int* out_height)
+{
+    struct ToriDraw_Sprite* sprite;
+    struct D3D9UISpriteVariant* variant;
+    float base_uv[4];
+    uint32_t* pixels;
+    int width;
+    int height;
+    int offset_x;
+    int offset_y;
+    int nominal_width;
+    int nominal_height;
+    if( !d3d9_ui_sprite_ensure_base(
+            renderer, command->scene_id, command->atlas_index, &sprite, base_uv) )
+        return false;
+    if( command->outline <= 0 && command->graphic_shadow == 0 && !command->flip_h &&
+        !command->flip_v && command->sprite_angle_r2pi65536 == 0 )
+    {
+        *out_sprite = sprite;
+        memcpy(out_uv, base_uv, sizeof(base_uv));
+        *out_offset_x = sprite->crop_x;
+        *out_offset_y = sprite->crop_y;
+        *out_width = sprite->width;
+        *out_height = sprite->height;
+        return true;
+    }
+    variant = d3d9_ui_sprite_variant(renderer, command, true);
+    if( !variant )
+        return false;
+    if( variant->valid )
+    {
+        *out_sprite = sprite;
+        out_uv[0] = variant->u0;
+        out_uv[1] = variant->v0;
+        out_uv[2] = variant->u1;
+        out_uv[3] = variant->v1;
+        *out_offset_x = variant->ox;
+        *out_offset_y = variant->oy;
+        *out_width = variant->width;
+        *out_height = variant->height;
+        return true;
+    }
+    width = sprite->width;
+    height = sprite->height;
+    offset_x = sprite->crop_x;
+    offset_y = sprite->crop_y;
+    nominal_width = sprite->width;
+    nominal_height = sprite->height;
+    pixels = (uint32_t*)malloc((size_t)width * (size_t)height * sizeof(*pixels));
+    if( !pixels )
+        return false;
+    memcpy(pixels, sprite->pixels_argb, (size_t)width * (size_t)height * sizeof(*pixels));
+    if( command->outline > 0 )
+    {
+        int next_width = 0;
+        int next_height = 0;
+        uint32_t* next = ToriDraw_SpriteNewGraphicOutline(
+            pixels, width, height, command->outline, &next_width, &next_height);
+        if( next )
+        {
+            free(pixels);
+            pixels = next;
+            width = next_width;
+            height = next_height;
+        }
+    }
+    if( command->graphic_shadow != 0 )
+    {
+        int next_width = 0;
+        int next_height = 0;
+        uint32_t* next = ToriDraw_SpriteNewGraphicShadow(
+            pixels,
+            width,
+            height,
+            command->graphic_shadow,
+            &next_width,
+            &next_height);
+        if( next )
+        {
+            free(pixels);
+            pixels = next;
+            width = next_width;
+            height = next_height;
+        }
+    }
+    if( command->if3 && !command->tiled )
+    {
+        ToriDraw_SpriteTransformPixels(
+            &pixels, &width, &height, command->flip_h, command->flip_v, 0);
+        if( offset_x != 0 || offset_y != 0 || width != nominal_width ||
+            height != nominal_height )
+        {
+            uint32_t* next = d3d9_ui_clamp_sprite(
+                pixels,
+                width,
+                height,
+                offset_x,
+                offset_y,
+                nominal_width,
+                nominal_height);
+            if( next )
+            {
+                free(pixels);
+                pixels = next;
+                width = nominal_width;
+                height = nominal_height;
+                offset_x = 0;
+                offset_y = 0;
+            }
+        }
+        ToriDraw_SpriteTransformPixels(
+            &pixels, &width, &height, 0, 0, command->sprite_angle_r2pi65536);
+    }
+    else
+        ToriDraw_SpriteTransformPixels(
+            &pixels,
+            &width,
+            &height,
+            command->flip_h,
+            command->flip_v,
+            command->sprite_angle_r2pi65536);
+    if( !d3d9_ui_upload_sprite_pixels(renderer, pixels, width, height, out_uv) )
+    {
+        free(pixels);
+        return false;
+    }
+    free(pixels);
+    variant->u0 = out_uv[0];
+    variant->v0 = out_uv[1];
+    variant->u1 = out_uv[2];
+    variant->v1 = out_uv[3];
+    variant->ox = offset_x;
+    variant->oy = offset_y;
+    variant->width = width;
+    variant->height = height;
+    variant->valid = true;
+    *out_sprite = sprite;
+    *out_offset_x = offset_x;
+    *out_offset_y = offset_y;
+    *out_width = width;
+    *out_height = height;
+    return true;
+}
+
+static struct D3D9UIRotmaskSlot*
+d3d9_ui_rotmask_slot(
+    struct ToriRS_D3D9* renderer,
+    int scene_id,
+    int atlas_index,
+    int mask_scene_id,
+    int mask_atlas_index,
+    int width,
+    int height,
+    int source_width,
+    int source_height)
+{
+    uint32_t free_index = UINT32_MAX;
+    uint32_t i;
+    for( i = 0u; i < renderer->ui_rotmask_count; i++ )
+    {
+        struct D3D9UIRotmaskSlot* slot = &renderer->ui_rotmasks[i];
+        if( slot->used && slot->scene_id == scene_id &&
+            slot->atlas_index == atlas_index && slot->mask_scene_id == mask_scene_id &&
+            slot->mask_atlas_index == mask_atlas_index && slot->width == width &&
+            slot->height == height && slot->source_width == source_width &&
+            slot->source_height == source_height )
+            return slot;
+        if( free_index == UINT32_MAX && !slot->used )
+            free_index = i;
+    }
+    if( free_index == UINT32_MAX )
+    {
+        if( renderer->ui_rotmask_count == renderer->ui_rotmask_capacity )
+        {
+            uint32_t old_capacity = renderer->ui_rotmask_capacity;
+            uint32_t new_capacity = old_capacity ? old_capacity * 2u
+                                                 : D3D9_UI_ROTMASK_INIT_CAP;
+            struct D3D9UIRotmaskSlot* grown =
+                (struct D3D9UIRotmaskSlot*)realloc(
+                    renderer->ui_rotmasks, (size_t)new_capacity * sizeof(*grown));
+            if( !grown )
+                return NULL;
+            memset(
+                grown + old_capacity,
+                0,
+                (size_t)(new_capacity - old_capacity) * sizeof(*grown));
+            renderer->ui_rotmasks = grown;
+            renderer->ui_rotmask_capacity = new_capacity;
+        }
+        free_index = renderer->ui_rotmask_count++;
+    }
+    d3d9_ui_rotmask_release_slot(&renderer->ui_rotmasks[free_index]);
+    renderer->ui_rotmasks[free_index].scene_id = scene_id;
+    renderer->ui_rotmasks[free_index].atlas_index = atlas_index;
+    renderer->ui_rotmasks[free_index].mask_scene_id = mask_scene_id;
+    renderer->ui_rotmasks[free_index].mask_atlas_index = mask_atlas_index;
+    renderer->ui_rotmasks[free_index].width = width;
+    renderer->ui_rotmasks[free_index].height = height;
+    renderer->ui_rotmasks[free_index].source_width = source_width;
+    renderer->ui_rotmasks[free_index].source_height = source_height;
+    renderer->ui_rotmasks[free_index].used = true;
+    return &renderer->ui_rotmasks[free_index];
+}
+
+static bool
+d3d9_ui_rotmask_create_texture(
+    struct ToriRS_D3D9* renderer,
+    int width,
+    int height,
+    IDirect3DTexture9** out_texture,
+    UINT* out_texture_width,
+    UINT* out_texture_height,
+    D3DLOCKED_RECT* out_locked,
+    const char* label)
+{
+    UINT texture_width = d3d9_next_pow2((UINT)width);
+    UINT texture_height = d3d9_next_pow2((UINT)height);
+    IDirect3DTexture9* texture = NULL;
+    HRESULT hr;
+    if( !renderer || !renderer->device || !out_texture || !out_texture_width ||
+        !out_texture_height || !out_locked || width <= 0 || height <= 0 ||
+        texture_width > renderer->caps.MaxTextureWidth ||
+        texture_height > renderer->caps.MaxTextureHeight )
+        return false;
     hr = IDirect3DDevice9_CreateTexture(
         renderer->device,
-        tex_w,
-        tex_h,
+        texture_width,
+        texture_height,
         1u,
         0u,
         D3DFMT_A8R8G8B8,
         D3DPOOL_MANAGED,
-        &renderer->overlay_texture,
+        &texture,
         NULL);
     if( FAILED(hr) )
     {
-        d3d9_log_hr("CreateTexture(2D overlay)", hr);
+        d3d9_log_hr(label, hr);
         return false;
     }
-    renderer->overlay_tex_w = tex_w;
-    renderer->overlay_tex_h = tex_h;
-    return true;
-}
-
-static bool
-d3d9_upload_overlay(struct ToriRS_D3D9* renderer)
-{
-    D3DLOCKED_RECT locked;
-    HRESULT hr;
-    int y;
-    if( !d3d9_ensure_overlay_texture(renderer) )
-        return false;
-    hr = IDirect3DTexture9_LockRect(renderer->overlay_texture, 0u, &locked, NULL, 0u);
+    hr = IDirect3DTexture9_LockRect(texture, 0u, out_locked, NULL, 0u);
     if( FAILED(hr) )
     {
-        d3d9_log_hr("LockRect(2D overlay)", hr);
+        d3d9_log_hr(label, hr);
+        IDirect3DTexture9_Release(texture);
         return false;
     }
-
-    memset(locked.pBits, 0, (size_t)locked.Pitch * renderer->overlay_tex_h);
-    for( y = 0; y < renderer->height; y++ )
-    {
-        const uint32_t* black =
-            (const uint32_t*)renderer->overlay_black + (size_t)y * renderer->width;
-        const uint32_t* white =
-            (const uint32_t*)renderer->overlay_white + (size_t)y * renderer->width;
-        uint8_t* dst = (uint8_t*)locked.pBits + (size_t)y * locked.Pitch;
-        int x;
-        for( x = 0; x < renderer->width; x++, dst += 4 )
-        {
-            int br = (int)((black[x] >> 16) & 0xffu);
-            int bg = (int)((black[x] >> 8) & 0xffu);
-            int bb = (int)(black[x] & 0xffu);
-            int wr = (int)((white[x] >> 16) & 0xffu);
-            int wg = (int)((white[x] >> 8) & 0xffu);
-            int wb = (int)(white[x] & 0xffu);
-            int transparent =
-                (d3d9_clampi(wr - br, 0, 255) +
-                    d3d9_clampi(wg - bg, 0, 255) +
-                    d3d9_clampi(wb - bb, 0, 255) + 1) /
-                3;
-            int alpha = 255 - transparent;
-            /* The black result is the source's premultiplied colour. */
-            dst[0] = (uint8_t)d3d9_clampi(bb, 0, alpha);
-            dst[1] = (uint8_t)d3d9_clampi(bg, 0, alpha);
-            dst[2] = (uint8_t)d3d9_clampi(br, 0, alpha);
-            dst[3] = (uint8_t)alpha;
-        }
-    }
-    IDirect3DTexture9_UnlockRect(renderer->overlay_texture, 0u);
+    *out_texture = texture;
+    *out_texture_width = texture_width;
+    *out_texture_height = texture_height;
     return true;
 }
 
 static void
-d3d9_draw_overlay(struct ToriRS_D3D9* renderer)
+d3d9_ui_record_rotmask_upload(
+    struct ToriRS_D3D9* renderer, int width, int height)
 {
-    struct D3D9OverlayVertex quad[4];
-    float right;
-    float bottom;
-    float u1;
-    float v1;
+    uint64_t bytes = (uint64_t)width * (uint64_t)height * 4u;
+    renderer->ui_texture_upload_bytes += bytes;
+    renderer->ui_texture_upload_count++;
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOAD_BYTES, (int64_t)bytes);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS, 1);
+}
+
+static bool
+d3d9_ui_rotmask_upload_source(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9UIRotmaskSlot* slot,
+    const struct ToriDraw_Sprite* sprite)
+{
+    IDirect3DTexture9* texture;
+    UINT texture_width;
+    UINT texture_height;
+    D3DLOCKED_RECT locked;
+    int sx;
+    int sy;
+    int y;
+    if( !renderer || !slot || !sprite || !sprite->pixels_argb )
+        return false;
+    if( slot->source_texture )
+        return true;
+    if( !d3d9_ui_rotmask_create_texture(
+            renderer,
+            slot->source_width,
+            slot->source_height,
+            &texture,
+            &texture_width,
+            &texture_height,
+            &locked,
+            "Create/LockTexture(rotated sprite source)") )
+        return false;
+    for( y = 0; y < (int)texture_height; y++ )
+        memset((uint8_t*)locked.pBits + (size_t)y * locked.Pitch, 0,
+            (size_t)texture_width * sizeof(uint32_t));
+    for( sy = 0; sy < slot->source_height; sy++ )
+    {
+        int source_y = sprite->crop_y + sy;
+        uint32_t* dst;
+        if( source_y < 0 || source_y >= sprite->height )
+            continue;
+        dst = (uint32_t*)((uint8_t*)locked.pBits + (size_t)sy * locked.Pitch);
+        for( sx = 0; sx < slot->source_width; sx++ )
+        {
+            int source_x = sprite->crop_x + sx;
+            if( source_x >= 0 && source_x < sprite->width )
+                dst[sx] = d3d9_ui_normalize_argb(
+                    sprite->pixels_argb[(size_t)source_y * sprite->width + source_x]);
+        }
+    }
+    IDirect3DTexture9_UnlockRect(texture, 0u);
+    slot->source_texture = texture;
+    slot->source_texture_width = texture_width;
+    slot->source_texture_height = texture_height;
+    d3d9_ui_record_rotmask_upload(
+        renderer, (int)texture_width, (int)texture_height);
+    return true;
+}
+
+static bool
+d3d9_ui_rotmask_upload_mask(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9UIRotmaskSlot* slot,
+    const struct ToriDraw_Sprite* mask)
+{
+    IDirect3DTexture9* texture;
+    UINT texture_width;
+    UINT texture_height;
+    D3DLOCKED_RECT locked;
+    int x;
+    int y;
+    if( !renderer || !slot || !mask || !mask->pixels_argb )
+        return false;
+    if( slot->mask_texture )
+        return true;
+    if( !d3d9_ui_rotmask_create_texture(
+            renderer,
+            slot->width,
+            slot->height,
+            &texture,
+            &texture_width,
+            &texture_height,
+            &locked,
+            "Create/LockTexture(rotated sprite mask)") )
+        return false;
+    for( y = 0; y < (int)texture_height; y++ )
+        memset((uint8_t*)locked.pBits + (size_t)y * locked.Pitch, 0,
+            (size_t)texture_width * sizeof(uint32_t));
+    for( y = 0; y < mask->height; y++ )
+    {
+        int dst_y = mask->crop_y + y;
+        uint32_t* dst;
+        if( dst_y < 0 || dst_y >= slot->height )
+            continue;
+        dst = (uint32_t*)((uint8_t*)locked.pBits + (size_t)dst_y * locked.Pitch);
+        for( x = 0; x < mask->width; x++ )
+        {
+            int dst_x = mask->crop_x + x;
+            if( dst_x >= 0 && dst_x < slot->width &&
+                mask->pixels_argb[(size_t)y * mask->width + x] != 0u )
+                dst[dst_x] = 0xffffffffu;
+        }
+    }
+    IDirect3DTexture9_UnlockRect(texture, 0u);
+    slot->mask_texture = texture;
+    slot->mask_texture_width = texture_width;
+    slot->mask_texture_height = texture_height;
+    d3d9_ui_record_rotmask_upload(
+        renderer, (int)texture_width, (int)texture_height);
+    return true;
+}
+
+static void d3d9_ui_rotated_sprite_quad(
+    int dst_x,
+    int dst_y,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int src_width,
+    int src_height,
+    int rotation_r2pi2048,
+    const float tile_uv[4],
+    float positions[4][2],
+    float uv[4][2]);
+
+static void
+d3d9_ui_draw_rotmask_native(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Sprite* command,
+    const struct D3D9UIRotmaskSlot* slot,
+    const RECT* scissor,
+    D3DCOLOR color)
+{
+    static const uint8_t order[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
+    const float source_tile_uv[4] = {
+        0.0f,
+        0.0f,
+        (float)slot->source_width / (float)slot->source_texture_width,
+        (float)slot->source_height / (float)slot->source_texture_height,
+    };
+    float positions[4][2];
+    float source_uv[4][2];
+    struct D3D9RotmaskVertex corners[4];
+    struct D3D9RotmaskVertex vertices[6];
     IDirect3DDevice9* device = renderer->device;
-    if( !renderer->scene_active || !d3d9_upload_overlay(renderer) ||
-        renderer->lb_w <= 0 || renderer->lb_h <= 0 )
+    DWORD mask_arg = D3DTA_TEXTURE;
+    int i;
+    if( !device || !slot->source_texture || !slot->mask_texture || !scissor )
         return;
 
-    right = (float)(renderer->lb_x + renderer->lb_w) - 0.5f;
-    bottom = (float)(renderer->lb_y + renderer->lb_h) - 0.5f;
-    u1 = (float)renderer->width / (float)renderer->overlay_tex_w;
-    v1 = (float)renderer->height / (float)renderer->overlay_tex_h;
-    quad[0] = (struct D3D9OverlayVertex){
-        (float)renderer->lb_x - 0.5f, (float)renderer->lb_y - 0.5f,
-        0.0f, 1.0f, 0xffffffffu, 0.0f, 0.0f };
-    quad[1] = (struct D3D9OverlayVertex){
-        right, (float)renderer->lb_y - 0.5f,
-        0.0f, 1.0f, 0xffffffffu, u1, 0.0f };
-    quad[2] = (struct D3D9OverlayVertex){
-        (float)renderer->lb_x - 0.5f, bottom,
-        0.0f, 1.0f, 0xffffffffu, 0.0f, v1 };
-    quad[3] = (struct D3D9OverlayVertex){
-        right, bottom, 0.0f, 1.0f, 0xffffffffu, u1, v1 };
+    /* Draw only the forward-rotated source domain.  The destination-box
+     * scissor supplied by the caller removes its overhang, so stage 0 never
+     * needs atlas-unsafe clamp/border sampling outside the retained texture. */
+    d3d9_ui_rotated_sprite_quad(
+        command->x,
+        command->y,
+        command->dst_anchor_x,
+        command->dst_anchor_y,
+        command->src_anchor_x,
+        command->src_anchor_y,
+        slot->source_width,
+        slot->source_height,
+        command->rotation_r2pi2048,
+        source_tile_uv,
+        positions,
+        source_uv);
+    for( i = 0; i < 4; i++ )
+    {
+        corners[i].x = d3d9_ui_x(renderer, positions[i][0]);
+        corners[i].y = d3d9_ui_y(renderer, positions[i][1]);
+        corners[i].z = 0.0f;
+        corners[i].rhw = 1.0f;
+        corners[i].color = color;
+        corners[i].source_u = source_uv[i][0];
+        corners[i].source_v = source_uv[i][1];
+        /* The stencil is axis aligned even though these vertices are not.
+         * Equal RHW values make this an affine screen-space map; after the box
+         * scissor, every surviving pixel addresses the matching mask pixel. */
+        corners[i].mask_u =
+            (positions[i][0] - (float)command->x) /
+            (float)slot->mask_texture_width;
+        corners[i].mask_v =
+            (positions[i][1] - (float)command->y) /
+            (float)slot->mask_texture_height;
+    }
+    for( i = 0; i < 6; i++ )
+        vertices[i] = corners[order[i]];
 
-    IDirect3DDevice9_SetVertexShader(device, NULL);
-    IDirect3DDevice9_SetPixelShader(device, NULL);
-    IDirect3DDevice9_SetFVF(device, D3D9_OVERLAY_FVF);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_CULLMODE, D3DCULL_NONE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, D3DZB_FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ZWRITEENABLE, FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHATESTENABLE, FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_ONE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, FALSE);
+    d3d9_ui_flush(renderer);
+    d3d9_set_full_viewport(renderer);
+    d3d9_ui_set_states(renderer);
+    IDirect3DDevice9_SetFVF(device, D3D9_ROTMASK_FVF);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, TRUE);
+    IDirect3DDevice9_SetScissorRect(device, scissor);
+
     IDirect3DDevice9_SetTexture(
-        device, 0, (IDirect3DBaseTexture9*)renderer->overlay_texture);
-    IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-    IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-    IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-    IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_COLOROP, D3DTOP_DISABLE);
-    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-    d3d9_disable_texture_transform(device);
+        device, 0u, (IDirect3DBaseTexture9*)slot->source_texture);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_TEXCOORDINDEX, 0u);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+
+    if( !command->mask_keep_opaque )
+        mask_arg |= D3DTA_COMPLEMENT;
+    IDirect3DDevice9_SetTexture(
+        device, 1u, (IDirect3DBaseTexture9*)slot->mask_texture);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_COLORARG1, D3DTA_CURRENT);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_ALPHAARG2, mask_arg);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_TEXCOORDINDEX, 1u);
+    IDirect3DDevice9_SetTextureStageState(
+        device, 1u, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetTextureStageState(device, 2u, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTextureStageState(device, 2u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+
     IDirect3DDevice9_DrawPrimitiveUP(
-        device, D3DPT_TRIANGLESTRIP, 2u, quad, (UINT)sizeof(quad[0]));
+        device, D3DPT_TRIANGLELIST, 2u, vertices, (UINT)sizeof(vertices[0]));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_ROTMASK_DRAWS, 1);
+
+    /* Do not leave device-owned references to slots that an unload event can
+     * release before the next draw.  The normal 2D batch re-establishes every
+     * state it consumes when it next flushes. */
+    IDirect3DDevice9_SetTexture(device, 1u, NULL);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTexture(device, 0u, NULL);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+    d3d9_ui_set_states(renderer);
+}
+
+/* The software rotated blit inverse-maps an axis-aligned destination box and
+ * skips pixels whose source coordinate falls outside the sprite.  Mapping the
+ * whole box as one atlas-textured quad cannot express that skip: its corner
+ * UVs leave the tile and point sampling then reads neighboring atlas entries.
+ *
+ * The inverse map's valid domain is the forward-rotated source rectangle.
+ * Draw that rectangle and scissor it to the destination box instead.  The
+ * half-pixel terms are the algebraic inverse of trspk_sprite_local_to_uv(), so
+ * identity rotation still maps [dst_x,dst_x+w) exactly to [u0,u1). */
+static void
+d3d9_ui_rotated_sprite_quad(
+    int dst_x,
+    int dst_y,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int src_width,
+    int src_height,
+    int rotation_r2pi2048,
+    const float tile_uv[4],
+    float positions[4][2],
+    float uv[4][2])
+{
+    const float source_corners[4][2] = {
+        { -0.5f, -0.5f },
+        { (float)src_width - 0.5f, -0.5f },
+        { (float)src_width - 0.5f, (float)src_height - 0.5f },
+        { -0.5f, (float)src_height - 0.5f },
+    };
+    const int angle = ToriDraw_NormalizeAngle(rotation_r2pi2048);
+    const float cosine = (float)ToriDraw_Cos(angle) / 65536.0f;
+    const float sine = (float)ToriDraw_Sin(angle) / 65536.0f;
+    int i;
+    for( i = 0; i < 4; i++ )
+    {
+        float rel_x = source_corners[i][0] - (float)src_anchor_x;
+        float rel_y = source_corners[i][1] - (float)src_anchor_y;
+        positions[i][0] = (float)dst_x + 0.5f + (float)dst_anchor_x +
+            rel_x * cosine - rel_y * sine;
+        positions[i][1] = (float)dst_y + 0.5f + (float)dst_anchor_y +
+            rel_x * sine + rel_y * cosine;
+    }
+    uv[0][0] = tile_uv[0];
+    uv[0][1] = tile_uv[1];
+    uv[1][0] = tile_uv[2];
+    uv[1][1] = tile_uv[1];
+    uv[2][0] = tile_uv[2];
+    uv[2][1] = tile_uv[3];
+    uv[3][0] = tile_uv[0];
+    uv[3][1] = tile_uv[3];
+}
+
+static void
+d3d9_ui_draw_sprite(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Sprite* command)
+{
+    struct ToriDraw_Sprite* sprite = NULL;
+    RECT scissor;
+    const RECT* scissor_ptr;
+    float uv[4];
+    int width;
+    int height;
+    int offset_x;
+    int offset_y;
+    int alpha;
+    D3DCOLOR color;
+    if( !renderer->in2d || !renderer->scene || command->scene_id <= 0 )
+        return;
+    if( !d3d9_ui_scissor_rect(
+            renderer,
+            command->scissor_x,
+            command->scissor_y,
+            command->scissor_w,
+            command->scissor_h,
+            &scissor) )
+        return;
+    scissor_ptr = &scissor;
+    alpha = d3d9_clampi(255 - command->trans, 0, 255);
+    color = D3DCOLOR_ARGB(alpha, 255, 255, 255);
+    if( command->rotated && command->mask_scene_id > 0 )
+    {
+        struct ToriDraw_Sprite** sprites;
+        struct ToriDraw_Sprite** masks;
+        struct ToriDraw_Sprite* mask;
+        struct D3D9UIRotmaskSlot* slot;
+        RECT box_scissor;
+        int sprite_count = 0;
+        int mask_count = 0;
+        int dst_width;
+        int dst_height;
+        int source_width;
+        int source_height;
+        sprites = ToriDraw_SceneSpriteGet(renderer->scene, command->scene_id, &sprite_count);
+        masks = ToriDraw_SceneSpriteGet(renderer->scene, command->mask_scene_id, &mask_count);
+        if( !sprites || !masks || command->atlas_index < 0 ||
+            command->atlas_index >= sprite_count || command->mask_atlas_index < 0 ||
+            command->mask_atlas_index >= mask_count )
+            return;
+        sprite = sprites[command->atlas_index];
+        mask = masks[command->mask_atlas_index];
+        if( !sprite || !mask || !sprite->pixels_argb || !mask->pixels_argb )
+            return;
+        dst_width = command->w > 0 ? command->w : sprite->width;
+        dst_height = command->h > 0 ? command->h : sprite->height;
+        source_width = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
+        source_height = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
+        if( dst_width <= 0 || dst_height <= 0 || source_width <= 0 ||
+            source_height <= 0 ||
+            !d3d9_ui_intersect_scissor_rect(
+                renderer,
+                command->scissor_x,
+                command->scissor_y,
+                command->scissor_w,
+                command->scissor_h,
+                command->x,
+                command->y,
+                dst_width,
+                dst_height,
+                &box_scissor) )
+            return;
+        slot = d3d9_ui_rotmask_slot(
+            renderer,
+            command->scene_id,
+            command->atlas_index,
+            command->mask_scene_id,
+            command->mask_atlas_index,
+            dst_width,
+            dst_height,
+            source_width,
+            source_height);
+        if( slot && d3d9_ui_rotmask_upload_source(renderer, slot, sprite) &&
+            d3d9_ui_rotmask_upload_mask(renderer, slot, mask) )
+            d3d9_ui_draw_rotmask_native(
+                renderer, command, slot, &box_scissor, color);
+        return;
+    }
+    if( !d3d9_ui_sprite_ensure_variant(
+            renderer,
+            command,
+            &sprite,
+            uv,
+            &offset_x,
+            &offset_y,
+            &width,
+            &height) )
+        return;
+    if( command->rotated )
+    {
+        RECT box_scissor;
+        float positions[4][2];
+        float rotated_uv[4][2];
+        int dst_width = command->w > 0 ? command->w : width;
+        int dst_height = command->h > 0 ? command->h : height;
+        int src_width = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
+        int src_height = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
+        if( dst_width <= 0 || dst_height <= 0 || src_width <= 0 || src_height <= 0 ||
+            !d3d9_ui_intersect_scissor_rect(
+                renderer,
+                command->scissor_x,
+                command->scissor_y,
+                command->scissor_w,
+                command->scissor_h,
+                command->x,
+                command->y,
+                dst_width,
+                dst_height,
+                &box_scissor) )
+            return;
+        d3d9_ui_rotated_sprite_quad(
+            command->x,
+            command->y,
+            command->dst_anchor_x,
+            command->dst_anchor_y,
+            command->src_anchor_x,
+            command->src_anchor_y,
+            src_width,
+            src_height,
+            command->rotation_r2pi2048,
+            uv,
+            positions,
+            rotated_uv);
+        d3d9_ui_append_quad_vertices(
+            renderer,
+            renderer->ui_sprite_atlas_texture,
+            true,
+            &box_scissor,
+            positions,
+            rotated_uv,
+            color);
+        return;
+    }
+    if( command->tiled )
+    {
+        RECT tile_scissor;
+        int tile_width = width > 0 ? width : 1;
+        int tile_height = height > 0 ? height : 1;
+        int dst_width = command->w > 0 ? command->w : tile_width;
+        int dst_height = command->h > 0 ? command->h : tile_height;
+        int start_x;
+        int start_y;
+        int x;
+        int y;
+        if( !d3d9_ui_intersect_scissor_rect(
+                renderer,
+                command->scissor_x,
+                command->scissor_y,
+                command->scissor_w,
+                command->scissor_h,
+                command->x,
+                command->y,
+                dst_width,
+                dst_height,
+                &tile_scissor) )
+            return;
+        trspk_sprite_tile_phase_origin(
+            command->x,
+            command->y,
+            command->x + sprite->crop_x,
+            command->y + sprite->crop_y,
+            tile_width,
+            tile_height,
+            &start_x,
+            &start_y);
+        for( y = start_y; y < command->y + dst_height; y += tile_height )
+            for( x = start_x; x < command->x + dst_width; x += tile_width )
+                d3d9_ui_append_quad(
+                    renderer,
+                    renderer->ui_sprite_atlas_texture,
+                    true,
+                    &tile_scissor,
+                    (float)x,
+                    (float)y,
+                    (float)(x + tile_width),
+                    (float)(y + tile_height),
+                    uv[0],
+                    uv[1],
+                    uv[2],
+                    uv[3],
+                    color);
+        return;
+    }
+    if( command->if3 )
+    {
+        RECT box_scissor;
+        int nominal_width = sprite->width > 0 ? sprite->width : (width > 0 ? width : 1);
+        int nominal_height = sprite->height > 0 ? sprite->height : (height > 0 ? height : 1);
+        int box_width = command->w > 0 ? command->w : nominal_width;
+        int box_height = command->h > 0 ? command->h : nominal_height;
+        float scale_x = (float)box_width / (float)nominal_width;
+        float scale_y = (float)box_height / (float)nominal_height;
+        float x0 = (float)command->x + offset_x * scale_x;
+        float y0 = (float)command->y + offset_y * scale_y;
+        if( !d3d9_ui_intersect_scissor_rect(
+                renderer,
+                command->scissor_x,
+                command->scissor_y,
+                command->scissor_w,
+                command->scissor_h,
+                command->x,
+                command->y,
+                box_width,
+                box_height,
+                &box_scissor) )
+            return;
+        d3d9_ui_append_quad(
+            renderer,
+            renderer->ui_sprite_atlas_texture,
+            true,
+            &box_scissor,
+            x0,
+            y0,
+            x0 + width * scale_x,
+            y0 + height * scale_y,
+            uv[0],
+            uv[1],
+            uv[2],
+            uv[3],
+            color);
+        return;
+    }
+    d3d9_ui_append_quad(
+        renderer,
+        renderer->ui_sprite_atlas_texture,
+        true,
+        scissor_ptr,
+        (float)(command->x + offset_x),
+        (float)(command->y + offset_y),
+        (float)(command->x + offset_x + width),
+        (float)(command->y + offset_y + height),
+        uv[0],
+        uv[1],
+        uv[2],
+        uv[3],
+        color);
+}
+
+static void
+d3d9_ui_draw_clear_rect(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_ClearRect* command)
+{
+    RECT scissor;
+    if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
+        !d3d9_ui_scissor_rect(
+            renderer, 0, 0, renderer->width, renderer->height, &scissor) )
+        return;
+    d3d9_ui_append_quad(
+        renderer,
+        NULL,
+        false,
+        &scissor,
+        (float)command->x,
+        (float)command->y,
+        (float)(command->x + command->w),
+        (float)(command->y + command->h),
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        (D3DCOLOR)TORIRS_D3D9_BG);
+}
+
+static void
+d3d9_ui_draw_fill_rect(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_FillRect* command)
+{
+    RECT scissor;
+    D3DCOLOR color;
+    if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
+        !d3d9_ui_scissor_rect(
+            renderer,
+            command->scissor_x,
+            command->scissor_y,
+            command->scissor_w,
+            command->scissor_h,
+            &scissor) )
+        return;
+    color = (D3DCOLOR)(uint32_t)command->argb;
+    if( command->filled )
+    {
+        d3d9_ui_append_quad(
+            renderer,
+            NULL,
+            false,
+            &scissor,
+            (float)command->x,
+            (float)command->y,
+            (float)(command->x + command->w),
+            (float)(command->y + command->h),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            color);
+        return;
+    }
+    d3d9_ui_append_quad(
+        renderer, NULL, false, &scissor, (float)command->x, (float)command->y,
+        (float)(command->x + command->w), (float)(command->y + 1), 0, 0, 0, 0, color);
+    if( command->h > 1 )
+        d3d9_ui_append_quad(
+            renderer, NULL, false, &scissor, (float)command->x,
+            (float)(command->y + command->h - 1), (float)(command->x + command->w),
+            (float)(command->y + command->h), 0, 0, 0, 0, color);
+    if( command->h > 2 )
+    {
+        d3d9_ui_append_quad(
+            renderer, NULL, false, &scissor, (float)command->x,
+            (float)(command->y + 1), (float)(command->x + 1),
+            (float)(command->y + command->h - 1), 0, 0, 0, 0, color);
+        if( command->w > 1 )
+            d3d9_ui_append_quad(
+                renderer, NULL, false, &scissor,
+                (float)(command->x + command->w - 1), (float)(command->y + 1),
+                (float)(command->x + command->w),
+                (float)(command->y + command->h - 1), 0, 0, 0, 0, color);
+    }
+}
+
+static void
+d3d9_ui_draw_line(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Line* command)
+{
+    RECT scissor;
+    float positions[4][2];
+    float dx;
+    float dy;
+    float length;
+    float half;
+    float px;
+    float py;
+    float x0;
+    float y0;
+    float x1;
+    float y1;
+    int thickness;
+    if( !renderer->in2d ||
+        !d3d9_ui_scissor_rect(
+            renderer,
+            command->scissor_x,
+            command->scissor_y,
+            command->scissor_w,
+            command->scissor_h,
+            &scissor) )
+        return;
+    thickness = command->line_width > 0 ? command->line_width : 1;
+    x0 = (float)command->x;
+    y0 = (float)(command->line_direction ? command->y + command->h : command->y);
+    x1 = (float)(command->x + command->w);
+    y1 = (float)(command->line_direction ? command->y : command->y + command->h);
+    dx = x1 - x0;
+    dy = y1 - y0;
+    length = sqrtf(dx * dx + dy * dy);
+    half = (float)thickness * 0.5f;
+    if( length <= 0.0001f )
+    {
+        d3d9_ui_append_quad(
+            renderer, NULL, false, &scissor, x0 - half, y0 - half, x0 + half,
+            y0 + half, 0, 0, 0, 0, (D3DCOLOR)(uint32_t)command->argb);
+        return;
+    }
+    px = -dy * half / length;
+    py = dx * half / length;
+    positions[0][0] = x0 + px;
+    positions[0][1] = y0 + py;
+    positions[1][0] = x1 + px;
+    positions[1][1] = y1 + py;
+    positions[2][0] = x1 - px;
+    positions[2][1] = y1 - py;
+    positions[3][0] = x0 - px;
+    positions[3][1] = y0 - py;
+    d3d9_ui_append_quad_vertices(
+        renderer,
+        NULL,
+        false,
+        &scissor,
+        positions,
+        NULL,
+        (D3DCOLOR)(uint32_t)command->argb);
+}
+
+static int
+d3d9_ui_font_slot_index(struct ToriRS_D3D9* renderer, int font_id, bool create)
+{
+    int free_index = -1;
+    int i;
+    if( font_id < 0 )
+        return -1;
+    for( i = 0; i < D3D9_UI_FONT_CAP; i++ )
+    {
+        if( renderer->ui_fonts[i].font_id == font_id )
+            return i;
+        if( free_index < 0 && renderer->ui_fonts[i].font_id < 0 )
+            free_index = i;
+    }
+    if( !create || free_index < 0 )
+        return -1;
+    renderer->ui_fonts[free_index].font_id = font_id;
+    renderer->ui_fonts[free_index].font = NULL;
+    renderer->ui_fonts[free_index].baked = false;
+    return free_index;
+}
+
+static void
+d3d9_ui_font_release_slot(struct D3D9UIFontSlot* slot)
+{
+    if( slot->texture )
+        IDirect3DTexture9_Release(slot->texture);
+    slot->texture = NULL;
+    slot->texture_width = 0u;
+    slot->texture_height = 0u;
+    slot->atlas_width = 0;
+    slot->atlas_height = 0;
+    slot->baked = false;
+    memset(slot->glyph_uv, 0, sizeof(slot->glyph_uv));
+}
+
+static bool
+d3d9_ui_bake_font(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9UIFontSlot* slot)
+{
+    struct ToriDraw_Font* font;
+    uint32_t* pixels;
+    D3DLOCKED_RECT locked;
+    UINT texture_width;
+    UINT texture_height;
+    HRESULT hr;
+    int atlas_width = 0;
+    int atlas_height = 0;
+    int atlas_y = 0;
+    int i;
+    int y;
+    if( !slot || !(font = slot->font) )
+        return false;
+    if( slot->baked )
+        return true;
+    for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        if( font->glyph_width[i] > atlas_width )
+            atlas_width = font->glyph_width[i];
+        if( font->glyph_height[i] > 0 )
+            atlas_height += font->glyph_height[i];
+    }
+    if( atlas_width <= 0 || atlas_height <= 0 )
+        return false;
+    texture_width = d3d9_next_pow2((UINT)atlas_width);
+    texture_height = d3d9_next_pow2((UINT)atlas_height);
+    if( texture_width > renderer->caps.MaxTextureWidth ||
+        texture_height > renderer->caps.MaxTextureHeight )
+        return false;
+    d3d9_ui_flush(renderer);
+    d3d9_ui_font_release_slot(slot);
+    pixels = (uint32_t*)calloc(
+        (size_t)texture_width * (size_t)texture_height, sizeof(*pixels));
+    if( !pixels )
+        return false;
+    for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        int glyph_width = font->glyph_width[i];
+        int glyph_height = font->glyph_height[i];
+        const uint8_t* alpha = font->glyph_alpha[i];
+        int x;
+        if( alpha && glyph_width > 0 && glyph_height > 0 )
+            for( y = 0; y < glyph_height; y++ )
+                for( x = 0; x < glyph_width; x++ )
+                    pixels[(size_t)(atlas_y + y) * texture_width + x] =
+                        ((uint32_t)alpha[(size_t)y * glyph_width + x] << 24) |
+                        0x00ffffffu;
+        slot->glyph_uv[i * 4 + 0] = 0.0f;
+        slot->glyph_uv[i * 4 + 1] = (float)atlas_y / (float)texture_height;
+        slot->glyph_uv[i * 4 + 2] = (float)glyph_width / (float)texture_width;
+        slot->glyph_uv[i * 4 + 3] =
+            (float)(atlas_y + glyph_height) / (float)texture_height;
+        atlas_y += glyph_height;
+    }
+    hr = IDirect3DDevice9_CreateTexture(
+        renderer->device,
+        texture_width,
+        texture_height,
+        1u,
+        0u,
+        D3DFMT_A8R8G8B8,
+        D3DPOOL_MANAGED,
+        &slot->texture,
+        NULL);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("CreateTexture(font atlas)", hr);
+        free(pixels);
+        return false;
+    }
+    hr = IDirect3DTexture9_LockRect(slot->texture, 0u, &locked, NULL, 0u);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("LockRect(font atlas)", hr);
+        free(pixels);
+        d3d9_ui_font_release_slot(slot);
+        return false;
+    }
+    for( y = 0; y < (int)texture_height; y++ )
+        memcpy(
+            (uint8_t*)locked.pBits + (size_t)y * locked.Pitch,
+            pixels + (size_t)y * texture_width,
+            (size_t)texture_width * 4u);
+    IDirect3DTexture9_UnlockRect(slot->texture, 0u);
+    free(pixels);
+    slot->texture_width = texture_width;
+    slot->texture_height = texture_height;
+    slot->atlas_width = atlas_width;
+    slot->atlas_height = atlas_height;
+    slot->baked = true;
+    renderer->ui_texture_upload_bytes += (uint64_t)texture_width * texture_height * 4u;
+    renderer->ui_texture_upload_count++;
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOAD_BYTES,
+        (int64_t)((uint64_t)texture_width * texture_height * 4u));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS, 1);
+    return true;
+}
+
+static struct D3D9UIFontSlot*
+d3d9_ui_ensure_font(struct ToriRS_D3D9* renderer, int font_id)
+{
+    int slot_index = d3d9_ui_font_slot_index(renderer, font_id, true);
+    struct D3D9UIFontSlot* slot;
+    if( slot_index < 0 )
+        return NULL;
+    slot = &renderer->ui_fonts[slot_index];
+    if( !slot->font && renderer->scene )
+        slot->font = ToriDraw_SceneFontGet(renderer->scene, font_id);
+    if( slot->font && !slot->baked && !d3d9_ui_bake_font(renderer, slot) )
+        return NULL;
+    return slot;
+}
+
+struct D3D9UIFontGlyphContext
+{
+    struct ToriRS_D3D9* renderer;
+    struct D3D9UIFontSlot* slot;
+    RECT scissor;
+    bool shadow;
+};
+
+static void
+d3d9_ui_font_glyph(
+    void* opaque,
+    struct ToriDraw_Font* font,
+    int glyph_index,
+    int x,
+    int y,
+    int color_rgb)
+{
+    struct D3D9UIFontGlyphContext* context =
+        (struct D3D9UIFontGlyphContext*)opaque;
+    struct D3D9UIFontSlot* slot = context->slot;
+    int width;
+    int height;
+    D3DCOLOR color;
+    (void)font;
+    if( glyph_index < 0 || glyph_index >= TORIDRAW_FONT_GLYPH_COUNT )
+        return;
+    width = slot->font->glyph_width[glyph_index];
+    height = slot->font->glyph_height[glyph_index];
+    if( width <= 0 || height <= 0 )
+        return;
+    if( context->shadow )
+        color_rgb = 0;
+    color = (D3DCOLOR)(0xff000000u | ((uint32_t)color_rgb & 0x00ffffffu));
+    d3d9_ui_append_quad(
+        context->renderer,
+        slot->texture,
+        false,
+        &context->scissor,
+        (float)x,
+        (float)y,
+        (float)(x + width),
+        (float)(y + height),
+        slot->glyph_uv[glyph_index * 4 + 0],
+        slot->glyph_uv[glyph_index * 4 + 1],
+        slot->glyph_uv[glyph_index * 4 + 2],
+        slot->glyph_uv[glyph_index * 4 + 3],
+        color);
+}
+
+static void
+d3d9_ui_draw_font_underlines(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_Font* font,
+    const RECT* scissor,
+    const char* text,
+    int x,
+    int y,
+    bool center);
+
+static void
+d3d9_ui_draw_font_text(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9UIFontSlot* slot,
+    const RECT* scissor,
+    const char* text,
+    int x,
+    int y,
+    int color,
+    bool shadow,
+    bool center)
+{
+    struct D3D9UIFontGlyphContext context;
+    if( !text || !text[0] || !slot || !slot->font || !slot->baked || !slot->texture )
+        return;
+    context.renderer = renderer;
+    context.slot = slot;
+    context.scissor = *scissor;
+    context.shadow = shadow;
+    ToriDraw_FontVisitGlyphsStyled(
+        slot->font,
+        text,
+        x,
+        y,
+        color,
+        center,
+        d3d9_ui_font_glyph,
+        &context);
+    if( !shadow )
+        d3d9_ui_draw_font_underlines(renderer, slot->font, scissor, text, x, y, center);
+}
+
+static bool
+d3d9_ui_char_equal_ignore_case(char a, char b)
+{
+    if( a >= 'A' && a <= 'Z' )
+        a = (char)(a + ('a' - 'A'));
+    if( b >= 'A' && b <= 'Z' )
+        b = (char)(b + ('a' - 'A'));
+    return a == b;
+}
+
+static bool
+d3d9_ui_font_line_break(const char* text, int* advance)
+{
+    if( !text || !text[0] )
+        return false;
+    if( text[0] == '\\' && text[1] == 'n' )
+    {
+        *advance = 2;
+        return true;
+    }
+    if( text[0] == '\r' && text[1] == '\n' )
+    {
+        *advance = 2;
+        return true;
+    }
+    if( text[0] == '\r' || text[0] == '\n' )
+    {
+        *advance = 1;
+        return true;
+    }
+    /* Guard each successive byte before looking farther ahead.  This walker is
+     * called at every byte, including a trailing "<" or "<b", so fixed-index
+     * tag probes must not read past the string's terminating NUL. */
+    if( text[0] == '<' && text[1] != '\0' && text[2] != '\0' &&
+        d3d9_ui_char_equal_ignore_case(text[1], 'b') &&
+        d3d9_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '>' )
+    {
+        *advance = 4;
+        return true;
+    }
+    if( text[0] == '<' && text[1] != '\0' && text[2] != '\0' && text[3] != '\0' &&
+        d3d9_ui_char_equal_ignore_case(text[1], 'b') &&
+        d3d9_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '/' &&
+        text[4] == '>' )
+    {
+        *advance = 5;
+        return true;
+    }
+    return false;
+}
+
+static const char*
+d3d9_ui_font_next_line(const char* text, int* length, int* advance)
+{
+    const char* cursor = text;
+    while( cursor[0] )
+    {
+        if( d3d9_ui_font_line_break(cursor, advance) )
+        {
+            *length = (int)(cursor - text);
+            return cursor;
+        }
+        cursor++;
+    }
+    *length = (int)(cursor - text);
+    *advance = 0;
+    return cursor;
+}
+
+static int
+d3d9_ui_font_measure_range(struct ToriDraw_Font* font, const char* text, int length)
+{
+    char buffer[4096];
+    if( length <= 0 )
+        return 0;
+    if( length >= (int)sizeof(buffer) )
+        length = (int)sizeof(buffer) - 1;
+    memcpy(buffer, text, (size_t)length);
+    buffer[length] = '\0';
+    return ToriDraw2D_MeasureString(font, buffer);
+}
+
+static int
+d3d9_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char ch)
+{
+    int glyph_index;
+    int advance;
+    if( ch == ' ' || ch == '|' )
+        glyph_index = TORIDRAW_FONT_GLYPH_COUNT;
+    else
+    {
+        glyph_index = (unsigned char)font->charcodeset[ch];
+        if( glyph_index > TORIDRAW_FONT_GLYPH_COUNT )
+        {
+            glyph_index = (unsigned char)font->charcodeset[(unsigned char)' '];
+            if( glyph_index > TORIDRAW_FONT_GLYPH_COUNT )
+                glyph_index = TORIDRAW_FONT_GLYPH_COUNT;
+        }
+    }
+    advance = font->advance[glyph_index];
+    return advance > 0 ? advance : 4;
+}
+
+static void
+d3d9_ui_draw_font_underline_range(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_Font* font,
+    const RECT* scissor,
+    const char* text,
+    int length,
+    int x,
+    int y)
+{
+    int underline_rgb = -1;
+    int underline_y = y + (font->line_height > 0 ? font->line_height : 1) + 1;
+    int i = 0;
+    while( i < length )
+    {
+        unsigned char emit_char = 0;
+        int consumed = ToriDraw_FontMarkupTokenLength(text, length, i, &emit_char);
+        int advance;
+        if( consumed > 0 )
+        {
+            if( consumed == 4 && strncmp(text + i, "</u>", 4) == 0 )
+                underline_rgb = -1;
+            else if( consumed == 3 && strncmp(text + i, "<u>", 3) == 0 )
+                underline_rgb = 0;
+            else if( (consumed == 10 || consumed == 12) &&
+                strncmp(text + i, "<u=", 3) == 0 )
+            {
+                int parsed = ToriDraw_FontParseHexColor(text + i + 3, consumed - 4);
+                if( parsed >= 0 )
+                    underline_rgb = parsed;
+            }
+            i += consumed;
+            if( emit_char == 0 )
+                continue;
+        }
+        else
+            emit_char = (unsigned char)text[i++];
+
+        advance = d3d9_ui_font_char_advance(font, emit_char);
+        if( underline_rgb >= 0 && advance > 0 )
+            d3d9_ui_append_quad(
+                renderer,
+                NULL,
+                false,
+                scissor,
+                (float)x,
+                (float)underline_y,
+                (float)(x + advance),
+                (float)(underline_y + 1),
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f,
+                (D3DCOLOR)(0xff000000u | ((uint32_t)underline_rgb & 0x00ffffffu)));
+        x += advance;
+    }
+}
+
+static void
+d3d9_ui_draw_font_underlines(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_Font* font,
+    const RECT* scissor,
+    const char* text,
+    int x,
+    int y,
+    bool center)
+{
+    int line_step = font->line_height > 0 ? font->line_height : 1;
+    const char* rest = text;
+    for( ;; )
+    {
+        int length = 0;
+        int advance = 0;
+        int line_x = x;
+        const char* break_at = d3d9_ui_font_next_line(rest, &length, &advance);
+        if( center && length > 0 )
+            line_x -= d3d9_ui_font_measure_range(font, rest, length) / 2;
+        if( length > 0 )
+            d3d9_ui_draw_font_underline_range(
+                renderer, font, scissor, rest, length, line_x, y);
+        if( advance == 0 )
+            break;
+        y += line_step;
+        rest = break_at + advance;
+    }
+}
+
+static void
+d3d9_ui_font_vertical_metrics(
+    const struct ToriDraw_Font* font,
+    int* ascent_out,
+    int* descent_out)
+{
+    int fallback = font->line_height > 0 ? font->line_height : 1;
+    int min_y = 0;
+    int max_bottom = 0;
+    bool any = false;
+    int i;
+    for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        int bottom;
+        if( font->glyph_width[i] <= 0 || font->glyph_height[i] <= 0 ||
+            !font->glyph_alpha[i] )
+            continue;
+        bottom = font->offset_y[i] + font->glyph_height[i];
+        if( !any || font->offset_y[i] < min_y )
+            min_y = font->offset_y[i];
+        if( !any || bottom > max_bottom )
+            max_bottom = bottom;
+        any = true;
+    }
+    if( !any )
+    {
+        *ascent_out = fallback;
+        *descent_out = 0;
+        return;
+    }
+    *ascent_out = fallback - min_y;
+    *descent_out = max_bottom - fallback;
+    if( *ascent_out <= 0 )
+        *ascent_out = fallback;
+    if( *descent_out < 0 )
+        *descent_out = 0;
+}
+
+static bool
+d3d9_ui_font_append_line(
+    const char* lines[],
+    int lengths[],
+    int* count,
+    const char* text,
+    int length)
+{
+    if( *count >= D3D9_UI_FONT_BOX_MAX_LINES )
+        return false;
+    lines[*count] = text;
+    lengths[*count] = length;
+    (*count)++;
+    return true;
+}
+
+static bool
+d3d9_ui_font_segment_has_visible_content(const char* text, int length)
+{
+    int i;
+    if( !text || length <= 0 )
+        return false;
+    for( i = 0; i < length; i++ )
+    {
+        unsigned char emit_char = 0;
+        int consumed;
+        if( text[i] == ' ' || text[i] == '|' )
+            continue;
+        consumed = ToriDraw_FontMarkupTokenLength(text, length, i, &emit_char);
+        if( consumed > 0 )
+        {
+            if( emit_char != 0 )
+                return true;
+            i += consumed - 1;
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+static bool
+d3d9_ui_font_wrap_segment(
+    struct ToriDraw_Font* font,
+    const char* text,
+    int length,
+    int max_width,
+    const char* lines[],
+    int lengths[],
+    int* count)
+{
+    int space_width = d3d9_ui_font_measure_range(font, " ", 1);
+    int current_start = -1;
+    int current_length = 0;
+    int current_width = 0;
+    int word_start = 0;
+    int i;
+    if( length <= 0 )
+        return d3d9_ui_font_append_line(lines, lengths, count, text, 0);
+    if( !d3d9_ui_font_segment_has_visible_content(text, length) )
+        return d3d9_ui_font_append_line(lines, lengths, count, text, 0);
+    for( i = 0; i <= length; i++ )
+    {
+        bool at_end = i == length;
+        bool space = !at_end && (text[i] == ' ' || text[i] == '|');
+        int word_length;
+        int word_width;
+        if( !at_end && !space )
+            continue;
+        word_length = i - word_start;
+        if( word_length <= 0 )
+        {
+            word_start = at_end ? i : i + 1;
+            continue;
+        }
+        word_width = d3d9_ui_font_measure_range(font, text + word_start, word_length);
+        if( current_length <= 0 )
+        {
+            current_start = word_start;
+            current_length = word_length;
+            current_width = word_width;
+        }
+        else if( current_width + space_width + word_width > max_width )
+        {
+            if( !d3d9_ui_font_append_line(
+                    lines, lengths, count, text + current_start, current_length) )
+                return false;
+            current_start = word_start;
+            current_length = word_length;
+            current_width = word_width;
+        }
+        else
+        {
+            current_length = i - current_start;
+            current_width += space_width + word_width;
+        }
+        word_start = at_end ? i : i + 1;
+    }
+    if( current_length > 0 )
+        return d3d9_ui_font_append_line(
+            lines, lengths, count, text + current_start, current_length);
+    return true;
+}
+
+static int
+d3d9_ui_font_collect_lines(
+    struct ToriDraw_Font* font,
+    const struct ToriRS_RenderCommand_Font* command,
+    const char* lines[],
+    int lengths[])
+{
+    const char* rest = command->text;
+    int line_height = command->line_height > 0
+        ? command->line_height
+        : (font->line_height > 0 ? font->line_height : 1);
+    int ascent;
+    int descent;
+    int count = 0;
+    bool wrap;
+    d3d9_ui_font_vertical_metrics(font, &ascent, &descent);
+    wrap = command->w > 0 && command->h > 0 &&
+        !(command->h < line_height + ascent + descent && command->h < line_height * 2);
+    while( rest && rest[0] && count < D3D9_UI_FONT_BOX_MAX_LINES )
+    {
+        int length = 0;
+        int advance = 0;
+        const char* line_end = d3d9_ui_font_next_line(rest, &length, &advance);
+        if( wrap )
+        {
+            if( !d3d9_ui_font_wrap_segment(
+                    font, rest, length, command->w > 0 ? command->w : 1,
+                    lines, lengths, &count) )
+                break;
+        }
+        else if( !d3d9_ui_font_append_line(lines, lengths, &count, rest, length) )
+            break;
+        if( advance == 0 )
+            break;
+        rest = line_end + advance;
+    }
+    return count;
+}
+
+static void
+d3d9_ui_draw_font_range(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9UIFontSlot* slot,
+    const RECT* scissor,
+    const char* text,
+    int length,
+    int x,
+    int y,
+    int color,
+    bool shadow)
+{
+    char buffer[4096];
+    if( length <= 0 )
+        return;
+    if( length >= (int)sizeof(buffer) )
+        length = (int)sizeof(buffer) - 1;
+    memcpy(buffer, text, (size_t)length);
+    buffer[length] = '\0';
+    d3d9_ui_draw_font_text(
+        renderer, slot, scissor, buffer, x, y, color, shadow, false);
+}
+
+static void
+d3d9_ui_draw_font(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Font* command)
+{
+    struct D3D9UIFontSlot* slot;
+    struct ToriDraw_Font* font;
+    RECT scissor;
+    if( !renderer->in2d || command->font_id < 0 || !command->text ||
+        !command->text[0] ||
+        !d3d9_ui_scissor_rect(
+            renderer,
+            command->scissor_x,
+            command->scissor_y,
+            command->scissor_w,
+            command->scissor_h,
+            &scissor) )
+        return;
+    slot = d3d9_ui_ensure_font(renderer, command->font_id);
+    font = slot ? slot->font : NULL;
+    if( !font || !slot->baked || !ToriDraw_FontValidate(font) )
+        return;
+    if( command->baseline )
+    {
+        int y = command->y - font->line_height;
+        bool center = command->center != 0;
+        if( command->shadowed )
+            d3d9_ui_draw_font_text(
+                renderer, slot, &scissor, command->text, command->x + 1, y + 1,
+                command->color, true, center);
+        d3d9_ui_draw_font_text(
+            renderer, slot, &scissor, command->text, command->x, y,
+            command->color, false, center);
+        return;
+    }
+    {
+        const char* lines[D3D9_UI_FONT_BOX_MAX_LINES];
+        int lengths[D3D9_UI_FONT_BOX_MAX_LINES];
+        int count = d3d9_ui_font_collect_lines(font, command, lines, lengths);
+        int line_height = command->line_height > 0
+            ? command->line_height
+            : (font->line_height > 0 ? font->line_height : 1);
+        int font_ascent = font->line_height > 0 ? font->line_height : line_height;
+        int ascent;
+        int descent;
+        int logical_height;
+        int first_baseline;
+        int i;
+        if( count <= 0 )
+            return;
+        d3d9_ui_font_vertical_metrics(font, &ascent, &descent);
+        logical_height = command->h > 0
+            ? command->h
+            : line_height * (count - 1) + ascent + descent;
+        first_baseline = ascent;
+        if( command->y_align == 1 )
+            first_baseline = ascent +
+                (logical_height - ascent - descent - line_height * (count - 1)) / 2;
+        else if( command->y_align == 2 )
+            first_baseline = logical_height - descent - line_height * (count - 1);
+        for( i = 0; i < count; i++ )
+        {
+            int x = command->x;
+            int y;
+            if( lengths[i] <= 0 )
+                continue;
+            if( command->center != 0 )
+            {
+                int text_width = d3d9_ui_font_measure_range(font, lines[i], lengths[i]);
+                if( command->center == 1 )
+                    x += ((command->w > 0 ? command->w : 1) - text_width) / 2;
+                else if( command->center == 2 )
+                    x += (command->w > 0 ? command->w : 1) - text_width;
+            }
+            y = command->y + first_baseline + i * line_height - font_ascent;
+            if( command->shadowed )
+                d3d9_ui_draw_font_range(
+                    renderer, slot, &scissor, lines[i], lengths[i], x + 1, y + 1,
+                    command->color, true);
+            d3d9_ui_draw_font_range(
+                renderer, slot, &scissor, lines[i], lengths[i], x, y,
+                command->color, false);
+        }
+    }
+}
+
+static void
+d3d9_widget_model_transform_vertex(
+    const struct ToriDraw_WidgetModelTransform* transform,
+    int vx,
+    int vy,
+    int vz,
+    int* out_x,
+    int* out_y,
+    int* out_z)
+{
+    int rotated;
+    if( transform->var3 != 0 )
+    {
+        rotated = (vy * transform->var14 + vx * transform->var15) >> 16;
+        vy = (vy * transform->var15 - vx * transform->var14) >> 16;
+        vx = rotated;
+    }
+    if( transform->var10 != 0 )
+    {
+        rotated = (vy * transform->var11 - vz * transform->var10) >> 16;
+        vz = (vy * transform->var10 + vz * transform->var11) >> 16;
+        vy = rotated;
+    }
+    if( transform->var2 != 0 )
+    {
+        rotated = (vz * transform->var12 + vx * transform->var13) >> 16;
+        vz = (vz * transform->var13 - vx * transform->var12) >> 16;
+        vx = rotated;
+    }
+    vx += transform->var5;
+    vy += transform->var6;
+    vz += transform->var7;
+    rotated = (vy * transform->var17 - vz * transform->var16) >> 16;
+    vz = (vy * transform->var16 + vz * transform->var17) >> 16;
+    *out_x = vx;
+    *out_y = rotated;
+    *out_z = vz;
+}
+
+/* Populate the same projected arrays the reference widget rasterizer uses.
+ * Besides preserving its back-face cull and priority/depth ordering, this lets
+ * the native path share the scene's existing bounded face-sort workspace. */
+static bool
+d3d9_widget_model_project(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_ModelWidget* command,
+    const struct ToriDraw_WidgetModelTransform* transform,
+    float* out_origin_x,
+    float* out_origin_y)
+{
+    struct ToriDraw_Model* model = command->model.u.model.model;
+    struct ToriDraw_Scene* scene = renderer->scene;
+    int vertex_count = model->vertex_count;
+    int vertex;
+    if( !model->vertices_x || !model->vertices_y || !model->vertices_z ||
+        !model->face_indices_a || !model->face_indices_b || !model->face_indices_c ||
+        !model->face_colors_a || !model->face_colors_b || !model->face_colors_c ||
+        vertex_count <= 0 || vertex_count > scene->max_vertices ||
+        model->face_count <= 0 || model->face_count > scene->max_faces )
+        return false;
+    scene->active_hnd = command->model;
+    if( transform->orthographic )
+    {
+        int bounds_width = 0;
+        int bounds_height = 0;
+        int bounds_dx = 0;
+        int bounds_dy = 0;
+        int orthographic_scale = transform->zoom2d > 100 ? transform->zoom2d : 100;
+        int64_t depth_sum = 0;
+        int depth_mid;
+        if( !ToriDraw_WidgetModelBounds(
+                command->model,
+                transform,
+                &bounds_width,
+                &bounds_height,
+                &bounds_dx,
+                &bounds_dy) )
+            return false;
+        (void)bounds_height;
+        (void)bounds_dx;
+        (void)bounds_dy;
+        *out_origin_x = (float)(command->x + command->w / 2 - bounds_width / 2);
+        *out_origin_y = (float)(command->y + command->h / 2 - bounds_height / 2);
+        for( vertex = 0; vertex < vertex_count; vertex++ )
+        {
+            int cx;
+            int cy;
+            int cz;
+            d3d9_widget_model_transform_vertex(
+                transform,
+                model->vertices_x[vertex],
+                model->vertices_y[vertex],
+                model->vertices_z[vertex],
+                &cx,
+                &cy,
+                &cz);
+            scene->orthographic_vertices_x[vertex] = cx;
+            scene->orthographic_vertices_y[vertex] = cy;
+            scene->orthographic_vertices_z[vertex] = cz;
+            scene->screen_vertices_x[vertex] = (int)*out_origin_x +
+                (int)((int64_t)cx * transform->zoom3d / orthographic_scale);
+            scene->screen_vertices_y[vertex] = (int)*out_origin_y +
+                (int)((int64_t)cy * transform->zoom3d / orthographic_scale);
+            scene->screen_vertices_z[vertex] = cz;
+            depth_sum += cz;
+        }
+        depth_mid = (int)(depth_sum / vertex_count);
+        for( vertex = 0; vertex < vertex_count; vertex++ )
+            scene->screen_vertices_z[vertex] -= depth_mid;
+        return true;
+    }
+    else
+    {
+        int depth_mid =
+            (transform->var6 * transform->var16 + transform->var7 * transform->var17) >>
+            16;
+        int visible_vertices = 0;
+        *out_origin_x = (float)(command->x + command->w / 2);
+        *out_origin_y = (float)(command->y + command->h / 2);
+        for( vertex = 0; vertex < vertex_count; vertex++ )
+        {
+            int cx;
+            int cy;
+            int cz;
+            d3d9_widget_model_transform_vertex(
+                transform,
+                model->vertices_x[vertex],
+                model->vertices_y[vertex],
+                model->vertices_z[vertex],
+                &cx,
+                &cy,
+                &cz);
+            scene->orthographic_vertices_x[vertex] = cx;
+            scene->orthographic_vertices_y[vertex] = cy;
+            scene->orthographic_vertices_z[vertex] = cz;
+            scene->screen_vertices_z[vertex] = cz - depth_mid;
+            if( (float)cz <= D3D9_WIDGET_MODEL_NEAR )
+            {
+                scene->screen_vertices_x[vertex] = -5000;
+                scene->screen_vertices_y[vertex] = 0;
+                continue;
+            }
+            scene->screen_vertices_x[vertex] = (int)*out_origin_x +
+                (int)((int64_t)cx * transform->zoom3d / cz);
+            scene->screen_vertices_y[vertex] = (int)*out_origin_y +
+                (int)((int64_t)cy * transform->zoom3d / cz);
+            visible_vertices++;
+        }
+        return visible_vertices > 0;
+    }
+}
+
+static bool
+d3d9_widget_model_prepare_textures(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriDraw_Model* model,
+    const int* face_order,
+    int face_count)
+{
+    uint8_t seen[TORIDRAW_TEXTURE_ID_CAPACITY] = { 0 };
+    int order_index;
+    for( order_index = 0; order_index < face_count; order_index++ )
+    {
+        int face = face_order[order_index];
+        int texture_id;
+        if( face < 0 || face >= model->face_count || !model->face_textures )
+            continue;
+        texture_id = (int)model->face_textures[face];
+        if( texture_id < 0 || texture_id >= TORIDRAW_TEXTURE_ID_CAPACITY ||
+            seen[texture_id] )
+            continue;
+        seen[texture_id] = 1u;
+        if( trspk_toridraw_texture_is_animated(renderer->scene, texture_id) )
+        {
+            if( !d3d9_ensure_animated_texture(renderer, texture_id) )
+                (void)d3d9_texture_slot(renderer, texture_id);
+        }
+        else
+        {
+            if( d3d9_texture_slot(renderer, texture_id) >= 0 )
+                (void)d3d9_ensure_static_texture(renderer, texture_id);
+        }
+    }
+    return !trspk_atlas_is_dirty(&renderer->atlas) || d3d9_upload_atlas(renderer);
+}
+
+static struct D3D9WidgetVertex
+d3d9_widget_vertex_lerp(
+    const struct D3D9WidgetVertex* a,
+    const struct D3D9WidgetVertex* b,
+    float amount)
+{
+    struct D3D9WidgetVertex out;
+    int channel;
+    out.cx = a->cx + (b->cx - a->cx) * amount;
+    out.cy = a->cy + (b->cy - a->cy) * amount;
+    out.cz = a->cz + (b->cz - a->cz) * amount;
+    for( channel = 0; channel < 4; channel++ )
+        out.color[channel] = a->color[channel] +
+            (b->color[channel] - a->color[channel]) * amount;
+    out.u = a->u + (b->u - a->u) * amount;
+    out.v = a->v + (b->v - a->v) * amount;
+    return out;
+}
+
+static int
+d3d9_widget_model_clip_near(
+    const struct D3D9WidgetVertex input[3],
+    struct D3D9WidgetVertex output[4])
+{
+    int output_count = 0;
+    int edge;
+    for( edge = 0; edge < 3; edge++ )
+    {
+        const struct D3D9WidgetVertex* a = &input[edge];
+        const struct D3D9WidgetVertex* b = &input[(edge + 1) % 3];
+        bool a_inside = a->cz > D3D9_WIDGET_MODEL_NEAR;
+        bool b_inside = b->cz > D3D9_WIDGET_MODEL_NEAR;
+        if( a_inside )
+            output[output_count++] = *a;
+        if( a_inside != b_inside )
+        {
+            float amount = (D3D9_WIDGET_MODEL_NEAR - a->cz) / (b->cz - a->cz);
+            output[output_count++] = d3d9_widget_vertex_lerp(a, b, amount);
+        }
+    }
+    return output_count;
+}
+
+static void
+d3d9_widget_model_overlay_vertex(
+    const struct ToriRS_D3D9* renderer,
+    const struct ToriDraw_WidgetModelTransform* transform,
+    float origin_x,
+    float origin_y,
+    const struct D3D9WidgetVertex* source,
+    struct D3D9OverlayVertex* out)
+{
+    float logical_x;
+    float logical_y;
+    if( transform->orthographic )
+    {
+        float scale = (float)(transform->zoom2d > 100 ? transform->zoom2d : 100);
+        logical_x = origin_x + source->cx * (float)transform->zoom3d / scale;
+        logical_y = origin_y + source->cy * (float)transform->zoom3d / scale;
+        out->rhw = 1.0f;
+    }
+    else
+    {
+        logical_x = origin_x + source->cx * (float)transform->zoom3d / source->cz;
+        logical_y = origin_y + source->cy * (float)transform->zoom3d / source->cz;
+        out->rhw = 1.0f / source->cz;
+    }
+    out->x = d3d9_ui_x(renderer, logical_x);
+    out->y = d3d9_ui_y(renderer, logical_y);
+    out->z = 0.0f;
+    out->color = (D3DCOLOR)trspk_d3d9_pack_argb(
+        source->color[0], source->color[1], source->color[2], source->color[3]);
+    out->u = source->u;
+    out->v = source->v;
+}
+
+static void
+d3d9_widget_model_flush_vertices(
+    struct ToriRS_D3D9* renderer,
+    int texture_config,
+    uint32_t vertex_count)
+{
+    if( vertex_count == 0u )
+        return;
+    if( texture_config >= 0 )
+        d3d9_bind_animated(renderer, texture_config);
+    else if( texture_config == D3D9_WIDGET_CONFIG_ATLAS )
+        d3d9_bind_atlas(renderer);
+    else
+        d3d9_set_no_texture(renderer->device);
+    IDirect3DDevice9_DrawPrimitiveUP(
+        renderer->device,
+        D3DPT_TRIANGLELIST,
+        vertex_count / 3u,
+        renderer->ui_batch.vertices,
+        (UINT)sizeof(renderer->ui_batch.vertices[0]));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_WIDGET_DRAWS, 1);
+}
+
+static int
+d3d9_widget_model_face_texture(
+    struct ToriRS_D3D9* renderer,
+    const struct TRSPK_ToriDrawBakeFaceVerts* face,
+    float uv[3][2])
+{
+    if( face->tex_id < 0 )
+        return D3D9_WIDGET_CONFIG_NONE;
+    if( face->tex_id < TORIDRAW_TEXTURE_ID_CAPACITY && face->is_animated &&
+        renderer->animated_textures[face->tex_id] )
+    {
+        d3d9_map_animated_uv(&uv[0][0], &uv[0][1]);
+        d3d9_map_animated_uv(&uv[1][0], &uv[1][1]);
+        d3d9_map_animated_uv(&uv[2][0], &uv[2][1]);
+        return face->tex_id;
+    }
+    if( face->tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY ||
+        renderer->tex_slot_of_id[face->tex_id] < 0 )
+        return D3D9_WIDGET_CONFIG_SKIP;
+    {
+        int slot = renderer->tex_slot_of_id[face->tex_id];
+        int corner;
+        for( corner = 0; corner < 3; corner++ )
+        {
+            float mapped_u;
+            float mapped_v;
+            d3d9_map_atlas_uv(slot, uv[corner][0], uv[corner][1], &mapped_u, &mapped_v);
+            uv[corner][0] = mapped_u;
+            uv[corner][1] = mapped_v;
+        }
+    }
+    return D3D9_WIDGET_CONFIG_ATLAS;
+}
+
+/* Widget models are drawn straight into the backbuffer as sorted transient
+ * triangles.  This is one native pass: no canvas-sized raster, alpha scan, or
+ * per-frame texture upload.  Perspective faces are clipped at the legacy near
+ * plane before D3D receives them, and RHW retains perspective-correct UVs. */
+static void
+d3d9_ui_draw_model_widget(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_ModelWidget* command)
+{
+    struct ToriDraw_WidgetModelTransform transform;
+    struct ToriDraw_Model* model;
+    RECT scissor;
+    const int* face_order;
+    int sorted_face_count;
+    float origin_x;
+    float origin_y;
+    bool atlas_ready;
+    int current_config = INT_MIN;
+    uint32_t pending_vertices = 0u;
+    int order_index;
+    if( !renderer->in2d || !renderer->scene || !renderer->ui_batch.vertices ||
+        command->model.kind != TORIDRAWMK_MODEL ||
+        !(model = command->model.u.model.model) || command->w <= 0 || command->h <= 0 )
+        return;
+    if( !d3d9_ui_scissor_rect(
+            renderer,
+            command->scissor_x,
+            command->scissor_y,
+            command->scissor_w,
+            command->scissor_h,
+            &scissor) )
+        return;
+    ToriDraw_WidgetModelTransformInit(
+        &transform,
+        command->model_zoom > 0 ? command->model_zoom : 2000,
+        command->model_xan,
+        command->model_yan,
+        command->model_zan,
+        command->model_x_offset,
+        command->model_y_offset,
+        0,
+        command->model_orthog != 0,
+        command->model_fixed_zoom != 0);
+    if( !d3d9_widget_model_project(
+            renderer, command, &transform, &origin_x, &origin_y) )
+        return;
+    sorted_face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    if( sorted_face_count <= 0 )
+        return;
+    face_order = ToriDraw_FaceOrder(renderer->scene);
+    d3d9_ui_flush(renderer);
+    atlas_ready = d3d9_widget_model_prepare_textures(
+        renderer, model, face_order, sorted_face_count);
+    d3d9_set_full_viewport(renderer);
+    d3d9_ui_set_states(renderer);
+    IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_SCISSORTESTENABLE, TRUE);
+    IDirect3DDevice9_SetScissorRect(renderer->device, &scissor);
+    for( order_index = 0; order_index < sorted_face_count; order_index++ )
+    {
+        struct TRSPK_ToriDrawBakeFaceVerts face;
+        struct D3D9WidgetVertex input[3];
+        struct D3D9WidgetVertex clipped[4];
+        const float* colors[3];
+        float uv[3][2];
+        int indices[3];
+        int texture_config;
+        int clipped_count;
+        int face_index = face_order[order_index];
+        int corner;
+        int triangle;
+        if( face_index < 0 || face_index >= model->face_count )
+            continue;
+        indices[0] = (int)model->face_indices_a[face_index];
+        indices[1] = (int)model->face_indices_b[face_index];
+        indices[2] = (int)model->face_indices_c[face_index];
+        if( indices[0] < 0 || indices[0] >= model->vertex_count || indices[1] < 0 ||
+            indices[1] >= model->vertex_count || indices[2] < 0 ||
+            indices[2] >= model->vertex_count )
+            continue;
+        if( !trspk_toridraw_bake_face_handle(
+                command->model,
+                (uint32_t)face_index,
+                NULL,
+                renderer->scene,
+                true,
+                &face) ||
+            (face.color_a[3] <= (1.0f / 255.0f) &&
+             face.color_b[3] <= (1.0f / 255.0f) &&
+             face.color_c[3] <= (1.0f / 255.0f)) )
+            continue;
+        colors[0] = face.color_a;
+        colors[1] = face.color_b;
+        colors[2] = face.color_c;
+        uv[0][0] = face.uv.u1;
+        uv[0][1] = face.uv.v1;
+        uv[1][0] = face.uv.u2;
+        uv[1][1] = face.uv.v2;
+        uv[2][0] = face.uv.u3;
+        uv[2][1] = face.uv.v3;
+        texture_config = d3d9_widget_model_face_texture(renderer, &face, uv);
+        if( texture_config == D3D9_WIDGET_CONFIG_SKIP ||
+            (texture_config == D3D9_WIDGET_CONFIG_ATLAS && !atlas_ready) )
+            continue;
+        for( corner = 0; corner < 3; corner++ )
+        {
+            int channel;
+            int vertex_index = indices[corner];
+            input[corner].cx = (float)renderer->scene->orthographic_vertices_x[vertex_index];
+            input[corner].cy = (float)renderer->scene->orthographic_vertices_y[vertex_index];
+            input[corner].cz = (float)renderer->scene->orthographic_vertices_z[vertex_index];
+            for( channel = 0; channel < 4; channel++ )
+                input[corner].color[channel] = colors[corner][channel];
+            input[corner].u = uv[corner][0];
+            input[corner].v = uv[corner][1];
+        }
+        if( transform.orthographic )
+        {
+            clipped[0] = input[0];
+            clipped[1] = input[1];
+            clipped[2] = input[2];
+            clipped_count = 3;
+        }
+        else
+            clipped_count = d3d9_widget_model_clip_near(input, clipped);
+        for( triangle = 1; triangle + 1 < clipped_count; triangle++ )
+        {
+            const int polygon_indices[3] = { 0, triangle, triangle + 1 };
+            if( current_config != texture_config ||
+                pending_vertices + 3u > D3D9_UI_BATCH_MAX_VERTS )
+            {
+                d3d9_widget_model_flush_vertices(
+                    renderer, current_config, pending_vertices);
+                pending_vertices = 0u;
+                current_config = texture_config;
+            }
+            for( corner = 0; corner < 3; corner++ )
+                d3d9_widget_model_overlay_vertex(
+                    renderer,
+                    &transform,
+                    origin_x,
+                    origin_y,
+                    &clipped[polygon_indices[corner]],
+                    &renderer->ui_batch.vertices[pending_vertices++]);
+        }
+    }
+    d3d9_widget_model_flush_vertices(renderer, current_config, pending_vertices);
+    d3d9_ui_set_states(renderer);
+    d3d9_ui_batch_reset(renderer);
 }
 
 static void
@@ -795,6 +3441,10 @@ d3d9_upload_rgba_texture(
     }
     IDirect3DTexture9_UnlockRect(texture, 0u);
     *destination = texture;
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_ANIMATED_TEXTURE_UPLOAD_BYTES,
+        (int64_t)((uint64_t)width * height * 4u));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_ANIMATED_TEXTURE_UPLOADS, 1);
     return true;
 }
 
@@ -802,6 +3452,8 @@ static bool
 d3d9_upload_atlas(struct ToriRS_D3D9* renderer)
 {
     D3DLOCKED_RECT locked;
+    struct TRSPK_AtlasDirtyRect dirty;
+    RECT lock_rect;
     HRESULT hr;
     uint32_t y;
     if( !renderer->device || !trspk_atlas_is_initialized(&renderer->atlas) ||
@@ -825,19 +3477,31 @@ d3d9_upload_atlas(struct ToriRS_D3D9* renderer)
             d3d9_log_hr("CreateTexture(world atlas)", hr);
             return false;
         }
+        /* Async model baking may already reference reserved-but-not-loaded
+         * slots. Initialize their GPU pixels from the CPU atlas's zeros once;
+         * later writes stay bounded to the merged dirty rectangle. */
+        trspk_atlas_set_dirty(&renderer->atlas);
     }
-    hr = IDirect3DTexture9_LockRect(renderer->atlas_texture, 0u, &locked, NULL, 0u);
+    if( !trspk_atlas_get_dirty_rect(&renderer->atlas, &dirty) )
+        return true;
+    lock_rect.left = (LONG)dirty.x;
+    lock_rect.top = (LONG)dirty.y;
+    lock_rect.right = (LONG)(dirty.x + dirty.w);
+    lock_rect.bottom = (LONG)(dirty.y + dirty.h);
+    hr = IDirect3DTexture9_LockRect(
+        renderer->atlas_texture, 0u, &locked, &lock_rect, 0u);
     if( FAILED(hr) )
     {
         d3d9_log_hr("LockRect(world atlas)", hr);
         return false;
     }
-    for( y = 0u; y < D3D9_ATLAS_DIM; y++ )
+    for( y = 0u; y < dirty.h; y++ )
     {
-        const uint8_t* src = renderer->atlas.pixels + (size_t)y * renderer->atlas.stride;
+        const uint8_t* src = renderer->atlas.pixels +
+            (size_t)(dirty.y + y) * renderer->atlas.stride + (size_t)dirty.x * 4u;
         uint8_t* dst = (uint8_t*)locked.pBits + (size_t)y * locked.Pitch;
         uint32_t x;
-        for( x = 0u; x < D3D9_ATLAS_DIM; x++, src += 4, dst += 4 )
+        for( x = 0u; x < dirty.w; x++, src += 4, dst += 4 )
         {
             dst[0] = src[2];
             dst[1] = src[1];
@@ -846,7 +3510,88 @@ d3d9_upload_atlas(struct ToriRS_D3D9* renderer)
         }
     }
     IDirect3DTexture9_UnlockRect(renderer->atlas_texture, 0u);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_WORLD_ATLAS_UPLOAD_BYTES,
+        (int64_t)((uint64_t)dirty.w * dirty.h * 4u));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_WORLD_ATLAS_UPLOADS, 1);
     trspk_atlas_clear_dirty(&renderer->atlas);
+    return true;
+}
+
+/* UI sprites are stored in the byte layout D3DFMT_A8R8G8B8 expects on
+ * little-endian Windows (B,G,R,A).  Unlike the old compatibility canvas this
+ * texture is retained: only the rectangle touched by a newly-seen sprite or
+ * transformed variant is locked and copied. */
+static bool
+d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer)
+{
+    struct TRSPK_AtlasDirtyRect dirty;
+    D3DLOCKED_RECT locked;
+    RECT lock_rect;
+    HRESULT hr;
+    uint32_t y;
+    if( !renderer || !renderer->device ||
+        !trspk_atlas_is_initialized(&renderer->ui_sprite_atlas) ||
+        !renderer->ui_sprite_atlas.pixels )
+        return false;
+    if( !renderer->ui_sprite_atlas_texture )
+    {
+        hr = IDirect3DDevice9_CreateTexture(
+            renderer->device,
+            D3D9_UI_ATLAS_DIM,
+            D3D9_UI_ATLAS_DIM,
+            1u,
+            0u,
+            D3DFMT_A8R8G8B8,
+            D3DPOOL_MANAGED,
+            &renderer->ui_sprite_atlas_texture,
+            NULL);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("CreateTexture(UI sprite atlas)", hr);
+            return false;
+        }
+        hr = IDirect3DTexture9_LockRect(
+            renderer->ui_sprite_atlas_texture, 0u, &locked, NULL, 0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("LockRect(clear UI sprite atlas)", hr);
+            IDirect3DTexture9_Release(renderer->ui_sprite_atlas_texture);
+            renderer->ui_sprite_atlas_texture = NULL;
+            return false;
+        }
+        memset(locked.pBits, 0, (size_t)locked.Pitch * D3D9_UI_ATLAS_DIM);
+        IDirect3DTexture9_UnlockRect(renderer->ui_sprite_atlas_texture, 0u);
+    }
+    if( !trspk_atlas_get_dirty_rect(&renderer->ui_sprite_atlas, &dirty) )
+        return true;
+    lock_rect.left = (LONG)dirty.x;
+    lock_rect.top = (LONG)dirty.y;
+    lock_rect.right = (LONG)(dirty.x + dirty.w);
+    lock_rect.bottom = (LONG)(dirty.y + dirty.h);
+    hr = IDirect3DTexture9_LockRect(
+        renderer->ui_sprite_atlas_texture, 0u, &locked, &lock_rect, 0u);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("LockRect(UI sprite atlas)", hr);
+        return false;
+    }
+    for( y = 0u; y < dirty.h; y++ )
+    {
+        const uint8_t* src = renderer->ui_sprite_atlas.pixels +
+            (size_t)(dirty.y + y) * renderer->ui_sprite_atlas.stride +
+            (size_t)dirty.x * 4u;
+        uint8_t* dst = (uint8_t*)locked.pBits + (size_t)y * locked.Pitch;
+        memcpy(dst, src, (size_t)dirty.w * 4u);
+    }
+    IDirect3DTexture9_UnlockRect(renderer->ui_sprite_atlas_texture, 0u);
+    renderer->ui_texture_upload_bytes += (uint64_t)dirty.w * dirty.h * 4u;
+    renderer->ui_texture_upload_count++;
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOAD_BYTES,
+        (int64_t)((uint64_t)dirty.w * dirty.h * 4u));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_UI_TEXTURE_UPLOADS, 1);
+    trspk_atlas_clear_dirty(&renderer->ui_sprite_atlas);
     return true;
 }
 
@@ -983,15 +3728,8 @@ d3d9_unload_texture(struct ToriRS_D3D9* renderer, int tex_id)
         struct TRSPK_AtlasTile tile;
         if( trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)slot, &tile) )
         {
-            uint32_t y;
-            for( y = 0u; y < tile.h; y++ )
-                memset(
-                    renderer->atlas.pixels +
-                        (size_t)(tile.y + y) * renderer->atlas.stride +
-                        (size_t)tile.x * renderer->atlas.channels,
-                    0,
-                    (size_t)tile.w * renderer->atlas.channels);
-            trspk_atlas_set_dirty(&renderer->atlas);
+            (void)trspk_atlas_clear_rect(
+                &renderer->atlas, tile.x, tile.y, tile.w, tile.h);
             renderer->tex_resident[slot] = 0u;
         }
     }
@@ -1039,6 +3777,87 @@ d3d9_map_animated_uv(float* u, float* v)
         *v = 0.992f;
 }
 
+static bool
+d3d9_reclassify_face_range(
+    struct TRSPK_VBO* vbo,
+    struct TRSPK_Triangles* triangles,
+    uint32_t vertex_base,
+    uint32_t vertex_count,
+    int tex_id,
+    bool animated,
+    int slot,
+    float cell,
+    float origin_u,
+    float origin_v)
+{
+    bool changed = false;
+    uint32_t vertex_offset;
+
+    if( !vbo || vbo->format != TRSPK_VERTEX_FORMAT_D3D9 ||
+        !vbo->vertices.as_d3d9 || !triangles || !triangles->config ||
+        vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
+        vertex_count > vbo->vertex_count - vertex_base )
+        return false;
+
+    for( vertex_offset = 0u; vertex_offset < vertex_count; vertex_offset += 3u )
+    {
+        uint32_t vertex_index = vertex_base + vertex_offset;
+        uint32_t triangle_index =
+            trspk_triangles_index_from_vertex(vertex_index);
+        struct TRSPK_VertexD3D9* first =
+            &vbo->vertices.as_d3d9[vertex_index];
+        int baked_tex_id;
+        int config;
+        uint32_t corner;
+
+        if( triangle_index >= triangles->cap || first->texdata[0] < 0.0f )
+            continue;
+        baked_tex_id = (int)(first->texdata[0] + 0.5f);
+        if( baked_tex_id != tex_id )
+            continue;
+        config = trspk_triangles_get(triangles, triangle_index);
+
+        if( animated )
+        {
+            if( config != TRSPK_TRIANGLES_ATLAS )
+                continue;
+            for( corner = 0u; corner < 3u; corner++ )
+            {
+                struct TRSPK_VertexD3D9* vertex =
+                    &vbo->vertices.as_d3d9[vertex_index + corner];
+                vertex->texcoord[0] = (vertex->texcoord[0] - origin_u) / cell;
+                vertex->texcoord[1] = (vertex->texcoord[1] - origin_v) / cell;
+                d3d9_map_animated_uv(&vertex->texcoord[0], &vertex->texcoord[1]);
+            }
+            trspk_triangles_set(triangles, triangle_index, tex_id);
+        }
+        else
+        {
+            if( config != tex_id )
+                continue;
+            for( corner = 0u; corner < 3u; corner++ )
+            {
+                struct TRSPK_VertexD3D9* vertex =
+                    &vbo->vertices.as_d3d9[vertex_index + corner];
+                float mapped_u;
+                float mapped_v;
+                d3d9_map_atlas_uv(
+                    slot,
+                    vertex->texcoord[0],
+                    vertex->texcoord[1],
+                    &mapped_u,
+                    &mapped_v);
+                vertex->texcoord[0] = mapped_u;
+                vertex->texcoord[1] = mapped_v;
+            }
+            trspk_triangles_set(
+                triangles, triangle_index, TRSPK_TRIANGLES_ATLAS);
+        }
+        changed = true;
+    }
+    return changed;
+}
+
 /* Geometry can be retained before its asynchronously requested texture is in
  * the scene map.  Unknown textures are initially mapped to their reserved
  * atlas tile.  If the eventual texture is animated, promote every already
@@ -1083,75 +3902,56 @@ d3d9_reclassify_texture_faces(
         for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
         {
             const struct TRSPK_ModelSlot* model_slot = &arena->slots[slot_index];
-            uint32_t face_index;
             if( !trspk_modelslot_is_alive(model_slot) )
                 continue;
-
-            for( face_index = 0u; face_index < model_slot->tri_count; face_index++ )
-            {
-                uint32_t vertex_index = model_slot->vertex_base + face_index * 3u;
-                uint32_t triangle_index =
-                    trspk_triangles_index_from_vertex(vertex_index);
-                struct TRSPK_VertexD3D9* first =
-                    &vbo->vertices.as_d3d9[vertex_index];
-                int baked_tex_id;
-                int config;
-                uint32_t corner;
-
-                /* Untextured faces store -1.  Rounding -1 as value+0.5 and
-                 * casting would truncate to texture id 0 in C. */
-                if( first->texdata[0] < 0.0f )
-                    continue;
-                baked_tex_id = (int)(first->texdata[0] + 0.5f);
-                if( baked_tex_id != tex_id )
-                    continue;
-                config = trspk_triangles_get(&group->triangles, triangle_index);
-
-                if( animated )
-                {
-                    if( config != TRSPK_TRIANGLES_ATLAS )
-                        continue;
-                    for( corner = 0u; corner < 3u; corner++ )
-                    {
-                        struct TRSPK_VertexD3D9* vertex =
-                            &vbo->vertices.as_d3d9[vertex_index + corner];
-                        vertex->texcoord[0] = (vertex->texcoord[0] - origin_u) / cell;
-                        vertex->texcoord[1] = (vertex->texcoord[1] - origin_v) / cell;
-                        d3d9_map_animated_uv(
-                            &vertex->texcoord[0], &vertex->texcoord[1]);
-                    }
-                    trspk_triangles_set(&group->triangles, triangle_index, tex_id);
-                }
-                else
-                {
-                    if( config != tex_id )
-                        continue;
-                    for( corner = 0u; corner < 3u; corner++ )
-                    {
-                        struct TRSPK_VertexD3D9* vertex =
-                            &vbo->vertices.as_d3d9[vertex_index + corner];
-                        float mapped_u;
-                        float mapped_v;
-                        d3d9_map_atlas_uv(
-                            slot,
-                            vertex->texcoord[0],
-                            vertex->texcoord[1],
-                            &mapped_u,
-                            &mapped_v);
-                        vertex->texcoord[0] = mapped_u;
-                        vertex->texcoord[1] = mapped_v;
-                    }
-                    trspk_triangles_set(
-                        &group->triangles,
-                        triangle_index,
-                        TRSPK_TRIANGLES_ATLAS);
-                }
-                changed = true;
-            }
+            changed = d3d9_reclassify_face_range(
+                          vbo,
+                          &group->triangles,
+                          model_slot->vertex_base,
+                          model_slot->tri_count * 3u,
+                          tex_id,
+                          animated,
+                          slot,
+                          cell,
+                          origin_u,
+                          origin_v) ||
+                changed;
         }
 
         if( changed )
             trspk_vbo_set_dirty(vbo);
+    }
+
+    /* Batch pages are scanned only when a texture changes class.  Normal
+     * frames keep both their CPU geometry and managed D3D9 buffers untouched. */
+    for( group_index = 0u; group_index < renderer->static_batch_count; group_index++ )
+    {
+        struct D3D9StaticBatch* batch = &renderer->static_batches[group_index];
+        uint32_t chunk_count;
+        uint32_t chunk_index;
+        if( !batch->cpu || (!batch->active && !batch->building) )
+            continue;
+        chunk_count = trspk_batch16_chunk_count(batch->cpu);
+        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
+        {
+            struct TRSPK_Batch16Chunk* chunk =
+                trspk_batch16_get_chunk(batch->cpu, chunk_index);
+            if( chunk && d3d9_reclassify_face_range(
+                    chunk->vbo,
+                    &chunk->triangles,
+                    0u,
+                    chunk->vertex_count,
+                    tex_id,
+                    animated,
+                    slot,
+                    cell,
+                    origin_u,
+                    origin_v) )
+            {
+                trspk_vbo_set_dirty(chunk->vbo);
+                renderer->static_batch_upload_pending = true;
+            }
+        }
     }
 }
 
@@ -1184,9 +3984,10 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
         hr = IDirect3DDevice9_CreateVertexBuffer(
             renderer->device,
             (UINT)(capacity * sizeof(struct TRSPK_VertexD3D9)),
-            D3DUSAGE_WRITEONLY,
+            D3DUSAGE_WRITEONLY |
+                (group->reset_each_frame ? D3DUSAGE_DYNAMIC : 0u),
             0u,
-            D3DPOOL_MANAGED,
+            group->reset_each_frame ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED,
             &group->vbo_gpu,
             NULL);
         if( FAILED(hr) )
@@ -1198,7 +3999,12 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
         group->gpu_capacity = capacity;
     }
     byte_count = (UINT)(vertex_count * sizeof(struct TRSPK_VertexD3D9));
-    hr = IDirect3DVertexBuffer9_Lock(group->vbo_gpu, 0u, byte_count, &locked, 0u);
+    hr = IDirect3DVertexBuffer9_Lock(
+        group->vbo_gpu,
+        0u,
+        byte_count,
+        &locked,
+        group->reset_each_frame ? D3DLOCK_DISCARD : 0u);
     if( FAILED(hr) )
     {
         d3d9_log_hr("Lock(vertex buffer)", hr);
@@ -1206,7 +4012,489 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
     }
     memcpy(locked, group->vbo_cpu->vertices.as_d3d9, byte_count);
     IDirect3DVertexBuffer9_Unlock(group->vbo_gpu);
+    if( group->reset_each_frame )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOAD_BYTES, byte_count);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DYNAMIC_VBO_UPLOADS, 1);
+    }
+    else
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOAD_BYTES, byte_count);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOADS, 1);
+    }
     trspk_vbo_clear_dirty(group->vbo_cpu);
+    return true;
+}
+
+static bool
+d3d9_grow_static_batches(struct ToriRS_D3D9* renderer, uint32_t needed)
+{
+    struct D3D9StaticBatch* grown;
+    uint32_t capacity;
+    if( needed <= renderer->static_batch_capacity )
+        return true;
+    capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
+    while( capacity < needed )
+    {
+        if( capacity > UINT32_MAX / 2u )
+            return false;
+        capacity *= 2u;
+    }
+    grown = (struct D3D9StaticBatch*)realloc(
+        renderer->static_batches, (size_t)capacity * sizeof(*grown));
+    if( !grown )
+        return false;
+    memset(
+        grown + renderer->static_batch_capacity,
+        0,
+        (size_t)(capacity - renderer->static_batch_capacity) * sizeof(*grown));
+    renderer->static_batches = grown;
+    renderer->static_batch_capacity = capacity;
+    return true;
+}
+
+static int
+d3d9_static_batch_slot(
+    struct ToriRS_D3D9* renderer,
+    int batch_id,
+    bool create)
+{
+    uint32_t i;
+    uint32_t reusable = UINT32_MAX;
+    if( !renderer || batch_id < 0 )
+        return -1;
+    for( i = 0u; i < renderer->static_batch_count; i++ )
+    {
+        if( renderer->static_batches[i].batch_id == batch_id )
+            return (int)i;
+        if( reusable == UINT32_MAX && !renderer->static_batches[i].active &&
+            !renderer->static_batches[i].building &&
+            trspk_batch16_entry_count(renderer->static_batches[i].cpu) == 0u )
+            reusable = i;
+    }
+    if( create && reusable != UINT32_MAX )
+    {
+        renderer->static_batches[reusable].batch_id = batch_id;
+        return (int)reusable;
+    }
+    if( !create || !d3d9_grow_static_batches(
+            renderer, renderer->static_batch_count + 1u) )
+        return -1;
+    i = renderer->static_batch_count++;
+    renderer->static_batches[i].batch_id = batch_id;
+    renderer->static_batches[i].cpu =
+        trspk_batch16_create(TRSPK_VERTEX_FORMAT_D3D9);
+    if( !renderer->static_batches[i].cpu )
+    {
+        renderer->static_batch_count--;
+        memset(&renderer->static_batches[i], 0, sizeof(renderer->static_batches[i]));
+        return -1;
+    }
+    return (int)i;
+}
+
+static void
+d3d9_rebuild_batch_pose_table(struct ToriRS_D3D9* renderer)
+{
+    uint32_t batch_slot;
+    if( !renderer )
+        return;
+    trspk_pose_table_clear(&renderer->batch_poses);
+    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+    {
+        const struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
+        uint32_t entry_count;
+        uint32_t i;
+        if( !batch->active || !batch->cpu )
+            continue;
+        entry_count = trspk_batch16_entry_count(batch->cpu);
+        for( i = 0u; i < entry_count; i++ )
+        {
+            const struct TRSPK_Batch16Entry* entry =
+                trspk_batch16_get_entry(batch->cpu, i);
+            uint32_t page_id;
+            uint32_t locator;
+            if( !entry || entry->element_id < 0 ||
+                entry->chunk_index >= batch->page_id_capacity ||
+                entry->vertex_base > D3D9_BATCH_POSE_BASE_MASK )
+                continue;
+            page_id = batch->page_ids[entry->chunk_index];
+            if( page_id > D3D9_BATCH_POSE_PAGE_MASK ||
+                page_id >= renderer->static_page_count ||
+                !renderer->static_pages[page_id].valid )
+                continue;
+            locator = D3D9_BATCH_POSE_FLAG | (page_id << 16u) |
+                entry->vertex_base;
+            trspk_pose_table_set(
+                &renderer->batch_poses,
+                entry->element_id,
+                entry->anim_index,
+                entry->pose_id,
+                locator);
+        }
+    }
+}
+
+static bool
+d3d9_grow_static_pages(struct ToriRS_D3D9* renderer, uint32_t needed)
+{
+    struct D3D9StaticPageRef* grown;
+    uint32_t capacity;
+    if( needed <= renderer->static_page_capacity )
+        return true;
+    if( needed > D3D9_BATCH_PAGE_LIMIT )
+        return false;
+    capacity = renderer->static_page_capacity ? renderer->static_page_capacity : 32u;
+    while( capacity < needed )
+    {
+        if( capacity >= D3D9_BATCH_PAGE_LIMIT / 2u )
+        {
+            capacity = D3D9_BATCH_PAGE_LIMIT;
+            break;
+        }
+        capacity *= 2u;
+    }
+    grown = (struct D3D9StaticPageRef*)realloc(
+        renderer->static_pages, (size_t)capacity * sizeof(*grown));
+    if( !grown )
+        return false;
+    memset(
+        grown + renderer->static_page_capacity,
+        0,
+        (size_t)(capacity - renderer->static_page_capacity) * sizeof(*grown));
+    renderer->static_pages = grown;
+    renderer->static_page_capacity = capacity;
+    return true;
+}
+
+static bool
+d3d9_static_batch_ensure_chunk_storage(
+    struct ToriRS_D3D9* renderer,
+    uint32_t batch_slot,
+    uint32_t chunk_count)
+{
+    struct D3D9StaticBatch* batch;
+    uint32_t* grown_ids;
+    uint32_t old_capacity;
+    uint32_t capacity;
+    uint32_t i;
+    if( !renderer || batch_slot >= renderer->static_batch_count )
+        return false;
+    batch = &renderer->static_batches[batch_slot];
+    if( chunk_count <= batch->page_id_capacity )
+        return true;
+    old_capacity = batch->page_id_capacity;
+    capacity = batch->page_id_capacity;
+    if( capacity == 0u )
+        capacity = 4u;
+    while( capacity < chunk_count )
+    {
+        if( capacity > UINT32_MAX / 2u )
+            return false;
+        capacity *= 2u;
+    }
+    grown_ids = (uint32_t*)realloc(
+        batch->page_ids, (size_t)capacity * sizeof(*grown_ids));
+    if( !grown_ids )
+        return false;
+    batch->page_ids = grown_ids;
+    for( i = old_capacity; i < capacity; i++ )
+    {
+        batch->page_ids[i] = UINT32_MAX;
+    }
+    batch->page_id_capacity = capacity;
+    return true;
+}
+
+static bool
+d3d9_static_batch_assign_page(
+    struct ToriRS_D3D9* renderer,
+    uint32_t batch_slot,
+    uint32_t chunk_index)
+{
+    struct D3D9StaticBatch* batch;
+    uint32_t page_id;
+    if( !renderer || batch_slot >= renderer->static_batch_count )
+        return false;
+    batch = &renderer->static_batches[batch_slot];
+    if( chunk_index >= batch->page_id_capacity )
+        return false;
+    page_id = batch->page_ids[chunk_index];
+    if( page_id == UINT32_MAX )
+    {
+        if( renderer->static_page_count >= D3D9_BATCH_PAGE_LIMIT ||
+            !d3d9_grow_static_pages(renderer, renderer->static_page_count + 1u) )
+            return false;
+        page_id = renderer->static_page_count++;
+        batch->page_ids[chunk_index] = page_id;
+    }
+    renderer->static_pages[page_id].batch_slot = batch_slot;
+    renderer->static_pages[page_id].chunk_index = chunk_index;
+    renderer->static_pages[page_id].valid = true;
+    return true;
+}
+
+static bool
+d3d9_ensure_static_batch_vbo(
+    struct ToriRS_D3D9* renderer,
+    uint32_t required_pages,
+    bool* out_recreated)
+{
+    IDirect3DVertexBuffer9* replacement = NULL;
+    uint32_t capacity;
+    uint64_t vertex_capacity;
+    uint64_t byte_capacity;
+    HRESULT hr;
+    if( out_recreated )
+        *out_recreated = false;
+    if( !renderer || required_pages == 0u )
+        return renderer != NULL;
+    if( renderer->static_batch_vbo &&
+        renderer->static_batch_gpu_page_capacity >= required_pages )
+        return true;
+    if( !renderer->device )
+        return true;
+
+    capacity = renderer->static_batch_gpu_page_capacity
+        ? renderer->static_batch_gpu_page_capacity
+        : 4u;
+    while( capacity < required_pages )
+    {
+        if( capacity > D3D9_BATCH_PAGE_LIMIT / 2u )
+        {
+            capacity = D3D9_BATCH_PAGE_LIMIT;
+            break;
+        }
+        capacity *= 2u;
+    }
+    vertex_capacity = (uint64_t)capacity * D3D9_VBO_PAGE;
+    byte_capacity = vertex_capacity * sizeof(struct TRSPK_VertexD3D9);
+    if( vertex_capacity > INT_MAX || byte_capacity > UINT_MAX )
+        return false;
+    hr = IDirect3DDevice9_CreateVertexBuffer(
+        renderer->device,
+        (UINT)byte_capacity,
+        D3DUSAGE_WRITEONLY,
+        0u,
+        D3DPOOL_MANAGED,
+        &replacement,
+        NULL);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("CreateVertexBuffer(static batch arena)", hr);
+        return false;
+    }
+    if( renderer->device )
+        IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
+    if( renderer->static_batch_vbo )
+        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
+    renderer->static_batch_vbo = replacement;
+    renderer->static_batch_gpu_page_capacity = capacity;
+    if( out_recreated )
+        *out_recreated = true;
+    return true;
+}
+
+static bool
+d3d9_upload_static_batch_chunk(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9StaticBatch* batch,
+    uint32_t chunk_index)
+{
+    struct TRSPK_Batch16Chunk* chunk;
+    uint32_t page_id;
+    UINT byte_offset;
+    uint32_t vertex_count;
+    UINT byte_count;
+    void* locked = NULL;
+    HRESULT hr;
+    if( !renderer || !batch || !batch->cpu ||
+        chunk_index >= batch->page_id_capacity )
+        return false;
+    chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
+    if( !chunk || !chunk->vbo )
+        return false;
+    vertex_count = chunk->vertex_count;
+    if( vertex_count == 0u )
+    {
+        trspk_vbo_clear_dirty(chunk->vbo);
+        return true;
+    }
+    if( !renderer->device )
+        return true;
+    if( !renderer->static_batch_vbo )
+        return false;
+    if( !trspk_vbo_is_dirty(chunk->vbo) )
+        return true;
+    if( chunk_index >= batch->page_id_capacity )
+        return false;
+    page_id = batch->page_ids[chunk_index];
+    if( page_id == UINT32_MAX || page_id >= renderer->static_page_count ||
+        page_id >= renderer->static_batch_gpu_page_capacity )
+        return false;
+    byte_offset = (UINT)((uint64_t)page_id * D3D9_VBO_PAGE *
+        sizeof(struct TRSPK_VertexD3D9));
+    byte_count = (UINT)(vertex_count * sizeof(struct TRSPK_VertexD3D9));
+    hr = IDirect3DVertexBuffer9_Lock(
+        renderer->static_batch_vbo,
+        byte_offset,
+        byte_count,
+        &locked,
+        0u);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("Lock(static batch vertex buffer)", hr);
+        return false;
+    }
+    memcpy(locked, chunk->vbo->vertices.as_d3d9, byte_count);
+    hr = IDirect3DVertexBuffer9_Unlock(renderer->static_batch_vbo);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("Unlock(static batch vertex buffer)", hr);
+        return false;
+    }
+    trspk_vbo_clear_dirty(chunk->vbo);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOAD_BYTES, byte_count);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_VBO_UPLOADS, 1);
+    return true;
+}
+
+static bool
+d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer);
+
+static void
+d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer)
+{
+    uint32_t batch_slot;
+    if( !renderer )
+        return;
+    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+    {
+        struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
+        uint32_t chunk_count;
+        uint32_t chunk_index;
+        if( !batch->active || !batch->cpu )
+            continue;
+        chunk_count = trspk_batch16_chunk_count(batch->cpu);
+        for( chunk_index = 0u; chunk_index < chunk_count; chunk_index++ )
+        {
+            struct TRSPK_Batch16Chunk* chunk =
+                trspk_batch16_get_chunk(batch->cpu, chunk_index);
+            if( chunk && chunk->vbo )
+                trspk_vbo_set_dirty(chunk->vbo);
+        }
+    }
+    renderer->static_batch_upload_pending = true;
+}
+
+static bool
+d3d9_static_batch_commit(struct ToriRS_D3D9* renderer, uint32_t batch_slot)
+{
+    struct D3D9StaticBatch* batch;
+    uint32_t chunk_count;
+    uint32_t i;
+    bool recreated = false;
+    if( !renderer || batch_slot >= renderer->static_batch_count )
+        return false;
+    batch = &renderer->static_batches[batch_slot];
+    if( !batch->cpu )
+        return false;
+    batch->active = false;
+    chunk_count = trspk_batch16_chunk_count(batch->cpu);
+    if( !d3d9_static_batch_ensure_chunk_storage(
+            renderer, batch_slot, chunk_count) )
+        return false;
+    for( i = 0u; i < batch->page_id_capacity; i++ )
+    {
+        uint32_t page_id = batch->page_ids[i];
+        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
+            renderer->static_pages[page_id].valid = false;
+    }
+    for( i = 0u; i < chunk_count; i++ )
+        if( !d3d9_static_batch_assign_page(renderer, batch_slot, i) )
+            goto fail;
+    if( !d3d9_ensure_static_batch_vbo(
+            renderer, renderer->static_page_count, &recreated) )
+        goto fail;
+    if( recreated )
+    {
+        d3d9_mark_active_static_batches_dirty(renderer);
+        if( !d3d9_upload_dirty_static_batches(renderer) )
+            goto fail;
+    }
+    for( i = 0u; i < chunk_count; i++ )
+        if( !d3d9_upload_static_batch_chunk(renderer, batch, i) )
+            goto fail;
+    batch->active = true;
+    d3d9_rebuild_batch_pose_table(renderer);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STATIC_BATCH_BUILDS, 1);
+    return true;
+
+fail:
+    for( i = 0u; i < batch->page_id_capacity; i++ )
+    {
+        uint32_t page_id = batch->page_ids[i];
+        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
+            renderer->static_pages[page_id].valid = false;
+    }
+    d3d9_rebuild_batch_pose_table(renderer);
+    return false;
+}
+
+static bool
+d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
+{
+    uint32_t batch_slot;
+    if( !renderer )
+        return false;
+    if( !renderer->static_batch_upload_pending )
+        return true;
+    for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
+    {
+        struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
+        uint32_t chunk_count;
+        uint32_t chunk;
+        if( !batch->active || !batch->cpu )
+            continue;
+        chunk_count = trspk_batch16_chunk_count(batch->cpu);
+        for( chunk = 0u; chunk < chunk_count; chunk++ )
+            if( !d3d9_upload_static_batch_chunk(renderer, batch, chunk) )
+                return false;
+    }
+    renderer->static_batch_upload_pending = false;
+    return true;
+}
+
+static bool
+d3d9_resolve_static_page(
+    struct ToriRS_D3D9* renderer,
+    uint32_t page_id,
+    struct D3D9StaticBatch** out_batch,
+    struct TRSPK_Batch16Chunk** out_chunk,
+    IDirect3DVertexBuffer9** out_vbo)
+{
+    const struct D3D9StaticPageRef* ref;
+    struct D3D9StaticBatch* batch;
+    struct TRSPK_Batch16Chunk* chunk;
+    if( !renderer || page_id >= renderer->static_page_count ||
+        !renderer->static_pages[page_id].valid )
+        return false;
+    ref = &renderer->static_pages[page_id];
+    if( ref->batch_slot >= renderer->static_batch_count )
+        return false;
+    batch = &renderer->static_batches[ref->batch_slot];
+    if( !batch->active || !batch->cpu ||
+        ref->chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
+        return false;
+    chunk = trspk_batch16_get_chunk(batch->cpu, ref->chunk_index);
+    if( !chunk )
+        return false;
+    if( out_batch )
+        *out_batch = batch;
+    if( out_chunk )
+        *out_chunk = chunk;
+    if( out_vbo )
+        *out_vbo = renderer->static_batch_vbo;
     return true;
 }
 
@@ -1302,13 +4590,13 @@ d3d9_pose_element_is_retained(
 {
     uint32_t element_index;
     int track;
-    if( !renderer || element_id < 0 || !renderer->poses.elements )
+    if( !renderer || element_id < 0 )
         return false;
     element_index = (uint32_t)element_id;
-    if( element_index >= renderer->poses.element_count )
-        return false;
     for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
-        if( renderer->poses.elements[element_index].tracks[track].pose_count > 0u )
+        if( renderer->poses.elements &&
+            element_index < renderer->poses.element_count &&
+            renderer->poses.elements[element_index].tracks[track].pose_count > 0u )
             return true;
     return false;
 }
@@ -1321,80 +4609,35 @@ d3d9_pose_track_is_retained(
 {
     uint32_t element_index;
     if( !renderer || element_id < 0 || anim_index < 0 ||
-        anim_index >= TRSPK_POSE_TRACK_COUNT || !renderer->poses.elements )
+        anim_index >= TRSPK_POSE_TRACK_COUNT )
         return false;
     element_index = (uint32_t)element_id;
-    return element_index < renderer->poses.element_count &&
+    return renderer->poses.elements && element_index < renderer->poses.element_count &&
         renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
 }
 
-static uint32_t
-d3d9_bake_into_arena(
+static bool
+d3d9_bake_pose_vertices(
     struct ToriRS_D3D9* renderer,
-    struct D3D9ModelGroup* group,
-    int element_id,
-    int anim_index,
-    int pose_id,
+    struct TRSPK_VBO* vbo,
+    struct TRSPK_Triangles* triangles,
+    uint32_t vertex_base,
     struct ToriDraw_ModelHandle model_handle,
-    const struct ToriDraw_Position* world_position,
-    bool update_pose_table)
+    const struct ToriDraw_Position* world_position)
 {
     int face_count;
-    uint32_t vertex_count;
-    int arena_element_id;
-    int arena_pose_id;
-    uint32_t slot_index;
-    const struct TRSPK_ModelSlot* model_slot;
     uint32_t face_index;
 
-    if( !renderer || !renderer->scene || !group || !group->arena || !group->vbo_cpu )
-        return UINT32_MAX;
+    if( !renderer || !renderer->scene || !vbo || !triangles )
+        return false;
     face_count = trspk_toridraw_face_count(model_handle);
     if( face_count <= 0 )
-        return UINT32_MAX;
-    vertex_count = (uint32_t)face_count * 3u;
-    if( vertex_count > D3D9_VBO_PAGE )
-    {
-        fprintf(
-            stderr,
-            "D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
-            (unsigned long)vertex_count);
-        return UINT32_MAX;
-    }
-
-    anim_index = d3d9_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
-    if( pose_id < 0 )
-        pose_id = 0;
-    if( pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
-        return UINT32_MAX;
-    arena_element_id = element_id >= 0 ? element_id : 0;
-    /* Interleave tracks instead of reserving a fixed frame stride.  This is a
-     * collision-free flattening of (pose, track) for every representable key. */
-    arena_pose_id = pose_id * TRSPK_POSE_TRACK_COUNT + anim_index;
-
-    if( update_pose_table && element_id < 0 )
-        update_pose_table = false;
-    if( update_pose_table )
-    {
-        uint32_t old_slot =
-            trspk_modelarena_find(group->arena, arena_element_id, arena_pose_id);
-        if( old_slot != TRSPK_MODELSLOT_NULL_IDX )
-        {
-            trspk_modelarena_unload(group->arena, old_slot);
-            if( group == &renderer->groups[TRSPK_VBO_GROUP_STATIC] )
-                d3d9_compact_static_group(renderer);
-        }
-    }
-    slot_index = trspk_modelarena_load(
-        group->arena, arena_element_id, arena_pose_id, vertex_count);
-    model_slot = trspk_modelarena_get(group->arena, slot_index);
-    if( !model_slot )
-        return UINT32_MAX;
+        return false;
 
     for( face_index = 0u; face_index < (uint32_t)face_count; face_index++ )
     {
         struct TRSPK_ToriDrawBakeFaceVerts face;
-        uint32_t vertex = model_slot->vertex_base + face_index * 3u;
+        uint32_t vertex = vertex_base + face_index * 3u;
         float ua = 0.5f;
         float va = 0.5f;
         float ub = 0.5f;
@@ -1465,11 +4708,11 @@ d3d9_bake_into_arena(
         }
 
         trspk_triangles_set(
-            &group->triangles,
+            triangles,
             trspk_triangles_index_from_vertex(vertex),
             triangle_config);
         trspk_vbo_write_vertex_d3d9(
-            group->vbo_cpu,
+            vbo,
             vertex,
             face.wx_a,
             face.wy_a,
@@ -1479,7 +4722,7 @@ d3d9_bake_into_arena(
             va,
             (float)face.tex_id);
         trspk_vbo_write_vertex_d3d9(
-            group->vbo_cpu,
+            vbo,
             vertex + 1u,
             face.wx_b,
             face.wy_b,
@@ -1489,7 +4732,7 @@ d3d9_bake_into_arena(
             vb,
             (float)face.tex_id);
         trspk_vbo_write_vertex_d3d9(
-            group->vbo_cpu,
+            vbo,
             vertex + 2u,
             face.wx_c,
             face.wy_c,
@@ -1499,6 +4742,75 @@ d3d9_bake_into_arena(
             vc,
             (float)face.tex_id);
     }
+
+    return true;
+}
+
+static uint32_t
+d3d9_bake_into_arena(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9ModelGroup* group,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle model_handle,
+    const struct ToriDraw_Position* world_position,
+    bool update_pose_table)
+{
+    int face_count;
+    uint32_t vertex_count;
+    int arena_element_id;
+    int arena_pose_id;
+    uint32_t slot_index;
+    const struct TRSPK_ModelSlot* model_slot;
+
+    if( !renderer || !renderer->scene || !group || !group->arena || !group->vbo_cpu )
+        return UINT32_MAX;
+    face_count = trspk_toridraw_face_count(model_handle);
+    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
+        return UINT32_MAX;
+    vertex_count = (uint32_t)face_count * 3u;
+    if( vertex_count > TRSPK_BATCH16_MAX_VERTICES )
+    {
+        fprintf(
+            stderr,
+            "D3D9: model has %lu vertices and cannot fit a 16-bit TRSPK page\n",
+            (unsigned long)vertex_count);
+        return UINT32_MAX;
+    }
+
+    anim_index = d3d9_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    if( pose_id < 0 )
+        pose_id = 0;
+    if( pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+        return UINT32_MAX;
+    arena_element_id = element_id >= 0 ? element_id : 0;
+    arena_pose_id = pose_id * TRSPK_POSE_TRACK_COUNT + anim_index;
+
+    if( update_pose_table && element_id < 0 )
+        update_pose_table = false;
+    if( update_pose_table )
+    {
+        uint32_t old_slot =
+            trspk_modelarena_find(group->arena, arena_element_id, arena_pose_id);
+        if( old_slot != TRSPK_MODELSLOT_NULL_IDX )
+        {
+            trspk_modelarena_unload(group->arena, old_slot);
+            if( group == &renderer->groups[TRSPK_VBO_GROUP_STATIC] )
+                d3d9_compact_static_group(renderer);
+        }
+    }
+    slot_index = trspk_modelarena_load(
+        group->arena, arena_element_id, arena_pose_id, vertex_count);
+    model_slot = trspk_modelarena_get(group->arena, slot_index);
+    if( !model_slot || !d3d9_bake_pose_vertices(
+            renderer,
+            group->vbo_cpu,
+            &group->triangles,
+            model_slot->vertex_base,
+            model_handle,
+            world_position) )
+        return UINT32_MAX;
 
     if( update_pose_table )
         trspk_pose_table_set(
@@ -1513,7 +4825,10 @@ d3d9_bake_into_arena(
 static void
 d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
 {
-    if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
+    /* Individual unloads own only the legacy arena. Batch geometry and its
+     * pose map remain immutable until the matching batch rebuild/clear. */
+    if( !renderer || element_id < 0 ||
+        !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !d3d9_pose_element_is_retained(renderer, element_id) )
         return;
     trspk_modelarena_unload_element(
@@ -1531,6 +4846,7 @@ d3d9_animation_track_unload(
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
 
+    /* A pose-track unload likewise must not punch holes in a committed batch. */
     if( !renderer || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
@@ -1652,6 +4968,39 @@ d3d9_animation_load(
     }
 }
 
+static bool
+d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
+{
+    uint16_t* grown;
+    uint32_t capacity;
+    size_t byte_count;
+    if( !renderer )
+        return false;
+    if( needed <= renderer->model_index_capacity )
+        return true;
+    capacity = renderer->model_index_capacity
+        ? renderer->model_index_capacity
+        : 256u;
+    while( capacity < needed )
+    {
+        if( capacity > UINT32_MAX / 2u )
+        {
+            capacity = needed;
+            break;
+        }
+        capacity *= 2u;
+    }
+    byte_count = (size_t)capacity * sizeof(*grown);
+    if( capacity != 0u && byte_count / sizeof(*grown) != capacity )
+        return false;
+    grown = (uint16_t*)realloc(renderer->model_indices, byte_count);
+    if( !grown )
+        return false;
+    renderer->model_indices = grown;
+    renderer->model_index_capacity = capacity;
+    return true;
+}
+
 static void
 d3d9_begin_3d(
     struct ToriRS_D3D9* renderer,
@@ -1670,6 +5019,8 @@ d3d9_begin_3d(
 
     if( !renderer->device || !command )
         return;
+    if( renderer->ibo_chain )
+        trspk_ibochain_reset(renderer->ibo_chain);
     renderer->cur_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
@@ -1735,9 +5086,12 @@ d3d9_draw_model(
     int anim_index;
     int pose_id;
     uint32_t vertex_base;
-    uint32_t page_base;
+    uint32_t page_base = 0u;
     uint32_t local_base;
+    uint32_t binding;
     uint32_t group;
+    uint32_t index_count;
+    uint32_t written = 0u;
     int i;
 
     if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
@@ -1788,6 +5142,7 @@ d3d9_draw_model(
         pose_id >= command->animation->frame_count )
         pose_id = 0;
     group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
+    binding = group;
     if( dynamic )
     {
         vertex_base = d3d9_bake_into_arena(
@@ -1800,12 +5155,30 @@ d3d9_draw_model(
             &command->world_position,
             false);
     }
-    else if( !trspk_pose_table_get(
-                 &renderer->poses,
+    else if( trspk_pose_table_get(
+                 &renderer->batch_poses,
                  command->element_id,
                  anim_index,
                  pose_id,
                  &vertex_base) )
+    {
+        uint32_t page_id;
+        if( (vertex_base & D3D9_BATCH_POSE_FLAG) == 0u )
+            return;
+        page_id = (vertex_base >> 16u) & D3D9_BATCH_POSE_PAGE_MASK;
+        if( page_id >= renderer->static_page_count ||
+            !renderer->static_pages[page_id].valid )
+            return;
+        binding = D3D9_STATIC_PAGE_BINDING_BASE;
+        page_base = page_id * D3D9_VBO_PAGE;
+        vertex_base &= D3D9_BATCH_POSE_BASE_MASK;
+    }
+    else if( !trspk_pose_table_get(
+                  &renderer->poses,
+                  command->element_id,
+                  anim_index,
+                  pose_id,
+                  &vertex_base) )
     {
         /* Renderer creation or an event-queue overflow can leave a live static
          * element without its load event.  Preserve the retained contract by
@@ -1841,21 +5214,37 @@ d3d9_draw_model(
     if( vertex_base == UINT32_MAX )
         return;
 
-    page_base = vertex_base & ~(D3D9_VBO_PAGE - 1u);
-    local_base = vertex_base - page_base;
+    if( binding < D3D9_STATIC_PAGE_BINDING_BASE )
+    {
+        page_base = vertex_base & ~(D3D9_VBO_PAGE - 1u);
+        local_base = vertex_base - page_base;
+    }
+    else
+        local_base = vertex_base;
+    if( (uint32_t)face_count > UINT32_MAX / 3u )
+        return;
+    index_count = (uint32_t)face_count * 3u;
+    if( !d3d9_reserve_model_indices(renderer, index_count) )
+        return;
     face_order = ToriDraw_FaceOrder(renderer->scene);
     for( i = 0; i < face_count; i++ )
     {
-        uint32_t face = (uint32_t)face_order[i];
-        uint32_t base = local_base + face * 3u;
-        uint16_t indices[3];
-        if( base + 2u >= D3D9_VBO_PAGE )
+        uint32_t face;
+        uint32_t base;
+        if( face_order[i] < 0 )
             continue;
-        indices[0] = (uint16_t)base;
-        indices[1] = (uint16_t)(base + 1u);
-        indices[2] = (uint16_t)(base + 2u);
-        trspk_ibochain_push16(renderer->ibo_chain, group, page_base, indices, 3u);
+        face = (uint32_t)face_order[i];
+        if( face > (UINT32_MAX - local_base - 2u) / 3u )
+            continue;
+        base = local_base + face * 3u;
+        if( base + 2u > UINT16_MAX )
+            continue;
+        renderer->model_indices[written++] = (uint16_t)base;
+        renderer->model_indices[written++] = (uint16_t)(base + 1u);
+        renderer->model_indices[written++] = (uint16_t)(base + 2u);
     }
+    trspk_ibochain_push16(
+        renderer->ibo_chain, binding, page_base, renderer->model_indices, written);
 }
 
 static void
@@ -1891,50 +5280,235 @@ d3d9_grow_draw_ranges(struct ToriRS_D3D9* renderer, uint32_t needed)
     return true;
 }
 
+static bool
+d3d9_measure_ibo_chain(
+    const struct TRSPK_IBOChain* chain,
+    uint32_t* out_indices,
+    uint32_t* out_nodes,
+    uint32_t* out_binding_switches)
+{
+    const struct TRSPK_IBOChainNode* node;
+    uint64_t indices = 0u;
+    uint32_t nodes = 0u;
+    uint32_t switches = 0u;
+    uint32_t previous_group = UINT32_MAX;
+    uint32_t previous_offset = UINT32_MAX;
+    if( !chain || !out_indices || !out_nodes || !out_binding_switches ||
+        chain->index_format != TRSPK_INDEX_FORMAT_U16 )
+        return false;
+    for( node = chain->head; node; node = node->next )
+    {
+        if( node->ibo.index_format != TRSPK_INDEX_FORMAT_U16 ||
+            node->ibo.index_count % 3u != 0u ||
+            (node->ibo.index_count != 0u && !node->ibo.indices.as_u16) )
+            return false;
+        if( nodes != 0u &&
+            (node->group != previous_group || node->ibo.offset != previous_offset) )
+            switches++;
+        indices += node->ibo.index_count;
+        if( indices > UINT32_MAX || nodes == UINT32_MAX )
+            return false;
+        previous_group = node->group;
+        previous_offset = node->ibo.offset;
+        nodes++;
+    }
+    *out_indices = (uint32_t)indices;
+    *out_nodes = nodes;
+    *out_binding_switches = switches;
+    return true;
+}
+
+static bool
+d3d9_binding_cpu_source(
+    struct ToriRS_D3D9* renderer,
+    uint32_t binding,
+    uint32_t base_offset,
+    const struct TRSPK_VBO** out_vbo,
+    const struct TRSPK_Triangles** out_triangles)
+{
+    if( !renderer || !out_vbo || !out_triangles )
+        return false;
+    if( binding < TRSPK_VBO_GROUP_COUNT )
+    {
+        *out_vbo = renderer->groups[binding].vbo_cpu;
+        *out_triangles = &renderer->groups[binding].triangles;
+        return *out_vbo != NULL;
+    }
+    else
+    {
+        struct TRSPK_Batch16Chunk* chunk = NULL;
+        uint32_t page_id;
+        if( binding != D3D9_STATIC_PAGE_BINDING_BASE ||
+            base_offset % D3D9_VBO_PAGE != 0u )
+            return false;
+        page_id = base_offset / D3D9_VBO_PAGE;
+        if( !d3d9_resolve_static_page(
+                renderer, page_id, NULL, &chunk, NULL) )
+            return false;
+        *out_vbo = chunk->vbo;
+        *out_triangles = &chunk->triangles;
+        return *out_vbo != NULL;
+    }
+}
+
+static uint32_t
+d3d9_build_draw_ranges16(
+    struct ToriRS_D3D9* renderer,
+    uint16_t* dst)
+{
+    const struct TRSPK_IBOChainNode* node;
+    uint32_t gpu_cursor = 0u;
+    if( !renderer || !renderer->ibo_chain || !renderer->draw_ranges || !dst )
+        return UINT32_MAX;
+    trspk_drawrangelist_clear(renderer->draw_ranges);
+
+    for( node = renderer->ibo_chain->head; node; node = node->next )
+    {
+        const struct TRSPK_VBO* vbo;
+        const struct TRSPK_Triangles* triangles;
+        const uint16_t* src = node->ibo.indices.as_u16;
+        uint32_t count = node->ibo.index_count;
+        uint32_t absolute_offset = node->group < TRSPK_VBO_GROUP_COUNT
+            ? node->ibo.offset
+            : 0u;
+        uint32_t i = 0u;
+        if( !d3d9_binding_cpu_source(
+                renderer, node->group, node->ibo.offset, &vbo, &triangles) )
+            return UINT32_MAX;
+        memcpy(dst + gpu_cursor, src, (size_t)count * sizeof(*dst));
+        while( i < count )
+        {
+            uint32_t range_start = i;
+            uint32_t absolute;
+            uint32_t triangle;
+            uint32_t config;
+            uint32_t min_vertex;
+            uint32_t max_vertex;
+            if( i + 2u >= count || absolute_offset > UINT32_MAX - src[i] )
+                return UINT32_MAX;
+            absolute = absolute_offset + src[i];
+            if( absolute + 2u >= vbo->vertex_count )
+                return UINT32_MAX;
+            triangle = trspk_triangles_index_from_vertex(absolute);
+            if( !triangles->config || triangle >= triangles->cap )
+                return UINT32_MAX;
+            config = trspk_triangles_encode_draw_config(
+                trspk_triangles_get(triangles, triangle));
+            min_vertex = src[i];
+            max_vertex = src[i];
+            do
+            {
+                uint32_t corner;
+                for( corner = 0u; corner < 3u; corner++ )
+                {
+                    uint32_t local = src[i + corner];
+                    uint32_t resolved;
+                    if( absolute_offset > UINT32_MAX - local )
+                        return UINT32_MAX;
+                    resolved = absolute_offset + local;
+                    if( resolved >= vbo->vertex_count )
+                        return UINT32_MAX;
+                    if( local < min_vertex )
+                        min_vertex = local;
+                    if( local > max_vertex )
+                        max_vertex = local;
+                }
+                i += 3u;
+                if( i >= count )
+                    break;
+                absolute = absolute_offset + src[i];
+                triangle = trspk_triangles_index_from_vertex(absolute);
+                if( triangle >= triangles->cap ||
+                    trspk_triangles_encode_draw_config(
+                        trspk_triangles_get(triangles, triangle)) != config )
+                    break;
+            } while( true );
+            if( !trspk_drawrangelist_push(
+                    renderer->draw_ranges,
+                    gpu_cursor + range_start,
+                    gpu_cursor + i,
+                    node->ibo.offset,
+                    config,
+                    node->group,
+                    min_vertex,
+                    max_vertex) )
+                return UINT32_MAX;
+        }
+        gpu_cursor += count;
+    }
+    return gpu_cursor;
+}
+
 static void
-d3d9_end_3d(struct ToriRS_D3D9* renderer)
+d3d9_bind_world_config(struct ToriRS_D3D9* renderer, uint32_t config_idx)
+{
+    if( config_idx == 0u )
+        d3d9_bind_atlas(renderer);
+    else
+    {
+        int tex_id = (int)config_idx - 1;
+        if( tex_id >= 0 && tex_id < TORIDRAW_TEXTURE_ID_CAPACITY &&
+            renderer->animated_textures[tex_id] )
+            d3d9_bind_animated(renderer, tex_id);
+        else
+        {
+            d3d9_disable_texture_transform(renderer->device);
+            d3d9_set_no_texture(renderer->device);
+        }
+    }
+}
+
+static void
+d3d9_draw_retained(struct ToriRS_D3D9* renderer)
 {
     uint32_t total_indices = 0u;
-    struct TRSPK_IBOChainNode* node;
+    uint32_t chain_nodes = 0u;
+    uint32_t page_switches = 0u;
+    uint32_t draw_calls = 0u;
+    uint32_t texture_switches = 0u;
+    uint32_t stream_switches = 0u;
     void* locked = NULL;
-    const struct TRSPK_Triangles* triangles[TRSPK_VBO_GROUP_COUNT];
     uint32_t built;
     const struct TRSPK_DrawRange* range;
-    uint32_t last_group = UINT32_MAX;
+    uint32_t last_binding = UINT32_MAX;
     uint32_t last_config = UINT32_MAX;
     uint32_t group;
 
-    if( !renderer->has_3d )
-        goto done;
-    if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
-        goto done;
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( !d3d9_upload_group(renderer, &renderer->groups[group]) )
-            goto done;
+            return;
+    if( !d3d9_upload_dirty_static_batches(renderer) )
+        return;
     if( !renderer->ibo_chain || !renderer->ibo_chain->head )
-        goto done;
-    for( node = renderer->ibo_chain->head; node; node = node->next )
-        total_indices += node->ibo.index_count;
-    if( total_indices == 0u || !d3d9_ensure_ibo(renderer, total_indices) ||
+        return;
+    if( !d3d9_measure_ibo_chain(
+            renderer->ibo_chain,
+            &total_indices,
+            &chain_nodes,
+            &page_switches) ||
+        total_indices == 0u || !d3d9_ensure_ibo(renderer, total_indices) ||
         !d3d9_grow_draw_ranges(renderer, total_indices / 3u + 1u) )
-        goto done;
+        return;
     if( FAILED(IDirect3DIndexBuffer9_Lock(
             renderer->ibo,
             0u,
             (UINT)(total_indices * sizeof(uint16_t)),
             &locked,
             D3DLOCK_DISCARD)) )
-        goto done;
+        return;
 
-    triangles[TRSPK_VBO_GROUP_STATIC] =
-        &renderer->groups[TRSPK_VBO_GROUP_STATIC].triangles;
-    triangles[TRSPK_VBO_GROUP_DYNAMIC] =
-        &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].triangles;
-    built = trspk_drawrangeex_build16(
-        renderer->draw_ranges, triangles, renderer->ibo_chain, (uint16_t*)locked);
+    built = d3d9_build_draw_ranges16(renderer, (uint16_t*)locked);
     IDirect3DIndexBuffer9_Unlock(renderer->ibo);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_D3D9_IBO_UPLOAD_BYTES,
+        (int64_t)((uint64_t)total_indices * sizeof(uint16_t)));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_UPLOADS, 1);
     if( built != total_indices )
-        goto done;
+        return;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_INDICES, total_indices);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_IBO_CHAIN_NODES, chain_nodes);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DRAW_RANGES, renderer->draw_ranges->count);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_PAGE_SWITCHES, page_switches);
 
     d3d9_set_world_states(renderer);
     IDirect3DDevice9_SetIndices(renderer->device, renderer->ibo);
@@ -1942,11 +5516,15 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
     while( range )
     {
         uint32_t index_count = range->end - range->start;
-        if( index_count >= 3u && range->group < TRSPK_VBO_GROUP_COUNT )
+        if( index_count >= 3u )
         {
-            if( range->group != last_group )
+            if( range->group != last_binding )
             {
-                IDirect3DVertexBuffer9* vbo = renderer->groups[range->group].vbo_gpu;
+                IDirect3DVertexBuffer9* vbo = NULL;
+                if( range->group < TRSPK_VBO_GROUP_COUNT )
+                    vbo = renderer->groups[range->group].vbo_gpu;
+                else if( range->group == D3D9_STATIC_PAGE_BINDING_BASE )
+                    vbo = renderer->static_batch_vbo;
                 if( !vbo )
                 {
                     range = trspk_drawrangelist_next(renderer->draw_ranges, range);
@@ -1958,40 +5536,66 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
                     vbo,
                     0u,
                     (UINT)sizeof(struct TRSPK_VertexD3D9));
-                last_group = range->group;
+                last_binding = range->group;
+                stream_switches++;
             }
             if( range->config_idx != last_config )
             {
-                if( range->config_idx == 0u )
-                    d3d9_bind_atlas(renderer);
-                else
-                {
-                    int tex_id = (int)range->config_idx - 1;
-                    if( tex_id >= 0 && tex_id < TORIDRAW_TEXTURE_ID_CAPACITY &&
-                        renderer->animated_textures[tex_id] )
-                        d3d9_bind_animated(renderer, tex_id);
-                    else
-                    {
-                        d3d9_disable_texture_transform(renderer->device);
-                        d3d9_set_no_texture(renderer->device);
-                    }
-                }
+                d3d9_bind_world_config(renderer, range->config_idx);
                 last_config = range->config_idx;
+                texture_switches++;
             }
-            IDirect3DDevice9_DrawIndexedPrimitive(
-                renderer->device,
-                D3DPT_TRIANGLELIST,
-                (INT)range->base_offset,
-                (UINT)range->min_vertex,
-                (UINT)(range->max_vertex - range->min_vertex + 1u),
-                (UINT)range->start,
-                (UINT)(index_count / 3u));
+            {
+                uint32_t first_index = range->start;
+                uint32_t primitives_left = index_count / 3u;
+                uint32_t primitive_cap = renderer->caps.MaxPrimitiveCount;
+                if( primitive_cap == 0u )
+                    primitive_cap = primitives_left;
+                while( primitives_left > 0u )
+                {
+                    uint32_t primitive_count = primitives_left < primitive_cap
+                        ? primitives_left
+                        : primitive_cap;
+                    IDirect3DDevice9_DrawIndexedPrimitive(
+                        renderer->device,
+                        D3DPT_TRIANGLELIST,
+                        (INT)range->base_offset,
+                        (UINT)range->min_vertex,
+                        (UINT)(range->max_vertex - range->min_vertex + 1u),
+                        (UINT)first_index,
+                        (UINT)primitive_count);
+                    draw_calls++;
+                    first_index += primitive_count * 3u;
+                    primitives_left -= primitive_count;
+                }
+            }
         }
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);
     }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_DRAW_CALLS, draw_calls);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_TEXTURE_SWITCHES, texture_switches);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_STREAM_SWITCHES, stream_switches);
     d3d9_disable_texture_transform(renderer->device);
+}
+
+static void
+d3d9_end_3d(struct ToriRS_D3D9* renderer)
+{
+    uint32_t active_pages = 0u;
+    uint32_t page;
+    if( !renderer->has_3d )
+        goto done;
+    if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
+        goto done;
+    if( renderer->ibo_chain && renderer->ibo_chain->head )
+        d3d9_draw_retained(renderer);
 
 done:
+    for( page = 0u; page < renderer->static_page_count; page++ )
+        if( renderer->static_pages[page].valid )
+            active_pages++;
+    TORIRS_PERF_COUNT_SET(
+        TORIRS_PERF_CTR_D3D9_STATIC_BATCH_ACTIVE_PAGES, active_pages);
     renderer->has_3d = false;
     renderer->in3d = false;
     if( renderer->ibo_chain )
@@ -2004,34 +5608,17 @@ d3d9_begin_2d(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
-    size_t pixels;
-    size_t i;
-    if( !renderer->scene || !d3d9_ensure_overlay_buffers(renderer) )
+    (void)command;
+    if( !renderer->scene || !renderer->ui_batch.vertices )
     {
         renderer->in2d = false;
         return;
     }
-    pixels = (size_t)renderer->width * (size_t)renderer->height;
-    for( i = 0u; i < pixels; i++ )
-    {
-        renderer->overlay_black[i] = (int)0xff000000u;
-        renderer->overlay_white[i] = (int)0xffffffffu;
-    }
-    ToriRS_Soft3D_Init(
-        &renderer->soft_black,
-        renderer->scene,
-        renderer->overlay_black,
-        renderer->width,
-        renderer->height);
-    ToriRS_Soft3D_Init(
-        &renderer->soft_white,
-        renderer->scene,
-        renderer->overlay_white,
-        renderer->width,
-        renderer->height);
+    d3d9_set_full_viewport(renderer);
+    d3d9_ui_set_states(renderer);
+    d3d9_ui_flush(renderer);
+    d3d9_ui_batch_reset(renderer);
     renderer->in2d = true;
-    ToriRS_Soft3D_Execute(&renderer->soft_black, command);
-    ToriRS_Soft3D_Execute(&renderer->soft_white, command);
 }
 
 static void
@@ -2039,13 +5626,39 @@ d3d9_end_2d(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
+    (void)command;
     if( !renderer->in2d )
         return;
-    ToriRS_Soft3D_Execute(&renderer->soft_black, command);
-    ToriRS_Soft3D_Execute(&renderer->soft_white, command);
-    d3d9_set_full_viewport(renderer);
-    d3d9_draw_overlay(renderer);
+    d3d9_ui_flush(renderer);
+    IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_SCISSORTESTENABLE, FALSE);
     renderer->in2d = false;
+}
+
+static void
+d3d9_batch_begin(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
+{
+    struct D3D9StaticBatch* batch;
+    uint32_t i;
+    int slot;
+    if( !renderer || !command || command->batch_id < 0 )
+        return;
+    slot = d3d9_static_batch_slot(renderer, command->batch_id, true);
+    if( slot < 0 )
+        return;
+    batch = &renderer->static_batches[slot];
+    for( i = 0u; i < batch->page_id_capacity; i++ )
+    {
+        uint32_t page_id = batch->page_ids[i];
+        if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
+            renderer->static_pages[page_id].valid = false;
+    }
+    trspk_batch16_begin(batch->cpu);
+    batch->active = false;
+    batch->building = true;
+    d3d9_rebuild_batch_pose_table(renderer);
+    renderer->current_batch_slot = slot;
 }
 
 static void
@@ -2054,22 +5667,95 @@ d3d9_batch_add(
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
+    struct D3D9StaticBatch* batch;
+    struct TRSPK_Batch16Reservation reservation;
+    int anim_index;
+    int pose_id;
+    int face_count;
+    uint32_t vertex_count;
     if( !command || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
-    /* Reusing an element id for a new batch model invalidates every pose from
-     * the previous model.  Animation-add events that follow rebuild their
-     * tracks on top of this new rest pose. */
-    if( !animated )
-        d3d9_model_unload(renderer, command->element_id);
-    (void)d3d9_bake_into_arena(
+    if( renderer->current_batch_slot < 0 ||
+        (uint32_t)renderer->current_batch_slot >= renderer->static_batch_count )
+        return;
+    batch = &renderer->static_batches[renderer->current_batch_slot];
+    if( !batch->building || batch->batch_id != command->batch_id )
+        return;
+    face_count = trspk_toridraw_face_count(command->model);
+    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
+        return;
+    vertex_count = (uint32_t)face_count * 3u;
+    anim_index = animated
+        ? d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1)
+        : 0;
+    pose_id = command->pose_id >= 0 ? command->pose_id : 0;
+    if( !trspk_batch16_reserve_pose(
+            batch->cpu,
+            command->element_id,
+            anim_index,
+            pose_id,
+            vertex_count,
+            &reservation) )
+        return;
+    (void)d3d9_bake_pose_vertices(
         renderer,
-        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-        command->element_id,
-        animated ? command->anim_index : 0,
-        command->pose_id,
+        reservation.vbo,
+        reservation.triangles,
+        reservation.vertex_base,
         command->model,
-        &command->world_position,
-        true);
+        &command->world_position);
+}
+
+static void
+d3d9_batch_end(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
+{
+    struct D3D9StaticBatch* batch;
+    int slot;
+    if( !renderer || !command )
+        return;
+    slot = renderer->current_batch_slot;
+    if( slot < 0 || (uint32_t)slot >= renderer->static_batch_count )
+        return;
+    batch = &renderer->static_batches[slot];
+    if( !batch->building || batch->batch_id != command->batch_id )
+        return;
+    trspk_batch16_end(batch->cpu);
+    batch->building = false;
+    (void)d3d9_static_batch_commit(renderer, (uint32_t)slot);
+    renderer->current_batch_slot = -1;
+}
+
+static void
+d3d9_batch_clear(
+    struct ToriRS_D3D9* renderer,
+    int batch_id,
+    bool clear_all)
+{
+    uint32_t i;
+    if( !renderer )
+        return;
+    if( renderer->device )
+        IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
+    for( i = 0u; i < renderer->static_batch_count; i++ )
+    {
+        struct D3D9StaticBatch* batch = &renderer->static_batches[i];
+        uint32_t page;
+        if( !clear_all && batch->batch_id != batch_id )
+            continue;
+        for( page = 0u; page < batch->page_id_capacity; page++ )
+        {
+            uint32_t page_id = batch->page_ids[page];
+            if( page_id != UINT32_MAX && page_id < renderer->static_page_count )
+                renderer->static_pages[page_id].valid = false;
+        }
+        trspk_batch16_clear(batch->cpu);
+        batch->active = false;
+        batch->building = false;
+    }
+    d3d9_rebuild_batch_pose_table(renderer);
+    renderer->current_batch_slot = -1;
 }
 
 static void
@@ -2113,9 +5799,13 @@ d3d9_dispatch(
         d3d9_animation_load(renderer, &command->u.anim_load);
         break;
     case TORIRSRC_ANIM_UNLOAD:
-        d3d9_model_unload(renderer, command->u.model_load.element_id);
+        d3d9_animation_track_unload(
+            renderer,
+            command->u.anim_load.element_id,
+            command->u.anim_load.anim_index);
         break;
     case TORIRSRC_BATCH3D_BEGIN:
+        d3d9_batch_begin(renderer, &command->u.batch);
         break;
     case TORIRSRC_BATCH3D_MODEL_ADD:
         d3d9_batch_add(renderer, &command->u.batch, false);
@@ -2124,42 +5814,84 @@ d3d9_dispatch(
         d3d9_batch_add(renderer, &command->u.batch, true);
         break;
     case TORIRSRC_BATCH3D_END:
-        if( renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu )
-            trspk_vbo_set_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu);
+        d3d9_batch_end(renderer, &command->u.batch);
         break;
     case TORIRSRC_BATCH3D_CLEAR:
-        trspk_pose_table_clear(&renderer->poses);
-        d3d9_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+        d3d9_batch_clear(
+            renderer, command->u.batch.batch_id, command->u.batch.clear_all);
+        if( command->u.batch.clear_all )
+        {
+            trspk_pose_table_clear(&renderer->poses);
+            d3d9_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+        }
         break;
     case TORIRSRC_DRAW_MODEL:
         d3d9_draw_model(renderer, &command->u.model);
         break;
 
     case TORIRSRC_CLEAR_RECT:
+        d3d9_ui_draw_clear_rect(renderer, &command->u.clear_rect);
+        break;
     case TORIRSRC_FILL_RECT:
+        d3d9_ui_draw_fill_rect(renderer, &command->u.fill_rect);
+        break;
     case TORIRSRC_DRAW_MODEL_WIDGET:
+        d3d9_ui_draw_model_widget(renderer, &command->u.model_widget);
+        break;
     case TORIRSRC_SPRITE:
+        d3d9_ui_draw_sprite(renderer, &command->u.sprite);
+        break;
     case TORIRSRC_FONT:
+        d3d9_ui_draw_font(renderer, &command->u.font);
+        break;
     case TORIRSRC_LINE:
+        d3d9_ui_draw_line(renderer, &command->u.line);
+        break;
     case TORIRSRC_TEX_BEGIN:
     case TORIRSRC_TEX_END:
     case TORIRSRC_SPRITE_BEGIN:
     case TORIRSRC_SPRITE_END:
     case TORIRSRC_FONT_BEGIN:
     case TORIRSRC_FONT_END:
-        if( renderer->in2d )
-        {
-            ToriRS_Soft3D_Execute(&renderer->soft_black, command);
-            ToriRS_Soft3D_Execute(&renderer->soft_white, command);
-        }
         break;
 
-    /* Sprite/font assets live in ToriDraw_Scene.  The compatibility Soft3D
-     * executors intentionally no-op these retained-resource notifications. */
     case TORIRSRC_SPRITE_LOAD:
+        /* The scene owns pixels. Upload stays lazy so assets never drawn by
+         * this backend consume atlas space or transfer bandwidth. */
+        break;
     case TORIRSRC_SPRITE_UNLOAD:
+        d3d9_ui_flush(renderer);
+        d3d9_ui_sprite_invalidate(renderer, command->u.sprite_load.element_id);
+        break;
     case TORIRSRC_FONT_LOAD:
+    {
+        int slot_index = d3d9_ui_font_slot_index(
+            renderer, command->u.font_load.font_id, true);
+        if( slot_index >= 0 )
+        {
+            struct D3D9UIFontSlot* slot = &renderer->ui_fonts[slot_index];
+            if( slot->font != command->u.font_load.font )
+            {
+                d3d9_ui_flush(renderer);
+                d3d9_ui_font_release_slot(slot);
+                slot->font = command->u.font_load.font;
+            }
+        }
+        break;
+    }
     case TORIRSRC_FONT_UNLOAD:
+    {
+        int slot_index = d3d9_ui_font_slot_index(
+            renderer, command->u.font_load.font_id, false);
+        if( slot_index >= 0 )
+        {
+            d3d9_ui_flush(renderer);
+            d3d9_ui_font_release_slot(&renderer->ui_fonts[slot_index]);
+            renderer->ui_fonts[slot_index].font = NULL;
+            renderer->ui_fonts[slot_index].font_id = -1;
+        }
+        break;
+    }
     case TORIRSRC_NONE:
         break;
     }
@@ -2216,20 +5948,29 @@ ToriRS_D3D9_New(int width, int height)
     renderer->width = width;
     renderer->height = height;
     renderer->tex_slot_next = 1u;
+    renderer->current_batch_slot = -1;
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
+    for( texture = 0; texture < D3D9_UI_FONT_CAP; texture++ )
+        renderer->ui_fonts[texture].font_id = -1;
 
     trspk_pose_table_init(&renderer->poses);
+    trspk_pose_table_init(&renderer->batch_poses);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(D3D9_DRAWRANGE_CAP);
+    renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)malloc(
+        D3D9_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
     if( !renderer->ibo_chain || !renderer->draw_ranges ||
+        !renderer->ui_batch.vertices ||
         !trspk_atlas_init_grid(
             &renderer->atlas,
             D3D9_ATLAS_DIM,
             D3D9_ATLAS_DIM,
             TRSPK_ATLAS_TILE,
             TRSPK_ATLAS_TILE,
-            4u) )
+            4u) ||
+        !trspk_atlas_init_binpack(
+            &renderer->ui_sprite_atlas, D3D9_UI_ATLAS_DIM, D3D9_UI_ATLAS_DIM, 4u) )
     {
         ToriRS_D3D9_Free(renderer);
         return NULL;
@@ -2267,11 +6008,7 @@ ToriRS_D3D9_New(int width, int height)
         }
         model_group->reset_each_frame = group == TRSPK_VBO_GROUP_DYNAMIC;
     }
-    if( !d3d9_ensure_overlay_buffers(renderer) )
-    {
-        ToriRS_D3D9_Free(renderer);
-        return NULL;
-    }
+    d3d9_ui_batch_reset(renderer);
     return renderer;
 }
 
@@ -2334,20 +6071,32 @@ ToriRS_D3D9_GetPoseBase(
     int pose_id,
     uint32_t* out_vertex_base)
 {
+    uint32_t locator;
     if( !renderer || !out_vertex_base )
         return false;
+    if( trspk_pose_table_get(
+            &renderer->batch_poses,
+            element_id,
+            anim_index,
+            pose_id,
+            &locator) )
+    {
+        *out_vertex_base = locator & D3D9_BATCH_POSE_BASE_MASK;
+        return true;
+    }
     return trspk_pose_table_get(
-        &renderer->poses,
-        element_id,
-        anim_index,
-        pose_id,
-        out_vertex_base);
+            &renderer->poses,
+            element_id,
+            anim_index,
+            pose_id,
+            out_vertex_base);
 }
 #endif
 
 void
 ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
 {
+    uint32_t batch;
     uint32_t group;
     int texture;
     if( !renderer )
@@ -2355,9 +6104,14 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     if( renderer->scene_active )
         d3d9_end_frame_scene(renderer);
     d3d9_release_default_pool(renderer);
-    d3d9_release_overlay_texture(renderer);
     if( renderer->atlas_texture )
         IDirect3DTexture9_Release(renderer->atlas_texture);
+    if( renderer->ui_sprite_atlas_texture )
+        IDirect3DTexture9_Release(renderer->ui_sprite_atlas_texture);
+    for( texture = 0; texture < D3D9_UI_FONT_CAP; texture++ )
+        d3d9_ui_font_release_slot(&renderer->ui_fonts[texture]);
+    for( texture = 0; texture < (int)renderer->ui_rotmask_count; texture++ )
+        d3d9_ui_rotmask_release_slot(&renderer->ui_rotmasks[texture]);
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         if( renderer->animated_textures[texture] )
             IDirect3DTexture9_Release(renderer->animated_textures[texture]);
@@ -2366,6 +6120,8 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
         if( renderer->groups[group].vbo_gpu )
             IDirect3DVertexBuffer9_Release(renderer->groups[group].vbo_gpu);
     }
+    if( renderer->static_batch_vbo )
+        IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
     if( renderer->device )
         IDirect3DDevice9_Release(renderer->device);
     if( renderer->d3d )
@@ -2384,9 +6140,24 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     if( renderer->draw_ranges )
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
+    trspk_pose_table_free(&renderer->batch_poses);
+    for( batch = 0u; batch < renderer->static_batch_count; batch++ )
+    {
+        trspk_batch16_destroy(renderer->static_batches[batch].cpu);
+        free(renderer->static_batches[batch].page_ids);
+    }
     trspk_atlas_free(&renderer->atlas);
-    free(renderer->overlay_black);
-    free(renderer->overlay_white);
+    trspk_atlas_free(&renderer->ui_sprite_atlas);
+    for( texture = 0; texture < D3D9_UI_SPRITE_CAP; texture++ )
+    {
+        free(renderer->ui_sprite_slots[texture].uvs);
+        free(renderer->ui_sprite_slots[texture].loaded);
+    }
+    free(renderer->ui_rotmasks);
+    free(renderer->ui_batch.vertices);
+    free(renderer->model_indices);
+    free(renderer->static_pages);
+    free(renderer->static_batches);
     free(renderer);
 }
 
@@ -2438,7 +6209,12 @@ ToriRS_D3D9_Init(
     renderer->present.hDeviceWindow = renderer->hwnd;
     renderer->present.Windowed = TRUE;
     renderer->present.EnableAutoDepthStencil = FALSE;
-    renderer->present.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+    /* The client loop owns the 50 Hz deadline.  A second 60 Hz D3D wait
+     * quantizes capped frames onto alternating refreshes (visible judder) and
+     * makes --uncapped profiles advance game time while blocked in Present.
+     * Classic IMMEDIATE is available on XP and keeps both Windows lanes on
+     * the same pacing contract. */
+    renderer->present.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
     behavior = D3DCREATE_FPU_PRESERVE;
     if( renderer->caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT )
         behavior |= D3DCREATE_HARDWARE_VERTEXPROCESSING;
@@ -2476,6 +6252,17 @@ ToriRS_D3D9_Init(
     d3d9_restore_after_reset(renderer);
     if( !d3d9_upload_atlas(renderer) )
         return false;
+    if( renderer->static_page_count > 0u )
+    {
+        bool recreated = false;
+        if( !d3d9_ensure_static_batch_vbo(
+                renderer, renderer->static_page_count, &recreated) )
+            return false;
+        if( recreated )
+            d3d9_mark_active_static_batches_dirty(renderer);
+        if( !d3d9_upload_dirty_static_batches(renderer) )
+            return false;
+    }
     return true;
 }
 
@@ -2489,7 +6276,7 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
     renderer->height = height;
     d3d9_update_letterbox(renderer);
     renderer->in2d = false;
-    (void)d3d9_ensure_overlay_buffers(renderer);
+    d3d9_ui_batch_reset(renderer);
 }
 
 void

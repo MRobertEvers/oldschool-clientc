@@ -9,6 +9,12 @@ especially under `manifest_osrs230.ini` / `manifest_osrs230_embed.ini`.
 compiled at `-O2` via `TORIDRAW_OPT=1`. Measured by this harness in
 `--uncapped` mode so the number is work time, not the 50 fps sleep.
 
+That is the portable development gate. Windows renderer investigations also
+use the stricter main-thread CPU gate registered in
+[WIN32-PERF-001](platform_quirks.md#win32-perf-001---main-thread-cpu-time-is-the-non-waiting-frame-metric).
+Keep platform thresholds and clock caveats in the quirks registry rather than
+forking them into this harness guide.
+
 ## Build knobs
 
 ```bash
@@ -31,12 +37,15 @@ hot kernels get their own flag without forcing a full-client release build.
 ./tools/perf/run_perf.sh drift-ui 30000     # sidebar + bank open/close churn (one pack)
 ./tools/perf/run_perf.sh soak-ui 60000      # multi-panel residency soak
 
-# Compare two CSVs (exit 1 on p95 regression >5% or frame p95 over 20 ms)
+# Compare two CSVs (also gates main-thread CPU p95 at 10 ms when present)
 python3 tools/perf/compare.py before.csv after.csv
 
 # Windowed idle-drift guard (reads TORIRS_PERF_CSV.windows.csv)
 python3 tools/perf/compare.py --drift tools/perf/results/<rev>-drift.csv.windows.csv
 ```
+
+Use `--cpu-budget-ns` only when a platform entry registers a different
+non-waiting CPU budget; the Windows contract is 10,000,000 ns.
 
 Env: `TORIRS_PERF=1` enables stage timers/counters; `TORIRS_PERF_CSV=<path>`
 writes the machine-readable report; `TORIRS_PERF_WINDOW=<N>` (default 1000,
@@ -50,7 +59,77 @@ requires `EMBED_SERVER=1`.
 capped absolute-deadline wait. `--uncapped` performs no artificial delay. The
 capped deadline begins before `TORIRS_PERF_FRAME_BEGIN`, so pre-instrumentation
 frame work still consumes the 20 ms budget, but the pacing wait is excluded
-from stage timings. Measure wall-clock effective fps separately.
+from stage timings. The CSV `cpu` row is the main-thread non-waiting
+distribution; `cpu_raw` is the calibration interval's aggregate clock. On
+modern Windows, cycles sampled exactly at frame begin/end define work, while
+cycles over the delayed `GetThreadTimes` interval provide the scale. This
+excludes the limiter's final spin and post-frame loop work. On XP,
+`GetThreadTimes` remains available but is too coarse for a meaningful
+one-frame percentile, so the comparison gate uses its longer-window raw mean.
+Measure wall-clock effective fps separately.
+
+## Current Windows renderer architecture (2026-08-06)
+
+The optimized Windows renderer has one D3D9 architecture on both build lanes.
+Win64 does not select a GL3-style or 32-bit-index path based on OS or adapter
+capabilities; it deliberately behaves like the XP-compatible backend:
+
+- All GPU index resources are unconditionally `D3DFMT_INDEX16`.
+  `TRSPK_Batch16` repacks static/pre-baked poses once into chunks of at most
+  65,535 vertices, and D3D9 assigns those chunks stable pages in one managed
+  static vertex buffer. There is no `INDEX32` or capability-selected path.
+- Every visible frame emits exact painter-ordered, page-local U16 indices into
+  one dynamic IBO. Draw ranges split on page/dynamic binding, texture/config,
+  and `MaxPrimitiveCount`; `BaseVertexIndex` selects a static page without
+  widening its indices. This is the one normal path, not a fallback.
+- Static vertex pages upload only after a batch changes or their managed buffer
+  is recreated. The per-frame IBO upload is expected because painter order can
+  change; genuinely dynamic geometry alone uses the dynamic vertex buffer.
+- Static world atlases/buffers, exact-sized animated texture buffers, and UI
+  sprite/font/variant textures upload only on their explicit dirty or
+  replacement seam. Animation through texture coordinates is not a reason to
+  reupload pixels. Rotated masks use a native fixed-function `TEX2` source+mask
+  draw, with retained textures rather than a per-frame CPU composite.
+- D3D9 uses `D3DPRESENT_INTERVAL_IMMEDIATE` on both lanes. The client already
+  owns the 50 Hz absolute deadline; display synchronization inside `Present`
+  would add a second wait and corrupt both pacing and uncapped attribution.
+
+Soft3D's plain, scaled, and tiled ARGB blitters now clip once and use row
+pointers with the same integer blend result. Its global-alpha path applies
+command opacity during the destination blend, so a plain translucent sprite no
+longer allocates/copies a temporary image or scans it merely to rewrite alpha.
+Transformed/outlined sprites keep bounded specialized paths.
+
+Final Win64 `-O3` measurements on 2026-08-06 used the pristine revision-239
+offline scene (`manifest_osrs239.ini`) and `--uncapped`. Every run captured
+6,000 frames as twelve 500-frame windows; every steady window held exactly
+1,072 UI components and 4,946 painter commands. Values below are milliseconds
+and exclude the client frame limiter. The aggregate rows are the profiler's
+retained last 2,048 frames; the window CSVs cover the full run.
+
+| Renderer / canvas | CPU mean | CPU p95 | Frame p95 | Build p95 | Render p95 | Present p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| D3D9, 765x503 | 3.45 | 5.19 | 5.80 | 1.42 | 3.67 | 0.74 |
+| Soft3D, 765x503 | 6.08 | 8.53 | 8.71 | 1.50 | 6.94 | 0.16 |
+| D3D9, 1440x900 resizable | 3.45 | 4.73 | 5.34 | 1.43 | 3.32 | 0.69 |
+| Soft3D, 1440x900 resizable | 9.98 | 14.72 | 14.86 | 1.59 | 12.52 | 0.48 |
+
+D3D9 passes the 10 ms CPU gate in every window at both sizes. Soft3D's retained
+765x503 aggregate passes, but three of twelve window p95 values exceed 10 ms
+(maximum 10.96 ms); 1440x900 fails in every window. A 1440x900 diagnostic with
+world painter output suppressed measured only 0.41 ms render p95, locating the
+remaining resolution-scaled cost in world projection/sort/triangle raster,
+not in GDI presentation, a second canvas raster, or a canvas-alpha scan.
+
+`surface_sync` stayed below 0.001 ms p95 in all four runs. After window-zero
+bootstrap, unchanged world/animated/UI textures and the static VB produced zero
+uploads. Steady D3D9 at 765x503 uploaded only one painter-order U16 IBO per
+visible frame (227.46 KiB) and averaged 2,459 draw calls, 2,433 page switches,
+27 texture switches, and 40.08 static/dynamic stream switches. Those page
+boundaries select `BaseVertexIndex` within one static VB; they do not rebind a
+per-page VB. No D3D9 software UI fallback or full-canvas alpha reconstruction
+occurred. Keep these architectural counters beside timing results; they catch
+regressions that a fast host can conceal.
 
 ## Flamegraphs
 
@@ -62,16 +141,19 @@ from stage timings. Measure wall-clock effective fps separately.
 ## Stages timed
 
 ```
-frame → async → logic → cs2 → layout → interact → emit → paint → build → render → present → server
+frame → input_prep/platform_poll → command_drain → surface_sync → app_run
+      → async/logic/cs2/layout/interact/emit/paint/build
+      → display(render/pick_finish/present) → window_sync → frame_post → server
 ```
 
 `server` wraps `mock230_embed_pump` (and therefore `mock230_world_tick` when
 the 600 ms schedule fires). Residual = frame_mean − sum(stage means). Nested
 stages (cs2 inside logic) can make residual negative; read stage columns, not
-the residual, for attribution. Render is measured but not optimized
-algorithmically in this effort (see TORIDRAW_OPT).
+the residual, for attribution. The historical sections below describe the
+2026-08-03 Soft3D effort; the current Windows renderer architecture is recorded
+above and must be measured as its own A/B.
 
-## Baseline (measured 2026-08-03, rev `9175a425`)
+## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
 `manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
@@ -128,6 +210,11 @@ CSV: `tools/perf/results/collectionbig-ui-{before,after}.csv`.
 | `UITree_LayoutResolve` | 3.3 | 0.24 |
 | `painter_paint_bucket` | 2.5 | 0.18 |
 | `World_EntityPoolNext` | 1.9 | 0.14 |
+
+This table is historical attribution, not a post-2026-08-06 Windows profile.
+In particular, the current clipped blitters no longer route every visible
+plain/scaled/tiled pixel through the public `ToriDraw2D_BlendArgbPixel` clip
+check, so that row must be resampled before it is ranked again.
 
 Inclusive: `ToriRS_Soft3D_RenderFrame` **60.7%**, `soft3d_draw_model` **43.8%**,
 `App_BuildFrame`/`painter_paint_bucket` ~**12.8%**. Raster-ish self cluster

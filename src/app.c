@@ -11602,7 +11602,11 @@ App_MeasureRightChromeStripWidth(struct App const* app)
     /* Script 5355 docks the popout strip on the canvas right edge at full
      * height. Measure that geometry rather than naming interface 728 or the
      * 42/312 widths the CS2 embeds — those are content, and the strip width
-     * changes when a panel opens. */
+     * changes when a panel opens. The mode checks matter: mounted interface
+     * roots also commonly fill from a positive X to the right edge. Treating
+     * one of those fill-width roots as chrome makes the canvas feed back into
+     * its own next width and grow every frame. The strip itself is fixed-width,
+     * parent-height, and right-anchored. */
     for( i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &app->tree->components[i];
@@ -11612,7 +11616,10 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         if( c->freed || c->behavior.hide )
             continue;
         w = c->position.abs_w;
-        if( w <= 0 || c->position.abs_x <= 0 )
+        if( w <= 0 || c->position.abs_x <= 0 ||
+            c->position.width_mode != 0 ||
+            c->position.height_mode != 1 ||
+            c->position.x_mode != 2 )
             continue;
         /* Near full canvas height: the strip, not a minimap orb or tab icon. */
         if( c->position.abs_h < canvas_h - 2 )

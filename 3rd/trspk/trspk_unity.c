@@ -3,6 +3,7 @@
  * opengl3/opengl3_sdlgl.c is compiled separately (needs SDL + GL headers).
  */
 #include "core/trspk_atlas.c"
+#include "core/trspk_batch16.c"
 #include "core/trspk_core_math.c"
 #include "core/trspk_drawrangeex.c"
 #include "core/trspk_drawrangelist.c"

@@ -62,7 +62,7 @@ ToriRS_D3D9_GetRetainedStats(
     struct ToriRS_D3D9 const* d3d9,
     struct ToriRS_D3D9RetainedStats* out_stats);
 
-/** Query a retained pose mapping without exposing the renderer's pose table. */
+/** Query a retained pose's base in its owning VBO (page-local for Batch16). */
 bool
 ToriRS_D3D9_GetPoseBase(
     struct ToriRS_D3D9 const* d3d9,

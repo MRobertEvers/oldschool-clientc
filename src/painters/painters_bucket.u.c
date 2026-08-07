@@ -13,6 +13,16 @@
 /* Manhattan distance from camera to any tile in a 128-wide grid is in [0, 2*127]. */
 #define BUCKET_DIST_RANGE (2 * 128 + 1)
 
+/* These counters fire tens of thousands of times in a normal world frame.
+ * Keep their hot-path work to register increments and cross into the perf TU
+ * only once per aggregate at function exit.  Perf-disabled differential
+ * builds compile the bookkeeping out entirely. */
+#ifndef TORIRS_PERF_DISABLE
+#define BUCKET_PERF_INCREMENT(value) ((value)++)
+#else
+#define BUCKET_PERF_INCREMENT(value) ((void)(value))
+#endif
+
 struct PainterBucketCtx
 {
     int bucket_heads[BUCKET_DIST_RANGE];
@@ -74,17 +84,19 @@ bucket_push_if_active(
     struct PainterBucketCtx* w,
     struct TilePaint* paints,
     int ti,
-    int dist)
+    int dist,
+    int64_t* perf_pushes,
+    int64_t* perf_push_dedup)
 {
     if( paints[ti].in_queue )
     {
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, 1);
+        BUCKET_PERF_INCREMENT(*perf_push_dedup);
         return 0;
     }
     if( paints[ti].step == PAINT_STEP_DONE )
         return 0;
     bucket_push(w, paints, ti, dist);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, 1);
+    BUCKET_PERF_INCREMENT(*perf_pushes);
     if( painter_wedgelog_armed() )
     {
         char extra[32];
@@ -183,6 +195,10 @@ painter_paint_bucket(
     struct PaintersElement* elements = painter->elements;
     struct ElementPaint* element_paints = painter->element_paints;
     struct SceneryNode* scenery_pool = painter->scenery_pool;
+    int64_t perf_pops = 0;
+    int64_t perf_gate_rejects = 0;
+    int64_t perf_pushes = 0;
+    int64_t perf_push_dedup = 0;
     const struct PaintersCullMap* cullmap = painter->cullmap;
     size_t cull_camera_key = painter->cull_camera_key;
     int cull_all_visible = (cullmap == NULL || cullmap->all_visible);
@@ -227,7 +243,7 @@ painter_paint_bucket(
     (void)draw_center_sz;
 
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
-        return 0;
+        goto done;
 
     int cullspan_active = painter->cullspan_active;
     const struct PaintersCullSpan* cullspan = &painter->cullspan;
@@ -434,7 +450,8 @@ painter_paint_bucket(
                         snprintf(extra, sizeof(extra), "phase=%d d=%d", phase, dist);
                         painter_wedgelog_event(tidx, "SEED", extra);
                     }
-                    bucket_push_if_active(w, paints, tidx, dist);
+                    bucket_push_if_active(
+                        w, paints, tidx, dist, &perf_pushes, &perf_push_dedup);
                     check_adjacent = (phase == 1);
                     seeded = 1;
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_DRAIN_EVENTS, 1);
@@ -448,7 +465,7 @@ painter_paint_bucket(
         int e_tile = bucket_pop(w, paints);
         if( e_tile < 0 )
             continue;
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, 1);
+        BUCKET_PERF_INCREMENT(perf_pops);
         if( painter_wedgelog_armed() )
         {
             char extra[32];
@@ -480,7 +497,7 @@ painter_paint_bucket(
                 {
                     if( paints[e_tile - level_stride].step != PAINT_STEP_DONE )
                     {
-                        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, 1);
+                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
                         continue;
                     }
                 }
@@ -492,7 +509,7 @@ painter_paint_bucket(
                     if( other->step != PAINT_STEP_DONE &&
                         (other->step == PAINT_STEP_READY || (tile->spans & SPAN_FLAG_WEST) == 0) )
                     {
-                        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, 1);
+                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
                         continue;
                     }
                 }
@@ -502,7 +519,7 @@ painter_paint_bucket(
                     if( other->step != PAINT_STEP_DONE &&
                         (other->step == PAINT_STEP_READY || (tile->spans & SPAN_FLAG_EAST) == 0) )
                     {
-                        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, 1);
+                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
                         continue;
                     }
                 }
@@ -513,7 +530,7 @@ painter_paint_bucket(
                         (other->step == PAINT_STEP_READY ||
                          (tile->spans & SPAN_FLAG_SOUTH) == 0) )
                     {
-                        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, 1);
+                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
                         continue;
                     }
                 }
@@ -524,7 +541,7 @@ painter_paint_bucket(
                         (other->step == PAINT_STEP_READY ||
                          (tile->spans & SPAN_FLAG_NORTH) == 0) )
                     {
-                        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, 1);
+                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
                         continue;
                     }
                 }
@@ -742,25 +759,45 @@ painter_paint_bucket(
                     (spans & SPAN_FLAG_EAST) )
                 {
                     bucket_push_if_active(
-                        w, paints, e_tile + 1, abs(tile_sx + 1 - camera_sx) + adz);
+                        w,
+                        paints,
+                        e_tile + 1,
+                        abs(tile_sx + 1 - camera_sx) + adz,
+                        &perf_pushes,
+                        &perf_push_dedup);
                 }
                 if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
                     (spans & SPAN_FLAG_NORTH) )
                 {
                     bucket_push_if_active(
-                        w, paints, e_tile + width, adx + abs(tile_sz + 1 - camera_sz));
+                        w,
+                        paints,
+                        e_tile + width,
+                        adx + abs(tile_sz + 1 - camera_sz),
+                        &perf_pushes,
+                        &perf_push_dedup);
                 }
                 if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
                     (spans & SPAN_FLAG_WEST) )
                 {
                     bucket_push_if_active(
-                        w, paints, e_tile - 1, abs(tile_sx - 1 - camera_sx) + adz);
+                        w,
+                        paints,
+                        e_tile - 1,
+                        abs(tile_sx - 1 - camera_sx) + adz,
+                        &perf_pushes,
+                        &perf_push_dedup);
                 }
                 if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
                     (spans & SPAN_FLAG_SOUTH) )
                 {
                     bucket_push_if_active(
-                        w, paints, e_tile - width, adx + abs(tile_sz - 1 - camera_sz));
+                        w,
+                        paints,
+                        e_tile - width,
+                        adx + abs(tile_sz - 1 - camera_sz),
+                        &perf_pushes,
+                        &perf_push_dedup);
                 }
             }
         }
@@ -887,7 +924,13 @@ painter_paint_bucket(
                     for( int ox = min_tile_x, ti = row; ox <= max_tile_x; ox++, ti++ )
                     {
                         int ndist = abs(ox - camera_sx) + abs(oz - camera_sz);
-                        bucket_push_if_active(w, paints, ti, ndist);
+                        bucket_push_if_active(
+                            w,
+                            paints,
+                            ti,
+                            ndist,
+                            &perf_pushes,
+                            &perf_push_dedup);
                         some_drawn = 1;
                     }
                 }
@@ -900,7 +943,13 @@ painter_paint_bucket(
              * blocked, ensure this tile is revisited (footprint push usually
              * covers it; push explicitly when nothing was footprint-pushed). */
             if( blocked_undrawn && !some_drawn )
-                bucket_push_if_active(w, paints, e_tile, tile_dist);
+                bucket_push_if_active(
+                    w,
+                    paints,
+                    e_tile,
+                    tile_dist,
+                    &perf_pushes,
+                    &perf_push_dedup);
             continue;
         }
 
@@ -1031,28 +1080,54 @@ painter_paint_bucket(
 
         if( paintgrid_level < levels - 1 )
         {
-            bucket_push_if_active(w, paints, e_tile + level_stride, tile_dist);
+            bucket_push_if_active(
+                w,
+                paints,
+                e_tile + level_stride,
+                tile_dist,
+                &perf_pushes,
+                &perf_push_dedup);
         }
 
         if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
         {
             bucket_push_if_active(
-                w, paints, e_tile + width, adx + abs(tile_sz + 1 - camera_sz));
+                w,
+                paints,
+                e_tile + width,
+                adx + abs(tile_sz + 1 - camera_sz),
+                &perf_pushes,
+                &perf_push_dedup);
         }
         if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
         {
             bucket_push_if_active(
-                w, paints, e_tile - 1, abs(tile_sx - 1 - camera_sx) + adz);
+                w,
+                paints,
+                e_tile - 1,
+                abs(tile_sx - 1 - camera_sx) + adz,
+                &perf_pushes,
+                &perf_push_dedup);
         }
         if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
         {
             bucket_push_if_active(
-                w, paints, e_tile - width, adx + abs(tile_sz - 1 - camera_sz));
+                w,
+                paints,
+                e_tile - width,
+                adx + abs(tile_sz - 1 - camera_sz),
+                &perf_pushes,
+                &perf_push_dedup);
         }
         if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
         {
             bucket_push_if_active(
-                w, paints, e_tile + 1, abs(tile_sx + 1 - camera_sx) + adz);
+                w,
+                paints,
+                e_tile + 1,
+                abs(tile_sx + 1 - camera_sx) + adz,
+                &perf_pushes,
+                &perf_push_dedup);
         }
     }
 
@@ -1061,7 +1136,15 @@ painter_paint_bucket(
 
     painter_wedgelog_frame_end((long)buffer->command_count);
     painter_dump_command_order(painter, buffer);
+
+done:
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_POPS, perf_pops);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_GATE_REJECTS, perf_gate_rejects);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSHES, perf_pushes);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PAINTER_PUSH_DEDUP, perf_push_dedup);
     return 0;
 }
+
+#undef BUCKET_PERF_INCREMENT
 
 #endif /* PAINTERS_BUCKET_U_C */

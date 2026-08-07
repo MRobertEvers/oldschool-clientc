@@ -94,6 +94,7 @@ frame_translate_scene_event(
     case TORIDRAW_EVENT_ANIM_UNLOAD:
         out->kind = TORIRSRC_ANIM_UNLOAD;
         out->u.anim_load.element_id = ev->element_id;
+        out->u.anim_load.anim_index = ev->anim_index;
         return true;
     case TORIDRAW_EVENT_TEX_LOAD:
         out->kind = TORIRSRC_TEX_LOAD;
@@ -149,9 +150,14 @@ frame_translate_scene_event(
         out->u.batch.batch_id = ev->batch_id;
         return true;
     case TORIDRAW_EVENT_BATCH_CLEAR:
-    case TORIDRAW_EVENT_SCENE_RESET:
         out->kind = TORIRSRC_BATCH3D_CLEAR;
         out->u.batch.batch_id = ev->batch_id;
+        out->u.batch.clear_all = ev->batch_id == TORIDRAW_SCENE_INVALID_BATCH_ID;
+        return true;
+    case TORIDRAW_EVENT_SCENE_RESET:
+        out->kind = TORIRSRC_BATCH3D_CLEAR;
+        out->u.batch.batch_id = TORIDRAW_SCENE_INVALID_BATCH_ID;
+        out->u.batch.clear_all = true;
         return true;
     default:
         return false;
@@ -819,7 +825,7 @@ translate_ui_cmd(
         if( desc->model_id < 0 )
             return false;
         hnd = ToriDraw_SceneModelGet(frame->scene, desc->model_id);
-        if( hnd.kind == TORIDRAWMK_NONE )
+        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
             return false;
         out->kind = TORIRSRC_DRAW_MODEL_WIDGET;
         out->u.model_widget.model = hnd;
