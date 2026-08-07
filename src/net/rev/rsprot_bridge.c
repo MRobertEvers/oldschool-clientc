@@ -4,6 +4,7 @@
 #include "rsprot_exec.h"
 
 #include "packets/cam_lookat_v2.h"
+#include "packets/if_resync_v2.h"
 #include "packets/cam_moveto_v2.h"
 #include "packets/cam_shake.h"
 #include "packets/runclientscript.h"
@@ -925,6 +926,83 @@ bridge_cam_moveto(int revision, uint8_t const* data, int len, struct RevPacket* 
     return 1;
 }
 
+/*
+ * Two element arrays, and they are bounded differently on purpose.
+ *
+ * `sub_interfaces` has a two-byte count on the wire. `events` does NOT -- it
+ * runs to the end of the payload -- which is why the codec loops it with
+ * RSPROT_MORE and why decoding learns its length rather than being told.
+ *
+ * Both decode into static buffers sized at the codec's own caps, so a
+ * malformed payload fails the exec rather than writing past them.
+ */
+static int
+bridge_if_resync(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktIfResync* p = &out->_if_resync;
+    static Rsprot_MsgIfResyncV2_sub_interfacesElem subs[4096];
+    static Rsprot_MsgIfResyncV2_eventsElem evts[256];
+    MsgIfResyncV2 msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_if_resync_v2_out, rsprot_if_resync_v2_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    msg.sub_interfaces = subs;
+    msg.events = evts;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err )
+        return 0;
+    if( msg.sub_interfaces_count < 0 ||
+        msg.sub_interfaces_count > (int32_t)(sizeof(subs) / sizeof(subs[0])) )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    /* 65535 is "no root"; the canonical struct says that with -1. */
+    p->root_interface_id = msg.top_level_interface == 65535 ? -1 : msg.top_level_interface;
+    p->mount_count = msg.sub_interfaces_count;
+    p->event_count = msg.events_count;
+    if( msg.sub_interfaces_count > 0 )
+    {
+        p->mounts = (struct PktIfResyncMount*)malloc(
+            (size_t)msg.sub_interfaces_count * sizeof(*p->mounts));
+        if( !p->mounts )
+            return 0;
+        for( int i = 0; i < msg.sub_interfaces_count; i++ )
+        {
+            p->mounts[i].target_uid = subs[i].destination_combined_id;
+            p->mounts[i].interface_id = subs[i].interface_id;
+            p->mounts[i].type = subs[i].type;
+        }
+    }
+    if( msg.events_count > 0 )
+    {
+        p->events = (struct PktIfResyncEvent*)malloc(
+            (size_t)msg.events_count * sizeof(*p->events));
+        if( !p->events )
+        {
+            free(p->mounts);
+            p->mounts = NULL;
+            p->mount_count = 0;
+            return 0;
+        }
+        for( int i = 0; i < msg.events_count; i++ )
+        {
+            p->events[i].component_id = evts[i].combined_id;
+            p->events[i].from = (int16_t)evts[i].start;
+            p->events[i].to = (int16_t)evts[i].end;
+            p->events[i].events1 = (uint32_t)evts[i].events1;
+            p->events[i].events2 = (uint32_t)evts[i].events2;
+        }
+    }
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -965,6 +1043,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_IF_RESYNC_V2, bridge_if_resync },
     { PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },
     { PKT_NAME_CAM_MOVETO, bridge_cam_moveto },
     { PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },

@@ -20,6 +20,9 @@
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
 #include "packets/loc_add_change_v2.h"
+#include "packets/rebuild_normal_v2.h"
+#include "packets/rebuild_region_v2.h"
+#include "packets/update_zone_partial_enclosed.h"
 #include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
 
@@ -484,10 +487,27 @@ osrs239_parse(
          */
         if( len > 6 )
             osrs239_playerinfo_init(data, len - 6);
+        /*
+         * Seek to the trailing six bytes and run the codec there.
+         *
+         * The seek stays in this file rather than becoming a codec feature: the
+         * fields are last because the LOGIN variant prepends a GPI init block
+         * and shares this opcode, so "where the fields start" is a property of
+         * the frame's length, not of the layout. Teaching a codec to seek
+         * relative to the payload end would make every codec's start position a
+         * question; doing it here keeps that to one packet.
+         */
         c.rpos = len - 6;
-        (void)RSProt_BufferG2Le(&c); /* worldArea */
-        p->zonez = RSProt_BufferG2Be_add128(&c);
-        p->zonex = RSProt_BufferG2Be_add128(&c);
+        {
+            MsgRebuildNormalV2 hdr;
+
+            memset(&hdr, 0, sizeof(hdr));
+            if( !zone_run(&c, rsprot_rebuild_normal_v2_out,
+                          rsprot_rebuild_normal_v2_out_count, &hdr) )
+                return 0;
+            p->zonez = hdr.zone_z;
+            p->zonex = hdr.zone_x;
+        }
         p->region_count = 0;
         p->region_ids = NULL;
         p->region_keys = NULL;
@@ -1190,9 +1210,19 @@ osrs239_parse(
         struct PktUpdateZoneEnclosed* enc = &out->_update_zone_enclosed;
         int cap = 16;
 
-        enc->level = RSProt_BufferG1_neg(&c);
-        enc->base_z = RSProt_BufferG1_add128(&c);
-        enc->base_x = RSProt_BufferG1_add128(&c);
+        /* Header via its codec; the sub-packet walk below is a stream and
+         * stays hand-driven -- each record runs its OWN codec in zone_run. */
+        {
+            MsgDesktopUpdateZonePartialEnclosed hdr;
+
+            memset(&hdr, 0, sizeof(hdr));
+            if( !zone_run(&c, rsprot_update_zone_partial_enclosed_out,
+                          rsprot_update_zone_partial_enclosed_out_count, &hdr) )
+                return 0;
+            enc->level = hdr.level;
+            enc->base_z = hdr.zone_z;
+            enc->base_x = hdr.zone_x;
+        }
         enc->count = 0;
         enc->entries =
             (struct PktZoneSubPacket*)malloc((size_t)cap * sizeof(*enc->entries));
@@ -1330,10 +1360,21 @@ osrs239_parse(
         int bit_pos;
         int ok = 1;
 
+        MsgRebuildRegionV2 hdr;
+
         memset(p, 0, sizeof(*p));
-        p->zonez = RSProt_BufferG2Be(&c);
-        p->zonex = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG1_add128(&c); /* reload: region rebuilds are forced downstream */
+        /*
+         * The three-field HEADER runs its generated codec against this cursor;
+         * what follows is a bit-packed descriptor grid, which is not part of the
+         * payload codec and stays here. `reload` is read and dropped -- a region
+         * rebuild is forced downstream regardless.
+         */
+        memset(&hdr, 0, sizeof(hdr));
+        if( !zone_run(&c, rsprot_rebuild_region_v2_out,
+                      rsprot_rebuild_region_v2_out_count, &hdr) )
+            return 0;
+        p->zonez = hdr.zone_z;
+        p->zonex = hdr.zone_x;
         source_square_count = RSProt_BufferG2Be(&c);
         if( c.err || source_square_count < 0 ||
             source_square_count > PKT_MAP_REBUILD_ZONES )
