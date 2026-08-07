@@ -1,6 +1,7 @@
 #ifndef TORIDRAW_ANIMATION_H
 #define TORIDRAW_ANIMATION_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct ToriDraw_AnimBase
@@ -101,6 +102,15 @@ void
 ToriDraw_AnimationSetSeqMeta(
     struct ToriDraw_Animation* anim,
     struct ToriDraw_AnimSeqMeta const* meta);
+
+/**
+ * Advance one frame for a scene DynamicObject (a location animation).  At the
+ * end of its frame list the client subtracts SeqType.frameStep; an invalid
+ * result means the DynamicObject drops its sequence and returns to its static
+ * model.  Returns false in that latter case.
+ */
+bool
+ToriDraw_AnimationAdvanceObjectFrame(struct ToriDraw_Animation const* anim, int* frame);
 
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);

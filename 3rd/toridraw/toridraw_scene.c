@@ -1164,7 +1164,12 @@ ToriDraw_SceneElementSetAnimation(
         if( primary )
         {
             element->anim_seq_id = -1;
+            element->is_skeletal = false;
+            element->skeletal_animation = NULL;
+            element->skeletal_play_frames = 0;
             scene->anim_list_dirty = true;
+            if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
+                ToriDraw_ModelAnimateReset(element->model.u.model.model);
         }
         td_scene_emit(
             scene, TORIDRAW_EVENT_ANIM_UNLOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
