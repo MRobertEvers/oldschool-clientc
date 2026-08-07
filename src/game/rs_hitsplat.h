@@ -10,7 +10,7 @@
  * revision has no such archive. It has a **hitsplat config group** (group 32)
  * instead: one record per splat type, each naming an ordinary sprite id.
  *
- * The authoritative revision-239 cache carries 78 of them. Its ordinary red
+ * The authoritative revision-239 cache carries 83 of them. Its ordinary red
  * damage splat is type 28 / sprite 1359 and its blue block splat is type 26 /
  * sprite 1358. Without this table `UITreeSceneBridge_StaticSpriteSceneId`
  * returns -1, the sprite half of the overlay is skipped, and a hit renders as a
