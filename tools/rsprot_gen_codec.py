@@ -2197,16 +2197,24 @@ def main():
                 lines.append(f"\t{ctype}{sep}{fname};")
             struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
         else:
-            # Arrays/nested element structs: the union rule would have to merge
-            # element structs too. Not modeled, so these still require exact
-            # agreement and are refused (visibly) when they disagree.
-            structs = {by_rev[r]["struct"] for r in rev_to_ver if by_rev[r]["struct"]}
-            if len(structs) > 1:
-                refused.append(
-                    (cls, direction,
-                     f"{len(structs)} disagreeing struct shapes (array/nested -- union not modeled)"))
-                continue
-            struct_text = structs.pop() if structs else None
+            # Arrays and nested element structs are REFUSED, not emitted.
+            #
+            # The union rule above would have to merge element structs too, and
+            # the per-revision fallback does not survive the message-struct
+            # rename: the element typedef keeps a `Rsprot_RsprotMsg_<X>_<f>Elem`
+            # name that no longer matches its declaration, so the file does not
+            # compile. Emitting that is worse than not emitting it — this
+            # generator's whole contract is that a construct it cannot model is
+            # skipped visibly rather than guessed at, and "does not compile" is
+            # only a louder version of the same failure.
+            #
+            # These are a real TODO, not a dead end: it is one naming fix plus a
+            # merge rule for element structs. Until then the hand-written
+            # decoder keeps them, which is where they already were.
+            refused.append(
+                (cls, direction,
+                 "array/nested element struct -- union across versions not modeled yet"))
+            continue
         if struct_text is None:
             refused.append((cls, direction, "no struct produced"))
             continue

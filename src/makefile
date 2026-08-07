@@ -152,7 +152,7 @@ CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 #
 # Defined with `=` and used above before it is defined, which make allows for
 # recursive variables — CFLAGS is expanded at use, not here.
-RSPROT_HDR_INCLUDES = -I$(RSPROT_DIR)/src -I$(RSPROT_DIR)/include
+RSPROT_HDR_INCLUDES = -I$(RSPROT_DIR)/src -I$(RSPROT_DIR)/include -I$(RSPROT_DIR)
 
 RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
