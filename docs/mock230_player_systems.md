@@ -206,6 +206,34 @@ same. Previously the bank menu looked right but `Deposit-1` arrived at the
 dispatcher as action 2231 instead of IF_BUTTON 231, printed `no hook`, and sent
 no packet.
 
+The default target priority is 4 (`class308`'s constructor value, decoded with
+its field multiplier), not zero. This matters before dispatch: the default-row
+selector intentionally ignores deprioritized entries. With a zero-initialized C
+component, bank-side op 2 appeared on right-click but could never be selected by
+left-click. Every newly allocated widget now receives the gamepack default, and
+filled object cells are left to the inventory gesture machine so a short click
+emits one operation rather than both the generic widget click and the inventory
+release path.
+
+### 1.5a Optimistic rev239 drag
+
+The official `class415` runs `onDragComplete` synchronously and only then calls
+`class108.method3759` to send `IfButtonD`. Scripts such as
+`bankside_reorder` read the two authoritative inventory slots and immediately
+redraw them into the opposite dynamic cells; the logical client container is
+unchanged until the server transmit arrives. The C client now drains this hook
+on an isolated task queue before writing the packet, preserving that optimistic
+paint even when another clientscript is yielding.
+
+The event target is addressed exactly like the gamepack's other dynamic-widget
+events: `event_drop` is the parent component and `event_dropsubid` is the child
+index. Passing the C tree's synthetic child component id made
+`bankside_reorder` fail its same-component guard and return before drawing. The
+host now canonicalizes the target to the parent-plus-sub-id pair. The mock
+accepts both pack-resolved backpack surfaces (`inventory:items` and
+`bankside:items`) as views of the same player container, including a cosmetic
+null-object field when the authoritative destination slot is empty.
+
 ### 1.6 Server side
 
 - `mock230_equipment_worn_slot()` maps `387:15..25` to a wear slot, reading the
@@ -237,7 +265,8 @@ drag slot 0 -> slot 20       ->  INV_BUTTOND com=149|0 0 -> 20
 right-click worn head slot   ->  Remove / Examine  (one Remove, not two)
 left-click "Remove" (rev230) ->  OPHELD1 slot=1 com=387|15, helm returns to the backpack
 right-click Deposit-1         ->  IF_BUTTONX com=15|3 sub=12 obj=995 op=2; both containers update
-drag slot 5 -> empty slot 20  ->  INV_BUTTOND target carries the null widget obj; slot 20 updates
+left-click Deposit-1          ->  one IF_BUTTONX/IF_BUTTON2; both containers update
+drag slot 5 -> empty slot 20  ->  drag hook redraws first; INV_BUTTOND names 15|3 at both ends; slot 20 updates
 ```
 
 ### 1.8 Revision-239 static worn leaves

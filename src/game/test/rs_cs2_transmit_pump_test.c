@@ -460,6 +460,35 @@ test_clear_hooks_preserves_compass_on_op(void)
     fixture_free(&fx);
 }
 
+static void
+test_dynamic_drag_target_uses_parent_address(void)
+{
+    struct Fixture fx;
+    struct UITreeNodeSpec spec = { 0 };
+    int const parent_id = 0x12340005;
+    int32_t parent;
+    int32_t child;
+
+    printf("pump: dynamic event_drop uses parent component plus sub-id\n");
+    fixture_init(&fx);
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = parent_id;
+    parent = UITree_Push(fx.tree, -1, &spec);
+    CHECK(parent >= 0, "drag-target parent");
+    child = UITree_CcCreate(fx.tree, parent, parent_id, 5, 7);
+    CHECK(child >= 0, "drag-target dynamic child");
+    if( child >= 0 )
+    {
+        RS_CS2_SetEventDragTarget(
+            &fx.host, fx.tree, fx.tree->components[child].component_id);
+        CHECK(fx.host.event_drag_target_id == parent_id, "event_drop is parent address");
+        CHECK(fx.host.event_drag_target_child_index == 7, "event_dropsubid is child index");
+    }
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -470,6 +499,7 @@ main(void)
     test_stat_notify_reaches_a_dispatch();
     test_flag_count_pinned();
     test_clear_hooks_preserves_compass_on_op();
+    test_dynamic_drag_target_uses_parent_address();
 
     if( g_fail )
     {

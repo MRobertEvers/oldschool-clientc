@@ -845,9 +845,10 @@ RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu)
     int walk = -1;
 
     assert(menu);
-    /* Scan from the top row down (reference chooseDefaultMenuEntry: first
-     * non-deprioritized entry excluding walk/examine/cancel, else walk). In
-     * the rev-254 id scheme every deprioritized/system row is > 1000. */
+    /* Scan from the top row down for the first ordinary action, falling back
+     * to Walk. Widget target-priority defaults to 4 in the gamepack; preserving
+     * that default is what keeps common component ops (for example bank
+     * Deposit-current-quantity at op 2) in this ordinary-action set. */
     for( int i = menu->option_count - 1; i >= 0; i-- )
     {
         int const action = menu->options[i].action;

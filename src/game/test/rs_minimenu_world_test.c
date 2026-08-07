@@ -18,6 +18,24 @@
 
 int g_failures;
 
+static void
+test_widget_target_priority_default(void)
+{
+    struct UITree* tree = UITree_New(1);
+    struct UITreeNodeSpec spec = { 0 };
+    int32_t index;
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = 1;
+    index = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(index >= 0, "widget target-priority fixture pushed");
+    if( index >= 0 )
+        TEST_ASSERT(
+            tree->components[index].target_priority == 4,
+            "rev239 widgets default target priority to op slot 4");
+    UITree_Free(tree);
+}
+
 static int
 menu_has_substr(struct UIMinimenu const* menu, char const* needle)
 {
@@ -520,6 +538,7 @@ test_player_get_by_element_id(void)
 int
 main(void)
 {
+    test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();
     test_if3_item_uses_only_scripted_ops();

@@ -71,6 +71,12 @@ component with target priority 6 and `Wear` (slot 0), `Drop` (slot 6), and
 `Examine` (slot 9) is displayed as `Wear`, `Drop`, `Use`, `Examine` after the
 minimenu's reverse-order draw.
 
+`class308` initializes every rev239 component's target priority to 4 before
+decoding or CS2 changes it. Dynamic bank-side item cells depend on that default:
+their op 2 remains a normal action and is eligible as the primary click. Leaving
+the calloc value of zero made the row visible in the minimenu but marked it
+deprioritized, so right-click Deposit worked while left-click did nothing.
+
 `StaticUIMenuOptions` holds up to five `ops[]` strings plus a single `option`
 string (OK/Select/Continue button label), and optional per-row `op_actions[]` /
 `option_action` overrides (0 = default mapping). Right-clicking any hit-tested UI node

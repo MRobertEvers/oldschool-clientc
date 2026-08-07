@@ -3590,10 +3590,10 @@ handle_opheld(
  * The endpoint object fields are the item ids painted on the two widgets.
  * Rev239's inventory script paints a client-only null object on empty cells,
  * so an empty destination does not necessarily send -1. The server's own
- * container is authoritative about whether the slot is empty. The client no
- * longer mutates locally on the CS2 path, so this is what actually moves the
- * items; a reject would leave the client looking at the pre-drag layout until
- * the next transmit.
+ * container is authoritative about whether the slot is empty. The CS2 drag
+ * hook optimistically repaints the two dynamic widgets but does not mutate the
+ * logical inventory; this packet is what actually moves the items, and the
+ * following transmit reconciles that paint with server state.
  *
  * Same-component moves inside the backpack and bankmain items are accepted.
  * Bank item → bankmain:tabs assigns the stack to that tab (updates tab_size).
@@ -3643,10 +3643,13 @@ handle_inv_buttond(
             dst_slot,
             dst_obj);
 
-    if( src_com == ids->com_inventory_items )
+    if( src_com == ids->com_inventory_items || src_com == ids->com_bankside_items )
     {
         struct Mock230Item swap;
 
+        /* The normal gameframe and the bank side panel are two named views of
+         * the backpack. A drag remains within the surface it started on; the
+         * component selects the view while the slots index the same container. */
         if( src_com != dst_com )
             return;
         if( src_slot == dst_slot )
@@ -18220,6 +18223,46 @@ mock230_world_selftest(void)
                                "dragging to an empty slot clears the source");
                 SELFTEST_CHECK(player->inv[empty_slot].obj_id == from_obj,
                                "and puts the item in the named empty destination");
+            }
+        }
+
+        /* The bank side panel paints the same backpack through a different
+         * component. Official rev239 therefore names bankside:items at both
+         * endpoints while the authoritative slots are still player->inv. */
+        {
+            int empty_slot = inv_first_free(player);
+            int bank_from_slot = -1;
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( player->inv[i].obj_id >= 0 )
+                {
+                    bank_from_slot = i;
+                    break;
+                }
+            }
+            SELFTEST_CHECK(bank_from_slot >= 0 && empty_slot >= 0,
+                           "bank-side view has a filled and empty backpack slot");
+            if( bank_from_slot >= 0 && empty_slot >= 0 )
+            {
+                int bank_from_obj = player->inv[bank_from_slot].obj_id;
+                int cosmetic_obj = bank_from_obj;
+                int bank_com = mock230_ids()->com_bankside_items;
+
+                rsab_wrap(&buf, payload, sizeof(payload));
+                rsab_p4_alt1(&buf, bank_com);
+                rsab_p2_alt1(&buf, bank_from_obj);
+                rsab_p2_alt3(&buf, bank_from_slot);
+                rsab_p4(&buf, bank_com);
+                rsab_p2_alt2(&buf, cosmetic_obj);
+                rsab_p2_alt2(&buf, empty_slot);
+                mock230_world_handle(
+                    player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));
+
+                SELFTEST_CHECK(player->inv[bank_from_slot].obj_id < 0,
+                               "bank-side drag clears its backpack source");
+                SELFTEST_CHECK(player->inv[empty_slot].obj_id == bank_from_obj,
+                               "and moves into the empty backpack destination");
             }
         }
     }

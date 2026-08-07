@@ -11071,10 +11071,11 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
  * UITree_ObjCellAt; empty CS2 slots walk each drag-target parent's children.
  *
  * CS1 / dat1 (2004 Client.ts): optimistic InvManager swap then classic
- * INV_BUTTOND with a mode byte (same-container only). CS2 / rev-230
- * (Deobfuscator class415): no local item mutation — fire onDragComplete, then
- * the dual-endpoint IfButtonD packet; the server UPDATE_INV (or the hook's own
- * paint) moves the pixels.
+ * INV_BUTTOND with a mode byte (same-container only). CS2 / rev-230 runs
+ * onDragComplete synchronously before class108.method3759 sends the dual-
+ * endpoint IfButtonD packet. Inventory hooks such as bankside_reorder and
+ * interface_inv_dragcomplete_swap_big repaint the two cells from the unchanged
+ * local container, making the gesture optimistic without mutating server state.
  */
 static int
 app_inv_resolve_drop(
@@ -11221,8 +11222,10 @@ app_inv_drag_drop(
         return;
     }
 
-    /* Rev-230: onDragComplete first, then the dual-endpoint packet. No local
-     * item-field write (Deobfuscator class415.method9501 / class108.method3759). */
+    /* Rev-230: onDragComplete first, then the dual-endpoint packet. The
+     * gamepack invokes this ScriptEvent synchronously; use an isolated queue so
+     * an unrelated yielding clientscript cannot delay the optimistic redraw
+     * until after the server's UPDATE_INV echo. */
     {
         int hook_com = app->inv_drag_com_id;
         struct UITreeRuntimeScriptHook const* hook = NULL;
@@ -11261,6 +11264,12 @@ app_inv_drag_drop(
         if( hook && hook->script_id > 0 )
         {
             struct UITreeRuntimeScriptHook hook_copy = *hook;
+            struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
+            struct TaskRunner drag_runner = {
+                .queue = drag_queue,
+                .io = app->runner.io,
+                .px = app->runner.px,
+            };
             int target_id = dst_com;
             if( dst_node >= 0 )
                 target_id = app->tree->components[dst_node].component_id;
@@ -11268,7 +11277,10 @@ app_inv_drag_drop(
             RS_CS2_SetEventMouse(
                 &app->host, mouse_x - (bx - offx), mouse_y - (by - offy));
             RS_CS2_SetEventDragTarget(&app->host, app->tree, target_id);
-            RS_CS2_DispatchHook(&app->host, &app->runner, hook_com, &hook_copy);
+            RS_CS2_DispatchHook(&app->host, &drag_runner, hook_com, &hook_copy);
+            TaskRunner_Drain(&drag_runner);
+            ToriRS_TaskQueue_Free(drag_queue);
+            app->need_redraw = 1;
         }
     }
 
@@ -12460,8 +12472,13 @@ App_RunOnce(
      * (app_inv_drag_tick): the reference freezes mouseLoop while objDragArea
      * is armed, so the release must not ALSO fire the generic default-entry
      * path here — the machine runs the default row itself on a short click. */
-    if( app->inv_drag_com_id < 0 && out.clicked_com_id >= 0 && !out.minimenu_closed &&
-        out.minimenu_select < 0 )
+    struct UITreeObjCell pressed_cell;
+    int const pressed_filled_obj =
+        out.clicked_com_id >= 0 &&
+        app_obj_cell_at(app, out.clicked_x, out.clicked_y, &pressed_cell);
+
+    if( app->inv_drag_com_id < 0 && !pressed_filled_obj && out.clicked_com_id >= 0 &&
+        !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
             .tree = app->tree,

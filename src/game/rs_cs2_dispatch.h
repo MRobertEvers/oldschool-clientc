@@ -64,7 +64,7 @@ RS_CS2_TransmitDirtyFlagCount(void);
 void
 RS_CS2_SetEventMouse(struct RS_CS2Host* host, int x, int y);
 
-/** Set the script-visible drag target (resolves dynamic child index). */
+/** Set the script-visible drag target as parent component + dynamic child index. */
 void
 RS_CS2_SetEventDragTarget(
     struct RS_CS2Host* host,

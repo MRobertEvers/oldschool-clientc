@@ -838,6 +838,12 @@ push_element_unlinked(struct UITree* tree)
     component->drag_render_area_uid = -1;
     component->drag_render_area_child_index = -1;
     component->drag_visual_trans = -1;
+    /* Widget.field4122 starts at 4 in the rev239 gamepack.  method5229 uses
+     * that value as the boundary between ordinary component operations and
+     * CC_OP_LOW_PRIORITY: leaving calloc's zero here incorrectly demoted ops
+     * 2..4 on every script-created item cell (including the bank's default
+     * Deposit operation), so a short left click found no normal default row. */
+    component->target_priority = 4;
     component->is_dirty = 1;
     tree->generation++;
     return idx;

@@ -4891,9 +4891,11 @@ varcs; only the container half was missing. Added:
   `var_changed_ids`, so a change to one container does not re-run every hook).
 - `RS_CS2_PumpTransmits` dispatches inv hooks on `inv_transmit_dirty` as well as
   on unhide, filtered by container.
-- `exec_update_inv_full` / `exec_update_inv_partial` call it, and so does the
-  local drag path in `app.c` (the swap is applied locally so the drag feels
-  instant, but the paint still has to be asked for).
+- `exec_update_inv_full` / `exec_update_inv_partial` call it. Classic CS1 drag
+  also swaps the logical container locally and notifies the host. Rev239 CS2
+  instead runs `onDragComplete` synchronously: the script optimistically
+  redraws the two dynamic cells before `IfButtonD`, while the logical inventory
+  remains authoritative-server state until the following update.
 
 All 14 starting items render immediately after.
 
@@ -4939,7 +4941,7 @@ movement                          walk 1 tile/tick, run 2; 25 dest-first waypoin
 rebuild on scene edge             re-centre + absolute placement, player inside the new scene
 equip / unequip                   worn slot, backpack vacated, appearance + partial-update dirty bits
 two-handed weapon evicts shield   shortbow (wearpos 3/5) displaces the kiteshield back to the backpack
-inventory drag                    INV_BUTTOND swaps filled slots and accepts rev239's cosmetic item field on an empty target
+inventory drag                    synchronous onDragComplete redraw precedes INV_BUTTOND; backpack and bank-side surfaces accept empty targets with rev239's cosmetic item field
 npcs roam inside their radius     200 ticks, radius respected, a zero-radius npc never moves
 ```
 

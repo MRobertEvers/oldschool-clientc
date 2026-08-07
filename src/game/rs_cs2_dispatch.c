@@ -87,7 +87,17 @@ RS_CS2_SetEventDragTarget(
     {
         int32_t tidx = UITree_FindByComponentId(tree, target_id);
         if( tidx >= 0 && tree->components[tidx].dynamic )
+        {
+            int32_t const parent = tree->components[tidx].parent;
             host->event_drag_target_child_index = tree->components[tidx].dynamic_child_index;
+            /* A runtime child has no independent gamepack component address:
+             * event_drop is its owner's packed component id and
+             * event_dropsubid is the dynamic index, exactly like event_com /
+             * event_comsubid in Task_CS2Run.  The C-only allocated node id must
+             * never leak into CS2 or same-container reorder hooks return early. */
+            if( parent >= 0 && (uint32_t)parent < tree->component_count )
+                host->event_drag_target_id = tree->components[parent].component_id;
+        }
     }
 }
 
