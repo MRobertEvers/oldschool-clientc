@@ -6,12 +6,31 @@
 #include "xtea_config.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define SECTOR_SIZE 520
 #define INDEX_ENTRY_SIZE 6
+
+static int
+dat2disk_seek_read(
+    FILE* file,
+    uint64_t offset)
+{
+    if( !file )
+        return -1;
+#ifdef _WIN32
+    if( offset > INT64_MAX )
+        return -1;
+    return _fseeki64(file, (__int64)offset, SEEK_SET);
+#else
+    if( offset > (uint64_t)LONG_MAX )
+        return -1;
+    return fseek(file, (long)offset, SEEK_SET);
+#endif
+}
 
 static void
 read_sector_header_small(
@@ -145,7 +164,9 @@ RSCache_Dat2DiskDat2FileReadArchive(
     }
 
     int out_len = 0;
-    out = malloc(length);
+    out = malloc((size_t)length);
+    if( !out )
+        goto error;
     memset(out, 0, length);
 
     for( int part = 0, read_bytes_count = 0; length > read_bytes_count;
@@ -157,7 +178,9 @@ RSCache_Dat2DiskDat2FileReadArchive(
             goto error;
         }
 
-        fseek(dat2_file, sector * SECTOR_SIZE, SEEK_SET);
+        if( dat2disk_seek_read(
+                dat2_file, (uint64_t)(uint32_t)sector * (uint64_t)SECTOR_SIZE) != 0 )
+            goto error;
 
         data_block_size = length - read_bytes_count;
 
@@ -520,7 +543,10 @@ RSCache_Dat2DiskIndexFileReadRecord(
     char data[INDEX_ENTRY_SIZE] = { 0 };
     int ret = 0;
 
-    ret = fseek(file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
+    if( entry_idx < 0 )
+        return -1;
+    ret = dat2disk_seek_read(
+        file, (uint64_t)(uint32_t)entry_idx * (uint64_t)INDEX_ENTRY_SIZE);
     if( ret != 0 )
     {
         ret = ferror(file);
@@ -534,10 +560,9 @@ RSCache_Dat2DiskIndexFileReadRecord(
     ret = fread(data, INDEX_ENTRY_SIZE, 1, file);
     if( ret != 1 )
     {
-        ret = ferror(file);
-        printf("failed to read index record err: %d\n", ret);
-        // assert(false);
-        // return -1;
+        /* A short/missing idx record is the ordinary sparse-cache miss. Do not
+         * print once per group while JS5 scans an empty table. */
+        return -1;
     }
 
     // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
@@ -621,7 +646,7 @@ dat2disk_fopen_index(
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, table_id);
-    return fopen(path, "rb+");
+    return fopen(path, "rb");
 }
 
 static int
@@ -873,9 +898,15 @@ dat2disk_ensure_reference_table_loaded(
     return disk->tables[table_id];
 }
 
-struct RSCache_Dat2Disk*
-RSCache_Dat2DiskNewFromDirectory(char const* directory)
+static struct RSCache_Dat2Disk*
+dat2disk_new_from_directory(
+    const char* directory,
+    const char* dat2_mode,
+    int read_only)
 {
+    if( !directory || !dat2_mode )
+        return NULL;
+
     struct RSCache_Dat2Disk* disk =
         (struct RSCache_Dat2Disk*)malloc(sizeof(struct RSCache_Dat2Disk));
     if( !disk )
@@ -893,7 +924,7 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory)
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", directory);
-    disk->dat2_file = fopen(path, "rb+");
+    disk->dat2_file = fopen(path, dat2_mode);
     if( !disk->dat2_file )
     {
         free(disk->directory);
@@ -901,8 +932,44 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory)
         return NULL;
     }
 
+    disk->read_only = read_only;
     init_reference_tables(disk);
     return disk;
+}
+
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromDirectory(char const* directory)
+{
+    return dat2disk_new_from_directory(directory, "rb+", 0);
+}
+
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory)
+{
+    return dat2disk_new_from_directory(directory, "rb", 1);
+}
+
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewSparseFromDirectory(const char* directory)
+{
+    if( !directory )
+        return NULL;
+
+    char path[1024];
+    int path_size = snprintf(path, sizeof(path), "%s/main_file_cache.dat2", directory);
+    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+        return NULL;
+
+    /* Append mode has the one property this constructor promises: it creates a
+     * missing file and can never truncate an existing one. NewFromDirectory
+     * reopens it in update mode before any sector reads occur. */
+    FILE* file = fopen(path, "ab");
+    if( !file )
+        return NULL;
+    if( fclose(file) != 0 )
+        return NULL;
+
+    return RSCache_Dat2DiskNewFromDirectory(directory);
 }
 
 struct RSCache_Dat2Disk*
@@ -938,11 +1005,14 @@ RSCache_Dat2DiskFree(struct RSCache_Dat2Disk* disk)
 }
 
 struct RSCache_Dat2DiskArchive*
-RSCache_Dat2DiskArchiveNewReferenceTableLoad(
+RSCache_Dat2DiskArchiveNewLoadRaw(
     struct RSCache_Dat2Disk* disk,
-    int table_id)
+    int table_id,
+    int archive_id)
 {
-    assert(disk);
+    if( !disk || !disk->directory || !disk->dat2_file || table_id < 0 || table_id > 255 ||
+        archive_id < 0 )
+        return NULL;
 
     struct RSCache_Dat2DiskArchive* archive =
         (struct RSCache_Dat2DiskArchive*)malloc(sizeof(struct RSCache_Dat2DiskArchive));
@@ -951,8 +1021,7 @@ RSCache_Dat2DiskArchiveNewReferenceTableLoad(
     memset(archive, 0, sizeof(struct RSCache_Dat2DiskArchive));
 
     struct RSCache_Dat2DiskIndexRecord index_record = { 0 };
-    if( dat2disk_read_index(
-            &index_record, disk->directory, RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID, table_id) != 0 )
+    if( dat2disk_read_index(&index_record, disk->directory, table_id, archive_id) != 0 )
         goto error;
 
     if( RSCache_Dat2DiskDat2FileReadArchive(
@@ -966,10 +1035,7 @@ RSCache_Dat2DiskArchiveNewReferenceTableLoad(
         goto error;
     }
 
-    if( !RSCache_ArchiveDecryptDecompress(archive, NULL) )
-        goto error;
-
-    archive->archive_id = index_record.archive_idx;
+    archive->archive_id = archive_id;
     archive->table_id = table_id;
     archive->file_count = -1;
     return archive;
@@ -977,6 +1043,28 @@ RSCache_Dat2DiskArchiveNewReferenceTableLoad(
 error:
     RSCache_Dat2DiskArchiveFree(archive);
     return NULL;
+}
+
+struct RSCache_Dat2DiskArchive*
+RSCache_Dat2DiskArchiveNewReferenceTableLoad(
+    struct RSCache_Dat2Disk* disk,
+    int table_id)
+{
+    struct RSCache_Dat2DiskArchive* archive = RSCache_Dat2DiskArchiveNewLoadRaw(
+        disk, RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID, table_id);
+    if( !archive )
+        return NULL;
+
+    if( !RSCache_ArchiveDecryptDecompress(archive, NULL) )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    /* Preserve the historical meaning of this helper: this is the reference
+     * metadata *for* table N, rather than an ordinary archive owned by 255. */
+    archive->table_id = table_id;
+    return archive;
 }
 
 struct RSCache_Dat2DiskArchive*
@@ -1041,32 +1129,10 @@ RSCache_Dat2DiskArchiveNewLoadDecrypted(
     int archive_id,
     uint32_t* xtea_key_nullable)
 {
-    assert(disk);
-
     struct RSCache_Dat2DiskArchive* archive =
-        (struct RSCache_Dat2DiskArchive*)malloc(sizeof(struct RSCache_Dat2DiskArchive));
+        RSCache_Dat2DiskArchiveNewLoadRaw(disk, table_id, archive_id);
     if( !archive )
         return NULL;
-    memset(archive, 0, sizeof(struct RSCache_Dat2DiskArchive));
-
-    struct RSCache_Dat2DiskIndexRecord index_record = { 0 };
-    if( dat2disk_read_index(&index_record, disk->directory, table_id, archive_id) != 0 )
-    {
-        printf("Failed to read dat2 index entry for table %d archive %d\n", table_id, archive_id);
-        goto error;
-    }
-
-    if( RSCache_Dat2DiskDat2FileReadArchive(
-            disk->dat2_file,
-            index_record.idx_file_id,
-            index_record.archive_idx,
-            index_record.sector,
-            index_record.length,
-            archive) != 0 )
-    {
-        printf("Failed to read dat2 archive for table %d\n", table_id);
-        goto error;
-    }
 
     if( !RSCache_ArchiveDecryptDecompress(archive, xtea_key_nullable) )
     {
@@ -1076,11 +1142,113 @@ RSCache_Dat2DiskArchiveNewLoadDecrypted(
 
     archive->archive_id = archive_id;
     archive->table_id = table_id;
+    archive->file_count = 0;
     return archive;
 
 error:
     RSCache_Dat2DiskArchiveFree(archive);
     return NULL;
+}
+
+bool
+RSCache_Dat2DiskInstallReferenceTableRaw(
+    struct RSCache_Dat2Disk* disk,
+    int table_id,
+    const uint8_t* data,
+    int data_size)
+{
+    if( !disk || disk->read_only || !disk->directory || !disk->dat2_file ||
+        !RSCache_Dat2DiskIsValidTableId(table_id) || !data || data_size <= 0 )
+        return false;
+
+    size_t container_size;
+    if( !RSCache_ArchiveRawContainerLength(data, (size_t)data_size, &container_size) )
+        return false;
+    size_t trailer_size = (size_t)data_size - container_size;
+    if( trailer_size != 0u && trailer_size != 2u && trailer_size != 4u )
+        return false;
+
+    struct RSCache_Dat2DiskArchive* archive =
+        (struct RSCache_Dat2DiskArchive*)calloc(1, sizeof(*archive));
+    if( !archive )
+        return false;
+    archive->data = malloc((size_t)data_size);
+    if( !archive->data )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return false;
+    }
+    memcpy(archive->data, data, (size_t)data_size);
+    archive->data_size = data_size;
+
+    if( !RSCache_ArchiveDecryptDecompress(archive, NULL) )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return false;
+    }
+
+    struct RSCache_ReferenceTable* replacement =
+        RSCache_ReferenceTableNewDecode(archive->data, archive->data_size);
+    RSCache_Dat2DiskArchiveFree(archive);
+    if( !replacement )
+        return false;
+
+    if( RSCache_Dat2DiskWriteArchive(
+            disk->directory,
+            RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID,
+            table_id,
+            data,
+            data_size) != 0 )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+
+    char path[1024];
+    int path_size =
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", disk->directory, table_id);
+    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+
+    /* A zero-byte idxN is the presence sentinel used by init_reference_tables.
+     * Append mode creates it without destroying groups already cached in N. */
+    FILE* sentinel = fopen(path, "ab");
+    if( !sentinel )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+    if( fclose(sentinel) != 0 )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+
+    /* The write used its own FILE stream. Reopen this disk's reader so no
+     * implementation may retain an input buffer or stale end-of-file state. */
+    path_size = snprintf(path, sizeof(path), "%s/main_file_cache.dat2", disk->directory);
+    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+    FILE* refreshed = fopen(path, "rb+");
+    if( !refreshed )
+    {
+        RSCache_ReferenceTableFree(replacement);
+        return false;
+    }
+
+    FILE* previous_file = disk->dat2_file;
+    struct RSCache_ReferenceTable* previous_table = disk->tables[table_id];
+    disk->dat2_file = refreshed;
+    disk->tables[table_id] = replacement;
+    fclose(previous_file);
+    RSCache_ReferenceTableFree(previous_table);
+    return true;
 }
 
 uint32_t*

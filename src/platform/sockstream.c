@@ -77,9 +77,33 @@ sockstream_cleanup(void)
 
 struct SockStream
 {
+#ifdef _WIN32
+    SOCKET sockfd;
+#else
     int sockfd;
+#endif
     int status;
 };
+
+static int
+sockstream_has_socket(const struct SockStream* stream)
+{
+#ifdef _WIN32
+    return stream && stream->sockfd != INVALID_SOCKET;
+#else
+    return stream && stream->sockfd >= 0;
+#endif
+}
+
+static void
+sockstream_clear_socket(struct SockStream* stream)
+{
+#ifdef _WIN32
+    stream->sockfd = INVALID_SOCKET;
+#else
+    stream->sockfd = -1;
+#endif
+}
 
 struct SockStream*
 sockstream_new(void)
@@ -90,7 +114,7 @@ sockstream_new(void)
         return NULL;
     }
     memset(stream, 0, sizeof(struct SockStream));
-    stream->sockfd = -1;
+    sockstream_clear_socket(stream);
     stream->status = SOCKSTREAM_STATUS_IDLE;
     return stream;
 }
@@ -107,8 +131,9 @@ sockstream_connect(
         return;
     }
     memset(stream, 0, sizeof(struct SockStream));
-    stream->sockfd = -1;
+    sockstream_clear_socket(stream);
     stream->status = SOCKSTREAM_STATUS_CONNECTING;
+    (void)timeout_sec;
 
     // Create socket
 #ifdef _WIN32
@@ -118,7 +143,7 @@ sockstream_connect(
         printf("Failed to create socket: %d\n", WSAGetLastError());
         return;
     }
-    stream->sockfd = (int)sock;
+    stream->sockfd = sock;
 #else
     stream->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if( stream->sockfd < 0 )
@@ -135,7 +160,10 @@ sockstream_connect(
     {
         printf("Failed to set non-blocking: %d\n", WSAGetLastError());
         closesocket(stream->sockfd);
-        free(stream);
+        /* The caller owns the stream and will close/free it after poll reports
+         * failure. Freeing here leaves that caller with a dangling pointer. */
+        sockstream_clear_socket(stream);
+        stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
 #else
@@ -144,6 +172,8 @@ sockstream_connect(
     {
         printf("Failed to set non-blocking: %s\n", strerror(errno));
         close(stream->sockfd);
+        sockstream_clear_socket(stream);
+        stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
 #endif
@@ -183,7 +213,7 @@ sockstream_connect(
 #else
             close(stream->sockfd);
 #endif
-            stream->sockfd = -1;
+            sockstream_clear_socket(stream);
             stream->status = SOCKSTREAM_STATUS_ERROR;
             return;
         }
@@ -206,7 +236,7 @@ sockstream_connect(
         {
             printf("Failed to connect: %d\n", connect_err);
             closesocket(stream->sockfd);
-            stream->sockfd = -1;
+            sockstream_clear_socket(stream);
             stream->status = SOCKSTREAM_STATUS_ERROR;
             return;
         }
@@ -226,7 +256,7 @@ sockstream_connect(
     {
         printf("Failed to connect: %s\n", strerror(errno));
         close(stream->sockfd);
-        stream->sockfd = -1;
+        sockstream_clear_socket(stream);
         stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
@@ -286,7 +316,7 @@ sockstream_send(
     const void* buffer,
     int size)
 {
-    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || stream->sockfd < 0 || !buffer ||
+    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || !sockstream_has_socket(stream) || !buffer ||
         size <= 0 )
     {
         printf("Socket send error: invalid stream\n");
@@ -321,7 +351,7 @@ sockstream_recv(
     void* buffer,
     int size)
 {
-    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || stream->sockfd < 0 || !buffer ||
+    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || !sockstream_has_socket(stream) || !buffer ||
         size <= 0 )
     {
         printf("Socket recv error: invalid stream\n");
@@ -374,7 +404,7 @@ sockstream_poll_connect(struct SockStream* stream)
     {
         return SOCKSTREAM_CONNECT_FAILED;
     }
-    if( !stream || stream->sockfd < 0 || stream->status != SOCKSTREAM_STATUS_CONNECTING )
+    if( !stream || !sockstream_has_socket(stream) || stream->status != SOCKSTREAM_STATUS_CONNECTING )
     {
         // If already connected, return success
         if( stream->status == SOCKSTREAM_STATUS_CONNECTED )
@@ -477,13 +507,13 @@ sockstream_poll_connect(struct SockStream* stream)
 int
 sockstream_is_connected(struct SockStream* stream)
 {
-    return (stream && stream->status == SOCKSTREAM_STATUS_CONNECTED && stream->sockfd >= 0) ? 1 : 0;
+    return (stream && stream->status == SOCKSTREAM_STATUS_CONNECTED && sockstream_has_socket(stream)) ? 1 : 0;
 }
 
-int
+intptr_t
 sockstream_get_fd(struct SockStream* stream)
 {
-    if( !stream || stream->status != 1 )
+    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED )
     {
         return -1;
     }
@@ -498,14 +528,14 @@ sockstream_close(struct SockStream* stream)
         return;
     }
 
-    if( stream->sockfd >= 0 )
+    if( sockstream_has_socket(stream) )
     {
 #ifdef _WIN32
         closesocket(stream->sockfd);
 #else
         close(stream->sockfd);
 #endif
-        stream->sockfd = -1;
+        sockstream_clear_socket(stream);
     }
 
     stream->status = SOCKSTREAM_STATUS_IDLE;

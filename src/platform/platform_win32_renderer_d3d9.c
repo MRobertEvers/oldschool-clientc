@@ -19,6 +19,7 @@
 #include "toridraw_scene.h"
 #include "toridraw_types.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -42,7 +43,6 @@
 #define D3D9_VBO_PAGE 65536u
 #define D3D9_DRAWRANGE_CAP 4096u
 #define D3D9_GPU_BUFFER_INIT 4096u
-#define D3D9_POSE_ARENA_TRACK_STRIDE 4096
 
 #define D3D9_WORLD_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 #define D3D9_OVERLAY_FVF (D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1)
@@ -874,6 +874,12 @@ d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id)
     return slot;
 }
 
+static void
+d3d9_reclassify_texture_faces(
+    struct ToriRS_D3D9* renderer,
+    int tex_id,
+    bool animated);
+
 static bool
 d3d9_load_texture_object(
     struct ToriRS_D3D9* renderer,
@@ -887,12 +893,17 @@ d3d9_load_texture_object(
     d3d9_decode_texture_rgba(texture, TRSPK_ATLAS_TILE, rgba);
 
     if( texture->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE )
-        return d3d9_upload_rgba_texture(
+    {
+        bool loaded = d3d9_upload_rgba_texture(
             renderer,
             &renderer->animated_textures[tex_id],
             rgba,
             TRSPK_ATLAS_TILE,
             TRSPK_ATLAS_TILE);
+        if( loaded )
+            d3d9_reclassify_texture_faces(renderer, tex_id, true);
+        return loaded;
+    }
     else
     {
         int slot = d3d9_texture_slot(renderer, tex_id);
@@ -908,6 +919,7 @@ d3d9_load_texture_object(
                 NULL) )
             return false;
         renderer->tex_resident[slot] = 1u;
+        d3d9_reclassify_texture_faces(renderer, tex_id, false);
         return true;
     }
 }
@@ -950,13 +962,21 @@ static void
 d3d9_unload_texture(struct ToriRS_D3D9* renderer, int tex_id)
 {
     int slot;
+    bool was_animated = false;
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
         return;
     if( renderer->animated_textures[tex_id] )
     {
+        was_animated = true;
         IDirect3DTexture9_Release(renderer->animated_textures[tex_id]);
         renderer->animated_textures[tex_id] = NULL;
     }
+    /* Keep a missing animated texture invisible.  Its retained faces cannot
+     * stay on a now-unbound standalone configuration (which would render as
+     * diffuse-only); remap them to a reserved transparent atlas tile until a
+     * subsequent load promotes them again. */
+    if( was_animated )
+        d3d9_reclassify_texture_faces(renderer, tex_id, false);
     slot = renderer->tex_slot_of_id[tex_id];
     if( slot >= 0 && (uint32_t)slot < D3D9_ATLAS_SLOTS && renderer->atlas.pixels )
     {
@@ -1017,6 +1037,122 @@ d3d9_map_animated_uv(float* u, float* v)
         *v = 0.008f;
     else if( *v > 0.992f )
         *v = 0.992f;
+}
+
+/* Geometry can be retained before its asynchronously requested texture is in
+ * the scene map.  Unknown textures are initially mapped to their reserved
+ * atlas tile.  If the eventual texture is animated, promote every already
+ * baked face to the standalone texture configuration and recover its local UV
+ * from that tile.  The reverse path handles a texture replacement whose class
+ * changes from animated to static. */
+static void
+d3d9_reclassify_texture_faces(
+    struct ToriRS_D3D9* renderer,
+    int tex_id,
+    bool animated)
+{
+    const float cell = (float)TRSPK_ATLAS_TILE / (float)D3D9_ATLAS_DIM;
+    int slot;
+    float origin_u;
+    float origin_v;
+    uint32_t group_index;
+
+    if( !renderer || tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
+        return;
+
+    slot = renderer->tex_slot_of_id[tex_id];
+    if( !animated && slot < 0 )
+        slot = d3d9_texture_slot(renderer, tex_id);
+    if( slot < 0 )
+        return;
+
+    origin_u = (float)(slot % (int)D3D9_ATLAS_COLS) * cell;
+    origin_v = (float)(slot / (int)D3D9_ATLAS_COLS) * cell;
+
+    for( group_index = 0u; group_index < TRSPK_VBO_GROUP_COUNT; group_index++ )
+    {
+        struct D3D9ModelGroup* group = &renderer->groups[group_index];
+        struct TRSPK_ModelArena* arena = group->arena;
+        struct TRSPK_VBO* vbo = group->vbo_cpu;
+        bool changed = false;
+        uint32_t slot_index;
+
+        if( !arena || !vbo || !vbo->vertices.as_d3d9 )
+            continue;
+
+        for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
+        {
+            const struct TRSPK_ModelSlot* model_slot = &arena->slots[slot_index];
+            uint32_t face_index;
+            if( !trspk_modelslot_is_alive(model_slot) )
+                continue;
+
+            for( face_index = 0u; face_index < model_slot->tri_count; face_index++ )
+            {
+                uint32_t vertex_index = model_slot->vertex_base + face_index * 3u;
+                uint32_t triangle_index =
+                    trspk_triangles_index_from_vertex(vertex_index);
+                struct TRSPK_VertexD3D9* first =
+                    &vbo->vertices.as_d3d9[vertex_index];
+                int baked_tex_id;
+                int config;
+                uint32_t corner;
+
+                /* Untextured faces store -1.  Rounding -1 as value+0.5 and
+                 * casting would truncate to texture id 0 in C. */
+                if( first->texdata[0] < 0.0f )
+                    continue;
+                baked_tex_id = (int)(first->texdata[0] + 0.5f);
+                if( baked_tex_id != tex_id )
+                    continue;
+                config = trspk_triangles_get(&group->triangles, triangle_index);
+
+                if( animated )
+                {
+                    if( config != TRSPK_TRIANGLES_ATLAS )
+                        continue;
+                    for( corner = 0u; corner < 3u; corner++ )
+                    {
+                        struct TRSPK_VertexD3D9* vertex =
+                            &vbo->vertices.as_d3d9[vertex_index + corner];
+                        vertex->texcoord[0] = (vertex->texcoord[0] - origin_u) / cell;
+                        vertex->texcoord[1] = (vertex->texcoord[1] - origin_v) / cell;
+                        d3d9_map_animated_uv(
+                            &vertex->texcoord[0], &vertex->texcoord[1]);
+                    }
+                    trspk_triangles_set(&group->triangles, triangle_index, tex_id);
+                }
+                else
+                {
+                    if( config != tex_id )
+                        continue;
+                    for( corner = 0u; corner < 3u; corner++ )
+                    {
+                        struct TRSPK_VertexD3D9* vertex =
+                            &vbo->vertices.as_d3d9[vertex_index + corner];
+                        float mapped_u;
+                        float mapped_v;
+                        d3d9_map_atlas_uv(
+                            slot,
+                            vertex->texcoord[0],
+                            vertex->texcoord[1],
+                            &mapped_u,
+                            &mapped_v);
+                        vertex->texcoord[0] = mapped_u;
+                        vertex->texcoord[1] = mapped_v;
+                    }
+                    trspk_triangles_set(
+                        &group->triangles,
+                        triangle_index,
+                        TRSPK_TRIANGLES_ATLAS);
+                }
+                changed = true;
+            }
+        }
+
+        if( changed )
+            trspk_vbo_set_dirty(vbo);
+    }
 }
 
 static bool
@@ -1112,6 +1248,86 @@ d3d9_reset_group(struct D3D9ModelGroup* group)
         trspk_modelarena_clear(group->arena);
 }
 
+static void
+d3d9_rebuild_static_pose_table(struct ToriRS_D3D9* renderer)
+{
+    struct TRSPK_ModelArena* arena;
+    uint32_t slot_index;
+
+    if( !renderer )
+        return;
+    arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
+    trspk_pose_table_clear(&renderer->poses);
+    if( !arena )
+        return;
+
+    for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
+    {
+        const struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+        int anim_index;
+        int pose_id;
+        if( !trspk_modelslot_is_alive(slot) || slot->element_id < 0 ||
+            slot->pose_id < 0 )
+            continue;
+        anim_index = slot->pose_id % TRSPK_POSE_TRACK_COUNT;
+        pose_id = slot->pose_id / TRSPK_POSE_TRACK_COUNT;
+        trspk_pose_table_set(
+            &renderer->poses,
+            slot->element_id,
+            anim_index,
+            pose_id,
+            slot->vertex_base);
+    }
+}
+
+static void
+d3d9_compact_static_group(struct ToriRS_D3D9* renderer)
+{
+    struct TRSPK_ModelArena* arena;
+    struct TRSPK_ModelArenaGCResult result;
+    if( !renderer )
+        return;
+    arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
+    if( !arena )
+        return;
+    result = trspk_modelarena_gc(arena);
+    if( result.did_compact )
+        d3d9_rebuild_static_pose_table(renderer);
+}
+
+static bool
+d3d9_pose_element_is_retained(
+    const struct ToriRS_D3D9* renderer,
+    int element_id)
+{
+    uint32_t element_index;
+    int track;
+    if( !renderer || element_id < 0 || !renderer->poses.elements )
+        return false;
+    element_index = (uint32_t)element_id;
+    if( element_index >= renderer->poses.element_count )
+        return false;
+    for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
+        if( renderer->poses.elements[element_index].tracks[track].pose_count > 0u )
+            return true;
+    return false;
+}
+
+static bool
+d3d9_pose_track_is_retained(
+    const struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index)
+{
+    uint32_t element_index;
+    if( !renderer || element_id < 0 || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT || !renderer->poses.elements )
+        return false;
+    element_index = (uint32_t)element_id;
+    return element_index < renderer->poses.element_count &&
+        renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
+}
+
 static uint32_t
 d3d9_bake_into_arena(
     struct ToriRS_D3D9* renderer,
@@ -1149,8 +1365,12 @@ d3d9_bake_into_arena(
     anim_index = d3d9_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     if( pose_id < 0 )
         pose_id = 0;
+    if( pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
+        return UINT32_MAX;
     arena_element_id = element_id >= 0 ? element_id : 0;
-    arena_pose_id = anim_index * D3D9_POSE_ARENA_TRACK_STRIDE + pose_id;
+    /* Interleave tracks instead of reserving a fixed frame stride.  This is a
+     * collision-free flattening of (pose, track) for every representable key. */
+    arena_pose_id = pose_id * TRSPK_POSE_TRACK_COUNT + anim_index;
 
     if( update_pose_table && element_id < 0 )
         update_pose_table = false;
@@ -1159,7 +1379,11 @@ d3d9_bake_into_arena(
         uint32_t old_slot =
             trspk_modelarena_find(group->arena, arena_element_id, arena_pose_id);
         if( old_slot != TRSPK_MODELSLOT_NULL_IDX )
+        {
             trspk_modelarena_unload(group->arena, old_slot);
+            if( group == &renderer->groups[TRSPK_VBO_GROUP_STATIC] )
+                d3d9_compact_static_group(renderer);
+        }
     }
     slot_index = trspk_modelarena_load(
         group->arena, arena_element_id, arena_pose_id, vertex_count);
@@ -1179,6 +1403,7 @@ d3d9_bake_into_arena(
         float vc = 0.5f;
         int triangle_config = TRSPK_TRIANGLES_ATLAS;
         int slot = 0;
+        bool missing_texture_slot = false;
 
         memset(&face, 0, sizeof(face));
         if( !trspk_toridraw_bake_face_handle(
@@ -1208,9 +1433,18 @@ d3d9_bake_into_arena(
         {
             if( face.tex_id >= 0 )
             {
-                int resident = d3d9_ensure_static_texture(renderer, face.tex_id);
-                if( resident >= 0 )
-                    slot = resident;
+                /* Reserve and encode the final tile even when the texture is
+                 * still loading.  The old fallback left retained vertices on
+                 * white slot zero forever after the asynchronous upload filled
+                 * a different tile. */
+                int assigned = d3d9_texture_slot(renderer, face.tex_id);
+                if( assigned >= 0 )
+                {
+                    slot = assigned;
+                    (void)d3d9_ensure_static_texture(renderer, face.tex_id);
+                }
+                else
+                    missing_texture_slot = true;
             }
             d3d9_map_atlas_uv(
                 face.tex_id >= 0 ? slot : -1, face.uv.u1, face.uv.v1, &ua, &va);
@@ -1218,6 +1452,16 @@ d3d9_bake_into_arena(
                 face.tex_id >= 0 ? slot : -1, face.uv.u2, face.uv.v2, &ub, &vb);
             d3d9_map_atlas_uv(
                 face.tex_id >= 0 ? slot : -1, face.uv.u3, face.uv.v3, &uc, &vc);
+        }
+
+        if( missing_texture_slot )
+        {
+            /* Slot zero is intentionally opaque white for genuinely
+             * untextured faces.  An invalid/full textured face must not use it
+             * as a visible fallback. */
+            face.color_a[3] = 0.0f;
+            face.color_b[3] = 0.0f;
+            face.color_c[3] = 0.0f;
         }
 
         trspk_triangles_set(
@@ -1269,11 +1513,40 @@ d3d9_bake_into_arena(
 static void
 d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
 {
-    if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena )
+    if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
+        !d3d9_pose_element_is_retained(renderer, element_id) )
         return;
     trspk_modelarena_unload_element(
         renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
+    d3d9_compact_static_group(renderer);
+}
+
+static void
+d3d9_animation_track_unload(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index)
+{
+    struct TRSPK_ModelArena* arena;
+    uint32_t slot_index;
+
+    if( !renderer || element_id < 0 || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT )
+        return;
+    arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
+    if( !arena || !d3d9_pose_track_is_retained(renderer, element_id, anim_index) )
+        return;
+
+    for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
+    {
+        const struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
+        if( trspk_modelslot_is_alive(slot) && slot->element_id == element_id &&
+            slot->pose_id % TRSPK_POSE_TRACK_COUNT == anim_index )
+            trspk_modelarena_unload(arena, slot_index);
+    }
+    trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
+    d3d9_compact_static_group(renderer);
 }
 
 static void
@@ -1283,6 +1556,9 @@ d3d9_model_load(
 {
     if( !command || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
+    /* A model replacement invalidates every pose from the old geometry, not
+     * only the rest-pose slot. */
+    d3d9_model_unload(renderer, command->element_id);
     (void)d3d9_bake_into_arena(
         renderer,
         &renderer->groups[TRSPK_VBO_GROUP_STATIC],
@@ -1299,24 +1575,67 @@ d3d9_animation_load(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
+    struct ToriDraw_Animation* animation;
+    struct ToriDraw_SkeletalAnim* skeletal;
     struct ToriDraw_Model* source;
+    int anim_index;
     int frame;
     if( !command || command->element_id < 0 || !command->animation ||
-        !command->animation->base || !command->animation->frames ||
         command->animation->frame_count <= 0 ||
         command->model.kind != TORIDRAWMK_MODEL || !command->model.u.model.model )
         return;
+    animation = command->animation;
+    skeletal = animation->skeletal;
+    if( !skeletal && (!animation->base || !animation->frames) )
+        return;
+
+    anim_index = d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    /* Pose keys do not carry a sequence id.  Clear the old track so frame zero
+     * cannot keep resolving to MODEL_LOAD's rest pose and a shorter replacement
+     * cannot serve stale tail frames. */
+    d3d9_animation_track_unload(renderer, command->element_id, anim_index);
     source = command->model.u.model.model;
-    for( frame = 0; frame < command->animation->frame_count; frame++ )
+    for( frame = 0; frame < animation->frame_count; frame++ )
     {
         struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
         struct ToriDraw_ModelHandle handle;
         if( !baked )
             continue;
+
+        /* A lazy retained bake can run after the scene model was posed for a
+         * previous draw.  ModelCopy copies the current vertices, not the
+         * captured rest arrays, so explicitly seed the copy from the source's
+         * rest pose when one exists. */
+        if( source->original_vertices_x && source->original_vertices_y &&
+            source->original_vertices_z && baked->vertex_count == source->vertex_count )
+        {
+            size_t vertex_bytes =
+                (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
+            memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
+            memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
+            memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
+        }
+        if( baked->face_alphas && source->original_face_alphas &&
+            baked->face_count == source->face_count )
+            memcpy(
+                baked->face_alphas,
+                source->original_face_alphas,
+                (size_t)baked->face_count * sizeof(*baked->face_alphas));
+
         ToriDraw_ModelCaptureOriginalVertices(baked);
-        ToriDraw_ModelAnimateReset(baked);
-        ToriDraw_ModelAnimateFrame(
-            baked, command->animation->base, &command->animation->frames[frame]);
+        /* Missing/empty cache frames hold the rest pose.  Calling the classic
+         * animator for one would assert instead of producing that pose. */
+        if( skeletal )
+        {
+            int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
+            if( skeletal->frame_count > 0 && skeletal->matrices &&
+                baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
+                baked->animaya_groups && baked->animaya_scales )
+                ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+        }
+        else if( animation->frames[frame].length > 0 )
+            ToriDraw_ModelAnimateFrame(
+                baked, animation->base, &animation->frames[frame]);
         memset(&handle, 0, sizeof(handle));
         handle.kind = TORIDRAWMK_MODEL;
         handle.u.model.model = baked;
@@ -1324,7 +1643,7 @@ d3d9_animation_load(
             renderer,
             &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             command->element_id,
-            0,
+            anim_index,
             frame,
             handle,
             &command->world_position,
@@ -1461,8 +1780,13 @@ d3d9_draw_model(
     if( face_count <= 0 )
         return;
     dynamic = command->dynamic || command->element_id < 0;
-    anim_index = dynamic ? d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
-    pose_id = dynamic && command->anim_frame >= 0 ? command->anim_frame : 0;
+    anim_index = d3d9_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    pose_id = command->animation && command->anim_frame >= 0
+                  ? command->anim_frame
+                  : 0;
+    if( command->animation && command->animation->frame_count > 0 &&
+        pose_id >= command->animation->frame_count )
+        pose_id = 0;
     group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
     if( dynamic )
     {
@@ -1483,15 +1807,36 @@ d3d9_draw_model(
                  pose_id,
                  &vertex_base) )
     {
-        vertex_base = d3d9_bake_into_arena(
-            renderer,
-            &renderer->groups[group],
-            command->element_id,
-            anim_index,
-            pose_id,
-            command->model,
-            &command->world_position,
-            true);
+        /* Renderer creation or an event-queue overflow can leave a live static
+         * element without its load event.  Preserve the retained contract by
+         * baking the complete animation once on the first miss, not one pose
+         * every frame. */
+        if( command->animation )
+        {
+            struct ToriRS_RenderCommand_AnimLoad load;
+            memset(&load, 0, sizeof(load));
+            load.element_id = command->element_id;
+            load.anim_index = anim_index;
+            load.animation = command->animation;
+            load.model = command->model;
+            load.world_position = command->world_position;
+            d3d9_animation_load(renderer, &load);
+        }
+        if( !trspk_pose_table_get(
+                &renderer->poses,
+                command->element_id,
+                anim_index,
+                pose_id,
+                &vertex_base) )
+            vertex_base = d3d9_bake_into_arena(
+                renderer,
+                &renderer->groups[group],
+                command->element_id,
+                anim_index,
+                pose_id,
+                command->model,
+                &command->world_position,
+                true);
     }
     if( vertex_base == UINT32_MAX )
         return;
@@ -1711,6 +2056,11 @@ d3d9_batch_add(
 {
     if( !command || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
+    /* Reusing an element id for a new batch model invalidates every pose from
+     * the previous model.  Animation-add events that follow rebuild their
+     * tracks on top of this new rest pose. */
+    if( !animated )
+        d3d9_model_unload(renderer, command->element_id);
     (void)d3d9_bake_into_arena(
         renderer,
         &renderer->groups[TRSPK_VBO_GROUP_STATIC],
@@ -1924,6 +2274,76 @@ ToriRS_D3D9_New(int width, int height)
     }
     return renderer;
 }
+
+#if defined(TORIRS_D3D9_RETAINED_TEST_API)
+_Static_assert(
+    TORIRS_D3D9_RETAINED_GROUP_COUNT == TRSPK_VBO_GROUP_COUNT,
+    "retained test stats must cover every D3D9 model group");
+
+bool
+ToriRS_D3D9_AttachSceneHeadlessForTest(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_Scene* scene)
+{
+    if( !renderer || !scene || renderer->device )
+        return false;
+    renderer->scene = scene;
+    return true;
+}
+
+bool
+ToriRS_D3D9_GetRetainedStats(
+    const struct ToriRS_D3D9* renderer,
+    struct ToriRS_D3D9RetainedStats* out_stats)
+{
+    uint32_t group_index;
+    if( !renderer || !out_stats )
+        return false;
+    memset(out_stats, 0, sizeof(*out_stats));
+    for( group_index = 0u; group_index < TRSPK_VBO_GROUP_COUNT; group_index++ )
+    {
+        const struct D3D9ModelGroup* group = &renderer->groups[group_index];
+        struct ToriRS_D3D9RetainedGroupStats* out =
+            &out_stats->groups[group_index];
+        uint32_t slot_index;
+        if( group->arena )
+        {
+            out->write_cursor = group->arena->write_cursor;
+            out->slot_count = group->arena->slot_count;
+            out->slot_capacity = group->arena->slot_capacity;
+            for( slot_index = 0u; slot_index < group->arena->slot_count; slot_index++ )
+                if( trspk_modelslot_is_alive(&group->arena->slots[slot_index]) )
+                    out->alive_slot_count++;
+        }
+        if( group->vbo_cpu )
+        {
+            out->vertex_count = group->vbo_cpu->vertex_count;
+            out->vertex_capacity = group->vbo_cpu->capacity;
+        }
+    }
+    out_stats->pose_element_count = renderer->poses.element_count;
+    out_stats->pose_element_capacity = renderer->poses.element_cap;
+    return true;
+}
+
+bool
+ToriRS_D3D9_GetPoseBase(
+    const struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    uint32_t* out_vertex_base)
+{
+    if( !renderer || !out_vertex_base )
+        return false;
+    return trspk_pose_table_get(
+        &renderer->poses,
+        element_id,
+        anim_index,
+        pose_id,
+        out_vertex_base);
+}
+#endif
 
 void
 ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)

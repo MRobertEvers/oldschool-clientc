@@ -217,7 +217,8 @@ UITreeSceneBridge_BuildPlayerDesignModel(
  * draws. Unlike the design preview it is not cached: the caller rebuilds it
  * whenever the appearance changes, which is what makes it live.
  *
- * `slots` is the 12-entry appearance array (0x100+kit / 0x200+obj, 0 = empty).
+ * `slots` is the 12-entry canonical appearance array (pkt_player_appearance.h:
+ * empty, kit or obj).
  * Non-resident models are skipped, so a build attempted before the wear models
  * have loaded comes out incomplete — retry until it looks right, or gate on the
  * same loads the world entity does.

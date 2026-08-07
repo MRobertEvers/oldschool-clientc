@@ -1,170 +1,492 @@
 /**
- * CPU-only steady-state leak test for model arena, pose table, and grid atlas.
- * No GPU / OpenGL required.
+ * CPU-only retained-renderer leak/regrowth regression.
+ *
+ * This links the real fixed-function D3D9 command dispatcher and drives
+ * MODEL_LOAD, ANIM_LOAD, and BATCH3D_CLEAR without creating a window or D3D
+ * device.  A forced-in allocator shim checks actual C-heap ownership while
+ * renderer diagnostics check arena high-water marks and pose relocation.
  */
 
-#include "platformkit/core/trspk_atlas.h"
-#include "platformkit/core/trspk_modelarena.h"
-#include "platformkit/core/trspk_pose.h"
-#include "platformkit/core/trspk_triangles.h"
-#include "platformkit/core/trspk_vbo.h"
+#include "retained_alloc_tracker.h"
+
+#include "platform/platform_win32_renderer_d3d9.h"
+
+#include "core/trspk_ibo.h"
+
+#include "toridraw.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define FAIL(...)                                                                                  \
-    do                                                                                             \
-    {                                                                                              \
-        fprintf(stderr, __VA_ARGS__);                                                              \
-        fprintf(stderr, "\n");                                                                     \
-        return 1;                                                                                  \
-    } while( 0 )
+#define VBO_PAGE_VERTICES 65536u
+#define LARGE_FACE_COUNT 12000
+#define LARGE_VERTEX_COUNT ((uint32_t)LARGE_FACE_COUNT * 3u)
+#define ANCHOR_FACE_COUNT 4
+#define ANCHOR_VERTEX_COUNT ((uint32_t)ANCHOR_FACE_COUNT * 3u)
+#define MAIN_ELEMENT_ID 7
+#define ANCHOR_ELEMENT_ID 1
+#define LONG_FRAME_COUNT 8
+#define SHORT_FRAME_COUNT 2
+#define WARMUP_CYCLES 3
+#define STEADY_CYCLES 24
+#define CLEAR_CYCLES 32
 
-struct AliveCountCtx
+struct TestAnimation
 {
-    uint32_t count;
+    struct ToriDraw_Animation animation;
+    struct ToriDraw_AnimBase base;
 };
 
+static int
+report_failure(const char* message)
+{
+    fprintf(stderr, "trspk_leak_test: %s\n", message);
+    return 1;
+}
+
+static struct ToriDraw_Model*
+make_untextured_model(int face_count)
+{
+    struct ToriDraw_Model* model = ToriDraw_ModelNew(3, face_count, 0u);
+    int face;
+    if( !model )
+        return NULL;
+
+    model->vertices_x = (vertexint_t*)calloc(3u, sizeof(*model->vertices_x));
+    model->vertices_y = (vertexint_t*)calloc(3u, sizeof(*model->vertices_y));
+    model->vertices_z = (vertexint_t*)calloc(3u, sizeof(*model->vertices_z));
+    model->face_indices_a =
+        (faceint_t*)calloc((size_t)face_count, sizeof(*model->face_indices_a));
+    model->face_indices_b =
+        (faceint_t*)calloc((size_t)face_count, sizeof(*model->face_indices_b));
+    model->face_indices_c =
+        (faceint_t*)calloc((size_t)face_count, sizeof(*model->face_indices_c));
+    model->face_colors_a =
+        (hsl16_t*)calloc((size_t)face_count, sizeof(*model->face_colors_a));
+    model->face_colors_b =
+        (hsl16_t*)calloc((size_t)face_count, sizeof(*model->face_colors_b));
+    model->face_colors_c =
+        (hsl16_t*)calloc((size_t)face_count, sizeof(*model->face_colors_c));
+    if( !model->vertices_x || !model->vertices_y || !model->vertices_z ||
+        !model->face_indices_a || !model->face_indices_b || !model->face_indices_c ||
+        !model->face_colors_a || !model->face_colors_b || !model->face_colors_c )
+    {
+        ToriDraw_ModelFree(model);
+        return NULL;
+    }
+
+    model->vertices_x[0] = 0;
+    model->vertices_y[0] = 0;
+    model->vertices_z[0] = 0;
+    model->vertices_x[1] = 128;
+    model->vertices_y[1] = 0;
+    model->vertices_z[1] = 0;
+    model->vertices_x[2] = 0;
+    model->vertices_y[2] = 0;
+    model->vertices_z[2] = 128;
+    for( face = 0; face < face_count; face++ )
+    {
+        model->face_indices_a[face] = 0;
+        model->face_indices_b[face] = 1;
+        model->face_indices_c[face] = 2;
+        model->face_colors_a[face] = (hsl16_t)0x4b40u;
+        model->face_colors_b[face] = (hsl16_t)0x4b40u;
+        model->face_colors_c[face] = (hsl16_t)0x4b40u;
+    }
+    return model;
+}
+
+static int
+init_test_animation(struct TestAnimation* out, int frame_count)
+{
+    memset(out, 0, sizeof(*out));
+    out->animation.base = &out->base;
+    out->animation.frames = (struct ToriDraw_AnimFrame*)calloc(
+        (size_t)frame_count, sizeof(*out->animation.frames));
+    out->animation.frame_count = frame_count;
+    /* Empty classic frames intentionally mean "hold the captured rest pose".
+     * The retained renderer still copies and prebakes each frame. */
+    return out->animation.frames != NULL;
+}
+
 static void
-count_alive_slot(
-    const struct TRSPK_ModelSlot* slot,
-    void* user_data)
+free_test_animation(struct TestAnimation* animation)
 {
-    (void)slot;
-    struct AliveCountCtx* ctx = (struct AliveCountCtx*)user_data;
-    ctx->count++;
+    free(animation->animation.frames);
+    animation->animation.frames = NULL;
 }
 
-static uint32_t
-alive_model_slots(const struct TRSPK_ModelArena* arena)
+static struct ToriDraw_ModelHandle
+model_handle(struct ToriDraw_Model* model)
 {
-    struct AliveCountCtx ctx = { 0u };
-    trspk_modelarena_visit_alive(arena, count_alive_slot, &ctx);
-    return ctx.count;
+    struct ToriDraw_ModelHandle handle;
+    memset(&handle, 0, sizeof(handle));
+    handle.kind = TORIDRAWMK_MODEL;
+    handle.u.model.model = model;
+    return handle;
+}
+
+static void
+execute_model_load(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    struct ToriDraw_Model* model)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_MODEL_LOAD;
+    command.u.model_load.element_id = element_id;
+    command.u.model_load.model = model_handle(model);
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_animation_load(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int track,
+    struct ToriDraw_Model* model,
+    struct TestAnimation* animation)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_ANIM_LOAD;
+    command.u.anim_load.element_id = element_id;
+    command.u.anim_load.anim_index = track;
+    command.u.anim_load.animation = &animation->animation;
+    command.u.anim_load.model = model_handle(model);
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+static void
+execute_batch_clear(struct ToriRS_D3D9* renderer)
+{
+    struct ToriRS_RenderCommand command;
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_BATCH3D_CLEAR;
+    ToriRS_D3D9_Execute(renderer, &command);
+}
+
+/* Alternating the two tracks is intentional.  Each replacement leaves the
+ * other track alive across several 64K VBO pages.  A page-local-only compactor
+ * makes the two tracks leapfrog forever; a retained renderer must repack the
+ * arena and remap every surviving pose before appending the replacement. */
+static void
+execute_replacement_cycle(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_Model* model,
+    struct ToriDraw_Model* anchor_model,
+    struct TestAnimation* long_animation,
+    struct TestAnimation* short_animation)
+{
+    execute_model_load(renderer, ANCHOR_ELEMENT_ID, anchor_model);
+    execute_animation_load(renderer, MAIN_ELEMENT_ID, 0, model, short_animation);
+    execute_animation_load(renderer, MAIN_ELEMENT_ID, 1, model, long_animation);
+    execute_animation_load(renderer, MAIN_ELEMENT_ID, 0, model, long_animation);
+    execute_animation_load(renderer, MAIN_ELEMENT_ID, 1, model, short_animation);
 }
 
 static int
-test_modelarena_pose_steady_state(void)
+same_group_stats(
+    const struct ToriRS_D3D9RetainedGroupStats* expected,
+    const struct ToriRS_D3D9RetainedGroupStats* actual)
 {
-    struct TRSPK_VBO* vbo = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_OPENGL3);
-    struct TRSPK_Triangles tri = { 0 };
-    trspk_triangles_ensure(&tri, TRSPK_TRIANGLES_INIT_CAP);
+    return expected->write_cursor == actual->write_cursor &&
+           expected->vertex_count == actual->vertex_count &&
+           expected->vertex_capacity == actual->vertex_capacity &&
+           expected->slot_count == actual->slot_count &&
+           expected->slot_capacity == actual->slot_capacity &&
+           expected->alive_slot_count == actual->alive_slot_count;
+}
 
-    struct TRSPK_ModelArena* arena =
-        trspk_modelarena_create(vbo, &tri, 1u << 16, 64u);
-    if( !arena )
-        FAIL("trspk_modelarena_create failed");
+static int
+same_retained_stats(
+    const struct ToriRS_D3D9RetainedStats* expected,
+    const struct ToriRS_D3D9RetainedStats* actual)
+{
+    uint32_t group;
+    for( group = 0u; group < TORIRS_D3D9_RETAINED_GROUP_COUNT; group++ )
+        if( !same_group_stats(&expected->groups[group], &actual->groups[group]) )
+            return 0;
+    return expected->pose_element_count == actual->pose_element_count &&
+           expected->pose_element_capacity == actual->pose_element_capacity;
+}
 
-    struct TRSPK_PoseTable poses;
-    memset(&poses, 0, sizeof(poses));
-    trspk_pose_table_init(&poses);
+static int
+verify_pose_layout(
+    struct ToriRS_D3D9 const* renderer,
+    const struct ToriRS_D3D9RetainedStats* stats)
+{
+    uint32_t bases[1u + LONG_FRAME_COUNT + SHORT_FRAME_COUNT];
+    uint32_t counts[1u + LONG_FRAME_COUNT + SHORT_FRAME_COUNT];
+    uint32_t base_count = 0u;
+    uint32_t base;
+    uint32_t i;
+    uint32_t j;
+    int pose;
 
-    const uint32_t baseline_cursor = arena->write_cursor;
+    if( stats->groups[TRSPK_VBO_GROUP_STATIC].alive_slot_count !=
+        1u + LONG_FRAME_COUNT + SHORT_FRAME_COUNT )
+        return report_failure("unexpected number of live retained slots");
+    if( stats->groups[TRSPK_VBO_GROUP_STATIC].write_cursor !=
+        stats->groups[TRSPK_VBO_GROUP_STATIC].vertex_count )
+        return report_failure("arena cursor and VBO vertex count diverged");
 
-    for( int element_id = 0; element_id < 8; ++element_id )
+    if( !ToriRS_D3D9_GetPoseBase(
+            renderer, ANCHOR_ELEMENT_ID, 0, 0, &base) )
+        return report_failure("anchor pose mapping was lost");
+    bases[base_count] = base;
+    counts[base_count++] = ANCHOR_VERTEX_COUNT;
+
+    for( pose = 0; pose < LONG_FRAME_COUNT; pose++ )
     {
-        const uint32_t slot = trspk_modelarena_load(arena, element_id, 0, 12u);
-        trspk_pose_table_set(&poses, element_id, 0, 0, slot * 12u);
-        trspk_modelarena_unload_element(arena, element_id);
-        trspk_pose_table_remove_element(&poses, element_id);
+        if( !ToriRS_D3D9_GetPoseBase(renderer, MAIN_ELEMENT_ID, 0, pose, &base) )
+            return report_failure("long animation pose mapping was lost");
+        bases[base_count] = base;
+        counts[base_count++] = LARGE_VERTEX_COUNT;
     }
-    trspk_modelarena_gc(arena);
-
-    const uint32_t baseline_capacity = vbo->capacity;
-    const uint32_t baseline_slots = arena->slot_count;
-    const uint32_t baseline_pose_elements = poses.element_count;
-
-    for( int cycle = 0; cycle < 64; ++cycle )
+    for( pose = 0; pose < SHORT_FRAME_COUNT; pose++ )
     {
-        for( int element_id = 0; element_id < 8; ++element_id )
-        {
-            const uint32_t slot = trspk_modelarena_load(arena, element_id, 0, 12u);
-            trspk_pose_table_set(&poses, element_id, 0, 0, slot * 12u);
-            trspk_modelarena_unload_element(arena, element_id);
-            trspk_pose_table_remove_element(&poses, element_id);
-        }
-
-        trspk_modelarena_gc(arena);
+        if( !ToriRS_D3D9_GetPoseBase(renderer, MAIN_ELEMENT_ID, 1, pose, &base) )
+            return report_failure("short animation pose mapping was lost");
+        bases[base_count] = base;
+        counts[base_count++] = LARGE_VERTEX_COUNT;
     }
+    for( pose = SHORT_FRAME_COUNT; pose < LONG_FRAME_COUNT; pose++ )
+        if( ToriRS_D3D9_GetPoseBase(renderer, MAIN_ELEMENT_ID, 1, pose, &base) )
+            return report_failure("short animation retained a stale tail pose");
 
-    if( alive_model_slots(arena) != 0u )
-        FAIL("alive model slots != 0 after cycles");
-    if( arena->write_cursor != baseline_cursor )
-        FAIL("write_cursor grew: %u -> %u", baseline_cursor, arena->write_cursor);
-    if( vbo->capacity > baseline_capacity )
-        FAIL("vbo capacity grew after warmup: %u -> %u", baseline_capacity, vbo->capacity);
-    if( arena->slot_count > baseline_slots )
-        FAIL("slot_count grew after warmup: %u -> %u", baseline_slots, arena->slot_count);
-    if( poses.element_count > baseline_pose_elements )
-        FAIL(
-            "pose element_count grew after warmup: %u -> %u",
-            baseline_pose_elements,
-            poses.element_count);
-
-    uint32_t probe_base = 0u;
-    if( trspk_pose_table_get(&poses, 0, 0, 0, &probe_base) )
-        FAIL("pose entry still live after remove cycles");
-
-    trspk_pose_table_free(&poses);
-    trspk_modelarena_free(arena);
-    trspk_triangles_free(&tri);
-    trspk_vbo_free(vbo);
+    for( i = 0u; i < base_count; i++ )
+    {
+        if( bases[i] + counts[i] >
+            stats->groups[TRSPK_VBO_GROUP_STATIC].write_cursor )
+            return report_failure("pose mapping points beyond the retained VBO");
+        if( bases[i] % VBO_PAGE_VERTICES + counts[i] > VBO_PAGE_VERTICES )
+            return report_failure("retained pose crosses a 16-bit VBO page");
+        for( j = i + 1u; j < base_count; j++ )
+            if( bases[i] < bases[j] + counts[j] && bases[j] < bases[i] + counts[i] )
+                return report_failure("two live pose mappings overlap");
+    }
     return 0;
 }
 
 static int
-test_atlas_grid_steady_state(void)
+test_d3d9_retained_execute_steady_state(void)
 {
-    struct TRSPK_Atlas atlas;
-    memset(&atlas, 0, sizeof(atlas));
+    struct RetainedAllocSnapshot entry_alloc = retained_alloc_snapshot();
+    struct RetainedAllocSnapshot plateau_alloc;
+    struct RetainedAllocSnapshot current_alloc;
+    struct ToriRS_D3D9RetainedStats plateau_stats;
+    struct ToriRS_D3D9RetainedStats current_stats;
+    struct ToriDraw_Scene* scene = NULL;
+    struct ToriDraw_Model* large_model = NULL;
+    struct ToriDraw_Model* anchor_model = NULL;
+    struct ToriRS_D3D9* renderer = NULL;
+    struct TestAnimation long_animation;
+    struct TestAnimation short_animation;
+    uint32_t probe_base;
+    int long_animation_ready = 0;
+    int short_animation_ready = 0;
+    int failed = 0;
+    int cycle;
 
-    if( !trspk_atlas_init_grid(&atlas, 512u, 512u, 64u, 64u, 4u) )
-        FAIL("trspk_atlas_init_grid failed");
-
-    uint8_t pixels[64u * 64u * 4u];
-    memset(pixels, 0xAB, sizeof(pixels));
-
-    for( int cycle = 0; cycle < 32; ++cycle )
+    memset(&long_animation, 0, sizeof(long_animation));
+    memset(&short_animation, 0, sizeof(short_animation));
+    ToriDraw_Init();
+    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES);
+    large_model = make_untextured_model(LARGE_FACE_COUNT);
+    anchor_model = make_untextured_model(ANCHOR_FACE_COUNT);
+    long_animation_ready = init_test_animation(&long_animation, LONG_FRAME_COUNT);
+    short_animation_ready = init_test_animation(&short_animation, SHORT_FRAME_COUNT);
+    renderer = ToriRS_D3D9_New(320, 240);
+    if( !scene || !large_model || !anchor_model || !long_animation_ready ||
+        !short_animation_ready || !renderer )
     {
-        for( uint32_t slot = 0u; slot < 8u; ++slot )
+        failed = report_failure("fixture allocation failed");
+        goto cleanup;
+    }
+    if( !ToriRS_D3D9_AttachSceneHeadlessForTest(renderer, scene) )
+    {
+        failed = report_failure("headless scene attach failed");
+        goto cleanup;
+    }
+
+    execute_model_load(renderer, ANCHOR_ELEMENT_ID, anchor_model);
+    execute_model_load(renderer, MAIN_ELEMENT_ID, large_model);
+    execute_animation_load(
+        renderer, MAIN_ELEMENT_ID, 0, large_model, &long_animation);
+    execute_animation_load(
+        renderer, MAIN_ELEMENT_ID, 1, large_model, &short_animation);
+    for( cycle = 0; cycle < WARMUP_CYCLES; cycle++ )
+        execute_replacement_cycle(
+            renderer,
+            large_model,
+            anchor_model,
+            &long_animation,
+            &short_animation);
+
+    if( !ToriRS_D3D9_GetRetainedStats(renderer, &plateau_stats) )
+    {
+        failed = report_failure("could not read retained stats after warmup");
+        goto cleanup;
+    }
+    if( verify_pose_layout(renderer, &plateau_stats) != 0 )
+    {
+        failed = 1;
+        goto cleanup;
+    }
+    plateau_alloc = retained_alloc_snapshot();
+
+    for( cycle = 0; cycle < STEADY_CYCLES; cycle++ )
+    {
+        execute_replacement_cycle(
+            renderer,
+            large_model,
+            anchor_model,
+            &long_animation,
+            &short_animation);
+        if( !ToriRS_D3D9_GetRetainedStats(renderer, &current_stats) )
         {
-            if( !trspk_atlas_grid_insert_at(
-                    &atlas, slot, pixels, 64u * 4u, 64u, 64u, NULL) )
-            {
-                trspk_atlas_free(&atlas);
-                FAIL("trspk_atlas_grid_insert_at failed slot %u", slot);
-            }
-
-            struct TRSPK_AtlasTile tile;
-            if( !trspk_atlas_grid_tile_for_slot(&atlas, slot, &tile) )
-            {
-                trspk_atlas_free(&atlas);
-                FAIL("trspk_atlas_grid_tile_for_slot failed slot %u", slot);
-            }
-
-            for( uint32_t row = 0u; row < tile.h; ++row )
-            {
-                uint8_t* dst = atlas.pixels + (size_t)(tile.y + row) * atlas.stride
-                    + (size_t)tile.x * atlas.channels;
-                memset(dst, 0, (size_t)tile.w * atlas.channels);
-            }
+            failed = report_failure("could not read retained stats during replacement");
+            goto cleanup;
+        }
+        if( !same_retained_stats(&plateau_stats, &current_stats) )
+        {
+            fprintf(
+                stderr,
+                "trspk_leak_test: retained state grew in cycle %d "
+                "(cursor %lu -> %lu, vertices %lu -> %lu, capacity %lu -> %lu, "
+                "slots %lu/%lu -> %lu/%lu)\n",
+                cycle,
+                (unsigned long)plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].write_cursor,
+                (unsigned long)current_stats.groups[TRSPK_VBO_GROUP_STATIC].write_cursor,
+                (unsigned long)plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_count,
+                (unsigned long)current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_count,
+                (unsigned long)plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity,
+                (unsigned long)current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity,
+                (unsigned long)plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].alive_slot_count,
+                (unsigned long)plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_count,
+                (unsigned long)current_stats.groups[TRSPK_VBO_GROUP_STATIC].alive_slot_count,
+                (unsigned long)current_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_count);
+            failed = 1;
+            goto cleanup;
+        }
+        if( verify_pose_layout(renderer, &current_stats) != 0 )
+        {
+            failed = 1;
+            goto cleanup;
+        }
+        current_alloc = retained_alloc_snapshot();
+        if( current_alloc.live_blocks != plateau_alloc.live_blocks ||
+            current_alloc.live_bytes != plateau_alloc.live_bytes )
+        {
+            fprintf(
+                stderr,
+                "trspk_leak_test: live heap grew in cycle %d "
+                "(%lu blocks/%lu bytes -> %lu blocks/%lu bytes)\n",
+                cycle,
+                (unsigned long)plateau_alloc.live_blocks,
+                (unsigned long)plateau_alloc.live_bytes,
+                (unsigned long)current_alloc.live_blocks,
+                (unsigned long)current_alloc.live_bytes);
+            failed = 1;
+            goto cleanup;
         }
     }
 
-    trspk_atlas_free(&atlas);
-    return 0;
+    execute_batch_clear(renderer);
+    if( !ToriRS_D3D9_GetRetainedStats(renderer, &current_stats) )
+    {
+        failed = report_failure("could not read retained stats after clear");
+        goto cleanup;
+    }
+    if( current_stats.groups[TRSPK_VBO_GROUP_STATIC].write_cursor != 0u ||
+        current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_count != 0u ||
+        current_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_count != 0u ||
+        current_stats.groups[TRSPK_VBO_GROUP_STATIC].alive_slot_count != 0u )
+    {
+        failed = report_failure("BATCH3D_CLEAR did not release retained occupancy");
+        goto cleanup;
+    }
+    if( current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity !=
+            plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity ||
+        current_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_capacity !=
+            plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_capacity )
+    {
+        failed = report_failure("BATCH3D_CLEAR unexpectedly reallocated retained capacity");
+        goto cleanup;
+    }
+    if( ToriRS_D3D9_GetPoseBase(renderer, MAIN_ELEMENT_ID, 0, 0, &probe_base) ||
+        ToriRS_D3D9_GetPoseBase(renderer, MAIN_ELEMENT_ID, 1, 0, &probe_base) ||
+        ToriRS_D3D9_GetPoseBase(renderer, ANCHOR_ELEMENT_ID, 0, 0, &probe_base) )
+    {
+        failed = report_failure("BATCH3D_CLEAR left a live pose mapping");
+        goto cleanup;
+    }
+    current_alloc = retained_alloc_snapshot();
+    if( current_alloc.live_blocks != plateau_alloc.live_blocks ||
+        current_alloc.live_bytes != plateau_alloc.live_bytes )
+    {
+        failed = report_failure("BATCH3D_CLEAR changed retained heap ownership");
+        goto cleanup;
+    }
+
+    for( cycle = 0; cycle < CLEAR_CYCLES; cycle++ )
+    {
+        execute_model_load(renderer, ANCHOR_ELEMENT_ID, anchor_model);
+        execute_batch_clear(renderer);
+        if( !ToriRS_D3D9_GetRetainedStats(renderer, &current_stats) ||
+            current_stats.groups[TRSPK_VBO_GROUP_STATIC].write_cursor != 0u ||
+            current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_count != 0u ||
+            current_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_count != 0u ||
+            current_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity !=
+                plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].vertex_capacity ||
+            current_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_capacity !=
+                plateau_stats.groups[TRSPK_VBO_GROUP_STATIC].slot_capacity )
+        {
+            failed = report_failure("clear/reload cycle changed retained high-water state");
+            goto cleanup;
+        }
+        current_alloc = retained_alloc_snapshot();
+        if( current_alloc.live_blocks != plateau_alloc.live_blocks ||
+            current_alloc.live_bytes != plateau_alloc.live_bytes )
+        {
+            failed = report_failure("clear/reload cycle leaked heap ownership");
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    ToriRS_D3D9_Free(renderer);
+    if( long_animation_ready )
+        free_test_animation(&long_animation);
+    if( short_animation_ready )
+        free_test_animation(&short_animation);
+    ToriDraw_ModelFree(large_model);
+    ToriDraw_ModelFree(anchor_model);
+    ToriDraw_SceneFree(scene);
+
+    current_alloc = retained_alloc_snapshot();
+    if( current_alloc.live_blocks != entry_alloc.live_blocks ||
+        current_alloc.live_bytes != entry_alloc.live_bytes )
+    {
+        fprintf(
+            stderr,
+            "trspk_leak_test: teardown leaked %ld blocks / %ld bytes\n",
+            (long)(current_alloc.live_blocks - entry_alloc.live_blocks),
+            (long)(current_alloc.live_bytes - entry_alloc.live_bytes));
+        failed = 1;
+    }
+    return failed;
 }
 
 int
 main(void)
 {
-    if( test_modelarena_pose_steady_state() != 0 )
+    if( test_d3d9_retained_execute_steady_state() != 0 )
         return 1;
-    if( test_atlas_grid_steady_state() != 0 )
-        return 1;
-
     printf("trspk_leak_test ok\n");
     return 0;
 }

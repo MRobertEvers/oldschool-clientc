@@ -1,5 +1,10 @@
 # Building src/ for the web
 
+> The authoritative cross-platform registry is
+> [Platform quirks and contracts](platform_quirks.md). This page owns the
+> detailed browser build and runtime design; register platform differences and
+> open defects in the shared registry as well.
+
 The client runs in a browser as a WebAssembly module. Everything above the
 platform layer is the same code the desktop build runs — same task pipeline,
 same decoders, same renderer — with three things swapped underneath it: where
@@ -29,16 +34,31 @@ directory, link output. It is defined in [`src/platform/platform.mk`](../src/pla
 adding a host means adding one block there plus its `platform/*.c` backends.
 
 ```sh
-make -C src                  # native, debug      -> src/torirs
+make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
+make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
 make -C src PLATFORM=web <target>   # any target, web flavor
 ```
 
-Each `(PLATFORM, OPT)` pair owns its own object directory (`build`,
-`build_opt`, `build_web`, `build_web_opt`), so flavors never share a `.o`.
+`PLATFORM` values are `macos`, `linux`, `win32`, `win64`, and `web`; the
+default, `native`, resolves to `macos`, `linux`, or modern Windows `win64`.
+The XP-compatible `win32` lane is always explicit. Each
+`(PLATFORM, OPT)` pair owns its own object directory (`build`, `build_opt`,
+`build_web`, `build_web_opt`, `build_win32`, …), so flavors never share a `.o`.
+
+The web lane's invariants — WebGL1 pinned, and **no `-sASYNCIFY`** (the IO path
+below buys the same behaviour by yielding to the main loop instead) — are
+asserted rather than merely intended:
+
+```sh
+make -C src lane-check PLATFORM=web
+make -C src lane-check-all           # every lane, from any host
+```
+
+They are declared in [`src/platform/platform_check.mk`](../src/platform/platform_check.mk).
 
 What the web block swaps:
 
@@ -119,8 +139,10 @@ spaces, quotes, backslashes, commas, `=`, `;`, and `#` are literal, with no
 quote removal, escaping, variable expansion, or globbing. Thus `arg=Jane Doe`
 passes the single token `Jane Doe`; writing `arg="Jane Doe"` includes the quote
 characters. Since `;` and `#` are data on an `arg=` line, comments belong on
-their own lines. Empty arguments, more than 64 entries, and a nested
-`arg=--manifest` make the manifest invalid.
+their own lines. An empty right-hand side is an empty argv token. More than 64
+entries makes the manifest invalid. A `--manifest` token in option position is
+rejected, preventing recursive manifests, though it remains legal when
+consumed as an option's literal value.
 
 The order is typed manifest fields, then `[client:args]`, then the real process
 argv (the page's query-string argv in a web build). A later CLI option therefore

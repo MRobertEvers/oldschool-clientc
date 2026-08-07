@@ -15,7 +15,7 @@ painters_cull_project(
     int scene_z,
     int camera_pitch,
     int camera_yaw,
-    int fov,
+    int camera_cot16,
     int near_clip,
     int screen_width,
     int screen_height,
@@ -36,7 +36,7 @@ painters_cull_project(
         scene_z,
         camera_pitch,
         camera_yaw,
-        fov,
+        camera_cot16,
         near_clip,
         screen_width,
         screen_height,
@@ -65,14 +65,16 @@ painters_cullmap_build_toridraw(
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     const struct ToriDrawTrigFns* trig)
 {
-    assert(trig && trig->sin && trig->cos && trig->tan);
+    assert(trig && trig->sin && trig->cos);
     return painters_cullmap_build(
         radius,
         near_clip_z,
         screen_width,
         screen_height,
+        camera_cot16,
         painters_cull_project,
         (void*)trig,
         painters_cull_sin);

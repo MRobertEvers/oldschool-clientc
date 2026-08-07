@@ -202,6 +202,11 @@ class Trees(object):
         for ns in NAMESPACES:
             self.here_name[ns], self.here_id[ns] = read_pack(
                 os.path.join(tree, "configs", "all.%s.compack" % ns))
+            # The server's allocation ledger — the namespace's second layer.
+            alloc_name, alloc_id = read_pack(
+                os.path.join(tree, "pack", "%s.alloc" % ns))
+            self.here_name[ns].update(alloc_name)
+            self.here_id[ns].update(alloc_id)
             self.here_rec[ns] = read_config(
                 os.path.join(tree, "configs", "all.%s" % ns))
             # This tree's own authored overlays can name a record too.

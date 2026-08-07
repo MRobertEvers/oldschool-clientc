@@ -762,7 +762,15 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 | 35o | Legends echned_zekin Talk | done | Talk/Use dagger + nezi summon; trails/update_all deferred |
 | 35p | Nature Spirit filliman | done | Talk/Use + ns dialogue + quest_complete queues; VFX/sounds thin |
 | 35q | Nature Spirit ghast | done | invis AI + pouch reveal + vis death/reward; food-rot thinned; %ghast_delay |
-| 8 | Outward areas / remaining quests / minigames | pending | After 35q: Nature Spirit locs/bloom; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
+| 35r | Nature Spirit locs/bloom | done | gate/grotto/stones/bloom/pouch/altar/harvest + next_loc_stage overlays |
+| 35s | Shilo rashiliyia | done | intro AI + Talk; ~random_undead_one; sounds/queue damage era |
+| 35t | Legends irvig_senay | done | Talk/Attack/death + thin @summon_nezi_part3; drop %lastcombat |
+| 35u | Legends san_tojalon | done | Talk/Attack/death; drop %lastcombat |
+| 35v | Legends ranalph_devere | done | Talk/Attack/death; drop %lastcombat |
+| 35w | Legends boulder + pool | done | push + lgwaterpool Look; already-pushed via %legendsquest (no %npc_start_coord) |
+| 35x | Legends strange_barrel | done | smash + thin loot/explode; NPC spawn deferred |
+| 35y | Alkh curtains + mausoleum gates | done | inaccastledoubledoor* open/close; pip_underground walk-through |
+| 8 | Outward areas / remaining quests / minigames | pending | After 35y: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord); duel closed chest absent (loc_3193 false-friend) |
 
 
 
@@ -1725,4 +1733,36 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 35q done: Nature Spirit ghast AI/pouch + %ghast_delay; food-rot thinned
 - final: 12275 scripts; mock230_pack 0 errors
 - next pending: Nature Spirit locs/bloom; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35r done: Nature Spirit gate/grotto/bloom/pouch/altar/harvest
+- final: 12308 scripts; mock230_pack 0 errors
+- next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 35s done: Shilo rashiliyia intro AI + Talk + random_undead_one
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: Legends warriors / boulder / barrel / curtains / mausoleum gates
+
+- slice 35t done: Legends irvig_senay Talk/Attack/death + thin summon_nezi_part3
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: san_tojalon / ranalph / boulder / barrel / curtains / gates
+
+- slice 35u done: Legends san_tojalon Talk/Attack/death
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: ranalph / boulder / barrel / curtains / gates
+
+- slice 35v done: Legends ranalph_devere Talk/Attack/death
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: boulder / barrel / curtains / gates
+
+- slice 35w done: Legends boulder push + lgwaterpool Look (%npc_start_coord→quest gate)
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: strange_barrel / curtains / mausoleum gates
+
+- slice 35x done: Legends strange_barrel smash + thin loot/explode
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: alkharid curtains / mausoleum gates
+
+- slice 35y done: Alkh palace curtains + Priest Peril mausoleum gates
+- final: 12368 scripts; mock230_pack 0 errors
+- next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 

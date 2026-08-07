@@ -38,6 +38,10 @@ enum UITreeEntityOverlayKind
     UITREE_ENTITY_OVERLAY_RECT = 0,
     UITREE_ENTITY_OVERLAY_SPRITE,
     UITREE_ENTITY_OVERLAY_TEXT,
+    /** A diagonal of the (x,y,w,h) box: direction 0 runs top-left to
+     *  bottom-right, 1 bottom-left to top-right (TORIRSRC_LINE's contract).
+     *  Any projected world segment fits by picking box + direction. */
+    UITREE_ENTITY_OVERLAY_LINE,
 };
 
 /* Long enough for a full overhead chat line (reference chatMessage); hitsplat
@@ -55,6 +59,9 @@ struct UITreeEntityOverlay
     int scene_id;
     int atlas_index;
     int font_id;
+    /** LINE only: which diagonal of the box, and its thickness (0 = 1px). */
+    uint8_t line_direction;
+    uint8_t line_width;
     /** TEXT: centred on x, baseline at y (reference centreString). */
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };

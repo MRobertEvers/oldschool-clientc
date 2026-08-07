@@ -1,13 +1,14 @@
-# From repo root: make -C src
+# From repo root: make -C src all
 # Optimized build: make -C src release (or make -C src OPT=1 <target>).
 # Objects go to build_opt/ so debug and optimized objects never mix; both
 # flavors link the same ./torirs, whichever was built last.
 #
 # Which host to build for is one variable, PLATFORM (see platform/platform.mk):
-#   make -C src                 host native debug -> src/torirs
+#   make -C src all             host native debug -> src/torirs
 #   make -C src release         host native opt   -> src/torirs
 #   make -C src web             emscripten        -> build-web/torirs.js
 #   make -C src winxp           Windows XP (i686) -> src/torirs.exe
+#   make -C src win64           Windows 10+ (x64) -> src/torirs_win64.exe
 #   make -C src io-server       the web build's cache backend (always native)
 #   make -C src lane-check-all  assert every lane's invariants still hold
 # Every (PLATFORM, OPT[, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER]) tuple owns its
@@ -45,11 +46,11 @@ SRC_DIR      := $(REPO_ROOT)/src
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
 # recipe dies with "p was unexpected at this time" -- which says nothing about
 # the actual cause. Catch it here instead. Git for Windows ships a usable sh at
-# <Git>\usr\bin; build_winxp.ps1 puts it on PATH for you.
+# <Git>\usr\bin; the Windows PowerShell wrappers put it on PATH for you.
 ifeq ($(SHELL),sh.exe)
 $(error no POSIX sh on PATH — this makefile needs one (Git for Windows ships \
-one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use build_winxp.ps1, \
-which does it for you)
+one at "C:\Program Files\Git\usr\bin"). Add it to PATH, or use \
+build_winxp.ps1/build_windows.ps1, which do it for you)
 endif
 
 include $(SRC_DIR)/platform/platform.mk
@@ -81,7 +82,7 @@ OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SE
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
-# join them: MEMTRACE is a long-running capture, and a plain `make -C src` in
+# join them: MEMTRACE is a long-running capture, and `make -C src all` in
 # another terminal would silently replace it mid-session — the symptom being a
 # run that writes no trace at all. Which lanes can afford the rename is
 # PLATFORM_TARGET_MEMTRACE_SUFFIX in platform.mk (the web target keeps its
@@ -123,6 +124,7 @@ SUBMAKE = $(MAKE) CC=$(HOST_CC)
 CACHEPACK_BIN = $(RSCACHE_DIR)/tools/cachepack/cachepack$(PLATFORM_EXE_SUFFIX)
 
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
+RSPROT_DIR   := $(REPO_ROOT)/3rd/rsprot
 TORIDRAW_DIR := $(REPO_ROOT)/3rd/toridraw
 TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
@@ -142,6 +144,24 @@ RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR) \
 	-I$(REPO_ROOT)/3rd/bzip \
 	-I$(REPO_ROOT)/3rd/miniz \
+	-I$(REPO_ROOT)/3rd/xteas
+
+# rsprot (protocol codecs) is a unity TU like rscache. Its include list is the
+# authoritative one from 3rd/rsprot/makefile's INCLUDES, rewritten absolute:
+# its own include/src/gen/root, plus src/net for the ISAAC/RSA implementations
+# it adapts rather than re-ports, 3rd for tommath/xteas, and the repo root
+# because src/net/rsa.h includes tommath as "3rd/tommath/tommath.h".
+# Not on any binary's link line yet — nothing calls it; `make -C src rsprot`
+# is the compile gate. rsprot's own makefile is where its warnings are visible;
+# here it gets -w like everything else under 3rd/.
+RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+	-I$(RSPROT_DIR)/include \
+	-I$(RSPROT_DIR)/src \
+	-I$(RSPROT_DIR)/gen \
+	-I$(RSPROT_DIR) \
+	-I$(SRC_DIR)/net \
+	-I$(REPO_ROOT)/3rd \
+	-I$(REPO_ROOT) \
 	-I$(REPO_ROOT)/3rd/xteas
 
 COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
@@ -165,6 +185,7 @@ TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -
 # strdup behind a feature macro hides it from 3rd/ too.
 CFLAGS += $(PLATFORM_CFLAGS)
 RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
+RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
@@ -190,6 +211,7 @@ MEMTRACE_CFLAGS := -DTORIRS_MEMTRACE=1 \
 	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 CFLAGS          += $(MEMTRACE_CFLAGS)
 RSCACHE_CFLAGS  += $(MEMTRACE_CFLAGS)
+RSPROT_CFLAGS   += $(MEMTRACE_CFLAGS)
 COMPRESS_CFLAGS += $(MEMTRACE_CFLAGS)
 TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
 LDFLAGS += $(PLATFORM_MEMTRACE_WRAP_LDFLAGS)
@@ -197,9 +219,10 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
+SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(PLATFORM_SRCS) \
+	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
@@ -282,7 +305,7 @@ SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
@@ -312,6 +335,7 @@ SRCS = main.c app.c $(PLATFORM_WINDOW_SRC) \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
+	net/rev/osrs239/osrs239_entity_info.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
@@ -334,8 +358,13 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_encode.c net/mock/mock230_wire.c net/mock/mock_js5.c \
+	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
+	net/mock/mock230_interface_state.c \
 	net/mock/mock239_playerinfo.c \
+	net/mock/mock239_interface_setters.c \
+	net/mock/mock239_interface_inbound.c \
+	net/mock/mock239_runclientscript.c \
+	net/mock/mock239_inbound.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
@@ -377,6 +406,7 @@ SRCS += $(MOCK230_CORE_SRCS)
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
+RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
@@ -409,22 +439,23 @@ WB_OBJS = $(OBJ_DIR)/world_builder.o \
 	$(OBJ_DIR)/toridraw_model_from_torirs.o
 
 # Make does not otherwise notice compiler/linker flag changes: an object built
-# with the old Pentium-4/SSE2 XP flags could be silently relinked after the lane
-# moved to the i686/x87 floor. Keep the Win32 effective flags in a timestamped
+# with old lane flags could be silently relinked after its ABI contract
+# changed. Keep each Windows lane's effective flags in a timestamped
 # prerequisite and update it only when their contents actually change.
-ifeq ($(PLATFORM),win32)
-WIN32_FLAGS_STAMP := $(OBJ_DIR)/.effective_flags
-.PHONY: FORCE_WIN32_FLAGS
-FORCE_WIN32_FLAGS:
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WINDOWS_FLAGS_STAMP := $(OBJ_DIR)/.effective_flags
+.PHONY: FORCE_WINDOWS_FLAGS
+FORCE_WINDOWS_FLAGS:
 
-$(WIN32_FLAGS_STAMP): FORCE_WIN32_FLAGS | $(OBJ_DIR)
+$(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 	@{ printf '%s\n' '$(CC)'; printf '%s\n' '$(CFLAGS)'; printf '%s\n' '$(LDFLAGS)'; } > '$@.tmp'
 	@if ! cmp -s '$@.tmp' '$@'; then mv '$@.tmp' '$@'; else rm -f '$@.tmp'; fi
 
-$(OBJS): $(WIN32_FLAGS_STAMP)
+$(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug clean-lane io-server test-io-wire clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -480,6 +511,18 @@ winxp-debug:
 	$(MAKE) PLATFORM=win32 lane-check
 	$(MAKE) PLATFORM=win32 OPT=0 all
 
+# --- Modern Windows target -----------------------------------------------
+# The wrapper selects the repository's x86_64 compiler and stages the unique
+# source artifact. Keeping this lane explicit also prevents a native Windows
+# invocation from accidentally inheriting the XP ABI floor.
+win64:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=1 all
+
+win64-debug:
+	$(MAKE) PLATFORM=win64 lane-check
+	$(MAKE) PLATFORM=win64 OPT=0 all
+
 # --- IO server -----------------------------------------------------------
 # The web client has no disk: every ToriRS_IOItem it would have satisfied
 # locally is answered by this process, which opens the cache and runs the
@@ -496,6 +539,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o -lm
@@ -505,11 +549,50 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/io_wire_test $(DAT1_CACHE) "$(DAT2_CACHE)" "$(DAT2_REV)"
+
+# Protocol + persistence integration against a caller-supplied, read-only
+# canonical cache. The binary creates and owns its disposable target directory;
+# only the mock response builder reads JS5_TEST_CACHE.
+JS5_TEST_CACHE ?= $(REPO_ROOT)/cache.osrs239
+ifeq ($(OS),Windows_NT)
+JS5_SOCKET_LIBS := -lws2_32
+JS5_EXE_SUFFIX := .exe
+else
+JS5_SOCKET_LIBS :=
+JS5_EXE_SUFFIX :=
+endif
+JS5_TEST_PYTHON ?= python
+test-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/js5_server_cache.c js5/test/js5_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_test "$(JS5_TEST_CACHE)"
+
+test-js5-server: js5-server $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_test \
+		js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+		js5/server/test/js5_server_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server_client_test \
+		js5/js5.c js5/js5_rscache.c platform/sockstream.c \
+		js5/server/test/js5_server_client_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(JS5_SOCKET_LIBS)
+	./$(OBJ_DIR)/js5_server_test "$(JS5_TEST_CACHE)"
+	$(JS5_TEST_PYTHON) $(REPO_ROOT)/tools/test_js5_server.py \
+		--server $(SRC_DIR)/$(OBJ_DIR)/js5_server$(JS5_EXE_SUFFIX) \
+		--client $(SRC_DIR)/$(OBJ_DIR)/js5_server_client_test$(JS5_EXE_SUFFIX) \
+		--cache "$(JS5_TEST_CACHE)"
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
@@ -681,6 +764,20 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
 
+$(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
+
+# rsprot is deliberately absent from $(OBJS) and from every binary's link line:
+# no caller exists yet, so linking it in would be dead weight and would risk
+# duplicate symbols against src/net's ISAAC/RSA. This target is the compile
+# gate — it proves the unity TU still builds under the main build's flags.
+rsprot: $(OBJ_DIR) $(OBJ_DIR)/rsprot_unity.o
+
+# rsprot's own unit tests. Shelled out because the test binaries link against
+# rsprot's private build/ objects (its makefile builds its own isaac/rsa/mpi).
+test-rsprot:
+	$(SUBMAKE) -C $(RSPROT_DIR) test
+
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 # bzip_encode.c is the compression side (bzip.c is decompress-only). rscache's
@@ -838,6 +935,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
+	$(OBJ_DIR)/osrs239_entity_info.o \
 	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/bitbuffer.o \
@@ -852,6 +950,42 @@ test-mock239-playerinfo: $(OBJ_DIR)
 		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
+
+# Golden client->server interface callback layouts. Kept independent of the
+# world/server link so byte order, inner framing and typed-tail losslessness can
+# fail directly rather than only as a click that appears to do nothing.
+test-mock239-inbound: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
+		net/mock/test/mock239_interface_inbound_test.c \
+		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
+		$(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_interface_inbound_test
+
+# Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
+# scalar, array, string-array and long paths rather than round-tripping through
+# a second implementation with the same possible mistake.
+test-mock239-runclientscript: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_runclientscript_test \
+		net/mock/test/mock239_runclientscript_test.c \
+		net/mock/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_runclientscript_test
+
+# Every additional fixed-body rev239 model/interface setter. The expected
+# bodies are independent literal RSProt fixtures, not a decode round-trip.
+test-mock239-interface-setters: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_setters_test \
+		net/mock/test/mock239_interface_setters_test.c \
+		net/mock/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock239_interface_setters_test
+
+# Server->client revision-239 interface authority and golden packet bodies.
+# Expected bytes are literal fixtures taken from RSProt's encoders rather than
+# decoded through a mirror of this implementation.
+test-mock230-interface-state: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_interface_state_test \
+		net/mock/test/mock230_interface_state_test.c \
+		net/mock/mock230_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/mock230_interface_state_test
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
@@ -888,6 +1022,15 @@ test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/he
 		painters/scene_occluders.c \
 		$(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
 	./$(OBJ_DIR)/painters_test_occluders
+
+test-painters-terrain-levels: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_terrain_levels \
+		painters/test/painters_test_terrain_levels.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_terrain_levels
 
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
@@ -1127,7 +1270,7 @@ test-revconfig: $(OBJ_DIR)
 # §3.4 — a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/mock230 disagree).
 MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
-# The JS5 (cache download) service, standalone.
+# Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from mock230 because a client uses ONE port for JS5 and the
 # game, choosing with its first byte — so the two cannot both own 43594 in a
@@ -1135,17 +1278,26 @@ MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CO
 # This binary exists because it is the half that can be verified today against
 # a real OldSchool client and against Jagex's own service:
 #
-#   src/build/mock_js5 cache.osrs239 43594 239
+#   src/build/js5_server --cache cache.osrs239 --revision 239
 #   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
 #
 # See docs/RSPROT_OSRS239_PORT.md.
+JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c
+
+js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(JS5_SERVER_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/js5_server"
+
 mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 \
-		net/mock/mock_js5_main.c net/mock/mock_js5.c \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock_js5 $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	@echo "built $(OBJ_DIR)/mock_js5"
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
+	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
 mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -1169,8 +1321,26 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/dev_mock230"
 
+# MallocScribble is not a debugging flourish here, it is what makes this
+# suite a gate at all.
+#
+# Measured 2026-08-06: six identical runs produce exactly TWO distinct failure
+# sets, three each, differing in a pair of npc-pathing checks. Under
+# MallocScribble/MallocPreScribble the result is the same every run. That
+# signature — varies with heap contents, stabilises when the heap is poisoned —
+# is an uninitialised read, and it is somewhere under the interaction re-flood
+# path (`collision_flood` initialises its own dir/dist maps, so it is not those).
+#
+# The site is NOT found yet. Running under scribble is therefore a gate, not a
+# cure, and it deliberately errs the loud way: poisoned memory makes the
+# affected checks FAIL consistently rather than pass consistently, so the bug
+# stays visible and the count stays comparable between runs. A suite whose
+# failure count wandered 10..14 could not answer "did I break something", which
+# is exactly how four regressions reached a user with "baseline, no regression"
+# attached to them.
 test-mock230-dev: mock230-dev
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/dev_mock230 --selftest
+	cd $(REPO_ROOT) && MallocScribble=1 MallocPreScribble=1 \
+		./src/$(OBJ_DIR)/dev_mock230 --selftest
 
 # A third binary on 43599, same deal as mock230-dev above — one more parallel
 # session that owns its own port and its own output file.
@@ -1251,6 +1421,14 @@ mock230-servpack:
 # the Display panel's layout dropdown was the case that found it. Server-side
 # `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
 # CS2, interfaces and configs are read out of the cache and do.
+#
+# When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
+# interface imports, sprites, native config fields, authored client patches.
+# Pure server work — scripts, db tables, params, varps, npc/loc server fields —
+# travels by `mock230-scripts` + `mock230-servpack` alone, and the world boots
+# from the pristine cache by default (the one-cache rule: the world reads what
+# JS5 serves; MOCK230_CACHE_DIR_DEFAULT in mock230.h). When you do bake, point
+# BOTH the world and JS5 at the result.
 #
 # `--base` copies the pristine cache first, so every record the tree does not
 # change keeps the bytes it had, and the output is a fresh 440M rather than an
@@ -1431,10 +1609,31 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content test-port test-membership
-test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-port
+test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
+
+# The separation property, pinned as a command: pure server work touches no
+# client-side file. After the full server pipeline (allocator, compiler, band —
+# all run by this target's prerequisites), the machine-owned client mirrors must
+# be exactly as git left them: configs/ (the cache's member indexes and text
+# exports), pack/*.pack (layer-0 name tables) and pack/*.client (explicit client
+# claims). The allocator writes pack/<ns>.alloc, the compiler writes
+# server/scripts/build, the band writes server/pack — and nothing else moves.
+# This is the gate that turns "server content stays out of the client cache"
+# from a design intent into a failure you can see, and it fails on the tree
+# this refactor started from (ss_allocate appended to the compacks).
+test-server-clean: mock230-scripts mock230-servpack
+	@echo "--- server-clean: a server build must not touch client-side files ---"
+	@cd $(MOCK230_CONTENT_DIR) && \
+	DIRTY=$$(git status --porcelain -- configs 'pack/*.pack' 'pack/*.client' 2>/dev/null); \
+	if [ -n "$$DIRTY" ]; then \
+		echo "test-server-clean: the server pipeline modified client-side files:"; \
+		echo "$$DIRTY"; \
+		exit 1; \
+	fi
+	@echo "test-server-clean: configs/ and client packs untouched"
 
 # The entity split's agreement checks (docs/PACK_ENTITY_SPLIT_PLAN.md §3.3).
 #
@@ -1604,10 +1803,19 @@ test-content-register: $(OBJ_DIR)
 # two-client half of the test drives the *client's* encoder for a ground click
 # and the client's own readers for PLAYER_INFO and NPC_INFO — asserting on the
 # server's own view of its stream would be asserting the encoder against itself.
+#
+# `net/bitbuffer.c` is NOT in that list even though those readers need it: it is
+# already in $(NET_CORE_OBJS) as $(OBJ_DIR)/bitbuffer.o, and naming it here too
+# compiles it a second time into the same link — four duplicate symbols and a
+# link failure. This target had been unbuildable for that reason, which is worse
+# than it sounds: it is the only test that asserts the two-peer zone replay (a
+# door one client opens being open for a client that connects later), so the
+# whole multi-client half of the zone work was going unverified with nothing
+# saying so.
 test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
 		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
-		net/net_out.c net/bitbuffer.c net/rev/packets/pkt_player_info.c \
+		net/net_out.c net/rev/packets/pkt_player_info.c \
 		net/rev/packets/pkt_npc_info.c \
 		net/rev/packets/pkt_player_appearance.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
@@ -1623,7 +1831,7 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c features/features.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c executor_config.c features/features.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \
@@ -1636,9 +1844,49 @@ test-light-model: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(TORIDRAW_DIR)/toridraw_light_model_test.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/light_model_test
 
+# CPU-only, but deliberately compiled with the Win32 compiler: it links the
+# real fixed-function D3D9 command dispatcher and drives its retained resource
+# path without creating a window or D3D device.
+.PHONY: test-retained-renderer-leak
+ifeq ($(PLATFORM),win32)
+test-retained-renderer-leak:
+	$(MAKE) -C $(REPO_ROOT)/test/trspk_leak check CC="$(CC)"
+else
+test-retained-renderer-leak:
+	@echo "test-retained-renderer-leak requires PLATFORM=win32"
+	@false
+endif
+
+# Real Win32 message/timer regressions with a hidden HWND. These are standalone
+# so they run under either repository MinGW lane without booting the client.
+.PHONY: test-win32-platform
+ifneq ($(filter $(PLATFORM),win32 win64),)
+WIN32_PLATFORM_TEST_CFLAGS := -std=c11 -O2 -Wall -Wextra -g -I$(SRC_DIR) \
+	$(PLATFORM_BASE_CFLAGS)
+WIN32_PLATFORM_TEST_LDFLAGS := -static -static-libgcc \
+	-lgdi32 -luser32 -lwinmm -lkernel32
+test-win32-platform: $(OBJ_DIR)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) -DTORIRS_WIN32_GDI_TEST_API=1 \
+		-o $(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_gdi_test.c platform/platform_win32gdi.c \
+		platform/platform_win32_timing.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
+	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
+		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/win32_timing_test.c platform/platform_win32_timing.c \
+		$(WIN32_PLATFORM_TEST_LDFLAGS)
+	./$(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX)
+else
+test-win32-platform:
+	@echo "test-win32-platform requires PLATFORM=win32 or PLATFORM=win64"
+	@false
+endif
+
 # Recursing over PLATFORM_LIST rather than spelling the objdirs out keeps this
 # correct when a platform is added -- the old hardcoded list had already gone
-# stale and never removed build_win32*/ or torirs.exe. Each pass re-includes
+# stale and never removed build_win32*/, build_win64*/, or their executables.
+# Each pass re-includes
 # platform.mk with that PLATFORM, so $(PLATFORM_OBJ_BASE)/$(PLATFORM_TARGET)
 # below are that lane's, and the glob covers every flavor suffix
 # (_opt/_mt/_tdo/_es) OBJ_DIR can grow.
@@ -1654,8 +1902,8 @@ clean:
 
 # Every flavor suffix OBJ_DIR can grow, in the order the top of this file
 # appends them. Enumerated rather than globbed on purpose: PLATFORM_OBJ_BASE
-# values are prefixes of one another (build, build_web, build_win32), so
-# `build_*` from the macos lane would delete the web and win32 objects too.
+# values are prefixes of one another (build, build_web, build_win32,
+# build_win64), so `build_*` from the macos lane would delete other lanes too.
 CLEAN_FLAVOR_SUFFIXES := _opt _mt _opt_mt _tdo _opt_tdo _es _opt_es \
 	_mt_es _opt_mt_es _tdo_es _opt_tdo_es
 

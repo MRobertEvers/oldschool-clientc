@@ -229,7 +229,10 @@ mock230_container_bind(
     int32_t inv_id,
     int32_t component);
 
-/** Drop the listener that names `component`. Returns how many were dropped. */
+/** Drop the listener that names `component`. Revision 239 first sends
+ * IF_CLEARINV for the component's embedded item array. The inventory-global
+ * UPDATE_INV_STOPTRANSMIT remains the caller's responsibility because another
+ * component may still listen to the same inventory. Returns how many dropped. */
 int
 mock230_container_unbind(
     struct Mock230Player* player,

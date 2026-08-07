@@ -2246,15 +2246,16 @@ load_loc_config(const char* path)
             *comma = '\0';
             {
                 /* Which params a loc may carry is the field register's to say, not a
-                 * name spelled twice. A row declared `client = param:<name>` is one
-                 * the encoder knows how to bake, so it is one this parser accepts. */
+                 * name spelled twice. The binding is `param = <name>` (or the retired
+                 * projection spelling `client = param:<name>`) — either fills
+                 * `param_name`, and that is what this parser accepts. */
                 const struct ContentField* field = ContentFields_Find(&g_loc_fields, value);
                 int param_id;
 
-                if( !field || field->client != CONTENT_CLIENT_PARAM )
+                if( !field || !field->param_name[0] )
                 {
-                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build bakes — "
-                                  "declare it in fields/loc.ini as `client = param:<name>`\n",
+                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build knows — "
+                                  "declare it in fields/loc.ini with `param = <name>`\n",
                                   path, line_number, value);
                     continue;
                 }
@@ -3098,6 +3099,14 @@ mock230_content_load(const char* dir)
         else
             snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
         symbols += pack_load(&g_packs[kind], path);
+        /* The server's allocation ledger, layered into the same namespace. The
+         * compack is the cache's member index and `pack/<ns>.alloc` holds the
+         * ids ss_allocate.py handed out past its high-water mark — one
+         * namespace, two files, so a rename in either is caught by
+         * `validate_symbols` exactly as a duplicate inside one file is. Absent
+         * for most kinds, and `pack_load` reads absence as zero symbols. */
+        snprintf(path, sizeof(path), "%s/pack/%s.alloc", dir, name);
+        symbols += pack_load(&g_packs[kind], path);
     }
     /* After the loop: it needs the interface pack to already be loaded. */
     symbols += load_component_symbols(dir);
@@ -3105,6 +3114,41 @@ mock230_content_load(const char* dir)
     /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */
     validate_symbols(&reg);
+
+    /*
+     * A varp the per-player array cannot hold, refused at boot.
+     *
+     * `Mock230Player.varps` is a flat array and its size is a constant, so the
+     * tree can outgrow it — and it has: the `%com_*` combat block reached
+     * 6223 against an array of 6216, and the seven ids over the end were not
+     * dropped quietly, they aborted `[proc,player_combat_stat]` on every npc
+     * swing. From the outside that is "npcs do not fight back", with the real
+     * message buried in a script trace nobody reads during a fight.
+     *
+     * Allocating a varp is content's to do, so this does not cap it — it says
+     * exactly which line of the engine has to move, and it says so once at
+     * boot instead of once per swing.
+     */
+    {
+        int highest = -1;
+        int count = mock230_content_symbol_walk(MOCK230_PACK_VARP, -1, NULL, NULL);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = -1;
+
+            mock230_content_symbol_walk(MOCK230_PACK_VARP, i, &id, NULL);
+            if( id > highest )
+                highest = id;
+        }
+        if( highest >= MOCK230_VARP_COUNT )
+            CONTENT_ERROR(
+                "the tree declares varp %d and Mock230Player.varps holds %d — raise "
+                "MOCK230_VARP_SERVER_HEADROOM by at least %d (mock230.h)\n",
+                highest,
+                MOCK230_VARP_COUNT,
+                highest - MOCK230_VARP_COUNT + 1);
+    }
 
     /* After the packs (a default names its animations by symbol) and before the
      * configs (each block starts from a copy of it). */

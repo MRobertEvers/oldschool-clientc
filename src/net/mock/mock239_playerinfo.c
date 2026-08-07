@@ -33,6 +33,13 @@ enum
 enum
 {
     EXTINFO_APPEARANCE = 0x20,
+    EXTINFO_SEQUENCE = 0x40,
+    EXTINFO_TEMP_MOVE_SPEED = 0x1000,
+    EXTINFO_HITMARKS = 0x40000,
+    /* "another flag byte follows" -- the player's are 0x8 and 0x800, where an
+     * npc's are 0x40 and 0x800. Only the second one is shared. */
+    EXTINFO_NEXT_BYTE_1 = 0x8,
+    EXTINFO_NEXT_BYTE_2 = 0x800,
 };
 
 /**
@@ -97,16 +104,33 @@ mock239_playerinfo_write_init(
     rsab_bytes(buf);
 }
 
+/** pSmart1or2: 0..127 in one byte, larger in two with 0x8000 set. */
+static void
+ext_psmart1or2(struct RSAreaBuf* buf, int value)
+{
+    if( value >= 0 && value < 128 )
+        rsab_p1(buf, value);
+    else
+        rsab_p2(buf, (value & 0x7fff) | 0x8000);
+}
+
 void
 mock239_playerinfo_write(
     struct RSAreaBuf* buf,
     int local_index,
-    int32_t coord,
-    int teleported,
+    enum Mock239PlayerMovement movement,
+    int32_t movement_value,
+    int low_res_inactive,
     const uint8_t* appearance,
-    int appearance_len)
+    int appearance_len,
+    const struct Mock239PlayerExt* ext)
 {
-    int const has_extended = appearance && appearance_len > 0;
+    int const has_appearance = appearance && appearance_len > 0;
+    int const has_hit = ext && ext->has_hit;
+    int const has_seq = ext && ext->has_seq;
+    int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_extended =
+        has_appearance || has_hit || has_seq || has_temp_move_speed;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -124,75 +148,104 @@ mock239_playerinfo_write(
      * this section is exactly one update.
      */
     rsab_bits(buf);
-    rsab_pbit(buf, 1, 1); /* not skipped */
-    rsab_pbit(buf, 1, has_extended ? 1 : 0);
-    if( teleported )
+    /*
+     * A player who has not moved and has nothing to say is SKIPPED, not
+     * written.
+     *
+     * This is the shape the client is built around: `active = 0` plus a
+     * zero-length stationary run says "nothing about this one this tick". The
+     * obvious alternative -- writing a teleport whose delta happens to be zero
+     * -- is well-formed and decodes cleanly, and it still breaks the client,
+     * because a teleport means the player JUMPED and the client re-centres its
+     * scene on one. Sending that every tick re-centres every tick: the world
+     * builds, draws once, and then goes black.
+     *
+     * (NOMOVE, opcode 0, is the other way to say "still here", but only with
+     * the extended-info bit set -- without it the client throws outright for
+     * the local index. Skipping needs no such care.)
+     */
+    if( movement == MOCK239_PLAYER_NOMOVE && !has_extended )
     {
-        rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
-        /*
-         * The far form. The near form is a 12-bit delta against the client's
-         * previous coord, which is smaller but requires the server to know what
-         * the client last heard — state this server does not keep per session,
-         * and getting it wrong silently displaces the player rather than
-         * failing.
-         */
-        rsab_pbit(buf, 1, 1);
-        rsab_pbit(buf, 30, coord);
+        rsab_pbit(buf, 1, 0);
+        write_stationary(buf, 0);
+        rsab_bytes(buf);
     }
     else
     {
-        /*
-         * NOMOVE with the extended-info bit set is "still here, and here is an
-         * update". NOMOVE *without* it means something else entirely for a
-         * non-local player — the client drops them to low resolution — and for
-         * the local index the client throws. So this branch is only safe while
-         * `has_extended` is true, and the caller that sends no appearance
-         * should be sending a teleport or a movement instead.
-         */
-        rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
+        rsab_pbit(buf, 1, 1); /* not skipped */
+        rsab_pbit(buf, 1, has_extended ? 1 : 0);
+        switch( movement )
+        {
+        case MOCK239_PLAYER_NOMOVE:
+            /* NOMOVE is legal for the local index only when extended info
+             * follows.  The no-extended case took the skip branch above. */
+            rsab_pbit(buf, 2, HIRES_OP_NOMOVE);
+            break;
+        case MOCK239_PLAYER_WALK:
+            rsab_pbit(buf, 2, HIRES_OP_WALK);
+            rsab_pbit(buf, 3, movement_value & 0x7);
+            break;
+        case MOCK239_PLAYER_RUN:
+            rsab_pbit(buf, 2, HIRES_OP_RUN);
+            rsab_pbit(buf, 4, movement_value & 0xf);
+            break;
+        case MOCK239_PLAYER_TELEPORT:
+        default:
+            /* Far form. `movement_value` is a delta against the coordinate
+             * seeded by REBUILD_LOGIN / the preceding PLAYER_INFO. */
+            rsab_pbit(buf, 2, HIRES_OP_TELEPORT);
+            rsab_pbit(buf, 1, 1);
+            rsab_pbit(buf, 30, movement_value);
+            break;
+        }
+        rsab_bytes(buf);
     }
-    rsab_bytes(buf);
 
     /*
-     * Sections 2 and 3 — high resolution inactive, low resolution inactive.
+     * Section 2 — high resolution, inactive this cycle. Always empty: the only
+     * high-resolution player is written above and is never skipped, so its
+     * cycle bit never sets.
      *
-     * Both empty: the only high-resolution player was written above, a player
-     * cannot be in both halves of one cycle, and nothing has dropped out of low
-     * resolution.
-     *
-     * They are written for symmetry with the client's loop, NOT because the
-     * wire needs them: an empty bit section emits zero bytes, since entering
-     * bit mode and leaving it round the same byte cursor to itself. Deleting
-     * these two lines produces an identical packet — a mutation test confirmed
-     * it, which is worth stating here because the obvious reading ("four
-     * sections, so four markers on the wire") is wrong and would send someone
-     * hunting for separators that do not exist.
+     * Note that an empty bit section emits ZERO bytes — entering bit mode and
+     * leaving it round the same byte cursor to itself. The four sections are
+     * not four markers on the wire, which is worth knowing before hunting for
+     * separators that do not exist.
      */
     rsab_bits(buf);
     rsab_bytes(buf);
-    rsab_bits(buf);
-    rsab_bytes(buf);
 
     /*
-     * Section 4 — low resolution, active: every index this server does not
-     * track, skipped in one run.
+     * Sections 3 and 4 — low resolution, inactive then active.
+     *
+     * The untracked crowd goes in exactly one of them, and which one changes
+     * after the first tick. See `low_res_inactive` in the header: the client
+     * sets a cycle bit on every player it skips and shifts it down each tick,
+     * reading section 3 for players whose bit is set. So the run starts in
+     * section 4 and moves to section 3 from the second tick onward.
      *
      * The list is indices 1..2047 (2047 of them) minus the local player, so
      * 2046 entries. One skip bit covers the first; the run then covers the
      * other 2045, because a run counts the players AFTER the one it follows.
-     *
-     * Neither off-by-one truncates the packet. Too small and the client's loop
-     * finds a bit run where it expected the end; too large and it exits with
-     * `skipped != 0`. Both throw inside the client, which is the good case —
-     * the bad case would be a stream that decodes into the wrong players.
      */
-    rsab_bits(buf);
     {
         int const low_res_count = MOCK239_PLAYER_SLOTS - 1 - 1;
-        rsab_pbit(buf, 1, 0);
-        write_stationary(buf, low_res_count - 1);
+
+        rsab_bits(buf);
+        if( low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
+
+        rsab_bits(buf);
+        if( !low_res_inactive )
+        {
+            rsab_pbit(buf, 1, 0);
+            write_stationary(buf, low_res_count - 1);
+        }
+        rsab_bytes(buf);
     }
-    rsab_bytes(buf);
 
     /*
      * Extended info, byte-aligned, in the order the indices were flagged.
@@ -205,9 +258,123 @@ mock239_playerinfo_write(
      */
     if( has_extended )
     {
-        rsab_p1(buf, EXTINFO_APPEARANCE);
+        /*
+         * The flag, then the blocks in the WRITER's order -- HITMARKS first,
+         * then SEQUENCE, TEMP_MOVE_SPEED, and APPEARANCE. That is not ascending
+         * flag order and not the order they are listed in anywhere; it is
+         * PlayerAvatarExtendedInfoDesktopWriter's, and the client replays the
+         * same sequence with nothing on the wire separating the blocks.
+         *
+         * The player flag space is its own, DIFFERENT from the npc one: here
+         * SEQUENCE is 0x40 and HITMARKS 0x40000, where an npc's are 0x80 and
+         * 0x80000. The continuation bits differ too -- a player's second byte
+         * is announced by 0x8 and an npc's by 0x40.
+         */
+        uint32_t flag = 0;
+
+        if( has_hit )
+            flag |= EXTINFO_HITMARKS;
+        if( has_seq )
+            flag |= EXTINFO_SEQUENCE;
+        if( has_temp_move_speed )
+            flag |= EXTINFO_TEMP_MOVE_SPEED;
+        if( has_appearance )
+            flag |= EXTINFO_APPEARANCE;
+
+        if( flag & 0xffffff00u )
+            flag |= EXTINFO_NEXT_BYTE_1;
+        if( flag & 0xffff0000u )
+            flag |= EXTINFO_NEXT_BYTE_2;
+
+        rsab_p1(buf, (int32_t)(flag & 0xff));
+        if( flag & EXTINFO_NEXT_BYTE_1 )
+            rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+        if( flag & EXTINFO_NEXT_BYTE_2 )
+            rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+
+        if( has_hit )
+        {
+            /*
+             * PlayerHitEncoder -- and it is NOT the npc encoder with a
+             * different flag. The four fields per hit are the same, but the
+             * COUNT is p1Alt3 (`128 - n`) where NpcHitmarkEncoder writes
+             * p1Alt1 (`n + 128`).
+             *
+             * Writing the npc form here sends 129 for one hit, which the
+             * client reads back as `128 - 129 = -1 & 0xff` = 255. It then reads
+             * 255 hitsplats out of a packet that holds one, runs off the end,
+             * and drops the connection. The symptom is the client logging out
+             * at the instant a hit lands -- with no hitsplat, because the block
+             * that would have drawn it is what killed the stream.
+             */
+            rsab_p1_alt3(buf, 1);
+            ext_psmart1or2(buf, ext->hit_type);
+            ext_psmart1or2(buf, ext->hit_value);
+            ext_psmart1or2(buf, 0); /* delay: lands this tick */
+            ext_psmart1or2(buf, 0); /* limit: uncapped */
+        }
+        if( has_seq )
+        {
+            /*
+             * PlayerSequenceEncoder: p2Alt2 id, p1 delay -- both orders differ
+             * from NpcSequenceEncoder's p2 id, p1Alt2 delay. Same two fields,
+             * same three bytes, and not one of them written the same way.
+             *
+             * p2Alt2 is [v>>8, v+128], so a plain p2 here shifts the id's low
+             * byte by 128: the player plays a real animation, just the wrong
+             * one. That is the whole failure -- nothing malformed, nothing
+             * logged, a defend that looks like something else.
+             */
+            rsab_p2_alt2(buf, ext->seq_id < 0 ? 65535 : ext->seq_id);
+            rsab_p1(buf, ext->seq_delay);
+        }
+        if( has_temp_move_speed )
+        {
+            /* PlayerTempMoveSpeedEncoder: raw signed p1. The golden client
+             * reads this with class617.method13129(), not one of the Alt byte
+             * transforms. class174 value 2 makes locomotion run for this
+             * staged step without changing the player's persistent default. */
+            rsab_p1(buf, ext->temp_move_speed);
+        }
+        if( !has_appearance )
+            return;
         rsab_p1(buf, (128 - appearance_len) & 0xff);
         for( int i = 0; i < appearance_len; i++ )
             rsab_p1(buf, (appearance[i] + 128) & 0xff);
     }
+}
+
+void
+mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
+{
+    rsab_bits(buf);
+    rsab_pbit(buf, 8, 0); /* no high-resolution npcs */
+    /*
+     * NO 0xFFFF TERMINATOR HERE, and that is the whole subtlety of the empty
+     * packet.
+     *
+     * The client's low-resolution loop only attempts to read an index when at
+     * least 16 + 12 bits remain; below that it stops. With no npcs and no
+     * extended info there is nothing after the count, so it stops immediately
+     * and consumes ONE byte. Writing the terminator anyway makes the packet
+     * three bytes that the client reads one of, and it reports the difference
+     * as `RuntimeException: 1,3` and drops the connection — which presents as
+     * the client returning to the login screen a second after logging in.
+     *
+     * The terminator is required once something follows: with additions or
+     * extended-info bytes in the buffer the loop has enough bits to keep going
+     * and would read them as npc indices. So it belongs in the populated
+     * writer, not here.
+     */
+    rsab_bytes(buf);
+}
+
+int
+mock239_npcinfo_tail_needs_sentinel(
+    size_t bit_position,
+    size_t extended_bytes)
+{
+    size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
+
+    return padding_bits + extended_bytes * 8u >= 28u;
 }

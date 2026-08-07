@@ -66,6 +66,15 @@ loader only ever holds what something explicitly requested.**
 Verify: `TORIRS_OVERLAY_DEBUG=1` prints the primitives per frame. A `kind=1`
 (sprite) item beside the two `kind=2` (text) items is the fix working.
 
+The leftover error line is now logged once, not per interface open: the
+static-sprite pass re-runs with every `Task_InterfaceOpen` / `Task_UITreeBuild`
+and re-requested the dat1-era `hitmark` name each time, re-walking the sprites
+table to the same answer. `Task_Dat2SpriteLoadByName` records that answer as
+`CACHE_PROVIDER_SPRITE_ABSENT` in the provider's sprite name map on the first
+failure and exits quietly on every later request for the name (the dat1 path
+never writes the sentinel, and every `SpriteIdByName` caller already guards
+with `>= 0`).
+
 ### 1b. …and the two ids were swapped
 
 Once the splat rendered, it rendered the *wrong* one: hits drew a block and

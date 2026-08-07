@@ -1176,10 +1176,15 @@ the two is the mistake this table exists to prevent.
 
 ### 11.3 Carried forward, with the measurement
 
-1. **`dbrow`/`dbtable` do not merge**, so they have no membership pair and no
-   routing at all — 65 dbrows and 10 dbtables. The fix is a second source for the
-   arity of an authored key rank 0 never states; the field register is the
-   natural place, per-type-per-key, which is not the global table §1 rejected.
+1. **~~`dbrow`/`dbtable` do not merge~~ — paid, 2026-08-06.** `cp_merge`'s
+   `key_seen_rank0` rule made the arity observable (a rank-1 key rank 0 never
+   states is multi-valued by construction), and the population that then hit
+   cell (c) — 1,004 dbrows, 48 dbtables — is routed by the **allocation
+   ledger**: `pack/<ns>.alloc` claims a record for the server with no
+   membership roster, because a roster restating the allocator was measured to
+   drift within days (560 varps/enums/params/structs allocated after the
+   2026-08-02 seeding, every one a cell-(c) error). The alloc clause sits
+   between the membership files and cell (c) in `routing_client_member`.
 2. **A dbtable name collision is already waiting in the reference**: cache
    `music` is dbtable 44, 15 columns, 876 rows; LostCity's `music` is 4 columns,
    195 rows. A port resolving the name through the shared namespace gets 44.

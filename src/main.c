@@ -1,10 +1,12 @@
 #include "app.h"
 #include "bootmanifest/bootmanifest.h"
+#include "executor_config.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
 #include "cmd/cmdbus.h"
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/cs2_harness.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
@@ -14,6 +16,9 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
+#if !defined(TORIRS_PLATFORM_WEB)
+#include "platform/platform_x_io_js5.h"
+#endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
  * see TORIRS_GL_ES2 in platform_sdl2_renderer_gl3.c. */
@@ -55,6 +60,7 @@ struct ToriRS_D3D9;
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
+
 #endif
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
@@ -63,6 +69,21 @@ struct ToriRS_D3D9;
  * an interface id is opened directly instead. */
 #define DAT1_CACHE_DIR "cache254"
 #define DAT2_CACHE_DIR "cache.jan2026"
+
+/* Render one frame into a BMP for the CS2 harness. Same path TORIRS_EXIT_BMP
+ * uses, so a harness frame and an exit frame are the same picture. */
+static void
+harness_shot(void* user, char const* path)
+{
+    struct App* app = (struct App*)user;
+    int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+    if( !pixels )
+        return;
+    App_Render(app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    free(pixels);
+}
+
 #define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
 #define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
 #define CONFIG_DIR "config"
@@ -517,6 +538,7 @@ interactive_render_present(
  * browser hands it to requestAnimationFrame.
  */
 static struct App app;
+static struct ToriRS_ExecutorConfig executor_cfg;
 static struct AppConfig cfg = {
     .cache_dir = NULL, /* resolved from cache_kind below */
     .config_dir = CONFIG_DIR,
@@ -608,10 +630,19 @@ frame_loop_step(void)
         return 0;
 
     uint64_t now;
+#if !defined(__EMSCRIPTEN__)
+    uint64_t frame_start_ms;
+#endif
 
     if( max_frames > 0 && frame_count++ >= max_frames )
         return 0;
 
+#if !defined(__EMSCRIPTEN__)
+    /* The pacing budget starts before any frame work. The input timestamp
+     * below is intentionally separate: using it as the origin omitted the
+     * pre-poll work and made nominal 20 ms frames longer than 20 ms. */
+    frame_start_ms = PlatformSDL2_Ticks64();
+#endif
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -1013,6 +1044,36 @@ frame_loop_step(void)
                     rs_frame = -1;
                 }
             }
+            /* TORIRS_CS2_HARNESS=<cases.json>: run the cross-client case list
+             * once the client is far enough in to have a cache, a host and a
+             * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
+             * the default is late enough for login to have completed against
+             * mock230, because a case that reads a varp needs the varps.
+             * The run ends the way every other headless run here ends, with
+             * TORIRS_MAX_FRAMES — the harness does not invent a second exit
+             * path. */
+            {
+                static int harness_done = 0;
+                char const* harness_cases = getenv("TORIRS_CS2_HARNESS");
+                if( !harness_done && harness_cases && *harness_cases )
+                {
+                    char const* at = getenv("TORIRS_CS2_HARNESS_FRAME");
+                    long harness_frame = at ? strtol(at, NULL, 0) : 400;
+                    if( frame_count >= harness_frame )
+                    {
+                        char const* out = getenv("TORIRS_CS2_HARNESS_OUT");
+                        harness_done = 1;
+                        CS2Harness_Run(
+                            &app.host,
+                            &app.runner,
+                            harness_cases,
+                            out && *out ? out : "/tmp/cs2_harness_c",
+                            harness_shot,
+                            &app);
+                    }
+                }
+            }
+
             if( rs_frame >= 0 && frame_count >= rs_frame )
             {
                 fprintf(
@@ -1307,6 +1368,18 @@ frame_loop_step(void)
         }
     }
 
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_cfg.js5_enabled &&
+        PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64()) < 0 )
+    {
+        fprintf(
+            stderr,
+            "torirs: JS5 cache producer stopped (error=%d)\n",
+            (int)PlatformXIO_Js5LastError(app.runner.px));
+        return 0;
+    }
+#endif
+
     LibToriRS_Input_Begin(input, now);
     App_DrainCommands(&app, &bus, input);
     LibToriRS_Input_End(input);
@@ -1439,19 +1512,11 @@ frame_loop_step(void)
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
 #if !defined(__EMSCRIPTEN__)
-    if( !replay )
-    {
-        if( uncapped )
-            PlatformSDL2_Delay(1);
-        else
-        {
-            /* 50 fps cap: one frame per 20ms client cycle (--uncapped
-             * frees the loop for profiling/benchmarks). */
-            uint64_t elapsed = PlatformSDL2_Ticks64() - now;
-            if( elapsed < 20 )
-                PlatformSDL2_Delay((uint32_t)(20 - elapsed));
-        }
-    }
+    /* 50 fps cap: wait to an absolute deadline so early wakeups are retried
+     * and the frame's complete workload counts against its 20 ms budget.
+     * --uncapped is a true profiling mode and performs no artificial wait. */
+    if( !replay && !uncapped )
+        PlatformSDL2_SleepUntil(frame_start_ms + 20);
 #endif
     return 1;
 }
@@ -1701,6 +1766,118 @@ frame_loop_tick(void)
 }
 #endif
 
+static int
+parse_executor_cli_int(
+    char const* flag,
+    char const* value,
+    int min,
+    int max,
+    int* out)
+{
+    char* end = NULL;
+    long parsed = strtol(value, &end, 10);
+
+    if( end == value || *end != '\0' || parsed < min || parsed > max )
+    {
+        fprintf(stderr, "torirs: %s takes an integer in %d..%d\n", flag, min, max);
+        return -1;
+    }
+    *out = (int)parsed;
+    return 0;
+}
+
+static int
+set_executor_js5_host(char const* value)
+{
+    size_t len = strlen(value);
+    if( len == 0 || len >= sizeof(executor_cfg.js5_host) )
+    {
+        fprintf(
+            stderr,
+            "torirs: --js5-host must contain 1..%zu characters\n",
+            sizeof(executor_cfg.js5_host) - 1);
+        return -1;
+    }
+    memcpy(executor_cfg.js5_host, value, len + 1);
+    return 0;
+}
+
+#if !defined(TORIRS_PLATFORM_WEB)
+static int
+executor_prepare_js5_cache(void)
+{
+    struct RSCache_Dat2Disk* sparse;
+
+    if( !executor_cfg.js5_enabled )
+        return 0;
+    sparse = RSCache_Dat2DiskNewSparseFromDirectory(cfg.cache_dir);
+    if( !sparse )
+    {
+        fprintf(
+            stderr,
+            "torirs: cannot create/open incremental dat2 cache at %s "
+            "(the directory must already exist)\n",
+            cfg.cache_dir);
+        return -1;
+    }
+    RSCache_Dat2DiskFree(sparse);
+    return 0;
+}
+
+static int
+executor_attach_and_prime_js5(void)
+{
+    struct Js5Config js5;
+    int status;
+
+    if( !executor_cfg.js5_enabled )
+        return 0;
+
+    Js5ConfigInit(&js5);
+    js5.host = executor_cfg.js5_host;
+    js5.primary_port = (uint16_t)executor_cfg.js5_port;
+    js5.fallback_port = (uint16_t)executor_cfg.js5_fallback_port;
+    js5.revision = (uint32_t)executor_cfg.js5_revision;
+    if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
+    {
+        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        return -1;
+    }
+
+    /*
+     * The master index is always requested from the server. Valid local
+     * reference tables may satisfy the subsequent checks, but no core task is
+     * stepped until all server-authoritative metadata is installed.
+     */
+    while( (status = PlatformXIO_Js5Pump(app.runner.px, PlatformSDL2_Ticks64())) == 0 )
+        PlatformSDL2_SleepUntil(PlatformSDL2_Ticks64() + 1u);
+    if( status < 0 )
+    {
+        struct Js5Progress progress;
+        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        fprintf(
+            stderr,
+            "torirs: JS5 metadata prime failed (error=%d state=%d status=%u port=%u)\n",
+            (int)progress.last_error,
+            (int)progress.state,
+            (unsigned)progress.handshake_status,
+            (unsigned)progress.current_port);
+        return -1;
+    }
+
+    {
+        struct Js5Progress progress;
+        PlatformXIO_Js5GetProgress(app.runner.px, &progress);
+        fprintf(
+            stderr,
+            "torirs: JS5 metadata ready (%u references, %llu network bytes)\n",
+            (unsigned)progress.references_ready,
+            (unsigned long long)progress.bytes_received);
+    }
+    return 0;
+}
+#endif
+
 struct MainArgState
 {
     int write_bmp;
@@ -1716,7 +1893,9 @@ main_print_usage(char const* program)
         "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-        "[--pass P] [--rev lc254|lc245_2|xrsps233] [--uncapped] "
+        "[--pass P] [--rev lc254|lc245_2|xrsps233] "
+        "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
+        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--webgl1|--d3d9|--soft3d]\n",
         program);
@@ -1738,6 +1917,7 @@ main_parse_argument_layer(
     int positional = 0;
     int saw_offline = 0;
     int saw_connect = 0;
+    int saw_js5_enable = 0;
 
     for( argi = first; argi < argc; argi++ )
     {
@@ -1761,6 +1941,54 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--port") == 0 && argi + 1 < argc )
         {
             cfg.connect_port = atoi(argv[++argi]);
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5") == 0 )
+        {
+            executor_cfg.js5_enabled = 1;
+            saw_js5_enable = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--no-js5") == 0 )
+        {
+            executor_cfg.js5_enabled = 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-host") == 0 && argi + 1 < argc )
+        {
+            if( set_executor_js5_host(argv[++argi]) != 0 )
+                return 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-port") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-port", argv[++argi], 1, 65535, &executor_cfg.js5_port) != 0 )
+                return 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-fallback-port") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-fallback-port",
+                    argv[++argi],
+                    0,
+                    65535,
+                    &executor_cfg.js5_fallback_port) != 0 )
+                return 0;
+            executor_cfg.js5_fallback_port_set = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--js5-revision") == 0 && argi + 1 < argc )
+        {
+            if( parse_executor_cli_int(
+                    "--js5-revision",
+                    argv[++argi],
+                    1,
+                    2147483647,
+                    &executor_cfg.js5_revision) != 0 )
+                return 0;
+            executor_cfg.js5_revision_explicit = 1;
             continue;
         }
         if( strcmp(argv[argi], "--bmp") == 0 )
@@ -1915,6 +2143,11 @@ main_parse_argument_layer(
      * offline. Within one layer, connect wins just as it did before. */
     if( saw_offline && !saw_connect )
         cfg.connect_target = NULL;
+    /* Offline also suppresses an inherited JS5 producer. An explicit --js5 in
+     * this same layer opts back into cache networking without reconnecting the
+     * game transport. Later layers can override either result. */
+    if( saw_offline && !saw_js5_enable )
+        executor_cfg.js5_enabled = 0;
     return 1;
 }
 
@@ -1932,6 +2165,10 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--user") == 0 ||
            strcmp(argument, "--pass") == 0 ||
            strcmp(argument, "--rev") == 0 ||
+           strcmp(argument, "--js5-host") == 0 ||
+           strcmp(argument, "--js5-port") == 0 ||
+           strcmp(argument, "--js5-fallback-port") == 0 ||
+           strcmp(argument, "--js5-revision") == 0 ||
            strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0;
 }
@@ -1952,6 +2189,8 @@ main(
     int argi;
     int i;
 
+    ToriRS_ExecutorConfig_Init(&executor_cfg);
+
     /* Pre-scan for --manifest so its values seed cfg before the flag loop;
      * explicit CLI flags below then override (precedence CLI > manifest). */
     for( argi = 1; argi < argc; argi++ )
@@ -1961,6 +2200,7 @@ main(
             if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
                 return 1;
             BootManifest_ApplyToConfig(&boot_manifest, &cfg);
+            BootManifest_ApplyToExecutorConfig(&boot_manifest, &executor_cfg);
 #if defined(TORIRS_PLATFORM_WEB)
             /* This host's sockets are WebSockets (emscripten maps connect() to
              * ws://host:port), so the manifest's tcp host:port is the wrong
@@ -2025,6 +2265,31 @@ main(
      * RevConfig; dat2 keeps opening interface_id unless one is given. */
     if( !cfg.cache_dir )
         cfg.cache_dir = cfg.cache_kind == APP_CACHE_DAT1 ? DAT1_CACHE_DIR : DAT2_CACHE_DIR;
+
+    {
+        char error[192];
+        if( ToriRS_ExecutorConfig_ResolveJs5(&executor_cfg, &cfg, error, sizeof(error)) != 0 )
+        {
+            fprintf(stderr, "torirs: %s\n", error);
+            return 1;
+        }
+        if( executor_cfg.js5_enabled )
+            fprintf(
+                stderr,
+                "torirs: js5 host=%s port=%d fallback=%d revision=%d cache=%s\n",
+                executor_cfg.js5_host,
+                executor_cfg.js5_port,
+                executor_cfg.js5_fallback_port,
+                executor_cfg.js5_revision,
+                cfg.cache_dir);
+    }
+#if defined(TORIRS_PLATFORM_WEB)
+    if( executor_cfg.js5_enabled )
+    {
+        fprintf(stderr, "torirs: JS5 incremental cache loading is native-only\n");
+        return 1;
+    }
+#endif
     if( !cfg.revconfig_ui_ini && cfg.cache_kind == APP_CACHE_DAT1 )
     {
         cfg.revconfig_ui_ini = DEFAULT_REVCONFIG_UI;
@@ -2106,7 +2371,18 @@ main(
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }
 
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_prepare_js5_cache() != 0 )
+        return 1;
+#endif
     App_Init(&app, &cfg);
+#if !defined(TORIRS_PLATFORM_WEB)
+    if( executor_attach_and_prime_js5() != 0 )
+    {
+        App_Shutdown(&app);
+        return 1;
+    }
+#endif
     TorirsPerf_Init(0);
     /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
      * whose default the manifest is entitled to override, and the root

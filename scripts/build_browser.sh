@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# DEPRECATED — drove the retired v0 CMake web build, which can no longer
+# configure (its sources moved to v0/). The live web build is:
+#
+#     make -C src web          # optimized -> build-web/torirs.js
+#     make -C src web-debug
+#     ./run-live.sh web        # build + serve via the IO server
+#
+# See docs/web_build.md.
+echo "scripts/build_browser.sh is deprecated — use 'make -C src web' (see docs/web_build.md)." >&2
+exit 1
+
 # Build script for browser version using Emscripten
 set -e
 

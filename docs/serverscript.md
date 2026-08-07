@@ -1065,3 +1065,33 @@ Its model is optimistic about var ops (assumes int, the overwhelming majority)
 and counts the scripts where tracking then breaks. About a dozen do, all reading
 string varps. The threshold is calibrated so that scale distinguishes the two
 causes: a wrong arity on any common command would break hundreds at once.
+
+## `[debugproc]` argument types
+
+`::name arg1 arg2 …` looks up `[debugproc,name]` and fills the script's declared
+parameters by walking its **parameter types**, resolving each word to the right
+namespace — the same shape as the reference's `ClientCheatHandler`
+(ScriptVarType arm), so `::spawn hans 3` passes npc `hans` as an id and `3` as
+an int without the script naming either.
+
+| declared type | the word is read as |
+|---|---|
+| `int`, `boolean` | a decimal number |
+| `string` | the word itself |
+| `obj`, `namedobj` | a name in `pack/obj.pack` |
+| `npc` | `pack/npc.pack` |
+| `loc` | `pack/loc.pack` |
+| `seq`, `spotanim` | the animation / spotanim packs |
+| `inv`, `stat` | those packs |
+| `interface`, `component` | the interface packs |
+| `coord` | `level_mx_mz_lx_lz`, the coord literal's own spelling |
+
+This engine covers three types the reference's list does not (`component`,
+`interface`, `spotanim`); `coord` was the one it was missing, and it is the one
+a *test* debugproc wants most, because every other way of naming a tile means
+hardcoding one in the script. An absent or unresolvable word passes -1 for a
+symbolic type and 0 for an int, which is the reference's behaviour too.
+
+A debugproc is content like anything else (PORTING_GUIDE §2.4 item 5) — the
+engine does not name one, it hands the line to whichever script claims it and
+falls through to the C cheat ladder only when none does.

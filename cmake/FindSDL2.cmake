@@ -1,3 +1,11 @@
+# DEPRECATED — orphaned, and was orphaned before it was deprecated.
+#
+# Nothing ever loaded this module: CMAKE_MODULE_PATH is never set, and the root
+# CMakeLists.txt (itself deprecated) hand-rolls the same find_path/find_library
+# search inline. The live build is `make -C src`; the make lane finds SDL2 with
+# pkg-config, then sdl2-config, then a Homebrew/usr-local fallback — see the
+# desktop block in src/platform/platform.mk.
+#
 # FindSDL2.cmake
 # Locate SDL2 library
 # This module defines:
@@ -114,7 +122,7 @@ endif()
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDL2
     REQUIRED_VARS SDL2_LIBRARIES SDL2_INCLUDE_DIRS
-    FAIL_MESSAGE "SDL2 not found. Please install SDL2 development files. See BUILD_WINXP.md for instructions."
+    FAIL_MESSAGE "SDL2 not found. Install SDL2 development files. Current client platform setup is documented in docs/platform_quirks.md."
 )
 
 # Debug output

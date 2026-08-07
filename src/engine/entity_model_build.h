@@ -14,8 +14,9 @@ struct CacheProvider;
 struct ToriDraw_Model;
 
 /*
- * Composite a player model from a PLAYER_INFO appearance: 12 slots
- * (0 empty | 0x100+identity-kit part | 0x200+worn obj), 5 design colours
+ * Composite a player model from a PLAYER_INFO appearance: the 12 canonical
+ * appearance slots (pkt_player_appearance.h — empty, kit or obj, tagged with
+ * Appearance_PackKit / Appearance_PackObj), 5 design colours
  * (reference ClientPlayer.recol1d/recol2d), gender picks manwear/womanwear
  * models. Lights + captures the model (ready for a dynamic scene element).
  * Returns an owned model or NULL when nothing resolved.

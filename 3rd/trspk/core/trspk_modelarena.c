@@ -147,6 +147,21 @@ compute_used_vertex_extent(const struct TRSPK_ModelArena* arena)
     return extent;
 }
 
+static void
+discard_reclaimed_slot_ranges(struct TRSPK_ModelArena* arena)
+{
+    for( uint32_t i = 0u; i < arena->slot_count; ++i )
+    {
+        struct TRSPK_ModelSlot* slot = &arena->slots[i];
+        if( trspk_modelslot_is_alive(slot) )
+            continue;
+        slot->vertex_base = UINT32_MAX;
+        slot->vertex_count = 0u;
+        slot->tri_start = 0u;
+        slot->tri_count = 0u;
+    }
+}
+
 static int
 compare_slots_by_vertex_base(
     const void* a,
@@ -377,6 +392,36 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
     if( arena->slot_count == 0u )
         return result;
 
+    const uint32_t live_extent = compute_used_vertex_extent(arena);
+    if( live_extent == 0u )
+    {
+        trspk_modelarena_clear(arena);
+        return result;
+    }
+
+    /* Replacing the most recently baked pose is the common retained-renderer
+     * path.  Reclaim that dead tail without allocating or sorting the entire
+     * arena.  A dead slot below the live extent is a real interior hole and
+     * needs the full compaction below. */
+    bool has_interior_hole = false;
+    for( uint32_t i = 0u; i < arena->slot_count; ++i )
+    {
+        const struct TRSPK_ModelSlot* slot = &arena->slots[i];
+        if( !trspk_modelslot_is_alive(slot) && slot->vertex_base < live_extent )
+        {
+            has_interior_hole = true;
+            break;
+        }
+    }
+    if( !has_interior_hole )
+    {
+        arena->write_cursor = live_extent;
+        if( arena->vbo->vertex_count > live_extent )
+            arena->vbo->vertex_count = live_extent;
+        discard_reclaimed_slot_ranges(arena);
+        return result;
+    }
+
     struct TRSPK_ModelSlot** alive = (struct TRSPK_ModelSlot**)malloc(
         arena->slot_count * sizeof(struct TRSPK_ModelSlot*));
     assert(alive != NULL);
@@ -388,58 +433,48 @@ trspk_modelarena_gc(struct TRSPK_ModelArena* arena)
             alive[alive_count++] = &arena->slots[i];
     }
 
-    if( alive_count == 0u )
-    {
-        free(alive);
-        trspk_modelarena_clear(arena);
-        return result;
-    }
+    assert(alive_count > 0u);
 
     qsort(alive, alive_count, sizeof(struct TRSPK_ModelSlot*), compare_slots_by_vertex_base);
 
-    uint32_t page_start = alive[0]->vertex_base / arena->page_size * arena->page_size;
-    uint32_t page_cursor = page_start;
+    uint32_t write_cursor = 0u;
 
     for( uint32_t i = 0u; i < alive_count; ++i )
     {
         struct TRSPK_ModelSlot* slot = alive[i];
-        const uint32_t slot_page = slot->vertex_base / arena->page_size * arena->page_size;
+        const uint32_t compacted_base = align_vertex_base(
+            write_cursor, slot->vertex_count, arena->page_size);
 
-        if( slot_page != page_start )
-        {
-            page_start = slot_page;
-            page_cursor = page_start;
-        }
-
-        if( slot->vertex_base != page_cursor )
+        if( slot->vertex_base != compacted_base )
         {
             move_vertices(
                 arena->vbo,
-                page_cursor,
+                compacted_base,
                 slot->vertex_base,
                 slot->vertex_count);
 
-            const uint32_t dst_tri = page_cursor / 3u;
+            const uint32_t dst_tri = compacted_base / 3u;
             move_triangles(arena->tri, dst_tri, slot->tri_start, slot->tri_count);
 
-            slot->vertex_base = page_cursor;
+            slot->vertex_base = compacted_base;
             slot->tri_start = dst_tri;
             result.relocated_count++;
             result.did_compact = true;
         }
 
-        page_cursor += slot->vertex_count;
+        write_cursor = compacted_base + slot->vertex_count;
     }
 
     free(alive);
 
-    const uint32_t extent = compute_used_vertex_extent(arena);
-    arena->write_cursor = extent;
-    if( arena->vbo->vertex_count > extent )
-        arena->vbo->vertex_count = extent;
+    arena->write_cursor = write_cursor;
+    if( arena->vbo->vertex_count > write_cursor )
+        arena->vbo->vertex_count = write_cursor;
 
     if( result.did_compact )
         trspk_vbo_set_dirty(arena->vbo);
+
+    discard_reclaimed_slot_ranges(arena);
 
     return result;
 }

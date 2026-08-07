@@ -924,18 +924,27 @@ scenery_load_animation(
     /* v1 ToriAuxLibTD_ElementSetSequenceId: bind the preloaded animation onto
      * the element. Task_WorldLoad registers each referenced loc sequence in
      * the scene before the rebuild; a NULL lookup means "not preloaded" and
-     * the calloc'd empty sentinel means "decode failed / maya-only" — skip
-     * both. SetAnimationSeq captures original vertices; SetAnimation supplies
-     * the frames the tick loop and frame emitter read. */
+     * the calloc'd empty sentinel means "decode failed" — skip both.
+     * SetAnimationSeq captures original vertices; SetAnimation supplies the
+     * frames the tick loop and frame emitter read. */
     struct ToriDraw_Animation* anim;
+    struct ToriDraw_SceneElement* element;
 
     if( element_id < 0 || seq_id < 0 )
         return;
     anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
-    if( !anim || anim->frame_count <= 0 || !anim->frames || !anim->base )
+    if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
         return;
+    element = ToriDraw_SceneElementGet(builder->scene, element_id);
     ToriDraw_SceneElementSetAnimationSeq(builder->scene, element_id, seq_id);
     ToriDraw_SceneElementSetAnimation(builder->scene, element_id, anim, true);
+    if( element )
+    {
+        element->animation = anim;
+        element->is_skeletal = anim->skeletal != NULL;
+        element->skeletal_animation = anim->skeletal;
+        element->skeletal_play_frames = element->is_skeletal ? anim->frame_count : 0;
+    }
 }
 
 static void
@@ -1884,6 +1893,50 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
  * `chunk_pos_level` the destination level — the instance path rewrites both on
  * its copy before calling.
  */
+/*
+ * One loc's mapfunction icon, at a scene position the caller already knows.
+ *
+ * Same split, and for the same reason, as world_builder_minimap_add_loc: the
+ * square walker maps a loc through World_ToSceneX/Z, which only describes the
+ * contiguous map-square grid, so an instance assembled from remapped 8x8 chunks
+ * got no mapfunction icons at all.
+ */
+static void
+world_builder_minimap_add_loc_mapfunction(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc const* map_loc,
+    struct ToriRS_Location const* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+    int func;
+
+    if( map_loc->shape_select != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+        return;
+    if( map_loc->chunk_pos_level < 0 || map_loc->chunk_pos_level >= COLLISION_LEVELS )
+        return;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
+        return;
+
+    /* Loc mapfunction: dat1 atlas frame index, or dat2 mapelement id (resolved
+     * to a sprite at draw time). Negative means unset. */
+    func = config_loc->map_function_id;
+    if( func < 0 )
+        return;
+    if( world->mapfunc_count >= WORLD_MAPFUNC_MAX )
+        return;
+
+    {
+        struct World_MapFunctionIcon* icon = &world->mapfuncs[world->mapfunc_count++];
+        icon->x = scene_x;
+        icon->z = scene_z;
+        icon->level = map_loc->chunk_pos_level;
+        icon->func = func;
+    }
+}
+
 static void
 world_builder_minimap_add_loc(
     struct WorldBuilder* builder,

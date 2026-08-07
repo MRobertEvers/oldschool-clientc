@@ -7,6 +7,13 @@
 struct TerrainShapeMapTile
 {
     bool active;
+    /** The tile states an underlay of its own (raw underlay_id > 0).
+     *
+     *  Not the same question as "the blend produced a colour": the blend
+     *  averages a +-5 neighbourhood, so a tile with NO underlay surrounded by
+     *  lava is handed a lava colour. Using that as the underlay paints a floor
+     *  over a hole the map deliberately left. */
+    bool has_underlay;
     uint8_t shape;
     uint8_t rotation;
 };
@@ -35,7 +42,8 @@ terrain_shape_map_set_tile(
     int z,
     int level,
     int shape,
-    int rotation);
+    int rotation,
+    int has_underlay);
 
 struct TerrainShapeMapTile*
 terrain_shape_map_get_tile(

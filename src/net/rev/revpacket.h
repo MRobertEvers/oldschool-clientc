@@ -309,6 +309,19 @@ struct PktMapProjAnim
     int end_delay;   /* g2 */
     int peak;        /* g1 */
     int arc;         /* g1 */
+
+    /*
+     * Revision 239's MapProjAnimV2 states the destination as an ABSOLUTE
+     * packed CoordGrid instead of the signed per-axis offsets above; the two
+     * are the same field conceptually and nothing on the wire distinguishes
+     * them. `dst_abs` says which pair is meaningful — the executor knows the
+     * scene origin, and this layer does not — so a decoder that sets it leaves
+     * dx_offset/dz_offset at zero and vice versa.
+     */
+    int dst_abs;
+    int dst_abs_x;
+    int dst_abs_z;
+    int dst_abs_level;
 };
 
 struct PktMapAnim
@@ -542,6 +555,10 @@ struct PktSetMapFlag
     int x;
     int z;
     int clear; /* 1 = clear the flag */
+    /* Revision 239's SetMapFlagV2 carries an absolute packed coord where the
+     * classic packet carries two scene-local tile bytes. Set by the decoder
+     * that read the absolute form; the executor subtracts the scene origin. */
+    int absolute;
 };
 
 struct PktSetPlayerOp

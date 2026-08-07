@@ -954,7 +954,17 @@ PlatformSDL2_Ticks64(void)
 }
 
 void
-PlatformSDL2_Delay(uint32_t ms)
+PlatformSDL2_SleepUntil(uint64_t deadline_ms)
 {
-    SDL_Delay(ms);
+    for( ;; )
+    {
+        uint64_t now = SDL_GetTicks64();
+        uint64_t remaining;
+        uint32_t delay;
+        if( now >= deadline_ms )
+            return;
+        remaining = deadline_ms - now;
+        delay = remaining > UINT32_MAX ? UINT32_MAX : (uint32_t)remaining;
+        SDL_Delay(delay);
+    }
 }

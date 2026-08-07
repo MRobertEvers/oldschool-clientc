@@ -116,4 +116,22 @@ ToriRS_FrameNextCommand(
 void
 ToriRS_FrameEnd(struct ToriRS_Frame* frame);
 
+/*
+ * Painter-command stepping (the v0 client's `cc` cap, docs/ORANGE_WEDGE.md).
+ *
+ * A limit >= 0 truncates the world pass after that many painter commands —
+ * the painter's stream is back-to-front, so limit N shows exactly what the
+ * scene looks like after the N-th paint and nothing later. -1 = unlimited.
+ *
+ * Seeded from TORIRS_PAINT_LIMIT on first use; TORIRS_PAINT_LIMIT_STEP=<s>
+ * then advances the limit by s every frame (pair with TORIRS_BMP_SERIES for a
+ * flip-book of the paint order). The app's debug keys (J/K +-1, L/, +-100,
+ * I toggles unlimited) call the setter for interactive runs.
+ */
+void
+ToriRS_Frame_PaintLimitSet(int limit);
+
+int
+ToriRS_Frame_PaintLimitGet(void);
+
 #endif

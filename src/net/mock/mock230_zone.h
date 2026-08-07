@@ -79,8 +79,15 @@ enum
      */
     MOCK230_ZONE_VIEW_RADIUS = 3,
     MOCK230_ZONE_BUILD_RADIUS = 6,
+    /**
+     * The four map planes. A client's scene holds all of them at once — that is
+     * how a building has an upstairs — so the zone window is per (x, z, level)
+     * and not per (x, z) at the player's own level.
+     */
+    MOCK230_ZONE_LEVELS = 4,
     MOCK230_ZONE_ACTIVE_MAX = (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
-                              (MOCK230_ZONE_VIEW_RADIUS * 2 + 1),
+                              (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
+                              MOCK230_ZONE_LEVELS,
 };
 
 /** The wire packets a zone event turns into. See mock230_encode.c. */
@@ -144,6 +151,21 @@ struct Mock230ZoneEvent
      */
     /** Destination tile relative to the source, which is where `pos` points. */
     int dx_offset, dz_offset;
+    /**
+     * The destination as an ABSOLUTE tile, carried alongside the offsets rather
+     * than instead of them because the two revisions want different ones.
+     *
+     * The classic packet spells the destination as one signed byte per axis
+     * from the source tile. Revision 239's MAP_PROJANIM_V2 writes a whole
+     * CoordGrid -- `p4Alt1 end.packed`, level/x/z bitpacked absolutely -- and
+     * feeding it the offsets lands the arc a few tiles from the world origin
+     * while the packet frames perfectly and the client draws a projectile
+     * nobody can see.
+     *
+     * Kept on the event rather than reconstructed in the encoder because the
+     * encoder is handed a zone-local `pos` and never learns which zone it is.
+     */
+    int dst_x, dst_z, dst_level;
     /** Whom it homes on, in the wire's encoding: `slot + 1` for an npc,
      *  `-slot - 1` for a player, 0 for a shot that just lands on a tile. */
     int target;
@@ -152,6 +174,19 @@ struct Mock230ZoneEvent
     /** Client-TS `angle` and `startpos` — how high the arc goes and how far
      *  along it the projectile is drawn at spawn. */
     int peak, arc;
+
+    /**
+     * OBJ_ADD: ticks until this obj vanishes, or 0 for one that never does.
+     *
+     * A field with no classic equivalent -- the older packet says only that an
+     * obj is there, and the client keeps drawing it until told otherwise, so
+     * the server has to send OBJ_DEL when a drop expires. Revision 239's
+     * ObjAdd carries the lifetime up front. Sending 0 ("never despawns") for a
+     * timed drop is not a protocol error and never desyncs anything; the client
+     * simply draws the item until the server's own OBJ_DEL catches up, which is
+     * a visible difference on a busy floor and nowhere else.
+     */
+    int despawn_ticks;
 };
 
 /**
@@ -357,6 +392,19 @@ mock230_zone_loc_find(
     int z,
     int level,
     int shape);
+
+/** The record on this tile currently holding `loc_id`, or NULL. This is
+ *  `loc_find`'s reach beyond the scene window: a runtime-added loc is
+ *  addressable anywhere in the world, the way the reference's
+ *  `World.getLoc` is. Static map locs outside the scene are not visible
+ *  here — the ZoneMap is the diff, not the map. */
+struct Mock230ZoneLoc*
+mock230_zone_loc_find_id(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int loc_id);
 
 /** Walk every recorded loc change in the world. Used by the rebuild, which has
  *  to put all of them back onto a scene that was just re-read from the cache. */

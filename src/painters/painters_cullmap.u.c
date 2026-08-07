@@ -34,6 +34,7 @@ pcull_test_point_in_frustum(
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     PaintersProjectFn project,
     void* user)
 {
@@ -45,7 +46,7 @@ pcull_test_point_in_frustum(
         z,
         pitch,
         yaw,
-        512,
+        camera_cot16,
         near_clip_z,
         screen_width,
         screen_height,
@@ -114,6 +115,7 @@ painters_cullmap_build(
     int near_clip_z,
     int screen_width,
     int screen_height,
+    int camera_cot16,
     PaintersProjectFn project,
     void* user,
     PaintersSinFn sin_fn)
@@ -183,6 +185,7 @@ painters_cullmap_build(
                                 near_clip_z,
                                 screen_width,
                                 screen_height,
+                                camera_cot16,
                                 project,
                                 user) )
                         {
@@ -198,6 +201,7 @@ painters_cullmap_build(
                                 near_clip_z,
                                 screen_width,
                                 screen_height,
+                                camera_cot16,
                                 project,
                                 user) )
                         {
@@ -213,6 +217,7 @@ painters_cullmap_build(
                                 near_clip_z,
                                 screen_width,
                                 screen_height,
+                                camera_cot16,
                                 project,
                                 user) )
                         {
@@ -228,6 +233,7 @@ painters_cullmap_build(
                                 near_clip_z,
                                 screen_width,
                                 screen_height,
+                                camera_cot16,
                                 project,
                                 user) )
                         {

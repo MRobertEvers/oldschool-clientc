@@ -15,8 +15,10 @@
     it on XP with the RemoteProxyDesktopXP build server (rpdxpctl).
 
 .PARAMETER Toolchain
-    Path to a MinGW 'bin' directory (must contain gcc/g++ and mingw32-make).
-    Defaults to the RemoteProxyDesktopXP vendored toolchain if present.
+    Path to a MinGW root or 'bin' directory (must contain gcc, mingw32-make,
+    and objdump).
+    Defaults to the repository-owned lib\mingw32-win32-toolchain.zip, extracted
+    on demand under the ignored toolchain\mingw32 directory.
 
 .PARAMETER Opt
     Release build (OPT=1). Default is a debug build.
@@ -34,47 +36,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = $PSScriptRoot
+. (Join-Path $repo "scripts\windows_toolchain.ps1")
 
-# --- locate a MinGW toolchain ---------------------------------------------
-if (-not $Toolchain) {
-    $vendored = "C:\Users\mrobe\Documents\git_repos\RemoteProxyDesktopXP\toolchain\mingw32\bin"
-    if (Test-Path (Join-Path $vendored "gcc.exe")) { $Toolchain = $vendored }
-}
-if (-not $Toolchain -or -not (Test-Path (Join-Path $Toolchain "gcc.exe"))) {
-    Write-Error "No MinGW toolchain found. Pass -Toolchain <path-to-mingw\bin> (needs gcc, g++, mingw32-make)."
-    exit 1
-}
-$env:PATH = "$Toolchain;$env:PATH"
-Write-Host "[winxp] toolchain: $Toolchain"
-Write-Host "[winxp] gcc: $((& (Join-Path $Toolchain 'gcc.exe') -dumpmachine))"
-
-$make = Join-Path $Toolchain "mingw32-make.exe"
-if (-not (Test-Path $make)) { $make = "mingw32-make" }
-
-# --- a POSIX shell for make ------------------------------------------------
-# src/makefile's recipes are POSIX sh (rm -rf, mkdir -p, cp, `for` loops). GNU
-# make on Windows silently falls back to cmd.exe when there is no sh.exe on
-# PATH, and the first recipe then dies with "p was unexpected at this time".
-# Git for Windows always ships one; find it rather than making the caller know.
-if (-not (Get-Command sh.exe -ErrorAction SilentlyContinue)) {
-    # @(...) around the pipeline is load-bearing: Where-Object returns a bare
-    # string when exactly one candidate matches, and indexing [0] into a string
-    # yields its first character ("C") rather than the path.
-    $shDir = @(
-        @(
-            "C:\Program Files\Git\usr\bin",
-            "C:\Program Files (x86)\Git\usr\bin",
-            "$env:LOCALAPPDATA\Programs\Git\usr\bin"
-        ) | Where-Object { Test-Path (Join-Path $_ "sh.exe") }
-    ) | Select-Object -First 1
-
-    if (-not $shDir) {
-        Write-Error "No sh.exe on PATH. src/makefile needs a POSIX shell - install Git for Windows, or add a directory containing sh.exe to PATH."
-        exit 1
-    }
-    $env:PATH = "$shDir;$env:PATH"
-    Write-Host "[winxp] sh: $shDir\sh.exe"
-}
+# --- repository-owned compiler + POSIX recipe shell -----------------------
+$originalPath = $env:PATH
+try {
+$resolvedToolchain = Resolve-ToriRSWindowsToolchain -RepoRoot $repo -Lane win32 -Override $Toolchain
+$buildEnvironment = Enable-ToriRSWindowsBuildEnvironment -ToolchainBin $resolvedToolchain.Bin
+$Toolchain = $resolvedToolchain.Bin
+$make = $resolvedToolchain.Make
+Write-Host "[winxp] toolchain: $Toolchain ($($resolvedToolchain.Triple))"
+Write-Host "[winxp] sh: $($buildEnvironment.Sh)"
 
 # --- build ----------------------------------------------------------------
 # All build knowledge lives in the makefile's lane targets: `winxp` is
@@ -121,6 +93,9 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item $built (Join-Path $dist "torirs.exe") -Force
 Write-Host ("[winxp] done -> dist\win32\torirs.exe  ({0:N0} KB)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
 Write-Host "[winxp] local run (nonpacked OSRS239, fixed-function D3D9):"
-Write-Host "        .\src\torirs.exe --manifest .\manifest_osrs239.ini --offline"
+Write-Host "        .\src\torirs.exe --manifest .\manifest_osrs239.ini"
 Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
 Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
+} finally {
+    $env:PATH = $originalPath
+}

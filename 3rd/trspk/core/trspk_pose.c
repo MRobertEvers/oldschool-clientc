@@ -181,3 +181,20 @@ trspk_pose_table_remove_element(
     for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; ++t )
         table->elements[element_idx].tracks[t].pose_count = 0u;
 }
+
+void
+trspk_pose_table_remove_track(
+    struct TRSPK_PoseTable* table,
+    int element_id,
+    int anim_index)
+{
+    if( !table || element_id < 0 || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT || !table->elements )
+        return;
+
+    const uint32_t element_idx = (uint32_t)element_id;
+    if( element_idx >= table->element_count )
+        return;
+
+    table->elements[element_idx].tracks[anim_index].pose_count = 0u;
+}

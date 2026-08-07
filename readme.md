@@ -4,107 +4,85 @@ Rewrite of the osrs renderer.
 
 ## Building
 
-```
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake -B build_release -DCMAKE_BUILD_TYPE=Release
-cmake -B build-mingw-release -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+The current client is built by [`src/makefile`](src/makefile). The root CMake
+project and the `v0`/`v1` trees are historical snapshots, not alternate build
+lanes.
 
-# For compiler invocations
-make VERBOSE=1
-```
-
-### Presets
-
-```
-# Configure
-cmake --preset sse1-only
-cmake --preset sse2
-cmake --preset avx2
-cmake --preset neon
-
-# Build
-cmake --build build_sse1
-cmake --build sse2
-cmake --build avx
-cmake --build neon
+```sh
+make -C src all          # native debug -> src/torirs
+make -C src release      # native -O3  -> src/torirs
+make -C src web          # optimized browser module -> build-web/
+make -C src web-debug    # debug browser module
+make -C src io-server    # cache/boot server used by the browser build
 ```
 
-### Pound Defines
+On Windows, use `./build_windows.ps1 -Opt` for the modern x86_64 artifact or
+`./build_winxp.ps1 -Opt` for the XP-compatible i686 artifact. Omitting `-Opt`
+intentionally builds the corresponding debug lane. Both compiler toolchains
+are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
+Platform selection, prerequisites, renderer flags, compatibility constraints,
+and known defects are centralized in
+[Platform quirks and contracts](docs/platform_quirks.md). Detailed active guides
+cover the [web build](docs/web_build.md) and the
+[Windows XP D3D9 renderer](docs/windows_xp_d3d9.md).
+
+### Content pipeline
+
+The client boots from a cache, and the cache is built from
+`OSRS-Content/osrs239-content/`:
+
+| Step | Command | Output |
+|---|---|---|
+| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+
+The bake takes `--base` when a pristine cache is present, so records the tree
+does not change keep the bytes they had. **Without a base it creates the cache**,
+and what lands is exactly what the tree states. Aim it elsewhere with:
 
 ```
-# Disables manual vector functions
-SSE_DISABLED
-SSE2_DISABLED
-AVX2_DISABLED
-NEON_DISABLED
+make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
 ```
 
-### Building - Emscripten
+`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+table with no idx file is a table the client cannot read, and `idx255` — the
+reference-table index — is what makes every other table reachable at all.
+
+### Booting a packed cache
+
+[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
+`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+cache built from content rather than the pristine dump:
 
 ```
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug
-
-cd build.em
-
-emmake make
+make -C src winxp
+src/torirs.exe --manifest manifest_osrs239_packed.ini
 ```
 
-### C vs C++ ABI (shared headers)
+Two things a from-scratch cache needs that a `--base` bake inherits for free,
+both of which the packer now does:
 
-Parts of the tree compile the same headers as **both C and C++** (e.g. `test/win32.cpp` and `LibToriRS_GameNew` in `src/tori_rs_init.u.c` both use `struct GGame` from `src/osrs/game.h`). **The layout of every shared struct must be identical in both languages.** If it is not, fields are read at the wrong offset: pointers look like small integers (e.g. `0x14`), “works under the debugger” heisenbugs, or link errors from mangled C symbols.
+- **`idx255` reference tables.** An archive is only reachable through one.
+- **Archive name identifiers.** The client resolves a sprite by hashing its
+  name (djb2) and scanning `archives[i].identifier`; without those identifiers,
+  name-addressed cache content is silently absent.
 
-**How to avoid:**
-
-- **Do not nest struct types inside a shared aggregate** when MSVC or mixed C/C++ is in play unless you are sure both sides match. Prefer **file-scope** helper structs (see `struct UITraversalFrame` before `struct GGame` in `game.h`).
-- **Do not use empty structs** (`struct Foo {}`) in headers included from C: C and C++ give them **different sizes**. Use a **dummy `uint8_t` member** where a “marker” type is needed (`game_entity.h`, `lua_gametypes.h`, packet structs, etc.).
-- **Win32 `.cpp` files:** include **`<windows.h>` first**, then wrap **`graphics/dash.h`**, **`osrs/game.h`**, and other engine headers in **`extern "C" { #include … }`** before C++ platform headers. See `src/platforms/platform_impl2_win32.cpp` and the Win32 renderer `.cpp` files. Shared headers that declare C APIs should use **`#ifdef __cplusplus` / `extern "C"`** around declarations (`dash.h`, `cache_dat.h`, `nuklear_rawfb.h`).
-- **Macros in headers parsed as C++:** avoid MSVC designated-initializer forms in macros where C++ can parse `[` differently (see **`PACKET_DEFINITION`** in `src/osrs/packetin.h` — positional `{ name, code, length }` only).
-- **ToriRSPlatformKit / D3D8 SoAoS:** after `windows.h`, avoid fragile **`_Alignas`** on SoAoS members; use **`TRSPK_VERTEX_SOAOS_MEMBER_ALIGN`** and **plain integer** alignment constants in `trspk_vertex_soaos_config.h` (details in [docs/d3d8_renderer_architecture.md](docs/d3d8_renderer_architecture.md)).
-
-**Win32 D3D8 reference (monolithic baseline):** the last known-good **all-in-one** Win32 D3D8 implementation before the ToriRSPlatformKit split is commit `9c62ec2d` (message: `d3d8 3d working!`). Inspect the tree with `git show 9c62ec2d:src/platforms/platform_impl2_win32_renderer_d3d8.cpp` and compare device setup, fixed-function state (`D3DRS_LIGHTING`, depth, transforms), `SetIndices` base vertex + `DrawIndexedPrimitive`, and batching to `src/platforms/ToriRSPlatformKit/src/backends/d3d8/`.
-
-### Building - Linux
-
-For linux, install bzip
+Headless verification proves the cache is bootable rather than merely complete:
 
 ```
-sudo apt-get update
-
-# GCC
-sudo apt install build-essential
-
-# FreeType, SDL2
-sudo apt install libfreetype6-dev libsdl2-dev
+TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
+    src/torirs.exe --manifest manifest_osrs239_packed.ini
 ```
 
-### Setup
+## Engine notes
 
-Required dependencies
+The remaining material is an engineering notebook, not a platform build or
+compatibility contract. Platform guidance belongs in the registry linked above.
 
-- SDL2
-- CMake
-
-#### Mac
-
-Install SDL2.
-
-```
-brew install sdl2
-```
-
-### Debugging - WASM
-
-When building to debug wasm, you need to make sure there is no `.wasm.map` file in the output build folder. For some reason, that causes chrome to mess up line numbers and dwarf info. You need only to install the chrome debug extension here https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb
-
-and compile with `-O0 -g`.
-
-### TODOS
+### TODO
 
 1. Contour Ground
 2. Minimap
@@ -665,32 +643,8 @@ Frame timing: each frame is shown for `frameLengths[frame]` client cycles at 50h
 
 ## Profiling
 
-```
-sudo ../profile.d -c ./scene_tile_test > out.stacks
-
-sudo ../profile.d -c ./main_client > out.stacks
-sudo ../profile.d -c ./sdl2 > out.stacks
-sudo ../profile.d -c "./sdl2 --renderer=metal" > out.stacks
-
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/src2/programs/sdl2/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
-```
-
-Then using flamegraph
-
-Which you can get from here:
-https://github.com/brendangregg/FlameGraph
-
-```
-# /Users/matthewevers/Documents/git_repos/FlameGraph
-
-./stackcollapse.pl ./build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
-```
+The current counters, CSV format, work-versus-pacing boundary, and reproducible
+benchmarks are documented in [the performance harness](docs/PERF_HARNESS.md).
 
 ### Profiling without sudo (macOS `sample`)
 
@@ -1035,18 +989,15 @@ new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 2
 On linux
 
 ```
-valgrind --leak-check=full ./scene_tile_test
-
-valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
-valgrind --leak-check=full ./osx > log.txt 2>&1
+valgrind --leak-check=full src/torirs --manifest manifest_osrs230.ini --offline
 
 # Callgrind must be built without ASan
-valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
-valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
+valgrind --tool=callgrind src/torirs --manifest manifest_osrs230.ini --offline > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
-valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out \
+  src/torirs --manifest manifest_osrs230.ini --offline
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```
@@ -1290,216 +1241,13 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ![go_frame_time](./res/danes_frame_time.png)
 
-### Windows
-
-In order for ninja to work, you need to set up your visual studio vars for powershell. See the microsoft powershell profile in scripts.
-
-.\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
-
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/insw lled/x64-windows'
-
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -G "Visual Studio 17 2022" -A x64 -B build-vs -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'
-
-Your Visual Studio 2017 installation is probably missing the C packages (they are not automatically included with the Desktop development with C++ workload).
-
-To install it, start the Visual Studio Installer, go to Individual components, and check Windows Universal C Runtime:
-
-#### Building with MSVC
-
-Configure your powershell terminal with vcvars.
-
-```
-# Visual Studio 2022 Community Environment Setup
-# This automatically sets up the Visual Studio environment variables
-# so you don't need to run vcvars64.bat before ninja commands
-
-$vcvarsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-
-if (Test-Path $vcvarsPath) {
-    # Call the batch file and capture its environment variables
-    cmd /c "`"$vcvarsPath`" && set" | ForEach-Object {
-        if ($_ -match "^([^=]+)=(.*)$") {
-            $name = $matches[1]
-            $value = $matches[2]
-            [Environment]::SetEnvironmentVariable($name, $value, "Process")
-        }
-    }
-
-    Write-Host "Visual Studio 2022 Community environment loaded successfully!" -ForegroundColor Green
-} else {
-    Write-Host "Warning: Visual Studio 2022 Community not found at expected path: $vcvarsPath" -ForegroundColor Yellow
-    Write-Host "Please update the path in your PowerShell profile if Visual Studio is installed elsewhere." -ForegroundColor Yellow
-}
-```
-
-You must also set up vcpkg for SDL2.
-
-```
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-TODO: How to set up vcpkg and SDL2.
-
-Then using cmake.
-
-```
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-#### Win32 vendored MinGW toolchain (i686)
-
-The repository ships a vendored **32-bit (i686) MinGW-w64** toolchain under `lib/mingw32-win32-toolchain.zip` (stored in Git LFS). This is the toolchain used by `src2/programs/sdl2/Makefile` and the `win32` CMake target for Windows XP SP3-oriented builds. You must unpack it once before those targets will build.
-
-**One-time setup:**
-
-PowerShell:
-
-```powershell
-git lfs pull
-New-Item -ItemType Directory -Force -Path toolchain\win32 | Out-Null
-Expand-Archive -Path lib\mingw32-win32-toolchain.zip -DestinationPath toolchain\win32
-```
-
-Bash (MSYS2 or Linux):
-
-```bash
-git lfs pull
-mkdir -p toolchain/win32
-unzip -q lib/mingw32-win32-toolchain.zip -d toolchain/win32
-```
-
-Sanity check — this path must exist after unpacking:
-
-```
-toolchain/win32/mingw32/bin/gcc.exe
-```
-
-**Example build** (from the repo root):
-
-```bash
-cd src2/programs/sdl2
-mingw32-make
-```
-
-The `toolchain/` directory is gitignored; only the zip (via LFS) is committed.
-
----
-
-#### Building with GCC and MinGW
-
-MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
-
-> The instructions below cover **host** (x86-64) MinGW builds using MSYS2. For the **vendored i686 / WinXP-oriented** toolchain used by `src2/programs/sdl2`, see the section above.
-
-Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
-
-Also set up and a .bashrc script so you can type `make` instead of `mingw32-make`.
-
-**Prerequisites:**
-
-- Install MinGW-w64 (recommended: MSYS2 or standalone installer)
-  `winget install --id MSYS2.MSYS2`
-
-  ```
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -Syu --noconfirm"
-
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-SDL2 mingw-w64-x86_64-freetype mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib"
-
-  cmake -B build-mingw -DCMAKE_BUILD_TYPE=Release -G 'MinGW Makefiles'
-
-  mingw32-make -j4
-  ```
-
-**Terminal Configuration**
-
-```
-   "MSYS2 Terminal": {
-            "path": "C:\\msys64\\msys2_shell.cmd",
-            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
-            "icon": "terminal-bash",
-            "env": {
-                "CHERE_INVOKING": "1",
-                "MSYSTEM": "MINGW64",
-                "HOME": "${workspaceFolder}/scripts"
-            }
-        },
-```
-
-**Installation Options:**
-
-1. **MSYS2 (Recommended):**
-
-   ```bash
-   # Download and install MSYS2 from https://www.msys2.org/
-   # Then install MinGW-w64 toolchain:
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make
-   ```
-
-   Or using winget
-
-   ```
-   winget install --id MSYS2.MSYS2
-   ```
-
-2. **MSYS2 Terminal (Alternative):**
-   - Install MSYS2 from https://www.msys2.org/
-   - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
-   - Install packages with: `pacman -S gcc cmake make`
-   - Note: This uses the MSYS2 environment, not native Windows MinGW
-
-3. **Standalone MinGW-w64:**
-   - Download from https://www.mingw-w64.org/downloads/
-   - Add `bin` directory to your PATH
-
-**Dependencies:**
-
-For MinGW builds, it's recommended to use MSYS2 packages rather than vcpkg:
-
-```bash
-# Using MSYS2 MinGW64 packages (recommended for native Windows MinGW)
-pacman -S mingw-w64-x86_64-SDL2 mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib mingw-w64-x86_64-freetype mingw-w64-x86_64-opengl
-
-# Using MSYS2 terminal packages (Unix-like environment)
-pacman -S SDL2 freetype2 mesa
-```
-
-**Building:**
-
-```bash
-# Configure with MinGW (using MSYS2 packages)
-cmake -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Build (recommended - works regardless of make availability)
-cmake --build build-mingw
-
-# Alternative: Using mingw32-make (MinGW's make)
-cd build-mingw
-mingw32-make -j$(nproc)
-```
-
-**Static Linking (Optional):**
-
-```bash
-# Using MSYS2 static packages (recommended)
-pacman -S mingw-w64-x86_64-SDL2-static mingw-w64-x86_64-bzip2-static mingw-w64-x86_64-zlib-static mingw-w64-x86_64-freetype-static
-
-# Configure for static linking
-cmake -B build-mingw-static -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build build-mingw-static
-```
+### Historical platform benchmarks
+
+The CMake/MSVC/SDL Windows recipes that used to precede these captures targeted
+the retired renderer stack and have been removed. Current Windows builds use
+the raw-Win32 backend through distinct modern x86_64 and XP-compatible i686
+lanes documented in
+[Platform quirks and contracts](docs/platform_quirks.md#windows-raw-win32-d3d9-and-soft3dgdi).
 
 #### Performance
 
@@ -1522,69 +1270,11 @@ Native Mingw Static
 Also noticing that the deob is faster for big screens.
 Update: No that's not true, it just doesn't work on big screens.
 
-### Building For Emscripten
-
-Install emscripten with it's sdk
-
-```
-git clone https://github.com/emscripten-core/emsdk.git
-
-# Windows
-.\emsdk\emsdk.bat install latest
-.\emsdk\emsdk.bat activate latest
-
-.\emsdk\emsdk_env.ps1
-
-# Test if found
-.\emsdk\upstream\emscripten\emcc.bat --version
-
-# Create build files
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-
-# Unix Like
-.\emsdk\emsdk install latest
-.\emsdk\emsdk activate latest
-
-.\emsdk\upstream\emscripten\emcc --version
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-```
-
-Then building=
-
-```
-cd build.em
-
-emmake ninja
-
-# or on unixlike
-
-emmake make
-
-# Then copy the build files.
-# Windows
-powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
-```
-
-Then copy the output to public/build
-
-`python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
-`python3 -m http.server -b 0.0.0.0 -d . 8010 `
-
-./scripts/serve_emscripten.py -d public/build 8000
-
-`http://localhost:8000/main.html`
-
 # World and model coords
 
 +y is down
 +z is away from camera (into)
 +x is to the right.
-
-# WebGL
-
-My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
-See here.
-https://issues.chromium.org/issues/40114751
 
 # Software Renderer integer limits
 
@@ -2047,21 +1737,6 @@ Side Icons hmid
 496, 466
 ```
 
-## Emscripten
-
-python3 -m http.server 8080
-python3 -m http.server -d build_emscripten 8080
-
-// Serve cache
-cd test/datserver
-./a.out
-
-// Serve lua
-node ./serve-lua-scripts.js
-
-// Serve build
-python3 -m http.server -d build_emscripten 8080
-
 ## Painter
 
 ```
@@ -2086,21 +1761,6 @@ painter bench (avg over 30 frames): paint_w3d=1.971 ms paint_bucket=1.556 ms
 painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
 ```
 
-# Debugging On Target
-
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe ./build-winxp/win32.exe
-
-```
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe win32.exe
-
-strings win32.exe | grep .pdb
-
-# Place the pdb file where this path points on the dest machine.
-mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-winxp
-$ strings win32.exe | grep .pdb
-C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
-```
-
 ## Air Strike 245
 
 659=strike_travel
@@ -2117,12 +1777,6 @@ recol2d=32767
 recol3s=31649
 recol3d=31
 
-# Serving to winxp
-
-```
-python3 -m http.server -b 0.0.0.0 -d . 8000
-```
-
 ## Rendering Features Needed
 
 1. Textures U clamp
@@ -2135,7 +1789,7 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 
 ## Empty Models??
 
-Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. The crash is the engine's own invariant in src2/toridraw/toridraw_model_transform.c
+Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. A crash on one is an engine invariant failure, not a loading failure.
 
 ## Bellemorde
 
@@ -2478,7 +2132,10 @@ Without layer clipping the line extends ~11px past the vertical border. With cli
 
 Scanned all **917** interface archives in `cache/` with `tools/dump_interface/dump_interface`. **22** distinct nonzero `clientCode` values appear on **54** widgets.
 
-`clientCode` is decoded from each component record (see [`dat2a_component.h`](src/osrs/rscache/dat2a/dat2a_component.h)). In interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as `client_code`.
+`clientCode` is decoded from each component record (see
+[`dat2_component.h`](3rd/rscache/src/datatypes/dat2_component.h)). In
+interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as
+`client_code`.
 
 Many codes from [`Client-TS/src/client/ClientCode.ts`](Client-TS/src/client/ClientCode.ts) (friends list slots 1–203, ignores 401–503, friends2 701–900, player design 300–327, etc.) are assigned **at runtime** by the client to dynamic list rows — they do not appear as baked `clientCode` fields in the cache dump. Only values actually stored on widgets are listed below.
 
@@ -2676,8 +2333,8 @@ Task_InterfaceX_Main()
 
 ## Running against a LostCity server
 
-Build with `make -C src torirs` (target binary: `src/torirs`), or `make -C src release`
-for an optimized `-O2` build (objects in `src/build_opt/`; both flavors link the same
+Build with `make -C src all` (target binary: `src/torirs`), or `make -C src release`
+for an optimized `-O3` build (objects in `src/build_opt/`; both flavors link the same
 `src/torirs`, and switching flavors relinks automatically). The client caps at 50 fps
 by default; pass `--uncapped` to free-run (profiling/benchmarks). With a LostCity_Server
 (Engine-TS rev 254) running locally — game port 43594, web/CRC on port 80 — run from
@@ -2752,16 +2409,16 @@ src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
 - `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
   transform (multiloc) table, and the shape -> model groups the build selects
   from. Reach for it when a loc looks like it is in the wrong place: a
-  misaligned shape/model table hands back a *different object* at the correct
+  misaligned shape/model table hands back a _different object_ at the correct
   position, and a multiloc's transform target can disagree with the base about
   the footprint (see the multiloc note under scenery placement below) — neither
   is visible from the placement arithmetic.
 - `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
   (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
-  "x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+"x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
   — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
   loc drawn over its own tile", which nothing else can: every other diagnostic
-  reports what the *build* decided, and a loc placed right but drawn wrong is
+  reports what the _build_ decided, and a loc placed right but drawn wrong is
   indistinguishable from one placed wrong until you compare a loc's pick region
   against the terrain picks at the same pixels. Expect a loc's pick centroid to
   sit ~7px above its tile's and ~2px west — that is height parallax, not a
@@ -2896,7 +2553,6 @@ They turn.
 When facing directly back; 3-x-3 column
 When out of range, they turn towards the player.
 Becomes 1-x-5
-
 
 ### Server Vars
 

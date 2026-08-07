@@ -286,7 +286,7 @@ SLT_FN(
     int stride,
     int screen_width,
     int screen_height,
-    int camera_fov,
+    int camera_cot16,
     int x0,
     int x1,
     int x2,
@@ -358,9 +358,9 @@ SLT_FN(
     int half_width = screen_width >> 1;
     int half_height = screen_height >> 1;
 
-    int au_base = project_scale_unit(ov_zhat, camera_fov) - ov_xhat * half_width;
-    int bv_base = project_scale_unit(uo_zhat, camera_fov) - uo_xhat * half_width;
-    int cw_base = project_scale_unit(uv_zhat, camera_fov) - uv_xhat * half_width;
+    int au_base = project_scale_unit(ov_zhat, camera_cot16) - ov_xhat * half_width;
+    int bv_base = project_scale_unit(uo_zhat, camera_cot16) - uo_xhat * half_width;
+    int cw_base = project_scale_unit(uv_zhat, camera_cot16) - uv_xhat * half_width;
 
 #if SLT_SHADE_INTERP
     /* Shade is a plane over the screen triangle, invariant under the y-sort:

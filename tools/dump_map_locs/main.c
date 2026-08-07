@@ -55,13 +55,16 @@ main(int argc, char** argv)
     int scene_size = atoi(argv[4]);
     int shape_filter = (argc == 6) ? atoi(argv[5]) : -1;
 
+    /* Missing keys are not an error: map archives are unencrypted from
+     * OldSchool 237 on, so cache.osrs239 and friends ship no xteas.json at
+     * all. Refusing to run there made this tool unusable on every modern
+     * cache. A keyed cache still needs the file, and a loc archive that
+     * really is encrypted simply decodes to nothing — visible as an empty
+     * dump rather than as a wrong one. */
     char xtea_path[1024];
     snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);
     if( RSCacheShared_XteaConfigLoadKeys(xtea_path) < 0 )
-    {
-        fprintf(stderr, "Failed to load xteas: %s\n", xtea_path);
-        return 1;
-    }
+        fprintf(stderr, "note: no %s (unencrypted maps expected for rev >= 237)\n", xtea_path);
 
     struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )

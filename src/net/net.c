@@ -198,6 +198,15 @@ ToriRS_Network_SendRaw(
     }
 }
 
+static void
+push_parsed_packet(
+    struct ToriRS_Network* net,
+    struct RevPacket const* packet);
+
+/* osrs239_entity_info.c -- see the local-index note in loginproto_drive. */
+void
+osrs239_playerinfo_set_local(int local_index);
+
 /* Flush login outbound bytes, then act on the poll result (port of v0
  * loginproto_drive): on success free the login machine and arm the packet
  * buffer for the game stream — fixing v0's missing packetbuffer_init. */
@@ -218,6 +227,40 @@ loginproto_drive(struct ToriRS_Network* net)
 
     if( poll_result == LOGINPROTO_SUCCESS )
     {
+        /*
+         * The local player's index, before the login handle is freed.
+         *
+         * Revision 239 deleted UPDATE_PID: LoginResponse.Ok carries the index
+         * and nothing else on the wire ever restates it. Everything downstream
+         * already keys on `esync.local_pid`, which UPDATE_PID sets, so the
+         * handshake states it as one — rather than a second path into the same
+         * field that could disagree with the first. A revision whose vtable
+         * leaves `local_index` NULL keeps using the packet.
+         *
+         * Without this the client has no local player at all: PLAYER_INFO v5 is
+         * keyed on the index, so every high-resolution record lands on a slot
+         * the client does not believe is itself.
+         */
+        if( net->rev->login && net->rev->login->local_index )
+        {
+            int index = net->rev->login->local_index(net->login_generic);
+
+            if( index >= 0 )
+            {
+                struct RevPacket packet;
+
+                /* The v5 player stream is keyed on this index and its init
+                 * block skips exactly this slot, so the entity reader has to
+                 * know it before the login REBUILD arrives. */
+                if( net->rev->player_info_read )
+                    osrs239_playerinfo_set_local(index);
+
+                memset(&packet, 0, sizeof(packet));
+                packet.packet_type = PKT_NAME_UPDATE_PID;
+                packet._update_pid.local_player_index = index;
+                push_parsed_packet(net, &packet);
+            }
+        }
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
         net->state = TORIRS_NET_GAME;

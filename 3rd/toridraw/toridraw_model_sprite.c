@@ -466,7 +466,8 @@ ToriDraw_RenderModelExtentsAtWidget(
 
     struct ToriDraw_Camera camera = { 0 };
     camera.near_plane_z = WIDGET_MODEL_NEAR;
-    camera.fov_rpi2048 = 512;
+    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
 
     ToriDraw_RenderModel2SortFaces(hnd, scene);
     ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
@@ -607,7 +608,8 @@ ToriDraw_SpriteNewFromModelRasterExtents(
 
     struct ToriDraw_Camera camera = { 0 };
     camera.near_plane_z = WIDGET_MODEL_NEAR;
-    camera.fov_rpi2048 = 512;
+    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
 
     size_t pixel_count = (size_t)width * (size_t)height;
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
@@ -677,7 +679,8 @@ ToriDraw_SpriteNewFromModelRaster(
     camera.pitch = xan;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.fov_rpi2048 = 512;
+    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
     camera.near_plane_z = 1;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
@@ -758,7 +761,8 @@ ToriDraw_SpriteNewFromObjIconRaster(
     camera.pitch = xan;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.fov_rpi2048 = 512;
+    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
     camera.near_plane_z = 1;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);

@@ -64,6 +64,11 @@ struct Osrs239Login
     int out_len;
     int out_off;
 
+    /* The local player's slot, from LoginResponse.Ok. There is no UPDATE_PID
+     * at this revision, so this is the only statement of it on the wire, and
+     * PLAYER_INFO v5 is keyed on it. -1 until the response arrives. */
+    int local_index;
+
     /* Inbound accumulator. The two shapes it has to hold are the 9-byte seed
      * reply and a var-short proof-of-work challenge. */
     uint8_t in[1024];
@@ -292,6 +297,7 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
     snprintf(h->password, sizeof(h->password), "%s", password ? password : "");
     h->state = OSRS239_SEND_CONNECT;
+    h->local_index = -1;
     if( net->seed_fn )
         net->seed_fn(net->seed_user, h->seed);
     else
@@ -366,8 +372,16 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                  * byte and a short to it, and OldSchool has apparently always
                  * done so. Reading the body by its own fixed size rather than
                  * by the stated length is what keeps that harmless.
+                 *
+                 * On an embed pipe the login burst is already sitting behind
+                 * this response in the same read. Those bytes must NOT be
+                 * counted as consumed here: login_free drops h->in, and the
+                 * server's ISAAC has already stepped through them. Returning
+                 * only the OK size leaves the burst for gameproto with both
+                 * ciphers at step 0.
                  */
-                if( h->in_len < 2 + OSRS239_OK_BODY_BYTES )
+                int const ok_size = 2 + OSRS239_OK_BODY_BYTES;
+                if( h->in_len < ok_size )
                     break;
                 struct RSCache_Buffer rbuf = { .data = h->in + 2,
                                                .size = OSRS239_OK_BODY_BYTES,
@@ -377,9 +391,14 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 (void)g1(&rbuf); /* staffModLevel */
                 (void)g1(&rbuf); /* playerMod */
                 int index = g2(&rbuf);
+                h->local_index = index;
                 fprintf(stderr, "osrs239 login: OK, local player index %d\n", index);
                 h->state = OSRS239_DONE;
-                break;
+                {
+                    int extra = h->in_len - ok_size;
+                    h->in_len = 0;
+                    return off - extra;
+                }
             }
             fprintf(stderr, "osrs239 login: rejected reply=%d\n", reply);
             h->state = OSRS239_ERR;
@@ -447,8 +466,16 @@ osrs239_free(void* handle)
     free(handle);
 }
 
+static int
+osrs239_local_index(void* handle)
+{
+    struct Osrs239Login* h = handle;
+    return h ? h->local_index : -1;
+}
+
 struct NetLoginVTable const g_osrs239_login_vtable = {
     .new_ = osrs239_new,
+    .local_index = osrs239_local_index,
     .recv = osrs239_recv,
     .send = osrs239_send,
     .poll = osrs239_poll,
