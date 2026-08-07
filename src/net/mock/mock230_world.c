@@ -3397,6 +3397,51 @@ bank_component(int component)
  * backpack's sub id IS the inventory slot; the worn tab's is not, so that side
  * goes through mock230_equipment_worn_slot. */
 static void
+handle_worn_inv_button(
+    struct Mock230Server* srv,
+    int component,
+    int op_num)
+{
+    struct Mock230Player* player = srv->active_player;
+    int worn = mock230_equipment_worn_slot(component);
+    const char* com_name;
+    int result;
+    int trigger;
+
+    if( worn < 0 || op_num < 1 || op_num > 5 )
+        return;
+
+    /*
+     * IF_BUTTONX is the only rev-239 callback for a worn-slot action.  The
+     * golden RuneLite client writes its object field as 0xffff for these
+     * static IF3 leaves, so object presence cannot select the old OPHELD path.
+     * The component is the enduring address: content binds
+     * [inv_buttonN,wornitems:slotN] and its enum resolves that component back
+     * to the worn container slot.
+     */
+    player->last_slot = worn;
+    player->last_com = component;
+    player->last_verb = op_num;
+    trigger = SS_TRIGGER_INV_BUTTON1 + (op_num - 1);
+    result = mock230_scripts_run_trigger(srv, trigger, component, -1, -1);
+    if( result == MOCK230_TRIGGER_NONE &&
+        (com_name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, component)) )
+    {
+        char name[192];
+        const struct SSVM_Script* script;
+
+        snprintf(name, sizeof(name), "[inv_button%d,%s]", op_num, com_name);
+        script = srv->scripts_ok ? SSVM_ProviderGetByName(srv->scripts, name) : NULL;
+        if( script )
+            result = mock230_scripts_run_hook(srv, script, NULL, 0)
+                         ? MOCK230_TRIGGER_RAN
+                         : MOCK230_TRIGGER_FAILED;
+    }
+    if( result == MOCK230_TRIGGER_NONE && op_num == 1 )
+        unequip_slot(srv, worn);
+}
+
+static void
 handle_opheld(
     struct Mock230Server* srv,
     int op_num,
@@ -3417,6 +3462,15 @@ handle_opheld(
     component = rsab_g4(&buf);
     if( !rsab_ok(&buf) )
         return;
+
+    /* Worn tab actions are INV_BUTTON triggers, not ObjType actions. Do this
+     * before reading obj metadata: rev239's IF_BUTTONX route may carry the
+     * no-item sentinel for a static worn-slot leaf. */
+    if( mock230_equipment_worn_slot(component) >= 0 )
+    {
+        handle_worn_inv_button(srv, component, op_num);
+        return;
+    }
 
     info = mock230_objinfo(obj_id);
     verb = (op_num >= 1 && op_num <= 5) ? info->if_ops[op_num - 1] : NULL;
@@ -3450,45 +3504,6 @@ handle_opheld(
                                             component, -1, -1)) )
             mock230_bank_handle_button(srv, component, slot, obj_id, op_num);
         return;
-    }
-
-    /* The equipment tab's own components send their ops through the same
-     * packet. Op 1 is Remove; higher ops are the worn item's param_451+ verbs
-     * (e.g. skillcape Boost). Route INV_BUTTON{n} by uid then by name — same
-     * pair as if_button — so content's [inv_button1,wornitems:slotN] /
-     * [inv_button2,…] can own them. Unequip is the op-1 fallback only. */
-    {
-        int worn = mock230_equipment_worn_slot(component);
-        if( worn >= 0 )
-        {
-            const char* com_name;
-            int result;
-            int trigger;
-
-            if( op_num < 1 || op_num > 5 )
-                return;
-
-            player->last_slot = worn;
-            player->last_com = component;
-            trigger = SS_TRIGGER_INV_BUTTON1 + (op_num - 1);
-            result = mock230_scripts_run_trigger(srv, trigger, component, -1, -1);
-            if( result == MOCK230_TRIGGER_NONE &&
-                (com_name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, component)) )
-            {
-                char name[192];
-                const struct SSVM_Script* script;
-
-                snprintf(name, sizeof(name), "[inv_button%d,%s]", op_num, com_name);
-                script = srv->scripts_ok ? SSVM_ProviderGetByName(srv->scripts, name) : NULL;
-                if( script )
-                    result = mock230_scripts_run_hook(srv, script, NULL, 0)
-                                 ? MOCK230_TRIGGER_RAN
-                                 : MOCK230_TRIGGER_FAILED;
-            }
-            if( result == MOCK230_TRIGGER_NONE && op_num == 1 )
-                unequip_slot(srv, worn);
-            return;
-        }
     }
 
     if( slot < 0 || slot >= MOCK230_INV_SLOTS || player->inv[slot].obj_id != obj_id )
@@ -4979,6 +4994,16 @@ handle_if_buttonx_packet(
                 button.object_id,
                 button.op,
                 button.subop);
+
+    /* RuneLite's rev239 client sends the worn tab's static leaves with the
+     * no-item sentinel. They are nevertheless inventory-button actions: the
+     * component resolves the wear slot and content owns [inv_buttonN,...]. */
+    if( button.object_id == MOCK239_IF_OBJ_NONE &&
+        mock230_equipment_worn_slot(button.component_id) >= 0 )
+    {
+        handle_worn_inv_button(srv, button.component_id, button.op);
+        return;
+    }
 
     if( button.component_id == mock230_ids()->com_inventory_items )
         held_op = mock239_if_button_backpack_op(&button);
@@ -17285,12 +17310,34 @@ mock230_world_selftest(void)
                            "mock230_container_mark raises it for every script write");
             SELFTEST_CHECK((player->worn_dirty & (1u << MOCK230_WEAR_HEAD)) != 0,
                            "and the worn slot is marked for the next partial update");
-            unequip_slot(&srv, MOCK230_WEAR_HEAD);
+            /* RuneLite rev239 emits one IF_BUTTONX for the static worn leaf,
+             * with obj=0xffff rather than the item it paints. That packet must
+             * still reach the content-owned INV_BUTTON1 binding. */
+            {
+                uint8_t button[9];
+                int worn_head_com = mock230_equipment_worn_component(MOCK230_WEAR_HEAD);
+
+                SELFTEST_CHECK(worn_head_com >= 0,
+                               "content should expose a worn component for the head slot");
+                if( worn_head_com >= 0 )
+                {
+                    button[0] = (uint8_t)(worn_head_com >> 24);
+                    button[1] = (uint8_t)(worn_head_com >> 16);
+                    button[2] = (uint8_t)(worn_head_com >> 8);
+                    button[3] = (uint8_t)worn_head_com;
+                    button[4] = 0xff; /* no dynamic sub */
+                    button[5] = 0xff;
+                    button[6] = 0xff; /* RuneLite's no-item sentinel */
+                    button[7] = 0xff;
+                    button[8] = 1;    /* Remove */
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTONX, button,
+                                         sizeof(button));
+                }
+            }
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == -1 &&
                                selftest_find(player, helm) >= 0,
-                           "the worn tab's unequip still takes it off — that is "
-                           "`unequip_slot`, which sits BEFORE the trigger in "
-                           "handle_opheld and did NOT move with this row");
+                           "a rev239 IF_BUTTONX on a static worn leaf reaches "
+                           "[inv_button1,wornitems:slot0] and unequips the helm");
 
             /* And `::equip`, which is how a headless session reaches the same
              * proc without a menu. It is a separate path, not a duplicate: the

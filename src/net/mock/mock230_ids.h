@@ -73,6 +73,9 @@ struct Mock230Ids
     int inv_worn;
     int inv_bank;
 
+    /** The content-owned mapping from worn-tab components to wear slots. */
+    int enum_worn_slots;
+
     /* --- Components (pack/component.pack), as packed (iface << 16) | child --- */
 
     /*
