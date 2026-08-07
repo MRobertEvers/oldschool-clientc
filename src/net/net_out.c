@@ -6,39 +6,35 @@
 #include <rsbuffer.h>
 #include <string.h>
 
-static void out_p2_alt1(struct RSCache_Buffer* b, int v);
-static void out_p2_alt2(struct RSCache_Buffer* b, int v);
-static void out_p2_alt3(struct RSCache_Buffer* b, int v);
-static void out_p4_alt1(struct RSCache_Buffer* b, int v);
-static void out_p4_alt2(struct RSCache_Buffer* b, int v);
-static void out_p4_alt3(struct RSCache_Buffer* b, int v);
+/*
+ * The ten alternate-byte-order writers this file used to define — out_p1_alt1,
+ * out_p1_alt2, out_p1_alt3, out_p2_alt1..3, out_p4_alt1..3 and out_p8 — are
+ * rsbuffer's. They lived here because the cache format only ever writes
+ * big-endian, so rscache had no reason to carry them; the game protocol does,
+ * and this outbound path writes into an RSCache_Buffer. See
+ * `docs/BUFFER_ACCESSOR_AUDIT.md`.
+ *
+ * The names now say the byte order instead of an ordinal: `out_p4_alt3` was the
+ * 2,1,4,3 permutation and is `p4_2143`. The width-1 forms are value transforms
+ * with no order at all (`p1_neg` wrote -v), and the width-2 forms carry both,
+ * which is why `p2_be` and `p2_be_add128` are separate names for the same byte
+ * order and different bytes.
+ */
+#define out_p1_alt1 p1_add128
+#define out_p1_alt2 p1_neg
+#define out_p1_alt3 p1_sub128
+#define out_p2_alt1 p2_le
+#define out_p2_alt2 p2_be_add128
+#define out_p2_alt3 p2_le_add128
+#define out_p4_alt1 p4_le
+#define out_p4_alt2 p4_3412
+#define out_p4_alt3 p4_2143
 
-static void
-out_p1_alt1(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (v + 128) & 0xff);
-}
+/* p8 is two big-endian p4s, which is what RSCache_BufferP8 already is. */
+#define out_p8(buffer, value) RSCache_BufferP8(buffer, value)
 
-static void
-out_p1_alt2(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (-v) & 0xff);
-}
-
-static void
-out_p1_alt3(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (128 - v) & 0xff);
-}
 
 /* rsbuffer has no p8; write a big-endian i64 as two u32 words. */
-static void
-out_p8(struct RSCache_Buffer* payload, int64_t value)
-{
-    p4(payload, (int)((uint64_t)value >> 32));
-    p4(payload, (int)((uint64_t)value & 0xffffffffu));
-}
-
 int
 net_out_opcode(
     struct GameProtoRevTable const* rev,
@@ -722,56 +718,8 @@ net_out_inv_button(
  * Naming matches rsareabuf / RSProt: alt1 = LE, alt2 = BE+128, alt3 = LE+128.
  * Mask every byte: Java writes `(byte)(n + 128)` and rsareabuf's put truncates;
  * RSCache_BufferP1 asserts value < 256 without accepting (v+128) >= 256. */
-static void
-out_p2_alt1(struct RSCache_Buffer* b, int v)
-{
-    p1(b, v & 0xff);
-    p1(b, (v >> 8) & 0xff);
-}
-
-static void
-out_p2_alt2(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (v >> 8) & 0xff);
-    p1(b, (v + 128) & 0xff);
-}
-
-static void
-out_p2_alt3(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (v + 128) & 0xff);
-    p1(b, (v >> 8) & 0xff);
-}
-
-static void
-out_p4_alt1(struct RSCache_Buffer* b, int v)
-{
-    p1(b, v & 0xff);
-    p1(b, (v >> 8) & 0xff);
-    p1(b, (v >> 16) & 0xff);
-    p1(b, (v >> 24) & 0xff);
-}
-
 /* p4Alt2: [v>>8, v, v>>24, v>>16]. */
-static void
-out_p4_alt2(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (v >> 8) & 0xff);
-    p1(b, v & 0xff);
-    p1(b, (v >> 24) & 0xff);
-    p1(b, (v >> 16) & 0xff);
-}
-
 /* p4Alt3: [v>>16, v>>24, v, v>>8]. */
-static void
-out_p4_alt3(struct RSCache_Buffer* b, int v)
-{
-    p1(b, (v >> 16) & 0xff);
-    p1(b, (v >> 24) & 0xff);
-    p1(b, v & 0xff);
-    p1(b, (v >> 8) & 0xff);
-}
-
 /*
  * IF_BUTTONT — "use the item I selected on this one", component to component.
  *

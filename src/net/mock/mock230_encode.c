@@ -3368,15 +3368,12 @@ enum
     V5_NPC_HITMARKS = 0x80000,
 };
 
-/** pSmart1or2: 0..127 in one byte, anything larger in two with 0x8000 set. */
-static void
-v5_psmart1or2(struct RSAreaBuf* buf, int value)
-{
-    if( value >= 0 && value < 128 )
-        rsab_p1(buf, value);
-    else
-        rsab_p2(buf, (value & 0x7fff) | 0x8000);
-}
+/*
+ * pSmart1or2 is `rsab_psmart`. This file used to carry a private copy — one of
+ * five in src/net (docs/BUFFER_ACCESSOR_AUDIT.md §1.1), byte-identical in range
+ * and silently truncating outside it where the library latches an overflow.
+ */
+#define v5_psmart1or2 rsab_psmart
 
 /** The flag itself, plus the continuation bits its own width implies. */
 static void

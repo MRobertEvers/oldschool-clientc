@@ -9,94 +9,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Byte cursor over a framed payload. Every reader clamps to `len` and sets
- * `over` on the first read past the end, so a layout that does not match the
- * wire is caught by the caller (which drops the packet) instead of applying
- * half-decoded inventory state. */
-struct Osrs230Cursor
-{
-    uint8_t const* data;
-    int len;
-    int pos;
-    int over;
-};
+#include "rsprot_buffer.h"
 
-static int
-c_g1(struct Osrs230Cursor* c)
-{
-    if( c->pos + 1 > c->len )
-    {
-        c->over = 1;
-        return 0;
-    }
-    return c->data[c->pos++];
-}
-
-/* gByteAlt2: the writer sends (-value); reference reads -readByte(). */
-static int
-c_g1alt2(struct Osrs230Cursor* c)
-{
-    return (-c_g1(c)) & 0xff;
-}
-
-static int
-c_g2(struct Osrs230Cursor* c)
-{
-    int hi = c_g1(c);
-    int lo = c_g1(c);
-    return (hi << 8) | lo;
-}
-
-static int
-c_g4(struct Osrs230Cursor* c)
-{
-    int b0 = c_g1(c);
-    int b1 = c_g1(c);
-    int b2 = c_g1(c);
-    int b3 = c_g1(c);
-    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
-}
-
-/* gIntAlt1: little-endian. */
-static int
-c_g4alt1(struct Osrs230Cursor* c)
-{
-    int b0 = c_g1(c);
-    int b1 = c_g1(c);
-    int b2 = c_g1(c);
-    int b3 = c_g1(c);
-    return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
-}
-
-/* gSmart: 1 byte below 128, else a 2-byte big-endian value biased by 0x8000. */
-static int
-c_gsmart(struct Osrs230Cursor* c)
-{
-    int peek;
-    if( c->pos + 1 > c->len )
-    {
-        c->over = 1;
-        return 0;
-    }
-    peek = c->data[c->pos];
-    if( peek < 128 )
-        return c_g1(c);
-    return c_g2(c) - 0x8000;
-}
+/*
+ * The byte cursor and its six readers used to live here: a private
+ * `struct Osrs230Cursor` plus six readers spelled c_g1 / c_g1alt2 / c_g2 /
+ * c_g4 / c_g4alt1 / c_gsmart. They
+ * are RSProt_Buffer's, and now come from it — see
+ * `3rd/rsprot/src/rsprot_buffer.h` and `docs/BUFFER_ACCESSOR_AUDIT.md`.
+ *
+ * The names carry the byte order rather than an `alt` ordinal, so a call site
+ * states what it reads: `RSProt_BufferG4Le` was little-endian, and says so now.
+ *
+ * Same clamping contract as before — a read past the end latches an error and
+ * returns 0 instead of running off the buffer, and the caller drops the packet
+ * rather than applying half-decoded state. `cur.err` replaces `cur.err`.
+ */
 
 /* One inventory slot body, shared by the full and partial encoders:
  *   p1Alt2 count (255 escapes to a p4Alt1 real count), p2 objId + 1. */
 static void
 osrs230_read_inv_slot(
-    struct Osrs230Cursor* c,
+    RSProt_Buffer* c,
     int* out_obj_id,
     int* out_count)
 {
-    int count = c_g1alt2(c);
+    int count = RSProt_BufferG1_neg(c);
     if( count == 255 )
-        count = c_g4alt1(c);
+        count = RSProt_BufferG4Le(c);
     *out_count = count;
-    *out_obj_id = c_g2(c) - 1;
+    *out_obj_id = RSProt_BufferG2Be(c) - 1;
 }
 
 /*
@@ -132,16 +74,17 @@ osrs230_parse(
      */
     case PKT_NAME_RUNCLIENTSCRIPT:
     {
-        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        RSProt_Buffer cur;
+        RSProt_BufferWrapRead(&cur, data, len);
         char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
         int argc = 0;
         int terminated = 0;
 
         for( ;; )
         {
-            int ch = c_g1(&cur);
+            int ch = RSProt_BufferG1(&cur);
 
-            if( cur.over )
+            if( cur.err )
                 break;
             if( ch == '\n' || ch == 0 )
             {
@@ -156,7 +99,7 @@ osrs230_parse(
              * is worse than it looks: the unread type characters stay in the
              * stream, so the very next read — argument 19's int — comes off
              * those stray type bytes instead of off a p4. Every argument is
-             * then wrong, `cur.over` never trips because the packet is long
+             * then wrong, `cur.err` never trips because the packet is long
              * enough, and the parse returns 1. A dropped RUNCLIENTSCRIPT is a
              * panel that does not appear; a decoded one is a panel drawn from
              * garbage, which is indistinguishable from a content bug.
@@ -170,7 +113,7 @@ osrs230_parse(
             types[argc++] = (char)ch;
         }
         types[argc] = '\0';
-        if( cur.over || !terminated )
+        if( cur.err || !terminated )
             return 0;
 
         memset(&out->_runclientscript, 0, sizeof(out->_runclientscript));
@@ -183,8 +126,8 @@ osrs230_parse(
                 int n = 0;
                 for( ;; )
                 {
-                    int ch = c_g1(&cur);
-                    if( cur.over || ch == '\n' || ch == 0 )
+                    int ch = RSProt_BufferG1(&cur);
+                    if( cur.err || ch == '\n' || ch == 0 )
                         break;
                     if( n < PKT_RUNCLIENTSCRIPT_STR_LEN - 1 )
                         dst[n++] = (char)ch;
@@ -194,11 +137,11 @@ osrs230_parse(
             }
             else
             {
-                out->_runclientscript.intv[i] = c_g4(&cur);
+                out->_runclientscript.intv[i] = RSProt_BufferG4Be(&cur);
             }
         }
-        out->_runclientscript.script_id = c_g4(&cur);
-        return cur.over ? 0 : 1;
+        out->_runclientscript.script_id = RSProt_BufferG4Be(&cur);
+        return cur.err ? 0 : 1;
     }
 
     /* IF_OPENTOP (op 60, 2 bytes): interfaceId as p2Alt1 (little-endian short,
@@ -327,12 +270,13 @@ osrs230_parse(
      *   p1 size, id-then-count) does not fit here. */
     case PKT_NAME_UPDATE_INV_FULL:
     {
-        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        RSProt_Buffer cur;
+        RSProt_BufferWrapRead(&cur, data, len);
         int capacity;
-        out->_update_inv_full.component_id = c_g4(&cur);
-        out->_update_inv_full.inv_id = c_g2(&cur);
-        capacity = c_g2(&cur);
-        if( cur.over || capacity < 0 || capacity > 4096 )
+        out->_update_inv_full.component_id = RSProt_BufferG4Be(&cur);
+        out->_update_inv_full.inv_id = RSProt_BufferG2Be(&cur);
+        capacity = RSProt_BufferG2Be(&cur);
+        if( cur.err || capacity < 0 || capacity > 4096 )
             return 0;
         out->_update_inv_full.size = capacity;
         out->_update_inv_full.obj_ids = malloc((size_t)capacity * sizeof(int));
@@ -349,7 +293,7 @@ osrs230_parse(
         for( int i = 0; i < capacity; i++ )
             osrs230_read_inv_slot(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
-        if( cur.over )
+        if( cur.err )
         {
             fprintf(
                 stderr,
@@ -373,31 +317,32 @@ osrs230_parse(
      * packet rather than write a mis-decoded slot into the container. */
     case PKT_NAME_UPDATE_INV_PARTIAL:
     {
-        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        RSProt_Buffer cur;
+        RSProt_BufferWrapRead(&cur, data, len);
         int max_entries;
         int written = 0;
-        out->_update_inv_partial.component_id = c_g4(&cur);
-        out->_update_inv_partial.inv_id = c_g2(&cur);
+        out->_update_inv_partial.component_id = RSProt_BufferG4Be(&cur);
+        out->_update_inv_partial.inv_id = RSProt_BufferG2Be(&cur);
         out->_update_inv_partial.count = 0;
         out->_update_inv_partial.entries = NULL;
-        if( cur.over )
+        if( cur.err )
             return 0;
         /* Smallest record is 4 bytes (1 slot + 1 count + 2 obj). */
-        max_entries = (len - cur.pos) / 4 + 1;
+        max_entries = (len - cur.rpos) / 4 + 1;
         out->_update_inv_partial.entries = (struct PktUpdateInvPartialEntry*)malloc(
             (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
         if( !out->_update_inv_partial.entries )
             return 0;
-        while( cur.pos < len && written < max_entries )
+        while( cur.rpos < len && written < max_entries )
         {
             struct PktUpdateInvPartialEntry* entry = &out->_update_inv_partial.entries[written];
-            entry->slot = c_gsmart(&cur);
+            entry->slot = RSProt_BufferGSmart1or2(&cur);
             osrs230_read_inv_slot(&cur, &entry->obj_id, &entry->count);
-            if( cur.over )
+            if( cur.err )
                 break;
             written++;
         }
-        if( cur.over || cur.pos != len )
+        if( cur.err || cur.rpos != len )
         {
             fprintf(
                 stderr,
@@ -405,7 +350,7 @@ osrs230_parse(
                 "(stopped at %d after %d slots); dropped\n",
                 out->_update_inv_partial.inv_id,
                 len,
-                cur.pos,
+                cur.rpos,
                 written);
             free(out->_update_inv_partial.entries);
             out->_update_inv_partial.entries = NULL;
@@ -437,12 +382,13 @@ osrs230_parse(
      * parser asserts the frame is fully consumed. */
     case PKT_NAME_UPDATE_STAT:
     {
-        struct Osrs230Cursor cur = { data, len, 0, 0 };
+        RSProt_Buffer cur;
+        RSProt_BufferWrapRead(&cur, data, len);
         int base;
 
-        out->_update_stat.stat = c_g1(&cur);
-        base = c_g1(&cur);
-        out->_update_stat.xp = c_g4(&cur);
+        out->_update_stat.stat = RSProt_BufferG1(&cur);
+        base = RSProt_BufferG1(&cur);
+        out->_update_stat.xp = RSProt_BufferG4Be(&cur);
         /*
          * The BOOSTED level is what `.level` carries, not the base one.
          *
@@ -453,9 +399,9 @@ osrs230_parse(
          * hitpoints, which is the same number as the player's hitpoints; sending
          * the base here pins the orb at full health for the whole session.
          */
-        out->_update_stat.level = c_g1(&cur);
+        out->_update_stat.level = RSProt_BufferG1(&cur);
         (void)base;
-        return cur.over ? 0 : 1;
+        return cur.err ? 0 : 1;
     }
 
     /* UPDATE_RUNENERGY (op 77, 2 bytes): p2 hundredths of a percent. lc254

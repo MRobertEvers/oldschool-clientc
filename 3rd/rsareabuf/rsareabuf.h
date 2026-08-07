@@ -269,6 +269,63 @@ rsab_psmarts(
     struct RSAreaBuf* buf,
     int32_t value);
 
+/* ------------------------------------------------------------------ */
+/* Byte-order-explicit names for the alt orders                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `_alt1`/`_alt2`/`_alt3` are ordinals: nothing in `rsab_p4_alt2` says which
+ * four bytes come out, so checking a call site means reading the
+ * implementation. These names say it, using the scheme
+ * `docs/BUFFER_ACCESSOR_AUDIT.md` derives and `3rd/rsprot/src/rsprot_buffer.h`
+ * documents in full — digits are byte significance in write order, 1 = most
+ * significant, `be`/`le` when the order is standard, and a transform suffix
+ * (`add128` / `neg` / `sub128`) when the value is biased rather than permuted.
+ *
+ * Aliases, not reimplementations: one body per encoding, two spellings. The
+ * `_alt` names stay because they are what a transcription from RSProt's Kotlin
+ * reads as, and both sets are checked by the same tests.
+ *
+ * The width-1 forms carry no order at all — they are pure value transforms, so
+ * naming them `_be` would give four different encodings one name.
+ */
+#define rsab_p1_add128 rsab_p1_alt1
+#define rsab_p1_neg rsab_p1_alt2
+#define rsab_p1_sub128 rsab_p1_alt3
+#define rsab_g1_add128 rsab_g1_alt1
+#define rsab_g1_neg rsab_g1_alt2
+#define rsab_g1_sub128 rsab_g1_alt3
+
+/* Width 2 carries BOTH an order and, for two of the four, a low-byte bias —
+ * so a purely positional name would give p2_be and p2_be_add128 one name for
+ * different bytes. */
+#define rsab_p2_be rsab_p2
+#define rsab_p2_le rsab_p2_alt1
+#define rsab_p2_be_add128 rsab_p2_alt2
+#define rsab_p2_le_add128 rsab_p2_alt3
+#define rsab_g2_be rsab_g2
+#define rsab_g2_le rsab_g2_alt1
+#define rsab_g2_be_add128 rsab_g2_alt2
+#define rsab_g2_le_add128 rsab_g2_alt3
+
+#define rsab_p3_be rsab_p3
+#define rsab_p3_le rsab_p3_alt1
+#define rsab_p3_132 rsab_p3_alt2
+#define rsab_p3_213 rsab_p3_alt3
+#define rsab_g3_be rsab_g3
+#define rsab_g3_le rsab_g3_alt1
+#define rsab_g3_132 rsab_g3_alt2
+#define rsab_g3_213 rsab_g3_alt3
+
+#define rsab_p4_be rsab_p4
+#define rsab_p4_le rsab_p4_alt1
+#define rsab_p4_3412 rsab_p4_alt2
+#define rsab_p4_2143 rsab_p4_alt3
+#define rsab_g4_be rsab_g4
+#define rsab_g4_le rsab_g4_alt1
+#define rsab_g4_3412 rsab_g4_alt2
+#define rsab_g4_2143 rsab_g4_alt3
+
 void
 rsab_pdata(
     struct RSAreaBuf* buf,
