@@ -328,6 +328,28 @@ App_IfEventsGetAt(
     return 0;
 }
 
+static int
+app_if_events_override_get(
+    struct App const* app,
+    int com_id,
+    int sub_id,
+    unsigned* out_events)
+{
+    if( !app )
+        return 0;
+    for( int i = 0; i < app->if_event_count; i++ )
+    {
+        if( app->if_events[i].com_id == com_id &&
+            app->if_events[i].from <= sub_id && app->if_events[i].to >= sub_id )
+        {
+            if( out_events )
+                *out_events = (unsigned)app->if_events[i].events;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /*
  * The events governing a node, including the ones armed on its container.
  *
@@ -382,32 +404,45 @@ app_if_button_target(
     *out_sub = node->dynamic_child_index;
 }
 
-static unsigned
-app_if_events_for_node(
+unsigned
+App_IfEventsGetEffective(
     struct App const* app,
     int com_id)
 {
     int target;
     int sub;
+    unsigned events;
+    int32_t idx;
 
-    unsigned own = (unsigned)App_IfEventsGet(app, com_id);
-
-    if( own || !app )
-        return own;
-
-    app_if_button_target(app, com_id, &target, &sub);
-    if( target == com_id )
+    if( !app )
         return 0;
 
-    for( int i = 0; i < app->if_event_count; i++ )
-    {
-        if( app->if_events[i].com_id != target )
-            continue;
-        if( sub < app->if_events[i].from || sub > app->if_events[i].to )
-            continue;
-        return (unsigned)app->if_events[i].events;
-    }
+    /* rev239 class545.method12093 first consults the server's per-widget /
+     * per-child override table and falls back to the widget's decoded flags
+     * when no entry exists. An override whose value is zero is therefore
+     * meaningful: it disables cache-authored ops and must not be confused
+     * with an absent entry. */
+    if( app_if_events_override_get(app, com_id, -1, &events) )
+        return events;
+
+    app_if_button_target(app, com_id, &target, &sub);
+    if( target != com_id && app_if_events_override_get(app, target, sub, &events) )
+        return events;
+
+    if( !app->tree )
+        return 0;
+    idx = UITree_FindByComponentId(app->tree, com_id);
+    if( idx >= 0 )
+        return (unsigned)app->tree->components[idx].behavior.click_mask;
     return 0;
+}
+
+static unsigned
+app_if_events_for_node(
+    struct App const* app,
+    int com_id)
+{
+    return App_IfEventsGetEffective(app, com_id);
 }
 
 static void
@@ -13205,22 +13240,21 @@ app_send_resume_pausebutton(void* user, int com_id)
     int target;
     int sub;
 
-    /* Number-key selection on a chatmenu row ends in cc_resume_pausebutton on
-     * the found child. RESUME_PAUSEBUTTON carries only a component uid (no
-     * sub), so a dynamic child has to travel as IF_BUTTON1(parent, sub) —
-     * that sets last_slot and, once the server tries resume on IF_BUTTON1,
-     * unparks p_pausebutton. Static continue buttons keep RESUME_PAUSEBUTTON. */
+    /* Rev 239 action 30 and CC_RESUME_PAUSEBUTTON both write the static parent
+     * uid plus the dynamic child's sub-id. The child runtime uid exists only
+     * in this client, so resolve it at the wire boundary. */
     app_if_button_target(app, com_id, &target, &sub);
-    if( sub >= 0 )
-    {
-        APP_NET_SEND(
-            app,
-            net_out_if_button_op(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, target, sub));
-        return;
-    }
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(stderr, "resume_pausebutton: com=%d target=%d sub=%d\n", com_id, target, sub);
     APP_NET_SEND(
-        app, net_out_resume_pausebutton(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+        app,
+        net_out_resume_pausebutton(
+            app->net->rev,
+            app->net->random_out,
+            _nsbuf,
+            sizeof(_nsbuf),
+            target,
+            sub));
 }
 
 static void

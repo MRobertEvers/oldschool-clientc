@@ -21,6 +21,7 @@
 #include "mock230_mapinstance.h"
 #include "mock230_session.h"
 #include "mock239_runclientscript.h"
+#include "mock239_appearance.h"
 #include "mock239_facing.h"
 #include "mock239_playerinfo.h"
 
@@ -2297,13 +2298,20 @@ put_appearance_v5(
 {
     int equipment[APPEARANCE_SLOT_COUNT];
     int identkit[APPEARANCE_SLOT_COUNT];
+    int headicon;
 
     appearance_slots(player, equipment);
     appearance_identkit_slots(identkit);
 
+    /* Rev 239 carries one prayer-icon archive index, not the older appearance
+     * bitmask. Content still owns the mask through HEADICONS_SET; choose its
+     * active bit at the wire boundary, just as the decoder converts the index
+     * back into the client's generic mask. */
+    headicon = mock239_appearance_headicon_index(player->headicons);
+
     rsab_p1(buf, (uint8_t)player->gender);
     rsab_p1(buf, 255); /* skullIcon: -1, none */
-    rsab_p1(buf, 255); /* headIcon:  -1, none */
+    rsab_p1(buf, headicon < 0 ? 255 : headicon);
 
     put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
     put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);

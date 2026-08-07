@@ -34,6 +34,7 @@
  */
 
 #include "net/mock/mock239_playerinfo.h"
+#include "net/mock/mock239_appearance.h"
 
 #include <rsareabuf.h>
 
@@ -59,6 +60,17 @@ static int g_failures;
             fprintf(stderr, "\n");                                                         \
         }                                                                                  \
     } while( 0 )
+
+static void
+check_appearance_headicon_index(void)
+{
+    CHECK(mock239_appearance_headicon_index(0) == -1, "empty icon mask writes -1");
+    CHECK(mock239_appearance_headicon_index(1) == 0, "first prayer bit writes index 0");
+    CHECK(mock239_appearance_headicon_index(1 << 5) == 5, "prayer bit 5 writes index 5");
+    CHECK(
+        mock239_appearance_headicon_index((1 << 2) | (1 << 6)) == 2,
+        "one-index wire form deterministically chooses the first active bit");
+}
 
 #define SLOTS MOCK239_PLAYER_SLOTS
 #define LOCAL_INDEX 42
@@ -273,6 +285,7 @@ decode_tick(struct RSAreaBuf* buf, struct Decoded* out, int expect_extended)
 int
 main(void)
 {
+    check_appearance_headicon_index();
     static uint8_t storage[16 * 1024];
     struct RSAreaBuf buf;
     struct Decoded got;

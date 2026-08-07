@@ -286,6 +286,32 @@ test_update_runenergy(uint32_t seed)
     gameproto_free(&h);
 }
 
+/* MAP_PROJANIM_V2 and PLAYER_INFO use the same rev-239 client-player index.
+ * The last three bytes are signed target index -2, which names client player
+ * index 1. This is a literal wire fixture because this packet has no top-level
+ * opcode in rev 239 and therefore is not part of the generated bridge set. */
+static void
+test_projectile_target_index(void)
+{
+    static const uint8_t payload[24] = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0xff, 0xff, 0xfe,
+    };
+    struct RevPacket packet;
+
+    g_case = "MAP_PROJANIM target index";
+    memset(&packet, 0, sizeof(packet));
+    CHECK(
+        osrs239_parse(
+            GameProtoRev_OSRS239(),
+            PKT_NAME_MAP_PROJANIM,
+            payload,
+            (int)sizeof(payload),
+            &packet) == 1);
+    CHECK_EQ(packet._map_projanim.target, -2);
+}
+
 /*
  * MESSAGE_GAME with the optional name ABSENT and PRESENT.
  *
@@ -340,6 +366,7 @@ main(void)
     uint32_t seed;
 
     setvbuf(stdout, NULL, _IONBF, 0);
+    test_projectile_target_index();
 
     /* Several seeds: one fill can miss a sign bit or a zero that a
      * transposition would otherwise survive. */

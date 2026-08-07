@@ -79,8 +79,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # OC_OP/OC_IOP/OC_EXAMINE/OC_ISUBOP push a STRING, not an int — the plain
     # heuristic default would be wrong for these and did dispatch through
     # StackMetaStub as (1,0,1,0) [int out] before they got real handlers.
-    4201: (1, 0, 0, 1),  # OC_OP(item) -> ground action string (slot = operand, not popped)
-    4202: (1, 0, 0, 1),  # OC_IOP(item) -> inventory action string (slot = operand)
+    4201: (2, 0, 0, 1),  # OC_OP(item, one-based slot) -> ground action string
+    4202: (2, 0, 0, 1),  # OC_IOP(item, one-based slot) -> inventory action string
     4208: (1, 0, 1, 0),  # OC_PLACEHOLDER(item) -> placeholder id (stub: identity)
     4210: (0, 1, 1, 0),  # OC_FIND(query:str) -> match count (item-name search)
     4211: (0, 0, 1, 0),  # OC_FINDNEXT -> next matched item id (or -1 when exhausted)
@@ -508,8 +508,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      because "change 40 rows in the UI hot path for a trace improvement" is
 #      not a trade worth making inside this item.
 #  (b) rows where OUR value is the measured one and the vendored table is stale
-#      or era-wrong: 4201/4202 (oc_op/oc_iop take the op slot as the *operand*,
-#      not off the stack -- see MANUAL_STACK), 3800/3850 (no-arg in this cache,
+#      or era-wrong: 4201/4202 (rev239 pops obj + one-based op; deob
+#      method2965), 3800/3850 (no-arg in this cache,
 #      see MANUAL_STACK), 8000 (arrays are STRING-stack handles at rev 239 --
 #      docs/cs2-arrays-are-handles.md).
 #  (c) rows where the vendored table looks right and ours is a heuristic guess,

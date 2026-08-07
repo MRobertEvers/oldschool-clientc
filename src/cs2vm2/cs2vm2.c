@@ -8099,9 +8099,11 @@ CS2VM2_Op_OC_Unplaceholder(
     return CS2VM_EXECNO_OK;
 }
 
-/* OC_OP/OC_IOP: ground/inventory right-click action string. The menu slot is
- * the opcode's baked-in operand (0..4), not a popped arg — same convention as
- * e.g. CC_SETOP's op index. */
+/* OC_OP/OC_IOP: ground/inventory right-click action string. Rev239 takes two
+ * runtime ints, (obj, one-based op). The deob's method2965 removes two ints
+ * from the stack and reads [sp] as the obj and [sp+1] as the op; treating the
+ * bytecode operand as the op made scripts such as 7779 look up obj ids 1..5
+ * instead of the item they were painting. */
 static int
 CS2VM2_Op_OC_ActionString(
     struct CS2VM2_Thread* vm,
@@ -8110,9 +8112,12 @@ CS2VM2_Op_OC_ActionString(
     enum CS2VM_HostRequestKind kind)
 {
     assert(vm);
+    (void)operand;
 
     int item_id;
-    if( CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
+    int op_index;
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &item_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
@@ -8120,7 +8125,7 @@ CS2VM2_Op_OC_ActionString(
     request.kind = kind;
     request.u.oc_op.opcode = opcode;
     request.u.oc_op.item_id = item_id;
-    request.u.oc_op.op_index = operand;
+    request.u.oc_op.op_index = op_index - 1;
     return vm->vm->host_exec(vm, &request);
 }
 

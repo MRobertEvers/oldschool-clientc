@@ -1898,6 +1898,23 @@ struct Mock230Player
     /** What this walk is *for*, resolved once per tick by phase 5. */
     struct Mock230Interaction interaction;
 
+    /**
+     * Bumped by every `mock230_world_interaction_set` / `_clear`, so a caller
+     * that ran a script can ask "did it establish an interaction of its own?".
+     *
+     * This is `Player.nextTarget` in the reference (`Player.tryInteract`), which
+     * gets the same answer structurally: it nulls `target` before dispatching
+     * and reads back whatever the script left there. That shape is not available
+     * here because `ap_range` and `ap_range_called` live *on* the interaction
+     * rather than on the player, so clearing it first would throw away the
+     * `p_aprange` the ap script is about to call. Comparing a counter is the
+     * same question asked from the other side.
+     *
+     * The field it replaced as a discriminator was `ap_tried`, which happens to
+     * work (`interaction_set` zeroes it) and reads as a coincidence.
+     */
+    unsigned interaction_serial;
+
     struct Mock230Item inv[MOCK230_INV_SLOTS];
     struct Mock230Item worn[MOCK230_WORN_SLOTS];
 

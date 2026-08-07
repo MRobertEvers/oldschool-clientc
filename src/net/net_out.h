@@ -88,7 +88,8 @@ net_out_resume_pausebutton(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int component_id);
+    int component_id,
+    int sub_id);
 int
 net_out_close_modal(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);

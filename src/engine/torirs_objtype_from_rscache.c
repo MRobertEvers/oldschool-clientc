@@ -177,7 +177,12 @@ ToriRS_ObjtypeFromRSCacheDat2(
 
     torirs_copy_menu_actions(objtype->inv_actions, src->if_actions);
     torirs_copy_menu_actions(objtype->ground_actions, src->actions);
-    objtype->stackable = src->stacking_behaviour != 0 ? 1 : 0;
+    /* ObjType.stackingBehaviour is an enum at this revision. Only value 1 is
+     * stackable; value 2 has different semantics and the authoritative client
+     * compares it to 1 everywhere (CC_SETOBJECT and OC_STACKABLE included).
+     * Collapsing every non-zero value made unstackable equipment draw a yellow
+     * quantity "1". */
+    objtype->stackable = src->stacking_behaviour == 1 ? 1 : 0;
     objtype->category = src->category;
     objtype->cost = src->cost;
     objtype->inventory_model_id = src->inventory_model_id;

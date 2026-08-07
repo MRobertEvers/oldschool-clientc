@@ -66,6 +66,39 @@ main(void)
         printf("ok - IF_SETEVENTS ranged sub-id lookup\n");
     }
 
+    /* Rev239's effective WidgetFlags lookup falls back to the cache clickmask
+     * only when no server override exists. In particular, an explicit zero is
+     * an override, not another spelling of "not found". */
+    {
+        struct App event_app;
+        struct UITree* event_tree = UITree_New(2);
+        struct UITreeNodeSpec event_spec;
+        struct UITreeBehavior event_behavior;
+        int const component = 0x23450006;
+
+        memset(&event_app, 0, sizeof(event_app));
+        memset(&event_spec, 0, sizeof(event_spec));
+        memset(&event_behavior, 0, sizeof(event_behavior));
+        event_spec.type = UIELEM_RS_GRAPHIC;
+        event_spec.component_id = component;
+        event_spec.width = 27;
+        event_spec.height = 27;
+        event_behavior.click_mask = 6;
+        event_spec.behavior = &event_behavior;
+        assert(UITree_Push(event_tree, -1, &event_spec) >= 0);
+        event_app.tree = event_tree;
+
+        assert(App_IfEventsGetEffective(&event_app, component) == 6);
+        App_IfEventsSet(&event_app, component, -1, -1, 0);
+        assert(App_IfEventsGetEffective(&event_app, component) == 0);
+        App_IfEventsSet(&event_app, component, -1, -1, 2);
+        assert(App_IfEventsGetEffective(&event_app, component) == 2);
+
+        free(event_app.if_events);
+        UITree_Free(event_tree);
+        printf("ok - rev239 WidgetFlags override/fallback lookup\n");
+    }
+
     /* A TEXT node to receive IF_SETTEXT. */
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));

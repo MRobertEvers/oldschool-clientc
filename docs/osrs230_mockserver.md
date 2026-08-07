@@ -1580,6 +1580,89 @@ otherwise have been found the hard way.
 `make -C src test-mock230` covers it, including the negative: that a click from
 eight tiles away latches an interaction, starts a walk, and does **not** act.
 
+### Ranged reach: an ap rung with nothing standing on it
+
+The table above says the ap row runs "if content bound one". For combat, nothing
+had — `skill_combat/combat.rs2` bound `[opnpc2,_]` and no `[apnpc2,_]` — so every
+weapon in the game had melee reach. A bow with `weapon_attackrange=10` walked all
+ten tiles in and fired from adjacency, and the tell is one line under
+`MOCK230_VERBOSE`:
+
+```
+mock230: no trigger for [apnpc2,man3]
+mock230: route level=0 from=3222,3218 to=3221,3219 steps=1 ...
+```
+
+"Nothing bound at range, so keep walking" is the ordinary answer for almost every
+interaction in the game, which is why this reads as normal log traffic rather
+than as a defect. What was missing was entirely content, and it is the
+reference's own three lines (`player_combat.rs2:2`): `[apnpc2,_]` →
+`~player_attackrange(rhand)` → `p_aprange($attackrange)` when the target is
+further than that, otherwise take the shot. Melee is untouched by construction —
+a melee weapon's `weapon_attackrange` is **0** (679 of this cache's 978 weapons
+state it, and an undeclared param is 0), so `p_aprange(0)` fires on every tick of
+the walk and the swing still happens on the op rung.
+
+Two things had to move on the engine side, and only the first is a bug:
+
+- **The ap branch of `interaction_try` discarded a `p_opnpc` the script had just
+  issued.** It ran the trigger and *then* cleared the interaction; the op branch
+  clears *before* dispatching, which is why melee never hit this. Every combat
+  script re-arms itself with `p_opnpc(2)`, so a ranged attack fired exactly once
+  and the fight went quiet — and it looked like the ap script had not run. The
+  reference is `Player.tryInteract`, which stashes whatever the script left in
+  `target` as `nextTarget` and restores it at the end of `processInteraction`.
+  That shape is not directly available here because `ap_range` /
+  `ap_range_called` live on the interaction rather than on the player, so
+  clearing it first would throw away the `p_aprange` the script is about to call.
+  `Mock230Player.interaction_serial` asks the same question from the other side:
+  bumped by `interaction_set` / `interaction_clear`, so a changed serial means
+  the script established its own and only the waypoints go.
+- **`~player_ranged_attack` had neither half of the swing loop.** No
+  `%action_delay` gate, no `%action_delay` write, no `p_opnpc(2)` —
+  `[label,player_melee_attack]` owned all three and the ranged branch is a proc
+  hanging off `[label,player_combat_start]`. The fight only continued at all
+  because `[queue,playerhit_n_retaliate]` re-issued the op when the npc hit back,
+  which is indistinguishable from working as long as the npc fights back.
+
+One divergence is stated rather than papered over: `~player_attackrange` adds two
+for Longrange (the reference does) and the engine's `player_weapon_attackrange`,
+which `mock230_combat_player_approach` walks to, reads the bare param. Both cap
+at 10, so anything already at the cap agrees; a shortbow on Longrange shoots from
+9 and the approach still closes to 7. The fix is for the approach to stop reading
+the param at all, which is the `opnpc` row of PORTING_GUIDE §2.5.
+
+### The projectile: a table keyed by ammo, and the bows that are their own
+
+`ranged_ammo_table` (`skill_combat/configs/ranged/ranged_ammo.dbrow`) maps an
+**ammo** obj to its `proj_launch` / `proj_travel` spotanims, and
+`~player_ranged_check_ammo` answers a crystal bow or an ether bow with the
+*weapon* — on those the bow IS the ammo, because they make their arrows
+themselves and take nothing from the quiver. No row existed for any of them, so
+`~player_ranged_use_weapon` read a null `$travel` and its `if ($travel ! null)`
+guard skipped `~npc_projectile` entirely. The swing animated, the hitsplat landed
+on the right tick, and nothing crossed the gap.
+
+`MOCK230_PROJ_DEBUG=1` is the line that separates "never sent" from "the client
+dropped it" (§the `projanim_pl` finding in `skill_combat/scripts/projectile.rs2`
+is the same shape). Fourteen rows now cover the crystal bow, the nine bows of
+Faerdhinen and the two charged wilderness bows. The spotanims are the cache's
+own, one pair per variant (`sp_attack_arrow_{travel,launch}_faerdhinen*`, 1887/1888
+and 1922..1935); the crystal bow's is not named for it and is cited instead
+(Kronos `RangedWeapon.CRYSTAL_BOW(new RangedData(250, Projectile.arrow(249)))`,
+cross-checked on `RangedAmmo.BRONZE_ARROW(19, …, arrow(10))` against this cache's
+`bronze_arrow_launch`=19 / `bronze_arrow_travel`=10). rsmod states
+`proj_anim = 'arrow'` for all of them, which is its simplification and not this
+cache's — where a reference and the cache disagree the cache wins
+(PORTING_GUIDE §4.2).
+
+Both halves are pinned by `mock230 --selftest`, section *ranged reach and the
+shot across it*: a ten-tile bow engaged from six tiles must not close to melee,
+and the shot must reach the client as a `MAP_PROJANIM` carrying the right
+spotanim — decoded out of the literal enclosed zone blob on the osrs239 wire
+rather than read back off the writer. The negative control is one line: comment
+out `[apnpc2,_]` and exactly those two assertions go red and nothing else moves.
+
 ## 3.13d Two dispatch tables, and the opcode gap report
 
 **Inbound packets** are a table (`k_packet_routes` in `mock230_world.c`), 45

@@ -305,7 +305,6 @@ add_obj_cell_rows(
     struct UIMinimenuPick pick = pick_inv_slot(cell->component_id, cell->slot, obj_id, obj_count);
     char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     char suffix[UITREE_MINIMENU_OPTION_LEN];
-    bool component_ops_armed = false;
     int const events = ctx->events_for_component
                            ? ctx->events_for_component(
                                  ctx->events_user, cell->component_id, cell->slot)
@@ -345,23 +344,24 @@ add_obj_cell_rows(
         {
             if( (ev & (1 << (i + 1))) == 0 )
                 component_ops.ops[i][0] = '\0';
-            else if( component_ops.ops[i][0] != '\0' )
-                component_ops_armed = true;
         }
-    }
-    else
-    {
-        component_ops_armed = true;
+
+        /* IF3 item cells do not synthesize ObjType actions. Their paint script
+         * installs the exact rows (including Use/Remove/Drop/Examine) and the
+         * server click mask selects which ones are live. Adding ObjType rows
+         * here duplicated Examine and exposed operations the script omitted. */
+        snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+        add_menu_ops_rows(menu, &component_ops, pick, suffix);
+        return menu->option_count - before;
     }
 
-    /* The ObjType's own verbs stand in when the container named none that are
-     * live — the backpack's Wear/Eat/Drop, and "Use". */
+    /* Legacy TYPE_INV grids own their actions through ObjType + cache flags. */
     add_inv_obj_rows(
         menu,
         pick,
         obj,
-        cell->obj_ops != 0 || !component_ops_armed,
-        cell->obj_use != 0 || !component_ops_armed);
+        cell->obj_ops != 0,
+        cell->obj_use != 0);
     snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
     /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
      * Remove), then the always-present Examine — trailing order per reference
@@ -598,10 +598,8 @@ add_target_button_row(
  * op-less buttons, a single label row. Port of v1
  * ui_click_add_component_menu_rows with xrsps target labeling. */
 /*
- * Bit 0 of an IF_SETEVENTS mask: the component accepts a plain click, which the
- * client answers with IF_BUTTON. It is what makes a dialogue's "Click here to
- * continue" live — the cache marks the component clickable, but at rev 230 only
- * the server decides whether it currently does anything.
+ * Bit 0 of an IF_SETEVENTS mask: the component accepts Continue (menu action
+ * 30 / RESUME_PAUSEBUTTON). It is what makes a dialogue's prompt live.
  */
 #define RS_MINIMENU_EVENT_CLICK 0x1
 
@@ -704,7 +702,7 @@ add_component_rows(
                                ? node->u.rs_text.text
                                : "Continue";
 
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IF_BUTTON, 0, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON, 0, pick);
     }
 
     return menu->option_count - before;

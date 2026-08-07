@@ -300,7 +300,8 @@ net_out_resume_pausebutton(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    int component_id)
+    int component_id,
+    int sub_id)
 {
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
@@ -308,7 +309,7 @@ net_out_resume_pausebutton(
         if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, 6, &b) < 0 )
             return -1;
         out_p4_alt3(&b, component_id);
-        p2(&b, 0xffff);
+        p2(&b, sub_id < 0 ? 0xffff : sub_id);
         return 1 + (int)b.position;
     }
     return out_com(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, component_id);

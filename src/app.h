@@ -1045,6 +1045,15 @@ App_IfEventsGetAt(
     int com_id,
     int sub_id);
 
+/** Effective rev239 WidgetFlags for a live node. A matching IF_SETEVENTS
+ *  override wins (including an explicit zero); otherwise the cache-authored
+ *  click mask on the widget is used. Dynamic children inherit ranged server
+ *  overrides from their static parent. */
+unsigned
+App_IfEventsGetEffective(
+    struct App const* app,
+    int com_id);
+
 /** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
  *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —
  *  the head appears once the assets resolve. */

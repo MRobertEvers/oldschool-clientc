@@ -277,12 +277,12 @@ osrs239_read_zone_sub(
         p->src_height = RSProt_BufferG2Be(c) / 4;
         p->target = sign24(RSProt_BufferG3Be(c));
         /*
-         * The target index is in the CLIENT's numbering, where the player table
-         * is 1..2047 with 0 unused: a player is `-(index + 1)`, one further
-         * from zero than the classic `-pid - 1` the executor expects.
+         * Keep the CLIENT index verbatim. The rev-239 PLAYER_INFO/GPI path
+         * stores that same 1-based index in WorldEntity_Player.server_pid, and
+         * World_ProjectileTrackTarget resolves a negative target as
+         * `-target - 1`. Converting this to the mock's 0-based pool slot made
+         * every player target miss the world entity it was meant to follow.
          */
-        if( p->target < 0 )
-            p->target += 1;
         p->dst_abs = 1;
         p->dst_abs_level = (end_packed >> 28) & 0x3;
         p->dst_abs_x = (end_packed >> 14) & 0x3fff;

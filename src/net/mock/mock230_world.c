@@ -753,6 +753,7 @@ mock230_world_interaction_clear(struct Mock230Server* srv)
     srv->active_player->interaction.kind = MOCK230_INTERACT_NONE;
     srv->active_player->interaction.npc_slot = -1;
     srv->active_player->interaction.ap_range = MOCK230_AP_RANGE_DEFAULT;
+    srv->active_player->interaction_serial++;
 }
 
 void
@@ -773,6 +774,7 @@ mock230_world_interaction_set(
     int sx = size_x > 0 ? size_x : 1;
     int sz = size_z > 0 ? size_z : 1;
 
+    player->interaction_serial++;
     interaction->kind = kind;
     interaction->op = op;
     interaction->npc_slot = npc_slot;
@@ -1301,13 +1303,37 @@ interaction_try(
              * what it means is "keep walking". It still reports once per
              * interaction under MOCK230_VERBOSE — once, because `ap_tried` latches
              * above and this runs on one tick of the walk rather than all of them. */
-            if( trigger >= 0 &&
-                run_interaction_trigger(srv, interaction, trigger) != MOCK230_TRIGGER_NONE &&
-                !interaction->ap_range_called )
+            if( trigger >= 0 )
             {
-                steps_clear(player);
-                mock230_world_interaction_clear(srv);
-                return 1;
+                unsigned serial = player->interaction_serial;
+                struct Mock230Interaction snapshot = *interaction;
+                int ran = run_interaction_trigger(srv, &snapshot, trigger) !=
+                          MOCK230_TRIGGER_NONE;
+                /* The script may have replaced the interaction — `p_opnpc(2)` is
+                 * how every combat script re-arms itself for the next swing, and
+                 * a ranged one reaches it through THIS branch rather than the op
+                 * one below. The clear used to be unconditional and ran after the
+                 * script, so the re-arm was created and then thrown away in the
+                 * same tick: a bow fired exactly once and the fight went quiet.
+                 * (The op branch never had this because it clears *before*
+                 * dispatching, which is the reference's order for both.)
+                 *
+                 * The reference is `Player.tryInteract`: it stashes whatever the
+                 * script left in `target` as `nextTarget`, clears the waypoints,
+                 * and restores it at the end of `processInteraction`. Here the
+                 * new interaction is already in place, so keeping it is the whole
+                 * of the restore — only the walk has to go. */
+                if( player->interaction_serial != serial )
+                {
+                    steps_clear(player);
+                    return 1;
+                }
+                if( ran && !interaction->ap_range_called )
+                {
+                    steps_clear(player);
+                    mock230_world_interaction_clear(srv);
+                    return 1;
+                }
             }
         }
     }
@@ -8545,9 +8571,10 @@ selftest_enclosed_has(
  * the order the real client receives, including the three-byte enclosed
  * header, ordinal dispatch, variable V2 loc-change record, and Alt3 short.
  *
- * `id` is a loc id for LOC_ADD_CHANGE and a sequence id for LOC_ANIM. -1
- * matches either. Both enclosed and follows-mode forms are accepted so a test
- * cannot pass merely because the player happened to load the zone that tick.
+ * `id` is a loc id for LOC_ADD_CHANGE, a sequence id for LOC_ANIM and a
+ * spotanim id for MAP_PROJANIM. -1 matches any. Both enclosed and follows-mode
+ * forms are accepted so a test cannot pass merely because the player happened
+ * to load the zone that tick.
  */
 static int
 selftest_rev239_zone_count(
@@ -8638,13 +8665,23 @@ selftest_rev239_zone_count(
                 break;
             case 10: length = 7; break; /* OBJ_DEL */
             case 11: length = 4; break; /* OBJ_ENABLED_OPS */
-            case 13: length = 24; break; /* MAP_PROJANIM_V2 */
+            case 13:                    /* MAP_PROJANIM_V2 */
+                length = 24;
+                /* p2 startDelay, p1 coordInZone, p2Alt2 arc, p2Alt2 spotanim —
+                 * so the id is the third field, high byte first with the low one
+                 * biased (`osrs239_parse.c` g2_alt2). Read here rather than
+                 * asked of the writer for the reason this whole walk exists. */
+                if( at + 6 < packet->len )
+                    got = (packet->data[at + 5] << 8) |
+                          ((packet->data[at + 6] - 128) & 0xff);
+                break;
             default: length = -1; break;
             }
             if( length < 0 || at + length > packet->len )
                 break;
             if( ((wanted == PKT_NAME_LOC_ADD_CHANGE && ordinal == 7) ||
-                 (wanted == PKT_NAME_LOC_ANIM && ordinal == 9)) &&
+                 (wanted == PKT_NAME_LOC_ANIM && ordinal == 9) ||
+                 (wanted == PKT_NAME_MAP_PROJANIM && ordinal == 13)) &&
                 (id < 0 || got == id) )
                 count++;
             at += length;
@@ -14390,6 +14427,141 @@ mock230_world_selftest(void)
 
         player->client_layout_mode = 1;
         mock230_gameframe_opentop(player, ids->iface_gameframe);
+    }
+
+    /*
+     * Ranged reach, and the shot that has to cross it.
+     *
+     * Two defects that read as one complaint ("the bow doesn't work") and had
+     * nothing in common but the weapon:
+     *
+     * 1. **The walk.** Attack was bound on `[opnpc2,_]` alone. An interaction
+     *    fires two triggers, `[ap*]` at range and `[op*]` on arrival, and with
+     *    nothing bound at range the engine's only answer was to keep walking —
+     *    so a bow with `weapon_attackrange=10` closed all ten tiles and swung
+     *    from melee distance. The tell was one verbose line, `no trigger for
+     *    [apnpc2,<npc>]`, followed by a route. `[apnpc2,_]` +
+     *    `~player_attackrange` + `p_aprange` is the fix and it is entirely
+     *    content's; the engine already had the whole ap loop.
+     *
+     * 2. **The projectile.** `ranged_ammo_table` is keyed by the *ammo*, and
+     *    `~player_ranged_check_ammo` answers a crystal bow with the bow itself
+     *    ("the bow IS the ammo" — it makes its own arrows). No row existed for
+     *    any of them, so `proj_travel` was null and the `if ($travel ! null)`
+     *    guard skipped `~npc_projectile` altogether. Damage still landed on
+     *    time, which is why this reads as a rendering bug from in front of the
+     *    game and is not one.
+     *
+     * Both are asserted from the wire rather than from the server's own view:
+     * the position is the player's after the ticks, and the projectile is
+     * decoded out of the literal enclosed zone blob the client receives. That
+     * needs the osrs239 wire — the selftest's default is 230 and the two write
+     * a different zone sub-packet — so this stanza switches it, the way the
+     * IF_* and Zuk stanzas do.
+     *
+     * The distance is 6 against a reach of 10, and what is asserted is that the
+     * player never closes to melee rather than that they never move: a tile or
+     * two of shuffle is legitimate (`inApproachDistance` also wants line of
+     * sight, and this goblin's park spot does not have it from six tiles out),
+     * where five tiles of walking is the defect. Under the old behaviour the
+     * player ends up adjacent, so the two are never confusable.
+     */
+    fprintf(stderr, "mock230 selftest: ranged reach and the shot across it\n");
+    {
+        static struct Mock230Capture capture;
+        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+        int bow = mock230_content_symbol(MOCK230_PACK_OBJ, "bow_of_faerdhinen_infinite");
+        int travel = mock230_content_symbol(MOCK230_PACK_SPOTANIM,
+                                            "sp_attack_arrow_travel_faerdhinen_infinite");
+        int reach = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
+        int goblin = selftest_find_npc(&srv, 3028);
+        const struct Mock230ObjParam* range_param =
+            (bow > 0 && reach >= 0) ? mock230_obj_param(bow, reach) : NULL;
+
+        SELFTEST_CHECK(bow > 0 && travel > 0,
+                       "bow_of_faerdhinen_infinite and its arrow spotanim should resolve "
+                       "(obj %d, spotanim %d)",
+                       bow, travel);
+        SELFTEST_CHECK(range_param != NULL && range_param->ival == 10,
+                       "the cache states weapon_attackrange=10 on it, got %d",
+                       range_param ? range_param->ival : -1);
+        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(wire239 != NULL, "the osrs239 wire adapter should exist");
+
+        if( bow > 0 && travel > 0 && goblin >= 0 && wire239 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[goblin];
+            uint8_t payload[2];
+            /* Put the goblin back where it was found. It walks during the four
+             * ticks below, and the aggression/hunt stanzas further down assert on
+             * where npcs are relative to their spawn — a section that leaves one
+             * displaced makes a later one fail for a reason nothing states. */
+            int npc_x = npc->x;
+            int npc_z = npc->z;
+            int npc_hp = npc->hitpoints;
+            int npc_mode = npc->mode;
+            int gap = 0;
+            int shots = 0;
+
+            selftest_park_player(&srv, npc->x - 6, npc->z);
+            player->level = npc->level;
+            npc->hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
+            /* The quiver deliberately EMPTY: a crystal bow that demanded arrows
+             * would fail `~player_ranged_check_ammo` and never reach the
+             * projectile at all, so an empty one is the case under test. */
+            player->stat_level[MOCK230_STAT_RANGED] = 99;
+            player->stat_boosted[MOCK230_STAT_RANGED] = 99;
+            worn_set(player, MOCK230_WEAR_WEAPON, bow, 1);
+            worn_set(player, MOCK230_WEAR_AMMO, -1, 0);
+            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+
+            /* Content decided this, and the shot below depends on it: a bow that
+             * left the player in a melee style would swing instead. */
+            SELFTEST_CHECK(player->varps[mock230_world_varp("damagetype")] == 3,
+                           "wielding the bow should select the ranged style, got %d",
+                           player->varps[mock230_world_varp("damagetype")]);
+
+            payload[0] = (uint8_t)(goblin >> 8);
+            payload[1] = (uint8_t)(goblin & 0xff);
+
+            srv.wire = wire239;
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC2, payload, 2);
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(&srv);
+            mock230_capture_end(&srv);
+            srv.wire = saved_wire;
+
+            {
+                int dx = player->x > npc->x ? player->x - npc->x : npc->x - player->x;
+                int dz = player->z > npc->z ? player->z - npc->z : npc->z - player->z;
+
+                gap = dx > dz ? dx : dz;
+            }
+            SELFTEST_CHECK(gap >= 3,
+                           "a ten-tile bow must not walk into melee: %d tile(s) from the "
+                           "goblin at %d,%d",
+                           gap, npc->x, npc->z);
+
+            shots = selftest_rev239_zone_count(&capture, PKT_NAME_MAP_PROJANIM, travel);
+            SELFTEST_CHECK(shots > 0,
+                           "and the shot must reach the client as a MAP_PROJANIM "
+                           "carrying spotanim %d, got %d",
+                           travel, shots);
+
+            worn_set(player, MOCK230_WEAR_WEAPON, -1, 0);
+            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+            npc->x = npc_x;
+            npc->z = npc_z;
+            npc->hitpoints = npc_hp;
+            npc->waypoint_index = -1;
+            npc->mode = npc_mode;
+            npc->combat_target = -1;
+            npc->last_step_x = npc_x - 1;
+            npc->last_step_z = npc_z;
+            selftest_park_player(&srv, npc_x - 6, npc_z);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: combat arithmetic\n");

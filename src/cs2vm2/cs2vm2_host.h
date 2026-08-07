@@ -220,9 +220,9 @@ enum CS2VM_HostRequestKind
     /* NC_NAME: npc type id → name string (clientscript 7192 loottracker). */
     CS2VM_HOST_REQUEST_NC_NAME,
     CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER,
-    /* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot
-     * (the slot is the opcode's baked-in operand, carried as op_index below).
-     * Real data (ToriRS_Objtype.ground_actions/inv_actions). */
+    /* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot.
+     * Rev239 pops the one-based slot beside the obj id; op_index below is its
+     * normalized zero-based value. Real ObjType action data. */
     CS2VM_HOST_REQUEST_OC_OP,
     CS2VM_HOST_REQUEST_OC_IOP,
     /* OC_EXAMINE: real data (ToriRS_Objtype.desc). */
@@ -1070,8 +1070,7 @@ struct CS2VM_HostRequest_OC_Unplaceholder
 };
 
 /** OC_OP/OC_IOP shared payload. `opcode` distinguishes ground vs inventory;
- *  `op_index` is the menu slot (0..4), carried in from the opcode's baked-in
- *  operand rather than popped off the stack. */
+ *  `op_index` is the normalized zero-based menu slot (0..4). */
 struct CS2VM_HostRequest_OC_Op
 {
     int opcode;

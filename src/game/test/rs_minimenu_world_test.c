@@ -5,8 +5,10 @@
  */
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
+#include "engine/torirs_objtype_from_rscache.h"
 #include "revconfig/revconfig.h"
 #include "test_harness.h"
+#include "ui/uitree_layout.h"
 #include "ui/uitree_minimenu.h"
 #include "world.h"
 #include "world_pickset.h"
@@ -23,6 +25,137 @@ menu_has_substr(struct UIMinimenu const* menu, char const* needle)
         if( strstr(menu->options[i].text, needle) )
             return 1;
     return 0;
+}
+
+struct TestEvents
+{
+    int component_id;
+    int mask;
+};
+
+static int
+test_events_for_component(void* user, int component_id, int sub_id)
+{
+    struct TestEvents const* events = (struct TestEvents const*)user;
+    (void)sub_id;
+    return events && component_id == events->component_id ? events->mask : 0;
+}
+
+static int
+menu_action_count(struct UIMinimenu const* menu, int action)
+{
+    int count = 0;
+    for( int i = 0; i < menu->option_count; i++ )
+        count += menu->options[i].action == action;
+    return count;
+}
+
+static void
+test_if3_continue_uses_resume(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct UITreeBehavior behavior = { .click_mask = 1 };
+    struct TestEvents events = { .component_id = 1, .mask = 1 };
+    struct RS_MinimenuBuildCtx ctx = {
+        .tree = tree,
+        .events_for_component = test_events_for_component,
+        .events_user = &events,
+    };
+    struct UIMinimenu menu;
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = events.component_id;
+    spec.width = 120;
+    spec.height = 20;
+    spec.behavior = &behavior;
+    spec.u.rs_text.text = "Prompt";
+    TEST_ASSERT(UITree_Push(tree, -1, &spec) >= 0, "continue fixture pushed");
+    UITree_LayoutResolve(tree, 0, 0, 200, 100);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON) == 1,
+        "IF3 event bit 0 builds action 30 / RESUME_PAUSEBUTTON");
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_IF_BUTTON) == 0,
+        "continue does not fall back to IF_BUTTON");
+    UITree_Free(tree);
+}
+
+static void
+test_if3_item_uses_only_scripted_ops(void)
+{
+    struct CacheProvider provider = { 0 };
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec parent = { 0 };
+    struct UITreeNodeSpec child = { 0 };
+    struct TestEvents events = { .component_id = 1, .mask = (1 << 1) | (1 << 10) };
+    struct RS_MinimenuBuildCtx ctx = {
+        .tree = tree,
+        .provider = &provider,
+        .events_for_component = test_events_for_component,
+        .events_user = &events,
+    };
+    struct UIMinimenu menu;
+    int32_t parent_index;
+
+    CacheProvider_InitEngineCaches(&provider);
+    parent.type = UIELEM_RS_LAYER;
+    parent.component_id = events.component_id;
+    parent.width = 64;
+    parent.height = 64;
+    parent_index = UITree_Push(tree, -1, &parent);
+    TEST_ASSERT(parent_index >= 0, "IF3 item parent pushed");
+
+    child.type = UIELEM_CC_OBJ;
+    child.component_id = 2;
+    child.dynamic = 1;
+    child.dynamic_child_index = 0;
+    child.width = 32;
+    child.height = 32;
+    child.u.cc_obj.obj_id = 1;
+    child.u.cc_obj.obj_count = 1;
+    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Script op");
+    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Terminal op");
+    {
+        int32_t child_index = UITree_Push(tree, parent_index, &child);
+        TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
+        if( child_index >= 0 )
+        {
+            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
+            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
+        }
+    }
+
+    UITree_LayoutResolve(tree, 0, 0, 200, 100);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu.option_count == 3, "IF3 cell has Cancel plus exactly two scripted rows");
+    TEST_ASSERT(menu_has_substr(&menu, "Script op"), "first scripted row is present");
+    TEST_ASSERT(menu_has_substr(&menu, "Terminal op"), "terminal scripted row is present");
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_OPHELD6) == 0,
+        "IF3 cell does not synthesize a second ObjType Examine row");
+
+    UITree_Free(tree);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
+static void
+test_dat2_stacking_behaviour_is_not_boolean(void)
+{
+    struct RSCache_Dat2ConfigObj raw = { 0 };
+    struct ToriRS_Objtype* obj;
+
+    raw.stacking_behaviour = 2;
+    obj = ToriRS_ObjtypeFromRSCacheDat2(0, &raw);
+    TEST_ASSERT(obj && obj->stackable == 0, "stacking behaviour 2 is not stackable");
+    ToriRS_ObjtypeFree(obj);
+
+    raw.stacking_behaviour = 1;
+    obj = ToriRS_ObjtypeFromRSCacheDat2(0, &raw);
+    TEST_ASSERT(obj && obj->stackable == 1, "only stacking behaviour 1 is stackable");
+    ToriRS_ObjtypeFree(obj);
 }
 
 static int
@@ -294,6 +427,9 @@ test_player_get_by_element_id(void)
 int
 main(void)
 {
+    test_dat2_stacking_behaviour_is_not_boolean();
+    test_if3_continue_uses_resume();
+    test_if3_item_uses_only_scripted_ops();
     test_player_get_by_element_id();
     test_local_player_pick_expands_stacked_npcs();
     test_other_player_stack_rows();
