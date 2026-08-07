@@ -557,6 +557,29 @@ server/client logs, and retained CS2 trace. The world self-test additionally
 parses the literal reverse-argument revision-239 packet and requires script 600
 with `(1,1,16,231:6)`.
 
+### The official C client follows the same script-600 path
+
+The C client was rebuilt from the current `v3` integration rather than tested
+with the stale binary in the primary dirty checkout. A fresh TCP mock230 session
+using the revision-239 login and packet tables then drove `talk hans 1` through
+the real client-cheat packet after the login scene barrier. Its trace records
+the ordered client-side lifecycle: three `IF_SETTEXT` writes, `IF_OPENSUB` of
+group 231 at `162:567`, `RUNCLIENTSCRIPT 600 argc=4`, and the Continue event
+mask. At exit, live component `231:6` is `380x67` at `115,377`, with the Hans
+sentence retained.
+
+This check found no second C-only arithmetic defect. The C VM already decodes
+opcode 2114 in the golden order, the CS2 host applies all three fields to the
+mounted `UITree` text node, and both renderers consume the emitted vertical
+alignment. The shared content fix therefore fixes the official C client too;
+hard-coding Hans in either renderer would be incorrect. A new
+`test-cs2-text-align` target pins the literal script-600 arguments
+`(1,1,16,231:6)`, while the UITree suite pins setter-to-render-descriptor
+propagation. `TORIRS_DUMP_COM` now prints text alignment and line height so the
+live client path remains directly auditable. The retained C proof is
+`build/run239-regressions/c-client-hans-final/hans.png` plus `client.log` and
+`server.log` in the same directory.
+
 ### The running crash was a revision-239 NPC_INFO boundary violation
 
 The independent movement reproduction retained the last completed framebuffer,
@@ -1008,3 +1031,20 @@ PIDs were stopped afterward.
   line, completed choice/player/NPC/close lifecycle, retained packet/CS2 logs,
   and ended with healthy GPI and no runtime fatal, decode error, writer gap, or
   unexpected disconnect before explicit quit.
+- 2026-08-06: Fetched the now-merged current root `v3`, merged it into the
+  isolated regression branch, and rebuilt the official C client successfully.
+  This used `v3`'s resolved integration files and preserved every unrelated
+  dirty/generated file in both the primary checkout and isolated worktree.
+- 2026-08-06: Rejected an initial C-client connection made against the default
+  revision-230 mock wire (`rsa decrypt failed`), restarted the mock explicitly
+  as `--rev osrs239`, and rejected the first successful-login frame because its
+  one-shot cheat arrived behind the login scene barrier. Repeated the command
+  only after that barrier for the actual Hans proof.
+- 2026-08-06: Drove Hans through the rebuilt official C client and retained the
+  real packet/CS2 trace and Soft3D framebuffer. It consumed
+  `RUNCLIENTSCRIPT 600` after mounting group 231 and rendered the sentence at
+  the reference vertical centre; no C-only decompilation or renderer-math fix
+  was warranted.
+- 2026-08-06: Added `test-cs2-text-align` for the literal golden script-600
+  stack order, extended UITree mutation/emission coverage for alignment
+  `(1,1,16)`, and added alignment fields to `TORIRS_DUMP_COM` telemetry.
