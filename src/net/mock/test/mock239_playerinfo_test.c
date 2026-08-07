@@ -297,6 +297,37 @@ main(void)
     CHECK(mock239_npcinfo_tail_needs_sentinel(48, 4),
           "a byte-aligned four-byte tail reaches the 28-bit guard");
 
+    /* Literal layouts from RSProt's revision-239 Face encoder.  These do not
+     * round-trip through another implementation: the first fixture proves the
+     * PlayerFacingEncoder p1Alt2 header and Loc payload, the second proves the
+     * NpcFaceEncoder p1Alt1 header and Entity payload. */
+    fprintf(stderr, "mock239-playerinfo: literal player/npc face blocks\n");
+    {
+        struct Mock239Face face;
+        static uint8_t const player_loc[] = { 0xf8, 0x8c, 0x96, 0x8c, 0x92, 0x11 };
+        static uint8_t const npc_player[] = { 0x80, 0x02, 0x00, 0x2a, 0x00 };
+
+        mock239_face_init(&face);
+        face.kind = MOCK239_FACE_LOC;
+        face.x = 3222;
+        face.z = 3218;
+        rsab_wrap(&buf, storage, sizeof(storage));
+        mock239_face_write_player(&buf, &face);
+        CHECK(rsab_len(&buf) == sizeof(player_loc) &&
+                  memcmp(storage, player_loc, sizeof(player_loc)) == 0,
+              "player Face.Loc is literal p1Alt2 + smart coords + packed size");
+
+        mock239_face_init(&face);
+        face.kind = MOCK239_FACE_ENTITY;
+        face.entity_type = MOCK239_FACE_PLAYER;
+        face.entity_index = 42;
+        rsab_wrap(&buf, storage, sizeof(storage));
+        mock239_face_write_npc(&buf, &face);
+        CHECK(rsab_len(&buf) == sizeof(npc_player) &&
+                  memcmp(storage, npc_player, sizeof(npc_player)) == 0,
+              "npc Face.Entity is literal p1Alt1 + type/index/fallback");
+    }
+
     fprintf(stderr, "mock239-playerinfo: init block\n");
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;

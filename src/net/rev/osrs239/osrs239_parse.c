@@ -1189,16 +1189,15 @@ osrs239_parse(
      * catches it (`buffer.position == data_size`) is the only reason it is not
      * silent: the third byte would otherwise be read as the next opcode.
      *
-     * The level is dropped rather than carried: the executor takes the level
-     * from the local player, which is the same value for every zone the server
-     * addresses this client with.
+     * Keep the header plane. Revision 239 sends zone changes for every plane
+     * in the current scene, not just the local player's plane.
      */
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
         struct PktUpdateZoneFullFollows* p = &out->_update_zone_full_follows;
         p->base_z = g1_alt3(&c);
         p->base_x = g1_alt2(&c);
-        (void)g1(&c); /* level */
+        p->level = g1(&c);
         return c.over ? 0 : 1;
     }
 
@@ -1207,7 +1206,7 @@ osrs239_parse(
         struct PktUpdateZonePartialFollows* p = &out->_update_zone_partial_follows;
         p->base_z = g1_alt1(&c);
         p->base_x = g1(&c);
-        (void)g1_alt2(&c); /* level */
+        p->level = g1_alt2(&c);
         return c.over ? 0 : 1;
     }
 
@@ -1221,7 +1220,7 @@ osrs239_parse(
         struct PktUpdateZoneEnclosed* enc = &out->_update_zone_enclosed;
         int cap = 16;
 
-        (void)g1_alt2(&c); /* level */
+        enc->level = g1_alt2(&c);
         enc->base_z = g1_alt1(&c);
         enc->base_x = g1_alt1(&c);
         enc->count = 0;
