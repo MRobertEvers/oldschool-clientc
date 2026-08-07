@@ -715,6 +715,7 @@ ratio ≈ 1.0 = no striping):
 | 1 | ancient_cavern | 0 | 0 | kind=1 regression |
 | 4 | braindeath_island | 0 | 0 | kind=0 regression |
 | 0 | main (Gielinor) | 0 | 0 | kind=0 regression |
+| 23 | tzhaar_area (Mor Ul Rek) | 0 | 0 | all eight source regions baked; non-black terrain and map icons |
 
 (Area file ids from `details.compack` — Ardent is **46**, not array index 45.)
 

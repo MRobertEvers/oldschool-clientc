@@ -208,8 +208,10 @@ app_if_events_for_node(
  * knowing what an App is. Uses the node-aware lookup so a dynamic child
  * inherits its parent's IF_SETEVENTS range (popout:buttons, bank items, …). */
 static int
-app_minimenu_events_for_component(void* user, int com_id)
+app_minimenu_events_for_component(void* user, int com_id, int sub_id)
 {
+    if( sub_id >= 0 )
+        return App_IfEventsGetAt((struct App const*)user, com_id, sub_id);
     return (int)app_if_events_for_node((struct App const*)user, com_id);
 }
 
@@ -306,12 +308,21 @@ App_IfEventsGet(
     struct App const* app,
     int com_id)
 {
+    return App_IfEventsGetAt(app, com_id, -1);
+}
+
+int
+App_IfEventsGetAt(
+    struct App const* app,
+    int com_id,
+    int sub_id)
+{
     if( !app )
         return 0;
     for( int i = 0; i < app->if_event_count; i++ )
     {
         if( app->if_events[i].com_id == com_id &&
-            app->if_events[i].from <= -1 && app->if_events[i].to >= -1 )
+            app->if_events[i].from <= sub_id && app->if_events[i].to >= sub_id )
             return app->if_events[i].events;
     }
     return 0;
@@ -10943,7 +10954,8 @@ app_obj_cell_at(
     }
     /* IF_SETEVENTS is the rev-230 authority for drag / drop / Use-target bits
      * (deob method5697). Without this, CS2 cells kept a hardcoded can_drag=1. */
-    UITree_ObjCellApplyEvents(out, (int)app_if_events_for_node(app, out->component_id));
+    UITree_ObjCellApplyEvents(
+        out, App_IfEventsGetAt(app, out->component_id, out->slot));
     return true;
 }
 
@@ -11037,7 +11049,7 @@ app_inv_resolve_drop(
     /* Filled cell under the cursor (any container). */
     if( UITree_ObjCellAt(app->tree, &app->ui_host, mouse_x, mouse_y, &dest) )
     {
-        int events = (int)app_if_events_for_node(app, dest.component_id);
+        int events = App_IfEventsGetAt(app, dest.component_id, dest.slot);
         UITree_ObjCellApplyEvents(&dest, events);
         /* CS1 / no events: can_drop stays 1 from the grid default. */
         if( dest.can_drop )

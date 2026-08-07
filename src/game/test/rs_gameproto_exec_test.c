@@ -48,6 +48,24 @@ main(void)
     RS_PlayerStats_Init(&stats);
     RS_Chat_Init(&chat, "Player");
 
+    /* IF_SETEVENTS ranges are addressed as (static component, sub-id). A
+     * parent-only query must not accidentally arm the parent, while inventory
+     * slot queries must retain the slot that arrived beside the parent uid. */
+    {
+        struct App event_app;
+        int const component = 0x12340005; /* synthetic; not a cache component */
+        int const mask = 0x0033f8fc;
+
+        memset(&event_app, 0, sizeof(event_app));
+        App_IfEventsSet(&event_app, component, 0, 27, mask);
+        assert(App_IfEventsGet(&event_app, component) == 0);
+        assert(App_IfEventsGetAt(&event_app, component, 0) == mask);
+        assert(App_IfEventsGetAt(&event_app, component, 27) == mask);
+        assert(App_IfEventsGetAt(&event_app, component, 28) == 0);
+        free(event_app.if_events);
+        printf("ok - IF_SETEVENTS ranged sub-id lookup\n");
+    }
+
     /* A TEXT node to receive IF_SETTEXT. */
     struct UITreeNodeSpec spec;
     memset(&spec, 0, sizeof(spec));

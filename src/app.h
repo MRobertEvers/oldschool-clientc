@@ -1035,6 +1035,16 @@ App_IfEventsGet(
     struct App const* app,
     int com_id);
 
+/** Server-declared events mask for one sub-id of a component. This is the
+ *  lookup inventory cells and other ranged IF_SETEVENTS consumers need: the
+ *  wire names a static parent plus a dynamic-child/grid slot, so querying the
+ *  parent alone deliberately does not match a 0..N range. */
+int
+App_IfEventsGetAt(
+    struct App const* app,
+    int com_id,
+    int sub_id);
+
 /** IF_SETNPCHEAD: load the npctype + its head models, composite the chathead,
  *  and bind it to the MODEL widget (reference IfType.getModel type 2). Async —
  *  the head appears once the assets resolve. */

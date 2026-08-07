@@ -69,7 +69,9 @@ struct RS_MinimenuBuildCtx
      * menu row, however clickable it looks. A callback rather than the App
      * itself keeps this file free of the game layer, like `chat` above.
      * NULL = no server events, which is correct for the classic revisions. */
-    int (*events_for_component)(void* user, int com_id);
+    /* sub_id is -1 for a component itself, or the dynamic/grid slot when a
+     * ranged IF_SETEVENTS entry governs an object cell. */
+    int (*events_for_component)(void* user, int com_id, int sub_id);
     void* events_user;
 
     /* Held-item / spell targeting mode (reference useMode/targetMode). */

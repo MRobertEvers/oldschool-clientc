@@ -4526,3 +4526,49 @@ multilocs, Restless Ghost tower altar (`%restless_ghost_altar_var`).
   `loc_*` merge fields. Timers hide/restore the loc; **riding-loc model attach
   onto the player mesh is still partial** (Client-TS `locModel` / ModelMerge).
 - `SS_OP_LOC_ANIM` → zone `LOC_ANIM` → existing `App_WorldSceneryAnim`.
+
+---
+
+## 57. Rev-239 ranged IF_SETEVENTS keeps the object-cell sub-id — ✅
+
+### Symptom
+
+Under the exact live C-client path (`run-live.sh manifest_osrs239.ini`), the
+backpack drew correctly and its right-click object rows existed, but a drag did
+nothing.  The server had armed `149:0` for slots `0..27` with mask `0x33f8fc`;
+the live minimenu trace nevertheless printed `events=0x0`, so the object-drag
+machine correctly refused to arm.
+
+### Ownership and cause
+
+LostCity puts inventory move policy in RuneScript triggers; the client owns the
+gesture and the `(component, sub-id)` IF_BUTTOND endpoint.  This was therefore
+an input-addressing defect, not content and not a reason to add an inventory id
+or exception to C.
+
+`UITree_ObjCellAt` correctly returned the static container uid plus the slot,
+but `app_obj_cell_at`, the drop resolver, and the object minimenu then queried
+IF_SETEVENTS with the container uid alone.  `App_IfEventsGet` intentionally
+matches only sub-id `-1`, so every real `0..N` object-cell range disappeared at
+that boundary.  This escaped the earlier drag tests because they tested the
+gesture and wire encoder after an already-armed cell rather than the live
+ranged lookup that arms it.
+
+### Fix and proof
+
+`App_IfEventsGetAt(component, sub_id)` is now the common ranged lookup.  The
+drag source, filled drop target, and minimenu callback all retain the object
+cell's slot; ordinary components continue to query sub-id `-1`.  The focused
+exec test pins inside/outside-range behavior.
+
+Live before/after, same fresh account and coordinates (`575,229→620,229`):
+
+- before: `objcell: com=149|0 events=0x0`; no packet;
+- after: `events=0x33f8fc`, `INV_BUTTOND 149|0#0 → 149|0#1`, followed by
+  `UPDATE_INV_PARTIAL`; the persisted slots were swapped.
+
+The same headless pass also rechecked the adjacent reported rev-239 surfaces:
+singleton objects render without a count, the player update fixture decodes
+the canonical type-28 hitsplat with four slots, and a run-enabled world route
+emits the `0x1008` extended player block and advances two tiles in its first
+tick.

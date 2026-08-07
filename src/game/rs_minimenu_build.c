@@ -306,9 +306,10 @@ add_obj_cell_rows(
     char const* obj_name = (obj && obj->name[0] != '\0') ? obj->name : "item";
     char suffix[UITREE_MINIMENU_OPTION_LEN];
     bool component_ops_armed = false;
-    int const events =
-        ctx->events_for_component ? ctx->events_for_component(ctx->events_user, cell->component_id)
-                                  : -1;
+    int const events = ctx->events_for_component
+                           ? ctx->events_for_component(
+                                 ctx->events_user, cell->component_id, cell->slot)
+                           : -1;
 
     if( add_inv_slot_select_row(
             &ctx->selection, pick, cell->component_id, cell->slot, obj_name, events, menu) )
@@ -640,7 +641,7 @@ add_component_rows(
             hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0;
     }
     if( ctx->events_for_component )
-        events = ctx->events_for_component(ctx->events_user, node->component_id);
+        events = ctx->events_for_component(ctx->events_user, node->component_id, -1);
 
     if( !has_local_hook )
     {
