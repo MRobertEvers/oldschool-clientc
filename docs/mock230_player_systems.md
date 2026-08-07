@@ -342,6 +342,13 @@ toggle and varp 173. The same selftest drives `IF_BUTTON1` against both
 In the client, `TORIRS_NET_CHEAT="run 1"` plus a world click lights the orb, and
 the percent falls and recovers.
 
+The direct UI path is also verified headlessly at revision 239: a click on
+`orbs:runbutton` emits `IF_BUTTON1 160:28`, receives the `%option_run` varp, and
+repaints the orb. A following seven-tile ground route advances the decoded local
+player by two scene tiles in each of the first three `PLAYER_INFO` updates
+(54,50 → 54,52 → 54,54 → 54,56), then consumes the final tile. This distinguishes
+working run movement from an orb that only changes appearance.
+
 ---
 
 ## 3. The equipment-stats screen

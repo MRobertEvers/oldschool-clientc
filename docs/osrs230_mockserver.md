@@ -1663,6 +1663,16 @@ spotanim — decoded out of the literal enclosed zone blob on the osrs239 wire
 rather than read back off the writer. The negative control is one line: comment
 out `[apnpc2,_]` and exactly those two assertions go red and nothing else moves.
 
+There was one more transport defect behind that assertion. A fresh zone's
+shared enclosed buffer grew in 16-byte increments, which was enough for the
+classic 15-byte projectile plus its opcode but not revision 239's measured
+24-byte `MAP_PROJANIM_V2` payload plus ordinal. The encoder detected the
+overflow and returned zero, silently losing the shot; a zone whose buffer had
+already grown on unrelated traffic made the selftest pass. `build_shared` now
+reserves 32 bytes per pending record. A fresh live session with an empty quiver
+now logs `UPDATE_ZONE_PARTIAL_ENCLOSED` (28-byte payload) followed by the C
+client's `spawn_projectile_spot` for the Bow of Faerdhinen travel spotanim.
+
 ## 3.13d Two dispatch tables, and the opcode gap report
 
 **Inbound packets** are a table (`k_packet_routes` in `mock230_world.c`), 45

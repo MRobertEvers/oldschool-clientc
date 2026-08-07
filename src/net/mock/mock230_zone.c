@@ -1067,9 +1067,13 @@ build_shared(
 
         if( zone->events[i].receiver_pid >= 0 )
             continue;
-        zone->shared = grow(zone->shared, &zone->shared_capacity, zone->shared_len + 16,
+        /* Revision 239's MAP_PROJANIM_V2 is 24 payload bytes plus its enclosed
+         * ordinal. The classic record fitted in 16, which made a fresh zone's
+         * first projectile overflow and disappear; a reused buffer could mask
+         * the defect after some unrelated events had already grown it. */
+        zone->shared = grow(zone->shared, &zone->shared_capacity, zone->shared_len + 32,
                             sizeof(*zone->shared));
-        if( zone->shared_len + 16 > zone->shared_capacity )
+        if( zone->shared_len + 32 > zone->shared_capacity )
             return;
         written = mock230_encode_zone_sub(srv->wire, zone->shared + zone->shared_len,
                                           zone->shared_capacity - zone->shared_len,
