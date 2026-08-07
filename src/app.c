@@ -1995,9 +1995,9 @@ app_overlay_build_entity(
          * Two eras, two sources, and the type index means a different thing in
          * each. dat1 packs every splat into one "hitmarks" sprite archive and
          * the damage type is the frame within it. OldSchool gives each type its
-         * own *config record* naming an ordinary sprite id (group 32 — damage is
-         * sprite 2270, block is 3521), so the type is a table lookup and the
-         * resulting sprite has one frame.
+         * own *config record* naming an ordinary sprite id (group 32 — rev 239
+         * damage is type 28 / sprite 1359 and block is type 26 / sprite 1358),
+         * so the type is a table lookup and the resulting sprite has one frame.
          *
          * Preferring the config table means the OldSchool path works; falling
          * back to the archive means the dat1 path is untouched. Neither
@@ -9531,6 +9531,12 @@ app_world_damage_test(struct App* app)
 {
     struct World_EntityPool* pool;
     int damage = 1 + (app->logic_cycle % 30);
+    /* Rev 239 does not use the legacy type-0/type-1 convention: its canonical
+     * red damage splat is type 28 (sprite 1359). Keep type 0 only as the
+     * supported fallback for older cache families with no rev-239 record. */
+    int hitsplat_type = app->hitsplats.count > RS_HITSPLAT_OSRS239_DAMAGE
+                            ? RS_HITSPLAT_OSRS239_DAMAGE
+                            : 0;
 
     if( !app->world )
         return;
@@ -9538,7 +9544,7 @@ app_world_damage_test(struct App* app)
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
-        World_PlayerAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_PlayerAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
         World_PlayerSetChat(app->world, i, "Hello there!", 0, 0);
         /* Exercise the overhead headicon pass too: icons 0 + 2 stacked. */
         {
@@ -9551,7 +9557,7 @@ app_world_damage_test(struct App* app)
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
     {
-        World_NpcAddHitmark(app->world, i, damage % 2, damage, 5, 10);
+        World_NpcAddHitmark(app->world, i, hitsplat_type, damage, 5, 10);
         World_NpcSetChat(app->world, i, "Grrr!", 0, 0);
     }
 }

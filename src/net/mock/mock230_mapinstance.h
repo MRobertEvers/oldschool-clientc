@@ -178,6 +178,18 @@ mock230_mapinstance_base(
     int* out_x,
     int* out_z);
 
+/** Absolute tile rectangle reserved for this instance, including the whole-map
+ *  square padding the allocator owns. Returns 0 for a dead handle. Teardown
+ *  uses the reserved rectangle rather than only the assembled zones so no
+ *  runtime state can survive in padding that the next tenant may assemble. */
+int
+mock230_mapinstance_bounds(
+    int handle,
+    int* out_x,
+    int* out_z,
+    int* out_width,
+    int* out_height);
+
 /** Release the reservation. Returns 0 for a dead handle. Freeing an instance a
  *  player is standing in is content's bug; the engine does not cover it. */
 int

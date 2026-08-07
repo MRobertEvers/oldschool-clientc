@@ -6658,7 +6658,7 @@ mock230_script_command(
                     "mock230: map instance %d freed with %d npc(s) still inside — "
                     "the next session on this square inherits them\n",
                     (int)handle, left);
-        mock230_mapinstance_free(handle);
+        mock230_world_mapinstance_free(srv, handle);
         return 1;
     }
 

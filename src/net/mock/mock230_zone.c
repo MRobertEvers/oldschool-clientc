@@ -287,6 +287,24 @@ queue_event(
     if( zone->event_count >= zone->event_capacity )
         return;
     zone->events[zone->event_count++] = *event;
+    if( srv->verbose &&
+        (event->kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE ||
+         event->kind == MOCK230_ZONE_EV_LOC_DEL ||
+         event->kind == MOCK230_ZONE_EV_LOC_ANIM) )
+    {
+        const char* kind = event->kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE
+                               ? "LOC_ADD_CHANGE"
+                           : event->kind == MOCK230_ZONE_EV_LOC_DEL ? "LOC_DEL"
+                                                                    : "LOC_ANIM";
+        int x = (zone->x << 3) + ((event->pos >> 4) & 7);
+        int z = (zone->z << 3) + (event->pos & 7);
+
+        fprintf(stderr,
+                "mock230: zone event tick=%d %s x=%d z=%d level=%d id=%d "
+                "shape=%d angle=%d\n",
+                srv->tick, kind, x, z, zone->level, event->id, event->shape,
+                event->angle);
+    }
     /* Any new event invalidates a blob already built this tick. */
     zone->shared_tick = -1;
 
@@ -634,6 +652,58 @@ mock230_zone_locs_foreach(
             continue;
         for( int j = 0; j < zone->loc_count; j++ )
             fn(&zone->locs[j], user);
+    }
+}
+
+void
+mock230_zone_locs_clear_rect(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int width,
+    int height)
+{
+    struct Mock230ZoneMap* map = map_of(srv, 0);
+    int min_zone_x;
+    int min_zone_z;
+    int max_zone_x;
+    int max_zone_z;
+
+    if( !map || width <= 0 || height <= 0 )
+        return;
+    min_zone_x = x >> 3;
+    min_zone_z = z >> 3;
+    max_zone_x = (x + width - 1) >> 3;
+    max_zone_z = (z + height - 1) >> 3;
+
+    for( int i = 0; i < map->capacity; i++ )
+    {
+        struct Mock230Zone* zone = map->slots[i];
+
+        if( !zone || zone->x < min_zone_x || zone->x > max_zone_x ||
+            zone->z < min_zone_z || zone->z > max_zone_z )
+            continue;
+        zone->loc_count = 0;
+        /* A release can happen in phase 5, before phase 10 has encoded the
+         * events. Do not let a fresh tenant receive its predecessor's final
+         * LOC_DEL/LOC_ANIM burst. Other event kinds are left alone because
+         * their ground-object/entity storage has a different owner. */
+        for( int j = 0; j < zone->event_count; )
+        {
+            int kind = zone->events[j].kind;
+
+            if( kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE || kind == MOCK230_ZONE_EV_LOC_DEL ||
+                kind == MOCK230_ZONE_EV_LOC_ANIM || kind == MOCK230_ZONE_EV_LOC_MERGE )
+            {
+                memmove(&zone->events[j], &zone->events[j + 1],
+                        (size_t)(zone->event_count - j - 1) * sizeof(*zone->events));
+                zone->event_count--;
+                continue;
+            }
+            j++;
+        }
+        zone->shared_len = 0;
+        zone->shared_tick = -1;
     }
 }
 

@@ -3438,7 +3438,9 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
         v5_psmart1or2(buf, npc->damage_type);
         v5_psmart1or2(buf, npc->damage);
         v5_psmart1or2(buf, 0); /* delay: lands this tick */
-        v5_psmart1or2(buf, 0); /* limit: uncapped */
+        /* Actor.method3560 only inserts the hitmark when this slot limit is
+         * positive. Revision 239 actors retain four concurrent hitmarks. */
+        v5_psmart1or2(buf, 4);
     }
     if( classic & MOCK230_NMASK_ANIM )
     {

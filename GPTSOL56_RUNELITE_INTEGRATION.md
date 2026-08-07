@@ -721,6 +721,257 @@ known caught, pre-login `setupCompilerControl` warning. Explicit JCTL quit wrote
 the complete profiler report, and only this run's recorded server/jav_config
 PIDs were stopped afterward.
 
+### `::zuk` exposed a narrowed varbit-mask local in the compilable deob
+
+The reported `::zuk` failure was reproduced from a clean `origin/v3` worktree
+with a blocking EVENTS subscriber connected before RuneLite. The command
+successfully rebuilt the Inferno instance and mounted group 596 at
+`161:8->596`, but its onload chain failed twice:
+
+- `739 -> 737 -> 735 -> 4018` (`ArithmeticException: / by zero`);
+- `739 -> 738 -> 4018` on the following var transmit.
+
+Script 739 is the Inferno HP updater. It reads cache varbits 5653 and 5654,
+then executes SCALE (4018) as `current * width / base`. Server-side tracing
+proved this was not a guessed packet or ordering defect. The authoritative
+cache places both 11-bit values in varp 1575, current at bits 0..10 and base at
+bits 11..21. mock230 wrote base first and current second, before IF_OPENSUB,
+and emitted the literal revision-239 VARP_LARGE bodies:
+
+- base only, 2457600: `06 a7 00 80 25 00`;
+- current plus base, 2458800: `06 a7 b0 84 25 00`.
+
+Those bytes match the golden handler (`g2_alt2` id followed by `g4_alt1`
+value). The broken compilable deob nevertheless reduced varp 1575 to raw
+`1200`, leaving varbit 5654 at zero. The cause was in both revision-239 mask
+tables, `class313.field4227` and `class419.field5295`: the decompiler had
+narrowed the original bytecode's integer accumulator to `byte`. It overflowed
+while constructing masks wider than six bits. The 11-bit POP_VARBIT setter
+therefore treated its legal maximum as `-1`, rejected base HP 1200, wrote zero,
+and handed SCALE a zero divisor. Restoring an `int` accumulator in the
+authoritative source and instrumented mirror fixes the client without changing
+server behavior.
+
+The deob build now runs `VarbitMaskRegression` against the recompiled classes
+and checks masks 1, 127, 2047, 4194303, and -1 in both tables. The root world
+self-test independently packs the two cache varbits, requires carrier value
+2458800, and compares both six-byte packet bodies above. The correctly
+cache-backed broad self-test reaches this section without a Zuk assertion; its
+unrelated pre-existing content/combat/pathing failures remain recorded in
+`build/run239-zuk/mock230-selftest.log`.
+
+Fresh live acceptance is under `build/run239-zuk/fixed`. Real AWT input typed
+and submitted `::zuk`; JCTL then reported varp 1575 = 2458800, varbits
+5653/5654 = 1200/1200, mounted group 596, and component `596:9` text
+`1200 / 1200`. The interface audit reports `dead=0`, GPI remained valid in the
+Inferno instance, and the presented frames, ordered EVENTS, packet trace,
+client log, and server log contain no Zuk CS2 exception, packet decode error,
+writer gap, or unexpected disconnect. The only exception text is RuneLite's
+known caught pre-login `setupCompilerControl` warning.
+
+### Player death now drains Zuk and releases the Inferno instance
+
+The death sequence used to wait through `p_delay(^death_delay)` before calling
+`~inferno_on_death`. During that wait `%inferno_active` remained set, Zuk's AI
+continued to fire, and already-launched shots accumulated as
+`[queue,combat_damage_player]` entries. Player queues keep counting down while a
+player is delayed and run as soon as access returns, so those hits followed the
+player through respawn and could start another death. A lethal queued hit also
+arms `player_death` through both the engine PLAYERDEATH trigger and the content
+damage wrapper, leaving a duplicate death sequence behind the first one.
+
+Cleanup is now deliberately two-phase. `~inferno_on_death` runs immediately
+after the death animation and `p_stopaction`; it despawns every NPC in the
+reservation, clears Zuk's start and delayed-damage queues, removes a duplicate
+`player_death`, clears the Inferno state/timer, and sends revision-239
+IF_CLOSESUB for `toplevel_osrs_stretch:overlay_hud`. It returns the exact
+instance handle but retains that reservation through the visible corpse delay.
+After the delay, `~inferno_finish_death(handle)` frees that exact handle in the
+same script turn that continues to the surface teleport. This prevents both a
+stale client scene and another session reusing the square while the corpse is
+still standing inside it.
+
+The root self-test section `Inferno death drains Zuk and releases its instance`
+starts the real `::zuk` content path, mounts group 596, injects the exact
+two-argument delayed-damage queue used by `~inferno_zuk_shoot`, and arms the
+duplicate death queue. It requires that the first death turn stops the session,
+drains all three Zuk/death queues, removes the HUD, and retains one live
+reservation; after the corpse delay it requires live instance count zero,
+handle zero, a surface respawn at full HP, and stable HP across four later
+ticks. The correctly cache-backed broad run reached this section with no
+Inferno/Zuk/instance/respawn/HUD failure; its 25 unrelated baseline failures
+remain in `build/run239-zuk/death-fix/mock230-selftest-final.log`.
+
+Clean live acceptance is under `build/run239-zuk/death-live-final`. Its blocking
+EVENTS subscriber connected before RuneLite. Real AWT input submitted only
+`::zuk`; a real Zuk projectile was logged from 6431,119 to the player at
+6431,104, and that projectile naturally caused the one death. Ordered GPI moved
+from the Inferno to 3222,3218, then remained healthy there for 15 seconds.
+Before death the client reported Zuk plus the Ancestral Glyph and mount
+`161:8->596`; afterward neither Inferno NPC nor group 596 remained, the
+interface audit reported `dead=0`, and chat contained exactly one wake-up. The
+before/after frames visibly show the live Zuk HUD and its absence at Lumbridge.
+No runtime fatal, CS2 error, packet decode error, writer gap, or unexpected
+disconnect occurred; the only exception text is RuneLite's known caught
+pre-login `setupCompilerControl` warning.
+
+### Zuk's seal now survives scene loading, repeats cleanly, and collapses in lockstep
+
+The intermittent missing walls were an ordering error exposed by the golden
+revision-239 location handlers. `LOC_ADD_CHANGE` does not replace the scene
+object immediately: the client records a pending loc change and applies it on a
+later client cycle. `LOC_ANIM`, by contrast, immediately looks up the object
+currently mounted in the scene and wraps that object in a dynamic animation.
+Sending a state1→state2 change and its animation in the same enclosed update
+therefore animates state1, then discards that wrapper when state2 lands. Model
+load timing made the result look random. The content now sends both falling-wall
+changes together, waits one complete server/client turn, and then sends both
+animations together.
+
+The cache settles which sequence and duration belong here, and corrects the
+earlier conclusion in this record. Falling loc 30344 is the left side wall and
+uses sequence 7560; loc 30343 is the mirrored right wall and uses sequence 7559.
+Each track is 91 frames at two client cycles per frame, or 182 client cycles.
+Sequence 7561 is the destructible *safespot pillar* collapse: only 22 frames and
+60 client cycles. Applying 7561 to the side walls was exactly the reported
+too-fast collapse. The two state2 locs now receive 7560/7559 on the same tick
+and are removed together after seven server-tick intervals (queue delay eight),
+the first 600 ms boundary after both 182-cycle tracks complete.
+
+The first scene transition needed a separate lifecycle correction. The player
+queue is frozen behind revision 239's moved-instance `MAP_BUILD_COMPLETE`
+barrier, and the rebuild prefix contains REBUILD_REGION, PLAYER_INFO, NPC_INFO,
+and SERVER_TICK_END so the golden client can finish its new WorldView before the
+cutscene touches scenery. A rebuild at the same absolute pooled coordinate does
+not arm another barrier: the golden client consumes that REBUILD_REGION but does
+not enter asynchronous loading or send a second acknowledgement.
+
+Repeating the command found a second, server-owned lifetime bug. Freeing a map
+reservation returned its square to the allocator but left its durable ZoneMap
+loc mutations behind. The next reservation reused the same square and
+`mock230_world_locs_reapply` restored the first run's already-collapsed arena,
+so the state1 lookups legitimately found nothing. Instance release now clears
+all durable loc mutations, unsent loc events, and timed loc reverts across the
+entire reserved map-square rectangle before returning it to the pool. Actor
+teardown remains content-owned.
+
+The longer live fight exposed one more engine-ordering defect: `npc_delay`
+parked an add's script, but the one-tick AI timer continued firing during the
+delay. That converted a four-tick attack rate into one attack per tick and
+eventually filled the glyph and player queues. Engine-TS's `Npc.turn()` resumes
+the parked script and then returns at `!isValid()` while the NPC remains delayed.
+mock230 now does the same, freezing timers, queues, hunts, and modes until the
+delay expires.
+
+The literal revision-239 packet regression walks the real enclosed stream (top
+opcodes 33/110, enclosed opcode 105, ordinals 7/9 and their V2 transforms). It
+runs two consecutive real `::zuk 1200` sessions and requires, on each run, one
+30344 change, one 30343 change, exactly one 7560 left animation and one 7559
+right animation on the following tick, and zero 7561 pillar animations. The NPC
+timer
+regression independently proves that an AI timer neither fires nor increments
+during `npc_delay`, then fires exactly once on expiry. The broad cache-backed
+self-test reaches the Zuk seal, death, and delay sections without a focused
+failure; its retained log is
+`build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+
+The earlier live run under `build/run239-zuk/cutscene-live-final5` remains
+evidence for the scene barrier, repeated instance cleanup, and death lifecycle,
+but its 7561 wall timing is superseded by this correction. A
+blocking EVENTS subscriber connected before RuneLite and all commands were real
+AWT keyboard input. The first cutscene changed both walls at tick 34, animated
+both at tick 35, and removed both at tick 36. The real repeated `::zuk 1200`
+path did the same at ticks 62/63/64, proving the pooled square did not inherit
+the first arena. Corrected live frames under `build/hitsplat-zuk-live/proof/`
+show the 7560/7559 walls continuing through `15-wall-a.png` to `20-wall-f.png`
+instead of disappearing on the old 60-cycle pillar track.
+The fight then continued to a natural death: the Inferno NPC roster became zero
+at sample 65, instance 1 was released, and ordered GPI returned to Lumbridge at
+sample 68. Post-death JCTL reported `LOGGED_IN`, valid GPI, no Inferno mounts,
+and an interface audit of 6,124 widgets with `dead=0`. Server and client scans
+found no queue overflow, parked-script collision, script abort, runtime fatal,
+CS2 error, packet decode error, writer gap, or unexpected disconnect. The only
+exception text is RuneLite's known caught pre-login `setupCompilerControl`
+warning.
+
+### Revision-239 hitsplats survive the golden actor gate and use canonical art
+
+RuneLite's missing hitsplats were not an input, renderer, or RuneLite overlay
+problem. The authoritative player update handler reads the revision-239 hit
+count with `p1Alt3`, then four `Smart1or2` values for each hit: type, value,
+delay, and concurrent-slot limit. The server sent the last value as zero under
+the mistaken description “uncapped.” Golden `class105.method3560` only inserts
+the decoded hit into the actor's render list when that limit is positive, so
+RuneLite correctly decoded and published the hit callback but stored no
+drawable hitmark. Both PLAYER_INFO and NPC_INFO now send the revision-239 actor
+limit of four.
+
+The literal player-info regression sends type 28/value 73 and decodes the exact
+wire body. It requires extended flag `0x40808`, the transformed count byte,
+three first smart values, and final smart value 4. Live diagnostic telemetry
+then independently recorded `hitsplat_decode ... slots=4` followed by
+`hitsplat_store`; those temporary actor probes were removed and the deob rebuilt
+API-complete with no source diff.
+
+The C client had a different defect. Its hotkey fixture still emitted legacy
+type 0/1, while revision 239 defines the ordinary block/damage pair as type
+26/sprite 1358 and type 28/sprite 1359. The authored records for those renamed
+types had also retained stale legacy payloads. The content cache now matches the
+pristine revision-239 bytes for both records, and the C fixture emits type 28
+when that table is present while retaining type 0 as the old-cache fallback.
+
+RuneLite proof is retained in
+`build/hitsplat-zuk-live/final-clean3/05-hit-event.png`: it was captured from the
+server's next `hit=28/10` event, not screenshot polling, and visibly shows the
+red damage splat. In the same session both side sequences began at server tick
+44 and both walls were removed at tick 51; start/mid/late frames retain the
+wall throughout that seven-interval lifetime. The pre-launch blocking
+subscriber retained 590 ordered
+events; GPI then returned from the Inferno to Lumbridge, and the final interface
+audit reported 6,124 widgets with zero dead actions. The rebuilt official C
+client proof is `build/hitsplat-zuk-live/proof/c-client-hitsplat.png`, which
+shows canonical red splats over the player and several NPCs. Server/client logs
+contain no decode failure, writer gap, runtime fatal, unexpected disconnect, or
+CS2 error; the only exception is RuneLite's known caught pre-login
+`setupCompilerControl` warning.
+
+### Hans's authoritative menu needs five server rows and the packed chatmenu layout
+
+The supplied Hans screenshot is authoritative. It shows the exact five choices,
+the lower-case title `Select an option`, and a title position which does not move
+with the row count. The server was still sending the three-choice LostCity-era
+subset with `Select an Option`. This was not a client string or callback defect:
+the ordered EVENTS stream contained a complete script-58 call, but it contained
+only those three server-authored strings. Hans now uses `~p_choice5` with the five
+literal screenshot rows. Row four enters the existing age/account-history reply
+and row five closes without another page.
+
+There was also an independent cache-deployment fault. On the pristine July
+`cache.osrs239`, golden widget telemetry decoded `chatmenu:options` (219:1) as
+raw `(20,12)`, absolute modes `(0,0)`. The golden layout routine correctly kept
+that 479x122 root at `(20,12)` inside `chatbox:chatmodal`'s 479x96 mount, clipping
+the lower rows. The content record already states raw `(0,0)`, centred modes
+`(1,1)`. An interface-only cache bake from the pristine base decoded exactly
+that record and the unmodified golden arithmetic placed the root at `(0,-13)`;
+the title then landed at y=10 inside the root and all five rows at y=28, 44, 60,
+76, and 92 were visible. No deob patch or server `IF_SETPOSITION` workaround is
+warranted. World metadata and JS5 must both point at the same corrected cache.
+
+The root regression parses the literal revision-239 reverse-argument
+`RUNCLIENTSCRIPT` body and requires the authoritative fourth/fifth-row suffix
+`Can you tell me how long I've been here?|Nothing.` plus the exact title casing.
+The cache-backed Hans section passes. Live proof is under
+`build/run239-zuk/hans-choice-fixed`: `proof/events-final-fresh.log` records the
+complete script-58 payload and row-five callback from a fresh server/client
+pair, while `proof/08-hans-final-fresh.png` shows the five-row result. JCTL reported
+219:1 at `(20,348)` with relative `(0,-13)`, raw `(0,0)`, modes `(1,1)`, and all
+five dynamic children fully inside the chat mount. Option four produced the
+matching player line in the preceding independent path; option five removed
+group 219 in both runs. `client-final-fresh.log` and `server-final-clean.log`
+contain no runtime client/server fatal, CS2 error, decode error, writer gap, or
+unexpected disconnect before explicit shutdown. The only exception text is
+RuneLite's known caught pre-login `setupCompilerControl` warning.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1067,3 +1318,192 @@ PIDs were stopped afterward.
   CLI and the only available browser session were both signed out, and the
   prepared `v3...codex/runelite239-regressions` comparison was retained rather
   than claiming an uncreated PR.
+- 2026-08-06: Fetched current `origin/v3` and created the clean isolated root
+  worktree `/Users/matthewevers/Documents/git_repos/3draster-runelite239-zuk`
+  on `codex/runelite239-zuk`, leaving the dirty primary repositories untouched.
+- 2026-08-06: Connected a blocking EVENTS subscriber before launching the
+  baseline client, used real AWT input for `::zuk`, and retained the two script
+  739 SCALE exceptions, ordered packet/CS2 records, server log, interface audit,
+  and last complete frame under `build/run239-zuk/baseline`.
+- 2026-08-06: Proved cache varbits 5653/5654 share carrier 1575 at bits 0..10
+  and 11..21. Captured mock230's two pre-mount VARP_LARGE bodies and matched
+  their transforms and handler order against the authoritative golden client.
+- 2026-08-06: Located the actual failure in the compilable deob's `class313`
+  and `class419` mask-table initializers: a decompiler-narrowed `byte` local
+  overflowed before the 11-bit mask. Restored the original integer semantics in
+  the authoritative source and instrumented mirror.
+- 2026-08-06: Added and ran `VarbitMaskRegression` as part of the deob build,
+  rebuilt the injected client, and passed the 723-class/10,469-member API
+  surface check with 740 rebuilt classes and 10,742 members.
+- 2026-08-06: Added a root world regression for the packed value 2458800 and
+  the literal six-byte base-only/combined revision-239 packet bodies. The
+  correctly cache-backed broad self-test reached the new section without a Zuk
+  failure; its unrelated pre-existing failures remain in the retained log.
+- 2026-08-06: Ran fresh live acceptance with EVENTS connected before launch.
+  `::zuk` produced carrier 2458800, varbits 1200/1200, mounted group 596, and
+  widget text `1200 / 1200`; the client remained logged in with `dead=0` and no
+  Zuk CS2 error, decode error, writer gap, or unexpected disconnect.
+- 2026-08-06: Re-ran the deob build with the runtime mask-table gate, committed
+  the authoritative and instrumented fixes as `e52e7148bf`, and pushed
+  `codex/runelite239-regressions` to the MRobertEvers Deob remote. The isolated
+  root branch remained based directly on fetched `origin/v3` at `2557dcec`.
+- 2026-08-06: Committed and pushed the root Zuk carrier regression and evidence
+  record as `48068a328b`. Merged the already-landed Deob PR #2 base back into
+  its clean dependency branch, rebuilt successfully, and pushed merge head
+  `142593f`. Opened Deob follow-up PR #3 and root follow-up PR #14 against
+  `perf-instrumentation` and `v3`, respectively.
+- 2026-08-06: Traced the reported post-death attacks to the ordering of
+  `[queue,player_death]`, the player queue's access gate, Zuk's delayed damage,
+  and the duplicate death queued by the damage wrapper. Added immediate
+  encounter/queue teardown with deferred exact-handle release.
+- 2026-08-06: Added a focused server regression covering the real Zuk session,
+  literal two-argument damage queue, duplicate death, corpse-time reservation,
+  HP HUD unmount, eventual instance release, and stable full-HP respawn.
+- 2026-08-06: Recompiled all 12,538 server scripts and ran the correctly
+  cache-backed broad self-test. Rejected an overlapping `::die` live run and a
+  natural-death run whose stale group-596 HUD exposed the missing IF_CLOSESUB.
+- 2026-08-06: Ran the final fresh RuneLite session with EVENTS attached before
+  launch and only real AWT `::zuk` input. A real Zuk projectile caused one
+  death; the client returned to Lumbridge with no Inferno NPCs/HUD, stayed
+  healthy for 15 seconds, captured final telemetry/screenshots, and quit
+  explicitly with complete CS2/profiler output.
+- 2026-08-06: Committed the content teardown as `45f555d2a3`, merged the
+  already-landed `lane-servsplit` base, and pushed dependency head `4289ffe312`.
+  Opened OSRS-Content PR #3 and added it beside Deob PR #3 in the updated root
+  PR #14 dependency/verification record.
+- 2026-08-06: Committed and pushed the root dependency pointer, focused server
+  regression, live evidence, and findings as `461181f9fc` on
+  `codex/runelite239-zuk`.
+- 2026-08-06: Read the golden revision-239 LOC_ADD_CHANGE and LOC_ANIM handlers,
+  proving that pending loc replacement and immediate animation binding require
+  a full client-cycle boundary. Audited cache loc/sequence records and the
+  original Inferno content; identified shared sequence 7561 (60 client cycles)
+  as authoritative for both falling walls and rejected the two 91-frame side
+  tracks 7559/7560.
+- 2026-08-06: Reordered the cutscene so both state2 wall changes follow the
+  moved-instance MAP_BUILD_COMPLETE barrier, both actors spawn, and a Zuk queue
+  emits both 7561 animations on the following tick with removal two ticks later.
+  Added server-tick/coordinate/id telemetry for all loc zone events.
+- 2026-08-06: Added the revision-239 moved-instance rebuild barrier and the
+  PLAYER_INFO/NPC_INFO/TICK_END prefix required by the golden WorldView loader.
+  Measured that a repeated same-coordinate instance rebuild sends no second
+  MAP_BUILD_COMPLETE and narrowed the barrier to actual coordinate changes.
+- 2026-08-06: Reproduced the second-cutscene missing walls and traced them to
+  durable ZoneMap mutations surviving map-instance release. Added reserved-rect
+  teardown for loc diffs, unsent loc events, and timed reverts, then extended
+  the literal packet regression to require two complete consecutive seal
+  sequences.
+- 2026-08-06: Recompiled all 12,538 scripts, rebuilt mock230, and ran the
+  cache-backed broad suite. Both consecutive-Zuk packet checks, Inferno death,
+  and the new NPC-delay timer check pass; unrelated broad baseline failures are
+  retained in `build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+- 2026-08-06: Rejected `cutscene-live-final3` after its repeated pooled arena
+  inherited the first run's loc state. Rejected `cutscene-live-final4` after its
+  longer fight revealed AI timers firing through `npc_delay`, causing glyph and
+  player queue overflow. Matched Engine-TS `Npc.turn()` by skipping the rest of
+  a delayed NPC's turn and added a focused freeze/unfreeze assertion.
+- 2026-08-06: Ran clean `cutscene-live-final5` with blocking EVENTS connected
+  before launch and real AWT input. Two cutscenes produced exact synchronized
+  tick sequences 34/35/36 and 62/63/64. Natural death reduced the Inferno NPC
+  roster to zero, released instance 1, returned GPI to Lumbridge, and left
+  6,124 audited widgets with zero dead actions; logs contain no scheduler
+  overflow, script abort, runtime fatal, decode error, writer gap, or unexpected
+  disconnect.
+- 2026-08-06: Fetched both remote PR branches immediately before integration
+  and confirmed neither had advanced. Committed and pushed the synchronized
+  cutscene content as `494c5b34a8` to OSRS-Content PR #3, then committed and
+  pushed the root lifecycle, packet regressions, dependency pointer, and live
+  record as `d71740fa` to root PR #14. Both PRs were updated by their existing
+  head branches. The GitHub CLI was signed out and no browser session was
+  available, so no supplementary PR comment was posted or claimed.
+- 2026-08-06: Accepted the supplied Hans screenshot as authoritative and
+  reproduced the three-row baseline in the clean v3-derived worktree. Ordered
+  EVENTS and widget telemetry proved the server sent only three strings and the
+  pristine cache decoded 219:1 as absolute `(20,12)`, clipping its lower area.
+- 2026-08-06: Restored Hans's five literal screenshot choices, exact
+  `Select an option` casing, option-four account-history path, and option-five
+  close path. Extended the literal rev-239 RUNCLIENTSCRIPT regression to require
+  the fourth/fifth-row suffix and title casing, then recompiled 12,538 scripts.
+- 2026-08-06: Instrumented the golden widget layout temporarily and proved its
+  arithmetic is correct. Rejected the broad baked cache after its unrelated
+  pre-login class532 crash and rejected the older chatfix artifact after its
+  unrelated CS2 exceptions; retained both logs and removed the temporary deob
+  instrumentation without leaving a source diff.
+- 2026-08-06: Built an isolated pristine-plus-chatmenu cache, pointing both
+  world metadata and JS5 at it. A blocking EVENTS subscriber connected before
+  RuneLite; real AWT input opened Hans, selected row four, completed its reply,
+  reopened the menu, and selected row five. The final frame matches the supplied
+  five-row layout, group 219 closed on row five, and the client remained healthy.
+- 2026-08-06: Rebuilt and API-verified the telemetry-free injected deob, then
+  ran a fresh one-server/one-client Hans acceptance pass. The blocking EVENTS
+  subscriber was started before RuneLite, script 58 carried the exact five-row
+  payload, JCTL measured title/row positions `10/28/44/60/76/92`, row five sent
+  its six-byte callback and removed group 219, and both processes were shut down
+  explicitly after clean log scans. Retained `events-final-fresh.log`,
+  `client-final-fresh.log`, `server-final-clean.log`, and screenshots 08/09.
+- 2026-08-06: Fetched both existing PR branches immediately before delivery and
+  confirmed neither remote had advanced. Committed and pushed the authoritative
+  Hans content as `1fd5699874` to the existing OSRS-Content PR #3 head; the
+  primary dirty worktrees and telemetry-free Deob tree remained untouched.
+- 2026-08-07: Reproduced RuneLite's missing hitmarks against the actual
+  revision-239 deob and traced the fourth Smart1or2 actor-hit value through the
+  player/NPC decoders into golden `class105.method3560`; proved that the
+  server's zero limit prevented insertion into the drawable hitmark list.
+- 2026-08-07: Changed both revision-239 hit writers to send four concurrent
+  actor slots and extended the literal PLAYER_INFO fixture to decode the
+  transformed hit count, type/value/delay, final slot limit, and full extended
+  flag `0x40808`. The focused suite passes.
+- 2026-08-07: Temporarily instrumented the golden actor store, captured ordered
+  `hitsplat_decode ... slots=4` and `hitsplat_store` events plus a visible live
+  RuneLite splat, then removed the probes. Rebuilt the telemetry-free injected
+  client and passed the full API-surface verification.
+- 2026-08-07: Independently unpacked the pristine and test caches and corrected
+  the authored revision-239 type-26/type-28 records to sprites 1358/1359 with
+  their authoritative opcode values and order.
+- 2026-08-07: Corrected the official C client's hit fixture from legacy type
+  0/1 to revision-239 damage type 28 when that table is loaded. Rebuilt the full
+  client and retained a close-timed Soft3D frame showing canonical red splats
+  over the player and NPCs.
+- 2026-08-07: Re-audited locs 30344/30343 and sequences 7560/7559/7561. Corrected
+  the prior record: the mirrored side walls use the two 91-frame, 182-cycle
+  tracks; 7561 is the 60-cycle destructible-pillar animation that caused the
+  reported premature collapse.
+- 2026-08-07: Assigned 7560 to the left wall and 7559 to the right wall,
+  synchronized their start tick, and moved their shared removal boundary to
+  seven server-tick intervals (queue delay eight). Updated the consecutive-
+  instance literal enclosed-packet regression to require one of each side
+  sequence and zero pillar sequences.
+- 2026-08-07: Regenerated the complete server pack after the hitsplat-only
+  cache bake, recompiled 12,538 scripts, rebuilt mock230, and passed the focused
+  player-info and both consecutive Zuk seal sections. The broad suite still has
+  unrelated baseline content/combat failures recorded in
+  `build/hitsplat-zuk-live/proof/selftest-osrs239.log`.
+- 2026-08-07: Ran clean RuneLite acceptance with the blocking EVENTS subscriber
+  connected before launch and real AWT `::zuk 1200` input. A server hit event
+  triggered the proof framebuffer showing the red type-28 splat; natural death
+  returned GPI to Lumbridge, cleared the Inferno, and left 6,124 widgets with
+  zero dead actions.
+- 2026-08-07: Explicitly quit the final client, retained the complete profiler,
+  ordered EVENTS, client/server logs, interface audits, wall/hitsplat frames,
+  and removed this task's generated test-account saves. No task process remains
+  running and the pre-existing dirty `shot.png` and `cache.osrs239` were left
+  untouched.
+- 2026-08-07: Strengthened the wall regression to observe the state2 locs'
+  actual removal tick. It exposed that queue delay seven meant only six elapsed
+  intervals (180 client cycles); raised it to delay eight and passed the new
+  `removal == animation + 7` assertion.
+- 2026-08-07: Rejected a long post-fix acceptance run because RuneLite's
+  unrelated world-hopper plugin logged a caught external ping timeout. Ran the
+  shorter clean combined session under `build/hitsplat-zuk-live/final-clean3`:
+  7560/7559 started together at tick 44, both walls remained through the late
+  frame and were removed together at tick 51, the next type-28 hit rendered,
+  death cleared the instance, and the log contains only the known caught
+  pre-login compiler-control warning.
+- 2026-08-07: Fetched both existing remote PR branches and confirmed neither
+  had advanced. Committed and pushed the cache and Inferno content as
+  `9633efba1c` on `codex/runelite239-zuk-instance`, preserving the dirty primary
+  worktrees and all unrelated files in the isolated root worktree.
+- 2026-08-07: Committed and pushed the root packet writers, literal regressions,
+  C-client fixture, dependency pointer, and integration record as `bcdfe212`,
+  followed by the factual 83-record cache comment correction `c5d82ea9`, on
+  `codex/runelite239-zuk`. Final fetches matched both local and remote heads.
