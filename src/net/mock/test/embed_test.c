@@ -962,7 +962,7 @@ main(void)
     remove("build/embed_test_saves/bob.ini");
     remove("build/embed_test_saves/carol.ini");
 
-    embed = mock230_embed_start();
+    embed = mock230_embed_start(NULL);
     if( !embed )
     {
         fprintf(stderr, "embed: could not start the server\n");

@@ -151,6 +151,12 @@ Measured from the reference (details in the triage and in
 | hunt *profiles* (who to acquire, rates) | CONTENT | 11 `.hunt` files |
 | cheats beyond raw engine pokes | CONTENT | 250 `[debugproc,…]` |
 
+Debugprocs form one global command namespace. Duplicate names are compile
+errors, and a silent typed command may have been consumed by client CS2 before
+that namespace was reached. [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md)
+is the worked example and mandatory diagnostic order: prove `CLIENT_CHEAT`
+crossed the wire before investigating content.
+
 If a thing you are about to write is on the CONTENT side of this table and
 you are writing C, stop.
 

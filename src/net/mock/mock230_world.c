@@ -4282,20 +4282,31 @@ handle_cheat(
     /*
      * Always logged, not gated on verbose.
      *
-     * A cheat that "does nothing" has three distinct causes that look identical
-     * from the chatbox — the line never arrived, no `[debugproc]` claimed it, or
-     * one claimed it and its body did nothing — and telling them apart is the
-     * whole reason to type a cheat in the first place. `::crystal_set` cost
-     * several rounds precisely here: the debugproc existed in the tree, the tree
-     * did not compile, and the server was running a `script.dat` that predated
-     * it. `claimed=no` says that in one line.
+     * Once a cheat reaches the server, no matching `[debugproc]`, a completed
+     * one, and an aborted one must be different outcomes. A line the client
+     * consumed locally is a fourth case and deliberately produces no server
+     * log; packet telemetry is what distinguishes that boundary. This result
+     * makes every server-side outcome explicit rather than letting an abort
+     * masquerade as an unknown command.
+     *
+     * If ::crystal_set ever appears to Cry or stays silent, do not start here:
+     * docs/CRYSTAL_SET_COMMAND.md records the client-local interception and the
+     * exact packet boundary that proves whether this function ran.
      */
     {
-        int claimed = mock230_scripts_run_debugproc(srv, text);
+        enum Mock230TriggerResult result = mock230_scripts_run_debugproc(srv, text);
 
-        fprintf(stderr, "mock230: cheat '%s' -> debugproc claimed=%s\n",
-                text, claimed ? "yes" : "no");
-        if( claimed )
+        fprintf(stderr, "mock230: cheat '%s' -> debugproc %s\n",
+                text,
+                result == MOCK230_TRIGGER_RAN
+                    ? "ran"
+                    : result == MOCK230_TRIGGER_FAILED ? "FAILED" : "not found");
+        if( result == MOCK230_TRIGGER_FAILED )
+        {
+            say(srv, "Command ::%s failed — see the server log.", text);
+            return;
+        }
+        if( result == MOCK230_TRIGGER_RAN )
             return;
     }
 
@@ -4852,10 +4863,13 @@ handle_if_button_op(
  * Revision 239 keeps all IF3 ops in two packets. Decode them here, while every
  * field is still present, then enter the established 230 handlers.
  *
- * Object ops 1..5 retain OPHELD semantics. An item-backed row can also carry a
- * component op 6..10; those are IF_BUTTON6..10, not nonexistent OPHELD6..10.
- * IF_SUBOP's last byte is latched before either route so selecting a submenu
- * entry is no longer indistinguishable from selecting its parent.
+ * Most object-backed component ops 1..5 retain OPHELD semantics. The backpack
+ * is the important exception: IF3 inserts generic Use as op 1, shifts the five
+ * ObjType inventory actions to ops 2..6, and authors Drop as op 7. Content is
+ * still written against classic OPHELD1..5, so normalize that one component
+ * before dispatch. IF_SUBOP's last byte is latched before either route so
+ * selecting a submenu entry is no longer indistinguishable from selecting its
+ * parent.
  */
 static void
 handle_if_buttonx_packet(
@@ -4867,6 +4881,7 @@ handle_if_buttonx_packet(
     struct Mock239IfButton button;
     struct Mock230Player* player = srv->active_player;
     int has_subop = name == PKTOUT_NAME_IF_SUBOP;
+    int held_op = 0;
 
     if( !mock239_if_button_decode(payload, len, has_subop, &button) )
         return;
@@ -4882,7 +4897,12 @@ handle_if_buttonx_packet(
                 button.op,
                 button.subop);
 
-    if( mock239_if_button_route(&button) == MOCK239_IF_ROUTE_OPHELD )
+    if( button.component_id == mock230_ids()->com_inventory_items )
+        held_op = mock239_if_button_backpack_op(&button);
+    else if( mock239_if_button_route(&button) == MOCK239_IF_ROUTE_OPHELD )
+        held_op = button.op;
+
+    if( held_op )
     {
         uint8_t held[8];
         struct RSAreaBuf out;
@@ -4891,7 +4911,7 @@ handle_if_buttonx_packet(
         rsab_p2(&out, button.object_id);
         rsab_p2(&out, button.sub);
         rsab_p4(&out, button.component_id);
-        handle_opheld(srv, button.op, held, (int)rsab_len(&out));
+        handle_opheld(srv, held_op, held, (int)rsab_len(&out));
         return;
     }
 
@@ -8918,6 +8938,12 @@ mock230_world_selftest(void)
             0x7f, 0x11, 0x22, 0x33, 0x44,
         };
         static const uint8_t stoptransmit[] = { 0x12, 0xb4 };
+        static const uint8_t invpartial[] = {
+            0xff, 0xff, 0xff, 0xff, /* normal IF3 combined-id sentinel */
+            0x12, 0x34,             /* inventory id */
+            0x00, 0x00, 0x00,       /* slot 0 empty: no count follows */
+            0x01, 0x55, 0x67, 0x07, /* slot 1 obj 0x5566, count 7 */
+        };
         static const struct
         {
             int name;
@@ -8951,6 +8977,8 @@ mock230_world_selftest(void)
               setplayermodel_self, sizeof(setplayermodel_self) },
             { PKT_NAME_UPDATE_INV_STOP_TRANSMIT, "UPDATE_INV_STOPTRANSMIT",
               stoptransmit, sizeof(stoptransmit) },
+            { PKT_NAME_UPDATE_INV_PARTIAL, "UPDATE_INV_PARTIAL empty boundary",
+              invpartial, sizeof(invpartial) },
         };
         static struct Mock230Capture capture;
         const struct Mock230Wire* saved_wire = srv.wire;
@@ -8979,12 +9007,20 @@ mock230_world_selftest(void)
                 player, 0x11223344, 0x55667788);
             mock230_send_if_setplayermodel_self(player, 0x11223344, 1);
             mock230_send_inv_stop_transmit(player, 0x11223344, 0x1234);
+            {
+                const struct Mock230Item slots[] = {
+                    { .obj_id = -1, .count = 0 },
+                    { .obj_id = 0x5566, .count = 7 },
+                };
+
+                mock230_send_inv_partial(player, -1, 0x1234, slots, 2, 0x3);
+            }
             mock230_capture_end(&srv);
             srv.wire = saved_wire;
 
             SELFTEST_CHECK(!capture.overflow, "rev239 writer capture did not overflow");
             SELFTEST_CHECK(capture.count == (int)(sizeof(expected) / sizeof(expected[0])),
-                           "all fifteen canonical writers emitted (got %d)", capture.count);
+                           "all sixteen canonical writers emitted (got %d)", capture.count);
             for( int i = 0; i < (int)(sizeof(expected) / sizeof(expected[0])); i++ )
             {
                 int opcode = mock230_wire_opcode(wire239, expected[i].name);
@@ -16036,55 +16072,45 @@ mock230_world_selftest(void)
                        "and a line no debugproc claims falls through to the engine");
 
         /*
-         * `::crystal_set`, asserted on the inventory rather than on the return.
+         * `::crystal_set`, asserted on the worn container rather than on the
+         * return.
          *
-         * This cheat was reported broken repeatedly and was never debugged from
-         * the right end. Two different things were true at different times and
-         * both present as "I typed it and got nothing": for a while no
-         * `[debugproc,crystal_set]` existed at all, and after one was written the
-         * content tree stopped compiling (an ambiguous `%twocats_quest` in an
-         * unrelated quest lane), so `script.dat` kept a build that predated it.
-         * In neither case does the chatbox distinguish the cheat from a typo.
+         * The live failure was client-side: the local emote parser prefix-
+         * matched `crystal_set` as `cry` and returned before CLIENT_CHEAT. Once
+         * that was fixed, the content tree still had two debugprocs with this
+         * name and different outcomes. The old one added six charged items to
+         * the backpack; the intended one equips a usable armour set and bow.
          *
-         * `run_debugproc` returning 1 only proves a script claimed the line, so
-         * that is not what this asserts. It asserts the six objects are in the
-         * backpack, which is the only claim a caller of this cheat cares about,
-         * and it fails if the debugproc is missing, if the pack is stale, or if
-         * the body silently stops partway through.
+         * `run_debugproc` returning RAN only proves a script claimed the line,
+         * so that is not what this asserts. The current command equips a usable
+         * armour set and bow directly; assert exactly that result so a missing,
+         * stale, duplicate, or partially-executed debugproc cannot pass.
          */
         {
-            static const char* const CRYSTAL[] = {
-                "crystal_helmet", "crystal_platelegs", "crystal_chestplate",
-                "crystal_bow",    "crystal_halberd",   "crystal_shield",
-            };
             struct Mock230Player* who = &srv.players[0];
+            int helmet = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_helmet");
+            int body = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_chestplate");
+            int legs = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_platelegs");
+            int bow = mock230_content_symbol(
+                MOCK230_PACK_OBJ, "bow_of_faerdhinen_infinite");
 
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "crystal_set"),
-                           "::crystal_set should reach [debugproc,crystal_set]");
-            fprintf(stderr, "PROBE active=%p players0=%p count=%d\n",
-                    (void*)srv.active_player, (void*)&srv.players[0], srv.player_count);
-            for( int pslot = 0; pslot < MOCK230_INV_SLOTS; pslot++ )
-                if( who->inv[pslot].obj_id > 0 )
-                    fprintf(stderr, "PROBE inv[%d] = %d x%d\n", pslot,
-                            who->inv[pslot].obj_id, who->inv[pslot].count);
-            for( size_t ci = 0; ci < sizeof(CRYSTAL) / sizeof(CRYSTAL[0]); ci++ )
-            {
-                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, CRYSTAL[ci]);
-                int found = 0;
-
-                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
-                {
-                    if( who->inv[slot].obj_id == obj && who->inv[slot].count > 0 )
-                    {
-                        found = 1;
-                        break;
-                    }
-                }
-                SELFTEST_CHECK(obj > 0, "%s must resolve through the pack",
-                               CRYSTAL[ci]);
-                SELFTEST_CHECK(found, "::crystal_set must leave %s (obj %d) in the"
-                                      " backpack", CRYSTAL[ci], obj);
-            }
+            SELFTEST_CHECK(
+                mock230_scripts_run_debugproc(&srv, "crystal_set") ==
+                    MOCK230_TRIGGER_RAN,
+                "::crystal_set should reach [debugproc,crystal_set]");
+            SELFTEST_CHECK(helmet > 0 && body > 0 && legs > 0 && bow > 0,
+                           "the equipped crystal set must resolve through the pack");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == helmet,
+                           "::crystal_set equips the crystal helmet");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_BODY].obj_id == body,
+                           "::crystal_set equips the crystal chestplate");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_LEGS].obj_id == legs,
+                           "::crystal_set equips the crystal platelegs");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == bow,
+                           "::crystal_set equips a qualifying crystal bow");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_RANGED] == 99 &&
+                               who->stat_level[MOCK230_STAT_AGILITY] == 99,
+                           "::crystal_set raises its own equip requirements");
         }
 
         /*

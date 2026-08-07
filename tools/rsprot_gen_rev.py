@@ -200,11 +200,11 @@ CANON_OUT = {
 # which name the component and the op number rather than the item. They are
 # listed here so the omission reads as a decision instead of an oversight.
 NO_PROT_OUT = {
-    "OPHELD1": "IF_BUTTONX op 1 on the inventory component",
-    "OPHELD2": "IF_BUTTONX op 2",
-    "OPHELD3": "IF_BUTTONX op 3",
-    "OPHELD4": "IF_BUTTONX op 4",
-    "OPHELD5": "IF_BUTTONX op 5",
+    "OPHELD1": "IF_BUTTONX op 2 on the backpack component",
+    "OPHELD2": "IF_BUTTONX op 3",
+    "OPHELD3": "IF_BUTTONX op 4",
+    "OPHELD4": "IF_BUTTONX op 5",
+    "OPHELD5": "IF_BUTTONX op 6 (the golden client's default Drop is op 7)",
     "OPHELDT": "IF_BUTTONT",
     "OPHELDU": "IF_SUBOP / IF_BUTTONT",
     "INV_BUTTON1": "IF_BUTTONX",

@@ -3849,7 +3849,10 @@ mock230_scripts_run_opheldu(
 
 /**
  * Run a `::command` as `[debugproc,<name>]`, with the words after it as its
- * declared arguments. Returns 1 when content claimed the line.
+ * declared arguments. Returns `enum Mock230TriggerResult`: NONE when there is
+ * no matching debugproc, RAN when it completed or parked, and FAILED when a
+ * matching debugproc aborted.  Keeping FAILED distinct prevents a broken
+ * command from falling through as though it never existed.
  *
  * The reference's own arrangement — see ClientCheatHandler — and the reason a
  * cheat need not be an engine change. `::pray 18` reaches Protect from Melee

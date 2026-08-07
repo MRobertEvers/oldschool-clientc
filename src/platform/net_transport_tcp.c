@@ -11,7 +11,7 @@ struct NetTransport*
 NetTransport_NewWs(int default_port); /* net_transport_ws.c */
 
 struct NetTransport*
-NetTransport_NewEmbed(int default_port); /* net_transport_embed.c */
+NetTransport_NewEmbed(int default_port, char const* rev_name); /* net_transport_embed.c */
 
 /* Raw-TCP transport: a thin adapter delegating to the battle-tested
  * PlatformSocket (unchanged), so the classic lc254 path is byte-for-byte the
@@ -55,12 +55,12 @@ NetTransport_NewTcp(int default_port)
 }
 
 struct NetTransport*
-NetTransport_New(int kind, int default_port)
+NetTransport_New(int kind, int default_port, char const* rev_name)
 {
     /* Not remapped for the web below: an embedded server has no socket to be
      * wrong about, and works in a browser exactly as it does natively. */
     if( kind == NET_TRANSPORT_EMBED )
-        return NetTransport_NewEmbed(default_port);
+        return NetTransport_NewEmbed(default_port, rev_name);
 
 #if defined(TORIRS_PLATFORM_WEB)
     /*

@@ -2844,12 +2844,12 @@ mock230_scripts_run_debugproc(
         command[length++] = *cursor++;
     command[length] = '\0';
     if( length == 0 )
-        return 0;
+        return MOCK230_TRIGGER_NONE;
 
     snprintf(name, sizeof(name), "[debugproc,%s]", command);
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
-        return 0;
+        return MOCK230_TRIGGER_NONE;
 
     for( int i = 0; i < script->param_type_count && i < SS_MAX_PARAM_TYPES; i++ )
     {
@@ -2887,7 +2887,9 @@ mock230_scripts_run_debugproc(
 
     if( srv->verbose )
         fprintf(stderr, "mock230: %s with %d int and %d string args\n", name, argc, strc);
-    return mock230_scripts_run_proc_sv(srv, name, argv, argc, strv, strc);
+    return mock230_scripts_run_hook_sv(srv, script, argv, argc, strv, strc)
+               ? MOCK230_TRIGGER_RAN
+               : MOCK230_TRIGGER_FAILED;
 }
 
 /* ------------------------------------------------------------------ */

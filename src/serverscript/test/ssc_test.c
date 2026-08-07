@@ -1063,6 +1063,55 @@ test_vararg_limits(void)
 }
 
 static void
+test_duplicate_debugproc(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("duplicate global debug commands\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_debugproc_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    /* A duplicate debugproc used to compile without a diagnostic: both bodies
+     * resolved to one global name slot and the later body silently replaced
+     * the earlier one. That was the server-side half of the ::crystal_set/Cry
+     * incident. A command namespace must never pick a winner by file order. */
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[debugproc,same_command]\nmes(\"first\");\n", file);
+    fclose(file);
+    snprintf(path, sizeof(path), "%s/b.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[debugproc,same_command]\nmes(\"second\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a duplicate global debugproc fails the compile");
+    CHECK(strstr(diag.message, "duplicate global debug command") != NULL,
+          "and names the duplicate-command invariant");
+    CHECK(strstr(diag.message, "[debugproc,same_command]") != NULL,
+          "and identifies the exact command name");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
 test_implicit_return(void)
 {
     struct Fixture fixture;
@@ -1152,6 +1201,7 @@ main(void)
     test_implicit_return();
     test_runclientscript_vararg();
     test_vararg_limits();
+    test_duplicate_debugproc();
     test_stat_argument_hint();
     test_param_type_shadowing();
     test_script_name_argument();

@@ -436,7 +436,7 @@ struct App
      * input, and it does so before the interface finishes mounting, so the
      * masks have to survive until there is a tree to apply them to. Without
      * this a dialogue renders correctly and swallows every click. */
-    struct
+    struct AppIfEvents
     {
         int com_id;
         int from;
@@ -446,7 +446,7 @@ struct App
     int if_event_count;
     int if_event_cap;
 
-    /* Persistent IF_SETNPCHEAD / IF_SETPLAYERHEAD store (reference keeps
+    /* Persistent interface-model store (reference keeps
      * model1Type/model1Id on IfType.list and re-resolves getModel every draw):
      * the head packet arrives before the chat interface mounts, so the request
      * must survive and re-apply on tree-topology changes. The async load task
@@ -455,14 +455,36 @@ struct App
     struct AppIfHead
     {
         int com_id;
-        int kind;             /* AppIfHeadKind: 0 = npc, 1 = player, 2 = obj (IF_SETOBJECT) */
-        int npc_id;           /* npc id, or the obj id for the obj kind */
+        int kind;             /* AppIfHeadKind: npc, player, obj, or raw model */
+        int npc_id;           /* source id: npc, obj, or cache model */
         int zoom;             /* IF_SETOBJECT wire zoom (modelZoom = zoom2d*100/zoom) */
         int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
         uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
     }* if_heads;
     int if_head_count;
     int if_head_cap;
+
+    /* Revision-239 server-driven player-composition widgets. Each component
+     * owns a clone of the local PlayerComposition: slots is the effective
+     * kit/equipment layer, identkit is the body underneath worn objects, and
+     * colours/gender are independently mutable through the four
+     * IF_SETPLAYERMODEL_* packets. A unique scene id prevents one widget's
+     * incremental setters from changing any sibling widget. */
+    struct AppIfPlayerModel
+    {
+        int com_id;
+        int scene_id;
+        int slots[12];
+        int identkit[12];
+        int colors[5];
+        int gender;
+        int anim_id;            /* IF_SETANIM modelAnim, or -1 */
+        uint32_t version;       /* composition revision requested by packets */
+        uint32_t built_version; /* revision currently uploaded to scene_id */
+        uint32_t applied_gen;   /* tree generation scene_id was bound into */
+    }* if_player_models;
+    int if_player_model_count;
+    int if_player_model_cap;
 
     /* Live local-player model widgets (clientCode 328 — the equipment-stats
      * figure). The composite is rebuilt from the local player's PLAYER_INFO
@@ -681,6 +703,11 @@ struct App
     /** Zone base for follows-mode zone packets (scene-local tiles). */
     int zone_base_x;
     int zone_base_z;
+    /* Revision 239 SET_NPC_UPDATE_ORIGIN. NPC low-resolution deltas are
+     * relative to this scene-local tile, not implicitly to the local player. */
+    int npc_update_origin_x;
+    int npc_update_origin_z;
+    int npc_update_origin_valid;
     /**
      * Zone sub-packets that arrived while the world was still async-loading.
      *
@@ -999,6 +1026,40 @@ void
 App_SetInterfacePlayerHead(
     struct App* app,
     int component_id);
+
+/** Revision-239's independently mutable interface PlayerComposition setters. */
+void
+App_SetInterfacePlayerModelSelf(
+    struct App* app,
+    int component_id,
+    int copy_objs);
+
+void
+App_SetInterfacePlayerModelBaseColour(
+    struct App* app,
+    int component_id,
+    int index,
+    int colour);
+
+void
+App_SetInterfacePlayerModelBodyType(
+    struct App* app,
+    int component_id,
+    int body_type);
+
+void
+App_SetInterfacePlayerModelObj(
+    struct App* app,
+    int component_id,
+    int obj_id);
+
+/** IF_SETMODEL (reference IfType model1Type 1): load a raw cache model and
+ *  bind its uploaded scene model to the widget. Persisted across remounts. */
+void
+App_SetInterfaceModel(
+    struct App* app,
+    int component_id,
+    int model_id);
 
 /** IF_SETOBJECT (reference IfType model1Type 4): bind an obj's lit inventory
  *  model to a MODEL widget with the objtype's 2d angles and modelZoom =

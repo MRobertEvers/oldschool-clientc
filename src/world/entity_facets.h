@@ -156,7 +156,12 @@ struct WorldEntityFacet_Combat
 
 struct WorldEntityFacet_Appearance
 {
+    /* Effective equipment/kit layer used for rendering. */
     int slots[12];
+    /* Revision-239's body-underneath layer. IF_SETPLAYERMODEL_SELF(false)
+     * copies this over slots, exactly as PlayerComposition does. Classic
+     * appearances populate it with the same values as slots. */
+    int identkit[12];
     int colors[5];
 };
 

@@ -98,6 +98,16 @@ UITreeAnim_Advance(
         c = &tree->components[idx];
         if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
+        if( cycles > 0 &&
+            (c->u.rs_model.rotate_x_speed != 0 || c->u.rs_model.rotate_y_speed != 0) )
+        {
+            c->u.rs_model.xan =
+                (c->u.rs_model.xan + c->u.rs_model.rotate_x_speed * cycles) & 2047;
+            c->u.rs_model.yan =
+                (c->u.rs_model.yan + c->u.rs_model.rotate_y_speed * cycles) & 2047;
+            UITree_MarkNodeDirty(tree, idx);
+            applied = 1;
+        }
         seq = c->u.rs_model.anim_seq_id;
         model_id = c->u.rs_model.gamecache_model_id;
         if( seq < 0 || model_id < 0 )

@@ -386,6 +386,13 @@ struct ToriRS_Objtype
     int manhead2;
     int womanhead;
     int womanhead2;
+    /* Modern player-composition equipment placement (dat2 ObjType
+     * wearpos/wearpos2/wearpos3). The primary position receives the obj;
+     * secondary positions are cleared because the item covers those body
+     * parts. Dat1 has no equivalent metadata, so all three remain -1 there. */
+    int wearpos;
+    int wearpos2;
+    int wearpos3;
 };
 
 struct ToriRS_Sequence

@@ -83,6 +83,179 @@ The integration requires these cooperating components:
 
 ## Major findings
 
+### Postmortem: why `::crystal_set` made the player Cry and never reached mock230
+
+> Permanent incident record and enforced invariants:
+> [`docs/CRYSTAL_SET_COMMAND.md`](docs/CRYSTAL_SET_COMMAND.md). The build now
+> checks both the client fallthrough and the unique server command before
+> either client cache or server script artifacts can be produced.
+
+This failure was not in the `crystal_set` server script. It occurred before the
+server boundary, inside revision 239's chat clientscripts. That distinction is
+the reason the server printed no error: it never received a command packet to
+reject, run, or log.
+
+#### Exact symptom and packet signature
+
+Typing `::crystal_set` and pressing Enter made the local player perform the Cry
+emote. The server printed neither its normal inbound cheat line nor a script VM
+error. In the real RuneLite/JCTL trace, Enter produced:
+
+```text
+packet_out op=54 len=-2    EVENT_KEYBOARD telemetry
+packet_out op=47 len=9     IF_BUTTONX
+actor ... anim=860         Cry emote
+```
+
+The packet that a real `::` server command must produce was absent:
+
+```text
+packet_out op=34 len=-1    CLIENT_CHEAT
+```
+
+That packet boundary is decisive. If opcode 34 is absent, changing
+`handle_cheat`, the server-script VM, or `[debugproc,crystal_set]` cannot fix
+the observed behavior because none of those systems ran.
+
+#### The authoritative client control flow
+
+The chatbox Enter handler is decompiled as
+`OSRS-Content/osrs239-content/scripts/script_73.cs2`,
+`[clientscript,chatdefault_onkey]`. On internal Enter key 84 it processes the
+chat input in this order:
+
+1. It calls `~script7304(%varcstring335)` before the general `::` cheat branch.
+2. If script 7304 returns 1, it clears `%varcstring335` because the text was
+   handled locally.
+3. Only text still beginning with `::` reaches `docheat(...)`.
+4. The Java host for `docheat`, `Statics.method6121`, builds
+   `class246.field3203`, which revision 239 maps to outbound opcode 34,
+   `CLIENT_CHEAT`.
+
+Script 7304 is the local typed-emote parser. It strips `::` or `!`, lowercases
+the remainder, and originally tested every emote alias with prefix matching:
+
+```text
+string_indexof_string($string0, "cry", 0) = 0
+```
+
+For `$string0 = "crystal_set"`, that expression is true: `cry` occurs at
+index 0. Script 7304 therefore selected emote component sub-id 16, found it
+under `interface_216:2`, called `cc_triggerop(1)`, and returned 1. The caller
+cleared the chat input and never executed `docheat`. Opcode 47 and animation
+860 were exactly the expected results of that wrong local branch.
+
+This was a general namespace bug, not a one-off typo. Prefix matching also
+allowed any longer command beginning with `bow`, `dance`, `run`, `sit`, and the
+other emote aliases to be consumed locally. Local emote commands take no
+arguments, so there was no valid reason for them to accept arbitrary suffixes.
+
+#### Why the failure was unusually misleading
+
+Several individually plausible investigations did not address the active
+failure:
+
+- The server had no errors because there was no server packet. Silence did not
+  mean the debugproc ran successfully; it meant the observation started one
+  boundary too late.
+- `[debugproc,crystal_set]` existed and compiled, so inspecting only that body
+  suggested the command should work.
+- The content tree also contained a second `[debugproc,crystal_set]` with older,
+  different behavior. Named-script duplicates compile and the provider's name
+  index can resolve one of them without reporting the collision. That was a
+  real secondary defect, but it could only matter after opcode 34 reached the
+  server.
+- Staff privilege was a tempting hypothesis because some local developer
+  commands inspect the staff level. It was not the gate here; the chat
+  clientscript's ordinary `::` path calls `docheat` after local handlers have
+  declined the text.
+- JCTL has a shell-quoting trap. Its positional arguments are complete JCTL
+  commands, so the correct invocation is
+  `python3 tools/runelite239_ctl.py 'type ::crystal_set'`. Passing
+  `type ::crystal_set` as two shell arguments sends the commands `type` and
+  `::crystal_set`; the first types the literal word `type`, and the second is
+  rejected by JCTL. Always quote the whole control command before drawing a
+  conclusion from automated input.
+
+#### Landed fix and hardening
+
+The fix has four parts:
+
+1. `script_7304.cs2` now uses exact `compare(...) = 0` checks for all local
+   emote aliases. Exact `::cry` still selects sub-id 16, while
+   `::crystal_set` falls through to the general cheat path.
+2. The obsolete Gauntlet `[debugproc,crystal_set]`, which added six charged
+   items to the backpack, was removed. The single authoritative definition is
+   `skill_combat/scripts/player/crystal_set.rs2`; it equips the crystal helm,
+   body, legs, and corrupted Bow of faerdhinen and establishes the required
+   stats.
+3. `mock230_scripts_run_debugproc` now returns the three-way
+   `Mock230TriggerResult`: `NONE`, `RAN`, or `FAILED`. A resolved script that
+   aborts is no longer indistinguishable from a missing command.
+4. `handle_cheat` always logs `not found`, `ran`, or `FAILED`. `FAILED` also
+   sends `Command ::<text> failed — see the server log.` to the player. Unknown
+   commands retain their visible `Unknown command: <text>` response.
+
+The server self-test asserts the result rather than merely the dispatch return:
+the exact object ids must occupy the head, body, legs, and weapon slots in the
+`worn` container, and Ranged/Agility must be 99. This catches a missing,
+duplicate, stale, aborted, or semantically wrong debugproc.
+
+#### End-to-end proof after the fix
+
+A temporary cache containing the rebuilt clientscript was served through JS5,
+then the real RuneLite client was driven through AWT/JCTL. The observed path
+was:
+
+```text
+JCTL chat input: ::crystal_set
+packet_out op=34 len=-1
+mock230: [debugproc,crystal_set] with 0 int and 0 string args
+mock230: cheat 'crystal_set' -> debugproc ran
+```
+
+The client received stat, appearance, inventory, and game-message updates. Its
+chat contained:
+
+```text
+Crystal set equipped at Ranged 99: +30% accuracy, +15% damage.
+```
+
+Container 94 (`worn`) then reported:
+
+```text
+slot 0: Crystal helm
+slot 3: Bow of faerdhinen (c)
+slot 4: Crystal body
+slot 7: Crystal legs
+```
+
+The control tests also proved both neighboring outcomes: exact `::cry` still
+emitted opcode 47 and animation 860, while `::definitely_missing` emitted
+opcode 34 and produced a visible `Unknown command: definitely_missing` message.
+
+#### Diagnostic recipe for future silent `::` commands
+
+Use the boundaries in order; do not begin inside the server script:
+
+| Observation after Enter | Meaning | Next place to inspect |
+|---|---|---|
+| No relevant outbound packet | Input/focus did not submit | JCTL quoting, focus, live chat buffer |
+| Opcode 69 (`MESSAGE_PUBLIC`) | Text was submitted as speech | Missing/mangled `::` prefix |
+| Opcode 47 (`IF_BUTTONX`) | A local clientscript consumed it | Chat clientscripts, typed emotes, UI shortcuts |
+| Opcode 34 (`CLIENT_CHEAT`), no server line | Wire/inbound decode gap | Revision packet table and inbound parser |
+| Server says `not found` | No matching debugproc in loaded pack | Source name, compile output, stale `script.dat` |
+| Server says `FAILED` | Debugproc resolved and aborted | The emitted VM backtrace/server log |
+| Server says `ran`, wrong state | Script semantics or duplicate/stale content | Assert inventory/stats/world state, not return value |
+
+Finally, this fix changes a `.cs2` file. `make -C src mock230-scripts` rebuilds
+server scripts only and is insufficient. The clientscript must be packed into
+the exact cache JS5 serves, for example with `make -C src mock230-cache`, and
+both the world and JS5 must use that baked cache. Testing against a modified
+source tree while serving pristine `cache.osrs239` reproduces the old Cry
+behavior because RuneLite executes the bytecode in the cache, not the `.cs2`
+text on disk.
+
 ### The live client path is operational
 
 The rebuilt deob passed `instr/build.sh` and `instr/tools/verify_api.py` (740
@@ -294,7 +467,11 @@ and 4,780 action slots with `dead=0`. With Account Benefits open it enumerates
 26 groups, 6,196 widgets, and 4,788 action slots, also with `dead=0`. Every
 server-facing action resolves to a live event range; actions proved by the
 authoritative widget `onOp` CS2 path are classified as client-only rather than
-being falsely required to send a server packet.
+being falsely required to send a server packet. That last classification had
+an important blind spot: an inventory cell's `onOp` creates the menu action,
+but `Statics.method3476` still checks the server's separate `events2` numbered-
+op mask before sending it. The wielding postmortem below supersedes `dead=0` as
+proof for item-backed `onOp` rows.
 
 ### Inventory source targeting needs bits 11 through 16
 
@@ -307,6 +484,118 @@ semantics but left that source field zero. The server constant is now
 `if_setevents 149:0 range=0..27 events1=0x33f800`, and the live menu probe at an
 occupied slot reports `Use Chaos rune` as `WIDGET_TARGET`. Evidence:
 `build/run239/proof/inventory_menu_fixed.png`.
+
+### Why visible Wield did nothing, and why item-on-item became a random item
+
+These were two independent revision-239 boundary bugs which happened to live
+on the same inventory component. They must not be collapsed into “inventory
+clicks are broken,” because the decisive observation and the correct fix are
+different for each one.
+
+#### Wield was rejected by the client before a packet existed
+
+The live Shortbow row on `inventory:items` (`149:0`, sub 5, object 841) showed:
+
+```text
+Wield ... type=CC_OP id=3 p0=5 p1=9764864
+Drop  ... type=CC_OP id=7
+Use   ... type=WIDGET_TARGET id=0
+```
+
+Clicking Wield through real AWT input produced only mouse telemetry. There was
+no outbound opcode 47 (`IF_BUTTONX`) and consequently no server log or server
+error. This located the failure on the client side of the wire. The
+authoritative deob's `Statics.method3476` obtains `events2` for the cell, tests
+`(events2 >> (op - 1)) & 1`, and returns without constructing the packet when
+the bit is zero. The live `armsub 149 0 5` probe confirmed the exact state:
+
+```text
+raw=0x33f800 opmask=0x0 effective=0x33f800
+```
+
+The old content comment incorrectly assumed that ObjType text implied packet
+authority. It does not. ObjType/CS2 state can make Wield visible while
+`IF_SETEVENTS` independently forbids sending it. The old verifier only asserted
+that Use, Drop and Examine menu rows existed, and `ifaceaudit` classified any
+widget with `onOp` as client-owned, so both checks passed over the silent return.
+
+Backpack numbering also differs from classic RuneScript numbering. Modern op 1
+is the generic local Use selection; the five ObjType inventory actions occupy
+modern ops 2 through 6, and the synthetic Drop row is modern op 7. Content is
+still written against classic `[opheld1]` through `[opheld5]`. The complete
+adapter is therefore:
+
+| RuneLite `IF_BUTTONX.op` | Meaning | Content trigger |
+| ---: | --- | --- |
+| 1 | select generic Use source | local selection, no OPHELD |
+| 2 | ObjType inventory action 0 | `OPHELD1` |
+| 3 | ObjType inventory action 1 (Wear/Wield) | `OPHELD2` |
+| 4 | ObjType inventory action 2 | `OPHELD3` |
+| 5 | ObjType inventory action 3 | `OPHELD4` |
+| 6 | ObjType inventory action 4 | `OPHELD5` |
+| 7 | client-authored Drop fallback | `OPHELD5` |
+
+The fix arms exactly modern ops 2–7 (`events2=0x7e`) in addition to the
+existing drag/source/target mask, and normalizes those rows at the backpack
+boundary before entering classic content. It deliberately does not arm op 1 or
+ops 8–10: unrelated component ops can replace ObjType rows with paint-script
+actions such as the historical stray Read. `verify_runelite239_interfaces.py`
+now requires `armsub` to report `opmask=0x7e`; golden inbound tests pin Wield
+op 3 → `OPHELD2` and Drop op 7 → `OPHELD5`.
+
+#### Item-on-item reached content, then its response packet lost framing
+
+A separate real-client reproduction put Ball of wool (1759) in slot 0 and
+Sapphire amulet (u) (1675) in slot 1. Use wool → amulet reached the server
+correctly:
+
+```text
+OPHELDU obj=1675 slot=1 com=149|0 use=1759 slot=0
+```
+
+Content ran, sent “You put some string on your amulet,” and awarded Crafting
+XP. The resulting inventory nevertheless showed object 25387, quantity 152,
+“Trailblazer relic hunter (t3) armour set.” That plausible unrelated object was
+the signature of a cursor shift, not failed crafting logic.
+
+RSProt's `UpdateInvPartialEncoder` writes each dirty record as `psmart(slot)`,
+then `p2(object + 1)`. If the encoded object is zero (empty slot), the record
+ends immediately. Only a non-empty object has the following `p1(count)` and
+optional `p4(large count)`. The server writer always emitted a count byte,
+including after the empty sentinel:
+
+```text
+wrong: slot0, object=0, count=0, slot1, object..., count...
+right: slot0, object=0,          slot1, object..., count...
+```
+
+Consuming one ingredient and replacing another dirties two slots in one
+`UPDATE_INV_PARTIAL`, so the extra zero was read as the next slot and shifted
+every remaining field. The packet length was valid and the shifted bytes were
+valid integers, which is why neither side raised an error and the client
+rendered a random real item.
+
+The revision-239 writer now returns immediately after writing an empty object
+sentinel. Its independent revision-239 parser follows the same authoritative
+empty-record rule. Regression coverage uses literal, non-round-tripped bytes:
+the server self-test requires `ff ff ff ff 12 34 00 00 00 01 55 67 07` for an
+empty slot 0 followed by object `0x5566` in slot 1, and the parser test decodes
+an empty slot immediately followed by Sapphire amulet (u). This boundary—not a
+single-slot update—is the minimum fixture capable of detecting the defect.
+
+The diagnostic rule preserved by both incidents is simple: first prove whether
+the real client emitted a packet. No packet plus a visible row means client-side
+event authorization; a correct inbound action followed by nonsensical state
+means inspect the server-to-client response bytes and record boundaries.
+
+The final isolated real-client run used the known-good regression-server
+baseline plus these interaction changes. `armsub` reported `opmask=0x7e`;
+clicking Shortbow Wield emitted `IF_BUTTONX ... op=3`, the boundary logged
+`OPHELD2`, and slot 5 became empty. Ball of wool → Sapphire amulet (u) then
+logged the correct `OPHELDU`, awarded 4 Crafting XP, and produced Sapphire
+amulet (1694) in slot 0 with slot 1 empty. The client remained connected and
+rendered the resulting inventory. This run also distinguishes these fixes from
+the main dirty worktree's separate pre-existing login-stream EOF regression.
 
 ### World-map close is a resume button, while zoom is local CS2
 
@@ -595,3 +884,18 @@ polling or idle-client assumption is part of the verdict.
 - 2026-08-06: Opened the authoritative Deob telemetry/renderer PR at
   `https://github.com/MRobertEvers/Deob/pull/1`; GitHub reports it cleanly
   mergeable into `perf-instrumentation`.
+- 2026-08-06: Traced `::crystal_set` through live chat-input state and packet
+  telemetry. Clientscript 7304 consumed it as the `cry` emote because every
+  emote alias used prefix matching, so the server never received a
+  `CLIENT_CHEAT`. Changed emote aliases to exact matches, removed the duplicate
+  server debugproc, and made a claimed debugproc abort return a visible chat
+  error. A rebuilt cache emitted opcode 34; mock230 logged the debugproc as
+  `ran`; worn container 94 held the crystal helm/body/legs and corrupted Bow of
+  faerdhinen. Exact `::cry` still emitted the local emote button packet.
+- 2026-08-06: Fixed the two independent inventory-interaction failures. Armed
+  backpack IF3 ops 2–7 and normalized RuneLite Wield op 3 to classic
+  `OPHELD2`; corrected revision-239 partial-inventory empty records to omit the
+  nonexistent count byte. Golden fixtures, parser tests, and an isolated real-
+  client run proved Shortbow Wield and Ball of wool → Sapphire amulet (u).
+  Added the full packet-boundary postmortem above and made the interface
+  verifier reject a backpack `opmask` other than `0x7e`.

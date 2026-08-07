@@ -679,6 +679,7 @@ World_PlayerSetAppearance(
     struct World* world,
     int idx,
     int const slots[12],
+    int const identkit[12],
     int const colors[5],
     struct WorldEntityFacet_IdleAnimations const* idle,
     char const* name,

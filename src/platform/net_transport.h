@@ -30,9 +30,13 @@ struct NetTransport
 };
 
 /** Create a transport for the given enum NetTransportKind; default_port applies
- * when the CONNECT target carries no ":port". Returns NULL on unknown kind. */
+ * when the CONNECT target carries no ":port". `rev_name` is the client's
+ * protocol name ("osrs239", ...): the embed transport hands it to the
+ * in-process server so both ends always speak the same wire; the socket
+ * transports ignore it (the remote host chose its own). Returns NULL on
+ * unknown kind. */
 struct NetTransport*
-NetTransport_New(int kind, int default_port);
+NetTransport_New(int kind, int default_port, char const* rev_name);
 
 /** One poll step: drain net->out (connect/send), pump the connection, and push
  * received/de-framed bytes + status changes onto the bus. */

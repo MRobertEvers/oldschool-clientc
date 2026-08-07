@@ -32,6 +32,22 @@ python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 
 ## Python scripts
 
+### `check_crystal_set_contract.py`
+
+**What it does:** Enforces the complete client/server contract behind
+`::crystal_set`: exact local-emote matching, chat fallthrough to rev-239
+`CLIENT_CHEAT` opcode 34, one canonical debugproc, required equipment semantics,
+runtime diagnostics, and semantic self-test coverage. Its negative controls
+prove that the original Cry prefix match and a duplicate command fail the gate.
+
+It runs automatically before both `mock230-scripts` and `mock230-cache`:
+
+```bash
+make -C src check-crystal-set-contract
+```
+
+Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).
+
 ### `gen_lua_api_ht.py`
 
 **What it does:** Code generator. Scans `src/osrs/lua_sidecar/*.inc` for `LUA_API_X(...)` lines and emits `src/osrs/lua_sidecar/lua_api_ht.c` and `src/platforms/browser2/luajs_api_maps.js`.

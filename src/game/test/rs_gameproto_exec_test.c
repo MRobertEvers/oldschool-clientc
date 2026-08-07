@@ -13,6 +13,7 @@
 #include "game/rs_player_stats.h"
 #include "game/task_gameproto_exec.h"
 #include "inv/inv_manager.h"
+#include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
@@ -20,7 +21,18 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+static void
+test_pbits(uint8_t* data, int* bit_pos, int count, uint32_t value)
+{
+    for( int shift = count - 1; shift >= 0; shift-- )
+    {
+        int pos = (*bit_pos)++;
+        data[pos >> 3] |= (uint8_t)(((value >> shift) & 1u) << (7 - (pos & 7)));
+    }
+}
 
 int
 main(void)
@@ -155,6 +167,43 @@ main(void)
         assert(mx0 == 48 && mz0 == 49 && mx1 == 50 && mz1 == 51);
 
         printf("ok - REBUILD_NORMAL square rect\n");
+    }
+
+    /* REBUILD_REGION_V2: exact 239 header followed by a bit-packed 4x13x13
+     * descriptor grid, with no obsolete trailing XTEA block. */
+    {
+        uint8_t body[95] = { 0 };
+        struct RevPacket p;
+        struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+        int bit_pos = 7 * 8;
+        uint32_t descriptor = UINT32_C(0x0123456);
+
+        body[0] = 0x01; /* zoneZ = 0x0123 */
+        body[1] = 0x23;
+        body[2] = 0x02; /* zoneX = 0x0234 */
+        body[3] = 0x34;
+        body[4] = 0x81; /* p1Alt1(reload=true) */
+        body[5] = 0x00; /* one distinct source square */
+        body[6] = 0x01;
+        test_pbits(body, &bit_pos, 1, 1);
+        test_pbits(body, &bit_pos, 26, descriptor);
+        bit_pos += PKT_MAP_REBUILD_ZONES - 1; /* remaining absent-bit records */
+        assert((bit_pos + 7) / 8 == (int)sizeof(body));
+
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse(rev, PKT_NAME_REBUILD_REGION, body, sizeof(body), &p));
+        assert(p._map_rebuild.zonez == 0x0123);
+        assert(p._map_rebuild.zonex == 0x0234);
+        assert(p._map_rebuild.zones != NULL);
+        assert((uint32_t)p._map_rebuild.zones[0] == descriptor);
+        assert(p._map_rebuild.zones[1] == 0);
+        free(p._map_rebuild.zones);
+
+        memset(&p, 0, sizeof(p));
+        assert(!rev->parse(
+            rev, PKT_NAME_REBUILD_REGION, body, (int)sizeof(body) - 1, &p));
+        assert(p._map_rebuild.zones == NULL);
+        printf("ok - REBUILD_REGION_V2 parsed and bounds checked\n");
     }
 
     /* SET_MAP_FLAG: wire tiles are classic-scene local = our-scene tiles. */

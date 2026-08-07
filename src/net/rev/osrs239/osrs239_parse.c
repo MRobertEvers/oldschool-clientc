@@ -1,6 +1,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
+#include "net/jbase37.h"
 #include "zoneprot.h"
 
 #include <stdint.h>
@@ -185,6 +186,33 @@ gsmart1or2(struct Cur* c)
     if( v < 0x80 )
         return v;
     return ((v << 8) | g1(c)) & 0x7fff;
+}
+
+/* Bounds-checked MSB-first bit read used by the instanced-region descriptor
+ * grid. Net_BitBuffer deliberately asserts on malformed input; a network
+ * decoder must reject a short frame instead of terminating the client. */
+static uint32_t
+gbits_checked(
+    uint8_t const* data,
+    int len,
+    int* bit_pos,
+    int count,
+    int* ok)
+{
+    uint32_t value = 0;
+
+    if( !*ok || count < 0 || count > 32 || *bit_pos < 0 ||
+        *bit_pos + count > len * 8 )
+    {
+        *ok = 0;
+        return 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        int pos = (*bit_pos)++;
+        value = (value << 1) | ((data[pos >> 3] >> (7 - (pos & 7))) & 1u);
+    }
+    return value;
 }
 
 /*
@@ -512,18 +540,75 @@ osrs239_parse(
      *   p2Alt2 end, p4 events2, p4Alt2 events1, p2 start, pCombinedIdAlt3 uid
      *
      * V2 carries TWO 32-bit masks where the older packet carried one, and in a
-     * different field order -- 12 bytes became 16. `events2` is the high range;
-     * this client has no representation for it yet, so it is read and dropped
-     * rather than skipped, which keeps the cursor honest.
+     * different field order -- 12 bytes became 16. The classic interaction
+     * mask is reconstructed exactly as the 239 client does for menu/input use.
      */
     case PKT_NAME_IF_SETEVENTS:
     {
         struct PktIfSetEvents* p = &out->_if_setevents;
-        p->to = g2_alt2(&c);
-        (void)g4(&c); /* events2 -- high range, unrepresented here */
-        p->events = g4_alt2(&c);
-        p->from = g2(&c);
+        p->to = (int16_t)g2_alt2(&c);
+        p->events2 = (uint32_t)g4(&c);
+        p->events1 = (uint32_t)g4_alt2(&c);
+        p->events = (int)(p->events1 | ((p->events2 & UINT32_C(0x3ff)) << 1));
+        p->from = (int16_t)g2(&c);
         p->component_id = g4_alt3(&c);
+        return c.over ? 0 : 1;
+    }
+
+    case PKT_NAME_IF_RESYNC_V2:
+    {
+        struct PktIfResync* p = &out->_if_resync;
+        int remaining;
+
+        memset(p, 0, sizeof(*p));
+        p->root_interface_id = g2(&c);
+        if( p->root_interface_id == 65535 )
+            p->root_interface_id = -1;
+        p->mount_count = g2(&c);
+        if( c.over || p->mount_count < 0 || p->mount_count > 4096 ||
+            c.pos + p->mount_count * 7 > len )
+            return 0;
+        if( p->mount_count )
+        {
+            p->mounts = malloc((size_t)p->mount_count * sizeof(*p->mounts));
+            if( !p->mounts )
+                return 0;
+        }
+        for( int i = 0; i < p->mount_count; i++ )
+        {
+            p->mounts[i].target_uid = g4(&c);
+            p->mounts[i].interface_id = g2(&c);
+            p->mounts[i].type = g1(&c);
+        }
+        remaining = len - c.pos;
+        if( c.over || remaining < 0 || remaining % 16 != 0 )
+        {
+            free(p->mounts);
+            p->mounts = NULL;
+            p->mount_count = 0;
+            return 0;
+        }
+        p->event_count = remaining / 16;
+        if( p->event_count )
+        {
+            p->events = malloc((size_t)p->event_count * sizeof(*p->events));
+            if( !p->events )
+            {
+                free(p->mounts);
+                p->mounts = NULL;
+                p->mount_count = 0;
+                p->event_count = 0;
+                return 0;
+            }
+        }
+        for( int i = 0; i < p->event_count; i++ )
+        {
+            p->events[i].component_id = g4(&c);
+            p->events[i].from = (int16_t)g2(&c);
+            p->events[i].to = (int16_t)g2(&c);
+            p->events[i].events1 = (uint32_t)g4(&c);
+            p->events[i].events2 = (uint32_t)g4(&c);
+        }
         return c.over ? 0 : 1;
     }
 
@@ -560,6 +645,84 @@ osrs239_parse(
         p->target_uid = g4(&c);
         return c.over ? 0 : 1;
     }
+
+    case PKT_NAME_IF_MOVESUB:
+        out->_if_movesub.dest_uid = g4_alt1(&c);
+        out->_if_movesub.source_uid = g4(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_CLEARINV:
+        out->_if_clearinv.component_id = g4_alt2(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETCOLOUR:
+        out->_if_setcolour.colour = g2(&c);
+        out->_if_setcolour.component_id = g4_alt2(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETHIDE:
+        out->_if_sethide.component_id = g4_alt3(&c);
+        out->_if_sethide.hide = g1_alt1(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETMODEL:
+        out->_if_setmodel.model_id = g4_alt2(&c);
+        out->_if_setmodel.component_id = g4_alt1(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETOBJECT:
+        out->_if_setobject.component_id = g4_alt2(&c);
+        out->_if_setobject.obj_id = g2_alt2(&c);
+        out->_if_setobject.zoom = g4(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETPOSITION:
+        out->_if_setposition.z = (int16_t)g2_alt3(&c);
+        out->_if_setposition.component_id = g4_alt2(&c);
+        out->_if_setposition.x = (int16_t)g2_alt3(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETROTATESPEED:
+        out->_if_setrotatespeed.y_speed = (int16_t)g2(&c);
+        out->_if_setrotatespeed.x_speed = (int16_t)g2_alt2(&c);
+        out->_if_setrotatespeed.component_id = g4_alt3(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETANGLE:
+        out->_if_setangle.component_id = g4_alt3(&c);
+        out->_if_setangle.zoom = g2(&c);
+        out->_if_setangle.angle_x = g2(&c);
+        out->_if_setangle.angle_y = g2_alt3(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+        out->_if_setnpchead_active.index = g2_alt2(&c);
+        out->_if_setnpchead_active.component_id = g4_alt2(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR:
+        out->_if_setplayermodel.index = g1(&c);
+        out->_if_setplayermodel.value = g1(&c);
+        out->_if_setplayermodel.component_id = g4(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE:
+        out->_if_setplayermodel.component_id = g4_alt2(&c);
+        out->_if_setplayermodel.index = -1;
+        out->_if_setplayermodel.value = g1(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETPLAYERMODEL_OBJ:
+        out->_if_setplayermodel.component_id = g4_alt2(&c);
+        out->_if_setplayermodel.index = -1;
+        out->_if_setplayermodel.value = g4_alt3(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_IF_SETPLAYERMODEL_SELF:
+        out->_if_setplayermodel.value = g1_alt3(&c) != 0;
+        out->_if_setplayermodel.index = -1;
+        out->_if_setplayermodel.component_id = g4(&c);
+        return c.over ? 0 : 1;
 
     /* VarpSmallEncoder: p1Alt1 value, p2Alt3 id. */
     case PKT_NAME_VARP_SMALL:
@@ -814,8 +977,8 @@ osrs239_parse(
         p->entries = NULL;
         if( c.over )
             return 0;
-        /* Smallest record is 4 bytes (1 slot + 2 obj + 1 count). */
-        max_entries = (len - c.pos) / 4 + 1;
+        /* Empty records are only 3 bytes: slot + zero object sentinel. */
+        max_entries = (len - c.pos) / 3 + 1;
         p->entries = (struct PktUpdateInvPartialEntry*)malloc(
             (size_t)max_entries * sizeof(struct PktUpdateInvPartialEntry));
         if( !p->entries )
@@ -827,9 +990,14 @@ osrs239_parse(
 
             entry->slot = gsmart1or2(&c);
             entry->obj_id = g2(&c) - 1;
-            count = g1(&c);
-            if( count == 255 )
-                count = g4(&c);
+            if( entry->obj_id < 0 )
+                count = 0;
+            else
+            {
+                count = g1(&c);
+                if( count == 255 )
+                    count = g4(&c);
+            }
             entry->count = count;
             if( c.over )
                 break;
@@ -845,6 +1013,101 @@ osrs239_parse(
         p->count = written;
         return 1;
     }
+
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+        out->_update_inv_stop_transmit.component_id = -1;
+        out->_update_inv_stop_transmit.inv_id = g2(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_FRIENDLIST_LOADED:
+        out->_friendlist_loaded.status = 1;
+        return len == 0;
+
+    case PKT_NAME_UPDATE_FRIENDLIST:
+    {
+        struct PktUpdateFriendList* p = &out->_update_friendlist;
+        char* name;
+        char* previous;
+        char* extra = NULL;
+        char* note;
+
+        memset(p, 0, sizeof(*p));
+        if( len == 0 )
+            return 1;
+        (void)g1(&c); /* renamed */
+        name = gjstr_nul(&c);
+        previous = gjstr_nul(&c);
+        p->world = g2(&c);
+        (void)g1(&c); /* rank */
+        (void)g1(&c); /* flags */
+        if( p->world > 0 )
+        {
+            extra = gjstr_nul(&c);
+            (void)g1(&c);
+            (void)g4(&c);
+        }
+        note = gjstr_nul(&c);
+        if( !c.over && c.pos == len && name && previous && note &&
+            (p->world <= 0 || extra) )
+        {
+            p->name37 = (int64_t)strtobase37(name);
+            p->present = 1;
+        }
+        free(name);
+        free(previous);
+        free(extra);
+        free(note);
+        return p->present;
+    }
+
+    case PKT_NAME_UPDATE_IGNORELIST:
+    {
+        struct PktUpdateIgnoreList* p = &out->_update_ignorelist;
+        int cap = len / 4 + 1;
+
+        p->count = 0;
+        p->names37 = cap > 0 ? malloc((size_t)cap * sizeof(*p->names37)) : NULL;
+        if( cap > 0 && !p->names37 )
+            return 0;
+        while( c.pos < len && !c.over )
+        {
+            char* name;
+            char* previous;
+            char* note;
+
+            (void)g1(&c); /* flags/renamed */
+            name = gjstr_nul(&c);
+            previous = gjstr_nul(&c);
+            note = gjstr_nul(&c);
+            if( !name || !previous || !note || c.over )
+            {
+                free(name);
+                free(previous);
+                free(note);
+                break;
+            }
+            p->names37[p->count++] = (int64_t)strtobase37(name);
+            free(name);
+            free(previous);
+            free(note);
+        }
+        if( c.over || c.pos != len )
+        {
+            free(p->names37);
+            p->names37 = NULL;
+            p->count = 0;
+            return 0;
+        }
+        return 1;
+    }
+
+    case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
+        out->_set_npc_update_origin.x = g1(&c);
+        out->_set_npc_update_origin.z = g1(&c);
+        return c.over ? 0 : 1;
+
+    case PKT_NAME_SERVER_TICK_END:
+        return len == 0;
 
     /*
      * RunClientScriptEncoder: pjstr types, the arguments in REVERSE order, then
@@ -1038,11 +1301,12 @@ osrs239_parse(
      * p2 z.  CamLookAtV2Encoder: p2 z, p2Alt2 height, p1 rate2, p1Alt3 rate,
      * p2Alt1 x.
      *
-     * Eight bytes at this revision against the classic six, and the coordinates
-     * are two bytes each rather than one -- the classic packs a scene-local
-     * tile into a byte, which cannot address a coordinate outside the scene.
-     * The canonical struct's `local_x`/`local_z` keep their meaning; what
-     * changed is only the width.
+     * Eight bytes at this revision against the classic six, and the widening
+     * is not cosmetic: the two-byte coordinates are ABSOLUTE world tiles ("a
+     * specific coordinate in the root world"), where the classic byte pair is
+     * scene-local 0..103 and cannot address anything outside the scene. The
+     * parse has no scene base to subtract, so `absolute` records the meaning
+     * and the exec converts against the world it is applying to.
      */
     case PKT_NAME_CAM_MOVETO:
     {
@@ -1052,6 +1316,7 @@ osrs239_parse(
         p->height = g2_alt1(&c);
         p->rate2 = g1_alt2(&c);
         p->local_z = g2(&c);
+        p->absolute = 1;
         return c.over ? 0 : 1;
     }
 
@@ -1063,6 +1328,7 @@ osrs239_parse(
         p->rate2 = g1(&c);
         p->rate = g1_alt3(&c);
         p->local_x = g2_alt1(&c);
+        p->absolute = 1;
         return c.over ? 0 : 1;
     }
 
@@ -1079,28 +1345,48 @@ osrs239_parse(
     }
 
     /*
-     * Still refused, and each for its own reason rather than as a group:
+     * RebuildRegionV2Encoder plus the client's encodeRegionV2 grid:
+     *   p2 zoneZ, p2 zoneX, p1Alt1 reload, p2 distinctSourceSquareCount,
+     *   then 4*13*13 records in bit mode: pBit(1) present and, when present,
+     *   pBit(26) descriptor. V2 has no trailing XTEA keys.
      *
-     *   IF_SETMODEL   V2 addresses the component by a 4-byte combined uid.
-     *   REBUILD_REGION V2, like REBUILD_NORMAL, but its zone descriptor grid
-     *                 has not been re-read against the V2 encoder.
-     *
-     * Returning 0 -- not -1 -- is what makes this a drop. `net.c` reads a
-     * negative as "not mine, try the shared parser", which would decode both
-     * with the classic layout: exactly the corruption this list exists to
-     * avoid.
-     *
-     * PLAYER_INFO and NPC_INFO are deliberately NOT here. They delegate, and
-     * that is not the shared parser decoding them -- it only copies the command
-     * stream out of the frame. The v5 codec that reads it is a whole reader in
-     * the rev table's `player_info_read` / `npc_info_read` slots, applied by
-     * the exec task. Dropping them here instead, which is what this list did,
-     * removes the local player and every npc while leaving the stream itself
-     * perfectly well-formed.
+     * The source-square count is a loading hint in the Java client. The C
+     * loader derives the distinct source squares directly from the retained
+     * descriptors, so it only needs to consume and validate the field.
      */
     case PKT_NAME_REBUILD_REGION:
-    case PKT_NAME_IF_SETMODEL:
-        return 0;
+    {
+        struct PktMapRebuild* p = &out->_map_rebuild;
+        int source_square_count;
+        int bit_pos;
+        int ok = 1;
+
+        memset(p, 0, sizeof(*p));
+        p->zonez = g2(&c);
+        p->zonex = g2(&c);
+        (void)g1_alt1(&c); /* reload: region rebuilds are forced downstream */
+        source_square_count = g2(&c);
+        if( c.over || source_square_count < 0 ||
+            source_square_count > PKT_MAP_REBUILD_ZONES )
+            return 0;
+
+        p->zones = calloc(PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
+        if( !p->zones )
+            return 0;
+        bit_pos = c.pos * 8;
+        for( int i = 0; i < PKT_MAP_REBUILD_ZONES && ok; i++ )
+        {
+            if( gbits_checked(data, len, &bit_pos, 1, &ok) )
+                p->zones[i] = (int32_t)gbits_checked(data, len, &bit_pos, 26, &ok);
+        }
+        if( !ok || (bit_pos + 7) / 8 != len )
+        {
+            free(p->zones);
+            p->zones = NULL;
+            return 0;
+        }
+        return 1;
+    }
 
     default:
         /*

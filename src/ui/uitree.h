@@ -573,6 +573,8 @@ struct UITreeComponent
             int xan;
             int yan;
             int zan;
+            int rotate_x_speed;
+            int rotate_y_speed;
             int x_offset;
             int y_offset;
             uint8_t orthog;
@@ -986,6 +988,8 @@ struct UITreeNodeSpec
             int xan;
             int yan;
             int zan;
+            int rotate_x_speed;
+            int rotate_y_speed;
             int x_offset;
             int y_offset;
             uint8_t orthog;
@@ -1386,6 +1390,13 @@ UITree_ApplyModelAngle(
     int xan,
     int yan,
     int zoom);
+
+bool
+UITree_ApplyModelRotateSpeed(
+    struct UITree* tree,
+    int component_id,
+    int x_speed,
+    int y_speed);
 
 /** Set a MODEL widget's animation sequence (reference IF_SETANIM / modelAnim);
  * -1 clears it. Restarts playback only when the sequence actually changes —

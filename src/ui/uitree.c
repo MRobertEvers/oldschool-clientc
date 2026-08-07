@@ -1837,6 +1837,8 @@ UITree_Push(
         component->u.rs_model.xan = spec->u.rs_model.xan;
         component->u.rs_model.yan = spec->u.rs_model.yan;
         component->u.rs_model.zan = spec->u.rs_model.zan;
+        component->u.rs_model.rotate_x_speed = spec->u.rs_model.rotate_x_speed;
+        component->u.rs_model.rotate_y_speed = spec->u.rs_model.rotate_y_speed;
         component->u.rs_model.x_offset = spec->u.rs_model.x_offset;
         component->u.rs_model.y_offset = spec->u.rs_model.y_offset;
         component->u.rs_model.orthog = spec->u.rs_model.orthog;
@@ -2959,6 +2961,22 @@ UITree_ApplyModelAngle(
     tree->components[idx].u.rs_model.yan = yan;
     if( zoom > 0 )
         tree->components[idx].u.rs_model.zoom = zoom;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
+UITree_ApplyModelRotateSpeed(
+    struct UITree* tree,
+    int component_id,
+    int x_speed,
+    int y_speed)
+{
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+        return false;
+    tree->components[idx].u.rs_model.rotate_x_speed = x_speed;
+    tree->components[idx].u.rs_model.rotate_y_speed = y_speed;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

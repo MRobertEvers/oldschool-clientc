@@ -36,6 +36,19 @@ enum Mock239IfButtonRoute
 enum Mock239IfButtonRoute
 mock239_if_button_route(const struct Mock239IfButton* button);
 
+/**
+ * Translate a revision-239 backpack row number back to the classic OPHELD
+ * trigger number used by content.
+ *
+ * The IF3 inventory inserts its generic Use row before ObjType inventory
+ * actions, so cache action 0 (classic OPHELD1) is IF_BUTTONX op 2, action 1
+ * (classic OPHELD2, normally Wear/Wield) is op 3, and so on. Drop is the
+ * client's synthetic op 7 but remains classic OPHELD5. Returns zero for a row
+ * that is not a backpack ObjType action.
+ */
+int
+mock239_if_button_backpack_op(const struct Mock239IfButton* button);
+
 enum Mock239IfScriptValueKind
 {
     MOCK239_IF_SCRIPT_INT,

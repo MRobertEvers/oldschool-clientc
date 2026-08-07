@@ -776,6 +776,14 @@ gameproto_free(struct RevPacket* p)
         p->_update_inv_full.obj_counts = NULL;
         p->_update_inv_full.size = 0;
         break;
+    case PKT_NAME_IF_RESYNC_V2:
+        free(p->_if_resync.mounts);
+        free(p->_if_resync.events);
+        p->_if_resync.mounts = NULL;
+        p->_if_resync.events = NULL;
+        p->_if_resync.mount_count = 0;
+        p->_if_resync.event_count = 0;
+        break;
     case PKT_NAME_IF_SETTEXT:
         free(p->_if_settext.text);
         p->_if_settext.text = NULL;

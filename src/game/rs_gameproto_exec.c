@@ -18,6 +18,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
@@ -43,6 +44,38 @@ exec_inv_container_id(
     int component_id)
 {
     return inv_id > 0 ? inv_id : component_id;
+}
+
+static void
+exec_if_clearinv_node(
+    struct UITree* tree,
+    int32_t idx)
+{
+    struct UITreeComponent* c;
+
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    c = &tree->components[idx];
+    if( c->freed )
+        return;
+    c->item_id = 0;
+    c->item_count = 0;
+    c->item_scene_id = -1;
+    c->item_atlas_index = 0;
+    if( c->type == UIELEM_CC_OBJ )
+    {
+        c->u.cc_obj.obj_id = 0;
+        c->u.cc_obj.obj_count = 0;
+        c->u.cc_obj.scene_id = -1;
+        c->u.cc_obj.atlas_index = 0;
+    }
+    UITree_MarkNodeDirty(tree, idx);
+    for( int32_t child = c->first_child; child >= 0; )
+    {
+        int32_t next = tree->components[child].next_sibling;
+        exec_if_clearinv_node(tree, child);
+        child = next;
+    }
 }
 
 static void
@@ -556,8 +589,17 @@ RS_GameProto_Exec(
             rs15_to_rgb(packet->_if_setcolour.colour));
         break;
     case PKT_NAME_IF_SETMODEL:
-        UITree_ApplyModel(
-            ctx->tree, packet->_if_setmodel.component_id, packet->_if_setmodel.model_id);
+        /* A wire model id addresses the cache, not the renderer's scene. The
+         * App owns the asynchronous cache-load/upload bridge and persistence
+         * across an interface remount. */
+        if( ctx->app )
+            App_SetInterfaceModel(
+                ctx->app,
+                packet->_if_setmodel.component_id,
+                packet->_if_setmodel.model_id);
+        else
+            UITree_ApplyModel(
+                ctx->tree, packet->_if_setmodel.component_id, packet->_if_setmodel.model_id);
         break;
     case PKT_NAME_IF_SETOBJECT:
         /* Reference IfType.getModel type 4: the obj's 3D interface model (the
@@ -595,6 +637,82 @@ RS_GameProto_Exec(
     case PKT_NAME_IF_SETSCROLLPOS:
         UITree_ApplyScrollPos(
             ctx->tree, packet->_if_setscrollpos.component_id, 0, packet->_if_setscrollpos.pos);
+        break;
+    case PKT_NAME_IF_SETPOSITION:
+        UITree_ApplyPosition(
+            ctx->tree,
+            packet->_if_setposition.component_id,
+            packet->_if_setposition.x,
+            packet->_if_setposition.z);
+        break;
+    case PKT_NAME_IF_SETROTATESPEED:
+        UITree_ApplyModelRotateSpeed(
+            ctx->tree,
+            packet->_if_setrotatespeed.component_id,
+            packet->_if_setrotatespeed.x_speed,
+            packet->_if_setrotatespeed.y_speed);
+        break;
+    case PKT_NAME_IF_SETANGLE:
+        UITree_ApplyModelAngle(
+            ctx->tree,
+            packet->_if_setangle.component_id,
+            packet->_if_setangle.angle_x,
+            packet->_if_setangle.angle_y,
+            packet->_if_setangle.zoom);
+        break;
+    case PKT_NAME_IF_CLEARINV:
+        exec_if_clearinv_node(
+            ctx->tree,
+            UITree_FindByComponentId(ctx->tree, packet->_if_clearinv.component_id));
+        break;
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+        if( ctx->app && ctx->app->world )
+        {
+            int world_idx;
+            if( RS_EntitySync_FindNpc(
+                    &ctx->app->esync,
+                    packet->_if_setnpchead_active.index,
+                    &world_idx,
+                    NULL) )
+            {
+                struct WorldEntity_NPC* npc =
+                    World_EntityPoolGet(&ctx->app->world->entities.npc, world_idx);
+                if( npc )
+                    App_SetInterfaceNpcHead(
+                        ctx->app,
+                        packet->_if_setnpchead_active.component_id,
+                        npc->npc_id);
+            }
+        }
+        break;
+    case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR:
+        if( ctx->app )
+            App_SetInterfacePlayerModelBaseColour(
+                ctx->app,
+                packet->_if_setplayermodel.component_id,
+                packet->_if_setplayermodel.index,
+                packet->_if_setplayermodel.value);
+        break;
+    case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE:
+        if( ctx->app )
+            App_SetInterfacePlayerModelBodyType(
+                ctx->app,
+                packet->_if_setplayermodel.component_id,
+                packet->_if_setplayermodel.value);
+        break;
+    case PKT_NAME_IF_SETPLAYERMODEL_OBJ:
+        if( ctx->app )
+            App_SetInterfacePlayerModelObj(
+                ctx->app,
+                packet->_if_setplayermodel.component_id,
+                packet->_if_setplayermodel.value);
+        break;
+    case PKT_NAME_IF_SETPLAYERMODEL_SELF:
+        if( ctx->app )
+            App_SetInterfacePlayerModelSelf(
+                ctx->app,
+                packet->_if_setplayermodel.component_id,
+                packet->_if_setplayermodel.value);
         break;
 
     /* ---- interface slots (need the App / RS_UISlots) ---- */
@@ -682,6 +800,47 @@ RS_GameProto_Exec(
         if( ctx->app )
             App_MoveSubInterface(
                 ctx->app, packet->_if_movesub.source_uid, packet->_if_movesub.dest_uid);
+        break;
+    case PKT_NAME_IF_RESYNC_V2:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            struct PktIfResync const* sync = &packet->_if_resync;
+            int root_changed = sync->root_interface_id > 0 &&
+                               sync->root_interface_id != app->boot_interface_id;
+
+            if( root_changed )
+                App_OpenRootInterface(app, sync->root_interface_id);
+            else if( app->tree )
+            {
+                int uids[UITREE_INTERFACE_PARENT_MAX];
+                int count = app->tree->interface_parent_count;
+                if( count > UITREE_INTERFACE_PARENT_MAX )
+                    count = UITREE_INTERFACE_PARENT_MAX;
+                for( int i = 0; i < count; i++ )
+                    uids[i] = app->tree->interface_parents[i].container_uid;
+                for( int i = 0; i < count; i++ )
+                    App_CloseSubInterface(app, uids[i]);
+            }
+            App_IfEventsClear(app);
+            for( int i = 0; i < sync->mount_count; i++ )
+                App_OpenSubInterface(
+                    app,
+                    sync->mounts[i].target_uid,
+                    sync->mounts[i].interface_id,
+                    sync->mounts[i].type);
+            for( int i = 0; i < sync->event_count; i++ )
+            {
+                uint32_t mask = sync->events[i].events1 |
+                    ((sync->events[i].events2 & UINT32_C(0x3ff)) << 1);
+                App_IfEventsSet(
+                    app,
+                    sync->events[i].component_id,
+                    sync->events[i].from,
+                    sync->events[i].to,
+                    (int)mask);
+            }
+        }
         break;
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( ctx->app )
@@ -803,10 +962,19 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            /* Wire coords are classic-scene local tiles. These only record
-             * where the camera is headed; App_CinemaCamera walks it there. */
-            app->cam_script.move_lx = packet->_cam_moveto.local_x;
-            app->cam_script.move_lz = packet->_cam_moveto.local_z;
+            /* Classic wire coords are scene-local tiles; the V2 packet's are
+             * absolute world tiles (packet->absolute), converted here against
+             * the scene the shot plays in. These only record where the camera
+             * is headed; App_CinemaCamera walks it there. */
+            int cam_lx = packet->_cam_moveto.local_x;
+            int cam_lz = packet->_cam_moveto.local_z;
+            if( packet->_cam_moveto.absolute && app->world )
+            {
+                cam_lx -= app->world->_base_tile_x;
+                cam_lz -= app->world->_base_tile_z;
+            }
+            app->cam_script.move_lx = cam_lx;
+            app->cam_script.move_lz = cam_lz;
             app->cam_script.move_height = packet->_cam_moveto.height;
             app->cam_script.move_rate = packet->_cam_moveto.rate;
             app->cam_script.move_rate2 = packet->_cam_moveto.rate2;
@@ -814,8 +982,8 @@ RS_GameProto_Exec(
             {
                 /* First op of a cutscene: aim at where we already are, so the
                  * unset half of the pair does not swing the shot to tile 0. */
-                app->cam_script.look_lx = packet->_cam_moveto.local_x;
-                app->cam_script.look_lz = packet->_cam_moveto.local_z;
+                app->cam_script.look_lx = cam_lx;
+                app->cam_script.look_lz = cam_lz;
             }
             app->cam_script.scripted = 1;
             if( packet->_cam_moveto.rate2 >= 100 )
@@ -827,8 +995,16 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            app->cam_script.look_lx = packet->_cam_lookat.local_x;
-            app->cam_script.look_lz = packet->_cam_lookat.local_z;
+            /* Same absolute-vs-scene-local split as CAM_MOVETO above. */
+            int cam_lx = packet->_cam_lookat.local_x;
+            int cam_lz = packet->_cam_lookat.local_z;
+            if( packet->_cam_lookat.absolute && app->world )
+            {
+                cam_lx -= app->world->_base_tile_x;
+                cam_lz -= app->world->_base_tile_z;
+            }
+            app->cam_script.look_lx = cam_lx;
+            app->cam_script.look_lz = cam_lz;
             app->cam_script.look_height = packet->_cam_lookat.height;
             app->cam_script.look_rate = packet->_cam_lookat.rate;
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
@@ -878,6 +1054,13 @@ RS_GameProto_Exec(
             char name[16];
             struct RS_Social* social = &ctx->app->social;
             int found = 0;
+            social->server_status = 2;
+            if( !packet->_update_friendlist.present )
+            {
+                RS_CS2Host_NotifyFriendChanged(&ctx->app->host);
+                ctx->app->need_redraw = 1;
+                break;
+            }
             base37tostr((uint64_t)packet->_update_friendlist.name37, name, sizeof(name));
             for( int i = 0; i < social->friend_count; i++ )
             {
@@ -1136,7 +1319,23 @@ RS_GameProto_Exec(
          * was never transmitted. */
         if( ctx->invs )
             InvManager_ApplyFull(
-                ctx->invs, packet->_update_inv_stop_transmit.component_id, NULL, NULL, 0);
+                ctx->invs,
+                exec_inv_container_id(
+                    packet->_update_inv_stop_transmit.inv_id,
+                    packet->_update_inv_stop_transmit.component_id),
+                NULL,
+                NULL,
+                0);
+        break;
+    case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
+        if( ctx->app )
+        {
+            ctx->app->npc_update_origin_x = packet->_set_npc_update_origin.x;
+            ctx->app->npc_update_origin_z = packet->_set_npc_update_origin.z;
+            ctx->app->npc_update_origin_valid = 1;
+        }
+        break;
+    case PKT_NAME_SERVER_TICK_END:
         break;
 
     default:

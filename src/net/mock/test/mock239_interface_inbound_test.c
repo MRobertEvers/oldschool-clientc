@@ -102,6 +102,11 @@ check_buttons(void)
     static const uint8_t subop[] = {
         0x03, 0x5c, 0x00, 0x11, 0x00, 0x07, 0x10, 0x37, 0x03, 0x09,
     };
+    /* inventory:items (149:0), slot 5, shortbow 841. Generic Use occupies op
+     * 1, so Wield is modern op 3 but classic OPHELD2. */
+    static const uint8_t backpack_wield[] = {
+        0x00, 0x95, 0x00, 0x00, 0x00, 0x05, 0x03, 0x49, 0x03,
+    };
     struct Mock239IfButton got;
     uint8_t translated[32];
     int translated_len = -1;
@@ -137,7 +142,7 @@ check_buttons(void)
         "IF_SUBOP preserves its trailing submenu index");
     CHECK(
         mock239_if_button_route(&got) == MOCK239_IF_ROUTE_OPHELD,
-        "item submenu op 3 retains OPHELD3 semantics");
+        "item submenu op 3 takes the object-backed route");
     name = mock239_inbound_translate(
         40,
         PKTOUT_NAME_IF_SUBOP,
@@ -150,6 +155,27 @@ check_buttons(void)
         name == PKTOUT_NAME_IF_SUBOP && translated_len == (int)sizeof(subop) &&
             memcmp(translated, subop, sizeof(subop)) == 0,
         "IF_SUBOP routes without dropping byte 10");
+
+    CHECK(
+        mock239_if_button_decode(backpack_wield, sizeof(backpack_wield), 0, &got) &&
+            mock239_if_button_backpack_op(&got) == 2,
+        "backpack Wield modern op 3 normalizes to classic OPHELD2");
+    got.op = 2;
+    CHECK(
+        mock239_if_button_backpack_op(&got) == 1,
+        "backpack first ObjType action modern op 2 normalizes to OPHELD1");
+    got.op = 6;
+    CHECK(
+        mock239_if_button_backpack_op(&got) == 5,
+        "backpack fifth ObjType action modern op 6 normalizes to OPHELD5");
+    got.op = 7;
+    CHECK(
+        mock239_if_button_backpack_op(&got) == 5,
+        "backpack synthetic Drop modern op 7 normalizes to OPHELD5");
+    got.op = 10;
+    CHECK(
+        mock239_if_button_backpack_op(&got) == 0,
+        "backpack Examine is not misrouted as a classic OPHELD action");
 
     {
         uint8_t bad[sizeof(item_op10)];
@@ -357,6 +383,62 @@ check_resumes(void)
     }
 }
 
+static void
+check_protocol_adapters(void)
+{
+    static const uint8_t social[] = { 'Z', 'e', 'z', 'i', 'm', 'a', 0 };
+    static const uint8_t social_classic[] = {
+        0x00, 0x00, 0x00, 0x00, 0x6c, 0x1a, 0x00, 0xcc,
+    };
+    static const uint8_t cheat[] = { 'b', 'a', 'n', 'k', 0 };
+    static const uint8_t cheat_classic[] = { 'b', 'a', 'n', 'k', '\n' };
+    static const uint8_t private_message[] = {
+        'Z', 'e', 'z', 'i', 'm', 'a', 0, 0xaa, 0xbb, 0xcc,
+    };
+    static const uint8_t private_classic[] = {
+        0x00, 0x00, 0x00, 0x00, 0x6c, 0x1a, 0x00, 0xcc, 0xaa, 0xbb, 0xcc,
+    };
+    /* OpLocT: ctrl, selectedSub, id, selectedCombinedId, z, x, selectedObj. */
+    static const uint8_t oploct[] = {
+        0x00, 0x00, 0x85, 0x34, 0x12, 0x44, 0x33, 0x22,
+        0x11, 0xe7, 0x45, 0x45, 0x23, 0x56, 0x34,
+    };
+    static const uint8_t oplocu_classic[] = {
+        0x23, 0x45, 0x45, 0x67, 0x12, 0x34,
+        0x34, 0x56, 0x00, 0x05, 0x33, 0x44,
+    };
+    uint8_t translated[32];
+    int translated_len;
+
+#define CHECK_ADAPTER(label, opcode, canonical, body, want_name, want_body)                         \
+    do                                                                                              \
+    {                                                                                               \
+        translated_len = -1;                                                                        \
+        CHECK(                                                                                      \
+            mock239_inbound_translate(                                                              \
+                (opcode), (canonical), (body), sizeof(body), translated, sizeof(translated),        \
+                &translated_len) == (want_name) &&                                                  \
+                translated_len == (int)sizeof(want_body) &&                                        \
+                memcmp(translated, (want_body), sizeof(want_body)) == 0,                            \
+            "%s translates to the classic embedded-server body",                                 \
+            (label));                                                                               \
+    } while( 0 )
+
+    CHECK_ADAPTER(
+        "FRIENDLIST_ADD NUL name", 28, PKTOUT_NAME_FRIENDLIST_ADD, social,
+        PKTOUT_NAME_FRIENDLIST_ADD, social_classic);
+    CHECK_ADAPTER(
+        "CLIENT_CHEAT NUL string", 34, PKTOUT_NAME_CLIENT_CHEAT, cheat,
+        PKTOUT_NAME_CLIENT_CHEAT, cheat_classic);
+    CHECK_ADAPTER(
+        "MESSAGE_PRIVATE named recipient", 111, PKTOUT_NAME_MESSAGE_PRIVATE, private_message,
+        PKTOUT_NAME_MESSAGE_PRIVATE, private_classic);
+    CHECK_ADAPTER(
+        "OPLOCT exact field sequence", 62, PKTOUT_NAME_OPLOCT, oploct,
+        PKTOUT_NAME_OPLOCU, oplocu_classic);
+#undef CHECK_ADAPTER
+}
+
 int
 main(void)
 {
@@ -364,6 +446,7 @@ main(void)
     check_buttons();
     check_script_trigger();
     check_resumes();
+    check_protocol_adapters();
 
     fprintf(stderr, "mock239-interface-inbound: %d checks, %d failure(s)\n", checks, failures);
     return failures ? 1 : 0;
