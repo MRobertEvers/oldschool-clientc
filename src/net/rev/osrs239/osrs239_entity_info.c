@@ -550,6 +550,36 @@ tail_smart(uint8_t const* data, int len, int* pos)
     return ((value << 8) | data[(*pos)++]) & 0x7fff;
 }
 
+/* JagByteBuf.gSmart2or4null, used by Face.Entity's target index. */
+static int
+tail_smart2or4null(uint8_t const* data, int len, int* pos)
+{
+    int value;
+
+    if( *pos >= len )
+        return -1;
+    if( (data[*pos] & 0x80) != 0 )
+    {
+        if( *pos + 4 > len )
+        {
+            *pos = len;
+            return -1;
+        }
+        value = ((data[*pos] & 0x7f) << 24) | (data[*pos + 1] << 16) |
+                (data[*pos + 2] << 8) | data[*pos + 3];
+        *pos += 4;
+        return value;
+    }
+    if( *pos + 2 > len )
+    {
+        *pos = len;
+        return -1;
+    }
+    value = (data[*pos] << 8) | data[*pos + 1];
+    *pos += 2;
+    return value == 32767 ? -1 : value;
+}
+
 /*
  * The extended-info tail, byte-aligned, in the order the indices were flagged.
  *
@@ -627,6 +657,54 @@ player_extended(
                 }
             }
         }
+        if( (flag & V5_PLAYER_FACE) != 0 )
+        {
+            /* PlayerFacingEncoder: g1Alt2 header.  Preserve the legacy op
+             * vocabulary for the common executor while translating Face.Loc's
+             * tile/size coordinates back to a half-tile centre. */
+            int header = pos < len ? ((-data[pos++]) & 0xff) : 0;
+            int kind = (header >> 3) & 0x7;
+
+            if( kind == 0 ) /* Entity */
+            {
+                int type = tail_smart(data, len, &pos);
+                int index = tail_smart2or4null(data, len, &pos);
+                struct PktPlayerInfoOp* op;
+
+                (void)tail_smart(data, len, &pos); /* fallback angle */
+                if( type == 1 || type == 2 )
+                {
+                    op = player_op(r, PKT_PLAYER_INFO_OP_FACE_ENTITY);
+                    if( op )
+                        op->_face_entity.entity_id =
+                            type == 2 && index >= 0 ? 32768 + index : index;
+                }
+            }
+            else if( kind == 1 ) /* Loc */
+            {
+                int x = tail_smart(data, len, &pos);
+                int z = tail_smart(data, len, &pos);
+                int size = tail_smart(data, len, &pos);
+                struct PktPlayerInfoOp* op =
+                    player_op(r, PKT_PLAYER_INFO_OP_FACE_COORD);
+
+                if( op )
+                {
+                    op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
+                    op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
+                }
+            }
+            else if( kind == 2 ) /* Angle */
+                (void)tail_smart(data, len, &pos);
+            else if( kind == 3 ) /* Reset */
+            {
+                struct PktPlayerInfoOp* op =
+                    player_op(r, PKT_PLAYER_INFO_OP_FACE_ENTITY);
+
+                if( op )
+                    op->_face_entity.entity_id = -1;
+            }
+        }
         if( (flag & V5_PLAYER_SAY) != 0 )
         {
             int start = pos;
@@ -681,7 +759,8 @@ player_extended(
                 return;
         }
 
-        known = V5_PLAYER_EXT_SHORT | V5_PLAYER_EXT_MEDIUM | V5_PLAYER_HITMARKS |
+        known = V5_PLAYER_EXT_SHORT | V5_PLAYER_EXT_MEDIUM | V5_PLAYER_FACE |
+                V5_PLAYER_HITMARKS |
                 V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_TEMP_MOVE_SPEED |
                 V5_PLAYER_APPEARANCE;
         if( (flag & ~known) != 0 )
@@ -905,8 +984,54 @@ npc_extended(
             if( op )
                 op->_change_type.npc_type = (hi << 8) | ((lo - 128) & 0xff);
         }
+        if( (flag & V5_NPC_FACING) != 0 )
+        {
+            /* NpcFaceEncoder differs from PlayerFacingEncoder only in its
+             * g1Alt1 header transform. */
+            int header = pos < len ? ((data[pos++] - 128) & 0xff) : 0;
+            int kind = (header >> 3) & 0x7;
 
-        known = V5_NPC_EXT_SHORT | V5_NPC_EXT_MEDIUM | V5_NPC_EXT_INT | V5_NPC_HITMARKS |
+            if( kind == 0 ) /* Entity */
+            {
+                int type = tail_smart(data, len, &pos);
+                int index = tail_smart2or4null(data, len, &pos);
+                struct PktNpcInfoOp* op;
+
+                (void)tail_smart(data, len, &pos); /* fallback angle */
+                if( type == 1 || type == 2 )
+                {
+                    op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
+                    if( op )
+                        op->_face_entity.entity_id =
+                            type == 2 && index >= 0 ? 32768 + index : index;
+                }
+            }
+            else if( kind == 1 ) /* Loc */
+            {
+                int x = tail_smart(data, len, &pos);
+                int z = tail_smart(data, len, &pos);
+                int size = tail_smart(data, len, &pos);
+                struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_FACE_COORD);
+
+                if( op )
+                {
+                    op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
+                    op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
+                }
+            }
+            else if( kind == 2 ) /* Angle */
+                (void)tail_smart(data, len, &pos);
+            else if( kind == 3 ) /* Reset */
+            {
+                struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
+
+                if( op )
+                    op->_face_entity.entity_id = -1;
+            }
+        }
+
+        known = V5_NPC_EXT_SHORT | V5_NPC_EXT_MEDIUM | V5_NPC_EXT_INT | V5_NPC_FACING |
+                V5_NPC_HITMARKS |
                 V5_NPC_SEQUENCE | V5_NPC_SAY | V5_NPC_SPOTANIM | V5_NPC_TRANSFORMATION;
         if( (flag & ~known) != 0 )
         {
