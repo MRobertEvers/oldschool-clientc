@@ -1241,31 +1241,45 @@ only those three server-authored strings. Hans now uses `~p_choice5` with the fi
 literal screenshot rows. Row four enters the existing age/account-history reply
 and row five closes without another page.
 
-There was also an independent cache-deployment fault. On the pristine July
-`cache.osrs239`, golden widget telemetry decoded `chatmenu:options` (219:1) as
-raw `(20,12)`, absolute modes `(0,0)`. The golden layout routine correctly kept
-that 479x122 root at `(20,12)` inside `chatbox:chatmodal`'s 479x96 mount, clipping
-the lower rows. The content record already states raw `(0,0)`, centred modes
-`(1,1)`. An interface-only cache bake from the pristine base decoded exactly
-that record and the unmodified golden arithmetic placed the root at `(0,-13)`;
-the title then landed at y=10 inside the root and all five rows at y=28, 44, 60,
-76, and 92 were visible. No deob patch or server `IF_SETPOSITION` workaround is
-warranted. World metadata and JS5 must both point at the same corrected cache.
+### Correction: Hans choice placement is a server lifecycle mutation
+
+The supplied 2026-08-07 RuneLite screenshot disproved the earlier cache-
+centring conclusion above. The entire title/row block was 21 logical pixels too
+low while the relative title, swords, and row spacing remained correct. The
+deployed world and JS5 were both using the pristine `cache.osrs239`, whose
+authoritative `chatmenu:options` (219:1) record is 479x122 at raw `(20,12)` with
+absolute modes `(0,0)`. Those modes are not a cache defect. Revision 239 mounts
+the group into the 479x96 `chatbox:chatmodal` and then mutates that root to
+`(0,-13)` with `IF_SETPOSITION` before running clientscript 58.
+
+Golden-client inspection confirms opcode 102 is an eight-byte fixed packet and
+updates the widget's raw x/y without changing its alignment modes. The exact
+body for this menu is `73 ff 00 01 00 db 80 00`: y=-13 as g2Alt3, combined ID
+219:1 as g4Alt2, then x=0 as g2Alt3. Content now performs the authoritative
+`IF_OPENSUB` -> `IF_SETPOSITION(chatmenu:options, 0, -13)` ->
+`RUNCLIENTSCRIPT 58` lifecycle. The interface source is restored to absolute
+modes at `(0,-13)`, so future cache bakes agree with the runtime mutation rather
+than depending on the incorrect centred-mode workaround. A full current cache
+bake was explicitly rejected because it reproduced the known unrelated
+pre-login `class532.method11804` failure; no deob patch or alternate cache is
+part of this fix.
 
 The root regression parses the literal revision-239 reverse-argument
 `RUNCLIENTSCRIPT` body and requires the authoritative fourth/fifth-row suffix
 `Can you tell me how long I've been here?|Nothing.` plus the exact title casing.
-The cache-backed Hans section passes. Live proof is under
-`build/run239-zuk/hans-choice-fixed`: `proof/events-final-fresh.log` records the
-complete script-58 payload and row-five callback from a fresh server/client
-pair, while `proof/08-hans-final-fresh.png` shows the five-row result. JCTL reported
-219:1 at `(20,348)` with relative `(0,-13)`, raw `(0,0)`, modes `(1,1)`, and all
-five dynamic children fully inside the chat mount. Option four produced the
-matching player line in the preceding independent path; option five removed
-group 219 in both runs. `client-final-fresh.log` and `server-final-clean.log`
-contain no runtime client/server fatal, CS2 error, decode error, writer gap, or
-unexpected disconnect before explicit shutdown. The only exception text is
-RuneLite's known caught pre-login `setupCompilerControl` warning.
+The corrected live proof is under `build/run239-choicepos/live-final`. A
+blocking EVENTS subscriber was connected before RuneLite, and real JCTL AWT
+input opened Hans and selected row five. `events-final2.log` records, in order,
+IF_OPENSUB (event 424), IF_SETPOSITION opcode 102/length 8 (425), the complete
+script-58 call (426/427), the row-five callback (431), and IF_CLOSESUB (432).
+`hans-choice-fixed.png` matches the authoritative screenshot: 219:1 is mounted
+at `(20,348)`, relative/raw `(0,-13)`, with absolute modes; its title is at
+relative y=10, swords at y=12, and all rows at y=28/44/60/76/92. The closed
+frame is `hans-choice-closed.png`. The final audit found 6,124 widgets, 4,806
+actions, and zero dead actions. Client/server logs contain no runtime fatal,
+packet decode error, CS2 error, interface-writer gap, or unexpected disconnect;
+the only exception text is RuneLite's known caught pre-login
+`setupCompilerControl` warning.
 
 ## Step log
 
@@ -1817,3 +1831,34 @@ RuneLite's known caught pre-login `setupCompilerControl` warning.
   C-client fixture, dependency pointer, and integration record as `bcdfe212`,
   followed by the factual 83-record cache comment correction `c5d82ea9`, on
   `codex/runelite239-zuk`. Final fetches matched both local and remote heads.
+- 2026-08-07: Fetched current `v3` and created the isolated
+  `3draster-runelite239-choicepos` worktree and dedicated root/content branches;
+  the dirty primary root, OSRS-Content, and Deob worktrees were not modified.
+- 2026-08-07: Compared both supplied authoritative frames with golden widget
+  telemetry. The new RuneLite frame exposed a uniform 21-pixel displacement,
+  while title/sword/row-relative geometry and script-58 content were correct.
+- 2026-08-07: Read the pristine revision-239 group 219/chatmodal records,
+  clientscript 58, widget layout path, and opcode-102 handler. Corrected the
+  earlier record: absolute widget modes are authoritative and the missing
+  post-mount `IF_SETPOSITION(219:1, 0, -13)` is server lifecycle behavior.
+- 2026-08-07: Rejected a full current content-cache bake after it reproduced
+  the known unrelated pre-login `class532.method11804` failure; no deob or
+  replacement-cache dependency was accepted for this correction.
+- 2026-08-07: Restored the chatmenu source to absolute `(0,-13)` geometry and
+  made every choice-menu open send IF_OPENSUB, IF_SETPOSITION, then script 58.
+  Recompiled all 12,536 current content scripts successfully.
+- 2026-08-07: Added a reusable revision-239 IF_SETPOSITION encoder, an exact
+  eight-byte `73 ff 00 01 00 db 80 00` fixture, and a Hans lifecycle-order
+  assertion. All nine focused interface-setter fixtures pass. The broad legacy
+  runners retain their pre-existing revision-230/revision-239 baseline failures
+  and are not substituted for live acceptance.
+- 2026-08-07: Ran the final clean stack with pristine `cache.osrs239`, the
+  authoritative compiled 1.12.33 deob, a blocking EVENTS subscriber connected
+  before launch, and real AWT input. Events 424-427 prove mount/place/script
+  order; JCTL measured raw/relative `(0,-13)` and row y-values
+  `28/44/60/76/92`; the accepted frame shows all five rows without clipping.
+- 2026-08-07: Selected row five through the real widget callback, observed
+  IF_CLOSESUB, retained the closed frame and full logs, audited 6,124 widgets
+  with zero dead actions, quit explicitly, removed task saves, and confirmed no
+  task process remained. The user's pre-existing client/server stack was left
+  untouched.

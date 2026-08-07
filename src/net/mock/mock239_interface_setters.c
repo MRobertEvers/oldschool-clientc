@@ -40,6 +40,20 @@ mock239_encode_if_setangle(
     rsab_p2_alt3(buf, angle_y);
 }
 
+/* IfSetPositionEncoder:
+ *   p2Alt3(y), pCombinedIdAlt2(combinedId), p2Alt3(x). */
+void
+mock239_encode_if_setposition(
+    struct RSAreaBuf* buf,
+    int combined_id,
+    int x,
+    int y)
+{
+    rsab_p2_alt3(buf, y);
+    rsab_p4_alt2(buf, combined_id);
+    rsab_p2_alt3(buf, x);
+}
+
 /* IfSetNpcHeadActiveEncoder:
  *   p2Alt2(index), pCombinedIdAlt2(combinedId). */
 void

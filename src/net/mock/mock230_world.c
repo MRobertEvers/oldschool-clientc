@@ -10401,18 +10401,23 @@ mock230_world_selftest(void)
                     int idx = mock230_capture_find(&capture, run_opcode, 0);
 
                     SELFTEST_CHECK(idx >= 0, "the choice should send RUNCLIENTSCRIPT");
-                    SELFTEST_CHECK(
-                        opensub_at >= 0 && position_at > opensub_at && idx > position_at,
-                        "choice lifecycle must mount, place, then populate chatmenu "
-                        "(IF_OPENSUB %d, IF_SETPOSITION %d, RUNCLIENTSCRIPT %d)",
-                        opensub_at,
-                        position_at,
-                        idx);
+                    if( strcmp(srv.wire->name, "osrs239") == 0 )
+                    {
+                        SELFTEST_CHECK(
+                            opensub_at >= 0 && position_at > opensub_at &&
+                                idx > position_at,
+                            "choice lifecycle must mount, place, then populate "
+                            "chatmenu (IF_OPENSUB %d, IF_SETPOSITION %d, "
+                            "RUNCLIENTSCRIPT %d)",
+                            opensub_at,
+                            position_at,
+                            idx);
+                    }
                     SELFTEST_CHECK(
                         rows_uid == 0x00db0001,
                         "chatmenu:options must retain literal rev-239 uid 219:1, got 0x%x",
                         rows_uid);
-                    if( position_at >= 0 )
+                    if( position_at >= 0 && strcmp(srv.wire->name, "osrs239") == 0 )
                     {
                         const struct Mock230CapturedPacket* position =
                             &capture.packets[position_at];

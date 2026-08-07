@@ -59,6 +59,14 @@ main(void)
         mock239_encode_if_setangle(&buf, 0x11223344, 0x5566, 0x7788, 0x99aa),
         0x22, 0x11, 0x44, 0x33, 0x55, 0x66, 0x77, 0x88, 0x2a, 0x99);
 
+    /* Golden chatmenu placement: y=-13 g2Alt3, uid 219:1 g4Alt2,
+     * x=0 g2Alt3.  These are the exact bytes sent between IF_OPENSUB and
+     * RUNCLIENTSCRIPT 58 for every revision-239 choice menu. */
+    RUN_FIXTURE(
+        "IF_SETPOSITION chatmenu:options (0,-13)",
+        mock239_encode_if_setposition(&buf, 0x00db0001, 0, -13),
+        0x73, 0xff, 0x00, 0x01, 0x00, 0xdb, 0x80, 0x00);
+
     RUN_FIXTURE(
         "IF_SETNPCHEAD_ACTIVE",
         mock239_encode_if_setnpchead_active(&buf, 0x11223344, 0x5566),
@@ -96,6 +104,6 @@ main(void)
         fprintf(stderr, "mock239 interface setters: %d FAILED\n", failures);
         return 1;
     }
-    printf("mock239 interface setters: all 8 passed\n");
+    printf("mock239 interface setters: all 9 passed\n");
     return 0;
 }
