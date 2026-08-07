@@ -394,6 +394,7 @@ gameproto_parse(
     {
         packet->_update_zone_partial_follows.base_x = g1(&buffer);
         packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        packet->_update_zone_partial_follows.level = -1;
         assert(buffer.position == data_size);
         return 1;
     }
@@ -401,6 +402,7 @@ gameproto_parse(
     {
         packet->_update_zone_full_follows.base_x = g1(&buffer);
         packet->_update_zone_full_follows.base_z = g1(&buffer);
+        packet->_update_zone_full_follows.level = -1;
         assert(buffer.position == data_size);
         return 1;
     }
@@ -410,6 +412,8 @@ gameproto_parse(
          * are plain (non-ISAAC) wire bytes resolved through the rev table. */
         struct PktUpdateZoneEnclosed* enc = &packet->_update_zone_enclosed;
         int cap = 16;
+
+        enc->level = -1;
 
         enc->base_x = g1(&buffer);
         enc->base_z = g1(&buffer);
