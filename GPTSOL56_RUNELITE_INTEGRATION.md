@@ -1934,3 +1934,8 @@ OPNPC2 callback.
   profiler, packet, client/server, interface-audit, and before/after screenshot
   artifacts, stopped the task server/config processes, and removed only task-
   generated account saves. No task process remained.
+- 2026-08-07: Committed and pushed the Content fix as `a55f7741a5` and the
+  root codec/regression/evidence change as `8be3aa77`, after confirming both
+  stacked dependency heads were unchanged. Opened OSRS-Content PR #7 against
+  the choice-position Content branch and oldschool-clientc PR #19 against the
+  choice-position root branch.
