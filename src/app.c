@@ -10912,14 +10912,26 @@ app_minimenu_inv_action(
         return 1;
     case REVCONFIG_MINIMENU_IF_BUTTON:
         /* Component ops 1..10 on an inventory cell (bank withdraw ladder,
-         * farming tools, …). IF_BUTTON1..10 carry (component, sub=slot). */
+         * farming tools, backpack, …). Rev239's collapsed IF_BUTTONX also
+         * carries the object id; without it the server cannot distinguish a
+         * held-item operation from a plain component click. method3476 sends
+         * only when the effective op bit is armed, though on_op still runs. */
         if( opt->action_index < 0 || opt->action_index >= 10 )
             return 0;
-        APP_NET_SEND(
-            app,
-            net_out_if_button_op(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                opt->action_index + 1, com_id, slot));
+        {
+            unsigned events = 0;
+            int const op_num = opt->action_index + 1;
+            if( !app_if_events_override_get(app, com_id, slot, &events) )
+                events = App_IfEventsGetEffective(app, com_id);
+            if( events & (1u << op_num) )
+            {
+                APP_NET_SEND(
+                    app,
+                    net_out_if_button_obj_op(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                        op_num, com_id, slot, obj_id));
+            }
+        }
         app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_OPHELDT_START:

@@ -558,7 +558,7 @@
  * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
  */
 #define CS2_OP_CC_SETOPBASE 1305
-/* CC_SETTARGETVERB — Set target verb (stub).
+/* CC_SETTARGETVERB — Set target verb on the active/dot component.
  * int stack in:   -
  * str stack in:   text
  * int stack out:  -
@@ -1236,7 +1236,7 @@
  * notes: Op base is the right-hand target text in Choose Option menus (e.g. spell name on Cast). Stored as widget opBase.
  */
 #define CS2_OP_IF_SETOPBASE 2305
-/* IF_SETTARGETVERB — Set target verb (stub).
+/* IF_SETTARGETVERB — Set target verb on a named component.
  * int stack in:   component
  * str stack in:   text
  * int stack out:  -

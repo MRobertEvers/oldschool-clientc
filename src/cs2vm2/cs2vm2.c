@@ -2641,6 +2641,26 @@ CS2VM2_Op_CC_SetOpBase(
     return CS2VM_EXECNO_OK;
 }
 
+static int
+CS2VM2_Op_CC_SetTargetVerb(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    char* text;
+
+    assert(vm);
+    assert(frame);
+    if( CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request = { 0 };
+    request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETVERB;
+    request.u.if_set_target_verb.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.if_set_target_verb.text = text;
+    return vm->vm->host_exec(vm, &request);
+}
+
 /*
  * CC/IF_SETOPKEY family. Stack layouts (bottom -> top), from the reference
  * WidgetOps.ts:2864-3060:
@@ -4843,6 +4863,29 @@ CS2VM2_Op_IF_SetOpBase(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+static int
+CS2VM2_Op_IF_SetTargetVerb(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    int component_id;
+    char* text;
+
+    assert(vm);
+    assert(frame);
+    (void)operand;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopStr(vm, &text) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request = { 0 };
+    request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETVERB;
+    request.u.if_set_target_verb.component_id = component_id;
+    request.u.if_set_target_verb.text = text;
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -9391,6 +9434,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOp(vm, frame, operand);
     case CS2_OP_CC_SETOPBASE:
         return CS2VM2_Op_CC_SetOpBase(vm, frame, operand);
+    case CS2_OP_CC_SETTARGETVERB:
+        return CS2VM2_Op_CC_SetTargetVerb(vm, frame, operand);
     case CS2_OP_CC_CLEAROPS:
         return CS2VM2_Op_CC_ClearOps(vm, frame, operand);
     case CS2_OP_CC_SETOPFORCELEFTCLICK:
@@ -9525,6 +9570,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOp(vm, frame, operand);
     case CS2_OP_IF_SETOPBASE:
         return CS2VM2_Op_IF_SetOpBase(vm, frame, operand);
+    case CS2_OP_IF_SETTARGETVERB:
+        return CS2VM2_Op_IF_SetTargetVerb(vm, frame, operand);
     case CS2_OP_IF_SETOPSUBMENU:
         return CS2VM2_Op_IF_SetOpSubmenu(vm, frame, operand);
     case CS2_OP_IF_SETTARGETPRIORITY:
@@ -9816,10 +9863,6 @@ CS2VM2_RunOp(
         return CS2VM2_Op_StringToInt(vm, frame, operand);
     case CS2_OP_IF_FIND:
         return CS2VM2_Op_IF_Find(vm, frame, operand);
-    /* CC_SETTARGETVERB has no model yet, but it takes a string argument. An
-     * explicit no-op case would leave that string on the stack and desync
-     * every later opcode, so let it fall through to the stack-meta stub, which
-     * pops (and frees) per the doc comment. IF_SETTARGETVERB already does. */
     case CS2_OP_CC_SETONVARTRANSMIT:
         return CS2VM2_Op_CC_SetOnVarTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONTIMER:

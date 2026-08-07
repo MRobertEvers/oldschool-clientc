@@ -5830,6 +5830,14 @@ rs_cs2_host_exec_dispatch(
                 tree, request->u.if_set_op_base.component_id, request->u.if_set_op_base.text);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_IF_SETTARGETVERB:
+        if( tree )
+            (void)UITree_ApplyTargetVerb(
+                tree,
+                request->u.if_set_target_verb.component_id,
+                request->u.if_set_target_verb.text);
+        return CS2VM_EXECNO_OK;
+
     case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
         if( tree )
             rs_cs2_apply_op_submenu(

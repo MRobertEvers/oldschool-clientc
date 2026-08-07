@@ -142,6 +142,73 @@ test_if3_item_uses_only_scripted_ops(void)
 }
 
 static void
+test_if3_item_onop_and_target_rows_match_rev239(void)
+{
+    struct CacheProvider provider = { 0 };
+    struct ToriRS_Objtype* obj = calloc(1, sizeof(*obj));
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec parent = { 0 };
+    struct UITreeNodeSpec child = { 0 };
+    struct TestEvents events = { .component_id = 1, .mask = (1 << 11) };
+    struct RS_MinimenuBuildCtx ctx = {
+        .tree = tree,
+        .provider = &provider,
+        .events_for_component = test_events_for_component,
+        .events_user = &events,
+    };
+    struct UIMinimenu menu;
+    int32_t parent_index;
+
+    CacheProvider_InitEngineCaches(&provider);
+    obj->id = 1;
+    snprintf(obj->name, sizeof(obj->name), "Fixture");
+    snprintf(obj->inv_actions[0], sizeof(obj->inv_actions[0]), "Wear");
+    CacheProvider_ObjtypeAdd(&provider, obj->id, obj);
+
+    parent.type = UIELEM_RS_LAYER;
+    parent.component_id = events.component_id;
+    parent.width = 64;
+    parent.height = 64;
+    snprintf(parent.menu_options.target_verb, sizeof(parent.menu_options.target_verb), "Use");
+    parent_index = UITree_Push(tree, -1, &parent);
+    TEST_ASSERT(parent_index >= 0, "rev239 item parent pushed");
+
+    child.type = UIELEM_CC_OBJ;
+    child.component_id = 2;
+    child.dynamic = 1;
+    child.dynamic_child_index = 0;
+    child.width = 32;
+    child.height = 32;
+    child.u.cc_obj.obj_id = obj->id;
+    child.u.cc_obj.obj_count = 1;
+    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Wear");
+    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Examine");
+    {
+        int32_t child_index = UITree_Push(tree, parent_index, &child);
+        TEST_ASSERT(child_index >= 0, "rev239 item child pushed");
+        if( child_index >= 0 )
+        {
+            tree->components[child_index].item_id = child.u.cc_obj.obj_id;
+            tree->components[child_index].item_count = child.u.cc_obj.obj_count;
+            UITree_HooksMut(&tree->components[child_index])->on_op.script_id = 123;
+        }
+    }
+
+    UITree_LayoutResolve(tree, 0, 0, 200, 100);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_has_substr(&menu, "Use @lre@ Fixture"), "target verb builds Use row");
+    TEST_ASSERT(menu_has_substr(&menu, "Wear @lre@ Fixture"), "on_op bypasses absent op bit");
+    TEST_ASSERT(menu_has_substr(&menu, "Drop @lre@ Fixture"), "default Drop occupies op 7");
+    TEST_ASSERT(menu_has_substr(&menu, "Examine @lre@ Fixture"), "on_op exposes terminal op");
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_OPHELDT_START) == 1,
+        "item target verb arms held-item selection");
+
+    UITree_Free(tree);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
+static void
 test_dat2_stacking_behaviour_is_not_boolean(void)
 {
     struct RSCache_Dat2ConfigObj raw = { 0 };
@@ -430,6 +497,7 @@ main(void)
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();
     test_if3_item_uses_only_scripted_ops();
+    test_if3_item_onop_and_target_rows_match_rev239();
     test_player_get_by_element_id();
     test_local_player_pick_expands_stacked_npcs();
     test_other_player_stack_rows();

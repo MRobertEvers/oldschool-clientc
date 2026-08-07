@@ -3188,6 +3188,24 @@ UITree_ApplyOpBase(
     return true;
 }
 
+bool
+UITree_ApplyTargetVerb(
+    struct UITree* tree,
+    int component_id,
+    char const* text)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_OTHER, 1);
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 )
+        return false;
+    strncpy(
+        tree->components[idx].menu_options.target_verb, text ? text : "",
+        UITREE_MENU_OPTION_LEN - 1);
+    tree->components[idx].menu_options.target_verb[UITREE_MENU_OPTION_LEN - 1] = '\0';
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
 /* Op-key bindings have no visual effect, so unlike the op/text mutators these
  * deliberately do not mark the node dirty. */
 static struct UITreeOpKeyBinding*

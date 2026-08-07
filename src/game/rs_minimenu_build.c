@@ -98,6 +98,11 @@ format_inv_item_option(char* out, size_t out_size, char const* verb, char const*
     snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
 }
 
+/* ObjType's revision-defined fifth inventory action. The cache omits this
+ * default; both the legacy TYPE_INV builder and rev239's scripted backpack
+ * must therefore draw it from the same client-owned label. */
+static char const* const k_default_drop_verb = "Drop";
+
 /* The reference MiniMenuAction ids are NOT contiguous — OPHELD1..5 are
  * 694/962/795/681/100 and INV_BUTTON1..5 are 582/113/555/331/354 — so op
  * slot -> action id must go through a table. `OPHELD1 + op` silently built
@@ -188,7 +193,7 @@ add_inv_obj_rows(
             }
             else if( op == 4 )
             {
-                format_inv_item_option(text, sizeof(text), "Drop", obj_name);
+                format_inv_item_option(text, sizeof(text), k_default_drop_verb, obj_name);
                 UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPHELD5, 4, pick);
             }
         }
@@ -333,23 +338,64 @@ add_obj_cell_rows(
     if( cell->kind == UITREE_OBJ_CELL_DYNAMIC )
     {
         int const ev = events < 0 ? 0 : events;
+        struct UITreeComponent const* ops_node =
+            &ctx->tree->components[cell->ops_node_index];
+        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(ops_node);
+        int const has_on_op = hooks->on_op.script_id > 0;
+        char const* target_verb = component_ops.target_verb;
+        int32_t target_ancestor = ops_node->parent;
+        while( target_verb[0] == '\0' && target_ancestor >= 0 )
+        {
+            struct UITreeComponent const* ancestor =
+                &ctx->tree->components[target_ancestor];
+            target_verb = ancestor->menu_options.target_verb;
+            target_ancestor = ancestor->parent;
+        }
         /* The three things that decide an item cell's rows, in one line —
          * which container the wire will name, and whether its verbs are live. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
             fprintf(
-                stderr, "objcell: com=%d|%d events=0x%x ops_node=%d\n",
+                stderr, "objcell: com=%d|%d events=0x%x ops_node=%d onop=%d target=\"%s\"\n",
                 (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, ev,
-                (int)cell->ops_node_index);
-        for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+                (int)cell->ops_node_index, has_on_op, target_verb);
+        if( !has_on_op )
         {
-            if( (ev & (1 << (i + 1))) == 0 )
-                component_ops.ops[i][0] = '\0';
+            for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
+            {
+                if( (ev & (1 << (i + 1))) == 0 )
+                    component_ops.ops[i][0] = '\0';
+            }
         }
 
-        /* IF3 item cells do not synthesize ObjType actions. Their paint script
-         * installs the exact rows (including Use/Remove/Drop/Examine) and the
-         * server click mask selects which ones are live. Adding ObjType rows
-         * here duplicated Examine and exposed operations the script omitted. */
+        /* Rev239 ObjType initializes iop5 to the localized default before it
+         * decodes the cache record. Our neutral cache record contains only
+         * authored opcodes, so reproduce the script-visible default in the
+         * backpack's numbered ladder (op 7), without synthesizing the rest of
+         * the ObjType rows. The target verb identifies this item-use container;
+         * bank/worn children have their own component operation vocabulary. */
+        if( target_verb[0] != '\0' && obj &&
+            obj->inv_actions[4][0] == '\0' && component_ops.ops[6][0] == '\0' )
+        {
+            snprintf(
+                component_ops.ops[6], sizeof(component_ops.ops[6]), "%s",
+                k_default_drop_verb);
+        }
+
+        /* method12079: a non-empty target verb becomes the inventory Use row
+         * only when the effective target mask (flags bits 11..16) is nonzero. */
+        if( target_verb[0] != '\0' && ((unsigned)ev >> 11 & 0x3Fu) != 0 )
+        {
+            char use_text[UITREE_MINIMENU_OPTION_LEN];
+            format_inv_item_option(
+                use_text, sizeof(use_text), target_verb, obj_name);
+            UIMinimenu_AddOption(
+                menu, use_text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
+        }
+
+        /* IF3 item cells otherwise use the exact operations installed by their
+         * paint script. method12078 permits every non-empty operation when the
+         * component owns an on_op listener; without one the individual flag bit
+         * remains mandatory. */
         snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
         add_menu_ops_rows(menu, &component_ops, pick, suffix);
         return menu->option_count - before;

@@ -72,6 +72,18 @@ net_out_if_button_op(
     int op_num,
     int component_id,
     int sub);
+/** IF_BUTTON1..10 on an object-backed IF3 child. Rev239's collapsed packet
+ * carries the object id as its item/component discriminator. */
+int
+net_out_if_button_obj_op(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int component_id,
+    int sub,
+    int obj_id);
 /** CLICK_WORLD_MAP: the absolute tile a world-map click landed on. */
 int
 net_out_click_world_map(

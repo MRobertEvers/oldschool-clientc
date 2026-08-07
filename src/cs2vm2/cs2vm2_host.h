@@ -208,6 +208,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_SETANTIDRAG,
     CS2VM_HOST_REQUEST_IF_SETOP,
     CS2VM_HOST_REQUEST_IF_SETOPBASE,
+    CS2VM_HOST_REQUEST_IF_SETTARGETVERB,
     CS2VM_HOST_REQUEST_IF_SETOPSUBMENU,
     CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY,
     CS2VM_HOST_REQUEST_IF_CLEAROPS,
@@ -859,6 +860,14 @@ struct CS2VM_HostRequest_IF_SetOpBase
     char* text;
 };
 
+/** CC/IF_SETTARGETVERB: the selection verb used when WidgetFlags' target mask
+ * is nonzero (for example an object-backed backpack cell's generic action). */
+struct CS2VM_HostRequest_IF_SetTargetVerb
+{
+    int component_id;
+    char* text;
+};
+
 struct CS2VM_HostRequest_IF_SetOpSubmenu
 {
     int component_id;
@@ -1476,6 +1485,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_SetOnOp if_set_on_misc_transmit;
         struct CS2VM_HostRequest_IF_SetOp if_set_op;
         struct CS2VM_HostRequest_IF_SetOpBase if_set_op_base;
+        struct CS2VM_HostRequest_IF_SetTargetVerb if_set_target_verb;
         struct CS2VM_HostRequest_IF_SetOpSubmenu if_set_op_submenu;
         struct CS2VM_HostRequest_IF_SetTargetPriority if_set_target_priority;
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;

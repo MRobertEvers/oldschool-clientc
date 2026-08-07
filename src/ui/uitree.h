@@ -1486,6 +1486,12 @@ UITree_ApplyOpBase(
     int component_id,
     char const* text);
 
+bool
+UITree_ApplyTargetVerb(
+    struct UITree* tree,
+    int component_id,
+    char const* text);
+
 /**
  * CC/IF_SETOPKEY and the SETOPTKEY variants. op_index is 1..10, where 10 is the
  * typed-key slot. pair_count == 0, or a negative first key_char, clears the

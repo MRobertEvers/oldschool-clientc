@@ -271,6 +271,29 @@ net_out_if_button_op(
 }
 
 int
+net_out_if_button_obj_op(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int op_num,
+    int component_id,
+    int sub,
+    int obj_id)
+{
+    int collapsed;
+
+    if( op_num < 1 || op_num > 10 )
+        return -1;
+    collapsed =
+        out_if_buttonx(rev, random_out, buf, cap, op_num, component_id, sub, obj_id);
+    if( collapsed >= 0 )
+        return collapsed;
+    return net_out_if_button_op(
+        rev, random_out, buf, cap, op_num, component_id, sub);
+}
+
+int
 net_out_click_world_map(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
