@@ -3385,8 +3385,17 @@ enum
     V5_NPC_HITMARKS = 0x80000,
 };
 
-/** pSmart1or2: 0..127 in one byte, anything larger in two with 0x8000 set. */
-#define v5_psmart1or2 mock239_face_psmart1or2
+/*
+ * pSmart1or2 is `rsab_psmart`. This file used to carry a private copy — one of
+ * five in src/net (docs/BUFFER_ACCESSOR_AUDIT.md §1.1), byte-identical in range
+ * and silently truncating outside it where the library latches an overflow.
+ *
+ * Merge note: v3 deduplicated this at the same time, onto
+ * `mock239_face_psmart1or2` in mock239_facing.h — which was itself a fresh copy
+ * of the same encoding, byte-identical again. Both are now the library's, so
+ * the count went to one rather than to two.
+ */
+#define v5_psmart1or2 rsab_psmart
 
 /* Translate the mock's revision-230 facing latch to 239's one-block model.
  * The old FACE_COORD value is an absolute half-tile centre (2 * tile + 1);
@@ -3436,6 +3445,7 @@ v5_face_from_classic(
     }
     return 1;
 }
+
 
 /** The flag itself, plus the continuation bits its own width implies. */
 static void

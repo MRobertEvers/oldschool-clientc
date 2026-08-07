@@ -2,18 +2,18 @@
 
 #include <string.h>
 
-static uint16_t
-g2(const uint8_t* p)
-{
-    return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
-}
+#include "rsprot_buffer.h"
 
-static int32_t
-g4_le(const uint8_t* p)
-{
-    return (int32_t)((uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
-                     ((uint32_t)p[3] << 24));
-}
+/*
+ * These used to be two private pointer-peeks — `g2(const uint8_t*)` and
+ * `g4_le(const uint8_t*)` — reading a fixed offset with no cursor and no bounds
+ * check. They are RSProt_Buffer's, and reading through a cursor is what makes
+ * the length check below load-bearing rather than advisory: a short payload
+ * latches an error instead of reading past the end.
+ *
+ * `g4_le` already carried the byte order in its name; that convention is now
+ * the whole library's. See `docs/BUFFER_ACCESSOR_AUDIT.md`.
+ */
 
 int
 mock239_if_button_decode(
@@ -23,16 +23,19 @@ mock239_if_button_decode(
     struct Mock239IfButton* out)
 {
     int expected = has_subop ? 10 : 9;
+    RSProt_Buffer b;
 
     if( !payload || !out || payload_len != expected )
         return 0;
     memset(out, 0, sizeof(*out));
-    out->component_id = (int32_t)(((uint32_t)payload[0] << 24) | ((uint32_t)payload[1] << 16) |
-                                  ((uint32_t)payload[2] << 8) | payload[3]);
-    out->sub = (int16_t)g2(payload + 4);
-    out->object_id = g2(payload + 6);
-    out->op = payload[8];
-    out->subop = has_subop ? payload[9] : -1;
+    RSProt_BufferWrapRead(&b, payload, payload_len);
+    out->component_id = RSProt_BufferG4Be(&b);
+    out->sub = (int16_t)RSProt_BufferG2Be(&b);
+    out->object_id = (uint16_t)RSProt_BufferG2Be(&b);
+    out->op = RSProt_BufferG1(&b);
+    out->subop = has_subop ? RSProt_BufferG1(&b) : -1;
+    if( !RSProt_BufferOk(&b) )
+        return 0;
     return out->op >= 1 && out->op <= 10;
 }
 
@@ -101,12 +104,23 @@ mock239_if_script_trigger_decode(
 
     /* Statics.method9637's initial p2 is the outer VAR_SHORT length. The live
      * session has consumed it by this boundary. method13196 then writes child
-     * as p2_alt3: low+128 first, high second. */
-    child = (uint16_t)(((uint16_t)payload[1] << 8) | ((payload[0] - 128) & 0xff));
-    out->child = (int16_t)child;
-    out->object_id = g2(payload + 2);
-    out->component_id = g4_le(payload + 4);
-    out->crc = g4_le(payload + 8);
+     * as p2Alt3 -- low+128 first, high second -- which is `G2Le_add128`. That
+     * order used to be spelled out by hand here, a third private copy of an
+     * encoding the buffer library already had. */
+    {
+        RSProt_Buffer b;
+
+        RSProt_BufferWrapRead(&b, payload, payload_len);
+        child = (uint16_t)RSProt_BufferG2Le_add128(&b);
+        out->child = (int16_t)child;
+        out->object_id = (uint16_t)RSProt_BufferG2Be(&b);
+        out->component_id = RSProt_BufferG4Le(&b);
+        out->crc = RSProt_BufferG4Le(&b);
+        if( !RSProt_BufferOk(&b) )
+            return 0;
+    }
+    /* The typed tail stays a borrowed pointer: it is handed to the caller as a
+     * range, not decoded here. */
     out->typed_bytes = payload + 12;
     out->typed_len = payload_len - 12;
 
@@ -186,14 +200,13 @@ mock239_resume_count_long_decode(
     int payload_len,
     int64_t* out)
 {
-    uint64_t value = 0;
+    RSProt_Buffer b;
 
     if( !payload || !out || payload_len != 8 )
         return 0;
-    for( int i = 0; i < 8; i++ )
-        value = (value << 8) | payload[i];
-    *out = (int64_t)value;
-    return 1;
+    RSProt_BufferWrapRead(&b, payload, payload_len);
+    *out = RSProt_BufferG8Be(&b);
+    return RSProt_BufferOk(&b);
 }
 
 int
@@ -202,8 +215,11 @@ mock239_resume_object_decode(
     int payload_len,
     int32_t* out)
 {
+    RSProt_Buffer b;
+
     if( !payload || !out || payload_len != 2 )
         return 0;
-    *out = g2(payload);
-    return 1;
+    RSProt_BufferWrapRead(&b, payload, payload_len);
+    *out = RSProt_BufferG2Be(&b);
+    return RSProt_BufferOk(&b);
 }

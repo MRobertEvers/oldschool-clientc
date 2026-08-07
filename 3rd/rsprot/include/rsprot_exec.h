@@ -286,6 +286,29 @@ void rsprot_xdata(
     RsprotExec *x, const uint8_t **value, int32_t length, RsprotDataOrder order, const char *name);
 
 /**
+ * A field whose value the layout FIXES — a format byte, a reserved zero, a
+ * discriminator a version pins to one value.
+ *
+ * RSProt spells these as a literal argument (`buffer.p1(1)`), which has no
+ * field behind it and so nothing for the decode direction to read into. A
+ * generated codec cannot express it with `rsprot_x`, and the two obvious
+ * workarounds are both wrong: giving it a struct field lets a caller set it to
+ * something the layout does not allow, and skipping it on decode silently
+ * accepts a payload that says something else.
+ *
+ * So it is its own operation, with a direction-dependent meaning that is the
+ * honest one in each case:
+ *
+ *   ENCODE    writes `value`
+ *   DECODE    reads, and FAILS the exec if the byte is not `value` — a wire
+ *             that disagrees about a format byte is a framing error, and
+ *             finding out here beats finding out five fields later
+ *   DESCRIBE  records the field with its fixed value
+ *   FILL      moves the cursor; there is nothing to randomise
+ */
+void rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name);
+
+/**
  * A length-prefixed count, transferred as `prim` and then bounded.
  *
  * Returns the count to loop on. A decoded count above `max` is an error and
@@ -369,6 +392,9 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #define RSPROT_DATA(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_PLAIN, #f)
 #define RSPROT_DATA_ALT1(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_ALT1, #f)
 #define RSPROT_DATA_ALT2(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_ALT2, #f)
+/* A fixed value the layout pins. The name is the literal itself, since there is
+ * no field to take one from: RSPROT_CONST(x, U1, 1) describes as "=1". */
+#define RSPROT_CONST(x, prim, v) rsprot_xconst((x), RSPROT_PRIM_##prim, (v), "=" #v)
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
 #define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2, &(f), (max), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)

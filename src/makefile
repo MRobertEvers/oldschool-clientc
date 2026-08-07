@@ -141,7 +141,18 @@ CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
-	-I$(REPO_ROOT)/3rd/xteas
+	-I$(REPO_ROOT)/3rd/xteas \
+	$(RSPROT_HDR_INCLUDES)
+
+# Just the two directories holding rsprot's headers, for the main build.
+# Deliberately NOT the full $(RSPROT_INCLUDES): that set also carries -I3rd and
+# -I$(SRC_DIR)/net so the library can resolve its own vendored deps, and putting
+# those on every translation unit in the project would let an unrelated header
+# resolve somewhere new. The net stack needs the buffer, not the search path.
+#
+# Defined with `=` and used above before it is defined, which make allows for
+# recursive variables — CFLAGS is expanded at use, not here.
+RSPROT_HDR_INCLUDES = -I$(RSPROT_DIR)/src -I$(RSPROT_DIR)/include
 
 RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
@@ -156,10 +167,17 @@ RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 # its own include/src/gen/root, plus src/net for the ISAAC/RSA implementations
 # it adapts rather than re-ports, 3rd for tommath/xteas, and the repo root
 # because src/net/rsa.h includes tommath as "3rd/tommath/tommath.h".
-# Not on any binary's link line yet — nothing calls it; `make -C src rsprot`
-# is the compile gate. rsprot's own makefile is where its warnings are visible;
-# here it gets -w like everything else under 3rd/.
-RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+# rsprot's own makefile is where its warnings are visible; here it gets -w like
+# everything else under 3rd/.
+#
+# Two TUs, not one, and the split is load-bearing -- see the header comment in
+# rsprot_packets_unity.c. rsprot_unity.o is the self-contained library;
+# rsprot_packets_unity.o is the codec set, which only links where an executor
+# (src/net/exec/pkt_exec.c) is also linked.
+# Factored out because three rules need it: the two rsprot unity TUs (via
+# RSPROT_CFLAGS) and pkt_exec.o, which builds under the main CFLAGS -- it is
+# this project's source -- but has to find rsprot_exec.h and rsprot_buf.h.
+RSPROT_INCLUDES = \
 	-I$(RSPROT_DIR)/include \
 	-I$(RSPROT_DIR)/src \
 	-I$(RSPROT_DIR)/gen \
@@ -168,6 +186,9 @@ RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(REPO_ROOT)/3rd \
 	-I$(REPO_ROOT) \
 	-I$(REPO_ROOT)/3rd/xteas
+
+RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+	$(RSPROT_INCLUDES)
 
 COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
 	-I$(REPO_ROOT)/3rd/bzip \
@@ -329,7 +350,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
-	net/rev/gameproto_rev_params.c \
+	net/rev/gameproto_rev_params.c net/rev/rsprot_bridge.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
@@ -422,6 +443,7 @@ endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
+RSPROT_PACKETS_UNITY_SRC = $(RSPROT_DIR)/rsprot_packets_unity.c
 TORIDRAW_UNITY_SRC = $(TORIDRAW_DIR)/toridraw_unity.c
 TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 # Objects derived from SRCS (one .o per source, flat in OBJ_DIR) plus the
@@ -437,6 +459,8 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
 	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
+	$(OBJ_DIR)/pkt_exec.o \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -471,7 +495,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -619,7 +643,10 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c
 
-$(foreach src,$(filter-out painters/painters.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+# rsprot_bridge.c is excluded for the same reason the rev tables are: it has an
+# explicit rule below carrying extra include paths, and letting the generic
+# rule also claim it makes make warn about overriding commands.
+$(foreach src,$(filter-out painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
@@ -788,16 +815,66 @@ $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 $(OBJ_DIR)/rsprot_unity.o: $(RSPROT_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -w -c $(RSPROT_UNITY_SRC) -o $@
 
-# rsprot is deliberately absent from $(OBJS) and from every binary's link line:
-# no caller exists yet, so linking it in would be dead weight and would risk
-# duplicate symbols against src/net's ISAAC/RSA. This target is the compile
-# gate — it proves the unity TU still builds under the main build's flags.
-rsprot: $(OBJ_DIR) $(OBJ_DIR)/rsprot_unity.o
+# The buffer, standing alone. Split out of the unity TU because it is the only
+# dependency-free part and the part everything wants; see rsprot_unity.c's
+# header for the link failures that caused.
+$(OBJ_DIR)/rsprot_buf.o: $(RSPROT_DIR)/src/rsprot_buf.c | $(OBJ_DIR)
+	$(CC) $(RSPROT_CFLAGS) -w -c $< -o $@
+
+# The codec set. Warnings stay ON here, unlike the rest of 3rd/: these files are
+# this project's own transcriptions of RSProt's Kotlin rather than vendored
+# third-party source, and an implicit conversion in a codec is a wire bug.
+$(OBJ_DIR)/rsprot_packets_unity.o: $(RSPROT_PACKETS_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(RSPROT_CFLAGS) -Wall -Wextra -Wno-unused-parameter -c $(RSPROT_PACKETS_UNITY_SRC) -o $@
+
+# The executor implementing 3rd/rsprot/include/rsprot_exec.h. Host-side by
+# design (see the file header): the four directions are a host concern, so the
+# library declares them and this project supplies them.
+$(OBJ_DIR)/pkt_exec.o: net/exec/pkt_exec.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
+
+# The bridge asks rsprot for a packet's layout, so it needs rsprot's headers on
+# top of the main build's. Own rule for the same reason pkt_exec.o has one.
+$(OBJ_DIR)/rsprot_bridge.o: net/rev/rsprot_bridge.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
+
+# `make -C src rsprot` is the compile gate for all three, so a codec or an
+# executor change is caught without building a whole client.
+rsprot: $(OBJ_DIR) $(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
+		$(OBJ_DIR)/pkt_exec.o
 
 # rsprot's own unit tests. Shelled out because the test binaries link against
 # rsprot's private build/ objects (its makefile builds its own isaac/rsa/mpi).
 test-rsprot:
 	$(SUBMAKE) -C $(RSPROT_DIR) test
+
+# The executor's tests, and the packet-file convention tests. These live here
+# and not in 3rd/rsprot/test/ for the same reason pkt_exec.c does: a codec
+# cannot run without a host, so testing them here tests them as they are used.
+#
+# test-pktexec walks RSPROT_PRIM_LIST and fails on any primitive that is
+# missing from the executor's table or that moves no bytes -- the two cannot
+# drift. test-pktpackets pins each layout version's actual bytes, which is the
+# only check that catches the wrong version being selected: two versions of the
+# same packet are frequently the same width and each round-trips through itself
+# perfectly.
+# The isaac/rsa/tommath objects are on these link lines because rsprot_unity.o
+# is one TU: it carries rsprot_crypto's adapters alongside rsprot_buf, and the
+# adapters call into src/net's ISAAC and RSA rather than re-porting them. A
+# buffer test does not use crypto, but it does have to resolve it.
+RSPROT_TEST_DEPS = $(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o \
+	$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
+
+test-pktexec: $(OBJ_DIR) $(RSPROT_TEST_DEPS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/pkt_exec_test \
+		net/exec/test/pkt_exec_test.c $(RSPROT_TEST_DEPS) -lm
+	./$(OBJ_DIR)/pkt_exec_test
+
+test-pktpackets: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/pkt_packets_test \
+		net/exec/test/pkt_packets_test.c \
+		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) -lm
+	./$(OBJ_DIR)/pkt_packets_test
 
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
@@ -961,7 +1038,14 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/bitbuffer.o \
 	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
+	$(RSPROT_PARSE_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+
+# The rsprot inbound path, as one name. net.c calls rsprot_bridge_parse before
+# either hand-written parser, so anything linking net.o needs all four: the
+# bridge, the codecs, the executor they call, and rsprot_buf underneath.
+RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
+	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o
 # PLAYER_INFO v5 round-trip: the encoder against a decoder transcribed from
 # RSProt's own reference client, written in the opposite direction. Catches the
 # skip-run off-by-ones and misaligned bit sections that otherwise decode into
@@ -975,11 +1059,11 @@ test-mock239-playerinfo: $(OBJ_DIR)
 # Golden client->server interface callback layouts. Kept independent of the
 # world/server link so byte order, inner framing and typed-tail losslessness can
 # fail directly rather than only as a click that appears to do nothing.
-test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o
+test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
 		net/mock/test/mock239_interface_inbound_test.c \
 		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
-		$(OBJ_DIR)/jbase37.o $(RSAREABUF_DIR)/rsareabuf.c
+		$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_inbound_test
 
 # Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
@@ -1020,6 +1104,20 @@ test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	./$(OBJ_DIR)/net_login_test
 
 # Full login -> GAME -> parsed-packet pipeline through a scripted mock server.
+# The migrated packets, decoded by BOTH the generated rsprot codecs and the
+# hand-written osrs239_parse.c, over the same bytes. Two independent
+# transcriptions of one Kotlin source agreeing is what licenses deleting the
+# hand-written arm; see the test's header.
+#
+# This rule lives BELOW $(NET_CORE_OBJS)'s definition and has to: make expands a
+# rule's prerequisites when it READS the rule, so the same rule placed above
+# line 1011 gets an empty prerequisite list, links against objects nothing built,
+# and fails with "no such file or directory" on an object the recipe names.
+test-rsprot-bridge: $(OBJ_DIR) $(NET_CORE_OBJS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprot_bridge_test \
+		net/rev/test/rsprot_bridge_test.c $(NET_CORE_OBJS) -lm
+	./$(OBJ_DIR)/rsprot_bridge_test
+
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test \
 		net/test/net_loopback_test.c net/mock/mock_server.c \
@@ -1154,14 +1252,15 @@ test-entity-decode: $(OBJ_DIR)
 # the mixed int/string payload, and the argument-count guard that used to
 # accept an over-long packet as PKT_RUNCLIENTSCRIPT_ARG_MAX garbage arguments.
 .PHONY: test-runclientscript
-test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+test-runclientscript: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/rsprot_buf.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/runclientscript_test \
 		net/test/runclientscript_test.c net/rev/osrs230/osrs230_parse.c \
 		net/rev/packets/pkt_rebuild_normal.c net/rev/packets/pkt_rebuild_region.c \
+		net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/rsprot_buf.o -lm
 	./$(OBJ_DIR)/runclientscript_test
 
 # Serial-FIFO ordering guarantee (head-only task execution across IO yields).

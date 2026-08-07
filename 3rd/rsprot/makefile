@@ -32,8 +32,11 @@ CFLAGS += $(INCLUDES) $(WARNINGS) -MMD -MP
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 
 UNITY_OBJ := $(BUILD)/rsprot_unity.o
+# rsprot_buf.c is its own object, not part of the unity TU -- see
+# rsprot_unity.c for why (a buffer must not drag in RSA).
+BUF_OBJ   := $(BUILD)/rsprot_buf.o
 DEP_OBJS  := $(BUILD)/isaac.o $(BUILD)/rsa.o $(BUILD)/mpi.o $(BUILD)/xteas.o
-LIB_OBJS  := $(UNITY_OBJ) $(DEP_OBJS)
+LIB_OBJS  := $(UNITY_OBJ) $(BUF_OBJ) $(DEP_OBJS)
 
 TEST_SRCS := $(wildcard test/test_*.c)
 TEST_BINS := $(patsubst test/%.c,$(BUILD)/%,$(TEST_SRCS))
@@ -41,10 +44,13 @@ TEST_BINS := $(patsubst test/%.c,$(BUILD)/%,$(TEST_SRCS))
 .PHONY: all test clean
 .DEFAULT_GOAL := all
 
-all: $(UNITY_OBJ)
+all: $(UNITY_OBJ) $(BUF_OBJ)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+$(BUF_OBJ): src/rsprot_buf.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(UNITY_OBJ): rsprot_unity.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
