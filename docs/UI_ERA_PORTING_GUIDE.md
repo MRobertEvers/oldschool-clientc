@@ -203,7 +203,7 @@ Given a LostCity `.rs2` that drives an IF1 interface:
    | `if_settext(com, s)` | usually **delete it** — the panel reads a var. Keep only for genuinely free-text components. |
    | `if_setobject` / `if_setmodel` / `if_setanim` | same commands, packed uid |
    | `if_settab` / `if_settabactive` | gone. The tab strip reads a varbit. |
-   | `split_init` / `split_get` / … | delete (triage §7.4) |
+   | `split_init` / `split_get` / … | delete for modern multiline chat; retain for fixed single-line server-painted rows such as `questjournal` (triage §7.4) |
    | *(nothing)* | **add `if_setevents`** for every op the script's `[if_button]` expects |
 
 4. **Add the arming, and put it where the panel opens** — not only at login.

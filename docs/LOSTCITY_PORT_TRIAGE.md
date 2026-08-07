@@ -674,12 +674,15 @@ And `~p_choice*` was never what it blocked. `~p_choice_open` ships today
 most five options, the `|`-joined option list rides one 512-byte string
 (`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `MOCK230_RESUME_SUB_MAX` is 15.
 
-Related: `split_init`/`split_get`/`split_linecount`/`split_pagecount` (244 uses)
-are LostCity measuring a string against a font to pick one of four fixed-size
-chat interfaces. rev 230 has one multi-line body component that wraps itself.
-**These four opcodes have no job here** and should be compiled away, not
-implemented — with the one consequence `chat.rs2` already documents: LostCity's
-`|` hard break becomes a space, and anything past four lines clips.
+Related: most `split_init`/`split_get`/`split_linecount`/`split_pagecount` uses
+(244 in the original corpus) are LostCity measuring dialogue against one of
+four fixed-size chat interfaces. rev 239's chat body wraps itself, so those
+dialogue uses still compile away as `chat.rs2` documents. **The quest journal
+is the measured exception**: interface 119 exposes 210 separate 415x20
+single-line `p12_full` rows, and the official client renderer will not wrap a
+row that short. The split primitives are therefore implemented with
+cache-backed font metrics for journal/book-style server-painted rows; do not
+generalise the chat translation rule to fixed single-line components.
 
 ### 7.5 varp vs varbit — the shipped-bug class, generalised
 

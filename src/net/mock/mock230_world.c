@@ -11470,8 +11470,15 @@ mock230_world_selftest(void)
                                               "toplevel_osrs_stretch:mainmodal");
             int qj1 = mock230_content_symbol(MOCK230_PACK_COMPONENT, "questjournal:qj1");
             int title = mock230_content_symbol(MOCK230_PACK_COMPONENT, "questjournal:title");
+            int journal_switch =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "questjournal:switch");
+            int overview =
+                mock230_content_symbol(MOCK230_PACK_INTERFACE, "questjournal_overview");
+            int overview_switch = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "questjournal_overview:switch");
             int qj_lines = mock230_content_symbol(MOCK230_PACK_VARP, "qj_lines");
             int latest = mock230_content_symbol(MOCK230_PACK_VARP, "latest_quest_journal");
+            int cookquest = mock230_content_symbol(MOCK230_PACK_VARP, "cookquest");
             uint8_t button[6];
             static struct Mock230Capture capture;
             int open_at;
@@ -11482,6 +11489,8 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(list > 0 && journal > 0 && slot > 0 && qj1 > 0 && title > 0,
                            "questlist/questjournal symbols should resolve");
+            SELFTEST_CHECK(journal_switch > 0 && overview > 0 && overview_switch > 0,
+                           "quest journal switch/overview symbols should resolve");
             SELFTEST_CHECK(qj_lines > 0 && latest > 0,
                            "qj_lines / latest_quest_journal should resolve");
 
@@ -11528,6 +11537,12 @@ mock230_world_selftest(void)
                 player->varps[qj_lines] = 0;
             if( latest > 0 )
                 player->varps[latest] = -1;
+            /* State one contains a deliberately long paragraph before its
+             * first explicit `|`. Pipe-only splitting painted that whole
+             * paragraph into one 415px row; font-metric splitting produces
+             * several rows before the ingredient list. */
+            if( cookquest > 0 )
+                player->varps[cookquest] = 1;
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
@@ -11544,8 +11559,8 @@ mock230_world_selftest(void)
             }
             if( qj_lines > 0 )
             {
-                SELFTEST_CHECK(player->varps[qj_lines] > 0,
-                               "%%qj_lines should be the painted line count, got %d",
+                SELFTEST_CHECK(player->varps[qj_lines] >= 6,
+                               "Cook state 1 should font-wrap to at least 6 rows, got %d",
                                player->varps[qj_lines]);
             }
 
@@ -11636,6 +11651,81 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(text_hits > 0, "Read journal should send IF_SETTEXT for qj lines");
             SELFTEST_CHECK(saw_title, "title should mention Cook's Quest");
             SELFTEST_CHECK(saw_qj1, "qj1 should carry the first journal line");
+
+            /* Static top-left buttons have no client-side onop.  The first
+             * click must mount the cache-authored overview and run its builder;
+             * the corresponding overview button must return to the painted
+             * journal.  All ids below are resolved through the content pack. */
+            if( journal_switch > 0 && overview > 0 && overview_switch > 0 )
+            {
+                uint8_t switch_button[6];
+                static struct Mock230Capture to_overview;
+                static struct Mock230Capture to_journal;
+                int overview_open;
+                int journal_open;
+
+                switch_button[0] = (uint8_t)(journal_switch >> 24);
+                switch_button[1] = (uint8_t)(journal_switch >> 16);
+                switch_button[2] = (uint8_t)(journal_switch >> 8);
+                switch_button[3] = (uint8_t)journal_switch;
+                switch_button[4] = 0xff;
+                switch_button[5] = 0xff; /* static component, sub=-1 */
+                mock230_capture_begin(&srv, &to_overview);
+                mock230_world_handle(
+                    player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
+                mock230_capture_end(&srv);
+
+                overview_open = mock230_capture_find(&to_overview, 6 /* IF_OPENSUB */, 0);
+                SELFTEST_CHECK(overview_open >= 0,
+                               "questjournal:switch should mount the overview");
+                SELFTEST_CHECK(mock230_capture_find(
+                                   &to_overview, 84 /* RUNCLIENTSCRIPT */, 0) > overview_open,
+                               "overview mount should precede its cache-authored builder");
+                if( overview_open >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int group;
+
+                    rsab_wrap(&mount, to_overview.packets[overview_open].data,
+                              (size_t)to_overview.packets[overview_open].len);
+                    (void)rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    SELFTEST_CHECK(group == overview,
+                                   "switch should mount questjournal_overview (%d), got %d",
+                                   overview, group);
+                }
+
+                switch_button[0] = (uint8_t)(overview_switch >> 24);
+                switch_button[1] = (uint8_t)(overview_switch >> 16);
+                switch_button[2] = (uint8_t)(overview_switch >> 8);
+                switch_button[3] = (uint8_t)overview_switch;
+                switch_button[4] = 0xff;
+                switch_button[5] = 0xff;
+                mock230_capture_begin(&srv, &to_journal);
+                mock230_world_handle(
+                    player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
+                mock230_capture_end(&srv);
+
+                journal_open = mock230_capture_find(&to_journal, 6 /* IF_OPENSUB */, 0);
+                SELFTEST_CHECK(journal_open >= 0,
+                               "questjournal_overview:switch should return to the journal");
+                SELFTEST_CHECK(mock230_capture_find(
+                                   &to_journal, 94 /* IF_SETTEXT */, 0) >= 0,
+                               "returning from overview should repaint journal rows");
+                if( journal_open >= 0 )
+                {
+                    struct RSAreaBuf mount;
+                    int group;
+
+                    rsab_wrap(&mount, to_journal.packets[journal_open].data,
+                              (size_t)to_journal.packets[journal_open].len);
+                    (void)rsab_g1(&mount);
+                    group = rsab_g2_alt2(&mount);
+                    SELFTEST_CHECK(group == journal,
+                                   "reverse switch should mount questjournal (%d), got %d",
+                                   journal, group);
+                }
+            }
 
             /* Fallback path: a quest with no journal script still paints. */
             {

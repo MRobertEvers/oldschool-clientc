@@ -22,7 +22,7 @@
 | interface | id | status | what's missing |
 |---|---|---|---|
 | `chatmenu` | 219 | **landed** | nothing server-side; two loose ends noted in §2.4 |
-| `questlist` | 399 | **landed** (header + journal) | ops 3–6 (map / wiki / pin) and overview 782 still open; see §1.5 |
+| `questlist` | 399 | **landed** (header + journal + overview switch) | ops 3–6 (map / wiki / pin) still open; see §1.5 |
 | `levelup_display` | 233 | **gap** | level-up detection exists but stops at a chat string; the popup interface is never opened |
 
 ---
@@ -99,8 +99,12 @@ When `lines*20` fits the textlayer, script 6949 sets `scrollsize(0,0)` then stil
 rebuilds the IF3 scrollbar chrome (`~scrollbar_vertical`) with a full-height
 grip — same pattern as the skill guide. Only IF1 layers auto-hide native
 scrollbars (`scrollHeight > height`); do not expect the journal bar to vanish
-on short journals. Journal line wraps are content `|` splits on height-20 `qj*`
-rows (client word-wrap is off for those widgets).
+on short journals. Journal rows are 415x20 `p12_full` single-line widgets. The
+authoritative rev-239 renderer (`class671.method14513` → `method14532`) disables
+wrapping when a widget is too short for two lines, so wrapping is necessarily a
+server obligation. `split_init` measures with archive 13's cache font metrics,
+treats `|` as a hard break, and carries active colour/strikethrough markup into
+continuation rows before `if_settext(qjN, split_get(...))`.
 
 No journal text lives in any dbtable — content paints the lines.
 
@@ -131,17 +135,24 @@ Landed under `server/scripts/interface_questjournal/` and `quests/`:
 - `~quest_journal_login` arms `questlist:list` for op 2 over `1..db_listall(quest)`.
 - `[if_button2,questlist:list]` → `db_find(quest:id, last_slot)` →
   `%latest_quest_journal`, then `~cook_journal` or `~quest_journal_unwritten`.
-- `~quest_journal($title, $text)` splits on `|`, paints `qj1..qjN`, sets
-  `%qj_lines`, mounts `questjournal` into `mainmodal`, then
+- `~quest_journal($title, $text)` calls cache-backed `split_init` at the measured
+  415px row width, paints `qj1..qjN`, sets `%qj_lines`, mounts `questjournal`
+  into `mainmodal`, then
   `runclientscript*(2523)(1, N)` (mount before clientscript).
+- `questjournal:switch` mounts `questjournal_overview` (782) and invokes the
+  cache-authored 6821/6822 builder with the quest dbrow, named interface
+  components, combat level and a content start-action derived from the row's
+  `quest:startnpc`. `questjournal_overview:switch` resolves the stored dbrow's
+  `quest:id` and repaints the journal. Both interfaces re-arm Close/Switch on
+  every mount.
 - QP: `~questpoints_login` / `~quest_complete` (Cook's Assistant completion).
 - Engine: `mock230_db_load_cache` fills cache DBTABLE/DBROW so `quest:id` /
   `displayname` / `questpoints` resolve; authored `quest.dbtable` supplies
   column names. Verified in `mock230 --selftest` ("quest journal" section).
 
 Still open (named so they are not rediscovered): op 3 "Show on map", ops 4/5
-wiki, op 6 "Pin journal", `questjournal:switch` → overview 782, and the other
-56 LostCity per-quest journals (quests with no gameplay here).
+wiki, op 6 "Pin journal", and the other 56 LostCity per-quest journals (quests
+with no gameplay here).
 
 ---
 
