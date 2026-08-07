@@ -769,6 +769,52 @@ client log, and server log contain no Zuk CS2 exception, packet decode error,
 writer gap, or unexpected disconnect. The only exception text is RuneLite's
 known caught pre-login `setupCompilerControl` warning.
 
+### Player death now drains Zuk and releases the Inferno instance
+
+The death sequence used to wait through `p_delay(^death_delay)` before calling
+`~inferno_on_death`. During that wait `%inferno_active` remained set, Zuk's AI
+continued to fire, and already-launched shots accumulated as
+`[queue,combat_damage_player]` entries. Player queues keep counting down while a
+player is delayed and run as soon as access returns, so those hits followed the
+player through respawn and could start another death. A lethal queued hit also
+arms `player_death` through both the engine PLAYERDEATH trigger and the content
+damage wrapper, leaving a duplicate death sequence behind the first one.
+
+Cleanup is now deliberately two-phase. `~inferno_on_death` runs immediately
+after the death animation and `p_stopaction`; it despawns every NPC in the
+reservation, clears Zuk's start and delayed-damage queues, removes a duplicate
+`player_death`, clears the Inferno state/timer, and sends revision-239
+IF_CLOSESUB for `toplevel_osrs_stretch:overlay_hud`. It returns the exact
+instance handle but retains that reservation through the visible corpse delay.
+After the delay, `~inferno_finish_death(handle)` frees that exact handle in the
+same script turn that continues to the surface teleport. This prevents both a
+stale client scene and another session reusing the square while the corpse is
+still standing inside it.
+
+The root self-test section `Inferno death drains Zuk and releases its instance`
+starts the real `::zuk` content path, mounts group 596, injects the exact
+two-argument delayed-damage queue used by `~inferno_zuk_shoot`, and arms the
+duplicate death queue. It requires that the first death turn stops the session,
+drains all three Zuk/death queues, removes the HUD, and retains one live
+reservation; after the corpse delay it requires live instance count zero,
+handle zero, a surface respawn at full HP, and stable HP across four later
+ticks. The correctly cache-backed broad run reached this section with no
+Inferno/Zuk/instance/respawn/HUD failure; its 25 unrelated baseline failures
+remain in `build/run239-zuk/death-fix/mock230-selftest-final.log`.
+
+Clean live acceptance is under `build/run239-zuk/death-live-final`. Its blocking
+EVENTS subscriber connected before RuneLite. Real AWT input submitted only
+`::zuk`; a real Zuk projectile was logged from 6431,119 to the player at
+6431,104, and that projectile naturally caused the one death. Ordered GPI moved
+from the Inferno to 3222,3218, then remained healthy there for 15 seconds.
+Before death the client reported Zuk plus the Ancestral Glyph and mount
+`161:8->596`; afterward neither Inferno NPC nor group 596 remained, the
+interface audit reported `dead=0`, and chat contained exactly one wake-up. The
+before/after frames visibly show the live Zuk HUD and its absence at Lumbridge.
+No runtime fatal, CS2 error, packet decode error, writer gap, or unexpected
+disconnect occurred; the only exception text is RuneLite's known caught
+pre-login `setupCompilerControl` warning.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1149,3 +1195,22 @@ known caught pre-login `setupCompilerControl` warning.
   its clean dependency branch, rebuilt successfully, and pushed merge head
   `142593f`. Opened Deob follow-up PR #3 and root follow-up PR #14 against
   `perf-instrumentation` and `v3`, respectively.
+- 2026-08-06: Traced the reported post-death attacks to the ordering of
+  `[queue,player_death]`, the player queue's access gate, Zuk's delayed damage,
+  and the duplicate death queued by the damage wrapper. Added immediate
+  encounter/queue teardown with deferred exact-handle release.
+- 2026-08-06: Added a focused server regression covering the real Zuk session,
+  literal two-argument damage queue, duplicate death, corpse-time reservation,
+  HP HUD unmount, eventual instance release, and stable full-HP respawn.
+- 2026-08-06: Recompiled all 12,538 server scripts and ran the correctly
+  cache-backed broad self-test. Rejected an overlapping `::die` live run and a
+  natural-death run whose stale group-596 HUD exposed the missing IF_CLOSESUB.
+- 2026-08-06: Ran the final fresh RuneLite session with EVENTS attached before
+  launch and only real AWT `::zuk` input. A real Zuk projectile caused one
+  death; the client returned to Lumbridge with no Inferno NPCs/HUD, stayed
+  healthy for 15 seconds, captured final telemetry/screenshots, and quit
+  explicitly with complete CS2/profiler output.
+- 2026-08-06: Committed the content teardown as `45f555d2a3`, merged the
+  already-landed `lane-servsplit` base, and pushed dependency head `4289ffe312`.
+  Opened OSRS-Content PR #3 and added it beside Deob PR #3 in the updated root
+  PR #14 dependency/verification record.

@@ -21339,6 +21339,149 @@ mock230_world_selftest(void)
         mock230_scripts_free(&srv);
     }
 
+    fprintf(stderr, "mock230 selftest: Inferno death drains Zuk and releases its instance\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv,
+                                          "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* damage =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,combat_damage_player]");
+            const struct SSVM_Script* death =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,player_death]");
+            const struct SSVM_Script* zuk_start =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,inferno_zuk_start]");
+            int inferno_active =
+                mock230_content_symbol(MOCK230_PACK_VARP, "inferno_active");
+            int instance_handle =
+                mock230_content_symbol(MOCK230_PACK_VARP, "map_instance_handle");
+            int overlay_hud = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:overlay_hud");
+            int inferno_hud =
+                mock230_content_symbol(MOCK230_PACK_INTERFACE, "inferno_hp_hud");
+            int handle;
+            int damage_slot = -1;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(damage && death && zuk_start,
+                           "the Inferno death fixture requires its three real queue scripts");
+            SELFTEST_CHECK(inferno_active >= 0 && instance_handle >= 0,
+                           "the Inferno session varps should resolve, got %d/%d",
+                           inferno_active, instance_handle);
+            SELFTEST_CHECK(overlay_hud >= 0 && inferno_hud >= 0,
+                           "the Inferno HUD mount should resolve, got %d/%d", overlay_hud,
+                           inferno_hud);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+                           "::zuk should allocate the real Inferno session");
+            handle = mock230_mapinstance_find(player->x, player->z);
+            SELFTEST_CHECK(handle != 0 && mock230_mapinstance_live_count() == 1,
+                           "::zuk should hold one instance, handle=%d live=%d", handle,
+                           mock230_mapinstance_live_count());
+            if( overlay_hud >= 0 && inferno_hud >= 0 )
+                mock230_send_if_opensub(player, MOCK230_COM_GROUP(overlay_hud),
+                                        MOCK230_COM_CHILD(overlay_hud), inferno_hud, 1);
+
+            /* A literal in-flight Inferno hit. `~inferno_zuk_shoot` queues this
+             * exact script with (npc_uid, damage); making it due after the
+             * corpse delay reproduces the old hit-at-respawn failure without
+             * relying on Zuk's random max hit or the moving-glyph clock. */
+            if( damage )
+            {
+                for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                {
+                    if( player->queue[i].active )
+                        continue;
+                    damage_slot = i;
+                    player->queue[i].active = 1;
+                    player->queue[i].script_id = damage->id;
+                    player->queue[i].delay = 8;
+                    player->queue[i].args[0] = 0;
+                    player->queue[i].args[1] = player->max_hitpoints;
+                    player->queue[i].argc = 2;
+                    player->queue[i].kind = MOCK230_QUEUE_NORMAL;
+                    player->queue[i].logout_action = 0;
+                    break;
+                }
+            }
+            SELFTEST_CHECK(damage_slot >= 0, "the fixture should arm a delayed Zuk hit");
+
+            /* The real damage funnel fires [playerdeath,_]. A second copy is
+             * what combat_damage_player itself queues after the engine notices
+             * zero HP, so pin its removal too. */
+            mock230_combat_hit_player(&srv, 0, player->hitpoints);
+            SELFTEST_CHECK(player->dying, "the lethal hit should enter death state");
+            SELFTEST_CHECK(mock230_scripts_queue_named(&srv, "[queue,player_death]", 2, 0),
+                           "the duplicate player-death queue should arm");
+
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(inferno_active >= 0 && player->varps[inferno_active] == 0,
+                           "the first death turn should stop Zuk before p_delay");
+            SELFTEST_CHECK(mock230_mapinstance_live_count() == 1 &&
+                               mock230_mapinstance_find(player->x, player->z) == handle,
+                           "the corpse animation should retain its reservation");
+            if( damage && death && zuk_start )
+            {
+                int pending_damage = 0;
+                int pending_death = 0;
+                int pending_start = 0;
+
+                for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                {
+                    if( !player->queue[i].active )
+                        continue;
+                    pending_damage += player->queue[i].script_id == damage->id;
+                    pending_death += player->queue[i].script_id == death->id;
+                    pending_start += player->queue[i].script_id == zuk_start->id;
+                }
+                SELFTEST_CHECK(pending_damage == 0 && pending_death == 0 &&
+                                   pending_start == 0,
+                               "death should drain Zuk hit/start/death queues, got %d/%d/%d",
+                               pending_damage, pending_start, pending_death);
+            }
+            if( overlay_hud >= 0 )
+            {
+                int mounted = 0;
+
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    mounted += player->interfaces.mounts[i].target_uid == overlay_hud;
+                SELFTEST_CHECK(mounted == 0,
+                               "death should unmount the Inferno HP overlay, got %d", mounted);
+            }
+
+            for( int i = 0; i < 8; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
+                           "the completed death should release the Inferno instance");
+            SELFTEST_CHECK(instance_handle >= 0 && player->varps[instance_handle] == 0,
+                           "and clear the player's instance handle, got %d",
+                           instance_handle >= 0 ? player->varps[instance_handle] : -1);
+            SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
+                           "the respawn should be outside the released instance at %d,%d",
+                           player->x, player->z);
+            SELFTEST_CHECK(!player->dying && player->hitpoints == player->max_hitpoints,
+                           "the player should wake once at full HP, dying=%d hp=%d/%d",
+                           player->dying, player->hitpoints, player->max_hitpoints);
+            {
+                int hp = player->hitpoints;
+
+                for( int i = 0; i < 4; i++ )
+                    mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->hitpoints == hp && !player->dying,
+                               "no stale Zuk hit should kill the respawn, hp %d -> %d",
+                               hp, player->hitpoints);
+            }
+            mock230_scripts_free(&srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: the friend service\n");
     {
         /*
