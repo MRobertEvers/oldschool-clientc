@@ -341,6 +341,22 @@ plus the embedded, headless `TORIRS_NET_CHEAT=zuktest` run. That run builds the
 instance, installs all eight `LOC_ADD_CHANGE` replacements, binds both 90-frame
 wall sequences, and reaches the seal-crumble stage without a replay.
 
+## Revision-239 zone plane retention (2026-08-07)
+
+The missing initial Zuk walls and the post-cutscene missing flank rocks were a
+separate client defect. Revision 239's three `UPDATE_ZONE_*` headers each carry
+the target plane. The C parser consumed that byte but discarded it, then applied
+every zone loc packet to the local player's plane. The Zuk cutscene intentionally
+sends a level-0 collapsing wall and a level-1 flank rock at each of the same two
+tiles. Collapsing both planes into level 0 made one packet overwrite the other;
+the later level-0 deletion then removed the remaining visual, leaving nothing.
+
+The decoded header plane is now retained through immediate and pending zone
+execution. Full-zone item cleanup is plane-local as well. The rev-239 packet
+test covers all three header encodings. The embedded headless Zuk run reports
+the paired loc changes separately at `l0` and `l1`, and its post-cutscene image
+retains both flank rocks.
+
 ## The Zuk fight's own defects, and `::zuktest` (2026-08-04)
 
 Five, all in content or in a content-facing seam, all found after the four

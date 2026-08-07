@@ -715,6 +715,9 @@ struct App
     /** Zone base for follows-mode zone packets (scene-local tiles). */
     int zone_base_x;
     int zone_base_z;
+    /** Plane named by the latest UPDATE_ZONE_* header. Revision-239 zone
+     * updates address this plane even when the local player is elsewhere. */
+    int zone_level;
     /* Revision 239 SET_NPC_UPDATE_ORIGIN. NPC low-resolution deltas are
      * relative to this scene-local tile, not implicitly to the local player. */
     int npc_update_origin_x;
@@ -729,17 +732,17 @@ struct App
      * what arrives in that window diverges: the Inferno's flank walls and
      * rubble land two ticks after REBUILD_REGION and vanished whenever the
      * load was still in flight (docs/ORANGE_WEDGE.md §17). Each entry keeps
-     * the zone base and the local player's plane AS OF ARRIVAL — the wire
-     * addresses the player's plane at send time (the flank adds happen inside
-     * a tele-to-plane-1 window), so resolving at replay time would misplace
-     * them. Replayed in arrival order once load_complete flips.
+     * the zone base and header plane AS OF ARRIVAL. Revision 239's header can
+     * target a plane other than the player, so resolving it at replay time
+     * would overwrite locs in the wrong plane. Replayed in arrival order once
+     * load_complete flips.
      */
     struct AppPendingZonePkt
     {
         struct PktZoneSubPacket pkt;
         int base_x; /* app->zone_base_* as of arrival */
         int base_z;
-        int level; /* local player's plane as of arrival */
+        int level; /* zone header plane as of arrival */
     } pending_zone[256];
     int pending_zone_count;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /

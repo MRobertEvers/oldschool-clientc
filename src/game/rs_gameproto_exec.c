@@ -144,8 +144,9 @@ exec_update_inv_partial(
         RS_CS2Host_NotifyInvChanged(&ctx->app->host, container);
 }
 
-/* The local player's plane — the level every zone sub-packet addresses (the
- * wire carries no plane; reference applies to the player's current one). */
+/* The local player's plane is the fallback for classic zone headers which do
+ * not carry a plane. Revision 239 does carry one and must not use this path:
+ * its zone stream includes level-1 scenery while the player remains on level 0. */
 static int
 zone_player_level(struct App* app)
 {
@@ -159,6 +160,14 @@ zone_player_level(struct App* app)
             return player->grid_position.level;
     }
     return 0;
+}
+
+static int
+zone_header_level(struct App* app, int header_level)
+{
+    if( header_level >= 0 )
+        return header_level;
+    return zone_player_level(app);
 }
 
 /* Where a zone sub-packet applies: base + packed nibbles, at `level`. The
@@ -241,10 +250,8 @@ exec_zone_sub_packet_at(
  * A zone sub-packet arriving while the world is still async-loading cannot be
  * dropped: the reference's scene build is synchronous inside its packet loop,
  * so there every zone update processes after the rebuild it follows. Queue it
- * with the zone base and player plane as of NOW (the wire addresses the
- * player's plane at send time — the Inferno spawns its plane-1 flank walls
- * inside a tele-to-plane-1 window, docs/ORANGE_WEDGE.md §17) and replay once
- * the load completes.
+ * with the zone base and header plane as of NOW, then replay once the load
+ * completes.
  */
 static void
 zone_pending_push(
@@ -265,7 +272,7 @@ zone_pending_push(
         return;
     entry->base_x = app->zone_base_x;
     entry->base_z = app->zone_base_z;
-    entry->level = zone_player_level(app);
+    entry->level = app->zone_level;
     app->pending_zone_count++;
 }
 
@@ -309,7 +316,7 @@ exec_zone_sub_packet(
 
     at.base_x = app->zone_base_x;
     at.base_z = app->zone_base_z;
-    at.level = zone_player_level(app);
+    at.level = app->zone_level;
     exec_zone_sub_packet_at(ctx, name, payload, &at);
 }
 
@@ -385,12 +392,13 @@ exec_zone_sub_packet_at(
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,
-                "gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d\n",
+                "gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
                 pkt->info >> 2,
                 pkt->info & 0x3,
                 tile_x,
-                tile_z);
+                tile_z,
+                level);
         break;
     }
     case PKT_NAME_LOC_ANIM:
@@ -887,6 +895,8 @@ RS_GameProto_Exec(
              * that is our-scene too. */
             ctx->app->zone_base_x = packet->_update_zone_partial_follows.base_x;
             ctx->app->zone_base_z = packet->_update_zone_partial_follows.base_z;
+            ctx->app->zone_level = zone_header_level(
+                ctx->app, packet->_update_zone_partial_follows.level);
         }
         break;
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
@@ -895,22 +905,22 @@ RS_GameProto_Exec(
             struct App* app = ctx->app;
             app->zone_base_x = packet->_update_zone_full_follows.base_x;
             app->zone_base_z = packet->_update_zone_full_follows.base_z;
+            app->zone_level = zone_header_level(app, packet->_update_zone_full_follows.level);
             /* Full update: the zone's client-side obj stacks reset. */
             if( app->world )
             {
-                for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
-                    for( int dz = 0; dz < 8; dz++ )
-                        for( int dx = 0; dx < 8; dx++ )
-                        {
-                            int idx;
-                            while( (idx = World_ObjStackFind(
-                                        app->world,
-                                        app->zone_base_x + dx,
-                                        app->zone_base_z + dz,
-                                        level,
-                                        -1)) >= 0 )
-                                World_ObjStackDel(app->world, idx);
-                        }
+                for( int dz = 0; dz < 8; dz++ )
+                    for( int dx = 0; dx < 8; dx++ )
+                    {
+                        int idx;
+                        while( (idx = World_ObjStackFind(
+                                    app->world,
+                                    app->zone_base_x + dx,
+                                    app->zone_base_z + dz,
+                                    app->zone_level,
+                                    -1)) >= 0 )
+                            World_ObjStackDel(app->world, idx);
+                    }
             }
         }
         break;
@@ -922,6 +932,7 @@ RS_GameProto_Exec(
              * that is our-scene too. */
             ctx->app->zone_base_x = enc->base_x;
             ctx->app->zone_base_z = enc->base_z;
+            ctx->app->zone_level = zone_header_level(ctx->app, enc->level);
             for( int i = 0; i < enc->count; i++ )
                 exec_zone_sub_packet(ctx, enc->entries[i].name, &enc->entries[i]._loc_add_change);
         }
