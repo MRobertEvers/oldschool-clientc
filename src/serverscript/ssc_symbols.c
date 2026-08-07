@@ -484,6 +484,7 @@ SSC_SymbolKindForNamespace(const char* ns)
         { "3_interfaces",     SSC_SYM_INTERFACE },
         { "4_soundeffects",   SSC_SYM_SYNTH     },
         { "12_clientscripts", SSC_SYM_SCRIPT    },
+        { "13_fonts",         SSC_SYM_FONTMETRICS },
         { "interface", SSC_SYM_INTERFACE },
         { "component", SSC_SYM_COMPONENT },
         { "varp",      SSC_SYM_VARP      },
@@ -497,6 +498,7 @@ SSC_SymbolKindForNamespace(const char* ns)
         { "category",  SSC_SYM_CATEGORY  },
         { "synth",     SSC_SYM_SYNTH     },
         { "stat",      SSC_SYM_STAT      },
+        { "fontmetrics", SSC_SYM_FONTMETRICS },
         { "script",    SSC_SYM_SCRIPT    },
     };
     size_t i;

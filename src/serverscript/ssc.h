@@ -32,12 +32,12 @@
  *
  *   arrays               the reference throws on all three opcodes and the
  *                        corpus never emits them
- *   stat / npc_stat /    bare-name enumerations whose values are not in the
- *   fontmetrics names    reference checkout. Deliberately not guessed: a wrong
- *                        stat or font id compiles cleanly and silently reads
- *                        the wrong thing, which is worse than a compile error.
- *                        Seeded enumerations (npc_mode, locshape, the
- *                        ScriptVarType names) all came from a verifiable source.
+ *   stat / npc_stat      bare-name enumerations whose values are not in the
+ *                        reference checkout. Deliberately not guessed: a wrong
+ *                        stat id compiles cleanly and silently reads the wrong
+ *                        thing, which is worse than a compile error. Seeded
+ *                        enumerations (npc_mode, locshape, the ScriptVarType
+ *                        names) all came from a verifiable source.
  */
 
 #include "ssvm_script.h"
@@ -114,6 +114,7 @@ enum SSC_SymbolKind
     SSC_SYM_CATEGORY,
     SSC_SYM_SYNTH,
     SSC_SYM_STAT,
+    SSC_SYM_FONTMETRICS,
     SSC_SYM_CONSTANT,
     SSC_SYM_SCRIPT,
     SSC_SYM_KIND_COUNT,

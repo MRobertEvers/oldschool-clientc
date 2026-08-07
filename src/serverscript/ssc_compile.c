@@ -770,6 +770,12 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
             (strncmp(op_name, "STAT_", 5) == 0 || strcmp(op_name, "STAT") == 0 ||
              strncmp(op_name, "NPC_STAT", 8) == 0 || strcmp(op_name, "NPC_BASESTAT") == 0) )
             base_hint = SSC_SYM_STAT;
+        /* `split_init(..., p12_full)` names an archive in the cache's font
+         * metrics index.  Unlike the old reference checkout, rev 239 ships
+         * that namespace as pack/13_fonts.pack, so resolve it with the same
+         * typed-argument protection stats and interfaces receive. */
+        else if( op_name && strcmp(op_name, "SPLIT_INIT") == 0 )
+            base_hint = SSC_SYM_FONTMETRICS;
         /*
          * The open family's arguments name interfaces, and a bare interface
          * name is ambiguous for exactly the reason a bare stat name is.

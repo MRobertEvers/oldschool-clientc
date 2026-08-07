@@ -5748,6 +5748,64 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * The split buffer belongs to SSVM_State, matching LostCity's ScriptState:
+     * a proc can split, call helper procs, and read the same pages, while two
+     * players' suspended scripts cannot overwrite one another.  Glyph widths
+     * come from the fontmetrics archive content passed by name through the
+     * font pack (mock230_split.c).
+     */
+    case SS_OP_SPLIT_INIT:
+    {
+        int32_t font_id;
+        int32_t lines_per_page;
+        int32_t max_width;
+        const char* text;
+
+        if( !SSVM_PopInt(state, &font_id) || !SSVM_PopInt(state, &lines_per_page) ||
+            !SSVM_PopInt(state, &max_width) || !SSVM_PopStr(state, &text) )
+            return 1;
+        mock230_split_init(
+            state, text, (int)max_width, (int)lines_per_page, (int)font_id);
+        return 1;
+    }
+
+    case SS_OP_SPLIT_GET:
+    {
+        int32_t line;
+        int32_t page;
+
+        if( !SSVM_PopInt(state, &line) || !SSVM_PopInt(state, &page) )
+            return 1;
+        SSVM_PushStr(state, mock230_split_get(state, (int)page, (int)line));
+        return 1;
+    }
+
+    case SS_OP_SPLIT_PAGECOUNT:
+        SSVM_PushInt(state, mock230_split_pagecount(state));
+        return 1;
+
+    case SS_OP_SPLIT_LINECOUNT:
+    {
+        int32_t page;
+
+        if( !SSVM_PopInt(state, &page) )
+            return 1;
+        SSVM_PushInt(state, mock230_split_linecount(state, (int)page));
+        return 1;
+    }
+
+    case SS_OP_SPLIT_GETANIM:
+    {
+        int32_t page;
+
+        if( !SSVM_PopInt(state, &page) )
+            return 1;
+        (void)page;
+        SSVM_PushInt(state, state->split_mesanim);
+        return 1;
+    }
+
     case SS_OP_IF_ADDRESUMEBUTTON:
     {
         int32_t uid;

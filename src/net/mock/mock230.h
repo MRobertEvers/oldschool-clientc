@@ -1042,6 +1042,20 @@ struct Mock230Server;
 struct SSVM_Provider;
 struct SSVM_Env;
 struct SSVM_State;
+
+int
+mock230_split_init(
+    struct SSVM_State* state,
+    const char* text,
+    int max_width,
+    int lines_per_page,
+    int font_id);
+const char*
+mock230_split_get(struct SSVM_State* state, int page, int line);
+int
+mock230_split_pagecount(struct SSVM_State* state);
+int
+mock230_split_linecount(struct SSVM_State* state, int page);
 struct SSVM_Script;
 struct Mock230NpcDef;
 

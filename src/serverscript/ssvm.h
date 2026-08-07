@@ -58,6 +58,12 @@ enum
 
     /** Args passed to a script at init. */
     SSVM_MAX_INIT_ARGS = 16,
+
+    /** `split_init` is page-oriented, but all split text is owned by one
+     *  executing state.  The rev-239 quest journal exposes 210 rows; leave
+     *  room for other book/dialogue callers without putting heap ownership in
+     *  the game host. */
+    SSVM_SPLIT_MAX_LINES = 512,
 };
 
 /** Return codes. Values match the reference's ScriptState constants. */
@@ -223,6 +229,14 @@ struct SSVM_State
     int32_t last_int;
 
     struct SSVM_StrPool pool;
+
+    /** Results of the SPLIT_INIT string primitive.  Entries point into
+     *  `pool`, so suspension and nested procs keep the same lifetime as every
+     *  other script string. */
+    const char* split_lines[SSVM_SPLIT_MAX_LINES];
+    int32_t split_line_count;
+    int32_t split_lines_per_page;
+    int32_t split_mesanim;
 
     char* locals_arena;
     size_t locals_used;

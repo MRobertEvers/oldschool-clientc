@@ -393,6 +393,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock239_runclientscript.c \
 	net/mock/mock239_inbound.c \
 	net/mock/mock230_objinfo.c \
+	net/mock/mock230_split.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
