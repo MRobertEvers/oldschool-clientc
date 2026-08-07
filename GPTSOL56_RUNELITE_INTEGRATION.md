@@ -1144,3 +1144,8 @@ known caught pre-login `setupCompilerControl` warning.
   the authoritative and instrumented fixes as `e52e7148bf`, and pushed
   `codex/runelite239-regressions` to the MRobertEvers Deob remote. The isolated
   root branch remained based directly on fetched `origin/v3` at `2557dcec`.
+- 2026-08-06: Committed and pushed the root Zuk carrier regression and evidence
+  record as `48068a328b`. Merged the already-landed Deob PR #2 base back into
+  its clean dependency branch, rebuilt successfully, and pushed merge head
+  `142593f`. Opened Deob follow-up PR #3 and root follow-up PR #14 against
+  `perf-instrumentation` and `v3`, respectively.
