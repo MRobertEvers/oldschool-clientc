@@ -4,7 +4,13 @@
 #include "rsprot_exec.h"
 
 #include "packets/cam_shake.h"
+#include "packets/runclientscript.h"
 #include "packets/set_map_flag_v2.h"
+#include "packets/update_friendlist.h"
+#include "packets/update_ignorelist.h"
+#include "packets/update_inv_full.h"
+#include "packets/update_inv_partial.h"
+#include "packets/update_inv_stoptransmit.h"
 #include "packets/set_npc_update_origin.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/friendlist_loaded.h"
@@ -42,6 +48,8 @@
 #include "packets/update_zone_partial_follows.h"
 #include "packets/varp_large.h"
 #include "packets/varp_small.h"
+
+#include "net/jbase37.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -467,7 +475,10 @@ bridge_friendlist_loaded(int revision, uint8_t const* data, int len, struct RevP
 {
     BRIDGE_RUN(rsprot_friendlist_loaded_out, MsgFriendListLoaded)
     (void)msg;
-    out->_friendlist_loaded.status = 2; /* "loaded"; the packet carries no body */
+    /* 1, matching the hand-written arm. An earlier version of this adapter
+     * said 2 and nothing caught it: FRIENDLIST_LOADED is zero-payload, so it
+     * was never added to the differential test's generic cases. It is now. */
+    out->_friendlist_loaded.status = 1;
     return 1;
 }
 
@@ -615,6 +626,270 @@ bridge_unset_map_flag(int revision, uint8_t const* data, int len, struct RevPack
     return 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Containers, social lists, clientscript                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * These five run HAND-WRITTEN codecs (3rd/rsprot/packets/update_inv_full.c and
+ * friends) rather than generated ones. They are still rsprot codecs -- same
+ * vocabulary, same executor, same bidirectionality -- so the packet layout
+ * lives in one place per packet exactly as it does for the generated 215.
+ * What differs is only who transcribed them; each file's header says which
+ * construct defeated the generator.
+ *
+ * All five decode arrays into caller-supplied buffers. The codec bounds every
+ * loop and fails the exec past the capacity rather than writing on, so a
+ * malformed payload cannot overrun these -- see RSPROT_MORE and rsprot_xcount.
+ */
+
+static int
+bridge_update_inv_full(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktUpdateInvFull* p = &out->_update_inv_full;
+    static MsgUpdateInvFullSlot slots[MSG_UPDATE_INV_FULL_MAX_SLOTS];
+    MsgUpdateInvFull msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_update_inv_full_out, rsprot_update_inv_full_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    msg.slots = slots;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    p->component_id = msg.combined_id;
+    p->inv_id = msg.inventory_id;
+    p->size = msg.capacity;
+    p->obj_ids = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
+    p->obj_counts = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
+    if( !p->obj_ids || !p->obj_counts )
+    {
+        free(p->obj_ids);
+        free(p->obj_counts);
+        p->obj_ids = NULL;
+        p->obj_counts = NULL;
+        p->size = 0;
+        return 0;
+    }
+    for( int i = 0; i < msg.capacity; i++ )
+    {
+        p->obj_ids[i] = slots[i].id;
+        p->obj_counts[i] = slots[i].count;
+    }
+    return 1;
+}
+
+static int
+bridge_update_inv_partial(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktUpdateInvPartial* p = &out->_update_inv_partial;
+    static MsgUpdateInvPartialSlot slots[MSG_UPDATE_INV_PARTIAL_MAX_SLOTS];
+    MsgUpdateInvPartial msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_update_inv_partial_out, rsprot_update_inv_partial_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    msg.slots = slots;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    p->component_id = msg.combined_id;
+    p->inv_id = msg.inventory_id;
+    p->count = msg.count;
+    p->entries = (struct PktUpdateInvPartialEntry*)malloc(
+        (size_t)msg.count * sizeof(*p->entries) + 1);
+    if( !p->entries )
+    {
+        p->count = 0;
+        return 0;
+    }
+    for( int i = 0; i < msg.count; i++ )
+    {
+        p->entries[i].slot = slots[i].slot;
+        p->entries[i].obj_id = slots[i].id;
+        /* An emptied slot carries no count on the wire; the canonical struct
+         * wants a number, and 0 is what "nothing here" means to the consumer. */
+        p->entries[i].count = slots[i].id < 0 ? 0 : slots[i].count;
+    }
+    return 1;
+}
+
+/*
+ * The canonical struct keeps only base-37 names, so the note, the previous
+ * name and the world metadata are read and dropped. That is the same loss the
+ * hand-written arm took -- it decoded all four strings and freed three -- but
+ * it IS a loss, and an ignore list that cannot show a note is a feature gap
+ * living in PktUpdateIgnoreList rather than in the wire.
+ */
+static int
+bridge_update_ignorelist(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktUpdateIgnoreList* p = &out->_update_ignorelist;
+    static MsgUpdateIgnoreListEntry entries[MSG_UPDATE_IGNORELIST_MAX_ENTRIES];
+    MsgUpdateIgnoreList msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_update_ignorelist_out, rsprot_update_ignorelist_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    msg.entries = entries;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    p->count = msg.count;
+    p->names37 = (int64_t*)malloc((size_t)msg.count * sizeof(int64_t) + 1);
+    if( !p->names37 )
+    {
+        p->count = 0;
+        return 0;
+    }
+    for( int i = 0; i < msg.count; i++ )
+        p->names37[i] = entries[i].name ? (int64_t)strtobase37(entries[i].name) : 0;
+    return 1;
+}
+
+/*
+ * PktUpdateFriendList holds ONE friend, not a list, and the hand-written arm
+ * required the payload to hold exactly one entry. Keeping that: the first entry
+ * wins and `present` says whether there was one, which is what the consumer
+ * already reads. A multi-entry payload now decodes without error where it used
+ * to be rejected, and the extra entries are dropped -- a gap in the canonical
+ * struct, not in this decode.
+ */
+static int
+bridge_update_friendlist(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktUpdateFriendList* p = &out->_update_friendlist;
+    static MsgUpdateFriendListEntry entries[MSG_UPDATE_FRIENDLIST_MAX_ENTRIES];
+    MsgUpdateFriendList msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_update_friendlist_out, rsprot_update_friendlist_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    msg.entries = entries;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    /* An empty payload is legal and completes initial sync. */
+    if( msg.count <= 0 )
+        return 1;
+    if( !entries[0].name )
+        return 0;
+    p->name37 = (int64_t)strtobase37(entries[0].name);
+    p->world = entries[0].world_id;
+    p->present = 1;
+    return 1;
+}
+
+static int
+bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct PktRunClientScript* p = &out->_runclientscript;
+    static MsgRunClientScriptArg args[MSG_RUNCLIENTSCRIPT_MAX_ARGS];
+    static int32_t ints[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
+    static const char* strs[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
+    MsgRunClientScript msg;
+    RsprotExec x;
+    RsprotBuf buf;
+    int argc;
+    RsprotCodecFn fn = rsprot_version_pick(
+        rsprot_runclientscript_out, rsprot_runclientscript_out_count, revision);
+
+    if( !fn )
+        return -1;
+    memset(&msg, 0, sizeof(msg));
+    memset(args, 0, sizeof(args));
+    for( int i = 0; i < MSG_RUNCLIENTSCRIPT_MAX_ARGS; i++ )
+    {
+        args[i].ints = ints;
+        args[i].strs = strs;
+    }
+    msg.args = args;
+    rsprot_buf_wrap_read(&buf, data, len);
+    rsprot_exec_decode(&x, &buf);
+    fn(&x, &msg);
+    if( !rsprot_exec_ok(&x) || buf.err || !msg.types )
+        return 0;
+
+    memset(p, 0, sizeof(*p));
+    p->script_id = msg.id;
+    argc = (int)strlen(msg.types);
+    if( argc > PKT_RUNCLIENTSCRIPT_ARG_MAX )
+        return 0;
+    p->argc = argc;
+    for( int i = 0; i < argc; i++ )
+    {
+        if( msg.types[i] == 's' )
+        {
+            /* The canonical struct owns fixed-size string storage; the codec
+             * hands back a borrow into the payload, so this copies. */
+            char const* s = args[i].sval ? args[i].sval : "";
+            size_t n = strlen(s);
+
+            if( n >= PKT_RUNCLIENTSCRIPT_STR_LEN )
+                n = PKT_RUNCLIENTSCRIPT_STR_LEN - 1;
+            memcpy(p->strv[i], s, n);
+            p->strv[i][n] = '\0';
+            p->str_mask |= 1u << i;
+        }
+        else
+        {
+            /*
+             * The array and 64-bit forms have no home in PktRunClientScript,
+             * which carries one int or one string per argument. They decode
+             * correctly and are then narrowed; the same narrowing the
+             * hand-written arm did by only ever reading p4 and pjstr.
+             */
+            p->intv[i] = args[i].ival;
+        }
+    }
+    return 1;
+}
+
+static int
+bridge_update_inv_stop_transmit(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_update_inv_stoptransmit_out, MsgUpdateInvStopTransmit)
+    /* Two bytes, and they are the CONTAINER id, not a component. This revision
+     * addresses the container directly; component_id is stated -1 to say the
+     * packet carries none, which is what the consumer tests. */
+    out->_update_inv_stop_transmit.component_id = -1;
+    out->_update_inv_stop_transmit.inv_id = msg.inventory_id;
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -655,6 +930,12 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },
+    { PKT_NAME_UPDATE_INV_PARTIAL, bridge_update_inv_partial },
+    { PKT_NAME_UPDATE_INV_STOP_TRANSMIT, bridge_update_inv_stop_transmit },
+    { PKT_NAME_UPDATE_IGNORELIST, bridge_update_ignorelist },
+    { PKT_NAME_UPDATE_FRIENDLIST, bridge_update_friendlist },
+    { PKT_NAME_RUNCLIENTSCRIPT, bridge_runclientscript },
     { PKT_NAME_UNSET_MAP_FLAG, bridge_unset_map_flag },
     { PKT_NAME_SET_NPC_UPDATE_ORIGIN, bridge_set_npc_update_origin },
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },

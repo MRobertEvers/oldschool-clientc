@@ -64,6 +64,11 @@
 #include "packets/if_setplayermodel_bodytype.h"
 #include "packets/if_setplayermodel_obj.h"
 #include "packets/if_setplayermodel_self.h"
+#include "packets/friendlist_loaded.h"
+#include "packets/server_tick_end.h"
+#include "packets/set_map_flag_v2.h"
+#include "packets/set_npc_update_origin.h"
+#include "packets/update_inv_stoptransmit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -393,7 +398,8 @@ test_message_game(uint32_t seed, int with_name)
         g_case = (label);                                                                  \
         memset(&m, 0, sizeof(m));                                                         \
         len = encode_at_239((table), (table##_count), &m, seed);                          \
-        if (len <= 0) {                                                                   \
+        /* len == 0 is a zero-payload packet, not a failure. */                           \
+        if (len < 0) {                                                                   \
             printf("FAIL [%s] no rev239 codec\n", (label));                               \
             g_failures++;                                                                  \
             break;                                                                        \
@@ -444,6 +450,23 @@ GENERIC_CASE(PKT_NAME_IF_CLEARINV, rsprot_if_clearinv_out, MsgIfClearInv, "IF_CL
                  MsgIfSetPlayerModelObj, "IF_SETPLAYERMODEL_OBJ");
     GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_SELF, rsprot_if_setplayermodel_self_out,
                  MsgIfSetPlayerModelSelf, "IF_SETPLAYERMODEL_SELF");
+    GENERIC_CASE(PKT_NAME_SET_NPC_UPDATE_ORIGIN, rsprot_set_npc_update_origin_out,
+                 MsgSetNpcUpdateOrigin, "SET_NPC_UPDATE_ORIGIN");
+    GENERIC_CASE(PKT_NAME_UNSET_MAP_FLAG, rsprot_set_map_flag_v2_out,
+                 MsgSetMapFlagV2, "UNSET_MAP_FLAG");
+    GENERIC_CASE(PKT_NAME_UPDATE_INV_STOP_TRANSMIT, rsprot_update_inv_stoptransmit_out,
+                 MsgUpdateInvStopTransmit, "UPDATE_INV_STOP_TRANSMIT");
+    /*
+     * Zero-payload packets, which is exactly why they are here. They carry no
+     * fields to get wrong, so they look untestable -- but the ADAPTER still
+     * sets canonical fields from nothing, and one of them (FRIENDLIST_LOADED)
+     * shipped with status=2 where the hand-written arm says 1, purely because
+     * nothing compared them.
+     */
+    GENERIC_CASE(PKT_NAME_FRIENDLIST_LOADED, rsprot_friendlist_loaded_out,
+                 MsgFriendListLoaded, "FRIENDLIST_LOADED");
+    GENERIC_CASE(PKT_NAME_SERVER_TICK_END, rsprot_server_tick_end_out,
+                 MsgServerTickEnd, "SERVER_TICK_END");
 }
 
 int

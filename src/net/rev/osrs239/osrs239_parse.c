@@ -973,9 +973,20 @@ osrs239_parse(
         return 1;
     }
 
+    /*
+     * UpdateInvStopTransmitEncoder: p2Alt2(inventoryId) -- NOT a plain p2.
+     *
+     * This arm read it big-endian, which is 128 too high in the low byte: the
+     * backpack (93) arrived as 221 and the client stopped transmitting a
+     * container that does not exist. Found by src/net/rev/test/
+     * rsprot_bridge_test.c when the generated codec was compared against this
+     * arm -- the first time in this lane the HAND-WRITTEN side was the wrong
+     * one, which is the direction the differential test was always as likely
+     * to catch and had not yet.
+     */
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
         out->_update_inv_stop_transmit.component_id = -1;
-        out->_update_inv_stop_transmit.inv_id = RSProt_BufferG2Be(&c);
+        out->_update_inv_stop_transmit.inv_id = RSProt_BufferG2Be_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_FRIENDLIST_LOADED:

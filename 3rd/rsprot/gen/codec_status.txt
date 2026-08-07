@@ -1,5 +1,5 @@
 rsprot packet-codec generation status
-revisions 221-239; 215 packets emitted, 2 refused
+revisions 221-239; 215 packets emitted, 3 refused
 
 --- emitted (prot, file, dir, layouts, revisions covered) ---
   OK   ACCOUNT_FLAGS                    account_flags.c out   1 layout(s)  7 rev(s)
@@ -221,6 +221,7 @@ revisions 221-239; 215 packets emitted, 2 refused
 --- refused (class, dir, reason) ---
   SKIP CamMoveToArc                                     out  no ledger rows -- rerun rsprot_version_ledger.py
   SKIP IfOpenTopEncoder                                 out  hand-written -- see HAND_WRITTEN_PROTS
+  SKIP RunClientScriptEncoder                           out  hand-written -- see HAND_WRITTEN_PROTS
 
 --- per-file parse skips ---
   rev221 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -285,7 +286,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev221 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev221 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev221 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev221 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev221 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev221 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -369,7 +369,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev222 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev222 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev222 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev222 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev222 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev222 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -451,7 +450,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev223 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev223 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev223 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev223 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev223 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev223 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -533,7 +531,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev224 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev224 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev224 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev224 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev224 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev224 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -612,7 +609,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev225 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev225 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev225 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev225 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev225 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev225 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -688,7 +684,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev226 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev226 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev226 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev226 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev226 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev226 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -761,7 +756,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev227 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev227 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev227 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev227 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev227 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev227 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -834,7 +828,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev228 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev228 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev228 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev228 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev228 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev228 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -907,7 +900,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev229 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev229 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev229 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev229 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev229 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev229 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -980,7 +972,6 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev230 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev230 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev230 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev230 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev230 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev230 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1054,7 +1045,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev231 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev231 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev231 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev231 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev231 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev231 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev231 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1127,7 +1118,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev232 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev232 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev232 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev232 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev232 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev232 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev232 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1206,7 +1197,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev233 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev233 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev233 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev233 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev233 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev233 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev233 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1285,7 +1276,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev234 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev234 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev234 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev234 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev234 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev234 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev234 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1363,7 +1354,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev235 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev235 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev235 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev235 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev235 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev235 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1442,7 +1433,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev236 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev236 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev236 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev236 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev236 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev236 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1536,7 +1527,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev237 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev237 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev237 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev237 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev237 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev237 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1615,7 +1606,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev238 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev238 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev238 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev238 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev238 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev238 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1696,7 +1687,7 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev239 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev239 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
+  rev239 out  misc/player/RunClientScriptEncoder.kt                        unmodeled member access: .size
   rev239 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev239 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
   rev239 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm

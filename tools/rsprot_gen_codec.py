@@ -2170,7 +2170,18 @@ REV_LO, REV_HI = 221, 239
 #
 # A name here that stops matching a hand-written file is reported, not ignored:
 # silently skipping a packet nobody wrote is how a gap becomes permanent.
-HAND_WRITTEN_PROTS = {"IF_OPENTOP"}
+HAND_WRITTEN_PROTS = {
+    "IF_OPENTOP",
+    # The five this generator cannot model, hand-written into packets/ instead.
+    # Each file's header states which construct defeated the generator AND what
+    # the decode rule is -- which is the point of writing them out rather than
+    # teaching the generator to infer. See docs/RSPROT_CODEC_GENERATOR_PLAN.md.
+    "UPDATE_INV_FULL",     # accessors on a packed value + clamp-with-escape
+    "UPDATE_INV_PARTIAL",  # the above, plus a count-less entry list
+    "UPDATE_FRIENDLIST",   # sealed-type `when`; the tag is world_id > 0
+    "UPDATE_IGNORELIST",   # sealed-type `when`; the tag is the 0x4 bit
+    "RUNCLIENTSCRIPT",     # character access into a transferred string
+}
 
 # Capacity a generated codec assumes for a COUNT-LESS array -- one whose length
 # is the payload's length rather than a field.
@@ -2200,10 +2211,7 @@ RSPROT_ARRAY_CAP = 256
 # Everything else in this file refuses at the construct that defeats it. This
 # list is for the case where the construct is recognised too late to refuse
 # cleanly, and it should stay short -- a name here is a TODO, not a policy.
-REFUSE_CLASSES = {
-    "RunClientScriptEncoder": "indexes a transferred string (`types[i]`) as a "
-                              "discriminator; character access is not modelled",
-}
+REFUSE_CLASSES = {}
 
 
 def load_ledger(path=LEDGER_PATH):
