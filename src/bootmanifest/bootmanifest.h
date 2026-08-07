@@ -27,6 +27,12 @@
  *                 page has no TCP, so the web build's sockets are WebSockets
  *                 (see BootManifest_ApplyWebEndpoint). LostCity, for one,
  *                 serves the game on 43594/tcp and upgrades / on its web port.
+ *   [js5:boot]   enabled=true|false  host=<h>  port=<n>
+ *                fallback_port=<n>  revision=<n>
+ *                Optional executor-only incremental-cache settings. Omitted
+ *                host/port/revision inherit the finalized [net:boot] endpoint
+ *                and [cache:boot] revision. fallback_port defaults to 443 only
+ *                when the resolved primary is 43594; 0 explicitly disables it.
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
  *                 computes a click's route, and which approach model decides
@@ -45,8 +51,25 @@
  *                 scene_light=<x>,<y>,<z>
  *                 npc_type_ambient_contrast=0|1
  *                 player_head_ambient=<n>   (0 = scene-light like Client-TS)
- *   [ui:boot]     logic=cs1|cs2  chrome=revconfig|cache
+ *   [ui:boot]     logic=cs1|cs2  chrome=revconfig
  *                 revconfig_ui=<path>  revconfig_cache=<path>  interface_id=<n>
+ *                 Every root tree is built by the RevConfig builder — there is
+ *                 no second "open interface_id and hope" path. `interface_id` is
+ *                 the group a `type=rs_iface` component mounts when it declares
+ *                 no `componentno=` of its own, which is how a CS2 gameframe
+ *                 gets placed *among* the other root elements instead of being
+ *                 the root. (chrome=cache is accepted as a synonym so older
+ *                 manifests still load.)
+ *   [revconfig:…] Inline RevConfig. Any section the RevConfig loader
+ *                 understands can appear in this file under a `revconfig:`
+ *                 prefix — `[revconfig:component:world]`,
+ *                 `[revconfig:layout:fixed]`, `[revconfig:sprite:…]`, and so on
+ *                 — with exactly the syntax the standalone .ini files use. The
+ *                 prefix is what keeps the two dialects apart: [ui:gameframe]
+ *                 uses free-form keys, several of which (`left`, `top`, …) would
+ *                 otherwise read as layout fields. Inline sections load *after*
+ *                 revconfig_ui/revconfig_cache, so a manifest can extend a
+ *                 shared UI file rather than restate it.
  *   [client:args] arg=<one exact command-line argument>, repeated in argv order
  *                 Optional lower-priority argv parsed after the typed manifest
  *                 fields and before the process command line. The whole value
@@ -90,6 +113,7 @@
  */
 
 struct AppConfig; /* fwd; src/app.h */
+struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
 
 /* Void's rev-634 login opens 25 sub-interfaces; leave room to grow. */
 #define BOOTMANIFEST_GAMEFRAME_MAX 64
@@ -162,6 +186,15 @@ struct BootManifest
      * TORIRS_NET_CHEAT still overrides. */
     char cheat[256];
 
+    /* [js5:boot] -- executor-owned, never copied into AppConfig. */
+    int js5_enabled; /* -1 = unset, otherwise 0|1 */
+    char js5_host[128];
+    int js5_port; /* 0 = unset/inherit */
+    int js5_fallback_port;
+    int js5_fallback_port_set; /* distinguishes omitted from explicit 0 */
+    int js5_revision;          /* 0 = unset/inherit */
+    int js5_revision_set;
+
     /* [features:boot] — client-behaviour era name; "" = derive from the cache
      * identity (ToriRS_Features_ForCache). */
     char features_era[32];
@@ -191,10 +224,14 @@ struct BootManifest
 
     /* [ui:boot] */
     int ui_logic;  /* enum AppUiLogic; 0 = unset/default */
-    int chrome;    /* 0 unset, 1 revconfig, 2 cache */
+    int chrome;    /* 0 unset, 1 revconfig, 2 cache (legacy synonym) */
     char revconfig_ui[512];    /* resolved */
     char revconfig_cache[512]; /* resolved */
     int interface_id;          /* 0 = unset */
+    /* Path this manifest was loaded from, kept so the RevConfig builder can read
+     * the file's own `[revconfig:…]` sections back. Set only when at least one
+     * such section was seen — an empty string means "no inline RevConfig". */
+    char revconfig_inline[512];
     /* `windowmode = fixed|resizable` — enum CS2VM_WindowMode, 0 = unset.
      * Declared rather than derived: which of the two the client boots in is a
      * display preference, and the client has nowhere else to keep one (there is
@@ -252,6 +289,14 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path);
  * flags override by plain assignment (precedence: CLI > manifest > defaults). */
 void
 BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg);
+
+/* Copy only set [js5:boot] fields into the executor-owned configuration.
+ * This is intentionally separate from ApplyToConfig: AppConfig is the stable
+ * core-client boundary and must not acquire JS5/network-cache state. */
+void
+BootManifest_ApplyToExecutorConfig(
+    struct BootManifest const* bm,
+    struct ToriRS_ExecutorConfig* cfg);
 
 /*
  * Repoint cfg at the endpoint a browser can reach, for hosts whose sockets are

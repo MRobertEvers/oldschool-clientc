@@ -27,10 +27,9 @@ cover the [web build](docs/web_build.md), the
 [performance harness](docs/PERF_HARNESS.md), and the repository's
 [Windows toolchains](tools/toolchain/README.md).
 
-## Engine notes
-
-The remaining material is an engineering notebook, not a platform build or
-compatibility contract. Platform guidance belongs in the registry linked above.
+Subsystem guides cover the [incremental JS5 client cache](docs/JS5_INCREMENTAL_CACHE.md),
+the [dedicated JS5 server](docs/JS5_SERVER.md), and the
+[developer overlay and root UI layout](docs/debug_overlay.md).
 
 ### Content pipeline
 
@@ -62,18 +61,26 @@ reference-table index—is what makes every other table reachable at all.
 `manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
 cache built from content rather than the pristine dump:
 
-```
+```sh
 src/torirs --manifest manifest_osrs239_packed.ini --offline
+```
+
+On Windows, build either repository-owned lane with the wrapper described
+above, then run its staged artifact:
+
+```powershell
+.\dist\win64\torirs.exe --manifest .\manifest_osrs239_packed.ini
+.\dist\win32\torirs.exe --manifest .\manifest_osrs239_packed.ini
 ```
 
 Two things a from-scratch cache needs that a `--base` bake inherits for free,
 both of which the packer now provides:
 
 - **`idx255` reference tables.** An archive is only reachable through one.
-- **Archive name identifiers.** Half the cache is addressed by name—the
-  client hashes a sprite name and scans `archives[i].identifier`. Without them
-  the client can boot with every archive present but no compass, map scene,
-  hitmarks, or other name-addressed assets.
+- **Archive name identifiers.** The client hashes a sprite name (djb2) and
+  scans `archives[i].identifier`. Without those identifiers the client can boot
+  with every archive present but no compass, map scene, hitmarks, or other
+  name-addressed assets.
 
 Headless verification proves the cache is bootable rather than merely
 complete:
@@ -82,6 +89,11 @@ complete:
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
     src/torirs --manifest manifest_osrs239_packed.ini --offline
 ```
+
+## Engine notes
+
+The remaining material is an engineering notebook, not a platform build or
+compatibility contract. Platform guidance belongs in the registry linked above.
 
 ### TODO
 

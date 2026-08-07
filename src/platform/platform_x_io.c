@@ -1,4 +1,9 @@
 #include "platform_x_io.h"
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#include "platform_x_io_js5.h"
+#include "platform_x_io_js5_cache.h"
+#include "platform_sdl2.h"
+#endif
 
 #include "asyncio.h"
 
@@ -17,12 +22,26 @@
  * free the archive they receive.
  */
 #define DAT2_ARCHIVE_CACHE_SLOTS 32
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+#define JS5_PENDING_SLOTS (TORIRS_IO_MAX_ITEMS * 2)
+#endif
 
 struct Dat2ArchiveCacheSlot
 {
     struct RSCache_Dat2DiskArchive* archive;
     uint64_t last_used;
 };
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+struct Js5PendingItem
+{
+    int in_use;
+    struct ToriRS_IO* io;
+    int slot;
+    int archive;
+    int group;
+};
+#endif
 
 struct PlatformX_IO
 {
@@ -33,6 +52,11 @@ struct PlatformX_IO
 
     struct Dat2ArchiveCacheSlot archive_cache[DAT2_ARCHIVE_CACHE_SLOTS];
     uint64_t archive_cache_clock;
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    struct PlatformXIOJs5Cache* js5;
+    struct Js5PendingItem js5_pending[JS5_PENDING_SLOTS];
+#endif
 };
 
 struct PlatformX_IO*
@@ -108,6 +132,9 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
     if( !px )
         return;
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    PlatformXIOJs5Cache_Free(px->js5);
+#endif
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
     free(px->config_dir);
@@ -387,6 +414,86 @@ load_cache_item_dat2(
     return 0;
 }
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+static struct Js5PendingItem*
+js5_pending_alloc(struct PlatformX_IO* px)
+{
+    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
+        if( !px->js5_pending[i].in_use )
+            return &px->js5_pending[i];
+    return NULL;
+}
+
+static int
+js5_queue_cache_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    int archive = dat2_resolve_table(px, item->u.cache.table_id);
+    int group = item->u.cache.archive_id;
+    enum Js5RequestResult request;
+    struct Js5PendingItem* pending;
+
+    if( archive == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return load_cache_item_dat2(px, item);
+
+    request = PlatformXIOJs5Cache_RequestGroup(px->js5, archive, group);
+    if( request == JS5_REQUEST_ALREADY_READY )
+        return load_cache_item_dat2(px, item);
+    if( request == JS5_REQUEST_ERROR )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    pending = js5_pending_alloc(px);
+    if( !pending )
+    {
+        fprintf(stderr, "js5: pending IO table full, failing %d/%d\n", archive, group);
+        item->error_code = -1;
+        return -1;
+    }
+    pending->in_use = 1;
+    pending->io = io;
+    pending->slot = slot;
+    pending->archive = archive;
+    pending->group = group;
+    return 0;
+}
+
+static void
+js5_service_pending(
+    struct PlatformX_IO* px,
+    int terminal_failure)
+{
+    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
+    {
+        struct Js5PendingItem* pending = &px->js5_pending[i];
+        struct ToriRS_IOItem* item;
+        int group_failed;
+
+        if( !pending->in_use )
+            continue;
+        group_failed = PlatformXIOJs5Cache_GroupFailed(
+            px->js5, pending->archive, pending->group);
+        if( !terminal_failure && !group_failed && !PlatformXIOJs5Cache_GroupReady(
+                                                        px->js5,
+                                                        pending->archive,
+                                                        pending->group) )
+            continue;
+
+        item = &pending->io->io_slots[pending->slot];
+        if( terminal_failure || group_failed )
+            item->error_code = -1;
+        else
+            load_cache_item_dat2(px, item);
+        memset(pending, 0, sizeof(*pending));
+    }
+}
+#endif
+
 /* Region -> map archive id, from the versionlist map_index the disk decoded at
  * open (LostCity OnDemand). Returns -1 for a square the cache does not ship —
  * legitimate at the edges of the built world, so callers report rather than
@@ -533,16 +640,29 @@ PlatformX_IO_LoadItem(
     }
 }
 
-/* Nothing is ever outstanding here: Process reads from the open cache inline
- * and every active slot is filled before it returns. */
+/* Local hits remain synchronous. A JS5 miss parks only the ToriRS_IO instance
+ * that requested it; bounded pumping here also keeps native TaskRunner_Drain
+ * live when there is no outer frame loop yet. */
 int
 PlatformX_IO_Pending(
     struct PlatformX_IO* px,
     struct ToriRS_IO* io)
 {
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    int count = 0;
+
+    assert(px);
+    if( px->js5 )
+        PlatformXIO_Js5Pump(px, PlatformSDL2_Ticks64());
+    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
+        if( px->js5_pending[i].in_use && px->js5_pending[i].io == io )
+            count++;
+    return count;
+#else
     (void)px;
     (void)io;
     return 0;
+#endif
 }
 
 int
@@ -556,9 +676,23 @@ PlatformX_IO_Process(
     int processed = 0;
     for( int i = 0; i < io->active_count; i++ )
     {
-        struct ToriRS_IOItem* item = &io->io_slots[io->active[i]];
+        int slot = io->active[i];
+        struct ToriRS_IOItem* item = &io->io_slots[slot];
 
-        if( PlatformX_IO_LoadItem(px, item) == 0 )
+        item->data = NULL;
+        item->data_size = 0;
+        item->error_code = 0;
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+        if( px->js5 && item->kind == TORIRS_IOK_CACHE &&
+            item->u.cache.flags == TORIRS_IO_CACHE_DAT2 )
+        {
+            if( js5_queue_cache_item(px, io, slot) == 0 )
+                processed++;
+        }
+        else
+#endif
+            if( PlatformX_IO_LoadItem(px, item) == 0 )
             processed++;
     }
 
@@ -566,3 +700,52 @@ PlatformX_IO_Process(
 
     return processed;
 }
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+int
+PlatformXIO_Js5Enable(
+    struct PlatformX_IO* px,
+    const struct Js5Config* config)
+{
+    if( !px || !px->dat2_disk || !config || px->js5 )
+        return -1;
+    px->js5 = PlatformXIOJs5Cache_New(px->dat2_disk, config);
+    return px->js5 ? 0 : -1;
+}
+
+int
+PlatformXIO_Js5Pump(
+    struct PlatformX_IO* px,
+    uint64_t now_ms)
+{
+    int result;
+
+    if( !px || !px->js5 )
+        return -1;
+    result = PlatformXIOJs5Cache_Tick(px->js5, now_ms);
+    js5_service_pending(px, result < 0);
+    if( result < 0 )
+        return -1;
+    return PlatformXIOJs5Cache_MetadataReady(px->js5) ? 1 : 0;
+}
+
+bool
+PlatformXIO_Js5MetadataReady(const struct PlatformX_IO* px)
+{
+    return px && PlatformXIOJs5Cache_MetadataReady(px->js5);
+}
+
+enum Js5Error
+PlatformXIO_Js5LastError(const struct PlatformX_IO* px)
+{
+    return px ? PlatformXIOJs5Cache_LastError(px->js5) : JS5_ERROR_ARGUMENT;
+}
+
+void
+PlatformXIO_Js5GetProgress(
+    const struct PlatformX_IO* px,
+    struct Js5Progress* progress)
+{
+    PlatformXIOJs5Cache_GetProgress(px ? px->js5 : NULL, progress);
+}
+#endif

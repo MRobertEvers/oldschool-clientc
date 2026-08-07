@@ -45,7 +45,8 @@ make -C src PLATFORM=web <target>   # any target, web flavor
 ```
 
 `PLATFORM` values are `macos`, `linux`, `win32`, `win64`, and `web`; the
-default, `native`, resolves to the matching desktop lane. Each
+default, `native`, resolves to `macos`, `linux`, or modern Windows `win64`.
+The XP-compatible `win32` lane is always explicit. Each
 `(PLATFORM, OPT)` pair owns its own object directory (`build`, `build_opt`,
 `build_web`, `build_web_opt`, `build_win32`, …), so flavors never share a `.o`.
 

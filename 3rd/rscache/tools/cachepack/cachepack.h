@@ -494,17 +494,16 @@ struct CP_Ctx
     int param_types_count;
 
     /**
-     * `^name` -> text, from the tree's `.constant` files — LostCity substitutes
-     * these into every config *value* before parsing it (PackShared.ts), which
-     * is how `param=undead,^true` is a legal record. Built by
-     * `cp_constants_load` right after the walk and registered with cp_text, so
-     * the substitution happens at the one place config values are read.
+     * The tree's `^constants`, as a param value can name one.
+     *
+     * `param=undead,^true` and `param=damagetype,^crush_style` are in this tree's
+     * `.npc` overlays, and a `^name` is declared in a `.constant` file under
+     * `server/scripts` (4,878 of them across 265 files). Loaded lazily — most packs never
+     * meet a caret, and the walk is only worth doing for one that does.
+     *
+     * Integer-valued constants only. A constant whose value is a name is not a
+     * thing a param value can hold, so it is skipped rather than half-resolved.
      */
-    char** constant_names;
-    char** constant_values;
-    int constant_count;
-
-    /** Integer-valued constants retained for typed param/reference parsing. */
     struct CP_Constant* constants;
     int constants_count;
     int constants_capacity;
@@ -952,23 +951,10 @@ cp_param_type_of(
     struct CP_Ctx* ctx,
     int param_id);
 
-/**
- * Load every `^name = value` from the tree's `.constant` files and register the
- * table with cp_text, which substitutes them into config values as they are
- * read — LostCity's PackShared.ts semantics: a `^token` runs to the next comma,
- * space or end of value, a name the table has is replaced, one it lacks is left
- * exactly as written. Run right after `cp_walk_tree`, before anything loads a
- * config. Returns the number of constants loaded.
- */
-int
-cp_constants_load(struct CP_Ctx* ctx);
-
-/** cp_text's substitution hook; `cp_constants_load` is the only caller. */
+/** Load the tree's integer-valued `^constants` once. `cp_resolve_caret` calls
+ *  this lazily; pack passes may call it after walking the tree to prime it. */
 void
-cp_text_set_constants(
-    char* const* names,
-    char* const* values,
-    int count);
+cp_constants_load(struct CP_Ctx* ctx);
 
 /**
  * `op1..opN`, plus the rev-237 sub-ops and conditional ops.

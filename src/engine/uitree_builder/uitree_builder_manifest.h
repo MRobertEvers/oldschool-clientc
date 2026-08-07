@@ -164,10 +164,34 @@ uibuilder_pack_component_id(int componentno);
 int
 uibuilder_uicomponent_needs_rs_load(struct RevConfigUIComponentItem const* item);
 
+/** True for the component type that mounts a cache interface pack, `rs_iface`. */
+int
+uibuilder_uicomponent_is_iface_mount(struct RevConfigUIComponentItem const* item);
+
+/**
+ * The interface group `item` mounts, or -1 for none.
+ *
+ * An rs_iface with no componentno= means "the root interface", which is
+ * root_interface_id — the manifest's `[ui:boot] interface_id`, or whatever the
+ * server last re-rooted to with IF_SETTOPLEVEL. Everything else is its own
+ * componentno=.
+ */
+int
+uibuilder_uicomponent_iface_id(
+    struct RevConfigUIComponentItem const* item,
+    int root_interface_id);
+
 int
 uibuilder_manifest_from_revconfig(
     struct UIBuilderManifest* out,
     struct RevConfigItemBuffer const* items);
+
+/** As above, resolving componentno-less rs_iface mounts to root_interface_id. */
+int
+uibuilder_manifest_from_revconfig_rooted(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id);
 
 int
 uibuilder_manifest_from_revconfig_ini(
@@ -180,5 +204,29 @@ uibuilder_manifest_from_revconfig_inis(
     struct UIBuilderManifest* out,
     char const* ui_ini_path,
     char const* cache_ini_path);
+
+/**
+ * Every RevConfig source a boot manifest can name, in load order.
+ *
+ * Order is sibling order: later records append after earlier ones, so a
+ * manifest's inline sections extend the shared files rather than restate them.
+ * All paths are optional; when none of them yields a layout the builder
+ * synthesises the single rs_iface mount that root_interface_id names, which is
+ * what a manifest with no RevConfig at all used to get from the interface-open
+ * path.
+ */
+struct UIBuilderManifestSources
+{
+    char const* ui_ini_path;
+    char const* cache_ini_path;
+    /** File holding `[revconfig:…]` sections — in practice the manifest itself. */
+    char const* inline_ini_path;
+    int root_interface_id;
+};
+
+int
+uibuilder_manifest_from_sources(
+    struct UIBuilderManifest* out,
+    struct UIBuilderManifestSources const* src);
 
 #endif

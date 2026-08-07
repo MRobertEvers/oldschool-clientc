@@ -59,6 +59,7 @@
  * low-to-high transition for other slots is not.
  */
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct RSAreaBuf;
@@ -173,10 +174,11 @@ mock239_playerinfo_write(
  * the same id-space widening that moved the npc type field, and a decoder built
  * for the narrow form reads two npcs where there is one.
  *
- * The 0xFFFF terminator is not optional whenever extended info follows. The
- * client's low-resolution loop keeps consuming 16-bit indices while the bit
- * reader has bits left, and the bit reader spans the rest of the packet — so
- * without it the extended-info bytes are read as npc indices.
+ * The 0xFFFF terminator is required only when the padding plus extended-info
+ * tail leaves at least 28 readable bits. That is the golden client's exact
+ * `16 + 12` low-resolution-record guard. Below that threshold the client exits
+ * before reading an index, so writing a sentinel makes it consume 0xffff as the
+ * first extended mask instead.
  *
  * This writes the empty case only: no high-resolution npcs, no additions. That
  * is what the server needs to be able to SEND the packet at all rather than
@@ -185,5 +187,12 @@ mock239_playerinfo_write(
  */
 void
 mock239_npcinfo_write_empty(struct RSAreaBuf* buf);
+
+/** Mirror the golden client's 28-bit low-resolution guard at the boundary
+ * between the last add record and byte-aligned extended info. */
+int
+mock239_npcinfo_tail_needs_sentinel(
+    size_t bit_position,
+    size_t extended_bytes);
 
 #endif

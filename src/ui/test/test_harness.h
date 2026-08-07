@@ -3,6 +3,7 @@
 
 #include "uitree.h"
 #include "uitree_build.h"
+#include "uitree_debug_overlay.h"
 #include "uitree_emit.h"
 #include "uitree_host.h"
 #include "uitree_hover.h"
@@ -38,6 +39,9 @@ struct TestHostState
      * model itself; minimenu_visible only answers GET_MINIMENU_VISIBLE). */
     struct UIMinimenu const* minimenu_state;
     int camera_yaw;
+    /** When set, GET_DEBUG_OVERLAY hands back its display list. NULL = the
+     * normal case, no overlay, and the pass emits nothing. */
+    struct ToriDbgUI const* debug_overlay;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -74,6 +78,16 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         return 1;
     case UITREE_HOST_GET_CAMERA_YAW:
         return st->camera_yaw;
+    case UITREE_HOST_GET_DEBUG_OVERLAY:
+    {
+        int count = 0;
+        struct ToriDbgPrim const* prims;
+        if( !st->debug_overlay || !req->u.get_debug_overlay.out_prims )
+            return 0;
+        prims = ToriDbgUI_Prims(st->debug_overlay, &count);
+        *req->u.get_debug_overlay.out_prims = prims;
+        return count;
+    }
     case UITREE_HOST_IS_ACTIVE:
         return 0;
     case UITREE_HOST_SET_SELECTED_TAB:
@@ -164,5 +178,6 @@ void test_open_close_steady(void);
 void test_clear_hooks_preserves_sibling_on_op(void);
 void test_chatmodal_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
+void test_debug_overlay(void);
 
 #endif

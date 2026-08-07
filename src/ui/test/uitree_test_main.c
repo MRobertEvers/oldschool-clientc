@@ -30,6 +30,7 @@ main(void)
     test_clear_hooks_preserves_sibling_on_op();
     test_chatmodal_reclaim_no_shadow_text();
     test_live_node_sets();
+    test_debug_overlay();
 
     if( g_failures )
     {

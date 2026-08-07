@@ -1,5 +1,6 @@
 #include "archive.h"
 
+#include "checksum.h"
 #include "compression.h"
 #include "dat2disk.h"
 #include "rsbuffer.h"
@@ -12,6 +13,89 @@
 #include <xteas.h>
 
 #define NON_OSRS_PACKED_ARCHIVE_FORMAT 5
+
+static uint32_t
+archive_read_be_u32(const uint8_t* data)
+{
+    return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) |
+           ((uint32_t)data[2] << 8) | (uint32_t)data[3];
+}
+
+static uint16_t
+archive_read_be_u16(const uint8_t* data)
+{
+    return (uint16_t)(((uint16_t)data[0] << 8) | (uint16_t)data[1]);
+}
+
+bool
+RSCache_ArchiveRawContainerLength(
+    const uint8_t* data,
+    size_t data_size,
+    size_t* out_container_size)
+{
+    if( !data || !out_container_size || data_size < 5u )
+        return false;
+
+    uint8_t compression = data[0];
+    size_t header_size;
+    switch( compression )
+    {
+    case NON_OSRS_PACKED_ARCHIVE_FORMAT:
+    case RSCACHE_ARCHIVE_COMPRESSION_NONE:
+        header_size = 5u;
+        break;
+    case RSCACHE_ARCHIVE_COMPRESSION_BZIP2:
+    case RSCACHE_ARCHIVE_COMPRESSION_GZIP:
+        header_size = 9u;
+        break;
+    default:
+        return false;
+    }
+
+    if( data_size < header_size )
+        return false;
+
+    size_t payload_size = (size_t)archive_read_be_u32(data + 1);
+    if( payload_size > SIZE_MAX - header_size )
+        return false;
+
+    size_t container_size = header_size + payload_size;
+    if( container_size > data_size )
+        return false;
+
+    *out_container_size = container_size;
+    return true;
+}
+
+bool
+RSCache_ArchiveRawValidate(
+    const uint8_t* data,
+    size_t data_size,
+    uint32_t expected_crc,
+    uint32_t expected_version,
+    size_t* out_container_size)
+{
+    size_t container_size;
+    if( !RSCache_ArchiveRawContainerLength(data, data_size, &container_size) )
+        return false;
+    if( RSCache_Crc32Buffer(data, container_size) != expected_crc )
+        return false;
+
+    size_t trailer_size = data_size - container_size;
+    bool version_matches = false;
+    if( trailer_size == 4u )
+        version_matches = archive_read_be_u32(data + container_size) == expected_version;
+    else if( trailer_size == 2u )
+        version_matches =
+            archive_read_be_u16(data + container_size) == (uint16_t)expected_version;
+
+    if( !version_matches )
+        return false;
+
+    if( out_container_size )
+        *out_container_size = container_size;
+    return true;
+}
 
 /** Optional container trailer: revision after the compressed payload (RuneLite
  *  Container.decompress). Prefer 4 bytes when enough remain (OSRS 235+), else 2. */
@@ -102,10 +186,10 @@ RSCache_ArchiveDecryptDecompress(
             return false;
         }
 
+        archive_read_container_revision(&buffer, archive);
         free(archive->data);
         archive->data = data;
         archive->data_size = bytes_read;
-        archive_read_container_revision(&buffer, archive);
         break;
     }
     case 1:

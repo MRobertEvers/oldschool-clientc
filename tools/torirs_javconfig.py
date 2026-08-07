@@ -54,11 +54,11 @@ applet_maxwidth=5760
 applet_maxheight=2160
 msg=lang0=English
 param=25={revision}
-param=12=471
+param=12={world_id}
 param=7=0
 param=4=1
 param=14=0
-param=15=0
+param=15={environment}
 param=21=0
 param=6=0
 param=5=1
@@ -85,6 +85,11 @@ def main():
                     help="host the CLIENT should connect to (goes into codebase)")
     ap.add_argument("--port", type=int, default=8080, help="port to serve this config on")
     ap.add_argument("--revision", type=int, default=239)
+    ap.add_argument("--world-id", type=int, default=471,
+                    help="applet world id; with a nonzero environment the "
+                         "client connects to 40000 + world id")
+    ap.add_argument("--environment", type=int, default=0,
+                    help="applet environment; zero keeps the live fixed ports")
     ap.add_argument("--cachedir", default="torirs",
                     help="subdirectory of ~/jagexcache the client stores its cache in. "
                          "NOT 'oldschool': that is the live client's, and a client of one "
@@ -95,7 +100,8 @@ def main():
     args = ap.parse_args()
 
     body = TEMPLATE.format(host=args.host, revision=args.revision,
-                           cachedir=args.cachedir).encode()
+                           cachedir=args.cachedir, world_id=args.world_id,
+                           environment=args.environment).encode()
     if args.dump:
         print(body.decode(), end="")
         return

@@ -1017,9 +1017,7 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
         }
         if( ch == '\0' )
             break;
-        /* Marked *after* the literal run, so a failed interpolation attempt
-         * unwinds only itself. The run stands either way — see the markup
-         * branch below. */
+
         int depth = 1;
         int expression_start = ++index;
         while( body[index] && depth > 0 )

@@ -59,6 +59,14 @@ struct UITreeBuilder
     char ini_path[512];
     /** Optional second RevConfig file (sprites/fonts). Empty = unused. */
     char cache_ini_path[512];
+    /** Optional file carrying inline `[revconfig:…]` sections — in practice the
+     *  boot manifest itself. Loaded last, so it extends the files above rather
+     *  than restating them. Empty = unused. */
+    char inline_ini_path[512];
+    /** Group a componentno-less `type=rs_iface` mounts: the manifest's boot
+     *  interface, or whatever the server last re-rooted to. -1 = none, which is
+     *  what UITreeBuilder_Init leaves behind. */
+    int root_interface_id;
 
     struct UIBuilderSpriteEntry* sprites;
     int sprite_count;

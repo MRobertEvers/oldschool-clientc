@@ -3,6 +3,7 @@
 #include "revconfig/revconfig_load.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,12 +46,36 @@ uibuilder_pack_component_id(int componentno)
 }
 
 int
+uibuilder_uicomponent_is_iface_mount(struct RevConfigUIComponentItem const* item)
+{
+    assert(item);
+    return strcmp(item->type, "rs_iface") == 0;
+}
+
+int
+uibuilder_uicomponent_iface_id(
+    struct RevConfigUIComponentItem const* item,
+    int root_interface_id)
+{
+    assert(item);
+    /* An rs_iface that names no group mounts the boot/top-level one. Stating the
+     * id twice is how a manifest and the server's IF_SETTOPLEVEL drift apart —
+     * `[ui:boot] interface_id` (or whatever the server last re-rooted to) is the
+     * single place it lives. */
+    if( uibuilder_uicomponent_is_iface_mount(item) && item->componentno < 0 )
+        return root_interface_id;
+    return item->componentno;
+}
+
+int
 uibuilder_uicomponent_needs_rs_load(struct RevConfigUIComponentItem const* item)
 {
     assert(item);
     if( item->componentno < 0 )
-        return 0;
+        return uibuilder_uicomponent_is_iface_mount(item);
 
+    if( uibuilder_uicomponent_is_iface_mount(item) )
+        return 1;
     if( strcmp(item->type, "sidebar") == 0 )
         return 1;
     if( strcmp(item->type, "chat") == 0 )
@@ -263,11 +288,12 @@ add_inv(
 static void
 fill_tree_op_from_component(
     struct UIBuilderTreeOp* op,
-    struct RevConfigUIComponentItem const* comp)
+    struct RevConfigUIComponentItem const* comp,
+    int root_interface_id)
 {
     assert(op && comp);
     strncpy(op->type, comp->type, sizeof(op->type) - 1);
-    op->componentno = comp->componentno;
+    op->componentno = uibuilder_uicomponent_iface_id(comp, root_interface_id);
     strncpy(op->sprite_ref, comp->sprite, sizeof(op->sprite_ref) - 1);
     strncpy(op->sprite_active_ref, comp->sprite_active, sizeof(op->sprite_active_ref) - 1);
     strncpy(op->inv_name, comp->inv, sizeof(op->inv_name) - 1);
@@ -341,7 +367,8 @@ add_layout_op(
     struct UIBuilderManifest* out,
     int* op_cap,
     struct RevConfigItemBuffer const* items,
-    struct RevConfigUILayoutItem const* layout)
+    struct RevConfigUILayoutItem const* layout,
+    int root_interface_id)
 {
     assert(out && op_cap && items && layout);
     /* Bare '=' separators produce empty layout shells — skip them. */
@@ -379,13 +406,22 @@ add_layout_op(
     op->right = layout->right;
     op->dirty = layout->dirty;
 
-    fill_tree_op_from_component(op, comp);
+    fill_tree_op_from_component(op, comp, root_interface_id);
 }
 
 int
 uibuilder_manifest_from_revconfig(
     struct UIBuilderManifest* out,
     struct RevConfigItemBuffer const* items)
+{
+    return uibuilder_manifest_from_revconfig_rooted(out, items, -1);
+}
+
+int
+uibuilder_manifest_from_revconfig_rooted(
+    struct UIBuilderManifest* out,
+    struct RevConfigItemBuffer const* items,
+    int root_interface_id)
 {
     assert(out);
     assert(items);
@@ -416,7 +452,18 @@ uibuilder_manifest_from_revconfig(
             break;
         case RCITEM_UICOMPONENT:
             if( uibuilder_uicomponent_needs_rs_load(&item->u.uicomponent) )
-                add_component_req(out, &component_cap, item->u.uicomponent.componentno);
+            {
+                int iface =
+                    uibuilder_uicomponent_iface_id(&item->u.uicomponent, root_interface_id);
+                if( iface >= 0 )
+                    add_component_req(out, &component_cap, iface);
+                else
+                    fprintf(
+                        stderr,
+                        "revconfig: component '%s' is an rs_iface with no componentno= and no "
+                        "root interface to fall back on; it will mount nothing\n",
+                        item->u.uicomponent.name);
+            }
             break;
         case RCITEM_HOTKEY:
             add_hotkey(out, &hotkey_cap, &item->u.hotkey);
@@ -430,7 +477,7 @@ uibuilder_manifest_from_revconfig(
     {
         if( items->items[i].kind != RCITEM_UILAYOUT )
             continue;
-        add_layout_op(out, &op_cap, items, &items->items[i].u.uilayout);
+        add_layout_op(out, &op_cap, items, &items->items[i].u.uilayout, root_interface_id);
     }
 
     return 0;
@@ -450,20 +497,66 @@ uibuilder_manifest_from_revconfig_inis(
     char const* ui_ini_path,
     char const* cache_ini_path)
 {
+    struct UIBuilderManifestSources src = { 0 };
+    src.ui_ini_path = ui_ini_path;
+    src.cache_ini_path = cache_ini_path;
+    src.root_interface_id = -1;
+    return uibuilder_manifest_from_sources(out, &src);
+}
+
+/*
+ * The layout a manifest gets when it names an interface but declares no
+ * RevConfig at all: one rs_iface mount, which is exactly what the old
+ * open-the-interface-as-the-root path produced. Written as RevConfig text rather
+ * than as hand-built ops so there is only one thing to keep correct, and so the
+ * default is something a manifest can copy, paste and then edit.
+ */
+static char const k_default_root_layout[] =
+    "[component:root_interface]\n"
+    "type=rs_iface\n"
+    "[layout:root]\n"
+    "c=root_interface\n";
+
+int
+uibuilder_manifest_from_sources(
+    struct UIBuilderManifest* out,
+    struct UIBuilderManifestSources const* src)
+{
     assert(out);
-    assert(ui_ini_path);
+    assert(src);
 
     struct RevConfigBuffer* fields = revconfig_buffer_new(256);
     assert(fields);
-    revconfig_load_fields_from_ini(ui_ini_path, fields);
-    if( cache_ini_path && cache_ini_path[0] != '\0' )
-        revconfig_load_fields_from_ini(cache_ini_path, fields);
+
+    int have_layout = 0;
+    if( src->ui_ini_path && src->ui_ini_path[0] != '\0' )
+    {
+        revconfig_load_fields_from_ini(src->ui_ini_path, fields);
+        have_layout = 1;
+    }
+    if( src->cache_ini_path && src->cache_ini_path[0] != '\0' )
+        revconfig_load_fields_from_ini(src->cache_ini_path, fields);
+    /* Last, so a manifest's inline sections extend a shared UI file: layout
+     * records append in load order, and that order is the sibling order. */
+    if( src->inline_ini_path && src->inline_ini_path[0] != '\0' )
+    {
+        if( revconfig_ini_has_prefixed_sections(src->inline_ini_path, "revconfig") )
+        {
+            revconfig_load_fields_from_ini_prefixed(src->inline_ini_path, "revconfig", fields);
+            have_layout = 1;
+        }
+    }
+    if( !have_layout )
+        revconfig_load_fields_from_ini_bytes(
+            (uint8_t const*)k_default_root_layout,
+            (uint32_t)(sizeof(k_default_root_layout) - 1),
+            fields);
 
     struct RevConfigItemBuffer* items = revconfig_item_buffer_new(64);
     assert(items);
     revconfig_items_build(fields, items);
 
-    int rc = uibuilder_manifest_from_revconfig(out, items);
+    int rc = uibuilder_manifest_from_revconfig_rooted(out, items, src->root_interface_id);
 
     revconfig_item_buffer_free(items);
     revconfig_buffer_free(fields);

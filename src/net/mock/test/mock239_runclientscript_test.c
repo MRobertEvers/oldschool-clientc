@@ -63,6 +63,35 @@ main(void)
     CHECK(memcmp(storage, expected, sizeof(expected)) == 0,
           "payload bytes match the golden decoder literally");
 
+    /* Login's camera bootstrap is deliberately a literal-wire fixture.  The
+     * golden decoder reads arguments in reverse order before script 605 stores
+     * them in varcs 1338..1341; changing either the order or one of these four
+     * values collapses the wheel and both settings sliders. */
+    {
+        struct Mock239ClientScriptArg zoom[4] = { 0 };
+        static uint8_t const zoom_expected[] = {
+            'i', 'i', 'i', 'i', 0x00,
+            0x00, 0x00, 0x03, 0x80, /* arg 3: 896 */
+            0x00, 0x00, 0x00, 0x80, /* arg 2: 128 */
+            0x00, 0x00, 0x03, 0x80, /* arg 1: 896 */
+            0x00, 0x00, 0x00, 0x80, /* arg 0: 128 */
+            0x00, 0x00, 0x02, 0x5d, /* script 605 */
+        };
+
+        zoom[0].int_value = 128;
+        zoom[1].int_value = 896;
+        zoom[2].int_value = 128;
+        zoom[3].int_value = 896;
+        memset(storage, 0, sizeof(storage));
+        rsab_wrap(&buf, storage, sizeof(storage));
+        CHECK(mock239_encode_runclientscript(&buf, 605, "iiii", zoom, 4),
+              "camera bootstrap script 605 encodes");
+        CHECK(rsab_len(&buf) == sizeof(zoom_expected),
+              "camera bootstrap payload length is exact");
+        CHECK(memcmp(storage, zoom_expected, sizeof(zoom_expected)) == 0,
+              "script 605 carries 128,896,128,896 in golden reverse-argument order");
+    }
+
     rsab_wrap(&buf, storage, sizeof(storage));
     args[1].array_count = -1;
     CHECK(!mock239_encode_runclientscript(&buf, 1, "W", &args[1], 1),

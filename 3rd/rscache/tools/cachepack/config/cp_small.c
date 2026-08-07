@@ -228,7 +228,7 @@ cp_pack_param(
             else if( ref >= 0 && !cp_parse_int(value, &entry.default_int) )
                 ok = cp_resolve_ref(ctx, (enum CP_TypeId)ref, value, &entry.default_int);
             else
-                ok = 0;
+                ok = cp_parse_int(value, &entry.default_int);
         }
         else if( strcmp(key, "defaultlong") == 0 )
         {

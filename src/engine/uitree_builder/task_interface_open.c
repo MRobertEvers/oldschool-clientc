@@ -15,6 +15,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
+#include "uitree_builder_bake.h"
 
 #include "asyncio.h"
 
@@ -26,7 +27,7 @@
 
 /* Standard human idle sequence for the player preview (clientCode 327/328). */
 #ifndef INTERFACE_PLAYER_IDLE_SEQ
-#define INTERFACE_PLAYER_IDLE_SEQ 808
+#define INTERFACE_PLAYER_IDLE_SEQ UITREE_BUILDER_PLAYER_IDLE_SEQ
 #endif
 
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
@@ -167,38 +168,6 @@ upload_model_nodes(
         scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
         if( scene_id >= 0 )
             c->u.rs_model.gamecache_model_id = scene_id;
-    }
-}
-
-/*
- * Drive the player-preview components (client_code 327/328) from the player idle,
- * mirroring the TS client (widgets-gl.ts): the local-player model widget is not
- * animated by whatever sequence an onLoad script happens to set — it plays the
- * player's readyanim/idle. We have no live player entity here, so use the default
- * unarmed human idle. Runs AFTER onLoad so a spurious CC/IF_SETMODELANIM (e.g. a
- * facial/head sequence like seq 0) does not leave only the head animating.
- */
-static void
-reassert_player_idle_anim(struct UITree* tree)
-{
-    int mi;
-    assert(tree);
-    for( mi = 0; mi < tree->models.count; mi++ )
-    {
-        int32_t i = tree->models.slots[mi];
-        struct UITreeComponent* c;
-        assert(i >= 0 && (uint32_t)i < tree->component_count);
-        c = &tree->components[i];
-        if( c->type != UIELEM_RS_MODEL )
-            continue;
-        if( c->behavior.client_code != 327 && c->behavior.client_code != 328 )
-            continue;
-        if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
-            continue;
-        c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
-        c->u.rs_model.anim_frame = 0;
-        c->u.rs_model.anim_frame_cycle = 0;
-        c->u.rs_model.anim_hold = 1;
     }
 }
 
@@ -350,82 +319,6 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
         if( c->parent == mount_idx )
             continue;
         UITree_Reparent(self->tree, i, mount_idx);
-    }
-}
-
-/*
- * True when `group` hosts at least one mounted sub-interface.
- *
- * Such a group is part of the live tree by definition — something is mounted
- * inside it — so it is never spillover, however many levels down the mount
- * target happens to be.
- */
-static int
-group_hosts_a_mount(
-    struct UITree const* tree,
-    int group)
-{
-    for( int i = 0; i < tree->interface_parent_count; i++ )
-    {
-        if( ((tree->interface_parents[i].container_uid >> 16) & 0xffff) == group )
-            return 1;
-    }
-    return 0;
-}
-
-static void
-hide_unmounted_spillover(struct Task_InterfaceOpen* self)
-{
-    int32_t root;
-    for( root = self->tree->root_index; root >= 0;
-         root = self->tree->components[root].next_sibling )
-    {
-        int cid = self->tree->components[root].component_id;
-        int group = (cid >> 16) & 0xffff;
-        if( cid < 0 || group <= 0 )
-            continue;
-        /* App-pushed chrome (world viewport, cross, minimenu) lives in the
-         * reserved group 0x7FFE — never interface spillover. */
-        if( group == 0x7FFE )
-            continue;
-        if( group == self->interface_id )
-            continue;
-        if( UITree_InterfaceParentIsMountedGroup(self->tree, group) )
-            continue;
-        /* Keep already-mounted groups and chrome that parents them. */
-        if( self->tree->components[root].parent >= 0 )
-            continue;
-        /* Never hide the active toplevel root group (e.g. 161) while subs are
-         * mounted into it — only hide accidental sibling spillover packs.
-         *
-         * The mount target's own group is the obvious case, but it is not the
-         * only one: mounting into a *nested* sub-interface leaves every group
-         * above it unprotected. Opening the chat dialogue (231) into 162:561
-         * gave host_group 162 and then hid 161 — the entire gameframe — which
-         * renders as a blank frame with no error anywhere.
-         *
-         * Hosting a mount is the general form of "part of the live tree", and
-         * it covers the immediate host as well, so one test replaces both. */
-        if( group_hosts_a_mount(self->tree, group) )
-            continue;
-        if( self->target_uid >= 0 )
-        {
-            int host_group = (self->target_uid >> 16) & 0xffff;
-            if( group == host_group )
-                continue;
-        }
-        /* Mark it as ours: a pack the CS2 runtime baked ahead of its mount is
-         * hidden here, and mount_pack_under_target must be able to tell that
-         * hide apart from a cache/script one when the mount finally lands. */
-        /* Kept: this is exactly the print that identified the bug above, and
-         * "which root did the tree just hide" is invisible from anywhere else. */
-        if( getenv("TORIRS_SPILLOVER_DEBUG") )
-            fprintf(stderr, "spillover: hiding root group %d (opening %d, target %d:%d)\n",
-                    group, self->interface_id, (self->target_uid >> 16) & 0xffff,
-                    self->target_uid & 0xffff);
-        if( !self->tree->components[root].behavior.hide )
-            self->tree->components[root].behavior.hide_unmounted = 1;
-        self->tree->components[root].behavior.hide = 1;
     }
 }
 
@@ -739,14 +632,15 @@ Task_InterfaceOpen_Run(
     TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
 
     /* 9b. Player-preview components idle with the player readyanim, not whatever
-     * sequence an onLoad script set (TS parity — see reassert_player_idle_anim). */
-    reassert_player_idle_anim(self->tree);
+     * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */
+    uitree_builder_reassert_player_idle_anim(self->tree);
 
     /* 10. Final layout. */
     layout_tree(self);
 
     /* Spillover sibling roots (not InterfaceParent-mounted) stay hidden. */
-    hide_unmounted_spillover(self);
+    uitree_builder_hide_unmounted_spillover(
+        self->tree, self->interface_id, self->target_uid);
 
     if( self->stats )
     {

@@ -27,6 +27,7 @@ enum UITreeEmitKind
     UITREE_EMIT_COMPASS,
     UITREE_EMIT_ENTITY_OVERLAY,
     UITREE_EMIT_WORLDMAP,
+    UITREE_EMIT_DEBUG_OVERLAY,
 };
 
 struct UITreeEmitClip
@@ -81,6 +82,14 @@ struct UITreeEmitDesc
      * pointer, same-frame lifetime (like `minimap_dots`). */
     struct UITreeWorldMapTile const* worldmap_tiles;
     int worldmap_tile_count;
+    /** DEBUG_OVERLAY: the retained display list, handed on by pointer — it is
+     * rebuilt only when a widget changed, so a steady overlay costs one pointer
+     * copy per frame. Owned by the host's ToriDbgUI. */
+    struct ToriDbgPrim const* debug_prims;
+    int debug_prim_count;
+    /** DEBUG_OVERLAY: scene font per enum ToriDbgFontSlot. A prim names a slot,
+     * not a font, so the desc carries the mapping the host set up. */
+    int debug_font_id[TORIDBG_FONT_SLOT_COUNT];
     int model_id;
     int model_zoom;
     int model_xan;
