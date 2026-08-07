@@ -10197,7 +10197,7 @@ mock230_world_selftest(void)
 
             /*
              * The multiple-choice dialogue — Hans's "Talk-to", which is a
-             * three-way `~p_choice3`.
+             * five-way `~p_choice5`.
              *
              * Two things are worth pinning and neither is visible from the
              * packets alone.
@@ -10260,14 +10260,14 @@ mock230_world_selftest(void)
                 }
 
                 /* Page one is an ordinary chatnpc; clicking through it is what
-                 * runs `~p_choice3`, so the capture has to wrap the RESUME —
+                 * runs `~p_choice5`, so the capture has to wrap the RESUME —
                  * the RUNCLIENTSCRIPT goes out inside that call, not on the
                  * next tick. */
                 mock230_capture_begin(&srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
                 mock230_capture_end(&srv);
                 SELFTEST_CHECK(player->active_script != NULL,
-                               "p_choice3 should park on p_pausebutton");
+                               "p_choice5 should park on p_pausebutton");
                 SELFTEST_CHECK(player->last_slot == -1,
                                "arming the choice should clear last_slot, got %d",
                                player->last_slot);
@@ -10329,7 +10329,7 @@ mock230_world_selftest(void)
                  *
                  * Asserted as a length rather than by parsing the payload,
                  * because the number is the whole point — the shortest of
-                 * Hans's three options is 35 characters and the list is 132.
+                 * Hans's five options are the authoritative rev-239 menu.
                  */
                 {
                     int idx = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
@@ -10347,7 +10347,8 @@ mock230_world_selftest(void)
                          * so that is what to look for.
                          */
                         const struct Mock230CapturedPacket* pkt = &capture.packets[idx];
-                        const char* tail = "Where am I?";
+                        const char* tail =
+                            "Can you tell me how long I've been here?|Nothing.";
                         size_t tail_len = strlen(tail);
                         int found = 0;
 
@@ -10357,9 +10358,27 @@ mock230_world_selftest(void)
                                 found = 1;
                         }
                         SELFTEST_CHECK(found,
-                                       "the third option should survive to the wire "
+                                       "the authoritative fourth and fifth options should "
+                                       "survive to the wire "
                                        "(%d-byte payload)",
                                        pkt->len);
+
+                        {
+                            const char* title = "Select an option";
+                            size_t title_len = strlen(title);
+                            int title_found = 0;
+
+                            for( int at = 0;
+                                 at + (int)title_len <= pkt->len && !title_found;
+                                 at++ )
+                            {
+                                if( memcmp(pkt->data + at, title, title_len) == 0 )
+                                    title_found = 1;
+                            }
+                            SELFTEST_CHECK(
+                                title_found,
+                                "Hans choice title must preserve authoritative casing");
+                        }
                     }
                 }
 

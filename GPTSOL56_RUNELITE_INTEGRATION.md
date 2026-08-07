@@ -887,6 +887,43 @@ CS2 error, packet decode error, writer gap, or unexpected disconnect. The only
 exception text is RuneLite's known caught pre-login `setupCompilerControl`
 warning.
 
+### Hans's authoritative menu needs five server rows and the packed chatmenu layout
+
+The supplied Hans screenshot is authoritative. It shows the exact five choices,
+the lower-case title `Select an option`, and a title position which does not move
+with the row count. The server was still sending the three-choice LostCity-era
+subset with `Select an Option`. This was not a client string or callback defect:
+the ordered EVENTS stream contained a complete script-58 call, but it contained
+only those three server-authored strings. Hans now uses `~p_choice5` with the five
+literal screenshot rows. Row four enters the existing age/account-history reply
+and row five closes without another page.
+
+There was also an independent cache-deployment fault. On the pristine July
+`cache.osrs239`, golden widget telemetry decoded `chatmenu:options` (219:1) as
+raw `(20,12)`, absolute modes `(0,0)`. The golden layout routine correctly kept
+that 479x122 root at `(20,12)` inside `chatbox:chatmodal`'s 479x96 mount, clipping
+the lower rows. The content record already states raw `(0,0)`, centred modes
+`(1,1)`. An interface-only cache bake from the pristine base decoded exactly
+that record and the unmodified golden arithmetic placed the root at `(0,-13)`;
+the title then landed at y=10 inside the root and all five rows at y=28, 44, 60,
+76, and 92 were visible. No deob patch or server `IF_SETPOSITION` workaround is
+warranted. World metadata and JS5 must both point at the same corrected cache.
+
+The root regression parses the literal revision-239 reverse-argument
+`RUNCLIENTSCRIPT` body and requires the authoritative fourth/fifth-row suffix
+`Can you tell me how long I've been here?|Nothing.` plus the exact title casing.
+The cache-backed Hans section passes. Live proof is under
+`build/run239-zuk/hans-choice-fixed`: `proof/events-final-fresh.log` records the
+complete script-58 payload and row-five callback from a fresh server/client
+pair, while `proof/08-hans-final-fresh.png` shows the five-row result. JCTL reported
+219:1 at `(20,348)` with relative `(0,-13)`, raw `(0,0)`, modes `(1,1)`, and all
+five dynamic children fully inside the chat mount. Option four produced the
+matching player line in the preceding independent path; option five removed
+group 219 in both runs. `client-final-fresh.log` and `server-final-clean.log`
+contain no runtime client/server fatal, CS2 error, decode error, writer gap, or
+unexpected disconnect before explicit shutdown. The only exception text is
+RuneLite's known caught pre-login `setupCompilerControl` warning.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1331,3 +1368,32 @@ warning.
   record as `d71740fa` to root PR #14. Both PRs were updated by their existing
   head branches. The GitHub CLI was signed out and no browser session was
   available, so no supplementary PR comment was posted or claimed.
+- 2026-08-06: Accepted the supplied Hans screenshot as authoritative and
+  reproduced the three-row baseline in the clean v3-derived worktree. Ordered
+  EVENTS and widget telemetry proved the server sent only three strings and the
+  pristine cache decoded 219:1 as absolute `(20,12)`, clipping its lower area.
+- 2026-08-06: Restored Hans's five literal screenshot choices, exact
+  `Select an option` casing, option-four account-history path, and option-five
+  close path. Extended the literal rev-239 RUNCLIENTSCRIPT regression to require
+  the fourth/fifth-row suffix and title casing, then recompiled 12,538 scripts.
+- 2026-08-06: Instrumented the golden widget layout temporarily and proved its
+  arithmetic is correct. Rejected the broad baked cache after its unrelated
+  pre-login class532 crash and rejected the older chatfix artifact after its
+  unrelated CS2 exceptions; retained both logs and removed the temporary deob
+  instrumentation without leaving a source diff.
+- 2026-08-06: Built an isolated pristine-plus-chatmenu cache, pointing both
+  world metadata and JS5 at it. A blocking EVENTS subscriber connected before
+  RuneLite; real AWT input opened Hans, selected row four, completed its reply,
+  reopened the menu, and selected row five. The final frame matches the supplied
+  five-row layout, group 219 closed on row five, and the client remained healthy.
+- 2026-08-06: Rebuilt and API-verified the telemetry-free injected deob, then
+  ran a fresh one-server/one-client Hans acceptance pass. The blocking EVENTS
+  subscriber was started before RuneLite, script 58 carried the exact five-row
+  payload, JCTL measured title/row positions `10/28/44/60/76/92`, row five sent
+  its six-byte callback and removed group 219, and both processes were shut down
+  explicitly after clean log scans. Retained `events-final-fresh.log`,
+  `client-final-fresh.log`, `server-final-clean.log`, and screenshots 08/09.
+- 2026-08-06: Fetched both existing PR branches immediately before delivery and
+  confirmed neither remote had advanced. Committed and pushed the authoritative
+  Hans content as `1fd5699874` to the existing OSRS-Content PR #3 head; the
+  primary dirty worktrees and telemetry-free Deob tree remained untouched.
