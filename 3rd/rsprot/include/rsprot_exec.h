@@ -309,6 +309,47 @@ void rsprot_xdata(
 void rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name);
 
 /**
+ * A field the wire carries with an INVERTIBLE offset applied.
+ *
+ * RSProt writes `getId(obj) + 1` and `key.toInt() - 1`: the field and the wire
+ * value differ by a constant, usually because 0 is reserved as "absent". That
+ * is not a computed expression in the sense that refuses generation — the
+ * inverse is exact, so both directions are well defined:
+ *
+ *   ENCODE    writes `*value + delta`
+ *   DECODE    reads, then stores `read - delta`
+ *   DESCRIBE  records the field and its offset
+ *   FILL      picks a value that survives the round trip in `prim`'s range
+ *
+ * Only offsets. A clamp (`coerceAtMost`) is NOT invertible and must not be
+ * routed here — the layout that clamps also carries an escape field holding
+ * the real value, and that is an ordinary conditional on a transferred field.
+ * Conflating the two would silently cap a stack size at 255.
+ */
+void rsprot_xform_add(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t delta, const char *name);
+
+/**
+ * A field whose ENCODE value is derived from another field, and whose DECODE
+ * value is kept as read.
+ *
+ * The inventory packets write `count.coerceAtMost(0xFF)` and then, when that
+ * saturates, the real count in four more bytes. The one-byte field is not
+ * independent — a caller must not be able to set it inconsistently — but it is
+ * also not recoverable from the wire alone, so it lives in the struct and is
+ * recomputed on the way out.
+ *
+ *   ENCODE    writes `min(*source, cap)`, and stores that in `*value` too so a
+ *             following branch on `*value` sees what went on the wire
+ *   DECODE    reads into `*value`; `*source` is filled by the escape field, or
+ *             by `*value` when the escape is absent
+ *   FILL      sets both consistently
+ */
+void rsprot_xclamp(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t *source, int32_t cap,
+    const char *name);
+
+/**
  * A length-prefixed count, transferred as `prim` and then bounded.
  *
  * Returns the count to loop on. A decoded count above `max` is an error and
@@ -395,6 +436,12 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 /* A fixed value the layout pins. The name is the literal itself, since there is
  * no field to take one from: RSPROT_CONST(x, U1, 1) describes as "=1". */
 #define RSPROT_CONST(x, prim, v) rsprot_xconst((x), RSPROT_PRIM_##prim, (v), "=" #v)
+/* Wire carries `f + delta`. RSPROT_XFORM(x, U2_ALT1, m->obj_id, 1). */
+#define RSPROT_XFORM(x, prim, f, delta)                                                            \
+    rsprot_xform_add((x), RSPROT_PRIM_##prim, &(f), (delta), #f)
+/* Wire carries `min(src, cap)`; the full value lives in `src`. */
+#define RSPROT_CLAMP(x, prim, f, src, cap)                                                         \
+    rsprot_xclamp((x), RSPROT_PRIM_##prim, &(f), &(src), (cap), #f)
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
 #define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2, &(f), (max), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)

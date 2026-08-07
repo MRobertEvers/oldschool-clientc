@@ -316,6 +316,82 @@ rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name)
 }
 
 void
+rsprot_xform_add(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t delta, const char *name)
+{
+    if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
+        rsprot_exec_fail(x, "unknown primitive");
+        return;
+    }
+
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        k_prim[prim].put(x->buf, *value + delta);
+        break;
+    case RSPROT_DECODE:
+        *value = k_prim[prim].get(x->buf) - delta;
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_PRIM, prim, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        /*
+         * Leave room for the offset. A filled value at the top of the
+         * primitive's range plus a positive delta would wrap on encode and the
+         * round trip would fail for a reason that has nothing to do with the
+         * codec being wrong.
+         */
+        *value = fill_value(x, prim);
+        if (delta > 0 && *value > 0)
+            *value -= delta;
+        else if (delta < 0)
+            *value -= delta;
+        break;
+    }
+}
+
+void
+rsprot_xclamp(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t *source, int32_t cap,
+    const char *name)
+{
+    if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
+        rsprot_exec_fail(x, "unknown primitive");
+        return;
+    }
+
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        /*
+         * Recompute rather than trust `*value`. It is a derived field, so a
+         * caller that set it inconsistently with `*source` would otherwise put
+         * a length on the wire that disagrees with the payload — and storing it
+         * back is what lets the codec's own following branch test the byte that
+         * actually went out.
+         */
+        *value = (*source < cap) ? *source : cap;
+        k_prim[prim].put(x->buf, *value);
+        break;
+    case RSPROT_DECODE:
+        *value = k_prim[prim].get(x->buf);
+        /* Below the cap the short field IS the value; at the cap an escape
+         * field follows and overwrites this. */
+        if (*value < cap)
+            *source = *value;
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_PRIM, prim, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        *source = fill_value(x, prim);
+        *value = (*source < cap) ? *source : cap;
+        break;
+    }
+}
+
+void
 rsprot_x8(RsprotExec *x, int64_t *value, const char *name)
 {
     switch (x->dir) {

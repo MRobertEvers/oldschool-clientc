@@ -1,5 +1,5 @@
 rsprot packet-codec generation status
-revisions 221-239; 209 packets emitted, 2 refused
+revisions 221-239; 211 packets emitted, 2 refused
 
 --- emitted (prot, file, dir, layouts, revisions covered) ---
   OK   ACCOUNT_FLAGS                    account_flags.c out   1 layout(s)  7 rev(s)
@@ -103,6 +103,7 @@ revisions 221-239; 209 packets emitted, 2 refused
   OK   IGNORELIST_DEL                   ignorelist_del.c in    1 layout(s) 19 rev(s)
   OK   LOC_ADD_CHANGE                   loc_add_change.c out   7 layout(s)  7 rev(s)
   OK   LOC_ADD_CHANGE_V1                loc_add_change_v1.c out   1 layout(s)  1 rev(s)
+  OK   LOC_ADD_CHANGE_V2                loc_add_change_v2.c out  12 layout(s) 12 rev(s)
   OK   LOC_ANIM                         loc_anim.c out  18 layout(s) 19 rev(s)
   OK   LOC_ANIM_SPECIFIC                loc_anim_specific.c out  19 layout(s) 19 rev(s)
   OK   LOC_DEL                          loc_del.c out  15 layout(s) 19 rev(s)
@@ -182,6 +183,7 @@ revisions 221-239; 209 packets emitted, 2 refused
   OK   SET_MAP_FLAG                     set_map_flag.c out   1 layout(s) 15 rev(s)
   OK   SET_MAP_FLAG_V1                  set_map_flag_v1.c out   1 layout(s)  1 rev(s)
   OK   SET_MAP_FLAG_V2                  set_map_flag_v2.c out   1 layout(s)  4 rev(s)
+  OK   SET_NPC_UPDATE_ORIGIN            set_npc_update_origin.c out   1 layout(s) 18 rev(s)
   OK   SITE_SETTINGS                    site_settings.c out   1 layout(s) 17 rev(s)
   OK   SOUND_AREA                       sound_area.c out  19 layout(s) 19 rev(s)
   OK   SOUND_JINGLEEND                  sound_jingleend.c in    1 layout(s) 19 rev(s)
@@ -296,6 +298,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev221 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev221 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev221 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev221 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev221 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev221 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev221 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -392,6 +397,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev222 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev222 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev222 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev222 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev222 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev222 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev222 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -487,6 +495,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev223 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev223 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev223 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev223 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev223 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev223 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev223 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -582,6 +593,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev224 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev224 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev224 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev224 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev224 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev224 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev224 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -674,6 +688,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev225 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev225 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev225 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
+  rev225 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev225 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev225 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev225 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -763,6 +780,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev226 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev226 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev226 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev226 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev226 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev226 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev226 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -847,6 +867,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev227 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev227 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev227 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev227 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev227 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev227 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev227 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -931,6 +954,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev228 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev228 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev228 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev228 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev228 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev228 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev228 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -938,7 +964,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev228 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev228 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev229 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev229 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1016,6 +1041,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev229 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev229 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev229 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev229 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev229 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev229 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev229 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1023,7 +1051,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev229 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev229 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev230 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev230 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1101,6 +1128,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev230 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev230 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev230 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev230 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev230 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev230 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev230 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1108,7 +1138,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev230 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev230 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev230 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev231 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev231 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev231 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1190,6 +1219,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev231 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev231 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev231 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev231 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev231 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev231 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev231 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1197,7 +1229,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev231 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev231 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev232 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev232 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1277,6 +1308,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev232 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev232 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev232 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev232 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev232 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev232 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev232 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1284,7 +1318,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev232 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev232 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev233 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev233 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1370,6 +1403,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev233 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev233 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev233 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev233 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev233 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev233 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev233 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1377,7 +1413,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev233 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev233 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev234 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev234 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1463,6 +1498,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev234 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev234 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev234 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev234 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev234 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev234 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev234 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1470,7 +1508,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev234 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev234 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev235 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev235 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1555,6 +1592,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev235 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev235 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev235 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev235 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev235 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev235 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev235 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1562,7 +1602,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev235 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev235 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev236 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev236 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1649,6 +1688,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev236 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev236 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev236 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev236 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev236 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev236 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev236 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1656,7 +1698,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev236 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev236 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev237 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev237 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1758,6 +1799,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev237 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev237 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev237 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev237 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev237 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev237 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev237 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1765,7 +1809,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev237 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev237 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev237 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev238 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev238 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1853,6 +1896,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev238 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev238 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev238 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev238 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev238 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev238 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev238 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1860,7 +1906,6 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev238 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev238 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev239 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev239 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1952,6 +1997,9 @@ revisions 221-239; 209 packets emitted, 2 refused
             UpdateStock
   rev239 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
             UpdateT
+  rev239 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev239 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
+  rev239 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev239 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev239 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev239 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
@@ -1959,4 +2007,3 @@ revisions 221-239; 209 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev239 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev239 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev239 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair

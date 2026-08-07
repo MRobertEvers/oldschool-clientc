@@ -19,6 +19,7 @@
 #include "packets/map_projanim_v2.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
+#include "packets/loc_add_change_v2.h"
 #include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
 
@@ -252,17 +253,32 @@ osrs239_read_zone_sub(
      */
     case PKT_NAME_LOC_ADD_CHANGE:
     {
-        int op_count = RSProt_BufferG1_add128(c);
+        /*
+         * The op array decodes into a caller-provided buffer: the codec loops
+         * `ops_count` times writing through `m.ops`, and nothing else allocates
+         * it.
+         *
+         * 256 entries, and the size is the safety argument rather than a
+         * guess. `opCount` is a single byte (`p1Alt1`), so it cannot exceed 255
+         * whatever the wire says — the buffer cannot be overrun by a malformed
+         * packet. Checking the count after the fact would be too late: the
+         * codec reads it and loops on it in the same call.
+         *
+         * The op text is borrowed into the payload and dropped, because
+         * PktLocAddChange has no home for replacement right-click options. The
+         * hand-written decoder read and freed them for the same reason.
+         */
+        Rsprot_MsgLocAddChangeV2_opsElem ops[256];
+        MsgLocAddChangeV2 m;
 
-        for( int i = 0; i < op_count && !c->err; i++ )
-        {
-            (void)RSProt_BufferG1(c); /* op - 1 */
-            free(gjstr_nul(c));
-        }
-        (void)RSProt_BufferG1_sub128(c); /* opFlags -- which options are shown */
-        out->_loc_add_change.info = RSProt_BufferG1_add128(c);
-        out->_loc_add_change.pos = RSProt_BufferG1_neg(c);
-        out->_loc_add_change.loc_id = RSProt_BufferG2Le_add128(c);
+        memset(&m, 0, sizeof(m));
+        m.ops = ops;
+        if( !zone_run(c, rsprot_loc_add_change_v2_out,
+                      rsprot_loc_add_change_v2_out_count, &m) )
+            return 0;
+        out->_loc_add_change.info = m.loc_properties_packed;
+        out->_loc_add_change.pos = m.coord_in_zone_packed;
+        out->_loc_add_change.loc_id = m.id;
         return 1;
     }
 

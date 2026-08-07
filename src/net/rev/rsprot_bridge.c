@@ -4,6 +4,7 @@
 #include "rsprot_exec.h"
 
 #include "packets/cam_shake.h"
+#include "packets/set_npc_update_origin.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/friendlist_loaded.h"
 #include "packets/if_sethide.h"
@@ -577,6 +578,16 @@ bridge_if_setplayermodel_self(
     return 1;
 }
 
+static int
+bridge_set_npc_update_origin(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_set_npc_update_origin_out, MsgSetNpcUpdateOrigin)
+    out->_set_npc_update_origin.x = msg.origin_x;
+    out->_set_npc_update_origin.z = msg.origin_z;
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -617,6 +628,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_SET_NPC_UPDATE_ORIGIN, bridge_set_npc_update_origin },
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
     { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
     { PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, bridge_if_setplayermodel_basecolour },

@@ -55,9 +55,25 @@ OUT_DIR = os.path.join(REPO_ROOT, "3rd", "rsprot", "gen", "codec")
 # they are stateful multi-packet subsystems (bit-packed avatar streams with
 # their own per-observer state machines) that need a hand port, not codegen.
 EXCLUDE_DIR_PARTS = (
-    "playerinfo",
-    "npcinfo",
+    # The per-observer extended-info blocks: appearance, movement, hits. These
+    # are bit-packed streams with their own state machines, not flat encoders.
+    "extendedinfo",
     "worldentity",
+)
+
+# The info STREAMS themselves, by class name.
+#
+# This used to be a directory exclusion covering all of `playerinfo/` and
+# `npcinfo/`, which was too coarse: `SetNpcUpdateOriginEncoder` lives in
+# `npcinfo/` and is an ordinary flat encoder. Excluding it by folder made a
+# perfectly generatable packet look like one RSProt does not carry, and it was
+# reported that way. Naming the stateful classes says what is actually being
+# excluded and why, and lets a flat encoder sharing their folder through.
+EXCLUDE_CLASSES = (
+    "PlayerInfoEncoder",
+    "NpcInfoLargeV5Encoder",
+    "NpcInfoSmallV5Encoder",
+    "DesktopLowResolutionChangeEncoder",
 )
 
 # Encoder/decoder classes with no encode()/decode() body at all (NoOp, or a
@@ -374,7 +390,16 @@ CLASS_RE = re.compile(
     r"(MessageEncoder|MessageDecoder|ZoneProtEncoder|NoOpMessageEncoder)\s*<\s*([\w.]+)\s*>",
 )
 
-PROT_RE = re.compile(r"override val prot:\s*\w+\s*=\s*([\w.]+)")
+# Kotlin spells this two ways and both appear in the vendored tree:
+#
+#     override val prot: ServerProt = GameServerProt.IF_OPENTOP
+#     override val prot: ServerProt
+#         get() = GameServerProt.SET_NPC_UPDATE_ORIGIN
+#
+# Matching only the first made the second look like a class with no prot at
+# all, which the driver reports as "no prot name in any revision" -- a refusal
+# that reads like RSProt does not carry the packet.
+PROT_RE = re.compile(r"override val prot:\s*\w+\s*(?:=|\n?\s*get\(\)\s*=)\s*([\w.]+)")
 
 
 def find_method_body(src, method_name, has_buffer_first_param):
@@ -1186,6 +1211,39 @@ def _is_int_literal_c(expr_c):
     return bool(_INT_LITERAL_RE.match(expr_c.strip()))
 
 
+def _match_offset_expr(ast, scope, ctx):
+    """`<field> + N` / `<field> - N` -> (field_c, delta), else None.
+
+    Deliberately shallow. Only a binary +/- whose left side resolves to a
+    single field and whose right side is an integer literal: that is the shape
+    RSProt uses for "0 means absent" fields, and its inverse is exact. Anything
+    deeper (a shift, a second field, a nested arithmetic) is not obviously
+    invertible and stays refused.
+    """
+    if not isinstance(ast, dict) or ast.get("kind") != "bin":
+        return None
+    if ast.get("op") not in ("+", "-"):
+        return None
+    left, right = ast.get("left"), ast.get("right")
+    if not (isinstance(right, dict) and right.get("kind") == "num"):
+        return None
+    try:
+        delta = int(right["text"], 0)
+    except (ValueError, KeyError):
+        return None
+    if ast["op"] == "-":
+        delta = -delta
+    # Unwrap the `.toInt()` style casts RSProt puts on map keys.
+    node = left
+    while isinstance(node, dict) and node.get("kind") == "call" and node.get("name") in CAST_CALLS:
+        node = node["recv"]
+    try:
+        base_c = emit_expr(node, scope, ctx)
+    except Unsupported:
+        return None
+    return (base_c, delta)
+
+
 # --- IR -> C statement emission ------------------------------------------------
 
 class Emitter:
@@ -1260,6 +1318,18 @@ def gen_op(op, scope, em, indent, ctx):
         # is a computed expression rather than a plain field reference has no
         # lvalue to hand it, so it is refused here instead of being emitted as
         # something that would only work while encoding.
+        # `p2Alt1(getId(obj) + 1)` / `p1(key - 1)`: the wire value differs from
+        # the field by a constant. Invertible, so both directions are exact --
+        # unlike a general computed expression, which is refused below.
+        xf = _match_offset_expr(expr_ast, scope, ctx)
+        if xf is not None:
+            base_c, delta = xf
+            if _is_lvalue_c(base_c) and macro.startswith("RSPROT_"):
+                em.emit(
+                    f"RSPROT_XFORM(x, {macro[len('RSPROT_'):]}, {base_c}, {delta});", indent)
+                em.mark_transferred(base_c)
+                return
+
         if not _is_lvalue_c(expr_c):
             # A literal the layout pins (a format byte, a reserved zero) has no
             # field behind it, but it IS a wire field. RSPROT_CONST carries it:
@@ -1447,6 +1517,48 @@ def gen_op(op, scope, em, indent, ctx):
         em.emit("}", indent)
         return
 
+    if kind == "for_each_pair":
+        # `for ((key, value) in someMap)`.
+        #
+        # Structurally identical to for_each -- a counted loop over an element
+        # struct -- with the element holding two named members instead of the
+        # loop variable's own fields. The map's ORDER is the wire order, which
+        # is why this decodes at all: a C array of {key, value} preserves it
+        # where a hash map would not.
+        path = resolve_path(op["iter"], scope)
+        if path is None or not path[1]:
+            raise Unsupported("for-each-pair over an unresolved map")
+        owner, segs = path
+        field = flatten_field_name(segs)
+        elem_struct = f"Rsprot_{scope.struct_name}_{field}Elem"
+        child = Scope(elem_struct, parent=scope, recv_name=None)
+        owner.add_field(field, "int32_t")
+        owner.array_fields[field] = child
+        owner.count_field_for[field] = f"{field}_count"
+        ptr = struct_ptr_expr(owner, ctx)
+
+        count_expr = f"{ptr}->{field}_count"
+        if count_expr not in em.transferred:
+            raise Unsupported(
+                f"map `{field}` is bounded by {field}_count, which is never "
+                f"transferred -- decoding cannot know how many pairs to read")
+
+        em.emit(
+            f"for (int32_t rs_i_{field} = 0; rs_i_{field} < {count_expr}; rs_i_{field}++) {{",
+            indent)
+        em.emit(f"{elem_struct} *elem = &{ptr}->{field}[rs_i_{field}];", indent + 1)
+        # The two destructured names resolve to fields on the element struct,
+        # so `key` and `value` in the body read as `elem->key` / `elem->value`.
+        scope.locals[op["key"]] = ("field", "elem", "key")
+        scope.locals[op["val"]] = ("field", "elem", "value")
+        child.add_field("key", "int32_t")
+        child.add_field("value", "const char *")
+        gen_ops(op["body"], child, em, indent + 1, ctx)
+        del scope.locals[op["key"]]
+        del scope.locals[op["val"]]
+        em.emit("}", indent)
+        return
+
     if kind in ("return", "return_void", "ignore", "continue", "break"):
         if kind == "continue":
             em.emit("continue;", indent)
@@ -1594,7 +1706,15 @@ def emit_cond(ast, scope, ctx):
                         cnt = f"{struct_ptr_expr(owner, ctx)}->{fname}_count"
                 if cnt is None:
                     raise Unsupported("isNullOrEmpty on unresolved receiver")
-            expr = f"({cnt} > 0)"
+            # `expr` must mean isNullOrEmpty ITSELF -- that is, "the collection
+            # is absent or has no elements" -- so that the `negate` flag from a
+            # leading `!` flips it correctly.
+            #
+            # This previously built `(cnt > 0)`, which is already the negation,
+            # and then negated it again for `!isNullOrEmpty()`. The result ran
+            # the loop exactly when the collection was EMPTY. Nothing caught it
+            # until LOC_ADD_CHANGE became the first packet to use the construct.
+            expr = f"({cnt} == 0)"
             return f"(!{expr})" if negate else expr
         return None
 
@@ -1788,6 +1908,9 @@ def process_dir(base_dir, label):
             continue
         if info is None:
             continue  # not a recognizable Encoder/Decoder class -- e.g. a helper file
+        if info["class"] in EXCLUDE_CLASSES:
+            skipped.append((rel, "stateful info stream -- see EXCLUDE_CLASSES"))
+            continue
         msg_type = info["msg_type"]
         fn_suffix = class_fn_suffix(info["class"])
         try:
@@ -2243,59 +2366,77 @@ def main():
         # the struct has no wire meaning -- the codec names fields explicitly --
         # so this only has to be stable, and ascending revision makes a diff
         # between two generator runs track the source rather than dict order.
-        flat = all(not by_rev[r]["scope"].array_fields for r in rev_to_ver)
-        if flat:
-            union = {}
-            for rev in sorted(rev_to_ver):
-                for fname, ctype in by_rev[rev]["scope"].fields.items():
-                    if fname in union and union[fname] != ctype:
-                        # Same name, two C types across revisions. Not
-                        # mergeable, and picking one would silently truncate
-                        # the other -- exactly the class of bug this refuses.
-                        union[fname] = None
-                    else:
-                        union.setdefault(fname, ctype)
-            bad = [f for f, t in union.items() if t is None]
-            if bad:
-                refused.append(
-                    (cls, direction, f"field(s) {', '.join(bad)} change C type across revisions"))
-                continue
-            lines = [f"typedef struct {{"]
-            if not union:
-                # A zero-payload packet (SERVER_TICK_END, RESET_ANIMS). C has no
-                # empty struct, so it gets a member nothing reads -- rather than
-                # the packet being refused, because "this packet carries no
-                # bytes" is a layout, not a gap.
-                lines.append("\t/* No payload at any version. C has no empty")
-                lines.append("\t * struct; nothing reads this. */")
-                lines.append("\tint32_t _unused;")
-            for fname, ctype in union.items():
-                sep = "" if ctype.endswith("*") else " "
-                lines.append(f"\t{ctype}{sep}{fname};")
-            struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
-        else:
-            # Arrays and nested element structs are REFUSED, not emitted.
-            #
-            # The union rule above would have to merge element structs too, and
-            # the per-revision fallback does not survive the message-struct
-            # rename: the element typedef keeps a `Rsprot_RsprotMsg_<X>_<f>Elem`
-            # name that no longer matches its declaration, so the file does not
-            # compile. Emitting that is worse than not emitting it — this
-            # generator's whole contract is that a construct it cannot model is
-            # skipped visibly rather than guessed at, and "does not compile" is
-            # only a louder version of the same failure.
-            #
-            # Arrays/nested element structs. The union rule above is not modeled
-            # for element structs, so these require every version's struct text
-            # to agree; a disagreement is refused rather than resolved.
-            structs = {by_rev[r]["struct"] for r in rev_to_ver if by_rev[r]["struct"]}
-            if len(structs) > 1:
-                refused.append(
-                    (cls, direction,
-                     f"{len(structs)} disagreeing struct shapes across versions "
-                     f"(array/nested -- union not modeled)"))
-                continue
-            struct_text = structs.pop() if structs else None
+        # ONE struct per packet, holding the union of every version's fields.
+        #
+        # The layer above fills a message without knowing the revision, and a
+        # field a version does not carry is simply not transferred. Requiring
+        # the versions to agree instead would refuse every packet that ever
+        # gained a field, which at 239 is most of the interesting ones.
+        #
+        # Ordering: ascending revision, first-seen wins. A field's position has
+        # no wire meaning -- the codec names fields explicitly -- so this only
+        # has to be stable, and ascending revision makes a diff between two
+        # generator runs track the source rather than dict order.
+        union = {}          # field -> ctype, for scalars
+        arrays = {}         # field -> element struct name
+        elem_fields = {}    # element struct name -> {field: ctype}
+        conflict = None
+
+        for rev in sorted(rev_to_ver):
+            sc = by_rev[rev]["scope"]
+            for fname, ctype in sc.fields.items():
+                av = sc.array_fields.get(fname)
+                if av is True:
+                    # An indexed scalar array: `int32_t *f; int32_t f_count;`
+                    arrays.setdefault(fname, None)
+                    continue
+                if isinstance(av, Scope):
+                    arrays.setdefault(fname, av.struct_name)
+                    ef = elem_fields.setdefault(av.struct_name, {})
+                    for en, et in av.fields.items():
+                        if en in ef and ef[en] != et:
+                            conflict = (
+                                f"element field {av.struct_name}.{en} changes C type "
+                                f"across revisions")
+                        ef.setdefault(en, et)
+                    continue
+                if fname in union and union[fname] != ctype:
+                    conflict = f"field {fname} changes C type across revisions"
+                union.setdefault(fname, ctype)
+
+        if conflict:
+            refused.append((cls, direction, conflict))
+            continue
+
+        lines = []
+        # Element structs first: the message struct points at them.
+        for ename in sorted(elem_fields):
+            lines.append(f"typedef struct {ename} {{")
+            for en, et in elem_fields[ename].items():
+                sep = "" if et.endswith("*") else " "
+                lines.append(f"\t{et}{sep}{en};")
+            lines.append(f"}} {ename};")
+            lines.append("")
+
+        lines.append("typedef struct {")
+        if not union and not arrays:
+            # A zero-payload packet. C has no empty struct, so it gets a member
+            # nothing reads -- rather than the packet being refused, because
+            # "this packet carries no bytes" is a layout, not a gap.
+            lines.append("\t/* No payload at any version. C has no empty")
+            lines.append("\t * struct; nothing reads this. */")
+            lines.append("\tint32_t _unused;")
+        for fname, ctype in union.items():
+            sep = "" if ctype.endswith("*") else " "
+            lines.append(f"\t{ctype}{sep}{fname};")
+        for fname in arrays:
+            ename = arrays[fname]
+            # Not const: one codec runs both directions, so the decoder writes
+            # through this pointer.
+            lines.append(f"\t{ename if ename else 'int32_t'} *{fname};")
+            lines.append(f"\tint32_t {fname}_count;")
+        struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
+
         if struct_text is None:
             refused.append((cls, direction, "no struct produced"))
             continue
