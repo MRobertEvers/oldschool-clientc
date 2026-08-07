@@ -1048,3 +1048,15 @@ PIDs were stopped afterward.
 - 2026-08-06: Added `test-cs2-text-align` for the literal golden script-600
   stack order, extended UITree mutation/emission coverage for alignment
   `(1,1,16)`, and added alignment fields to `TORIRS_DUMP_COM` telemetry.
+- 2026-08-06: Fetched the newly advanced `origin/v3` head `6a69be24` and
+  merged it cleanly into the isolated regression branch as `3cc412c9`. The
+  debug-overlay changes auto-merged with the Hans telemetry in `main.c` and the
+  new test target in `src/makefile`; no conflict resolution or unrelated-file
+  mutation was required.
+- 2026-08-06: Rebuilt the full official C client after that latest-v3 merge and
+  re-ran `test-cs2-text-align` plus the expanded UITree suite; all passed. A
+  fresh final TCP session used exactly one post-barrier Hans command, logged one
+  dialogue `RUNCLIENTSCRIPT 600`, and exited with component `231:6` reporting
+  `textalign=1,1 lineheight=16`. Its final `hans.png` visually matches the
+  supplied vertical alignment and neither client nor server log contains a CS2
+  failure or unexpected disconnect.
