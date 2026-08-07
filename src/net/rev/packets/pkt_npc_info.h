@@ -3,10 +3,12 @@
 
 /*
  * NPC_INFO command-stream decoder (port of v0 pkt_npc_info with the gaps
- * filled from Client-TS: CHANGE_TYPE and SPOTANIM decoded, SAY carried in
- * the op instead of printf'd). Pure CPU; applying happens in the packet task.
+ * filled from the official revision-239 gamepack deob: CHANGE_TYPE and
+ * SPOTANIM decoded, SAY carried in the op instead of printf'd). Pure CPU;
+ * applying happens in the packet task.
  *
- * Extended-info masks (Client-TS NpcUpdate / server rsbuf NpcInfoProt).
+ * Extended-info masks are revision-specific; the v5 layout is taken from the
+ * official gamepack and checked against the authoritative server writer.
  */
 
 #include <stdbool.h>
@@ -83,6 +85,8 @@ struct PktNpcInfo_FaceEntity
     uint16_t fallback_angle;
     bool has_fallback_angle;
     bool instant;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktNpcInfo_Say
@@ -97,7 +101,7 @@ struct PktNpcInfo_Damage
     uint8_t health;
     uint8_t total_health;
     uint16_t delay;
-    uint16_t duration;
+    uint16_t slots;
 };
 
 struct PktNpcInfo_FaceCoord
@@ -105,6 +109,8 @@ struct PktNpcInfo_FaceCoord
     int16_t x;
     int16_t z;
     bool instant;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktNpcInfo_ChangeType
@@ -128,6 +134,7 @@ struct PktNpcInfo_ExactMove
     uint16_t start_cycle_delta;
     uint16_t end_cycle_delta;
     uint16_t facing;
+    bool facing_is_yaw;
     bool relative;
 };
 
@@ -135,6 +142,9 @@ struct PktNpcInfo_FaceAngle
 {
     uint16_t angle;
     bool instant;
+    bool spawn;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktNpcInfo_NameChange

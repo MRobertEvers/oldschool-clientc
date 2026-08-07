@@ -46,11 +46,12 @@ void
 World_EntityAddHitmark(
     uint8_t* damage_values,
     uint8_t* damage_types,
+    int* damage_start_cycles,
     int* damage_cycles,
     int loop_cycle,
     int damage_type,
     int damage_value,
     int delay,
-    int duration);
+    int slot_limit);
 
 #endif

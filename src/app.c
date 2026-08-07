@@ -2041,7 +2041,7 @@ app_overlay_build_entity(
     {
         char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 
-        if( combat->damage_cycles[i] <= cycle )
+        if( combat->damage_start_cycles[i] > cycle || combat->damage_cycles[i] <= cycle )
             continue;
         if( !app_world_project(
                 app,

@@ -133,14 +133,19 @@ test_pathing_helpers(void)
 
     uint8_t dvals[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     uint8_t dtypes[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
+    int dstarts[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dcycles[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 10, 2, 15, 0, 70);
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 10, 2, 15, 0, 4);
     TEST_ASSERT(dvals[0] == 15 && dtypes[0] == 2 && dcycles[0] == 80, "hitmark slot0");
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 20, 1, 7, 0, 70);
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 20, 1, 7, 0, 4);
     TEST_ASSERT(dvals[1] == 7 && dcycles[1] == 90, "hitmark slot1");
     /* Expire slot0 and overwrite */
-    World_EntityAddHitmark(dvals, dtypes, dcycles, 80, 3, 99, 0, 70);
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 80, 3, 99, 0, 4);
     TEST_ASSERT(dvals[0] == 99 && dtypes[0] == 3, "hitmark reuse expired");
+    memset(dcycles, 0, sizeof(dcycles));
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 4, 21, 6, 3);
+    TEST_ASSERT(dstarts[0] == 106 && dcycles[0] == 176,
+                "hitmark preserves delayed start and lifetime");
 }
 
 void
@@ -455,7 +460,7 @@ test_scenery(void)
     World_Free(world);
 }
 
-/* Reference entityFace (Client.ts:3932). Yaw units are 2048/turn with 0 =
+/* Reference entity-facing update. Yaw units are 2048/turn with 0 =
  * north(+z) and the sign convention of `atan2(e.x - target.x, e.z - target.z)`
  * — i.e. the yaw an entity holds while looking AT the target. */
 void
@@ -486,6 +491,32 @@ test_entity_face(void)
      * the cardinal 1536 the movement code uses. */
     TEST_ASSERT(player->orientation.dst_yaw == 1537, "face east dst_yaw");
     TEST_ASSERT(player->orientation.yaw == 1537, "yaw reached dst (turn_speed 32)");
+
+    /* Revision-239 Face's low header bits select whether a loc face may take
+     * effect while a route is active. Mode 0 waits for idle; mode 1 consumes
+     * the request immediately while moving (class303 in the gamepack). */
+    World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+    World_PlayerBeginModernFacing(world, pi, 0);
+    World_PlayerFaceCoord(world, pi, square_x, square_z);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->facing.square_x == square_x,
+                "face movement mode 0 waits for route idle");
+    World_PlayerBeginModernFacing(world, pi, 1);
+    World_PlayerFaceCoord(world, pi, square_x, square_z);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->facing.square_x == 0,
+                "face movement mode 1 applies during route");
+    World_PlayerBeginModernFacing(world, pi, 0);
+    World_PlayerFaceAngle(world, pi, 512, true);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->facing.direct_angle == 512,
+                "direct angle mode 0 waits for route idle");
+    World_PlayerBeginModernFacing(world, pi, 1);
+    World_PlayerFaceAngle(world, pi, 512, true);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->facing.direct_angle == -1 && player->orientation.yaw == 512,
+                "direct angle mode 1 applies during route");
+    World_PlayerPathJump(world, pi, true, 50, 50);
 
     /* Face-entity: an npc due north of the player; the lock survives cycles
      * (unlike the one-shot square) and re-aims as the target moves. */

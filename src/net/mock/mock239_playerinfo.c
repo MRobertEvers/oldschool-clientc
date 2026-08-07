@@ -35,7 +35,10 @@ enum
     EXTINFO_APPEARANCE = 0x20,
     EXTINFO_FACE = 0x1,
     EXTINFO_SEQUENCE = 0x40,
+    EXTINFO_CHAT = 0x100,
     EXTINFO_TEMP_MOVE_SPEED = 0x1000,
+    EXTINFO_EXACT_MOVE = 0x4000,
+    EXTINFO_SPOTANIM = 0x20000,
     EXTINFO_HITMARKS = 0x40000,
     /* "another flag byte follows" -- the player's are 0x8 and 0x800, where an
      * npc's are 0x40 and 0x800. Only the second one is shared. */
@@ -127,9 +130,13 @@ mock239_playerinfo_write(
     int const has_hit = ext && ext->has_hit;
     int const has_face = ext && ext->has_face;
     int const has_seq = ext && ext->has_seq;
+    int const has_chat = ext && ext->has_chat;
+    int const has_spotanim = ext && ext->has_spotanim;
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
+    int const has_exact_move = ext && ext->has_exact_move;
     int const has_extended =
-        has_appearance || has_hit || has_face || has_seq || has_temp_move_speed;
+        has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
+        has_temp_move_speed || has_exact_move;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -277,8 +284,14 @@ mock239_playerinfo_write(
             flag |= EXTINFO_FACE;
         if( has_seq )
             flag |= EXTINFO_SEQUENCE;
+        if( has_chat )
+            flag |= EXTINFO_CHAT;
+        if( has_spotanim )
+            flag |= EXTINFO_SPOTANIM;
         if( has_temp_move_speed )
             flag |= EXTINFO_TEMP_MOVE_SPEED;
+        if( has_exact_move )
+            flag |= EXTINFO_EXACT_MOVE;
         if( has_appearance )
             flag |= EXTINFO_APPEARANCE;
 
@@ -311,7 +324,7 @@ mock239_playerinfo_write(
             rsab_p1_alt3(buf, 1);
             ext_psmart1or2(buf, ext->hit_type);
             ext_psmart1or2(buf, ext->hit_value);
-            ext_psmart1or2(buf, 0); /* delay: lands this tick */
+            ext_psmart1or2(buf, ext->hit_delay);
             /*
              * The fourth smart is not an optional cap. Actor.method3560 only
              * allocates a drawable hitmark when this value is positive, and
@@ -319,13 +332,29 @@ mock239_playerinfo_write(
              * Sending zero still posts RuneLite's HitsplatApplied callback but
              * deliberately inserts nothing into the render list.
              */
-            ext_psmart1or2(buf, 4); /* concurrent hitmark slots */
+            ext_psmart1or2(buf, ext->hit_slots > 0 ? ext->hit_slots : 4);
         }
         if( has_face )
         {
             /* PlayerFacingEncoder: p1Alt2 header, then Face's shared payload.
              * It is read after hitmarks/reset and before sequence. */
             mock239_face_write_player(buf, &ext->face);
+        }
+        if( has_spotanim )
+        {
+            rsab_p1(buf, 1);
+            rsab_p1_alt2(buf, ext->spotanim_slot);
+            rsab_p2_alt2(buf, ext->spotanim_id < 0 ? 65535 : ext->spotanim_id);
+            rsab_p4(buf, ext->spotanim_height_delay);
+        }
+        if( has_chat )
+        {
+            rsab_p2_alt2(buf, ext->chat_colour_effect);
+            rsab_p1_alt2(buf, ext->chat_type);
+            rsab_p1_alt1(buf, 0); /* auto-typed */
+            rsab_p1_alt2(buf, ext->chat_len);
+            for( int i = ext->chat_len - 1; i >= 0; i-- )
+                rsab_p1(buf, ext->chat_data[i]);
         }
         if( has_seq )
         {
@@ -350,11 +379,22 @@ mock239_playerinfo_write(
              * staged step without changing the player's persistent default. */
             rsab_p1(buf, ext->temp_move_speed);
         }
-        if( !has_appearance )
-            return;
-        rsab_p1(buf, (128 - appearance_len) & 0xff);
-        for( int i = 0; i < appearance_len; i++ )
-            rsab_p1(buf, (appearance[i] + 128) & 0xff);
+        if( has_appearance )
+        {
+            rsab_p1(buf, (128 - appearance_len) & 0xff);
+            for( int i = 0; i < appearance_len; i++ )
+                rsab_p1(buf, (appearance[i] + 128) & 0xff);
+        }
+        if( has_exact_move )
+        {
+            rsab_p1(buf, ext->exact_start_x);
+            rsab_p1_alt1(buf, ext->exact_start_z);
+            rsab_p1_alt2(buf, ext->exact_end_x);
+            rsab_p1_alt3(buf, ext->exact_end_z);
+            rsab_p2(buf, ext->exact_start_cycle);
+            rsab_p2_alt1(buf, ext->exact_end_cycle);
+            rsab_p2_alt3(buf, ext->exact_facing);
+        }
     }
 }
 

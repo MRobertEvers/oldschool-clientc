@@ -92,6 +92,7 @@
 #define V5_NPC_BAS_CHANGE 0x100000
 #define V5_NPC_EXT_INT 0x200000
 #define V5_NPC_HEADICON_CUSTOMISATION 0x400000
+#define V5_NPC_BODY_CUSTOMISATION_LEGACY 0x800000
 #define V5_NPC_HEADBARS 0x1000000
 #define V5_NPC_BODY_CUSTOMISATION 0x2000000
 
@@ -821,7 +822,7 @@ player_extended(
                 int value = tail_smart(data, len, &pos);
 
                 int delay = tail_smart(data, len, &pos);
-                int duration = tail_smart(data, len, &pos);
+                int slots = tail_smart(data, len, &pos);
                 {
                     struct PktPlayerInfoOp* op =
                         player_op(r, PKT_PLAYER_INFO_OP_DAMAGE);
@@ -831,7 +832,7 @@ player_extended(
                         op->_damage.damage_type = type;
                         op->_damage.damage = value;
                         op->_damage.delay = (uint16_t)delay;
-                        op->_damage.duration = (uint16_t)duration;
+                        op->_damage.slots = (uint16_t)slots;
                     }
                 }
             }
@@ -850,6 +851,7 @@ player_extended(
             int header = tail_g1_alt2(data, len, &pos);
             int kind = (header >> 3) & 0x7;
             bool instant = ((header >> 6) & 1) != 0;
+            int movement_mode = header & 0x7;
 
             if( kind == 0 ) /* Entity */
             {
@@ -858,17 +860,33 @@ player_extended(
                 struct PktPlayerInfoOp* op;
 
                 int fallback_angle = tail_smart(data, len, &pos);
-                if( type == 1 || type == 2 )
+                if( type == 3 )
+                {
+                    op = player_op(r, PKT_PLAYER_INFO_OP_FACE_ANGLE);
+                    if( op )
+                    {
+                        /* The C world has no third arbitrary-world-entity
+                         * registry. Match the gamepack's missing-target path
+                         * by applying the supplied fallback angle. */
+                        op->_face_angle.angle = (uint16_t)fallback_angle;
+                        op->_face_angle.instant = instant;
+                        op->_face_angle.movement_mode = (uint8_t)movement_mode;
+                        op->_face_angle.modern = true;
+                    }
+                }
+                else
                 {
                     op = player_op(r, PKT_PLAYER_INFO_OP_FACE_ENTITY);
                     if( op )
-                        op->_face_entity.entity_id =
-                            type == 2 && index >= 0 ? 32768 + index : index;
-                    if( op )
                     {
+                        op->_face_entity.entity_id =
+                            type == 1 ? index :
+                            type == 2 && index >= 0 ? 32768 + index : -1;
                         op->_face_entity.fallback_angle = (uint16_t)fallback_angle;
                         op->_face_entity.has_fallback_angle = true;
                         op->_face_entity.instant = instant;
+                        op->_face_entity.movement_mode = (uint8_t)movement_mode;
+                        op->_face_entity.modern = true;
                     }
                 }
             }
@@ -885,6 +903,8 @@ player_extended(
                     op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
                     op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
                     op->_face_coord.instant = instant;
+                    op->_face_coord.movement_mode = (uint8_t)movement_mode;
+                    op->_face_coord.modern = true;
                 }
             }
             else if( kind == 2 ) /* Angle */
@@ -896,6 +916,8 @@ player_extended(
                 {
                     op->_face_angle.angle = (uint16_t)tail_smart(data, len, &pos);
                     op->_face_angle.instant = instant;
+                    op->_face_angle.movement_mode = (uint8_t)movement_mode;
+                    op->_face_angle.modern = true;
                 }
                 else
                     (void)tail_smart(data, len, &pos);
@@ -906,7 +928,11 @@ player_extended(
                     player_op(r, PKT_PLAYER_INFO_OP_FACE_ENTITY);
 
                 if( op )
+                {
                     op->_face_entity.entity_id = -1;
+                    op->_face_entity.movement_mode = (uint8_t)movement_mode;
+                    op->_face_entity.modern = true;
+                }
             }
         }
         if( (flag & V5_PLAYER_AUX_MESSAGE) != 0 )
@@ -1102,9 +1128,10 @@ player_extended(
                 op->_exactmove.start_z = (int16_t)sz;
                 op->_exactmove.end_x = (int16_t)ex;
                 op->_exactmove.end_z = (int16_t)ez;
-                op->_exactmove.start_cycle_delta = (uint16_t)start;
-                op->_exactmove.end_cycle_delta = (uint16_t)end;
+                op->_exactmove.end_cycle_delta = (uint16_t)start;
+                op->_exactmove.start_cycle_delta = (uint16_t)end;
                 op->_exactmove.facing = (uint16_t)facing;
+                op->_exactmove.facing_is_yaw = true;
                 op->_exactmove.relative = true;
             }
         }
@@ -1241,6 +1268,30 @@ npc_extended(
                 op->_bitvalue = (uint64_t)r->extended[i];
         }
 
+        if( (flag & V5_NPC_BODY_CUSTOMISATION_LEGACY) != 0 )
+        {
+            int body = tail_g1(data, len, &pos);
+
+            if( (body & 1) == 0 )
+            {
+                if( (body & 2) != 0 )
+                {
+                    int models = tail_g1(data, len, &pos);
+                    for( int m = 0; m < models; m++ )
+                        (void)tail_g4_alt1(data, len, &pos);
+                }
+                if( (body & (4 | 8)) != 0 )
+                {
+                    fprintf(stderr,
+                            "osrs239: NPC legacy body customisation needs NpcType array "
+                            "lengths; tail stopped\n");
+                    return;
+                }
+                if( (body & 0x10) != 0 )
+                    (void)tail_g1(data, len, &pos);
+            }
+        }
+
         if( (flag & V5_NPC_LEVEL_CHANGE) != 0 )
         {
             struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_LEVEL_CHANGE);
@@ -1281,7 +1332,7 @@ npc_extended(
                 int value = tail_smart(data, len, &pos);
 
                 int delay = tail_smart(data, len, &pos);
-                int duration = tail_smart(data, len, &pos);
+                int slots = tail_smart(data, len, &pos);
                 {
                     struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_DAMAGE);
 
@@ -1290,7 +1341,7 @@ npc_extended(
                         op->_damage.damage_type = type;
                         op->_damage.damage = value;
                         op->_damage.delay = (uint16_t)delay;
-                        op->_damage.duration = (uint16_t)duration;
+                        op->_damage.slots = (uint16_t)slots;
                     }
                 }
             }
@@ -1312,9 +1363,10 @@ npc_extended(
                 op->_exactmove.start_z = (int16_t)sz;
                 op->_exactmove.end_x = (int16_t)ex;
                 op->_exactmove.end_z = (int16_t)ez;
-                op->_exactmove.start_cycle_delta = (uint16_t)start;
-                op->_exactmove.end_cycle_delta = (uint16_t)end;
+                op->_exactmove.end_cycle_delta = (uint16_t)start;
+                op->_exactmove.start_cycle_delta = (uint16_t)end;
                 op->_exactmove.facing = (uint16_t)facing;
+                op->_exactmove.facing_is_yaw = true;
                 op->_exactmove.relative = true;
             }
         }
@@ -1454,6 +1506,9 @@ npc_extended(
             if( (bas & (1u << 12)) != 0 ) values[12] = tail_g2_alt2(data, len, &pos);
             if( (bas & (1u << 13)) != 0 ) values[13] = tail_g2_alt1(data, len, &pos);
             if( (bas & (1u << 14)) != 0 ) values[14] = tail_g2(data, len, &pos);
+            for( int v = 0; v < 15; v++ )
+                if( values[v] == 65535 )
+                    values[v] = -1;
             if( op )
             {
                 op->_bas_change.mask = bas;
@@ -1566,7 +1621,10 @@ npc_extended(
             struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_CHANGE_TYPE);
 
             if( op )
-                op->_change_type.npc_type = (hi << 8) | ((lo - 128) & 0xff);
+            {
+                int type = (hi << 8) | ((lo - 128) & 0xff);
+                op->_change_type.npc_type = type == 65535 ? -1 : type;
+            }
         }
         if( (flag & V5_NPC_FACING) != 0 )
         {
@@ -1575,6 +1633,7 @@ npc_extended(
             int header = tail_g1_alt1(data, len, &pos);
             int kind = (header >> 3) & 0x7;
             bool instant = ((header >> 6) & 1) != 0;
+            int movement_mode = header & 0x7;
 
             if( kind == 0 ) /* Entity */
             {
@@ -1583,17 +1642,30 @@ npc_extended(
                 struct PktNpcInfoOp* op;
 
                 int fallback_angle = tail_smart(data, len, &pos);
-                if( type == 1 || type == 2 )
+                if( type == 3 )
+                {
+                    op = npc_op(r, PKT_NPC_INFO_OP_FACE_ANGLE);
+                    if( op )
+                    {
+                        op->_face_angle.angle = (uint16_t)fallback_angle;
+                        op->_face_angle.instant = instant;
+                        op->_face_angle.movement_mode = (uint8_t)movement_mode;
+                        op->_face_angle.modern = true;
+                    }
+                }
+                else
                 {
                     op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
                     if( op )
-                        op->_face_entity.entity_id =
-                            type == 2 && index >= 0 ? 32768 + index : index;
-                    if( op )
                     {
+                        op->_face_entity.entity_id =
+                            type == 1 ? index :
+                            type == 2 && index >= 0 ? 32768 + index : -1;
                         op->_face_entity.fallback_angle = (uint16_t)fallback_angle;
                         op->_face_entity.has_fallback_angle = true;
                         op->_face_entity.instant = instant;
+                        op->_face_entity.movement_mode = (uint8_t)movement_mode;
+                        op->_face_entity.modern = true;
                     }
                 }
             }
@@ -1609,6 +1681,8 @@ npc_extended(
                     op->_face_coord.x = (int16_t)(x * 2 + (size & 0xf));
                     op->_face_coord.z = (int16_t)(z * 2 + ((size >> 4) & 0xf));
                     op->_face_coord.instant = instant;
+                    op->_face_coord.movement_mode = (uint8_t)movement_mode;
+                    op->_face_coord.modern = true;
                 }
             }
             else if( kind == 2 ) /* Angle */
@@ -1619,6 +1693,8 @@ npc_extended(
                 {
                     op->_face_angle.angle = (uint16_t)tail_smart(data, len, &pos);
                     op->_face_angle.instant = instant;
+                    op->_face_angle.movement_mode = (uint8_t)movement_mode;
+                    op->_face_angle.modern = true;
                 }
                 else
                     (void)tail_smart(data, len, &pos);
@@ -1628,7 +1704,11 @@ npc_extended(
                 struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_FACE_ENTITY);
 
                 if( op )
+                {
                     op->_face_entity.entity_id = -1;
+                    op->_face_entity.movement_mode = (uint8_t)movement_mode;
+                    op->_face_entity.modern = true;
+                }
             }
         }
         if( (flag & V5_NPC_AUX_BYTES) != 0 )
@@ -1643,6 +1723,7 @@ npc_extended(
                 V5_NPC_AUX_BYTES | V5_NPC_AUX_SHORT | V5_NPC_AUX_BLOCK |
                 V5_NPC_AUX_MEDIUM | V5_NPC_HITMARKS | V5_NPC_EXACT_MOVE |
                 V5_NPC_BODY_CUSTOMISATION | V5_NPC_HEAD_CUSTOMISATION |
+                V5_NPC_BODY_CUSTOMISATION_LEGACY |
                 V5_NPC_HEADICON_CUSTOMISATION | V5_NPC_HEADBARS | V5_NPC_SEQUENCE |
                 V5_NPC_SAY | V5_NPC_TINTING | V5_NPC_TRANSPARENCY |
                 V5_NPC_BAS_CHANGE | V5_NPC_FREEZE | V5_NPC_OPS |
@@ -1814,6 +1895,7 @@ osrs239_npc_info_read(
         {
             op->_face_angle.angle = k_spawn_facing[facing];
             op->_face_angle.instant = true;
+            op->_face_angle.spawn = true;
         }
         if( has_spawn_cycle )
         {

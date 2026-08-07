@@ -361,6 +361,46 @@ world cycle selects `runanim`. Persistent move speed is retained per
 high-resolution player and reset when the player drops to low resolution, as in
 the official client.
 
+### 2.5 Revision-239 entity-field audit
+
+Running exposed a wider version of the same protocol bug: the C v5 decoder had
+literal reads whose results were discarded, and it stopped the whole
+byte-aligned tail when it met most masks the mock did not currently emit. The
+authoritative inventory is `class109.method3804` for players and
+`Statics.method10109` / `method10144` for NPCs in the official revision-239
+gamepack deob. LostCity keeps these masks and their serialization in the engine
+(`network/rsbuf/info.ts`, `PlayerInfoEncoder.ts`, and `NpcInfoEncoder.ts`);
+content only chooses the effect, type, or animation.
+
+The C reader now preserves and applies the fields for which the world already
+has behavior:
+
+- player public chat, spot animations, relative exact movement, direct face
+  angles, entity fallback angles, and the facing header's low-bit movement
+  policy (whether a loc/direct face may apply while a route is active);
+- NPC entering-view jump, the eight-entry initial-yaw table, and the optional
+  spawn-cycle flag followed by its **32-bit** value (previously only the flag
+  bit was consumed, which shifted every later bit when it was set);
+- NPC exact movement, name and combat-level overrides, visible-operation bits,
+  and supported BAS animation overrides;
+- hitmark delay and concurrent-slot limit. A delayed hit now has a separate
+  start cycle, so it is not painted before the server's delay expires.
+
+Fixed/self-describing blocks that do not yet have a renderer (tint,
+transparency, freeze, headbars, icon/custom-model payloads, and the deob's own
+auxiliary reads) are consumed in official order so they cannot turn the next
+mask or next entity into payload. The two NPC customization variants whose
+recolour/retexture arrays deliberately omit a count remain fail-closed when
+those particular array bits are present: their lengths come from the current
+`NpcType`, while this command-stream decoder is intentionally cache-free.
+Guessing a length there would recreate the packet-tail corruption this audit is
+meant to remove.
+
+`test-mock239-playerinfo` pins a literal entering-view record with a nonzero
+spawn cycle and a mixed player and NPC tail. It asserts the last operation in
+each tail as well as the earlier values, so a transform or block-order error
+cannot pass merely by decoding the first field.
+
 ---
 
 ## 3. The equipment-stats screen

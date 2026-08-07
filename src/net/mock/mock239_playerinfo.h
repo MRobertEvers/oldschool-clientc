@@ -133,6 +133,18 @@ struct Mock239PlayerExt
     int has_hit;
     int hit_type;
     int hit_value;
+    int hit_delay;
+    int hit_slots;
+    /** Public-chat bytes are already wordpacked; the v5 wire reverses them. */
+    int has_chat;
+    int chat_colour_effect;
+    int chat_type;
+    uint8_t const* chat_data;
+    int chat_len;
+    int has_spotanim;
+    int spotanim_slot;
+    int spotanim_id;
+    int spotanim_height_delay;
     /** A sequence to play: `seq_id` < 0 cancels whatever is running. */
     int has_seq;
     int seq_id;
@@ -143,6 +155,14 @@ struct Mock239PlayerExt
      * two tiles per update while visibly playing the walk sequence. */
     int has_temp_move_speed;
     int temp_move_speed;
+    int has_exact_move;
+    int exact_start_x;
+    int exact_start_z;
+    int exact_end_x;
+    int exact_end_z;
+    int exact_start_cycle;
+    int exact_end_cycle;
+    int exact_facing;
 };
 
 /** The rev-239 high-resolution movement opcode.  `movement_value` below is a

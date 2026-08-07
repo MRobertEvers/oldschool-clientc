@@ -35,11 +35,13 @@
 
 #include "net/mock/mock239_playerinfo.h"
 #include "net/mock/mock239_appearance.h"
+#include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_info.h"
 
 #include <rsareabuf.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int g_failures;
@@ -50,6 +52,11 @@ int osrs239_player_info_read(
     uint8_t const* data,
     int len,
     struct PktPlayerInfoOp* ops,
+    int cap);
+int osrs239_npc_info_read(
+    uint8_t const* data,
+    int len,
+    struct PktNpcInfoOp* ops,
     int cap);
 
 #define CHECK(cond, ...)                                                                   \
@@ -319,6 +326,108 @@ main(void)
     CHECK(mock239_npcinfo_tail_needs_sentinel(48, 4),
           "a byte-aligned four-byte tail reaches the 28-bit guard");
 
+    fprintf(stderr, "mock239-playerinfo: npc entering-view payload\n");
+    rsab_wrap(&buf, storage, sizeof(storage));
+    rsab_bits(&buf);
+    rsab_pbit(&buf, 8, 0);          /* old high-resolution count */
+    rsab_pbit(&buf, 16, 321);       /* server slot */
+    rsab_pbit(&buf, 1, 1);          /* spawn cycle follows */
+    rsab_pbit(&buf, 32, 0x12345678);
+    rsab_pbit(&buf, 1, 0);          /* no extended block */
+    rsab_pbit(&buf, 6, 63);         /* dx = -1 */
+    rsab_pbit(&buf, 3, 6);          /* golden facing table -> yaw 0 */
+    rsab_pbit(&buf, 6, 2);          /* dz = 2 */
+    rsab_pbit(&buf, 1, 1);          /* force jump */
+    rsab_pbit(&buf, 14, 3106);      /* npc type */
+    rsab_bytes(&buf);
+    {
+        struct PktNpcInfoOp ops[32];
+        struct PktNpcInfoOp const* delta = NULL;
+        struct PktNpcInfoOp const* facing = NULL;
+        struct PktNpcInfoOp const* spawn = NULL;
+        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 32);
+
+        for( int i = 0; i < op_count; i++ )
+        {
+            if( ops[i].kind == PKT_NPC_INFO_OP_DELTA_XZ ) delta = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_FACE_ANGLE ) facing = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_SPAWN_CYCLE ) spawn = &ops[i];
+        }
+        CHECK(delta && delta->_delta_xz.dx == -1 && delta->_delta_xz.dz == 2 &&
+                  delta->_delta_xz.jump,
+              "npc entering-view delta keeps the jump bit");
+        CHECK(facing && facing->_face_angle.angle == 0 && facing->_face_angle.instant,
+              "npc entering-view direction maps through the 239 yaw table");
+        CHECK(spawn && (uint32_t)spawn->_bitvalue == 0x12345678u,
+              "npc entering-view consumes and carries the optional 32-bit spawn cycle");
+    }
+
+    fprintf(stderr, "mock239-playerinfo: npc mixed extended tail\n");
+    rsab_wrap(&buf, storage, sizeof(storage));
+    rsab_bits(&buf);
+    rsab_pbit(&buf, 8, 0);
+    rsab_pbit(&buf, 16, 322);
+    rsab_pbit(&buf, 1, 0);       /* no spawn cycle */
+    rsab_pbit(&buf, 1, 1);       /* extended tail follows */
+    rsab_pbit(&buf, 6, 0);
+    rsab_pbit(&buf, 3, 0);
+    rsab_pbit(&buf, 6, 0);
+    rsab_pbit(&buf, 1, 0);
+    rsab_pbit(&buf, 14, 3106);
+    rsab_pbit(&buf, 16, 0xffff); /* protect the byte tail from the add loop */
+    rsab_bytes(&buf);
+    rsab_p1(&buf, 0x40);         /* continuation + exact */
+    rsab_p1(&buf, 0xda);         /* continuation + ops/name/level */
+    rsab_p1(&buf, 0x10);         /* BAS change */
+    rsab_p4_alt1(&buf, 91);      /* combat level */
+    rsab_p1_alt2(&buf, 0x15);    /* visible op bits */
+    rsab_p1_alt3(&buf, -1);      /* exact start dx */
+    rsab_p1(&buf, 2);            /* exact start dz */
+    rsab_p1_alt1(&buf, 3);       /* exact end dx */
+    rsab_p1(&buf, -4);           /* exact end dz */
+    rsab_p2_alt3(&buf, 4);       /* phase-one cycle */
+    rsab_p2_alt2(&buf, 10);      /* final cycle */
+    rsab_p2_alt2(&buf, 768);     /* direct yaw */
+    rsab_p4_alt1(&buf, 0x4044);  /* walk + run + ready */
+    rsab_p2_alt3(&buf, 1001);
+    rsab_p2_alt3(&buf, 1002);
+    rsab_p2(&buf, 1003);
+    rsab_pjstr(&buf, "Wire name", 0);
+    {
+        struct PktNpcInfoOp ops[48];
+        struct PktNpcInfoOp const* exact = NULL;
+        struct PktNpcInfoOp const* visible = NULL;
+        struct PktNpcInfoOp const* level = NULL;
+        struct PktNpcInfoOp const* bas = NULL;
+        struct PktNpcInfoOp const* name = NULL;
+        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 48);
+
+        for( int i = 0; i < op_count; i++ )
+        {
+            if( ops[i].kind == PKT_NPC_INFO_OP_EXACT_MOVE ) exact = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_VISIBLE_OPS ) visible = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_LEVEL_CHANGE ) level = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_BAS_CHANGE ) bas = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE ) name = &ops[i];
+        }
+        CHECK(level && level->_bitvalue == 91, "npc combat-level override survives");
+        CHECK(visible && visible->_bitvalue == 0x15, "npc visible-op mask survives");
+        CHECK(exact && exact->_exactmove.relative && exact->_exactmove.start_x == -1 &&
+                  exact->_exactmove.start_z == 2 && exact->_exactmove.end_x == 3 &&
+                  exact->_exactmove.end_z == -4 && exact->_exactmove.end_cycle_delta == 4 &&
+                  exact->_exactmove.start_cycle_delta == 10 &&
+                  exact->_exactmove.facing == 768 && exact->_exactmove.facing_is_yaw,
+              "npc relative exact move preserves transforms and yaw");
+        CHECK(bas && bas->_bas_change.walkanim == 1001 &&
+                  bas->_bas_change.runanim == 1002 && bas->_bas_change.readyanim == 1003,
+              "npc BAS override preserves walk/run/ready sequences");
+        CHECK(name && name->_name_change.name &&
+                  strcmp(name->_name_change.name, "Wire name") == 0,
+              "npc name override remains aligned after preceding masks");
+        if( name )
+            free(name->_name_change.name);
+    }
+
     /* Literal layouts from RSProt's revision-239 Face encoder.  These do not
      * round-trip through another implementation: the first fixture proves the
      * PlayerFacingEncoder p1Alt2 header and Loc payload, the second proves the
@@ -500,6 +609,86 @@ main(void)
                   move->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN &&
                   !move->_local_xz_level.jump,
               "C rev-239 decoder attaches run traversal to the queued step");
+    }
+
+    fprintf(stderr, "mock239-playerinfo: mixed dropped-field tail\n");
+    rsab_wrap(&buf, storage, sizeof(storage));
+    {
+        static uint8_t const chat_data[] = { 0x11, 0x22, 0x33 };
+        struct Mock239PlayerExt ext;
+        struct PktPlayerInfoOp ops[96];
+        struct PktPlayerInfoOp const* hit = NULL;
+        struct PktPlayerInfoOp const* face = NULL;
+        struct PktPlayerInfoOp const* chat = NULL;
+        struct PktPlayerInfoOp const* spot = NULL;
+        struct PktPlayerInfoOp const* exact = NULL;
+        int op_count;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_hit = 1;
+        ext.hit_type = 28;
+        ext.hit_value = 41;
+        ext.hit_delay = 6;
+        ext.hit_slots = 3;
+        ext.has_face = 1;
+        mock239_face_init(&ext.face);
+        ext.face.kind = MOCK239_FACE_ANGLE;
+        ext.face.angle = 1536;
+        ext.face.instant = 1;
+        ext.face.walk_mode = 1;
+        ext.has_spotanim = 1;
+        ext.spotanim_slot = 2;
+        ext.spotanim_id = 777;
+        ext.spotanim_height_delay = (24 << 16) | 9;
+        ext.has_chat = 1;
+        ext.chat_colour_effect = (4 << 8) | 2;
+        ext.chat_type = 1;
+        ext.chat_data = chat_data;
+        ext.chat_len = (int)sizeof(chat_data);
+        ext.has_seq = 1;
+        ext.seq_id = 1234;
+        ext.seq_delay = 5;
+        ext.has_exact_move = 1;
+        ext.exact_start_x = -2;
+        ext.exact_start_z = 3;
+        ext.exact_end_x = 4;
+        ext.exact_end_z = -5;
+        ext.exact_start_cycle = 7;
+        ext.exact_end_cycle = 11;
+        ext.exact_facing = 1280;
+        mock239_playerinfo_write(
+            &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
+
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 96);
+        for( int i = 0; i < op_count; i++ )
+        {
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_DAMAGE ) hit = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_FACE_ANGLE ) face = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_CHAT ) chat = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_SPOTANIM ) spot = &ops[i];
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_EXACT_MOVE ) exact = &ops[i];
+        }
+        CHECK(hit && hit->_damage.delay == 6 && hit->_damage.slots == 3,
+              "hitmark delay/slot limit survive (%d/%d)",
+              hit ? hit->_damage.delay : -1,
+              hit ? hit->_damage.slots : -1);
+        CHECK(face && face->_face_angle.angle == 1536 && face->_face_angle.instant &&
+                  face->_face_angle.modern && face->_face_angle.movement_mode == 1,
+              "direct instant face angle and movement policy survive");
+        CHECK(chat && chat->_chat.length == 3 &&
+                  memcmp(chat->_chat.data, chat_data, sizeof(chat_data)) == 0,
+              "reversed chat payload is restored before wordpack");
+        CHECK(spot && spot->_spotanim.slot == 2 && spot->_spotanim.spotanim_id == 777 &&
+                  spot->_spotanim.height_delay == ((24 << 16) | 9),
+              "spotanim slot/id/height/delay survive");
+        CHECK(exact && exact->_exactmove.relative && exact->_exactmove.start_x == -2 &&
+                  exact->_exactmove.start_z == 3 && exact->_exactmove.end_x == 4 &&
+                  exact->_exactmove.end_z == -5 && exact->_exactmove.end_cycle_delta == 7 &&
+                  exact->_exactmove.start_cycle_delta == 11 && exact->_exactmove.facing == 1280 &&
+                  exact->_exactmove.facing_is_yaw,
+              "relative exact-move deltas/cycles/facing survive");
+        if( chat )
+            free(chat->_chat.data);
     }
 
     fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");

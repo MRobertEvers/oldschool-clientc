@@ -340,6 +340,8 @@ player_apply_op(
     case PKT_PLAYER_INFO_OP_FACE_ENTITY:
     {
         int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
+        if( op->_face_entity.modern )
+            World_PlayerBeginModernFacing(world, idx, op->_face_entity.movement_mode);
         World_PlayerFaceEntityDetailed(
             world,
             idx,
@@ -352,6 +354,8 @@ player_apply_op(
         /* Raw wire half-tiles: World_Cycle converts them (the reference keeps
          * faceSquareX/Z absolute and subtracts mapBuildBase at use time, so
          * 0,0 stays the "no target" sentinel). */
+        if( op->_face_coord.modern )
+            World_PlayerBeginModernFacing(world, idx, op->_face_coord.movement_mode);
         World_PlayerFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
         if( op->_face_coord.instant )
         {
@@ -410,7 +414,7 @@ player_apply_op(
             op->_damage.health,
             op->_damage.total_health,
             op->_damage.delay,
-            op->_damage.duration);
+            op->_damage.slots);
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         World_PlayerSetSpotanim(
@@ -436,7 +440,7 @@ player_apply_op(
             ex += player->pathing.route_x[0];
             ez += player->pathing.route_z[0];
         }
-        World_PlayerSetExactMove(
+        World_PlayerSetExactMoveDetailed(
             world,
             idx,
             sx,
@@ -445,10 +449,13 @@ player_apply_op(
             ez,
             op->_exactmove.start_cycle_delta,
             op->_exactmove.end_cycle_delta,
-            op->_exactmove.facing);
+            op->_exactmove.facing,
+            op->_exactmove.facing_is_yaw);
         break;
     }
     case PKT_PLAYER_INFO_OP_FACE_ANGLE:
+        if( op->_face_angle.modern )
+            World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);
         World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
         break;
     default:
@@ -922,6 +929,8 @@ npc_apply_op(
         if( idx >= 0 )
         {
             int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
+            if( op->_face_entity.modern )
+                World_NpcBeginModernFacing(world, idx, op->_face_entity.movement_mode);
             World_NpcFaceEntityDetailed(
                 world,
                 idx,
@@ -935,6 +944,8 @@ npc_apply_op(
         /* Raw wire half-tiles — see the player branch. */
         if( idx >= 0 )
         {
+            if( op->_face_coord.modern )
+                World_NpcBeginModernFacing(world, idx, op->_face_coord.movement_mode);
             World_NpcFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
             if( op->_face_coord.instant )
             {
@@ -961,7 +972,7 @@ npc_apply_op(
                 op->_damage.health,
                 op->_damage.total_health,
                 op->_damage.delay,
-                op->_damage.duration);
+                op->_damage.slots);
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:
         self->pending_npc_type = op->_change_type.npc_type;
@@ -994,7 +1005,7 @@ npc_apply_op(
                 ex += npc->pathing.route_x[0];
                 ez += npc->pathing.route_z[0];
             }
-            World_NpcSetExactMove(
+            World_NpcSetExactMoveDetailed(
                 world,
                 idx,
                 sx,
@@ -1003,12 +1014,22 @@ npc_apply_op(
                 ez,
                 op->_exactmove.start_cycle_delta,
                 op->_exactmove.end_cycle_delta,
-                op->_exactmove.facing);
+                op->_exactmove.facing,
+                op->_exactmove.facing_is_yaw);
         }
         break;
     case PKT_NPC_INFO_OP_FACE_ANGLE:
         if( idx >= 0 )
-            World_NpcFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
+        {
+            struct WorldEntity_NPC* npc =
+                World_EntityPoolGet(&world->entities.npc, idx);
+            if( op->_face_angle.modern )
+                World_NpcBeginModernFacing(world, idx, op->_face_angle.movement_mode);
+            int angle = op->_face_angle.spawn && npc->facing.turn_speed == 0
+                            ? 0
+                            : op->_face_angle.angle;
+            World_NpcFaceAngle(world, idx, angle, op->_face_angle.instant);
+        }
         break;
     case PKT_NPC_INFO_OP_SPAWN_CYCLE:
         if( idx >= 0 )

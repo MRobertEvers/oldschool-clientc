@@ -52,7 +52,8 @@ struct WorldEntityFacet_ExactMove
     uint8_t end_z;
     int move_start;
     int move_end;
-    uint8_t facing; /* * 512 = yaw */
+    uint16_t facing;
+    bool facing_is_yaw;
 };
 
 /* Entity-attached graphic (reference spotanimId/Frame/Cycle/LastCycle). */
@@ -141,8 +142,14 @@ struct WorldEntityFacet_Facing
     /** Angle used while an entity target is temporarily absent, or the direct
      * Face.Angle target. -1 means no fallback/direct angle is pending. */
     int fallback_angle;
+    /** One-shot revision-239 Face.Angle request. It waits for route idle in
+     * movement mode 0 and is consumed immediately in mode 1. */
+    int direct_angle;
     /** Face immediately instead of stepping by turn_speed. */
     bool instant;
+    /** Revision-239 Face header low bits. Mode 1 allows a loc/direct facing
+     * request to take effect while a route is active; mode 0 waits for idle. */
+    bool face_during_movement;
     /** NpcType.turnspeed (players: 32). 0 = the entity never turns and
      *  entityFace returns immediately. */
     int turn_speed;
@@ -154,6 +161,7 @@ struct WorldEntityFacet_Combat
 {
     uint8_t damage_values[WORLD_ENTITY_DAMAGE_SLOTS];
     uint8_t damage_types[WORLD_ENTITY_DAMAGE_SLOTS];
+    int damage_start_cycles[WORLD_ENTITY_DAMAGE_SLOTS];
     int damage_cycles[WORLD_ENTITY_DAMAGE_SLOTS];
     int combat_cycle;
     int health;

@@ -184,8 +184,8 @@ yaw_turn:;
     return seqId;
 }
 
-/* Reference entityFace (Client.ts:3932), run once per entity per cycle right
- * after the movement step and before entityAnim.
+/* Reference entity-facing update, run once per entity per cycle right after
+ * the movement step and before entity animation.
  *
  * Three facing sources, applied in order, each only overwriting dst_yaw:
  *   1. faceEntity < 32768 -> npc server slot
@@ -211,6 +211,16 @@ World_EntityFace(
 
     if( facing->turn_speed == 0 )
         return -1;
+
+    /* class105.method3650 + method3537: a direct angle is one-shot, but mode
+     * 0 defers it while walking whereas mode 1 permits it during a route. */
+    if( facing->direct_angle >= 0 &&
+        (facing->face_during_movement || pathing->route_length == 0 ||
+         animation->anim_delay_move > 0) )
+    {
+        orientation->dst_yaw = (uint16_t)(facing->direct_angle & 0x7ff);
+        facing->direct_angle = -1;
+    }
 
     if( facing->entity_id != WORLD_FACING_ENTITY_NONE )
     {
@@ -247,9 +257,11 @@ World_EntityFace(
 
     /* FaceSquare is in absolute half-tiles; `- base - base` converts the
      * doubled coordinate straight into fine units at 64 per half-tile.
-     * Applies while standing still OR held by DELAYMOVE (Client.ts 3966). */
+     * Applies while standing still or held by DELAYMOVE, unless revision-239
+     * movement mode 1 explicitly permits facing during a route. */
     if( (facing->square_x != 0 || facing->square_z != 0) &&
-        (pathing->route_length == 0 || animation->anim_delay_move > 0) )
+        (facing->face_during_movement || pathing->route_length == 0 ||
+         animation->anim_delay_move > 0) )
     {
         dst_x = (int)draw_position->x -
                 (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
@@ -266,7 +278,10 @@ World_EntityFace(
     {
         int remaining_yaw = (orientation->dst_yaw - orientation->yaw) & 0x7ff;
         if( remaining_yaw == 0 )
+        {
+            facing->instant = false;
             return -1;
+        }
 
         if( facing->instant )
         {
@@ -539,7 +554,9 @@ World_UpdateExactMove(
         int dst_z = exact->start_z * 128 + size * 64;
         draw_position->x = (uint32_t)((int)draw_position->x + (dst_x - (int)draw_position->x) / delta);
         draw_position->z = (uint32_t)((int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
-        orientation->dst_yaw = k_facing_yaw[exact->facing & 3];
+        orientation->dst_yaw = exact->facing_is_yaw
+                                   ? (uint16_t)(exact->facing & 0x7ff)
+                                   : k_facing_yaw[exact->facing & 3];
     }
     else
     {
@@ -564,7 +581,9 @@ World_UpdateExactMove(
                 draw_position->z = (uint32_t)((dz0 * (duration - delta) + dz1 * delta) / duration);
             }
         }
-        orientation->dst_yaw = k_facing_yaw[exact->facing & 3];
+        orientation->dst_yaw = exact->facing_is_yaw
+                                   ? (uint16_t)(exact->facing & 0x7ff)
+                                   : k_facing_yaw[exact->facing & 3];
         orientation->yaw = orientation->dst_yaw;
     }
     return 1;

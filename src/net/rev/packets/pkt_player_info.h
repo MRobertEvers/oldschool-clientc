@@ -3,13 +3,14 @@
 
 /*
  * PLAYER_INFO command-stream decoder (port of v0 pkt_player_info with the
- * gaps filled from Client-TS: EXACT_MOVE decoded, CHAT payload consumed and
- * carried). The decode emits a flat op array the exec task walks; it is pure
+ * gaps filled from the official revision-239 gamepack deob: EXACT_MOVE
+ * decoded, CHAT payload consumed and carried). The decode emits a flat op
+ * array the exec task walks; it is pure
  * CPU — applying the ops (spawns, appearance model builds) is where cache IO
  * happens, inside the packet's task.
  *
- * Extended-info masks (identical in v0 rev245_2, Client-TS 254, and the
- * authoritative server's rsbuf PlayerInfoProt).
+ * Extended-info masks are revision-specific; the v5 layout is taken from the
+ * official gamepack and checked against the authoritative server writer.
  */
 
 #include <stdbool.h>
@@ -121,6 +122,8 @@ struct PktPlayerInfo_FaceEntity
     uint16_t fallback_angle;
     bool has_fallback_angle;
     bool instant;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktPlayerInfo_Say
@@ -135,7 +138,7 @@ struct PktPlayerInfo_Damage
     uint8_t health;
     uint8_t total_health;
     uint16_t delay;
-    uint16_t duration;
+    uint16_t slots;
 };
 
 struct PktPlayerInfo_FaceCoord
@@ -143,6 +146,8 @@ struct PktPlayerInfo_FaceCoord
     int16_t x;
     int16_t z;
     bool instant;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktPlayerInfo_Chat
@@ -169,6 +174,7 @@ struct PktPlayerInfo_ExactMove
     uint16_t end_cycle_delta;   /* + client loop cycle at apply time */
     uint16_t start_cycle_delta; /* + client loop cycle at apply time */
     uint16_t facing;            /* protocol yaw */
+    bool facing_is_yaw;
     bool relative;              /* deltas from route[0] in the v5 stream */
 };
 
@@ -176,6 +182,8 @@ struct PktPlayerInfo_FaceAngle
 {
     uint16_t angle;
     bool instant;
+    uint8_t movement_mode;
+    bool modern;
 };
 
 struct PktPlayerInfoOp

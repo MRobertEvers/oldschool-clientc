@@ -581,6 +581,21 @@ World_NpcFaceEntityDetailed(
     int fallback_angle,
     bool instant);
 
+/** Select the revision-239 facing movement policy and clear any older facing
+ * kind. These are used only by the modern generic Face block; classic entity
+ * and square masks remain independent. */
+void
+World_PlayerBeginModernFacing(
+    struct World* world,
+    int idx,
+    int movement_mode);
+
+void
+World_NpcBeginModernFacing(
+    struct World* world,
+    int idx,
+    int movement_mode);
+
 /** One-shot face-coord (reference faceSquareX/Z). Coordinates are the raw
  * wire form — absolute half-tiles, (tile << 1) + 1 — because 0,0 is the
  * reference's "none" sentinel and converting to scene tiles first would make
@@ -667,6 +682,19 @@ World_PlayerSetExactMove(
     int facing);
 
 void
+World_PlayerSetExactMoveDetailed(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing,
+    bool facing_is_yaw);
+
+void
 World_NpcSetExactMove(
     struct World* world,
     int idx,
@@ -677,6 +705,19 @@ World_NpcSetExactMove(
     int start_cycle_delta,
     int end_cycle_delta,
     int facing);
+
+void
+World_NpcSetExactMoveDetailed(
+    struct World* world,
+    int idx,
+    int start_x,
+    int start_z,
+    int end_x,
+    int end_z,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int facing,
+    bool facing_is_yaw);
 
 void
 World_PlayerSetSpotanim(
@@ -734,7 +775,7 @@ World_PlayerAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int duration);
+    int slot_limit);
 
 void
 World_NpcAddHitmark(
@@ -754,7 +795,7 @@ World_NpcAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int duration);
+    int slot_limit);
 
 /** Set an entity's overhead chat text (reference chatMessage/Colour/Effect,
  * chatTimer reset to 150). colour/effect select the render style; pass 0/0 for
