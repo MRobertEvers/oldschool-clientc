@@ -4,6 +4,7 @@
 #include "rsprot_exec.h"
 
 #include "packets/cam_shake.h"
+#include "packets/set_map_flag_v2.h"
 #include "packets/set_npc_update_origin.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/friendlist_loaded.h"
@@ -588,6 +589,32 @@ bridge_set_npc_update_origin(
     return 1;
 }
 
+/*
+ * Four bytes carrying an ABSOLUTE packed CoordGrid, where the classic packet
+ * sends two scene-local tile bytes with 255,255 meaning "clear". Three of the
+ * four canonical fields are unpacked here rather than read off the wire:
+ *
+ *   - x/z come out of the packed coord;
+ *   - `clear` has no sentinel at this revision -- a cleared flag is coord 0;
+ *   - `absolute` tells the executor to subtract the scene origin, which this
+ *     layer does not know.
+ *
+ * RSProt calls this SET_MAP_FLAG_V2; the client's canonical name is
+ * UNSET_MAP_FLAG, and src/net/rev/osrs239/packetin.h has recorded the mapping
+ * all along. It was reported as "not vendored in RSProt" twice before anyone
+ * read that row.
+ */
+static int
+bridge_unset_map_flag(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_set_map_flag_v2_out, MsgSetMapFlagV2)
+    out->_set_map_flag.x = (msg.coord_grid_packed >> 14) & 0x3fff;
+    out->_set_map_flag.z = msg.coord_grid_packed & 0x3fff;
+    out->_set_map_flag.clear = msg.coord_grid_packed == 0;
+    out->_set_map_flag.absolute = 1;
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -628,6 +655,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_UNSET_MAP_FLAG, bridge_unset_map_flag },
     { PKT_NAME_SET_NPC_UPDATE_ORIGIN, bridge_set_npc_update_origin },
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
     { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
