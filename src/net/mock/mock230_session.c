@@ -616,7 +616,7 @@ step_login(
          */
         uint8_t body[64];
         struct RSAreaBuf out;
-        int index = mock230_wire_local_index(
+        int index = mock230_wire_player_index(
             session->player ? session->player->pid : 0);
         int staff_mod_level = 0;
         char const* configured_staff = getenv("MOCK230_STAFF_LEVEL");

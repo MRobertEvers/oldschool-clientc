@@ -321,7 +321,7 @@ cosmetic:
 - the **login response** has to state it, because the client learns which slot
   is itself from there and nowhere else.
 
-`mock230_wire_local_index()` is the one definition so the three cannot disagree.
+`mock230_wire_player_index()` is the one definition so those fields cannot disagree.
 The bug that exposed it was arithmetic, not a symptom: REBUILD_NORMAL came out
 at 4616 bytes where 4614 was predicted, and the two-byte gap is exactly
 `(2047 - 2046) * 18 bits` rounded up.

@@ -1266,6 +1266,15 @@ Note the last two together. The naive expectation is that the two streams should
 they must **agree**, and the observer-relativity is resolved by UPDATE_PID
 instead. Agreement is the reference's invariant.
 
+Revision 239 adds a wire-namespace boundary to that invariant. The classic
+server latch above remains `32768 + pool pid`, but the official gamepack's
+`Face.Entity` block resolves player targets in its PLAYER_INFO/GPI table. That
+table installs pool slot 0 at wire slot 1. `v5_face_from_classic` therefore
+maps the pid through `mock230_wire_player_index`, exactly as login and
+PLAYER_INFO do; sending the raw pool pid produces a valid packet whose target
+does not exist in the client. The literal rev-239 face fixture pins pool slot 0
+to GPI slot 1, and the headless client pins the complete lookup.
+
 **Proven able to fail.** Restoring the self-alias inside
 `mock230_npc_face_player` turns "which is alice" red in the embed test and
 "names the pid it is fighting" red in the selftest; restoring the 2047
@@ -1321,6 +1330,14 @@ Loop: engage → walk beside → swing every `attackrate` ticks → the npc reta
 the first time it is hit → the death animation holds the corpse for the npc's
 `death_delay` → despawn → respawn `respawnrate` ticks later at the spawn tile at
 full health.
+
+Death teardown clears the whole interaction, not only the combat integer.
+LostCity's engine puts this in `PathingEntity.clearInteraction()` and calls it
+from `Npc.resetDefaults()`: target, target op and facing cease together. The
+mock mirrors that invariant through `mock230_combat_stop_player_at`, including
+non-active players found while an npc death walks the pool. Otherwise the
+`p_opnpc(2)` interaction left armed between swings can re-engage after either
+the npc or player has died even though `combat_target` briefly reads −1.
 
 What it leaves behind expires on `^lootdrop_duration`
 (`drop_tables/configs/lootdrop.constant`), which the engine now reads through

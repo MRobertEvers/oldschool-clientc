@@ -372,7 +372,7 @@ struct Mock230Wire
 };
 
 /**
- * The wire index for a player pool slot.
+ * The revision-239 wire index for a player pool slot.
  *
  * The pool is 0-based; the client's player table is **1..2047, with index 0
  * unused**. Those are different numbering schemes and conflating them is not a
@@ -386,10 +386,13 @@ struct Mock230Wire
  *  - and the login response has to state it, because the client learns which
  *    slot is itself from there and nowhere else.
  *
- * One function so the three cannot disagree.
+ * This is not merely the local-login index. Every revision-239 field that
+ * names a player in the GPI namespace uses the same mapping, including
+ * PLAYER_INFO updates and NPC Face.Entity blocks. One function keeps those
+ * fields from disagreeing.
  */
 static inline int
-mock230_wire_local_index(int pool_pid)
+mock230_wire_player_index(int pool_pid)
 {
     return pool_pid + 1;
 }

@@ -747,13 +747,20 @@ distance_to_rect(
 }
 
 void
+mock230_world_interaction_clear_at(struct Mock230Player* player)
+{
+    assert(player);
+    memset(&player->interaction, 0, sizeof(player->interaction));
+    player->interaction.kind = MOCK230_INTERACT_NONE;
+    player->interaction.npc_slot = -1;
+    player->interaction.ap_range = MOCK230_AP_RANGE_DEFAULT;
+    player->interaction_serial++;
+}
+
+void
 mock230_world_interaction_clear(struct Mock230Server* srv)
 {
-    memset(&srv->active_player->interaction, 0, sizeof(srv->active_player->interaction));
-    srv->active_player->interaction.kind = MOCK230_INTERACT_NONE;
-    srv->active_player->interaction.npc_slot = -1;
-    srv->active_player->interaction.ap_range = MOCK230_AP_RANGE_DEFAULT;
-    srv->active_player->interaction_serial++;
+    mock230_world_interaction_clear_at(srv->active_player);
 }
 
 void
@@ -5312,7 +5319,6 @@ void
 mock230_world_clear_pending_action(struct Mock230Server* srv)
 {
     mock230_combat_stop_player(srv);
-    mock230_world_interaction_clear(srv);
     mock230_world_close_modal(srv);
 }
 
@@ -13773,6 +13779,12 @@ mock230_world_selftest(void)
                            "and stay visible for its death animation");
             SELFTEST_CHECK(player->combat_target == -1,
                            "the player should stop attacking a corpse");
+            SELFTEST_CHECK(npc->combat_target == -1,
+                           "the dead npc should release its combat target");
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
+                           "npc death should clear the player's combat interaction");
+            SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
+                           "both sides should release their face latch on npc death");
 
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */
@@ -13890,10 +13902,24 @@ mock230_world_selftest(void)
              * only path that calls it. */
             player->run_energy = 0;
 
+            /* Install both halves of a real fight.  The interaction is the
+             * important half: p_opnpc(2) keeps it armed between swings, and a
+             * death that clears only combat_target can be re-engaged by it. */
+            mock230_combat_engage(&srv, goblin);
+            npc->combat_target = player->pid;
+            mock230_npc_face_player(npc, player->pid);
+            mock230_player_set_face_entity(player);
+
             mock230_combat_hit_player(&srv, 0, player->hitpoints);
             SELFTEST_CHECK(player->hitpoints == 0, "the killing blow empties the bar");
             SELFTEST_CHECK(player->dying, "and puts the player in the dying state");
             SELFTEST_CHECK(player->combat_target == -1, "which ends the fight");
+            SELFTEST_CHECK(npc->combat_target == -1,
+                           "the attacking npc releases a dead player");
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
+                           "player death clears the armed combat interaction");
+            SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
+                           "both sides release their face latch on player death");
 
             /* Generous but finite: the script's delay plus the ticks its own
              * commands cost. Never reviving is the failure being tested for. */

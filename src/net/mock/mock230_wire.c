@@ -925,7 +925,7 @@ w239_zone_payload(
          *
          * "If the target avatar is a player, set the value as -(index + 1)" --
          * and `index` is the index the client knows that player by, which at
-         * this revision is `pool pid + 1` (mock230_wire_local_index: the
+         * this revision is `pool pid + 1` (mock230_wire_player_index: the
          * client's table is 1..2047 with 0 unused). The event carries the
          * classic form, `-pid - 1`, so a player target is one further from zero
          * here. Npc targets need no adjustment: NPC_INFO writes the raw slot,

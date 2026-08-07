@@ -723,7 +723,7 @@ ever matters.
     zero bytes, so the four sections are not four markers on the wire.
   - **One fact, three consumers**: the local player's wire index is used by the
     init block, PLAYER_INFO, and the login response. The pool is 0-based and the
-    client's table is 1..2047; `mock230_wire_local_index()` is the single
+    client's table is 1..2047; `mock230_wire_player_index()` is the single
     definition. Found by arithmetic — REBUILD_NORMAL was 4616 bytes where 4614
     was predicted, and the gap is exactly one 18-bit entry.
   - **A bare `0x02` login response is a desync at 239**, not a short response:

@@ -479,7 +479,7 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
     {
         int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
                                   ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
-        mock239_playerinfo_write_init(&buf, mock230_wire_local_index(player->pid),
+        mock239_playerinfo_write_init(&buf, mock230_wire_player_index(player->pid),
                                       coord);
         player->player_tracked[player->pid] = 1;
         /* The init block resets the client's cycle bits, so the next
@@ -3174,7 +3174,7 @@ mock230_send_player_info(struct Mock230Player* player)
                         ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
                         ext.hit_value, ext.seq_id, ext.seq_delay, ext.has_face,
                         (int)rsab_len(&ap));
-            mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), movement,
+            mock239_playerinfo_write(&buf, mock230_wire_player_index(player->pid), movement,
                                      movement_value, player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);
         }
@@ -3443,8 +3443,14 @@ v5_face_from_classic(
     face->kind = MOCK239_FACE_ENTITY;
     if( face_entity >= MOCK230_FACE_PLAYER_BASE )
     {
+        int const pool_pid = face_entity - MOCK230_FACE_PLAYER_BASE;
+
         face->entity_type = MOCK239_FACE_PLAYER;
-        face->entity_index = face_entity - MOCK230_FACE_PLAYER_BASE;
+        /* Rev-239 NpcFaceEncoder writes the player's GPI index. The classic
+         * latch stores the mock's pool pid, so it needs the same +1 mapping as
+         * login and PLAYER_INFO. Sending pool pid 0 here names the unoccupied
+         * client slot 0 while the local player lives at wire slot 1. */
+        face->entity_index = mock230_wire_player_index(pool_pid);
     }
     else
     {

@@ -9,9 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Client-TS `(Math.atan2(dstX, dstZ) * 325.949) | 0` — radians to the
- * 2048-step yaw unit, truncated toward zero like the JS `| 0`. */
-#define WORLD_YAW_FROM_RADIANS 325.949
+/* Rev-239 Statics.method6312: radians to the 2048-step yaw unit.  Keep the
+ * gamepack's full double precision; the dated Client-TS value maps north/east
+ * one yaw unit away from the same cardinals used by route movement. */
+#define WORLD_YAW_FROM_RADIANS 325.94932345220167
 
 struct World_MoverInfo
 {
@@ -187,12 +188,10 @@ yaw_turn:;
 /* Reference entity-facing update, run once per entity per cycle right after
  * the movement step and before entity animation.
  *
- * Three facing sources, applied in order, each only overwriting dst_yaw:
- *   1. faceEntity < 32768 -> npc server slot
- *   2. faceEntity >= 32768 -> player server slot (+ 32768)
- *   3. a pending face-square, but only while the entity is standing still
- *      (route empty) — consumed and cleared either way
- * then the yaw is stepped toward dst_yaw by turn_speed, and an entity that is
+ * Facing source precedence follows rev-239 Statics.method6710: a consumable
+ * direct angle first, then a pending location, then an entity target.  Only
+ * the first eligible source is applied in a cycle.
+ * The yaw is then stepped toward dst_yaw by turn_speed, and an entity that is
  * idle-animating while still mid-turn swaps to its turn/walk seq.
  *
  * Returns the secondary seq id to apply, or -1 to leave it alone. */
@@ -208,6 +207,7 @@ World_EntityFace(
 {
     int dst_x;
     int dst_z;
+    bool applied = false;
 
     if( facing->turn_speed == 0 )
         return -1;
@@ -220,9 +220,32 @@ World_EntityFace(
     {
         orientation->dst_yaw = (uint16_t)(facing->direct_angle & 0x7ff);
         facing->direct_angle = -1;
+        applied = true;
     }
 
-    if( facing->entity_id != WORLD_FACING_ENTITY_NONE )
+    /* FaceSquare is in absolute half-tiles; `- base - base` converts the
+     * doubled coordinate straight into fine units at 64 per half-tile.
+     * Applies while standing still or held by DELAYMOVE, unless revision-239
+     * movement mode 1 explicitly permits facing during a route. */
+    if( !applied && (facing->square_x != 0 || facing->square_z != 0) &&
+        (facing->face_during_movement || pathing->route_length == 0 ||
+         animation->anim_delay_move > 0) )
+    {
+        dst_x = (int)draw_position->x -
+                (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
+        dst_z = (int)draw_position->z -
+                (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
+        if( dst_x != 0 || dst_z != 0 )
+            orientation->dst_yaw =
+                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) *
+                                        WORLD_YAW_FROM_RADIANS)) &
+                           0x7ff);
+        facing->square_x = 0;
+        facing->square_z = 0;
+        applied = true;
+    }
+
+    if( !applied && facing->entity_id != WORLD_FACING_ENTITY_NONE )
     {
         struct WorldEntityFacet_DrawPosition const* target = NULL;
         if( facing->entity_id < WORLD_FACING_PLAYER_BASE )
@@ -253,26 +276,6 @@ World_EntityFace(
         {
             orientation->dst_yaw = (uint16_t)(facing->fallback_angle & 0x7ff);
         }
-    }
-
-    /* FaceSquare is in absolute half-tiles; `- base - base` converts the
-     * doubled coordinate straight into fine units at 64 per half-tile.
-     * Applies while standing still or held by DELAYMOVE, unless revision-239
-     * movement mode 1 explicitly permits facing during a route. */
-    if( (facing->square_x != 0 || facing->square_z != 0) &&
-        (facing->face_during_movement || pathing->route_length == 0 ||
-         animation->anim_delay_move > 0) )
-    {
-        dst_x = (int)draw_position->x -
-                (facing->square_x - world->_base_tile_x - world->_base_tile_x) * 64;
-        dst_z = (int)draw_position->z -
-                (facing->square_z - world->_base_tile_z - world->_base_tile_z) * 64;
-        if( dst_x != 0 || dst_z != 0 )
-            orientation->dst_yaw =
-                (uint16_t)(((int)(atan2((double)dst_x, (double)dst_z) * WORLD_YAW_FROM_RADIANS)) &
-                           0x7ff);
-        facing->square_x = 0;
-        facing->square_z = 0;
     }
 
     {

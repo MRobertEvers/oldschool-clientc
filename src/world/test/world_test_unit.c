@@ -486,11 +486,10 @@ test_entity_face(void)
         World_Cycle(world, 1);
     TEST_ASSERT(player->facing.square_x == 0 && player->facing.square_z == 0,
                 "face square consumed");
-    /* atan2(-1280, 0) * 325.949 truncates to -511, & 0x7ff => 1537 — the
-     * reference's `| 0` truncation, not a round, so this is one unit short of
-     * the cardinal 1536 the movement code uses. */
-    TEST_ASSERT(player->orientation.dst_yaw == 1537, "face east dst_yaw");
-    TEST_ASSERT(player->orientation.yaw == 1537, "yaw reached dst (turn_speed 32)");
+    /* The rev-239 gamepack's full conversion constant lands on the same exact
+     * cardinal yaw as route movement. */
+    TEST_ASSERT(player->orientation.dst_yaw == 1536, "face east dst_yaw");
+    TEST_ASSERT(player->orientation.yaw == 1536, "yaw reached dst (turn_speed 32)");
 
     /* Revision-239 Face's low header bits select whether a loc face may take
      * effect while a route is active. Mode 0 waits for idle; mode 1 consumes
@@ -526,13 +525,31 @@ test_entity_face(void)
     World_PlayerFaceEntity(world, pi, 3);
     for( int t = 0; t < 64; t++ )
         World_Cycle(world, 1);
-    TEST_ASSERT(player->orientation.yaw == 1023, "player faces north at the npc");
+    TEST_ASSERT(player->orientation.yaw == 1024, "player faces north at the npc");
+
+    /* Statics.method6710 applies only the highest-priority eligible facing
+     * source. A direct angle must not be overwritten by a still-latched
+     * entity, and a location must likewise win over an entity. */
+    World_PlayerFaceAngle(world, pi, 512, true);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->orientation.yaw == 512,
+                "direct angle wins over an entity target");
+    World_PlayerFaceCoord(world, pi, square_x, square_z);
+    World_Cycle(world, 1);
+    TEST_ASSERT(player->orientation.dst_yaw == 1536,
+                "face location wins over an entity target");
 
     /* And the npc back at the player (player slots are offset by 32768). */
     World_NpcFaceEntity(world, ni, WORLD_FACING_PLAYER_BASE + 7);
     for( int t = 0; t < 64; t++ )
         World_Cycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 0, "npc faces south back at the player");
+
+    World_PlayerPathJump(world, pi, true, 60, 60);
+    for( int t = 0; t < 64; t++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->orientation.yaw == 1536,
+                "npc tracks a player due east at the exact cardinal yaw");
 
     /* turn_speed 0 freezes facing entirely (reference early return). */
     npc->facing.turn_speed = 0;

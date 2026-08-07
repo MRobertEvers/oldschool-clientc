@@ -34,6 +34,7 @@
  */
 
 #include "net/mock/mock239_playerinfo.h"
+#include "net/mock/mock230_wire.h"
 #include "net/mock/mock239_appearance.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_info.h"
@@ -436,7 +437,7 @@ main(void)
     {
         struct Mock239Face face;
         static uint8_t const player_loc[] = { 0xf8, 0x8c, 0x96, 0x8c, 0x92, 0x11 };
-        static uint8_t const npc_player[] = { 0x80, 0x02, 0x00, 0x2a, 0x00 };
+        static uint8_t const npc_player[] = { 0x80, 0x02, 0x00, 0x01, 0x00 };
 
         mock239_face_init(&face);
         face.kind = MOCK239_FACE_LOC;
@@ -451,12 +452,12 @@ main(void)
         mock239_face_init(&face);
         face.kind = MOCK239_FACE_ENTITY;
         face.entity_type = MOCK239_FACE_PLAYER;
-        face.entity_index = 42;
+        face.entity_index = mock230_wire_player_index(0);
         rsab_wrap(&buf, storage, sizeof(storage));
         mock239_face_write_npc(&buf, &face);
         CHECK(rsab_len(&buf) == sizeof(npc_player) &&
                   memcmp(storage, npc_player, sizeof(npc_player)) == 0,
-              "npc Face.Entity is literal p1Alt1 + type/index/fallback");
+              "npc Face.Entity maps pool slot zero to GPI slot one");
     }
 
     fprintf(stderr, "mock239-playerinfo: init block\n");

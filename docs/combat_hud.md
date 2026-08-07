@@ -206,6 +206,38 @@ at all:
 Keeping the two halves in one function is the point: they were separable before,
 and that is exactly how one of them got forgotten.
 
+At rev 239 there is a third half: `p_opnpc(2)` re-arms the player's pathing
+interaction between swings. LostCity's `PathingEntity.clearInteraction()`
+clears the target and target op together; clearing only this mock's
+`combat_target` left that armed interaction able to acquire the same npc again.
+`mock230_combat_stop_player_at` now clears both atomically, including when an
+npc death walks every player rather than the current `active_player`. The combat
+selftest pins both death directions: npc target, player target, interaction and
+both face latches are empty immediately after the lethal hit.
+
+### 4.1 Rev-239 facing direction is gamepack math
+
+The current gamepack's `Statics.method6312` converts `atan2(sourceX-targetX,
+sourceZ-targetZ)` with the full double constant `325.94932345220167` and masks
+the result to 2048 yaw units. The C client retained Client-TS's shortened
+`325.949`, placing north/east one unit away from the exact cardinal yaw used by
+movement. That small disagreement is persistent because entity facing is
+recomputed every cycle.
+
+`Statics.method6710` also chooses one facing source per cycle in this order:
+direct angle, location, entity. C applied all three and let the entity/location
+passes overwrite earlier choices. `World_EntityFace` now uses the gamepack's
+precision and precedence. The world test covers all four cardinals, an NPC
+tracking a player due east, and competing facing sources.
+
+The live rev-239 client exposed the other half of the same symptom. The mock's
+classic face latch stores a server pool pid, but the gamepack's NPC
+`Face.Entity` block names a player by their PLAYER_INFO/GPI index. The local
+player in pool slot 0 is installed at GPI slot 1, so encoding 0 left the C
+client with no target to resolve and no yaw to calculate. The rev-239 adapter
+now passes player face targets through `mock230_wire_player_index`, the same
+mapping used by login and PLAYER_INFO.
+
 ---
 
 ## 5. The combat tab — the weapon panel is built from two varbits

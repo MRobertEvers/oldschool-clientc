@@ -3368,6 +3368,12 @@ mock230_world_interaction_set(
 void
 mock230_world_interaction_clear(struct Mock230Server* srv);
 
+/** The same operation for a player that is not necessarily active_player.
+ *  Death and logout cleanup walk the player pool, so routing those through the
+ *  active-player-only wrapper can clear the wrong interaction. */
+void
+mock230_world_interaction_clear_at(struct Mock230Player* player);
+
 /**
  * Shut whatever modal is up: the chatbox dialogue, the main slot and the side
  * slot, plus the script parked on the dialogue's `p_pausebutton`.
