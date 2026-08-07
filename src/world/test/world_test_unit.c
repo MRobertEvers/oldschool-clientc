@@ -528,10 +528,16 @@ test_cycle_movers(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_RUN, 4);  /* east -> 52,50 */
 
     struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    int saw_run_animation = 0;
     for( int t = 0; t < 500 && player->pathing.route_length > 0; t++ )
+    {
         World_Cycle(world, 1);
+        if( player->animation.secondary.anim_id == (uint16_t)idle.runanim )
+            saw_run_animation = 1;
+    }
 
     TEST_ASSERT(player->pathing.route_length == 0, "route cleared");
+    TEST_ASSERT(saw_run_animation, "run traversal selects the run animation");
     TEST_ASSERT(player->pathing.route_x[0] == 52, "auth tile 52");
     int dx = (int)player->draw_position.x - (52 * 128 + 64);
     int dz = (int)player->draw_position.z - (50 * 128 + 64);

@@ -103,6 +103,9 @@ struct V5PlayerState
     /* Absolute CoordGrid, (level << 28) | (x << 14) | z. */
     int32_t coord[V5_PLAYER_SLOTS];
     int32_t low_res_pos[V5_PLAYER_SLOTS];
+    /* class95.field1344 in the authoritative client: the persistent
+     * traversal used when a moving update has no temporary override. */
+    int8_t move_speed[V5_PLAYER_SLOTS];
 };
 
 static struct V5PlayerState g_player;
@@ -140,6 +143,10 @@ osrs239_playerinfo_init(
     int local_index = g_player.local_index;
 
     memset(&g_player, 0, sizeof(g_player));
+    memset(
+        g_player.move_speed,
+        PKT_PLAYER_TRAVERSAL_WALK,
+        sizeof(g_player.move_speed));
     g_player.local_index = local_index;
     g_player.seeded = 1;
     if( local_index < 0 || local_index >= V5_PLAYER_SLOTS || !data || len <= 0 )
@@ -202,6 +209,10 @@ struct V5PlayerReader
     int count;
     int extended[V5_PLAYER_SLOTS];
     int extended_count;
+    /* Index of this cycle's ABS_XZLEVEL op for each player. Extended-info is
+     * decoded after all bit sections, so the traversal block patches the
+     * already-staged coordinate op exactly as class109.field1570 does. */
+    int movement_op[V5_PLAYER_SLOTS];
 };
 
 static struct PktPlayerInfoOp*
@@ -242,6 +253,7 @@ player_target(struct V5PlayerReader* r, int idx)
 static void
 player_move_to(struct V5PlayerReader* r, int idx, int jump)
 {
+    int op_index = r->count;
     struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_ABS_XZLEVEL);
     int32_t coord = g_player.coord[idx];
 
@@ -251,6 +263,32 @@ player_move_to(struct V5PlayerReader* r, int idx, int jump)
     op->_local_xz_level.z = (int16_t)(coord & 0x3fff);
     op->_local_xz_level.level = (uint8_t)((coord >> 28) & 0x3);
     op->_local_xz_level.jump = jump ? true : false;
+    op->_local_xz_level.has_move_speed = true;
+    op->_local_xz_level.move_speed = g_player.move_speed[idx];
+    r->movement_op[idx] = op_index;
+}
+
+static void
+player_set_move_speed(
+    struct V5PlayerReader* r,
+    int idx,
+    int speed,
+    int persistent)
+{
+    int op_index;
+
+    if( persistent )
+        g_player.move_speed[idx] = (int8_t)speed;
+    op_index = r->movement_op[idx];
+    if( op_index < 0 || op_index >= r->count )
+        return;
+
+    /* The temporary value 127 is class174.field2477 in the official client:
+     * it applies the coordinate immediately instead of queuing locomotion. */
+    r->ops[op_index]._local_xz_level.has_move_speed = true;
+    r->ops[op_index]._local_xz_level.move_speed = (int8_t)speed;
+    if( speed == PKT_PLAYER_TRAVERSAL_SNAP )
+        r->ops[op_index]._local_xz_level.jump = true;
 }
 
 static void
@@ -374,6 +412,7 @@ player_high_res(
         g_player.low_res_pos[idx] =
             (int32_t)((level << 28) | (cur_z >> 13) | ((cur_x >> 13) << 14));
         g_player.high_res[idx] = 0;
+        g_player.move_speed[idx] = PKT_PLAYER_TRAVERSAL_WALK;
         {
             struct PktPlayerInfoOp* op =
                 player_op(r, PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID);
@@ -705,6 +744,16 @@ player_extended(
                     op->_face_entity.entity_id = -1;
             }
         }
+        if( (flag & V5_PLAYER_MOVE_SPEED) != 0 )
+        {
+            /* PlayerMoveSpeedEncoder is p1Alt2: the signed inverse byte. It is
+             * persistent and also becomes this cycle's traversal when the
+             * player moved, matching class109.method3804's field1570 update. */
+            int speed = pos < len ? (int)(int8_t)(-data[pos++]) :
+                                    PKT_PLAYER_TRAVERSAL_WALK;
+
+            player_set_move_speed(r, idx, speed, 1);
+        }
         if( (flag & V5_PLAYER_SAY) != 0 )
         {
             int start = pos;
@@ -746,12 +795,11 @@ player_extended(
         }
         if( (flag & V5_PLAYER_TEMP_MOVE_SPEED) != 0 )
         {
-            /* Raw signed byte. The C client currently applies v5 positions as
-             * absolute ops and has no traversal op in its common stream, but
-             * it must consume this block here: it precedes APPEARANCE and
-             * otherwise shifts every following byte. */
-            if( pos < len )
-                (void)(int8_t)data[pos++];
+            /* Raw signed byte, applied to this cycle only. Value 2 is run. */
+            int speed = pos < len ? (int)(int8_t)data[pos++] :
+                                    PKT_PLAYER_TRAVERSAL_WALK;
+
+            player_set_move_speed(r, idx, speed, 0);
         }
         if( (flag & V5_PLAYER_APPEARANCE) != 0 )
         {
@@ -761,7 +809,8 @@ player_extended(
 
         known = V5_PLAYER_EXT_SHORT | V5_PLAYER_EXT_MEDIUM | V5_PLAYER_FACE |
                 V5_PLAYER_HITMARKS |
-                V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_TEMP_MOVE_SPEED |
+                V5_PLAYER_SAY | V5_PLAYER_SEQUENCE | V5_PLAYER_MOVE_SPEED |
+                V5_PLAYER_TEMP_MOVE_SPEED |
                 V5_PLAYER_APPEARANCE;
         if( (flag & ~known) != 0 )
         {
@@ -796,6 +845,8 @@ osrs239_player_info_read(
     }
 
     memset(&r, 0, sizeof(r));
+    for( int idx = 0; idx < V5_PLAYER_SLOTS; idx++ )
+        r.movement_op[idx] = -1;
     r.ops = ops;
     r.cap = cap;
 

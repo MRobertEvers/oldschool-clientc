@@ -35,6 +35,7 @@
 
 #include "net/mock/mock239_playerinfo.h"
 #include "net/mock/mock239_appearance.h"
+#include "net/rev/packets/pkt_player_info.h"
 
 #include <rsareabuf.h>
 
@@ -42,6 +43,14 @@
 #include <string.h>
 
 static int g_failures;
+
+void osrs239_playerinfo_set_local(int local_index);
+void osrs239_playerinfo_init(uint8_t const* data, int len);
+int osrs239_player_info_read(
+    uint8_t const* data,
+    int len,
+    struct PktPlayerInfoOp* ops,
+    int cap);
 
 #define CHECK(cond, ...)                                                                   \
     do                                                                                     \
@@ -356,6 +365,8 @@ main(void)
         CHECK(got.init_low_res_entries == SLOTS - 2,
               "init carries %d low-resolution entries (2047 slots minus local)",
               got.init_low_res_entries);
+        osrs239_playerinfo_set_local(LOCAL_INDEX);
+        osrs239_playerinfo_init(storage, (int)written);
     }
 
     fprintf(stderr, "mock239-playerinfo: tick with teleport + appearance\n");
@@ -366,6 +377,7 @@ main(void)
                              sizeof(appearance), NULL);
     {
         size_t written = rsab_len(&buf);
+
         rsab_wrap(&buf, storage, written);
         decode_tick(&buf, &got, 1);
         CHECK(!got.section_underrun, "no bit section ends mid-skip-run");
@@ -392,6 +404,7 @@ main(void)
     mock239_playerinfo_write(&buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 0, NULL, 0, NULL);
     {
         size_t written = rsab_len(&buf);
+
         rsab_wrap(&buf, storage, written);
         decode_tick(&buf, &got, 0);
         CHECK(!got.section_underrun, "no bit section ends mid-skip-run");
@@ -461,6 +474,10 @@ main(void)
     }
     {
         size_t written = rsab_len(&buf);
+        struct PktPlayerInfoOp ops[64];
+        struct PktPlayerInfoOp const* move = NULL;
+        int op_count;
+
         rsab_wrap(&buf, storage, written);
         decode_tick(&buf, &got, 1);
         CHECK(!got.section_underrun, "run leaves every section aligned");
@@ -473,6 +490,16 @@ main(void)
               got.ext_flag);
         CHECK(got.ext_temp_move_speed == 2,
               "run traversal value is 2 (%d)", got.ext_temp_move_speed);
+
+        op_count = osrs239_player_info_read(storage, (int)written, ops, 64);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+                move = &ops[i];
+        CHECK(move != NULL, "C rev-239 decoder stages the run destination");
+        CHECK(move && move->_local_xz_level.has_move_speed &&
+                  move->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN &&
+                  !move->_local_xz_level.jump,
+              "C rev-239 decoder attaches run traversal to the queued step");
     }
 
     fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");

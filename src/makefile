@@ -1059,6 +1059,7 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o
 test-mock239-playerinfo: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test \
 		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
+		net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
 

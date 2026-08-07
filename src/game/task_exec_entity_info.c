@@ -287,6 +287,18 @@ player_apply_op(
             op->_local_xz_level.jump,
             op->_local_xz_level.x - origin_x,
             op->_local_xz_level.z - origin_z);
+        if( player && op->_local_xz_level.has_move_speed &&
+            !op->_local_xz_level.jump && player->pathing.route_length > 0 )
+        {
+            /* Rev 239's high-resolution WALK/RUN opcodes describe geometry;
+             * the queued traversal byte selects the locomotion. */
+            player->pathing.route_run[0] =
+                op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN;
+            entity_debug_log(
+                "entity_sync: player traversal=%d run=%d\n",
+                op->_local_xz_level.move_speed,
+                player->pathing.route_run[0]);
+        }
         if( player )
             player->grid_position.level = op->_local_xz_level.level;
         entity_debug_log(

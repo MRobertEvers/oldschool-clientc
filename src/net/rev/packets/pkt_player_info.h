@@ -80,6 +80,19 @@ struct PktPlayerInfo_LocalXZLevel
     int16_t z;
     uint8_t level;
     bool jump;
+    /* Revision 239 separates the coordinate opcode from its traversal speed.
+     * Classic readers leave this false; the v5 reader fills `move_speed` from
+     * the player's persistent speed and any one-cycle override. */
+    bool has_move_speed;
+    int8_t move_speed;
+};
+
+enum PktPlayerTraversal
+{
+    PKT_PLAYER_TRAVERSAL_CRAWL = 0,
+    PKT_PLAYER_TRAVERSAL_WALK = 1,
+    PKT_PLAYER_TRAVERSAL_RUN = 2,
+    PKT_PLAYER_TRAVERSAL_SNAP = 127,
 };
 
 struct PktPlayerInfo_DeltaXZ

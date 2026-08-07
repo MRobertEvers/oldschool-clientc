@@ -349,6 +349,18 @@ player by two scene tiles in each of the first three `PLAYER_INFO` updates
 (54,50 → 54,52 → 54,54 → 54,56), then consumes the final tile. This distinguishes
 working run movement from an orb that only changes appearance.
 
+Revision 239 also separates movement geometry from traversal. Its high-resolution
+WALK/RUN opcode updates the destination, while persistent `MOVE_SPEED` and the
+one-cycle `TEMP_MOVE_SPEED` choose crawl/walk/run animation for the queued step
+(`class109.method3804` stores the byte in `field1570`; `Statics.method3189`
+passes it into the route). The C v5 reader used to consume and discard
+`TEMP_MOVE_SPEED=2`, so the server moved the player two tiles while the client
+queued a walk animation. The decoder now attaches the authoritative traversal
+to `ABS_XZLEVEL`; the entity executor marks that route step as run before the
+world cycle selects `runanim`. Persistent move speed is retained per
+high-resolution player and reset when the player drops to low resolution, as in
+the official client.
+
 ---
 
 ## 3. The equipment-stats screen
