@@ -37,6 +37,9 @@ UITreeBuilder_InitEx(
     builder->tree = tree;
     builder->invs = invs;
     builder->host = host;
+    /* 0 is a real interface group, so "unset" has to be spelled out. Callers
+     * that boot an interface set this after Init (see App_OpenRootInterface). */
+    builder->root_interface_id = -1;
     if( ini_path )
         strncpy(builder->ini_path, ini_path, sizeof(builder->ini_path) - 1);
     if( cache_ini_path )

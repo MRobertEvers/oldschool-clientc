@@ -11,6 +11,11 @@
 /* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
 static char s_ini_layout_group[32];
+/* Section-header prefix this load accepts ("" = the unprefixed dialect), and
+ * whether the section currently open failed that test — see
+ * revconfig_load_fields_from_ini_prefixed. */
+static char s_ini_section_prefix[32];
+static int s_ini_section_skipped;
 
 static int
 push_field(
@@ -28,6 +33,19 @@ push_element_from_ini_header(
 {
     char item_type[64] = { 0 };
     char item_name[64] = { 0 };
+
+    s_ini_section_skipped = 0;
+    if( s_ini_section_prefix[0] != '\0' )
+    {
+        size_t plen = strlen(s_ini_section_prefix);
+        if( strncmp(section_header, s_ini_section_prefix, plen) != 0 ||
+            section_header[plen] != ':' )
+        {
+            s_ini_section_skipped = 1;
+            return;
+        }
+        section_header += plen + 1;
+    }
 
     const char* space = strchr(section_header, ':');
     if( !space )
@@ -59,6 +77,9 @@ push_field_from_ini_kv(
     const char* key,
     const char* value)
 {
+    if( s_ini_section_skipped )
+        return;
+
     if( key[0] == '\0' )
     {
         /* Bare '=' line: record separator within a multi-entry layout section. */
@@ -288,9 +309,10 @@ push_field_from_ini_kv(
 }
 
 void
-revconfig_load_fields_from_ini_bytes(
+revconfig_load_fields_from_ini_bytes_prefixed(
     const uint8_t* data,
     uint32_t size,
+    const char* section_prefix,
     struct RevConfigBuffer* revconfig_buffer)
 {
     assert(revconfig_buffer);
@@ -298,6 +320,14 @@ revconfig_load_fields_from_ini_bytes(
         return;
 
     s_ini_item_type[0] = '\0';
+    s_ini_section_skipped = 0;
+    if( section_prefix && section_prefix[0] )
+    {
+        strncpy(s_ini_section_prefix, section_prefix, sizeof(s_ini_section_prefix) - 1);
+        s_ini_section_prefix[sizeof(s_ini_section_prefix) - 1] = '\0';
+    }
+    else
+        s_ini_section_prefix[0] = '\0';
 
     struct INIReader reader = { 0 };
     ini_reader_init(&reader);
@@ -315,7 +345,8 @@ revconfig_load_fields_from_ini_bytes(
             push_element_from_ini_header(revconfig_buffer, element._section.name);
             break;
         case INI_ELEMENT_SECTION_END:
-            push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
+            if( !s_ini_section_skipped )
+                push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
             break;
         case INI_ELEMENT_KEYVAL:
             push_field_from_ini_kv(revconfig_buffer, element._keyval.name, element._keyval.value);
@@ -324,6 +355,8 @@ revconfig_load_fields_from_ini_bytes(
     }
 
     push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
+    s_ini_section_prefix[0] = '\0';
+    s_ini_section_skipped = 0;
     if( parse_result != TORI_INI_ERR_NONE || reader.state != INI_READER_STATE_DONE )
     {
         fprintf(stderr,
@@ -338,40 +371,100 @@ revconfig_load_fields_from_ini_bytes(
 }
 
 void
-revconfig_load_fields_from_ini(
-    const char* filename,
+revconfig_load_fields_from_ini_bytes(
+    const uint8_t* data,
+    uint32_t size,
     struct RevConfigBuffer* revconfig_buffer)
 {
-    FILE* f = fopen(filename, "r");
+    revconfig_load_fields_from_ini_bytes_prefixed(data, size, NULL, revconfig_buffer);
+}
+
+void
+revconfig_load_fields_from_ini_prefixed(
+    const char* filename,
+    const char* section_prefix,
+    struct RevConfigBuffer* revconfig_buffer)
+{
+    /*
+     * Binary mode, and the size is what fread returned rather than what ftell
+     * said. In text mode on Windows the CRT eats the '\r' of every CRLF, so a
+     * short read is the normal case for a checked-out .ini and the old
+     * `!= file_size` bail silently loaded nothing. The reader treats '\r' as a
+     * line terminator (3rd/ini/ini.c), so the bytes go through untranslated.
+     */
+    FILE* f = fopen(filename, "rb");
     if( !f )
         return;
 
     char* file_data = NULL;
     long file_size = 0;
+    size_t read_size = 0;
 
-    if( fseek(f, 0, SEEK_END) != 0 || (file_size = ftell(f)) < 0 || fseek(f, 0, SEEK_SET) != 0 )
+    if( fseek(f, 0, SEEK_END) != 0 || (file_size = ftell(f)) <= 0 || fseek(f, 0, SEEK_SET) != 0 )
     {
         fclose(f);
         return;
     }
 
-    file_data = malloc(file_size);
+    file_data = malloc((size_t)file_size);
     if( !file_data )
     {
         fclose(f);
         return;
     }
 
-    if( fread(file_data, 1, file_size, f) != (size_t)file_size )
+    read_size = fread(file_data, 1, (size_t)file_size, f);
+    fclose(f);
+
+    if( read_size == 0 )
     {
-        fclose(f);
         free(file_data);
         return;
     }
 
-    fclose(f);
-
-    revconfig_load_fields_from_ini_bytes(
-        (const uint8_t*)file_data, (uint32_t)file_size, revconfig_buffer);
+    revconfig_load_fields_from_ini_bytes_prefixed(
+        (const uint8_t*)file_data, (uint32_t)read_size, section_prefix, revconfig_buffer);
     free(file_data);
+}
+
+void
+revconfig_load_fields_from_ini(
+    const char* filename,
+    struct RevConfigBuffer* revconfig_buffer)
+{
+    revconfig_load_fields_from_ini_prefixed(filename, NULL, revconfig_buffer);
+}
+
+int
+revconfig_ini_has_prefixed_sections(
+    const char* filename,
+    const char* section_prefix)
+{
+    char line[512];
+    size_t plen;
+    int found = 0;
+    FILE* f;
+
+    if( !filename || !filename[0] || !section_prefix || !section_prefix[0] )
+        return 0;
+
+    f = fopen(filename, "r");
+    if( !f )
+        return 0;
+
+    plen = strlen(section_prefix);
+    while( !found && fgets(line, sizeof(line), f) )
+    {
+        char const* p = line;
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p != '[' )
+            continue;
+        p++;
+        if( strncmp(p, section_prefix, plen) == 0 && p[plen] == ':' )
+            found = 1;
+    }
+
+    fclose(f);
+    return found;
 }

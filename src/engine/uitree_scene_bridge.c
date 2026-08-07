@@ -7,8 +7,10 @@
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
+#include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
+#include "ui/uitree_debug_overlay.h"
 #include "toridraw_font.h"
 #include "toridraw_light_model.h"
 #include "toridraw_model.h"
@@ -346,6 +348,66 @@ UITreeSceneBridge_EnsureFont(
 
     ToriDraw_SceneFontAdd(bridge->scene, cache_font_id, font);
     return cache_font_id;
+}
+
+int
+UITreeSceneBridge_EnsureDebugFont(
+    struct UITreeSceneBridge* bridge,
+    int font_slot)
+{
+    struct ToriDraw_Font const* baked;
+    struct ToriDraw_Font* copy;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    switch( font_slot )
+    {
+    case TORIDBG_FONT_SMALL:
+        baked = ToriDbgFont_Small();
+        scene_id = UITREE_SCENE_DEBUG_FONT_SMALL_ID;
+        break;
+    case TORIDBG_FONT_MENU:
+        baked = ToriDbgFont_Menu();
+        scene_id = UITREE_SCENE_DEBUG_FONT_MENU_ID;
+        break;
+    default:
+        assert(0 && "unknown debug font slot");
+        return -1;
+    }
+
+    if( ToriDraw_SceneFontHas(bridge->scene, scene_id) )
+        return scene_id;
+
+    /* Deep copy: the scene owns every font it holds and frees it at shutdown,
+     * but `baked` is static and its glyph_alpha rows point into a const blob
+     * (see torirs_debug_font_baked.h). Handing the scene the baked struct
+     * would free .rdata. */
+    copy = malloc(sizeof(*copy));
+    if( !copy )
+        return -1;
+    memcpy(copy, baked, sizeof(*copy));
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        size_t bytes;
+        copy->glyph_alpha[i] = NULL;
+        if( !baked->glyph_alpha[i] )
+            continue;
+        bytes = (size_t)baked->glyph_width[i] * (size_t)baked->glyph_height[i];
+        if( bytes == 0 )
+            continue;
+        copy->glyph_alpha[i] = malloc(bytes);
+        if( !copy->glyph_alpha[i] )
+        {
+            ToriDraw_FontFree(copy);
+            return -1;
+        }
+        memcpy(copy->glyph_alpha[i], baked->glyph_alpha[i], bytes);
+    }
+
+    ToriDraw_SceneFontAdd(bridge->scene, scene_id, copy);
+    return scene_id;
 }
 
 int
