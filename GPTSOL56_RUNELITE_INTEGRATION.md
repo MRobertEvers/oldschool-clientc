@@ -49,7 +49,10 @@ attached before launch and passed all five workflows against the real compiled
 or unexpected disconnect occurred before the explicit quit, and the post-quit
 telemetry report completed normally. The correctly cache-backed broad mock
 world self-test still has 23 unrelated content/combat/pathing failures; they are
-not counted as interface success and are not hidden by this contract.
+not counted as interface success and are not hidden by this contract. A later
+Hans-only visual audit corrected the NPC body alignment omitted from that
+combined run; its clean proof is
+`build/run239-regressions/hans-vertical-final3/proof`.
 
 ## How the authoritative CS2VM works
 
@@ -518,6 +521,65 @@ choice sub-id when dialogue was invoked directly, and the NPC_INFO decoder
 failure encountered while physically approaching/interacting with Hans. There
 was no separate Hans-script Java exception in the direct-dialogue baseline.
 
+### Hans NPC body alignment is authoritative clientscript 600
+
+The first combined screenshot was functionally healthy but did **not** match the
+supplied reference vertically: `chat_left:text` rendered the sentence at the
+top of its 67-pixel body box. The raw revision-239 cache explains why. Component
+`231:6` is `halign=1, valign=0, lineheight=16`, whereas the corresponding player
+component `217:6` is already `halign=1, valign=1, lineheight=16`. The old content
+comment that the NPC body "centres by itself" was therefore false.
+
+The golden cache also supplies the missing server-callable behavior. Client
+script 600 is exactly `if_settextalign(h, v, lineheight, component)`. There is
+no `IF_SETTEXTALIGN` server packet in revision 239. Both NPC-chat entry points
+now mount `chat_left` and then send literal
+`RUNCLIENTSCRIPT 600(1,1,16,231:6)` before arming Continue. The client applies
+that to the mounted widget, producing `textAlign=1,1 lineHeight=16` without
+altering the cache or inventing server-side rendering behavior.
+
+The possible decompilation/recompilation defect was tested directly. The
+original `gamepack-deob.jar` bytecode and rebuilt `class671.method14513` retain
+equivalent vertical text placement, and `class308.method7396` decodes all three
+text-alignment fields with the correct multipliers. Thus this defect was a
+missing CS2 lifecycle call, not broken font or widget arithmetic. JCTL now
+reports text alignment and line height, and its NPC menu control also matches
+the menu entry's NPC index so an overlapping Man cannot masquerade as Hans.
+
+The clean post-fix run connected its blocking EVENTS subscriber before launch,
+used a real indexed `Talk-to` menu action, and recorded opcode 114 length 25 as
+`run_clientscript types=iiii args=[600, 1, 1, 16, 15138822]`. It completed the
+dynamic choice, player reply, final Hans reply, and close. The final GPI was
+`high=1 low=2046 pending=0 entity=true`; no game exception, decode error, writer
+gap, or unexpected disconnect occurred. Evidence is
+`hans-vertical-final3/proof/01-hans-centered.png`, the ordered `events.log`,
+server/client logs, and retained CS2 trace. The world self-test additionally
+parses the literal reverse-argument revision-239 packet and requires script 600
+with `(1,1,16,231:6)`.
+
+### The official C client follows the same script-600 path
+
+The C client was rebuilt from the current `v3` integration rather than tested
+with the stale binary in the primary dirty checkout. A fresh TCP mock230 session
+using the revision-239 login and packet tables then drove `talk hans 1` through
+the real client-cheat packet after the login scene barrier. Its trace records
+the ordered client-side lifecycle: three `IF_SETTEXT` writes, `IF_OPENSUB` of
+group 231 at `162:567`, `RUNCLIENTSCRIPT 600 argc=4`, and the Continue event
+mask. At exit, live component `231:6` is `380x67` at `115,377`, with the Hans
+sentence retained.
+
+This check found no second C-only arithmetic defect. The C VM already decodes
+opcode 2114 in the golden order, the CS2 host applies all three fields to the
+mounted `UITree` text node, and both renderers consume the emitted vertical
+alignment. The shared content fix therefore fixes the official C client too;
+hard-coding Hans in either renderer would be incorrect. A new
+`test-cs2-text-align` target pins the literal script-600 arguments
+`(1,1,16,231:6)`, while the UITree suite pins setter-to-render-descriptor
+propagation. `TORIRS_DUMP_COM` now prints text alignment and line height so the
+live client path remains directly auditable. The retained C proof is
+`build/run239-regressions/c-client-hans-final/hans.png` plus `client.log` and
+`server.log` in the same directory.
+
 ### The running crash was a revision-239 NPC_INFO boundary violation
 
 The independent movement reproduction retained the last completed framebuffer,
@@ -625,12 +687,15 @@ forms, not altered arithmetic.
 JCTL now reports original/relative geometry, all four alignment modes, parent
 identity and bounds, and on-op listeners. Live probes such as `116:27`, its
 dynamic label `116:27:4`, and layout row `116:40:3` match the authoritative
-formulas in Fixed, Classic, and Modern roots. The Hans frame in
-`combined-five-final3/proof/02-hans-dialogue.png` also matches the supplied
-reference structure: wide lower chatbox, left portrait, centred speaker/name
-and continue prompt. The apparent layout corruption came from the wrong root,
-unarmed dynamic rows, and lost CC-created children after root replacement—not
-from a remaining core decompilation math defect.
+formulas in Fixed, Classic, and Modern roots. The broad geometry arithmetic is
+intact, but the Hans body text exposed a separate lifecycle omission: raw
+`231:6` is intentionally top-aligned and must be changed after mount by
+authoritative clientscript 600. The earlier
+`combined-five-final3/proof/02-hans-dialogue.png` is therefore retained as the
+before frame, not accepted as a reference match. The corrected frame is
+`hans-vertical-final3/proof/01-hans-centered.png`. In short, no remaining core
+decompilation math defect was found; the layout regression and Hans alignment
+had distinct callback/lifecycle causes.
 
 ### Final five-regression acceptance run
 
@@ -945,3 +1010,60 @@ PIDs were stopped afterward.
   folded into this PR.
 - 2026-08-06: Opened root PR #10, OSRS-Content dependency PR #2, and Deob
   dependency PR #2 from their pushed `codex/runelite239-regressions` branches.
+- 2026-08-06: Rejected the prior Hans screenshot as visual acceptance after
+  comparing it directly with the supplied reference. Dumped raw cache group 231
+  and found `chat_left:text` is `halign=1, valign=0, lineheight=16`; group 217's
+  player text is already vertically centred.
+- 2026-08-06: Read authoritative clientscript 600 and established that
+  `if_settextalign(1,1,16,chat_left:text)` is the missing post-mount behavior.
+  Added it to both NPC-chat entry points and recompiled all 12,536 scripts.
+- 2026-08-06: Audited the original jar and rebuilt deob bytecode for widget text
+  decoding and vertical font placement. Found equivalent arithmetic, so this
+  defect is not a remaining decompilation/recompilation math error. Extended
+  JCTL widget telemetry with text alignment/line height and made `clicknpc`
+  select the menu entry with the requested NPC index when actors overlap.
+- 2026-08-06: Added a world regression assertion that parses the literal
+  revision-239 reverse-argument RUNCLIENTSCRIPT packet and requires script 600
+  with `(1,1,16,231:6)`. The focused Hans assertion passes; the broad selftest
+  retains the same 23 unrelated baseline content/combat/pathing failures.
+- 2026-08-06: Ran clean `hans-vertical-final3` with a blocking EVENTS subscriber
+  connected before launch and real AWT input. Captured the corrected reference
+  line, completed choice/player/NPC/close lifecycle, retained packet/CS2 logs,
+  and ended with healthy GPI and no runtime fatal, decode error, writer gap, or
+  unexpected disconnect before explicit quit.
+- 2026-08-06: Fetched the now-merged current root `v3`, merged it into the
+  isolated regression branch, and rebuilt the official C client successfully.
+  This used `v3`'s resolved integration files and preserved every unrelated
+  dirty/generated file in both the primary checkout and isolated worktree.
+- 2026-08-06: Rejected an initial C-client connection made against the default
+  revision-230 mock wire (`rsa decrypt failed`), restarted the mock explicitly
+  as `--rev osrs239`, and rejected the first successful-login frame because its
+  one-shot cheat arrived behind the login scene barrier. Repeated the command
+  only after that barrier for the actual Hans proof.
+- 2026-08-06: Drove Hans through the rebuilt official C client and retained the
+  real packet/CS2 trace and Soft3D framebuffer. It consumed
+  `RUNCLIENTSCRIPT 600` after mounting group 231 and rendered the sentence at
+  the reference vertical centre; no C-only decompilation or renderer-math fix
+  was warranted.
+- 2026-08-06: Added `test-cs2-text-align` for the literal golden script-600
+  stack order, extended UITree mutation/emission coverage for alignment
+  `(1,1,16)`, and added alignment fields to `TORIRS_DUMP_COM` telemetry.
+- 2026-08-06: Fetched the newly advanced `origin/v3` head `6a69be24` and
+  merged it cleanly into the isolated regression branch as `3cc412c9`. The
+  debug-overlay changes auto-merged with the Hans telemetry in `main.c` and the
+  new test target in `src/makefile`; no conflict resolution or unrelated-file
+  mutation was required.
+- 2026-08-06: Rebuilt the full official C client after that latest-v3 merge and
+  re-ran `test-cs2-text-align` plus the expanded UITree suite; all passed. A
+  fresh final TCP session used exactly one post-barrier Hans command, logged one
+  dialogue `RUNCLIENTSCRIPT 600`, and exited with component `231:6` reporting
+  `textalign=1,1 lineheight=16`. Its final `hans.png` visually matches the
+  supplied vertical alignment and neither client nor server log contains a CS2
+  failure or unexpected disconnect.
+- 2026-08-06: Committed the official-C regression and telemetry as `046d3798`,
+  committed the post-merge verification record as `2ad0e8fd`, and pushed the
+  merged branch to `origin/codex/runelite239-regressions`. GitHub shows prior
+  root PR #10 as merged, so this post-merge delta requires a follow-up PR; the
+  CLI and the only available browser session were both signed out, and the
+  prepared `v3...codex/runelite239-regressions` comparison was retained rather
+  than claiming an uncreated PR.

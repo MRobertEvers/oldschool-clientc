@@ -1691,7 +1691,8 @@ frame_loop_teardown(void)
                     fprintf(
                         stderr,
                         "exit: com=%d idx=%u type=%d freed=%d hide=%d text='%s' "
-                        "abs=%d,%d wh=%dx%d font=%d color=0x%x parent=%d\n",
+                        "abs=%d,%d wh=%dx%d font=%d color=0x%x "
+                        "textalign=%d,%d lineheight=%d parent=%d\n",
                         want,
                         i,
                         (int)c->type,
@@ -1705,6 +1706,9 @@ frame_loop_teardown(void)
                         c->position.abs_h,
                         c->type == UIELEM_RS_TEXT ? c->u.rs_text.font_id : -1,
                         c->type == UIELEM_RS_TEXT ? c->u.rs_text.color : 0,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.center : -1,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.y_align : -1,
+                        c->type == UIELEM_RS_TEXT ? c->u.rs_text.line_height : -1,
                         c->parent);
                 }
             }
