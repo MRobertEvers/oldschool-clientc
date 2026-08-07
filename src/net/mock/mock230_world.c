@@ -10368,9 +10368,46 @@ mock230_world_selftest(void)
                  * Hans's five options are the authoritative rev-239 menu.
                  */
                 {
-                    int idx = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    static const uint8_t choice_position[] = {
+                        /* y=-13 g2Alt3, uid=219:1 g4Alt2, x=0 g2Alt3. */
+                        0x73, 0xff, 0x00, 0x01, 0x00, 0xdb, 0x80, 0x00,
+                    };
+                    int opensub_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENSUB);
+                    int position_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_SETPOSITION);
+                    int run_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_RUNCLIENTSCRIPT);
+                    int opensub_at = mock230_capture_find(&capture, opensub_opcode, 0);
+                    int position_at =
+                        mock230_capture_find(&capture, position_opcode, 0);
+                    int idx = mock230_capture_find(&capture, run_opcode, 0);
 
                     SELFTEST_CHECK(idx >= 0, "the choice should send RUNCLIENTSCRIPT");
+                    SELFTEST_CHECK(
+                        opensub_at >= 0 && position_at > opensub_at && idx > position_at,
+                        "choice lifecycle must mount, place, then populate chatmenu "
+                        "(IF_OPENSUB %d, IF_SETPOSITION %d, RUNCLIENTSCRIPT %d)",
+                        opensub_at,
+                        position_at,
+                        idx);
+                    SELFTEST_CHECK(
+                        rows_uid == 0x00db0001,
+                        "chatmenu:options must retain literal rev-239 uid 219:1, got 0x%x",
+                        rows_uid);
+                    if( position_at >= 0 )
+                    {
+                        const struct Mock230CapturedPacket* position =
+                            &capture.packets[position_at];
+
+                        SELFTEST_CHECK(
+                            position->len == (int)sizeof(choice_position) &&
+                                memcmp(position->data, choice_position,
+                                       sizeof(choice_position)) == 0,
+                            "choice IF_SETPOSITION must be literal rev-239 "
+                            "chatmenu:options (0,-13), got %d byte(s)",
+                            position->len);
+                    }
                     if( idx >= 0 )
                     {
                         /*
