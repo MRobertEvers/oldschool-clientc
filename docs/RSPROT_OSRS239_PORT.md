@@ -4,7 +4,8 @@
 > [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md). It records why
 > `::crystal_set` became Cry before opcode 34, the duplicate debugproc that was
 > waiting behind that client bug, and the build gates that now enforce both
-> sides.
+> sides. Use `::~crystal_set` (and generally `::~name`) for server commands
+> against the pristine cache.
 
 > Written 2026-08-04. Companion to [`MULTI_GENERATIONAL_PARITY.md`](MULTI_GENERATIONAL_PARITY.md),
 > which owns the net-stack seams. This doc owns one question: **what does it

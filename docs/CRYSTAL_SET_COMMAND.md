@@ -1,4 +1,4 @@
-# `::crystal_set`: the Cry collision, duplicate command, and permanent guards
+# `::~crystal_set`: pristine-cache escape, Cry collision, and permanent guards
 
 This is the canonical incident record for the command that made the player
 perform the Cry emote while the server logged nothing. Read this before changing
@@ -20,6 +20,25 @@ packet boundary**:
 
 Both had to be fixed. Fixing only the server could never stop the Cry animation;
 fixing only the client would send the command into an ambiguous server binding.
+
+## The command to use: `::~crystal_set`
+
+`::~name` is the canonical spelling for every server-side debugproc and built-in
+cheat. It works with the **pristine** revision-239 cache and does not require a
+clientscript rebuild:
+
+1. Script 7304 removes `::` and examines `~crystal_set`.
+2. `~crystal_set` cannot prefix-match the local `cry` alias, even in the
+   original broken prefix-matching clientscripts, so the local handler returns 0.
+3. Script 73 calls `docheat`, which sends `~crystal_set` in `CLIENT_CHEAT`.
+4. The server strips the single namespace marker and dispatches
+   `[debugproc,crystal_set]`.
+
+The same escape works for local-name collisions such as `::~run 1` and for the
+server's built-in diagnostic ladder. Plain `::name` remains accepted when the
+client does not consume it locally, and a baked cache with exact alias matching
+continues to make `::crystal_set` work. Use `::~name` in automation because it
+does not depend on which cache the client booted.
 
 ## What the client actually did
 
@@ -102,7 +121,8 @@ The incident is now protected at every boundary that failed:
 
 | Boundary | Enforced invariant | Guard |
 |---|---|---|
-| local client command | No typed-emote alias uses prefix matching; exact `cry` still exists | `tools/check_crystal_set_contract.py` |
+| pristine-cache escape | `::~name` arrives in `CLIENT_CHEAT` as `~name`; server strips `~` before all command routing | `handle_cheat` + semantic self-test |
+| local client command | Baked caches use exact emote aliases; exact `cry` still exists | `tools/check_crystal_set_contract.py` |
 | chat control flow | script 7304 runs before `docheat`, making the interception order explicit | same checker |
 | wire mapping | rev-239 `CLIENT_CHEAT` remains opcode 34 | same checker + packet table |
 | command ownership | exactly one `crystal_set` debugproc, at the combat-owned path | same checker |
@@ -148,16 +168,23 @@ Follow the boundaries in order. Do not begin by editing the server script.
 For JCTL, quote the whole positional command:
 
 ```sh
-python3 tools/runelite239_ctl.py 'type ::crystal_set'
+python3 tools/runelite239_ctl.py 'type ::~crystal_set'
 ```
 
-Writing `python3 tools/runelite239_ctl.py type ::crystal_set` supplies two JCTL
+Writing `python3 tools/runelite239_ctl.py type ::~crystal_set` supplies two JCTL
 commands, not one command with an argument, and creates a different failure.
 
 ## Rebuild rule that is easy to miss
 
-`script_7304.cs2` is client content. `make -C src mock230-scripts` only rebuilds
-server `.rs2` bytecode and cannot change RuneLite behavior. Repack the
+`::~crystal_set` needs no client cache rebuild. Rebuild `mock230` and the server
+script pack, then keep serving the pristine cache if desired:
+
+```sh
+make -C src mock230 mock230-scripts
+```
+
+By contrast, making the unescaped historical spelling `::crystal_set` work
+changes client content. `make -C src mock230-scripts` cannot do that; repack the
 clientscript into the exact cache served by JS5:
 
 ```sh
@@ -173,7 +200,7 @@ the clientscripts in the served cache, not source files from the repository.
 The success trace is:
 
 ```text
-JCTL input: ::crystal_set
+JCTL input: ::~crystal_set
 packet_out op=34 len=-1
 mock230: [debugproc,crystal_set] with 0 int and 0 string args
 mock230: cheat 'crystal_set' -> debugproc ran
@@ -182,8 +209,9 @@ Crystal set equipped at Ranged 99: +30% accuracy, +15% damage.
 
 Container 94 (`worn`) must then contain Crystal helm in head, Bow of faerdhinen
 (c) in weapon, Crystal body in torso, and Crystal legs in legs. Neighboring
-controls must also hold: exact `::cry` stays local and plays Cry; a definitely
-missing command sends opcode 34 and produces a visible unknown-command message.
+controls must also hold: exact `::cry` stays local and plays Cry, while a
+definitely missing command sends opcode 34 and produces a visible
+unknown-command message.
 
 The longer integration narrative and original real-client evidence remain in
 `GPTSOL56_RUNELITE_INTEGRATION.md`, but this file owns the incident and the

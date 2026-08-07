@@ -1096,6 +1096,11 @@ A debugproc is content like anything else (PORTING_GUIDE §2.4 item 5) — the
 engine does not name one, it hands the line to whichever script claims it and
 falls through to the C cheat ladder only when none does.
 
+From the pristine revision-239 client, spell server commands `::~name`. The
+client sends `~name` through `CLIENT_CHEAT`, and mock230 removes the marker
+before this lookup. Plain `::name` is only safe when no client-local command can
+consume it.
+
 Debugproc names are global and must be unique. The compiler rejects a second
 `[debugproc,<same name>]` during its declaration pass; it must never choose a
 body by source traversal order. This invariant was added after `::crystal_set`
