@@ -2047,6 +2047,13 @@ struct Mock230Player
      *  has not yet reported MAP_BUILD_COMPLETE for that scene. While set, no
      *  player tick state or login/UI burst may advance or be discarded. */
     int login_scene_pending;
+    /** Revision-239 barrier for an instance rebuild that moves the local
+     *  player to a new absolute placement. REBUILD_REGION has gone out, but
+     *  MAP_BUILD_COMPLETE has not returned.
+     *  Player scripts, timers, movement and dependent output pause here so an
+     *  ephemeral zone event cannot expire while the client is still replacing
+     *  its WorldView. */
+    int rebuild_scene_pending;
     /** Set by the login burst, drained by phase 7, so [login] runs inside the
      *  tick rather than ahead of it — per player, so a second login does not
      *  re-run the first player's. */
@@ -2858,6 +2865,13 @@ mock230_world_scene_rebuild(struct Mock230Server* srv);
  *  `map_instance_build` half that belongs to the world rather than the registry. */
 void
 mock230_world_mapinstance_built(
+    struct Mock230Server* srv,
+    int handle);
+
+/** Release a pooled instance and all world-owned location state in its
+ *  destination rectangle. Content still owns actor teardown. */
+int
+mock230_world_mapinstance_free(
     struct Mock230Server* srv,
     int handle);
 

@@ -815,6 +815,78 @@ No runtime fatal, CS2 error, packet decode error, writer gap, or unexpected
 disconnect occurred; the only exception text is RuneLite's known caught
 pre-login `setupCompilerControl` warning.
 
+### Zuk's seal now survives scene loading, repeats cleanly, and collapses in lockstep
+
+The intermittent missing walls were an ordering error exposed by the golden
+revision-239 location handlers. `LOC_ADD_CHANGE` does not replace the scene
+object immediately: the client records a pending loc change and applies it on a
+later client cycle. `LOC_ANIM`, by contrast, immediately looks up the object
+currently mounted in the scene and wraps that object in a dynamic animation.
+Sending a state1→state2 change and its animation in the same enclosed update
+therefore animates state1, then discards that wrapper when state2 lands. Model
+load timing made the result look random. The content now sends both falling-wall
+changes together, waits one complete server/client turn, and then sends both
+animations together.
+
+The cache and original Inferno content also settle which sequence and duration
+belong here. Falling locs 30344 and 30343 both use
+`safe_spot_distructible_pillar_collapse`, sequence 7561: 22 frames totalling 60
+client cycles. Sequences 7560 and 7559 are separate 91-frame side-wall tracks;
+using them on the two falling seal locs made the side and centre pieces drift.
+Both locs now start 7561 on the same tick and are removed two server ticks later.
+
+The first scene transition needed a separate lifecycle correction. The player
+queue is frozen behind revision 239's moved-instance `MAP_BUILD_COMPLETE`
+barrier, and the rebuild prefix contains REBUILD_REGION, PLAYER_INFO, NPC_INFO,
+and SERVER_TICK_END so the golden client can finish its new WorldView before the
+cutscene touches scenery. A rebuild at the same absolute pooled coordinate does
+not arm another barrier: the golden client consumes that REBUILD_REGION but does
+not enter asynchronous loading or send a second acknowledgement.
+
+Repeating the command found a second, server-owned lifetime bug. Freeing a map
+reservation returned its square to the allocator but left its durable ZoneMap
+loc mutations behind. The next reservation reused the same square and
+`mock230_world_locs_reapply` restored the first run's already-collapsed arena,
+so the state1 lookups legitimately found nothing. Instance release now clears
+all durable loc mutations, unsent loc events, and timed loc reverts across the
+entire reserved map-square rectangle before returning it to the pool. Actor
+teardown remains content-owned.
+
+The longer live fight exposed one more engine-ordering defect: `npc_delay`
+parked an add's script, but the one-tick AI timer continued firing during the
+delay. That converted a four-tick attack rate into one attack per tick and
+eventually filled the glyph and player queues. Engine-TS's `Npc.turn()` resumes
+the parked script and then returns at `!isValid()` while the NPC remains delayed.
+mock230 now does the same, freezing timers, queues, hunts, and modes until the
+delay expires.
+
+The literal revision-239 packet regression walks the real enclosed stream (top
+opcodes 33/110, enclosed opcode 105, ordinals 7/9 and their V2 transforms). It
+runs two consecutive real `::zuk 1200` sessions and requires, on each run, one
+30344 change, one 30343 change, two 7561 animations exactly one tick later, no
+7559/7560 animation, and both removals after the shared duration. The NPC timer
+regression independently proves that an AI timer neither fires nor increments
+during `npc_delay`, then fires exactly once on expiry. The broad cache-backed
+self-test reaches the Zuk seal, death, and delay sections without a focused
+failure; its retained log is
+`build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+
+Final live acceptance is under `build/run239-zuk/cutscene-live-final5`. A
+blocking EVENTS subscriber connected before RuneLite and all commands were real
+AWT keyboard input. The first cutscene changed both walls at tick 34, animated
+both at tick 35, and removed both at tick 36. The real repeated `::zuk 1200`
+path did the same at ticks 62/63/64, proving the pooled square did not inherit
+the first arena. Event-triggered frames show both walls present before the
+collapse, both sides at the same animation phase, and the completed opening.
+The fight then continued to a natural death: the Inferno NPC roster became zero
+at sample 65, instance 1 was released, and ordered GPI returned to Lumbridge at
+sample 68. Post-death JCTL reported `LOGGED_IN`, valid GPI, no Inferno mounts,
+and an interface audit of 6,124 widgets with `dead=0`. Server and client scans
+found no queue overflow, parked-script collision, script abort, runtime fatal,
+CS2 error, packet decode error, writer gap, or unexpected disconnect. The only
+exception text is RuneLite's known caught pre-login `setupCompilerControl`
+warning.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1217,3 +1289,38 @@ pre-login `setupCompilerControl` warning.
 - 2026-08-06: Committed and pushed the root dependency pointer, focused server
   regression, live evidence, and findings as `461181f9fc` on
   `codex/runelite239-zuk`.
+- 2026-08-06: Read the golden revision-239 LOC_ADD_CHANGE and LOC_ANIM handlers,
+  proving that pending loc replacement and immediate animation binding require
+  a full client-cycle boundary. Audited cache loc/sequence records and the
+  original Inferno content; identified shared sequence 7561 (60 client cycles)
+  as authoritative for both falling walls and rejected the two 91-frame side
+  tracks 7559/7560.
+- 2026-08-06: Reordered the cutscene so both state2 wall changes follow the
+  moved-instance MAP_BUILD_COMPLETE barrier, both actors spawn, and a Zuk queue
+  emits both 7561 animations on the following tick with removal two ticks later.
+  Added server-tick/coordinate/id telemetry for all loc zone events.
+- 2026-08-06: Added the revision-239 moved-instance rebuild barrier and the
+  PLAYER_INFO/NPC_INFO/TICK_END prefix required by the golden WorldView loader.
+  Measured that a repeated same-coordinate instance rebuild sends no second
+  MAP_BUILD_COMPLETE and narrowed the barrier to actual coordinate changes.
+- 2026-08-06: Reproduced the second-cutscene missing walls and traced them to
+  durable ZoneMap mutations surviving map-instance release. Added reserved-rect
+  teardown for loc diffs, unsent loc events, and timed reverts, then extended
+  the literal packet regression to require two complete consecutive seal
+  sequences.
+- 2026-08-06: Recompiled all 12,538 scripts, rebuilt mock230, and ran the
+  cache-backed broad suite. Both consecutive-Zuk packet checks, Inferno death,
+  and the new NPC-delay timer check pass; unrelated broad baseline failures are
+  retained in `build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+- 2026-08-06: Rejected `cutscene-live-final3` after its repeated pooled arena
+  inherited the first run's loc state. Rejected `cutscene-live-final4` after its
+  longer fight revealed AI timers firing through `npc_delay`, causing glyph and
+  player queue overflow. Matched Engine-TS `Npc.turn()` by skipping the rest of
+  a delayed NPC's turn and added a focused freeze/unfreeze assertion.
+- 2026-08-06: Ran clean `cutscene-live-final5` with blocking EVENTS connected
+  before launch and real AWT input. Two cutscenes produced exact synchronized
+  tick sequences 34/35/36 and 62/63/64. Natural death reduced the Inferno NPC
+  roster to zero, released instance 1, returned GPI to Lumbridge, and left
+  6,124 audited widgets with zero dead actions; logs contain no scheduler
+  overflow, script abort, runtime fatal, decode error, writer gap, or unexpected
+  disconnect.

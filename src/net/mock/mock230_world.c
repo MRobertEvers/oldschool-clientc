@@ -2020,6 +2020,33 @@ mock230_world_mapinstance_built(
     }
 }
 
+int
+mock230_world_mapinstance_free(
+    struct Mock230Server* srv,
+    int handle)
+{
+    int x;
+    int z;
+    int width;
+    int height;
+
+    if( !mock230_mapinstance_bounds(handle, &x, &z, &width, &height) )
+        return 0;
+
+    mock230_zone_locs_clear_rect(srv, x, z, width, height);
+    /* A timed revert is durable state too. If one survives the release it can
+     * mutate the next tenant's freshly built scene several ticks later. */
+    for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
+    {
+        struct Mock230LocRevert* entry = &srv->loc_reverts[i];
+
+        if( entry->active && entry->x >= x && entry->x < x + width && entry->z >= z &&
+            entry->z < z + height )
+            entry->active = 0;
+    }
+    return mock230_mapinstance_free(handle);
+}
+
 /*
  * Re-centre the scene when a player nears its edge.
  *
@@ -2798,6 +2825,16 @@ advance_npcs(struct Mock230Server* srv)
             npc->active = 0;
             continue;
         }
+
+        /* `npc_delay` makes the reference NPC invalid for the remainder of
+         * its turn (`Npc.isValid()` returns false while delayed). Its parked
+         * script was offered a resume by phase_npcs immediately before this
+         * loop; if the deadline is still in the future, timers, queues, hunts,
+         * and modes must all wait. Letting a one-tick AI timer run here made
+         * Inferno adds attack on every server tick during their four-tick
+         * attack delay, eventually filling the glyph and player queues. */
+        if( npc->active && srv->tick < npc->delayed_until )
+            continue;
 
         /*
          * `npc_settimer` and `npc_queue`, in phase 4's own order: **timers
@@ -5258,9 +5295,11 @@ handle_map_build_complete(
         return;
     if( srv->verbose )
         fprintf(stderr,
-                "mock230: <- MAP_BUILD_COMPLETE pending=%d rebuild_pending=%d\n",
-                player->login_scene_pending, player->rebuild_pending);
-    if( !player->login_scene_pending )
+                "mock230: <- MAP_BUILD_COMPLETE login_pending=%d scene_pending=%d "
+                "rebuild_pending=%d\n",
+                player->login_scene_pending, player->rebuild_scene_pending,
+                player->rebuild_pending);
+    if( !player->login_scene_pending && !player->rebuild_scene_pending )
         return;
 
     if( player->rebuild_pending )
@@ -5271,6 +5310,15 @@ handle_map_build_complete(
                     "rebuild and retaining barrier\n");
         mock230_send_rebuild(player);
         player->rebuild_pending = 0;
+        return;
+    }
+
+    if( player->rebuild_scene_pending )
+    {
+        player->rebuild_scene_pending = 0;
+        if( srv->verbose )
+            fprintf(stderr,
+                    "mock230: rebuilt scene barrier complete; resuming player queues\n");
         return;
     }
 
@@ -5797,7 +5845,7 @@ handle_window_status(
      * login. Remember the real canvas mode, but do not mount a gameframe into
      * the WorldView that is still being replaced. login_finish consumes the
      * latched mode once the client acknowledges the scene. */
-    if( player->login_scene_pending )
+    if( player->login_scene_pending || player->rebuild_scene_pending )
         return;
     args[0] = layout_mode;
     mock230_scripts_run_proc(srv, "[proc,gameframe_set_mode]", args, 1);
@@ -5993,13 +6041,14 @@ mock230_world_handle(
     /* A loading rev-239 WorldView is not a playable client. It may report its
      * canvas and liveness, but clicks/resumes/movement must not start scripts
      * whose interface and entity state have not been installed yet. */
-    if( player->login_scene_pending && name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
+    if( (player->login_scene_pending || player->rebuild_scene_pending) &&
+        name != PKTOUT_NAME_MAP_BUILD_COMPLETE &&
         name != PKTOUT_NAME_WINDOW_STATUS && name != PKTOUT_NAME_IDLE_TIMER &&
         name != PKTOUT_NAME_NO_TIMEOUT && name != PKTOUT_NAME_EVENT_MOUSE_MOVE &&
         name != PKTOUT_NAME_EVENT_APPLET_FOCUS )
     {
         if( srv->verbose )
-            fprintf(stderr, "mock230: <- packet name %d dropped behind login scene barrier\n",
+            fprintf(stderr, "mock230: <- packet name %d dropped behind scene barrier\n",
                     name);
         return;
     }
@@ -6550,7 +6599,7 @@ mock230_world_remove_player(
                         cleared++;
                     }
                 }
-                mock230_mapinstance_free(handle);
+                mock230_world_mapinstance_free(srv, handle);
                 if( getenv("MOCK230_VERBOSE") )
                     fprintf(stderr,
                             "mock230: %s logged out inside map instance %d; released it "
@@ -7451,7 +7500,7 @@ phase_players(struct Mock230Server* srv)
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending )
+        if( player->login_scene_pending || player->rebuild_scene_pending )
             continue;
         phase_player(player);
     }
@@ -7825,7 +7874,7 @@ phase_info(struct Mock230Server* srv)
      * nothing. */
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending )
+        if( player->login_scene_pending || player->rebuild_scene_pending )
             continue;
         mock230_world_set_active(srv, player);
         mock230_world_sync_combat_varbits(srv);
@@ -7948,12 +7997,42 @@ phase_client_out(struct Mock230Player* player)
     }
 
     /* A rebuild has to reach the client before the placement that depends on
-     * it, and the client's serial packet queue holds every later packet until
-     * the world load finishes — so ordering here is simply "rebuild first". */
+     * it. Revision 239 replaces its WorldView asynchronously and explicitly
+     * acknowledges that replacement with MAP_BUILD_COMPLETE. Do not merely
+     * put dependent packets later in the same socket stream: stateful zone
+     * changes can be replayed after a slow load, but LOC_ANIM and projectiles
+     * are tick events and are discarded by phase_cleanup. Pause the player at
+     * this barrier so its scripts cannot create either until the new scene is
+     * real. */
     if( player->rebuild_pending )
     {
         mock230_send_rebuild(player);
         player->rebuild_pending = 0;
+        /* Instance scenes are assembled at runtime and are the path where
+         * content immediately follows a teleport with cutscene zone events.
+         * Normal edge rebuilds carry no such ephemeral transition in this
+         * server and retain their existing continuous-walk behavior. */
+        if( srv->wire && srv->wire->revision >= 239 &&
+            mock230_mapinstance_find(player->x, player->z) != 0 &&
+            (player->x != player->v5_last_x || player->z != player->v5_last_z ||
+             player->level != player->v5_last_level) )
+        {
+            player->rebuild_scene_pending = 1;
+            if( srv->verbose )
+                fprintf(stderr,
+                        "mock230: rebuilt scene barrier armed; waiting for "
+                        "MAP_BUILD_COMPLETE\n");
+            /* The new WorldView cannot finish without the local placement
+             * that follows REBUILD_REGION. This is the same indivisible
+             * rebuild/GPI prefix used at login; only zone mutations and
+             * scripts belong behind the acknowledgement. NPC_INFO belongs
+             * beside it so the replacement view starts from one coherent
+             * entity snapshot, and TICK_END closes that packet group. */
+            mock230_send_player_info(player);
+            mock230_send_npc_info(player);
+            mock230_send_tick_end(player);
+            return;
+        }
         /* Doors. REBUILD_NORMAL rebuilds the client's scene from the cache,
          * which puts every opened door back the way the map square has it. The
          * loop that re-sent them used to live here, walking the scene's own
@@ -8030,7 +8109,7 @@ phase_clients_out(struct Mock230Server* srv)
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending )
+        if( player->login_scene_pending || player->rebuild_scene_pending )
             continue;
         phase_client_out(player);
     }
@@ -8081,7 +8160,7 @@ phase_cleanup(struct Mock230Server* srv)
 
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending )
+        if( player->login_scene_pending || player->rebuild_scene_pending )
             continue;
         phase_cleanup_player(player);
     }
@@ -8133,7 +8212,7 @@ mock230_world_tick(struct Mock230Server* srv)
      * player will actually be reported on. */
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending )
+        if( player->login_scene_pending || player->rebuild_scene_pending )
             continue;
         mock230_world_set_active(srv, player);
         mock230_worldmap_tick(srv);
@@ -8395,6 +8474,121 @@ selftest_enclosed_has(
         }
     }
     return 0;
+}
+
+/*
+ * Count one kind of zone mutation by independently decoding the literal
+ * revision-239 packet body captured after the writer. This deliberately does
+ * not ask the zone writer how to read its own output: the regression is about
+ * the order the real client receives, including the three-byte enclosed
+ * header, ordinal dispatch, variable V2 loc-change record, and Alt3 short.
+ *
+ * `id` is a loc id for LOC_ADD_CHANGE and a sequence id for LOC_ANIM. -1
+ * matches either. Both enclosed and follows-mode forms are accepted so a test
+ * cannot pass merely because the player happened to load the zone that tick.
+ */
+static int
+selftest_rev239_zone_count(
+    const struct Mock230Capture* capture,
+    enum GameProtoPktName wanted,
+    int id)
+{
+    int count = 0;
+
+    for( int i = 0; i < capture->count; i++ )
+    {
+        const struct Mock230CapturedPacket* packet = &capture->packets[i];
+        int at = 0;
+
+        /* Rev 239 top-level opcodes from packetin.h. */
+        if( (wanted == PKT_NAME_LOC_ADD_CHANGE && packet->opcode == 33) ||
+            (wanted == PKT_NAME_LOC_ANIM && packet->opcode == 110) )
+        {
+            int got = -1;
+
+            if( wanted == PKT_NAME_LOC_ANIM && packet->len == 4 )
+                got = (packet->data[3] << 8) |
+                      ((packet->data[2] - 128) & 0xff); /* p2Alt3 */
+            else if( wanted == PKT_NAME_LOC_ADD_CHANGE && packet->len >= 6 )
+            {
+                int ops = (packet->data[at++] - 128) & 0xff; /* p1Alt1 */
+
+                for( int op = 0; op < ops && at < packet->len; op++ )
+                {
+                    at++; /* op index */
+                    while( at < packet->len && packet->data[at++] != 0 )
+                        ;
+                }
+                at += 3; /* opFlags, properties, coord */
+                if( at + 1 < packet->len )
+                    got = (packet->data[at + 1] << 8) |
+                          ((packet->data[at] - 128) & 0xff);
+            }
+            if( id < 0 || got == id )
+                count++;
+            continue;
+        }
+
+        if( packet->opcode != 105 || packet->len < 3 )
+            continue;
+        at = 3; /* p1Alt2 level, p1Alt1 zoneZ, p1Alt1 zoneX */
+        while( at < packet->len )
+        {
+            int ordinal = packet->data[at++];
+            int got = -1;
+            int length = -1;
+
+            switch( ordinal )
+            {
+            case 0: length = 2; break;  /* LOC_DEL */
+            case 2: length = 14; break; /* LOC_MERGE */
+            case 4: length = 11; break; /* OBJ_COUNT */
+            case 5: length = 6; break;  /* MAP_ANIM */
+            case 7:                    /* LOC_ADD_CHANGE_V2 */
+            {
+                int begin = at;
+                int ops;
+
+                if( at >= packet->len )
+                    break;
+                ops = (packet->data[at++] - 128) & 0xff;
+                for( int op = 0; op < ops && at < packet->len; op++ )
+                {
+                    at++; /* op index */
+                    while( at < packet->len && packet->data[at++] != 0 )
+                        ;
+                }
+                at += 3; /* opFlags, properties, coord */
+                if( at + 1 < packet->len )
+                    got = (packet->data[at + 1] << 8) |
+                          ((packet->data[at] - 128) & 0xff);
+                at += 2;
+                length = at - begin;
+                at = begin;
+                break;
+            }
+            case 8: length = 14; break; /* OBJ_ADD */
+            case 9:                    /* LOC_ANIM */
+                length = 4;
+                if( at + 3 < packet->len )
+                    got = (packet->data[at + 3] << 8) |
+                          ((packet->data[at + 2] - 128) & 0xff);
+                break;
+            case 10: length = 7; break; /* OBJ_DEL */
+            case 11: length = 4; break; /* OBJ_ENABLED_OPS */
+            case 13: length = 24; break; /* MAP_PROJANIM_V2 */
+            default: length = -1; break;
+            }
+            if( length < 0 || at + length > packet->len )
+                break;
+            if( ((wanted == PKT_NAME_LOC_ADD_CHANGE && ordinal == 7) ||
+                 (wanted == PKT_NAME_LOC_ANIM && ordinal == 9)) &&
+                (id < 0 || got == id) )
+                count++;
+            at += length;
+        }
+    }
+    return count;
 }
 
 /*
@@ -19024,6 +19218,28 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
                                "and again one interval later, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
+                /* A delayed NPC is not merely unable to move. The reference's
+                 * `Npc.turn()` returns at `!isValid()` before timers and queues,
+                 * so the clock itself must not advance until npc_delay ends.
+                 * Inferno's final-wave adds use a one-tick timer plus a
+                 * four-tick delay as their attack rate; firing through the
+                 * delay floods the glyph with queued projectile hits. */
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                srv.npcs[added].timer_interval = 1;
+                srv.npcs[added].timer_clock = 0;
+                srv.npcs[added].delayed_until = srv.tick + 3;
+                mock230_world_tick(&srv);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0 &&
+                                   srv.npcs[added].timer_clock == 0,
+                               "npc_delay must freeze an npc's AI timer, got value=%d clock=%d",
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                               srv.npcs[added].timer_clock);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                               "the timer should fire once when npc_delay expires, got %d",
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
                 /* npc_settimer(0) stops it, which is how content pauses a
                  * behaviour. Asserting the *absence* of a fire is the only way
                  * to tell "stopped" from "not due yet". */
@@ -21339,6 +21555,196 @@ mock230_world_selftest(void)
         mock230_scripts_free(&srv);
     }
 
+    fprintf(stderr,
+            "mock230 selftest: revision-239 Zuk seal change precedes synchronized collapse\n");
+    {
+        int loaded = mock230_scripts_load(&srv,
+                                          "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv,
+                                          "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else if( strcmp(srv.wire->name, "osrs239") != 0 )
+        {
+            /* The decoder below intentionally pins revision 239's literal
+             * packet table and transforms, not the selected mock revision. */
+            fprintf(stderr, "  SKIP  requires MOCK230_REV=osrs239\n");
+        }
+        else
+        {
+            static struct Mock230Capture capture;
+            const int left = mock230_content_symbol(
+                MOCK230_PACK_LOC, "inferno_collapsing_wall_side_left_state2");
+            const int right = mock230_content_symbol(
+                MOCK230_PACK_LOC, "inferno_collapsing_wall_side_right_state2");
+            const int collapse = mock230_content_symbol(
+                MOCK230_PACK_SEQ, "safe_spot_distructible_pillar_collapse");
+            const int long_left = mock230_content_symbol(
+                MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_left");
+            const int long_right = mock230_content_symbol(
+                MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_right");
+            int change_tick = -1;
+            int anim_tick = -1;
+            int total_left = 0;
+            int total_right = 0;
+            int total_collapse = 0;
+            int total_wrong = 0;
+            int barrier_seen = 0;
+
+            /* Literal revision-239 cache ids make this a packet-layout
+             * regression, rather than a test that can follow a bad symbol
+             * remap and continue agreeing with itself. */
+            SELFTEST_CHECK(left == 30344 && right == 30343,
+                           "the rev239 falling seal locs should be 30344/30343, got %d/%d",
+                           left, right);
+            SELFTEST_CHECK(collapse == 7561 && long_left == 7560 && long_right == 7559,
+                           "the rev239 collapse/side sequences should be 7561/7560/7559, "
+                           "got %d/%d/%d",
+                           collapse, long_left, long_right);
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+                           "::zuk should start the real seal script");
+
+            for( int tick = 0; tick < 24; tick++ )
+            {
+                int tick_left;
+                int tick_right;
+                int tick_collapse;
+                int tick_wrong;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_tick(&srv);
+                mock230_capture_end(&srv);
+
+                tick_left = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ADD_CHANGE, left);
+                tick_right = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ADD_CHANGE, right);
+                tick_collapse = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, collapse);
+                tick_wrong = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, long_left) +
+                             selftest_rev239_zone_count(
+                                 &capture, PKT_NAME_LOC_ANIM, long_right);
+
+                total_left += tick_left;
+                total_right += tick_right;
+                total_collapse += tick_collapse;
+                total_wrong += tick_wrong;
+
+                if( player->rebuild_scene_pending && !barrier_seen )
+                {
+                    barrier_seen = 1;
+                    SELFTEST_CHECK(total_left == 0 && total_right == 0 &&
+                                       total_collapse == 0,
+                                   "no Zuk loc event may outrun MAP_BUILD_COMPLETE, got "
+                                   "%d/%d changes and %d animations",
+                                   total_left, total_right, total_collapse);
+                    mock230_world_handle(
+                        player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                    continue;
+                }
+                if( tick_left && tick_right && change_tick < 0 )
+                    change_tick = tick;
+                if( tick_collapse && anim_tick < 0 )
+                    anim_tick = tick;
+
+                SELFTEST_CHECK(!(tick_left && tick_collapse) &&
+                                   !(tick_right && tick_collapse),
+                               "LOC_ANIM must not share tick %d with either pending "
+                               "LOC_ADD_CHANGE (%d/%d changes, %d animations)",
+                               tick, tick_left, tick_right, tick_collapse);
+            }
+
+            SELFTEST_CHECK(total_left == 1 && total_right == 1,
+                           "the cutscene should transmit each state2 wall once, got %d/%d",
+                           total_left, total_right);
+            SELFTEST_CHECK(total_collapse == 2,
+                           "both walls should receive the shared sequence in one turn, got %d",
+                           total_collapse);
+            SELFTEST_CHECK(total_wrong == 0,
+                           "the two 91-frame side-wall tracks must not animate the seal, got %d",
+                           total_wrong);
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
+                           "rev239 needs one complete client cycle between change and animation; "
+                           "got change=%d anim=%d",
+                           change_tick, anim_tick);
+            SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
+                           "the rev239 fixture should cross one acknowledged rebuild barrier");
+
+            /* Reusing the instance pool returns the same absolute square. The
+             * golden client consumes this REBUILD_REGION but does not enter a
+             * new asynchronous load and therefore sends no second
+             * MAP_BUILD_COMPLETE. Waiting for one deadlocks the cutscene; the
+             * rebuild/GPI/zone stream must remain ordered without arming the
+             * moved-scene barrier. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+                           "a repeated ::zuk should regenerate the instance");
+            total_left = 0;
+            total_right = 0;
+            total_collapse = 0;
+            total_wrong = 0;
+            change_tick = -1;
+            anim_tick = -1;
+            int repeat_rebuild = 0;
+            for( int tick = 0; tick < 24; tick++ )
+            {
+                int tick_left;
+                int tick_right;
+                int tick_collapse;
+
+                mock230_capture_begin(&srv, &capture);
+                mock230_world_tick(&srv);
+                mock230_capture_end(&srv);
+                repeat_rebuild |=
+                    mock230_capture_find(&capture, 125 /* REBUILD_REGION */, 0) >= 0;
+                tick_left = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ADD_CHANGE, left);
+                tick_right = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ADD_CHANGE, right);
+                tick_collapse = selftest_rev239_zone_count(
+                    &capture, PKT_NAME_LOC_ANIM, collapse);
+                total_left += tick_left;
+                total_right += tick_right;
+                total_collapse += tick_collapse;
+                total_wrong += selftest_rev239_zone_count(
+                                   &capture, PKT_NAME_LOC_ANIM, long_left) +
+                               selftest_rev239_zone_count(
+                                   &capture, PKT_NAME_LOC_ANIM, long_right);
+                if( tick_left && tick_right && change_tick < 0 )
+                    change_tick = tick;
+                if( tick_collapse && anim_tick < 0 )
+                    anim_tick = tick;
+                SELFTEST_CHECK(!(tick_collapse && (tick_left || tick_right)),
+                               "the repeated seal must also change before it animates");
+            }
+            SELFTEST_CHECK(repeat_rebuild,
+                           "the repeated command should transmit its fresh instance build");
+            SELFTEST_CHECK(total_left == 1 && total_right == 1,
+                           "a pooled instance must restore both walls before its next collapse, "
+                           "got %d/%d state2 changes",
+                           total_left, total_right);
+            SELFTEST_CHECK(total_collapse == 2 && total_wrong == 0,
+                           "the repeated seal should synchronize two shared collapse sequences, "
+                           "got shared=%d wrong=%d",
+                           total_collapse, total_wrong);
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
+                           "the repeated seal should preserve the one-tick client binding gap; "
+                           "got change=%d anim=%d",
+                           change_tick, anim_tick);
+            SELFTEST_CHECK(!player->rebuild_scene_pending,
+                           "a same-coordinate instance rebuild must not wait for an "
+                           "acknowledgement the rev239 client does not send");
+        }
+        mock230_scripts_free(&srv);
+    }
+
     fprintf(stderr, "mock230 selftest: Inferno death drains Zuk and releases its instance\n");
     {
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
@@ -21455,6 +21861,13 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(mounted == 0,
                                "death should unmount the Inferno HP overlay, got %d", mounted);
             }
+
+            /* The live revision-239 client acknowledges the instance scene
+             * while the corpse delay is still running. Cross the same barrier
+             * before asking the remaining delayed death turns to advance. */
+            if( player->rebuild_scene_pending )
+                mock230_world_handle(
+                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
 
             for( int i = 0; i < 8; i++ )
                 mock230_world_tick(&srv);
