@@ -46,10 +46,13 @@ test_int_get_set_grow(void)
     struct VarCManager mgr;
     VarCManager_Init(&mgr);
 
-    /* Unset ids read 0, even before any storage is allocated. */
-    TEST_ASSERT(VarCManager_GetInt(&mgr, 0) == 0, "unset reads 0");
-    TEST_ASSERT(VarCManager_GetInt(&mgr, 5000) == 0, "unset high id reads 0");
-    TEST_ASSERT(VarCManager_GetInt(&mgr, -1) == 0, "negative id reads 0");
+    /* RuneLite's Varcs map distinguishes an absent int (-1) from a stored 0. */
+    TEST_ASSERT(VarCManager_GetInt(&mgr, 0) == -1, "unset reads -1");
+    TEST_ASSERT(VarCManager_GetInt(&mgr, 5000) == -1, "unset high id reads -1");
+    TEST_ASSERT(VarCManager_GetInt(&mgr, -1) == -1, "negative id reads -1");
+
+    VarCManager_SetInt(&mgr, 0, 0);
+    TEST_ASSERT(VarCManager_GetInt(&mgr, 0) == 0, "explicit zero remains set");
 
     VarCManager_SetInt(&mgr, 3, 42);
     TEST_ASSERT(VarCManager_GetInt(&mgr, 3) == 42, "set/get roundtrip");
@@ -130,7 +133,7 @@ test_reset_all(void)
     VarCManager_SetChangeCallback(&mgr, on_change, &log);
 
     VarCManager_ResetAll(&mgr);
-    TEST_ASSERT(VarCManager_GetInt(&mgr, 1) == 0, "int cleared");
+    TEST_ASSERT(VarCManager_GetInt(&mgr, 1) == -1, "int unset");
     TEST_ASSERT(strcmp(VarCManager_GetString(&mgr, 2), "") == 0, "string cleared");
     TEST_ASSERT(log.count == 2, "reset notifies each changed id");
 

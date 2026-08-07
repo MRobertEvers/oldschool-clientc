@@ -69,9 +69,14 @@ ensure_int_capacity(
     while( grown <= id )
         grown *= 2;
 
-    ints = calloc((size_t)grown, sizeof(int));
+    ints = malloc((size_t)grown * sizeof(int));
     if( !ints )
         return false;
+    /* RuneLite rev 239's Varcs integer getter returns -1 when the map has no
+     * entry. Keep unused array slots at that sentinel so an explicit write of
+     * zero remains distinguishable from an unset varc. */
+    for( int i = 0; i < grown; i++ )
+        ints[i] = -1;
     if( mgr->int_count > 0 )
         memcpy(ints, mgr->ints, (size_t)mgr->int_count * sizeof(int));
     free(mgr->ints);
@@ -113,7 +118,7 @@ VarCManager_GetInt(
 {
     assert(mgr);
     if( id < 0 || id >= mgr->int_count )
-        return 0;
+        return -1;
     return mgr->ints[id];
 }
 
@@ -175,9 +180,9 @@ VarCManager_ResetAll(struct VarCManager* mgr)
 
     for( int i = 0; i < mgr->int_count; i++ )
     {
-        if( mgr->ints[i] != 0 )
+        if( mgr->ints[i] != -1 )
         {
-            mgr->ints[i] = 0;
+            mgr->ints[i] = -1;
             notify_change(mgr, i, false);
         }
     }

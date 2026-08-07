@@ -4882,7 +4882,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
     {
         int id = request->u.vars_read_varc_int.varc_id;
-        int value = host->varcs ? VarCManager_GetInt(host->varcs, id) : 0;
+        int value = host->varcs ? VarCManager_GetInt(host->varcs, id) : -1;
         return CS2VM2_PushInt(vm, value);
     }
 

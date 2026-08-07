@@ -44,7 +44,8 @@ VarCManager_SetChangeCallback(
     VarCManager_ChangeFn fn,
     void* userdata);
 
-/** Read varc int `id`; 0 when never set / out of range. */
+/** Read varc int `id`; -1 when never set / out of range (rev-239 Varcs map
+ *  semantics). An explicit zero is retained as a real value. */
 int
 VarCManager_GetInt(
     const struct VarCManager* mgr,
@@ -72,7 +73,7 @@ VarCManager_SetString(
     int id,
     const char* value);
 
-/** Zero every int and clear every string (fires change_fn per changed id). */
+/** Unset every int and clear every string (fires change_fn per changed id). */
 void
 VarCManager_ResetAll(struct VarCManager* mgr);
 

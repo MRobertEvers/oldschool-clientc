@@ -356,6 +356,21 @@ blurb + Quest XP rows). Weapons→Overview content region ~31% pixel diff.
 
 Still stubbed, not required for the hide fix: **8012** (post-sort in 9194).
 
+### Landed (2026-08-07) — initial Overview panel stays selected
+
+The rev-239 RuneLite deob separates the guide's main-tab varc (`1173`) from
+the Overview panel selector (raw varc `1345`). Script 9176 tests the latter
+against `-1`: when it is unset, it calls script 9181 with
+`skill_guide_v2:overview_content`; otherwise it passes the stored component
+UID. The C `VarCManager` previously returned `0` for every unset integer varc,
+so the first frame drew Overview, then script 9181 treated `0` as a component
+UID and hid both Overview and Quest XP.
+
+`VarCManager` now matches RuneLite's rev-239 `Varcs` map: an absent integer
+reads as `-1`, while an explicitly stored zero remains zero. New/grown slots
+and `ResetAll` use the same unset sentinel. Headless opening Attack now takes
+script 9176's fallback and leaves the Overview content panel visible.
+
 ### Landed (2026-08-03) — Overview / Quest XP sub-tabs clickable
 
 Two CS2/host bugs left the sub-tabs looking live but doing nothing useful:
