@@ -526,6 +526,28 @@ which, at rev 230, is most strings, because the colour is in the text.
 
 ---
 
+### 2.9 Rev 239 house-action labels: `IF_GETOP` is data flow
+
+The three bottom buttons in House Options are not labelled by static text
+components. Their on-load script creates a text child and sets its text from
+`if_getop(1, component)`, so blank `Expel Guests`, `Call Servant`, and `Leave
+House` buttons meant the VM was dropping an operation lookup, not that the
+interface pack lacked copy.
+
+The official rev-239 gamepack handler resolves (and therefore pops) the explicit
+component first, then pops the one-based operation index. `CC_GETOP` performs the
+same lookup against the active or dot component. Both opcodes now issue a typed
+host request; the host resolves the UI-tree node, normalizes the index, and
+returns its baked `menu_options.ops[]` value (or the official empty-string
+fallback). No interface ids or button text are duplicated in C.
+
+The real embedded client was exercised headlessly by clicking Settings,
+Controls Settings, then House Options with `TORIRS_SIM_CLICK_AT`. The captured
+frame rendered all three action labels, which verifies the actual cache script,
+VM request, UI-tree lookup, and renderer path together.
+
+---
+
 ## 3. What made this tractable
 
 Every one of these was found with the harness that already existed. Worth

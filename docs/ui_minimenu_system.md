@@ -62,6 +62,15 @@ Inventory container override rows (`Wear`, `Remove`, …) come from the baked
 inv component uitree index in `MinimenuPick.quaternary_id`; the inv-slot menu
 builder merges those ops as `INV_BUTTON1..5` after item rows.
 
+For rev 239 IF3 item cells, the target verb is not a separate fixed-position
+row. The official gamepack's `Statics.method5229` walks operation slots 31 down
+to 0 and inserts the target verb when the walk reaches
+`component.targetPriority`. Operations above that slot use the deprioritized
+action form (`+2000`). The C client follows that same insertion rule, so a
+component with target priority 6 and `Wear` (slot 0), `Drop` (slot 6), and
+`Examine` (slot 9) is displayed as `Wear`, `Drop`, `Use`, `Examine` after the
+minimenu's reverse-order draw.
+
 `StaticUIMenuOptions` holds up to five `ops[]` strings plus a single `option`
 string (OK/Select/Continue button label), and optional per-row `op_actions[]` /
 `option_action` overrides (0 = default mapping). Right-clicking any hit-tested UI node
@@ -142,7 +151,8 @@ Reference for parity with [`Client-TS/src/client/Client.ts`](../../Client-TS/src
 | `addSocialOptions` | Remove / Message (friends), Remove (ignore) | `FRIENDLIST_DEL`, `MESSAGE_PRIVATE`, `IGNORELIST_DEL` |
 
 Priority sort: rows with `action < 1000` bubble above `action >= 1000` after build
-(`ui_minimenu_sort_priority_actions`). Private-strip chat rows use `_PRIORITY` (+2000).
+(`ui_minimenu_sort_priority_actions`). Private-strip chat rows and IF3 item
+operations above `targetPriority` use the deprioritized form (+2000).
 
 Dynamic chat/social rows are built by [`ui_chat_minimenu.c`](../src2/ui/ui_chat_minimenu.c)
 and [`ui_click_add_social_options`](../src2/ui/ui_click.c) using `GameRunescape` chat/friend

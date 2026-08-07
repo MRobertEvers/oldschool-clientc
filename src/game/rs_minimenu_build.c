@@ -343,12 +343,14 @@ add_obj_cell_rows(
         struct UITreeRuntimeHooks const* hooks = UITree_Hooks(ops_node);
         int const has_on_op = hooks->on_op.script_id > 0;
         char const* target_verb = component_ops.target_verb;
+        int target_priority = ops_node->target_priority;
         int32_t target_ancestor = ops_node->parent;
         while( target_verb[0] == '\0' && target_ancestor >= 0 )
         {
             struct UITreeComponent const* ancestor =
                 &ctx->tree->components[target_ancestor];
             target_verb = ancestor->menu_options.target_verb;
+            target_priority = ancestor->target_priority;
             target_ancestor = ancestor->parent;
         }
         /* The three things that decide an item cell's rows, in one line —
@@ -381,23 +383,36 @@ add_obj_cell_rows(
                 k_default_drop_verb);
         }
 
-        /* method12079: a non-empty target verb becomes the inventory Use row
-         * only when the effective target mask (flags bits 11..16) is nonzero. */
-        if( target_verb[0] != '\0' && ((unsigned)ev >> 11 & 0x3Fu) != 0 )
-        {
-            char use_text[UITREE_MINIMENU_OPTION_LEN];
-            format_inv_item_option(
-                use_text, sizeof(use_text), target_verb, obj_name);
-            UIMinimenu_AddOption(
-                menu, use_text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
-        }
-
-        /* IF3 item cells otherwise use the exact operations installed by their
-         * paint script. method12078 permits every non-empty operation when the
-         * component owns an on_op listener; without one the individual flag bit
-         * remains mandatory. */
+        /* Official method5229 walks op slots high-to-low and inserts the target
+         * verb immediately before the operation at component.targetPriority.
+         * Since insertion order is drawn bottom-to-top, this puts Use directly
+         * below that operation on screen. method12079 still gates the row on a
+         * non-empty verb and nonzero target mask (flags bits 11..16). */
         snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
-        add_menu_ops_rows(menu, &component_ops, pick, suffix);
+        for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
+        {
+            if( i == target_priority && target_verb[0] != '\0' &&
+                ((unsigned)ev >> 11 & 0x3Fu) != 0 )
+            {
+                char target_text[UITREE_MINIMENU_OPTION_LEN];
+                format_inv_item_option(
+                    target_text, sizeof(target_text), target_verb, obj_name);
+                UIMinimenu_AddOption(
+                    menu, target_text, REVCONFIG_MINIMENU_OPHELDT_START, 0, pick);
+            }
+            if( component_ops.ops[i][0] != '\0' )
+            {
+                char op_text[UITREE_MINIMENU_OPTION_LEN];
+                int action = component_ops.op_actions[i] != 0
+                                 ? component_ops.op_actions[i]
+                                 : k_inv_button_action[i];
+                if( i > target_priority )
+                    action = UIMinimenu_ActionDeprioritize(action);
+                snprintf(
+                    op_text, sizeof(op_text), "%s %s", component_ops.ops[i], suffix);
+                UIMinimenu_AddOption(menu, op_text, action, i, pick);
+            }
+        }
         return menu->option_count - before;
     }
 

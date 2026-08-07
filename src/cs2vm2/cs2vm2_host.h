@@ -119,6 +119,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_GETWIDTH,
     CS2VM_HOST_REQUEST_CC_GETHEIGHT,
     CS2VM_HOST_REQUEST_CC_GETHIDE,
+    CS2VM_HOST_REQUEST_CC_GETOP,
     CS2VM_HOST_REQUEST_CC_SETONCLICK,
     CS2VM_HOST_REQUEST_CC_SETONHOLD,
     CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER,
@@ -149,6 +150,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLY,
     CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT,
     CS2VM_HOST_REQUEST_IF_GETHIDE,
+    CS2VM_HOST_REQUEST_IF_GETOP,
     CS2VM_HOST_REQUEST_IF_HASSUB,
     /* IF_HASCHILD_OVERLAY (2705): widget has parent group mounted.
      * 2704 is IF_SETPARAM at this revision (CC_SETCOMPONENTPARAM for a named
@@ -1024,6 +1026,13 @@ struct CS2VM_HostRequest_CC_GetId
     int component_id;
 };
 
+/** CC_GETOP / IF_GETOP: one-based operation slot on the resolved component. */
+struct CS2VM_HostRequest_WidgetGetOp
+{
+    int component_id;
+    int op_index;
+};
+
 /**
  * CC_SETCOMPONENTPARAM's `kind` argument: which stack the value arrived on.
  *
@@ -1462,6 +1471,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_GetWidth if_get_width;
         struct CS2VM_HostRequest_IF_HasChild if_has_child;
         struct CS2VM_HostRequest_IF_GetHeight if_get_height;
+        struct CS2VM_HostRequest_WidgetGetOp widget_get_op;
         struct CS2VM_HostRequest_IF_GetLayer if_get_layer;
         struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_x;
         struct CS2VM_HostRequest_IF_GetLayer if_get_scroll_y;

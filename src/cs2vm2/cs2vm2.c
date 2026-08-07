@@ -3129,6 +3129,28 @@ CS2VM2_Op_CC_GetHide(
     return CS2VM_EXECNO_OK;
 }
 
+static int
+CS2VM2_Op_CC_GetOp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    int op_index;
+    struct CS2VM_HostRequest request;
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CC_GETOP;
+    request.u.widget_get_op.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    request.u.widget_get_op.op_index = op_index;
+    return vm->vm->host_exec(vm, &request);
+}
+
 int
 CS2VM2_Op_IF_GetWidth(
     struct CS2VM2_Thread* vm,
@@ -3179,6 +3201,32 @@ CS2VM2_Op_IF_GetHeight(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+static int
+CS2VM2_Op_IF_GetOp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    int component_id, op_index;
+    struct CS2VM_HostRequest request;
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    /* Official rev-239 method2 resolves the explicit component first, then
+     * pops and normalizes the one-based operation index. */
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_IF_GETOP;
+    request.u.widget_get_op.component_id = component_id;
+    request.u.widget_get_op.op_index = op_index;
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -9468,6 +9516,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetHeight(vm, frame, operand);
     case CS2_OP_CC_GETHIDE:
         return CS2VM2_Op_CC_GetHide(vm, frame, operand);
+    case CS2_OP_CC_GETOP:
+        return CS2VM2_Op_CC_GetOp(vm, frame, operand);
     case CS2_OP_CC_SETONCLICK:
         return CS2VM2_Op_CC_SetOnClick(vm, frame, operand);
     case CS2_OP_CC_SETONHOLD:
@@ -9512,6 +9562,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetScrollHeight(vm, frame, operand);
     case CS2_OP_IF_GETHIDE:
         return CS2VM2_Op_IF_GetHide(vm, frame, operand);
+    case CS2_OP_IF_GETOP:
+        return CS2VM2_Op_IF_GetOp(vm, frame, operand);
     case CS2_OP_IF_HASSUB:
         return CS2VM2_Op_IF_HasSub(vm, frame, operand);
     case CS2_OP_IF_SETPARAM:

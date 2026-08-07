@@ -151,6 +151,8 @@ noop_host_pushes_str(enum CS2VM_HostRequestKind kind)
     switch( kind )
     {
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+    case CS2VM_HOST_REQUEST_CC_GETOP:
+    case CS2VM_HOST_REQUEST_IF_GETOP:
         return true;
     default:
         return false;

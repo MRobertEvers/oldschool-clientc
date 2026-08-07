@@ -50,6 +50,15 @@ menu_action_count(struct UIMinimenu const* menu, int action)
     return count;
 }
 
+static int
+menu_index_of(struct UIMinimenu const* menu, char const* needle)
+{
+    for( int i = 0; i < menu->option_count; i++ )
+        if( strstr(menu->options[i].text, needle) )
+            return i;
+    return -1;
+}
+
 static void
 test_if3_continue_uses_resume(void)
 {
@@ -172,6 +181,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     snprintf(parent.menu_options.target_verb, sizeof(parent.menu_options.target_verb), "Use");
     parent_index = UITree_Push(tree, -1, &parent);
     TEST_ASSERT(parent_index >= 0, "rev239 item parent pushed");
+    if( parent_index >= 0 )
+        tree->components[parent_index].target_priority = 6;
 
     child.type = UIELEM_CC_OBJ;
     child.component_id = 2;
@@ -203,6 +214,21 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     TEST_ASSERT(
         menu_action_count(&menu, REVCONFIG_MINIMENU_OPHELDT_START) == 1,
         "item target verb arms held-item selection");
+    {
+        int const examine = menu_index_of(&menu, "Examine @lre@ Fixture");
+        int const use = menu_index_of(&menu, "Use @lre@ Fixture");
+        int const drop = menu_index_of(&menu, "Drop @lre@ Fixture");
+        int const wear = menu_index_of(&menu, "Wear @lre@ Fixture");
+        /* Options draw in reverse insertion order. Official method5229 inserts
+         * the target before slot 6 while walking 9 -> 0, yielding the visible
+         * order Wear, Drop, Use, Examine. */
+        TEST_ASSERT(
+            examine >= 0 && examine < use && use < drop && drop < wear,
+            "target priority places visible Use between Drop and Examine");
+        TEST_ASSERT(
+            menu.options[examine].action > 1000 && menu.options[drop].action < 1000,
+            "operations above target priority are deprioritized like method5229");
+    }
 
     UITree_Free(tree);
     CacheProvider_FreeEngineCaches(&provider);

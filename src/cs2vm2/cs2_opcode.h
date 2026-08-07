@@ -1511,10 +1511,12 @@
 #define CS2_OP_IF_GETTOP 2706
 #define CS2_OP_IF_GETTARGETMASK 2800
 /* IF_GETOP — Get op text.
- * int stack in:   component, op_index  (op_index = top)
+ * int stack in:   op_index, component  (component = top)
  * str stack in:   -
  * int stack out:  -
  * str stack out:  op text
+ * notes: the explicit component is popped before the one-based op index,
+ * matching the revision-239 gamepack handler.
  */
 #define CS2_OP_IF_GETOP 2801
 /* IF_GETOPBASE — Get op base text.

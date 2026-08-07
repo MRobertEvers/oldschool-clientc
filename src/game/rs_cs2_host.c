@@ -5251,6 +5251,17 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.if_get_width.component_id);
         return CS2VM2_PushInt(vm, node && node->behavior.hide ? 1 : 0);
 
+    case CS2VM_HOST_REQUEST_IF_GETOP:
+    case CS2VM_HOST_REQUEST_CC_GETOP:
+    {
+        char const* op = "";
+        int const op_index = request->u.widget_get_op.op_index - 1;
+        node = rs_cs2_node(host, request->u.widget_get_op.component_id);
+        if( node && op_index >= 0 && op_index < UITREE_MENU_OPTION_SLOTS )
+            op = node->menu_options.ops[op_index];
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, op));
+    }
+
     case CS2VM_HOST_REQUEST_IF_HASSUB:
     {
         /* A component "has a sub" when an interface group is mounted into it
