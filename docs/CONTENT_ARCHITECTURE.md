@@ -200,6 +200,17 @@ which is the whole reason `docs/mock230_content.md` §4 can be trusted — did n
 `param.pack`'s header is the single most load-bearing comment in the tree: it is
 the record of which param-id claims were checked against a cache and how.
 
+Interface member indices have the same preservation rule. An
+`interfaces/<group>.compack` is the namespace for ServerScript's
+`group:component` references, not disposable presentation metadata. In
+particular, a cache-generated numeric child name (such as `6=0`) cannot be
+written in that syntax: the right-hand side lexes as a literal. The 2026-08-07
+pristine-239 import reset the authored `combat_interface:style_slot_*` and
+`barrows_puzzle:puzzle_q*` aliases, which stopped the complete server script
+pack compiling before the embedded client could start. Any unpack/import path
+must merge existing member names, and validation must compile the script pack
+afterward.
+
 ### 3.3 The "invented" server param ids are not invented
 
 `configs/all.param.compack` states:
