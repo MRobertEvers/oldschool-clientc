@@ -10411,9 +10411,51 @@ mock230_world_selftest(void)
                  * Hans's five options are the authoritative rev-239 menu.
                  */
                 {
-                    int idx = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    static const uint8_t choice_position[] = {
+                        /* y=-13 g2Alt3, uid=219:1 g4Alt2, x=0 g2Alt3. */
+                        0x73, 0xff, 0x00, 0x01, 0x00, 0xdb, 0x80, 0x00,
+                    };
+                    int opensub_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENSUB);
+                    int position_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_SETPOSITION);
+                    int run_opcode =
+                        mock230_wire_opcode(srv.wire, PKT_NAME_RUNCLIENTSCRIPT);
+                    int opensub_at = mock230_capture_find(&capture, opensub_opcode, 0);
+                    int position_at =
+                        mock230_capture_find(&capture, position_opcode, 0);
+                    int idx = mock230_capture_find(&capture, run_opcode, 0);
 
                     SELFTEST_CHECK(idx >= 0, "the choice should send RUNCLIENTSCRIPT");
+                    if( strcmp(srv.wire->name, "osrs239") == 0 )
+                    {
+                        SELFTEST_CHECK(
+                            opensub_at >= 0 && position_at > opensub_at &&
+                                idx > position_at,
+                            "choice lifecycle must mount, place, then populate "
+                            "chatmenu (IF_OPENSUB %d, IF_SETPOSITION %d, "
+                            "RUNCLIENTSCRIPT %d)",
+                            opensub_at,
+                            position_at,
+                            idx);
+                    }
+                    SELFTEST_CHECK(
+                        rows_uid == 0x00db0001,
+                        "chatmenu:options must retain literal rev-239 uid 219:1, got 0x%x",
+                        rows_uid);
+                    if( position_at >= 0 && strcmp(srv.wire->name, "osrs239") == 0 )
+                    {
+                        const struct Mock230CapturedPacket* position =
+                            &capture.packets[position_at];
+
+                        SELFTEST_CHECK(
+                            position->len == (int)sizeof(choice_position) &&
+                                memcmp(position->data, choice_position,
+                                       sizeof(choice_position)) == 0,
+                            "choice IF_SETPOSITION must be literal rev-239 "
+                            "chatmenu:options (0,-13), got %d byte(s)",
+                            position->len);
+                    }
                     if( idx >= 0 )
                     {
                         /*
@@ -14070,6 +14112,10 @@ mock230_world_selftest(void)
         {
             int com_mode = mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
             int sa_energy = mock230_content_symbol(MOCK230_PACK_VARP, "sa_energy");
+            int player_attack_priority =
+                mock230_content_symbol(MOCK230_PACK_VARP, "option_attackpriority");
+            int npc_attack_priority =
+                mock230_content_symbol(MOCK230_PACK_VARP, "option_attackpriority_npc");
 
             player->login_pending = 1;
             mock230_capture_begin(&srv, &capture);
@@ -14094,6 +14140,47 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_world_attack_style(&srv) == MOCK230_STYLE_ACCURATE,
                            "the opening attack style should be accurate, got %d",
                            mock230_world_attack_style(&srv));
+
+            /*
+             * The golden rev-239 client resets both derived AttackOption
+             * fields to Hidden.  Its varp table is zero, but it does not run
+             * clientcode 18/22 until a VARP packet names the setting.  Thus
+             * login must send even the default value zero.  Assert the literal
+             * VarpSmallEncoder bodies: p1Alt1(0), p2Alt3(varp).
+             */
+            if( strcmp(srv.wire->name, "osrs239") == 0 )
+            {
+                static const uint8_t player_depends[] = { 0x80, 0xd3, 0x04 };
+                static const uint8_t npc_depends[] = { 0x80, 0x9a, 0x05 };
+                int varp_small =
+                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL);
+                int found_player = 0;
+                int found_npc = 0;
+
+                SELFTEST_CHECK(player_attack_priority == 1107,
+                               "option_attackpriority must retain rev-239 varp 1107, got %d",
+                               player_attack_priority);
+                SELFTEST_CHECK(npc_attack_priority == 1306,
+                               "option_attackpriority_npc must retain rev-239 varp 1306, got %d",
+                               npc_attack_priority);
+                for( int i = 0; i < capture.count; i++ )
+                {
+                    const struct Mock230CapturedPacket* pkt = &capture.packets[i];
+
+                    if( pkt->opcode != varp_small || pkt->len != 3 )
+                        continue;
+                    if( memcmp(pkt->data, player_depends, sizeof(player_depends)) == 0 )
+                        found_player = 1;
+                    if( memcmp(pkt->data, npc_depends, sizeof(npc_depends)) == 0 )
+                        found_npc = 1;
+                }
+                SELFTEST_CHECK(
+                    found_player,
+                    "[login] must transmit default player AttackOption body 80 d3 04");
+                SELFTEST_CHECK(
+                    found_npc,
+                    "[login] must transmit default NPC AttackOption body 80 9a 05");
+            }
 
             /* An undeclared varp is server-only. The mock's own counters have
              * no .varp config, so nothing they do reaches the client. */
