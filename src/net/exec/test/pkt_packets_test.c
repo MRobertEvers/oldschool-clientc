@@ -62,19 +62,41 @@ test_each_version_writes_its_own_bytes(void)
     RsprotExec x;
     RsprotBuf buf;
 
-    /* v6, rev 227-230: p2Alt1 = little endian. */
+    /* v1, revs 221/225/236: p2 = big endian. */
     rsprot_buf_wrap(&buf, g_bytes, sizeof(g_bytes));
     rsprot_exec_encode(&x, &buf);
-    packet_if_opentop_v6_out(&x, &m);
+    packet_if_opentop_v1_out(&x, &m);
+    CHECK(rsprot_exec_ok(&x));
+    CHECK_EQ(buf.wpos, 2);
+    CHECK_EQ(g_bytes[0], 0x12);
+    CHECK_EQ(g_bytes[1], 0x34);
+
+    /* v2, revs 222/226/235/238: p2Alt3 = little endian, low byte + 128. */
+    rsprot_buf_wrap(&buf, g_bytes, sizeof(g_bytes));
+    rsprot_exec_encode(&x, &buf);
+    packet_if_opentop_v2_out(&x, &m);
+    CHECK(rsprot_exec_ok(&x));
+    CHECK_EQ(buf.wpos, 2);
+    CHECK_EQ(g_bytes[0], (0x34 + 128) & 0xff);
+    CHECK_EQ(g_bytes[1], 0x12);
+
+    /* v3, revs 227-230 among others: p2Alt1 = little endian. */
+    rsprot_buf_wrap(&buf, g_bytes, sizeof(g_bytes));
+    rsprot_exec_encode(&x, &buf);
+    packet_if_opentop_v3_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(buf.wpos, 2);
     CHECK_EQ(g_bytes[0], 0x34);
     CHECK_EQ(g_bytes[1], 0x12);
 
-    /* v13, rev 239: p2Alt2 = [hi, lo + 128]. Same two bytes, different two bytes. */
+    /* v4, revs 231/239: p2Alt2 = [hi, lo + 128].
+     *
+     * Four layouts, two bytes each, four different byte patterns. Only the
+     * pattern separates them — every one round-trips through itself perfectly
+     * and every one passes a length check. */
     rsprot_buf_wrap(&buf, g_bytes, sizeof(g_bytes));
     rsprot_exec_encode(&x, &buf);
-    packet_if_opentop_v13_out(&x, &m);
+    packet_if_opentop_v4_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(buf.wpos, 2);
     CHECK_EQ(g_bytes[0], 0x12);
@@ -94,11 +116,11 @@ test_one_function_runs_both_directions(void)
 
     rsprot_buf_wrap(&buf, g_bytes, sizeof(g_bytes));
     rsprot_exec_encode(&x, &buf);
-    packet_if_opentop_v13_out(&x, &sent);
+    packet_if_opentop_v4_out(&x, &sent);
 
     rsprot_buf_wrap_read(&buf, g_bytes, buf.wpos);
     rsprot_exec_decode(&x, &buf);
-    packet_if_opentop_v13_out(&x, &got);
+    packet_if_opentop_v4_out(&x, &got);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(got.interface_id, sent.interface_id);
     CHECK_EQ(buf.rpos, 2); /* consumed exactly the packet */
@@ -108,32 +130,88 @@ test_one_function_runs_both_directions(void)
 static void
 test_aliases_resolve_to_versions(void)
 {
-    CHECK(packet_if_opentop_rev227_out == packet_if_opentop_v6_out);
-    CHECK(packet_if_opentop_rev230_out == packet_if_opentop_v6_out);
-    CHECK(packet_if_opentop_rev239_out == packet_if_opentop_v13_out);
+    CHECK(packet_if_opentop_rev227_out == packet_if_opentop_v3_out);
+    CHECK(packet_if_opentop_rev230_out == packet_if_opentop_v3_out);
+    CHECK(packet_if_opentop_rev239_out == packet_if_opentop_v4_out);
+
+    /* A layout that goes away and comes back gets its ORIGINAL number, which
+     * is the whole reason numbers are content-hashed rather than incremented:
+     * 236 is p2 again, eleven revisions after 225. */
+    CHECK(packet_if_opentop_rev221_out == packet_if_opentop_v1_out);
+    CHECK(packet_if_opentop_rev225_out == packet_if_opentop_v1_out);
+    CHECK(packet_if_opentop_rev236_out == packet_if_opentop_v1_out);
+
+    /* Adjacent revisions are not evidence of a shared layout: 230 and 231
+     * differ, and 231 matches 239 instead. */
+    CHECK(packet_if_opentop_rev231_out != packet_if_opentop_rev230_out);
+    CHECK(packet_if_opentop_rev231_out == packet_if_opentop_rev239_out);
 }
 
 /**
- * The range table picks by revision — and answers NULL in the gap.
+ * The range table picks by revision, over every vendored revision.
  *
- * Revisions 231-238 have their own layouts (v7..v12) that this build does not
- * carry. NULL is a real answer the caller reports once; falling back to a
- * neighbouring revision's bytes would frame cleanly and mean something else,
- * which is the failure the whole design exists to remove.
+ * The table is COMPLETE across 221-239, so NULL means exactly one thing: a
+ * revision outside the vendored range. An earlier version of this file carried
+ * only two rows and asserted that 235 was "in a gap this build does not
+ * speak" — 235 is a real layout (p2Alt3, ledger v2), and the assertion passed
+ * only because the table was missing it. A NULL that means "not transcribed
+ * yet" and a NULL that means "no such revision" have to be distinguishable, or
+ * the refusal stops being informative.
  */
 static void
-test_range_table_picks_and_refuses(void)
+test_range_table_covers_every_revision(void)
 {
     const RsprotVersionRange *r = rsprot_if_opentop_out;
     const int n = rsprot_if_opentop_out_count;
 
-    CHECK(rsprot_version_pick(r, n, 227) == (RsprotCodecFn)packet_if_opentop_v6_out);
-    CHECK(rsprot_version_pick(r, n, 230) == (RsprotCodecFn)packet_if_opentop_v6_out);
-    CHECK(rsprot_version_pick(r, n, 239) == (RsprotCodecFn)packet_if_opentop_v13_out);
+    CHECK_EQ(n, 13); /* 13 runs over 4 layouts */
 
-    CHECK(rsprot_version_pick(r, n, 235) == NULL); /* in the gap */
-    CHECK(rsprot_version_pick(r, n, 221) == NULL); /* before the first range */
+    for (int rev = 221; rev <= 239; rev++)
+        CHECK(rsprot_version_pick(r, n, rev) != NULL);
+
+    CHECK(rsprot_version_pick(r, n, 227) == (RsprotCodecFn)packet_if_opentop_v3_out);
+    CHECK(rsprot_version_pick(r, n, 230) == (RsprotCodecFn)packet_if_opentop_v3_out);
+    CHECK(rsprot_version_pick(r, n, 231) == (RsprotCodecFn)packet_if_opentop_v4_out);
+    CHECK(rsprot_version_pick(r, n, 235) == (RsprotCodecFn)packet_if_opentop_v2_out);
+    CHECK(rsprot_version_pick(r, n, 239) == (RsprotCodecFn)packet_if_opentop_v4_out);
+
+    CHECK(rsprot_version_pick(r, n, 220) == NULL); /* before the first range */
     CHECK(rsprot_version_pick(r, n, 240) == NULL); /* after the last */
+}
+
+/**
+ * Every alias agrees with the range table.
+ *
+ * Two hand-maintained lists state the same fact — the aliases in the header and
+ * the rows in the .c — and this is the check that they cannot drift. Worth
+ * having because the generator will emit both from one source and a bug there
+ * would produce two self-consistent-looking lists that disagree.
+ */
+static void
+test_aliases_agree_with_range_table(void)
+{
+    static const RsprotCodecFn by_rev[] = {
+        (RsprotCodecFn)packet_if_opentop_rev221_out, (RsprotCodecFn)packet_if_opentop_rev222_out,
+        (RsprotCodecFn)packet_if_opentop_rev223_out, (RsprotCodecFn)packet_if_opentop_rev224_out,
+        (RsprotCodecFn)packet_if_opentop_rev225_out, (RsprotCodecFn)packet_if_opentop_rev226_out,
+        (RsprotCodecFn)packet_if_opentop_rev227_out, (RsprotCodecFn)packet_if_opentop_rev228_out,
+        (RsprotCodecFn)packet_if_opentop_rev229_out, (RsprotCodecFn)packet_if_opentop_rev230_out,
+        (RsprotCodecFn)packet_if_opentop_rev231_out, (RsprotCodecFn)packet_if_opentop_rev232_out,
+        (RsprotCodecFn)packet_if_opentop_rev233_out, (RsprotCodecFn)packet_if_opentop_rev234_out,
+        (RsprotCodecFn)packet_if_opentop_rev235_out, (RsprotCodecFn)packet_if_opentop_rev236_out,
+        (RsprotCodecFn)packet_if_opentop_rev237_out, (RsprotCodecFn)packet_if_opentop_rev238_out,
+        (RsprotCodecFn)packet_if_opentop_rev239_out,
+    };
+
+    for (int i = 0; i < (int)(sizeof(by_rev) / sizeof(by_rev[0])); i++) {
+        int rev = 221 + i;
+        RsprotCodecFn picked =
+            rsprot_version_pick(rsprot_if_opentop_out, rsprot_if_opentop_out_count, rev);
+        if (picked != by_rev[i]) {
+            printf("FAIL rev %d: alias and range table disagree\n", rev);
+            g_failures++;
+        }
+    }
 }
 
 /**
@@ -148,7 +226,7 @@ test_describe_distinguishes_the_versions(void)
     RsprotSchema s;
 
     rsprot_exec_describe(&x, &s);
-    packet_if_opentop_v6_out(&x, &m);
+    packet_if_opentop_v3_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(s.count, 1);
     CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT1);
@@ -158,14 +236,23 @@ test_describe_distinguishes_the_versions(void)
     CHECK_EQ(rsprot_schema_fixed_size(&s), 2);
 
     rsprot_exec_describe(&x, &s);
-    packet_if_opentop_v13_out(&x, &m);
+    packet_if_opentop_v4_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(s.count, 1);
     CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT2);
     CHECK_EQ(rsprot_schema_fixed_size(&s), 2);
 
-    /* Same size, same field, different primitive — the diff a length check
-     * cannot see. */
+    /* All four layouts: same size, same field name, four different primitives
+     * — the diff a length check cannot see. */
+    CHECK_EQ(rsprot_schema_fixed_size(&s), 2);
+
+    rsprot_exec_describe(&x, &s);
+    packet_if_opentop_v1_out(&x, &m);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2);
+
+    rsprot_exec_describe(&x, &s);
+    packet_if_opentop_v2_out(&x, &m);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT3);
 }
 
 int
@@ -176,7 +263,8 @@ main(void)
     test_each_version_writes_its_own_bytes();
     test_one_function_runs_both_directions();
     test_aliases_resolve_to_versions();
-    test_range_table_picks_and_refuses();
+    test_range_table_covers_every_revision();
+    test_aliases_agree_with_range_table();
     test_describe_distinguishes_the_versions();
 
     if (g_failures) {

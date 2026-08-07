@@ -19,24 +19,35 @@
  *
  * ## Why the version, and not the revision, is the unit
  *
- * Measured over RSProt's 19 vendored revision modules (221-239), 238 encoder
- * classes: **119 never change layout at all**, and 207 have contiguous version
- * runs. Organising by revision would copy those 119 layouts nineteen times.
+ * Measured over RSProt's 19 vendored revision modules (221-239), 423 codec
+ * classes: **198 never change layout at all**, and 348 have every layout in a
+ * single contiguous run. Organising by revision would copy those 198 layouts
+ * nineteen times. (Counts from gen/packet_versions.txt's SUMMARY block.)
  *
- * IF_OPENTOP is at the other end of that distribution — it has **13 distinct
- * layouts across 13 years of revisions** while keeping one class name the whole
- * way. Which is the second reason versions are content-keyed rather than
- * name-keyed: RSProt's own `V2` suffix does not track layout changes.
- * `IfOpenTopEncoder` is called that at revision 221 and at 239 and means
- * different bytes at each.
+ * IF_OPENTOP is at the other end of that distribution — and is the reason the
+ * distinction between a *run* and a *layout* has to be made precisely:
+ *
+ *     13 contiguous revision runs
+ *      4 distinct layouts
+ *
+ * It cycles p2 / p2Alt3 / p2Alt1 / p2Alt2 and revisits each of them, so the
+ * naive "one row per run" scheme would emit thirteen codec bodies for four
+ * layouts, and "increment the version on every change" would hand the same
+ * bytes four different numbers.
  *
  * ## Version numbers are allocated, never derived
  *
- * v6 and v13 are this layout's identity, not its ordinal in this file. They are
- * assigned by content hash and recorded append-only in gen/packet_versions.txt.
- * 31 packet classes have a layout that disappears and later reappears, so
- * "increment on change" would give the same bytes two different numbers; and a
- * number that silently renumbers is a number that silently mismatches.
+ * v1..v4 below are this layout's identity, not its ordinal in this file. They
+ * are assigned by content hash and recorded append-only in
+ * gen/packet_versions.txt, which is the authority — this file transcribes that
+ * file's numbers and must never invent its own. 31 packet classes have a layout
+ * that disappears and later reappears (IF_OPENTOP is one: v1 is used at 221,
+ * 225 and again at 236), so a number that silently renumbers is a number that
+ * silently mismatches.
+ *
+ * To check a row here against the authority:
+ *
+ *     grep IfOpenTopEncoder 3rd/rsprot/gen/packet_versions.txt
  *
  * ## What is deliberately NOT here
  *
@@ -61,16 +72,23 @@ typedef struct MsgIfOpenTop
     int32_t interface_id;
 } MsgIfOpenTop;
 
-/* v6  — rev 227-230.  IfOpenTopEncoder: p2Alt1(interfaceId) */
-void packet_if_opentop_v6_out(RsprotExec *x, MsgIfOpenTop *m);
+/*
+ * The four layouts. Every one is two bytes, and every one is a *different* two
+ * bytes — which is the shape of bug that costs days: the packet frames
+ * perfectly, passes every length assert, and opens a different interface.
+ * Under a per-revision layout they would live in four files and could disagree;
+ * here they are four lines apart.
+ */
 
-/* v13 — rev 239.      IfOpenTopEncoder: p2Alt2(interfaceId)
- *
- * Two bytes at both versions, and a different two bytes. This is the shape of
- * bug that costs days: the packet frames perfectly, passes every length assert,
- * and opens a different interface. Under the old design the two spellings lived
- * in two files and could disagree; here they are four lines apart. */
-void packet_if_opentop_v13_out(RsprotExec *x, MsgIfOpenTop *m);
+/* v1 — revs 221, 225, 236.            IfOpenTopEncoder: p2(interfaceId)     */
+void packet_if_opentop_v1_out(RsprotExec *x, MsgIfOpenTop *m);
+/* v2 — revs 222, 226, 235, 238.       IfOpenTopEncoder: p2Alt3(interfaceId) */
+void packet_if_opentop_v2_out(RsprotExec *x, MsgIfOpenTop *m);
+/* v3 — revs 223-224, 227-230,
+ *             232-234, 237.           IfOpenTopEncoder: p2Alt1(interfaceId) */
+void packet_if_opentop_v3_out(RsprotExec *x, MsgIfOpenTop *m);
+/* v4 — revs 231, 239.                 IfOpenTopEncoder: p2Alt2(interfaceId) */
+void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
 
 /*
  * The per-revision aliases.
@@ -78,15 +96,34 @@ void packet_if_opentop_v13_out(RsprotExec *x, MsgIfOpenTop *m);
  * `packet_if_opentop_rev239_out` is greppable, which is the point — "what does
  * 239 do for IF_OPENTOP" is answerable without reading a table. They are
  * aliases and not wrappers so there is exactly one function per layout.
+ *
+ * Every vendored revision gets a row. A revision with no row would be
+ * indistinguishable from a revision this packet does not exist in, and those
+ * are different facts.
  */
-#define packet_if_opentop_rev227_out packet_if_opentop_v6_out
-#define packet_if_opentop_rev228_out packet_if_opentop_v6_out
-#define packet_if_opentop_rev229_out packet_if_opentop_v6_out
-#define packet_if_opentop_rev230_out packet_if_opentop_v6_out
-#define packet_if_opentop_rev239_out packet_if_opentop_v13_out
+#define packet_if_opentop_rev221_out packet_if_opentop_v1_out
+#define packet_if_opentop_rev222_out packet_if_opentop_v2_out
+#define packet_if_opentop_rev223_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev224_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev225_out packet_if_opentop_v1_out
+#define packet_if_opentop_rev226_out packet_if_opentop_v2_out
+#define packet_if_opentop_rev227_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev228_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev229_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev230_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev231_out packet_if_opentop_v4_out
+#define packet_if_opentop_rev232_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev233_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev234_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev235_out packet_if_opentop_v2_out
+#define packet_if_opentop_rev236_out packet_if_opentop_v1_out
+#define packet_if_opentop_rev237_out packet_if_opentop_v3_out
+#define packet_if_opentop_rev238_out packet_if_opentop_v2_out
+#define packet_if_opentop_rev239_out packet_if_opentop_v4_out
 
-/** Ranges, because 207 of 238 packet classes have contiguous version runs —
- *  most of these tables are two or three rows. */
+/** Ranges, because 348 of 423 codec classes have every layout in one
+ *  contiguous run — most of these tables are a single row. This packet is the
+ *  worst case in the tree at thirteen. */
 extern const RsprotVersionRange rsprot_if_opentop_out[];
 extern const int rsprot_if_opentop_out_count;
 

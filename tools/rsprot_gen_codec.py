@@ -739,39 +739,56 @@ def split_args(text):
 # --- wire function -> C function/type table -----------------------------------
 
 def _build_fn_table():
+    """Kotlin buffer call -> (RSPROT_* macro, C field type).
+
+    The mapping is DIRECTION-FREE, which is the whole point of the codec shape
+    this generator now targets: `p2Alt1` and `g2Alt1` both become
+    `RSPROT_U2_ALT1`, and the executor decides at runtime whether that moves
+    bytes out of the field or into it. A packet therefore has ONE transcription
+    rather than a writer and a reader that can disagree -- the failure recorded
+    in docs/RSPROT_OSRS239_PORT.md §5a, where three of the first six
+    hand-transcribed writers were wrong.
+
+    A Kotlin call with no row here raises Unsupported, so its file is SKIPPED
+    and logged rather than guessed. The macro set is the measured one in
+    include/rsprot_exec.h's RSPROT_PRIM_LIST: every p*/g* appearing in RSProt's
+    complete revision-239 desktop codec set. Calls deliberately absent from it
+    (pSmart1or2extended, pMidiVarLen, pType, the float/double widths) are absent
+    here too -- a row nobody calls is a row nobody has checked.
+    """
     t = {}
-    for w in (1, 2, 3, 4):
-        for alt, asuf in (("", ""), ("Alt1", "_alt1"), ("Alt2", "_alt2"), ("Alt3", "_alt3")):
-            t[f"p{w}{alt}"] = (f"rsprot_p{w}{asuf}", "int32_t")
-            t[f"g{w}{alt}"] = (f"rsprot_g{w}{asuf}", "int32_t")
-            if w <= 3:
-                t[f"g{w}s{alt}"] = (f"rsprot_g{w}s{asuf}", "int32_t")
-    t["p8"] = ("rsprot_p8", "int64_t")
-    t["g8"] = ("rsprot_g8", "int64_t")
-    t["p4f"] = ("rsprot_p4f", "float")
-    t["g4f"] = ("rsprot_g4f", "float")
-    t["p8d"] = ("rsprot_p8d", "double")
-    t["g8d"] = ("rsprot_g8d", "double")
-    t["pboolean"] = ("rsprot_pboolean", "bool")
-    t["gboolean"] = ("rsprot_gboolean", "bool")
-    for kt in ("pjstr", "gjstr", "pjstrnull", "gjstrnull", "pjstr2", "gjstr2"):
-        t[kt] = (f"rsprot_{kt}", "const char *")
-    for kt, c in (
-        ("pSmart1or2", "psmart1or2"), ("gSmart1or2", "gsmart1or2"),
-        ("pSmart1or2s", "psmart1or2s"), ("gSmart1or2s", "gsmart1or2s"),
-        ("pSmart1or2null", "psmart1or2null"), ("gSmart1or2null", "gsmart1or2null"),
-        ("pSmart1or2extended", "psmart1or2extended"), ("gSmart1or2extended", "gsmart1or2extended"),
-        ("pSmart2or4", "psmart2or4"), ("gSmart2or4", "gsmart2or4"),
-        ("pSmart2or4null", "psmart2or4null"), ("gSmart2or4null", "gsmart2or4null"),
-        ("pMidiVarLen", "pmidivarlen"), ("gMidiVarLen", "gmidivarlen"),
-        ("pVarInt2", "pvarint2"), ("gVarInt2", "gvarint2"),
-        ("pVarInt2s", "pvarint2s"), ("gVarInt2s", "gvarint2s"),
-        ("pType", "ptype"), ("gType", "gtype"),
+    for w, prim in ((1, "U1"), (2, "U2"), (3, "U3"), (4, "U4")):
+        for alt, asuf in (("", ""), ("Alt1", "_ALT1"), ("Alt2", "_ALT2"), ("Alt3", "_ALT3")):
+            t[f"p{w}{alt}"] = (f"RSPROT_{prim}{asuf}", "int32_t")
+            t[f"g{w}{alt}"] = (f"RSPROT_{prim}{asuf}", "int32_t")
+    # Signed reads. Only the widths rsprot_exec models: there is no I3/I4 row,
+    # so g3s/g4s fall through to Unsupported rather than silently widening.
+    t["g1s"] = ("RSPROT_I1", "int32_t")
+    t["g2s"] = ("RSPROT_I2", "int32_t")
+    t["p8"] = ("RSPROT_U8", "int64_t")
+    t["g8"] = ("RSPROT_U8", "int64_t")
+    # int32_t, not bool: RSPROT_BOOL resolves to rsprot_x_boolean, which takes
+    # an int32_t* like every other primitive. A `bool` field would be a
+    # different-width pointer and is a type error, not a style choice.
+    t["pboolean"] = ("RSPROT_BOOL", "int32_t")
+    t["gboolean"] = ("RSPROT_BOOL", "int32_t")
+    for kt, macro in (
+        ("pjstr", "RSPROT_JSTR"), ("gjstr", "RSPROT_JSTR"),
+        ("pjstrnull", "RSPROT_JSTRNULL"), ("gjstrnull", "RSPROT_JSTRNULL"),
+        ("pjstr2", "RSPROT_JSTR2"), ("gjstr2", "RSPROT_JSTR2"),
     ):
-        t[kt] = (f"rsprot_{c}", "int32_t")
-    for alt, asuf in (("", ""), ("Alt1", "_alt1"), ("Alt2", "_alt2"), ("Alt3", "_alt3")):
-        t[f"pCombinedId{alt}"] = (f"rsprot_pcombined_id{asuf}", "int32_t")
-        t[f"gCombinedId{alt}"] = (f"rsprot_gcombined_id{asuf}", "int32_t")
+        t[kt] = (macro, "const char *")
+    for kt, macro in (
+        ("pSmart1or2", "RSPROT_SMART"), ("gSmart1or2", "RSPROT_SMART"),
+        ("pSmart1or2null", "RSPROT_SMARTNULL"), ("gSmart1or2null", "RSPROT_SMARTNULL"),
+        ("pSmart2or4null", "RSPROT_SMART2OR4NULL"), ("gSmart2or4null", "RSPROT_SMART2OR4NULL"),
+        ("pVarInt2", "RSPROT_VARINT2"), ("gVarInt2", "RSPROT_VARINT2"),
+        ("pVarInt2s", "RSPROT_VARINT2S"), ("gVarInt2s", "RSPROT_VARINT2S"),
+    ):
+        t[kt] = (macro, "int32_t")
+    for alt, asuf in (("", ""), ("Alt1", "_ALT1"), ("Alt2", "_ALT2"), ("Alt3", "_ALT3")):
+        t[f"pCombinedId{alt}"] = (f"RSPROT_COM{asuf}", "int32_t")
+        t[f"gCombinedId{alt}"] = (f"RSPROT_COM{asuf}", "int32_t")
     return t
 
 
@@ -807,8 +824,23 @@ class Scope:
         return name
 
 
+_CAMEL_BOUNDARY_1 = re.compile(r"(.)([A-Z][a-z]+)")
+_CAMEL_BOUNDARY_2 = re.compile(r"([a-z0-9])([A-Z])")
+
+
 def c_escape_ident(name):
-    return re.sub(r"[^A-Za-z0-9_]", "_", name)
+    """Kotlin identifier -> C identifier, camelCase folded to snake_case.
+
+    `interfaceId` -> `interface_id`. Cosmetic on its face, but these names are
+    what DESCRIBE prints and what every hand-written call site spells, so they
+    are read far more often than they are generated -- and a struct that mixes
+    Kotlin casing with this tree's snake_case reads as two half-ported things.
+    Run-of-capitals stay together: `objIdOrNpcID` -> `obj_id_or_npc_id`.
+    """
+    s = re.sub(r"[^A-Za-z0-9_]", "_", name)
+    s = _CAMEL_BOUNDARY_1.sub(r"\1_\2", s)
+    s = _CAMEL_BOUNDARY_2.sub(r"\1_\2", s)
+    return re.sub(r"__+", "_", s).lower()
 
 
 def lower_first(s):
@@ -884,7 +916,36 @@ def resolve_path(ast, scope):
 
 
 def flatten_field_name(path):
-    return "_".join(c_escape_ident(p) for p in path)
+    """Path segments -> one C field name, collapsing value-class unwrapping.
+
+    RSProt models a component address as a `CombinedId` value class whose only
+    property is also called `combinedId`, and the revisions disagree about how
+    much of it to spell:
+
+        rev 221   buffer.p4(message.combinedId.combinedId)
+        rev 239   buffer.pCombinedId(message.combinedId)
+
+    Those are the same four bytes -- rsprot_exec.h states that pCombinedId IS
+    p4 -- but the naive join gives `combined_id_combined_id` for one and
+    `combined_id` for the other, so one packet ends up with two struct fields
+    for one wire field and each version writes only its own. The wrapper is not
+    always spelled the same as its property, either:
+
+        message.destinationCombinedId.combinedId   ->  ..._combined_id_combined_id
+
+    So a trailing segment collapses when the segment before it already ENDS
+    with that name. Narrow on purpose -- it is a suffix match against the
+    immediately preceding segment only, so `message.base.colour` and
+    `message.player.name` are untouched, and a field genuinely named `x.x`
+    would collapse but does not exist in the vendored tree.
+    """
+    segs = [c_escape_ident(p) for p in path]
+    out = []
+    for s in segs:
+        if out and (out[-1] == s or out[-1].endswith("_" + s)):
+            continue
+        out.append(s)
+    return "_".join(out)
 
 
 def emit_expr(ast, scope, ctx):
@@ -1043,8 +1104,16 @@ def scope_for_owner(scope, owner_expr):
 
 
 def struct_ptr_expr(target_scope, ctx):
+    """The message pointer, which is `m` in BOTH directions.
+
+    The old shape had `msg` for encoders and `out` for decoders because the
+    parameter was const one way and not the other. A codec that runs in four
+    directions cannot be const in any of them, so there is one name -- and the
+    generated body for an Encoder.kt and a Decoder.kt now differ only in the
+    order fields appear, never in their spelling.
+    """
     if target_scope.parent is None:
-        return "out" if ctx == "decode" else "msg"
+        return "m"
     return "elem"
 
 
@@ -1095,6 +1164,28 @@ def leaf_string_fn(fn_kt):
     return fn_kt.startswith(("pjstr", "gjstr"))
 
 
+# A field reference the RSPROT_* macros can take the address of: `m->field`,
+# `elem->field`, either one subscripted, and nothing else. Deliberately a
+# whitelist -- `m->a + 1` and `(int32_t)m->a` are both perfectly good C
+# expressions that are not addressable, and admitting either would produce a
+# codec that encodes correctly and reads into a temporary while decoding.
+_LVALUE_RE = re.compile(r"^(?:m|elem)->[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]*\])?$")
+
+
+def _is_lvalue_c(expr_c):
+    return bool(_LVALUE_RE.match(expr_c))
+
+
+# An integer literal, decimal or hex, optionally negated. Not a general
+# constant-folder: `1 + 1` is arithmetic that happens to be constant, and
+# admitting it would start down the road of evaluating Kotlin in the generator.
+_INT_LITERAL_RE = re.compile(r"^-?(?:0[xX][0-9a-fA-F]+|\d+)$")
+
+
+def _is_int_literal_c(expr_c):
+    return bool(_INT_LITERAL_RE.match(expr_c.strip()))
+
+
 # --- IR -> C statement emission ------------------------------------------------
 
 class Emitter:
@@ -1104,9 +1195,17 @@ class Emitter:
         self.lines = []
         self.tmp_i = 0
         self.decl_locals = []  # (ctype, name) declared up front, C89-ish safety not required (C11 ok inline)
+        # C field expressions already moved, in order. This is what makes the
+        # branch rule checkable at generation time: a condition may only name
+        # something in here. Names are the emitted C ("m->type"), not the
+        # Kotlin, so an alias and its target compare equal.
+        self.transferred = set()
 
     def emit(self, s, indent=1):
         self.lines.append(("    " * indent) + s)
+
+    def mark_transferred(self, expr_c):
+        self.transferred.add(expr_c)
 
     def new_scope_field(self, scope, ast_or_name, kt_fn=None):
         pass  # kept for symmetry; fields are registered where referenced.
@@ -1122,41 +1221,57 @@ def gen_op(op, scope, em, indent, ctx):
 
     if kind == "write":
         fn_kt = op["fn"]
-        c_fn, ctype = wire_c_fn(fn_kt)
+        macro, ctype = wire_c_fn(fn_kt)
         expr_ast = op["expr"]
         # register the field if the expr is a direct field/member reference
         _pre_register(expr_ast, scope, ctype, ctx)
         expr_c = emit_expr(expr_ast, scope, ctx)
-        buf = "buf"
-        if leaf_string_fn(fn_kt):
-            em.emit(f"{c_fn}({buf}, {expr_c});", indent)
-        else:
-            em.emit(f"{c_fn}({buf}, {expr_c});", indent)
+        # The macro takes the field as an LVALUE -- it needs its address to be
+        # able to run in the decode direction, and it stringifies the same
+        # expression for DESCRIBE's field name. A write whose Kotlin argument
+        # is a computed expression rather than a plain field reference has no
+        # lvalue to hand it, so it is refused here instead of being emitted as
+        # something that would only work while encoding.
+        if not _is_lvalue_c(expr_c):
+            # A literal the layout pins (a format byte, a reserved zero) has no
+            # field behind it, but it IS a wire field. RSPROT_CONST carries it:
+            # written on encode, VERIFIED on decode. Anything else computed --
+            # `m->a + 1`, a shifted pack -- still has no honest reading and is
+            # refused, since only the encode direction could ever be right.
+            if _is_int_literal_c(expr_c):
+                if not macro.startswith("RSPROT_"):
+                    raise Unsupported(f"{fn_kt} constant on a non-primitive")
+                em.emit(f"RSPROT_CONST(x, {macro[len('RSPROT_'):]}, {expr_c});", indent)
+                return
+            raise Unsupported(
+                f"{fn_kt} writes a computed expression `{expr_c}`, which has no "
+                f"field to decode back into")
+        em.emit(f"{macro}(x, {expr_c});", indent)
+        em.mark_transferred(expr_c)
         return
 
     if kind == "read":
         fn_kt = op["fn"]
-        c_fn, ctype = wire_c_fn(fn_kt)
+        macro, ctype = wire_c_fn(fn_kt)
         name = c_escape_ident(op["name"])
         scope.add_field(name, ctype)
         scope.locals[op["name"]] = ("field", struct_ptr_expr(scope, ctx), name)
-        buf = "buf"
-        if leaf_string_fn(fn_kt):
-            em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = {c_fn}({buf}, NULL);", indent)
-        else:
-            cast = f"({ctype})" if ctype != "int32_t" else ""
-            em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = {cast}{c_fn}({buf});", indent)
+        # Identical to the `write` line above. That is the property worth
+        # noticing: a Decoder.kt and its matching Encoder.kt now generate the
+        # same C, so a layout can no longer be right in one direction and wrong
+        # in the other.
+        em.emit(f"{macro}(x, {struct_ptr_expr(scope, ctx)}->{name});", indent)
+        em.mark_transferred(f"{struct_ptr_expr(scope, ctx)}->{name}")
         return
 
     if kind == "readbool":
-        fn_kt = op["fn"]
-        c_fn, _ = wire_c_fn(fn_kt)
-        name = c_escape_ident(op["name"])
-        scope.add_field(name, "bool")
-        scope.locals[op["name"]] = ("field", struct_ptr_expr(scope, ctx), name)
-        tv = op["true_val"]
-        em.emit(f"{struct_ptr_expr(scope, ctx)}->{name} = ({c_fn}(buf) == {tv});", indent)
-        return
+        # `gX(buf) == N` -- a read whose value is compared to a constant. The
+        # comparison is not a wire operation, so the field stores the raw value
+        # and the predicate belongs to the caller. Refused rather than emitted:
+        # writing back a bool would encode 0/1 where the wire carries N.
+        raise Unsupported(
+            f"{op['fn']} compared to {op['true_val']} on read: the encode "
+            f"direction cannot reconstruct the original value from a bool")
 
     if kind == "local":
         # Restrict to the patterns declared safe in the module docstring:
@@ -1202,6 +1317,32 @@ def gen_op(op, scope, em, indent, ctx):
         return
 
     if kind == "if":
+        # The null-presence-flag idiom, rewritten into something decodable.
+        #
+        #   if (X != null) { p1(1); <write X> } else { p1(0) }
+        #
+        # is a wire layout with a flag BYTE in it, but RSProt writes that byte
+        # by testing the field -- which only an encoder can do. Decoding has to
+        # read the flag first and branch on THAT. So the flag becomes a real
+        # transferred field and the branch moves onto it. Same bytes, and now
+        # both directions can produce them.
+        rewritten = _try_null_flag_idiom(op, scope, em, indent, ctx)
+        if rewritten:
+            return
+
+        # THE ONE RULE (include/rsprot_exec.h): a codec may branch only on a
+        # field it has already transferred. A predicate over a field that has
+        # not been read yet works while encoding and reads uninitialised memory
+        # while decoding -- a packet that encodes correctly and decodes garbage,
+        # with nothing wrong at the frame level. Enforced here, at generation,
+        # rather than left for RSPROT_BRANCH to catch under DESCRIBE, because a
+        # generator that emits it has already shipped the bug.
+        untransferred = _cond_untransferred_fields(op["cond"], scope, em, ctx)
+        if untransferred:
+            raise Unsupported(
+                f"branches on {', '.join(sorted(untransferred))}, which "
+                f"{'has' if len(untransferred) == 1 else 'have'} not been transferred yet")
+
         cond_c = emit_cond(op["cond"], scope, ctx)
         em.emit(f"if ({cond_c}) {{", indent)
         gen_ops(op["then"], scope, em, indent + 1, ctx)
@@ -1280,6 +1421,80 @@ def gen_op(op, scope, em, indent, ctx):
         return
 
     raise Unsupported(f"unmodeled IR op: {kind}")
+
+
+def _collect_field_refs(ast, scope, ctx, out):
+    """Every `m->field` / `elem->field` a condition names, as emitted C."""
+    if not isinstance(ast, dict):
+        return
+    k = ast.get("kind")
+    if k in ("member", "ident"):
+        path = resolve_path(ast, scope)
+        if path is not None and path[1]:
+            owner, segs = path
+            out.add(f"{struct_ptr_expr(owner, ctx)}->{flatten_field_name(segs)}")
+            return
+    for key in ("recv", "val", "left", "right", "cond", "then", "else"):
+        v = ast.get(key)
+        if isinstance(v, dict):
+            _collect_field_refs(v, scope, ctx, out)
+    for v in ast.get("args") or []:
+        _collect_field_refs(v, scope, ctx, out)
+
+
+def _cond_untransferred_fields(cond_ast, scope, em, ctx):
+    refs = set()
+    _collect_field_refs(cond_ast, scope, ctx, refs)
+    # A count field is transferred by its own length prefix, which the array
+    # handling emits separately; not a branch-rule violation.
+    return {r for r in refs
+            if r not in em.transferred and not r.endswith("_count")}
+
+
+def _try_null_flag_idiom(op, scope, em, indent, ctx):
+    """`if (X != null) { pN(1); ... } else { pN(0) }` -> a transferred flag.
+
+    Returns True when it rewrote the branch. Deliberately narrow: the flag
+    constants must be exactly 1 and 0, and the then-branch must open with the
+    write. Anything else is left to the branch-rule check, which refuses it --
+    a looser match here would be this generator guessing at a layout.
+    """
+    cond = op.get("cond") or {}
+    if cond.get("kind") != "bin" or cond.get("op") != "!=":
+        return False
+    lhs, rhs = cond.get("left"), cond.get("right")
+    if not (isinstance(rhs, dict) and rhs.get("kind") == "null"):
+        return False
+    path = resolve_path(lhs, scope)
+    if path is None or not path[1]:
+        return False
+    owner, segs = path
+    field = flatten_field_name(segs)
+
+    then_ops, else_ops = op.get("then") or [], op.get("else") or []
+    if not then_ops or then_ops[0].get("op") != "write":
+        return False
+    w = then_ops[0]
+    if not (len(else_ops) == 1 and else_ops[0].get("op") == "write"):
+        return False
+    e = else_ops[0]
+    if w["fn"] != e["fn"]:
+        return False
+    if not (w["expr"].get("kind") == "num" and e["expr"].get("kind") == "num"):
+        return False
+    if w["expr"].get("text") != "1" or e["expr"].get("text") != "0":
+        return False
+
+    macro, _ctype = wire_c_fn(w["fn"])
+    flag = f"{field}_present"
+    owner.add_field(flag, "int32_t")
+    ptr = struct_ptr_expr(owner, ctx)
+    em.emit(f"{macro}(x, {ptr}->{flag});", indent)
+    em.mark_transferred(f"{ptr}->{flag}")
+    em.emit(f"if (RSPROT_BRANCH(x, {ptr}->{flag})) {{", indent)
+    gen_ops(then_ops[1:], scope, em, indent + 1, ctx)
+    em.emit("}", indent)
+    return True
 
 
 def emit_cond(ast, scope, ctx):
@@ -1440,35 +1655,26 @@ def build_message(info, msg_type, fn_suffix):
     em = Emitter(msg_type, ctx)
 
     if info.get("no_body"):
-        fn_name = f"rsprot_decode_{fn_suffix}" if info["is_decoder"] else f"rsprot_encode_{fn_suffix}"
-        struct_text = f"typedef struct {struct_c_name} {{\n\tint32_t _unused;\n}} {struct_c_name};"
-        if info["is_decoder"]:
-            fn_text = (
-                f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)\n"
-                f"{{\n\t(void)buf;\n\tout->_unused = 0;\n}}"
-            )
-        else:
-            fn_text = (
-                f"static inline void {fn_name}(RsprotBuf *buf, const {struct_c_name} *msg)\n"
-                f"{{\n\t(void)buf;\n\t(void)msg;\n}}"
-            )
-        return struct_text, fn_text, scope
+        # A zero-payload packet. Still a real codec -- the framing layer writes
+        # its opcode and a zero length -- so it gets a function like any other.
+        struct_text = (
+            f"typedef struct {struct_c_name} {{\n"
+            f"\t/* No payload at any version. The member exists because C has no\n"
+            f"\t * empty struct; nothing reads it. */\n"
+            f"\tint32_t _unused;\n"
+            f"}} {struct_c_name};"
+        )
+        return struct_text, "", scope
 
     chunks = split_top_level(info["body"])
     ops = parse_statements(chunks, info["is_decoder"])
     gen_ops(ops, scope, em, 1, ctx)
 
     struct_text = render_all_structs(scope, msg_type)
-
-    if info["is_decoder"]:
-        fn_name = f"rsprot_decode_{fn_suffix}"
-        sig = f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)"
-    else:
-        fn_name = f"rsprot_encode_{fn_suffix}"
-        sig = f"static inline void {fn_name}(RsprotBuf *buf, const {struct_c_name} *msg)"
+    # The body only; the caller wraps it in a per-version signature, because
+    # one message type has several layouts and each needs its own function.
     body_text = "\n".join(em.lines) if em.lines else ""
-    fn_text = f"{sig}\n{{\n{body_text}\n}}"
-    return struct_text, fn_text, scope
+    return struct_text, body_text, scope
 
 
 # --- driver --------------------------------------------------------------------
@@ -1554,121 +1760,498 @@ def process_dir(base_dir, label):
     return generated, skipped
 
 
-BANNER = """/*
- * GENERATED by tools/rsprot_gen_codec.py -- do not edit.
- * Source: RSProt revision {rev}, {count} message types.
- * See 3rd/rsprot/gen/codec_status_{rev}.txt for what was skipped and why.
- */"""
 
 
-def emit_header(path, guard, banner, includes, body_chunks):
-    lines = [f"#ifndef {guard}", f"#define {guard}", "", banner, ""]
-    for inc in includes:
-        lines.append(f'#include "{inc}"')
-    lines.append("")
-    for c in body_chunks:
-        lines.append(c)
-        lines.append("")
-    lines.append("#endif")
-    lines.append("")
+# --- the layout-version ledger -------------------------------------------------
+#
+# gen/packet_versions.txt is the AUTHORITY for version numbers. This generator
+# reads it and never allocates one: the ledger is append-only (see
+# tools/rsprot_version_ledger.py) precisely so that generated C, hand-written
+# call sites and tests can hard-code these numbers, and a generator that minted
+# its own would defeat that the first time a revision was vendored.
+#
+# Regenerate the ledger BEFORE running this tool if RSProt's source moved:
+#
+#     python3 tools/rsprot_version_ledger.py
+#     python3 tools/rsprot_gen_codec.py
+
+LEDGER_PATH = os.path.join(REPO_ROOT, "3rd", "rsprot", "gen", "packet_versions.txt")
+PACKETS_DIR = os.path.join(REPO_ROOT, "3rd", "rsprot", "packets")
+
+REV_LO, REV_HI = 221, 239
+
+# Packets whose files are HAND-WRITTEN and must not be overwritten.
+#
+# IF_OPENTOP is the documented pattern every generated file is shaped against
+# (see 3rd/rsprot/packets/if_opentop.h), so it carries teaching comments a
+# generator cannot produce and would erase. Keeping it hand-written costs
+# nothing in confidence: generating it and running src/net/exec/test/
+# pkt_packets_test.c against the OUTPUT passes the same assertions the
+# hand-written file does -- the four layouts, the thirteen rows, the per-byte
+# patterns and the alias/table agreement. Re-check that equivalence with:
+#
+#     python3 tools/rsprot_gen_codec.py --only IF_OPENTOP --out /tmp/pkts
+#     diff <(sed 's/[[:space:]]*$//' /tmp/pkts/if_opentop.c) ...
+#
+# A name here that stops matching a hand-written file is reported, not ignored:
+# silently skipping a packet nobody wrote is how a gap becomes permanent.
+HAND_WRITTEN_PROTS = {"IF_OPENTOP"}
+
+
+def load_ledger(path=LEDGER_PATH):
+    """(class, dir) -> {revision: version}.
+
+    Columns are CLASS, DIR, MODULE, VER, HASH, REVS -- tab separated, '#'
+    comments, one row per distinct layout with REVS as comma-separated ranges.
+    """
+    if not os.path.exists(path):
+        sys.exit(
+            f"missing {path}\n"
+            f"run: python3 tools/rsprot_version_ledger.py")
+    table = {}
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#") or line.startswith("CLASS\t"):
+                continue
+            parts = line.split("\t")
+            if len(parts) != 6:
+                continue
+            cls, direction, _module, ver, _hash, revs = parts
+            if revs.strip() == "RETIRED":
+                continue
+            per_rev = table.setdefault((cls, direction), {})
+            for chunk in revs.split(","):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                if "-" in chunk:
+                    lo, hi = chunk.split("-", 1)
+                    rng = range(int(lo), int(hi) + 1)
+                else:
+                    rng = (int(chunk),)
+                for r in rng:
+                    if r in per_rev and per_rev[r] != int(ver):
+                        sys.exit(
+                            f"ledger conflict: {cls}/{direction} rev {r} claimed by "
+                            f"versions {per_rev[r]} and {ver}")
+                    per_rev[r] = int(ver)
+    return table
+
+
+# --- naming --------------------------------------------------------------------
+
+
+def prot_to_snake(prot):
+    """Prot name -> the packet file's basename. IF_OPENTOP -> if_opentop."""
+    return re.sub(r"[^a-z0-9]+", "_", prot.lower()).strip("_")
+
+
+def snake_to_pascal(snake):
+    return "".join(p[:1].upper() + p[1:] for p in snake.split("_") if p)
+
+
+def compress_ranges(revs):
+    """[221,222,224] -> [(221,222),(224,224)]."""
+    out = []
+    for r in sorted(revs):
+        if out and r == out[-1][1] + 1:
+            out[-1][1] = r
+        else:
+            out.append([r, r])
+    return [tuple(x) for x in out]
+
+
+def fmt_ranges(ranges):
+    return ", ".join(f"{lo}" if lo == hi else f"{lo}-{hi}" for lo, hi in ranges)
+
+
+# --- per-packet file emission --------------------------------------------------
+
+PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
+#define RSPROT_PACKET_{guard}_H
+
+/*
+ * {prot} -- {dir_prose}.
+ *
+ * GENERATED by tools/rsprot_gen_codec.py -- do not edit. Hand edits are lost on
+ * the next run; change the generator, or the RSProt source it reads.
+ *
+ * Shape and rationale: 3rd/rsprot/packets/if_opentop.h, which is hand-written
+ * and is the pattern this file is generated into. Read that one first.
+ *
+ * RSProt class : {cls}
+ * Layouts      : {nver} distinct, over {nrun} contiguous revision run(s)
+ * Version nos. : from gen/packet_versions.txt (append-only; never allocated
+ *                here). Cross-check with:
+ *                    grep '^{cls}\\t{ledger_dir}\\t' 3rd/rsprot/gen/packet_versions.txt
+ */
+
+#include "../include/rsprot_exec.h"
+
+/**
+ * One struct for every version -- the union of all their fields.
+ *
+ * A field a version does not carry is simply not transferred, which is what
+ * keeps the layer above revision-free: fill the struct, and the wire picks the
+ * codec.
+ */
+{struct}
+
+{decls}
+/* Per-revision aliases: `packet_{snake}_rev239_{dir}` is greppable, which is the
+ * point -- "what does 239 do for {prot}" without reading a table. */
+{aliases}
+
+/** Revision -> layout. See the .c for the rows. */
+extern const RsprotVersionRange rsprot_{snake}_{dir}[];
+extern const int rsprot_{snake}_{dir}_count;
+
+#endif
+'''
+
+PACKET_C = '''/* {prot}. GENERATED by tools/rsprot_gen_codec.py -- do not edit. */
+#include "{snake}.h"
+
+/*
+ * Transcribed from RSProt:
+ *   protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/
+ *       game/{sub}/codec/{rel}
+ *
+ * One function per layout, running in whichever direction the executor is in --
+ * so a server's writer and a client's reader are the same transcription and
+ * cannot drift apart.
+ */
+
+{bodies}
+/*
+ * {nrun} row(s) for {nver} layout(s), complete over revisions {revlo}-{revhi}.
+ * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
+ * revision outside that span. An incomplete one would conflate "not
+ * transcribed" with "no such packet", and those are different facts.
+ */
+const RsprotVersionRange rsprot_{snake}_{dir}[] = {{
+{rows}
+}};
+
+const int rsprot_{snake}_{dir}_count =
+    (int)(sizeof(rsprot_{snake}_{dir}) / sizeof(rsprot_{snake}_{dir}[0]));
+'''
+
+
+def emit_packet_files(pkt, out_dir):
+    snake = pkt["snake"]
+    direction = pkt["dir"]          # "out" | "in"
+    msg_struct = pkt["msg_struct"]
+    versions = pkt["versions"]      # {ver: {"body": str, "revs": [..]}}
+    rev_to_ver = pkt["rev_to_ver"]
+
+    decls = []
+    bodies = []
+    for ver in sorted(versions):
+        info = versions[ver]
+        rngs = fmt_ranges(compress_ranges(info["revs"]))
+        fn = f"packet_{snake}_v{ver}_{direction}"
+        decls.append(f"/* v{ver} -- revs {rngs}. */")
+        decls.append(f"void {fn}(RsprotExec *x, {msg_struct} *m);")
+        body = info["body"] or f"    (void)x;\n    (void)m;"
+        bodies.append(f"/* v{ver} -- revs {rngs}. */\nvoid\n{fn}(RsprotExec *x, {msg_struct} *m)\n{{\n{body}\n}}\n")
+
+    aliases = []
+    for rev in range(REV_LO, REV_HI + 1):
+        ver = rev_to_ver.get(rev)
+        if ver is None:
+            continue
+        aliases.append(
+            f"#define packet_{snake}_rev{rev}_{direction} packet_{snake}_v{ver}_{direction}")
+
+    rows = []
+    for lo, hi in compress_ranges(rev_to_ver.keys()):
+        # a compressed run may still span two versions; split on version change
+        cur = rev_to_ver[lo]
+        start = lo
+        for r in range(lo, hi + 1):
+            if rev_to_ver[r] != cur:
+                rows.append((start, r - 1, cur))
+                cur = rev_to_ver[r]
+                start = r
+        rows.append((start, hi, cur))
+
+    row_text = "\n".join(
+        f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{snake}_v{ver}_{direction} }},"
+        for lo, hi, ver in rows)
+
+    h = PACKET_H.format(
+        guard=snake.upper(),
+        prot=pkt["prot"],
+        dir_prose="server -> client" if direction == "out" else "client -> server",
+        cls=pkt["cls"],
+        ledger_dir=direction,
+        nver=len(versions),
+        nrun=len(rows),
+        struct=pkt["struct"],
+        decls="\n".join(decls) + "\n",
+        aliases="\n".join(aliases),
+        snake=snake,
+        dir=direction,
+    )
+    c = PACKET_C.format(
+        prot=pkt["prot"],
+        snake=snake,
+        sub="outgoing" if direction == "out" else "incoming",
+        rel=pkt["rel"],
+        bodies="\n".join(bodies),
+        nrun=len(rows),
+        nver=len(versions),
+        revlo=REV_LO,
+        revhi=REV_HI,
+        rows=row_text,
+        dir=direction,
+    )
+    with open(os.path.join(out_dir, f"{snake}.h"), "w") as fh:
+        fh.write(h)
+    with open(os.path.join(out_dir, f"{snake}.c"), "w") as fh:
+        fh.write(c)
+
+
+UNITY_HEADER = '''/*
+ * rsprot packet-codec unity anchor -- every file under packets/, one TU.
+ *
+ * GENERATED by tools/rsprot_gen_codec.py from the contents of packets/.
+ * Do not hand-edit: add a packet by generating it, not by adding a line here.
+ *
+ * Separate from rsprot_unity.c on purpose. That anchor is the *library*:
+ * buffer, crypto, compression, all self-contained and linkable with no host,
+ * which is what lets 3rd/rsprot/makefile build and test it standalone. The
+ * codecs here are not self-contained -- they speak the vocabulary declared in
+ * include/rsprot_exec.h and implemented host-side in src/net/exec/pkt_exec.c,
+ * so a TU holding them only links inside a project that supplies an executor.
+ * Folding them into rsprot_unity.c would make the library's own test build
+ * depend on the host, which is the dependency this split exists to prevent.
+ *
+ * One TU rather than one object per packet because there will be ~200 of these
+ * and they are small; the compile is dominated by the header, not the bodies.
+ */
+
+// clang-format off
+'''
+
+
+def write_packets_unity(pkt_dir):
+    names = sorted(
+        f[:-2] for f in os.listdir(pkt_dir)
+        if f.endswith(".c") and os.path.exists(os.path.join(pkt_dir, f[:-2] + ".h")))
+    body = "".join(f'#include "packets/{n}.c"\n' for n in names)
+    path = os.path.join(os.path.dirname(pkt_dir.rstrip("/")), "rsprot_packets_unity.c")
     with open(path, "w") as fh:
-        fh.write("\n".join(lines))
+        fh.write(UNITY_HEADER + body + "// clang-format on\n")
+    return path
 
 
-def gen_shadow_test(gen, direction):
-    """For flat (no array/nested) message types only: a mirror function that
-    reads back what the real function wrote (or vice versa), purely for
-    test_codec_roundtrip.c. Not part of the public API."""
-    scope = gen["scope"]
-    msg_type = gen["msg_type"]
-    struct_c_name = f"RsprotMsg_{msg_type}"
-    lines = []
-    if direction == "encode":
-        fn_name = f"rsprot_shadow_decode_{msg_type}"
-        lines.append(f"static inline void {fn_name}(RsprotBuf *buf, {struct_c_name} *out)")
-        lines.append("{")
-        for name, ctype in scope.fields.items():
-            fn_kt = scope.__dict__.get("field_fn", {}).get(name)
-            if not fn_kt:
-                return None
-            c_fn, _ = wire_c_fn(fn_kt)
-            g_fn = c_fn.replace("rsprot_p", "rsprot_g", 1) if c_fn.startswith("rsprot_p") else None
-            if g_fn is None:
-                return None
-            if leaf_string_fn(fn_kt.replace("p", "g", 1)) or fn_kt.startswith("pjstr"):
-                lines.append(f"\tout->{name} = {g_fn}(buf, NULL);")
-            else:
-                cast = f"({ctype})" if ctype != "int32_t" else ""
-                lines.append(f"\tout->{name} = {cast}{g_fn}(buf);")
-        lines.append("}")
-        return "\n".join(lines)
-    return None
+# --- driver --------------------------------------------------------------------
+
+
+def collect_revision(rev, ledger):
+    """Parse one revision's codec tree. Returns {(cls, dir): record}."""
+    desktop = os.path.join(
+        RSPROT,
+        f"protocol/osrs-{rev}/osrs-{rev}-desktop/src/main/kotlin/net/rsprot/protocol/game")
+    out = {}
+    skipped = []
+    for sub, direction in (("outgoing/codec", "out"), ("incoming/codec", "in")):
+        base = os.path.join(desktop, sub)
+        if not os.path.isdir(base):
+            continue
+        gen, skip = process_dir(base, direction)
+        for g in gen:
+            out[(g["class"], direction)] = g
+        skipped.extend((direction, rel, why) for rel, why in skip)
+    return out, skipped
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("rev")
+    ap = argparse.ArgumentParser(
+        description="Generate 3rd/rsprot/packets/*.{h,c} from RSProt's Kotlin.")
+    ap.add_argument(
+        "--only", default=None,
+        help="comma-separated prot names to emit (e.g. IF_OPENSUB,MESSAGE_GAME). "
+             "Omit to emit every packet that generates cleanly.")
+    ap.add_argument("--out", default=PACKETS_DIR)
+    ap.add_argument(
+        "--status", default=os.path.join(REPO_ROOT, "3rd", "rsprot", "gen", "codec_status.txt"))
     args = ap.parse_args()
-    rev = args.rev
 
-    desktop = os.path.join(RSPROT, f"protocol/osrs-{rev}/osrs-{rev}-desktop/src/main/kotlin/net/rsprot/protocol/game")
+    only = set(s.strip().upper() for s in args.only.split(",")) if args.only else None
+    ledger = load_ledger()
 
-    enc_gen, enc_skip = process_dir(os.path.join(desktop, "outgoing/codec"), "encoders")
-    dec_gen, dec_skip = process_dir(os.path.join(desktop, "incoming/codec"), "decoders")
+    # Parse every vendored revision once.
+    per_rev = {}
+    all_skips = []
+    for rev in range(REV_LO, REV_HI + 1):
+        recs, skips = collect_revision(rev, ledger)
+        per_rev[rev] = recs
+        all_skips.extend((rev, d, rel, why) for d, rel, why in skips)
+        print(f"  rev {rev}: {len(recs)} codecs parsed, {len(skips)} skipped", file=sys.stderr)
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    # Group by (class, direction) across revisions.
+    classes = {}
+    for rev, recs in per_rev.items():
+        for key, g in recs.items():
+            classes.setdefault(key, {})[rev] = g
 
-    enc_chunks = []
-    for g in enc_gen:
-        enc_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
-        if g["struct"] is not None:
-            enc_chunks.append(g["struct"])
-        enc_chunks.append(g["fn"])
-    emit_header(
-        os.path.join(OUT_DIR, f"encoders_{rev}.h"),
-        f"RSPROT_GEN_CODEC_ENCODERS_{rev}_H",
-        BANNER.format(rev=rev, count=len(enc_gen)),
-        ["../../src/rsprot_buf.h"],
-        enc_chunks,
-    )
+    os.makedirs(args.out, exist_ok=True)
+    emitted, refused = [], []
 
-    dec_chunks = []
-    for g in dec_gen:
-        dec_chunks.append(f"/* {g['class']} ({g['rel']}) -- prot {g['prot']} */")
-        if g["struct"] is not None:
-            dec_chunks.append(g["struct"])
-        dec_chunks.append(g["fn"])
-    emit_header(
-        os.path.join(OUT_DIR, f"decoders_{rev}.h"),
-        f"RSPROT_GEN_CODEC_DECODERS_{rev}_H",
-        BANNER.format(rev=rev, count=len(dec_gen)),
-        ["../../src/rsprot_buf.h"],
-        dec_chunks,
-    )
+    for (cls, direction), by_rev in sorted(classes.items()):
+        prot = next((g["prot"] for g in by_rev.values() if g["prot"]), None)
+        if not prot:
+            refused.append((cls, direction, "no prot name in any revision"))
+            continue
+        if only is not None and prot.upper() not in only:
+            continue
+        if prot.upper() in HAND_WRITTEN_PROTS:
+            snake = prot_to_snake(prot)
+            existing = os.path.join(args.out, f"{snake}.c")
+            if os.path.exists(existing):
+                refused.append((cls, direction, "hand-written -- see HAND_WRITTEN_PROTS"))
+                continue
+            refused.append(
+                (cls, direction,
+                 f"listed hand-written but {existing} does not exist -- either write it "
+                 f"or drop it from HAND_WRITTEN_PROTS"))
+            continue
 
-    status_path = os.path.join(os.path.dirname(OUT_DIR), f"codec_status_{rev}.txt")
-    with open(status_path, "w") as fh:
-        fh.write(f"rsprot codec generation status -- revision {rev}\n")
-        fh.write(f"encoders: {len(enc_gen)} generated, {len(enc_skip)} skipped (of {len(enc_gen)+len(enc_skip)})\n")
-        fh.write(f"decoders: {len(dec_gen)} generated, {len(dec_skip)} skipped (of {len(dec_gen)+len(dec_skip)})\n\n")
-        fh.write("--- generated encoders ---\n")
-        for g in enc_gen:
-            fh.write(f"  OK   {g['rel']:<55} {g['msg_type']}{' [flat]' if g['flat'] else ' [array/nested]'}\n")
-        fh.write("\n--- skipped encoders ---\n")
-        for rel, reason in enc_skip:
-            fh.write(f"  SKIP {rel:<55} {reason}\n")
-        fh.write("\n--- generated decoders ---\n")
-        for g in dec_gen:
-            fh.write(f"  OK   {g['rel']:<55} {g['msg_type']}{' [flat]' if g['flat'] else ' [array/nested]'}\n")
-        fh.write("\n--- skipped decoders ---\n")
-        for rel, reason in dec_skip:
-            fh.write(f"  SKIP {rel:<55} {reason}\n")
+        led = ledger.get((cls, direction))
+        if led is None:
+            refused.append((cls, direction, "no ledger rows -- rerun rsprot_version_ledger.py"))
+            continue
 
-    print(
-        f"rev {rev}: encoders {len(enc_gen)}/{len(enc_gen)+len(enc_skip)}, "
-        f"decoders {len(dec_gen)}/{len(dec_gen)+len(dec_skip)} -- see {status_path}",
-        file=sys.stderr,
-    )
+        # Every revision that generated cleanly AND has a ledger version.
+        rev_to_ver, versions = {}, {}
+        conflict = None
+        for rev in sorted(by_rev):
+            ver = led.get(rev)
+            if ver is None:
+                continue
+            body = by_rev[rev]["fn"]
+            slot = versions.setdefault(ver, {"body": body, "revs": []})
+            # The cross-check worth having: the ledger derives versions by
+            # hashing RSProt's KOTLIN; this generator produces C. Two revisions
+            # the ledger calls one layout must generate identical C. When they
+            # do not, one of the two is wrong and guessing which would be the
+            # exact failure this tool refuses to commit.
+            if slot["body"] != body:
+                conflict = (
+                    f"ledger v{ver} spans revs {slot['revs']} and {rev}, but they "
+                    f"generate different C")
+                break
+            slot["revs"].append(rev)
+            rev_to_ver[rev] = ver
+        if conflict:
+            refused.append((cls, direction, conflict))
+            continue
+        if not rev_to_ver:
+            refused.append((cls, direction, "no revision both parsed and had a ledger version"))
+            continue
+
+        # One struct per packet, holding the UNION of every version's fields --
+        # which is the point of the design, not a compromise: the layer above
+        # fills a message without knowing the revision, and a field a version
+        # does not carry is simply not transferred. Requiring the versions to
+        # agree instead would refuse every packet that ever gained a field,
+        # which at 239 is most of the interesting ones (IF_OPENSUB has 7
+        # distinct field sets across the vendored revisions).
+        #
+        # Ordering: ascending revision, first-seen wins. A field's position in
+        # the struct has no wire meaning -- the codec names fields explicitly --
+        # so this only has to be stable, and ascending revision makes a diff
+        # between two generator runs track the source rather than dict order.
+        flat = all(not by_rev[r]["scope"].array_fields for r in rev_to_ver)
+        if flat:
+            union = {}
+            for rev in sorted(rev_to_ver):
+                for fname, ctype in by_rev[rev]["scope"].fields.items():
+                    if fname in union and union[fname] != ctype:
+                        # Same name, two C types across revisions. Not
+                        # mergeable, and picking one would silently truncate
+                        # the other -- exactly the class of bug this refuses.
+                        union[fname] = None
+                    else:
+                        union.setdefault(fname, ctype)
+            bad = [f for f, t in union.items() if t is None]
+            if bad:
+                refused.append(
+                    (cls, direction, f"field(s) {', '.join(bad)} change C type across revisions"))
+                continue
+            lines = [f"typedef struct {{"]
+            if not union:
+                # A zero-payload packet (SERVER_TICK_END, RESET_ANIMS). C has no
+                # empty struct, so it gets a member nothing reads -- rather than
+                # the packet being refused, because "this packet carries no
+                # bytes" is a layout, not a gap.
+                lines.append("\t/* No payload at any version. C has no empty")
+                lines.append("\t * struct; nothing reads this. */")
+                lines.append("\tint32_t _unused;")
+            for fname, ctype in union.items():
+                sep = "" if ctype.endswith("*") else " "
+                lines.append(f"\t{ctype}{sep}{fname};")
+            struct_text = "\n".join(lines) + "\n}} PLACEHOLDER;"
+        else:
+            # Arrays/nested element structs: the union rule would have to merge
+            # element structs too. Not modeled, so these still require exact
+            # agreement and are refused (visibly) when they disagree.
+            structs = {by_rev[r]["struct"] for r in rev_to_ver if by_rev[r]["struct"]}
+            if len(structs) > 1:
+                refused.append(
+                    (cls, direction,
+                     f"{len(structs)} disagreeing struct shapes (array/nested -- union not modeled)"))
+                continue
+            struct_text = structs.pop() if structs else None
+        if struct_text is None:
+            refused.append((cls, direction, "no struct produced"))
+            continue
+
+        snake = prot_to_snake(prot)
+        # From the RSProt CLASS, not from the prot name: `IfOpenTopEncoder`
+        # gives `MsgIfOpenTop`, where re-casing the snake would give
+        # `MsgIfOpentop` and lose a word boundary the source already knows.
+        msg_struct = f"Msg{class_fn_suffix(cls)}"
+        struct_text = struct_text.replace("}} PLACEHOLDER;", f"}} {msg_struct};")
+        struct_text = struct_text.replace(
+            "typedef struct {", f"typedef struct {msg_struct} {{", 1)
+        struct_text = re.sub(r"\bRsprotMsg_\w+\b", msg_struct, struct_text)
+
+        emit_packet_files({
+            "snake": snake, "prot": prot, "cls": cls, "dir": direction,
+            "rel": by_rev[max(rev_to_ver)]["rel"],
+            "msg_struct": msg_struct, "struct": struct_text,
+            "versions": versions, "rev_to_ver": rev_to_ver,
+        }, args.out)
+        emitted.append((prot, snake, direction, len(versions), len(rev_to_ver)))
+
+    # Rewrite the unity anchor from what is actually on disk -- every .c in
+    # packets/, not just what this run emitted, so a --only run does not drop
+    # the others. A codec that exists but is missing from the anchor does not
+    # fail to build; it silently is not linked, and the first binary to
+    # reference its version table is where that surfaces.
+    write_packets_unity(args.out)
+
+    with open(args.status, "w") as fh:
+        fh.write("rsprot packet-codec generation status\n")
+        fh.write(f"revisions {REV_LO}-{REV_HI}; {len(emitted)} packets emitted, "
+                 f"{len(refused)} refused\n\n")
+        fh.write("--- emitted (prot, file, dir, layouts, revisions covered) ---\n")
+        for prot, snake, d, nv, nr in sorted(emitted):
+            fh.write(f"  OK   {prot:<32} {snake}.c {d:<4} {nv:>2} layout(s) {nr:>2} rev(s)\n")
+        fh.write("\n--- refused (class, dir, reason) ---\n")
+        for cls, d, why in sorted(refused):
+            fh.write(f"  SKIP {cls:<48} {d:<4} {why}\n")
+        fh.write("\n--- per-file parse skips ---\n")
+        for rev, d, rel, why in sorted(all_skips):
+            fh.write(f"  rev{rev} {d:<4} {rel:<60} {why}\n")
+
+    print(f"emitted {len(emitted)} packets, refused {len(refused)} -- see {args.status}",
+          file=sys.stderr)
 
 
 if __name__ == "__main__":
