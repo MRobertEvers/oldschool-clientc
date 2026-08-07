@@ -1223,6 +1223,29 @@ def gen_op(op, scope, em, indent, ctx):
         fn_kt = op["fn"]
         macro, ctype = wire_c_fn(fn_kt)
         expr_ast = op["expr"]
+
+        # `buffer.p1(if (message.flag) 1 else 0)` IS a boolean field.
+        #
+        # RSProt spells a bool this way rather than calling pboolean, and the
+        # naive reading is "a computed expression", which gets refused because a
+        # ternary has no lvalue to decode into. But the wire form is exactly
+        # what RSPROT_BOOL moves -- one byte, 0 or 1 -- and the field behind the
+        # condition is a perfectly good lvalue. Recognising it turns a refusal
+        # into the right codec.
+        #
+        # Only for plain `p1`/`g1`: rsprot_x_boolean is a plain byte, so an
+        # Alt-transformed width-1 write would put a different byte on the wire
+        # and this shortcut would be a lie.
+        if fn_kt in ("p1", "g1") and expr_ast.get("kind") == "ternary":
+            t, e = expr_ast.get("then"), expr_ast.get("els")
+            if (t and e and t.get("kind") == "num" and e.get("kind") == "num"
+                    and t.get("text") == "1" and e.get("text") == "0"):
+                _pre_register(expr_ast["cond"], scope, "int32_t", ctx)
+                cond_c = emit_expr(expr_ast["cond"], scope, ctx)
+                if _is_lvalue_c(cond_c):
+                    em.emit(f"RSPROT_BOOL(x, {cond_c});", indent)
+                    em.mark_transferred(cond_c)
+                    return
         # register the field if the expr is a direct field/member reference
         _pre_register(expr_ast, scope, ctype, ctx)
         expr_c = emit_expr(expr_ast, scope, ctx)
@@ -1373,19 +1396,46 @@ def gen_op(op, scope, em, indent, ctx):
             raise Unsupported("for-each over an unresolved iterable")
         owner, segs = path
         field = flatten_field_name(segs)
-        elem_struct = f"Rsprot_{c_escape_ident(scope.struct_name)}_{c_escape_ident(field)}Elem"
+        # NOT c_escape_ident'd. `scope.struct_name` is already a C identifier,
+        # and running it through the snake_case fold here produced
+        # `Rsprot_rsprot_msg_if_resync_v2_eventsElem` for the typedef while
+        # render_struct spelled the field's type `Rsprot_RsprotMsg_IfResyncV2_
+        # eventsElem` from the raw name -- two names for one struct, and a file
+        # that does not compile. `field` arrives already escaped by
+        # flatten_field_name.
+        elem_struct = f"Rsprot_{scope.struct_name}_{field}Elem"
         child = Scope(elem_struct, parent=scope, recv_name=op["var"])
         owner.add_field(field, "int32_t")
         owner.array_fields[field] = child
         owner.count_field_for[field] = f"{field}_count"
         elem_var = c_escape_ident(op["var"])
         ptr = struct_ptr_expr(owner, ctx)
+
+        # THE BRANCH RULE, in loop form.
+        #
+        # The loop is bounded by `<field>_count`, and that only means anything
+        # while decoding if the count came off the wire FIRST. RSProt's trailing
+        # arrays are often written with no count at all -- the reader consumes
+        # to the end of a VAR_SHORT payload -- and a generated loop over an
+        # untransferred count reads an uninitialised bound and then walks an
+        # array that was never allocated.
+        #
+        # Refused rather than emitted, same as the `if` case: encoding would
+        # work (the caller set the count) and decoding would be memory
+        # corruption, which is the worst possible split.
+        count_expr = f"{ptr}->{field}_count"
+        if count_expr not in em.transferred:
+            raise Unsupported(
+                f"array `{field}` is bounded by {field}_count, which is never "
+                f"transferred -- decoding cannot know how many to read")
+
         em.emit(
-            f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {ptr}->{field}_count; rs_i_{elem_var}++) {{",
+            f"for (int32_t rs_i_{elem_var} = 0; rs_i_{elem_var} < {count_expr}; rs_i_{elem_var}++) {{",
             indent,
         )
-        decl_kw = "const " if ctx == "encode" else ""
-        em.emit(f"{decl_kw}{elem_struct} *elem = ({decl_kw}{elem_struct} *)&{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
+        # No `const`: one codec runs in both directions, so an element the
+        # encoder reads is the same element the decoder writes.
+        em.emit(f"{elem_struct} *elem = &{ptr}->{field}[rs_i_{elem_var}];", indent + 1)
         scope.locals[op["var"]] = ("elem_alias", child)
         gen_ops(op["body"], child, em, indent + 1, ctx)
         del scope.locals[op["var"]]
@@ -1445,10 +1495,23 @@ def _collect_field_refs(ast, scope, ctx, out):
 def _cond_untransferred_fields(cond_ast, scope, em, ctx):
     refs = set()
     _collect_field_refs(cond_ast, scope, ctx, refs)
-    # A count field is transferred by its own length prefix, which the array
-    # handling emits separately; not a branch-rule violation.
-    return {r for r in refs
-            if r not in em.transferred and not r.endswith("_count")}
+
+    def satisfied(r):
+        if r in em.transferred or r.endswith("_count"):
+            return True
+        # A guard over an ARRAY whose count is already on the wire.
+        #
+        #     buffer.p1Alt1(opCount)              <- count transferred
+        #     if (!ops.isNullOrEmpty()) { for (...) }
+        #
+        # The predicate names `ops`, which is never itself transferred, so the
+        # naive check calls this a branch-rule violation. It is not: the guard
+        # is redundant with the loop bound, and the bound came off the wire.
+        # Decoding reads the count and loops that many times, which is exactly
+        # what the guard was protecting.
+        return f"{r}_count" in em.transferred
+
+    return {r for r in refs if not satisfied(r)}
 
 
 def _try_null_flag_idiom(op, scope, em, indent, ctx):
@@ -1513,10 +1576,17 @@ def emit_cond(ast, scope, ctx):
                     owner, field = info[1], info[2]
                     cnt = f"{struct_ptr_expr(scope, ctx)}->{field}_count"
             if cnt is None:
-                target_scope = resolve_recv_scope(a["recv"], scope)
-                if target_scope is not None:
-                    fname = None
-                    # bare `message.isNullOrEmpty()`-style not expected; skip
+                # `val ops = message.ops` binds an alias_path, not a count
+                # alias, so the lookup above misses it -- but the array's own
+                # `<field>_count` is exactly what "is it empty" asks about.
+                # Resolving through the path is what lets
+                # `if (!ops.isNullOrEmpty())` compile to a count test.
+                path = resolve_path(a["recv"], scope)
+                if path is not None and path[1]:
+                    owner, segs = path
+                    fname = flatten_field_name(segs)
+                    if fname in owner.array_fields:
+                        cnt = f"{struct_ptr_expr(owner, ctx)}->{fname}_count"
                 if cnt is None:
                     raise Unsupported("isNullOrEmpty on unresolved receiver")
             expr = f"({cnt} > 0)"
@@ -1620,7 +1690,9 @@ def render_struct(scope, struct_c_name):
             lines.append(f"\tint32_t {name}_count;")
         elif isinstance(av, Scope):
             elem_name = f"Rsprot_{struct_c_name}_{name}Elem"
-            lines.append(f"\tconst {elem_name} *{name};")
+            # Not const: one codec runs both directions, so the decoder writes
+            # through this pointer.
+            lines.append(f"\t{elem_name} *{name};")
             lines.append(f"\tint32_t {name}_count;")
         else:
             lines.append(f"\t{ctype} {name};")
@@ -2208,13 +2280,17 @@ def main():
             # skipped visibly rather than guessed at, and "does not compile" is
             # only a louder version of the same failure.
             #
-            # These are a real TODO, not a dead end: it is one naming fix plus a
-            # merge rule for element structs. Until then the hand-written
-            # decoder keeps them, which is where they already were.
-            refused.append(
-                (cls, direction,
-                 "array/nested element struct -- union across versions not modeled yet"))
-            continue
+            # Arrays/nested element structs. The union rule above is not modeled
+            # for element structs, so these require every version's struct text
+            # to agree; a disagreement is refused rather than resolved.
+            structs = {by_rev[r]["struct"] for r in rev_to_ver if by_rev[r]["struct"]}
+            if len(structs) > 1:
+                refused.append(
+                    (cls, direction,
+                     f"{len(structs)} disagreeing struct shapes across versions "
+                     f"(array/nested -- union not modeled)"))
+                continue
+            struct_text = structs.pop() if structs else None
         if struct_text is None:
             refused.append((cls, direction, "no struct produced"))
             continue
@@ -2224,10 +2300,21 @@ def main():
         # gives `MsgIfOpenTop`, where re-casing the snake would give
         # `MsgIfOpentop` and lose a word boundary the source already knows.
         msg_struct = f"Msg{class_fn_suffix(cls)}"
+        msg_type = by_rev[max(rev_to_ver)]["msg_type"]
         struct_text = struct_text.replace("}} PLACEHOLDER;", f"}} {msg_struct};")
         struct_text = struct_text.replace(
             "typedef struct {", f"typedef struct {msg_struct} {{", 1)
+        # Exact substring, NOT a \b-anchored regex: the element structs embed
+        # the message name mid-identifier (`Rsprot_RsprotMsg_X_fElem`), where a
+        # word boundary does not match and half the file would keep the old
+        # name while the other half got the new one.
+        struct_text = struct_text.replace(f"RsprotMsg_{msg_type}", msg_struct)
         struct_text = re.sub(r"\bRsprotMsg_\w+\b", msg_struct, struct_text)
+        # The bodies name the element structs too (`Rsprot_RsprotMsg_X_fElem
+        # *elem = ...`), so they take the same rename. Renaming only the struct
+        # text is what left the two halves spelling one type differently.
+        for slot in versions.values():
+            slot["body"] = slot["body"].replace(f"RsprotMsg_{msg_type}", msg_struct)
 
         emit_packet_files({
             "snake": snake, "prot": prot, "cls": cls, "dir": direction,

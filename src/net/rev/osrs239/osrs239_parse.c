@@ -19,6 +19,7 @@
 #include "packets/map_projanim_v2.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
+#include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
 
 /*
@@ -231,7 +232,14 @@ osrs239_read_zone_sub(
     switch( name )
     {
     /*
-     * LOC_ADD_CHANGE is the one still decoded by hand, and it is the one that
+     * LOC_ADD_CHANGE is the one still decoded by hand. Its rev239 layout iterates a
+     * MAP of (op index, replacement text) pairs and writes the index as `key - 1`,
+     * so generating it needs two constructs the generator does not have: map
+     * iteration (`for_each_pair`, parsed but never emitted) and an offset-encoded
+     * field, which has no lvalue for the decode direction to write back through.
+     * Both are features, not bugs; OBJ_ADD was the bug and is generated now.
+     *
+     * The old note follows: it is the one that
      * cannot be generated yet: its layout carries a COUNTED ARRAY of
      * `p1 op-1, pjstr text` pairs replacing the loctype's right-click options,
      * and the generator refuses array/nested element structs rather than emit a
@@ -380,26 +388,16 @@ osrs239_read_zone_sub(
         return 1;
     }
 
-    /*
-     * OBJ_ADD is hand-decoded for the same reason as LOC_ADD_CHANGE: RSProt's
-     * ObjAddEncoder at this revision is not in the generated set. Fourteen
-     * bytes against the classic five, and most of them are fields this client
-     * has no home for.
-     *
-     * ObjAddEncoder: p1Alt1 coordInZone, p2 timeUntilPublic, p1 ownershipType,
-     * p2Alt2 id, p1 neverBecomesPublic, p1Alt2 opFlags, p2Alt3
-     * timeUntilDespawn, p4Alt1 quantity.
-     */
+    /* Fourteen bytes against the classic five; most of them are fields this
+     * client has no home for, which is why only three are copied out. */
     case PKT_NAME_OBJ_ADD:
-        out->_obj_add.pos = RSProt_BufferG1_add128(c);
-        (void)RSProt_BufferG2Be(c); /* timeUntilPublic */
-        (void)RSProt_BufferG1(c); /* ownershipType */
-        out->_obj_add.obj_id = RSProt_BufferG2Be_add128(c);
-        (void)RSProt_BufferG1(c); /* neverBecomesPublic */
-        (void)RSProt_BufferG1_neg(c); /* opFlags */
-        (void)RSProt_BufferG2Le_add128(c); /* timeUntilDespawn */
-        out->_obj_add.count = RSProt_BufferG4Le(c);
+    {
+        ZONE_RUN(rsprot_obj_add_out, MsgObjAdd, m);
+        out->_obj_add.pos = m.coord_in_zone_packed;
+        out->_obj_add.obj_id = m.id;
+        out->_obj_add.count = m.quantity;
         return 1;
+    }
 
     default:
         return 0;
