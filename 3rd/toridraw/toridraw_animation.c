@@ -49,6 +49,32 @@ ToriDraw_AnimationSetSeqMeta(
     anim->stretches = meta->stretches;
 }
 
+bool
+ToriDraw_AnimationAdvanceObjectFrame(struct ToriDraw_Animation const* anim, int* frame)
+{
+    int next;
+
+    if( !anim || !frame || anim->frame_count <= 0 )
+        return false;
+
+    next = *frame + 1;
+    if( next < anim->frame_count )
+    {
+        *frame = next;
+        return true;
+    }
+
+    /* DynamicObject.getModel: `frame -= sequenceDefinition.frameCount`.
+     * A frameStep of one therefore holds the terminal frame, whereas no
+     * frameStep drops the sequence instead of replaying from frame zero. */
+    next -= anim->frame_step;
+    if( next < 0 || next >= anim->frame_count )
+        return false;
+
+    *frame = next;
+    return true;
+}
+
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 {

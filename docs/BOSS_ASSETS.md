@@ -323,6 +323,24 @@ general defect that the encounter happened to be the first content to exercise.
    still facing the arena, and with 32 forced it swung east and west as it
    walked. Cache-wide, not Inferno-only.
 
+## Revision-239 DynamicObject sequence parity (2026-08-07)
+
+The remaining C-client-only collapse defect was neither a Zuk script problem
+nor a lost loc packet. `LOC_ADD_CHANGE` correctly installed every replacement
+and `LOC_ANIM` correctly bound the two wall sequences, but the C animation loop
+then wrapped every scenery sequence to frame zero. Revision 239's
+`DynamicObject.getModel` instead subtracts the sequence's `frameStep`; if that
+is outside the sequence, it discards the sequence. The two collapsing-wall
+sequences have a one-frame step, so they retain their terminal pose rather than
+replaying the falling wall. The C loop now follows that generic rule while
+preserving the existing client-cycle frame duration.
+
+This is client behavior, not content: `LostCity_Server` has no Inferno
+implementation to port. The coverage is `make -C src test-animation-object-step`
+plus the embedded, headless `TORIRS_NET_CHEAT=zuktest` run. That run builds the
+instance, installs all eight `LOC_ADD_CHANGE` replacements, binds both 90-frame
+wall sequences, and reaches the seal-crumble stage without a replay.
+
 ## The Zuk fight's own defects, and `::zuktest` (2026-08-04)
 
 Five, all in content or in a content-facing seam, all found after the four
