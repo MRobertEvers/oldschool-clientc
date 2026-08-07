@@ -25,6 +25,20 @@ packet_obj_add_specific_v1_out(RsprotExec *x, MsgObjAddSpecific *m)
     RSPROT_U4_ALT3(x, m->coord_grid_packed);
 }
 
+/* v2 -- revs 233. */
+void
+packet_obj_add_specific_v2_out(RsprotExec *x, MsgObjAddSpecific *m)
+{
+    RSPROT_U1_ALT2(x, m->ownership_type);
+    RSPROT_U2(x, m->id);
+    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U1_ALT3(x, m->op_flags);
+    RSPROT_U2_ALT3(x, m->time_until_despawn);
+    RSPROT_U4_ALT3(x, m->coord_grid_packed);
+    RSPROT_U1_ALT2(x, m->never_becomes_public);
+    RSPROT_U2(x, m->time_until_public);
+}
+
 /* v3 -- revs 234. */
 void
 packet_obj_add_specific_v3_out(RsprotExec *x, MsgObjAddSpecific *m)
@@ -51,6 +65,20 @@ packet_obj_add_specific_v4_out(RsprotExec *x, MsgObjAddSpecific *m)
     RSPROT_U1_ALT2(x, m->op_flags);
     RSPROT_U1_ALT2(x, m->ownership_type);
     RSPROT_U4(x, m->quantity);
+}
+
+/* v5 -- revs 236. */
+void
+packet_obj_add_specific_v5_out(RsprotExec *x, MsgObjAddSpecific *m)
+{
+    RSPROT_U4_ALT1(x, m->coord_grid_packed);
+    RSPROT_U2_ALT3(x, m->time_until_public);
+    RSPROT_U2_ALT2(x, m->time_until_despawn);
+    RSPROT_U4_ALT3(x, m->quantity);
+    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_ALT3(x, m->never_becomes_public);
+    RSPROT_U1_ALT3(x, m->ownership_type);
+    RSPROT_U1_ALT1(x, m->op_flags);
 }
 
 /* v6 -- revs 237. */
@@ -81,18 +109,35 @@ packet_obj_add_specific_v7_out(RsprotExec *x, MsgObjAddSpecific *m)
     RSPROT_U2_ALT2(x, m->time_until_public);
 }
 
+/* v8 -- revs 239. */
+void
+packet_obj_add_specific_v8_out(RsprotExec *x, MsgObjAddSpecific *m)
+{
+    RSPROT_U2(x, m->time_until_public);
+    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_ALT1(x, m->time_until_despawn);
+    RSPROT_U1_ALT3(x, m->never_becomes_public);
+    RSPROT_U1(x, m->ownership_type);
+    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U4_ALT2(x, m->coord_grid_packed);
+    RSPROT_U4_ALT3(x, m->quantity);
+}
+
 /*
- * 5 row(s) for 5 layout(s), complete over revisions 221-239.
+ * 8 row(s) for 8 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_obj_add_specific_out[] = {
     { 232, 232, (RsprotCodecFn)packet_obj_add_specific_v1_out },
+    { 233, 233, (RsprotCodecFn)packet_obj_add_specific_v2_out },
     { 234, 234, (RsprotCodecFn)packet_obj_add_specific_v3_out },
     { 235, 235, (RsprotCodecFn)packet_obj_add_specific_v4_out },
+    { 236, 236, (RsprotCodecFn)packet_obj_add_specific_v5_out },
     { 237, 237, (RsprotCodecFn)packet_obj_add_specific_v6_out },
     { 238, 238, (RsprotCodecFn)packet_obj_add_specific_v7_out },
+    { 239, 239, (RsprotCodecFn)packet_obj_add_specific_v8_out },
 };
 
 const int rsprot_obj_add_specific_out_count =

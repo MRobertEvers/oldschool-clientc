@@ -57,6 +57,13 @@
 #include "packets/update_stat_v2.h"
 #include "packets/update_zone_full_follows.h"
 #include "packets/update_zone_partial_follows.h"
+#include "packets/cam_shake.h"
+#include "packets/chat_filter_settings.h"
+#include "packets/if_sethide.h"
+#include "packets/if_setplayermodel_basecolour.h"
+#include "packets/if_setplayermodel_bodytype.h"
+#include "packets/if_setplayermodel_obj.h"
+#include "packets/if_setplayermodel_self.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -423,6 +430,20 @@ GENERIC_CASE(PKT_NAME_IF_CLEARINV, rsprot_if_clearinv_out, MsgIfClearInv, "IF_CL
     GENERIC_CASE(PKT_NAME_UPDATE_STAT, rsprot_update_stat_v2_out, MsgUpdateStatV2, "UPDATE_STAT");
     GENERIC_CASE(PKT_NAME_SYNTH_SOUND, rsprot_synth_sound_out, MsgSynthSound, "SYNTH_SOUND");
     GENERIC_CASE(PKT_NAME_MIDI_SONG, rsprot_midi_song_v2_out, MsgMidiSongV2, "MIDI_SONG");
+    GENERIC_CASE(PKT_NAME_CAM_SHAKE, rsprot_cam_shake_out, MsgCamShake, "CAM_SHAKE");
+    GENERIC_CASE(PKT_NAME_CHAT_FILTER_SETTINGS, rsprot_chat_filter_settings_out,
+                 MsgChatFilterSettings, "CHAT_FILTER_SETTINGS");
+    GENERIC_CASE(PKT_NAME_IF_SETHIDE, rsprot_if_sethide_out, MsgIfSetHide, "IF_SETHIDE");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+                 rsprot_if_setplayermodel_basecolour_out,
+                 MsgIfSetPlayerModelBaseColour, "IF_SETPLAYERMODEL_BASECOLOUR");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+                 rsprot_if_setplayermodel_bodytype_out,
+                 MsgIfSetPlayerModelBodyType, "IF_SETPLAYERMODEL_BODYTYPE");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_OBJ, rsprot_if_setplayermodel_obj_out,
+                 MsgIfSetPlayerModelObj, "IF_SETPLAYERMODEL_OBJ");
+    GENERIC_CASE(PKT_NAME_IF_SETPLAYERMODEL_SELF, rsprot_if_setplayermodel_self_out,
+                 MsgIfSetPlayerModelSelf, "IF_SETPLAYERMODEL_SELF");
 }
 
 int

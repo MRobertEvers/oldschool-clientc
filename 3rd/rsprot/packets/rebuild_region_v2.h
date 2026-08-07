@@ -11,7 +11,7 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : RebuildRegionV2Encoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 3 distinct, over 3 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^RebuildRegionV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -32,12 +32,18 @@ typedef struct MsgRebuildRegionV2 {
 	int32_t zone_z;
 } MsgRebuildRegionV2;
 
+/* v1 -- revs 237. */
+void packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 /* v2 -- revs 238. */
 void packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m);
+/* v3 -- revs 239. */
+void packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 
 /* Per-revision aliases: `packet_rebuild_region_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for REBUILD_REGION_V2" without reading a table. */
+#define packet_rebuild_region_v2_rev237_out packet_rebuild_region_v2_v1_out
 #define packet_rebuild_region_v2_rev238_out packet_rebuild_region_v2_v2_out
+#define packet_rebuild_region_v2_rev239_out packet_rebuild_region_v2_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_region_v2_out[];

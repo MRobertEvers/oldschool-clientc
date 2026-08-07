@@ -11,6 +11,13 @@
  * cannot drift apart.
  */
 
+/* v1 -- revs 238. */
+void
+packet_ambientsound_stop_v1_out(RsprotExec *x, MsgAmbientSoundStop *m)
+{
+    RSPROT_U1_ALT3(x, m->fade);
+}
+
 /* v2 -- revs 239. */
 void
 packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m)
@@ -19,12 +26,13 @@ packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 2 row(s) for 2 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_ambientsound_stop_out[] = {
+    { 238, 238, (RsprotCodecFn)packet_ambientsound_stop_v1_out },
     { 239, 239, (RsprotCodecFn)packet_ambientsound_stop_v2_out },
 };
 

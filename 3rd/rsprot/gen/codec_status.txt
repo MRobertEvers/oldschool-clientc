@@ -1,24 +1,29 @@
 rsprot packet-codec generation status
-revisions 221-239; 202 packets emitted, 2 refused
+revisions 221-239; 209 packets emitted, 2 refused
 
 --- emitted (prot, file, dir, layouts, revisions covered) ---
   OK   ACCOUNT_FLAGS                    account_flags.c out   1 layout(s)  7 rev(s)
   OK   AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL affinedclansettings_addbanned_fromchannel.c in    1 layout(s) 19 rev(s)
-  OK   AMBIENTSOUND_STOP                ambientsound_stop.c out   1 layout(s)  1 rev(s)
+  OK   AMBIENTSOUND_START               ambientsound_start.c out   1 layout(s)  2 rev(s)
+  OK   AMBIENTSOUND_STOP                ambientsound_stop.c out   2 layout(s)  2 rev(s)
   OK   ANIM_SPECIFIC                    anim_specific.c out  15 layout(s) 19 rev(s)
   OK   BUG_REPORT                       bug_report.c in    2 layout(s) 19 rev(s)
   OK   CAM_LOOKAT                       cam_lookat.c out   2 layout(s) 15 rev(s)
+  OK   CAM_LOOKAT_CYCLES                cam_lookat_cycles.c out   1 layout(s)  1 rev(s)
   OK   CAM_LOOKAT_EASED_ANGLE_ABSOLUTE  cam_lookat_eased_angle_absolute.c out   1 layout(s)  2 rev(s)
   OK   CAM_LOOKAT_EASED_ANGLE_RELATIVE  cam_lookat_eased_angle_relative.c out   1 layout(s)  2 rev(s)
   OK   CAM_LOOKAT_V1                    cam_lookat_v1.c out   1 layout(s)  1 rev(s)
   OK   CAM_LOOKAT_V2                    cam_lookat_v2.c out   4 layout(s)  4 rev(s)
+  OK   CAM_LOOKAT_V3                    cam_lookat_v3.c out   1 layout(s)  1 rev(s)
   OK   CAM_MODE                         cam_mode.c out   1 layout(s) 19 rev(s)
   OK   CAM_MOVETO                       cam_moveto.c out   2 layout(s) 15 rev(s)
   OK   CAM_MOVETO_ARC_V1                cam_moveto_arc_v1.c out   1 layout(s)  1 rev(s)
-  OK   CAM_MOVETO_ARC_V2                cam_moveto_arc_v2.c out   1 layout(s)  1 rev(s)
+  OK   CAM_MOVETO_ARC_V2                cam_moveto_arc_v2.c out   4 layout(s)  4 rev(s)
+  OK   CAM_MOVETO_ARC_V3                cam_moveto_arc_v3.c out   1 layout(s)  1 rev(s)
   OK   CAM_MOVETO_CYCLES                cam_moveto_cycles.c out   1 layout(s) 13 rev(s)
   OK   CAM_MOVETO_CYCLES_V1             cam_moveto_cycles_v1.c out   1 layout(s)  1 rev(s)
-  OK   CAM_MOVETO_CYCLES_V2             cam_moveto_cycles_v2.c out   1 layout(s)  1 rev(s)
+  OK   CAM_MOVETO_CYCLES_V2             cam_moveto_cycles_v2.c out   4 layout(s)  4 rev(s)
+  OK   CAM_MOVETO_CYCLES_V3             cam_moveto_cycles_v3.c out   1 layout(s)  1 rev(s)
   OK   CAM_MOVETO_V1                    cam_moveto_v1.c out   1 layout(s)  1 rev(s)
   OK   CAM_MOVETO_V2                    cam_moveto_v2.c out   4 layout(s)  4 rev(s)
   OK   CAM_MOVETO_V3                    cam_moveto_v3.c out   1 layout(s)  1 rev(s)
@@ -28,10 +33,11 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   CAM_ROTATETO_COORDINATE          cam_rotateto_coordinate.c out   2 layout(s) 15 rev(s)
   OK   CAM_ROTATETO_COORDINATE_V1       cam_rotateto_coordinate_v1.c out   1 layout(s)  1 rev(s)
   OK   CAM_ROTATETO_COORDINATE_V2       cam_rotateto_coordinate_v2.c out   4 layout(s)  4 rev(s)
+  OK   CAM_ROTATETO_COORDINATE_V3       cam_rotateto_coordinate_v3.c out   1 layout(s)  1 rev(s)
   OK   CAM_SHAKE                        cam_shake.c out   2 layout(s) 19 rev(s)
   OK   CAM_SKYBOX                       cam_skybox.c out   2 layout(s)  2 rev(s)
   OK   CAM_SMOOTHRESET                  cam_smoothreset.c out   1 layout(s) 19 rev(s)
-  OK   CAM_UNLOCK                       cam_unlock.c out   1 layout(s)  1 rev(s)
+  OK   CAM_UNLOCK                       cam_unlock.c out   2 layout(s)  2 rev(s)
   OK   CHAT_FILTER_SETTINGS             chat_filter_settings.c out  15 layout(s) 19 rev(s)
   OK   CHAT_FILTER_SETTINGS_PRIVATECHAT chat_filter_settings_privatechat.c out   1 layout(s) 19 rev(s)
   OK   CLANCHANNEL_FULL_REQUEST         clanchannel_full_request.c in    1 layout(s) 19 rev(s)
@@ -76,7 +82,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   IF_SETEVENTS                     if_setevents.c out  10 layout(s) 10 rev(s)
   OK   IF_SETEVENTS_V1                  if_setevents_v1.c out   1 layout(s)  1 rev(s)
   OK   IF_SETEVENTS_V2                  if_setevents_v2.c out   9 layout(s)  9 rev(s)
-  OK   IF_SETHIDE                       if_sethide.c out   4 layout(s)  4 rev(s)
+  OK   IF_SETHIDE                       if_sethide.c out  17 layout(s) 19 rev(s)
   OK   IF_SETMODEL                      if_setmodel.c out  13 layout(s) 16 rev(s)
   OK   IF_SETMODEL_V1                   if_setmodel_v1.c out   1 layout(s)  1 rev(s)
   OK   IF_SETMODEL_V2                   if_setmodel_v2.c out   3 layout(s)  3 rev(s)
@@ -87,7 +93,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   IF_SETPLAYERMODEL_BASECOLOUR     if_setplayermodel_basecolour.c out  18 layout(s) 19 rev(s)
   OK   IF_SETPLAYERMODEL_BODYTYPE       if_setplayermodel_bodytype.c out  15 layout(s) 19 rev(s)
   OK   IF_SETPLAYERMODEL_OBJ            if_setplayermodel_obj.c out  17 layout(s) 19 rev(s)
-  OK   IF_SETPLAYERMODEL_SELF           if_setplayermodel_self.c out   4 layout(s)  5 rev(s)
+  OK   IF_SETPLAYERMODEL_SELF           if_setplayermodel_self.c out  14 layout(s) 19 rev(s)
   OK   IF_SETPOSITION                   if_setposition.c out  19 layout(s) 19 rev(s)
   OK   IF_SETROTATESPEED                if_setrotatespeed.c out  18 layout(s) 19 rev(s)
   OK   IF_SETSCROLLPOS                  if_setscrollpos.c out  15 layout(s) 19 rev(s)
@@ -126,8 +132,8 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   NO_TIMEOUT                       no_timeout.c in    1 layout(s) 19 rev(s)
   OK   NPC_ANIM_SPECIFIC                npc_anim_specific.c out  19 layout(s) 19 rev(s)
   OK   NPC_HEADICON_SPECIFIC            npc_headicon_specific.c out  19 layout(s) 19 rev(s)
-  OK   OBJ_ADD                          obj_add.c out   9 layout(s)  9 rev(s)
-  OK   OBJ_ADD_SPECIFIC                 obj_add_specific.c out   5 layout(s)  5 rev(s)
+  OK   OBJ_ADD                          obj_add.c out  19 layout(s) 19 rev(s)
+  OK   OBJ_ADD_SPECIFIC                 obj_add_specific.c out   8 layout(s)  8 rev(s)
   OK   OBJ_COUNT                        obj_count.c out  19 layout(s) 19 rev(s)
   OK   OBJ_COUNT_SPECIFIC               obj_count_specific.c out   8 layout(s)  8 rev(s)
   OK   OBJ_CUSTOMISE                    obj_customise.c out  14 layout(s) 14 rev(s)
@@ -149,9 +155,9 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   PROJANIM_SPECIFIC_V3             projanim_specific_v3.c out   6 layout(s)  6 rev(s)
   OK   PROJANIM_SPECIFIC_V4             projanim_specific_v4.c out   9 layout(s)  9 rev(s)
   OK   REBUILD_NORMAL_V2                rebuild_normal_v2.c out   3 layout(s)  3 rev(s)
-  OK   REBUILD_REGION                   rebuild_region.c out   3 layout(s)  3 rev(s)
+  OK   REBUILD_REGION                   rebuild_region.c out  14 layout(s) 14 rev(s)
   OK   REBUILD_REGION_V1                rebuild_region_v1.c out   1 layout(s)  1 rev(s)
-  OK   REBUILD_REGION_V2                rebuild_region_v2.c out   1 layout(s)  1 rev(s)
+  OK   REBUILD_REGION_V2                rebuild_region_v2.c out   3 layout(s)  3 rev(s)
   OK   REBUILD_WORLDENTITY_V2           rebuild_worldentity_v2.c out   1 layout(s)  4 rev(s)
   OK   REBUILD_WORLDENTITY_V3           rebuild_worldentity_v3.c out   2 layout(s)  9 rev(s)
   OK   REBUILD_WORLDENTITY_V4           rebuild_worldentity_v4.c out   1 layout(s)  3 rev(s)
@@ -165,6 +171,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   OK   RESUME_P_STRINGDIALOG            resume_p_stringdialog.c in    1 layout(s) 19 rev(s)
   OK   RSEVEN_STATUS                    rseven_status.c in    1 layout(s) 13 rev(s)
   OK   SCRIPTEDPROJ_ADD                 scriptedproj_add.c out   1 layout(s)  1 rev(s)
+  OK   SCRIPTEDPROJ_CHANGE              scriptedproj_change.c out   1 layout(s)  1 rev(s)
   OK   SEND_PING                        send_ping.c out   1 layout(s) 19 rev(s)
   OK   SEND_PING_REPLY                  send_ping_reply.c in   19 layout(s) 19 rev(s)
   OK   SERVER_TICK_END                  server_tick_end.c out   1 layout(s) 19 rev(s)
@@ -364,8 +371,6 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev222 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev222 out  interfaces/IfInitialStateEncoder.kt                          array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev222 out  interfaces/IfSetHideEncoder.kt                               p1Alt2 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev222 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev222 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev222 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev222 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
@@ -382,7 +387,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev222 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev222 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
   rev222 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
-  rev222 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt1 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev222 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev222 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev222 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -462,11 +467,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev223 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev223 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev223 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt1 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev223 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev223 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev223 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
-  rev223 out  map/RebuildRegionEncoder.kt                                  p1Alt3 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev223 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
@@ -479,7 +482,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev223 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev223 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
   rev223 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
-  rev223 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt3 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev223 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev223 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev223 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -494,7 +497,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev223 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev223 out  zone/payload/ObjAddEncoder.kt                                p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev224 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev224 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -560,12 +562,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev224 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev224 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev224 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev224 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt1 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev224 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev224 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev224 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
-  rev224 out  map/RebuildRegionEncoder.kt                                  p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev224 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
@@ -593,7 +592,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev224 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev224 out  zone/payload/ObjAddEncoder.kt                                p1Alt2 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev225 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev225 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -659,12 +657,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev225 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev225 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev225 out  interfaces/IfSetHideEncoder.kt                               p1Alt3 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev225 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt2 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev225 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev225 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev225 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev225 out  map/RebuildRegionEncoder.kt                                  p1Alt2 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev225 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev225 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -754,7 +749,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev226 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev226 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev226 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev226 out  map/RebuildRegionEncoder.kt                                  p1Alt2 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev226 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev226 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -836,11 +830,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev227 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev227 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev227 out  interfaces/IfSetHideEncoder.kt                               p1Alt3 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
   rev227 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev227 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev227 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev227 out  map/RebuildRegionEncoder.kt                                  p1Alt3 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev227 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev227 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -850,7 +842,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev227 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev227 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
   rev227 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
-  rev227 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt2 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev227 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev227 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev227 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -862,7 +854,6 @@ revisions 221-239; 202 packets emitted, 2 refused
                 is UpdateIgnoreList.AddedIgn
   rev227 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev227 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev227 out  zone/payload/ObjAddEncoder.kt                                p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev228 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev228 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -923,12 +914,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev228 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev228 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev228 out  interfaces/IfSetHideEncoder.kt                               p1Alt2 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev228 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev228 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev228 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev228 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev228 out  map/RebuildRegionEncoder.kt                                  p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev228 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev228 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -951,7 +939,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev228 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev228 out  zone/payload/ObjAddEncoder.kt                                p1Alt1 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev229 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev229 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1012,12 +999,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev229 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev229 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev229 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev229 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev229 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev229 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev229 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev229 out  map/RebuildRegionEncoder.kt                                  p1Alt3 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev229 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev229 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1040,7 +1024,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev229 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev229 out  zone/payload/ObjAddEncoder.kt                                p1Alt1 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev230 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev230 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1101,8 +1084,6 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev230 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev230 out  interfaces/IfResyncEncoder.kt                                array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev230 out  interfaces/IfSetHideEncoder.kt                               p1Alt3 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev230 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev230 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev230 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev230 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
@@ -1115,7 +1096,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev230 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev230 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
   rev230 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
-  rev230 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt1 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev230 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev230 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev230 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1190,11 +1171,9 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev231 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev231 out  interfaces/IfResyncV1Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
   rev231 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev231 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
   rev231 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev231 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev231 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev231 out  map/RebuildRegionEncoder.kt                                  p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev231 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev231 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1206,7 +1185,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev231 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
                 'W' -> {
                     v
-  rev231 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt1 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev231 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev231 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev231 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1219,7 +1198,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev231 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev231 out  zone/payload/ObjAddEncoder.kt                                p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev232 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev232 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1280,8 +1258,6 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev232 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev232 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev232 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev232 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev232 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev232 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev232 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
@@ -1296,7 +1272,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev232 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
                 'W' -> {
                     v
-  rev232 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt1 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev232 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev232 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev232 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1309,7 +1285,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev232 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev232 out  zone/payload/ObjAddEncoder.kt                                p1Alt2 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev233 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev233 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1376,11 +1351,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev233 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev233 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev233 out  interfaces/IfSetHideEncoder.kt                               p1Alt2 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
   rev233 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev233 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev233 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev233 out  map/RebuildRegionEncoder.kt                                  p1Alt3 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev233 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev233 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1392,7 +1365,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev233 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
                 'W' -> {
                     v
-  rev233 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt2 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev233 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev233 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev233 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1403,7 +1376,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev233 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
                 is UpdateIgnoreList.AddedIgn
   rev233 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev233 out  specific/ObjAddSpecificEncoder.kt                            p1Alt2 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev233 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
   rev234 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1472,8 +1444,6 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev234 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev234 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev234 out  interfaces/IfSetHideEncoder.kt                               p1Alt2 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev234 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev234 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev234 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev234 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
@@ -1501,7 +1471,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev234 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev234 out  zone/payload/ObjAddEncoder.kt                                p1Alt1 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev235 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev235 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1568,12 +1537,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev235 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev235 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev235 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev235 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev235 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev235 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev235 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev235 out  map/RebuildRegionEncoder.kt                                  p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev235 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev235 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1597,7 +1563,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev235 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev235 out  zone/payload/ObjAddEncoder.kt                                p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev236 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev236 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1645,7 +1610,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev236 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 out  camera/CamMoveToArcV2Encoder.kt                              p1Alt1 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
   rev236 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
             is CamTargetV3.
   rev236 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
@@ -1665,12 +1629,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev236 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev236 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev236 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev236 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt2 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev236 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev236 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev236 out  map/RebuildNormalEncoder.kt                                  array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev236 out  map/RebuildRegionEncoder.kt                                  p1Alt3 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev236 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev236 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1683,7 +1644,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev236 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
                 'W' -> {
                     v
-  rev236 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt3 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev236 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev236 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev236 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1694,10 +1655,8 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev236 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
                 is UpdateIgnoreList.AddedIgn
   rev236 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev236 out  specific/ObjAddSpecificEncoder.kt                            p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev236 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev236 out  zone/payload/ObjAddEncoder.kt                                p1Alt2 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev237 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev237 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
@@ -1760,8 +1719,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev237 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 out  camera/CamMoveToArcV2Encoder.kt                              p1Alt2 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
-  rev237 out  camera/CamMoveToCyclesV2Encoder.kt                           p1Alt3 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
   rev237 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
             is CamTargetV3.
   rev237 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
@@ -1781,12 +1738,9 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev237 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev237 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev237 out  interfaces/IfSetHideEncoder.kt                               p1Alt3 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev237 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt1 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev237 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev237 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev237 out  map/RebuildNormalV1Encoder.kt                                array `key` is bounded by key_count, which is never transferred -- decoding cannot know how many to read
-  rev237 out  map/RebuildRegionV2Encoder.kt                                p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev237 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev237 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -1799,7 +1753,7 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev237 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
                 'W' -> {
                     v
-  rev237 out  misc/player/SetPlayerOpEncoder.kt                            p1Alt2 writes a computed expression `(m->priority ? 1 : 0)`, which has no field to decode back into
+  rev237 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
   rev237 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
             UpdateStock
   rev237 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
@@ -1859,12 +1813,10 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev238 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 out  camera/CamMoveToCyclesV2Encoder.kt                           p1Alt3 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
   rev238 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
             is CamTargetV3.
   rev238 out  camera/CamTargetV4Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
             is CamTargetV4.
-  rev238 out  camera/CamUnlockEncoder.kt                                   p1Alt1 writes a computed expression `(m->unlock ? 1 : 0)`, which has no field to decode back into
   rev238 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
                 is ClanChannelDelta.AddUserEv
   rev238 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
@@ -1882,7 +1834,6 @@ revisions 221-239; 202 packets emitted, 2 refused
             is Upda
   rev238 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev238 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev238 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt1 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev238 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev238 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev238 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
@@ -1907,8 +1858,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev238 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
   rev238 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
                 is UpdateIgnoreList.AddedIgn
-  rev238 out  sound/AmbientSoundStartEncoder.kt                            p1Alt1 writes a computed expression `(m->fade ? 1 : 0)`, which has no field to decode back into
-  rev238 out  sound/AmbientSoundStopEncoder.kt                             p1Alt3 writes a computed expression `(m->fade ? 1 : 0)`, which has no field to decode back into
   rev238 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
@@ -1959,13 +1908,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev239 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 out  camera/CamLookAtCyclesEncoder.kt                             p1Alt3 writes a computed expression `(m->height_relative ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamLookAtV3Encoder.kt                                 p1Alt3 writes a computed expression `(m->height_relative ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamMoveToArcV2Encoder.kt                              p1Alt3 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamMoveToArcV3Encoder.kt                              p1Alt1 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamMoveToCyclesV2Encoder.kt                           p1Alt3 writes a computed expression `(m->ignore_terrain ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamMoveToCyclesV3Encoder.kt                           p1Alt1 writes a computed expression `(m->height_relative ? 1 : 0)`, which has no field to decode back into
-  rev239 out  camera/CamRotateToCoordinateV3Encoder.kt                     p1Alt1 writes a computed expression `(m->track_target ? 1 : 0)`, which has no field to decode back into
   rev239 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
             is CamTargetV3.
   rev239 out  camera/CamTargetV4Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
@@ -1991,11 +1933,8 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev239 out  group/GroupVarEncoder.kt                                     buffer expression not understood: when (val variable = update.variable) {
                 is G
   rev239 out  interfaces/IfResyncV2Encoder.kt                              array `events` is bounded by events_count, which is never transferred -- decoding cannot know how many to read
-  rev239 out  interfaces/IfSetHideEncoder.kt                               p1Alt1 writes a computed expression `(m->hidden ? 1 : 0)`, which has no field to decode back into
-  rev239 out  interfaces/IfSetPlayerModelSelfEncoder.kt                    p1Alt3 writes a computed expression `(m->copy_objs ? 1 : 0)`, which has no field to decode back into
   rev239 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev239 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev239 out  map/RebuildRegionV2Encoder.kt                                p1Alt1 writes a computed expression `(m->reload ? 1 : 0)`, which has no field to decode back into
   rev239 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
             is HintArrow.Np
   rev239 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
@@ -2018,9 +1957,6 @@ revisions 221-239; 202 packets emitted, 2 refused
   rev239 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
   rev239 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
                 is UpdateIgnoreList.AddedIgn
-  rev239 out  sound/AmbientSoundStartEncoder.kt                            p1Alt1 writes a computed expression `(m->fade ? 1 : 0)`, which has no field to decode back into
   rev239 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev239 out  specific/ObjAddSpecificEncoder.kt                            p1Alt3 writes a computed expression `(m->never_becomes_public ? 1 : 0)`, which has no field to decode back into
   rev239 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev239 out  zone/payload/LocAddChangeV2Encoder.kt                        unmodeled IR op: for_each_pair
-  rev239 out  zone/payload/ScriptedProjChangeEncoder.kt                    p1Alt1 writes a computed expression `(m->delete_on_freeze_end ? 1 : 0)`, which has no field to decode back into

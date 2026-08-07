@@ -11,7 +11,7 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamMoveToArcV2Encoder
- * Layouts      : 1 distinct, over 1 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 4 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamMoveToArcV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -28,21 +28,30 @@
  */
 typedef struct MsgCamMoveToArcV2 {
 	int32_t ignore_terrain;
+	int32_t easing_id;
+	int32_t height;
+	int32_t center_z;
 	int32_t destination_z;
 	int32_t cycles;
-	int32_t height;
 	int32_t center_x;
 	int32_t destination_x;
-	int32_t center_z;
-	int32_t easing_id;
 } MsgCamMoveToArcV2;
 
+/* v1 -- revs 236. */
+void packet_cam_moveto_arc_v2_v1_out(RsprotExec *x, MsgCamMoveToArcV2 *m);
+/* v2 -- revs 237. */
+void packet_cam_moveto_arc_v2_v2_out(RsprotExec *x, MsgCamMoveToArcV2 *m);
 /* v3 -- revs 238. */
 void packet_cam_moveto_arc_v2_v3_out(RsprotExec *x, MsgCamMoveToArcV2 *m);
+/* v4 -- revs 239. */
+void packet_cam_moveto_arc_v2_v4_out(RsprotExec *x, MsgCamMoveToArcV2 *m);
 
 /* Per-revision aliases: `packet_cam_moveto_arc_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_MOVETO_ARC_V2" without reading a table. */
+#define packet_cam_moveto_arc_v2_rev236_out packet_cam_moveto_arc_v2_v1_out
+#define packet_cam_moveto_arc_v2_rev237_out packet_cam_moveto_arc_v2_v2_out
 #define packet_cam_moveto_arc_v2_rev238_out packet_cam_moveto_arc_v2_v3_out
+#define packet_cam_moveto_arc_v2_rev239_out packet_cam_moveto_arc_v2_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_moveto_arc_v2_out[];

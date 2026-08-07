@@ -11,7 +11,7 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ObjAddSpecificEncoder
- * Layouts      : 5 distinct, over 5 contiguous revision run(s)
+ * Layouts      : 8 distinct, over 8 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ObjAddSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -39,22 +39,31 @@ typedef struct MsgObjAddSpecific {
 
 /* v1 -- revs 232. */
 void packet_obj_add_specific_v1_out(RsprotExec *x, MsgObjAddSpecific *m);
+/* v2 -- revs 233. */
+void packet_obj_add_specific_v2_out(RsprotExec *x, MsgObjAddSpecific *m);
 /* v3 -- revs 234. */
 void packet_obj_add_specific_v3_out(RsprotExec *x, MsgObjAddSpecific *m);
 /* v4 -- revs 235. */
 void packet_obj_add_specific_v4_out(RsprotExec *x, MsgObjAddSpecific *m);
+/* v5 -- revs 236. */
+void packet_obj_add_specific_v5_out(RsprotExec *x, MsgObjAddSpecific *m);
 /* v6 -- revs 237. */
 void packet_obj_add_specific_v6_out(RsprotExec *x, MsgObjAddSpecific *m);
 /* v7 -- revs 238. */
 void packet_obj_add_specific_v7_out(RsprotExec *x, MsgObjAddSpecific *m);
+/* v8 -- revs 239. */
+void packet_obj_add_specific_v8_out(RsprotExec *x, MsgObjAddSpecific *m);
 
 /* Per-revision aliases: `packet_obj_add_specific_rev239_out` is greppable, which is the
  * point -- "what does 239 do for OBJ_ADD_SPECIFIC" without reading a table. */
 #define packet_obj_add_specific_rev232_out packet_obj_add_specific_v1_out
+#define packet_obj_add_specific_rev233_out packet_obj_add_specific_v2_out
 #define packet_obj_add_specific_rev234_out packet_obj_add_specific_v3_out
 #define packet_obj_add_specific_rev235_out packet_obj_add_specific_v4_out
+#define packet_obj_add_specific_rev236_out packet_obj_add_specific_v5_out
 #define packet_obj_add_specific_rev237_out packet_obj_add_specific_v6_out
 #define packet_obj_add_specific_rev238_out packet_obj_add_specific_v7_out
+#define packet_obj_add_specific_rev239_out packet_obj_add_specific_v8_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_add_specific_out[];

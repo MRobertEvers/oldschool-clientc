@@ -1233,17 +1233,22 @@ def gen_op(op, scope, em, indent, ctx):
         # condition is a perfectly good lvalue. Recognising it turns a refusal
         # into the right codec.
         #
-        # Only for plain `p1`/`g1`: rsprot_x_boolean is a plain byte, so an
-        # Alt-transformed width-1 write would put a different byte on the wire
-        # and this shortcut would be a lie.
-        if fn_kt in ("p1", "g1") and expr_ast.get("kind") == "ternary":
+        # Any width-1 write, plain or Alt-transformed. `RSPROT_BOOL` is only
+        # right for plain `p1`, because rsprot_x_boolean writes the value
+        # unmodified -- but the Alt forms compose cleanly anyway: `p1Alt1` of a
+        # 0/1 value puts 128/129 on the wire and `g1Alt1` reads 0/1 back, so the
+        # matching `RSPROT_U1_ALT*` on the same field IS the round trip. The
+        # field is an int32_t holding 0 or 1, which is what BOOL stores too.
+        if fn_kt in ("p1", "g1", "p1Alt1", "g1Alt1", "p1Alt2", "g1Alt2",
+                     "p1Alt3", "g1Alt3") and expr_ast.get("kind") == "ternary":
             t, e = expr_ast.get("then"), expr_ast.get("els")
             if (t and e and t.get("kind") == "num" and e.get("kind") == "num"
                     and t.get("text") == "1" and e.get("text") == "0"):
                 _pre_register(expr_ast["cond"], scope, "int32_t", ctx)
                 cond_c = emit_expr(expr_ast["cond"], scope, ctx)
                 if _is_lvalue_c(cond_c):
-                    em.emit(f"RSPROT_BOOL(x, {cond_c});", indent)
+                    bool_macro = "RSPROT_BOOL" if fn_kt in ("p1", "g1") else macro
+                    em.emit(f"{bool_macro}(x, {cond_c});", indent)
                     em.mark_transferred(cond_c)
                     return
         # register the field if the expr is a direct field/member reference

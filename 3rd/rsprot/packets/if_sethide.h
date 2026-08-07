@@ -11,7 +11,7 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetHideEncoder
- * Layouts      : 4 distinct, over 4 contiguous revision run(s)
+ * Layouts      : 17 distinct, over 19 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetHideEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -33,19 +33,60 @@ typedef struct MsgIfSetHide {
 
 /* v1 -- revs 221. */
 void packet_if_sethide_v1_out(RsprotExec *x, MsgIfSetHide *m);
+/* v2 -- revs 222. */
+void packet_if_sethide_v2_out(RsprotExec *x, MsgIfSetHide *m);
 /* v3 -- revs 223. */
 void packet_if_sethide_v3_out(RsprotExec *x, MsgIfSetHide *m);
+/* v4 -- revs 224, 235. */
+void packet_if_sethide_v4_out(RsprotExec *x, MsgIfSetHide *m);
+/* v5 -- revs 225. */
+void packet_if_sethide_v5_out(RsprotExec *x, MsgIfSetHide *m);
 /* v6 -- revs 226. */
 void packet_if_sethide_v6_out(RsprotExec *x, MsgIfSetHide *m);
+/* v7 -- revs 227. */
+void packet_if_sethide_v7_out(RsprotExec *x, MsgIfSetHide *m);
+/* v8 -- revs 228, 233. */
+void packet_if_sethide_v8_out(RsprotExec *x, MsgIfSetHide *m);
+/* v9 -- revs 229. */
+void packet_if_sethide_v9_out(RsprotExec *x, MsgIfSetHide *m);
+/* v10 -- revs 230. */
+void packet_if_sethide_v10_out(RsprotExec *x, MsgIfSetHide *m);
+/* v11 -- revs 231. */
+void packet_if_sethide_v11_out(RsprotExec *x, MsgIfSetHide *m);
+/* v12 -- revs 232. */
+void packet_if_sethide_v12_out(RsprotExec *x, MsgIfSetHide *m);
+/* v13 -- revs 234. */
+void packet_if_sethide_v13_out(RsprotExec *x, MsgIfSetHide *m);
+/* v14 -- revs 236. */
+void packet_if_sethide_v14_out(RsprotExec *x, MsgIfSetHide *m);
+/* v15 -- revs 237. */
+void packet_if_sethide_v15_out(RsprotExec *x, MsgIfSetHide *m);
 /* v16 -- revs 238. */
 void packet_if_sethide_v16_out(RsprotExec *x, MsgIfSetHide *m);
+/* v17 -- revs 239. */
+void packet_if_sethide_v17_out(RsprotExec *x, MsgIfSetHide *m);
 
 /* Per-revision aliases: `packet_if_sethide_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_SETHIDE" without reading a table. */
 #define packet_if_sethide_rev221_out packet_if_sethide_v1_out
+#define packet_if_sethide_rev222_out packet_if_sethide_v2_out
 #define packet_if_sethide_rev223_out packet_if_sethide_v3_out
+#define packet_if_sethide_rev224_out packet_if_sethide_v4_out
+#define packet_if_sethide_rev225_out packet_if_sethide_v5_out
 #define packet_if_sethide_rev226_out packet_if_sethide_v6_out
+#define packet_if_sethide_rev227_out packet_if_sethide_v7_out
+#define packet_if_sethide_rev228_out packet_if_sethide_v8_out
+#define packet_if_sethide_rev229_out packet_if_sethide_v9_out
+#define packet_if_sethide_rev230_out packet_if_sethide_v10_out
+#define packet_if_sethide_rev231_out packet_if_sethide_v11_out
+#define packet_if_sethide_rev232_out packet_if_sethide_v12_out
+#define packet_if_sethide_rev233_out packet_if_sethide_v8_out
+#define packet_if_sethide_rev234_out packet_if_sethide_v13_out
+#define packet_if_sethide_rev235_out packet_if_sethide_v4_out
+#define packet_if_sethide_rev236_out packet_if_sethide_v14_out
+#define packet_if_sethide_rev237_out packet_if_sethide_v15_out
 #define packet_if_sethide_rev238_out packet_if_sethide_v16_out
+#define packet_if_sethide_rev239_out packet_if_sethide_v17_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_sethide_out[];

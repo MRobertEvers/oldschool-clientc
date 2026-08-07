@@ -11,7 +11,7 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : RebuildRegionEncoder
- * Layouts      : 3 distinct, over 3 contiguous revision run(s)
+ * Layouts      : 14 distinct, over 14 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^RebuildRegionEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -27,23 +27,56 @@
  * codec.
  */
 typedef struct MsgRebuildRegion {
-	int32_t zone_x;
-	int32_t zone_z;
 	int32_t reload;
+	int32_t zone_z;
+	int32_t zone_x;
 } MsgRebuildRegion;
 
+/* v3 -- revs 223. */
+void packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v4 -- revs 224. */
+void packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v5 -- revs 225. */
+void packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v6 -- revs 226. */
+void packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v7 -- revs 227. */
+void packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v8 -- revs 228. */
+void packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v9 -- revs 229. */
+void packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m);
 /* v10 -- revs 230. */
 void packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v11 -- revs 231. */
+void packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m);
 /* v12 -- revs 232. */
 void packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v13 -- revs 233. */
+void packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m);
 /* v14 -- revs 234. */
 void packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v15 -- revs 235. */
+void packet_rebuild_region_v15_out(RsprotExec *x, MsgRebuildRegion *m);
+/* v16 -- revs 236. */
+void packet_rebuild_region_v16_out(RsprotExec *x, MsgRebuildRegion *m);
 
 /* Per-revision aliases: `packet_rebuild_region_rev239_out` is greppable, which is the
  * point -- "what does 239 do for REBUILD_REGION" without reading a table. */
+#define packet_rebuild_region_rev223_out packet_rebuild_region_v3_out
+#define packet_rebuild_region_rev224_out packet_rebuild_region_v4_out
+#define packet_rebuild_region_rev225_out packet_rebuild_region_v5_out
+#define packet_rebuild_region_rev226_out packet_rebuild_region_v6_out
+#define packet_rebuild_region_rev227_out packet_rebuild_region_v7_out
+#define packet_rebuild_region_rev228_out packet_rebuild_region_v8_out
+#define packet_rebuild_region_rev229_out packet_rebuild_region_v9_out
 #define packet_rebuild_region_rev230_out packet_rebuild_region_v10_out
+#define packet_rebuild_region_rev231_out packet_rebuild_region_v11_out
 #define packet_rebuild_region_rev232_out packet_rebuild_region_v12_out
+#define packet_rebuild_region_rev233_out packet_rebuild_region_v13_out
 #define packet_rebuild_region_rev234_out packet_rebuild_region_v14_out
+#define packet_rebuild_region_rev235_out packet_rebuild_region_v15_out
+#define packet_rebuild_region_rev236_out packet_rebuild_region_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_region_out[];

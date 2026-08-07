@@ -3,6 +3,14 @@
 
 #include "rsprot_exec.h"
 
+#include "packets/cam_shake.h"
+#include "packets/chat_filter_settings.h"
+#include "packets/friendlist_loaded.h"
+#include "packets/if_sethide.h"
+#include "packets/if_setplayermodel_basecolour.h"
+#include "packets/if_setplayermodel_bodytype.h"
+#include "packets/if_setplayermodel_obj.h"
+#include "packets/if_setplayermodel_self.h"
 #include "packets/friendlist_loaded.h"
 #include "packets/if_clearinv.h"
 #include "packets/if_closesub.h"
@@ -461,6 +469,114 @@ bridge_friendlist_loaded(int revision, uint8_t const* data, int len, struct RevP
     return 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Camera, chat filters, player-model setters                          */
+/* ------------------------------------------------------------------ */
+
+static int
+bridge_cam_shake(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_shake_out, MsgCamShake)
+    /*
+     * MsgCamShake holds EIGHT fields for a four-byte packet, because the struct
+     * is the union across versions and RSProt renamed all four between them:
+     * older revisions call them type/randomAmount/sineAmount/sineFrequency and
+     * 239 calls them axis/random/amplitude/rate. Mapping the wrong set compiles
+     * fine and reads four zeroes.
+     *
+     * `grep rev239 3rd/rsprot/packets/cam_shake.h` says which codec 239 picks,
+     * and that codec names the fields it uses. The differential test caught
+     * this one; the union is exactly where that mistake is easy to make.
+     */
+    out->_cam_shake.axis = msg.axis;
+    out->_cam_shake.amplitude = msg.random;
+    out->_cam_shake.frequency = msg.amplitude;
+    out->_cam_shake.speed = msg.rate;
+    return 1;
+}
+
+/*
+ * `chat_private_mode` is stated as 0, not left alone.
+ *
+ * The rev-239 packet carries only the public and trade filters -- private chat
+ * moved to its own CHAT_FILTER_SETTINGS_PRIVATECHAT packet -- so there is no
+ * value on the wire for it. Writing 0 makes that explicit; the hand-written arm
+ * did the same.
+ */
+static int
+bridge_chat_filter_settings(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_chat_filter_settings_out, MsgChatFilterSettings)
+    out->_chat_filter_settings.chat_public_mode = msg.public_chat_filter;
+    out->_chat_filter_settings.chat_trade_mode = msg.trade_chat_filter;
+    out->_chat_filter_settings.chat_private_mode = 0;
+    return 1;
+}
+
+static int
+bridge_if_sethide(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_if_sethide_out, MsgIfSetHide)
+    out->_if_sethide.component_id = msg.combined_id;
+    out->_if_sethide.hide = msg.hidden;
+    return 1;
+}
+
+/*
+ * Four packets, one canonical arm, and `index` is the discriminator.
+ *
+ * PktIfSetPlayerModel holds (component_id, index, value). BASECOLOUR names a
+ * colour slot and so carries a real index; the other three set a single
+ * property and use -1 to say "no slot". That -1 is load-bearing -- it is how
+ * the consumer tells a base-colour write from a bodytype write -- so each
+ * adapter states it rather than leaving the field at whatever memset left.
+ */
+static int
+bridge_if_setplayermodel_basecolour(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_if_setplayermodel_basecolour_out, MsgIfSetPlayerModelBaseColour)
+    out->_if_setplayermodel.component_id = msg.combined_id;
+    out->_if_setplayermodel.index = msg.index;
+    out->_if_setplayermodel.value = msg.colour;
+    return 1;
+}
+
+static int
+bridge_if_setplayermodel_bodytype(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_if_setplayermodel_bodytype_out, MsgIfSetPlayerModelBodyType)
+    out->_if_setplayermodel.component_id = msg.combined_id;
+    out->_if_setplayermodel.index = -1;
+    out->_if_setplayermodel.value = msg.body_type;
+    return 1;
+}
+
+static int
+bridge_if_setplayermodel_obj(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_if_setplayermodel_obj_out, MsgIfSetPlayerModelObj)
+    out->_if_setplayermodel.component_id = msg.combined_id;
+    out->_if_setplayermodel.index = -1;
+    out->_if_setplayermodel.value = msg.obj;
+    return 1;
+}
+
+/* `copy_objs` is a flag; the canonical arm carries it in `value` as 0/1, which
+ * is what the hand-written arm's `!= 0` produced. */
+static int
+bridge_if_setplayermodel_self(
+    int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_if_setplayermodel_self_out, MsgIfSetPlayerModelSelf)
+    out->_if_setplayermodel.component_id = msg.combined_id;
+    out->_if_setplayermodel.index = -1;
+    out->_if_setplayermodel.value = msg.copy_objs != 0;
+    return 1;
+}
+
 struct BridgeRow
 {
     int pkt_name;
@@ -500,6 +616,13 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_UPDATE_STAT, bridge_update_stat },
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
+    { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
+    { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
+    { PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, bridge_if_setplayermodel_basecolour },
+    { PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE, bridge_if_setplayermodel_bodytype },
+    { PKT_NAME_IF_SETPLAYERMODEL_OBJ, bridge_if_setplayermodel_obj },
+    { PKT_NAME_IF_SETPLAYERMODEL_SELF, bridge_if_setplayermodel_self },
     { PKT_NAME_FRIENDLIST_LOADED, bridge_friendlist_loaded },
     { PKT_NAME_SERVER_TICK_END, bridge_server_tick_end },
 };

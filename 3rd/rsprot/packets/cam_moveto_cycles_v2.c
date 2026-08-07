@@ -23,14 +23,53 @@ packet_cam_moveto_cycles_v2_v1_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
     RSPROT_U2_ALT2(x, m->height);
 }
 
+/* v2 -- revs 237. */
+void
+packet_cam_moveto_cycles_v2_v2_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
+{
+    RSPROT_U2(x, m->x);
+    RSPROT_U2_ALT3(x, m->cycles);
+    RSPROT_U2(x, m->z);
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U1(x, m->easing_id);
+    RSPROT_U1_ALT3(x, m->ignore_terrain);
+}
+
+/* v3 -- revs 238. */
+void
+packet_cam_moveto_cycles_v2_v3_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
+{
+    RSPROT_U1_ALT2(x, m->easing_id);
+    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U2(x, m->x);
+    RSPROT_U1_ALT3(x, m->ignore_terrain);
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U2_ALT3(x, m->cycles);
+}
+
+/* v4 -- revs 239. */
+void
+packet_cam_moveto_cycles_v2_v4_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
+{
+    RSPROT_U2_ALT3(x, m->cycles);
+    RSPROT_U2(x, m->x);
+    RSPROT_U1_ALT1(x, m->easing_id);
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U1_ALT3(x, m->ignore_terrain);
+}
+
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 4 row(s) for 4 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_cam_moveto_cycles_v2_out[] = {
     { 236, 236, (RsprotCodecFn)packet_cam_moveto_cycles_v2_v1_out },
+    { 237, 237, (RsprotCodecFn)packet_cam_moveto_cycles_v2_v2_out },
+    { 238, 238, (RsprotCodecFn)packet_cam_moveto_cycles_v2_v3_out },
+    { 239, 239, (RsprotCodecFn)packet_cam_moveto_cycles_v2_v4_out },
 };
 
 const int rsprot_cam_moveto_cycles_v2_out_count =

@@ -19,12 +19,52 @@ packet_if_setplayermodel_self_v1_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
     RSPROT_U4_ALT3(x, m->combined_id);
 }
 
+/* v2 -- revs 222, 228, 230. */
+void
+packet_if_setplayermodel_self_v2_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_U1_ALT3(x, m->copy_objs);
+    RSPROT_COM_ALT2(x, m->combined_id);
+}
+
+/* v3 -- revs 223. */
+void
+packet_if_setplayermodel_self_v3_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_U1_ALT1(x, m->copy_objs);
+    RSPROT_COM(x, m->combined_id);
+}
+
+/* v4 -- revs 224, 238. */
+void
+packet_if_setplayermodel_self_v4_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_ALT1(x, m->copy_objs);
+}
+
+/* v5 -- revs 225. */
+void
+packet_if_setplayermodel_self_v5_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U1_ALT2(x, m->copy_objs);
+}
+
 /* v6 -- revs 226-227. */
 void
 packet_if_setplayermodel_self_v6_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
     RSPROT_COM_ALT2(x, m->combined_id);
     RSPROT_BOOL(x, m->copy_objs);
+}
+
+/* v7 -- revs 229. */
+void
+packet_if_setplayermodel_self_v7_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_ALT3(x, m->copy_objs);
 }
 
 /* v8 -- revs 231. */
@@ -35,6 +75,14 @@ packet_if_setplayermodel_self_v8_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
     RSPROT_COM(x, m->combined_id);
 }
 
+/* v9 -- revs 232. */
+void
+packet_if_setplayermodel_self_v9_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_ALT3(x, m->copy_objs);
+}
+
 /* v10 -- revs 233. */
 void
 packet_if_setplayermodel_self_v10_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
@@ -43,17 +91,63 @@ packet_if_setplayermodel_self_v10_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
+/* v11 -- revs 234. */
+void
+packet_if_setplayermodel_self_v11_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U1_ALT3(x, m->copy_objs);
+}
+
+/* v12 -- revs 235, 239. */
+void
+packet_if_setplayermodel_self_v12_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_U1_ALT3(x, m->copy_objs);
+    RSPROT_COM(x, m->combined_id);
+}
+
+/* v13 -- revs 236. */
+void
+packet_if_setplayermodel_self_v13_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_ALT2(x, m->copy_objs);
+}
+
+/* v14 -- revs 237. */
+void
+packet_if_setplayermodel_self_v14_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
+{
+    RSPROT_U1_ALT1(x, m->copy_objs);
+    RSPROT_COM_ALT1(x, m->combined_id);
+}
+
 /*
- * 4 row(s) for 4 layout(s), complete over revisions 221-239.
+ * 18 row(s) for 14 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_if_setplayermodel_self_out[] = {
     { 221, 221, (RsprotCodecFn)packet_if_setplayermodel_self_v1_out },
+    { 222, 222, (RsprotCodecFn)packet_if_setplayermodel_self_v2_out },
+    { 223, 223, (RsprotCodecFn)packet_if_setplayermodel_self_v3_out },
+    { 224, 224, (RsprotCodecFn)packet_if_setplayermodel_self_v4_out },
+    { 225, 225, (RsprotCodecFn)packet_if_setplayermodel_self_v5_out },
     { 226, 227, (RsprotCodecFn)packet_if_setplayermodel_self_v6_out },
+    { 228, 228, (RsprotCodecFn)packet_if_setplayermodel_self_v2_out },
+    { 229, 229, (RsprotCodecFn)packet_if_setplayermodel_self_v7_out },
+    { 230, 230, (RsprotCodecFn)packet_if_setplayermodel_self_v2_out },
     { 231, 231, (RsprotCodecFn)packet_if_setplayermodel_self_v8_out },
+    { 232, 232, (RsprotCodecFn)packet_if_setplayermodel_self_v9_out },
     { 233, 233, (RsprotCodecFn)packet_if_setplayermodel_self_v10_out },
+    { 234, 234, (RsprotCodecFn)packet_if_setplayermodel_self_v11_out },
+    { 235, 235, (RsprotCodecFn)packet_if_setplayermodel_self_v12_out },
+    { 236, 236, (RsprotCodecFn)packet_if_setplayermodel_self_v13_out },
+    { 237, 237, (RsprotCodecFn)packet_if_setplayermodel_self_v14_out },
+    { 238, 238, (RsprotCodecFn)packet_if_setplayermodel_self_v4_out },
+    { 239, 239, (RsprotCodecFn)packet_if_setplayermodel_self_v12_out },
 };
 
 const int rsprot_if_setplayermodel_self_out_count =

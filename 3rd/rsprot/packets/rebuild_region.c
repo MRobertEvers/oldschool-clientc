@@ -11,6 +11,69 @@
  * cannot drift apart.
  */
 
+/* v3 -- revs 223. */
+void
+packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_U2_ALT3(x, m->zone_z);
+    RSPROT_U2(x, m->zone_x);
+}
+
+/* v4 -- revs 224. */
+void
+packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2_ALT2(x, m->zone_x);
+}
+
+/* v5 -- revs 225. */
+void
+packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U2(x, m->zone_x);
+    RSPROT_U1_ALT2(x, m->reload);
+}
+
+/* v6 -- revs 226. */
+void
+packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT3(x, m->zone_z);
+    RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_U1_ALT2(x, m->reload);
+}
+
+/* v7 -- revs 227. */
+void
+packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_U2_ALT2(x, m->zone_z);
+}
+
+/* v8 -- revs 228. */
+void
+packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT1(x, m->zone_x);
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U1_ALT1(x, m->reload);
+}
+
+/* v9 -- revs 229. */
+void
+packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U2_ALT1(x, m->zone_x);
+}
+
 /* v10 -- revs 230. */
 void
 packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
@@ -18,6 +81,15 @@ packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_BOOL(x, m->reload);
+}
+
+/* v11 -- revs 231. */
+void
+packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_U2(x, m->zone_z);
 }
 
 /* v12 -- revs 232. */
@@ -29,6 +101,15 @@ packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT3(x, m->zone_x);
 }
 
+/* v13 -- revs 233. */
+void
+packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT1(x, m->zone_x);
+    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U1_ALT3(x, m->reload);
+}
+
 /* v14 -- revs 234. */
 void
 packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
@@ -38,16 +119,45 @@ packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2(x, m->zone_z);
 }
 
+/* v15 -- revs 235. */
+void
+packet_rebuild_region_v15_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2_ALT2(x, m->zone_x);
+}
+
+/* v16 -- revs 236. */
+void
+packet_rebuild_region_v16_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_U1_ALT3(x, m->reload);
+}
+
 /*
- * 3 row(s) for 3 layout(s), complete over revisions 221-239.
+ * 14 row(s) for 14 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_rebuild_region_out[] = {
+    { 223, 223, (RsprotCodecFn)packet_rebuild_region_v3_out },
+    { 224, 224, (RsprotCodecFn)packet_rebuild_region_v4_out },
+    { 225, 225, (RsprotCodecFn)packet_rebuild_region_v5_out },
+    { 226, 226, (RsprotCodecFn)packet_rebuild_region_v6_out },
+    { 227, 227, (RsprotCodecFn)packet_rebuild_region_v7_out },
+    { 228, 228, (RsprotCodecFn)packet_rebuild_region_v8_out },
+    { 229, 229, (RsprotCodecFn)packet_rebuild_region_v9_out },
     { 230, 230, (RsprotCodecFn)packet_rebuild_region_v10_out },
+    { 231, 231, (RsprotCodecFn)packet_rebuild_region_v11_out },
     { 232, 232, (RsprotCodecFn)packet_rebuild_region_v12_out },
+    { 233, 233, (RsprotCodecFn)packet_rebuild_region_v13_out },
     { 234, 234, (RsprotCodecFn)packet_rebuild_region_v14_out },
+    { 235, 235, (RsprotCodecFn)packet_rebuild_region_v15_out },
+    { 236, 236, (RsprotCodecFn)packet_rebuild_region_v16_out },
 };
 
 const int rsprot_rebuild_region_out_count =

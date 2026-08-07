@@ -11,6 +11,15 @@
  * cannot drift apart.
  */
 
+/* v1 -- revs 237. */
+void
+packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+{
+    RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2(x, m->zone_x);
+    RSPROT_U2_ALT3(x, m->zone_z);
+}
+
 /* v2 -- revs 238. */
 void
 packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
@@ -20,14 +29,25 @@ packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2_ALT2(x, m->zone_z);
 }
 
+/* v3 -- revs 239. */
+void
+packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+{
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U2(x, m->zone_x);
+    RSPROT_U1_ALT1(x, m->reload);
+}
+
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 3 row(s) for 3 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
+    { 237, 237, (RsprotCodecFn)packet_rebuild_region_v2_v1_out },
     { 238, 238, (RsprotCodecFn)packet_rebuild_region_v2_v2_out },
+    { 239, 239, (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
 };
 
 const int rsprot_rebuild_region_v2_out_count =
