@@ -473,17 +473,21 @@ a helmet, and everyone who can see the player learns about it through the
 the engine offers here, and it knows nothing about prayer — sets
 `MOCK230_PMASK_APPEARANCE`, and that is the whole of the delivery.
 
-**One deviation.** A real rev-230 appearance has two separate one-byte fields
-here — a prayer icon index and a PK-skull index, each 255 for "none". This
-client reads one byte and treats it as a *bitmask* over the `headicons` sprite
-pack (`app_overlay_build_player_headicons` plots every set bit, stacked upward),
-which is the older shape. The mask is what goes on the wire because this client
-is the only consumer. Bit position is the sprite index: 0 protect-melee,
-1 protect-missiles, 2 protect-magic, 3 retribution, 4 smite, 5 redemption —
-written down once, in `skill_prayer/configs/prayers.constant`, because the
-client reads the index and the server writes the bit and they have to be the
-same number. LostCity keeps the same list in `player/configs/headicon.constant`
-for its own revision.
+The generic world state remains a bitmask because older protocol families can
+carry several bits. Rev239 does not put that mask on the wire: its authoritative
+appearance block has separate signed bytes for the PK skull and prayer icon,
+with `-1` meaning none. `put_appearance_v5` converts the first active generic
+bit to its prayer archive index; the rev239 decoder converts that index back to
+one generic bit for `app_overlay_build_player_headicons`. Bit position/index is
+therefore still the sprite index: 0 protect-melee, 1 protect-missiles,
+2 protect-magic, 3 retribution, 4 smite, 5 redemption. The conversion is pinned
+by `mock239_playerinfo_test`; `TORIRS_OVERLAY_DEBUG=1` with `pray 18` verifies a
+kind-1 sprite follows the player in the headless client.
+
+The classic mock block retains its older one-byte mask for its classic C-client
+consumer. That compatibility shape must not leak into rev239 again: writing
+mask value 4 there asks for archive index 4, not icon bit 2, which was why valid
+prayers arrived as the wrong/no overhead sprite.
 
 ### 4.3 The client-side bug this uncovered
 

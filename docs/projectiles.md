@@ -236,6 +236,16 @@ this.pitch = atan2(velocityY, velocity)  × (2048 / 2π);
 
 If the target is a mobile entity (NPC or player), the client updates `dstX/Y/Z` from the entity's current position every tick so the projectile homes in even if the target moved.
 
+For rev239, preserve the signed 24-bit `targetIndex` exactly as decoded.
+Positive values resolve NPC slot `target - 1`; negative values resolve player
+index `-target - 1`; zero keeps the packet's fixed destination. The GPI player
+store uses that same client index. An earlier parser added one to negative
+targets as if it were converting to a different pool convention, so the
+per-cycle tracker never found the player and the projectile kept flying toward
+the cast-time tile. `rsprot_bridge_test` pins the wire value and
+`world_test_unit` moves both an NPC and a player after launch to pin the live
+re-aim.
+
 ---
 
 ## Adding a New Projectile

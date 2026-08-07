@@ -513,6 +513,42 @@ Unpack only writes `valign` when ≠ 0 (`cp_decode.c`). Engine top-align
 deob `class439.method7680` `arg9==0` → `field4805 + arg2`. Short lines high
 in the 67px body box are what Jagex encoded for 231.
 
+## 6d. Rev239 effective flags, mouse resume, and object-backed menu ops
+
+**Authority.** The rev239 deob is the reference here, not Client-TS:
+`class545.method12093` chooses a server WidgetFlags override and otherwise falls
+back to the widget's decoded flags; `method12078` permits a named operation when
+its bit is set *or* the widget owns `on_op`; `method12079` exposes the target
+verb when flags bits 11..16 are nonzero; `Statics.method5229` builds those rows.
+LostCity places the particular labels/actions in interface content. The flag
+resolution, CS2 widget mutators, menu construction, click dispatch and packets
+are client engine.
+
+Three previously separate symptoms were the same missing contract:
+
+- The XP orb had cache-authored op bits but no server override. Treating a
+  missing override as zero removed its Show/Setup rows and suppressed
+  `IF_BUTTON1`. `App_IfEventsGetEffective` now distinguishes “not found” from
+  an explicit zero override and falls back to `behavior.click_mask`. A headless
+  click on `orbs:xp_drops` sends `IF_BUTTON1 160:6` and opens its subinterface.
+- Mouse dialogue continue now builds action 30 from event bit 0 and sends
+  rev239 `RESUME_PAUSEBUTTON` as the static parent uid plus dynamic sub-id.
+  `talk hans 1` followed by a click on the prompt sends `231:5, sub=-1` and
+  opens the choice interface; keyboard resume continues to use the same sink.
+- Object-backed dynamic children use their script-installed operation ladder.
+  `OC_IOP` consumes `(obj, one-based op)` from the integer stack (the C VM had
+  incorrectly used the bytecode operand), and `CC/IF_SETTARGETVERB` now mutates
+  the live widget instead of being discarded by the stack stub. The menu keeps
+  named ops when `on_op` exists, adds the target verb as held-item selection,
+  and supplies rev239's default op-7 Drop without duplicating ObjType rows.
+  Object-backed `IF_BUTTONX` includes the object id and sends only for an armed
+  op bit, while the local `on_op` still runs. Live Blood rune verification is
+  exactly Use / Drop / Examine; clicking Drop emits `IF_BUTTONX` op 7 with
+  object 565 and reaches classic `OPHELD5` normalization on the server.
+
+Regression coverage: `test-net-exec`, `test-net-out-resume`,
+`test-cs2-target-verb`, and `test-minimenu-world`.
+
 ## 7. Harness notes
 
 Everything above was found and checked with knobs that already existed
