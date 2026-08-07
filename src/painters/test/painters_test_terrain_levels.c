@@ -522,6 +522,59 @@ test_empty_set_emits_nothing(void)
     painter_free(p);
 }
 
+/* Depth mode collects a visible set rather than deriving correctness from the
+ * camera-relative painter wavefront. Multi-tile scenery must still be emitted
+ * once. Through-wall decor remains a directional model choice rather than an
+ * occlusion-order choice, so its camera-facing alternative is preserved. */
+static void
+test_depth_collector_emits_visible_models_once(void)
+{
+    struct Painter* p = make_painter();
+    struct PaintersBuffer* buf = painter_buffer_new();
+    const int wall_a = 1200;
+    const int wall_b = 1201;
+    const int decor_a = 1202;
+    const int decor_b = 1203;
+    const int scenery = 1204;
+
+    printf("depth collection emits the visible model set without painter ordering\n");
+    painter_add_wall(p, 4, 4, 0, wall_a, WALL_A, WALL_SIDE_WEST);
+    painter_add_wall(p, 4, 4, 0, wall_b, WALL_B, WALL_SIDE_EAST);
+    painter_add_wall_decor(
+        p, 4, 4, 0, decor_a, WALL_A, WALL_CORNER_NORTHWEST, THROUGHWALL, 64);
+    painter_add_wall_decor(
+        p, 4, 4, 0, decor_b, WALL_B, WALL_CORNER_SOUTHEAST, 0, 64);
+    painter_add_normal_scenery_ex(p, 3, 3, 0, scenery, 2, 2, 64, 0);
+
+    painter_collect_visible_depth(p, buf, 4, 2, 0);
+    expect(entity_emits(buf, wall_a, NULL) == 1, "depth collector keeps wall A once");
+    expect(entity_emits(buf, wall_b, NULL) == 1, "depth collector keeps wall B once");
+    expect(entity_emits(buf, decor_a, NULL) == 0,
+           "south camera omits the non-facing through-wall alternative");
+    expect(entity_emits(buf, decor_b, NULL) == 1,
+           "south camera keeps through-wall decor B once");
+    expect(entity_emits(buf, scenery, NULL) == 1,
+           "depth collector deduplicates multi-tile scenery");
+
+    /* Moving across the tile does not alter ordinary geometry, but must flip
+     * the explicitly directional through-wall model. */
+    painter_collect_visible_depth(p, buf, 4, 6, 0);
+    expect(entity_emits(buf, wall_a, NULL) == 1,
+           "opposite camera keeps the same wall A set");
+    expect(entity_emits(buf, wall_b, NULL) == 1,
+           "opposite camera keeps the same wall B set");
+    expect(entity_emits(buf, decor_a, NULL) == 1,
+           "north camera selects decor A");
+    expect(entity_emits(buf, decor_b, NULL) == 0,
+           "north camera omits decor B");
+    expect(entity_emits(buf, scenery, NULL) == 1,
+           "opposite camera still emits scenery once");
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+}
+
 /*
  * The discriminating case, and the one with a real client behaviour behind it:
  * roof hiding and the level mask draw level 0 only, and a VisBelow tile must
@@ -567,6 +620,7 @@ main(void)
     test_emission_is_from_own_level_and_ordered();
     test_flagged_tile_survives_a_level_mask();
     test_empty_set_emits_nothing();
+    test_depth_collector_emits_visible_models_once();
     test_link_below_carries_ground_decor();
     test_bridge_underpass_draws_no_decor();
     test_vis_below_reveals_the_tiles_ground_decor();

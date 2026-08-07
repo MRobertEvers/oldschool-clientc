@@ -2935,6 +2935,15 @@ app_provider_set_cache_profile(
 }
 
 void
+App_SetWorldRenderMode(
+    struct App* app,
+    enum ToriRS_WorldRenderMode mode)
+{
+    if( app )
+        app->world_render_mode = mode;
+}
+
+void
 App_Init(
     struct App* app,
     struct AppConfig const* cfg)
@@ -6473,7 +6482,20 @@ app_world_paint(struct App* app)
         app->world_view_valid ? app->world_emit_desc.w : 0,
         app->world_view_valid ? app->world_emit_desc.h : 0);
 
-    painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
+    if( app->world_render_mode == TORIRS_WORLD_DEPTH )
+        painter_collect_visible_depth(
+            app->world->painter,
+            app->painter_buffer,
+            cam_sx,
+            cam_sz,
+            cam_slevel);
+    else
+        painter_paint_bucket(
+            app->world->painter,
+            app->painter_buffer,
+            cam_sx,
+            cam_sz,
+            cam_slevel);
 
     app->world_camera_pos.x = shake_x;
     app->world_camera_pos.y = shake_y;

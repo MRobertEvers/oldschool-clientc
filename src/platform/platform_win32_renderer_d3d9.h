@@ -76,7 +76,8 @@ bool
 ToriRS_D3D9_Init(
     struct ToriRS_D3D9* d3d9,
     void* native_window,
-    struct ToriDraw_Scene* scene);
+    struct ToriDraw_Scene* scene,
+    bool z_buffer_enabled);
 
 void
 ToriRS_D3D9_SetViewport(

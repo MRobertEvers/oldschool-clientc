@@ -56,6 +56,7 @@
 #define D3D9_UI_ROTMASK_INIT_CAP 8u
 #define D3D9_UI_FONT_BOX_MAX_LINES 64
 #define D3D9_WIDGET_MODEL_NEAR 50.0f
+#define D3D9_WORLD_FAR 65536.0f
 
 #define D3D9_WIDGET_CONFIG_ATLAS (-1)
 #define D3D9_WIDGET_CONFIG_NONE (-2)
@@ -203,6 +204,52 @@ struct D3D9ModelGroup
     bool reset_each_frame;
 };
 
+struct D3D9AlphaSubmission
+{
+    uint32_t binding;
+    uint32_t page_base;
+    uint32_t index_offset;
+    uint32_t index_count;
+    int depth;
+    uint32_t ordinal;
+};
+
+enum D3D9WorldFacePass
+{
+    D3D9_WORLD_FACE_SKIP = 0,
+    D3D9_WORLD_FACE_OPAQUE = 1,
+    D3D9_WORLD_FACE_CUTOUT = 2,
+    D3D9_WORLD_FACE_BLENDED = 3,
+};
+
+struct D3D9MaterialPose
+{
+    uint8_t* face_passes;
+    uint32_t face_count;
+    uint32_t opaque_count;
+    uint32_t cutout_count;
+    uint32_t blended_count;
+};
+
+struct D3D9MaterialTrack
+{
+    struct D3D9MaterialPose* poses;
+    uint32_t pose_count;
+    uint32_t pose_capacity;
+};
+
+struct D3D9MaterialElement
+{
+    struct D3D9MaterialTrack tracks[TRSPK_POSE_TRACK_COUNT];
+};
+
+struct D3D9MaterialTable
+{
+    struct D3D9MaterialElement* elements;
+    uint32_t element_count;
+    uint32_t element_capacity;
+};
+
 struct ToriRS_D3D9
 {
     struct ToriDraw_Scene* scene;
@@ -211,6 +258,7 @@ struct ToriRS_D3D9
     IDirect3DDevice9* device;
     D3DPRESENT_PARAMETERS present;
     D3DCAPS9 caps;
+    bool z_buffer_enabled;
     bool reset_pending;
     bool scene_active;
 
@@ -235,7 +283,11 @@ struct ToriRS_D3D9
     uint32_t gpu_ibo_capacity;
     struct TRSPK_PoseTable poses;
     struct TRSPK_PoseTable batch_poses;
+    struct D3D9MaterialTable materials;
+    struct D3D9MaterialTable batch_materials;
+    struct D3D9MaterialPose dynamic_material;
     struct TRSPK_IBOChain* ibo_chain;
+    struct TRSPK_IBOChain* alpha_ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
 
     /* Batch16 is retained build-time storage. Its logical pages (at most
@@ -258,6 +310,15 @@ struct ToriRS_D3D9
     /* Reused scratch makes each sorted model one U16-chain append. */
     uint16_t* model_indices;
     uint32_t model_index_capacity;
+
+    /* Blended model submissions are the only world objects sorted in depth
+     * mode. The flat index arena and records retain capacity across frames. */
+    uint16_t* alpha_indices;
+    uint32_t alpha_index_count;
+    uint32_t alpha_index_capacity;
+    struct D3D9AlphaSubmission* alpha_submissions;
+    uint32_t alpha_submission_count;
+    uint32_t alpha_submission_capacity;
 
     float view[16];
     float proj[16];
@@ -619,6 +680,29 @@ d3d9_remap_projection_z(float* projection)
 }
 
 static void
+d3d9_set_projection_zbuffer(
+    float* projection,
+    float near_plane,
+    float far_plane)
+{
+    float range;
+    if( near_plane < 1.0f )
+        near_plane = D3D9_WIDGET_MODEL_NEAR;
+    if( far_plane <= near_plane )
+        far_plane = D3D9_WORLD_FAR;
+    range = far_plane - near_plane;
+
+    /* Preserve the legacy X/Y projection scale while replacing its
+     * painter-only constant clip-Z with the conventional D3D [0,w] mapping.
+     * TRSPK stores column-major matrices; the identical bytes are the
+     * transposed D3D row-vector matrix consumed by SetTransform. */
+    projection[10] = far_plane / range;
+    projection[11] = 1.0f;
+    projection[14] = -(near_plane * far_plane) / range;
+    projection[15] = 0.0f;
+}
+
+static void
 d3d9_set_no_texture(IDirect3DDevice9* device)
 {
     IDirect3DDevice9_SetTexture(device, 0, NULL);
@@ -654,8 +738,15 @@ d3d9_set_world_states(struct ToriRS_D3D9* renderer)
     IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_FOGENABLE, FALSE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_CULLMODE, D3DCULL_NONE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, D3DZB_FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(
+        device,
+        D3DRS_ZENABLE,
+        renderer->z_buffer_enabled ? D3DZB_TRUE : D3DZB_FALSE);
+    IDirect3DDevice9_SetRenderState(
+        device,
+        D3DRS_ZWRITEENABLE,
+        renderer->z_buffer_enabled ? TRUE : FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
     IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
@@ -4617,6 +4708,26 @@ d3d9_pose_track_is_retained(
 }
 
 static bool
+d3d9_material_table_set(
+    struct D3D9MaterialTable* table,
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle handle);
+
+static void
+d3d9_material_table_remove_element(
+    struct D3D9MaterialTable* table,
+    int element_id);
+
+static void
+d3d9_material_table_remove_track(
+    struct D3D9MaterialTable* table,
+    int element_id,
+    int anim_index);
+
+static bool
 d3d9_bake_pose_vertices(
     struct ToriRS_D3D9* renderer,
     struct TRSPK_VBO* vbo,
@@ -4813,12 +4924,22 @@ d3d9_bake_into_arena(
         return UINT32_MAX;
 
     if( update_pose_table )
+    {
         trspk_pose_table_set(
             &renderer->poses,
             element_id,
             anim_index,
             pose_id,
             model_slot->vertex_base);
+        if( renderer->z_buffer_enabled )
+            (void)d3d9_material_table_set(
+                &renderer->materials,
+                renderer,
+                element_id,
+                anim_index,
+                pose_id,
+                model_handle);
+    }
     return model_slot->vertex_base;
 }
 
@@ -4834,6 +4955,7 @@ d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
     trspk_modelarena_unload_element(
         renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
+    d3d9_material_table_remove_element(&renderer->materials, element_id);
     d3d9_compact_static_group(renderer);
 }
 
@@ -4862,6 +4984,8 @@ d3d9_animation_track_unload(
             trspk_modelarena_unload(arena, slot_index);
     }
     trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
+    d3d9_material_table_remove_track(
+        &renderer->materials, element_id, anim_index);
     d3d9_compact_static_group(renderer);
 }
 
@@ -5001,6 +5125,117 @@ d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
     return true;
 }
 
+static bool
+d3d9_queue_alpha_submission(
+    struct ToriRS_D3D9* renderer,
+    uint32_t binding,
+    uint32_t page_base,
+    int depth,
+    const uint16_t* indices,
+    uint32_t index_count)
+{
+    struct D3D9AlphaSubmission* submission;
+    uint32_t needed_indices;
+    if( !renderer || !indices || index_count == 0u ||
+        renderer->alpha_index_count > UINT32_MAX - index_count )
+        return false;
+    needed_indices = renderer->alpha_index_count + index_count;
+    if( needed_indices > renderer->alpha_index_capacity )
+    {
+        uint32_t capacity = renderer->alpha_index_capacity
+            ? renderer->alpha_index_capacity
+            : 1024u;
+        uint16_t* grown;
+        while( capacity < needed_indices )
+        {
+            if( capacity > UINT32_MAX / 2u )
+            {
+                capacity = needed_indices;
+                break;
+            }
+            capacity *= 2u;
+        }
+        grown = (uint16_t*)realloc(
+            renderer->alpha_indices,
+            (size_t)capacity * sizeof(*grown));
+        if( !grown )
+            return false;
+        renderer->alpha_indices = grown;
+        renderer->alpha_index_capacity = capacity;
+    }
+    if( renderer->alpha_submission_count >= renderer->alpha_submission_capacity )
+    {
+        uint32_t capacity = renderer->alpha_submission_capacity
+            ? renderer->alpha_submission_capacity * 2u
+            : 128u;
+        struct D3D9AlphaSubmission* grown =
+            (struct D3D9AlphaSubmission*)realloc(
+                renderer->alpha_submissions,
+                (size_t)capacity * sizeof(*grown));
+        if( !grown )
+            return false;
+        renderer->alpha_submissions = grown;
+        renderer->alpha_submission_capacity = capacity;
+    }
+    memcpy(
+        renderer->alpha_indices + renderer->alpha_index_count,
+        indices,
+        (size_t)index_count * sizeof(*indices));
+    submission = &renderer->alpha_submissions[renderer->alpha_submission_count];
+    submission->binding = binding;
+    submission->page_base = page_base;
+    submission->index_offset = renderer->alpha_index_count;
+    submission->index_count = index_count;
+    submission->depth = depth;
+    submission->ordinal = renderer->alpha_submission_count;
+    renderer->alpha_index_count = needed_indices;
+    renderer->alpha_submission_count++;
+    return true;
+}
+
+static int
+d3d9_compare_alpha_submission(const void* lhs, const void* rhs)
+{
+    const struct D3D9AlphaSubmission* a =
+        (const struct D3D9AlphaSubmission*)lhs;
+    const struct D3D9AlphaSubmission* b =
+        (const struct D3D9AlphaSubmission*)rhs;
+    if( a->depth > b->depth )
+        return -1;
+    if( a->depth < b->depth )
+        return 1;
+    if( a->ordinal < b->ordinal )
+        return -1;
+    if( a->ordinal > b->ordinal )
+        return 1;
+    return 0;
+}
+
+static void
+d3d9_build_alpha_chain(struct ToriRS_D3D9* renderer)
+{
+    uint32_t i;
+    if( !renderer || !renderer->alpha_ibo_chain ||
+        renderer->alpha_submission_count == 0u )
+        return;
+    qsort(
+        renderer->alpha_submissions,
+        renderer->alpha_submission_count,
+        sizeof(renderer->alpha_submissions[0]),
+        d3d9_compare_alpha_submission);
+    for( i = 0u; i < renderer->alpha_submission_count; i++ )
+    {
+        const struct D3D9AlphaSubmission* submission =
+            &renderer->alpha_submissions[i];
+        trspk_ibochain_push16(
+            renderer->alpha_ibo_chain,
+            submission->binding,
+            submission->page_base,
+            renderer->alpha_indices + submission->index_offset,
+            submission->index_count);
+    }
+}
+
 static void
 d3d9_begin_3d(
     struct ToriRS_D3D9* renderer,
@@ -5021,6 +5256,10 @@ d3d9_begin_3d(
         return;
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
+    if( renderer->alpha_ibo_chain )
+        trspk_ibochain_reset(renderer->alpha_ibo_chain);
+    renderer->alpha_index_count = 0u;
+    renderer->alpha_submission_count = 0u;
     renderer->cur_3d = *command;
     renderer->has_3d = true;
     renderer->in3d = true;
@@ -5050,6 +5289,15 @@ d3d9_begin_3d(
     d3d_viewport.MinZ = 0.0f;
     d3d_viewport.MaxZ = 1.0f;
     IDirect3DDevice9_SetViewport(renderer->device, &d3d_viewport);
+    if( renderer->z_buffer_enabled )
+        IDirect3DDevice9_Clear(
+            renderer->device,
+            0u,
+            NULL,
+            D3DCLEAR_ZBUFFER,
+            0u,
+            1.0f,
+            0u);
 
     trspk_compute_pass_matrices(
         renderer->view,
@@ -5061,7 +5309,13 @@ d3d9_begin_3d(
         ToriDraw_AngleToRadians(command->camera.yaw),
         pass_w,
         pass_h);
-    d3d9_remap_projection_z(renderer->proj);
+    if( renderer->z_buffer_enabled )
+        d3d9_set_projection_zbuffer(
+            renderer->proj,
+            (float)command->camera.near_plane_z,
+            D3D9_WORLD_FAR);
+    else
+        d3d9_remap_projection_z(renderer->proj);
     d3d9_float16_to_matrix(renderer->view, &view);
     d3d9_float16_to_matrix(renderer->proj, &projection);
     d3d9_identity(&world);
@@ -5074,6 +5328,288 @@ d3d9_begin_3d(
             d3d9_reset_group(&renderer->groups[group]);
 }
 
+static enum D3D9WorldFacePass
+d3d9_world_face_pass(
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_ModelHandle handle,
+    uint32_t face)
+{
+    if( handle.kind == TORIDRAWMK_MODEL )
+    {
+        struct ToriDraw_Model* model = handle.u.model.model;
+        int raw_type;
+        int tex_id;
+        uint8_t alpha;
+        if( !model || face >= (uint32_t)model->face_count )
+            return D3D9_WORLD_FACE_SKIP;
+        raw_type = model->face_infos ? model->face_infos[face] : 0;
+        if( raw_type == 2 || raw_type < 0 || raw_type > 3 ||
+            model->face_colors_c[face] == TORIDRAWHSL16_HIDDEN )
+            return D3D9_WORLD_FACE_SKIP;
+        /* Animation baking has already written the pose's final face alpha.
+         * Apply it before texture classification: textured faces can still be
+         * truly translucent, and fully faded faces must not write depth. */
+        alpha = model->face_alphas
+            ? (uint8_t)(0xffu - model->face_alphas[face])
+            : 0xffu;
+        if( alpha <= 1u )
+            return D3D9_WORLD_FACE_SKIP;
+        if( alpha != 0xffu )
+            return D3D9_WORLD_FACE_BLENDED;
+        tex_id = model->face_textures ? (int)model->face_textures[face] : -1;
+        if( tex_id >= 0 )
+        {
+            struct ToriDraw_Texture* texture = renderer && renderer->scene
+                ? ToriDraw_TextureMapGet(
+                      &ToriDraw_SceneTexState(renderer->scene)->texture_map,
+                      tex_id)
+                : NULL;
+            return texture && texture->opaque
+                ? D3D9_WORLD_FACE_OPAQUE
+                : D3D9_WORLD_FACE_CUTOUT;
+        }
+        return D3D9_WORLD_FACE_OPAQUE;
+    }
+    if( handle.kind == TORIDRAWMK_GROUND )
+    {
+        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
+        if( !ground || face >= (uint32_t)ground->face_count ||
+            ground->face_colors_c[face] == TORIDRAWHSL16_HIDDEN )
+            return D3D9_WORLD_FACE_SKIP;
+        return D3D9_WORLD_FACE_OPAQUE;
+    }
+    return D3D9_WORLD_FACE_SKIP;
+}
+
+static void
+d3d9_material_pose_clear(struct D3D9MaterialPose* pose)
+{
+    if( !pose )
+        return;
+    free(pose->face_passes);
+    memset(pose, 0, sizeof(*pose));
+}
+
+static bool
+d3d9_material_pose_set(
+    struct D3D9MaterialPose* pose,
+    struct ToriRS_D3D9* renderer,
+    struct ToriDraw_ModelHandle handle)
+{
+    int face_count;
+    uint8_t* passes;
+    if( !pose )
+        return false;
+    face_count = trspk_toridraw_face_count(handle);
+    if( face_count <= 0 )
+        return false;
+    passes = pose->face_count == (uint32_t)face_count
+        ? pose->face_passes
+        : (uint8_t*)realloc(pose->face_passes, (size_t)face_count);
+    if( !passes )
+        return false;
+    pose->face_passes = passes;
+    pose->face_count = (uint32_t)face_count;
+    pose->opaque_count = 0u;
+    pose->cutout_count = 0u;
+    pose->blended_count = 0u;
+    for( uint32_t face = 0u; face < pose->face_count; face++ )
+    {
+        enum D3D9WorldFacePass pass =
+            d3d9_world_face_pass(renderer, handle, face);
+        pose->face_passes[face] = (uint8_t)pass;
+        if( pass == D3D9_WORLD_FACE_OPAQUE )
+            pose->opaque_count++;
+        else if( pass == D3D9_WORLD_FACE_CUTOUT )
+            pose->cutout_count++;
+        else if( pass == D3D9_WORLD_FACE_BLENDED )
+            pose->blended_count++;
+    }
+    return true;
+}
+
+static bool
+d3d9_material_table_set(
+    struct D3D9MaterialTable* table,
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle handle)
+{
+    struct D3D9MaterialTrack* track;
+    uint32_t needed;
+    if( !table || element_id < 0 || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
+        return false;
+    needed = (uint32_t)element_id + 1u;
+    if( needed > table->element_capacity )
+    {
+        uint32_t capacity = table->element_capacity ? table->element_capacity : 64u;
+        struct D3D9MaterialElement* grown;
+        while( capacity < needed )
+            capacity *= 2u;
+        grown = (struct D3D9MaterialElement*)realloc(
+            table->elements,
+            (size_t)capacity * sizeof(*grown));
+        if( !grown )
+            return false;
+        memset(
+            grown + table->element_capacity,
+            0,
+            (size_t)(capacity - table->element_capacity) * sizeof(*grown));
+        table->elements = grown;
+        table->element_capacity = capacity;
+    }
+    if( table->element_count < needed )
+        table->element_count = needed;
+    track = &table->elements[element_id].tracks[anim_index];
+    needed = (uint32_t)pose_id + 1u;
+    if( needed > track->pose_capacity )
+    {
+        uint32_t capacity = track->pose_capacity ? track->pose_capacity : 8u;
+        struct D3D9MaterialPose* grown;
+        while( capacity < needed )
+            capacity *= 2u;
+        grown = (struct D3D9MaterialPose*)realloc(
+            track->poses,
+            (size_t)capacity * sizeof(*grown));
+        if( !grown )
+            return false;
+        memset(
+            grown + track->pose_capacity,
+            0,
+            (size_t)(capacity - track->pose_capacity) * sizeof(*grown));
+        track->poses = grown;
+        track->pose_capacity = capacity;
+    }
+    if( track->pose_count < needed )
+        track->pose_count = needed;
+    return d3d9_material_pose_set(
+        &track->poses[pose_id], renderer, handle);
+}
+
+static const struct D3D9MaterialPose*
+d3d9_material_table_get(
+    const struct D3D9MaterialTable* table,
+    int element_id,
+    int anim_index,
+    int pose_id)
+{
+    const struct D3D9MaterialTrack* track;
+    if( !table || !table->elements || element_id < 0 ||
+        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
+        return NULL;
+    track = &table->elements[element_id].tracks[anim_index];
+    if( !track->poses || (uint32_t)pose_id >= track->pose_count ||
+        !track->poses[pose_id].face_passes )
+        return NULL;
+    return &track->poses[pose_id];
+}
+
+static void
+d3d9_material_table_remove_track(
+    struct D3D9MaterialTable* table,
+    int element_id,
+    int anim_index)
+{
+    struct D3D9MaterialTrack* track;
+    if( !table || !table->elements || element_id < 0 ||
+        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        anim_index >= TRSPK_POSE_TRACK_COUNT )
+        return;
+    track = &table->elements[element_id].tracks[anim_index];
+    for( uint32_t pose = 0u; pose < track->pose_count; pose++ )
+        d3d9_material_pose_clear(&track->poses[pose]);
+    track->pose_count = 0u;
+}
+
+static void
+d3d9_material_table_remove_element(
+    struct D3D9MaterialTable* table,
+    int element_id)
+{
+    for( int track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
+        d3d9_material_table_remove_track(table, element_id, track);
+}
+
+static void
+d3d9_material_table_clear(struct D3D9MaterialTable* table)
+{
+    if( !table )
+        return;
+    for( uint32_t element = 0u; element < table->element_count; element++ )
+        d3d9_material_table_remove_element(table, (int)element);
+    table->element_count = 0u;
+}
+
+static void
+d3d9_material_table_free(struct D3D9MaterialTable* table)
+{
+    if( !table )
+        return;
+    d3d9_material_table_clear(table);
+    for( uint32_t element = 0u; element < table->element_capacity; element++ )
+        for( int track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
+            free(table->elements[element].tracks[track].poses);
+    free(table->elements);
+    memset(table, 0, sizeof(*table));
+}
+
+static bool
+d3d9_world_face_front_facing(
+    struct ToriDraw_ModelHandle handle,
+    const struct ToriDraw_Scene* scene,
+    uint32_t face)
+{
+    const faceint_t* face_a;
+    const faceint_t* face_b;
+    const faceint_t* face_c;
+    uint32_t vertex_count;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+    int64_t dx1;
+    int64_t dy1;
+    int64_t dx2;
+    int64_t dy2;
+    if( !scene || !scene->screen_vertices_x || !scene->screen_vertices_y )
+        return false;
+    if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
+    {
+        struct ToriDraw_Model* model = handle.u.model.model;
+        if( face >= (uint32_t)model->face_count )
+            return false;
+        face_a = model->face_indices_a;
+        face_b = model->face_indices_b;
+        face_c = model->face_indices_c;
+        vertex_count = (uint32_t)model->vertex_count;
+    }
+    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
+    {
+        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
+        if( face >= (uint32_t)ground->face_count )
+            return false;
+        face_a = ground->face_indices_a;
+        face_b = ground->face_indices_b;
+        face_c = ground->face_indices_c;
+        vertex_count = (uint32_t)ground->vertex_count;
+    }
+    else
+        return false;
+    a = (uint32_t)face_a[face];
+    b = (uint32_t)face_b[face];
+    c = (uint32_t)face_c[face];
+    if( a >= vertex_count || b >= vertex_count || c >= vertex_count )
+        return false;
+    dx1 = (int64_t)scene->screen_vertices_x[a] - scene->screen_vertices_x[b];
+    dy1 = (int64_t)scene->screen_vertices_y[a] - scene->screen_vertices_y[b];
+    dx2 = (int64_t)scene->screen_vertices_x[c] - scene->screen_vertices_x[b];
+    dy2 = (int64_t)scene->screen_vertices_y[c] - scene->screen_vertices_y[b];
+    return dx1 * dy2 - dy1 * dx2 > 0;
+}
+
 static void
 d3d9_draw_model(
     struct ToriRS_D3D9* renderer,
@@ -5081,6 +5617,7 @@ d3d9_draw_model(
 {
     struct ToriDraw_Position projected_position;
     int face_count;
+    int sorted_face_count = 0;
     int* face_order;
     bool dynamic;
     int anim_index;
@@ -5092,6 +5629,7 @@ d3d9_draw_model(
     uint32_t group;
     uint32_t index_count;
     uint32_t written = 0u;
+    const struct D3D9MaterialPose* material = NULL;
     int i;
 
     if( !renderer->has_3d || !renderer->scene || !renderer->ibo_chain || !command ||
@@ -5130,7 +5668,13 @@ d3d9_draw_model(
             command->pick_tile_z,
             command->pick_tile_level);
 
-    face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    if( renderer->z_buffer_enabled )
+        face_count = trspk_toridraw_face_count(command->model);
+    else
+    {
+        face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+        sorted_face_count = face_count;
+    }
     if( face_count <= 0 )
         return;
     dynamic = command->dynamic || command->element_id < 0;
@@ -5214,6 +5758,29 @@ d3d9_draw_model(
     if( vertex_base == UINT32_MAX )
         return;
 
+    if( renderer->z_buffer_enabled )
+    {
+        if( dynamic )
+        {
+            if( d3d9_material_pose_set(
+                    &renderer->dynamic_material, renderer, command->model) )
+                material = &renderer->dynamic_material;
+        }
+        else
+            material = d3d9_material_table_get(
+                binding >= D3D9_STATIC_PAGE_BINDING_BASE
+                    ? &renderer->batch_materials
+                    : &renderer->materials,
+                command->element_id,
+                anim_index,
+                pose_id);
+        if( !material && d3d9_material_pose_set(
+                &renderer->dynamic_material, renderer, command->model) )
+            material = &renderer->dynamic_material;
+        if( !material || material->face_count != (uint32_t)face_count )
+            return;
+    }
+
     if( binding < D3D9_STATIC_PAGE_BINDING_BASE )
     {
         page_base = vertex_base & ~(D3D9_VBO_PAGE - 1u);
@@ -5227,14 +5794,40 @@ d3d9_draw_model(
     if( !d3d9_reserve_model_indices(renderer, index_count) )
         return;
     face_order = ToriDraw_FaceOrder(renderer->scene);
+    if( !renderer->z_buffer_enabled )
+    {
+        for( i = 0; i < sorted_face_count; i++ )
+        {
+            uint32_t face;
+            uint32_t base;
+            if( face_order[i] < 0 )
+                continue;
+            face = (uint32_t)face_order[i];
+            if( face > (UINT32_MAX - local_base - 2u) / 3u )
+                continue;
+            base = local_base + face * 3u;
+            if( base + 2u > UINT16_MAX )
+                continue;
+            renderer->model_indices[written++] = (uint16_t)base;
+            renderer->model_indices[written++] = (uint16_t)(base + 1u);
+            renderer->model_indices[written++] = (uint16_t)(base + 2u);
+        }
+        trspk_ibochain_push16(
+            renderer->ibo_chain, binding, page_base, renderer->model_indices, written);
+        return;
+    }
+
+    /* Opaque and binary-cutout faces are depth-order independent. Preserve
+     * natural face order and perform only the projected front-face test that
+     * used to be fused into RenderModel2SortFaces. */
     for( i = 0; i < face_count; i++ )
     {
-        uint32_t face;
+        uint32_t face = (uint32_t)i;
         uint32_t base;
-        if( face_order[i] < 0 )
-            continue;
-        face = (uint32_t)face_order[i];
-        if( face > (UINT32_MAX - local_base - 2u) / 3u )
+        if( (material->face_passes[face] != D3D9_WORLD_FACE_OPAQUE &&
+             material->face_passes[face] != D3D9_WORLD_FACE_CUTOUT) ||
+            !d3d9_world_face_front_facing(command->model, renderer->scene, face) ||
+            face > (UINT32_MAX - local_base - 2u) / 3u )
             continue;
         base = local_base + face * 3u;
         if( base + 2u > UINT16_MAX )
@@ -5245,6 +5838,43 @@ d3d9_draw_model(
     }
     trspk_ibochain_push16(
         renderer->ibo_chain, binding, page_base, renderer->model_indices, written);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_OPAQUE_TRIANGLES, written / 3u);
+
+    /* Only models with true blended faces pay the legacy depth/priority sort.
+     * Filter the sorted result so opaque faces never enter the blend pass. */
+    written = 0u;
+    if( material->blended_count == 0u )
+        return;
+    sorted_face_count = ToriDraw_RenderModel2SortFaces(command->model, renderer->scene);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_SORTED_MODELS, 1);
+    if( sorted_face_count <= 0 )
+        return;
+    face_order = ToriDraw_FaceOrder(renderer->scene);
+    for( i = 0; i < sorted_face_count; i++ )
+    {
+        uint32_t face;
+        uint32_t base;
+        if( face_order[i] < 0 )
+            continue;
+        face = (uint32_t)face_order[i];
+        if( material->face_passes[face] != D3D9_WORLD_FACE_BLENDED ||
+            face > (UINT32_MAX - local_base - 2u) / 3u )
+            continue;
+        base = local_base + face * 3u;
+        if( base + 2u > UINT16_MAX )
+            continue;
+        renderer->model_indices[written++] = (uint16_t)base;
+        renderer->model_indices[written++] = (uint16_t)(base + 1u);
+        renderer->model_indices[written++] = (uint16_t)(base + 2u);
+    }
+    (void)d3d9_queue_alpha_submission(
+        renderer,
+        binding,
+        page_base,
+        renderer->scene->projected_vertex.z,
+        renderer->model_indices,
+        written);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
 static void
@@ -5354,15 +5984,16 @@ d3d9_binding_cpu_source(
 static uint32_t
 d3d9_build_draw_ranges16(
     struct ToriRS_D3D9* renderer,
+    const struct TRSPK_IBOChain* chain,
     uint16_t* dst)
 {
     const struct TRSPK_IBOChainNode* node;
     uint32_t gpu_cursor = 0u;
-    if( !renderer || !renderer->ibo_chain || !renderer->draw_ranges || !dst )
+    if( !renderer || !chain || !renderer->draw_ranges || !dst )
         return UINT32_MAX;
     trspk_drawrangelist_clear(renderer->draw_ranges);
 
-    for( node = renderer->ibo_chain->head; node; node = node->next )
+    for( node = chain->head; node; node = node->next )
     {
         const struct TRSPK_VBO* vbo;
         const struct TRSPK_Triangles* triangles;
@@ -5459,7 +6090,10 @@ d3d9_bind_world_config(struct ToriRS_D3D9* renderer, uint32_t config_idx)
 }
 
 static void
-d3d9_draw_retained(struct ToriRS_D3D9* renderer)
+d3d9_draw_retained(
+    struct ToriRS_D3D9* renderer,
+    struct TRSPK_IBOChain* chain,
+    bool blended_pass)
 {
     uint32_t total_indices = 0u;
     uint32_t chain_nodes = 0u;
@@ -5479,10 +6113,10 @@ d3d9_draw_retained(struct ToriRS_D3D9* renderer)
             return;
     if( !d3d9_upload_dirty_static_batches(renderer) )
         return;
-    if( !renderer->ibo_chain || !renderer->ibo_chain->head )
+    if( !chain || !chain->head )
         return;
     if( !d3d9_measure_ibo_chain(
-            renderer->ibo_chain,
+            chain,
             &total_indices,
             &chain_nodes,
             &page_switches) ||
@@ -5497,7 +6131,7 @@ d3d9_draw_retained(struct ToriRS_D3D9* renderer)
             D3DLOCK_DISCARD)) )
         return;
 
-    built = d3d9_build_draw_ranges16(renderer, (uint16_t*)locked);
+    built = d3d9_build_draw_ranges16(renderer, chain, (uint16_t*)locked);
     IDirect3DIndexBuffer9_Unlock(renderer->ibo);
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_D3D9_IBO_UPLOAD_BYTES,
@@ -5511,6 +6145,17 @@ d3d9_draw_retained(struct ToriRS_D3D9* renderer)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_PAGE_SWITCHES, page_switches);
 
     d3d9_set_world_states(renderer);
+    if( renderer->z_buffer_enabled )
+    {
+        IDirect3DDevice9_SetRenderState(
+            renderer->device,
+            D3DRS_ZWRITEENABLE,
+            blended_pass ? FALSE : TRUE);
+        IDirect3DDevice9_SetRenderState(
+            renderer->device,
+            D3DRS_ALPHABLENDENABLE,
+            blended_pass ? TRUE : FALSE);
+    }
     IDirect3DDevice9_SetIndices(renderer->device, renderer->ibo);
     range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
@@ -5588,7 +6233,11 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
     if( trspk_atlas_is_dirty(&renderer->atlas) && !d3d9_upload_atlas(renderer) )
         goto done;
     if( renderer->ibo_chain && renderer->ibo_chain->head )
-        d3d9_draw_retained(renderer);
+        d3d9_draw_retained(renderer, renderer->ibo_chain, false);
+    d3d9_build_alpha_chain(renderer);
+    if( renderer->z_buffer_enabled && renderer->alpha_ibo_chain &&
+        renderer->alpha_ibo_chain->head )
+        d3d9_draw_retained(renderer, renderer->alpha_ibo_chain, true);
 
 done:
     for( page = 0u; page < renderer->static_page_count; page++ )
@@ -5600,6 +6249,8 @@ done:
     renderer->in3d = false;
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
+    if( renderer->alpha_ibo_chain )
+        trspk_ibochain_reset(renderer->alpha_ibo_chain);
     d3d9_set_full_viewport(renderer);
 }
 
@@ -5648,6 +6299,18 @@ d3d9_batch_begin(
     if( slot < 0 )
         return;
     batch = &renderer->static_batches[slot];
+    if( renderer->z_buffer_enabled )
+    {
+        uint32_t entry_count = trspk_batch16_entry_count(batch->cpu);
+        for( uint32_t entry_index = 0u; entry_index < entry_count; entry_index++ )
+        {
+            const struct TRSPK_Batch16Entry* entry =
+                trspk_batch16_get_entry(batch->cpu, entry_index);
+            if( entry )
+                d3d9_material_table_remove_element(
+                    &renderer->batch_materials, entry->element_id);
+        }
+    }
     for( i = 0u; i < batch->page_id_capacity; i++ )
     {
         uint32_t page_id = batch->page_ids[i];
@@ -5697,13 +6360,21 @@ d3d9_batch_add(
             vertex_count,
             &reservation) )
         return;
-    (void)d3d9_bake_pose_vertices(
-        renderer,
-        reservation.vbo,
-        reservation.triangles,
-        reservation.vertex_base,
-        command->model,
-        &command->world_position);
+    if( d3d9_bake_pose_vertices(
+            renderer,
+            reservation.vbo,
+            reservation.triangles,
+            reservation.vertex_base,
+            command->model,
+            &command->world_position) &&
+        renderer->z_buffer_enabled )
+        (void)d3d9_material_table_set(
+            &renderer->batch_materials,
+            renderer,
+            command->element_id,
+            anim_index,
+            pose_id,
+            command->model);
 }
 
 static void
@@ -5744,6 +6415,18 @@ d3d9_batch_clear(
         uint32_t page;
         if( !clear_all && batch->batch_id != batch_id )
             continue;
+        if( renderer->z_buffer_enabled )
+        {
+            uint32_t entry_count = trspk_batch16_entry_count(batch->cpu);
+            for( uint32_t entry_index = 0u; entry_index < entry_count; entry_index++ )
+            {
+                const struct TRSPK_Batch16Entry* entry =
+                    trspk_batch16_get_entry(batch->cpu, entry_index);
+                if( entry )
+                    d3d9_material_table_remove_element(
+                        &renderer->batch_materials, entry->element_id);
+            }
+        }
         for( page = 0u; page < batch->page_id_capacity; page++ )
         {
             uint32_t page_id = batch->page_ids[page];
@@ -5957,10 +6640,11 @@ ToriRS_D3D9_New(int width, int height)
     trspk_pose_table_init(&renderer->poses);
     trspk_pose_table_init(&renderer->batch_poses);
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
+    renderer->alpha_ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(D3D9_DRAWRANGE_CAP);
     renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)malloc(
         D3D9_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
-    if( !renderer->ibo_chain || !renderer->draw_ranges ||
+    if( !renderer->ibo_chain || !renderer->alpha_ibo_chain || !renderer->draw_ranges ||
         !renderer->ui_batch.vertices ||
         !trspk_atlas_init_grid(
             &renderer->atlas,
@@ -6137,10 +6821,15 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     }
     if( renderer->ibo_chain )
         trspk_ibochain_free(renderer->ibo_chain);
+    if( renderer->alpha_ibo_chain )
+        trspk_ibochain_free(renderer->alpha_ibo_chain);
     if( renderer->draw_ranges )
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
+    d3d9_material_table_free(&renderer->materials);
+    d3d9_material_table_free(&renderer->batch_materials);
+    d3d9_material_pose_clear(&renderer->dynamic_material);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
         trspk_batch16_destroy(renderer->static_batches[batch].cpu);
@@ -6156,6 +6845,8 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     free(renderer->ui_rotmasks);
     free(renderer->ui_batch.vertices);
     free(renderer->model_indices);
+    free(renderer->alpha_indices);
+    free(renderer->alpha_submissions);
     free(renderer->static_pages);
     free(renderer->static_batches);
     free(renderer);
@@ -6165,7 +6856,8 @@ bool
 ToriRS_D3D9_Init(
     struct ToriRS_D3D9* renderer,
     void* native_window,
-    struct ToriDraw_Scene* scene)
+    struct ToriDraw_Scene* scene,
+    bool z_buffer_enabled)
 {
     DWORD behavior;
     HRESULT hr;
@@ -6175,6 +6867,7 @@ ToriRS_D3D9_Init(
         return false;
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
+    renderer->z_buffer_enabled = z_buffer_enabled;
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
         return false;
     renderer->client_w = width;
@@ -6208,7 +6901,8 @@ ToriRS_D3D9_Init(
     renderer->present.SwapEffect = D3DSWAPEFFECT_DISCARD;
     renderer->present.hDeviceWindow = renderer->hwnd;
     renderer->present.Windowed = TRUE;
-    renderer->present.EnableAutoDepthStencil = FALSE;
+    renderer->present.EnableAutoDepthStencil = z_buffer_enabled ? TRUE : FALSE;
+    renderer->present.AutoDepthStencilFormat = D3DFMT_D16;
     /* The client loop owns the 50 Hz deadline.  A second 60 Hz D3D wait
      * quantizes capped frames onto alternating refreshes (visible judder) and
      * makes --uncapped profiles advance game time while blocked in Present.
