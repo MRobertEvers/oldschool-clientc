@@ -887,6 +887,17 @@ painter_paint_bucket(
     int camera_sz,
     int camera_slevel);
 
+/** Collect the visible world set for a depth-buffered renderer. This retains
+ * tile/level/frustum/bridge/occluder decisions but deliberately omits painter
+ * wavefront and distance ordering. */
+int
+painter_collect_visible_depth(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
+
 int
 painter_paint_world3d(
     struct Painter* painter, //

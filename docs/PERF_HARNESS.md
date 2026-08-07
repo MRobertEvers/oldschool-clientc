@@ -82,6 +82,13 @@ capabilities; it deliberately behaves like the XP-compatible backend:
   one dynamic IBO. Draw ranges split on page/dynamic binding, texture/config,
   and `MaxPrimitiveCount`; `BaseVertexIndex` selects a static page without
   widening its indices. This is the one normal path, not a fallback.
+- `--d3d9-zbuffer` is the opt-in alternative submission policy on the same
+  XP-compatible renderer. It skips the tile painter and opaque face sort,
+  depth-tests/writes opaque and binary-cutout faces, then sorts and blends only
+  models containing true per-face translucency. The final baked alpha and
+  texture-opacity result is cached per element/track/pose, so retained poses do
+  not repeat material classification each frame. It still rebuilds page-local
+  U16 IBO chains; it does not change retained static vertex or texture data.
 - Static vertex pages upload only after a batch changes or their managed buffer
   is recreated. The per-frame IBO upload is expected because painter order can
   change; genuinely dynamic geometry alone uses the dynamic vertex buffer.
@@ -130,6 +137,24 @@ boundaries select `BaseVertexIndex` within one static VB; they do not rebind a
 per-page VB. No D3D9 software UI fallback or full-canvas alpha reconstruction
 occurred. Keep these architectural counters beside timing results; they catch
 regressions that a fast host can conceal.
+
+The opt-in z-buffer path was re-measured on 2026-08-07 with the same Win64
+`-O3`, revision-239 offline, `--uncapped` setup. Each canvas ran 6,000 frames
+in twelve 500-frame windows. These values are non-waiting milliseconds:
+
+| Renderer / canvas | CPU mean | CPU p95 | Frame p95 | Build p95 | Render p95 | Present p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| D3D9 z-buffer, 765x503 | 3.59 | 4.56 | 5.09 | 0.84 | 3.41 | 1.11 |
+| D3D9 z-buffer, 1440x900 resizable | 3.15 | 4.02 | 4.62 | 0.79 | 3.01 | 1.10 |
+
+Both aggregates and all twelve 765x503 windows pass the 10 ms CPU gate. The
+1440x900 window CPU p95 range was 3.76--5.87 ms, also entirely below the gate.
+Steady frames performed two page-local U16 IBO uploads (opaque/cutout and
+blended) and no unchanged static VB or world/animated/UI texture upload. At
+765x503 only about 30 models/frame entered legacy sorting (about 598 blended
+triangles versus 34,900 opaque/cutout); at 1440x900 it was about 32 models
+(913 versus 44,865 triangles). Plain `--d3d9` retained painter submission and
+reported no z-buffer counters in a separate regression run.
 
 ## Flamegraphs
 

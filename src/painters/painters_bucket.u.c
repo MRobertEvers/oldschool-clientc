@@ -1145,6 +1145,334 @@ done:
     return 0;
 }
 
+static int
+painter_depth_tile_visible(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int camera_sx,
+    int camera_sz)
+{
+    const struct PaintersCullMap* cullmap = painter->cullmap;
+    if( painter->cullspan_active )
+    {
+        int lo;
+        int hi;
+        if( !painters_cullspan_row(&painter->cullspan, sz - camera_sz, &lo, &hi) )
+            return 0;
+        return sx >= camera_sx + lo && sx <= camera_sx + hi;
+    }
+    if( !cullmap || cullmap->all_visible )
+        return 1;
+    {
+        int dx = sx - camera_sx;
+        int dz = sz - camera_sz;
+        int radius = cullmap->radius;
+        size_t index;
+        if( dx < -radius || dx > radius || dz < -radius || dz > radius )
+            return 0;
+        index = painter->cull_camera_key +
+            (size_t)(dx + radius) * (size_t)cullmap->grid_side +
+            (size_t)(dz + radius);
+        return pcull_bit_get(cullmap->visibility, index) != 0;
+    }
+}
+
+static void
+painter_depth_emit_scenery(
+    struct Painter* painter,
+    struct PaintersElementCommand** cur,
+    struct PaintersElementCommand* end,
+    int scenery_element,
+    int occlusion_level,
+    int use_occlusion)
+{
+    struct PaintersElement* element;
+    if( scenery_element < 0 || scenery_element >= painter->element_count ||
+        painter->element_paints[scenery_element].drawn )
+        return;
+    element = &painter->elements[scenery_element];
+    if( element->kind != PNTRELEM_SCENERY )
+        return;
+    painter->element_paints[scenery_element].drawn = 1;
+    if( use_occlusion && painter->occluders &&
+        scene_occluders_footprint_hidden(
+            painter->occluders,
+            occlusion_level,
+            (int)element->sx,
+            (int)element->sz,
+            element->_scenery.size_x,
+            element->_scenery.size_z,
+            element->_scenery.model_height) )
+        return;
+    bucket_emit_entity(cur, end, element->_scenery.entity);
+}
+
+int
+painter_collect_visible_depth(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    int width;
+    int levels;
+    int level_stride;
+    int radius;
+    int min_draw_x;
+    int max_draw_x;
+    int min_draw_z;
+    int max_draw_z;
+    int draw_center_sx;
+    int draw_center_sz;
+    int need_cmds;
+    uint8_t draw_mask;
+    struct PaintersElementCommand* cmd_base;
+    struct PaintersElementCommand* cmd_cur;
+    struct PaintersElementCommand* cmd_end;
+    (void)camera_slevel;
+    assert(painter);
+    assert(buffer);
+
+    width = painter->width;
+    levels = painter->levels;
+    level_stride = painter->width * painter->height;
+    radius = painter->draw_distance;
+    draw_mask = painter->level_mask ? painter->level_mask : 0xfu;
+    buffer->command_count = 0;
+    memset(
+        painter->element_paints,
+        0,
+        (size_t)painter->element_count * sizeof(painter->element_paints[0]));
+    painter_resolve_draw_box(
+        painter,
+        camera_sx,
+        camera_sz,
+        radius,
+        &draw_center_sx,
+        &draw_center_sz,
+        &min_draw_x,
+        &max_draw_x,
+        &min_draw_z,
+        &max_draw_z);
+    (void)draw_center_sx;
+    (void)draw_center_sz;
+    if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
+        return 0;
+    painter_cullmap_refresh_camera_key(painter);
+
+    need_cmds = 2 * painter->element_count +
+        8 * (max_draw_x - min_draw_x) * (max_draw_z - min_draw_z) + 16;
+    if( need_cmds < 128 )
+        need_cmds = 128;
+    if( buffer->command_capacity < need_cmds )
+    {
+        int capacity = buffer->command_capacity > 0 ? buffer->command_capacity : 128;
+        while( capacity < need_cmds )
+            capacity *= 2;
+        buffer->commands = (struct PaintersElementCommand*)realloc(
+            buffer->commands,
+            (size_t)capacity * sizeof(buffer->commands[0]));
+        assert(buffer->commands);
+        buffer->command_capacity = capacity;
+    }
+    cmd_base = buffer->commands;
+    cmd_cur = cmd_base;
+    cmd_end = cmd_base + buffer->command_capacity;
+
+    /* Stable level/row order is retained only as a deterministic coplanar tie
+     * rule. Visibility does not depend on adjacency readiness or distance. */
+    for( int s = 0; s < levels; s++ )
+    {
+        for( int sz = min_draw_z; sz < max_draw_z; sz++ )
+        {
+            for( int sx = min_draw_x; sx < max_draw_x; sx++ )
+            {
+                int tile_index = sx + sz * width + s * level_stride;
+                struct PaintersTile* tile = &painter->tiles[tile_index];
+                struct TilePaint* tile_paint = &painter->tile_paints[tile_index];
+                struct SceneOccluders* occ = painter->occluders;
+                int occlusion_level;
+                int ground_hidden;
+                if( tile_excluded_by_bridge_or_draw_mask(
+                        painters_tile_get_flags(tile),
+                        painters_tile_get_visible_gte_level(tile),
+                        draw_mask) ||
+                    !painter_depth_tile_visible(
+                        painter,
+                        sx,
+                        sz,
+                        camera_sx,
+                        camera_sz) )
+                    continue;
+                tile_paint->occlusion = TILE_OCCLUSION_UNKNOWN;
+                occlusion_level = painters_tile_get_mesh_level(tile);
+                ground_hidden = painter_tile_ground_hidden(
+                    occ,
+                    tile_paint,
+                    occlusion_level,
+                    sx,
+                    sz);
+
+                if( tile->bridge_tile != -1 )
+                {
+                    struct PaintersTile* underpass = &painter->tiles[tile->bridge_tile];
+                    int under_level = painters_tile_get_mesh_level(underpass);
+                    if( !(occ && scene_occluders_ground_tile_hidden(
+                                      occ,
+                                      under_level,
+                                      underpass->sx,
+                                      underpass->sz)) )
+                    {
+                        unsigned terrain = underpass->terrain_levels;
+                        for( int ml = 0; ml < 4; ml++ )
+                            if( terrain & (1u << ml) )
+                                bucket_emit_terrain(
+                                    &cmd_cur,
+                                    cmd_end,
+                                    underpass->sx,
+                                    underpass->sz,
+                                    ml);
+                    }
+                    if( underpass->wall_a >= 0 )
+                    {
+                        struct PaintersElement* element =
+                            &painter->elements[underpass->wall_a];
+                        if( element->kind == PNTRELEM_WALL_A )
+                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                    }
+                    for( int32_t node = underpass->scenery_head; node != -1;
+                         node = painter->scenery_pool[node].next )
+                        painter_depth_emit_scenery(
+                            painter,
+                            &cmd_cur,
+                            cmd_end,
+                            painter->scenery_pool[node].element_idx,
+                            under_level,
+                            0);
+                }
+
+                if( !ground_hidden )
+                {
+                    unsigned terrain = tile->terrain_levels;
+                    for( int ml = 0; ml < 4; ml++ )
+                        if( terrain & (1u << ml) )
+                            bucket_emit_terrain(&cmd_cur, cmd_end, sx, sz, ml);
+                }
+
+                if( tile->wall_a >= 0 )
+                {
+                    struct PaintersElement* element = &painter->elements[tile->wall_a];
+                    if( element->kind == PNTRELEM_WALL_A &&
+                        !(occ && scene_occluders_wall_hidden(
+                                     occ,
+                                     occlusion_level,
+                                     sx,
+                                     sz,
+                                     element->_wall.side)) )
+                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                }
+                if( tile->wall_b >= 0 )
+                {
+                    struct PaintersElement* element = &painter->elements[tile->wall_b];
+                    if( element->kind == PNTRELEM_WALL_B &&
+                        !(occ && scene_occluders_wall_hidden(
+                                     occ,
+                                     occlusion_level,
+                                     sx,
+                                     sz,
+                                     element->_wall.side)) )
+                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+                }
+                if( tile->ground_decor >= 0 && painter_ground_decor_enabled() )
+                {
+                    struct PaintersElement* element =
+                        &painter->elements[tile->ground_decor];
+                    if( element->kind == PNTRELEM_GROUND_DECOR &&
+                        !(occ && scene_occluders_column_hidden(
+                                     occ,
+                                     occlusion_level,
+                                     sx,
+                                     sz,
+                                     0)) )
+                        bucket_emit_entity(
+                            &cmd_cur,
+                            cmd_end,
+                            element->_ground_decor.entity);
+                }
+                if( tile->ground_object_bottom >= 0 )
+                {
+                    struct PaintersElement* element =
+                        &painter->elements[tile->ground_object_bottom];
+                    if( element->kind == PNTRELEM_GROUND_OBJECT &&
+                        !(occ && scene_occluders_column_hidden(
+                                     occ,
+                                     occlusion_level,
+                                     sx,
+                                     sz,
+                                     0)) )
+                        bucket_emit_entity(
+                            &cmd_cur,
+                            cmd_end,
+                            element->_ground_object.entity);
+                }
+                if( tile->wall_decor_a >= 0 )
+                {
+                    int decor_index = tile->wall_decor_a;
+                    struct PaintersElement* element =
+                        &painter->elements[decor_index];
+                    if( element->kind == PNTRELEM_WALL_DECOR &&
+                        element->_wall_decor._bf_through_wall_flags != 0 &&
+                        tile->wall_decor_b >= 0 )
+                    {
+                        int x_diff = (int)element->sx - camera_sx;
+                        int z_diff = (int)element->sz - camera_sz;
+                        int x_near = x_diff;
+                        int z_near = z_diff;
+                        if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                            element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                            x_near = -x_near;
+                        if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                            element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                            z_near = -z_near;
+                        if( z_near >= x_near )
+                        {
+                            decor_index = tile->wall_decor_b;
+                            element = &painter->elements[decor_index];
+                        }
+                    }
+                    int hidden = element->kind != PNTRELEM_WALL_DECOR ||
+                        (occ && scene_occluders_column_hidden(
+                                    occ,
+                                    occlusion_level,
+                                    sx,
+                                    sz,
+                                    element->_wall_decor.model_height));
+                    if( !hidden )
+                        bucket_emit_entity(
+                            &cmd_cur,
+                            cmd_end,
+                            element->_wall_decor.entity);
+                }
+
+                for( int32_t node = tile->scenery_head; node != -1;
+                     node = painter->scenery_pool[node].next )
+                    painter_depth_emit_scenery(
+                        painter,
+                        &cmd_cur,
+                        cmd_end,
+                        painter->scenery_pool[node].element_idx,
+                        occlusion_level,
+                        1);
+            }
+        }
+    }
+    buffer->command_count = (int)(cmd_cur - cmd_base);
+    TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
+    return 0;
+}
+
 #undef BUCKET_PERF_INCREMENT
 
 #endif /* PAINTERS_BUCKET_U_C */

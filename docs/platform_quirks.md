@@ -318,11 +318,13 @@ one lane only.
   pre-baked animation poses once into chunks of at most 65,535 vertices. The
   backend assigns each chunk a stable page in one managed static vertex buffer;
   only genuinely transient geometry enters a dynamic vertex stream.
-- **Coordinates:** TRSPK projection matrices use OpenGL clip-space Z, so the
-  adapter remaps `[-w,+w]` to D3D's `[0,+w]`. D3D viewports keep their top-left
-  origin and pre-transformed 2D vertices keep the D3D9 half-pixel offset.
-- **Painter order:** Each frame walks visible models and their sorted faces in
-  command order, emitting page-local U16 indices into one dynamic IBO. Draw
+- **Coordinates:** In legacy painter mode, TRSPK projection matrices use
+  OpenGL clip-space Z, so the adapter remaps `[-w,+w]` to D3D's `[0,+w]`.
+  `--d3d9-zbuffer` replaces only that degenerate Z row with an XP-compatible
+  D3D near/far projection. D3D viewports keep their top-left origin and
+  pre-transformed 2D vertices keep the D3D9 half-pixel offset.
+- **Painter order:** Plain `--d3d9` walks visible models and their sorted faces
+  in command order, emitting page-local U16 indices into one dynamic IBO. Draw
   ranges remain contiguous and split on a static page/dynamic binding change,
   a texture/config change, or the device's `MaxPrimitiveCount`. A static page
   is selected only through `BaseVertexIndex`; its local indices are never
@@ -343,6 +345,36 @@ one lane only.
   [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`3rd/trspk/`](../3rd/trspk/)
+
+### WINDOWS-D3D9-ZBUFFER-001 - Standard depth submission is explicit and XP-safe
+
+- **Status:** Opt-in contract
+- **Applies to:** Win32 and Win64 D3D9
+- **Behavior:** `--d3d9-zbuffer` creates a D16 automatic depth surface, clears
+  it once per world pass, and makes the app collect the visible world set
+  without the tile wavefront or opaque face-distance sort. Opaque and binary
+  cutout faces render in model face order with depth test/write enabled.
+  Plain `--d3d9` remains the legacy painter-order renderer.
+- **Alpha boundary:** Untextured faces with true per-face translucency are the
+  only untextured geometry sent to the blended pass; textured faces also enter
+  it when their final baked pose alpha is translucent. The renderer classifies
+  and caches `SKIP` / `OPAQUE` / `CUTOUT` / `BLENDED` beside each retained
+  element/track/pose, after animation has produced the final face alpha. It
+  does not rescan model or texture pixels each frame. Blended models retain
+  their existing face priority/depth sort; model submissions are then sorted
+  back-to-front. The pass depth-tests against opaque geometry but does not
+  write Z. Fully opaque cache world textures with binary holes remain cutouts.
+- **Batching:** Both passes reuse page-local U16 dynamic IBO chains each frame.
+  Static Batch16 pages and retained texture/VB dirty rules are unchanged; the
+  mode never selects a 32-bit or non-XP D3D9 path.
+- **Verification:** In a scene without translucent faces,
+  `d3d9_z_sorted_models` must be zero while `d3d9_z_opaque_triangles` is
+  nonzero. With translucency, only `d3d9_z_blended_triangles` and the affected
+  model count may enter the sorting path. Static upload counters must retain
+  the steady-state zero contract.
+- **Sources:**
+  [`src/painters/painters_bucket.u.c`](../src/painters/painters_bucket.u.c),
+  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c)
 
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
 

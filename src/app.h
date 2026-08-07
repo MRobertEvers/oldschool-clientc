@@ -248,6 +248,12 @@ struct App_WorldMapVisit
     int distance;
 };
 
+enum ToriRS_WorldRenderMode
+{
+    TORIRS_WORLD_PAINTER = 0,
+    TORIRS_WORLD_DEPTH = 1,
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -282,6 +288,8 @@ struct App
     struct World* world;
     struct WorldBuilder* world_builder;
     struct PaintersBuffer* painter_buffer;
+    /** Selected only after the platform renderer has initialized successfully. */
+    enum ToriRS_WorldRenderMode world_render_mode;
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
@@ -916,6 +924,13 @@ App_Init(
 /** Tear down in strict reverse of App_Init. */
 void
 App_Shutdown(struct App* app);
+
+/** Select world submission after renderer initialization. A software fallback
+ * must always restore TORIRS_WORLD_PAINTER. */
+void
+App_SetWorldRenderMode(
+    struct App* app,
+    enum ToriRS_WorldRenderMode mode);
 
 /** Resolved interface-logic VM (enum AppUiLogic, never DEFAULT): the manifest's
  * explicit choice, or derived from cache_kind (dat1 -> CS1, dat2 -> CS2). The

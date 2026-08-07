@@ -206,6 +206,9 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "d3d9_page_switches",
     "d3d9_texture_switches",
     "d3d9_stream_switches",
+    "d3d9_z_opaque_triangles",
+    "d3d9_z_blended_triangles",
+    "d3d9_z_sorted_models",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
