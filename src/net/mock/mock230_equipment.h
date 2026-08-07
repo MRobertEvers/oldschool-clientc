@@ -29,6 +29,13 @@ int
 mock230_equipment_worn_slot(int component);
 
 /**
+ * Component which represents a worn slot, or -1 when content does not expose
+ * one.  This is the inverse lookup of mock230_equipment_worn_slot().
+ */
+int
+mock230_equipment_worn_component(int worn_slot);
+
+/**
  * Open the screen, for a caller that is not the button.
  *
  * `[if_button,wornitems:equipment]` is the way in that a player takes and it

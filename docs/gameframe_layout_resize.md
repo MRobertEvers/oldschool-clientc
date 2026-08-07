@@ -500,6 +500,24 @@ looks correct — always re-measure the baked archive, not the `.cs2` alone.
 `test-uitree` green. Selftest still pins `ids->iface_gameframe == 161` as the
 **login default** pack id (session top is `player->gameframe_*`).
 
+### 8.2a Fixed chatbox cleanup (2026-08-07)
+
+The real RuneLite harness exposed a remount state the in-tree renderer did not:
+switching to Fixed – Classic left `chatbox:mes_layer` visible. Its white backing
+covered the chat scrollback and its close icon remained on top. The layer is
+normally hidden by the chatbox cache record; rev 239 nevertheless retains its
+runtime visibility while `IF_OPENTOP` replaces the parent root and reopens
+interface 162 beneath `toplevel:chat_container`.
+
+`[queue,gameframe_apply_mode]` now queues
+`[queue,gameframe_reset_chatbox]`, which receives the selected mode and sends
+`if_sethide(chatbox:mes_layer, true)` one tick after `if_opentop($dest)`.
+This is content, not a client workaround: the layout transition discards the
+old chat dialogue/message state, and the content-owned gameframe remount is
+the operation that must restore the chatbox's normal state. The tick is
+deliberate: the mounted chatbox's onload can run after the initial interface
+packet burst, so an immediate hide can itself be overwritten.
+
 Canvas size still distinguishes the frames (from earlier §8 table): 161/164
 reflow; 548 does not. Remount alone is what `--windowmode fixed` was missing
 for a real fixed tree.

@@ -2,8 +2,8 @@
 #define SRC_NET_MOCK_MOCK239_INTERFACE_SETTERS_H
 
 /*
- * Fixed-body revision-239 interface setters which have no classic mock230
- * equivalent.  Keeping these bodies in a small codec makes their byte order
+ * Fixed-body revision-239 interface setters whose exact bodies need focused
+ * coverage.  Keeping these bodies in a small codec makes their byte order
  * independently testable; mock230_wire.c's revision vtable delegates to these
  * functions one-for-one.
  */
@@ -24,6 +24,13 @@ mock239_encode_if_setangle(
     int zoom,
     int angle_x,
     int angle_y);
+
+void
+mock239_encode_if_setposition(
+    struct RSAreaBuf* buf,
+    int combined_id,
+    int x,
+    int y);
 
 void
 mock239_encode_if_setnpchead_active(

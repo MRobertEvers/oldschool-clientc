@@ -94,6 +94,44 @@ The integration requires these cooperating components:
 
 ## Major findings
 
+### Revision-239 actor facing uses one generic block, not legacy masks
+
+The V3 mock sent revision-230 `FACE_ENTITY` and `FACE_COORD` fields (or
+omitted them for NPCs) while the authoritative revision-239 client reads a
+single generic `Face` block. That made actors retain their spawn/movement yaw,
+which presents as dialogue participants facing diagonally past one another.
+
+The golden client confirms the two distinct headers: player update bit `0x1`
+calls `class95.method3125` with `g1Alt2`, and NPC update bit `0x8` calls
+`class105.method3491` with `g1Alt1`. Both route through `class44.method875`:
+the header selects Entity, Loc, Angle, or Reset; Entity carries type/index/
+fallback angle and Loc carries absolute tile x/z plus packed size.
+
+`mock230` now translates its old per-tick latches to that model. An old entity
+target below 32768 becomes Face.Entity/NPC; one at `32768 + pid` becomes
+Face.Entity/Player with `pid`; an old half-tile coordinate `(2 * tile + 1)`
+becomes Face.Loc `(tile, size 1)`; and a cleared entity target becomes
+Face.Reset. The writer re-emits a latched face for an entering NPC, so a new
+observer does not inherit an arbitrary spawn yaw. The C revision-239 reader
+now consumes the same blocks and maps Entity/Loc/Reset back into its shared
+legacy executor operations.
+
+The literal regression fixtures are the independent RSProt layouts:
+
+```text
+Player Face.Loc (3222,3218,size 1): f8 8c 96 8c 92 11
+Npc Face.Entity(Player 42):          80 02 00 2a 00
+```
+
+Both focused fixtures and `mock230` build pass. A live RuneLite run used a
+blocking EVENTS subscriber before launch and real AWT chat input
+`::~talk hans 1`; it reached dialogue and the authoritative `script 58`
+five-choice initialization without packet decode errors. That run is retained
+under `build/run239-facing/proof/`, but is deliberately *not* acceptance: a
+later, separate RuneLite fatal `ArrayIndexOutOfBoundsException` in
+`Statics.method6709` occurred during continued Hans-choice activity. It must
+be isolated before a clean live acceptance can be recorded.
+
 ### Postmortem: why `::crystal_set` made the player Cry and never reached mock230
 
 > Permanent incident record and enforced invariants:
@@ -1241,31 +1279,90 @@ only those three server-authored strings. Hans now uses `~p_choice5` with the fi
 literal screenshot rows. Row four enters the existing age/account-history reply
 and row five closes without another page.
 
-There was also an independent cache-deployment fault. On the pristine July
-`cache.osrs239`, golden widget telemetry decoded `chatmenu:options` (219:1) as
-raw `(20,12)`, absolute modes `(0,0)`. The golden layout routine correctly kept
-that 479x122 root at `(20,12)` inside `chatbox:chatmodal`'s 479x96 mount, clipping
-the lower rows. The content record already states raw `(0,0)`, centred modes
-`(1,1)`. An interface-only cache bake from the pristine base decoded exactly
-that record and the unmodified golden arithmetic placed the root at `(0,-13)`;
-the title then landed at y=10 inside the root and all five rows at y=28, 44, 60,
-76, and 92 were visible. No deob patch or server `IF_SETPOSITION` workaround is
-warranted. World metadata and JS5 must both point at the same corrected cache.
+### Correction: Hans choice placement is a server lifecycle mutation
+
+The supplied 2026-08-07 RuneLite screenshot disproved the earlier cache-
+centring conclusion above. The entire title/row block was 21 logical pixels too
+low while the relative title, swords, and row spacing remained correct. The
+deployed world and JS5 were both using the pristine `cache.osrs239`, whose
+authoritative `chatmenu:options` (219:1) record is 479x122 at raw `(20,12)` with
+absolute modes `(0,0)`. Those modes are not a cache defect. Revision 239 mounts
+the group into the 479x96 `chatbox:chatmodal` and then mutates that root to
+`(0,-13)` with `IF_SETPOSITION` before running clientscript 58.
+
+Golden-client inspection confirms opcode 102 is an eight-byte fixed packet and
+updates the widget's raw x/y without changing its alignment modes. The exact
+body for this menu is `73 ff 00 01 00 db 80 00`: y=-13 as g2Alt3, combined ID
+219:1 as g4Alt2, then x=0 as g2Alt3. Content now performs the authoritative
+`IF_OPENSUB` -> `IF_SETPOSITION(chatmenu:options, 0, -13)` ->
+`RUNCLIENTSCRIPT 58` lifecycle. The interface source is restored to absolute
+modes at `(0,-13)`, so future cache bakes agree with the runtime mutation rather
+than depending on the incorrect centred-mode workaround. A full current cache
+bake was explicitly rejected because it reproduced the known unrelated
+pre-login `class532.method11804` failure; no deob patch or alternate cache is
+part of this fix.
 
 The root regression parses the literal revision-239 reverse-argument
 `RUNCLIENTSCRIPT` body and requires the authoritative fourth/fifth-row suffix
 `Can you tell me how long I've been here?|Nothing.` plus the exact title casing.
-The cache-backed Hans section passes. Live proof is under
-`build/run239-zuk/hans-choice-fixed`: `proof/events-final-fresh.log` records the
-complete script-58 payload and row-five callback from a fresh server/client
-pair, while `proof/08-hans-final-fresh.png` shows the five-row result. JCTL reported
-219:1 at `(20,348)` with relative `(0,-13)`, raw `(0,0)`, modes `(1,1)`, and all
-five dynamic children fully inside the chat mount. Option four produced the
-matching player line in the preceding independent path; option five removed
-group 219 in both runs. `client-final-fresh.log` and `server-final-clean.log`
-contain no runtime client/server fatal, CS2 error, decode error, writer gap, or
-unexpected disconnect before explicit shutdown. The only exception text is
-RuneLite's known caught pre-login `setupCompilerControl` warning.
+The corrected live proof is under `build/run239-choicepos/live-final`. A
+blocking EVENTS subscriber was connected before RuneLite, and real JCTL AWT
+input opened Hans and selected row five. `events-final2.log` records, in order,
+IF_OPENSUB (event 424), IF_SETPOSITION opcode 102/length 8 (425), the complete
+script-58 call (426/427), the row-five callback (431), and IF_CLOSESUB (432).
+`hans-choice-fixed.png` matches the authoritative screenshot: 219:1 is mounted
+at `(20,348)`, relative/raw `(0,-13)`, with absolute modes; its title is at
+relative y=10, swords at y=12, and all rows at y=28/44/60/76/92. The closed
+frame is `hans-choice-closed.png`. The final audit found 6,124 widgets, 4,806
+actions, and zero dead actions. Client/server logs contain no runtime fatal,
+packet decode error, CS2 error, interface-writer gap, or unexpected disconnect;
+the only exception text is RuneLite's known caught pre-login
+`setupCompilerControl` warning.
+
+### NPC Attack actions require zero-valued attack-priority login packets
+
+RuneLite's missing NPC Attack actions were a Content login-state defect, not an
+NPC-definition, NPC_INFO, instance-option-mask, or menu-rendering defect. In the
+baseline live client, Man 3106 decoded the authoritative actions
+`[Talk-to, Attack, Pickpocket]` and its live `class86` mask decoded to the
+default 31, yet the menu contained only Talk-to, Pickpocket, and Examine. A
+temporary probe in the isolated compilable deob made the contradiction explicit:
+varp 1306 was zero (`Depends on combat levels`) while the derived NPC
+`AttackOption` field was still `Hidden`.
+
+The golden revision-239 reset path initializes both the player and NPC derived
+attack-option fields to Hidden. It does not derive them merely by reading the
+zeroed varp table. Clientcode 18 for `option_attackpriority` (varp 1107) and
+clientcode 22 for `option_attackpriority_npc` (varp 1306) run only after a VARP
+packet names the relevant varp. The persisted-varp login burst omits unset zero
+values, and `settings_side_login` previously only armed the dropdown callbacks.
+Content now self-assigns both attack-priority varps on every login. The server
+VM's equal-value `POP_VARP` behavior deliberately transmits those assignments,
+so default zero is enough to convert both derived fields from Hidden to Depends.
+
+The focused revision-239 codec test fixes the exact `VARP_SMALL` bodies at
+`80 d3 04` for varp 1107/value 0 and `80 9a 05` for varp 1306/value 0; the
+login-content regression independently requires both packets. All 12,536
+current Content scripts compile, and both focused byte fixtures pass. The broad
+self-tests retain their existing unrelated baseline failures and were not used
+as the acceptance verdict.
+
+Live before/after evidence is retained under `build/run239-npc-attack`. Both
+sessions used pristine `cache.osrs239`, the authoritative compiled 1.12.33 deob
+inside RuneLite, a blocking EVENTS subscriber connected before launch, and real
+JCTL AWT input. Baseline `jctl-telemetry.txt` records Man/Rat/Woman/Imp Attack
+definitions with mask 31 but `npcAttackMode=hidden`; `man-menu.png` visibly has
+no Attack row. Fixed `jctl-proof.txt` records the same zero varp with
+`npcAttackMode=depends`, and `attack-menu-live.png` visibly contains
+`Attack Man (level-2)`. Selecting that exact row emitted revision-239 opcode 13,
+which the server decoded as `OPNPC2 slot=23 type=3106`; the player's live
+animation became 422 and GPI reported a pending update. The final interface
+audit found 6,124 widgets, 4,806 actions, and zero dead actions. The client quit
+explicitly with complete profiler output and no game runtime fatal, packet
+decode error, CS2 error, or unexpected disconnect. The only client exception is
+RuneLite's known caught pre-login `setupCompilerControl` warning; dropped mouse
+telemetry packets in the verbose server log are unrelated to the successful
+OPNPC2 callback.
 
 ## Step log
 
@@ -1817,3 +1914,74 @@ RuneLite's known caught pre-login `setupCompilerControl` warning.
   C-client fixture, dependency pointer, and integration record as `bcdfe212`,
   followed by the factual 83-record cache comment correction `c5d82ea9`, on
   `codex/runelite239-zuk`. Final fetches matched both local and remote heads.
+- 2026-08-07: Fetched current `v3` and created the isolated
+  `3draster-runelite239-choicepos` worktree and dedicated root/content branches;
+  the dirty primary root, OSRS-Content, and Deob worktrees were not modified.
+- 2026-08-07: Compared both supplied authoritative frames with golden widget
+  telemetry. The new RuneLite frame exposed a uniform 21-pixel displacement,
+  while title/sword/row-relative geometry and script-58 content were correct.
+- 2026-08-07: Read the pristine revision-239 group 219/chatmodal records,
+  clientscript 58, widget layout path, and opcode-102 handler. Corrected the
+  earlier record: absolute widget modes are authoritative and the missing
+  post-mount `IF_SETPOSITION(219:1, 0, -13)` is server lifecycle behavior.
+- 2026-08-07: Rejected a full current content-cache bake after it reproduced
+  the known unrelated pre-login `class532.method11804` failure; no deob or
+  replacement-cache dependency was accepted for this correction.
+- 2026-08-07: Restored the chatmenu source to absolute `(0,-13)` geometry and
+  made every choice-menu open send IF_OPENSUB, IF_SETPOSITION, then script 58.
+  Recompiled all 12,536 current content scripts successfully.
+- 2026-08-07: Added a reusable revision-239 IF_SETPOSITION encoder, an exact
+  eight-byte `73 ff 00 01 00 db 80 00` fixture, and a Hans lifecycle-order
+  assertion. All nine focused interface-setter fixtures pass. The broad legacy
+  runners retain their pre-existing revision-230/revision-239 baseline failures
+  and are not substituted for live acceptance.
+- 2026-08-07: Ran the final clean stack with pristine `cache.osrs239`, the
+  authoritative compiled 1.12.33 deob, a blocking EVENTS subscriber connected
+  before launch, and real AWT input. Events 424-427 prove mount/place/script
+  order; JCTL measured raw/relative `(0,-13)` and row y-values
+  `28/44/60/76/92`; the accepted frame shows all five rows without clipping.
+- 2026-08-07: Selected row five through the real widget callback, observed
+  IF_CLOSESUB, retained the closed frame and full logs, audited 6,124 widgets
+  with zero dead actions, quit explicitly, removed task saves, and confirmed no
+  task process remained. The user's pre-existing client/server stack was left
+  untouched.
+- 2026-08-07: Pushed content commit `20de8327a2` and opened OSRS-Content PR #5
+  against its current `codex/runelite239-zuk-instance` dependency, then pushed
+  the v3-derived root branch and opened oldschool-clientc PR #17 against `v3`.
+  Both PRs contain only the choice-placement dependency and its root codec,
+  regression, submodule pointer, and evidence record.
+- 2026-08-07: Created dedicated root/content branches from the clean choice-
+  placement PR heads and an isolated Deob telemetry worktree; preserved all
+  dirty primary trees and their lagging local refs.
+- 2026-08-07: Reproduced the missing NPC Attack row in RuneLite with a blocking
+  EVENTS subscriber connected before launch and real AWT interaction. Retained
+  the baseline menu frame, packet stream, client/server logs, and profiler.
+- 2026-08-07: Read the golden NPC-menu predicate, reset path, varp clientcodes,
+  and live NPC mask. Temporary telemetry proved attackable cache definitions and
+  mask 31 were intact while varp 1306 was zero and its derived mode stayed
+  Hidden; this ruled out NPC_INFO and menu rendering.
+- 2026-08-07: Made `settings_side_login` transmit equal-value assignments for
+  player varp 1107 and NPC varp 1306. Recompiled all 12,536 current Content
+  scripts and added literal revision-239 `VARP_SMALL` fixtures plus a login-
+  lifecycle assertion for both zero-valued packets.
+- 2026-08-07: Ran a fresh fixed RuneLite stack on pristine `cache.osrs239`.
+  Telemetry changed to `npcAttackMode=depends`, the real menu visibly exposed
+  `Attack Man`, selection emitted opcode-13 `OPNPC2`, and combat animation/GPI
+  state advanced. The 6,124-widget audit had zero dead actions.
+- 2026-08-07: Quit the fixed client explicitly, retained complete EVENTS,
+  profiler, packet, client/server, interface-audit, and before/after screenshot
+  artifacts, stopped the task server/config processes, and removed only task-
+  generated account saves. No task process remained.
+- 2026-08-07: Committed and pushed the Content fix as `a55f7741a5` and the
+  root codec/regression/evidence change as `8be3aa77`, after confirming both
+  stacked dependency heads were unchanged. Opened OSRS-Content PR #7 against
+  the choice-position Content branch and oldschool-clientc PR #19 against the
+  choice-position root branch.
+- 2026-08-07: Created clean `v3` worktree `3draster-runelite239-facing` for
+  the actor-facing report. Read the authoritative 239 Face decoder and RSProt
+  writers; implemented Player g1Alt2 / NPC g1Alt1 generic Face blocks, literal
+  Entity/Loc fixtures, and matching C-client tail consumption. Focused fixture,
+  mock230, and torirs builds passed. A pre-launch EVENTS subscriber and real
+  AWT `::~talk hans 1` reached Hans dialogue/script 58 in RuneLite; retained
+  the evidence and rejected the run after a later unrelated
+  `Statics.method6709` empty-array client fatal rather than marking it clean.

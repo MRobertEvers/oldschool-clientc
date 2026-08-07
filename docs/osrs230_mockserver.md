@@ -1004,6 +1004,31 @@ same way (`app_send_resume_pausebutton`), because `RESUME_PAUSEBUTTON` carries
 no sub-id. Script 57's digit branch also needs a correct `STRING_INDEXOF_CHAR`
 (string + char only — see `REV230_UI_OWNERSHIP.md` §6b).
 
+### The fleeing choice is also an NPC_INFO boundary test
+
+The second Hans row is deliberately different from the ordinary dialogue rows:
+after the player acknowledges it, the content closes the modal, sets the NPC to
+`playerescape`, waits one tick, then calls `npc_say`. LostCity keeps that flow
+in `content/scripts/areas/area_lumbridge/scripts/hans.rs2`; it remains content
+here as well. The engine's job is only to carry the resulting movement and
+overhead-speech changes safely to RuneLite.
+
+That tick has both a traversal change and a revision-239 extended `SAY` block.
+`playerescape` also updates the NPC's facing state, but rev239 has no compatible
+writer for the combined FACING block, so a face-only change must not claim an
+extended block. The encoder queues only fields its v5 writer serialises, writes
+the byte-aligned extension tail separately, and emits the `0xffff` add-list
+sentinel only when padding plus that tail reaches the client's 28-bit
+low-resolution guard. Otherwise RuneLite can consume the sentinel as an
+extended-mask byte and reject the complete NPC_INFO packet.
+
+The world self-test selects row 2 through the literal six-byte dynamic
+`RESUME_PAUSEBUTTON`, advances the player reply, and runs the delayed escape
+tick under the rev239 adapter. It requires the NPC to leave its tile and the
+client-facing NPC_INFO packet to be emitted. The fixture resets the NPC's retry
+counter before the transition: a prior patrol's blocked-route retry belongs to
+that prior mode and must not make this distinct escape attempt look exhausted.
+
 ### The three caps
 
 A RUNCLIENTSCRIPT string argument is not a label, it is a *payload*, and three

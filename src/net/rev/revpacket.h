@@ -280,17 +280,22 @@ struct PktChatFilterSettings
     int chat_trade_mode;   /* g1 */
 };
 
-/* Zone packets: position = base_x + (pos>>4)&7, base_z + pos&7. Base set by UPDATE_ZONE_* */
+/* Zone packets: position = base_x + (pos>>4)&7, base_z + pos&7. Base and,
+ * where the revision supplies it, plane are set by UPDATE_ZONE_*. level=-1
+ * means this revision's header has no plane and the executor uses the player
+ * plane for its classic wire semantics. */
 struct PktUpdateZonePartialFollows
 {
     int base_x; /* g1: zone base for subsequent zone packets */
     int base_z; /* g1 */
+    int level;  /* header plane, or -1 when absent */
 };
 
 struct PktUpdateZoneFullFollows
 {
     int base_x; /* g1 */
     int base_z; /* g1 */
+    int level;  /* header plane, or -1 when absent */
 };
 
 struct PktLocAddChange
@@ -415,6 +420,7 @@ struct PktUpdateZoneEnclosed
 {
     int base_x; /* g1 */
     int base_z; /* g1 */
+    int level;  /* header plane, or -1 when absent */
     int count;
     struct PktZoneSubPacket* entries; /* heap-allocated */
 };

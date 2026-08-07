@@ -62,11 +62,24 @@ mock230_equipment_open_stats(struct Mock230Server* srv)
 int
 mock230_equipment_worn_slot(int component)
 {
-    const struct Mock230EnumDef* slots = mock230_content_enum("worn_slots");
+    const struct Mock230EnumDef* slots =
+        mock230_content_enum_by_id(mock230_ids()->enum_worn_slots);
 
     for( int i = 0; slots && i < slots->count; i++ )
         if( slots->values[i].key == component )
             return slots->values[i].value;
+    return -1;
+}
+
+int
+mock230_equipment_worn_component(int worn_slot)
+{
+    const struct Mock230EnumDef* slots =
+        mock230_content_enum_by_id(mock230_ids()->enum_worn_slots);
+
+    for( int i = 0; slots && i < slots->count; i++ )
+        if( slots->values[i].value == worn_slot )
+            return slots->values[i].key;
     return -1;
 }
 

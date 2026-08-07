@@ -62,6 +62,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "mock239_facing.h"
+
 struct RSAreaBuf;
 
 /** Slots in the player table; index 0 is unused, so the init block carries
@@ -122,6 +124,10 @@ mock239_playerinfo_write_init(
  */
 struct Mock239PlayerExt
 {
+    /** Revision-239 FACE block.  This is the generic entity/loc/reset model,
+     * not either of the legacy player-mask fields. */
+    int has_face;
+    struct Mock239Face face;
     /** A hitsplat landing this tick: the hitmark TYPE from content, and the
      *  damage. Zero `has_hit` when nothing was hit. */
     int has_hit;

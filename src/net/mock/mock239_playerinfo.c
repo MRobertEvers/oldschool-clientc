@@ -33,6 +33,7 @@ enum
 enum
 {
     EXTINFO_APPEARANCE = 0x20,
+    EXTINFO_FACE = 0x1,
     EXTINFO_SEQUENCE = 0x40,
     EXTINFO_TEMP_MOVE_SPEED = 0x1000,
     EXTINFO_HITMARKS = 0x40000,
@@ -124,10 +125,11 @@ mock239_playerinfo_write(
 {
     int const has_appearance = appearance && appearance_len > 0;
     int const has_hit = ext && ext->has_hit;
+    int const has_face = ext && ext->has_face;
     int const has_seq = ext && ext->has_seq;
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
     int const has_extended =
-        has_appearance || has_hit || has_seq || has_temp_move_speed;
+        has_appearance || has_hit || has_face || has_seq || has_temp_move_speed;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -271,6 +273,8 @@ mock239_playerinfo_write(
 
         if( has_hit )
             flag |= EXTINFO_HITMARKS;
+        if( has_face )
+            flag |= EXTINFO_FACE;
         if( has_seq )
             flag |= EXTINFO_SEQUENCE;
         if( has_temp_move_speed )
@@ -316,6 +320,12 @@ mock239_playerinfo_write(
              * deliberately inserts nothing into the render list.
              */
             ext_psmart1or2(buf, 4); /* concurrent hitmark slots */
+        }
+        if( has_face )
+        {
+            /* PlayerFacingEncoder: p1Alt2 header, then Face's shared payload.
+             * It is read after hitmarks/reset and before sequence. */
+            mock239_face_write_player(buf, &ext->face);
         }
         if( has_seq )
         {

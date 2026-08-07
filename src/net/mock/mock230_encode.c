@@ -21,6 +21,7 @@
 #include "mock230_mapinstance.h"
 #include "mock230_session.h"
 #include "mock239_runclientscript.h"
+#include "mock239_facing.h"
 #include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
@@ -43,6 +44,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+static int v5_face_from_classic(
+    struct Mock239Face* face,
+    uint32_t classic,
+    uint32_t entity_mask,
+    uint32_t coord_mask,
+    int face_entity,
+    int face_x,
+    int face_z,
+    int force_latch);
 
 /*
  * The packets this server can send, as CANONICAL names rather than wire
@@ -3131,6 +3142,10 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            ext.has_face = v5_face_from_classic(
+                &ext.face, player->masks, MOCK230_PMASK_FACE_ENTITY,
+                MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
+                player->face_z, 0);
             if( movement == MOCK239_PLAYER_RUN )
             {
                 /* Opcode 2 states a two-tile displacement; it does not select
@@ -3146,10 +3161,11 @@ mock230_send_player_info(struct Mock230Player* player)
             if( getenv("MOCK230_EXT_DEBUG") )
                 fprintf(stderr,
                         "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
-                        "seq=%d/%d appearance=%d\n",
+                        "seq=%d/%d face=%d appearance=%d\n",
                         player->masks, movement, movement_value,
                         ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
-                        ext.hit_value, ext.seq_id, ext.seq_delay, (int)rsab_len(&ap));
+                        ext.hit_value, ext.seq_id, ext.seq_delay, ext.has_face,
+                        (int)rsab_len(&ap));
             mock239_playerinfo_write(&buf, mock230_wire_local_index(player->pid), movement,
                                      movement_value, player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);
@@ -3363,6 +3379,7 @@ enum
 
     V5_NPC_TRANSFORMATION = 0x1,
     V5_NPC_SAY = 0x2,
+    V5_NPC_FACING = 0x8,
     V5_NPC_SEQUENCE = 0x80,
     V5_NPC_SPOTANIM = 0x40000,
     V5_NPC_HITMARKS = 0x80000,
@@ -3372,8 +3389,63 @@ enum
  * pSmart1or2 is `rsab_psmart`. This file used to carry a private copy — one of
  * five in src/net (docs/BUFFER_ACCESSOR_AUDIT.md §1.1), byte-identical in range
  * and silently truncating outside it where the library latches an overflow.
+ *
+ * Merge note: v3 deduplicated this at the same time, onto
+ * `mock239_face_psmart1or2` in mock239_facing.h — which was itself a fresh copy
+ * of the same encoding, byte-identical again. Both are now the library's, so
+ * the count went to one rather than to two.
  */
 #define v5_psmart1or2 rsab_psmart
+
+/* Translate the mock's revision-230 facing latch to 239's one-block model.
+ * The old FACE_COORD value is an absolute half-tile centre (2 * tile + 1);
+ * Face.Loc wants absolute tile coordinates plus a footprint. */
+static int
+v5_face_from_classic(
+    struct Mock239Face* face,
+    uint32_t classic,
+    uint32_t entity_mask,
+    uint32_t coord_mask,
+    int face_entity,
+    int face_x,
+    int face_z,
+    int force_latch)
+{
+    mock239_face_init(face);
+
+    /* A loc and an entity cannot coexist in a V5 Face block.  `reorient`
+     * intentionally clears the entity and emits the loc in its completion
+     * tick, so a coordinate wins when both legacy masks are present. */
+    if( (classic & coord_mask) != 0 ||
+        (force_latch && face_entity < 0 && (face_x != 0 || face_z != 0)) )
+    {
+        face->kind = MOCK239_FACE_LOC;
+        face->x = face_x / 2;
+        face->z = face_z / 2;
+        return 1;
+    }
+    if( (classic & entity_mask) == 0 && !(force_latch && face_entity >= 0) )
+        return 0;
+
+    if( face_entity < 0 )
+    {
+        face->kind = MOCK239_FACE_RESET;
+        return 1;
+    }
+    face->kind = MOCK239_FACE_ENTITY;
+    if( face_entity >= MOCK230_FACE_PLAYER_BASE )
+    {
+        face->entity_type = MOCK239_FACE_PLAYER;
+        face->entity_index = face_entity - MOCK230_FACE_PLAYER_BASE;
+    }
+    else
+    {
+        face->entity_type = MOCK239_FACE_NPC;
+        face->entity_index = face_entity;
+    }
+    return 1;
+}
+
 
 /** The flag itself, plus the continuation bits its own width implies. */
 static void
@@ -3401,8 +3473,10 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
     int const hit = (classic & (MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2)) != 0;
-
-    (void)force_face_latch;
+    struct Mock239Face face;
+    int const has_face = v5_face_from_classic(
+        &face, classic, MOCK230_NMASK_FACE_ENTITY, MOCK230_NMASK_FACE_COORD,
+        npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
 
     if( hit )
         flag |= V5_NPC_HITMARKS;
@@ -3414,6 +3488,8 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
         flag |= V5_NPC_SPOTANIM;
     if( classic & MOCK230_NMASK_CHANGE_TYPE )
         flag |= V5_NPC_TRANSFORMATION;
+    if( has_face )
+        flag |= V5_NPC_FACING;
 
     if( getenv("MOCK230_EXT_DEBUG") )
         fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
@@ -3464,15 +3540,12 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
     }
     if( classic & MOCK230_NMASK_CHANGE_TYPE )
         rsab_p2_alt3(buf, npc->change_type); /* NpcTransformationEncoder */
+    if( has_face )
+        mock239_face_write_npc(buf, &face);
 
     /*
-     * NOT converted, and each for a reason rather than as a batch:
+     * Not converted yet:
      *
-     *   FACE_ENTITY / FACE_COORD  239 folds both into one FACING block whose
-     *                             first byte packs a walk mode, a 3-bit kind
-     *                             and an instant flag -- a different model, not
-     *                             a different layout, and the mock has no
-     *                             walk-mode concept to fill it from.
      *   the health bar            a separate HEADBARS block keyed by a headbar
      *                             CONFIG ID. That is content, and there is no
      *                             name for it in this tree yet, so inventing
@@ -3504,12 +3577,17 @@ npc_extended_pending(const struct Mock230Npc* npc)
  * failure was "66,9" on NPC_INFO).
  */
 static int
-npc_extended_pending_v5(const struct Mock230Npc* npc)
+npc_extended_pending_v5(const struct Mock230Npc* npc, int force_face_latch)
 {
     uint32_t const supported = MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2 |
                                MOCK230_NMASK_ANIM | MOCK230_NMASK_SAY |
                                MOCK230_NMASK_SPOTANIM | MOCK230_NMASK_CHANGE_TYPE;
-    return (npc->masks & supported) != 0;
+    struct Mock239Face face;
+
+    return (npc->masks & supported) != 0 ||
+           v5_face_from_classic(&face, npc->masks, MOCK230_NMASK_FACE_ENTITY,
+                                MOCK230_NMASK_FACE_COORD, npc->face_entity,
+                                npc->face_x, npc->face_z, force_face_latch);
 }
 
 /*
@@ -3712,7 +3790,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             }
             kept[kept_count++] = slot;
             {
-                int const extended = npc_extended_pending_v5(npc);
+                int const extended = npc_extended_pending_v5(npc, 0);
 
                 if( npc->step_dir >= 0 )
                 {
@@ -3734,7 +3812,10 @@ mock230_send_npc_info(struct Mock230Player* player)
                     rsab_pbit(&buf, 1, 0); /* unchanged */
                 }
                 if( extended )
+                {
                     queued[queued_count++] = slot;
+                    queued_force_face[queued_count - 1] = 0;
+                }
             }
         }
 
@@ -3774,7 +3855,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
-            int const extended = npc_extended_pending_v5(npc);
+            int const extended = npc_extended_pending_v5(npc, 1);
 
             rsab_pbit(&buf, 16, slot);
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
@@ -3791,7 +3872,10 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
             rsab_pbit(&buf, 14, npc->type);
             if( extended )
+            {
                 queued[queued_count++] = slot;
+                queued_force_face[queued_count - 1] = 1;
+            }
         }
 
         /* Encode the byte-aligned tail separately. Whether a sentinel is
@@ -3801,7 +3885,8 @@ mock230_send_npc_info(struct Mock230Player* player)
         memset(extended_data, 0, sizeof(extended_data));
         rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
         for( int i = 0; i < queued_count; i++ )
-            put_npc_extended_v5(&extended_buf, &srv->npcs[queued[i]], 0);
+            put_npc_extended_v5(&extended_buf, &srv->npcs[queued[i]],
+                                queued_force_face[i]);
 
         /*
          * The terminator, only when the golden client's low-resolution guard

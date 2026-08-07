@@ -63,8 +63,8 @@
  *
  * Contract is unchanged: a read past the end latches an error and returns 0
  * rather than running off the buffer, and the caller drops the packet instead
- * of applying half-decoded state. `c.err` replaces `c.err`, `c.rpos` replaces
- * `c.rpos`, `c.cap` replaces `c.cap`.
+ * of applying half-decoded state. The cursor's fields are renamed with it —
+ * `c.err` for the old `c.over`, `c.rpos` for `c.pos`, `c.cap` for `c.len`.
  */
 
 static int
@@ -1067,16 +1067,15 @@ osrs239_parse(
      * catches it (`buffer.position == data_size`) is the only reason it is not
      * silent: the third byte would otherwise be read as the next opcode.
      *
-     * The level is dropped rather than carried: the executor takes the level
-     * from the local player, which is the same value for every zone the server
-     * addresses this client with.
+     * Keep the header plane. Revision 239 sends zone changes for every plane
+     * in the current scene, not just the local player's plane.
      */
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
         struct PktUpdateZoneFullFollows* p = &out->_update_zone_full_follows;
         p->base_z = RSProt_BufferG1_sub128(&c);
         p->base_x = RSProt_BufferG1_neg(&c);
-        (void)RSProt_BufferG1(&c); /* level */
+        p->level = RSProt_BufferG1(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1085,7 +1084,7 @@ osrs239_parse(
         struct PktUpdateZonePartialFollows* p = &out->_update_zone_partial_follows;
         p->base_z = RSProt_BufferG1_add128(&c);
         p->base_x = RSProt_BufferG1(&c);
-        (void)RSProt_BufferG1_neg(&c); /* level */
+        p->level = RSProt_BufferG1_neg(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1099,7 +1098,7 @@ osrs239_parse(
         struct PktUpdateZoneEnclosed* enc = &out->_update_zone_enclosed;
         int cap = 16;
 
-        (void)RSProt_BufferG1_neg(&c); /* level */
+        enc->level = RSProt_BufferG1_neg(&c);
         enc->base_z = RSProt_BufferG1_add128(&c);
         enc->base_x = RSProt_BufferG1_add128(&c);
         enc->count = 0;
