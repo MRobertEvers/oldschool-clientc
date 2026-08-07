@@ -1184,13 +1184,18 @@ slot under a scrolled bank/list resolves no destination and the server never
 receives `INV_BUTTOND`.
 
 `IF_BUTTOND` names both endpoint item fields. The official deob's
-`class108.method3759` writes `-1` for an empty destination; it is a valid drop,
-not an absent target. The mock verifies this form moves the source item into the
-empty backpack slot. Likewise, an item-backed `IF_BUTTONX` from the bank side is
-dispatched as `IF_BUTTONN` so content's deposit binding receives the component
-and slot. Worn-slot callbacks route by their resolved component, not by the
-optional item field: the official static leaf uses the no-item sentinel, while
-the C tree can carry its painted item's id.
+`class108.method3759` writes the target widget's item field verbatim. Rev239's
+inventory script paints a client-only null object into an empty slot, and the
+official renderer explicitly suppresses that object (`class163.method5491`), so
+an empty target does **not** imply a `-1` field. The mock treats its own
+container as authoritative: filled destinations must match the named item;
+empty destinations accept the cosmetic widget field. Its packet-level test
+uses a non-negative field and still moves the source into the empty backpack
+slot. Likewise, an item-backed `IF_BUTTONX` from the bank side is dispatched as
+`IF_BUTTONN` so content's deposit binding receives the component and slot.
+Worn-slot callbacks route by their resolved component, not by the optional item
+field: the official static leaf uses the no-item sentinel, while the C tree can
+carry its painted item's id.
 
 ## 3.11j Who an npc is facing, when more than one client is watching
 
@@ -4934,7 +4939,7 @@ movement                          walk 1 tile/tick, run 2; 25 dest-first waypoin
 rebuild on scene edge             re-centre + absolute placement, player inside the new scene
 equip / unequip                   worn slot, backpack vacated, appearance + partial-update dirty bits
 two-handed weapon evicts shield   shortbow (wearpos 3/5) displaces the kiteshield back to the backpack
-inventory drag                    INV_BUTTOND swaps both slots and marks both dirty
+inventory drag                    INV_BUTTOND swaps filled slots and accepts rev239's cosmetic item field on an empty target
 npcs roam inside their radius     200 ticks, radius respected, a zero-radius npc never moves
 ```
 

@@ -199,6 +199,13 @@ has no hook". That held only for the backpack. Rev 230's worn slots do carry an
 `onop` hook beside their "Remove" verb, and resolving it first meant clicking
 Remove ran a script, sent nothing, and left the helmet on.
 
+Rev239 also adds 2000 to component actions above the widget's target-priority
+slot. That number changes only menu ordering. The official gamepack removes it
+before dispatch (`client.java`'s action handler), and the C client now does the
+same. Previously the bank menu looked right but `Deposit-1` arrived at the
+dispatcher as action 2231 instead of IF_BUTTON 231, printed `no hook`, and sent
+no packet.
+
 ### 1.6 Server side
 
 - `mock230_equipment_worn_slot()` maps `387:15..25` to a wear slot, reading the
@@ -210,7 +217,11 @@ Remove ran a script, sent nothing, and left the helmet on.
   helmet; 387:25 shows 166, an arrow).
 - `INV_BUTTOND` refuses any component but `149:0`. A real rev-230 `IfButtonD`
   names both ends so an item can be dragged between two interfaces; the mock
-  only moves within the backpack, and says so rather than guessing.
+  only moves within the backpack, and says so rather than guessing. For a
+  filled destination its item field must match the server container. For an
+  empty destination the server ignores that field: rev239's inventory script
+  paints a client-only null object into empty widgets, and
+  `class108.method3759` transmits the painted field verbatim.
 - Picking an obj up now stacks it onto a pile of the same obj when the cache
   calls it stackable. Without that a full backpack refuses a single coin while
   holding 15,000 of them two slots over.
@@ -225,6 +236,8 @@ left-click "Wear"            ->  OPHELD2 obj=1155 slot=0 com=149|0, helm leaves 
 drag slot 0 -> slot 20       ->  INV_BUTTOND com=149|0 0 -> 20
 right-click worn head slot   ->  Remove / Examine  (one Remove, not two)
 left-click "Remove" (rev230) ->  OPHELD1 slot=1 com=387|15, helm returns to the backpack
+right-click Deposit-1         ->  IF_BUTTONX com=15|3 sub=12 obj=995 op=2; both containers update
+drag slot 5 -> empty slot 20  ->  INV_BUTTOND target carries the null widget obj; slot 20 updates
 ```
 
 ### 1.8 Revision-239 static worn leaves

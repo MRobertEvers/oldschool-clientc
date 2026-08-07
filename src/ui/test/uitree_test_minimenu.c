@@ -100,6 +100,10 @@ test_minimenu_sort(void)
     TEST_ASSERT(
         UIMinimenu_ActionDeprioritize(TEST_ACTION_CANCEL) == TEST_ACTION_CANCEL,
         "high ids not re-biased");
+    TEST_ASSERT(
+        UIMinimenu_ActionNormalize(UIMinimenu_ActionDeprioritize(TEST_ACTION_OP1)) ==
+            TEST_ACTION_OP1,
+        "deprioritized action normalizes before dispatch");
 }
 
 static void

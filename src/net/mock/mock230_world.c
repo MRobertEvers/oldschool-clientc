@@ -3587,9 +3587,13 @@ handle_opheld(
 /* INV_BUTTOND / IfButtonD: rev-230 dual-endpoint frame (16 bytes):
  *   srcCom p4 LE, srcObj p2 LE, srcSlot p2 LE+128,
  *   dstCom p4 BE, dstObj p2 BE+128, dstSlot p2 BE+128.
- * Empty slots send obj_id = -1. The client no longer mutates locally on the
- * CS2 path, so this is what actually moves the items; a reject would leave
- * the client looking at the pre-drag layout until the next transmit.
+ * The endpoint object fields are the item ids painted on the two widgets.
+ * Rev239's inventory script paints a client-only null object on empty cells,
+ * so an empty destination does not necessarily send -1. The server's own
+ * container is authoritative about whether the slot is empty. The client no
+ * longer mutates locally on the CS2 path, so this is what actually moves the
+ * items; a reject would leave the client looking at the pre-drag layout until
+ * the next transmit.
  *
  * Same-component moves inside the backpack and bankmain items are accepted.
  * Bank item → bankmain:tabs assigns the stack to that tab (updates tab_size).
@@ -3650,12 +3654,15 @@ handle_inv_buttond(
         if( src_slot < 0 || src_slot >= MOCK230_INV_SLOTS || dst_slot < 0 ||
             dst_slot >= MOCK230_INV_SLOTS )
             return;
-        /* Stale drag: the client named an item that is no longer there. */
-        if( src_obj >= 0 && player->inv[src_slot].obj_id != src_obj )
+        /* Stale source: a drag can only begin on the item the server still has
+         * in that slot. The destination item is likewise checked when filled.
+         * When the authoritative destination is empty, ignore its cosmetic
+         * widget item: rev239 deliberately paints a non-empty null object in
+         * empty inventory cells and method3759 transmits that field verbatim. */
+        if( player->inv[src_slot].obj_id != src_obj )
             return;
-        if( dst_obj >= 0 && player->inv[dst_slot].obj_id != dst_obj )
-            return;
-        if( dst_obj < 0 && player->inv[dst_slot].obj_id >= 0 )
+        if( player->inv[dst_slot].obj_id >= 0 &&
+            player->inv[dst_slot].obj_id != dst_obj )
             return;
 
         swap = player->inv[src_slot];
@@ -18188,9 +18195,10 @@ mock230_world_selftest(void)
         SELFTEST_CHECK((player->inv_dirty & (1u << from_slot)) != 0, "from slot marked dirty");
         SELFTEST_CHECK((player->inv_dirty & (1u << to_slot)) != 0, "to slot marked dirty");
 
-        /* class108.method3759 sends -1 for an empty target's item field. This
-         * is the ordinary drag-to-empty-slot path, not a failed filled-cell
-         * swap with a missing icon. */
+        /* class108.method3759 sends the target widget's item field verbatim.
+         * Rev239's inventory paint gives empty cells a cosmetic null object,
+         * so prove a non-negative target field is accepted when the server's
+         * authoritative destination slot is empty. */
         {
             int empty_slot = inv_first_free(player);
 
@@ -18203,7 +18211,7 @@ mock230_world_selftest(void)
                 rsab_p2_alt1(&buf, from_obj);
                 rsab_p2_alt3(&buf, from_slot);
                 rsab_p4(&buf, com);
-                rsab_p2_alt2(&buf, -1);
+                rsab_p2_alt2(&buf, to_obj);
                 rsab_p2_alt2(&buf, empty_slot);
                 mock230_world_handle(
                     player, PKTOUT_NAME_INV_BUTTOND, payload, (int)rsab_len(&buf));

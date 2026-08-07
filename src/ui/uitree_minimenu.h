@@ -125,6 +125,13 @@ UIMinimenu_ActionDeprioritize(int action)
     return action > 1000 ? action : action + 2000;
 }
 
+/** Undo the reference's +2000 priority bias before dispatching a row. */
+static inline int
+UIMinimenu_ActionNormalize(int action)
+{
+    return action >= 2000 ? action - 2000 : action;
+}
+
 /** Compute layout + content width for the current rows. line_box <= 0 falls
  * back to the default glyph line box; measure == NULL falls back to strlen * 6. */
 bool

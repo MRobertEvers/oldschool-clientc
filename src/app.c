@@ -11461,6 +11461,13 @@ app_minimenu_run_option(
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
+    /* method5229 marks component operations above targetPriority with the
+     * +2000 low-priority form. doAction removes that bias before comparing
+     * the action id; keeping it made the row render correctly but bypass every
+     * inventory/UI dispatch case (for example Deposit-1 arrived as 2231
+     * instead of IF_BUTTON 231). */
+    opt.action = UIMinimenu_ActionNormalize(opt.action);
+
     /* Examine (OPLOC6/OPNPC6/OPOBJ6): reference resolves these locally from the
      * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6/
      * OP_OBJ6). Look the desc up from the config by the entity's type id, and
@@ -11968,7 +11975,7 @@ app_minimenu_use_option(
     int result;
 
     if( option_index >= 0 && option_index < menu->option_count )
-        action = menu->options[option_index].action;
+        action = UIMinimenu_ActionNormalize(menu->options[option_index].action);
 
     had_selection = app->objsel.active || app->targetsel.active;
     result = app_minimenu_run_option(app, option_index, click_x, click_y);

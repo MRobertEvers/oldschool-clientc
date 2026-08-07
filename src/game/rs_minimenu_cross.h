@@ -23,9 +23,8 @@ RS_Minimenu_CrossModeForAction(int action)
 {
     /* Mirror doAction's `if (action >= _PRIORITY) action -= _PRIORITY`:
      * UIMinimenu_ActionDeprioritize biases by +2000 and no native rev-254 id
-     * reaches 2000, so anything above that is a biased copy. */
-    if( action > 2000 )
-        action -= 2000;
+     * reaches 2000, so anything at or above that is a biased copy. */
+    action = UIMinimenu_ActionNormalize(action);
 
     switch( action )
     {
