@@ -721,6 +721,54 @@ known caught, pre-login `setupCompilerControl` warning. Explicit JCTL quit wrote
 the complete profiler report, and only this run's recorded server/jav_config
 PIDs were stopped afterward.
 
+### `::zuk` exposed a narrowed varbit-mask local in the compilable deob
+
+The reported `::zuk` failure was reproduced from a clean `origin/v3` worktree
+with a blocking EVENTS subscriber connected before RuneLite. The command
+successfully rebuilt the Inferno instance and mounted group 596 at
+`161:8->596`, but its onload chain failed twice:
+
+- `739 -> 737 -> 735 -> 4018` (`ArithmeticException: / by zero`);
+- `739 -> 738 -> 4018` on the following var transmit.
+
+Script 739 is the Inferno HP updater. It reads cache varbits 5653 and 5654,
+then executes SCALE (4018) as `current * width / base`. Server-side tracing
+proved this was not a guessed packet or ordering defect. The authoritative
+cache places both 11-bit values in varp 1575, current at bits 0..10 and base at
+bits 11..21. mock230 wrote base first and current second, before IF_OPENSUB,
+and emitted the literal revision-239 VARP_LARGE bodies:
+
+- base only, 2457600: `06 a7 00 80 25 00`;
+- current plus base, 2458800: `06 a7 b0 84 25 00`.
+
+Those bytes match the golden handler (`g2_alt2` id followed by `g4_alt1`
+value). The broken compilable deob nevertheless reduced varp 1575 to raw
+`1200`, leaving varbit 5654 at zero. The cause was in both revision-239 mask
+tables, `class313.field4227` and `class419.field5295`: the decompiler had
+narrowed the original bytecode's integer accumulator to `byte`. It overflowed
+while constructing masks wider than six bits. The 11-bit POP_VARBIT setter
+therefore treated its legal maximum as `-1`, rejected base HP 1200, wrote zero,
+and handed SCALE a zero divisor. Restoring an `int` accumulator in the
+authoritative source and instrumented mirror fixes the client without changing
+server behavior.
+
+The deob build now runs `VarbitMaskRegression` against the recompiled classes
+and checks masks 1, 127, 2047, 4194303, and -1 in both tables. The root world
+self-test independently packs the two cache varbits, requires carrier value
+2458800, and compares both six-byte packet bodies above. The correctly
+cache-backed broad self-test reaches this section without a Zuk assertion; its
+unrelated pre-existing content/combat/pathing failures remain recorded in
+`build/run239-zuk/mock230-selftest.log`.
+
+Fresh live acceptance is under `build/run239-zuk/fixed`. Real AWT input typed
+and submitted `::zuk`; JCTL then reported varp 1575 = 2458800, varbits
+5653/5654 = 1200/1200, mounted group 596, and component `596:9` text
+`1200 / 1200`. The interface audit reports `dead=0`, GPI remained valid in the
+Inferno instance, and the presented frames, ordered EVENTS, packet trace,
+client log, and server log contain no Zuk CS2 exception, packet decode error,
+writer gap, or unexpected disconnect. The only exception text is RuneLite's
+known caught pre-login `setupCompilerControl` warning.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1067,3 +1115,32 @@ PIDs were stopped afterward.
   CLI and the only available browser session were both signed out, and the
   prepared `v3...codex/runelite239-regressions` comparison was retained rather
   than claiming an uncreated PR.
+- 2026-08-06: Fetched current `origin/v3` and created the clean isolated root
+  worktree `/Users/matthewevers/Documents/git_repos/3draster-runelite239-zuk`
+  on `codex/runelite239-zuk`, leaving the dirty primary repositories untouched.
+- 2026-08-06: Connected a blocking EVENTS subscriber before launching the
+  baseline client, used real AWT input for `::zuk`, and retained the two script
+  739 SCALE exceptions, ordered packet/CS2 records, server log, interface audit,
+  and last complete frame under `build/run239-zuk/baseline`.
+- 2026-08-06: Proved cache varbits 5653/5654 share carrier 1575 at bits 0..10
+  and 11..21. Captured mock230's two pre-mount VARP_LARGE bodies and matched
+  their transforms and handler order against the authoritative golden client.
+- 2026-08-06: Located the actual failure in the compilable deob's `class313`
+  and `class419` mask-table initializers: a decompiler-narrowed `byte` local
+  overflowed before the 11-bit mask. Restored the original integer semantics in
+  the authoritative source and instrumented mirror.
+- 2026-08-06: Added and ran `VarbitMaskRegression` as part of the deob build,
+  rebuilt the injected client, and passed the 723-class/10,469-member API
+  surface check with 740 rebuilt classes and 10,742 members.
+- 2026-08-06: Added a root world regression for the packed value 2458800 and
+  the literal six-byte base-only/combined revision-239 packet bodies. The
+  correctly cache-backed broad self-test reached the new section without a Zuk
+  failure; its unrelated pre-existing failures remain in the retained log.
+- 2026-08-06: Ran fresh live acceptance with EVENTS connected before launch.
+  `::zuk` produced carrier 2458800, varbits 1200/1200, mounted group 596, and
+  widget text `1200 / 1200`; the client remained logged in with `dead=0` and no
+  Zuk CS2 error, decode error, writer gap, or unexpected disconnect.
+- 2026-08-06: Re-ran the deob build with the runtime mask-table gate, committed
+  the authoritative and instrumented fixes as `e52e7148bf`, and pushed
+  `codex/runelite239-regressions` to the MRobertEvers Deob remote. The isolated
+  root branch remained based directly on fetched `origin/v3` at `2557dcec`.

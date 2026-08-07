@@ -18222,6 +18222,69 @@ mock230_world_selftest(void)
     }
 
     /*
+     * Revision 239's Zuk overlay is a particularly useful shared-carrier
+     * contract: current and base HP are adjacent 11-bit ranges in varp 1575,
+     * and clientscript 739 divides by the base value as soon as interface 596
+     * mounts.  Assert both the cache ranges and the literal golden-deob packet
+     * bodies.  A stale sibling write or a field-transform guess otherwise
+     * becomes a remote ArithmeticException with two perfectly framed packets.
+     */
+    fprintf(stderr, "mock230 selftest: rev239 Zuk HP carrier packets\n");
+    {
+        static const uint8_t k_base_body[] = { 0x06, 0xa7, 0x00, 0x80, 0x25, 0x00 };
+        static const uint8_t k_both_body[] = { 0x06, 0xa7, 0xb0, 0x84, 0x25, 0x00 };
+        static struct Mock230Capture capture;
+        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+        int hp = mock230_content_symbol(MOCK230_PACK_VARBIT, "inferno_zuk_hp");
+        int base =
+            mock230_content_symbol(MOCK230_PACK_VARBIT, "inferno_zuk_base_hp");
+        int opcode = wire239 ? mock230_wire_opcode(wire239, PKT_NAME_VARP_LARGE) : -1;
+
+        selftest_reset_world(&srv, player, 402, 402);
+        SELFTEST_CHECK(hp == 5653 && base == 5654,
+                       "Zuk HP varbits should be 5653/5654, got %d/%d", hp, base);
+        SELFTEST_CHECK(wire239 != NULL && opcode == 12,
+                       "revision 239 VARP_LARGE should be opcode 12, got %d", opcode);
+        if( wire239 && hp >= 0 && base >= 0 )
+        {
+            srv.wire = wire239;
+            mock230_capture_begin(&srv, &capture);
+            mock230_varbit_set(&srv, base, 1200);
+            mock230_varbit_set(&srv, hp, 1200);
+            mock230_capture_end(&srv);
+            srv.wire = saved_wire;
+
+            SELFTEST_CHECK(player->varps[1575] == 2458800,
+                           "Zuk HP siblings should pack as 2458800, got %d",
+                           player->varps[1575]);
+            SELFTEST_CHECK(mock230_varbit_get(player, hp) == 1200 &&
+                               mock230_varbit_get(player, base) == 1200,
+                           "both Zuk HP varbits should round-trip as 1200, got %d/%d",
+                           mock230_varbit_get(player, hp),
+                           mock230_varbit_get(player, base));
+            SELFTEST_CHECK(capture.count == 2,
+                           "the two Zuk varbit writes should emit two packets, got %d",
+                           capture.count);
+            if( capture.count == 2 )
+            {
+                SELFTEST_CHECK(capture.packets[0].opcode == opcode &&
+                                   capture.packets[0].len == (int)sizeof(k_base_body) &&
+                                   memcmp(capture.packets[0].data, k_base_body,
+                                          sizeof(k_base_body)) == 0,
+                               "base HP packet matches the revision-239 golden body");
+                SELFTEST_CHECK(capture.packets[1].opcode == opcode &&
+                                   capture.packets[1].len == (int)sizeof(k_both_body) &&
+                                   memcmp(capture.packets[1].data, k_both_body,
+                                          sizeof(k_both_body)) == 0,
+                               "combined HP packet preserves the sibling bits");
+            }
+        }
+        else
+            srv.wire = saved_wire;
+    }
+
+    /*
      * Nothing wrote a shared container whole — the varp side of §7.5.
      *
      * The section above proves that *this* varp is patched correctly. This one
