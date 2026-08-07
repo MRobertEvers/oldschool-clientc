@@ -10293,9 +10293,10 @@ mock230_world_selftest(void)
              * sub-id would take branch 1 whichever row was clicked — three
              * different conversations, one of which is right, and no error.
              *
-             * Row 3 is picked deliberately: it is the branch a wrong-sub-id
-             * implementation could not reach, and it ends in dialogue rather
-             * than in Hans running away.
+             * Row 3 proves that a dynamic sub-id selects a non-default branch
+             * and keeps the active NPC through the next dialogue page. Row 2
+             * is exercised immediately afterwards because its delayed escape
+             * tick crosses the v5 NPC_INFO traversal/extended-info boundary.
              */
             {
                 int hans_slot = selftest_find_npc(&srv, 3105);
@@ -10526,6 +10527,83 @@ mock230_world_selftest(void)
                  * chat_right:continue, not the chat_left uid in `resume`. */
                 selftest_click_through(&srv, 12);
                 player->resume_button_count = 0;
+
+                /* Exercise the choice whose next tick is NPC movement plus a
+                 * v5 SAY block.  Keep it distinct from the rebind test above:
+                 * both failures are independent and each needs to stay red on
+                 * its own. */
+                if( rows_uid > 0 )
+                {
+                    const struct Mock230Wire* saved_wire = srv.wire;
+                    const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                    int uid;
+                    int start_x;
+                    int start_z;
+
+                    SELFTEST_CHECK(wire239 != NULL,
+                                   "the fleeing-choice test has the osrs239 adapter");
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
+                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                                   "the walk to Hans should complete for the fleeing choice");
+                    if( player->resume_button_count == 1 )
+                    {
+                        uid = player->resume_buttons[0];
+                        resume[0] = (uint8_t)(uid >> 24);
+                        resume[1] = (uint8_t)(uid >> 16);
+                        resume[2] = (uint8_t)(uid >> 8);
+                        resume[3] = (uint8_t)uid;
+                        mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
+                                             4);
+                    }
+                    SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count == 1 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                   "the fleeing choice should arm chatmenu:options");
+
+                    button[0] = (uint8_t)(rows_uid >> 24);
+                    button[1] = (uint8_t)(rows_uid >> 16);
+                    button[2] = (uint8_t)(rows_uid >> 8);
+                    button[3] = (uint8_t)rows_uid;
+                    button[4] = 0;
+                    button[5] = 2;
+                    mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button,
+                                         sizeof(button));
+                    SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count == 1,
+                                   "the fleeing choice should park on its player reply");
+
+                    uid = player->resume_buttons[0];
+                    start_x = srv.npcs[hans_slot].x;
+                    start_z = srv.npcs[hans_slot].z;
+                    /* Patrol's previous retry is not this escape attempt's
+                     * retry window. */
+                    srv.npcs[hans_slot].stuck_counter = 0;
+                    resume[0] = (uint8_t)(uid >> 24);
+                    resume[1] = (uint8_t)(uid >> 16);
+                    resume[2] = (uint8_t)(uid >> 8);
+                    resume[3] = (uint8_t)uid;
+                    if( wire239 )
+                        srv.wire = wire239;
+                    mock230_capture_begin(&srv, &capture);
+                    mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                    mock230_world_tick(&srv);
+                    mock230_world_tick(&srv);
+                    mock230_capture_end(&srv);
+                    SELFTEST_CHECK(player->active_script == NULL,
+                                   "the delayed fleeing branch should finish, not abort");
+                    SELFTEST_CHECK(srv.npcs[hans_slot].mode == MOCK230_NPCMODE_PLAYERESCAPE,
+                                   "the selected branch should put its npc in playerescape mode");
+                    SELFTEST_CHECK(srv.npcs[hans_slot].x != start_x ||
+                                       srv.npcs[hans_slot].z != start_z,
+                                   "the escaping npc should take a movement step");
+                    SELFTEST_CHECK(
+                        mock230_capture_find(
+                            &capture,
+                            mock230_wire_opcode(srv.wire, PKT_NAME_NPC_INFO), 0) >= 0,
+                        "the fleeing tick must emit revision-239 NPC_INFO");
+                    player->resume_button_count = 0;
+                    srv.wire = saved_wire;
+                }
             }
 
             mock230_scripts_free(&srv);
