@@ -1503,3 +1503,7 @@ RuneLite's known caught pre-login `setupCompilerControl` warning.
   had advanced. Committed and pushed the cache and Inferno content as
   `9633efba1c` on `codex/runelite239-zuk-instance`, preserving the dirty primary
   worktrees and all unrelated files in the isolated root worktree.
+- 2026-08-07: Committed and pushed the root packet writers, literal regressions,
+  C-client fixture, dependency pointer, and integration record as `bcdfe212`,
+  followed by the factual 83-record cache comment correction `c5d82ea9`, on
+  `codex/runelite239-zuk`. Final fetches matched both local and remote heads.
