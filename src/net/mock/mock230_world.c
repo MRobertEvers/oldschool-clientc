@@ -4284,7 +4284,18 @@ handle_opobju(
  * the other four: for locs, npcs and ground objs the subject is the target.
  */
 
-/* ::commands, so a session can be steered without a UI. */
+/*
+ * Server commands, so a session can be steered without a UI.
+ *
+ * `::~name` is the cache-independent spelling. The pristine revision-239
+ * client strips the leading `::`, offers `~name` to its local typed-emote
+ * parser (which cannot mistake it for `cry`, `run`, etc.), then sends `~name`
+ * through CLIENT_CHEAT. Strip that marker once here, before both the content
+ * debugproc namespace and the C diagnostic ladder. Plain `::name` remains an
+ * alias for clients whose cache has exact local-command matching.
+ *
+ * Full reason this boundary exists: docs/CRYSTAL_SET_COMMAND.md.
+ */
 static void
 handle_cheat(
     struct Mock230Server* srv,
@@ -4304,6 +4315,11 @@ handle_cheat(
     /* net_out_client_cheat writes the body newline-terminated, without the
      * leading "::". */
     rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
+
+    /* `::~foo` arrives as `~foo`: the client owns/removes `::`, while `~` is
+     * the explicit server-side namespace escape. memmove includes the NUL. */
+    if( text[0] == '~' )
+        memmove(text, text + 1, strlen(text));
 
     /*
      * Content first, exactly as `[if_button]` is dispatched: a `[debugproc,
@@ -4326,7 +4342,8 @@ handle_cheat(
      * makes every server-side outcome explicit rather than letting an abort
      * masquerade as an unknown command.
      *
-     * If ::crystal_set ever appears to Cry or stays silent, do not start here:
+     * If ::crystal_set ever appears to Cry or stays silent, use
+     * ::~crystal_set with a pristine cache; do not start debugging here:
      * docs/CRYSTAL_SET_COMMAND.md records the client-local interception and the
      * exact packet boundary that proves whether this function ran.
      */
@@ -4340,7 +4357,7 @@ handle_cheat(
                     : result == MOCK230_TRIGGER_FAILED ? "FAILED" : "not found");
         if( result == MOCK230_TRIGGER_FAILED )
         {
-            say(srv, "Command ::%s failed — see the server log.", text);
+            say(srv, "Command ::~%s failed — see the server log.", text);
             return;
         }
         if( result == MOCK230_TRIGGER_RAN )
@@ -16453,8 +16470,8 @@ mock230_world_selftest(void)
                        "and a line no debugproc claims falls through to the engine");
 
         /*
-         * `::crystal_set`, asserted on the worn container rather than on the
-         * return.
+         * `::~crystal_set`, through the actual CLIENT_CHEAT payload shape and
+         * asserted on the worn container rather than on the return.
          *
          * The live failure was client-side: the local emote parser prefix-
          * matched `crystal_set` as `cry` and returned before CLIENT_CHEAT. Once
@@ -16462,36 +16479,37 @@ mock230_world_selftest(void)
          * name and different outcomes. The old one added six charged items to
          * the backpack; the intended one equips a usable armour set and bow.
          *
-         * `run_debugproc` returning RAN only proves a script claimed the line,
-         * so that is not what this asserts. The current command equips a usable
-         * armour set and bow directly; assert exactly that result so a missing,
-         * stale, duplicate, or partially-executed debugproc cannot pass.
+         * Calling handle_cheat with `~crystal_set\n` is deliberate: script 73
+         * removes the leading `::` from `::~crystal_set` before CLIENT_CHEAT,
+         * so this is exactly what the pristine client puts in the packet. A
+         * direct run_debugproc call would not test the cache-independent escape.
+         * The current command equips a usable armour set and bow directly;
+         * assert exactly that result so a missing, stale, duplicate, or
+         * partially-executed debugproc cannot pass.
          */
         {
             struct Mock230Player* who = &srv.players[0];
+            static const uint8_t command[] = "~crystal_set\n";
             int helmet = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_helmet");
             int body = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_chestplate");
             int legs = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_platelegs");
             int bow = mock230_content_symbol(
                 MOCK230_PACK_OBJ, "bow_of_faerdhinen_infinite");
 
-            SELFTEST_CHECK(
-                mock230_scripts_run_debugproc(&srv, "crystal_set") ==
-                    MOCK230_TRIGGER_RAN,
-                "::crystal_set should reach [debugproc,crystal_set]");
+            handle_cheat(&srv, command, (int)sizeof(command) - 1);
             SELFTEST_CHECK(helmet > 0 && body > 0 && legs > 0 && bow > 0,
                            "the equipped crystal set must resolve through the pack");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == helmet,
-                           "::crystal_set equips the crystal helmet");
+                           "::~crystal_set equips the crystal helmet");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_BODY].obj_id == body,
-                           "::crystal_set equips the crystal chestplate");
+                           "::~crystal_set equips the crystal chestplate");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_LEGS].obj_id == legs,
-                           "::crystal_set equips the crystal platelegs");
+                           "::~crystal_set equips the crystal platelegs");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == bow,
-                           "::crystal_set equips a qualifying crystal bow");
+                           "::~crystal_set equips a qualifying crystal bow");
             SELFTEST_CHECK(who->stat_level[MOCK230_STAT_RANGED] == 99 &&
                                who->stat_level[MOCK230_STAT_AGILITY] == 99,
-                           "::crystal_set raises its own equip requirements");
+                           "::~crystal_set raises its own equip requirements");
         }
 
         /*

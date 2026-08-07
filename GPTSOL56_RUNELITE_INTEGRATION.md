@@ -100,6 +100,10 @@ The integration requires these cooperating components:
 > [`docs/CRYSTAL_SET_COMMAND.md`](docs/CRYSTAL_SET_COMMAND.md). The build now
 > checks both the client fallthrough and the unique server command before
 > either client cache or server script artifacts can be produced.
+>
+> For a pristine cache, use the cache-independent server namespace spelling
+> `::~crystal_set`. The old client strips `::`, declines `~crystal_set` as a
+> local emote, and the server strips `~` before debugproc/cheat dispatch.
 
 This failure was not in the `crystal_set` server script. It occurred before the
 server boundary, inside revision 239's chat clientscripts. That distinction is
@@ -182,30 +186,33 @@ failure:
   declined the text.
 - JCTL has a shell-quoting trap. Its positional arguments are complete JCTL
   commands, so the correct invocation is
-  `python3 tools/runelite239_ctl.py 'type ::crystal_set'`. Passing
-  `type ::crystal_set` as two shell arguments sends the commands `type` and
-  `::crystal_set`; the first types the literal word `type`, and the second is
+  `python3 tools/runelite239_ctl.py 'type ::~crystal_set'`. Passing
+  `type ::~crystal_set` as two shell arguments sends the commands `type` and
+  `::~crystal_set`; the first types the literal word `type`, and the second is
   rejected by JCTL. Always quote the whole control command before drawing a
   conclusion from automated input.
 
 #### Landed fix and hardening
 
-The fix has four parts:
+The fix has five parts:
 
-1. `script_7304.cs2` now uses exact `compare(...) = 0` checks for all local
+1. `::~name` is the cache-independent server namespace. The pristine client
+   sends `~name` through `CLIENT_CHEAT`; `handle_cheat` strips that marker before
+   both debugproc lookup and the built-in diagnostic ladder.
+2. `script_7304.cs2` now uses exact `compare(...) = 0` checks for all local
    emote aliases. Exact `::cry` still selects sub-id 16, while
    `::crystal_set` falls through to the general cheat path.
-2. The obsolete Gauntlet `[debugproc,crystal_set]`, which added six charged
+3. The obsolete Gauntlet `[debugproc,crystal_set]`, which added six charged
    items to the backpack, was removed. The single authoritative definition is
    `skill_combat/scripts/player/crystal_set.rs2`; it equips the crystal helm,
    body, legs, and corrupted Bow of faerdhinen and establishes the required
    stats.
-3. `mock230_scripts_run_debugproc` now returns the three-way
+4. `mock230_scripts_run_debugproc` now returns the three-way
    `Mock230TriggerResult`: `NONE`, `RAN`, or `FAILED`. A resolved script that
    aborts is no longer indistinguishable from a missing command.
-4. `handle_cheat` always logs `not found`, `ran`, or `FAILED`. `FAILED` also
-   sends `Command ::<text> failed — see the server log.` to the player. Unknown
-   commands retain their visible `Unknown command: <text>` response.
+5. `handle_cheat` always logs `not found`, `ran`, or `FAILED`. `FAILED` also
+   sends `Command ::~<text> failed — see the server log.` to the player.
+   Unknown commands retain their visible `Unknown command: <text>` response.
 
 The server self-test asserts the result rather than merely the dispatch return:
 the exact object ids must occupy the head, body, legs, and weapon slots in the
@@ -214,12 +221,11 @@ duplicate, stale, aborted, or semantically wrong debugproc.
 
 #### End-to-end proof after the fix
 
-A temporary cache containing the rebuilt clientscript was served through JS5,
-then the real RuneLite client was driven through AWT/JCTL. The observed path
-was:
+With the cache-independent spelling, the same path works against the pristine
+cache. The observed RuneLite/AWT/JCTL trace is:
 
 ```text
-JCTL chat input: ::crystal_set
+JCTL chat input: ::~crystal_set
 packet_out op=34 len=-1
 mock230: [debugproc,crystal_set] with 0 int and 0 string args
 mock230: cheat 'crystal_set' -> debugproc ran

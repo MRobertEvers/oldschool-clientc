@@ -35,10 +35,11 @@ python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 ### `check_crystal_set_contract.py`
 
 **What it does:** Enforces the complete client/server contract behind
-`::crystal_set`: exact local-emote matching, chat fallthrough to rev-239
-`CLIENT_CHEAT` opcode 34, one canonical debugproc, required equipment semantics,
-runtime diagnostics, and semantic self-test coverage. Its negative controls
-prove that the original Cry prefix match and a duplicate command fail the gate.
+`::~crystal_set`: the pristine-cache `::~name` server escape, exact local-emote
+matching, chat fallthrough to rev-239 `CLIENT_CHEAT` opcode 34, one canonical
+debugproc, required equipment semantics, runtime diagnostics, and semantic
+self-test coverage. Its negative controls prove that the original Cry prefix
+match and a duplicate command fail the gate.
 
 It runs automatically before both `mock230-scripts` and `mock230-cache`:
 

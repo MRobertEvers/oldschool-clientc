@@ -48,9 +48,15 @@ src/torirs --manifest manifest_osrs230.ini --user test --pass test
 | `MOCK230_SCRIPTS=dir` | compiled script pack (default `<content>/scripts/build`) |
 | `MOCK230_HOME=x,z` | tile to log in on (default `3222,3218` — the Lumbridge castle courtyard). The scene's origin zone is derived from it |
 
-`::` commands, for steering a session without a UI: `::talk <slot> [op]`,
-`::fight <slot>`, `::style <0-3>`, `::setlevel <stat> <level>`, `::item <id>
-[count]`, `::tele <x> <z>`, `::npc <type>`.
+Server commands, for steering a session without a UI: `::~talk <slot> [op]`,
+`::~fight <slot>`, `::~style <0-3>`, `::~setlevel <stat> <level>`, `::~item <id>
+[count]`, `::~tele <x> <z>`, `::~npc <type>`.
+
+Use `::~name` for the cache-independent server namespace—for example,
+`::~crystal_set` or `::~run 1`. It works with the pristine rev-239 cache: the
+client's local typed-emote parser sees the leading `~` and declines the text,
+then the server removes it before both debugproc and built-in cheat dispatch.
+Plain `::name` remains an alias when no local client command steals it.
 
 If a typed command performs an emote or leaves no server log, inspect the client
 packet boundary before the debugproc: [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md)

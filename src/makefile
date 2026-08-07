@@ -1416,7 +1416,9 @@ MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 # sides at once: CS2 prefix-matched it as the local `cry` emote, and content had
 # two global debugprocs with the same name. Run it before either half is built so
 # neither a server-only script rebuild nor a client-cache bake can ship half a
-# fix. Full incident: docs/CRYSTAL_SET_COMMAND.md.
+# fix. The cache-independent command is ::~crystal_set; the server must remove
+# that marker before both debugproc and built-in dispatch. Full incident:
+# docs/CRYSTAL_SET_COMMAND.md.
 check-crystal-set-contract:
 	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail fast if the ::crystal_set client/server contract regresses.
+"""Fail fast if the ::~crystal_set client/server contract regresses.
 
 The incident and its packet-level diagnosis live in
 docs/CRYSTAL_SET_COMMAND.md.  This checker deliberately spans both source
@@ -126,15 +126,24 @@ def check(root: Path) -> list[str]:
 
     world = (root / WORLD).read_text(encoding="utf-8")
     for fragment in (
+        "if( text[0] == '~' )",
+        'static const uint8_t command[] = "~crystal_set\\n";',
         "mock230: cheat '%s' -> debugproc %s",
-        "Command ::%s failed — see the server log.",
-        'mock230_scripts_run_debugproc(&srv, "crystal_set") ==',
-        '"::crystal_set equips the crystal helmet"',
-        '"::crystal_set equips a qualifying crystal bow"',
-        '"::crystal_set raises its own equip requirements"',
+        "Command ::~%s failed — see the server log.",
+        '"::~crystal_set equips the crystal helmet"',
+        '"::~crystal_set equips a qualifying crystal bow"',
+        '"::~crystal_set raises its own equip requirements"',
     ):
         if fragment not in world:
             errors.append(f"{WORLD}: missing diagnostic/self-test guard: {fragment}")
+
+    normalize = world.find("if( text[0] == '~' )")
+    dispatch = world.find("mock230_scripts_run_debugproc(srv, text)", normalize)
+    builtin = world.find('if( strncmp(text, "talk", 4) == 0 )', normalize)
+    if normalize < 0 or dispatch < 0 or builtin < 0 or not normalize < dispatch < builtin:
+        errors.append(
+            f"{WORLD}: ::~ normalization must precede debugproc and built-in dispatch"
+        )
 
     if not (root / INCIDENT_DOC).is_file():
         errors.append(f"{INCIDENT_DOC}: canonical incident guide is missing")
@@ -163,7 +172,10 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print("crystal-set contract: exact client fallthrough, unique debugproc, diagnostics, and semantics OK")
+    print(
+        "crystal-set contract: pristine ::~ escape, exact client fallthrough, "
+        "unique debugproc, diagnostics, and semantics OK"
+    )
     return 0
 
 
