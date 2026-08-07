@@ -165,11 +165,148 @@ test_manifest_from_hand_pushed_fields(void)
     revconfig_buffer_free(fields);
 }
 
+/*
+ * A boot manifest carrying its root layout inline, written the way one is
+ * actually checked out: CRLF, and with the boot dialect's own sections around
+ * the RevConfig ones.
+ *
+ * The CRLF is not decoration. Read in text mode on Windows the CRT eats the
+ * '\r' of every line, so fread returns fewer bytes than the file is long — a
+ * loader that reads the size with ftell and treats a short read as failure
+ * loads nothing, and loads nothing *silently*, because an empty layout still
+ * produces a tree. The two `[component:decoy]`/`[layout:root]` sections are the
+ * other half: unprefixed sections belong to the boot dialect and must not be
+ * read as RevConfig, or every manifest key spelled `left`, `top`, `index`,
+ * `filename` or `format` would start meaning something to the wrong parser.
+ */
+static char const k_inline_manifest[] =
+    "; boot manifest with the root layout inline\r\n"
+    "[cache:boot]\r\n"
+    "epoch=dat2\r\n"
+    "dir=cache.osrs239\r\n"
+    "\r\n"
+    "[ui:boot]\r\n"
+    "logic=cs2\r\n"
+    "chrome=revconfig\r\n"
+    "interface_id=161\r\n"
+    "\r\n"
+    "[component:decoy]\r\n"
+    "type=debug_overlay\r\n"
+    "\r\n"
+    "[layout:root]\r\n"
+    "c=decoy\r\n"
+    "\r\n"
+    "[revconfig:component:gameframe]\r\n"
+    "type=rs_iface\r\n"
+    "\r\n"
+    "[revconfig:component:overlay]\r\n"
+    "type=debug_overlay\r\n"
+    "\r\n"
+    "[revconfig:layout:root]\r\n"
+    "c=gameframe\r\n"
+    "=\r\n"
+    "c=overlay\r\n";
+
+static char const k_inline_path[] = "uitree_builder_test_inline.tmp.ini";
+
+static int
+write_fixture(char const* path, char const* text)
+{
+    /* "wb", so the CRLFs above reach the file as written rather than being
+     * translated twice. */
+    FILE* f = fopen(path, "wb");
+    if( !f )
+        return 0;
+    size_t len = strlen(text);
+    size_t wrote = fwrite(text, 1, len, f);
+    fclose(f);
+    return wrote == len;
+}
+
+static void
+test_manifest_from_inline_sources(void)
+{
+    struct UIBuilderManifest manifest;
+    struct UIBuilderManifestSources src = { 0 };
+
+    if( !write_fixture(k_inline_path, k_inline_manifest) )
+    {
+        TEST_ASSERT(0, "write inline fixture");
+        return;
+    }
+
+    src.inline_ini_path = k_inline_path;
+    src.root_interface_id = 161;
+
+    uibuilder_manifest_init(&manifest);
+    TEST_ASSERT(uibuilder_manifest_from_sources(&manifest, &src) == 0, "from_sources inline");
+
+    /* Two ops, not three: the unprefixed `[layout:root] c=decoy` is the boot
+     * dialect's and stays out of this. Not zero either — that is the CRLF read. */
+    TEST_ASSERT(manifest.op_count == 2, "inline op count");
+    if( manifest.op_count == 2 )
+    {
+        /* Declaration order is sibling order is paint order. The frame is
+         * declared first and the overlay second, so the overlay paints over it —
+         * and because the cache pack is baked as the rs_iface node's children,
+         * nothing the CS2 scripts do to the frame can get between them. */
+        TEST_ASSERT(
+            strcmp(manifest.ops[0].component_name, "gameframe") == 0, "inline op0 component");
+        TEST_ASSERT(manifest.ops[0].kind == UIBUILDER_OP_PUSH_RS_SUBTREE, "inline op0 kind");
+        TEST_ASSERT(strcmp(manifest.ops[0].type, "rs_iface") == 0, "inline op0 type");
+        /* No componentno= on the mount: it resolves to root_interface_id, which
+         * is where the interface id lives once and only once. */
+        TEST_ASSERT(manifest.ops[0].componentno == 161, "inline op0 root iface");
+
+        TEST_ASSERT(
+            strcmp(manifest.ops[1].component_name, "overlay") == 0, "inline op1 component");
+        TEST_ASSERT(manifest.ops[1].kind == UIBUILDER_OP_PUSH_BUILTIN, "inline op1 kind");
+        TEST_ASSERT(strcmp(manifest.ops[1].type, "debug_overlay") == 0, "inline op1 type");
+    }
+
+    /* The rs_iface mount is the only op that needs a cache pack loaded. */
+    TEST_ASSERT(manifest.component_count == 1, "inline component req count");
+    if( manifest.component_count == 1 )
+        TEST_ASSERT(manifest.components[0].iface_id == 161, "inline component req iface");
+
+    uibuilder_manifest_free(&manifest);
+    remove(k_inline_path);
+}
+
+/*
+ * A manifest that declares no RevConfig at all still boots: from_sources
+ * synthesises the single rs_iface mount, which is what the interface-open path
+ * used to produce. This is the whole compatibility story for the manifests that
+ * have not been ported.
+ */
+static void
+test_manifest_default_root_layout(void)
+{
+    struct UIBuilderManifest manifest;
+    struct UIBuilderManifestSources src = { 0 };
+
+    src.root_interface_id = 548;
+
+    uibuilder_manifest_init(&manifest);
+    TEST_ASSERT(uibuilder_manifest_from_sources(&manifest, &src) == 0, "from_sources default");
+    TEST_ASSERT(manifest.op_count == 1, "default op count");
+    if( manifest.op_count == 1 )
+    {
+        TEST_ASSERT(manifest.ops[0].kind == UIBUILDER_OP_PUSH_RS_SUBTREE, "default op kind");
+        TEST_ASSERT(manifest.ops[0].componentno == 548, "default op root iface");
+    }
+    TEST_ASSERT(manifest.component_count == 1, "default component req count");
+
+    uibuilder_manifest_free(&manifest);
+}
+
 int
 main(void)
 {
     g_failures = 0;
     test_manifest_from_hand_pushed_fields();
+    test_manifest_from_inline_sources();
+    test_manifest_default_root_layout();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

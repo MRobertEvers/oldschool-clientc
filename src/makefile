@@ -312,7 +312,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
-	ui/uitree_hovertext.c \
+	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
+	engine/torirs_debug_font_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -1032,11 +1033,12 @@ test-painters-terrain-levels: $(OBJ_DIR)
 	./$(OBJ_DIR)/painters_test_terrain_levels
 
 test-uitree: $(OBJ_DIR)
+	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
 		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
-		ui/uitree_hovertext.c \
+		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
 		ui/test/uitree_test_main.c ui/test/uitree_test_dirty.c \
@@ -1047,8 +1049,30 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_emit_golden.c \
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
-		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c
+		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
+		ui/test/uitree_test_debug_overlay.c
 	./$(OBJ_DIR)/uitree_test
+
+# Debug-overlay raster tests: display list -> emit desc -> ToriRS_Frame -> Soft3D,
+# with the *baked* fonts, one BMP per feature into build/. This is the only test
+# that proves the pictures are right (baselines, scissor boxes, the slot -> font
+# mapping); test-uitree covers the model. It links the real frame translator and
+# the real software rasteriser but NOT world.c — torirs_frame.c only reaches the
+# two World_* symbols on the UITREE_EMIT_WORLD path, which an overlay-only emit
+# buffer never takes, and the test closes the link itself rather than dragging
+# painters/collision/heightmap/minimap into a rectangles-and-text test.
+test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
+	@mkdir -p build
+	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual \
+		ui/test/uitree_debug_overlay_visual.c \
+		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
+		render/torirs_frame.c render/torirs_pick.c \
+		platform/platform_sdl2_renderer_soft3d.c \
+		$(BMP_DIR)/bmp.c \
+		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(OBJ_DIR)/toridraw_model_sprite.o -lm
+	./$(OBJ_DIR)/debug_overlay_visual
 
 # The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
 test-chat-widgets: $(OBJ_DIR)

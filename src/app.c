@@ -4431,41 +4431,25 @@ Task_AppBoot_Run(
         printf("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
     }
 
-    if( app->builder_active )
-    {
-        TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
-        printf(
-            "RevConfigBuild done: ui=%s tree_components=%u sprites=%d fonts=%d onloads=%d\n",
-            app->cfg.revconfig_ui_ini,
-            app->tree->component_count,
-            app->builder.sprite_count,
-            app->builder.font_count,
-            app->builder.onload_count);
-    }
-    else
-    {
-        /* Open the requested interface directly as the tree root (TS parity:
-         * WidgetManager.setRootInterface(groupId) — any group can be the root;
-         * no hardcoded 161 chrome required). */
-        TASK_AWAITSELF(CreateTask_InterfaceOpen(
-            app->provider,
-            app->tree,
-            &app->host,
-            &app->invs,
-            &app->bridge,
-            app->boot_interface_id,
-            &app->open_stats));
-        printf(
-            "InterfaceOpen done: iface=%d pack_components=%d tree_components=%u onloads=%d "
-            "inv_hooks=%d var_hooks=%d mounts=%d\n",
-            app->open_stats.interface_id,
-            app->open_stats.pack_component_count,
-            app->tree->component_count,
-            app->open_stats.onload_count,
-            app->host.inv_transmit_hook_count,
-            app->host.var_transmit_hook_count,
-            app->tree->interface_parent_count);
-    }
+    /* One root-build path. A manifest that names no RevConfig at all still comes
+     * through here: the builder synthesises the single rs_iface mount of
+     * boot_interface_id, which is what the old open-the-interface-directly
+     * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
+     * group can be the root, no hardcoded 161 chrome required). */
+    TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+    printf(
+        "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
+        "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
+        app->boot_interface_id,
+        app->cfg.revconfig_ui_ini ? app->cfg.revconfig_ui_ini : "-",
+        app->cfg.revconfig_inline_ini ? app->cfg.revconfig_inline_ini : "-",
+        app->tree->component_count,
+        app->builder.sprite_count,
+        app->builder.font_count,
+        app->builder.onload_count,
+        app->host.inv_transmit_hook_count,
+        app->host.var_transmit_hook_count,
+        app->tree->interface_parent_count);
 
     app->boot_progress = 60;
 
@@ -4592,25 +4576,37 @@ App_OpenRootInterface(
         app->host.stat_transmit_hook_count = 0;
     }
 
-    if( app->cfg.revconfig_ui_ini && app->cfg.revconfig_ui_ini[0] )
-    {
-        /* RevConfig build: the INI names the whole gameframe (chrome widgets
-         * plus the cache interface packs mounted under them), so it replaces
-         * the interface open rather than wrapping it. The CS2 host is passed
-         * only for dat2 — dat1 interface packs carry IF1 scripts, which the
-         * CS1 host evaluates on the tick instead. */
-        UITreeBuilder_InitEx(
-            &app->builder,
-            app->provider,
-            app->tree,
-            &app->invs,
-            App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
-            app->cfg.revconfig_ui_ini,
-            app->cfg.revconfig_cache_ini);
-        /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
-        app->builder.bridge = &app->bridge;
-        app->builder_active = 1;
-    }
+    /* RevConfig build, always: the config names the whole gameframe (chrome
+     * widgets plus the cache interface packs mounted under them), and a manifest
+     * that declares none of it still gets the plain `interface_id` mount
+     * synthesised for it. That is what keeps declared sibling order meaningful —
+     * a pack is baked *under* the rs_iface node its layout record placed, so
+     * whatever the CS2 scripts then do to it stays inside that subtree.
+     *
+     * The CS2 host is passed only for dat2 — dat1 interface packs carry IF1
+     * scripts, which the CS1 host evaluates on the tick instead. */
+    if( app->builder_active )
+        UITreeBuilder_Free(&app->builder); /* display-mode remount: re-Init below */
+    UITreeBuilder_InitEx(
+        &app->builder,
+        app->provider,
+        app->tree,
+        &app->invs,
+        App_UiLogic(app) == APP_UI_LOGIC_CS1 ? NULL : &app->host,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini);
+    if( app->cfg.revconfig_inline_ini )
+        strncpy(
+            app->builder.inline_ini_path,
+            app->cfg.revconfig_inline_ini,
+            sizeof(app->builder.inline_ini_path) - 1);
+    /* A componentno-less rs_iface means "the root", which is whatever we are
+     * being asked to root to — the manifest's boot interface on the first call,
+     * the server's IF_SETTOPLEVEL group on a display-mode remount. */
+    app->builder.root_interface_id = interface_id;
+    /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
+    app->builder.bridge = &app->bridge;
+    app->builder_active = 1;
 
     app->app_state = APP_STATE_BOOTING;
     app->boot_interface_id = interface_id;

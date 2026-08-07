@@ -61,6 +61,11 @@ enum UITreeComponentType
     /** World map overview pane (clientCode 1401): scale-blit of the area's
      *  compositetexture PNG. The red viewport rects are CS2 on overview_overlay. */
     UIELEM_BUILTIN_WORLDMAP_OVERVIEW = 26,
+    /** Developer debug overlay (src/ui/uitree_debug_overlay.h). Not content and
+     *  not part of any gameframe: the app pushes it as the last root sibling and
+     *  it gets its own emit pass, after the drag pass, so it draws over
+     *  everything. Skipped entirely when the host has no overlay. */
+    UIELEM_BUILTIN_DEBUG_OVERLAY = 27,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -640,6 +645,14 @@ struct UITreeComponent
         } hovertext;
         struct
         {
+            /** Scene font ids the host registered the two baked debug faces
+             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
+             * travel as plain ints the same way minimenu.font_id does. */
+            int font_id_small;
+            int font_id_menu;
+        } debug_overlay;
+        struct
+        {
             struct UITreeChatMinimenuConfig minimenu;
             int font_id; /* INI font= (message + input line font, e.g. p12) */
         } chat;
@@ -1051,6 +1064,14 @@ struct UITreeNodeSpec
         {
             int font_id;
         } hovertext;
+        struct
+        {
+            /** Scene font ids the host registered the two baked debug faces
+             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
+             * travel as plain ints the same way minimenu.font_id does. */
+            int font_id_small;
+            int font_id_menu;
+        } debug_overlay;
         struct
         {
             struct UITreeChatMinimenuConfig minimenu;

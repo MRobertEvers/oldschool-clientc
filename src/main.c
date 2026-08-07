@@ -306,18 +306,79 @@ dump_hooks(struct App* app)
     }
 }
 
+/*
+ * Find `group_id`'s top-level nodes in a sibling list, descending through mount
+ * owners. A `type=rs_iface` node from the boot manifest's RevConfig carries no
+ * uid of its own (component_id -1) and the group's pack hangs beneath it, so a
+ * root-siblings-only scan dumps nothing on a config-built tree.
+ */
+static void
+dump_tree_group_in(
+    struct App* app,
+    int32_t first,
+    int group_id)
+{
+    for( int32_t i = first; i >= 0; i = app->tree->components[i].next_sibling )
+    {
+        struct UITreeComponent const* c = &app->tree->components[i];
+        if( c->freed )
+            continue;
+        if( c->component_id >= 0 )
+        {
+            if( ((c->component_id >> 16) & 0xFFFF) == group_id )
+                dump_tree_node(app, i, 0);
+            continue;
+        }
+        dump_tree_group_in(app, c->first_child, group_id);
+    }
+}
+
 static void
 dump_tree(
     struct App* app,
     int group_id)
 {
-    int32_t root = app->tree ? app->tree->root_index : -1;
-    while( root >= 0 )
+    if( !app->tree )
+        return;
+    dump_tree_group_in(app, app->tree->root_index, group_id);
+}
+
+/*
+ * TORIRS_DUMP_ROOTS=1: the root sibling list in paint order.
+ *
+ * Root order is the boot manifest's RevConfig layout order, and it has to stay
+ * that way for the life of the tree — a debug overlay declared after the
+ * gameframe must still paint after it once the CS2 scripts have finished
+ * rearranging the frame. That only holds because a cache pack is baked *under*
+ * its `rs_iface` owner, so this list is the direct check on it: it should read
+ * back exactly as the layout section declared, however many mounts and
+ * reparents happened in between. Kept out of dump_tree so that stays
+ * byte-comparable with the reference client's widgetTreeDump.
+ */
+static void
+dump_roots(struct App* app)
+{
+    int n = 0;
+    if( !app->tree )
+        return;
+    for( int32_t i = app->tree->root_index; i >= 0;
+         i = app->tree->components[i].next_sibling )
     {
-        struct UITreeComponent const* c = &app->tree->components[root];
-        if( !c->freed && ((c->component_id >> 16) & 0xFFFF) == group_id )
-            dump_tree_node(app, root, 0);
-        root = c->next_sibling;
+        struct UITreeComponent const* c = &app->tree->components[i];
+        int children = 0;
+        for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
+            children++;
+        printf(
+            "ROOT[%d] index=%d type=%d com=0x%08x (%d|%d) hide=%d children=%d%s\n",
+            n++,
+            (int)i,
+            (int)c->type,
+            (unsigned)c->component_id,
+            (c->component_id >> 16) & 0xFFFF,
+            c->component_id & 0xFFFF,
+            c->behavior.hide,
+            children,
+            c->freed ? " freed" : "");
     }
 }
 
@@ -1500,6 +1561,8 @@ frame_loop_teardown(void)
          * frame loop so server-driven interface mounts are visible. */
         if( getenv("TORIRS_DUMP_TREE_EXIT") && app.tree )
             dump_tree(&app, cfg.interface_id);
+        if( getenv("TORIRS_DUMP_ROOTS") && app.tree )
+            dump_roots(&app);
         if( getenv("TORIRS_DUMP_HOOKS_EXIT") && app.tree )
             dump_hooks(&app);
         /* Post-network emit dump: the actual draw list for the last frame,

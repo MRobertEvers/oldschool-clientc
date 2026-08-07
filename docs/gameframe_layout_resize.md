@@ -451,7 +451,13 @@ from `gameframe.enum` block named after that toplevel.
   when canvas mode does not flip — and `main.c` drains/sends in `TORIRS_NET_GAME`.
 - `IF_OPENTOP` switches root via `App_OpenRootInterface`: `UITree_Clear` tears
   down the live forest first; `IF_OPENSUB` on the exec pipeline waits out
-  `APP_STATE_BOOTING` so mount slots exist.
+  `APP_STATE_BOOTING` so mount slots exist. The rebuild is the manifest's
+  RevConfig layout re-run with the new group as `root_interface_id` — there is
+  no separate open-the-interface-as-the-root path any more, so anything else
+  the layout declares at the root (a developer overlay, say) comes back at the
+  slot it was declared in. The toplevel id is still stated once, by content:
+  an `rs_iface` record with no `componentno=` *is* "whatever we are rooting
+  to". See [`debug_overlay.md`](debug_overlay.md) §3.
 - `IF_MOVESUB` (inbound op 42) + ServerScript `if_opentop` / `if_movesub`.
 - Ids resolve `toplevel` / `toplevel_pre_eoc` by name. Login opens the top that
   matches the saved `client_layout_mode` (default stretch / mode 1); mid-session
