@@ -526,7 +526,7 @@ which, at rev 230, is most strings, because the colour is in the text.
 
 ---
 
-### 2.9 Rev 239 house-action labels: `IF_GETOP` is data flow
+### 10. Rev 239 house-action labels: `IF_GETOP` is data flow
 
 The three bottom buttons in House Options are not labelled by static text
 components. Their on-load script creates a text child and sets its text from

@@ -32,7 +32,7 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     {
         host->component_id = request->u.widget_get_op.component_id;
         host->op_index = request->u.widget_get_op.op_index;
-        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "Expel Guests"));
+        return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "fixture operation"));
     }
     return CS2VM_EXECNO_OK;
 }
