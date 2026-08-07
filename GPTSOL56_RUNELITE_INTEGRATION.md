@@ -1281,6 +1281,51 @@ packet decode error, CS2 error, interface-writer gap, or unexpected disconnect;
 the only exception text is RuneLite's known caught pre-login
 `setupCompilerControl` warning.
 
+### NPC Attack actions require zero-valued attack-priority login packets
+
+RuneLite's missing NPC Attack actions were a Content login-state defect, not an
+NPC-definition, NPC_INFO, instance-option-mask, or menu-rendering defect. In the
+baseline live client, Man 3106 decoded the authoritative actions
+`[Talk-to, Attack, Pickpocket]` and its live `class86` mask decoded to the
+default 31, yet the menu contained only Talk-to, Pickpocket, and Examine. A
+temporary probe in the isolated compilable deob made the contradiction explicit:
+varp 1306 was zero (`Depends on combat levels`) while the derived NPC
+`AttackOption` field was still `Hidden`.
+
+The golden revision-239 reset path initializes both the player and NPC derived
+attack-option fields to Hidden. It does not derive them merely by reading the
+zeroed varp table. Clientcode 18 for `option_attackpriority` (varp 1107) and
+clientcode 22 for `option_attackpriority_npc` (varp 1306) run only after a VARP
+packet names the relevant varp. The persisted-varp login burst omits unset zero
+values, and `settings_side_login` previously only armed the dropdown callbacks.
+Content now self-assigns both attack-priority varps on every login. The server
+VM's equal-value `POP_VARP` behavior deliberately transmits those assignments,
+so default zero is enough to convert both derived fields from Hidden to Depends.
+
+The focused revision-239 codec test fixes the exact `VARP_SMALL` bodies at
+`80 d3 04` for varp 1107/value 0 and `80 9a 05` for varp 1306/value 0; the
+login-content regression independently requires both packets. All 12,536
+current Content scripts compile, and both focused byte fixtures pass. The broad
+self-tests retain their existing unrelated baseline failures and were not used
+as the acceptance verdict.
+
+Live before/after evidence is retained under `build/run239-npc-attack`. Both
+sessions used pristine `cache.osrs239`, the authoritative compiled 1.12.33 deob
+inside RuneLite, a blocking EVENTS subscriber connected before launch, and real
+JCTL AWT input. Baseline `jctl-telemetry.txt` records Man/Rat/Woman/Imp Attack
+definitions with mask 31 but `npcAttackMode=hidden`; `man-menu.png` visibly has
+no Attack row. Fixed `jctl-proof.txt` records the same zero varp with
+`npcAttackMode=depends`, and `attack-menu-live.png` visibly contains
+`Attack Man (level-2)`. Selecting that exact row emitted revision-239 opcode 13,
+which the server decoded as `OPNPC2 slot=23 type=3106`; the player's live
+animation became 422 and GPI reported a pending update. The final interface
+audit found 6,124 widgets, 4,806 actions, and zero dead actions. The client quit
+explicitly with complete profiler output and no game runtime fatal, packet
+decode error, CS2 error, or unexpected disconnect. The only client exception is
+RuneLite's known caught pre-login `setupCompilerControl` warning; dropped mouse
+telemetry packets in the verbose server log are unrelated to the successful
+OPNPC2 callback.
+
 ## Step log
 
 - 2026-08-06: Audited dirty state in all three repositories and preserved
@@ -1867,3 +1912,30 @@ the only exception text is RuneLite's known caught pre-login
   the v3-derived root branch and opened oldschool-clientc PR #17 against `v3`.
   Both PRs contain only the choice-placement dependency and its root codec,
   regression, submodule pointer, and evidence record.
+- 2026-08-07: Created dedicated root/content branches from the clean choice-
+  placement PR heads and an isolated Deob telemetry worktree; preserved all
+  dirty primary trees and their lagging local refs.
+- 2026-08-07: Reproduced the missing NPC Attack row in RuneLite with a blocking
+  EVENTS subscriber connected before launch and real AWT interaction. Retained
+  the baseline menu frame, packet stream, client/server logs, and profiler.
+- 2026-08-07: Read the golden NPC-menu predicate, reset path, varp clientcodes,
+  and live NPC mask. Temporary telemetry proved attackable cache definitions and
+  mask 31 were intact while varp 1306 was zero and its derived mode stayed
+  Hidden; this ruled out NPC_INFO and menu rendering.
+- 2026-08-07: Made `settings_side_login` transmit equal-value assignments for
+  player varp 1107 and NPC varp 1306. Recompiled all 12,536 current Content
+  scripts and added literal revision-239 `VARP_SMALL` fixtures plus a login-
+  lifecycle assertion for both zero-valued packets.
+- 2026-08-07: Ran a fresh fixed RuneLite stack on pristine `cache.osrs239`.
+  Telemetry changed to `npcAttackMode=depends`, the real menu visibly exposed
+  `Attack Man`, selection emitted opcode-13 `OPNPC2`, and combat animation/GPI
+  state advanced. The 6,124-widget audit had zero dead actions.
+- 2026-08-07: Quit the fixed client explicitly, retained complete EVENTS,
+  profiler, packet, client/server, interface-audit, and before/after screenshot
+  artifacts, stopped the task server/config processes, and removed only task-
+  generated account saves. No task process remained.
+- 2026-08-07: Committed and pushed the Content fix as `a55f7741a5` and the
+  root codec/regression/evidence change as `8be3aa77`, after confirming both
+  stacked dependency heads were unchanged. Opened OSRS-Content PR #7 against
+  the choice-position Content branch and oldschool-clientc PR #19 against the
+  choice-position root branch.

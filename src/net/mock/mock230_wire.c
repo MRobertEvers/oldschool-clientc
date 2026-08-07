@@ -4,6 +4,7 @@
 #include "mock239_interface_setters.h"
 #include "mock239_inbound.h"
 #include "mock239_runclientscript.h"
+#include "mock239_varp.h"
 
 #include "net/rev/osrs230/packetin.h"
 #include "net/rev/osrs230/packetout.h"
@@ -281,8 +282,7 @@ w239_if_setevents(
 static void
 w239_varp_small(struct RSAreaBuf* buf, int varp, int value)
 {
-    rsab_p1_alt1(buf, value);
-    rsab_p2_alt3(buf, varp);
+    mock239_encode_varp_small(buf, varp, value);
 }
 
 static void
