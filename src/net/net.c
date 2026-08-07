@@ -2,6 +2,7 @@
 
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
+#include "rev/rsprot_bridge.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -345,15 +346,31 @@ net_process_packets(struct ToriRS_Network* net)
         }
         else
         {
-            /* Rev-specific parse first (osrs230 REBUILD_NORMAL etc.); <0 means
-             * "not mine" -> fall back to the shared lc-style parser. */
+            /*
+             * Three parsers, tried in order, each returning <0 for "not mine".
+             *
+             *   1. rsprot   — the generated per-layout codecs in
+             *                 3rd/rsprot/packets/, selected by (packet,
+             *                 revision). This is where packets are migrating
+             *                 TO; see net/rev/rsprot_bridge.h.
+             *   2. rev->parse — the hand-written per-revision overrides
+             *                 (osrs239_parse.c, osrs230_parse.c).
+             *   3. gameproto_parse — the shared lc-style parser.
+             *
+             * rsprot goes first so that moving a packet across is adding one
+             * row to the bridge table, with the arm it supersedes becoming
+             * dead code rather than needing to be deleted in the same step.
+             * The order also means a disagreement surfaces as rsprot's answer
+             * winning, not as two parsers both running.
+             */
             uint8_t* pdata = packetbuffer_data(&net->packet_buffer);
             int psize = packetbuffer_size(&net->packet_buffer);
             int parsed = -1;
             /* Set the canonical name up front so a rev->parse override need not
              * (the shared gameproto_parse also sets it). */
             packet.packet_type = name;
-            if( net->rev->parse )
+            parsed = rsprot_bridge_parse(net->rev, name, pdata, psize, &packet);
+            if( parsed < 0 && net->rev->parse )
                 parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 )
                 parsed = gameproto_parse(net->rev, name, pdata, psize, &packet);

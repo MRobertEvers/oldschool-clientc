@@ -348,6 +348,110 @@ RSCache_BufferWriteShortSmartAt(
     int* offset,
     int value);
 
+/* ------------------------------------------------------------------ */
+/* Alternate byte orders, for the game protocol                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The cache format only ever writes big-endian, so these had no reason to exist
+ * here — and `src/net/net_out.c` grew its own ten (`out_p1_alt1` … `out_p8`)
+ * because the game protocol needs them and this buffer is what the outbound
+ * path carries. See `docs/BUFFER_ACCESSOR_AUDIT.md`.
+ *
+ * Naming states the byte order rather than an `alt` ordinal, matching
+ * `3rd/rsprot/src/rsprot_buffer.h`, which documents the scheme in full: digits
+ * are byte significance in write order (1 = most significant), `be`/`le` when
+ * the order is standard, and a transform suffix when the value is biased rather
+ * than permuted.
+ *
+ * The width-1 forms carry no order at all — they are pure value transforms, so
+ * naming them `_be` would give three different encodings one name. The width-2
+ * forms carry BOTH, which is why `p2_be` and `p2_be_add128` are distinct: same
+ * byte order, different bytes.
+ *
+ * `static inline` rather than entries in rsbuffer.c: they are two lines each
+ * over P1, and a caller that inlines them emits the same code the hand-written
+ * copies did.
+ */
+
+static inline void
+RSCache_BufferP1_add128(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (v + 128) & 0xff);
+}
+
+static inline void
+RSCache_BufferP1_neg(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (-v) & 0xff);
+}
+
+static inline void
+RSCache_BufferP1_sub128(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (128 - v) & 0xff);
+}
+
+static inline void
+RSCache_BufferP2Le(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, v & 0xff);
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+}
+
+static inline void
+RSCache_BufferP2Be_add128(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+    RSCache_BufferP1(b, (v + 128) & 0xff);
+}
+
+static inline void
+RSCache_BufferP2Le_add128(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (v + 128) & 0xff);
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+}
+
+static inline void
+RSCache_BufferP4Le(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, v & 0xff);
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+    RSCache_BufferP1(b, (v >> 16) & 0xff);
+    RSCache_BufferP1(b, (v >> 24) & 0xff);
+}
+
+static inline void
+RSCache_BufferP4_3412(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+    RSCache_BufferP1(b, v & 0xff);
+    RSCache_BufferP1(b, (v >> 24) & 0xff);
+    RSCache_BufferP1(b, (v >> 16) & 0xff);
+}
+
+static inline void
+RSCache_BufferP4_2143(struct RSCache_Buffer* b, int v)
+{
+    RSCache_BufferP1(b, (v >> 16) & 0xff);
+    RSCache_BufferP1(b, (v >> 24) & 0xff);
+    RSCache_BufferP1(b, v & 0xff);
+    RSCache_BufferP1(b, (v >> 8) & 0xff);
+}
+
+#define p1_add128(buffer, value) RSCache_BufferP1_add128(buffer, value)
+#define p1_neg(buffer, value) RSCache_BufferP1_neg(buffer, value)
+#define p1_sub128(buffer, value) RSCache_BufferP1_sub128(buffer, value)
+#define p2_be(buffer, value) RSCache_BufferP2(buffer, value)
+#define p2_le(buffer, value) RSCache_BufferP2Le(buffer, value)
+#define p2_be_add128(buffer, value) RSCache_BufferP2Be_add128(buffer, value)
+#define p2_le_add128(buffer, value) RSCache_BufferP2Le_add128(buffer, value)
+#define p4_be(buffer, value) RSCache_BufferP4(buffer, value)
+#define p4_le(buffer, value) RSCache_BufferP4Le(buffer, value)
+#define p4_3412(buffer, value) RSCache_BufferP4_3412(buffer, value)
+#define p4_2143(buffer, value) RSCache_BufferP4_2143(buffer, value)
+
 #define g1(buffer) RSCache_BufferG1(buffer)
 #define g1b(buffer) RSCache_BufferG1b(buffer)
 #define p1(buffer, value) RSCache_BufferP1(buffer, value)

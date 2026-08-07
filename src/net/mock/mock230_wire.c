@@ -427,15 +427,17 @@ w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
  * whole adapter exists for: they frame to the right length either way and
  * decode to a different loc on a different tile.
  */
-/* pSmart1or2: one byte below 0x80, else a short with 0x8000 set. */
-static void
-w239_psmart1or2(struct RSAreaBuf* buf, int v)
-{
-    if( v >= 0 && v <= 0x7f )
-        rsab_p1(buf, v);
-    else
-        rsab_p2(buf, 0x8000 | (v & 0x7fff));
-}
+/*
+ * pSmart1or2 is `rsab_psmart`, and always was.
+ *
+ * This file used to carry a private copy. It was byte-identical in range
+ * (`0x8000 | (v & 0x7fff)` is `v + 0x8000` for v in [128, 32768)) and worse out
+ * of it: the library latches an overflow where the copy silently wrote a
+ * truncated value. It was one of FIVE independent copies of this encoding in
+ * src/net -- see docs/BUFFER_ACCESSOR_AUDIT.md §1.1 -- each a separate chance
+ * to get the 1-vs-2-byte boundary wrong, and none checked against the others.
+ */
+#define w239_psmart1or2 rsab_psmart
 
 /*
  * MessageGameEncoder: pSmart1or2 type, p1 hasName, [pjstr name], pjstr text.
@@ -738,17 +740,15 @@ w239_ignore_entry(struct RSAreaBuf* buf, const char* name)
 /*
  * p3Alt2: [v>>16, v, v>>8].
  *
- * rsareabuf has p3 (big-endian medium) but not this permutation, and it is the
- * only place a 24-bit alt order is needed, so it lives here rather than
- * widening the buffer library for one caller.
+ * The 1,3,2 byte order — most significant, least significant, middle.
+ *
+ * A comment here used to say rsareabuf "has p3 but not this permutation, so it
+ * lives here rather than widening the buffer library for one caller." That was
+ * wrong: `rsab_p3_alt2` had this exact body all along. The private copy was
+ * byte-identical, so nothing ever failed — which is how a duplicate survives.
+ * `rsab_p3_132` is that function under the byte-order-explicit name.
  */
-static void
-w239_p3_alt2(struct RSAreaBuf* buf, int v)
-{
-    rsab_p1(buf, (v >> 16) & 0xff);
-    rsab_p1(buf, v & 0xff);
-    rsab_p1(buf, (v >> 8) & 0xff);
-}
+#define w239_p3_alt2 rsab_p3_132
 
 /*
  * Zone headers. Three fields, three different orders, one per packet:

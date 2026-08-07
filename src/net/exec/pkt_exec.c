@@ -279,6 +279,43 @@ rsprot_x(RsprotExec *x, RsprotPrim prim, int32_t *value, const char *name)
 }
 
 void
+rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name)
+{
+    if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
+        rsprot_exec_fail(x, "unknown primitive");
+        return;
+    }
+
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        k_prim[prim].put(x->buf, value);
+        break;
+    case RSPROT_DECODE: {
+        /*
+         * Verify, do not skip. A fixed byte is the cheapest sync check a
+         * payload carries: if it disagrees, the sender is speaking a layout
+         * this codec is not, and every field after it is being read at the
+         * wrong offset. Failing on the constant reports that at the byte where
+         * it became true, instead of as a nonsense value several fields later.
+         */
+        int32_t got = k_prim[prim].get(x->buf);
+        if (got != value)
+            rsprot_exec_fail(x, "fixed field has the wrong value");
+        break;
+    }
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_PRIM, prim, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        /* Nothing to randomise, and nothing to write: FILL populates a struct,
+         * and this value lives in the codec rather than the struct. The
+         * encode that follows a fill emits it. */
+        break;
+    }
+}
+
+void
 rsprot_x8(RsprotExec *x, int64_t *value, const char *name)
 {
     switch (x->dir) {

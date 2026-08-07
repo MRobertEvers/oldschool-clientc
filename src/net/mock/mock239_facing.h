@@ -59,14 +59,21 @@ mock239_face_init(struct Mock239Face* face)
     face->instant = 0;
 }
 
-static inline void
-mock239_face_psmart1or2(struct RSAreaBuf* buf, int value)
-{
-    if( value >= 0 && value < 128 )
-        rsab_p1(buf, value);
-    else
-        rsab_p2(buf, (value & 0x7fff) | 0x8000);
-}
+/*
+ * pSmart1or2 is `rsab_psmart`.
+ *
+ * This was a private copy — byte-identical in range (`(v & 0x7fff) | 0x8000` is
+ * `v + 0x8000` there) and silently truncating outside it, where the library
+ * latches an overflow instead. It was the sixth such copy in src/net; see
+ * `docs/BUFFER_ACCESSOR_AUDIT.md`, which found the other five and is the reason
+ * this one did not become the seventh.
+ *
+ * `mock239_face_psmart2or4null` below stays private for now: rsareabuf has no
+ * smart2or4null, so there is nothing yet to point it at. It is the one
+ * remaining duplicate-shaped encoder in this file and belongs in the buffer
+ * library the same way.
+ */
+#define mock239_face_psmart1or2 rsab_psmart
 
 /* JagByteBuf.pSmart2or4null: -1 is 0x7fff, otherwise two bytes below
  * 32767 and four bytes with its top bit set above it. */

@@ -23,12 +23,14 @@ need(
     return RSCache_BufferRemaining(rsbuf) >= bytes;
 }
 
-/** A signed byte field: 255 means -1 (no icon / no pronoun). */
-static int
-g1s(struct RSCache_Buffer* rsbuf)
-{
-    return (int)(int8_t)(uint8_t)g1(rsbuf);
-}
+/*
+ * A signed byte field: 255 means -1 (no icon / no pronoun).
+ *
+ * That is `g1b` — rsbuffer.h's own shorthand for RSCache_BufferG1b, which
+ * returns int8_t. This file used to sign-extend g1() by hand, which is the
+ * same bytes and a second place for it to be written.
+ */
+#define g1s(rsbuf) ((int)g1b(rsbuf))
 
 /** An animation id; the wire's "none" is 65535. */
 static int
