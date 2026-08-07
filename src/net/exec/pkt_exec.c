@@ -315,6 +315,128 @@ rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name)
     }
 }
 
+int32_t
+rsprot_remaining(RsprotExec *x)
+{
+    if (x->dir != RSPROT_DECODE || !x->buf)
+        return 0;
+    return x->buf->cap - x->buf->rpos;
+}
+
+int
+rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap)
+{
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+    case RSPROT_FILL:
+        return i < *count;
+
+    case RSPROT_DECODE:
+        if (x->error || x->buf->err)
+            return 0;
+        if (rsprot_remaining(x) <= 0) {
+            /* The array ended because the payload did. Tell the caller how
+             * many arrived — nothing else on the wire says. */
+            *count = i;
+            return 0;
+        }
+        if (i >= cap) {
+            /*
+             * More elements than the caller's buffer holds. Fail rather than
+             * stop quietly: stopping would report a short array that framed
+             * cleanly, and the bytes left over would be read as the next
+             * packet.
+             */
+            rsprot_exec_fail(x, "count-less array exceeds the caller's capacity");
+            *count = i;
+            return 0;
+        }
+        return 1;
+
+    case RSPROT_DESCRIBE:
+        /* One element: enough to show its shape, without claiming a length the
+         * layout does not carry. */
+        return i < 1;
+    }
+    return 0;
+}
+
+void
+rsprot_xform_add(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t delta, const char *name)
+{
+    if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
+        rsprot_exec_fail(x, "unknown primitive");
+        return;
+    }
+
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        k_prim[prim].put(x->buf, *value + delta);
+        break;
+    case RSPROT_DECODE:
+        *value = k_prim[prim].get(x->buf) - delta;
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_PRIM, prim, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        /*
+         * Leave room for the offset. A filled value at the top of the
+         * primitive's range plus a positive delta would wrap on encode and the
+         * round trip would fail for a reason that has nothing to do with the
+         * codec being wrong.
+         */
+        *value = fill_value(x, prim);
+        if (delta > 0 && *value > 0)
+            *value -= delta;
+        else if (delta < 0)
+            *value -= delta;
+        break;
+    }
+}
+
+void
+rsprot_xclamp(
+    RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t *source, int32_t cap,
+    const char *name)
+{
+    if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
+        rsprot_exec_fail(x, "unknown primitive");
+        return;
+    }
+
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        /*
+         * Recompute rather than trust `*value`. It is a derived field, so a
+         * caller that set it inconsistently with `*source` would otherwise put
+         * a length on the wire that disagrees with the payload — and storing it
+         * back is what lets the codec's own following branch test the byte that
+         * actually went out.
+         */
+        *value = (*source < cap) ? *source : cap;
+        k_prim[prim].put(x->buf, *value);
+        break;
+    case RSPROT_DECODE:
+        *value = k_prim[prim].get(x->buf);
+        /* Below the cap the short field IS the value; at the cap an escape
+         * field follows and overwrites this. */
+        if (*value < cap)
+            *source = *value;
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_PRIM, prim, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        *source = fill_value(x, prim);
+        *value = (*source < cap) ? *source : cap;
+        break;
+    }
+}
+
 void
 rsprot_x8(RsprotExec *x, int64_t *value, const char *name)
 {
