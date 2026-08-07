@@ -1060,3 +1060,10 @@ PIDs were stopped afterward.
   `textalign=1,1 lineheight=16`. Its final `hans.png` visually matches the
   supplied vertical alignment and neither client nor server log contains a CS2
   failure or unexpected disconnect.
+- 2026-08-06: Committed the official-C regression and telemetry as `046d3798`,
+  committed the post-merge verification record as `2ad0e8fd`, and pushed the
+  merged branch to `origin/codex/runelite239-regressions`. GitHub shows prior
+  root PR #10 as merged, so this post-merge delta requires a follow-up PR; the
+  CLI and the only available browser session were both signed out, and the
+  prepared `v3...codex/runelite239-regressions` comparison was retained rather
+  than claiming an uncreated PR.
