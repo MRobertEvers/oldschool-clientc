@@ -1862,3 +1862,8 @@ the only exception text is RuneLite's known caught pre-login
   with zero dead actions, quit explicitly, removed task saves, and confirmed no
   task process remained. The user's pre-existing client/server stack was left
   untouched.
+- 2026-08-07: Pushed content commit `20de8327a2` and opened OSRS-Content PR #5
+  against its current `codex/runelite239-zuk-instance` dependency, then pushed
+  the v3-derived root branch and opened oldschool-clientc PR #17 against `v3`.
+  Both PRs contain only the choice-placement dependency and its root codec,
+  regression, submodule pointer, and evidence record.
