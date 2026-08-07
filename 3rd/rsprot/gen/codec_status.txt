@@ -265,50 +265,37 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev221 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev221 out  camera/CamMoveToEasedCircularEncoder.kt                      pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev221 out  camera/CamMoveToEasedEncoder.kt                              pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
-  rev221 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.ClanChann
-  rev221 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev221 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.ClanSet
-  rev221 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.ClanSettings
+  rev221 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.ClanChannelDeltaAddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.ClanChannelFullJoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.ClanSettingDeltaSetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.ClanSettingsFullJoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev221 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev221 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev221 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev221 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev221 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev221 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev221 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev221 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev221 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
   rev221 out  map/RebuildRegionEncoder.kt                                  val without '=': val (mapsquares, xteas) = distinctMapsquares.get()
-  rev221 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev221 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev221 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev221 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev221 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev221 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev221 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev221 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev221 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev221 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev221 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev221 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev221 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev221 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev221 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev221 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev221 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev221 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev221 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev221 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev221 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev221 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
@@ -358,25 +345,17 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev222 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev222 out  camera/CamMoveToEasedCircularEncoder.kt                      pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev222 out  camera/CamMoveToEasedEncoder.kt                              pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
-  rev222 out  camera/CamTargetEncoder.kt                                   buffer expression not understood: when (val type = message.type) {
-            is CamTarget.Pl
-  rev222 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.ClanChann
-  rev222 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev222 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.ClanSet
-  rev222 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.ClanSettings
+  rev222 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.ClanChannelDeltaAddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.ClanChannelFullJoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.ClanSettingDeltaSetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.ClanSettingsFullJoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev222 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev222 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev222 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev222 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev222 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev222 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev222 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev222 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
@@ -385,28 +364,22 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev222 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
-  rev222 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev222 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev222 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev222 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev222 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev222 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev222 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev222 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev222 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev222 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev222 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev222 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev222 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev222 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev222 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev222 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev222 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev222 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev222 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev222 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev222 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev222 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
@@ -454,27 +427,18 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev223 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 out  camera/CamTargetEncoder.kt                                   buffer expression not understood: when (val type = message.type) {
-            is CamTarget.Pl
-  rev223 out  camera/CamTargetOldEncoder.kt                                buffer expression not understood: when (val type = message.type) {
-            is CamTargetOld
-  rev223 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev223 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev223 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev223 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev223 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev223 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev223 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev223 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev223 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev223 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev223 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev223 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev223 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
@@ -482,28 +446,22 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev223 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
-  rev223 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev223 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev223 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev223 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev223 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev223 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev223 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev223 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev223 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev223 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev223 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev223 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev223 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev223 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev223 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev223 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev223 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev223 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev223 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev223 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev223 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev223 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
@@ -551,27 +509,18 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev224 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   players/OpPlayer8Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 out  camera/CamTargetEncoder.kt                                   buffer expression not understood: when (val type = message.type) {
-            is CamTarget.Pl
-  rev224 out  camera/CamTargetOldEncoder.kt                                buffer expression not understood: when (val type = message.type) {
-            is CamTargetOld
-  rev224 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev224 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev224 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev224 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev224 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev224 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev224 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev224 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev224 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev224 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev224 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev224 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev224 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
@@ -579,28 +528,22 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev224 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
-  rev224 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev224 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev224 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev224 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev224 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev224 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev224 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev224 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev224 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev224 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev224 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev224 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev224 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev224 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev224 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev224 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev224 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev224 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev224 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev224 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev224 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev224 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
@@ -648,53 +591,38 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev225 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 out  camera/CamTargetEncoder.kt                                   buffer expression not understood: when (val type = message.type) {
-            is CamTarget.Pl
-  rev225 out  camera/CamTargetOldEncoder.kt                                buffer expression not understood: when (val type = message.type) {
-            is CamTargetOld
-  rev225 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev225 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev225 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev225 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev225 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev225 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev225 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev225 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev225 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev225 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev225 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev225 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev225 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev225 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev225 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev225 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev225 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev225 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev225 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev225 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev225 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev225 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev225 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev225 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev225 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev225 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev225 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  npcinfo/NpcInfoLargeEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev225 out  npcinfo/NpcInfoSmallEncoder.kt                               unrecognized buffer call: buffer.buffer.writeBytes(message.content())
   rev225 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev225 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev225 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev225 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev225 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev225 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev225 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev226 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -739,53 +667,38 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev226 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 out  camera/CamTargetV1Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV1.
-  rev226 out  camera/CamTargetV2Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV2.
-  rev226 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev226 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev226 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev226 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev226 out  camera/CamTargetV1Encoder.kt                                 when over a sealed type (is CamTargetV1.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev226 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev226 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev226 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev226 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
-  rev226 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev226 out  friendchat/UpdateFriendChatChannelFullV1Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV1.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev226 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev226 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev226 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev226 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev226 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev226 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev226 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev226 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev226 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev226 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev226 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev226 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev226 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev226 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev226 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev226 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev226 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev226 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev226 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev226 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev226 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev226 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev226 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev226 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev227 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -829,49 +742,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev227 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev227 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev227 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 out  camera/CamTargetV2Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV2.
-  rev227 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev227 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev227 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev227 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev227 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev227 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev227 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev227 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev227 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev227 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev227 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev227 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev227 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev227 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev227 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev227 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev227 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev227 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev227 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev227 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev227 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev227 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev227 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev227 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev227 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev227 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev227 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev227 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev227 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev227 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev227 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev227 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev227 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev227 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -915,49 +815,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev228 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 out  camera/CamTargetV2Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV2.
-  rev228 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev228 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev228 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev228 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev228 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev228 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev228 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev228 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev228 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev228 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev228 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev228 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev228 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev228 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev228 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev228 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev228 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev228 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev228 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev228 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev228 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev228 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev228 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev228 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev228 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev228 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev228 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev228 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev228 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev228 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev228 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev228 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev228 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -1001,49 +888,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev229 in   players/OpPlayer7Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev229 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev229 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev229 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev229 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev229 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev229 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev229 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev229 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev229 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev229 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev229 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev229 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev229 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev229 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev229 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev229 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev229 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev229 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev229 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev229 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev229 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev229 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev229 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev229 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev229 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev229 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev229 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev229 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev229 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev229 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev229 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev229 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev229 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev230 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -1087,49 +961,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev230 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   players/OpPlayerTDecoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev230 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev230 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev230 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev230 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev230 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev230 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev230 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev230 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev230 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev230 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev230 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev230 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev230 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev230 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev230 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev230 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev230 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev230 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev230 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev230 out  misc/player/RunClientScriptEncoder.kt                        internal error: SyntaxError: trailing tokens: [('ident', 'as'), ('ident', 'Int')]
+  rev230 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev230 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev230 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev230 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev230 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev230 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev230 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev230 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev230 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev230 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev230 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev230 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev230 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev230 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
@@ -1174,51 +1035,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev231 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev231 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev231 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev231 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev231 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev231 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev231 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev231 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev231 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev231 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev231 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev231 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev231 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev231 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev231 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev231 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev231 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev231 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev231 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev231 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev231 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev231 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev231 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev231 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev231 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev231 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev231 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev231 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev231 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev231 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev231 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev231 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev231 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev231 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev231 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev231 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1262,51 +1108,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev232 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   players/OpPlayerTDecoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev232 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev232 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev232 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev232 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev232 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev232 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev232 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev232 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev232 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev232 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev232 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev232 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev232 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev232 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev232 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev232 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev232 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev232 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev232 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev232 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev232 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev232 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev232 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev232 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev232 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev232 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev232 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev232 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev232 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev232 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev232 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev232 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev232 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1356,51 +1187,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev233 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   worldentities/OpWorldEntityTDecoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev233 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev233 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev233 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev233 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev233 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev233 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev233 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev233 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev233 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev233 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev233 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev233 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev233 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev233 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev233 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev233 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev233 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev233 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev233 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev233 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev233 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev233 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev233 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev233 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev233 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev233 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev233 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev233 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev233 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev233 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev233 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev233 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev233 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1450,51 +1266,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev234 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev234 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev234 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev234 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev234 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev234 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev234 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev234 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev234 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev234 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev234 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev234 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev234 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev234 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev234 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev234 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev234 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev234 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev234 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
   rev234 out  misc/client/UrlOpenEncoder.kt                                unrecognized buffer call: buffer.buffer.setByte(i, buffer.buffer.getByte(i) + streamCi
-  rev234 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev234 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev234 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev234 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev234 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev234 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev234 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev234 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev234 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev234 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev234 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev234 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev234 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev234 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1544,50 +1345,35 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev235 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev235 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev235 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev235 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev235 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev235 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev235 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev235 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev235 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev235 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev235 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev235 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev235 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev235 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev235 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev235 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev235 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
+  rev235 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev235 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev235 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev235 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev235 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev235 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev235 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev235 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev235 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev235 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev235 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev235 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev235 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev235 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev235 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev235 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1637,52 +1423,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev236 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev236 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev236 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev236 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev236 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev236 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev236 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev236 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev236 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev236 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev236 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev236 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev236 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev236 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
-  rev236 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev236 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev236 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
-  rev236 out  misc/client/UpdateRebootTimerV2Encoder.kt                    buffer expression not understood: when (val mes = message.messageType) {
-            UpdateReb
+  rev236 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
+  rev236 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev236 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev236 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev236 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev236 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev236 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev236 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev236 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev236 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev236 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev236 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev236 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev236 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev236 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev236 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev237 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1747,52 +1517,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev237 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev237 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev237 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev237 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev237 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev237 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev237 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev237 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev237 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev237 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev237 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev237 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev237 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
   rev237 out  map/RebuildNormalV1Encoder.kt                                bare 'intKey' has no wire value
-  rev237 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev237 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev237 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
-  rev237 out  misc/client/UpdateRebootTimerV2Encoder.kt                    buffer expression not understood: when (val mes = message.messageType) {
-            UpdateReb
+  rev237 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
+  rev237 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev237 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev237 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev237 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev237 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev237 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev237 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev237 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev237 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev237 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev237 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev237 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev237 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev237 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev237 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev237 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1842,53 +1596,36 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev238 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev238 out  camera/CamTargetV4Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV4.
-  rev238 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev238 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev238 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev238 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev238 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  camera/CamTargetV4Encoder.kt                                 when over a sealed type (is CamTargetV4.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev238 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev238 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev238 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev238 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev238 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev238 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev238 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev238 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev238 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev238 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
-  rev238 out  misc/client/UpdateRebootTimerV2Encoder.kt                    buffer expression not understood: when (val mes = message.messageType) {
-            UpdateReb
+  rev238 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
+  rev238 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev238 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev238 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev238 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev238 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev238 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev238 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev238 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev238 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev238 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev238 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev238 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev238 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev238 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev238 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev239 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
@@ -1938,56 +1675,37 @@ revisions 221-239; 215 packets emitted, 2 refused
   rev239 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 out  camera/CamTargetV3Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV3.
-  rev239 out  camera/CamTargetV4Encoder.kt                                 buffer expression not understood: when (val type = message.type) {
-            is CamTargetV4.
-  rev239 out  clan/ClanChannelDeltaEncoder.kt                              buffer expression not understood: when (event) {
-                is ClanChannelDelta.AddUserEv
-  rev239 out  clan/ClanChannelFullEncoder.kt                               buffer expression not understood: when (val update = message.update) {
-            is ClanChan
-  rev239 out  clan/ClanSettingsDeltaEncoder.kt                             buffer expression not understood: when (update) {
-                is ClanSettingsDelta.SetClan
-  rev239 out  clan/ClanSettingsFullEncoder.kt                              buffer expression not understood: when (update) {
-            is ClanSettingsFull.JoinUpdate -
+  rev239 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  camera/CamTargetV4Encoder.kt                                 when over a sealed type (is CamTargetV4.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  clan/ClanSettingsDeltaEncoder.kt                             when over a sealed type (is ClanSettingsDelta.SetClanOwnerUpdate): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  clan/ClanSettingsFullEncoder.kt                              when over a sealed type (is ClanSettingsFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  clan/MessageClanChannelEncoder.kt                            unmodeled call: provide(...)
   rev239 out  clan/MessageClanChannelSystemEncoder.kt                      unmodeled call: provide(...)
-  rev239 out  clan/VarClanEncoder.kt                                       buffer expression not understood: when (val value = message.value) {
-            is VarClan.Va
+  rev239 out  clan/VarClanEncoder.kt                                       when over a sealed type (is VarClan.VarClanIntData): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  friendchat/MessageFriendChannelEncoder.kt                    unmodeled call: provide(...)
-  rev239 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           buffer expression not understood: when (val update = message.updateType) {
-            is Upda
+  rev239 out  friendchat/UpdateFriendChatChannelFullV2Encoder.kt           when over a sealed type (is UpdateFriendChatChannelFullV2.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
-  rev239 out  group/GroupFullEncoder.kt                                    buffer expression not understood: when (update) {
-                is GroupFull.GroupDelete -> 
-  rev239 out  group/GroupVarEncoder.kt                                     buffer expression not understood: when (val variable = update.variable) {
-                is G
+  rev239 out  group/GroupFullEncoder.kt                                    when over a sealed type (is GroupFull.GroupDelete): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  group/GroupVarEncoder.kt                                     when over a sealed type (is GroupVariable.IntGroupVariable): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev239 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev239 out  misc/client/HintArrowEncoder.kt                              buffer expression not understood: when (val type = message.type) {
-            is HintArrow.Np
-  rev239 out  misc/client/HiscoreReplyEncoder.kt                           buffer expression not understood: when (val response = message.response) {
-            is Hisc
-  rev239 out  misc/client/ReflectionCheckerEncoder.kt                      buffer expression not understood: when (check) {
-                is ReflectionChecker.GetField
-  rev239 out  misc/client/UpdateRebootTimerV2Encoder.kt                    buffer expression not understood: when (val mes = message.messageType) {
-            UpdateReb
+  rev239 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  misc/client/ReflectionCheckerEncoder.kt                      when over a sealed type (is ReflectionChecker.GetFieldValue): no discriminator field on the wire, so decoding would have to infer the arm
+  rev239 out  misc/client/UpdateRebootTimerV2Encoder.kt                    when over a sealed type (is UpdateRebootTimerV2.SetUpdateMessage): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  misc/client/UpdateUid192Encoder.kt                           unmapped wire function: pdata
-  rev239 out  misc/player/RunClientScriptEncoder.kt                        buffer expression not understood: when (type) {
-                'W' -> {
-                    v
+  rev239 out  misc/player/RunClientScriptEncoder.kt                        indexes a transferred string (`types[i]`) as a discriminator; character access is not modelled
   rev239 out  misc/player/SetPlayerOpEncoder.kt                            pjstr writes a computed expression `(m->op != NULL ? m->op : "null")`, which has no field to decode back into
-  rev239 out  misc/player/UpdateStockMarketSlotEncoder.kt                  buffer expression not understood: when (val update = message.update) {
-            UpdateStock
-  rev239 out  misc/player/UpdateTradingPostEncoder.kt                      buffer expression not understood: when (val update = message.updateType) {
-            UpdateT
+  rev239 out  misc/player/UpdateStockMarketSlotEncoder.kt                  unrecognized buffer call: buffer.skipWrite(18)
+  rev239 out  misc/player/UpdateTradingPostEncoder.kt                      when over a sealed type (is UpdateTradingPost.SetTradingPostOfferList): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  npcinfo/NpcInfoLargeV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev239 out  npcinfo/NpcInfoSmallV5Encoder.kt                             stateful info stream -- see EXCLUDE_CLASSES
   rev239 out  playerinfo/PlayerInfoEncoder.kt                              stateful info stream -- see EXCLUDE_CLASSES
   rev239 out  social/MessagePrivateEchoEncoder.kt                          unmodeled call: provide(...)
   rev239 out  social/MessagePrivateEncoder.kt                              unmodeled call: provide(...)
   rev239 out  social/UpdateFriendListEncoder.kt                            internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendList'), ('op', '.'), ('ident', 'OnlineFriend')]
-  rev239 out  social/UpdateIgnoreListEncoder.kt                            buffer expression not understood: when (ignore) {
-                is UpdateIgnoreList.AddedIgn
+  rev239 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev239 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into

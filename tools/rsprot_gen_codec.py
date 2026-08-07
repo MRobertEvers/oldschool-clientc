@@ -313,8 +313,19 @@ class ExprParser:
         raise SyntaxError(f"unexpected token {v!r}")
 
 
+# Kotlin's cast/smart-cast: `value as String`, `value as IntArray`,
+# `value as Array<*>`. It narrows a static type and moves no bytes, so for a
+# generator it is punctuation -- the C field already has one concrete type. The
+# expression parser has no grammar for it and reported "trailing tokens", which
+# reads like a malformed encoder rather than an unmodelled keyword.
+#
+# Anchored on ` as ` followed by a capitalised type name so it cannot eat an
+# identifier that merely contains "as".
+_AS_CAST_RE = re.compile(r"\s+as\s+[A-Z]\w*(?:<[^>]*>)?(?:\?)?")
+
+
 def parse_expr(text):
-    return ExprParser(tokenize(text)).parse()
+    return ExprParser(tokenize(_AS_CAST_RE.sub("", text))).parse()
 
 
 # --- statement-level splitting -----------------------------------------------
@@ -519,6 +530,105 @@ class Unsupported(Exception):
     pass
 
 
+WHEN_HEAD_RE = re.compile(r"^when\s*\(\s*(.*?)\s*\)\s*\{(.*)\}\s*$", re.S)
+
+
+def parse_when(s, is_decoder):
+    """`when (subject) { label -> {...}  else -> {...} }` -> a switch IR op.
+
+    Two shapes appear in the vendored tree and only one is modelled here:
+
+      * `when (type) { 'W' -> ...; else -> ... }` — the subject is a VALUE, and
+        if it is a field the codec already transferred, decoding can switch on
+        it exactly as encoding does. This is the shape that generates.
+
+      * `when (entry) { is AddedEntry -> ...; is RemovedEntry -> ... }` — the
+        subject is a SEALED TYPE and there is no discriminator field at all.
+        Each arm merely happens to write a distinguishing first byte, so
+        decoding would have to infer the arm from that byte. That is the
+        generator guessing semantics rather than transcribing them, and a wrong
+        guess encodes correctly and decodes into the wrong union arm. Refused
+        by name; see docs/RSPROT_CODEC_GENERATOR_PLAN.md §4.
+    """
+    m = WHEN_HEAD_RE.match(s)
+    if not m:
+        raise Unsupported(f"when-statement not understood: {s[:60]}")
+    subject_text, body = m.groups()
+
+    if subject_text.startswith("val "):
+        # `when (val u = message.updateType)` — a binding subject. The binding
+        # is only a name for the subject expression; take what it binds to.
+        subject_text = subject_text.split("=", 1)[1].strip()
+
+    arms = []
+    for label, arm_body in _split_when_arms(body):
+        if label.startswith("is "):
+            raise Unsupported(
+                f"when over a sealed type ({label.strip()}): no discriminator "
+                f"field on the wire, so decoding would have to infer the arm")
+        arms.append({
+            "labels": None if label.strip() == "else" else
+                      [parse_expr(p.strip()) for p in _split_top_commas(label)],
+            "body": parse_block(arm_body, is_decoder),
+        })
+    return {
+        "op": "when",
+        "subject": parse_expr(subject_text),
+        "arms": arms,
+    }
+
+
+def _split_top_commas(text):
+    out, depth, cur = [], 0, []
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        out.append("".join(cur))
+    return out
+
+
+def _split_when_arms(body):
+    """Yield (label, arm-body) for each `label -> { ... }` or `label -> stmt`."""
+    arms, i, n = [], 0, len(body)
+    while i < n:
+        arrow = body.find("->", i)
+        if arrow < 0:
+            break
+        label = body[i:arrow].strip()
+        j = arrow + 2
+        while j < n and body[j] in " \t\r\n":
+            j += 1
+        if j < n and body[j] == "{":
+            depth, k = 0, j
+            while k < n:
+                if body[k] == "{":
+                    depth += 1
+                elif body[k] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k += 1
+            arms.append((label, body[j + 1:k]))
+            i = k + 1
+        else:
+            k = body.find("\n", j)
+            if k < 0:
+                k = n
+            arms.append((label, body[j:k]))
+            i = k
+    if not arms:
+        raise Unsupported("when-statement with no arms")
+    return arms
+
+
 def parse_statements(chunks, is_decoder):
     ops = []
     i = 0
@@ -544,6 +654,8 @@ def parse_one(s, is_decoder):
         return parse_for(s, is_decoder)
     if s.startswith("if (") or s.startswith("if("):
         return parse_if_stmt(s, is_decoder)
+    if s.startswith("when (") or s.startswith("when("):
+        return parse_when(s, is_decoder)
     if s.startswith("return "):
         return parse_return(s)
     if s == "continue" or s == "break":
@@ -1154,6 +1266,11 @@ def emit_call(ast, scope, ctx):
         # (Type) cast -- values are already the right C width.
         return emit_expr(recv, scope, ctx)
 
+    if name == "wrap" and len(args) == 1:
+        # `CharBuffer.wrap(types)` — an adapter so JagByteBuf's pjstr can take a
+        # CharSequence. It changes no bytes; the argument is the string.
+        return emit_expr(args[0], scope, ctx)
+
     if name == "coerceAtMost":
         a = emit_expr(recv, scope, ctx)
         b = emit_expr(args[0], scope, ctx)
@@ -1177,6 +1294,14 @@ def emit_call(ast, scope, ctx):
         if target_scope is not None and len(args) == 1:
             field = c_escape_ident(deprefix_getter(name))
             idx_c = emit_expr(args[0], scope, ctx)
+            # Subscripting a field already known to be a STRING is not an
+            # indexed array accessor -- it is Kotlin reading a character out of
+            # a CharSequence, which this generator does not model. Registering
+            # it as an int32_t array anyway emitted `m->types[i]` against a
+            # `const char *` and produced C that did not compile.
+            if target_scope.fields.get(field) == "const char *":
+                raise Unsupported(
+                    f"`{field}[i]` indexes a string; character access is not modelled")
             target_scope.add_field(field, "int32_t")
             target_scope.array_fields.setdefault(field, True)
             ptr = struct_ptr_expr(target_scope, ctx)
@@ -1522,6 +1647,29 @@ def gen_op(op, scope, em, indent, ctx):
         scope.locals[op["var"]] = ("elem_alias", child)
         gen_ops(op["body"], child, em, indent + 1, ctx)
         del scope.locals[op["var"]]
+        em.emit("}", indent)
+        return
+
+    if kind == "when":
+        # A tagged-union payload is a switch, and the discriminator has to be a
+        # field the codec already moved -- the same rule `if` obeys, for the
+        # same reason. `RSPROT_BRANCH` is the enforcement point.
+        untransferred = _cond_untransferred_fields(op["subject"], scope, em, ctx)
+        if untransferred:
+            raise Unsupported(
+                f"when switches on {', '.join(sorted(untransferred))}, which "
+                f"{'has' if len(untransferred) == 1 else 'have'} not been "
+                f"transferred yet")
+        subj_c = emit_expr(op["subject"], scope, ctx)
+        em.emit(f"switch (RSPROT_BRANCH(x, {subj_c})) {{", indent)
+        for arm in op["arms"]:
+            if arm["labels"] is None:
+                em.emit("default: {", indent)
+            else:
+                for lbl in arm["labels"]:
+                    em.emit(f"case {emit_expr(lbl, scope, ctx)}: {{", indent)
+            gen_ops(arm["body"], scope, em, indent + 1, ctx)
+            em.emit("} break;", indent)
         em.emit("}", indent)
         return
 
@@ -1875,6 +2023,22 @@ def build_message(info, msg_type, fn_suffix):
     ops = parse_statements(chunks, info["is_decoder"])
     gen_ops(ops, scope, em, 1, ctx)
 
+    # A field cannot be both a string and an indexed array.
+    #
+    # RUNCLIENTSCRIPT writes `pjstr(types)` and then reads `types[i]` as a
+    # per-argument discriminator: one Kotlin field used as a CharSequence and as
+    # a subscriptable sequence. The two registrations happen in either order
+    # depending on which statement is seen first, so catching it at the use site
+    # only worked half the time -- and the half that got through emitted
+    # `m->types[i]` against a `const char *` and did not compile. Checked here,
+    # after the whole body, where the order cannot hide it.
+    for _sc in [scope] + [c for c in scope.array_fields.values() if isinstance(c, Scope)]:
+        for _f, _t in _sc.fields.items():
+            if _t == "const char *" and _f in _sc.array_fields:
+                raise Unsupported(
+                    f"`{_f}` is used as both a string and an indexed array; "
+                    f"character access into a transferred string is not modelled")
+
     struct_text = render_all_structs(scope, msg_type)
     # The body only; the caller wraps it in a per-version signature, because
     # one message type has several layouts and each needs its own function.
@@ -1918,6 +2082,9 @@ def process_dir(base_dir, label):
             continue  # not a recognizable Encoder/Decoder class -- e.g. a helper file
         if info["class"] in EXCLUDE_CLASSES:
             skipped.append((rel, "stateful info stream -- see EXCLUDE_CLASSES"))
+            continue
+        if info["class"] in REFUSE_CLASSES:
+            skipped.append((rel, REFUSE_CLASSES[info["class"]]))
             continue
         msg_type = info["msg_type"]
         fn_suffix = class_fn_suffix(info["class"])
@@ -2018,6 +2185,25 @@ HAND_WRITTEN_PROTS = {"IF_OPENTOP"}
 # are far below it; a payload long enough to carry more would have to be larger
 # than the VAR_SHORT frame allows.
 RSPROT_ARRAY_CAP = 256
+
+# Classes whose layout this generator can parse but cannot model correctly, and
+# which must be refused rather than emitted.
+#
+# RunClientScript writes a `types` STRING and then subscripts it -- `types[i]` --
+# as the per-argument discriminator, so one field is a CharSequence and a
+# subscriptable sequence at once. The parser accepts both spellings and emits
+# `m->types[i]` against a `const char *`, which does not compile; the several
+# narrower guards tried first each caught only the registration order they were
+# written for. Character access into a transferred string is the missing
+# feature, and until it exists a refusal is the honest output.
+#
+# Everything else in this file refuses at the construct that defeats it. This
+# list is for the case where the construct is recognised too late to refuse
+# cleanly, and it should stay short -- a name here is a TODO, not a policy.
+REFUSE_CLASSES = {
+    "RunClientScriptEncoder": "indexes a transferred string (`types[i]`) as a "
+                              "discriminator; character access is not modelled",
+}
 
 
 def load_ledger(path=LEDGER_PATH):
