@@ -3143,6 +3143,22 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.has_hit = 1;
                 ext.hit_type = player->damage_type;
                 ext.hit_value = player->damage;
+                /* The standard bar's configuration and width are content
+                 * symbols, not an engine-side numeric convention. Start from
+                 * full and advance to the current fill so the v239 client can
+                 * retain the config width independently of hitpoints. */
+                if( player->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
+                    mock230_ids()->healthbar_standard_width > 0 )
+                {
+                    ext.has_headbar = 1;
+                    ext.headbar_type = mock230_ids()->healthbar_standard;
+                    ext.headbar_duration = 1;
+                    ext.headbar_start_delay = 0;
+                    ext.headbar_start_fill = mock230_ids()->healthbar_standard_width;
+                    ext.headbar_end_fill =
+                        (player->hitpoints * mock230_ids()->healthbar_standard_width) /
+                        player->max_hitpoints;
+                }
             }
             if( player->masks & MOCK230_PMASK_SEQUENCE )
             {
@@ -3391,6 +3407,7 @@ enum
     V5_NPC_SEQUENCE = 0x80,
     V5_NPC_SPOTANIM = 0x40000,
     V5_NPC_HITMARKS = 0x80000,
+    V5_NPC_HEADBARS = 0x1000000,
 };
 
 /*
@@ -3494,6 +3511,9 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
 
     if( hit )
         flag |= V5_NPC_HITMARKS;
+    if( hit && npc->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
+        mock230_ids()->healthbar_standard_width > 0 )
+        flag |= V5_NPC_HEADBARS;
     if( classic & MOCK230_NMASK_ANIM )
         flag |= V5_NPC_SEQUENCE;
     if( classic & MOCK230_NMASK_SAY )
@@ -3529,6 +3549,20 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
          * positive. Revision 239 actors retain four concurrent hitmarks. */
         v5_psmart1or2(buf, 4);
     }
+    if( flag & V5_NPC_HEADBARS )
+    {
+        int width = mock230_ids()->healthbar_standard_width;
+        int fill = (npc->hitpoints * width) / npc->max_hitpoints;
+
+        /* NpcHeadbarEncoder differs from the player only in the count and
+         * target-fill byte transform. See the matching decoder's V5 block. */
+        rsab_p1_alt2(buf, 1);
+        v5_psmart1or2(buf, mock230_ids()->healthbar_standard);
+        v5_psmart1or2(buf, 1);
+        v5_psmart1or2(buf, 0);
+        rsab_p1_alt1(buf, width);
+        rsab_p1_alt3(buf, fill);
+    }
     if( classic & MOCK230_NMASK_ANIM )
     {
         /* NpcSequenceEncoder: p2 id, p1Alt2 delay. 65535 cancels. */
@@ -3557,17 +3591,6 @@ put_npc_extended_v5(struct RSAreaBuf* buf, struct Mock230Npc* npc, int force_fac
     if( has_face )
         mock239_face_write_npc(buf, &face);
 
-    /*
-     * Not converted yet:
-     *
-     *   the health bar            a separate HEADBARS block keyed by a headbar
-     *                             CONFIG ID. That is content, and there is no
-     *                             name for it in this tree yet, so inventing
-     *                             one here would be exactly the hardcoded
-     *                             config id the porting guide forbids. Until it
-     *                             exists, damage numbers appear and the bar
-     *                             above the npc does not.
-     */
 }
 
 static int

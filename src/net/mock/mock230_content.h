@@ -77,6 +77,7 @@ enum Mock230PackKind
     MOCK230_PACK_STAT,
     MOCK230_PACK_PARAM,
     MOCK230_PACK_HITSPLAT,
+    MOCK230_PACK_HEALTHBAR,
     /*
      * The server's own namespaces.
      *

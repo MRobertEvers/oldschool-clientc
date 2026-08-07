@@ -69,6 +69,7 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OP_SAY,
     PKT_PLAYER_INFO_OP_DAMAGE,
     PKT_PLAYER_INFO_OP_DAMAGE2,
+    PKT_PLAYER_INFO_OP_HEADBAR,
     PKT_PLAYER_INFO_OP_FACE_COORD,
     PKT_PLAYER_INFO_OP_CHAT,
     PKT_PLAYER_INFO_OP_SPOTANIM,
@@ -141,6 +142,18 @@ struct PktPlayerInfo_Damage
     uint16_t slots;
 };
 
+/* Actor.method3504's six wire values, kept separate from a hitsplat: a bar
+ * can update with no damage at all. `duration == 32767` removes this type. */
+struct PktPlayerInfo_Headbar
+{
+    int type;
+    int duration;
+    int start_delay;
+    uint8_t start_fill;
+    uint8_t end_fill;
+    bool remove;
+};
+
 struct PktPlayerInfo_FaceCoord
 {
     int16_t x;
@@ -198,6 +211,7 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_FaceEntity _face_entity;
         struct PktPlayerInfo_Say _say;
         struct PktPlayerInfo_Damage _damage;
+        struct PktPlayerInfo_Headbar _headbar;
         struct PktPlayerInfo_FaceCoord _face_coord;
         struct PktPlayerInfo_Chat _chat;
         struct PktPlayerInfo_SpotAnim _spotanim;

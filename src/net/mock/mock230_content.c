@@ -571,6 +571,7 @@ pack_kind_name(enum Mock230PackKind kind)
         [MOCK230_PACK_STAT] = "stat",
         [MOCK230_PACK_PARAM] = "param",
         [MOCK230_PACK_HITSPLAT] = "hitsplat",
+        [MOCK230_PACK_HEALTHBAR] = "healthbar",
         [MOCK230_PACK_ENUM] = "enum",
         [MOCK230_PACK_STRUCT] = "struct",
         [MOCK230_PACK_DBTABLE] = "dbtable",

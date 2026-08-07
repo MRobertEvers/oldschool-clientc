@@ -12,14 +12,19 @@
 
 static bool
 node_in_bounds(
+    struct UITree const* tree,
+    int32_t node_index,
     struct UITreeComponent const* node,
     int px,
     int py)
 {
     int bx = 0, by = 0, bw = 0, bh = 0;
+    int offx = 0, offy = 0;
 
     UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
-    return px >= bx && py >= by && px < bx + bw && py < by + bh;
+    UITree_AccumScrollOffset(tree, node_index, &offx, &offy);
+    return px >= bx - offx && py >= by - offy && px < bx - offx + bw &&
+           py < by - offy + bh;
 }
 
 /** True when the component names at least one right-click verb of its own. */
@@ -229,7 +234,7 @@ UITree_ObjCellDynamicSlotNodeAt(
         struct UITreeComponent const* child = &tree->components[idx];
         if( child->freed || !child->dynamic )
             continue;
-        if( node_in_bounds(child, px, py) )
+        if( node_in_bounds(tree, idx, child, px, py) )
         {
             if( out_node_index )
                 *out_node_index = idx;

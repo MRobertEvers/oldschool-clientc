@@ -416,6 +416,17 @@ player_apply_op(
             op->_damage.delay,
             op->_damage.slots);
         break;
+    case PKT_PLAYER_INFO_OP_HEADBAR:
+        if( op->_headbar.remove )
+            World_PlayerClearHealthbar(world, idx);
+        else
+        {
+            int width = op->_headbar.start_fill;
+            if( op->_headbar.end_fill > width )
+                width = op->_headbar.end_fill;
+            World_PlayerSetHealthbar(world, idx, op->_headbar.end_fill, width);
+        }
+        break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         World_PlayerSetSpotanim(
             world,
@@ -973,6 +984,20 @@ npc_apply_op(
                 op->_damage.total_health,
                 op->_damage.delay,
                 op->_damage.slots);
+        break;
+    case PKT_NPC_INFO_OP_HEADBAR:
+        if( idx >= 0 )
+        {
+            if( op->_headbar.remove )
+                World_NpcClearHealthbar(world, idx);
+            else
+            {
+                int width = op->_headbar.start_fill;
+                if( op->_headbar.end_fill > width )
+                    width = op->_headbar.end_fill;
+                World_NpcSetHealthbar(world, idx, op->_headbar.end_fill, width);
+            }
+        }
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:
         self->pending_npc_type = op->_change_type.npc_type;

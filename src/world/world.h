@@ -797,6 +797,18 @@ World_NpcAddHitmarkTimed(
     int delay,
     int slot_limit);
 
+void
+World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width);
+
+void
+World_NpcSetHealthbar(struct World* world, int idx, int fill, int width);
+
+void
+World_PlayerClearHealthbar(struct World* world, int idx);
+
+void
+World_NpcClearHealthbar(struct World* world, int idx);
+
 /** Set an entity's overhead chat text (reference chatMessage/Colour/Effect,
  * chatTimer reset to 150). colour/effect select the render style; pass 0/0 for
  * plain forced-chat "say" lines. A NULL or empty message clears the overhead. */

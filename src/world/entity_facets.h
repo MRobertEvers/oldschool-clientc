@@ -166,6 +166,9 @@ struct WorldEntityFacet_Combat
     int combat_cycle;
     int health;
     int total_health;
+    /* Non-zero when health/total_health are raw HealthBarConfig fill units,
+     * rather than gameplay hitpoints from a legacy hitsplat block. */
+    int healthbar_width;
 };
 
 struct WorldEntityFacet_Appearance

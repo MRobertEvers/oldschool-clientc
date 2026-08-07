@@ -4994,13 +4994,13 @@ handle_if_button_op(
  * Revision 239 keeps all IF3 ops in two packets. Decode them here, while every
  * field is still present, then enter the established 230 handlers.
  *
- * Most object-backed component ops 1..5 retain OPHELD semantics. The backpack
- * is the important exception: IF3 inserts generic Use as op 1, shifts the five
- * ObjType inventory actions to ops 2..6, and authors Drop as op 7. Content is
- * still written against classic OPHELD1..5, so normalize that one component
- * before dispatch. IF_SUBOP's last byte is latched before either route so
- * selecting a submenu entry is no longer indistinguishable from selecting its
- * parent.
+ * The packet has no context-free "held operation" bit: an object id is also
+ * present for ordinary component rows such as the bank's Withdraw and Deposit
+ * verbs.  Only the named backpack component maps this modern packet back to
+ * the classic OPHELD family.  Every other component retains its IF_BUTTONN
+ * trigger so content receives its authored action.  IF_SUBOP's last byte is
+ * latched before dispatch so selecting a submenu entry is no longer
+ * indistinguishable from selecting its parent.
  */
 static void
 handle_if_buttonx_packet(
@@ -5040,8 +5040,6 @@ handle_if_buttonx_packet(
 
     if( button.component_id == mock230_ids()->com_inventory_items )
         held_op = mock239_if_button_backpack_op(&button);
-    else if( mock239_if_button_route(&button) == MOCK239_IF_ROUTE_OPHELD )
-        held_op = button.op;
 
     if( held_op )
     {
@@ -5172,6 +5170,13 @@ mock230_note_modal_mount(
         player->sidemodal_group = group;
     else if( uid == mock230_ids()->com_chatbox_modal )
         player->chatmodal_group = group;
+    else if( uid == mock230_ids()->com_gameframe_floater )
+    {
+        /* World map is also opened by content (quest overview's Show on Map),
+         * not solely by the minimap-orb router. Keep the generic mount state
+         * in sync so its close button and periodic tile sender behave alike. */
+        player->worldmap_open = group == mock230_ids()->iface_worldmap;
+    }
 }
 
 /*

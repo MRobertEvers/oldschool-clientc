@@ -1174,6 +1174,15 @@ the two names exists for either. `TORIRS_DRAG_DEBUG=1` prints when a drag arms
 and every offset it takes — which is what showed that the machine was fine and
 the renderer was not.
 
+An empty dynamic inventory cell is intentionally not a normal interactive hit:
+it has no object and is often hidden by the cache paint script. Drag resolution
+therefore walks the direct `CC_CREATE` children, matching the official 239
+client's parent/sub-id addressing. Those children still live in their parent's
+content coordinates, so the resolver must subtract accumulated ancestor scroll
+before testing their bounds. Without that conversion, releasing into an empty
+slot under a scrolled bank/list resolves no destination and the server never
+receives `INV_BUTTOND`.
+
 ## 3.11j Who an npc is facing, when more than one client is watching
 
 The last shared-state remainder of the multiplayer change (§6.1 step 1), and the
@@ -1320,9 +1329,10 @@ p_opnpc(2);
 
 That is the whole of it, because everything visible was already a wire feature.
 
-**The DAMAGE mask carries the hitsplat *and* the health bar** (damage, type,
-health, total_health), so a hit is one mask write rather than a packet of its
-own. **An npc dying is the ordinary NPC_INFO remove path**, and respawning
+**The classic DAMAGE mask carries the hitsplat and legacy health values**
+(damage, type, health, total_health). Revision 239 instead carries configured
+health bars in a separate `HEADBARS` block; see `combat_hud.md`. **An npc dying
+is the ordinary NPC_INFO remove path**, and respawning
 clears `tracked` so the next NPC_INFO adds it as a new entity — which is what a
 respawn is from the client's side.
 

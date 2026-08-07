@@ -1045,16 +1045,37 @@ player_extended(
 
             for( int b = 0; b < bars; b++ )
             {
-                (void)tail_smart(data, len, &pos); /* type */
+                int type = tail_smart(data, len, &pos);
                 {
-                    int end_time = tail_smart(data, len, &pos);
+                    int duration = tail_smart(data, len, &pos);
+                    struct PktPlayerInfoOp* op = NULL;
 
-                    if( end_time != 32767 )
+                    if( b == 0 )
+                        op = player_op(r, PKT_PLAYER_INFO_OP_HEADBAR);
+
+                    if( duration == 32767 )
                     {
-                        (void)tail_smart(data, len, &pos); /* start time */
-                        (void)tail_g1_alt1(data, len, &pos); /* start fill */
-                        if( end_time > 0 )
-                            (void)tail_g1_alt2(data, len, &pos); /* end fill */
+                        if( op )
+                        {
+                            op->_headbar.type = type;
+                            op->_headbar.remove = true;
+                        }
+                    }
+                    else
+                    {
+                        int start_delay = tail_smart(data, len, &pos);
+                        int start_fill = tail_g1_alt1(data, len, &pos);
+                        int end_fill = duration > 0 ? tail_g1_alt2(data, len, &pos) : start_fill;
+
+                        if( op )
+                        {
+                            op->_headbar.type = type;
+                            op->_headbar.duration = duration;
+                            op->_headbar.start_delay = start_delay;
+                            op->_headbar.start_fill = (uint8_t)start_fill;
+                            op->_headbar.end_fill = (uint8_t)end_fill;
+                            op->_headbar.remove = false;
+                        }
                     }
                 }
             }
@@ -1411,15 +1432,36 @@ npc_extended(
 
             for( int b = 0; b < bars; b++ )
             {
-                (void)tail_smart(data, len, &pos);
+                int type = tail_smart(data, len, &pos);
                 {
-                    int end_time = tail_smart(data, len, &pos);
-                    if( end_time != 32767 )
+                    int duration = tail_smart(data, len, &pos);
+                    struct PktNpcInfoOp* op = NULL;
+
+                    if( b == 0 )
+                        op = npc_op(r, PKT_NPC_INFO_OP_HEADBAR);
+                    if( duration == 32767 )
                     {
-                        (void)tail_smart(data, len, &pos);
-                        (void)tail_g1_alt1(data, len, &pos);
-                        if( end_time > 0 )
-                            (void)tail_g1_alt3(data, len, &pos);
+                        if( op )
+                        {
+                            op->_headbar.type = type;
+                            op->_headbar.remove = true;
+                        }
+                    }
+                    else
+                    {
+                        int start_delay = tail_smart(data, len, &pos);
+                        int start_fill = tail_g1_alt1(data, len, &pos);
+                        int end_fill = duration > 0 ? tail_g1_alt3(data, len, &pos) : start_fill;
+
+                        if( op )
+                        {
+                            op->_headbar.type = type;
+                            op->_headbar.duration = duration;
+                            op->_headbar.start_delay = start_delay;
+                            op->_headbar.start_fill = (uint8_t)start_fill;
+                            op->_headbar.end_fill = (uint8_t)end_fill;
+                            op->_headbar.remove = false;
+                        }
                     }
                 }
             }

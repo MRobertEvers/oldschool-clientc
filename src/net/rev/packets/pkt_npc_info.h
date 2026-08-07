@@ -54,6 +54,7 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_FACE_ENTITY,
     PKT_NPC_INFO_OP_SAY,
     PKT_NPC_INFO_OP_DAMAGE,
+    PKT_NPC_INFO_OP_HEADBAR,
     PKT_NPC_INFO_OP_FACE_COORD,
     PKT_NPC_INFO_OP_CHANGE_TYPE,
     PKT_NPC_INFO_OP_SPOTANIM,
@@ -102,6 +103,16 @@ struct PktNpcInfo_Damage
     uint8_t total_health;
     uint16_t delay;
     uint16_t slots;
+};
+
+struct PktNpcInfo_Headbar
+{
+    int type;
+    int duration;
+    int start_delay;
+    uint8_t start_fill;
+    uint8_t end_fill;
+    bool remove;
 };
 
 struct PktNpcInfo_FaceCoord
@@ -176,6 +187,7 @@ struct PktNpcInfoOp
         struct PktNpcInfo_FaceEntity _face_entity;
         struct PktNpcInfo_Say _say;
         struct PktNpcInfo_Damage _damage;
+        struct PktNpcInfo_Headbar _headbar;
         struct PktNpcInfo_FaceCoord _face_coord;
         struct PktNpcInfo_ChangeType _change_type;
         struct PktNpcInfo_SpotAnim _spotanim;

@@ -135,6 +135,13 @@ struct Mock239PlayerExt
     int hit_value;
     int hit_delay;
     int hit_slots;
+    /** The actor HEADBARS block is independent from a hitmark. */
+    int has_headbar;
+    int headbar_type;
+    int headbar_duration;
+    int headbar_start_delay;
+    int headbar_start_fill;
+    int headbar_end_fill;
     /** Public-chat bytes are already wordpacked; the v5 wire reverses them. */
     int has_chat;
     int chat_colour_effect;

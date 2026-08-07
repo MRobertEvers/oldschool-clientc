@@ -73,6 +73,9 @@ struct Mock230Ids
     int inv_worn;
     int inv_bank;
 
+    /** Default overhead bar, resolved from the cache's healthbar namespace. */
+    int healthbar_standard;
+
     /** The content-owned mapping from worn-tab components to wear slots. */
     int enum_worn_slots;
 
@@ -202,6 +205,7 @@ struct Mock230Ids
      *  drop_tables/configs/lootdrop.constant has stated all along while
      *  `MOCK230_LOOT_TICKS` said the same 200 in C beside it. */
     int lootdrop_duration;
+    int healthbar_standard_width;
 };
 
 /** The table. Every field is -1 until mock230_ids_resolve has run. */

@@ -1238,6 +1238,13 @@ UITree_InteractFrame(
     else
         ui_result = bridge_input_to_uitree(&interact->input_state, tree, ui_host, input);
 
+    /* A component action may synchronously remount or close the interface on
+     * its press edge.  Its matching release must remain owned by that UI
+     * gesture even when the component no longer exists by then; otherwise the
+     * release falls through as a fresh world click. */
+    if( ui_result.press_click )
+        interact->swallow_left_click = 1;
+
     interact_wheel(tree, input, out);
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);

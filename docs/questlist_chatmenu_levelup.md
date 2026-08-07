@@ -145,13 +145,19 @@ Landed under `server/scripts/interface_questjournal/` and `quests/`:
   `quest:startnpc`. `questjournal_overview:switch` resolves the stored dbrow's
   `quest:id` and repaints the journal. Both interfaces re-arm Close/Switch on
   every mount.
+- `questlist:settings_button` is armed and opens the named Settings modal.
+  The overview's cache-authored dynamic “Show on Map” op is likewise armed;
+  its server trigger sends the quest row's `startcoord` through clientscript
+  1749 before mounting the named world-map floater. The map close router sees
+  this normal content mount as open state, so Close/Escape works identically to
+  an orb-opened map.
 - QP: `~questpoints_login` / `~quest_complete` (Cook's Assistant completion).
 - Engine: `mock230_db_load_cache` fills cache DBTABLE/DBROW so `quest:id` /
   `displayname` / `questpoints` resolve; authored `quest.dbtable` supplies
   column names. Verified in `mock230 --selftest` ("quest journal" section).
 
-Still open (named so they are not rediscovered): op 3 "Show on map", ops 4/5
-wiki, op 6 "Pin journal", and the other 56 LostCity per-quest journals (quests
+Still open (named so they are not rediscovered): ops 4/5 wiki, op 6 "Pin journal",
+and the other 56 LostCity per-quest journals (quests
 with no gameplay here).
 
 ---

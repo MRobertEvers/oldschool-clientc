@@ -251,6 +251,15 @@ The client already handles this: a numbered op on an IF3 widget sends
 `IF_BUTTON<n>` **and** runs the hook, gated on the server's events mask. The
 mock simply was not arming those components. `bank_set_events` now does.
 
+### Rev-239 object rows are still component buttons
+
+The modern `IF_BUTTONX` payload includes an object id for both inventory-held
+actions and ordinary component rows. That is not a routing discriminator: bank
+Withdraw and Deposit rows are object-backed too. `handle_if_buttonx_packet`
+therefore normalizes only the named backpack component to `OPHELD`; all other
+rows retain their `IF_BUTTON<n>` trigger and reach the bank content/fallback.
+Treating every object-backed op 1–5 as held silently discarded bank clicks.
+
 Watch the bit convention — the client's test is `events & (1 << op_num)` with
 `op_num` **one-based**, so ops 1..10 are `0x7fe`, not `0x3ff`. The same word is
 read 0-based elsewhere in the codebase.

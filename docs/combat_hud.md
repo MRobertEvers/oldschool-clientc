@@ -9,6 +9,17 @@ Four of the five had their root cause in the **client**, not the mock. That is
 worth saying up front, because "the server isn't sending it" is the first guess
 every time and it was right once out of five.
 
+### Rev-239 headbars
+
+Revision 239 no longer folds the bar into the hitmask. `PLAYER_INFO` and
+`NPC_INFO` carry a separate `HEADBARS` block: configured type, duration,
+start-delay, starting fill and target fill. The client decoder had consumed and
+dropped that block, so a valid modern server could never render a bar. It now
+passes the first active bar through the entity executor into the overlay state;
+the mock emits it alongside combat updates using the named `healthbar_0` record
+and the measured content width. This is deliberately independent of hitsplats:
+a headbar update with no damage remains visible.
+
 | | symptom | made of | gap |
 |---|---|---|---|
 | 1 | number, no splat | hitsplat config group 32 → sprite id | client looked for a sprite *archive* that does not exist at this revision |

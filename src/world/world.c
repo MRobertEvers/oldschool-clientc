@@ -1841,7 +1841,36 @@ World_PlayerAddHitmarkTimed(
         slot_limit);
     player->combat.health = health;
     player->combat.total_health = total_health;
+    player->combat.healthbar_width = 0;
     player->combat.combat_cycle = world->cycle + 400;
+}
+
+void
+World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width)
+{
+    struct WorldEntity_Player* player;
+
+    assert(world);
+    if( !World_EntityPoolIsActive(&world->entities.player, idx) || width <= 0 )
+        return;
+    player = World_EntityPoolGet(&world->entities.player, idx);
+    if( player->combat.healthbar_width > width )
+        width = player->combat.healthbar_width;
+    player->combat.health = fill;
+    player->combat.total_health = width;
+    player->combat.healthbar_width = width;
+    player->combat.combat_cycle = world->cycle + 400;
+}
+
+void
+World_PlayerClearHealthbar(struct World* world, int idx)
+{
+    struct WorldEntity_Player* player;
+
+    if( !world || !World_EntityPoolIsActive(&world->entities.player, idx) )
+        return;
+    player = World_EntityPoolGet(&world->entities.player, idx);
+    player->combat.combat_cycle = 0;
 }
 
 int
@@ -2074,7 +2103,36 @@ World_NpcAddHitmarkTimed(
         slot_limit);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
+    npc->combat.healthbar_width = 0;
     npc->combat.combat_cycle = world->cycle + 400;
+}
+
+void
+World_NpcSetHealthbar(struct World* world, int idx, int fill, int width)
+{
+    struct WorldEntity_NPC* npc;
+
+    assert(world);
+    if( !World_EntityPoolIsActive(&world->entities.npc, idx) || width <= 0 )
+        return;
+    npc = World_EntityPoolGet(&world->entities.npc, idx);
+    if( npc->combat.healthbar_width > width )
+        width = npc->combat.healthbar_width;
+    npc->combat.health = fill;
+    npc->combat.total_health = width;
+    npc->combat.healthbar_width = width;
+    npc->combat.combat_cycle = world->cycle + 400;
+}
+
+void
+World_NpcClearHealthbar(struct World* world, int idx)
+{
+    struct WorldEntity_NPC* npc;
+
+    if( !world || !World_EntityPoolIsActive(&world->entities.npc, idx) )
+        return;
+    npc = World_EntityPoolGet(&world->entities.npc, idx);
+    npc->combat.combat_cycle = 0;
 }
 
 /* Reference chatTimer = 150 on every new message (Client.ts:8166); the per-

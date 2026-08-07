@@ -570,6 +570,32 @@ main(void)
               "golden Actor.method3560 receives four drawable slots, got %d",
               got.ext_hit_slots);
     }
+    fprintf(stderr, "mock239-playerinfo: headbar block\n");
+    rsab_wrap(&buf, storage, sizeof(storage));
+    {
+        struct Mock239PlayerExt ext;
+        struct PktPlayerInfoOp ops[64];
+        struct PktPlayerInfoOp const* bar = NULL;
+        int op_count;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_headbar = 1;
+        ext.headbar_type = 0;
+        ext.headbar_duration = 1;
+        ext.headbar_start_delay = 0;
+        ext.headbar_start_fill = 30;
+        ext.headbar_end_fill = 18;
+        mock239_playerinfo_write(
+            &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 0, NULL, 0, &ext);
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 64);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_HEADBAR )
+                bar = &ops[i];
+        CHECK(bar && !bar->_headbar.remove && bar->_headbar.type == 0 &&
+                  bar->_headbar.duration == 1 && bar->_headbar.start_fill == 30 &&
+                  bar->_headbar.end_fill == 18,
+              "headbar type/duration/fills survive the v239 tail");
+    }
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;
     rsab_wrap(&buf, storage, sizeof(storage));

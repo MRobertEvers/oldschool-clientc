@@ -40,6 +40,7 @@ enum
     EXTINFO_EXACT_MOVE = 0x4000,
     EXTINFO_SPOTANIM = 0x20000,
     EXTINFO_HITMARKS = 0x40000,
+    EXTINFO_HEADBARS = 0x10000,
     /* "another flag byte follows" -- the player's are 0x8 and 0x800, where an
      * npc's are 0x40 and 0x800. Only the second one is shared. */
     EXTINFO_NEXT_BYTE_1 = 0x8,
@@ -128,6 +129,7 @@ mock239_playerinfo_write(
 {
     int const has_appearance = appearance && appearance_len > 0;
     int const has_hit = ext && ext->has_hit;
+    int const has_headbar = ext && ext->has_headbar;
     int const has_face = ext && ext->has_face;
     int const has_seq = ext && ext->has_seq;
     int const has_chat = ext && ext->has_chat;
@@ -136,7 +138,7 @@ mock239_playerinfo_write(
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_extended =
         has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
-        has_temp_move_speed || has_exact_move;
+        has_temp_move_speed || has_exact_move || has_headbar;
 
     /*
      * Unused while the local player is the only high-resolution entry: the
@@ -280,6 +282,8 @@ mock239_playerinfo_write(
 
         if( has_hit )
             flag |= EXTINFO_HITMARKS;
+        if( has_headbar )
+            flag |= EXTINFO_HEADBARS;
         if( has_face )
             flag |= EXTINFO_FACE;
         if( has_seq )
@@ -355,6 +359,18 @@ mock239_playerinfo_write(
             rsab_p1_alt2(buf, ext->chat_len);
             for( int i = ext->chat_len - 1; i >= 0; i-- )
                 rsab_p1(buf, ext->chat_data[i]);
+        }
+        if( has_headbar )
+        {
+            /* PlayerHeadbarEncoder: p1Alt1 count, smart type/duration/delay,
+             * then start fill p1Alt1 and target fill p1Alt2. */
+            rsab_p1_alt1(buf, 1);
+            ext_psmart1or2(buf, ext->headbar_type);
+            ext_psmart1or2(buf, ext->headbar_duration);
+            ext_psmart1or2(buf, ext->headbar_start_delay);
+            rsab_p1_alt1(buf, ext->headbar_start_fill);
+            if( ext->headbar_duration > 0 )
+                rsab_p1_alt2(buf, ext->headbar_end_fill);
         }
         if( has_seq )
         {

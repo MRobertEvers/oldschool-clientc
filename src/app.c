@@ -2015,22 +2015,23 @@ app_overlay_build_entity(
             &screen_x,
             &screen_y) )
     {
-        int filled = (combat->health * 30) / combat->total_health;
-        if( filled > 30 )
-            filled = 30;
+        int bar_width = combat->healthbar_width > 0 ? combat->healthbar_width : 30;
+        int filled = (combat->health * bar_width) / combat->total_health;
+        if( filled > bar_width )
+            filled = bar_width;
         if( filled < 0 )
             filled = 0;
         struct UITreeEntityOverlay bar = {
             .kind = UITREE_ENTITY_OVERLAY_RECT,
-            .x = screen_x - 15,
+            .x = screen_x - (bar_width >> 1),
             .y = screen_y - 3,
             .w = filled,
             .h = 5,
             .color = 0xFF00FF00u, /* Colour.GREEN */
         };
         app_overlay_push(app, &bar);
-        bar.x = screen_x - 15 + filled;
-        bar.w = 30 - filled;
+        bar.x = screen_x - (bar_width >> 1) + filled;
+        bar.w = bar_width - filled;
         bar.color = 0xFFFF0000u; /* Colour.RED */
         app_overlay_push(app, &bar);
     }
