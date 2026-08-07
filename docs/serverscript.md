@@ -1095,3 +1095,10 @@ symbolic type and 0 for an int, which is the reference's behaviour too.
 A debugproc is content like anything else (PORTING_GUIDE §2.4 item 5) — the
 engine does not name one, it hands the line to whichever script claims it and
 falls through to the C cheat ladder only when none does.
+
+Debugproc names are global and must be unique. The compiler rejects a second
+`[debugproc,<same name>]` during its declaration pass; it must never choose a
+body by source traversal order. This invariant was added after `::crystal_set`
+had two definitions while the client independently consumed the same text as
+the local `cry` emote. The full cross-boundary diagnosis, packet signature, and
+negative tests are in [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md).

@@ -2549,6 +2549,39 @@ SSC_Declare(
             if( strcmp(trigger, "command") == 0 )
                 continue;
 
+            /*
+             * A debugproc is a global user-facing ::command. Two declarations
+             * cannot be composed and there is no meaningful precedence: the
+             * old compiler assigned both declarations a slot and finish_script
+             * then resolved both bodies back to the first matching name,
+             * silently replacing whichever body compiled first.
+             *
+             * That exact behavior hid a second [debugproc,crystal_set] while
+             * the client was also consuming ::crystal_set as the `cry` emote.
+             * Reject all duplicate debug commands here, during the declaration
+             * pass, so no provider ordering or stale pack can choose a winner.
+             * See docs/CRYSTAL_SET_COMMAND.md.
+             */
+            if( strcmp(trigger, "debugproc") == 0 )
+            {
+                char full_name[SSC_MAX_NAME];
+
+                snprintf(full_name, sizeof(full_name), "[%s,%s]", trigger, subject);
+                if( script_id_for_name(compiler, full_name) >= 0 )
+                {
+                    if( diag )
+                    {
+                        snprintf(diag->file, sizeof(diag->file), "%s", path);
+                        diag->line = lexer.current.line;
+                        snprintf(diag->message, sizeof(diag->message),
+                                 "duplicate global debug command '%s'; keep exactly one declaration",
+                                 full_name);
+                    }
+                    free(source);
+                    return 0;
+                }
+            }
+
             if( compiler->name_count < compiler->name_capacity )
             {
                 int slot = compiler->name_count;

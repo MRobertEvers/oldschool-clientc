@@ -1,5 +1,11 @@
 # The RSProt / OSRS-239 protocol port
 
+> Silent `::` command / local-emote incident: see
+> [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md). It records why
+> `::crystal_set` became Cry before opcode 34, the duplicate debugproc that was
+> waiting behind that client bug, and the build gates that now enforce both
+> sides.
+
 > Written 2026-08-04. Companion to [`MULTI_GENERATIONAL_PARITY.md`](MULTI_GENERATIONAL_PARITY.md),
 > which owns the net-stack seams. This doc owns one question: **what does it
 > take for an unmodified OldSchool client to talk to this server**, and how far
@@ -441,3 +447,54 @@ python3 tools/runelite_patch.py --print-launch     # then run what it prints
 
 `tools/js5_probe.py` points at either end, which is what makes a disagreement
 between them a diff rather than an argument.
+
+## 8. The C client on the 239 wire — the `::zuk` black-screen pair (2026-08-06)
+
+After the manifests moved to `rev=osrs239`, `::zuk` (and the whole
+`manifest_osrs230_zuk.ini` boot) showed an empty screen in torirs. Two
+independent defects, both invisible from the chatbox, plus one launcher race:
+
+1. **The embedded server booted on the wrong wire.** `mock230_embed_start`
+   chose its wire from `MOCK230_REV` (default `osrs230`) — correct for
+   run-live.sh, wrong for the documented direct invocation
+   `src/torirs --manifest manifest_osrs230_zuk.ini`. A 230 reader on the 239
+   login block reads the RSA size two bytes out of position and dies as
+   `rsa decrypt failed`, so nothing after login exists. The embed and its
+   client are two ends of one in-process queue pair and can never validly
+   disagree, so the client's revision is now *passed through the transport*:
+   `NetTransport_New(kind, port, rev_name)` →
+   `mock230_embed_start(rev_name)`. `MOCK230_REV` still applies to hosts
+   with no client revision of their own (embed_test passes NULL).
+
+2. **CamMoveToV2 / CamLookAtV2 carry ABSOLUTE world tiles.** The Zuk emerge
+   cutscene (`inferno_zuk.rs2` `cam_moveto`/`cam_lookat`) put the camera at
+   fine-x 823872 in a 104-tile scene — the V2 coordinates are "a specific
+   coordinate in the root world" (16 bits each), where the classic packet's
+   byte pair is scene-local 0..103. The parse cannot convert (it has no scene
+   base), so `PktCamMoveTo`/`PktCamLookAt` gained an `absolute` flag the
+   osrs239 parser sets and `RS_GameProto_Exec` resolves against
+   `world->_base_tile_x/z` — the world the shot plays in, which for the
+   Inferno is the instanced base. The symptom is a viewport that alternates
+   camera states per frame and captures as pure black; the mock's own
+   `mock230_send_cam_moveto` doc (mock230.h) states the same contract from
+   the writer's side. RuneLite against the same bytes was the oracle that
+   said the server was right and the C decode was wrong.
+
+3. **The boot cheat raced the login scene barrier.** The rev-239 mock
+   discards non-liveness packets until the client acks MAP_BUILD_COMPLETE,
+   and `[net:boot] cheat=` / `TORIRS_NET_CHEAT` fired one-shot the moment
+   login completed — so the cheat was silently eaten and the run stayed at
+   the saved position (which for `testc`, parked in Mor Ul Rek, *looks* like
+   a broken Inferno rather than a dropped packet). The cheat now waits for
+   `app->world_active`, the same instant a human could first type.
+
+Verified headless on both wires from the same tree:
+`manifest_osrs230_zuk.ini` boots into the fight (Zuk at 1200/1200, arena,
+minimap), and a wire-230 twin of the manifest renders identically.
+`REBUILD_REGION` V2 itself (`osrs239_parse`) was already correct — the scene
+built to the same 70-loc window on both wires; only the camera lied.
+
+While here: `test-mock230-embed` had gone unbuildable again, this time
+because `pkt_player_appearance.o` joined `NET_CORE_OBJS` while the target
+still compiled the .c inline — same duplicate-symbol trap the target's own
+comment documents for `bitbuffer.c`. The inline mention is gone.

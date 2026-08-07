@@ -1,9 +1,35 @@
 #include "net_out.h"
 
+#include "jbase37.h"
 #include "wordpack.h"
 
 #include <rsbuffer.h>
 #include <string.h>
+
+static void out_p2_alt1(struct RSCache_Buffer* b, int v);
+static void out_p2_alt2(struct RSCache_Buffer* b, int v);
+static void out_p2_alt3(struct RSCache_Buffer* b, int v);
+static void out_p4_alt1(struct RSCache_Buffer* b, int v);
+static void out_p4_alt2(struct RSCache_Buffer* b, int v);
+static void out_p4_alt3(struct RSCache_Buffer* b, int v);
+
+static void
+out_p1_alt1(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (v + 128) & 0xff);
+}
+
+static void
+out_p1_alt2(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (-v) & 0xff);
+}
+
+static void
+out_p1_alt3(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (128 - v) & 0xff);
+}
 
 /* rsbuffer has no p8; write a big-endian i64 as two u32 words. */
 static void
@@ -264,7 +290,11 @@ net_out_click_world_map(
         return -1;
     /* RSProt ClickWorldMap packs the destination into one int, the same
      * level<<28 | x<<14 | z coord the CS2 map ops speak. */
-    p4(&b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+        out_p4_alt1(
+            &b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
+    else
+        p4(&b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
     return 1 + (int)b.position;
 }
 
@@ -276,6 +306,15 @@ net_out_resume_pausebutton(
     int cap,
     int component_id)
 {
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        struct RSCache_Buffer b;
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, 6, &b) < 0 )
+            return -1;
+        out_p4_alt3(&b, component_id);
+        p2(&b, 0xffff);
+        return 1 + (int)b.position;
+    }
     return out_com(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, component_id);
 }
 
@@ -348,7 +387,19 @@ out_move(
     if( route_len < 1 )
         return -1;
 
-    /* Fixed 5-byte MOVE_GAMECLICK on osrs230: destination only. */
+    /* Modern destination-only movement. 239 retains the outer var-byte length
+     * but transforms both coordinates and the key-combination byte. */
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 && trailer_len == 0 &&
+        out_name == PKTOUT_NAME_MOVE_GAMECLICK )
+    {
+        if( out_begin(rev, random_out, buf, cap, out_name, 6, &b) < 0 )
+            return -1;
+        p1(&b, 5);
+        out_p2_alt1(&b, base_x + route_x[0]);
+        out_p2_alt1(&b, base_z + route_z[0]);
+        out_p1_alt3(&b, ctrl_held ? 1 : 0);
+        return 1 + (int)b.position;
+    }
     dest_only = rev->revision == GAMEPROTO_REVISION_OSRS230 &&
                 out_name == PKTOUT_NAME_MOVE_GAMECLICK && trailer_len == 0;
     if( dest_only )
@@ -460,6 +511,28 @@ net_out_move_minimapclick(
     int player_fine_z,
     int nearest)
 {
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        struct RSCache_Buffer b239;
+        if( route_len < 1 ||
+            out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MOVE_MINIMAPCLICK, 19, &b239) < 0 )
+            return -1;
+        p1(&b239, 18);
+        out_p2_alt1(&b239, base_x + route_x[0]);
+        out_p2_alt1(&b239, base_z + route_z[0]);
+        out_p1_alt3(&b239, ctrl_held ? 1 : 0);
+        p1(&b239, click_x);
+        p1(&b239, click_y);
+        p2(&b239, camera_yaw);
+        p1(&b239, 57);
+        p1(&b239, minimap_angle);
+        p1(&b239, minimap_zoom);
+        p1(&b239, 89);
+        p2(&b239, player_fine_x);
+        p2(&b239, player_fine_z);
+        p1(&b239, nearest);
+        return 1 + (int)b239.position;
+    }
     int n = out_move(
         rev,
         random_out,
@@ -536,12 +609,13 @@ net_out_opheld(
 
     if( op_num < 1 || op_num > 5 )
         return -1;
-    /* Newer revisions have no OPHELD opcode at all — the verb is IF_BUTTONX's
-     * `op` field on the inventory component, with the obj id proving it is an
-     * item row. Tried first because `packetout_code` is what decides, not the
-     * revision number. */
+    /* Newer revisions have no OPHELD opcode at all. IF3's generic Use row is
+     * op 1, so its five ObjType inventory actions are IF_BUTTONX ops 2..6.
+     * (The golden client's default Drop fallback is op 7; either 6 or 7 maps
+     * back to classic OPHELD5 at the server.) Tried first because
+     * `packetout_code` is what decides, not the revision number. */
     collapsed =
-        out_if_buttonx(rev, random_out, buf, cap, op_num, component_id, slot, obj_id);
+        out_if_buttonx(rev, random_out, buf, cap, op_num + 1, component_id, slot, obj_id);
     if( collapsed >= 0 )
         return collapsed;
     return out_obj_slot_com(
@@ -688,6 +762,16 @@ out_p4_alt2(struct RSCache_Buffer* b, int v)
     p1(b, (v >> 16) & 0xff);
 }
 
+/* p4Alt3: [v>>16, v>>24, v, v>>8]. */
+static void
+out_p4_alt3(struct RSCache_Buffer* b, int v)
+{
+    p1(b, (v >> 16) & 0xff);
+    p1(b, (v >> 24) & 0xff);
+    p1(b, v & 0xff);
+    p1(b, (v >> 8) & 0xff);
+}
+
 /*
  * IF_BUTTONT — "use the item I selected on this one", component to component.
  *
@@ -791,6 +875,54 @@ out_xz_id(
     int id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, out_name, 8, &b) < 0 )
+            return -1;
+        if( out_name >= PKTOUT_NAME_OPLOC1 && out_name <= PKTOUT_NAME_OPLOC5 )
+        {
+            switch( out_name - PKTOUT_NAME_OPLOC1 + 1 )
+            {
+            case 1:
+                out_p2_alt2(&b, abs_z); out_p2_alt1(&b, abs_x);
+                out_p1_alt1(&b, 0); out_p1_alt1(&b, 0); p2(&b, id); break;
+            case 2:
+                out_p2_alt3(&b, abs_z); out_p2_alt3(&b, id); p2(&b, abs_x);
+                out_p1_alt2(&b, 0); p1(&b, 0); break;
+            case 3:
+                out_p2_alt2(&b, id); out_p1_alt3(&b, 0); p1(&b, 0);
+                out_p2_alt3(&b, abs_z); out_p2_alt2(&b, abs_x); break;
+            case 4:
+                out_p1_alt1(&b, 0); out_p2_alt1(&b, abs_x); out_p2_alt3(&b, id);
+                out_p1_alt2(&b, 0); p2(&b, abs_z); break;
+            default:
+                out_p2_alt3(&b, abs_z); out_p2_alt1(&b, abs_x);
+                out_p1_alt1(&b, 0); out_p1_alt2(&b, 0); p2(&b, id); break;
+            }
+        }
+        else
+        {
+            switch( out_name - PKTOUT_NAME_OPOBJ1 + 1 )
+            {
+            case 1:
+                out_p2_alt2(&b, id); out_p1_alt3(&b, 0); out_p2_alt2(&b, abs_z);
+                out_p1_alt3(&b, 0); p2(&b, abs_x); break;
+            case 2:
+                out_p1_alt1(&b, 0); out_p1_alt3(&b, 0); p2(&b, abs_z);
+                out_p2_alt1(&b, id); out_p2_alt3(&b, abs_x); break;
+            case 3:
+                out_p1_alt1(&b, 0); out_p2_alt1(&b, abs_x); out_p2_alt3(&b, id);
+                out_p1_alt1(&b, 0); out_p2_alt2(&b, abs_z); break;
+            case 4:
+                out_p1_alt3(&b, 0); p2(&b, id); p2(&b, abs_x);
+                out_p2_alt1(&b, abs_z); out_p1_alt2(&b, 0); break;
+            default:
+                out_p1_alt2(&b, 0); out_p2_alt2(&b, abs_x); p2(&b, id);
+                out_p2_alt3(&b, abs_z); out_p1_alt1(&b, 0); break;
+            }
+        }
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, out_name, 6, &b) < 0 )
         return -1;
     p2(&b, abs_x);
@@ -828,6 +960,19 @@ net_out_oploct(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 15, &b) < 0 )
+            return -1;
+        out_p1_alt2(&b, 0);
+        out_p2_alt2(&b, 0xffff);
+        out_p2_alt1(&b, loc_id);
+        out_p4_alt1(&b, spell_component_id);
+        out_p2_alt3(&b, abs_z);
+        out_p2_alt1(&b, abs_x);
+        out_p2_alt1(&b, 0xffff);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 8, &b) < 0 )
         return -1;
     p2(&b, abs_x);
@@ -851,6 +996,19 @@ net_out_oplocu(
     int use_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 15, &b) < 0 )
+            return -1;
+        out_p1_alt2(&b, 0);
+        out_p2_alt2(&b, use_slot);
+        out_p2_alt1(&b, loc_id);
+        out_p4_alt1(&b, use_component_id);
+        out_p2_alt3(&b, abs_z);
+        out_p2_alt1(&b, abs_x);
+        out_p2_alt1(&b, use_obj_id);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCU, 12, &b) < 0 )
         return -1;
     p2(&b, abs_x);
@@ -872,6 +1030,26 @@ out_slot2(
     int slot)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 &&
+        out_name >= PKTOUT_NAME_OPNPC1 && out_name <= PKTOUT_NAME_OPNPC5 )
+    {
+        if( out_begin(rev, random_out, buf, cap, out_name, 4, &b) < 0 )
+            return -1;
+        switch( out_name - PKTOUT_NAME_OPNPC1 + 1 )
+        {
+        case 1:
+            out_p2_alt1(&b, slot); out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); break;
+        case 2:
+            out_p2_alt3(&b, slot); out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); break;
+        case 3:
+            out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); out_p2_alt2(&b, slot); break;
+        case 4:
+            out_p1_alt1(&b, 0); p2(&b, slot); out_p1_alt2(&b, 0); break;
+        default:
+            out_p1_alt1(&b, 0); out_p1_alt2(&b, 0); out_p2_alt2(&b, slot); break;
+        }
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, out_name, 2, &b) < 0 )
         return -1;
     p2(&b, slot);
@@ -902,6 +1080,17 @@ net_out_opnpct(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 11, &b) < 0 )
+            return -1;
+        out_p1_alt2(&b, 0);
+        p2(&b, 0xffff);
+        out_p2_alt2(&b, npc_slot);
+        p2(&b, 0xffff);
+        p4(&b, spell_component_id);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 4, &b) < 0 )
         return -1;
     p2(&b, npc_slot);
@@ -921,6 +1110,17 @@ net_out_opnpcu(
     int use_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 11, &b) < 0 )
+            return -1;
+        out_p1_alt2(&b, 0);
+        p2(&b, use_slot);
+        out_p2_alt2(&b, npc_slot);
+        p2(&b, use_obj_id);
+        p4(&b, use_component_id);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCU, 8, &b) < 0 )
         return -1;
     p2(&b, npc_slot);
@@ -959,6 +1159,19 @@ net_out_opobjt(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 15, &b) < 0 )
+            return -1;
+        out_p2_alt1(&b, 0xffff);
+        out_p2_alt2(&b, obj_id);
+        p2(&b, abs_x);
+        out_p4_alt2(&b, spell_component_id);
+        p1(&b, 0);
+        out_p2_alt1(&b, 0xffff);
+        p2(&b, abs_z);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 8, &b) < 0 )
         return -1;
     p2(&b, abs_x);
@@ -982,6 +1195,19 @@ net_out_opobju(
     int use_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 15, &b) < 0 )
+            return -1;
+        out_p2_alt1(&b, use_obj_id);
+        out_p2_alt2(&b, obj_id);
+        p2(&b, abs_x);
+        out_p4_alt2(&b, use_component_id);
+        p1(&b, 0);
+        out_p2_alt1(&b, use_slot);
+        p2(&b, abs_z);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJU, 12, &b) < 0 )
         return -1;
     p2(&b, abs_x);
@@ -1002,8 +1228,25 @@ net_out_opplayer(
     int op_num,
     int player_slot)
 {
+    struct RSCache_Buffer b;
+
     if( op_num < 1 || op_num > 5 )
         return -1;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        int out_name = PKTOUT_NAME_OPPLAYER1 + (op_num - 1);
+        if( out_begin(rev, random_out, buf, cap, out_name, 3, &b) < 0 )
+            return -1;
+        switch( op_num )
+        {
+        case 1: out_p1_alt3(&b, 0); out_p2_alt1(&b, player_slot); break;
+        case 2: out_p2_alt1(&b, player_slot); out_p1_alt2(&b, 0); break;
+        case 3: out_p1_alt2(&b, 0); out_p2_alt3(&b, player_slot); break;
+        case 4: p2(&b, player_slot); p1(&b, 0); break;
+        default: out_p1_alt3(&b, 0); p2(&b, player_slot); break;
+        }
+        return 1 + (int)b.position;
+    }
     return out_slot2(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYER1 + (op_num - 1), player_slot);
 }
 
@@ -1017,6 +1260,17 @@ net_out_opplayert(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 11, &b) < 0 )
+            return -1;
+        out_p2_alt2(&b, 0xffff);
+        out_p1_alt1(&b, 0);
+        out_p2_alt3(&b, 0xffff);
+        out_p4_alt2(&b, spell_component_id);
+        p2(&b, player_slot);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 4, &b) < 0 )
         return -1;
     p2(&b, player_slot);
@@ -1036,6 +1290,17 @@ net_out_opplayeru(
     int use_component_id)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 11, &b) < 0 )
+            return -1;
+        out_p2_alt2(&b, use_slot);
+        out_p1_alt1(&b, 0);
+        out_p2_alt3(&b, use_obj_id);
+        out_p4_alt2(&b, use_component_id);
+        p2(&b, player_slot);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERU, 8, &b) < 0 )
         return -1;
     p2(&b, player_slot);
@@ -1082,7 +1347,7 @@ net_out_message_private(
     int64_t to_name37,
     char const* text)
 {
-    /* var-u8 length, body = name37(8) + wordpacked message. */
+    /* 239 uses var-u16 + NUL recipient; classic uses var-u8 + name37. */
     struct RSCache_Buffer b;
     int len_pos;
     int start;
@@ -1090,6 +1355,22 @@ net_out_message_private(
         return -1;
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, 12, &b) < 0 )
         return -1;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        char name[16];
+        p2(&b, 0);
+        len_pos = (int)b.position - 2;
+        start = (int)b.position;
+        base37tostr((uint64_t)to_name37, name, (int)sizeof(name));
+        pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+        wordpack_pack(&b, text);
+        {
+            int payload_len = (int)b.position - start;
+            buf[1 + len_pos] = (uint8_t)(payload_len >> 8);
+            buf[1 + len_pos + 1] = (uint8_t)payload_len;
+        }
+        return 1 + (int)b.position;
+    }
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
@@ -1118,7 +1399,11 @@ net_out_client_cheat(
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
-    pjstr(&b, text, RSCACHE_JSTR_TERMINATOR_NEWLINE);
+    pjstr(
+        &b,
+        text,
+        rev->revision == GAMEPROTO_REVISION_OSRS239 ? RSCACHE_JSTR_TERMINATOR_NULL
+                                                    : RSCACHE_JSTR_TERMINATOR_NEWLINE);
     buf[1 + len_pos] = (uint8_t)((int)b.position - start);
     return 1 + (int)b.position;
 }
@@ -1152,6 +1437,19 @@ out_name37(
     int64_t name37)
 {
     struct RSCache_Buffer b;
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
+    {
+        char name[16];
+        int body_len;
+
+        base37tostr((uint64_t)name37, name, (int)sizeof(name));
+        body_len = (int)strlen(name) + 1;
+        if( out_begin(rev, random_out, buf, cap, out_name, body_len + 1, &b) < 0 )
+            return -1;
+        p1(&b, body_len);
+        pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+        return 1 + (int)b.position;
+    }
     if( out_begin(rev, random_out, buf, cap, out_name, 8, &b) < 0 )
         return -1;
     out_p8(&b, name37);

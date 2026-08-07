@@ -3347,7 +3347,8 @@ main(
             }
 
             sock = app.net ? NetTransport_New(transport_kind,
-                                              cfg.connect_port > 0 ? cfg.connect_port : 43594)
+                                              cfg.connect_port > 0 ? cfg.connect_port : 43594,
+                                              app.net->rev->name)
                            : NULL;
         }
 

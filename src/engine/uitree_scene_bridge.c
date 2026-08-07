@@ -595,6 +595,35 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     return bridge->local_player_scene_id;
 }
 
+int
+UITreeSceneBridge_BuildInterfacePlayerModel(
+    struct UITreeSceneBridge* bridge,
+    int scene_id,
+    int const slots[12],
+    int const colours[5],
+    int gender)
+{
+    struct ToriDraw_Model* merged;
+    struct ToriDraw_ModelHandle hnd;
+    struct ToriDraw_ModelHandle old;
+
+    assert(bridge && bridge->scene && bridge->provider && slots);
+    assert(scene_id >= UITREE_SCENE_IF_PLAYER_MODEL_BASE);
+    merged = PlayerModel_BuildFromAppearance(bridge->provider, slots, colours, gender);
+    if( !merged )
+        return -1;
+
+    old = ToriDraw_SceneModelGet(bridge->scene, scene_id);
+    if( old.kind == TORIDRAWMK_MODEL && old.u.model.model && old.u.model.model != merged )
+        ToriDraw_ModelFree(old.u.model.model);
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = merged;
+    ToriDraw_SceneModelAdd(bridge->scene, scene_id, hnd);
+    return scene_id;
+}
+
 #define BRIDGE_NPC_HEAD_PARTS_MAX 16
 
 int

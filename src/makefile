@@ -38,6 +38,11 @@ TORIDRAW_OPT ?= 0
 # compiled without -DTORIRS_EMBED_SERVER=1 (that symptom is a silent stub).
 EMBED_SERVER ?= 0
 
+# platform_check.mk is included before the build rules below, so without an
+# explicit default GNU make adopts that include's first target (lane-check).
+# A bare `make` must build the client described at the top of this file.
+.DEFAULT_GOAL := all
+
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 
@@ -402,7 +407,16 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 # falling back to TCP — see platform/net_transport_embed.c.
 ifeq ($(EMBED_SERVER),1)
 CFLAGS += -DTORIRS_EMBED_SERVER=1
-SRCS += $(MOCK230_CORE_SRCS)
+# These units are already in the client SRCS or have dedicated object rules
+# below.  Adding them again generates duplicate recipes for the same flat
+# OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
+EMBED_SERVER_DUP_SRCS = features/features.c \
+	platform/net_transport_ws_frame.c \
+	engine/world_builder/collision_map.c \
+	$(RSAREABUF_DIR)/rsareabuf.c \
+	$(INI_SRC)
+SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(MOCK230_CORE_SRCS))
+EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
@@ -420,7 +434,8 @@ TRSPK_UNITY_SRC = $(TRSPK_DIR)/trspk_unity.c
 GPU_OBJS = $(addprefix $(OBJ_DIR)/,$(PLATFORM_GPU_OBJ_NAMES))
 OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/ini.o $(OBJ_DIR)/heightmap.o $(OBJ_DIR)/collision_map.o \
-	$(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
+	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -454,7 +469,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock230-interface-state rsprot test-rsprot
 
 all: $(OBJ_DIR) $(TARGET)
@@ -940,7 +955,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
-	$(OBJ_DIR)/osrs239_entity_info.o \
+	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/pkt_player_appearance.o \
 	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
 	$(OBJ_DIR)/bitbuffer.o \
@@ -959,11 +974,11 @@ test-mock239-playerinfo: $(OBJ_DIR)
 # Golden client->server interface callback layouts. Kept independent of the
 # world/server link so byte order, inner framing and typed-tail losslessness can
 # fail directly rather than only as a click that appears to do nothing.
-test-mock239-inbound: $(OBJ_DIR)
+test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
 		net/mock/test/mock239_interface_inbound_test.c \
 		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
-		$(RSAREABUF_DIR)/rsareabuf.c
+		$(OBJ_DIR)/jbase37.o $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_inbound_test
 
 # Full revision-239 RUNCLIENTSCRIPT argument alphabet. Literal bytes cover the
@@ -1397,7 +1412,15 @@ MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 # `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
 # `names/` is the layer it replaced and may not exist; sscompile skips a missing
 # --pack directory with a warning rather than failing, so both layouts build.
-mock230-scripts: sscompile
+# This cross-boundary gate exists because ::crystal_set once failed on both
+# sides at once: CS2 prefix-matched it as the local `cry` emote, and content had
+# two global debugprocs with the same name. Run it before either half is built so
+# neither a server-only script rebuild nor a client-cache bake can ship half a
+# fix. Full incident: docs/CRYSTAL_SET_COMMAND.md.
+check-crystal-set-contract:
+	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
+
+mock230-scripts: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -1457,7 +1480,7 @@ MOCK230_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
 # Pack then keeps the base bytes. With the tables, trampolines recompile to the
 # real proc id.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
-mock230-cache:
+mock230-cache: check-crystal-set-contract
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@# --base is optional. With one, the pristine cache is copied and every record
 	@# the tree does not change keeps the bytes it had. Without one, cachepack
@@ -1536,7 +1559,7 @@ mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-mock230: mock230 mock230-scripts mock230-servpack
+test-mock230: mock230 mock230-scripts mock230-servpack check-crystal-set-contract
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
@@ -1822,7 +1845,6 @@ test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdr
 		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
 		net/net_out.c net/rev/packets/pkt_player_info.c \
 		net/rev/packets/pkt_npc_info.c \
-		net/rev/packets/pkt_player_appearance.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test
 

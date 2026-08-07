@@ -238,6 +238,62 @@ test_packet_varu16(void)
     printf("ok - packet framing (var-u16 length split across reads)\n");
 }
 
+/* Literal UpdateInvPartialEncoder body for two adjacent dirty slots. The empty
+ * slot ends after its zero object sentinel; there is deliberately no count
+ * byte before slot 1. This is the exact cursor boundary that item-on-item hits
+ * when it consumes one ingredient and replaces the other. */
+static void
+test_osrs239_partial_empty_slot(void)
+{
+    static uint8_t body[] = {
+        0xff, 0xff, 0xff, 0xff, /* combined id: normal IF3 inventory */
+        0x00, 0x5d,             /* inventory id 93 */
+        0x00, 0x00, 0x00,       /* slot 0, empty; record ends here */
+        0x01, 0x06, 0x8c, 0x01, /* slot 1, obj 1675, count 1 */
+    };
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+    struct RevPacket packet;
+
+    memset(&packet, 0, sizeof(packet));
+    packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
+    assert(rev->parse(
+        rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
+    assert(packet._update_inv_partial.component_id == -1);
+    assert(packet._update_inv_partial.inv_id == 93);
+    assert(packet._update_inv_partial.count == 2);
+    assert(packet._update_inv_partial.entries[0].slot == 0);
+    assert(packet._update_inv_partial.entries[0].obj_id == -1);
+    assert(packet._update_inv_partial.entries[0].count == 0);
+    assert(packet._update_inv_partial.entries[1].slot == 1);
+    assert(packet._update_inv_partial.entries[1].obj_id == 1675);
+    assert(packet._update_inv_partial.entries[1].count == 1);
+    gameproto_free(&packet);
+
+    /* All-empty partials use the three-byte minimum for every record. This
+     * catches sizing the entry array with the old four-byte assumption. */
+    {
+        uint8_t empty_body[6 + 28 * 3] = {
+            0xff, 0xff, 0xff, 0xff, 0x00, 0x5d,
+        };
+
+        for( int i = 0; i < 28; i++ )
+            empty_body[6 + i * 3] = (uint8_t)i;
+        memset(&packet, 0, sizeof(packet));
+        packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
+        assert(rev->parse(
+            rev, PKT_NAME_UPDATE_INV_PARTIAL, empty_body, sizeof(empty_body), &packet) == 1);
+        assert(packet._update_inv_partial.count == 28);
+        for( int i = 0; i < 28; i++ )
+        {
+            assert(packet._update_inv_partial.entries[i].slot == i);
+            assert(packet._update_inv_partial.entries[i].obj_id == -1);
+            assert(packet._update_inv_partial.entries[i].count == 0);
+        }
+        gameproto_free(&packet);
+    }
+    printf("ok - osrs239 partial inventory empty-slot boundary\n");
+}
+
 int
 main(void)
 {
@@ -246,6 +302,7 @@ main(void)
     test_login_rejected();
     test_packet_framing();
     test_packet_varu16();
+    test_osrs239_partial_empty_slot();
     printf("net-login: all tests passed\n");
     return 0;
 }

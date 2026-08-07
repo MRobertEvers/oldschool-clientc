@@ -656,7 +656,15 @@ w239_inv_slot(struct RSAreaBuf* buf, int pkt_name, int slot, int obj_id, int cou
         return;
     }
     w239_psmart1or2(buf, slot);
-    rsab_p2(buf, obj_id < 0 ? 0 : obj_id + 1);
+    /* UpdateInvPartialEncoder stops after the zero object sentinel. An empty
+     * slot has no count byte; emitting one shifts every following record and
+     * makes the client decode plausible but unrelated item ids/counts. */
+    if( obj_id < 0 )
+    {
+        rsab_p2(buf, 0);
+        return;
+    }
+    rsab_p2(buf, obj_id + 1);
     rsab_p1(buf, count > 0xff ? 0xff : count);
     if( count >= 0xff )
         rsab_p4(buf, count);

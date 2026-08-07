@@ -44,6 +44,18 @@ mock239_if_button_route(const struct Mock239IfButton* button)
     return MOCK239_IF_ROUTE_COMPONENT;
 }
 
+int
+mock239_if_button_backpack_op(const struct Mock239IfButton* button)
+{
+    if( !button || button->object_id == MOCK239_IF_OBJ_NONE )
+        return 0;
+    if( button->op >= 2 && button->op <= 6 )
+        return button->op - 1;
+    if( button->op == 7 )
+        return 5;
+    return 0;
+}
+
 /** The exact inverse of class617.method13127 (signed ZigZag + unsigned LEB128). */
 static int
 decode_zigzag(

@@ -383,6 +383,9 @@ def main() -> int:
             "slot=5 id=314 qty=5 name=Feather",
         ):
             require(expected in inventory, f"inventory mismatch: missing {expected}")
+        inventory_arm = run("armsub 149 0 0")
+        require("opmask=0x7e" in inventory_arm,
+                f"backpack ObjType actions are visible but client-send blocked: {inventory_arm}")
         run("clickwidgetsub 149 0 0 3")
         inv_menu = run("menu")
         require("[Use|<col=ff9040>Chaos rune</col> type=WIDGET_TARGET" in inv_menu,

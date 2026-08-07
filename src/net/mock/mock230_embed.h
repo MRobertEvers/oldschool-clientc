@@ -48,13 +48,21 @@ struct Mock230Player;
  * Bring up the static data and open one embedded world, with client 0 already
  * connected.
  *
+ * `rev_name` is the connecting client's protocol ("osrs230", "osrs239"). The
+ * embed and its client are two ends of one in-process queue pair, so unlike the
+ * socket server there is no deployment where they may legitimately differ — a
+ * mismatch reads the login block's RSA size out of position and dies as "rsa
+ * decrypt failed". Pass the client's revision and the wire follows it; NULL
+ * falls back to MOCK230_REV, then to the default (hosts with no client
+ * revision of their own, e.g. embed_test).
+ *
  * Returns NULL when the loaders failed hard enough that there is nothing to
  * serve. A missing content tree is *not* that — the server runs without one.
  * Loading is the same sequence the socket server uses (mock230_boot.c), so an
  * embedded world and a socket world differ in no respect but their transport.
  */
 struct Mock230Embed*
-mock230_embed_start(void);
+mock230_embed_start(char const* rev_name);
 
 /**
  * Open another connection to the same world. Returns its client id, or -1.

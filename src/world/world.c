@@ -1628,6 +1628,7 @@ World_PlayerSetAppearance(
     struct World* world,
     int idx,
     int const slots[12],
+    int const identkit[12],
     int const colors[5],
     struct WorldEntityFacet_IdleAnimations const* idle,
     char const* name,
@@ -1641,6 +1642,10 @@ World_PlayerSetAppearance(
 
     if( slots )
         memcpy(player->appearance.slots, slots, sizeof(player->appearance.slots));
+    if( identkit )
+        memcpy(player->appearance.identkit, identkit, sizeof(player->appearance.identkit));
+    else if( slots )
+        memcpy(player->appearance.identkit, slots, sizeof(player->appearance.identkit));
     if( colors )
         memcpy(player->appearance.colors, colors, sizeof(player->appearance.colors));
     if( idle )

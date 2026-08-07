@@ -109,14 +109,22 @@ player_local_tile(
     *out_x = 52;
     *out_z = 52;
     *out_level = 0;
+    if( self->app->npc_update_origin_valid )
+    {
+        *out_x = self->app->npc_update_origin_x;
+        *out_z = self->app->npc_update_origin_z;
+    }
     if( RS_EntitySync_FindPlayer(&self->app->esync, local_player_pid(&self->app->esync), &world_idx, NULL) )
     {
         struct WorldEntity_Player* player =
             World_EntityPoolGet(&self->app->world->entities.player, world_idx);
         if( player )
         {
-            *out_x = player->pathing.route_x[0];
-            *out_z = player->pathing.route_z[0];
+            if( !self->app->npc_update_origin_valid )
+            {
+                *out_x = player->pathing.route_x[0];
+                *out_z = player->pathing.route_z[0];
+            }
             *out_level = player->grid_position.level;
         }
     }

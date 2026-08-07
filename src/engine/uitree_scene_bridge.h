@@ -231,6 +231,21 @@ UITreeSceneBridge_BuildLocalPlayerModel(
     int const colours[5],
     int gender);
 
+/** Build or replace an independently-owned interface player composition at
+ *  `scene_id`. Unlike BuildLocalPlayerModel this never shares a reserved model
+ *  with another widget, so incremental server setters cannot mutate siblings. */
+int
+UITreeSceneBridge_BuildInterfacePlayerModel(
+    struct UITreeSceneBridge* bridge,
+    int scene_id,
+    int const slots[12],
+    int const colours[5],
+    int gender);
+
+/* Per-widget composition models live outside cache ids and the other reserved
+ * composites. App assigns monotonically increasing ids from this base. */
+#define UITREE_SCENE_IF_PLAYER_MODEL_BASE 0x60000000
+
 /**
  * List the cache model ids a design kit set references, so the caller can await
  * the loads before rebuilding. Returns the count written (capped at cap).

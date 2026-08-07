@@ -48,6 +48,10 @@ struct NetTransportEmbed
 {
     struct NetTransport base;
     struct Mock230Embed* embed;
+    /* The client's protocol name, forwarded to mock230_embed_start so the
+     * in-process server's wire always matches the client's. Points into the
+     * static revision table, so no copy is needed. */
+    char const* rev_name;
     int last_status;
     long next_tick_ms;
 };
@@ -91,7 +95,7 @@ embed_poll(
              */
             if( !self->embed )
             {
-                self->embed = mock230_embed_start();
+                self->embed = mock230_embed_start(self->rev_name);
                 if( !self->embed )
                 {
                     fprintf(stderr, "net: embedded server failed to start\n");
@@ -186,13 +190,14 @@ static struct NetTransportVTable const k_embed_vtable = {
 };
 
 struct NetTransport*
-NetTransport_NewEmbed(int default_port)
+NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
     struct NetTransportEmbed* self = calloc(1, sizeof(*self));
 
     (void)default_port; /* nothing to bind, nothing to dial */
     assert(self);
     self->base.vtable = &k_embed_vtable;
+    self->rev_name = rev_name;
     self->last_status = -1;
     /* The server is started on CONNECT rather than here, so a client that never
      * logs in does not pay for loading the cache and the content tree. */
@@ -216,9 +221,10 @@ NetTransport_NewEmbed(int default_port)
  * work out why a manifest that says `transport=embed` is dialling port 43594.
  */
 struct NetTransport*
-NetTransport_NewEmbed(int default_port)
+NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
     (void)default_port;
+    (void)rev_name;
     fprintf(stderr,
             "net: this build has no embedded server — rebuild with "
             "`make -C src torirs EMBED_SERVER=1`\n");

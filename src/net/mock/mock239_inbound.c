@@ -1,6 +1,7 @@
 #include "net/mock/mock239_inbound.h"
 
 #include "net/mock/mock239_interface_inbound.h"
+#include "net/jbase37.h"
 #include "net/rev/pktnames.h"
 
 #include <rsareabuf.h>
@@ -32,6 +33,18 @@ passthrough(
     memcpy(out, in, (size_t)in_len);
     *out_len = in_len;
     return 1;
+}
+
+static int
+nul_prefix(uint8_t const* in, int in_len, int* text_len)
+{
+    for( int i = 0; i < in_len; i++ )
+        if( in[i] == 0 )
+        {
+            *text_len = i;
+            return 1;
+        }
+    return 0;
 }
 
 /**
@@ -203,9 +216,20 @@ mock239_inbound_translate(
     case PKTOUT_NAME_OPNPC4:
     case PKTOUT_NAME_OPNPC5:
     {
-        int index = rsab_g2_alt1(&r);
-        (void)rsab_g1_alt2(&r); /* subop */
-        (void)rsab_g1_alt3(&r); /* ctrl */
+        int index = -1;
+        switch( name )
+        {
+        case PKTOUT_NAME_OPNPC1:
+            index = rsab_g2_alt1(&r); (void)rsab_g1_alt2(&r); (void)rsab_g1_alt3(&r); break;
+        case PKTOUT_NAME_OPNPC2:
+            index = rsab_g2_alt3(&r); (void)rsab_g1_alt2(&r); (void)rsab_g1_alt3(&r); break;
+        case PKTOUT_NAME_OPNPC3:
+            (void)rsab_g1_alt2(&r); (void)rsab_g1_alt3(&r); index = rsab_g2_alt2(&r); break;
+        case PKTOUT_NAME_OPNPC4:
+            (void)rsab_g1_alt1(&r); index = rsab_g2(&r); (void)rsab_g1_alt2(&r); break;
+        default:
+            (void)rsab_g1_alt1(&r); (void)rsab_g1_alt2(&r); index = rsab_g2_alt2(&r); break;
+        }
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         rsab_p2(&w, (uint16_t)index);
@@ -221,16 +245,27 @@ mock239_inbound_translate(
     case PKTOUT_NAME_OPLOC4:
     case PKTOUT_NAME_OPLOC5:
     {
-        int z = rsab_g2_alt2(&r);
-        int x = rsab_g2_alt1(&r);
-        (void)rsab_g1_alt1(&r); /* ctrl */
-        (void)rsab_g1_alt1(&r); /* subop */
+        int x = 0, z = 0, id = 0;
+        switch( name )
         {
-            int id = rsab_g2(&r);
-            if( !rsab_ok(&r) )
-                return PKTOUT_NAME_NONE;
-            put_tile_target(&w, x, z, id);
+        case PKTOUT_NAME_OPLOC1:
+            z=rsab_g2_alt2(&r); x=rsab_g2_alt1(&r); (void)rsab_g1_alt1(&r);
+            (void)rsab_g1_alt1(&r); id=rsab_g2(&r); break;
+        case PKTOUT_NAME_OPLOC2:
+            z=rsab_g2_alt3(&r); id=rsab_g2_alt3(&r); x=rsab_g2(&r);
+            (void)rsab_g1_alt2(&r); (void)rsab_g1(&r); break;
+        case PKTOUT_NAME_OPLOC3:
+            id=rsab_g2_alt2(&r); (void)rsab_g1_alt3(&r); (void)rsab_g1(&r);
+            z=rsab_g2_alt3(&r); x=rsab_g2_alt2(&r); break;
+        case PKTOUT_NAME_OPLOC4:
+            (void)rsab_g1_alt1(&r); x=rsab_g2_alt1(&r); id=rsab_g2_alt3(&r);
+            (void)rsab_g1_alt2(&r); z=rsab_g2(&r); break;
+        default:
+            z=rsab_g2_alt3(&r); x=rsab_g2_alt1(&r); (void)rsab_g1_alt1(&r);
+            (void)rsab_g1_alt2(&r); id=rsab_g2(&r); break;
         }
+        if( !rsab_ok(&r) ) return PKTOUT_NAME_NONE;
+        put_tile_target(&w, x, z, id);
         *out_len = (int)rsab_len(&w);
         return name;
     }
@@ -243,16 +278,49 @@ mock239_inbound_translate(
     case PKTOUT_NAME_OPOBJ4:
     case PKTOUT_NAME_OPOBJ5:
     {
-        int id = rsab_g2_alt2(&r);
-        int z;
-        int x;
-        (void)rsab_g1_alt3(&r); /* subop */
-        z = rsab_g2_alt2(&r);
-        (void)rsab_g1_alt3(&r); /* ctrl */
-        x = rsab_g2(&r);
+        int x = 0, z = 0, id = 0;
+        switch( name )
+        {
+        case PKTOUT_NAME_OPOBJ1:
+            id=rsab_g2_alt2(&r); (void)rsab_g1_alt3(&r); z=rsab_g2_alt2(&r);
+            (void)rsab_g1_alt3(&r); x=rsab_g2(&r); break;
+        case PKTOUT_NAME_OPOBJ2:
+            (void)rsab_g1_alt1(&r); (void)rsab_g1_alt3(&r); z=rsab_g2(&r);
+            id=rsab_g2_alt1(&r); x=rsab_g2_alt3(&r); break;
+        case PKTOUT_NAME_OPOBJ3:
+            (void)rsab_g1_alt1(&r); x=rsab_g2_alt1(&r); id=rsab_g2_alt3(&r);
+            (void)rsab_g1_alt1(&r); z=rsab_g2_alt2(&r); break;
+        case PKTOUT_NAME_OPOBJ4:
+            (void)rsab_g1_alt3(&r); id=rsab_g2(&r); x=rsab_g2(&r);
+            z=rsab_g2_alt1(&r); (void)rsab_g1_alt2(&r); break;
+        default:
+            (void)rsab_g1_alt2(&r); x=rsab_g2_alt2(&r); id=rsab_g2(&r);
+            z=rsab_g2_alt3(&r); (void)rsab_g1_alt1(&r); break;
+        }
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         put_tile_target(&w, x, z, id);
+        *out_len = (int)rsab_len(&w);
+        return name;
+    }
+
+    case PKTOUT_NAME_OPPLAYER1:
+    case PKTOUT_NAME_OPPLAYER2:
+    case PKTOUT_NAME_OPPLAYER3:
+    case PKTOUT_NAME_OPPLAYER4:
+    case PKTOUT_NAME_OPPLAYER5:
+    {
+        int index = -1;
+        switch( name )
+        {
+        case PKTOUT_NAME_OPPLAYER1: (void)rsab_g1_alt3(&r); index=rsab_g2_alt1(&r); break;
+        case PKTOUT_NAME_OPPLAYER2: index=rsab_g2_alt1(&r); (void)rsab_g1_alt2(&r); break;
+        case PKTOUT_NAME_OPPLAYER3: (void)rsab_g1_alt2(&r); index=rsab_g2_alt3(&r); break;
+        case PKTOUT_NAME_OPPLAYER4: index=rsab_g2(&r); (void)rsab_g1(&r); break;
+        default: (void)rsab_g1_alt3(&r); index=rsab_g2(&r); break;
+        }
+        if( !rsab_ok(&r) ) return PKTOUT_NAME_NONE;
+        rsab_p2(&w, (uint16_t)index);
         *out_len = (int)rsab_len(&w);
         return name;
     }
@@ -448,6 +516,70 @@ mock239_inbound_translate(
         return name;
     }
 
+    /* Modern social mutations carry a NUL-terminated display name; the
+     * embedded classic world service consumes the equivalent base-37 p8. */
+    case PKTOUT_NAME_FRIENDLIST_ADD:
+    case PKTOUT_NAME_FRIENDLIST_DEL:
+    case PKTOUT_NAME_IGNORELIST_ADD:
+    case PKTOUT_NAME_IGNORELIST_DEL:
+    {
+        char text[32];
+        int text_len;
+        uint64_t name37;
+
+        if( !nul_prefix(in, in_len, &text_len) || text_len + 1 != in_len ||
+            text_len <= 0 || text_len >= (int)sizeof(text) )
+            return PKTOUT_NAME_NONE;
+        memcpy(text, in, (size_t)text_len);
+        text[text_len] = '\0';
+        name37 = strtobase37(text);
+        if( name37 == 0 || out_cap < 8 )
+            return PKTOUT_NAME_NONE;
+        rsab_p8(&w, name37);
+        *out_len = (int)rsab_len(&w);
+        return name;
+    }
+
+    /* CLIENT_CHEAT changed only its string terminator. Normalize it for the
+     * embedded world's classic gjstr reader after validating the entire body. */
+    case PKTOUT_NAME_CLIENT_CHEAT:
+    {
+        int text_len;
+
+        if( !nul_prefix(in, in_len, &text_len) || text_len + 1 != in_len ||
+            text_len + 1 > out_cap )
+            return PKTOUT_NAME_NONE;
+        memcpy(out, in, (size_t)text_len);
+        out[text_len] = '\n';
+        *out_len = text_len + 1;
+        return name;
+    }
+
+    /* MESSAGE_PRIVATE changed from p8 recipient to NUL name. Its Huffman tail
+     * is unchanged, so translate only the address and preserve packed bytes. */
+    case PKTOUT_NAME_MESSAGE_PRIVATE:
+    {
+        char text[32];
+        int text_len;
+        uint64_t name37;
+        int packed_len;
+
+        if( !nul_prefix(in, in_len, &text_len) || text_len <= 0 ||
+            text_len >= (int)sizeof(text) )
+            return PKTOUT_NAME_NONE;
+        memcpy(text, in, (size_t)text_len);
+        text[text_len] = '\0';
+        name37 = strtobase37(text);
+        packed_len = in_len - text_len - 1;
+        if( name37 == 0 || packed_len < 0 || 8 + packed_len > out_cap )
+            return PKTOUT_NAME_NONE;
+        rsab_p8(&w, name37);
+        for( int i = 0; i < packed_len; i++ )
+            rsab_p1(&w, in[text_len + 1 + i]);
+        *out_len = (int)rsab_len(&w);
+        return name;
+    }
+
     /*
      * Verified identical at both revisions, one decoder at a time, and listed
      * rather than left to fall through so that "unchanged" is a claim someone
@@ -460,10 +592,6 @@ mock239_inbound_translate(
      *   RESUME_P_COUNTDIALOG g4
      *   CLOSE_MODAL         empty
      *   WINDOW_STATUS       g1, g2, g2
-     *   CLIENT_CHEAT        gjstr
-     *   FRIENDLIST_ADD/DEL  gjstr
-     *   IGNORELIST_ADD/DEL  gjstr
-     *   MESSAGE_PRIVATE     gjstr + huffman
      *   CHAT_SETMODE        three bytes
      */
     case PKTOUT_NAME_IF_BUTTON:
@@ -476,12 +604,6 @@ mock239_inbound_translate(
     case PKTOUT_NAME_MAP_BUILD_COMPLETE:
     case PKTOUT_NAME_EVENT_APPLET_FOCUS:
     case PKTOUT_NAME_WINDOW_STATUS:
-    case PKTOUT_NAME_CLIENT_CHEAT:
-    case PKTOUT_NAME_FRIENDLIST_ADD:
-    case PKTOUT_NAME_FRIENDLIST_DEL:
-    case PKTOUT_NAME_IGNORELIST_ADD:
-    case PKTOUT_NAME_IGNORELIST_DEL:
-    case PKTOUT_NAME_MESSAGE_PRIVATE:
     case PKTOUT_NAME_CHAT_SETMODE:
         if( !passthrough(in, in_len, out, out_cap, out_len) )
             return PKTOUT_NAME_NONE;

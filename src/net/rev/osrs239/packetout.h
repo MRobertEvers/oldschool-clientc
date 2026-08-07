@@ -16,11 +16,11 @@
  * `name` is PKTOUT_NAME_NONE for prots this engine never builds.
  *
  * Canonical names with NO row in this revision, and what replaced them:
- *   OPHELD1          -> IF_BUTTONX op 1 on the inventory component
- *   OPHELD2          -> IF_BUTTONX op 2
- *   OPHELD3          -> IF_BUTTONX op 3
- *   OPHELD4          -> IF_BUTTONX op 4
- *   OPHELD5          -> IF_BUTTONX op 5
+ *   OPHELD1          -> IF_BUTTONX op 2 on the backpack component
+ *   OPHELD2          -> IF_BUTTONX op 3
+ *   OPHELD3          -> IF_BUTTONX op 4
+ *   OPHELD4          -> IF_BUTTONX op 5
+ *   OPHELD5          -> IF_BUTTONX op 6 (the golden client's default Drop is op 7)
  *   OPHELDT          -> IF_BUTTONT
  *   OPHELDU          -> IF_SUBOP / IF_BUTTONT
  *   INV_BUTTON1      -> IF_BUTTONX

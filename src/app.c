@@ -221,28 +221,57 @@ App_IfEventsSet(
     int to,
     int events)
 {
-    int i;
+    struct AppIfEvents* replacement;
+    int replacement_count = 0;
+    int replacement_cap;
 
     assert(app);
-    for( i = 0; i < app->if_event_count; i++ )
-        if( app->if_events[i].com_id == com_id )
-            break;
-    if( i == app->if_event_count )
+    if( from > to )
     {
-        if( app->if_event_count == app->if_event_cap )
-        {
-            int cap = app->if_event_cap ? app->if_event_cap * 2 : 64;
-
-            app->if_events = realloc(app->if_events, (size_t)cap * sizeof(*app->if_events));
-            assert(app->if_events);
-            app->if_event_cap = cap;
-        }
-        app->if_events[i].com_id = com_id;
-        app->if_event_count++;
+        int swap = from;
+        from = to;
+        to = swap;
     }
-    app->if_events[i].from = from;
-    app->if_events[i].to = to;
-    app->if_events[i].events = events;
+
+    /* IfSetEventsV2 replaces only the addressed interval. Preserve the pieces
+     * on either side of an overlap; one component may have many independently
+     * armed dynamic-child ranges. */
+    replacement_cap = app->if_event_count + 3;
+    replacement = malloc((size_t)replacement_cap * sizeof(*replacement));
+    assert(replacement);
+    for( int i = 0; i < app->if_event_count; i++ )
+    {
+        struct AppIfEvents old = app->if_events[i];
+        int old_from = old.from;
+        int old_to = old.to;
+
+        if( old.com_id != com_id || old.to < from || old.from > to )
+        {
+            replacement[replacement_count++] = old;
+            continue;
+        }
+        if( old_from < from )
+        {
+            old.from = old_from;
+            old.to = from - 1;
+            replacement[replacement_count++] = old;
+        }
+        if( old_to > to )
+        {
+            old.to = old_to;
+            old.from = to + 1;
+            replacement[replacement_count++] = old;
+        }
+    }
+    replacement[replacement_count].com_id = com_id;
+    replacement[replacement_count].from = from;
+    replacement[replacement_count].to = to;
+    replacement[replacement_count].events = events;
+    replacement_count++;
+    free(app->if_events);
+    app->if_events = replacement;
+    app->if_event_count = replacement_count;
+    app->if_event_cap = replacement_cap;
 
     if( getenv("TORIRS_NET_DEBUG") )
         fprintf(
@@ -281,7 +310,8 @@ App_IfEventsGet(
         return 0;
     for( int i = 0; i < app->if_event_count; i++ )
     {
-        if( app->if_events[i].com_id == com_id )
+        if( app->if_events[i].com_id == com_id &&
+            app->if_events[i].from <= -1 && app->if_events[i].to >= -1 )
             return app->if_events[i].events;
     }
     return 0;
@@ -363,7 +393,7 @@ app_if_events_for_node(
         if( app->if_events[i].com_id != target )
             continue;
         if( sub < app->if_events[i].from || sub > app->if_events[i].to )
-            return 0;
+            continue;
         return (unsigned)app->if_events[i].events;
     }
     return 0;
@@ -3326,6 +3356,7 @@ App_Shutdown(struct App* app)
     /* After the queues: freeing a task releases its VM back into the pool. */
     CS2VM2_PoolDrain();
     free(app->if_heads);
+    free(app->if_player_models);
     free(app->if_hides);
 }
 
@@ -5063,8 +5094,14 @@ app_logic_tick(struct App* app)
          * (the dev server grants staffmod, so tele/give work). The manifest's
          * `[net:boot] cheat=` is the same hook with env > manifest precedence.
          * TORIRS_NET_CHEAT_EVERY=N: re-send the same cheats every N logic
-         * cycles (menu open/close churn in drift-ui). N<=0 keeps one-shot. */
-        if( app->net->state == TORIRS_NET_GAME )
+         * cycles (menu open/close churn in drift-ui). N<=0 keeps one-shot.
+         *
+         * Gated on the first world load, not just on login: the rev-239 mock
+         * holds a login scene barrier until the client acks with MAP_BUILD_
+         * COMPLETE and *discards* what arrives before it. A human cannot type
+         * before the scene is up either, so this is the reference timing —
+         * without it the one-shot boot cheat is silently eaten every run. */
+        if( app->net->state == TORIRS_NET_GAME && app->world_active )
         {
             static int cheat_every = -1;
             char const* cheat = getenv("TORIRS_NET_CHEAT");
@@ -8736,6 +8773,9 @@ enum AppIfHeadKind
      * model bound to a MODEL widget — e.g. the combat-tab weapon. npc_id
      * carries the obj id; zoom carries the wire zoom. */
     APP_IFHEAD_OBJ,
+    /* IF_SETMODEL (reference IfType model1Type 1): npc_id carries the raw
+     * cache model id. */
+    APP_IFHEAD_MODEL,
 };
 
 #define APP_IFHEAD_MAX_HEADS 24
@@ -8793,6 +8833,11 @@ Task_AppIfHead_Run(
                     CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
         }
         scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, self->npc_id);
+    }
+    else if( self->kind == APP_IFHEAD_MODEL )
+    {
+        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->npc_id));
+        scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, self->npc_id);
     }
     else
     {
@@ -8911,6 +8956,284 @@ app_if_head_store(
     app->need_redraw = 1;
 }
 
+/* ---- Revision-239 per-widget player compositions ----------------------- */
+
+enum AppIfPlayerModelOp
+{
+    APP_IFPLAYER_SELF = 0,
+    APP_IFPLAYER_BASECOLOUR,
+    APP_IFPLAYER_BODYTYPE,
+    APP_IFPLAYER_OBJ,
+};
+
+enum
+{
+    APP_IFPLAYER_MAX_MODELS = 64,
+};
+
+/* PlayerComposition's seven design-part -> equipment-slot table
+ * (Statics.method8884 / class389.field4882 in the 239 client). */
+static int const app_ifplayer_design_slots[PLAYER_APPEARANCE_PARTS] = {
+    8, 11, 4, 6, 9, 7, 10,
+};
+
+static struct AppIfPlayerModel*
+app_if_player_model_find(
+    struct App* app,
+    int com_id)
+{
+    for( int i = 0; i < app->if_player_model_count; i++ )
+        if( app->if_player_models[i].com_id == com_id )
+            return &app->if_player_models[i];
+    return NULL;
+}
+
+/* Modern IfType creates its PlayerComposition by cloning the local player.
+ * Keep both arrays: slots is the effective render layer, while identkit is the
+ * body-under-equipment layer SELF(false) and BODYTYPE restore from. */
+static struct AppIfPlayerModel*
+app_if_player_model_get(
+    struct App* app,
+    int com_id)
+{
+    struct AppIfPlayerModel* model = app_if_player_model_find(app, com_id);
+    struct WorldEntity_Player* lp;
+    int i;
+
+    if( model )
+        return model;
+    lp = app_local_player(app);
+    if( !lp )
+        return NULL;
+
+    i = app->if_player_model_count;
+    if( i == app->if_player_model_cap )
+    {
+        int cap = app->if_player_model_cap ? app->if_player_model_cap * 2 : 8;
+        app->if_player_models =
+            realloc(app->if_player_models, (size_t)cap * sizeof(*app->if_player_models));
+        assert(app->if_player_models);
+        app->if_player_model_cap = cap;
+    }
+    model = &app->if_player_models[i];
+    memset(model, 0, sizeof(*model));
+    model->com_id = com_id;
+    model->scene_id = UITREE_SCENE_IF_PLAYER_MODEL_BASE + i;
+    model->anim_id = -1;
+    memcpy(model->slots, lp->appearance.slots, sizeof(model->slots));
+    memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
+    memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
+    model->gender = lp->gender;
+    app->if_player_model_count++;
+    return model;
+}
+
+static int
+app_if_player_model_find_kit(
+    struct App* app,
+    int design_part,
+    int body_type)
+{
+    /* IdkType.method8644(part, gender): female body-part ids are male + 7;
+     * every other body type selects the male band. The reference takes the
+     * first selectable id in config order. */
+    int body_part_id = design_part + (body_type == 1 ? PLAYER_APPEARANCE_PARTS : 0);
+    for( int id = 0; id < PLAYER_IDK_SCAN_MAX; id++ )
+    {
+        struct ToriRS_Idk* idk;
+        if( !CacheProvider_IdkHas(app->provider, id) )
+            break;
+        idk = CacheProvider_IdkGet(app->provider, id);
+        if( idk && !idk->not_selectable && idk->body_part_id == body_part_id )
+            return id;
+    }
+    return -1;
+}
+
+struct Task_AppIfPlayerModel
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    enum AppIfPlayerModelOp op;
+    int component_id;
+    int arg0;
+    int arg1;
+    int cfg_i;
+    int model_i;
+    int model_count;
+    int model_ids[APP_IFPLAYER_MAX_MODELS];
+    int slots[12];
+    int colors[5];
+    int gender;
+    uint32_t version;
+};
+
+static int
+Task_AppIfPlayerModel_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppIfPlayerModel* self = (struct Task_AppIfPlayerModel*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+
+    /* BODYTYPE scans the complete idk table; OBJ needs its wearpos triplet.
+     * The task sits on the serial packet executor, preserving wire order while
+     * either config load yields. */
+    if( self->op == APP_IFPLAYER_BODYTYPE )
+        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+    else if( self->op == APP_IFPLAYER_OBJ )
+        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
+
+    {
+        struct AppIfPlayerModel* model =
+            app_if_player_model_get(app, self->component_id);
+        struct WorldEntity_Player* lp = app_local_player(app);
+        if( !model || !lp )
+            PT_EXIT(&self->pt);
+
+        if( self->op == APP_IFPLAYER_SELF )
+        {
+            memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
+            memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
+            model->gender = lp->gender;
+            memcpy(
+                model->slots,
+                self->arg0 ? lp->appearance.slots : lp->appearance.identkit,
+                sizeof(model->slots));
+        }
+        else if( self->op == APP_IFPLAYER_BASECOLOUR )
+        {
+            if( self->arg0 >= 0 && self->arg0 < 5 )
+                model->colors[self->arg0] = self->arg1;
+        }
+        else if( self->op == APP_IFPLAYER_BODYTYPE )
+        {
+            int body_type = self->arg0;
+            if( model->gender != body_type )
+            {
+                model->gender = body_type;
+                for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
+                {
+                    int slot = app_ifplayer_design_slots[part];
+                    /* PlayerComposition only remaps a design-kit value. Worn
+                     * objs remain exactly where they are. Returning to the
+                     * local player's type restores the cloned underneath kit;
+                     * switching away takes the first selectable target kit. */
+                    if( Appearance_SlotKind(model->slots[slot]) != APPEARANCE_SLOT_KIT )
+                        continue;
+                    if( body_type == lp->gender )
+                    {
+                        model->slots[slot] = model->identkit[slot];
+                    }
+                    else
+                    {
+                        int id = app_if_player_model_find_kit(app, part, body_type);
+                        if( id >= 0 )
+                            model->slots[slot] = Appearance_PackKit(id);
+                    }
+                }
+            }
+        }
+        else
+        {
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(app->provider, self->arg0);
+            if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
+            {
+                model->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
+                if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
+                    model->slots[obj->wearpos2] = 0;
+                if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
+                    model->slots[obj->wearpos3] = 0;
+            }
+        }
+
+        model->version++;
+        if( model->version == 0 )
+            model->version = 1;
+        self->version = model->version;
+        memcpy(self->slots, model->slots, sizeof(self->slots));
+        memcpy(self->colors, model->colors, sizeof(self->colors));
+        self->gender = model->gender;
+    }
+
+    /* Resolve all configs referenced by the snapshot before collecting model
+     * ids. PlayerAppearanceLoad supplies the full idk table; worn objects are
+     * loaded individually, then every gendered wear model is awaited. */
+    TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+    for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
+    {
+        if( Appearance_SlotKind(self->slots[self->cfg_i]) == APPEARANCE_SLOT_OBJ )
+            TASK_AWAITSELF_IF(CreateTask_ObjLoad(
+                app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
+    }
+    self->model_count = PlayerModel_CollectAppearanceModelIds(
+        app->provider,
+        self->slots,
+        self->gender,
+        self->model_ids,
+        APP_IFPLAYER_MAX_MODELS);
+    for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
+        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
+
+    {
+        struct AppIfPlayerModel* model =
+            app_if_player_model_find(app, self->component_id);
+        /* A stale build must never overwrite a newer composition. This is
+         * mostly defensive—the packet queue is serial—but also makes direct
+         * harness calls deterministic. */
+        if( model && model->version == self->version &&
+            UITreeSceneBridge_BuildInterfacePlayerModel(
+                &app->bridge,
+                model->scene_id,
+                self->slots,
+                self->colors,
+                self->gender) >= 0 )
+        {
+            model->built_version = self->version;
+            model->applied_gen = 0;
+            app->need_redraw = 1;
+        }
+    }
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_AppIfPlayerModel_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppIfPlayerModel_VTable = {
+    .run = Task_AppIfPlayerModel_Run,
+    .free = Task_AppIfPlayerModel_Free,
+};
+
+static void
+app_if_player_model_enqueue(
+    struct App* app,
+    enum AppIfPlayerModelOp op,
+    int component_id,
+    int arg0,
+    int arg1)
+{
+    struct Task_AppIfPlayerModel* task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppIfPlayerModel_VTable;
+    strncpy(task->task.name, "AppIfPlayerModel", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->op = op;
+    task->component_id = component_id;
+    task->arg0 = arg0;
+    task->arg1 = arg1;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
 void
 App_SetInterfaceNpcHead(
     struct App* app,
@@ -8932,6 +9255,65 @@ App_SetInterfacePlayerHead(
     assert(app);
     app_if_head_store(app, APP_IFHEAD_PLAYER, component_id, -1);
     app_if_head_enqueue(app, APP_IFHEAD_PLAYER, component_id, -1);
+}
+
+void
+App_SetInterfacePlayerModelSelf(
+    struct App* app,
+    int component_id,
+    int copy_objs)
+{
+    assert(app);
+    app_if_player_model_enqueue(
+        app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
+}
+
+void
+App_SetInterfacePlayerModelBaseColour(
+    struct App* app,
+    int component_id,
+    int index,
+    int colour)
+{
+    assert(app);
+    app_if_player_model_enqueue(
+        app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
+}
+
+void
+App_SetInterfacePlayerModelBodyType(
+    struct App* app,
+    int component_id,
+    int body_type)
+{
+    assert(app);
+    app_if_player_model_enqueue(
+        app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
+}
+
+void
+App_SetInterfacePlayerModelObj(
+    struct App* app,
+    int component_id,
+    int obj_id)
+{
+    assert(app);
+    if( obj_id < 0 )
+        return;
+    app_if_player_model_enqueue(app, APP_IFPLAYER_OBJ, component_id, obj_id, 0);
+}
+
+void
+App_SetInterfaceModel(
+    struct App* app,
+    int component_id,
+    int model_id)
+{
+    assert(app);
+    if( model_id < 0 )
+        return;
+    app_if_head_store(app, APP_IFHEAD_MODEL, component_id, model_id);
+    app_if_head_enqueue(app, APP_IFHEAD_MODEL, component_id, model_id);
 }
 
 void
@@ -8986,6 +9368,10 @@ app_if_head_poll(struct App* app)
         {
             scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, head->npc_id);
         }
+        else if( head->kind == APP_IFHEAD_MODEL )
+        {
+            scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, head->npc_id);
+        }
         else
         {
             scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, head->npc_id);
@@ -9019,6 +9405,36 @@ app_if_head_poll(struct App* app)
                 "if-head: reapply com=%d npc=%d gen=%u missed (node not mounted?)\n",
                 head->com_id,
                 head->npc_id,
+                app->tree->generation);
+    }
+}
+
+/* Bind completed per-widget compositions after the target interface mounts,
+ * and again after every tree rebuild. The composition stays in its own scene
+ * slot; applying it only changes the addressed IfType. */
+static void
+app_if_player_model_poll(struct App* app)
+{
+    if( !app->tree )
+        return;
+    for( int i = 0; i < app->if_player_model_count; i++ )
+    {
+        struct AppIfPlayerModel* model = &app->if_player_models[i];
+        if( model->built_version == 0 || model->built_version != model->version ||
+            model->applied_gen == app->tree->generation )
+            continue;
+        if( UITree_ApplyModel(app->tree, model->com_id, model->scene_id) )
+        {
+            if( model->anim_id >= 0 )
+                UITree_ApplyModelAnim(app->tree, model->com_id, model->anim_id);
+            model->applied_gen = app->tree->generation;
+        }
+        else if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "if-player-model: reapply com=%d scene=%d gen=%u missed\n",
+                model->com_id,
+                model->scene_id,
                 app->tree->generation);
     }
 }
@@ -9184,6 +9600,16 @@ App_SetInterfaceModelAnim(
         {
             app->if_heads[i].anim_id = anim_id;
             app->if_heads[i].applied_gen = 0;
+            app->need_redraw = 1;
+            break;
+        }
+    }
+    for( int i = 0; i < app->if_player_model_count; i++ )
+    {
+        if( app->if_player_models[i].com_id == component_id )
+        {
+            app->if_player_models[i].anim_id = anim_id;
+            app->if_player_models[i].applied_gen = 0;
             app->need_redraw = 1;
             break;
         }
@@ -12571,8 +12997,9 @@ App_RunOnce(
                         app->tree->generation);
             }
         }
-        /* Rebind chatheads onto their (possibly newly mounted) MODEL nodes. */
+        /* Rebind persistent models onto their (possibly newly mounted) nodes. */
         app_if_head_poll(app);
+        app_if_player_model_poll(app);
         app_chat_build_view(app);
         /* TORIRS_FORCE_SHOW_SLOT=<component_id> (debug): clear the hide flag on one
          * mounted node each frame so a panel the gameframe keeps hidden can still be
@@ -13609,6 +14036,7 @@ App_WorldApplyPlayerAppearance(
             app->world,
             world_idx,
             appearance->slots,
+            appearance->identkit,
             appearance->colors,
             &idle,
             appearance->name,

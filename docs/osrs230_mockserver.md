@@ -52,6 +52,13 @@ src/torirs --manifest manifest_osrs230.ini --user test --pass test
 `::fight <slot>`, `::style <0-3>`, `::setlevel <stat> <level>`, `::item <id>
 [count]`, `::tele <x> <z>`, `::npc <type>`.
 
+If a typed command performs an emote or leaves no server log, inspect the client
+packet boundary before the debugproc: [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md)
+records the `::crystal_set`/`cry` collision, opcode-34 proof, duplicate-command
+compiler guard, cache rebuild rule, and the reusable silent-command decision
+table. Every command that does reach this server is logged as `ran`, `FAILED`,
+or `not found`; true silence means the server did not receive it.
+
 Layout:
 
 | file | contents |

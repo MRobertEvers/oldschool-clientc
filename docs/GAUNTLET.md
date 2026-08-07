@@ -71,6 +71,12 @@ by singing / drain paths.
 - `::gauntletreward` — flag reward chest (normal completion)
 - `::crystalsing` — shards/seeds/tools + tele near Prif bowl
 
+`::crystal_set` deliberately does **not** live in Gauntlet. It is owned once by
+`skill_combat/scripts/player/crystal_set.rs2`; a former duplicate here made the
+effective command depend on compile order. The compiler now rejects duplicate
+debug commands. See [`CRYSTAL_SET_COMMAND.md`](CRYSTAL_SET_COMMAND.md) for the
+client-side `cry` prefix collision and all permanent guards.
+
 ## Still deferred
 
 - Elite clue tertiary / incomplete adamant set reward rows

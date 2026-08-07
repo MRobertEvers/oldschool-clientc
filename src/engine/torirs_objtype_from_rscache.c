@@ -55,6 +55,9 @@ ToriRS_ObjtypeFromRSCacheDat1(
 
     objtype = calloc(1, sizeof(*objtype));
     assert(objtype);
+    objtype->wearpos = -1;
+    objtype->wearpos2 = -1;
+    objtype->wearpos3 = -1;
 
     objtype->id = obj_id;
     if( src->name )
@@ -155,6 +158,9 @@ ToriRS_ObjtypeFromRSCacheDat2(
 
     objtype = calloc(1, sizeof(*objtype));
     assert(objtype);
+    objtype->wearpos = src->wearpos_1;
+    objtype->wearpos2 = src->wearpos_2;
+    objtype->wearpos3 = src->wearpos_3;
 
     objtype->id = obj_id;
     if( src->name )

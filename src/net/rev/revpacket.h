@@ -149,6 +149,38 @@ struct PktIfSetEvents
     int from;
     int to;
     int events;
+    uint32_t events1;
+    uint32_t events2;
+};
+
+struct PktIfResyncMount
+{
+    int target_uid;
+    int interface_id;
+    int type;
+};
+
+struct PktIfResyncEvent
+{
+    int component_id;
+    int from;
+    int to;
+    uint32_t events1;
+    uint32_t events2;
+};
+
+struct PktIfResync
+{
+    int root_interface_id;
+    int mount_count;
+    struct PktIfResyncMount* mounts;
+    int event_count;
+    struct PktIfResyncEvent* events;
+};
+
+struct PktIfClearInv
+{
+    int component_id;
 };
 
 struct PktIfSetObject
@@ -198,6 +230,34 @@ struct PktIfSetScrollPos
 {
     int component_id; /* g2 */
     int pos;          /* g2 */
+};
+
+struct PktIfSetRotateSpeed
+{
+    int component_id;
+    int x_speed;
+    int y_speed;
+};
+
+struct PktIfSetAngle
+{
+    int component_id;
+    int zoom;
+    int angle_x;
+    int angle_y;
+};
+
+struct PktIfSetNpcHeadActive
+{
+    int component_id;
+    int index;
+};
+
+struct PktIfSetPlayerModel
+{
+    int component_id;
+    int index;
+    int value;
 };
 
 struct PktMessageGame
@@ -361,20 +421,28 @@ struct PktUpdateZoneEnclosed
 
 struct PktCamLookAt
 {
-    int local_x; /* g1 */
-    int local_z; /* g1 */
+    int local_x; /* g1 (classic) / g2 world tile (V2, absolute=1) */
+    int local_z; /* g1 (classic) / g2 world tile (V2, absolute=1) */
     int height;  /* g2 */
     int rate;    /* g1 */
     int rate2;   /* g1 */
+    /* V2 (rev 239) carries ABSOLUTE world tiles — "a specific coordinate in
+     * the root world" — where the classic byte pair is scene-local 0..103.
+     * The exec subtracts the live scene base when this is set; treating the
+     * absolute pair as scene-local renders as a black viewport, not as
+     * anything that looks like a camera bug. */
+    int absolute;
 };
 
 struct PktCamMoveTo
 {
-    int local_x; /* g1 */
-    int local_z; /* g1 */
+    int local_x; /* g1 (classic) / g2 world tile (V2, absolute=1) */
+    int local_z; /* g1 (classic) / g2 world tile (V2, absolute=1) */
     int height;  /* g2 */
     int rate;    /* g1 */
     int rate2;   /* g1 */
+    /* See PktCamLookAt.absolute. */
+    int absolute;
 };
 
 struct PktCamShake
@@ -499,6 +567,13 @@ struct PktUpdateFriendList
 {
     int64_t name37; /* g8 */
     int world;      /* g1: 0=offline, >0 world/node id */
+    int present;    /* 239 permits an empty update to complete initial sync */
+};
+
+struct PktSetNpcUpdateOrigin
+{
+    int x;
+    int z;
 };
 
 struct PktFriendListLoaded
@@ -662,6 +737,8 @@ struct RevPacket
         struct PktIfSetColour _if_setcolour;
         struct PktIfSetHide _if_sethide;
         struct PktIfSetEvents _if_setevents;
+        struct PktIfResync _if_resync;
+        struct PktIfClearInv _if_clearinv;
         struct PktIfSetObject _if_setobject;
         struct PktIfSetModel _if_setmodel;
         struct PktIfSetAnim _if_setanim;
@@ -670,6 +747,10 @@ struct RevPacket
         struct PktIfSetNpcHead _if_setnpchead;
         struct PktIfSetPosition _if_setposition;
         struct PktIfSetScrollPos _if_setscrollpos;
+        struct PktIfSetRotateSpeed _if_setrotatespeed;
+        struct PktIfSetAngle _if_setangle;
+        struct PktIfSetNpcHeadActive _if_setnpchead_active;
+        struct PktIfSetPlayerModel _if_setplayermodel;
         struct PktMessageGame _message_game;
         struct PktMessagePrivate _message_private;
         struct PktChatFilterSettings _chat_filter_settings;
@@ -716,6 +797,7 @@ struct RevPacket
         struct PktSetMapFlag _set_map_flag;
         struct PktSetPlayerOp _set_player_op;
         struct PktRunClientScript _runclientscript;
+        struct PktSetNpcUpdateOrigin _set_npc_update_origin;
     };
 };
 
