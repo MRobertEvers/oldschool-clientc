@@ -94,6 +94,44 @@ The integration requires these cooperating components:
 
 ## Major findings
 
+### Revision-239 actor facing uses one generic block, not legacy masks
+
+The V3 mock sent revision-230 `FACE_ENTITY` and `FACE_COORD` fields (or
+omitted them for NPCs) while the authoritative revision-239 client reads a
+single generic `Face` block. That made actors retain their spawn/movement yaw,
+which presents as dialogue participants facing diagonally past one another.
+
+The golden client confirms the two distinct headers: player update bit `0x1`
+calls `class95.method3125` with `g1Alt2`, and NPC update bit `0x8` calls
+`class105.method3491` with `g1Alt1`. Both route through `class44.method875`:
+the header selects Entity, Loc, Angle, or Reset; Entity carries type/index/
+fallback angle and Loc carries absolute tile x/z plus packed size.
+
+`mock230` now translates its old per-tick latches to that model. An old entity
+target below 32768 becomes Face.Entity/NPC; one at `32768 + pid` becomes
+Face.Entity/Player with `pid`; an old half-tile coordinate `(2 * tile + 1)`
+becomes Face.Loc `(tile, size 1)`; and a cleared entity target becomes
+Face.Reset. The writer re-emits a latched face for an entering NPC, so a new
+observer does not inherit an arbitrary spawn yaw. The C revision-239 reader
+now consumes the same blocks and maps Entity/Loc/Reset back into its shared
+legacy executor operations.
+
+The literal regression fixtures are the independent RSProt layouts:
+
+```text
+Player Face.Loc (3222,3218,size 1): f8 8c 96 8c 92 11
+Npc Face.Entity(Player 42):          80 02 00 2a 00
+```
+
+Both focused fixtures and `mock230` build pass. A live RuneLite run used a
+blocking EVENTS subscriber before launch and real AWT chat input
+`::~talk hans 1`; it reached dialogue and the authoritative `script 58`
+five-choice initialization without packet decode errors. That run is retained
+under `build/run239-facing/proof/`, but is deliberately *not* acceptance: a
+later, separate RuneLite fatal `ArrayIndexOutOfBoundsException` in
+`Statics.method6709` occurred during continued Hans-choice activity. It must
+be isolated before a clean live acceptance can be recorded.
+
 ### Postmortem: why `::crystal_set` made the player Cry and never reached mock230
 
 > Permanent incident record and enforced invariants:
@@ -1939,3 +1977,11 @@ OPNPC2 callback.
   stacked dependency heads were unchanged. Opened OSRS-Content PR #7 against
   the choice-position Content branch and oldschool-clientc PR #19 against the
   choice-position root branch.
+- 2026-08-07: Created clean `v3` worktree `3draster-runelite239-facing` for
+  the actor-facing report. Read the authoritative 239 Face decoder and RSProt
+  writers; implemented Player g1Alt2 / NPC g1Alt1 generic Face blocks, literal
+  Entity/Loc fixtures, and matching C-client tail consumption. Focused fixture,
+  mock230, and torirs builds passed. A pre-launch EVENTS subscriber and real
+  AWT `::~talk hans 1` reached Hans dialogue/script 58 in RuneLite; retained
+  the evidence and rejected the run after a later unrelated
+  `Statics.method6709` empty-array client fatal rather than marking it clean.

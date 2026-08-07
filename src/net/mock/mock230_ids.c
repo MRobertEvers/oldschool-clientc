@@ -46,6 +46,8 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_INV, "worn", &g_ids.inv_worn },
         { MOCK230_PACK_INV, "bank", &g_ids.inv_bank },
 
+        { MOCK230_PACK_ENUM, "worn_slots", &g_ids.enum_worn_slots },
+
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:mainmodal", &g_ids.com_gameframe_mainmodal },
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:sidemodal", &g_ids.com_gameframe_sidemodal },
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:floater", &g_ids.com_gameframe_floater },

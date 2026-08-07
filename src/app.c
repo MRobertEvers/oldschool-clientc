@@ -5813,6 +5813,7 @@ app_world_tick_animations(struct App* app)
         if( element->is_skeletal )
         {
             const struct ToriDraw_SkeletalAnim* skeletal = element->skeletal_animation;
+            const struct ToriDraw_Animation* anim = element->animation;
             int play_frames;
             if( !skeletal || skeletal->frame_count <= 0 )
                 continue;
@@ -5822,7 +5823,15 @@ app_world_tick_animations(struct App* app)
             element->anim_cycle++;
             if( element->anim_cycle >= 1 )
             {
-                element->anim_frame = (element->anim_frame + 1) % play_frames;
+                /* Location DynamicObjects do not modulo-wrap: frameStep
+                 * decides whether the final pose is retained or the sequence
+                 * is discarded. Keep the skeletal playback span as the
+                 * authoritative bound when the config limits it. */
+                if( anim && anim->frame_count == play_frames &&
+                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                else
+                    element->anim_frame = (element->anim_frame + 1) % play_frames;
                 element->anim_cycle = 0;
             }
         }
@@ -5832,12 +5841,18 @@ app_world_tick_animations(struct App* app)
             if( !anim || anim->frame_count <= 0 || !anim->frames )
                 continue;
             element->anim_cycle++;
+            /* This counter starts at zero, whereas DynamicObject seeds
+             * cycleStart one client cycle behind. `>=` therefore preserves
+             * the reference's effective per-frame dwell time. */
             if( element->anim_cycle >= anim->frames[element->anim_frame].delay )
             {
-                element->anim_frame = (element->anim_frame + 1) % anim->frame_count;
+                if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
                 element->anim_cycle = 0;
-                /* Play any frame sounds for the new frame */
-                app_play_frame_sounds(app, anim, element->anim_frame);
+                /* Play any frame sounds for the new frame. A finished
+                 * DynamicObject has no sequence, so it cannot emit another. */
+                if( element->anim_seq_id != -1 )
+                    app_play_frame_sounds(app, anim, element->anim_frame);
             }
         }
     }

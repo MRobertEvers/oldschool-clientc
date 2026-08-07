@@ -224,8 +224,25 @@ right-click backpack slot 0  ->  Wear / Use / Drop / Examine, kind=PICK_INV_SLOT
 left-click "Wear"            ->  OPHELD2 obj=1155 slot=0 com=149|0, helm leaves the backpack
 drag slot 0 -> slot 20       ->  INV_BUTTOND com=149|0 0 -> 20
 right-click worn head slot   ->  Remove / Examine  (one Remove, not two)
-left-click "Remove"          ->  OPHELD1 slot=1 com=387|15, helm returns to the backpack
+left-click "Remove" (rev230) ->  OPHELD1 slot=1 com=387|15, helm returns to the backpack
 ```
+
+### 1.8 Revision-239 static worn leaves
+
+RuneLite's rev-239 `IF_BUTTONX` does **not** put the painted item in its
+`obj` field for a worn-slot click: `Remove` on `387:15` arrives as
+`(component=387:15, sub=-1, obj=0xffff, op=1)`.  The sentinel therefore means
+"this is a static component", not "this cannot be an inventory action".
+`handle_if_buttonx_packet` resolves the component through `worn_slots` and
+dispatches `INV_BUTTON<n>` to content; the head slot consequently reaches
+`[inv_button1,wornitems:slot0] ~unequip(0)`.  Backpack rows keep their distinct
+`OPHELD` normalization because their packet carries the actual object and slot.
+
+The server selftest sends that exact nine-byte `IF_BUTTONX` shape after wearing
+a bronze full helm and asserts that the content binding moves it back to the
+backpack.  This is deliberately a RuneLite packet shape rather than a synthetic
+`OPHELD1`: the older route still works, but it is not what the live rev-239
+client sends for the static worn tab.
 
 ---
 

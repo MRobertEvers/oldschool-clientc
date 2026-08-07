@@ -206,6 +206,43 @@ main(void)
         printf("ok - REBUILD_REGION_V2 parsed and bounds checked\n");
     }
 
+    /* Revision-239 zone headers carry a plane. The client must retain it: zone
+     * events may describe level-1 scenery while the player remains on level 0. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+        struct RevPacket p;
+
+        uint8_t partial[3] = { (uint8_t)(41 + 128), 55, (uint8_t)-1 };
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse(
+            rev, PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS, partial, (int)sizeof(partial), &p));
+        assert(p._update_zone_partial_follows.base_z == 41);
+        assert(p._update_zone_partial_follows.base_x == 55);
+        assert(p._update_zone_partial_follows.level == 1);
+
+        uint8_t full[3] = { (uint8_t)(128 - 42), (uint8_t)-56, 2 };
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse(
+            rev, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, full, (int)sizeof(full), &p));
+        assert(p._update_zone_full_follows.base_z == 42);
+        assert(p._update_zone_full_follows.base_x == 56);
+        assert(p._update_zone_full_follows.level == 2);
+
+        uint8_t enclosed[3] = { (uint8_t)-3, (uint8_t)(43 + 128), (uint8_t)(57 + 128) };
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse(
+            rev,
+            PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+            enclosed,
+            (int)sizeof(enclosed),
+            &p));
+        assert(p._update_zone_enclosed.base_z == 43);
+        assert(p._update_zone_enclosed.base_x == 57);
+        assert(p._update_zone_enclosed.level == 3);
+        free(p._update_zone_enclosed.entries);
+        printf("ok - revision-239 zone header planes retained\n");
+    }
+
     /* SET_MAP_FLAG: wire tiles are classic-scene local = our-scene tiles. */
     {
         struct App app;
