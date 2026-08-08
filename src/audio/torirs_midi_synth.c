@@ -183,7 +183,11 @@ node_volume(
     volume = (synth->master_volume * volume + 128) >> 8;
 
     if( !envelope )
+    {
+        if( volume > TORIRS_PCM_VOLUME_UNITY )
+            synth->stats.volume_clamped++;
         return clamp_int(volume, 0, TORIRS_PCM_VOLUME_UNITY);
+    }
 
     if( envelope->decay > 0 )
         volume = (int)((double)volume * pow(0.5,
@@ -208,6 +212,8 @@ node_volume(
                  6;
     /* Fine domain: this is the reference's `volume << 6`, handed straight to
      * the voice without narrowing. */
+    if( volume > TORIRS_PCM_VOLUME_UNITY )
+        synth->stats.volume_clamped++;
     return clamp_int(volume, 0, TORIRS_PCM_VOLUME_UNITY);
 }
 
@@ -1126,6 +1132,20 @@ ToriRS_MidiSynth_Render(
     for( int i = 0; i < frames * 2; i++ )
     {
         int32_t value = accumulator[i];
+        int32_t magnitude = value < 0 ? -value : value;
+
+        /*
+         * Record how far the sum ran past full scale before the clamp took it.
+         * The reference clamps in exactly the same place and to the same range
+         * (class477.method468: `8388607 ^ var3 >> 31`, then bits 8..23), so a
+         * track that clips here clips there too -- what this number answers is
+         * the different question of *by how much*. A dense arrangement peaking a
+         * few percent over is the material; a mix running several times over is
+         * a gain-staging fault, and the peak alone cannot tell those apart once
+         * the clamp has flattened both to 32767.
+         */
+        if( magnitude > synth->stats.unclamped_peak )
+            synth->stats.unclamped_peak = magnitude;
         if( value > 32767 )
             value = 32767;
         if( value < -32768 )

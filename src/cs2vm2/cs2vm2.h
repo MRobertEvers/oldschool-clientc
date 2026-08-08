@@ -72,7 +72,19 @@ struct CS2VM2_Frame
 #define CS2VM_MAX_FRAMES 128
 #define CS2VM_MAX_CYCLES 1000000
 #define CS2VM2_MAX_ARRAYS 128
-#define CS2VM2_ARRAY_CAPACITY 256
+/*
+ * The reference's own ceiling on a clientscript array (`define_array` throws
+ * above it), and it has to be this number rather than a convenient one: 256
+ * silently truncated the music tab's 852-row index array, so every
+ * `cc_find($container, $rows($i))` past row 255 looked up index 0 and 596 of
+ * the rows were built, never positioned, and never drawn. A cache script sized
+ * by its data cannot be capped below what the reference allows.
+ *
+ * Cells are heap-backed and grown on demand (cs2vm2_array_reserve), so this is
+ * a limit and not an allocation: the common two- and ten-element arrays still
+ * cost two and ten slots.
+ */
+#define CS2VM2_ARRAY_CAPACITY 5000
 /* Max array-cell writes a single opcode may make (the undo log only ever holds
  * the in-flight op's stores; it is reset at each op boundary). One bytecode op
  * writes at most one cell today, so this is generous headroom. */
@@ -92,11 +104,22 @@ struct CS2VM2_Frame
  */
 struct CS2VM2_Array
 {
+    /*
+     * One heap block of pointer-wide slots, viewed as either arm. Pointer-wide
+     * for both is what lets cs2vm2_array_track read the int and the string cell
+     * of the same index without knowing which arm is live, and it is what the
+     * inline `union { int[N]; char*[N]; }` this replaced already did.
+     *
+     * `capacity` is what is allocated; `size` is the script-visible length and
+     * is never above it. NULL cells with capacity 0 is a valid empty array —
+     * every read is guarded by `defined && index < size`.
+     */
     union
     {
-        int ints[CS2VM2_ARRAY_CAPACITY];
-        char* strings[CS2VM2_ARRAY_CAPACITY];
+        int* ints;
+        char** strings;
     } cells;
+    int capacity;
     int size;
     int defined;
     int is_string;

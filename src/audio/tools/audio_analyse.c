@@ -187,7 +187,28 @@ AudioAnalyse(
     {
         double log_sum = 0.0;
         double linear_sum = 0.0;
+        double window_energy = 0.0;
         int bins = 0;
+
+        /*
+         * Skip windows that are essentially silent.
+         *
+         * Flatness measures whether a spectrum is tonal or noise-like, and near
+         * silence is neither -- what it contains is the noise floor, whose
+         * spectrum is flat by construction. Averaging those windows in makes
+         * every *sparse* track read as noise: a piece with thirteen notes in
+         * twenty seconds spends most of its windows in a decay tail, so the
+         * average reports the rests rather than the music. The threshold is a
+         * fraction of the track's own RMS so it follows the material.
+         */
+        for( int i = 0; i < ANALYSE_FFT_SIZE; i++ )
+        {
+            double v = pcm[(size_t)(s + i) * channels];
+
+            window_energy += v * v;
+        }
+        if( sqrt(window_energy / ANALYSE_FFT_SIZE) < out->rms / 8.0 )
+            continue;
 
         for( int i = 0; i < ANALYSE_FFT_SIZE; i++ )
         {
@@ -220,7 +241,17 @@ AudioAnalyse(
     }
     free(re);
     free(im);
-    out->flatness = windows > 0 ? flat_sum / windows : 1.0;
+    /*
+     * Report the window count rather than inventing a flatness.
+     *
+     * A block shorter than one FFT window, or one whose every window fell below
+     * the silence floor, produces no spectral measurement at all. Defaulting
+     * that to 1.0 says "white noise" -- the most alarming value in the range --
+     * about something that was never measured, and a short sample then reads as
+     * a broken decode. Callers check `windows` before believing `flatness`.
+     */
+    out->windows = windows;
+    out->flatness = windows > 0 ? flat_sum / windows : 0.0;
     out->high_ratio = total_sum > 0.0 ? high_sum / total_sum : 0.0;
 }
 
@@ -239,7 +270,7 @@ AudioAnalyse_LooksMusical(
         why = "inaudibly quiet";
     else if( a->clipped > a->frames / 1000 )
         why = "clipping";
-    else if( a->flatness > 0.55 )
+    else if( a->windows > 0 && a->flatness > 0.55 )
         why = "noise-like spectrum";
     else if( a->gap_runs > 4 )
         why = "gaps in the signal";
@@ -296,8 +327,10 @@ AudioAnalyse_PrintReport(
         a->gap_runs,
         a->gap_samples);
     printf(
-        "  spectral flatness %.4f (1.0 = white noise), energy above 5kHz %.1f%%\n",
+        "  spectral flatness %.4f over %d windows (1.0 = white noise), "
+        "energy above 5kHz %.1f%%\n",
         a->flatness,
+        a->windows,
         100.0 * a->high_ratio);
     printf("  verdict: %s%s\n", ok ? "looks musical" : "BAD -- ", ok ? "" : why);
 }

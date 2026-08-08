@@ -108,20 +108,37 @@ ToriDraw_FastCull(
     int mid_x = projected_vertex->x;
     int mid_y = projected_vertex->y;
 
-    if( mid_z < near_plane_z )
+    bool const parallel = toridraw_proj_is_parallel(camera->proj_mode);
+    int const zoom16 = camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
+
+    /* Depth only reaches the perspective extents through the divide; a parallel
+     * projection's screen size is the same at any depth, so the clamp below --
+     * which exists purely to keep that divisor off the near plane -- would be
+     * meaningless there. */
+    if( !parallel && mid_z < near_plane_z )
         mid_z = near_plane_z;
 
     int ortho_screen_x_min = mid_x - model_edge_radius;
     int ortho_screen_x_max = mid_x + model_edge_radius;
 
-    int screen_x_min_unoffset = project_divide(
-        ortho_screen_x_min,
-        mid_z,
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    int screen_x_max_unoffset = project_divide(
-        ortho_screen_x_max,
-        mid_z,
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_x_min_unoffset;
+    int screen_x_max_unoffset;
+    if( parallel )
+    {
+        screen_x_min_unoffset = (ortho_screen_x_min * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        screen_x_max_unoffset = (ortho_screen_x_max * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+    }
+    else
+    {
+        screen_x_min_unoffset = project_divide(
+            ortho_screen_x_min,
+            mid_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+        screen_x_max_unoffset = project_divide(
+            ortho_screen_x_max,
+            mid_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    }
     int screen_edge_width = view_port->width >> 1;
 
     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
@@ -133,14 +150,26 @@ ToriDraw_FastCull(
         (bc->center_to_bottom_edge * RSCacheDat2A_NoiseCosTable[camera_pitch] >> 16) +
         (model_edge_radius * g_sin_table[camera_pitch] >> 16);
 
-    int screen_y_min_unoffset = project_divide(
-        mid_y - abs(model_center_to_bottom_edge),
-        mid_z,
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
-    int screen_y_max_unoffset = project_divide(
-        mid_y + abs(model_center_to_top_edge),
-        mid_z,
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    int screen_y_min_unoffset;
+    int screen_y_max_unoffset;
+    if( parallel )
+    {
+        screen_y_min_unoffset =
+            ((mid_y - abs(model_center_to_bottom_edge)) * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+        screen_y_max_unoffset =
+            ((mid_y + abs(model_center_to_top_edge)) * zoom16) >> TORIDRAW_ORTHO_ZOOM_SHIFT;
+    }
+    else
+    {
+        screen_y_min_unoffset = project_divide(
+            mid_y - abs(model_center_to_bottom_edge),
+            mid_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+        screen_y_max_unoffset = project_divide(
+            mid_y + abs(model_center_to_top_edge),
+            mid_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048));
+    }
     int screen_edge_height = view_port->height >> 1;
     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
         return TORIDRAW_CULL_FAST;
@@ -203,7 +232,31 @@ ToriDraw_CalculateCylinderAabb8point(
      * as the sentinel to drag min_screen_x out to -5000 and keep the box
      * conservative. Eight vertices, so the per-vertex cost is noise.
      */
-    if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+    if( toridraw_proj_is_parallel(camera->proj_mode) )
+    {
+        /* No sentinel needed: with no divide a corner behind the near plane
+         * still projects to a real coordinate, so the min/max sweep below can
+         * use it directly and the box is tighter than the perspective one. */
+        int const zoom16 =
+            camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
+        if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+        {
+            project_vertices_array_ortho6_fused_notex_noclip(
+                sc_x, sc_y, sc_z, bb_x, bb_y, bb_z, 8,
+                model_pitch, model_yaw, model_roll, 0,
+                position->x, position->y, position->z,
+                zoom16, camera->pitch, camera->yaw, camera_roll);
+        }
+        else
+        {
+            project_vertices_array_ortho_fused_notex_noclip(
+                sc_x, sc_y, sc_z, bb_x, bb_y, bb_z, 8,
+                model_yaw, 0,
+                position->x, position->y, position->z,
+                zoom16, camera->pitch, camera->yaw);
+        }
+    }
+    else if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
     {
         project_vertices_array6_fused_notex_clip(
             sc_x,
@@ -1215,6 +1268,121 @@ toridraw_project_vertices_noclip(
 
 }
 
+/*
+ * Parallel-projection dispatch, one per near-clip family, mirroring the
+ * perspective pair above. Same split for the same reason: the choice is made
+ * once per model in ToriDraw_Project and everything below is specialized.
+ */
+static inline void
+toridraw_project_vertices_parallel_clip(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+    int const zoom16 = camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
+
+    if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+    {
+        if( model_has_textures(hnd) )
+            project_vertices_array_ortho6_fused_clip(
+                scene->orthographic_vertices_x, scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z, scene->screen_vertices_x,
+                scene->screen_vertices_y, scene->screen_vertices_z,
+                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
+                position->x, position->y, position->z, camera->near_plane_z,
+                zoom16, camera->pitch, camera->yaw, camera_roll);
+        else
+            project_vertices_array_ortho6_fused_notex_clip(
+                scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
+                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
+                position->x, position->y, position->z, camera->near_plane_z,
+                zoom16, camera->pitch, camera->yaw, camera_roll);
+    }
+    else if( model_has_textures(hnd) )
+    {
+        project_vertices_array_ortho_fused_clip(
+            scene->orthographic_vertices_x, scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z, scene->screen_vertices_x,
+            scene->screen_vertices_y, scene->screen_vertices_z,
+            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+            model_vertex_count(hnd), model_yaw, model_mid_z,
+            position->x, position->y, position->z, camera->near_plane_z,
+            zoom16, camera->pitch, camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_ortho_fused_notex_clip(
+            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
+            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+            model_vertex_count(hnd), model_yaw, model_mid_z,
+            position->x, position->y, position->z, camera->near_plane_z,
+            zoom16, camera->pitch, camera->yaw);
+    }
+}
+
+static inline void
+toridraw_project_vertices_parallel_noclip(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+    int const zoom16 = camera->parallel_zoom16 ? camera->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT;
+
+    if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
+    {
+        if( model_has_textures(hnd) )
+            project_vertices_array_ortho6_fused_noclip(
+                scene->orthographic_vertices_x, scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z, scene->screen_vertices_x,
+                scene->screen_vertices_y, scene->screen_vertices_z,
+                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
+                position->x, position->y, position->z,
+                zoom16, camera->pitch, camera->yaw, camera_roll);
+        else
+            project_vertices_array_ortho6_fused_notex_noclip(
+                scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
+                model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+                model_vertex_count(hnd), model_pitch, model_yaw, model_roll, model_mid_z,
+                position->x, position->y, position->z,
+                zoom16, camera->pitch, camera->yaw, camera_roll);
+    }
+    else if( model_has_textures(hnd) )
+    {
+        project_vertices_array_ortho_fused_noclip(
+            scene->orthographic_vertices_x, scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z, scene->screen_vertices_x,
+            scene->screen_vertices_y, scene->screen_vertices_z,
+            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+            model_vertex_count(hnd), model_yaw, model_mid_z,
+            position->x, position->y, position->z,
+            zoom16, camera->pitch, camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_ortho_fused_notex_noclip(
+            scene->screen_vertices_x, scene->screen_vertices_y, scene->screen_vertices_z,
+            model_vertices_x(hnd), model_vertices_y(hnd), model_vertices_z(hnd),
+            model_vertex_count(hnd), model_yaw, model_mid_z,
+            position->x, position->y, position->z,
+            zoom16, camera->pitch, camera->yaw);
+    }
+}
+
 static inline int
 ToriDraw_Project(
     struct ToriDraw_Scene* scene,
@@ -1271,8 +1439,17 @@ ToriDraw_Project(
      * cameras that would otherwise admit a zero divisor.
      */
     struct ToriDraw_BoundsCylinder const* const proj_bc = model_bounds_cylinder(hnd);
+    /*
+     * The near_plane_z < 1 guard is a PERSPECTIVE-only safety rule: there it
+     * would admit a zero or negative divisor, so the clipping family has to
+     * take over. Parallel projection never divides, so a near plane behind the
+     * camera is a perfectly ordinary request -- it is how a map editor says
+     * "never hide anything" -- and forcing the clipping family on it would cost
+     * every model the more expensive kernel for no reason.
+     */
     bool may_clip =
-        !proj_bc || camera->near_plane_z < 1 ||
+        !proj_bc ||
+        (!toridraw_proj_is_parallel(camera->proj_mode) && camera->near_plane_z < 1) ||
         center_projection.z - proj_bc->min_z_depth_any_rotation < camera->near_plane_z;
 
 #ifdef TORIDRAW_NEAR_CLIP_FORCE_ALL
@@ -1302,7 +1479,26 @@ ToriDraw_Project(
 
     scene->near_clipped = may_clip;
 
-    if( may_clip )
+    if( toridraw_proj_is_parallel(camera->proj_mode) )
+    {
+        /*
+         * Same near-clip gate, different meaning. Parallel projection has no
+         * singularity to avoid, so may_clip here is not a safety requirement --
+         * it just says whether any vertex is near enough the view plane to need
+         * hiding. A camera with a very negative near_plane_z therefore never
+         * takes the clipping family at all, which is the map editor's normal
+         * configuration.
+         */
+        if( may_clip )
+            toridraw_project_vertices_parallel_clip(
+                scene, hnd, position, camera,
+                model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+        else
+            toridraw_project_vertices_parallel_noclip(
+                scene, hnd, position, camera,
+                model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+    }
+    else if( may_clip )
         toridraw_project_vertices_clip(
             scene, hnd, position, camera,
             model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
@@ -1382,7 +1578,16 @@ ToriDraw_Project(
             memcpy(verify_z, scene->screen_vertices_z, (size_t)vcount * sizeof(int));
 
             /* Re-project down the opposite arm and compare. */
-            if( may_clip )
+            bool const par = toridraw_proj_is_parallel(camera->proj_mode);
+            if( may_clip && par )
+                toridraw_project_vertices_parallel_noclip(
+                    scene, hnd, position, camera,
+                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+            else if( par )
+                toridraw_project_vertices_parallel_clip(
+                    scene, hnd, position, camera,
+                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+            else if( may_clip )
                 toridraw_project_vertices_noclip(
                     scene, hnd, position, camera,
                     model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);

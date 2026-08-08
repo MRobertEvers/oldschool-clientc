@@ -124,6 +124,13 @@ struct ToriRS_MidiSynthStats
     int notes_stolen;
     int events_dispatched;
     int loops;
+
+    /** Largest |sample| the mix reached before the output clamp. */
+    int unclamped_peak;
+
+    /** Times a note's computed gain exceeded unity and was clamped. The
+     *  reference (class356.method8228) returns this value unclamped. */
+    int volume_clamped;
 };
 
 struct ToriRS_MidiSynth

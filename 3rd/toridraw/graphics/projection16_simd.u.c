@@ -6,6 +6,8 @@
 #include "projection.h"
 /* Scalar helpers live in projection.u.c (also pulled in by render_*.u.c before this TU). */
 #include "projection.u.c"
+/* Parallel projection for the map editor; no divide, no near-plane sentinel. */
+#include "projection_ortho.u.c"
 
 #include <assert.h>
 #include <limits.h>

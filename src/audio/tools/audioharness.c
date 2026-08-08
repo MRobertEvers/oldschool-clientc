@@ -50,6 +50,7 @@
 
 /** Most notes sounding at once during the last render. A synth that never
  *  releases piles them up, which reads as a loud arrangement in the peak. */
+static int g_verbose;
 static int g_peak_held;
 static int g_peak_notes;
 
@@ -72,6 +73,7 @@ usage(void)
         "  jingle <cache> <rev> <id>   render a jingle\n"
         "  effect <cache> <rev> <id>   render a sound effect through the mixer\n"
         "  sweep  <cache> <rev>        render many songs, report each\n"
+        "  sweepjingles <cache> <rev>  the same across index 11\n"
         "  stream <cache> <rev> <id>   direct render vs the client's stream path\n"
         "  midi   <cache> <rev> <id>   dump a song's decoded MIDI as events\n"
         "  wav    <file.wav>           analyse a capture (TORIRS_AUDIO_WAV)\n"
@@ -146,6 +148,7 @@ print_load(const struct AudioSongLoad* load)
      */
     {
         int silent = 0;
+        int from_effects = 0;
 
         for( int i = 0; i < load->bank.sample_count; i++ )
         {
@@ -163,7 +166,35 @@ print_load(const struct AudioSongLoad* load)
             }
             if( peak == 0 )
                 silent++;
-            if( load->bank.sample_count <= 4 )
+            if( s->table != TORIRS_SOUNDBANK_TABLE_MUSIC )
+                from_effects++;
+            if( load->bank.sample_count <= 4 || g_verbose )
+            {
+                /*
+                 * The source sample's own spectrum. When a rendered track reads
+                 * as noise-like, this says whether the noise came out of the
+                 * Vorbis decoder or was in the material to begin with -- an
+                 * atmospheric pad is legitimately broadband, a mis-decoded one
+                 * is broadband for a different reason, and the mix cannot tell
+                 * them apart.
+                 */
+                struct AudioAnalysis sa;
+
+                AudioAnalyse(s->samples, s->sound.sample_count, 1, s->sound.sample_rate, &sa);
+                printf(
+                    "    sample %s:%-5d %6d frames @ %5d Hz, peak %5d, ",
+                    s->table == TORIRS_SOUNDBANK_TABLE_MUSIC ? "music" : "effect",
+                    s->id,
+                    s->sound.sample_count,
+                    s->sound.sample_rate,
+                    peak);
+                printf("dc %+7.1f, ", sa.dc);
+                if( sa.windows > 0 )
+                    printf("flatness %.3f, hi %.0f%%\n", sa.flatness, sa.high_ratio * 100.0);
+                else
+                    printf("too short to analyse\n");
+            }
+            if( 0 )
                 printf(
                     "    sample %s:%d  %d frames @ %d Hz, loop %d..%d%s, peak %d\n",
                     s->table == TORIRS_SOUNDBANK_TABLE_MUSIC ? "music" : "effect",
@@ -177,6 +208,15 @@ print_load(const struct AudioSongLoad* load)
         }
         if( silent > 0 )
             printf("    %d of %d samples are entirely silent PCM\n", silent, load->bank.sample_count);
+        /* Percussion comes from the sound-effect table's synth programs, and
+         * those are broadband by nature. A track built mostly from them reads
+         * as noise-like without anything being wrong. */
+        if( from_effects > 0 )
+            printf(
+                "    %d of %d samples are percussion (index 4), %d melodic (index 14)\n",
+                from_effects,
+                load->bank.sample_count,
+                load->bank.sample_count - from_effects);
     }
 }
 
@@ -193,6 +233,12 @@ print_notes(const struct ToriRS_MidiSynthStats* s)
         s->events_dispatched,
         s->loops);
     printf("  polyphony: %d notes sounding at the peak, %d of them held\n", g_peak_notes, g_peak_held);
+    printf(
+        "  headroom:  mix peaked at %d before the clamp (%.2fx full scale)\n",
+        s->unclamped_peak,
+        s->unclamped_peak / 32768.0);
+    if( s->volume_clamped > 0 )
+        printf("  WARNING:   %d note-gain evaluations exceeded unity and were clamped\n", s->volume_clamped);
 }
 
 /** Read a MIDI variable-length quantity at `*p`, advancing it. */
@@ -492,6 +538,7 @@ static int
 cmd_sweep(
     const char* cache,
     const char* rev,
+    enum AudioSongSource source,
     const struct options* opt)
 {
     int frames = (int)(opt->seconds * HARNESS_RATE);
@@ -508,7 +555,7 @@ cmd_sweep(
         char label[64];
         const char* why = NULL;
 
-        if( !AudioSongLoad_Open(&load, cache, rev, AUDIO_SONG_TRACK, id) )
+        if( !AudioSongLoad_Open(&load, cache, rev, source, id) )
         {
             AudioSongLoad_Free(&load);
             skipped++;
@@ -517,7 +564,6 @@ cmd_sweep(
         memset(&stats, 0, sizeof(stats));
         g_peak_notes = 0;
         g_peak_held = 0;
-    g_peak_held = 0;
         pcm = render_song(&load, frames, &stats);
         if( !pcm )
         {
@@ -528,7 +574,12 @@ cmd_sweep(
         }
         loaded++;
         AudioAnalyse(pcm, frames, 2, HARNESS_RATE, &analysis);
-        snprintf(label, sizeof(label), "track %-4d", id);
+        snprintf(
+            label,
+            sizeof(label),
+            "%s %-4d",
+            source == AUDIO_SONG_JINGLE ? "jingle" : "track ",
+            id);
         if( !AudioAnalyse_LooksMusical(&analysis, &why) )
             bad++;
         /* A song whose soundfont did not assemble is a different failure from
@@ -773,6 +824,8 @@ main(
             opt.seconds = atof(argv[++i]);
         else if( strcmp(argv[i], "-n") == 0 && i + 1 < argc )
             opt.count = atoi(argv[++i]);
+        else if( strcmp(argv[i], "-v") == 0 )
+            g_verbose = 1;
         else if( strcmp(argv[i], "-b") == 0 && i + 1 < argc )
             opt.block = atoi(argv[++i]);
         else if( positional_count < 4 )
@@ -793,7 +846,9 @@ main(
     if( strcmp(positional[0], "effect") == 0 && positional_count >= 4 )
         return cmd_effect(positional[1], positional[2], atoi(positional[3]), &opt);
     if( strcmp(positional[0], "sweep") == 0 && positional_count >= 3 )
-        return cmd_sweep(positional[1], positional[2], &opt);
+        return cmd_sweep(positional[1], positional[2], AUDIO_SONG_TRACK, &opt);
+    if( strcmp(positional[0], "sweepjingles") == 0 && positional_count >= 3 )
+        return cmd_sweep(positional[1], positional[2], AUDIO_SONG_JINGLE, &opt);
     if( strcmp(positional[0], "stream") == 0 && positional_count >= 4 )
         return cmd_stream(positional[1], positional[2], atoi(positional[3]), &opt);
     if( strcmp(positional[0], "midi") == 0 && positional_count >= 4 )

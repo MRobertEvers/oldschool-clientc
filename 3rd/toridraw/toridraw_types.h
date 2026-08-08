@@ -215,6 +215,26 @@ struct ToriDraw_Camera
      *  note in graphics/projection.h). */
     int fov_rpi2048;
 
+    /**
+     * Pixels per world unit, 16.16 fixed point. Live when proj_mode ==
+     * TORIDRAW_PROJ_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
+     * Deliberately not proj_scale reused: that one is a perspective numerator
+     * measured against z, this is a plain screen scale, and collapsing two
+     * different quantities into one field is how a camera ends up projecting
+     * with a value nobody set.
+     */
+    int parallel_zoom16;
+
+    /**
+     * Depth at which geometry stops being drawn.
+     *
+     * Under perspective this is a hard requirement -- it is the divide's
+     * singularity. Under parallel projection nothing is unsafe, so it becomes a
+     * policy knob: geometry nearer than this is hidden, which is what stops a
+     * map-editor camera sitting inside a wall from drawing the wall behind it.
+     * Set it to a large negative value to disable near clipping entirely and
+     * keep every model on the cheaper no-clip kernels.
+     */
     int near_plane_z;
 
     int pitch;

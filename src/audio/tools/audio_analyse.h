@@ -51,8 +51,19 @@ struct AudioAnalysis
     long gap_runs;
     long gap_samples;
 
-    /** Spectral flatness, geometric over arithmetic mean. 1 = white noise. */
+    /**
+     * Spectral flatness, geometric over arithmetic mean. 1 = white noise.
+     * Meaningless unless `windows > 0` -- check that first.
+     */
     double flatness;
+    /**
+     * How many FFT windows the spectral measures are averaged over.
+     *
+     * Zero means no measurement was possible: the block was shorter than one
+     * window, or every window was below the silence floor. It is not a quiet
+     * result, it is an absent one.
+     */
+    int windows;
     /** Fraction of spectral energy above 5kHz, 0..1. */
     double high_ratio;
 

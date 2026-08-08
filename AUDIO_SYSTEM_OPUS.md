@@ -122,7 +122,7 @@ re-parse to their declared track lengths.
       so they never reach a struct the game could read
 
 ### Phase 5 — verification
-- [x] `make -C src test-audio` — 68 checks: mixer contract + a real song rendered
+- [x] `make -C src test-audio` — 75 checks: mixer contract + a real song rendered
 - [x] `make -C src test-sound` — game layer end to end on dat1 254 and dat2 230
 - [x] `make -C 3rd/rscache test` — includes `test_music`, 239,486 checks
 - [x] Leak audit under `leaks`: zero audio leaks (found and fixed two, see D9)
@@ -131,7 +131,18 @@ re-parse to their declared track lengths.
       with 0 clipped samples and 0 discontinuities
 - [x] Real-client capture spectrally analysed (not just clip/jump statistics):
       flatness 0.10-0.26 with tonal peaks, which is what caught D16
+- [x] `make -C src audio-harness` — the engine standalone, no client link
+- [x] **Whole-index sweep**: all 881 tracks and 315 jingles rendered and measured.
+      Every one loads its full soundfont with 0 missing samples and drops 0 notes.
+      Everything flagged was explained without a code change: cache stubs, hot
+      arrangements, and three measurement bugs of my own (D18, D20).
+- [x] Note gain verified line-for-line against `class356.method8228`, including
+      the reference's *absence* of a clamp (D20)
+- [x] Mixer path proven non-colouring: `audioharness stream` renders bit-identical
+      through the client's push/pull ring (worst sample difference 0)
 - [ ] Byte-compare a rendered song against the reference renderer
+- [ ] Explain the residual DC offset on tracks 871/876 (~70% of RMS, no clipping,
+      strongly tonal — measuring per-sample DC next)
 
 ---
 
@@ -407,14 +418,32 @@ seconds with 3 notes and a flatness of 0.732. Rendered for 40 seconds it is
 peak 15749, flatness 0.307, plainly musical — it simply has a slow intro. The
 sweep window was shorter than the track's exposition.
 
+**The same mistake was in the spectral measure, one layer down.** Six tracks
+were flagged "noise-like spectrum". All six were *sparse* — track 94 plays 13
+notes in 20 seconds. Spectral flatness was averaged over every FFT window, and a
+window holding only a decay tail or a rest contains the noise floor, whose
+spectrum is flat by construction. The average was reporting the rests. Skipping
+windows below ⅛ of the track's own RMS took track 94 from 0.772 to **0.138** —
+clearly tonal — and track 30 from 0.732 to 0.207.
+
+**And a third time, in how an absent measurement was reported.** Sample
+`music:302` came back "flatness 1.000, energy above 5kHz 0%", which cannot both
+be true: white noise puts ~77% of its energy above 5 kHz. The sample is 3729
+frames against a 4096-point FFT, so *zero* windows were analysed — and the code
+defaulted an unmeasured flatness to 1.0, the most alarming value in the range.
+Every sample too short to analyse was reporting itself as a broken decode.
+`AudioAnalysis` now carries a `windows` count and callers check it before
+believing `flatness`; the harness prints "too short to analyse".
+
 **Why this belongs next to the audio bugs rather than in the tooling notes.**
-Three separate times now a measurement, not the code, produced the wrong answer:
+Five separate times now a measurement, not the code, produced the wrong answer:
 the misaligned capture windows that invented a 2× high-frequency discrepancy,
 the note-balance assertion that treated a musical property as a format
-invariant, and this. A verification tool is code, and it is code with no
-oracle — when it disagrees with the system under test, it is not automatically
-the tool that is right. Every threshold in `audio_analyse.c` now carries a
-comment saying what it is scaled against and why.
+invariant, and the three above. A verification tool is code, and it is code with
+no oracle — when it disagrees with the system under test, it is not
+automatically the tool that is right. Every threshold in `audio_analyse.c` now
+carries a comment saying what it is scaled against and why, and the recurring
+shape of the error is always the same: **a constant where the content varies.**
 
 ### D19 — 58 sounding notes is a release tail, not a leak
 
@@ -439,6 +468,75 @@ five-second tails at small amplitudes is what OSRS music sounds like.
 Kept because the reasoning generalises: a count of live things cannot
 distinguish "many, correctly" from "not being cleaned up". Split the count by
 the state that is supposed to end them.
+
+### D20 — some cache songs are deliberately silent, and clipping is in the material
+
+Sweeping all 881 tracks and 315 jingles left four groups of flags. None was a
+defect in the synth, and establishing that took a different measurement for
+each.
+
+**Silent tracks are stubs.** Songs 171, 765 and 147 render to zero (or peak 1)
+while the sequencer reports notes starting and the samples decode loud — 171's
+sample peaks at 32630. Dumping the decoded MIDI settles it in one line:
+
+```
+    @3840    ch0  control   7 = 0
+    @3840    ch0  note on    57 velocity 1
+```
+
+Channel volume zero, velocity one. All three are placeholders; 765's single note
+sits at tick 241920, about four minutes in. This is what `audioharness midi`
+exists for — it separates "did the decoder emit the right notes" from "did the
+synth play them", and only the first question was ever in doubt here.
+
+**Clipping is the arrangements.** Fourteen tracks exceed full scale. The
+reference has no headroom to hide it in — `class477.method468` clamps to
+±8388607 and writes bits 8..23, i.e. the same 16-bit saturation — so the only
+question is by how much, which the peak cannot answer once the clamp has
+flattened everything to 32767. Recording the pre-clamp mix peak gives 0.20×
+full scale on a clean track against 2.65× on the worst offender, and that 13×
+spread is not gain staging:
+
+| track | note-ons | velocity distribution | peak polyphony | pre-clamp peak |
+|---|---|---|---|---|
+| 0   | 2 295  | clustered 45–65      | 115 | 0.20× |
+| 641 | 20 160 | 4 610 of them at 127 | 108 | 2.65× |
+
+Track 0 has *more* simultaneous notes and is thirteen times quieter. Track 641
+is simply mixed hot, and at unity master volume the reference clips it too.
+
+**The note gain is bit-for-bit the reference's, and the reference does not
+clamp it.** `class356.method8228` reads
+
+```java
+int var4 = channelVolume * expression + 4096 >> 13;
+int var5 = var4 * var4 + 16384 >> 15;
+int var6 = node.volume * var5 + 16384 >> 15;
+int var7 = masterVolume * var6 + 128 >> 8;
+if (decay > 0)  var7 = (int)(var7 * Math.pow(0.5, decayTime * 1.953125E-5 * decay) + 0.5);
+if (amplitude != null) var7 = var7 * ampLevel + 32 >> 6;
+if (releaseTime > 0 && release != null) var7 = var7 * relLevel + 32 >> 6;
+return var7;
+```
+
+which matches `node_volume` line for line including the decay constant — but
+returns `var7` **unclamped**, and neither does the voice setter it feeds
+(`class29.method334`). Ours clamps to `[0, 16320]`. Since the envelope step is
+`* level + 32 >> 6` and the envelope bytes are signed, the reference can
+legitimately amplify past unity or invert phase where we would cut off.
+
+Measured rather than assumed: the clamp fires **zero** times across 101 sampled
+tracks and every one of the flagged ones. It is kept as an inert guard —
+removing it would let an unbounded or negative gain reach a voice through a path
+nothing in this corpus exercises — and the counter is now permanent, so if any
+content ever does reach it the harness says so instead of quietly attenuating.
+
+**Bright tracks are cymbals in the melodic table.** Tracks flagged for
+high-frequency energy turn out to carry percussion in index 14 rather than index
+4, so the "is this track percussion-heavy" check by table was answering no while
+`music:316` measures 91% of its energy above 5 kHz — a hi-hat by any other name.
+The per-sample spectra also confirm the Vorbis decoder across a wide corpus:
+melodic samples come back at flatness 0.004–0.15, which is strongly tonal.
 
 ### D17 — a gain ramp whose step truncates to zero is a 100Hz buzz
 

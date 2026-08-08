@@ -168,13 +168,68 @@ CS2VM2_RestoreYieldCheckpoint(
     {
         struct CS2VM2_ArrayUndo const* undo = &vm->undo_log[--vm->undo_log_len];
         if( undo->slot < 0 || undo->slot >= CS2VM2_MAX_ARRAYS || undo->index < 0 ||
-            undo->index >= CS2VM2_ARRAY_CAPACITY )
+            undo->index >= vm->arrays[undo->slot].capacity )
             continue;
         if( vm->arrays[undo->slot].is_string )
             vm->arrays[undo->slot].cells.strings[undo->index] = undo->old_string;
         else
             vm->arrays[undo->slot].cells.ints[undo->index] = undo->old_value;
     }
+}
+
+/*
+ * Make sure `array` can hold `count` cells, growing geometrically and keeping
+ * whatever it already had. Slots are pointer-wide whichever arm is live (see
+ * struct CS2VM2_Array), so one size serves both.
+ *
+ * Returns 0 when the block could not be grown; every caller then leaves the
+ * array at size 0, which reads as an empty array rather than a wild write.
+ * Blocks are kept across script runs — a rebuild that defines the same-sized
+ * array every time allocates once.
+ */
+static int
+cs2vm2_array_reserve(
+    struct CS2VM2_Array* array,
+    int count)
+{
+    if( count <= array->capacity )
+        return 1;
+    if( count > CS2VM2_ARRAY_CAPACITY )
+        return 0;
+
+    int cap = array->capacity > 0 ? array->capacity : 16;
+    while( cap < count )
+        cap <<= 1;
+    if( cap > CS2VM2_ARRAY_CAPACITY )
+        cap = CS2VM2_ARRAY_CAPACITY;
+
+    void* cells = realloc(array->cells.strings, (size_t)cap * sizeof(char*));
+    if( !cells )
+        return 0;
+    array->cells.strings = (char**)cells;
+    array->capacity = cap;
+    return 1;
+}
+
+/* Take a pool slot and give it `size` usable cells. Returns 0 (with the array
+ * left defined but empty) when the storage could not be had. */
+static int
+cs2vm2_array_begin(
+    struct CS2VM2_Array* array,
+    int size,
+    int is_string)
+{
+    array->defined = 1;
+    array->is_string = is_string;
+    array->size = 0;
+    if( size < 0 )
+        size = 0;
+    if( size > CS2VM2_ARRAY_CAPACITY )
+        size = CS2VM2_ARRAY_CAPACITY;
+    if( !cs2vm2_array_reserve(array, size) )
+        return 0;
+    array->size = size;
+    return 1;
 }
 
 /* An array HANDLE is a raw pointer into vm->arrays carried in a string local
@@ -6154,13 +6209,6 @@ CS2VM2_Op_DefineArray(
     }
     struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
 
-    if( size < 0 )
-        size = 0;
-    if( size > CS2VM2_ARRAY_CAPACITY )
-        size = CS2VM2_ARRAY_CAPACITY;
-
-    array->defined = 1;
-    array->size = size;
     /* Low half of the operand is the RuneScript element-type char; 's' is the
      * only one that lives on the string stack. The rest are the RuneScript base
      * types (`i` 105 int, `Ð` 208 dbrow, …) and all share the int stack.
@@ -6188,15 +6236,13 @@ CS2VM2_Op_DefineArray(
      * string, but no script in this cache reads an unwritten string cell, so
      * there is nothing here to verify the change against and every reader
      * already treats NULL as "". */
-    array->is_string = ((operand & 0xffff) == 's');
-    if( array->is_string )
+    if( cs2vm2_array_begin(array, size, (operand & 0xffff) == 's') )
     {
-        memset(&array->cells, 0, sizeof(array->cells));
-    }
-    else
-    {
-        for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
-            array->cells.ints[i] = -1;
+        if( array->is_string )
+            memset(array->cells.strings, 0, (size_t)array->size * sizeof(char*));
+        else
+            for( int i = 0; i < array->size; i++ )
+                array->cells.ints[i] = -1;
     }
     frame->str_locals[str_slot] = (char*)array;
     return CS2VM_EXECNO_OK;
@@ -6579,7 +6625,6 @@ CS2VM2_Op_ArraySplit(
     array->defined = 1;
     array->is_string = 1;
     array->size = 0;
-    memset(&array->cells, 0, sizeof(array->cells));
 
     char const* sep = separator ? separator : "";
     size_t sep_len = strlen(sep);
@@ -6588,14 +6633,15 @@ CS2VM2_Op_ArraySplit(
     if( sep_len == 0 )
     {
         /* Empty separator: one cell holding the whole string. */
-        if( array->size < CS2VM2_ARRAY_CAPACITY )
+        if( cs2vm2_array_reserve(array, 1) )
             array->cells.strings[array->size++] = CS2VM2_StrDup(vm, cursor);
     }
     else
     {
         for( ;; )
         {
-            if( array->size >= CS2VM2_ARRAY_CAPACITY )
+            /* Unknown length up front, so the block grows a part at a time. */
+            if( !cs2vm2_array_reserve(array, array->size + 1) )
                 break;
             char const* found = strstr(cursor, sep);
             if( !found )
@@ -6660,19 +6706,14 @@ CS2VM2_Op_ArrayNew(
     }
 
     struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
-    array->defined = 1;
-    array->size = length;
-    array->is_string = (type_code == 2 || type_code == 115);
-    if( array->is_string )
+    if( cs2vm2_array_begin(array, length, type_code == 2 || type_code == 115) )
     {
-        memset(&array->cells, 0, sizeof(array->cells));
-        for( int i = 0; i < length; i++ )
-            array->cells.strings[i] = CS2VM2_StrEmpty(vm);
-    }
-    else
-    {
-        for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
-            array->cells.ints[i] = -1;
+        if( array->is_string )
+            for( int i = 0; i < array->size; i++ )
+                array->cells.strings[i] = CS2VM2_StrEmpty(vm);
+        else
+            for( int i = 0; i < array->size; i++ )
+                array->cells.ints[i] = -1;
     }
     (void)capacity; /* capacity is reserved length; we store `size` as length. */
     return CS2VM2_PushStr(vm, (char*)array);
@@ -6709,12 +6750,17 @@ CS2VM2_Op_ArraySetLength(
         length = CS2VM2_ARRAY_CAPACITY;
     if( length > array->size )
     {
+        if( !cs2vm2_array_reserve(array, length) )
+            return CS2VM_EXECNO_OK;
+        /* Cells past the old size are whatever the block last held, so both
+         * arms initialise here — "already -1 from allocation" stopped being
+         * true once blocks started being reused across runs. */
         if( array->is_string )
-        {
             for( int i = array->size; i < length; i++ )
                 array->cells.strings[i] = CS2VM2_StrEmpty(vm);
-        }
-        /* int cells already hold -1 from allocation. */
+        else
+            for( int i = array->size; i < length; i++ )
+                array->cells.ints[i] = -1;
     }
     array->size = length;
     return CS2VM_EXECNO_OK;
@@ -6756,7 +6802,7 @@ CS2VM2_Op_ArrayAppend(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM2_Array* array = cs2vm2_array_from_handle(vm, handle);
-    if( !array || array->size >= CS2VM2_ARRAY_CAPACITY )
+    if( !array || !cs2vm2_array_reserve(array, array->size + 1) )
         return CS2VM_EXECNO_OK;
 
     int index = array->size;
@@ -6889,12 +6935,12 @@ CS2VM2_Op_IF_ChildrenCollect(
     }
 
     struct CS2VM2_Array* array = &vm->arrays[vm->array_alloc++];
-    array->defined = 1;
-    array->size = count;
-    array->is_string = 0;
-    for( int i = 0; i < CS2VM2_ARRAY_CAPACITY; i++ )
-        array->cells.ints[i] = -1;
-    for( int i = 0; i < count; i++ )
+    if( !cs2vm2_array_begin(array, count, 0) )
+    {
+        vm->children_collect_handle = NULL;
+        return CS2VM2_PushInt(vm, 0);
+    }
+    for( int i = 0; i < array->size; i++ )
         array->cells.ints[i] = vm->children_iter_indices[i];
 
     vm->children_collect_handle = (char*)array;
@@ -11302,8 +11348,8 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
 /*
  * Reset one thread without touching its bulk arrays.
  *
- * struct CS2VM2 is ~1.07 MB, almost all of it arrays[128] per thread. A blanket
- * memset of the whole VM on every script invocation was one of the largest
+ * A blanket memset of the whole VM on every script invocation was one of the
+ * largest
  * single costs in the frame (it showed up as __bzero), and none of that zeroing
  * is load-bearing:
  *
@@ -11314,7 +11360,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  *   - stacks    — ints_stack/strs_stack are only read below their _top.
  *   - undo_log, children_iter_indices — only read below their counters.
  *   - arrays[]  — every read is guarded by .defined && index < .size, and
- *                 defining an array memsets its own values[].
+ *                 defining an array initialises its own cells.
  *   - str_pool  — zeroed by CS2VM2_StrPool_Init, which never reads the old
  *                 state (the memory here may be uninitialised malloc'd bytes).
  *
@@ -11357,8 +11403,14 @@ cs2vm2_thread_init(
     thread->children_iter_parent = -1;
     thread->children_collect_handle = NULL;
 
+    /* Cell blocks are dropped here, not freed: like str_pool, this is for a
+     * fresh block or one CS2VM2_Free has already emptied (see the note above).
+     * A pooled VM comes back through Release -> CS2VM2_Free, which frees them,
+     * so dropping the pointers here cannot leak. */
     for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
     {
+        thread->arrays[i].cells.strings = NULL;
+        thread->arrays[i].capacity = 0;
         thread->arrays[i].defined = 0;
         thread->arrays[i].size = 0;
         thread->arrays[i].is_string = 0;
@@ -11393,6 +11445,12 @@ CS2VM2_Free(struct CS2VM2* vm)
         CS2VM2_ResetRuntime(&vm->threads[i]);
         /* ResetRuntime keeps a block for reuse; nothing will reuse it now. */
         CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
+        for( int a = 0; a < CS2VM2_MAX_ARRAYS; a++ )
+        {
+            free(vm->threads[i].arrays[a].cells.strings);
+            vm->threads[i].arrays[a].cells.strings = NULL;
+            vm->threads[i].arrays[a].capacity = 0;
+        }
         cs2vm2_thread_frames_release(&vm->threads[i]);
     }
 }

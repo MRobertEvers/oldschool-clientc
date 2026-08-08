@@ -3,6 +3,8 @@
 
 #include "graphics/shared_tables.h"
 
+#include <stdbool.h>
+
 #define UNIT_SCALE_SHIFT (9)
 #define SCALE_UNIT(x) ((((long long)x) << UNIT_SCALE_SHIFT))
 #define UNIT_SCALE ((1 << UNIT_SCALE_SHIFT))
@@ -88,7 +90,26 @@ enum ToriDraw_ProjMode
     TORIDRAW_PROJ_MODE_SCALE = 0,
     /** fov_rpi2048 drives the projection. */
     TORIDRAW_PROJ_MODE_FOV = 1,
+    /**
+     * Parallel (orthographic) projection -- no perspective divide at all;
+     * parallel_zoom16 drives it. For the map editor. Selects the
+     * projection_ortho.u.c kernels, and changes what the bounding-cylinder cull
+     * has to compute, because screen extent no longer depends on depth.
+     */
+    TORIDRAW_PROJ_MODE_PARALLEL = 2,
 };
+
+/** Fixed-point shift for ToriDraw_Camera.parallel_zoom16. */
+#define TORIDRAW_ORTHO_ZOOM_SHIFT 16
+/** parallel_zoom16 for 1:1 -- one screen pixel per world unit. */
+#define TORIDRAW_ORTHO_ZOOM_UNIT (1 << TORIDRAW_ORTHO_ZOOM_SHIFT)
+
+/** Parallel projection is a different kernel family, not a different scale. */
+static inline bool
+toridraw_proj_is_parallel(int proj_mode)
+{
+    return proj_mode == TORIDRAW_PROJ_MODE_PARALLEL;
+}
 
 /** Exact: cot16 such that the kernels project coord * scale / z. */
 static inline int
