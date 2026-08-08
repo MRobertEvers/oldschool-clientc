@@ -22307,9 +22307,22 @@ mock230_world_selftest(void)
                 MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_left");
             const int long_right = mock230_content_symbol(
                 MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_right");
+            const int zuk_type = mock230_content_symbol(
+                MOCK230_PACK_NPC, "inferno_tzkalzuk_placeholder");
+            const int middle = mock230_content_symbol(
+                MOCK230_PACK_LOC, "inferno_collapsing_wall_safespot_state1");
+            const int rocks_l = mock230_content_symbol(
+                MOCK230_PACK_LOC, "inferno_collapsing_wall_side_left_state3");
+            const int rocks_r = mock230_content_symbol(
+                MOCK230_PACK_LOC, "inferno_collapsing_wall_side_right_state3");
+            int rocks_tick = -1;
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
+            int zuk_tick = -1;
+            int zuk_slot = -1;
+            int mid_removal_tick = -1;
+            int mid_seen = 0;
             int total_left = 0;
             int total_right = 0;
             int total_left_seq = 0;
@@ -22379,6 +22392,22 @@ mock230_world_selftest(void)
                     change_tick = tick;
                 if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
+                /* Latch on the present -> absent edge. Gating on change_tick
+                 * instead made the measurement report change_tick whenever the
+                 * wall went first, which is exactly the case under test. */
+                if( mock230_scene_find_loc_id(
+                        player->x - 1, player->z + 11, player->level, middle) >= 0 )
+                    mid_seen = 1;
+                else if( mid_seen && mid_removal_tick < 0 )
+                    mid_removal_tick = tick;
+                if( zuk_tick < 0 && selftest_find_npc(&srv, zuk_type) >= 0 )
+                    zuk_tick = tick;
+                /* The settled boulder piles are plane-1 locs over the same
+                 * tiles the falling walls occupy on plane 0. */
+                if( rocks_tick < 0 &&
+                    mock230_scene_find_loc_id(player->x - 3, player->z + 12, 1, rocks_l) >= 0 &&
+                    mock230_scene_find_loc_id(player->x + 2, player->z + 12, 1, rocks_r) >= 0 )
+                    rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     mock230_scene_find_loc_id(
                         player->x - 3, player->z + 12, player->level, left) < 0 &&
@@ -22398,23 +22427,83 @@ mock230_world_selftest(void)
                            "the cutscene should transmit each state2 wall once, got %d/%d",
                            total_left, total_right);
             SELFTEST_CHECK(total_left_seq == 1 && total_right_seq == 1,
-                           "each wall should receive its mirrored 91-frame sequence once, "
+                           "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(total_pillar_seq == 0,
-                           "the 60-cycle safespot pillar sequence must not animate a side wall, "
-                           "got %d",
-                           total_pillar_seq);
             SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
                            "rev239 needs one complete client cycle between change and animation; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
-            SELFTEST_CHECK(removal_tick == anim_tick + 7,
-                           "the 182-cycle side walls must share the seven-tick removal "
-                           "boundary; got anim=%d removal=%d",
-                           anim_tick, removal_tick);
+            /*
+             * Six, not seven: seq 7560/7559 are 90 frames at two client cycles
+             * each — 180 cycles, exactly six server ticks. The extra tick this
+             * used to allow held a finished `max_loops = 99` animation long
+             * enough to begin it a second time.
+             */
+            SELFTEST_CHECK(rocks_tick == anim_tick + 6,
+                           "the state3 boulder piles must appear on the tick the 180-cycle "
+                           "fall ends; got anim=%d rocks=%d",
+                           anim_tick, rocks_tick);
+            /* And the falling walls are left alone — 51 of their 90 frames carry
+             * alpha ops, so they dissolve; deleting them would be a pop. */
+            SELFTEST_CHECK(removal_tick < 0,
+                           "the falling side walls must not be deleted; got removal=%d",
+                           removal_tick);
+            /*
+             * The middle wall goes on the tick the side walls visibly change,
+             * which is the state2 swap — not the LOC_ANIM the client's bind gap
+             * forces a cycle later. It cannot fall: model 33037 has no vertex or
+             * face bone map, so seq 7561 moves nothing on it, which is also why
+             * no LOC_ANIM for 7561 may be sent. Removal is the only thing there
+             * is to synchronize.
+             */
+            SELFTEST_CHECK(mid_removal_tick == change_tick,
+                           "the safespot wall must be taken away on the tick the side walls "
+                           "swap to state2; got mid=%d change=%d anim=%d",
+                           mid_removal_tick, change_tick, anim_tick);
+            SELFTEST_CHECK(total_pillar_seq == 0,
+                           "seq 7561 animates nothing on the rigless middle wall and must "
+                           "not be sent, got %d",
+                           total_pillar_seq);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
+            /*
+             * An npc is on every client from the tick it is added, so a Zuk
+             * added to schedule the collapse is a Zuk standing in his idle pose
+             * in front of walls that have not started to fall. He belongs on the
+             * floor no earlier than the tick the seal lets go.
+             */
+            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick >= anim_tick,
+                           "TzKal-Zuk must not appear before the seal animates; "
+                           "got zuk=%d anim=%d",
+                           zuk_tick, anim_tick);
+
+            /*
+             * And he never takes a step. `defaultmode=none` does not say that —
+             * the engine puts a retaliating npc into `applayer2` itself, and
+             * that mode walks the npc at the player, so the fixture drives the
+             * mode the engine would rather than trusting the hook that only
+             * fires on arrival. Only `moverestrict=nomove` stops the step.
+             */
+            zuk_slot = selftest_find_npc(&srv, zuk_type);
+            SELFTEST_CHECK(zuk_slot >= 0, "the fixture should leave a TzKal-Zuk standing");
+            if( zuk_slot >= 0 )
+            {
+                struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                int home_x = zuk->x;
+                int home_z = zuk->z;
+                int moved = 0;
+
+                for( int tick = 0; tick < 12; tick++ )
+                {
+                    zuk->mode = MOCK230_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
+                    mock230_world_tick(&srv);
+                    moved |= zuk->x != home_x || zuk->z != home_z;
+                }
+                SELFTEST_CHECK(!moved,
+                               "TzKal-Zuk must not chase the player; he left %d,%d for %d,%d",
+                               home_x, home_z, zuk->x, zuk->z);
+            }
 
             /* Reusing the instance pool returns the same absolute square. The
              * golden client consumes this REBUILD_REGION but does not enter a
@@ -22475,6 +22564,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(total_left_seq == 1 && total_right_seq == 1 &&
                                total_pillar_seq == 0,
                            "the repeated seal should synchronize its mirrored side-wall tracks, "
+                           "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
             SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
