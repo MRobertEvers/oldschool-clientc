@@ -27,6 +27,7 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_sound_from_rscache.h"
 #include "game/rs_audio.h"
+#include "features/features.h"
 #include "platform/platform_audio_null.h"
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
@@ -244,6 +245,11 @@ harness_init(
     harness->platform = PlatformAudio_New();
     PlatformAudio_Init(harness->platform, TORIRS_AUDIO_SAMPLE_RATE);
     RS_Audio_Init(&harness->audio);
+    /* State the era the cache belongs to: audio behaviour depends on it, and a
+     * harness that leaves it unstated tests whichever default happens to be
+     * compiled in rather than what either era does. */
+    RS_Audio_SetFeatures(
+        &harness->audio, dat1 ? ToriRS_Features_LostCity() : ToriRS_Features_OSRS());
     ToriRS_AudioQueue_Reset(&harness->queue);
 
     harness->io = ToriRS_IO_New();
@@ -499,6 +505,45 @@ test_overlap_rule(
     harness_free(&harness);
 }
 
+/**
+ * The same collision on the modern era: both sounds play.
+ *
+ * The counterpart to the rule above, and the reason the rule is gated. The
+ * modern client's mixer holds eight priority lists and mixes all of them;
+ * applying the 2004 monophony to it silently drops most of a combat tick, where
+ * a hit splat, a block and a special land within a few ticks of each other.
+ */
+static void
+test_polyphonic_era(
+    const char* cache_dir,
+    const struct RSCache* profile)
+{
+    struct harness harness;
+
+    printf("polyphony (modern era)\n");
+    if( !harness_init(&harness, cache_dir, false, profile) )
+        return;
+
+    RS_Audio_Synth(&harness.audio, 0, 1, 0);
+    CHECK(
+        frames_until_play(
+            &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform,
+            RS_AUDIO_LOAD_WAIT_TICKS),
+        "first effect played");
+    RS_Audio_Synth(&harness.audio, 1, 1, 0);
+    CHECK(
+        frames_until_play(
+            &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform,
+            RS_AUDIO_LOAD_WAIT_TICKS),
+        "second effect played over the first");
+    CHECK(harness.audio.dropped_overlap == 0, "nothing refused for overlapping");
+    CHECK(
+        PlatformAudio_Stats(harness.platform).voices_live >= 1,
+        "the backend is sounding at least one voice");
+
+    harness_free(&harness);
+}
+
 int
 main(void)
 {
@@ -525,6 +570,7 @@ main(void)
     test_cache_pipeline("dat1 254", REPO_ROOT "/cache254.lostcity", true, &dat1_profile);
     test_cache_pipeline("dat2 230", REPO_ROOT "/cache.osrs230", false, &dat2_profile);
     test_overlap_rule(REPO_ROOT "/cache254.lostcity", &dat1_profile);
+    test_polyphonic_era(REPO_ROOT "/cache.osrs230", &dat2_profile);
 
     ToriDraw_SceneFree(g_scene);
     g_scene = NULL;

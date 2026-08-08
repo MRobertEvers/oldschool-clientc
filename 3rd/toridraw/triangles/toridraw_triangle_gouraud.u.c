@@ -747,15 +747,24 @@ ToriDraw_TriangleFaceGouraud(
     int stride,
     int screen_width,
     int screen_height,
-    bool allow_near_clip)
+    bool allow_near_clip,
+    bool near_clipped)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
     int x3 = screen_vertices_x[face_indices_c[face]];
 
-    // Skip triangle if any vertex was clipped
-    // TODO: Perhaps use a separate buffer to track this.
-    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    /* Route the face to the near-plane clip builder if any vertex is behind the
+     * eye. `near_clipped` answers that for the whole model up front (see
+     * ToriDraw_Project); the reference gates the identical test the same way,
+     * on `clipped` in Model.render2:1876. It is not just a saving — with the
+     * flag clear the projection ran its no-clip kernel, which skips the -5001
+     * nudge, so a legitimately projected -5000 can occur and must NOT be read
+     * as the sentinel. Everything below this branch, including the NearClip
+     * builders' own per-vertex -5000 tests, runs only when the flag is set. */
+    if( near_clipped &&
+        (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
@@ -1106,15 +1115,24 @@ ToriDraw_TriangleFaceGouraudS1(
     int stride,
     int screen_width,
     int screen_height,
-    bool allow_near_clip)
+    bool allow_near_clip,
+    bool near_clipped)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
     int x3 = screen_vertices_x[face_indices_c[face]];
 
-    // Skip triangle if any vertex was clipped
-    // TODO: Perhaps use a separate buffer to track this.
-    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    /* Route the face to the near-plane clip builder if any vertex is behind the
+     * eye. `near_clipped` answers that for the whole model up front (see
+     * ToriDraw_Project); the reference gates the identical test the same way,
+     * on `clipped` in Model.render2:1876. It is not just a saving — with the
+     * flag clear the projection ran its no-clip kernel, which skips the -5001
+     * nudge, so a legitimately projected -5000 can occur and must NOT be read
+     * as the sentinel. Everything below this branch, including the NearClip
+     * builders' own per-vertex -5000 tests, runs only when the flag is set. */
+    if( near_clipped &&
+        (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
@@ -1206,7 +1224,8 @@ ToriDraw_TriangleFaceGouraudSmooth(
     int stride,
     int screen_width,
     int screen_height,
-    bool allow_near_clip)
+    bool allow_near_clip,
+    bool near_clipped)
 {
     ToriDraw_TriangleFaceGouraudS1(
         pixel_buffer,
@@ -1230,7 +1249,8 @@ ToriDraw_TriangleFaceGouraudSmooth(
         stride,
         screen_width,
         screen_height,
-        allow_near_clip);
+        allow_near_clip,
+        near_clipped);
 }
 
 #endif

@@ -19,6 +19,7 @@
 #include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
+#include "game/rs_attack_option.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_gameproto_exec.h"
@@ -2441,10 +2442,8 @@ app_host_request(
         return 1;
     }
     case UITREE_HOST_GET_INV_DRAG:
-        /* Reports the slot only while it should ghost (trans 128). IF1/CS1
-         * ghosts from arm time (reference Client.ts:9706); IF3 ghosts only
-         * once the press promotes past the deadzone + dead time — a plain
-         * click must not flicker. */
+        /* Reports the slot only while it should ghost (trans 128), which is
+         * from the press that armed it (reference Client.ts:8589 / :10207). */
         if( !app_inv_drag_ghosting(app) )
             return 0;
         if( req->u.get_inv_drag.out_source_id )
@@ -2971,10 +2970,30 @@ app_varp_server_update(void* userdata, int varp_id)
     /* Client-code varps are settings the client acts on rather than displays.
      * Code 4 is the sound-effect volume slider (reference Client.updateVarp:
      * 0..3 pick 128/96/64/32, 4 mutes) — the only one audio cares about, and the
-     * only reason the player's volume choice reaches the platform at all. */
-    if( VarPManager_GetClientcode(&app->varps, varp_id) == 4 )
+     * only reason the player's volume choice reaches the platform at all.
+     *
+     * Codes 18 and 22 are the Controls panel's two Attack-options dropdowns.
+     * They are read here rather than by the minimenu builder because the
+     * reference stores the DERIVED enum, not the varp: the builder must not see
+     * the zero a never-transmitted varp holds (that reads as "Depends on combat
+     * levels" while the reference is still suppressing every Attack row). */
+    switch( VarPManager_GetClientcode(&app->varps, varp_id) )
+    {
+    case 4:
         RS_Audio_SetVolumeLevel(
             &app->audio, VarPManager_GetVarp(&app->varps, varp_id), &app->audio_out);
+        break;
+    case RS_ATTACK_OPTION_CLIENTCODE_PLAYER:
+        app->player_attack_option =
+            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        break;
+    case RS_ATTACK_OPTION_CLIENTCODE_NPC:
+        app->npc_attack_option =
+            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        break;
+    default:
+        break;
+    }
 }
 
 /**
@@ -3162,6 +3181,13 @@ App_Init(
     memset(app, 0, sizeof(*app));
     app->cfg = *cfg;
 
+    /* Not zero: the reference boots both Attack options at Hidden and only
+     * ever leaves that state when varp clientcode 18/22 arrives (see
+     * rs_attack_option.h). Zeroing them here would left-click-attack against a
+     * server that never sends the setting. */
+    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+
     ToriDraw_Init();
 
     /* Phase 1: task runtime + disk. The runner owns the async pipeline every
@@ -3292,7 +3318,7 @@ App_Init(
     app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
     app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
     app->world_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
-    app->world_camera.near_plane_z = 50;
+    app->world_camera.near_plane_z = (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
     app->orbit_pitch = 128; /* reference orbitCameraPitch default */
@@ -3391,12 +3417,15 @@ App_Init(
         app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
         if( era_name && era_name[0] && !app->features )
             fprintf(stderr, "app: unknown features era '%s', deriving from cache\n", era_name);
+        /* Audio behaviour is era-dependent too: monophonic effects are a 2004
+         * client property, not a general one. */
         if( !app->features )
             app->features = ToriRS_Features_ForCache(
                 cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
         assert(app->features);
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr, "app: features era=%s\n", app->features->name);
+        RS_Audio_SetFeatures(&app->audio, app->features);
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
          * divergences, then [render:light] overrides, then push the regimes
@@ -4657,6 +4686,26 @@ Task_AppBoot_Run(
      * dat1 packs them into a single `varbit.dat` inside the config jagfile. CS1 reads
      * varbits through the same VarPManager as CS2, so both need it.
      */
+    /*
+     * Varplayer types first, and only on dat2.
+     *
+     * The client reads one field off a varplayer record — `clientcode`, the
+     * marker that a varp drives behaviour baked into the client rather than a
+     * script (sound volume; the Controls panel's two Attack options). Nothing
+     * loaded this table before, so on an OldSchool cache every clientcode read
+     * 0 and none of that behaviour could fire.
+     *
+     * Before the varbits because SetVarpTypes reallocates the var value arrays
+     * and SetVarbitTypes does not: the other order works only for as long as
+     * nothing has written a varp in between.
+     *
+     * dat1 keeps varplayers in `varp.dat` inside the config jagfile; that path
+     * has no loader and the classic revisions this tree boots have no
+     * clientcode-driven settings, so it stays untyped there.
+     */
+    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+        TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
+
     if( app->cfg.cache_kind == APP_CACHE_DAT1 )
         TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
     else
@@ -10911,6 +10960,8 @@ app_hover_text_update(
                 .selection = app_minimenu_selection(app),
                 .player_ops = (char const(*)[40])app->player_ops,
                 .player_ops_primary = app->player_ops_primary,
+                .player_attack_option = app->player_attack_option,
+                .npc_attack_option = app->npc_attack_option,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -10965,6 +11016,8 @@ app_minimenu_open(
         .selection = app_minimenu_selection(app),
         .player_ops = (char const(*)[40])app->player_ops,
         .player_ops_primary = app->player_ops_primary,
+        .player_attack_option = app->player_attack_option,
+        .npc_attack_option = app->npc_attack_option,
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -10980,13 +11033,19 @@ app_minimenu_open(
      * row built from it — the one place to see why a loc/obj came up bare. */
     if( getenv("TORIRS_MINIMENU_DEBUG") )
     {
+        /* The two Attack options ride this dump because a missing or
+         * right-click-only Attack row is otherwise indistinguishable from a
+         * pick that never happened — and Hidden is what both settings hold
+         * until the server transmits varp clientcode 18/22. */
         fprintf(
             stderr,
-            "minimenu: open at %d,%d in_world=%d picks=%d\n",
+            "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d\n",
             click_x,
             click_y,
             click_in_world,
-            click_in_world ? app->world_pickset.count : 0);
+            click_in_world ? app->world_pickset.count : 0,
+            app->player_attack_option,
+            app->npc_attack_option);
         if( click_in_world )
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
@@ -11262,6 +11321,8 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
         .events_user = app,
         .player_ops = (char const(*)[40])app->player_ops,
         .player_ops_primary = app->player_ops_primary,
+        .player_attack_option = app->player_attack_option,
+        .npc_attack_option = app->npc_attack_option,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
@@ -11534,10 +11595,22 @@ app_inv_drag_promoted(struct App const* app)
            app->inv_drag_cycles >= dead_time;
 }
 
-/* Whether emit should ghost the armed slot at trans 128.
- * IF1/CS1 keeps the reference's arm-time fade (Client.ts:9706 draws the armed
- * slot at alpha 128 from objDragArea != 0); IF3 has no objDrag machine and
- * ghosts only while a drag is in flight. */
+/*
+ * Whether emit should ghost the armed slot at trans 128.
+ *
+ * From the *press*, not from the promotion. The reference sets `objDragArea`
+ * on the mouse-down that arms the cell and the inventory draw fades that one
+ * icon for as long as it is non-zero (Client.ts:8589 arms, :10207 fades); the
+ * deadzone and the dead-time only zero the (dx, dy) the faded icon is drawn
+ * at, so a press that never moves still fades in place and un-fades on
+ * release. Waiting for promotion here is what "items don't dim when the left
+ * button is down" was.
+ *
+ * Gated on `can_drag` for the same reason the reference gates arming on
+ * `com.objSwap || com.objReplace`: a container that cannot be rearranged shows
+ * no drag feedback at all. At IF3 that flag is the IF_SETEVENTS drag depth, so
+ * a worn slot stays solid while a backpack or bank cell fades.
+ */
 static int
 app_inv_drag_ghosting(struct App const* app)
 {
@@ -11545,7 +11618,7 @@ app_inv_drag_ghosting(struct App const* app)
         return 0;
     if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
         return 1;
-    return app_inv_drag_promoted(app);
+    return app->inv_drag_can_drag;
 }
 
 /* Inventory slot press/drag/click (reference objDrag* machine, Client.ts
@@ -11561,8 +11634,8 @@ app_inv_drag_ghosting(struct App const* app)
  *    for the server echo (no local item mutation). Anything else is a
  *    SHORT CLICK and runs the default menu row (how a left click submits
  *    OPHELD*).
- * Ghosting: IF1/CS1 from arm time; IF3 only once promoted (plain clicks
- * must not flicker). While armed the generic node drag is suppressed
+ * Ghosting: from arm time on both logics, for any cell the interface says may
+ * be rearranged — see app_inv_drag_ghosting. While armed the generic node drag is suppressed
  * (tree->anti_drag; the reference freezes mouseLoop/buildMinimenu during
  * objDragArea != 0) so the grid's ancestors can never pick the press up as
  * a whole-panel drag. */
@@ -11598,10 +11671,9 @@ app_inv_drag_tick(
             app->inv_drag_dead_time = (node && node->drag_dead_time) ? node->drag_dead_time : 5;
             app->inv_drag_dx = 0;
             app->inv_drag_dy = 0;
-            /* CS1 ghosts from arm; IF3 waits for promotion — no pixels change
-             * on a plain CS2 press, so no redraw here. */
-            if( App_UiLogic(app) == APP_UI_LOGIC_CS1 )
-                app->need_redraw = 1;
+            /* Both logics fade the armed cell on the down edge, so the frame
+             * that arms is a frame that changed. */
+            app->need_redraw = 1;
         }
     }
 
@@ -12271,6 +12343,25 @@ App_PlayJingle(
     RS_Audio_Jingle(&app->audio, jingle_id, length_ms);
 }
 
+void
+App_StopSong(
+    struct App* app,
+    int fade_out_ms)
+{
+    assert(app);
+    RS_Audio_SongStop(&app->audio, fade_out_ms);
+}
+
+void
+App_SetAmbientSound(
+    struct App* app,
+    int sound_id,
+    int fade_ms)
+{
+    assert(app);
+    RS_Audio_SetAmbient(&app->audio, sound_id, fade_ms);
+}
+
 int
 App_DrainAudio(
     struct App* app,
@@ -12781,6 +12872,8 @@ App_RunOnce(
         .events_user = app,
             .player_ops = (char const(*)[40])app->player_ops,
             .player_ops_primary = app->player_ops_primary,
+            .player_attack_option = app->player_attack_option,
+            .npc_attack_option = app->npc_attack_option,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -12892,6 +12985,8 @@ App_RunOnce(
         .events_user = app,
             .player_ops = (char const(*)[40])app->player_ops,
             .player_ops_primary = app->player_ops_primary,
+            .player_attack_option = app->player_attack_option,
+            .npc_attack_option = app->npc_attack_option,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,
@@ -14422,6 +14517,35 @@ app_set_player_element_model(
     }
 }
 
+/*
+ * Team-cape id carried by this appearance (reference
+ * ClientPlayer.decodeAppearance: while reading the 12 worn slots it keeps the
+ * ObjType.team of every equipped obj, so the LAST non-zero one wins).
+ *
+ * Resolved off resident objtypes only, which is safe here and nowhere else:
+ * task_exec_entity_info awaits a config load for all 12 slots before calling
+ * this, for the same reason the model build below can look models up directly.
+ */
+static int
+app_appearance_team(
+    struct App* app,
+    struct PktPlayerAppearance const* appearance)
+{
+    int team = 0;
+
+    for( int s = 0; s < APPEARANCE_SLOT_COUNT; s++ )
+    {
+        int obj_id = Appearance_SlotObj(appearance->slots[s]);
+        struct ToriRS_Objtype const* obj;
+        if( obj_id < 0 )
+            continue;
+        obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+        if( obj && obj->team != 0 )
+            team = obj->team;
+    }
+    return team;
+}
+
 void
 App_WorldApplyPlayerAppearance(
     struct App* app,
@@ -14465,6 +14589,7 @@ App_WorldApplyPlayerAppearance(
             if( ent )
             {
                 ent->headicon = appearance->headicon;
+                ent->team = app_appearance_team(app, appearance);
                 /* The element now holds the un-overridden base model; the
                  * per-frame held-item pass will rebuild if a seq demands it. */
                 ent->held_left_applied = -1;

@@ -26,6 +26,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .route_window_tiles = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
+    .effects_monophonic = 1,
 };
 
 /*
@@ -54,6 +55,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .route_window_tiles = 128,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
+    /* The modern client mixes effects; only the 2004 one is monophonic. */
+    .effects_monophonic = 0,
 };
 
 /*
@@ -77,6 +80,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
      * light with absolute ambient 128 + actor dir (PlayerChatheadFactory). */
     .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 128,
+    .effects_monophonic = 0,
 };
 
 struct ToriRS_FeatureTable const*

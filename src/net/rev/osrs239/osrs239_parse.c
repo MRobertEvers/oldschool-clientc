@@ -896,6 +896,43 @@ osrs239_parse(
     }
 
     /*
+     * MidiSongStopEncoder v12 (rev 239): p2Alt3 delay, p2Alt3 speed. The speed
+     * is the fade length; the delay is a pre-roll the player does not need,
+     * because stopping already waits for nothing.
+     */
+    case PKT_NAME_MIDI_SONG_STOP:
+    {
+        struct PktMidiSongStop* p = &out->_midi_song_stop;
+        (void)RSProt_BufferG2Le_add128(&c); /* fade-out delay */
+        p->fade_out_ms = RSProt_BufferG2Le_add128(&c) * 20;
+        return c.err ? 0 : 1;
+    }
+
+    /*
+     * AmbientSoundStartEncoder v1: p1Alt1 fade, p2 id.
+     *
+     * The region's background bed -- a looping sound with no position, distinct
+     * from the loc `ambient_sound_*` emitters the scene builder gathers. An area
+     * can have both, and this one is the reason a place sounds like somewhere
+     * even when nothing in it is making a noise.
+     */
+    case PKT_NAME_AMBIENTSOUND_START:
+    {
+        struct PktAmbientSoundStart* p = &out->_ambientsound_start;
+        p->fade_ms = RSProt_BufferG1_add128(&c) * 20;
+        p->id = RSProt_BufferG2Be(&c);
+        return c.err ? 0 : 1;
+    }
+
+    /* AmbientSoundStopEncoder v2 (rev 239): a single boolean fade flag. */
+    case PKT_NAME_AMBIENTSOUND_STOP:
+    {
+        struct PktAmbientSoundStop* p = &out->_ambientsound_stop;
+        p->fade_ms = RSProt_BufferG1(&c) != 0 ? 500 : 0;
+        return c.err ? 0 : 1;
+    }
+
+    /*
      * UpdateInvFullEncoder:    p4 combinedId, p2 inventoryId, p2 capacity,
      *                          then per slot p1Alt3 count (255 escapes to
      *                          p4Alt3), p2Alt1 id+1.

@@ -97,9 +97,17 @@ alloc_var_arrays(
 }
 
 /*
- * Untyped mode: with no VarpType table loaded (dat1 boot path), the var
- * arrays grow on demand so button toggles and VARP packets still land.
- * With types loaded, ids beyond the table stay rejected as before.
+ * The var arrays grow on demand so button toggles and VARP packets still land
+ * for an id past the end.
+ *
+ * The reference cannot reach this case: its varp array is sized from the cache
+ * varplayer table and a real server never addresses past it. This tree can —
+ * content allocates its own varps above the cache's highest id on purpose
+ * (mock230.h MOCK230_VARP_SERVER_HEADROOM), and the alternative to growing is
+ * dropping those writes silently. Growth stops at `varp_types` only in the
+ * sense that the grown ids have no TYPE: `varp_type_count` stays where the
+ * cache put it, so GetClientcode answers "none" for them rather than reading
+ * off the end of the table.
  */
 static bool
 ensure_untyped_var_capacity(
@@ -112,8 +120,6 @@ ensure_untyped_var_capacity(
 
     if( variable < mgr->varp_count )
         return true;
-    if( mgr->varp_types )
-        return false;
 
     grown = mgr->varp_count == 0 ? 64 : mgr->varp_count;
     while( grown <= variable )
@@ -253,6 +259,7 @@ VarPManager_Free(struct VarPManager* mgr)
 
     free(mgr->varp_types);
     mgr->varp_types = NULL;
+    mgr->varp_type_count = 0;
     mgr->varp_count = 0;
 
     free(mgr->varbit_types);
@@ -283,6 +290,7 @@ VarPManager_SetVarpTypes(
 
     free(mgr->varp_types);
     mgr->varp_types = NULL;
+    mgr->varp_type_count = 0;
     mgr->varp_count = 0;
 
     if( count == 0 )
@@ -297,12 +305,14 @@ VarPManager_SetVarpTypes(
         return false;
 
     memcpy(mgr->varp_types, types, (size_t)count * sizeof(struct VarPType));
+    mgr->varp_type_count = count;
     mgr->varp_count = count;
 
     if( !alloc_var_arrays(mgr, count) )
     {
         free(mgr->varp_types);
         mgr->varp_types = NULL;
+        mgr->varp_type_count = 0;
         mgr->varp_count = 0;
         return false;
     }
@@ -449,17 +459,19 @@ VarPManager_GetClientcode(
     int id)
 {
     assert(mgr);
-    if( id < 0 || id >= mgr->varp_count )
-        return 0;
 
-    /* `varp_count` is not the length of `varp_types` in untyped mode — it is the
-     * capacity of the var arrays, which ensure_untyped_var_capacity grows on the
-     * first server VARP with no type table loaded (the dat1 boot: only varbit.dat
-     * is read, there is no varp.dat load). An id inside that grown capacity then
-     * passes the bound check above while `varp_types` is still NULL. That is a
-     * null deref on every VARP packet the moment a dat1 client logs in. Untyped
-     * varps have no clientcode by definition, so report none. */
-    if( !mgr->varp_types )
+    /*
+     * Bound on the TYPE table, never on `varp_count`.
+     *
+     * `varp_count` is the capacity of the var arrays, which
+     * ensure_untyped_var_capacity grows past the type table on demand — for a
+     * dat1 boot (no varp.dat loader at all, so `varp_types` stays NULL) and for
+     * a content-allocated varp above the cache's highest id. Either way an id
+     * inside the grown capacity has a value and no record; bounding on
+     * `varp_count` would read off the end of `varp_types`, or deref NULL.
+     * An id with no record drives no built-in behaviour, so report none.
+     */
+    if( id < 0 || !mgr->varp_types || id >= mgr->varp_type_count )
         return 0;
     return mgr->varp_types[id].clientcode;
 }

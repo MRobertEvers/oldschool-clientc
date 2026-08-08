@@ -67,6 +67,12 @@ struct ToriDrawModelRasterContext
     struct ToriDraw_TextureMap* texture_map;
     int flags;
     bool allow_near_clip;
+    /* Whether this model's projection could park TORIDRAW_SCREEN_X_NEAR_CLIPPED
+     * in screen_vertices_x at all — scene->near_clipped, set by ToriDraw_Project.
+     * The per-face sentinel tests below are gated on it, both to skip them
+     * entirely for the common model and because the no-clip projection kernel
+     * omits the -5001 nudge, so a genuine -5000 is possible when it is false. */
+    bool near_clipped;
 
     /* Last texture resolved through texture_map, memoized. A model's faces are
      * drawn depth-bucketed but almost always share one or two texture ids, so
@@ -258,7 +264,8 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
             else
             {
@@ -284,7 +291,8 @@ ToriDraw_RasterModelFace(
                     ctx->stride,
                     ctx->screen_width,
                     ctx->screen_height,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
 
             break;
@@ -311,7 +319,8 @@ ToriDraw_RasterModelFace(
                 ctx->stride,
                 ctx->screen_width,
                 ctx->screen_height,
-                ctx->allow_near_clip);
+                ctx->allow_near_clip,
+                ctx->near_clipped);
 
             break;
 #ifndef TORIDRAW_PIXEL16
@@ -382,7 +391,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
             else if( texture_opaque )
             {
@@ -413,7 +423,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
             else
             {
@@ -444,7 +455,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
 
             break;
@@ -509,7 +521,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
             else if( texture_opaque )
             {
@@ -538,7 +551,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
             else
             {
@@ -567,7 +581,8 @@ ToriDraw_RasterModelFace(
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
-                    ctx->allow_near_clip);
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
             }
 
             break;
@@ -659,6 +674,7 @@ context_from_handle(
         if( false )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
+        ctx->near_clipped = scene->near_clipped;
         break;
     }
     default:

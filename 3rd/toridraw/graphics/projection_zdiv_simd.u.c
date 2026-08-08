@@ -18,6 +18,8 @@
 #include "projection_zdiv_simd.scalar.u.c"
 #endif
 
+/* No callers today. Pinned to the clipping family, which is what this did
+ * before the near-clip split: a future caller must pick a family deliberately. */
 static inline void
 projection_zdiv_pass_tex(
     const int* orthographic_vertices_z,
@@ -29,7 +31,7 @@ projection_zdiv_pass_tex(
     int near_plane_z)
 {
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    projection_zdiv_tex_neon(
+    projection_zdiv_tex_neon_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -38,7 +40,7 @@ projection_zdiv_pass_tex(
         model_mid_z,
         near_plane_z);
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-    projection_zdiv_tex_avx2(
+    projection_zdiv_tex_avx2_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -47,7 +49,7 @@ projection_zdiv_pass_tex(
         model_mid_z,
         near_plane_z);
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
-    projection_zdiv_tex_sse41(
+    projection_zdiv_tex_sse41_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -56,7 +58,7 @@ projection_zdiv_pass_tex(
         model_mid_z,
         near_plane_z);
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-    projection_zdiv_tex_sse2(
+    projection_zdiv_tex_sse2_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -65,7 +67,7 @@ projection_zdiv_pass_tex(
         model_mid_z,
         near_plane_z);
 #else
-    projection_zdiv_tex_scalar_range(
+    projection_zdiv_tex_scalar_range_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -88,7 +90,7 @@ projection_zdiv_pass_notex(
     int near_plane_z)
 {
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    projection_zdiv_notex_neon(
+    projection_zdiv_notex_neon_clip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -96,7 +98,7 @@ projection_zdiv_pass_notex(
         model_mid_z,
         near_plane_z);
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
-    projection_zdiv_notex_avx2(
+    projection_zdiv_notex_avx2_clip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -104,7 +106,7 @@ projection_zdiv_pass_notex(
         model_mid_z,
         near_plane_z);
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
-    projection_zdiv_notex_sse41(
+    projection_zdiv_notex_sse41_clip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -112,7 +114,7 @@ projection_zdiv_pass_notex(
         model_mid_z,
         near_plane_z);
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
-    projection_zdiv_notex_sse2(
+    projection_zdiv_notex_sse2_clip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -120,7 +122,7 @@ projection_zdiv_pass_notex(
         model_mid_z,
         near_plane_z);
 #else
-    projection_zdiv_notex_scalar_range(
+    projection_zdiv_notex_scalar_range_clip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,

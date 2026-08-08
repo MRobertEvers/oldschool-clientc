@@ -48,6 +48,7 @@
 
 struct CacheProvider;
 struct TaskRunner;
+struct ToriRS_FeatureTable;
 struct ToriDraw_Scene;
 struct World;
 
@@ -60,8 +61,14 @@ struct World;
  *  effect is absent or undecodable rather than slow. */
 #define RS_AUDIO_LOAD_WAIT_TICKS 100
 
-/** Reference default (Client.waveVolume), on the 0..255 scale used here. */
-#define RS_AUDIO_DEFAULT_VOLUME 128
+/**
+ * Reference default (Client.waveVolume = 128 on its 0..128 scale), on the
+ * 0..255 scale used here.
+ *
+ * That is *full*, not half. Starting at 128 here made everything 6dB quieter
+ * than the game plays it, on every bus, before any setting was touched.
+ */
+#define RS_AUDIO_DEFAULT_VOLUME 255
 
 /** Concurrent area-sound emitters. Beyond this the nearest win. */
 #define RS_AUDIO_MAX_AREA_VOICES 12
@@ -109,6 +116,13 @@ struct RS_Audio
     int count;
 
     bool enabled;
+    /**
+     * Refuse a short effect while a longer one is sounding (the 2004 client's
+     * monophony). Set from the era feature table; off for OldSchool, whose
+     * mixer is polyphonic and where the rule would swallow most of a combat
+     * tick.
+     */
+    bool effects_monophonic;
     /** 0..TORIRS_AUDIO_VOLUME_MAX, per bus. */
     int effect_volume;
     int area_volume;
@@ -131,6 +145,18 @@ struct RS_Audio
     /** Set while a music load task is outstanding. */
     bool music_loading;
 
+    /**
+     * The region's background bed (AMBIENTSOUND_START): one looping,
+     * *unpositioned* sound the server names directly. Distinct from the
+     * loc-driven area emitters below, which have positions and are found by
+     * walking the scene -- an area routinely has both, and this is the one that
+     * makes a place sound like somewhere when nothing in it is making a noise.
+     */
+    int ambient_sound_id;
+    int ambient_voice_id;
+    int ambient_fade_ms;
+    bool ambient_started;
+
     struct RS_AudioAreaVoice area[RS_AUDIO_MAX_AREA_VOICES];
     /** The world's area-sound generation this layer last synchronised with. */
     int area_generation;
@@ -150,6 +176,12 @@ struct RS_Audio
 
 void
 RS_Audio_Init(struct RS_Audio* audio);
+
+/** Apply the era's audio behaviour. Safe with NULL (leaves the defaults). */
+void
+RS_Audio_SetFeatures(
+    struct RS_Audio* audio,
+    struct ToriRS_FeatureTable const* features);
 
 /** Release the music player and everything it holds. */
 void
@@ -180,6 +212,18 @@ RS_Audio_SynthAt(
     int delay,
     int tile_x,
     int tile_z);
+
+/**
+ * AMBIENTSOUND_START / _STOP: set the region's background bed, or -1 to stop it.
+ *
+ * Plays at full volume on the area bus: it is a bed, not a thing in the world,
+ * so it is neither attenuated nor panned.
+ */
+void
+RS_Audio_SetAmbient(
+    struct RS_Audio* audio,
+    int sound_id,
+    int fade_ms);
 
 /** MIDI_SONG / MIDI_SONG_V2: play a track from cache index 6. */
 void

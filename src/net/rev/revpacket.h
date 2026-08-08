@@ -640,6 +640,30 @@ struct PktMidiJingle
     int delay; /* g2 */
 };
 
+struct PktMidiSongStop
+{
+    /** Fade length in milliseconds (the wire carries client cycles). */
+    int fade_out_ms;
+};
+
+/**
+ * Server-driven background ambience.
+ *
+ * `id` is a sound-effect id played on a loop until AMBIENTSOUND_STOP. It has no
+ * position: this is the bed for a region, not a thing standing somewhere, which
+ * is why it does not go through the positional area-sound path.
+ */
+struct PktAmbientSoundStart
+{
+    int id;
+    int fade_ms;
+};
+
+struct PktAmbientSoundStop
+{
+    int fade_ms;
+};
+
 /* SET_MAP_FLAG / UNSET_MAP_FLAG. Scene-local (x, z); 255,255 clears. lc254
  * sends a 0-byte UNSET which is treated as clear. */
 struct PktSetMapFlag
@@ -811,6 +835,9 @@ struct RevPacket
         struct PktSynthSound _synth_sound;
         struct PktMidiSong _midi_song;
         struct PktMidiJingle _midi_jingle;
+        struct PktMidiSongStop _midi_song_stop;
+        struct PktAmbientSoundStart _ambientsound_start;
+        struct PktAmbientSoundStop _ambientsound_stop;
         struct PktSetMapFlag _set_map_flag;
         struct PktSetPlayerOp _set_player_op;
         struct PktRunClientScript _runclientscript;

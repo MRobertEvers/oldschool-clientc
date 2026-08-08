@@ -113,7 +113,9 @@ Task_Dat2ObjLoad_Run(
         int link = -1;
         int link_pos;
 
-        if( obj && obj->name[0] == '\0' )
+        /* The dat2 decoder's default name is the literal "null", so that — not
+         * "" — is what a note or placeholder record carries. */
+        if( obj && (obj->name[0] == '\0' || strcmp(obj->name, "null") == 0) )
         {
             if( obj->cert_template > 0 && obj->cert_link > 0 )
                 link = obj->cert_link;

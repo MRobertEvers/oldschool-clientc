@@ -48,8 +48,18 @@ struct Task_Dat2MusicLoad
 
     struct RSCache_MusicSong* song;
 
-    /* Walk state. */
+    /*
+     * Walk state.
+     *
+     * `patch_id` is here and not a loop local for the reason the header states
+     * and this file got wrong once: a protothread resumes by jumping to a label
+     * *inside* the loop body, so a declaration-with-initialiser above the yield
+     * is skipped and the variable holds whatever was on the stack. Every patch
+     * then installs under one garbage id, the soundbank collapses to a single
+     * slot, and the song plays with one instrument or none at all.
+     */
     int patch_index;
+    int patch_id;
     int note_index;
     int pending_sample_table;
     int pending_sample_id;
@@ -230,20 +240,20 @@ Task_Dat2MusicLoad_Run(
     /* 3 and 4. Each patch, then each sample its used notes reference. */
     for( task->patch_index = 0; task->patch_index < task->song->patch_count; task->patch_index++ )
     {
-        int patch_id = task->song->patches[task->patch_index].patch_id;
+        task->patch_id = task->song->patches[task->patch_index].patch_id;
 
         if( task->retained_count >= TORIRS_MUSIC_MAX_PATCHES )
             break;
-        if( ToriRS_SoundBank_FindPatch(&task->player->bank, patch_id) )
+        if( ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id) )
         {
             /* Already resident from an earlier song. Retain it again so the two
              * songs each hold a reference. */
-            ToriRS_SoundBank_RetainPatch(&task->player->bank, patch_id);
-            task->retained[task->retained_count++] = patch_id;
+            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
+            task->retained[task->retained_count++] = task->patch_id;
             continue;
         }
 
-        RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, patch_id);
+        RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, task->patch_id);
         PT_YIELD(&task->pt);
         archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES);
         if( !archive )
@@ -287,13 +297,13 @@ Task_Dat2MusicLoad_Run(
             task->note_index++;
         }
 
-        if( ToriRS_SoundBank_AddPatch(&task->player->bank, patch_id, task->pending_patch) )
+        if( ToriRS_SoundBank_AddPatch(&task->player->bank, task->patch_id, task->pending_patch) )
         {
             struct ToriRS_SoundBankPatch* slot =
-                ToriRS_SoundBank_FindPatch(&task->player->bank, patch_id);
+                ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
             ToriRS_SoundBank_ResolvePatch(&task->player->bank, slot);
-            ToriRS_SoundBank_RetainPatch(&task->player->bank, patch_id);
-            task->retained[task->retained_count++] = patch_id;
+            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
+            task->retained[task->retained_count++] = task->patch_id;
         }
         task->pending_patch = NULL;
     }

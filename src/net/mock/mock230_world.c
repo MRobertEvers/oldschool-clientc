@@ -7394,6 +7394,25 @@ mock230_world_login_finish(struct Mock230Player* player)
     /* 6. The local player was placed in step 1b; now spawn the npcs and close
      *    the login tick. */
     mock230_send_npc_info(player);
+
+    /*
+     * 7. Music.
+     *
+     * The real server picks a track from the region the player is standing in;
+     * this mock has no region-to-music table, so it sends one track on login.
+     * That is not authenticity, it is *reachability*: until something sends
+     * MIDI_SONG the entire music path -- the packed-MIDI unpacker, the
+     * soundbank loader, the synth, the stream -- is unreachable from a running
+     * client, and a subsystem nothing can reach is a subsystem nobody notices
+     * is broken. Override with MOCK230_SONG=<id>, or MOCK230_SONG=-1 for none.
+     */
+    {
+        const char* override = getenv("MOCK230_SONG");
+        int song = override ? atoi(override) : 0;
+        if( song >= 0 )
+            mock230_send_midi_song(player, song);
+    }
+
     mock230_send_tick_end(player);
 }
 

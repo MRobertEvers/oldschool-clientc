@@ -1705,6 +1705,22 @@ CacheProvider_ObjtypeAdd(
     }
 }
 
+/*
+ * "This record states no name of its own."
+ *
+ * The dat2 obj decoder's default name is the *literal* string `null`, not an
+ * empty one (`RSCache_Dat2ConfigObjInit`), and a note or a bank placeholder is
+ * exactly a record that keeps that default. Testing only for `""` therefore
+ * never fired on a real cache record: every placeholder kept "null" as its
+ * display name, which is what `bankmain_drawitem`'s
+ * `cc_setopbase("<oc_name($obj0)>")` put in the menu.
+ */
+static bool
+objtype_name_is_unset(char const* name)
+{
+    return name[0] == '\0' || strcmp(name, "null") == 0;
+}
+
 struct ToriRS_Objtype*
 CacheProvider_ObjtypeGet(
     struct CacheProvider* provider,
@@ -1729,12 +1745,13 @@ CacheProvider_ObjtypeGet(
     if( objtype && objtype->cert_template > 0 )
     {
         objtype->stackable = 1;
-        if( objtype->name[0] == '\0' && objtype->cert_link > 0 )
+        if( objtype_name_is_unset(objtype->name) && objtype->cert_link > 0 )
         {
             struct MapEntry_ProviderObjtype* link_entry =
                 (struct MapEntry_ProviderObjtype*)hmap_search(
                     provider->objtype_cache, &objtype->cert_link, HMAP_FIND);
-            if( link_entry && link_entry->objtype && link_entry->objtype->name[0] )
+            if( link_entry && link_entry->objtype &&
+                !objtype_name_is_unset(link_entry->objtype->name) )
             {
                 char const* link_name = link_entry->objtype->name;
                 memcpy(objtype->name, link_name, sizeof(objtype->name));
@@ -1767,13 +1784,14 @@ CacheProvider_ObjtypeGet(
      * Stackability is not forced either — a placeholder holds a count of 0 and
      * draws no number.
      */
-    if( objtype && objtype->placeholder_template >= 0 && objtype->name[0] == '\0' &&
-        objtype->placeholder_link > 0 )
+    if( objtype && objtype->placeholder_template >= 0 &&
+        objtype_name_is_unset(objtype->name) && objtype->placeholder_link > 0 )
     {
         struct MapEntry_ProviderObjtype* link_entry =
             (struct MapEntry_ProviderObjtype*)hmap_search(
                 provider->objtype_cache, &objtype->placeholder_link, HMAP_FIND);
-        if( link_entry && link_entry->objtype && link_entry->objtype->name[0] )
+        if( link_entry && link_entry->objtype &&
+            !objtype_name_is_unset(link_entry->objtype->name) )
         {
             memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
             memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));

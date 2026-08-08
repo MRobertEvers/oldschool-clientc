@@ -303,7 +303,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_enum_load.c engine/dat2/task_dat2_struct_load.c \
 	engine/dat2/task_dat2_param_load.c \
-	engine/dat2/task_dat2_varbit_load.c \
+	engine/dat2/task_dat2_varbit_load.c engine/dat2/task_dat2_varp_load.c \
 	engine/dat1/task_dat1_varbit_load.c \
 	engine/dat2/task_dat2_dbrow_load.c engine/dat2/task_dat2_dbindex_load.c \
 	engine/dat2/task_dat2_dbtable_load.c \
@@ -802,6 +802,24 @@ test-audio: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o $(OBJ_DIR)/ini.o \
 		$(LDFLAGS)
 	./$(OBJ_DIR)/audio_test ..
+
+# audioharness -- the audio engine with nothing else attached.
+#
+# Links audio/ and rscache and NOTHING else: no toridraw, no renderer, no game,
+# no SDL. Audio work kept being blocked by unrelated build breaks elsewhere in
+# the client, and a subsystem you cannot exercise is one you cannot fix. See the
+# header of audio/tools/audioharness.c.
+AUDIO_TOOL_SRCS = audio/tools/audioharness.c audio/tools/audio_songload.c \
+	audio/tools/audio_analyse.c
+audio-harness: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o \
+		$(OBJ_DIR)/ini.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/audioharness \
+		$(AUDIO_TOOL_SRCS) $(AUDIO_ENGINE_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o $(OBJ_DIR)/ini.o \
+		-lm
+	@echo "built $(OBJ_DIR)/audioharness"
 
 # Derived-cache LRU eviction. Never fires during a boot (one scene is well under
 # the keep threshold), so it needs a test of its own or it ships unexercised.

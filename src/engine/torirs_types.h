@@ -389,6 +389,13 @@ struct ToriRS_Objtype
     /** Base GE/alch value (cache opcode 12). The loot tracker's value column
      *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
     int cost;
+    /** Team-cape id (cache opcode 115), 0 = no team. The reference folds this
+     *  out of a player's WORN equipment into ClientPlayer.team while decoding
+     *  the appearance, and the "Attack" menu row consults it: two players in
+     *  different non-zero teams left-click-attack regardless of the Attack
+     *  option, two in the same team never do. dat1 does not decode the opcode,
+     *  so it stays 0 on a classic cache. */
+    int team;
     int zoom2d;
     int xan2d;
     int yan2d;

@@ -717,7 +717,12 @@ gameproto_parse(
     }
     case PKT_NAME_MIDI_SONG:
     {
+        /* The pre-V2 form: an id and nothing else. Zero fades read correctly as
+         * "switch immediately"; the revisions that carry an envelope parse it in
+         * their own reader. */
         packet->_midi_song.id = g2(&buffer);
+        packet->_midi_song.fade_out_ms = 0;
+        packet->_midi_song.fade_in_ms = 0;
         assert(buffer.position == data_size);
         return 1;
     }

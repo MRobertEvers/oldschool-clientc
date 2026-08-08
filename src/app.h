@@ -722,6 +722,16 @@ struct App
     /** SET_PLAYER_OP rows for the player context menu (slot 1..5 -> [0..4]). */
     char player_ops[5][40];
     int player_ops_primary[5];
+    /**
+     * Controls-settings "Attack" options (enum RS_AttackOption; reference
+     * client.playerAttackOption / npcAttackOption). Derived state, not varp
+     * storage: varp clientcode 18 / 22 assigns them and nothing else does, so
+     * a VARP_RESET leaves them alone exactly as the reference does — it resets
+     * them only on the full game-state reset, never from its zeroed table.
+     * Both start at RS_ATTACK_OPTION_DEFAULT (Hidden).
+     */
+    int player_attack_option;
+    int npc_attack_option;
     int multiway; /* SET_MULTIWAY */
     /** LAST_LOGIN_INFO for the welcome screen clientcode rows. */
     struct
@@ -1413,6 +1423,25 @@ App_PlayJingle(
     struct App* app,
     int jingle_id,
     int length_ms);
+
+/** Stop the current track (MIDI_SONG_STOP). */
+void
+App_StopSong(
+    struct App* app,
+    int fade_out_ms);
+
+/**
+ * Set the region's background ambience (AMBIENTSOUND_START / _STOP).
+ *
+ * One looping, unpositioned sound at a time; -1 stops it. Separate from the
+ * loc-driven area sounds, which have positions and are found in the scene
+ * rather than announced.
+ */
+void
+App_SetAmbientSound(
+    struct App* app,
+    int sound_id,
+    int fade_ms);
 
 /**
  * Take the audio requests the game produced since the last call.

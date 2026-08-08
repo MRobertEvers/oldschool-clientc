@@ -93,6 +93,23 @@ ToriRS_MidiSynth_LiveNoteCount(const struct ToriRS_MidiSynth* synth)
     return synth ? synth->order_count : 0;
 }
 
+int
+ToriRS_MidiSynth_HeldNoteCount(const struct ToriRS_MidiSynth* synth)
+{
+    int held = 0;
+
+    if( !synth )
+        return 0;
+    for( int i = 0; i < synth->order_count; i++ )
+    {
+        const struct ToriRS_MidiNode* node = &synth->nodes[synth->order[i]];
+
+        if( node->active && node->release_time < 0 )
+            held++;
+    }
+    return held;
+}
+
 /* --- per-node parameter computation --------------------------------------- */
 
 /** Reference method5926: the voice's 8.8 step for this node, right now. */

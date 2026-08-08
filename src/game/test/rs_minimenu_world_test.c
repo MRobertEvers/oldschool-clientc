@@ -3,6 +3,7 @@
  * a tile-centred player pick re-emits co-located NPCs/players; the local
  * player never gets OPPLAYER rows.
  */
+#include "game/rs_attack_option.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_minimenu_world.h"
 #include "engine/torirs_objtype_from_rscache.h"
@@ -269,6 +270,28 @@ test_dat2_stacking_behaviour_is_not_boolean(void)
     ToriRS_ObjtypeFree(obj);
 }
 
+/* ObjType.team (opcode 115) is what App_WorldApplyPlayerAppearance folds into
+ * WorldEntity_Player::team for the Attack row's team-cape override. It reached
+ * the engine struct only after this adaptor line was added — before it, every
+ * team read 0 and the override silently never fired. */
+static void
+test_dat2_obj_team_decodes(void)
+{
+    printf("TEST: ObjType.team survives the rscache adaptor\n");
+
+    struct RSCache_Dat2ConfigObj raw = { 0 };
+    struct ToriRS_Objtype* obj;
+
+    obj = ToriRS_ObjtypeFromRSCacheDat2(0, &raw);
+    TEST_ASSERT(obj && obj->team == 0, "no team by default");
+    ToriRS_ObjtypeFree(obj);
+
+    raw.team = 5;
+    obj = ToriRS_ObjtypeFromRSCacheDat2(0, &raw);
+    TEST_ASSERT(obj && obj->team == 5, "team cape id carried through");
+    ToriRS_ObjtypeFree(obj);
+}
+
 static int
 menu_player_row_count(struct UIMinimenu const* menu)
 {
@@ -520,6 +543,288 @@ test_local_alone_no_player_ops(void)
     World_Free(world);
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * Controls-settings Attack options (rs_attack_option.h).
+ * ---------------------------------------------------------------------------
+ */
+
+/* A world with a local player at (30,30) and one other body on the same tile.
+ * `npc` picks which: an NPC named "Goblin" with Attack on op slot 1 and
+ * Talk-to on slot 0, or a player "Bob". Both are levelled by `level`. */
+struct AttackFixture
+{
+    struct World* world;
+    struct World_PickSet picks;
+    char player_ops[5][40];
+    int player_ops_primary[5];
+};
+
+static void
+attack_fixture_init(struct AttackFixture* fx, int local_level, int other_level, bool npc)
+{
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    memset(fx, 0, sizeof(*fx));
+    fx->world = World_TestMakeReady(104);
+    fx->world->local_pid = 7;
+
+    int lp = World_PlayerSpawn(fx->world, 200, 0, 30, 30, idle);
+    struct WorldEntity_Player* local = World_EntityPoolGet(&fx->world->entities.player, lp);
+    local->server_pid = 7;
+    local->combat_level = local_level;
+    snprintf(local->name, sizeof(local->name), "You");
+
+    if( npc )
+    {
+        int ni = World_NpcSpawn(fx->world, 201, 500, 0, 30, 30, 1, idle);
+        struct WorldEntity_NPC* goblin = World_EntityPoolGet(&fx->world->entities.npc, ni);
+        goblin->combat_level = other_level;
+        goblin->visible_ops = 0x1f;
+        snprintf(goblin->name, sizeof(goblin->name), "Goblin");
+        snprintf(goblin->actions[0].name, sizeof(goblin->actions[0].name), "Talk-to");
+        snprintf(goblin->actions[1].name, sizeof(goblin->actions[1].name), "Attack");
+    }
+    else
+    {
+        int op = World_PlayerSpawn(fx->world, 201, 0, 30, 30, idle);
+        struct WorldEntity_Player* other = World_EntityPoolGet(&fx->world->entities.player, op);
+        other->server_pid = 8;
+        other->combat_level = other_level;
+        snprintf(other->name, sizeof(other->name), "Bob");
+        snprintf(fx->player_ops[0], sizeof(fx->player_ops[0]), "Follow");
+        snprintf(fx->player_ops[1], sizeof(fx->player_ops[1]), "Attack");
+        fx->player_ops_primary[0] = 1;
+        fx->player_ops_primary[1] = 1;
+    }
+
+    World_PickSetReset(&fx->picks);
+    World_PickSetAdd(&fx->picks, 201, npc ? WORLD_PICK_NPC : WORLD_PICK_PLAYER, 30, 30, 0);
+}
+
+static void
+attack_fixture_build(
+    struct AttackFixture* fx,
+    int player_option,
+    int npc_option,
+    struct UIMinimenu* out)
+{
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .player_ops = (char const(*)[40])fx->player_ops,
+        .player_ops_primary = fx->player_ops_primary,
+        .player_attack_option = player_option,
+        .npc_attack_option = npc_option,
+        .world = fx->world,
+        .world_pickset = &fx->picks,
+        .click_in_world = true,
+    };
+    UIMinimenu_Reset(out);
+    RS_Minimenu_AddWorldRows(&ctx, out);
+}
+
+/** The row whose text starts with `verb`, or -1. Deprioritized rows carry the
+ *  reference's +2000 bias in `action`, which is what these tests read. */
+static int
+menu_action_for_verb(struct UIMinimenu const* menu, char const* verb)
+{
+    size_t n = strlen(verb);
+    for( int i = 0; i < menu->option_count; i++ )
+        if( strncmp(menu->options[i].text, verb, n) == 0 )
+            return menu->options[i].action;
+    return -1;
+}
+
+static void
+test_npc_attack_option(void)
+{
+    printf("TEST: NPC 'Attack' options gate the Attack row\n");
+
+    struct AttackFixture fx;
+    struct UIMinimenu menu;
+
+    /* Same level, so "Depends on combat levels" has nothing to act on. */
+    attack_fixture_init(&fx, 50, 50, true);
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_LEFTCLICK, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
+        "Left-click where available keeps Attack at its natural priority");
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_RIGHTCLICK, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC2),
+        "Always right-click deprioritizes Attack");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Talk-to") == REVCONFIG_MINIMENU_OPNPC1,
+        "and leaves the non-attack ops alone");
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_HIDDEN, &menu);
+    TEST_ASSERT(!menu_has_substr(&menu, "Attack"), "Hidden emits no Attack row at all");
+    TEST_ASSERT(menu_has_substr(&menu, "Talk-to"), "but keeps the other ops");
+
+    /* Equal levels: Depends must NOT deprioritize. */
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
+        "Depends leaves an equal-level NPC left-clickable");
+    World_Free(fx.world);
+
+    /* Higher-level NPC: the reference's level test sits outside its attack
+     * pass, so Talk-to sinks with Attack. */
+    attack_fixture_init(&fx, 10, 21, true);
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC2),
+        "Depends deprioritizes Attack on a higher-level NPC");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Talk-to") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC1),
+        "and every other op with it");
+
+    /* Left-click where available ignores the level difference entirely. */
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_LEFTCLICK, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
+        "Left-click where available ignores the level difference");
+    World_Free(fx.world);
+}
+
+static void
+test_player_attack_option(void)
+{
+    printf("TEST: player 'Attack' options gate the Attack row\n");
+
+    struct AttackFixture fx;
+    struct UIMinimenu menu;
+
+    attack_fixture_init(&fx, 50, 50, false);
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_LEFTCLICK, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+        "Left-click where available keeps Attack at its natural priority");
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_RIGHTCLICK, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPPLAYER2),
+        "Always right-click deprioritizes Attack");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Follow") == REVCONFIG_MINIMENU_OPPLAYER1,
+        "and leaves the other player ops alone");
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_HIDDEN, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(!menu_has_substr(&menu, "Attack"), "Hidden emits no Attack row");
+    TEST_ASSERT(menu_has_substr(&menu, "Follow"), "but keeps Follow");
+
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+        "Depends leaves an equal-level player left-clickable");
+
+    /* Team capes override the setting both ways. Unlike the NPC path, the
+     * player path never sinks the non-attack ops. */
+    {
+        struct WorldEntity_Player* local = World_PlayerGetByServerPid(fx.world, 7);
+        struct WorldEntity_Player* bob = World_PlayerGetByElementId(fx.world, 201);
+
+        local->team = 3;
+        bob->team = 4;
+        attack_fixture_build(&fx, RS_ATTACK_OPTION_RIGHTCLICK, RS_ATTACK_OPTION_DEPENDS, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+            "a different team is left-click-attackable despite Always right-click");
+
+        bob->team = 3;
+        attack_fixture_build(&fx, RS_ATTACK_OPTION_LEFTCLICK, RS_ATTACK_OPTION_DEPENDS, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Attack") ==
+                UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPPLAYER2),
+            "the same team is never left-click-attackable despite Left-click");
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Follow") == REVCONFIG_MINIMENU_OPPLAYER1,
+            "and the team override does not touch the other ops");
+
+        /* A zero on either side hands the decision back to the setting. */
+        bob->team = 0;
+        attack_fixture_build(&fx, RS_ATTACK_OPTION_LEFTCLICK, RS_ATTACK_OPTION_DEPENDS, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+            "an untagged target falls back to the setting");
+        local->team = 0;
+    }
+    World_Free(fx.world);
+
+    attack_fixture_init(&fx, 10, 40, false);
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_DEPENDS, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPPLAYER2),
+        "Depends deprioritizes Attack on a higher-level player");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Follow") == REVCONFIG_MINIMENU_OPPLAYER1,
+        "and, unlike the NPC path, leaves the other ops at normal priority");
+    World_Free(fx.world);
+}
+
+static bool
+test_clan_member_is(void* user, char const* name)
+{
+    return user && name && strcmp((char const*)user, name) == 0;
+}
+
+static void
+test_player_attack_option_clan(void)
+{
+    printf("TEST: 'Right-click for clanmates' consults the clan channel\n");
+
+    struct AttackFixture fx;
+    struct UIMinimenu menu;
+    char clanmate[] = "Bob";
+
+    attack_fixture_init(&fx, 50, 50, false);
+
+    /* No predicate: this tree has no clan chat, so nobody is a clanmate and
+     * the option must behave exactly like Left-click where available. */
+    attack_fixture_build(&fx, RS_ATTACK_OPTION_CLAN, RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+        "without a clan channel the option is Left-click where available");
+
+    {
+        struct RS_MinimenuBuildCtx ctx = {
+            .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+            .player_ops = (char const(*)[40])fx.player_ops,
+            .player_ops_primary = fx.player_ops_primary,
+            .player_attack_option = RS_ATTACK_OPTION_CLAN,
+            .npc_attack_option = RS_ATTACK_OPTION_DEPENDS,
+            .is_clan_member = test_clan_member_is,
+            .clan_user = clanmate,
+            .world = fx.world,
+            .world_pickset = &fx.picks,
+            .click_in_world = true,
+        };
+        UIMinimenu_Reset(&menu);
+        RS_Minimenu_AddWorldRows(&ctx, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Attack") ==
+                UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPPLAYER2),
+            "a clanmate's Attack is deprioritized");
+
+        ctx.clan_user = (void*)"Someone else";
+        UIMinimenu_Reset(&menu);
+        RS_Minimenu_AddWorldRows(&ctx, &menu);
+        TEST_ASSERT(
+            menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPPLAYER2,
+            "a non-clanmate's Attack is not");
+    }
+
+    World_Free(fx.world);
+}
+
 static void
 test_player_get_by_element_id(void)
 {
@@ -549,6 +854,10 @@ main(void)
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();
     test_local_alone_no_player_ops();
+    test_npc_attack_option();
+    test_player_attack_option();
+    test_player_attack_option_clan();
+    test_dat2_obj_team_decodes();
 
     if( g_failures )
     {

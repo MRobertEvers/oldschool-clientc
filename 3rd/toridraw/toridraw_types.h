@@ -29,13 +29,8 @@ ToriDraw_NormalizeFaceTextureCoord(int raw, int textured_face_count)
 #define TORIDRAWHSL16_HIDDEN ((hsl16_t)0xFFFF)
 #define TORIDRAWHSL16_FLAT ((hsl16_t)0xFF7F)
 
-/**
- * Screen x parked here by the projection kernels (projection16_simd.*.u.c) when
- * a vertex falls behind the near plane; its screen y is left *undivided*, so
- * consumers must reject the whole face rather than read the pair. A genuinely
- * projected -5000 is nudged to -5001 there so the sentinel stays unambiguous.
- */
-#define TORIDRAW_SCREEN_X_NEAR_CLIPPED (-5000)
+/* TORIDRAW_SCREEN_X_NEAR_CLIPPED and its nudge live in graphics/projection.h,
+ * with the kernels that write them; included above via that header. */
 
 struct ToriDraw_BoundsCylinder
 {
@@ -414,6 +409,19 @@ struct ToriDraw_Scene
     struct ProjectedVertex projected_vertex;
     struct ToriDraw_AABB aabb;
     struct ToriDraw_AABB cylinder_fast_aabb;
+
+    /*
+     * Whether the model ToriDraw_Project last projected could reach behind the
+     * near plane, and so whether screen_vertices_x may hold
+     * TORIDRAW_SCREEN_X_NEAR_CLIPPED. False for the overwhelming majority of
+     * models: the camera has to be inside the model's bounding sphere for a
+     * vertex to clip. Consumers that test for the sentinel (the triangle
+     * dispatchers, the per-face pick) must check this first, both to skip the
+     * test entirely in the common case and because the no-clip kernel does not
+     * nudge a genuine -5000 out of the way. Mirrors `clipped` in the reference
+     * (Client-TS Model.worldRender:1755, consumed at render2:1876).
+     */
+    bool near_clipped;
 
     struct ToriDraw_TextureState* tex_state;
 

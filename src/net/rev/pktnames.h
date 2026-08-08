@@ -139,6 +139,15 @@ enum GameProtoPktName
     PKT_NAME_SYNTH_SOUND,
     PKT_NAME_MIDI_SONG,
     PKT_NAME_MIDI_JINGLE,
+    /** Stop the current track, with a fade. */
+    PKT_NAME_MIDI_SONG_STOP,
+    /**
+     * Server-driven background ambience: a looping sound that is *not* tied to a
+     * loc. Distinct from the loc `ambient_sound_*` fields the scene builder
+     * gathers -- an area can have both, and this one has no position at all.
+     */
+    PKT_NAME_AMBIENTSOUND_START,
+    PKT_NAME_AMBIENTSOUND_STOP,
 
     /* zones + zone sub-packets (sub-packet opcodes share the wire space) */
     PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,

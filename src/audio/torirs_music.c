@@ -295,12 +295,42 @@ ToriRS_Music_Installed(
     player->has_request = false;
     player->request_loading = false;
     player->songs_started++;
+    /*
+     * Check what the loader claims against what the bank holds.
+     *
+     * A song names its instruments and the loader retains one bank entry per
+     * name; if a retained id is not findable, the soundfont did not assemble and
+     * every note on that program will be dropped -- which is silence, or worse,
+     * a song played entirely on whichever instrument did land. Neither is an
+     * error anything downstream can report, so it is checked here, once, where
+     * both numbers exist.
+     */
+    {
+        int missing = 0;
+        for( int i = 0; i < player->retained_count; i++ )
+        {
+            if( !ToriRS_SoundBank_FindPatch(&player->bank, player->retained_patches[i]) )
+                missing++;
+        }
+        if( missing > 0 )
+            fprintf(
+                stderr,
+                "music: song %d retained %d patches but %d are absent from the bank -- "
+                "the soundfont did not assemble\n",
+                song_id,
+                player->retained_count,
+                missing);
+    }
     MUSIC_TRACE(
-        "music: playing song %d (source %d, %d tracks, %d patches, loop %d)\n",
+        "music: playing song %d (source %d, %d tracks, %d/%d patches, %d samples, "
+        "%ld KB of PCM, loop %d)\n",
         song_id,
         (int)source,
         song->track_count,
-        patch_count,
+        player->bank.patch_count,
+        song->patch_count,
+        player->bank.sample_count,
+        player->bank.sample_bytes / 1024,
         (int)player->current_loop);
 }
 
@@ -410,6 +440,20 @@ ToriRS_Music_Tick(
         return;
 
     ToriRS_MidiSynth_Render(&player->synth, player->block, wanted);
+    /* Notes that never sound are the tell that the soundbank did not fill: the
+     * stream stays open, frames keep flowing, and every one of them is zero. */
+    if( player->synth.stats.notes_dropped_no_patch + player->synth.stats.notes_dropped_no_sample >
+        player->reported_drops )
+    {
+        player->reported_drops = player->synth.stats.notes_dropped_no_patch +
+                                 player->synth.stats.notes_dropped_no_sample;
+        MUSIC_TRACE(
+            "music: %d notes started, %d dropped (no patch %d, no sample %d)\n",
+            player->synth.stats.notes_started,
+            player->reported_drops,
+            player->synth.stats.notes_dropped_no_patch,
+            player->synth.stats.notes_dropped_no_sample);
+    }
 
     if( out )
     {

@@ -82,6 +82,21 @@ struct RS_MinimenuBuildCtx
     char const (*player_ops)[40];
     int const* player_ops_primary;
 
+    /* Controls-settings Attack options (enum RS_AttackOption, rs_attack_option.h).
+     * These decide whether an "Attack" row is emitted at all and whether it may
+     * be the left-click default. Callers that leave them zero get
+     * RS_ATTACK_OPTION_DEPENDS, which is the pre-settings behaviour this file
+     * shipped with and what the standalone tests want. */
+    int player_attack_option;
+    int npc_attack_option;
+
+    /* Clan-channel membership test for RS_ATTACK_OPTION_CLAN (reference
+     * ClientPlayer.isClanMember, which scans the four clan channels). NULL —
+     * the state of this tree, which has no clan chat — means nobody is a
+     * clanmate, so the option behaves as "Left-click where available". */
+    bool (*is_clan_member)(void* user, char const* player_name);
+    void* clan_user;
+
     /* World hittest results for this click (NULL/false = no world rows). The
      * pickset must have been refreshed at the click point by the caller. */
     struct World* world;

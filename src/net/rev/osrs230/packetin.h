@@ -140,7 +140,12 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
      * SS_OP_SOUND_SYNTH) were missing (WEAPON_FX.md §6).
      */
     { 102, 5, PKT_NAME_SYNTH_SOUND }, /* SYNTH_SOUND */
-    { 57, 10, PKT_NAME_NONE }, /* MIDI_SONG_V2 */
+    /*
+     * MIDI_SONG_V2. Routed, not discarded: this is the only way a track ever
+     * starts, and mapping it to PKT_NAME_NONE meant music could not play on this
+     * revision at all no matter what the server sent.
+     */
+    { 57, 10, PKT_NAME_MIDI_SONG }, /* MIDI_SONG_V2 */
     /*
      * Zones and the sub-packets that follow them.
      *

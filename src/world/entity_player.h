@@ -22,6 +22,10 @@ struct WorldEntity_Player
     int combat_level;
     int gender;
     int headicon;
+    /** Team-cape id folded out of the worn equipment when the appearance was
+     *  applied (reference ClientPlayer.team, ObjType.team opcode 115). 0 = no
+     *  team. Read only by the "Attack" minimenu row. */
+    int team;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
     /** Held-item override currently baked into the rendered appearance model

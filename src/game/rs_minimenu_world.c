@@ -2,6 +2,7 @@
 
 #include "rs_minimenu_build.h"
 
+#include "rs_attack_option.h"
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "world/world_pickset.h"
@@ -115,14 +116,36 @@ add_world_select_row(
     return false;
 }
 
+/*
+ * "Depends on combat levels", the half of the NPC Attack option that is not
+ * about the Attack row at all.
+ *
+ * The reference's per-op priority bump (Statics.method7229) tests the option
+ * and the level difference OUTSIDE its is-this-the-attack-pass branch, so with
+ * Depends selected a higher-level NPC has EVERY row deprioritized, not just
+ * Attack — left-clicking a level-21 guard at level 10 walks rather than
+ * pickpockets. Only the "Always right-click" arm is attack-pass-only.
+ */
+static bool
+npc_option_deprioritizes(
+    int npc_attack_option,
+    struct WorldEntity_NPC const* npc,
+    int viewer_combat_level)
+{
+    return npc_attack_option == RS_ATTACK_OPTION_DEPENDS && viewer_combat_level >= 0 &&
+           npc->combat_level > viewer_combat_level;
+}
+
 static void
 add_npc_rows(
     struct UIMinimenu* menu,
+    struct RS_MinimenuBuildCtx const* ctx,
     struct RS_MinimenuSelection const* sel,
     struct WorldEntity_NPC const* npc,
     struct World_Picked const* picked,
     int viewer_combat_level)
 {
+    int const attack_option = ctx->npc_attack_option;
     char text[UITREE_MINIMENU_OPTION_LEN];
     char tooltip[UITREE_MINIMENU_OPTION_LEN];
     struct UIMinimenuPick pick = {
@@ -154,29 +177,44 @@ add_npc_rows(
         return;
 
     /* Non-attack ops first, then attack, so attack draws below by insertion
-     * order (v1 parity; the level-based deprioritize needs player stats the
-     * client does not track yet, so attack stays normal priority). */
+     * order — the reference runs the same builder twice, once per pass
+     * (Statics.method7229 called with its attack flag false then true). */
     for( int i = 4; i >= 0; i-- )
     {
+        int action;
         if( (npc->visible_ops & (1u << i)) == 0 )
             continue;
         if( npc->actions[i].name[0] == '\0' )
             continue;
         if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             continue;
+        action = opnpc_action_for_slot(i);
+        if( npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+            action = UIMinimenu_ActionDeprioritize(action);
         snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
-        UIMinimenu_AddOption(menu, text, opnpc_action_for_slot(i), i, pick);
+        UIMinimenu_AddOption(menu, text, action, i, pick);
     }
-    for( int i = 4; i >= 0; i-- )
+    /* "Hidden" drops the whole attack pass; the reference `continue`s before
+     * the row is built, so an NPC with nothing but Attack gets no row at all
+     * (Examine below still appears). */
+    if( attack_option != RS_ATTACK_OPTION_HIDDEN )
     {
-        if( (npc->visible_ops & (1u << i)) == 0 )
-            continue;
-        if( npc->actions[i].name[0] == '\0' )
-            continue;
-        if( strcasecmp(npc->actions[i].name, "attack") != 0 )
-            continue;
-        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
-        UIMinimenu_AddOption(menu, text, opnpc_action_for_slot(i), i, pick);
+        for( int i = 4; i >= 0; i-- )
+        {
+            int action;
+            if( (npc->visible_ops & (1u << i)) == 0 )
+                continue;
+            if( npc->actions[i].name[0] == '\0' )
+                continue;
+            if( strcasecmp(npc->actions[i].name, "attack") != 0 )
+                continue;
+            action = opnpc_action_for_slot(i);
+            if( attack_option == RS_ATTACK_OPTION_RIGHTCLICK ||
+                npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+                action = UIMinimenu_ActionDeprioritize(action);
+            snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+            UIMinimenu_AddOption(menu, text, action, i, pick);
+        }
     }
 
     snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
@@ -557,14 +595,26 @@ world_local_combat_level(struct World* world)
     return lp ? lp->combat_level : -1;
 }
 
+/* Local player's team-cape id for the Attack row's team override (reference
+ * Statics.method4492, which likewise reads 0 when there is no local player —
+ * and 0 is "no team", which disables the override). */
+static int
+world_local_team(struct World* world)
+{
+    struct WorldEntity_Player* lp =
+        World_PlayerGetByServerPid(world, world->local_pid);
+    return lp ? lp->team : 0;
+}
+
 static void
 add_npc_stack_rows(
     struct UIMinimenu* menu,
-    struct RS_MinimenuSelection const* sel,
+    struct RS_MinimenuBuildCtx const* ctx,
     struct World* world,
     struct WorldEntity_NPC const* npc,
     struct World_Picked const* picked)
 {
+    struct RS_MinimenuSelection const* sel = &ctx->selection;
     int viewer_combat_level = world_local_combat_level(world);
 
     /* Ground items sit under entities and are often occluded from the pick
@@ -594,11 +644,11 @@ add_npc_stack_rows(
                 .tile_z = other->grid_position.z,
                 .tile_level = picked->tile_level,
             };
-            add_npc_rows(menu, sel, other, &other_picked, viewer_combat_level);
+            add_npc_rows(menu, ctx, sel, other, &other_picked, viewer_combat_level);
         }
     }
 
-    add_npc_rows(menu, sel, npc, picked, viewer_combat_level);
+    add_npc_rows(menu, ctx, sel, npc, picked, viewer_combat_level);
 }
 
 static int
@@ -626,6 +676,7 @@ add_player_rows(
     char tooltip[UITREE_MINIMENU_OPTION_LEN];
     struct RS_MinimenuSelection const* sel;
     int viewer_combat_level;
+    int viewer_team;
     struct UIMinimenuPick pick = {
         .kind = UI_MINIMENU_PICK_PLAYER,
         .id = picked->element_id,
@@ -640,6 +691,7 @@ add_player_rows(
 
     sel = &ctx->selection;
     viewer_combat_level = world_local_combat_level(world);
+    viewer_team = world_local_team(world);
     if( player->combat_level > 0 && viewer_combat_level >= 0 )
         snprintf(
             tooltip,
@@ -662,14 +714,44 @@ add_player_rows(
     for( int i = 4; i >= 0; i-- )
     {
         int action;
+        bool deprioritize;
         char const* op = ctx->player_ops[i];
         if( !op || op[0] == '\0' )
             continue;
         action = opplayer_action_for_slot(i);
-        if( strcasecmp(op, "attack") == 0 && viewer_combat_level >= 0 &&
-            player->combat_level > viewer_combat_level )
-            action = UIMinimenu_ActionDeprioritize(action);
-        else if( ctx->player_ops_primary && !ctx->player_ops_primary[i] )
+        if( strcasecmp(op, "attack") == 0 )
+        {
+            if( ctx->player_attack_option == RS_ATTACK_OPTION_HIDDEN )
+                continue;
+
+            deprioritize =
+                ctx->player_attack_option == RS_ATTACK_OPTION_RIGHTCLICK ||
+                (ctx->player_attack_option == RS_ATTACK_OPTION_DEPENDS &&
+                 viewer_combat_level >= 0 && player->combat_level > viewer_combat_level);
+
+            /*
+             * Team capes OVERRIDE the setting in both directions, which is why
+             * this is an assignment and not another `||`: with both players in
+             * a team, a different team is always left-click-attackable and the
+             * same team never is, whatever the dropdown says (reference
+             * Statics.method2599 breaks out of the whole attack branch here).
+             * A zero on either side leaves the setting in charge.
+             */
+            if( viewer_team != 0 && player->team != 0 )
+                deprioritize = player->team == viewer_team;
+            else if(
+                ctx->player_attack_option == RS_ATTACK_OPTION_CLAN && ctx->is_clan_member &&
+                ctx->is_clan_member(ctx->clan_user, player->name) )
+                deprioritize = true;
+        }
+        else
+        {
+            /* SET_PLAYER_OP's own primary flag — nothing to do with the
+             * Attack setting, and the reference tests it only on the ops the
+             * attack branch did not claim. */
+            deprioritize = ctx->player_ops_primary && !ctx->player_ops_primary[i];
+        }
+        if( deprioritize )
             action = UIMinimenu_ActionDeprioritize(action);
         snprintf(text, sizeof(text), "%s @whi@ %s", op, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
@@ -731,7 +813,8 @@ add_player_stack_rows(
                 .tile_z = other->grid_position.z,
                 .tile_level = picked->tile_level,
             };
-            add_npc_rows(menu, &ctx->selection, other, &other_picked, viewer_combat_level);
+            add_npc_rows(
+                menu, ctx, &ctx->selection, other, &other_picked, viewer_combat_level);
         }
 
         for( int pi = World_EntityPoolHead(player_pool); pi != WORLD_ENTITY_NIL;
@@ -839,7 +922,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_NPC* npc =
                 World_NpcGetByElementId(ctx->world, picked->element_id, NULL);
             if( npc )
-                add_npc_stack_rows(menu, sel, ctx->world, npc, picked);
+                add_npc_stack_rows(menu, ctx, ctx->world, npc, picked);
             break;
         }
         case WORLD_PICK_PLAYER:

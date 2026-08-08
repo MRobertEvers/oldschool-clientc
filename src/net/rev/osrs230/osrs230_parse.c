@@ -424,6 +424,36 @@ osrs230_parse(
         out->_update_inv_stop_transmit.inv_id = -1;
         return 1;
 
+    /*
+     * MidiSongV2Encoder v5 (rev 230): p2Alt2 fadeOutDelay, p2Alt2 fadeOutSpeed,
+     * p2 fadeInDelay, p2 id, p2Alt3 fadeInSpeed.
+     *
+     * Needed here rather than in the shared reader because that one is the
+     * pre-V2 two-byte form -- it reads the id straight off the front and
+     * asserts the frame is consumed, which on a 10-byte V2 payload gives a
+     * garbage song id and trips the assert. Until this existed, music could not
+     * play on this revision at all.
+     */
+    case PKT_NAME_MIDI_SONG:
+    {
+        RSProt_Buffer cur;
+        int fade_out_speed;
+        int fade_in_speed;
+
+        RSProt_BufferWrapRead(&cur, data, len);
+        (void)RSProt_BufferG2Be_add128(&cur); /* fade-out delay */
+        fade_out_speed = RSProt_BufferG2Be_add128(&cur);
+        (void)RSProt_BufferG2Be(&cur); /* fade-in delay */
+        out->_midi_song.id = RSProt_BufferG2Be(&cur);
+        fade_in_speed = RSProt_BufferG2Le_add128(&cur);
+        if( out->_midi_song.id == 65535 )
+            out->_midi_song.id = -1;
+        /* Speeds are client cycles; the player works in milliseconds. */
+        out->_midi_song.fade_out_ms = fade_out_speed * 20;
+        out->_midi_song.fade_in_ms = fade_in_speed * 20;
+        return cur.err ? 0 : 1;
+    }
+
     default:
         return -1; /* fall back to the shared gameproto_parse */
     }

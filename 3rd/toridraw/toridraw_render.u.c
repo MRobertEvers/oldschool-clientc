@@ -7,6 +7,10 @@
 #include <assert.h>
 #include <limits.h>
 #include <string.h>
+#ifdef TORIDRAW_NEAR_CLIP_STATS
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 
 #ifndef VERTEXINT_BITS
 #define VERTEXINT_BITS 16
@@ -193,9 +197,15 @@ ToriDraw_CalculateCylinderAabb8point(
     int const model_roll = ToriDraw_NormalizeAngle(position->roll);
     int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
 
+    /*
+     * The clipping family, unlike ToriDraw_Project: the min/max sweep below
+     * reads sc_x directly, so a corner behind the near plane has to come back
+     * as the sentinel to drag min_screen_x out to -5000 and keep the box
+     * conservative. Eight vertices, so the per-vertex cost is noise.
+     */
     if( model_pitch != 0 || model_roll != 0 || camera_roll != 0 )
     {
-        project_vertices_array6_fused_notex(
+        project_vertices_array6_fused_notex_clip(
             sc_x,
             sc_y,
             sc_z,
@@ -218,7 +228,7 @@ ToriDraw_CalculateCylinderAabb8point(
     }
     else
     {
-        project_vertices_array_fused_notex(
+        project_vertices_array_fused_notex_clip(
             sc_x,
             sc_y,
             sc_z,
@@ -872,6 +882,339 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
 }
 
+/*
+ * The model-shape dispatch, written out once per near-clip family.
+ *
+ * The near-clip question is answered once per model in ToriDraw_Project and
+ * the answer picks one of these two; below this point every kernel is
+ * specialized, so no `may_clip` argument is threaded down and nothing tests it
+ * per vertex. Passing a flag down instead and trusting the optimizer to
+ * unswitch it was measurably worse: it held at -O2/-O3 but left the scalar
+ * path ~20%% slower than the code it replaced at -O1, where the flag stopped
+ * being a constant and blocked auto-vectorization.
+ */
+/* Models that can reach behind the near plane. */
+static inline void
+toridraw_project_vertices_clip(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+    /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
+     * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
+    if( model_roll != 0 || camera_roll != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array6_fused_clip(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+        else
+        {
+            project_vertices_array6_fused_notex_clip(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+    }
+    else if( model_pitch != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array_pitchyaw_fused_clip(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_pitchyaw_fused_notex_clip(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw);
+        }
+    }
+    else if( model_has_textures(hnd) )
+    {
+        project_vertices_array_fused_clip(
+            scene->orthographic_vertices_x,
+            scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+            camera->pitch,
+            camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_fused_notex_clip(
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+            camera->pitch,
+            camera->yaw);
+    }
+
+}
+
+/* Models that provably cannot; no sentinel, no near-plane test. */
+static inline void
+toridraw_project_vertices_noclip(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_Camera* camera,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int camera_roll,
+    int model_mid_z)
+{
+    /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
+     * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
+    if( model_roll != 0 || camera_roll != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array6_fused_noclip(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+        else
+        {
+            project_vertices_array6_fused_notex_noclip(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_roll,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw,
+                camera_roll);
+        }
+    }
+    else if( model_pitch != 0 )
+    {
+        if( model_has_textures(hnd) )
+        {
+            project_vertices_array_pitchyaw_fused_noclip(
+                scene->orthographic_vertices_x,
+                scene->orthographic_vertices_y,
+                scene->orthographic_vertices_z,
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_pitchyaw_fused_notex_noclip(
+                scene->screen_vertices_x,
+                scene->screen_vertices_y,
+                scene->screen_vertices_z,
+                model_vertices_x(hnd),
+                model_vertices_y(hnd),
+                model_vertices_z(hnd),
+                model_vertex_count(hnd),
+                model_pitch,
+                model_yaw,
+                model_mid_z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+                camera->pitch,
+                camera->yaw);
+        }
+    }
+    else if( model_has_textures(hnd) )
+    {
+        project_vertices_array_fused_noclip(
+            scene->orthographic_vertices_x,
+            scene->orthographic_vertices_y,
+            scene->orthographic_vertices_z,
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+            camera->pitch,
+            camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_fused_notex_noclip(
+            scene->screen_vertices_x,
+            scene->screen_vertices_y,
+            scene->screen_vertices_z,
+            model_vertices_x(hnd),
+            model_vertices_y(hnd),
+            model_vertices_z(hnd),
+            model_vertex_count(hnd),
+            model_yaw,
+            model_mid_z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
+            camera->pitch,
+            camera->yaw);
+    }
+
+}
+
 static inline int
 ToriDraw_Project(
     struct ToriDraw_Scene* scene,
@@ -902,151 +1245,219 @@ ToriDraw_Project(
     int const model_roll = ToriDraw_NormalizeAngle(position->roll);
     int const camera_roll = ToriDraw_NormalizeAngle(camera->roll);
 
-    /* Full 6DOF when model/camera roll is set (obj-icon zan2d, etc.). yaw-only and
-     * pitch+yaw keep the SIMD fused paths; array6_fused matches v0 Dash. */
-    if( model_roll != 0 || camera_roll != 0 )
+    /*
+     * Decide once, for the whole model, whether any vertex can land behind the
+     * near plane. The reference asks the same question at the same point
+     * (Client-TS Model.worldRender:1755 `clipped = midZ - radiusZ <= 50`) and
+     * uses the answer to skip every per-face sentinel test in render2:1876 —
+     * which is why it never has to defend a genuine -5000. We do the same, and
+     * additionally hand the answer to the projection kernels so the per-vertex
+     * clip compare, the sentinel blend and the -5001 nudge all disappear from
+     * the common path rather than merely being ignored downstream.
+     *
+     * `min_z_depth_any_rotation` is max(center_to_top_edge, center_to_bottom_edge),
+     * i.e. the radius of a sphere about the model origin containing every
+     * vertex (toridraw_model_transform.c:736). A sphere is the right bound
+     * here precisely because it is rotation-invariant: model pitch/yaw/roll and
+     * camera pitch/yaw/roll all rotate about that origin, so this one test
+     * covers the 6DOF and pitch+yaw paths as well as the yaw-only one. The
+     * reference's `radiusZ` cannot: it folds in cos/sin of the camera pitch and
+     * so is only valid for worldRender's yaw-only models.
+     *
+     * Must be conservative in the "may clip" direction: the no-clip kernel
+     * divides by z unconditionally, so a vertex that sneaks below the near
+     * plane would be a sign-flipped projection, or a SIGFPE at z == 0. Hence
+     * `<` against near_plane_z (not `<=`), and the near_plane_z < 1 guard for
+     * cameras that would otherwise admit a zero divisor.
+     */
+    struct ToriDraw_BoundsCylinder const* const proj_bc = model_bounds_cylinder(hnd);
+    bool may_clip =
+        !proj_bc || camera->near_plane_z < 1 ||
+        center_projection.z - proj_bc->min_z_depth_any_rotation < camera->near_plane_z;
+
+#ifdef TORIDRAW_NEAR_CLIP_FORCE_ALL
+    /* Build with -DTORIDRAW_NEAR_CLIP_FORCE_ALL=1 to send every model down the
+     * clipping kernel, i.e. the behaviour from before the gate existed. Frames
+     * rendered by the two builds must be byte-identical: that equality is the
+     * whole correctness argument for the gate, so keep this switch working. */
+    may_clip = true;
+#endif
+
+#ifdef TORIDRAW_NEAR_CLIP_STATS
     {
-        if( model_has_textures(hnd) )
-        {
-            project_vertices_array6_fused(
-                scene->orthographic_vertices_x,
-                scene->orthographic_vertices_y,
-                scene->orthographic_vertices_z,
-                scene->screen_vertices_x,
-                scene->screen_vertices_y,
-                scene->screen_vertices_z,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                model_pitch,
-                model_yaw,
-                model_roll,
-                center_projection.z,
-                position->x,
-                position->y,
-                position->z,
-                camera->near_plane_z,
-                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-                camera->pitch,
-                camera->yaw,
-                camera_roll);
-        }
-        else
-        {
-            project_vertices_array6_fused_notex(
-                scene->screen_vertices_x,
-                scene->screen_vertices_y,
-                scene->screen_vertices_z,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                model_pitch,
-                model_yaw,
-                model_roll,
-                center_projection.z,
-                position->x,
-                position->y,
-                position->z,
-                camera->near_plane_z,
-                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-                camera->pitch,
-                camera->yaw,
-                camera_roll);
-        }
+        static long clipped_models = 0;
+        static long total_models = 0;
+        total_models++;
+        if( may_clip )
+            clipped_models++;
+        if( (total_models % 100000) == 0 )
+            fprintf(
+                stderr,
+                "near_clip_stats: %ld/%ld models took the clipping kernel (%.2f%%)\n",
+                clipped_models,
+                total_models,
+                100.0 * (double)clipped_models / (double)total_models);
     }
-    else if( model_pitch != 0 )
-    {
-        if( model_has_textures(hnd) )
-        {
-            project_vertices_array_pitchyaw_fused(
-                scene->orthographic_vertices_x,
-                scene->orthographic_vertices_y,
-                scene->orthographic_vertices_z,
-                scene->screen_vertices_x,
-                scene->screen_vertices_y,
-                scene->screen_vertices_z,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                model_pitch,
-                model_yaw,
-                center_projection.z,
-                position->x,
-                position->y,
-                position->z,
-                camera->near_plane_z,
-                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-                camera->pitch,
-                camera->yaw);
-        }
-        else
-        {
-            project_vertices_array_pitchyaw_fused_notex(
-                scene->screen_vertices_x,
-                scene->screen_vertices_y,
-                scene->screen_vertices_z,
-                model_vertices_x(hnd),
-                model_vertices_y(hnd),
-                model_vertices_z(hnd),
-                model_vertex_count(hnd),
-                model_pitch,
-                model_yaw,
-                center_projection.z,
-                position->x,
-                position->y,
-                position->z,
-                camera->near_plane_z,
-                toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-                camera->pitch,
-                camera->yaw);
-        }
-    }
-    else if( model_has_textures(hnd) )
-    {
-        project_vertices_array_fused(
-            scene->orthographic_vertices_x,
-            scene->orthographic_vertices_y,
-            scene->orthographic_vertices_z,
-            scene->screen_vertices_x,
-            scene->screen_vertices_y,
-            scene->screen_vertices_z,
-            model_vertices_x(hnd),
-            model_vertices_y(hnd),
-            model_vertices_z(hnd),
-            model_vertex_count(hnd),
-            model_yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-            camera->pitch,
-            camera->yaw);
-    }
+#endif
+
+    scene->near_clipped = may_clip;
+
+    if( may_clip )
+        toridraw_project_vertices_clip(
+            scene, hnd, position, camera,
+            model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
     else
+        toridraw_project_vertices_noclip(
+            scene, hnd, position, camera,
+            model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+
+#ifdef TORIDRAW_NEAR_CLIP_STATS
+    /*
+     * Verification build. Two properties are checked here, on real scene data.
+     *
+     * Deliberately NOT done by comparing rendered frames between a gated and a
+     * forced build: this client's offline boot is not frame-deterministic (the
+     * same binary run twice produces different frames — async asset loads
+     * settle differently), so a frame byte-compare answers "did these two runs
+     * load the same things", not "do the two kernels agree". Everything below
+     * runs both kernels over the same model inside one process instead.
+     *
+     *   1. Conservativeness. If any vertex really did land in front of the near
+     *      plane, the gate must have said so. The reverse — gate says "may
+     *      clip", nothing actually clips — is merely a missed optimization.
+     *      A failure here means the no-clip kernel divided by a z it should
+     *      not have, the one way this change can corrupt geometry.
+     *   2. Equivalence. Whenever nothing actually clipped, both kernels must
+     *      produce identical vertices. Checked regardless of which way the gate
+     *      went, so the boundary case (gate says "may clip", reality says no)
+     *      is covered too, not just the easy interior.
+     *
+     * The kernels write screen z as (camera-space z - model_mid_z), so the
+     * camera-space z is recoverable exactly and neither check needs the
+     * projection to hand anything extra back.
+     */
     {
-        project_vertices_array_fused_notex(
-            scene->screen_vertices_x,
-            scene->screen_vertices_y,
-            scene->screen_vertices_z,
-            model_vertices_x(hnd),
-            model_vertices_y(hnd),
-            model_vertices_z(hnd),
-            model_vertex_count(hnd),
-            model_yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048),
-            camera->pitch,
-            camera->yaw);
+        int const vcount = model_vertex_count(hnd);
+        bool actually_clipped = false;
+        for( int vi = 0; vi < vcount; vi++ )
+        {
+            if( scene->screen_vertices_z[vi] + center_projection.z < camera->near_plane_z )
+            {
+                actually_clipped = true;
+                break;
+            }
+        }
+
+        if( actually_clipped && !may_clip )
+        {
+            fprintf(
+                stderr,
+                "near_clip_bound_violation: model clipped but the gate said it could not "
+                "(mid_z=%d sphere_r=%d near=%d)\n",
+                center_projection.z,
+                proj_bc ? proj_bc->min_z_depth_any_rotation : -1,
+                camera->near_plane_z);
+            assert(0 && "near-clip gate was not conservative");
+        }
+
+        if( !actually_clipped )
+        {
+            static int* verify_x = NULL;
+            static int* verify_y = NULL;
+            static int* verify_z = NULL;
+            static int verify_cap = 0;
+            static long compared_models = 0;
+            static long nudge_divergences = 0;
+
+            if( vcount > verify_cap )
+            {
+                verify_cap = vcount;
+                verify_x = (int*)realloc(verify_x, (size_t)verify_cap * sizeof(int));
+                verify_y = (int*)realloc(verify_y, (size_t)verify_cap * sizeof(int));
+                verify_z = (int*)realloc(verify_z, (size_t)verify_cap * sizeof(int));
+                assert(verify_x && verify_y && verify_z);
+            }
+            memcpy(verify_x, scene->screen_vertices_x, (size_t)vcount * sizeof(int));
+            memcpy(verify_y, scene->screen_vertices_y, (size_t)vcount * sizeof(int));
+            memcpy(verify_z, scene->screen_vertices_z, (size_t)vcount * sizeof(int));
+
+            /* Re-project down the opposite arm and compare. */
+            if( may_clip )
+                toridraw_project_vertices_noclip(
+                    scene, hnd, position, camera,
+                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+            else
+                toridraw_project_vertices_clip(
+                    scene, hnd, position, camera,
+                    model_pitch, model_yaw, model_roll, camera_roll, center_projection.z);
+
+            compared_models++;
+            for( int vi = 0; vi < vcount; vi++ )
+            {
+                /* The one legitimate divergence: the clipping kernel nudges a
+                 * genuinely projected -5000 to -5001 and the no-clip kernel
+                 * does not. Counted rather than failed — it is the documented
+                 * consequence of dropping the nudge, and the count says how
+                 * often it is reachable at all. */
+                int const lo = verify_x[vi] < scene->screen_vertices_x[vi]
+                                   ? verify_x[vi]
+                                   : scene->screen_vertices_x[vi];
+                int const hi = verify_x[vi] < scene->screen_vertices_x[vi]
+                                   ? scene->screen_vertices_x[vi]
+                                   : verify_x[vi];
+                if( lo == TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE &&
+                    hi == TORIDRAW_SCREEN_X_NEAR_CLIPPED &&
+                    verify_y[vi] == scene->screen_vertices_y[vi] &&
+                    verify_z[vi] == scene->screen_vertices_z[vi] )
+                {
+                    nudge_divergences++;
+                    continue;
+                }
+                if( verify_x[vi] != scene->screen_vertices_x[vi] ||
+                    verify_y[vi] != scene->screen_vertices_y[vi] ||
+                    verify_z[vi] != scene->screen_vertices_z[vi] )
+                {
+                    fprintf(
+                        stderr,
+                        "near_clip_mismatch: gate=%d vertex %d/%d "
+                        "gated=(%d,%d,%d) other=(%d,%d,%d) "
+                        "[mpitch=%d myaw=%d mroll=%d croll=%d tex=%d mid_z=%d near=%d]\n",
+                        (int)may_clip,
+                        vi,
+                        vcount,
+                        verify_x[vi],
+                        verify_y[vi],
+                        verify_z[vi],
+                        scene->screen_vertices_x[vi],
+                        scene->screen_vertices_y[vi],
+                        scene->screen_vertices_z[vi],
+                        model_pitch,
+                        model_yaw,
+                        model_roll,
+                        camera_roll,
+                        (int)model_has_textures(hnd),
+                        center_projection.z,
+                        camera->near_plane_z);
+                    assert(0 && "the two near-clip kernels disagreed");
+                }
+            }
+
+            /* Restore the gated result: the rest of the frame must render from
+             * the path production would actually have taken. */
+            memcpy(scene->screen_vertices_x, verify_x, (size_t)vcount * sizeof(int));
+            memcpy(scene->screen_vertices_y, verify_y, (size_t)vcount * sizeof(int));
+            memcpy(scene->screen_vertices_z, verify_z, (size_t)vcount * sizeof(int));
+
+            if( (compared_models % 100000) == 0 )
+                fprintf(
+                    stderr,
+                    "near_clip_verify: %ld models compared both kernels, "
+                    "%ld nudge-only divergences\n",
+                    compared_models,
+                    nudge_divergences);
+        }
     }
+#endif
 
     return TORIDRAW_CULL_VISIBLE;
 }
@@ -1219,11 +1630,17 @@ toridraw_projected_model_hit_face(
          * rather than cosmetic for the rough test: the projection parks a
          * behind-the-eye vertex at screen x -5000 and leaves its y
          * *undivided*, so a bounding box over it spans the screen and would
-         * swallow every click behind the model. A genuine -5000 is nudged to
-         * -5001 by the projection, so the sentinel is unambiguous.
+         * swallow every click behind the model.
+         *
+         * Gated on near_clipped exactly as the reference gates on `clipped`
+         * (Model.render2:1876). Not just a saving: when the flag is clear the
+         * projection ran its no-clip kernel, which skips the -5001 nudge, so a
+         * legitimately projected -5000 is possible and testing for it here
+         * would drop a pickable face.
          */
-        if( x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
-            x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+        if( scene->near_clipped &&
+            (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+             x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
             continue;
 
         int y1 = scene->screen_vertices_y[face_a];

@@ -3,6 +3,7 @@
 #include "audio/torirs_mixer.h"
 #include "engine/cache_provider.h"
 #include "task_runner.h"
+#include "features/features.h"
 #include "world/world.h"
 
 #include <toridraw.h>
@@ -37,6 +38,8 @@ RS_Audio_Init(struct RS_Audio* audio)
     audio->music_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->last_sound_id = -1;
     audio->last_loops = -1;
+    audio->ambient_sound_id = -1;
+    audio->ambient_started = true;
     audio->next_voice_id = 1;
     audio->area_generation = -1;
     ToriRS_Music_Init(&audio->music);
@@ -49,6 +52,20 @@ RS_Audio_Shutdown(struct RS_Audio* audio)
     if( !audio )
         return;
     ToriRS_Music_Free(&audio->music);
+}
+
+void
+RS_Audio_SetFeatures(
+    struct RS_Audio* audio,
+    struct ToriRS_FeatureTable const* features)
+{
+    if( !audio || !features )
+        return;
+    audio->effects_monophonic = features->effects_monophonic != 0;
+    AUDIO_TRACE(
+        "rs_audio: era '%s', effects %s\n",
+        features->name ? features->name : "?",
+        audio->effects_monophonic ? "monophonic" : "polyphonic");
 }
 
 static int
@@ -147,9 +164,17 @@ length_in_ticks(
 /**
  * Volume and pan for a sound at a tile, heard from the camera's tile.
  *
- * Linear falloff to zero at `distance` tiles, which is what the reference does
- * for area sounds; pan is the signed east-west offset over the same radius, so
- * a sound directly north of the listener is centred rather than silent.
+ * Distance is **Chebyshev** (the larger of |dx| and |dz|), not Manhattan. Every
+ * radius in this game is a square: a loc's `ambient_sound_distance`, an npc's
+ * wander range, a spell's area. Manhattan overstates a diagonal offset by up to
+ * 2x, so an emitter eight tiles north-east of the camera measured 16 and fell
+ * outside a radius it is well inside -- which is most of why the area sounds
+ * were coming out at a tenth of their volume.
+ *
+ * The falloff itself is `(radius - d) / radius` with a floor: a sound *at* the
+ * edge of its radius should be quiet, not silent, and dropping linearly to zero
+ * makes the whole outer half of the radius inaudible in practice. The floor is
+ * what makes walking towards a waterfall a fade-in rather than a switch.
  *
  * The camera's *yaw* is deliberately not used. The reference pans area sounds by
  * world offset and not by facing, and rotating the pan with the camera makes a
@@ -169,12 +194,14 @@ positional_gain(
 {
     int dx = tile_x - camera_x;
     int dz = tile_z - camera_z;
+    int abs_x = dx < 0 ? -dx : dx;
+    int abs_z = dz < 0 ? -dz : dz;
     int magnitude;
     int falloff;
 
     if( distance <= 0 )
         distance = AUDIO_DEFAULT_DISTANCE;
-    magnitude = (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
+    magnitude = abs_x > abs_z ? abs_x : abs_z;
     if( magnitude >= distance )
     {
         *out_volume = 0;
@@ -182,6 +209,10 @@ positional_gain(
         return;
     }
     falloff = base_volume * (distance - magnitude) / distance;
+    /* Never below a quarter inside the radius: the radius is where it becomes
+     * inaudible, not where it becomes quiet. */
+    if( falloff < base_volume / 4 )
+        falloff = base_volume / 4;
     *out_volume = falloff;
 
     if( dx <= -distance )
@@ -348,7 +379,8 @@ play_entry(
         return;
 
     ticks = length_in_ticks(sound->sample_count, sound->sample_rate);
-    if( audio->tick + ticks <= audio->last_play_tick + audio->last_play_length_ticks )
+    if( audio->effects_monophonic &&
+        audio->tick + ticks <= audio->last_play_tick + audio->last_play_length_ticks )
     {
         audio->dropped_overlap++;
         AUDIO_TRACE(
@@ -668,10 +700,11 @@ tick_area_sounds(
             command.source_id = voice->sound_id;
             ToriRS_AudioQueue_Push(out, &command);
             AUDIO_TRACE(
-                "rs_audio: area sound %d at (%d,%d) vol=%d pan=%d\n",
+                "rs_audio: area sound %d at (%d,%d) radius=%d vol=%d pan=%d\n",
                 voice->sound_id,
                 voice->tile_x,
                 voice->tile_z,
+                voice->distance,
                 volume,
                 pan);
         }
@@ -688,6 +721,90 @@ tick_area_sounds(
             ToriRS_AudioQueue_Push(out, &command);
         }
     }
+}
+
+/* --- the region's background bed ------------------------------------------ */
+
+void
+RS_Audio_SetAmbient(
+    struct RS_Audio* audio,
+    int sound_id,
+    int fade_ms)
+{
+    if( !audio )
+        return;
+    if( audio->ambient_sound_id == sound_id )
+        return;
+    audio->ambient_sound_id = sound_id;
+    audio->ambient_fade_ms = fade_ms;
+    /* Clear the started flag so the tick re-acquires: the clip may not be
+     * resident yet, and the tick is where loads are requested. */
+    audio->ambient_started = false;
+    AUDIO_TRACE("rs_audio: ambient bed %d (fade %dms)\n", sound_id, fade_ms);
+}
+
+/**
+ * Keep the background bed sounding.
+ *
+ * Unpositioned and unattenuated -- it is the region's bed, not a thing standing
+ * somewhere. It shares the area bus with the loc emitters so one setting covers
+ * both, which is how the reference's "area sound" slider behaves.
+ */
+static void
+tick_ambient_bed(
+    struct RS_Audio* audio,
+    struct CacheProvider* provider,
+    struct TaskRunner* runner,
+    struct ToriDraw_Scene* scene,
+    struct ToriRS_AudioQueue* out)
+{
+    struct ToriRS_AudioCommand command;
+    struct ToriDraw_Sound* sound;
+
+    if( audio->ambient_started )
+        return;
+
+    /* Stop whatever bed is playing when the id changes or clears. */
+    if( audio->ambient_voice_id > 0 && out )
+    {
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_STOP);
+        command.voice_id = audio->ambient_voice_id;
+        command.fade_ms = audio->ambient_fade_ms;
+        ToriRS_AudioQueue_Push(out, &command);
+        audio->ambient_voice_id = 0;
+    }
+    if( audio->ambient_sound_id < 0 )
+    {
+        audio->ambient_started = true;
+        return;
+    }
+
+    sound = publish_sound(audio, provider, scene, out, audio->ambient_sound_id);
+    if( !sound )
+    {
+        if( provider && runner )
+        {
+            struct ToriRS_Task* task = CreateTask_SoundLoad(provider, audio->ambient_sound_id);
+            if( task )
+                ToriRS_TaskQueue_Add(runner->queue, task);
+        }
+        return; /* try again next tick */
+    }
+    if( !out )
+        return;
+
+    audio->ambient_voice_id = next_voice_id(audio);
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = audio->ambient_sound_id;
+    command.voice_id = audio->ambient_voice_id;
+    command.bus = TORIRS_AUDIO_BUS_AREA;
+    command.volume = TORIRS_AUDIO_VOLUME_MAX;
+    command.pan = TORIRS_AUDIO_PAN_CENTRE;
+    command.loop_count = -1;
+    command.source_id = audio->ambient_sound_id;
+    ToriRS_AudioQueue_Push(out, &command);
+    audio->ambient_started = true;
+    AUDIO_TRACE("rs_audio: ambient bed %d playing\n", audio->ambient_sound_id);
 }
 
 /* --- music ---------------------------------------------------------------- */
@@ -755,6 +872,7 @@ RS_Audio_Tick(
     drain_scene_events(audio, scene, out);
 
     tick_effect_queue(audio, provider, runner, scene, camera_tile_x, camera_tile_z, out);
+    tick_ambient_bed(audio, provider, runner, scene, out);
     tick_area_sounds(
         audio,
         provider,
@@ -851,6 +969,9 @@ RS_Audio_StopAll(
     if( !audio )
         return;
     audio->count = 0;
+    audio->ambient_sound_id = -1;
+    audio->ambient_voice_id = 0;
+    audio->ambient_started = true;
     for( int i = 0; i < RS_AUDIO_MAX_AREA_VOICES; i++ )
         memset(&audio->area[i], 0, sizeof(audio->area[i]));
     audio->area_generation = -1;

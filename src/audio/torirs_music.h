@@ -114,6 +114,7 @@ struct ToriRS_MusicPlayer
     int block_frames;
 
     /* Counters for the debug readout. */
+    int reported_drops;
     int songs_started;
     int songs_failed;
     int frames_pushed;

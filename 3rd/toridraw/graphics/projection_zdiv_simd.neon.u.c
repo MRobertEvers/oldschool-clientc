@@ -8,8 +8,16 @@
 #include <limits.h>
 
 /* Float reciprocal + one Newton-Raphson step on vrecpeq_f32; truncating cvt matches SSE _mm_cvttps_epi32. */
+/*
+ * Written out twice on purpose. The near-clip question is answered once per
+ * model, far above this (ToriDraw_Project), so these are reached only through
+ * the family that already knows the answer — no flag to test, no branch to
+ * predict per vertex. The no-clip copy keeps the full parameter list so the two
+ * families stay call-compatible; its near-plane and sentinel vectors are simply
+ * unused and vanish when it inlines.
+ */
 static inline void
-projection_zdiv_neon_apply(
+projection_zdiv_neon_apply_clip(
     int32x4_t z_i,
     int32x4_t x_orig,
     int32x4_t y_orig,
@@ -49,9 +57,41 @@ projection_zdiv_neon_apply(
     *out_final_y = final_y;
 }
 
+static inline void
+projection_zdiv_neon_apply_noclip(
+    int32x4_t z_i,
+    int32x4_t x_orig,
+    int32x4_t y_orig,
+    int32x4_t v_near,
+    int32x4_t v_mid,
+    int32x4_t v_neg5000,
+    int32x4_t v_neg5001,
+    int32x4_t* out_vscreen_z,
+    int32x4_t* out_final_x,
+    int32x4_t* out_final_y)
+{
+    int32x4_t vscreen_z = vsubq_s32(z_i, v_mid);
+    *out_vscreen_z = vscreen_z;
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t x_f = vcvtq_f32_s32(x_orig);
+    float32x4_t y_f = vcvtq_f32_s32(y_orig);
+    float32x4_t fdivx = vmulq_f32(x_f, recip);
+    float32x4_t fdivy = vmulq_f32(y_f, recip);
+
+    int32x4_t x_div = vcvtq_s32_f32(fdivx);
+    int32x4_t y_div = vcvtq_s32_f32(fdivy);
+
+    *out_final_x = x_div;
+    *out_final_y = y_div;
+}
+
 /* Used by projection16_simd.u.c / projection_simd.u.c for fused 4-lane z-div. */
 static inline void
-projection_neon_zdiv_tex_4_at(
+projection_neon_zdiv_tex_4_at_clip(
     const int* orthographic_vertices_z,
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -70,7 +110,7 @@ projection_neon_zdiv_tex_4_at(
     int32x4_t vscreen_z;
     int32x4_t final_x;
     int32x4_t final_y;
-    projection_zdiv_neon_apply(
+    projection_zdiv_neon_apply_clip(
         z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
     vst1q_s32(&screen_vertices_z[i], vscreen_z);
     vst1q_s32(&screen_vertices_x[i], final_x);
@@ -78,7 +118,34 @@ projection_neon_zdiv_tex_4_at(
 }
 
 static inline void
-projection_neon_zdiv_notex_4_at(
+projection_neon_zdiv_tex_4_at_noclip(
+    const int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+    int32x4_t vscreen_z;
+    int32x4_t final_x;
+    int32x4_t final_y;
+    projection_zdiv_neon_apply_noclip(
+        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+    vst1q_s32(&screen_vertices_z[i], vscreen_z);
+    vst1q_s32(&screen_vertices_x[i], final_x);
+    vst1q_s32(&screen_vertices_y[i], final_y);
+}
+
+static inline void
+projection_neon_zdiv_notex_4_at_clip(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -96,7 +163,7 @@ projection_neon_zdiv_notex_4_at(
     int32x4_t vscreen_z;
     int32x4_t final_x;
     int32x4_t final_y;
-    projection_zdiv_neon_apply(
+    projection_zdiv_neon_apply_clip(
         z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
     vst1q_s32(&screen_vertices_z[i], vscreen_z);
     vst1q_s32(&screen_vertices_x[i], final_x);
@@ -104,7 +171,33 @@ projection_neon_zdiv_notex_4_at(
 }
 
 static inline void
-projection_neon_zdiv_tex_tail(
+projection_neon_zdiv_notex_4_at_noclip(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int32x4_t z_i = vld1q_s32(&screen_vertices_z[i]);
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+    int32x4_t vscreen_z;
+    int32x4_t final_x;
+    int32x4_t final_y;
+    projection_zdiv_neon_apply_noclip(
+        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+    vst1q_s32(&screen_vertices_z[i], vscreen_z);
+    vst1q_s32(&screen_vertices_x[i], final_x);
+    vst1q_s32(&screen_vertices_y[i], final_y);
+}
+
+static inline void
+projection_neon_zdiv_tex_tail_clip(
     const int* orthographic_vertices_z,
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -150,7 +243,7 @@ projection_neon_zdiv_tex_tail(
     int32x4_t vscreen_z;
     int32x4_t final_x;
     int32x4_t final_y;
-    projection_zdiv_neon_apply(
+    projection_zdiv_neon_apply_clip(
         z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
 
     int out_z[4];
@@ -168,7 +261,71 @@ projection_neon_zdiv_tex_tail(
 }
 
 static inline void
-projection_neon_zdiv_notex_tail(
+projection_neon_zdiv_tex_tail_noclip(
+    const int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int base,
+    int rem,
+    int model_mid_z,
+    int near_plane_z)
+{
+    if( rem <= 0 )
+        return;
+    assert(rem < 4);
+
+    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
+    int zbuf[4];
+    int xbuf[4];
+    int ybuf[4];
+    for( int j = 0; j < 4; j++ )
+    {
+        if( j < rem )
+        {
+            zbuf[j] = orthographic_vertices_z[base + j];
+            xbuf[j] = screen_vertices_x[base + j];
+            ybuf[j] = screen_vertices_y[base + j];
+        }
+        else
+        {
+            zbuf[j] = z_pad;
+            xbuf[j] = 0;
+            ybuf[j] = 0;
+        }
+    }
+
+    int32x4_t z_i = vld1q_s32(zbuf);
+    int32x4_t x = vld1q_s32(xbuf);
+    int32x4_t y = vld1q_s32(ybuf);
+
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+
+    int32x4_t vscreen_z;
+    int32x4_t final_x;
+    int32x4_t final_y;
+    projection_zdiv_neon_apply_noclip(
+        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+
+    int out_z[4];
+    int out_x[4];
+    int out_y[4];
+    vst1q_s32(out_z, vscreen_z);
+    vst1q_s32(out_x, final_x);
+    vst1q_s32(out_y, final_y);
+    for( int j = 0; j < rem; j++ )
+    {
+        screen_vertices_z[base + j] = out_z[j];
+        screen_vertices_x[base + j] = out_x[j];
+        screen_vertices_y[base + j] = out_y[j];
+    }
+}
+
+static inline void
+projection_neon_zdiv_notex_tail_clip(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -213,7 +370,7 @@ projection_neon_zdiv_notex_tail(
     int32x4_t vscreen_z;
     int32x4_t final_x;
     int32x4_t final_y;
-    projection_zdiv_neon_apply(
+    projection_zdiv_neon_apply_clip(
         z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
 
     int out_z[4];
@@ -231,7 +388,70 @@ projection_neon_zdiv_notex_tail(
 }
 
 static inline void
-projection_zdiv_tex_neon(
+projection_neon_zdiv_notex_tail_noclip(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int base,
+    int rem,
+    int model_mid_z,
+    int near_plane_z)
+{
+    if( rem <= 0 )
+        return;
+    assert(rem < 4);
+
+    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
+    int zbuf[4];
+    int xbuf[4];
+    int ybuf[4];
+    for( int j = 0; j < 4; j++ )
+    {
+        if( j < rem )
+        {
+            zbuf[j] = screen_vertices_z[base + j];
+            xbuf[j] = screen_vertices_x[base + j];
+            ybuf[j] = screen_vertices_y[base + j];
+        }
+        else
+        {
+            zbuf[j] = z_pad;
+            xbuf[j] = 0;
+            ybuf[j] = 0;
+        }
+    }
+
+    int32x4_t z_i = vld1q_s32(zbuf);
+    int32x4_t x = vld1q_s32(xbuf);
+    int32x4_t y = vld1q_s32(ybuf);
+
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+
+    int32x4_t vscreen_z;
+    int32x4_t final_x;
+    int32x4_t final_y;
+    projection_zdiv_neon_apply_noclip(
+        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+
+    int out_z[4];
+    int out_x[4];
+    int out_y[4];
+    vst1q_s32(out_z, vscreen_z);
+    vst1q_s32(out_x, final_x);
+    vst1q_s32(out_y, final_y);
+    for( int j = 0; j < rem; j++ )
+    {
+        screen_vertices_z[base + j] = out_z[j];
+        screen_vertices_x[base + j] = out_x[j];
+        screen_vertices_y[base + j] = out_y[j];
+    }
+}
+
+static inline void
+projection_zdiv_tex_neon_clip(
     const int* orthographic_vertices_z,
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -257,7 +477,7 @@ projection_zdiv_tex_neon(
         int32x4_t vscreen_z;
         int32x4_t final_x;
         int32x4_t final_y;
-        projection_zdiv_neon_apply(
+        projection_zdiv_neon_apply_clip(
             z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
 
         vst1q_s32(&screen_vertices_z[zi], vscreen_z);
@@ -265,7 +485,7 @@ projection_zdiv_tex_neon(
         vst1q_s32(&screen_vertices_y[zi], final_y);
     }
 
-    projection_neon_zdiv_tex_tail(
+    projection_neon_zdiv_tex_tail_clip(
         orthographic_vertices_z,
         screen_vertices_x,
         screen_vertices_y,
@@ -277,7 +497,53 @@ projection_zdiv_tex_neon(
 }
 
 static inline void
-projection_zdiv_notex_neon(
+projection_zdiv_tex_neon_noclip(
+    const int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int num_linear_slots,
+    int model_mid_z,
+    int near_plane_z)
+{
+    const int vsteps = 4;
+    int zi = 0;
+
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+
+    for( ; zi + vsteps - 1 < num_linear_slots; zi += vsteps )
+    {
+        int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[zi]);
+        int32x4_t x = vld1q_s32(&screen_vertices_x[zi]);
+        int32x4_t y = vld1q_s32(&screen_vertices_y[zi]);
+
+        int32x4_t vscreen_z;
+        int32x4_t final_x;
+        int32x4_t final_y;
+        projection_zdiv_neon_apply_noclip(
+            z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+
+        vst1q_s32(&screen_vertices_z[zi], vscreen_z);
+        vst1q_s32(&screen_vertices_x[zi], final_x);
+        vst1q_s32(&screen_vertices_y[zi], final_y);
+    }
+
+    projection_neon_zdiv_tex_tail_noclip(
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        zi,
+        num_linear_slots - zi,
+        model_mid_z,
+        near_plane_z);
+}
+
+static inline void
+projection_zdiv_notex_neon_clip(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -302,7 +568,7 @@ projection_zdiv_notex_neon(
         int32x4_t vscreen_z;
         int32x4_t final_x;
         int32x4_t final_y;
-        projection_zdiv_neon_apply(
+        projection_zdiv_neon_apply_clip(
             z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
 
         vst1q_s32(&screen_vertices_z[zi], vscreen_z);
@@ -310,7 +576,51 @@ projection_zdiv_notex_neon(
         vst1q_s32(&screen_vertices_y[zi], final_y);
     }
 
-    projection_neon_zdiv_notex_tail(
+    projection_neon_zdiv_notex_tail_clip(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        zi,
+        num_linear_slots - zi,
+        model_mid_z,
+        near_plane_z);
+}
+
+static inline void
+projection_zdiv_notex_neon_noclip(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int num_linear_slots,
+    int model_mid_z,
+    int near_plane_z)
+{
+    const int vsteps = 4;
+    int zi = 0;
+
+    int32x4_t v_near = vdupq_n_s32(near_plane_z);
+    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
+    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
+    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
+
+    for( ; zi + vsteps - 1 < num_linear_slots; zi += vsteps )
+    {
+        int32x4_t z_i = vld1q_s32(&screen_vertices_z[zi]);
+        int32x4_t x = vld1q_s32(&screen_vertices_x[zi]);
+        int32x4_t y = vld1q_s32(&screen_vertices_y[zi]);
+
+        int32x4_t vscreen_z;
+        int32x4_t final_x;
+        int32x4_t final_y;
+        projection_zdiv_neon_apply_noclip(
+            z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
+
+        vst1q_s32(&screen_vertices_z[zi], vscreen_z);
+        vst1q_s32(&screen_vertices_x[zi], final_x);
+        vst1q_s32(&screen_vertices_y[zi], final_y);
+    }
+
+    projection_neon_zdiv_notex_tail_noclip(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,

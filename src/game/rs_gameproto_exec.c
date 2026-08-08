@@ -5,6 +5,7 @@
 #include "net/jbase37.h"
 #include "net/net.h"
 #include "net/rev/revpacket.h"
+#include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
 #include "rs_cs2_host.h"
@@ -1199,6 +1200,13 @@ RS_GameProto_Exec(
         {
             struct App* app = ctx->app;
             RS_EntitySync_Clear(&app->esync, app->world);
+            /* The reference's game-state reset puts both Attack options back to
+             * Hidden rather than recomputing them from the varp table it is
+             * about to clear (rs_attack_option.h). Without this a re-login onto
+             * an account whose setting is the default 0 would keep the previous
+             * account's choice until its own VARP arrived. */
+            app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
+            app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
             if( ctx->chat )
                 RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, "You have been logged out.");
             if( app->net )
@@ -1297,6 +1305,21 @@ RS_GameProto_Exec(
     case PKT_NAME_MIDI_JINGLE:
         if( ctx->app )
             App_PlayJingle(ctx->app, packet->_midi_jingle.id, packet->_midi_jingle.delay);
+        break;
+    case PKT_NAME_MIDI_SONG_STOP:
+        if( ctx->app )
+            App_StopSong(ctx->app, packet->_midi_song_stop.fade_out_ms);
+        break;
+    case PKT_NAME_AMBIENTSOUND_START:
+        if( ctx->app )
+            App_SetAmbientSound(
+                ctx->app,
+                packet->_ambientsound_start.id,
+                packet->_ambientsound_start.fade_ms);
+        break;
+    case PKT_NAME_AMBIENTSOUND_STOP:
+        if( ctx->app )
+            App_SetAmbientSound(ctx->app, -1, packet->_ambientsound_stop.fade_ms);
         break;
 
     /* ---- remaining interface packets ---- */

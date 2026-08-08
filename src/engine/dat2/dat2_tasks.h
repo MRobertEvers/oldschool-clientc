@@ -116,6 +116,20 @@ CreateTask_Dat2VarbitLoad(
     struct CacheProvider* provider,
     struct VarPManager* varps);
 
+/**
+ * Load every varplayer type into `varps`, once, at boot.
+ *
+ * The client reads exactly one field off these records — `clientcode`, which
+ * marks a varp as driving built-in client behaviour (sound volume, the Controls
+ * panel's Attack options). Without the table every clientcode reads 0 and none
+ * of that behaviour can fire. Must run BEFORE CreateTask_Dat2VarbitLoad's
+ * install, since SetVarpTypes reallocates the var value arrays.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2VarpLoad(
+    struct CacheProvider* provider,
+    struct VarPManager* varps);
+
 /*
  * Hitsplat types (config group 32), whole-group and eager.
  *

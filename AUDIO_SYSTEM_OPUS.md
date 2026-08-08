@@ -107,9 +107,15 @@ re-parse to their declared track lengths.
       clientcode 4 drives the effects and area buses
 - [x] Async load chain: song → patches → the samples the used notes reference
 - [x] `TORIRS_SIM_SONG` / `TORIRS_SIM_JINGLE` harnesses
+- [x] `MIDI_SONG_STOP` routed and parsed (osrs239 op 0)
+- [x] `AMBIENTSOUND_START` / `AMBIENTSOUND_STOP` — the region's background bed,
+      which is a **server packet**, not a loc field (see D13)
+- [x] osrs230 `MIDI_SONG_V2` routed and parsed — it was discarded, so music could
+      not play on that revision at all
+- [x] Effect monophony gated on the era feature table (2004 only)
+- [x] mock230 sends a track on login so the music path is reachable at all
 - [ ] Random-set area emitters use a deterministic cycle, not the reference's RNG
-- [ ] `MIDI_SONG_WITHSECONDARY` and `MIDI_SONG_STOP` are parsed as `PKT_NAME_NONE`
-      by the osrs239 table, so they never reach the player
+- [ ] `MIDI_SONG_WITHSECONDARY` and `MIDI_SWAP` are still `PKT_NAME_NONE`
 - [ ] CS2 host opcodes for sound (`SOUND_SYNTH`, `SOUND_SONG`, `SOUND_JINGLE`)
 - [ ] NPC sounds: the npc decoder *consumes and discards* opcode 134 (idle /
       crawl / walk / run sound ids plus a radius) and 140 (ambient sound volume),
@@ -123,6 +129,8 @@ re-parse to their declared track lengths.
 - [x] Live headless run: 251k frames pushed, 0 starved, 0 dropped
 - [x] Output capture (`TORIRS_AUDIO_WAV`) analysed: 16.4 s of music + effects
       with 0 clipped samples and 0 discontinuities
+- [x] Real-client capture spectrally analysed (not just clip/jump statistics):
+      flatness 0.10-0.26 with tonal peaks, which is what caught D16
 - [ ] Byte-compare a rendered song against the reference renderer
 
 ---
@@ -199,6 +207,50 @@ TORIRS_AUDIO_TEST_WAV=/tmp make -C src test-audio
 ```
 The statistical checks catch a *broken* synth; only listening catches a subtly
 wrong one, so the test leaves its output on disk when asked.
+
+### Render and judge audio without building the client
+
+```sh
+make -C src audio-harness            # -> src/build/audioharness
+```
+
+The harness links `src/audio/**` and `3rd/rscache` and **nothing else** — no
+ToriDraw, no SDL, no client. It exists because twice during this work an
+unrelated in-flight refactor of the rasteriser broke the link and took every
+audio test down with it; a subsystem you cannot exercise is a subsystem you
+cannot debug. It is also the only place that renders a song *faster than real
+time*, which is what makes sweeping a whole cache index practical.
+
+```sh
+audioharness song   <cache> <profile> <id> [-s secs]  # render one track, full report
+audioharness jingle <cache> <profile> <id>            # same, from index 11
+audioharness effect <cache> <profile> <id>            # one index-4 effect
+audioharness sweep  <cache> <profile> [-n N] [-s secs]# render N tracks, flag the bad
+audioharness stream <cache> <profile> <id>            # through the real mixer + ring
+audioharness wav    <file>                            # analyse any WAV
+audioharness diff   <a.wav> <b.wav>                   # align, then subtract
+```
+
+`song` reports the three layers separately, which is what localises a fault:
+
+```
+  soundfont: 8/8 patches, 27 samples loaded, 0 missing, 1474 KB of PCM
+  sequencer: 342 notes started, 0 dropped, 1041 events, 0 loops
+  polyphony: 58 notes sounding at the peak, 9 of them held
+  peak 32767, rms 7265, dc -173.9, clipped 22
+  discontinuities 0, gap runs 0
+  spectral flatness 0.2541, energy above 5kHz 11.7%
+  verdict: looks musical
+```
+
+A soundfont line short of its patch count is a loader bug (D16). Notes
+*dropped* is a missing patch or sample. A held count near the live count is a
+note-off that never landed. Everything below that is the mix itself.
+
+`diff` aligns the two files by cross-correlation before subtracting. That is not
+a convenience: comparing a client capture against an offline render with
+misaligned windows once produced a 2× high-frequency discrepancy that did not
+exist, and cost an afternoon (see the log).
 
 ### Prove a decoded sample is music and not noise
 Decode it to WAV, then look for a fundamental with harmonics:
@@ -323,7 +375,235 @@ is also why the extra six bits are kept rather than rounding: a typical note sit
 near 1000/16320, and quantising that to 15/255 turns a twelve-voice chord into
 audible steps.
 
-### D8 — area sounds are loc-driven and never enter the network protocol
+### D18 — an absolute artifact threshold measures loudness, not artifacts
+
+**How it was found.** The first sweep across 40 tracks flagged 15 of them, most
+for "clicks". The worst was track 31: 6599 discontinuities, peak 32767. That
+reads like a synth saturating and clicking on every note.
+
+It was not. Two numbers on the same report contradicted it. Of 264,600 samples
+exactly **22** were clipped — 0.008%, which is not saturation, and a genuinely
+clicking track cannot click 6599 times while its waveform stays continuous
+enough to measure a spectral flatness of 0.25.
+
+The detector was `|sample[i] - sample[i-1]| > 3200`, a fixed constant. At an RMS
+of 7265 a *correct* waveform crosses 3200 between adjacent samples constantly —
+a 2 kHz sine at that level steps by ~2900 at the zero crossing, and this mix is
+louder and brighter than that. The threshold was not detecting discontinuities.
+It was detecting loudness, and every loud track failed.
+
+Making it relative — `max(3200, 6 × rms)` — dropped track 31 to **zero**
+discontinuities and the sweep from 15 flagged to 1. The floor stays so that a
+near-silent passage cannot flag its own noise floor.
+
+The same mistake was in the gap detector, which counted any run of zeros as a
+dropout. Sparse music is full of legitimate silence between phrases. A stream
+dropout is a hole punched into something that *was* sounding, so a gap now only
+counts when the signal is loud on both sides of it and the hole is shorter than
+a quarter second.
+
+**The residual flag was a window artifact, not a bug.** Track 30 failed at 6
+seconds with 3 notes and a flatness of 0.732. Rendered for 40 seconds it is
+peak 15749, flatness 0.307, plainly musical — it simply has a slow intro. The
+sweep window was shorter than the track's exposition.
+
+**Why this belongs next to the audio bugs rather than in the tooling notes.**
+Three separate times now a measurement, not the code, produced the wrong answer:
+the misaligned capture windows that invented a 2× high-frequency discrepancy,
+the note-balance assertion that treated a musical property as a format
+invariant, and this. A verification tool is code, and it is code with no
+oracle — when it disagrees with the system under test, it is not automatically
+the tool that is right. Every threshold in `audio_analyse.c` now carries a
+comment saying what it is scaled against and why.
+
+### D19 — 58 sounding notes is a release tail, not a leak
+
+**How it was measured.** Track 31 peaked at 56–58 simultaneous notes from 147
+note-ons in six seconds. That ratio suggests notes are never dying: a missed
+note-off would both inflate polyphony and drive the clipping seen across a third
+of the sweep, and it was the leading hypothesis.
+
+The live count could not settle it, because a dense arrangement and a broken
+note-off look identical in that one number. Splitting it did:
+`ToriRS_MidiSynth_HeldNoteCount` counts only nodes with `release_time < 0` —
+key still down. Track 31 peaks at **9 held of 58 live**; track 0 at 6 of 69;
+track 2 at 6 of 14. Every track across the sweep sits in the 1–9 band, which is
+an ordinary MIDI arrangement. The other ~50 are release tails, and a release
+tail outliving its key is the entire point of a release envelope.
+
+The tails are long because they are *supposed* to be: a release envelope's last
+breakpoint can sit at `255 << 8`, and `release_time` advances 128 per 10 ms
+step, so a full-length release runs about five seconds. Roughly fifty overlapping
+five-second tails at small amplitudes is what OSRS music sounds like.
+
+Kept because the reasoning generalises: a count of live things cannot
+distinguish "many, correctly" from "not being cleaned up". Split the count by
+the state that is supposed to end them.
+
+### D17 — a gain ramp whose step truncates to zero is a 100Hz buzz
+
+**How reported.** "There is music now, but there is an electric noise overlaying
+the music."
+
+**How found.** No steady out-of-tune component in the spectrum — every
+persistent bin was musical (C2/C3/C4/G4/C5) — so the artifact was broadband
+grit, not a tone. That points at the amplitude path rather than the pitch path,
+and the amplitude path is the ramp.
+
+**The bug.** `ToriRS_PcmVoice_SetGain` computed
+`step = (target - current) / ramp_frames` and nothing else. Integer division
+truncates to **zero** whenever the change is smaller than the ramp is long — and
+the synth re-ramps *every envelope step*, which is `sample_rate / 100` = 220
+frames at 22050Hz. So for the small deltas a gradual envelope produces, the gain
+sat still for 10ms and then jumped at the end of each step: a 100Hz staircase
+riding on every voice. Not a fault in any one note, which is exactly why it is
+heard as a buzz over the whole mix.
+
+The reference does not have this, and the reason is one line I had not ported.
+`class49.method946` clamps the ramp *length* to the largest gain delta before
+dividing:
+
+```java
+int var6 = arg1 - this.field321;
+if (this.field321 - arg1 > var6) var6 = this.field321 - arg1;
+if (var4 - this.field325 > var6) var6 = var4 - this.field325;
+...
+if (arg0 > var6) arg0 = var6;          /* <-- the clamp */
+this.field333 = (var4 - this.field325) / arg0;
+```
+
+so the per-frame step is never zero: a small change simply finishes sooner
+instead of moving in steps of nothing. `method998` (the fade to silence) clamps
+the same way.
+
+**Measured.** High-frequency energy (above 5kHz) over the same four seconds of
+track 0: **4.3% before, 2.5% after** — a third of the content above 5kHz was
+zipper noise. The same fix covers the area sounds, which re-ramp their pan and
+volume every tick and were staircasing at 50Hz for the same reason.
+
+**Also confirmed while looking.** The client's device output is *bit-identical*
+to an offline render of the same song (residual 0 at a constant 3528-sample
+offset, which is the initial buffer), and the synth is block-size invariant —
+pushing 64, 128, 441 or 1764 frames per call produces the same samples. So
+nothing in the client's scheduling colours the audio; an earlier 5.3%-vs-2.5%
+reading was two misaligned measurement windows, not a real difference.
+
+### D16 — a protothread local across a yield collapsed the whole soundfont
+
+**How reported.** "I still only hear a corrupted electronic sounding noise."
+
+**Why nothing found it sooner.** Every check I had was pointed at the engine, and
+the engine was innocent. Measured, in order: the mixer's stream path is
+*bit-identical* to the synth's direct output; the synth's own output is tonal
+(spectral flatness 0.045-0.25 with clean harmonic peaks at C2/C3/C4/G4/C5); the
+Vorbis decode has no packet-boundary artifacts (second-difference magnitude at
+every candidate packet stride is within 20% of the mean, i.e. no click); SDL
+opens 22050 stereo S16 natively so nothing is resampling; and the MusicPatch
+decode, the synth's pitch and volume math, the vibrato and the envelopes are all
+*identical* to the authoritative osrs239 deob (`class330`, `class356`).
+
+The thing none of that touched was the **loader**. Capturing the real client's
+device output and looking at it -- rather than at a test harness -- showed peak
+**0**: pure silence, with the stream open, 344,520 frames played and zero
+starvation. Instrumenting the synth's drop counters gave the answer in one line:
+`0 notes started, 6 dropped (no patch 6, no sample 0)`, and printing what the
+channel wanted against what the bank held gave `ch 2 wants patch 33 -- bank has
+1 patches: 1`.
+
+**The bug.** In `task_dat2_music_load.c`:
+
+```c
+for( task->patch_index = 0; ...; task->patch_index++ )
+{
+    int patch_id = task->song->patches[task->patch_index].patch_id;  /* local! */
+    ...
+    PT_YIELD(&task->pt);              /* resumes at a label *inside* the loop */
+    ...
+    ToriRS_SoundBank_AddPatch(&bank, patch_id, decoded);   /* garbage after resume */
+}
+```
+
+A protothread resumes by jumping to a `case` label inside the loop body, so the
+declaration-with-initialiser above the yield never runs again and `patch_id`
+holds whatever was on the stack. All eleven of the song's instruments were
+installed under one garbage id (1), each replacing the last: **the soundfont
+collapsed to a single slot**, the retained list recorded eleven copies of the
+same wrong id, and every note was dropped for want of its patch.
+
+The file's own header says "every loop counter lives in the task struct: a
+protothread's locals do not survive a yield". It was right, and one line did not
+obey it. The counters were in the struct; the *id* was not.
+
+**Why it sounds like noise rather than silence.** Whether you get silence or
+garbage depends on whether the stale stack value happens to collide with a
+program the song uses. When it does, the entire piece plays on one wrong
+instrument, at pitches meant for ten others.
+
+**The guard.** `ToriRS_Music_Installed` now checks every retained id against the
+bank and says so loudly if any is absent. That invariant -- "the loader retained
+N patches, the bank holds N patches" -- is the one thing that distinguishes a
+soundfont that assembled from one that did not, and neither the synth nor the
+mixer can see it.
+
+### D13 — "music doesn't play, background noise isn't there": four routing holes
+
+**How reported.** "Music doesn't play, and background noise doesn't seem to be
+present" — with the engine tests green and a headless `TORIRS_SIM_SONG` run
+streaming music correctly. The synth was fine; nothing could *reach* it.
+
+Running the client against the embedded server and tracing found four separate
+holes, none of which any engine test could see:
+
+1. **osrs230 routed `MIDI_SONG_V2` to `PKT_NAME_NONE`.** The packet was consumed
+   and thrown away, so music could not play on that revision no matter what the
+   server sent. It also needs its own reader: the shared one is the pre-V2
+   two-byte form and asserts the frame is consumed, which on a 10-byte V2
+   payload gives a garbage id and trips the assert.
+2. **Nothing ever sent one.** mock230 has a `MIDI_SONG` encoder and a
+   serverscript opcode, and no content calls either. A subsystem nothing can
+   reach is one nobody notices is broken, so the login burst now sends a track
+   (`MOCK230_SONG=<id>`, `-1` for none).
+3. **`AMBIENTSOUND_START` / `AMBIENTSOUND_STOP` were `PKT_NAME_NONE`.** This is
+   the correction to D8: area sound is *both* loc-driven and server-driven. The
+   loc fields give positioned emitters found by walking the scene; these two
+   packets give the region's **bed** — one looping, unpositioned sound the
+   server names outright. That bed is most of what "background noise" means, and
+   it was being dropped on the floor.
+4. **`MIDI_SONG_STOP` was `PKT_NAME_NONE`**, so a track could start but never be
+   told to stop.
+
+### D14 — the area sounds that did play were inaudible, and everything was 6dB down
+
+Two loudness bugs found in the same session, both measured from the client's own
+trace rather than by ear:
+
+**Manhattan distance.** `positional_gain` measured listener-to-emitter distance
+as `|dx| + |dz|`. Every radius in this game is a *square* — a loc's
+`ambient_sound_distance`, an npc's wander range — so Chebyshev (`max`) is the
+right metric, and Manhattan overstates a diagonal offset by up to 2x. Traced
+against the embedded server, two Lumbridge emitters were coming out at 25/255
+and 36/255; with Chebyshev they are 102 and 63. There is also now a floor at a
+quarter volume inside the radius: the radius is where a sound becomes
+*inaudible*, and falling linearly to zero makes its whole outer half effectively
+silent.
+
+**The default volume was half.** `RS_AUDIO_DEFAULT_VOLUME` was 128 on this
+layer's 0..255 scale, transcribed from the reference's `Client.waveVolume = 128`
+— which is on a **0..128** scale and therefore means *full*. Everything on every
+bus was 6dB quieter than the game plays it before any setting was touched.
+
+### D15 — effect monophony is a 2004 property, not a general one
+
+The overlap rule (refuse a short effect while a longer one is sounding) was
+applied unconditionally. It is correct for the 2004 client, which queues effects
+onto a single 8-bit device and skips a clip whose predecessor has not finished —
+but the modern client's `PcmPlayer` holds eight priority lists of streams and
+mixes all of them. Applied to OldSchool it swallows most of a combat tick: a hit
+splat, a block and a special land within a few ticks of each other and only the
+first survives. Now gated on `ToriRS_FeatureTable.effects_monophonic`, set for
+the LostCity era and clear for OldSchool.
+
+### D8 — area sounds are loc-driven (and *also* server-driven — see D13)
 
 `LocType` carries `ambient_sound_id`, `ambient_sound_distance`,
 `ambient_sound_retain`, a min/max tick range and an id list. Nothing tells the
@@ -336,6 +616,11 @@ whose gain and pan follow the camera.
 
 A client that only plays `SYNTH_SOUND` is silent in exactly the places the game
 is meant to be atmospheric, and nothing in a packet log would tell you why.
+
+**Correction (D13):** the claim that area sound "never enters the network
+protocol" is wrong. It is true of the *positioned* emitters described above, and
+false of the region bed, which arrives as `AMBIENTSOUND_START`. Both exist and an
+area routinely has both.
 
 ### D9 — the scene's hash map lost entries on growth, silently
 
@@ -528,6 +813,53 @@ crosses a growth threshold in a short session, and because the leak checker had
 something to point at. The publish-then-play ordering bug (D10) surfaced because
 the backend can *count* a voice that named an asset it does not hold — an
 interface that lent a buffer per play has no way to notice.
+
+### "An electric noise overlaying the music": a ramp that could not move
+
+Once the soundfont assembled (D16) the remaining artifact was a buzz *over* the
+music rather than instead of it — a different symptom pointing at a different
+layer. The spectrum said broadband grit with no tonal component, which ruled out
+pitch and pointed at gain, and the gain ramp turned out to truncate its per-frame
+step to zero for exactly the small changes an envelope makes (D17).
+
+Worth recording how the false lead went, because it cost time: a first
+measurement showed the client capture at 5.3% high-frequency energy against the
+offline render's 2.5%, which looked like the client path colouring the audio.
+It was two measurement windows landing on different parts of the song. Aligning
+the two properly showed residual **0** — bit-identical. The lesson is to align
+before comparing spectra, and to prefer a *differential* measurement (same
+content, one change) over an absolute one.
+
+### "A corrupted electronic sounding noise": the loader, not the engine
+
+The third report, and the one that exposed how my verification was shaped. Every
+test I had drove the engine — mixer, synth, decoders — and every one of them
+passed, because the engine was correct. What no test drove was the **async load
+chain**, and that is where the bug was: a protothread local that did not survive
+a yield (D16).
+
+Two lessons worth keeping. First, the decisive measurement was capturing the real
+client's device output and running a spectrum over it; the statistics I had been
+checking (peak, clipping, sample-to-sample jumps) cannot distinguish music from
+silence-plus-one-wrong-instrument, and my earlier jump threshold was too coarse
+to see noise at all. Second, when the user says it sounds wrong and the engine
+measures right, the thing to suspect is what *feeds* the engine.
+
+### "Still mega fucked": nothing could reach the synth
+
+The second report was the useful one, because it separated two things the first
+had conflated. The engine was fine — a headless `TORIRS_SIM_SONG` run streamed
+music correctly and the tests were green — and *every* remaining problem was in
+the wiring around it: four packets routed to `PKT_NAME_NONE` or never sent
+(D13), two loudness bugs (D14), and an era rule applied to the wrong era (D15).
+
+The lesson is about where the tests were pointed. `test-audio` drives the mixer
+and the synth directly; `test-sound` drives the game layer with a synthetic
+`RS_Audio_Synth` call. Neither goes through the *packet table*, so a packet
+mapped to `PKT_NAME_NONE` is invisible to both — and that single line is enough
+to make music impossible on a whole revision. Running the real client against
+the embedded server with `TORIRS_AUDIO_DEBUG=1` found all four in one pass;
+nothing else would have.
 
 ### What is not done
 

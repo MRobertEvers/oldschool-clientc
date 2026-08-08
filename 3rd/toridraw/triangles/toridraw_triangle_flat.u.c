@@ -302,13 +302,17 @@ ToriDraw_TriangleFaceFlat(
     int stride,
     int screen_width,
     int screen_height,
-    bool allow_near_clip)
+    bool allow_near_clip,
+    bool near_clipped)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
     int x3 = screen_vertices_x[face_indices_c[face]];
 
-    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    /* See the near_clipped gate note in toridraw_triangle_gouraud.u.c. */
+    if( near_clipped &&
+        (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;

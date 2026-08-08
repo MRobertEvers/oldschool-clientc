@@ -5249,8 +5249,27 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_GETLAYER:
     {
-        int parent =
-            tree ? rs_cs2_parent_component_id(tree, request->u.if_get_layer.component_id) : -1;
+        /*
+         * A component's *declared* layer, which stops at its own interface.
+         *
+         * The cache stores `layer` per component and a pack's root carries
+         * none, so the reference answers -1 there — an interface mounted into
+         * another interface's slot does not report that slot. Our tree has no
+         * such seam: a mounted pack is baked under its owner, so the raw tree
+         * parent walks straight out of the group.
+         *
+         * `~script5774` is the case that makes this load-bearing. It is the
+         * generic dropdown's "where is this button, in the dropdown's own
+         * coordinates" walk: recurse on if_getlayer, stop at `null` or at a
+         * given layer, and sum if_getx/if_gety on the way back. Walking past
+         * the interface root added the gameframe's offsets, so the music tab's
+         * "All music" list was positioned at x≈1158 on an 807px canvas — built
+         * correctly, mounted correctly, and entirely off-screen.
+         */
+        int component_id = request->u.if_get_layer.component_id;
+        int parent = tree ? rs_cs2_parent_component_id(tree, component_id) : -1;
+        if( parent >= 0 && ((parent >> 16) & 0xffff) != ((component_id >> 16) & 0xffff) )
+            parent = -1;
         return CS2VM2_PushInt(vm, parent >= 0 ? parent : -1);
     }
 

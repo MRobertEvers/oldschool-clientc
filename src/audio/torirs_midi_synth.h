@@ -211,4 +211,15 @@ ToriRS_MidiSynth_Render(
 int
 ToriRS_MidiSynth_LiveNoteCount(const struct ToriRS_MidiSynth* synth);
 
+/**
+ * Of the live notes, how many are still held -- key down, not yet released.
+ *
+ * Live count alone cannot tell a dense arrangement from a note-off that never
+ * landed: both look like a large number of sounding notes. A release tail is
+ * supposed to outlive its key, so a high live count with a low held count is
+ * simply long releases. A high *held* count is notes that were never let go.
+ */
+int
+ToriRS_MidiSynth_HeldNoteCount(const struct ToriRS_MidiSynth* synth);
+
 #endif

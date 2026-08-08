@@ -326,6 +326,56 @@ test_fade_under_bus(void)
     ToriRS_Mixer_Free(&mixer);
 }
 
+/**
+ * A ramp must actually move.
+ *
+ * `step = (target - current) / ramp_frames` truncates to zero whenever the
+ * change is smaller than the ramp is long -- and the synth re-ramps every
+ * envelope step, 220 frames at 22050Hz. A zero step means the gain sits still
+ * for 10ms and then jumps, which is a 100Hz staircase on every voice: not a
+ * fault in any note, just a buzz over everything. The reference clamps the ramp
+ * length to the largest gain delta so the step is never zero, and this is that
+ * invariant.
+ */
+static void
+test_ramp_never_stalls(void)
+{
+    struct ToriRS_PcmSound sound;
+    struct ToriRS_PcmVoice voice;
+    int16_t* tone = make_tone(4410, 22050, 440.0);
+    int base_left;
+
+    memset(&sound, 0, sizeof(sound));
+    sound.samples = tone;
+    sound.sample_count = 4410;
+    sound.sample_rate = 22050;
+
+    /* A deliberately tiny change over a deliberately long ramp: the case that
+     * truncates to a zero step. */
+    ToriRS_PcmVoice_Start(&voice, &sound, 22050, 22050, TORIRS_PCM_VOLUME_UNITY / 2,
+                          TORIRS_PCM_PAN_CENTRE, -1);
+    base_left = voice.left_gain;
+    ToriRS_PcmVoice_SetGain(
+        &voice, TORIRS_PCM_VOLUME_UNITY / 2 + 4, TORIRS_PCM_PAN_CENTRE, 4096);
+    CHECK(voice.left_gain != base_left || voice.ramp_frames > 0);
+    if( voice.ramp_frames > 0 )
+    {
+        CHECK(voice.left_step != 0 || voice.left_gain == voice.target_left_gain);
+        /* Clamped to the delta, so it lands quickly rather than staircasing. */
+        CHECK(voice.ramp_frames <= 4096);
+    }
+
+    /* A large change over a short ramp still ramps, and still gets there. */
+    ToriRS_PcmVoice_SetGain(&voice, TORIRS_PCM_VOLUME_UNITY, TORIRS_PCM_PAN_CENTRE, 64);
+    CHECK(voice.ramp_frames == 64);
+    CHECK(voice.left_step != 0);
+    ToriRS_PcmVoice_Skip(&voice, 64);
+    CHECK_EQ(voice.left_gain, voice.target_left_gain);
+    CHECK_EQ(voice.ramp_frames, 0);
+
+    free(tone);
+}
+
 static void
 test_fade_and_bus_volume(void)
 {
@@ -840,6 +890,9 @@ main(
 
     GROUP("mixer: loop span shorter than clip");
     test_loop_span_shorter_than_clip();
+
+    GROUP("voice: a ramp never stalls");
+    test_ramp_never_stalls();
 
     GROUP("mixer: fade under a non-unity bus");
     test_fade_under_bus();

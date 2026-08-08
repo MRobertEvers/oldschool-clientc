@@ -78,6 +78,38 @@ ToriRS_PcmVoice_Start(
     voice->active = true;
 }
 
+/** Largest of the absolute differences, which is what bounds a ramp. */
+static int
+ramp_span(
+    int a,
+    int b,
+    int c)
+{
+    int span = a < 0 ? -a : a;
+    int magnitude_b = b < 0 ? -b : b;
+    int magnitude_c = c < 0 ? -c : c;
+
+    if( magnitude_b > span )
+        span = magnitude_b;
+    if( magnitude_c > span )
+        span = magnitude_c;
+    return span;
+}
+
+static void
+apply_gain_now(
+    struct ToriRS_PcmVoice* voice,
+    int left,
+    int right)
+{
+    voice->left_gain = left;
+    voice->right_gain = right;
+    voice->target_left_gain = left;
+    voice->target_right_gain = right;
+    voice->ramp_frames = 0;
+    voice->ramp_to_stop = false;
+}
+
 void
 ToriRS_PcmVoice_SetGain(
     struct ToriRS_PcmVoice* voice,
@@ -87,22 +119,41 @@ ToriRS_PcmVoice_SetGain(
 {
     int left;
     int right;
+    int span;
 
     if( !voice || !voice->active )
         return;
     voice->volume = volume;
     voice->pan = pan;
     ToriRS_PcmGains(volume, pan, &left, &right);
-    if( ramp_frames <= 0 )
+    if( ramp_frames <= 0 || (left == voice->left_gain && right == voice->right_gain) )
     {
-        voice->left_gain = left;
-        voice->right_gain = right;
-        voice->ramp_frames = 0;
-        voice->ramp_to_stop = false;
-        voice->target_left_gain = left;
-        voice->target_right_gain = right;
+        apply_gain_now(voice, left, right);
         return;
     }
+
+    /*
+     * Cap the ramp at the largest gain step it has to make (reference
+     * method946's `if (arg0 > var6) arg0 = var6`).
+     *
+     * Without it, `(target - current) / ramp_frames` truncates to **zero** for
+     * any change smaller than the ramp length -- and the synth re-ramps every
+     * envelope step, which is 220 frames at 22050Hz. The gain then sits still
+     * for 10ms and jumps at the end of each one: a 100Hz staircase riding on
+     * every voice, which is heard as a buzz over the music rather than as a
+     * fault in any single note. Clamping makes the ramp finish sooner instead
+     * of moving in steps of zero.
+     */
+    span = ramp_span(
+        volume - voice->volume, left - voice->left_gain, right - voice->right_gain);
+    if( ramp_frames > span )
+        ramp_frames = span;
+    if( ramp_frames <= 0 )
+    {
+        apply_gain_now(voice, left, right);
+        return;
+    }
+
     voice->target_left_gain = left;
     voice->target_right_gain = right;
     voice->ramp_frames = ramp_frames;
@@ -134,10 +185,21 @@ ToriRS_PcmVoice_Stop(
 {
     if( !voice || !voice->active )
         return;
-    if( ramp_frames <= 0 )
+    if( ramp_frames <= 0 || (voice->left_gain == 0 && voice->right_gain == 0) )
     {
         voice->active = false;
         return;
+    }
+    /* Same clamp as SetGain, for the same reason (reference method998). */
+    {
+        int span = ramp_span(voice->volume, voice->left_gain, voice->right_gain);
+        if( ramp_frames > span )
+            ramp_frames = span;
+        if( ramp_frames <= 0 )
+        {
+            voice->active = false;
+            return;
+        }
     }
     voice->target_left_gain = 0;
     voice->target_right_gain = 0;

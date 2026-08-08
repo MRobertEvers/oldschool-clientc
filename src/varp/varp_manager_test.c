@@ -413,6 +413,48 @@ test_untyped_mode_accessors(void)
     VarPManager_Free(&mgr);
 }
 
+/*
+ * A varp ABOVE the loaded type table.
+ *
+ * The reference cannot reach this: its varp array is sized from the cache
+ * varplayer table. This tree can, because content allocates its own varps past
+ * the cache's highest id (mock230.h MOCK230_VARP_SERVER_HEADROOM) — so once the
+ * dat2 varplayer loader installs a real table, "id beyond the table" stops
+ * being hypothetical. Dropping those writes is silent and total: the value
+ * never lands, no hook fires, and nothing reports it.
+ *
+ * The two halves are separate claims. The VALUE must land (the arrays grow),
+ * and the CLIENTCODE must read 0 without walking off the type table.
+ */
+static void
+test_varp_above_the_type_table(void)
+{
+    printf("TEST: a varp above the type table still stores\n");
+
+    struct VarPManager mgr;
+    struct VarPType types[3] = {
+        { .clientcode = 0 }, { .clientcode = 18 }, { .clientcode = 22 }
+    };
+
+    VarPManager_Init(&mgr);
+    TEST_ASSERT(VarPManager_SetVarpTypes(&mgr, types, 3), "SetVarpTypes");
+    TEST_ASSERT(mgr.varp_type_count == 3, "type table is 3 long");
+
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 1) == 18, "in-table clientcode");
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 2) == 22, "in-table clientcode");
+
+    VarPManager_ApplySmall(&mgr, 900, 5);
+    TEST_ASSERT(mgr.varp_count > 900, "the var arrays grew past the type table");
+    TEST_ASSERT(mgr.varp_type_count == 3, "growth does not extend the type table");
+    TEST_ASSERT(VarPManager_GetVarp(&mgr, 900) == 5, "the value landed");
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 900) == 0, "and drives no client behaviour");
+
+    /* The in-table codes survive the growth — the realloc copies, not resets. */
+    TEST_ASSERT(VarPManager_GetClientcode(&mgr, 1) == 18, "in-table clientcode after growth");
+
+    VarPManager_Free(&mgr);
+}
+
 int
 main(void)
 {
@@ -427,6 +469,7 @@ main(void)
     test_single_bit_varbit();
     test_resolve_transform();
     test_untyped_mode_accessors();
+    test_varp_above_the_type_table();
 
     if( g_failures )
     {

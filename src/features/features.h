@@ -141,6 +141,21 @@ struct ToriRS_FeatureTable
      * to LightModelParams, not an Actor offset).
      */
     int player_head_light_ambient;
+
+    /* --- audio ----------------------------------------------------------- */
+
+    /**
+     * 1 = a sound effect is refused when a longer one is already sounding
+     * (Client-TS's `lastWave*` rule). 0 = effects mix freely.
+     *
+     * The 2004 client is monophonic for effects because it queues them onto one
+     * 8-bit device and skips a clip whose predecessor has not finished. The
+     * modern client is not: its PcmPlayer holds eight priority lists of streams
+     * and mixes all of them, so refusing a sound because another is playing
+     * drops most of a combat tick's audio -- a hit splat, a block and a special
+     * all land within a few ticks of each other.
+     */
+    int effects_monophonic;
 };
 
 /* Era getters (static singletons, like the rev tables). */

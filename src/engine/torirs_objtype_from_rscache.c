@@ -188,6 +188,7 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->stackable = src->stacking_behaviour == 1 ? 1 : 0;
     objtype->category = src->category;
     objtype->cost = src->cost;
+    objtype->team = src->team;
     objtype->inventory_model_id = src->inventory_model_id;
     objtype->cert_link = src->noted_id;
     objtype->cert_template = src->noted_template;

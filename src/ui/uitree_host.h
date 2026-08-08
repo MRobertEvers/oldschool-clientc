@@ -170,8 +170,8 @@ enum UITreeHostRequestKind
      * cell's identity and the current mouse delta (already deadzoned
      * host-side) to u.get_inv_drag outs. Returns 1 while the slot should
      * ghost — emit renders that cell alone offset by (dx,dy) at trans 128.
-     * IF1/CS1 ghosts from arm time; IF3 ghosts only once the press promotes
-     * past the deadzone + dead time (a plain click must not flicker).
+     * The ghost starts at the press that armed the cell, not at the promotion:
+     * the deadzone and dead time zero (dx,dy), never the fade.
      *
      * An item cell comes in two shapes and the identity differs between them.
      * A TYPE_INV grid cell is (inv source id, slot), because the grid is one

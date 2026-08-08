@@ -7,6 +7,29 @@
 #define SCALE_UNIT(x) ((((long long)x) << UNIT_SCALE_SHIFT))
 #define UNIT_SCALE ((1 << UNIT_SCALE_SHIFT))
 
+/**
+ * Screen x parked here by the projection kernels (projection16_simd.*.u.c) when
+ * a vertex falls behind the near plane; its screen y is left *undivided*, so
+ * consumers must reject the whole face rather than read the pair.
+ *
+ * Only meaningful when the model was projected by the *_clip family — recorded
+ * for the last projected model as scene->near_clipped. Only that family emits
+ * the sentinel, and only it pays the compare that decides to; the *_noclip
+ * family divides unconditionally and can therefore leave a *genuine* -5000 in
+ * screen x. Every consumer must consult scene->near_clipped before testing
+ * against this value — see ToriDraw_Project for how it is derived, and
+ * Client-TS Model.render2:1876 for the same gate in the reference.
+ */
+#define TORIDRAW_SCREEN_X_NEAR_CLIPPED (-5000)
+
+/**
+ * Nudge target for a genuinely projected -5000 in the *_clip family, so the
+ * sentinel above stays exact there. The reference does not do this (it relies
+ * solely on the per-model gate); we keep it because that family is rare enough
+ * for the extra compare to be free.
+ */
+#define TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE (-5001)
+
 /*
  * Projection scale, and the two ways to spell it.
  *
