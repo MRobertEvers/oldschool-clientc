@@ -508,6 +508,9 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
         self->await_id = self->pending.u.oc_name.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+        /* Both directions live in the same request payload (the union aliases
+         * `oc_placeholder` onto `oc_unplaceholder`). */
         self->await_id = self->pending.u.oc_unplaceholder.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
@@ -719,6 +722,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_PARAM:
     case CS2VM_HOST_REQUEST_OC_NAME:
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
     case CS2VM_HOST_REQUEST_OC_OP:
     case CS2VM_HOST_REQUEST_OC_IOP:

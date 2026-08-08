@@ -630,29 +630,16 @@ ToriRS_Mixer_Render(
         if( !slot->voice.active )
             continue;
         bus_gain = mixer->bus_volume[slot->bus];
+        slot->voice.bus_gain = bus_gain * TORIRS_PCM_BUS_ONE / TORIRS_AUDIO_VOLUME_MAX;
         if( bus_gain <= 0 )
         {
             /* Muted, but still ageing: a one-shot muted mid-flight must still
              * end, or its slot never comes back. */
             ToriRS_PcmVoice_Skip(&slot->voice, frames);
         }
-        else if( bus_gain >= TORIRS_AUDIO_VOLUME_MAX )
-        {
-            ToriRS_PcmVoice_Mix(&slot->voice, accumulator, frames);
-        }
         else
         {
-            /* Scaling per voice rather than per bus keeps one accumulator. */
-            int saved_left = slot->voice.left_gain;
-            int saved_right = slot->voice.right_gain;
-            slot->voice.left_gain = saved_left * bus_gain / TORIRS_AUDIO_VOLUME_MAX;
-            slot->voice.right_gain = saved_right * bus_gain / TORIRS_AUDIO_VOLUME_MAX;
             ToriRS_PcmVoice_Mix(&slot->voice, accumulator, frames);
-            if( slot->voice.active )
-            {
-                slot->voice.left_gain = saved_left;
-                slot->voice.right_gain = saved_right;
-            }
         }
         if( !slot->voice.active )
         {

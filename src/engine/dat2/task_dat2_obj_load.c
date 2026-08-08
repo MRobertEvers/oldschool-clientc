@@ -97,6 +97,37 @@ Task_Dat2ObjLoad_Run(
         PT_EXIT(&task->pt);
     }
 
+    /*
+     * A note (opcodes 97/98) and a bank placeholder (148/149) carry no name and
+     * no examine of their own — they borrow the linked item's, which is what
+     * `CacheProvider_ObjtypeGet` patches in as soon as that item is resident.
+     * Adopt it here rather than leaving it to whoever happens to load the link
+     * first: the icon loader (Task_ObjModelLoad) does pull it in, but a CS2
+     * script that only asks for the *name* — `bankmain_drawitem`'s
+     * `cc_setopbase("<oc_name($obj0)>")` — has no reason to wait for an icon,
+     * and it read "null" whenever it won that race. The link is a member of the
+     * group already decompressed above, so this costs one record decode.
+     */
+    {
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(&task->bc->base, task->obj_id);
+        int link = -1;
+        int link_pos;
+
+        if( obj && obj->name[0] == '\0' )
+        {
+            if( obj->cert_template > 0 && obj->cert_link > 0 )
+                link = obj->cert_link;
+            else if( obj->placeholder_template >= 0 && obj->placeholder_link > 0 )
+                link = obj->placeholder_link;
+        }
+        if( link > 0 && !CacheProvider_ObjtypeHas(&task->bc->base, link) )
+        {
+            link_pos = Dat2Group_IndexOf(task->group, link);
+            if( link_pos >= 0 )
+                (void)obj_adapt_member(task->bc, task->group, link_pos, link);
+        }
+    }
+
     PT_END(&task->pt);
 }
 

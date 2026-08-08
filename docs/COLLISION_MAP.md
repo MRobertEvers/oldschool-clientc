@@ -188,6 +188,52 @@ Reference Client-TS place-time shift (`ClientBuild.ts`): when
 `< 0`); geometry still uses the raw cache level. LostCity `GameMap` does the
 same for land and locs.
 
+## 6b. Removal is not the inverse of adding (doors)
+
+`collision_map_del_wall` / `del_loc` / `del_floor` clear their bits with `&= ~`.
+That is the reference's own primitive (LostCity `applyWallPair(..., add=false)`,
+Client-TS `CollisionMap.delWall`) and it is correct **only while no two things
+share a bit**. Three ways they do:
+
+| Sharers | The shared bit |
+|---|---|
+| A wall on the east edge of `(x,z)` and one on the west edge of `(x+1,z)` | the same edge — both stamp `WALL_EAST` on `(x,z)` and `WALL_WEST` on `(x+1,z)` |
+| A blockwalk ground-decor loc and the map square's own `Block` tile setting | `FLOOR` |
+| A door swung open onto a tile a wall already covers | whatever that wall stamps |
+
+The third is what a **swinging door** does. `doors/scripts/doors.rs2` opens a
+door with `loc_del` on its own tile and `loc_add` a quarter turn on; where the
+tile it swings to already carries a wall, closing the door used to clear that
+wall's bits and nothing put them back. Measured across every map square in
+`cache.osrs239`: **75 doors, 44 wall edges left permanently walkable**, 25 of the
+loc ids being content-declared doors (`1535`, the Lumbridge courtyard door,
+among them).
+
+Two rules, both in [`mock230_scene.c`](../src/net/mock/mock230_scene.c):
+
+1. **Collision is a function of the loc set, not a running total.**
+   `restamp_after_removal` re-applies the map square's terrain and every other
+   active loc whose stamp reaches the tiles a removal touched. Adds are ORs, so
+   over-stamping is free.
+2. **`loc_add` does not consume what is already on the tile.** The reference's
+   `World.addLoc` / `Zone.addLoc` never look at an existing loc, and
+   `Zone.removeLoc` puts a static one back on the list. `mock230_scene_add_loc`
+   leaves the map square's loc standing; `mock230_scene_find_loc_exact` answers
+   the added loc first so a following `loc_change` / `loc_del` addresses it; and
+   `mock230_world_loc_set` takes an explicit `MOCK230_LOC_SET_ADD` /
+   `_CHANGE` because the two are different mutations that had been collapsed
+   into "replace whatever is on this tile".
+
+A delete that uncovers the square's own loc sends `LOC_ADD_CHANGE` for it rather
+than `LOC_DEL`, which is also what retires the ZoneMap record. `over_base` on
+`struct Mock230ZoneLoc` is what makes a scene rebuild replay the add as an add.
+
+**The doorway rule is not a rule about doors.** Nothing refuses a diagonal
+because a door is there; the walls flanking the gap refuse it, through the
+`BLOCK_*` diagonal composites. So "you cannot cut a doorway diagonally" is a
+statement about the flanking walls' bits, and the way to check it is over the
+whole map — see `test-collision-doors` below.
+
 ### Failure modes (orphan complementary bit)
 
 | Cause | Why one-way |
@@ -217,6 +263,15 @@ require bits on both sides and refuse both directions.
   approach models stay source-only for size-1 rect.
 - [`src/net/mock/test/embed_test.c`](../src/net/mock/test/embed_test.c) —
   live-map door / fence both-directions refusal.
+- [`src/net/mock/test/collision_doors_test.c`](../src/net/mock/test/collision_doors_test.c)
+  — `make -C src test-collision-doors`. Builds real scenes from the cache and
+  asserts, over every `wall_straight` door with an "Open" op: no orphan
+  complementary bit anywhere in the scene, a closed door blocks its own edge, no
+  diagonal step crosses a doorway line open **or** shut, and opening then
+  closing a door leaves the collision map byte-identical. The default 25 squares
+  are the towns plus every square that carried one of the 75 round-trip
+  failures; `TORIRS_COLLISION_DOORS_FULL=1` sweeps the whole overworld (480
+  scenes, 1,637 doors, ~45s).
 
 Reach and LoS asymmetries are intentional and documented elsewhere; they are
 not wall-walk directionality.

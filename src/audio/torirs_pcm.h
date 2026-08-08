@@ -58,6 +58,9 @@
 /** Gains are 14-bit so `sample * gain >> 14` stays in int32 without saturating. */
 #define TORIRS_PCM_GAIN_SHIFT 14
 #define TORIRS_PCM_GAIN_ONE (1 << TORIRS_PCM_GAIN_SHIFT)
+/** Bus gain is a separate 8-bit multiplier so it never touches ramp state. */
+#define TORIRS_PCM_BUS_SHIFT 8
+#define TORIRS_PCM_BUS_ONE (1 << TORIRS_PCM_BUS_SHIFT)
 
 /** Immutable sample data. Borrowed: the owner outlives every voice on it. */
 struct ToriRS_PcmSound
@@ -101,6 +104,10 @@ struct ToriRS_PcmVoice
     /** True once the ramp is a fade to silence, so the voice ends when it lands
      *  rather than continuing at zero gain. */
     bool ramp_to_stop;
+
+    /** Whole-bus multiplier, 0..TORIRS_PCM_BUS_ONE. Kept apart from
+     *  left/right_gain because those carry the ramp. */
+    int bus_gain;
 
     bool active;
 };

@@ -5985,14 +5985,22 @@ app_world_sync_positions(struct App* app)
     }
 }
 
-/* Play frame sounds for a sequence animation when its frame advances.
- * The sounds are stored in the ToriDraw_Animation as a map of frame indices
- * to sound ids. */
+/*
+ * Play frame sounds for a sequence animation when its frame advances.
+ *
+ * The sounds are stored in the ToriDraw_Animation as a map of frame indices to
+ * sound ids. `world_x`/`world_z` are the element's position in world units, so
+ * the sound is attenuated and panned from where the thing making it is standing
+ * -- a smithing hammer three squares away should not be as loud as one under the
+ * camera. Pass -1 for a sound with no place in the scene.
+ */
 static void
 app_play_frame_sounds(
     struct App* app,
     const struct ToriDraw_Animation* anim,
-    int current_frame)
+    int current_frame,
+    int world_x,
+    int world_z)
 {
     if( !anim || !app || anim->frame_sounds.count <= 0 )
         return;
@@ -6008,7 +6016,11 @@ app_play_frame_sounds(
         {
             /* Found a matching frame; queue all sounds for this frame */
             struct ToriDraw_AnimFrameSound const* sound = &anim->frame_sounds.sounds[mid];
-            RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
+            if( world_x >= 0 )
+                RS_Audio_SynthAt(
+                    &app->audio, sound->id, sound->loops, 0, world_x >> 7, world_z >> 7);
+            else
+                RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
             return;
         }
         else if( frame_idx < current_frame )
@@ -6105,7 +6117,12 @@ app_world_tick_animations(struct App* app)
                 /* Play any frame sounds for the new frame. A finished
                  * DynamicObject has no sequence, so it cannot emit another. */
                 if( element->anim_seq_id != -1 )
-                    app_play_frame_sounds(app, anim, element->anim_frame);
+                    app_play_frame_sounds(
+                        app,
+                        anim,
+                        element->anim_frame,
+                        element->world_position.x,
+                        element->world_position.z);
             }
         }
     }
@@ -13650,7 +13667,8 @@ app_world_apply_entity_anim_tracks(
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
             if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
-                app_play_frame_sounds(app, pa, el->anim_frame);
+                app_play_frame_sounds(
+                    app, pa, el->anim_frame, el->world_position.x, el->world_position.z);
             /* The walkmerge blend is a frame-animator operation (it masks
              * transform groups), so a skeletal primary never takes a secondary. */
             if( !pa->skeletal && secondary_active && idle &&
@@ -13685,7 +13703,8 @@ app_world_apply_entity_anim_tracks(
             el->anim_seq_id = anim->secondary.anim_id;
             el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
             if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
-                app_play_frame_sounds(app, sa, el->anim_frame);
+                app_play_frame_sounds(
+                    app, sa, el->anim_frame, el->world_position.x, el->world_position.z);
             return;
         }
     }

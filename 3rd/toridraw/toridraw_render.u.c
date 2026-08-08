@@ -1052,6 +1052,46 @@ ToriDraw_Project(
 }
 
 /**
+ * Sign-only barycentric containment. Dividing all three coordinates by the
+ * same `denominator` cannot change which of them are negative, so folding the
+ * denominator's sign in and comparing the raw numerators against zero gives
+ * the same answer with no divides and no float at all.
+ *
+ * This is the geometrically honest answer to "is the point on this triangle",
+ * which is what ToriDraw_ProjectedModelContainsPoint promises. It is NOT what
+ * the reference uses to pick a model under the cursor — see
+ * toridraw_mouse_roughly_inside_triangle below.
+ */
+static inline bool
+toridraw_triangle_contains_point(
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int x,
+    int y)
+{
+    int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+    if( denominator == 0 )
+        return false;
+
+    int a_num = (y2 - y3) * (x - x3) + (x3 - x2) * (y - y3);
+    int b_num = (y3 - y1) * (x - x3) + (x1 - x3) * (y - y3);
+    int c_num = denominator - a_num - b_num; /* c = 1 - a - b, unnormalized */
+
+    if( denominator < 0 )
+    {
+        a_num = -a_num;
+        b_num = -b_num;
+        c_num = -c_num;
+    }
+
+    return a_num >= 0 && b_num >= 0 && c_num >= 0;
+}
+
+/**
  * The reference's per-face hit test is NOT containment: it asks whether the
  * cursor, grown by `TORIDRAW_PICK_SLOP` in each direction, overlaps the
  * triangle's screen bounding box. Client-TS names it exactly what it is —
@@ -1061,9 +1101,9 @@ ToriDraw_Project(
  *
  * The looseness is the whole point. A rock, a fence or a set of climbing
  * handholds is a handful of small triangles with gaps between them; exact
- * barycentric containment (what this used to do) makes the gaps dead space and
- * those locs nearly unclickable, which is precisely the agility-obstacle
- * complaint. Face bboxes overlap far enough to fill the silhouette.
+ * containment makes the gaps dead space and those locs nearly unclickable,
+ * which is precisely the agility-obstacle complaint. Face bboxes overlap far
+ * enough to fill the silhouette.
  */
 #define TORIDRAW_PICK_SLOP 5
 
@@ -1104,13 +1144,19 @@ ToriDraw_ProjectedModelContainsAabb(
            screen_y >= aabb->min_screen_y && screen_y <= aabb->max_screen_y;
 }
 
-bool
-ToriDraw_ProjectedModelContainsPoint(
+/**
+ * Shared face walk behind both per-face tests. Which faces are eligible is the
+ * same question for either one — only the triangle predicate differs, so
+ * `rough` picks between them at the bottom.
+ */
+static bool
+toridraw_projected_model_hit_face(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     int screen_x,
-    int screen_y)
+    int screen_y,
+    bool rough)
 {
     if( !ToriDraw_ProjectedModelContainsAabb(scene, screen_x, screen_y) )
         return false;
@@ -1170,11 +1216,11 @@ ToriDraw_ProjectedModelContainsPoint(
         /*
          * Near-clipped faces do not pick either (the reference reaches its
          * pick only down the not-near-clipped arm, class144:1615). Mandatory
-         * rather than cosmetic here: the projection parks a behind-the-eye
-         * vertex at screen x -5000 and leaves its y *undivided*, so the bbox
-         * test above would see a triangle spanning the screen and swallow
-         * every click behind the model. A genuine -5000 is nudged to -5001 by
-         * the projection, so the sentinel is unambiguous.
+         * rather than cosmetic for the rough test: the projection parks a
+         * behind-the-eye vertex at screen x -5000 and leaves its y
+         * *undivided*, so a bounding box over it spans the screen and would
+         * swallow every click behind the model. A genuine -5000 is nudged to
+         * -5001 by the projection, so the sentinel is unambiguous.
          */
         if( x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
             x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
@@ -1184,10 +1230,37 @@ ToriDraw_ProjectedModelContainsPoint(
         int y2 = scene->screen_vertices_y[face_b];
         int y3 = scene->screen_vertices_y[face_c];
 
-        if( toridraw_mouse_roughly_inside_triangle(
-                x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y) )
+        bool hit = rough ? toridraw_mouse_roughly_inside_triangle(
+                               x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y)
+                         : toridraw_triangle_contains_point(
+                               x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
+        if( hit )
             return true;
     }
 
     return false;
+}
+
+bool
+ToriDraw_ProjectedModelContainsPoint(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    return toridraw_projected_model_hit_face(
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ false);
+}
+
+bool
+ToriDraw_ProjectedModelMouseHitTest(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    return toridraw_projected_model_hit_face(
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ true);
 }

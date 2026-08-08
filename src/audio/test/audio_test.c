@@ -218,6 +218,114 @@ test_voice_ends_and_loops(void)
     ToriRS_Mixer_Free(&mixer);
 }
 
+/**
+ * A clip whose loop span ends before its samples do.
+ *
+ * The reference bounds playback by the loop span only while passes remain; once
+ * the count is exhausted it plays out to the end of the *whole* clip. Ending at
+ * `loop_end` instead cuts the waveform off mid-cycle, which is a step
+ * discontinuity -- a click on every play of every effect that has a loop span,
+ * and completely inaudible to a fixture whose loop covers the whole clip.
+ *
+ * The fixture here is deliberately shaped so the two behaviours are trivially
+ * distinguishable: silence inside the loop span, full scale after it. Stopping
+ * early produces an empty block.
+ */
+static void
+test_loop_span_shorter_than_clip(void)
+{
+    struct ToriRS_Mixer mixer;
+    struct ToriRS_AudioCommand command;
+    int16_t* samples = calloc(2000, sizeof(int16_t));
+    int16_t block[4096 * 2];
+
+    for( int i = 1000; i < 2000; i++ )
+        samples[i] = (int16_t)(i % 2 ? 20000 : -20000);
+
+    ToriRS_Mixer_Init(&mixer, 22050);
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    command.asset_id = 9;
+    command.pcm = samples;
+    command.sample_count = 2000;
+    command.sample_rate = 22050;
+    command.loop_start = 0;
+    command.loop_end = 1000;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    free(samples);
+
+    /* Play once: the tail past loop_end must be heard. */
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 9;
+    command.voice_id = 1;
+    command.loop_count = 0;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    ToriRS_Mixer_Render(&mixer, block, 4096);
+    CHECK(block_peak(block, 4096 * 2) > 10000);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 0);
+
+    /* Loop twice: the loop span repeats (still silent), and the tail still
+     * arrives at the end rather than the voice ending at loop_end. */
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 9;
+    command.voice_id = 2;
+    command.loop_count = 2;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    ToriRS_Mixer_Render(&mixer, block, 4096);
+    CHECK(block_peak(block, 4096 * 2) > 10000);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 0);
+
+    ToriRS_Mixer_Free(&mixer);
+}
+
+/**
+ * A fade under a non-unity bus still reaches silence.
+ *
+ * The bus gain used to be folded into the voice's left/right gain before each
+ * block and restored after, which discarded the ramp's progress every frame: a
+ * fade would tick one step and then be undone, forever.
+ */
+static void
+test_fade_under_bus(void)
+{
+    struct ToriRS_Mixer mixer;
+    struct ToriRS_AudioCommand command;
+    int16_t* tone = make_tone(22050, 22050, 440.0);
+    int16_t block[2205 * 2];
+
+    ToriRS_Mixer_Init(&mixer, 22050);
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    command.asset_id = 11;
+    command.pcm = tone;
+    command.sample_count = 22050;
+    command.sample_rate = 22050;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    free(tone);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_BUS_VOLUME);
+    command.target_bus = TORIRS_AUDIO_BUS_EFFECTS;
+    command.volume = 100;
+    ToriRS_Mixer_Apply(&mixer, &command);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 11;
+    command.voice_id = 3;
+    command.loop_count = -1;
+    ToriRS_Mixer_Apply(&mixer, &command);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_STOP);
+    command.voice_id = 3;
+    command.fade_ms = 50; /* 1102 frames, well inside one render below */
+    ToriRS_Mixer_Apply(&mixer, &command);
+
+    ToriRS_Mixer_Render(&mixer, block, 2205);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 0);
+    CHECK(block_energy(block, 400 * 2) > 0);
+    /* The last quarter is past the end of the fade: silence. */
+    CHECK_EQ(block_peak(block + 1800 * 2, 400 * 2), 0);
+
+    ToriRS_Mixer_Free(&mixer);
+}
+
 static void
 test_fade_and_bus_volume(void)
 {
@@ -729,6 +837,12 @@ main(
 
     GROUP("mixer: voice end and loop");
     test_voice_ends_and_loops();
+
+    GROUP("mixer: loop span shorter than clip");
+    test_loop_span_shorter_than_clip();
+
+    GROUP("mixer: fade under a non-unity bus");
+    test_fade_under_bus();
 
     GROUP("mixer: fades and bus volume");
     test_fade_and_bus_volume();

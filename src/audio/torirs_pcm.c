@@ -74,6 +74,7 @@ ToriRS_PcmVoice_Start(
     ToriRS_PcmGains(volume, pan, &voice->left_gain, &voice->right_gain);
     voice->target_left_gain = voice->left_gain;
     voice->target_right_gain = voice->right_gain;
+    voice->bus_gain = TORIRS_PCM_BUS_ONE;
     voice->active = true;
 }
 
@@ -213,17 +214,30 @@ ToriRS_PcmVoice_Exhausted(const struct ToriRS_PcmVoice* voice)
            voice->position >= (voice->sound->sample_count << TORIRS_PCM_POSITION_SHIFT);
 }
 
-/** Loop bounds in samples, falling back to the whole clip. */
+/**
+ * The bounds playback is confined to *right now*.
+ *
+ * This is the reference's rule and it is not "the loop span": a voice is bounded
+ * by the loop span only while it still has passes left. Once the count is
+ * exhausted it plays out to the end of the whole clip -- the reference falls out
+ * of its loop branch into a final pass bounded by `samples.length`.
+ *
+ * Getting this wrong is not subtle in the way it sounds. A sound effect whose
+ * loop span ends before its samples do gets cut off mid-waveform, which is a
+ * step discontinuity: a click on every play, on every effect that has a loop
+ * span. It is also invisible to a test whose fixture loops over the whole clip.
+ */
 static void
 loop_bounds(
-    const struct ToriRS_PcmSound* sound,
+    const struct ToriRS_PcmVoice* voice,
     int* out_start,
     int* out_end)
 {
+    const struct ToriRS_PcmSound* sound = voice->sound;
     int start = sound->loop_start;
     int end = sound->loop_end;
 
-    if( end <= start || end > sound->sample_count )
+    if( voice->loops_left == 0 || end <= start || end > sound->sample_count )
     {
         start = 0;
         end = sound->sample_count;
@@ -251,7 +265,7 @@ advance(struct ToriRS_PcmVoice* voice)
     int limit_high;
 
     voice->position += voice->step;
-    loop_bounds(sound, &loop_start, &loop_end);
+    loop_bounds(voice, &loop_start, &loop_end);
     limit_low = loop_start << TORIRS_PCM_POSITION_SHIFT;
     limit_high = loop_end << TORIRS_PCM_POSITION_SHIFT;
 
@@ -351,9 +365,17 @@ ToriRS_PcmVoice_Mix(
     for( int i = 0; i < frames; i++ )
     {
         int value = sample_at(voice);
+        /*
+         * The bus gain is applied here rather than folded into left/right_gain,
+         * because those are ramp state: scaling them before a block and
+         * restoring them after would throw away the ramp's progress every
+         * frame, and a fade under a non-unity bus would never actually fade.
+         */
+        int left = (voice->left_gain * voice->bus_gain) >> TORIRS_PCM_BUS_SHIFT;
+        int right = (voice->right_gain * voice->bus_gain) >> TORIRS_PCM_BUS_SHIFT;
 
-        out[i * 2] += (value * voice->left_gain) >> TORIRS_PCM_GAIN_SHIFT;
-        out[i * 2 + 1] += (value * voice->right_gain) >> TORIRS_PCM_GAIN_SHIFT;
+        out[i * 2] += (value * left) >> TORIRS_PCM_GAIN_SHIFT;
+        out[i * 2 + 1] += (value * right) >> TORIRS_PCM_GAIN_SHIFT;
         step_ramp(voice);
         if( !voice->active )
             return false;

@@ -27,9 +27,19 @@
  *  multi-second render that stalls the next frame too. */
 #define AUDIO_MAX_RENDER_MS 200
 
+/*
+ * TORIRS_AUDIO_WAV=<path> tees every block the device is given into a WAV.
+ *
+ * "It sounds wrong" is not a bug report anyone can act on, and the mixer's
+ * counters cannot tell a click from a clean play. This makes the actual output
+ * inspectable: open it in an editor, or run a spectrum over it. The header's
+ * length fields are patched on close.
+ */
 struct PlatformAudio
 {
     SDL_AudioDeviceID device;
+    FILE* capture;
+    long capture_frames;
     int sample_rate;
     bool owns_sdl_audio;
     bool device_open;
@@ -104,6 +114,34 @@ PlatformAudio_Init(
     }
     SDL_PauseAudioDevice(audio->device, 0);
     audio->device_open = true;
+
+    if( getenv("TORIRS_AUDIO_WAV") )
+    {
+        audio->capture = fopen(getenv("TORIRS_AUDIO_WAV"), "wb");
+        if( audio->capture )
+        {
+            unsigned char header[44] = { 0 };
+            memcpy(header, "RIFF", 4);
+            memcpy(header + 8, "WAVEfmt ", 8);
+            header[16] = 16;
+            header[20] = 1;
+            header[22] = TORIRS_AUDIO_CHANNELS;
+            header[24] = (unsigned char)(audio->sample_rate & 0xFF);
+            header[25] = (unsigned char)((audio->sample_rate >> 8) & 0xFF);
+            header[26] = (unsigned char)((audio->sample_rate >> 16) & 0xFF);
+            {
+                int byte_rate = audio->sample_rate * TORIRS_AUDIO_CHANNELS * 2;
+                header[28] = (unsigned char)(byte_rate & 0xFF);
+                header[29] = (unsigned char)((byte_rate >> 8) & 0xFF);
+                header[30] = (unsigned char)((byte_rate >> 16) & 0xFF);
+            }
+            header[32] = TORIRS_AUDIO_CHANNELS * 2;
+            header[34] = 16;
+            memcpy(header + 36, "data", 4);
+            fwrite(header, 1, sizeof(header), audio->capture);
+            fprintf(stderr, "audio: capturing to %s\n", getenv("TORIRS_AUDIO_WAV"));
+        }
+    }
     return true;
 }
 
@@ -112,6 +150,17 @@ PlatformAudio_Free(struct PlatformAudio* audio)
 {
     if( !audio )
         return;
+    if( audio->capture )
+    {
+        /* Patch the two length fields now that the total is known. */
+        uint32_t data_bytes = (uint32_t)(audio->capture_frames * TORIRS_AUDIO_CHANNELS * 2);
+        uint32_t riff_size = 36 + data_bytes;
+        fseek(audio->capture, 4, SEEK_SET);
+        fwrite(&riff_size, 4, 1, audio->capture);
+        fseek(audio->capture, 40, SEEK_SET);
+        fwrite(&data_bytes, 4, 1, audio->capture);
+        fclose(audio->capture);
+    }
     if( audio->device )
         SDL_CloseAudioDevice(audio->device);
     if( audio->owns_sdl_audio )
@@ -192,6 +241,11 @@ PlatformAudio_Update(struct PlatformAudio* audio)
         return;
     }
     audio->frames_played += wanted;
+    if( audio->capture )
+    {
+        fwrite(audio->block, 2, (size_t)wanted * TORIRS_AUDIO_CHANNELS, audio->capture);
+        audio->capture_frames += wanted;
+    }
 }
 
 void

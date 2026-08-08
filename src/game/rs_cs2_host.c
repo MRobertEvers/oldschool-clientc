@@ -2111,29 +2111,63 @@ exec_nc_name(
     return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, name));
 }
 
+/*
+ * OC_PLACEHOLDER / OC_UNPLACEHOLDER: the bank-placeholder form of an obj and
+ * back, read off the cache's 148/149 linkage exactly the way the note pair
+ * (97/98) is read — an *item* states `placeholder_link` and no template, a
+ * *placeholder* states both and its link is the item.
+ *
+ * Either direction answers the input id when there is no other form, which is
+ * what makes `oc_unplaceholder($obj) ! $obj` the client's "is this slot a
+ * placeholder" test (script 278 `bankmain_drawitem`); the server's
+ * SS_OP_OC_PLACEHOLDER answers the same way from the same two fields.
+ */
 static int
-exec_oc_unplaceholder(
+exec_oc_placeholder_pair(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Unplaceholder request)
+    struct CS2VM_HostRequest_OC_Unplaceholder request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Objtype* obj = NULL;
 
     /* item -1 (empty slot) is a valid script input: never yield for it — the
      * yield planner requires a loadable id — and there is nothing to resolve,
      * so pass the id straight through. */
-    if( request.item_id < 0 || (provider && CacheProvider_ObjtypeHas(provider, request.item_id)) )
+    if( request.item_id < 0 )
         return CS2VM2_PushInt(thread, request.item_id);
 
+    obj = provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+    if( !obj )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER;
+        req.kind = kind;
         req.u.oc_unplaceholder = request;
         if( !rs_cs2_await_spent(host, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, &req, request.item_id, -1);
         /* Objtype still missing after its load: pass the id through unresolved. */
         return CS2VM2_PushInt(thread, request.item_id);
     }
+
+    if( obj->placeholder_link > 0 )
+    {
+        bool is_placeholder = obj->placeholder_template >= 0;
+        bool want_placeholder = kind == CS2VM_HOST_REQUEST_OC_PLACEHOLDER;
+        if( is_placeholder != want_placeholder )
+            return CS2VM2_PushInt(thread, obj->placeholder_link);
+    }
+    return CS2VM2_PushInt(thread, request.item_id);
+}
+
+static int
+exec_oc_unplaceholder(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_OC_Unplaceholder request)
+{
+    return exec_oc_placeholder_pair(
+        host, thread, request, CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER);
 }
 
 /* OC_OP/OC_IOP: ground/inventory right-click action string at a menu slot
@@ -2198,14 +2232,13 @@ exec_oc_examine(
     return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, obj->desc[0] != '\0' ? obj->desc : ""));
 }
 
-/* OC_PLACEHOLDER: identity passthrough, mirroring OC_UNPLACEHOLDER — no
- * placeholder linkage data exists on ToriRS_Objtype yet. */
 static int
 exec_oc_placeholder(
+    struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest_OC_Unplaceholder request)
 {
-    return CS2VM2_PushInt(thread, request.item_id);
+    return exec_oc_placeholder_pair(host, thread, request, CS2VM_HOST_REQUEST_OC_PLACEHOLDER);
 }
 
 /* OC_FIND needs every objtype name resident to scan. The dat2 provider can
@@ -4962,7 +4995,7 @@ rs_cs2_host_exec_dispatch(
         return exec_oc_examine(host, vm, request->u.oc_examine);
 
     case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
-        return exec_oc_placeholder(vm, request->u.oc_placeholder);
+        return exec_oc_placeholder(host, vm, request->u.oc_placeholder);
 
     case CS2VM_HOST_REQUEST_OC_FIND:
         return exec_oc_find(host, vm, request->u.oc_find);
