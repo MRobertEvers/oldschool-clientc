@@ -5363,6 +5363,12 @@ mock230_script_command(
             SSVM_Abort(state, "npc_facesquare with no active npc");
             return 1;
         }
+        /* Same rule as the FACE_ENTITY seam: a record with turnspeed 0 never
+         * turns, whatever the facing source. Gated here as well because this
+         * op writes face_x/face_z directly and does not go through
+         * `mock230_npc_face_player`. */
+        if( npc->turnspeed == 0 )
+            return 1;
         npc->face_x = mock230_coord_fine(coord_x(coord), 1);
         npc->face_z = mock230_coord_fine(coord_z(coord), 1);
         npc->masks |= MOCK230_NMASK_FACE_COORD;

@@ -22503,6 +22503,8 @@ mock230_world_selftest(void)
 
                 int faced = 0;
                 int home_face = zuk->face_entity;
+                int home_fx = zuk->face_x;
+                int home_fz = zuk->face_z;
 
                 for( int tick = 0; tick < 12; tick++ )
                 {
@@ -22510,7 +22512,9 @@ mock230_world_selftest(void)
                     mock230_world_tick(&srv);
                     moved |= zuk->x != home_x || zuk->z != home_z;
                     faced |= zuk->face_entity != home_face;
-                    faced |= (zuk->masks & MOCK230_NMASK_FACE_ENTITY) != 0;
+                    faced |= zuk->face_x != home_fx || zuk->face_z != home_fz;
+                    faced |= (zuk->masks & (MOCK230_NMASK_FACE_ENTITY |
+                                            MOCK230_NMASK_FACE_COORD)) != 0;
                 }
                 SELFTEST_CHECK(!moved,
                                "TzKal-Zuk must not chase the player; he left %d,%d for %d,%d",
@@ -22529,9 +22533,10 @@ mock230_world_selftest(void)
                                "got %d",
                                zuk->turnspeed);
                 SELFTEST_CHECK(!faced,
-                               "TzKal-Zuk must not turn to face the player; face_entity "
-                               "went %d -> %d",
-                               home_face, zuk->face_entity);
+                               "TzKal-Zuk must not turn to face the player by ANY facing "
+                               "source; face_entity %d -> %d, face_coord %d,%d -> %d,%d",
+                               home_face, zuk->face_entity, home_fx, home_fz,
+                               zuk->face_x, zuk->face_z);
             }
 
             /* Reusing the instance pool returns the same absolute square. The
