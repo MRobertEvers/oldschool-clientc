@@ -262,6 +262,7 @@ mock230_npcinfo_load(const char* cache_dir)
         g_npcs[i].name = NULL;
         g_npcs[i].combat_level = -1;
         g_npcs[i].size = 1;
+        g_npcs[i].turnspeed = 32; /* NpcType default; 0 is "never turns" */
         g_npcs[i].attackrate = 4;
     }
 
@@ -281,6 +282,7 @@ mock230_npcinfo_load(const char* cache_dir)
             g_npcs[id].name = strdup(npc->name);
         g_npcs[id].combat_level = npc->combat_level;
         g_npcs[id].size = npc->size > 0 ? npc->size : 1;
+        g_npcs[id].turnspeed = npc->rotation_speed;
         /* Config opcode 18 (`dat2_config_npc.c:666`), already decoded by the
          * linked rscache npc decoder and discarded here until now. Stored
          * unconditionally, above the `name` gate the accessor applies: a

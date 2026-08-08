@@ -1155,6 +1155,8 @@ npc_config_key(
         def->death_delay = atoi(value);
     else if( strcmp(key, "wanderrange") == 0 )
         def->wanderrange = atoi(value);
+    else if( strcmp(key, "turnspeed") == 0 )
+        def->turnspeed = atoi(value);
     else if( strcmp(key, "maxrange") == 0 )
         def->maxrange = atoi(value);
     /* `givechase=no` is the only value the reference writes — its packer emits
@@ -3023,6 +3025,7 @@ init_defaults(void)
     g_npc_default.blocksight = 0;
     g_npc_default.moverestrict = 0;
     g_npc_default.nomove = 0;
+    g_npc_default.turnspeed = -1; /* unstated: defer to the cache record */
     g_npc_default.damagetype = MOCK230_DAMAGE_CRUSH;
     g_npc_default.attack_anim = -1;
     g_npc_default.defend_anim = -1;

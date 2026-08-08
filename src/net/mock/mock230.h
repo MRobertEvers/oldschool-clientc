@@ -755,6 +755,17 @@ struct Mock230NpcInfo
     const char* name;
     int combat_level;
     int size;
+    /**
+     * NpcType.turnspeed (config opcode 103), default 32; 0 = never turns.
+     *
+     * A client field the server had no reason to read until it turned out the
+     * server is what makes turning *happen*: the client only rotates toward a
+     * FACE_ENTITY latch, and this end sets that latch every tick an npc is in
+     * a player-facing mode. A record that says it does not turn has to be
+     * honoured here too, or a fixture npc tracks the player on the wire and
+     * only the baked cache stops it on screen.
+     */
+    int turnspeed;
     /** Menu ops (config opcodes 30-34). "Attack" in one of them is what makes
      *  an npc a valid combat target — the same test the client's minimenu
      *  makes, so the two ends agree without a second attackability list. */
@@ -1555,6 +1566,7 @@ struct Mock230Npc
     int waypoint_index; /* -1 idle; counts down like player */
     int stuck_counter;
     int size;      /* footprint; from npcinfo at spawn, default 1 */
+    int turnspeed; /* NpcType.turnspeed; from npcinfo at spawn. 0 = never turns */
     int blockwalk; /* 0 none, 1 npc, 2 all, 3 player — from def */
     int blocksight; /* 0/1 — sets PROJ_BLOCK_ENTITY when moving */
 
@@ -1742,6 +1754,14 @@ mock230_npc_face_player(
 {
     int id = MOCK230_FACE_PLAYER_BASE + pid;
 
+    /* `turnspeed = 0` means the record never turns, so there is nothing for a
+     * facing latch to do. Gated at the seam rather than at the five callers:
+     * every one of them is some flavour of "a mode is holding this player as a
+     * target", which stays true of a fixture npc, and the answer to all five
+     * is the same. Without it the latch still goes out every tick and the only
+     * thing stopping the rotation is the client's own copy of this field. */
+    if( npc->turnspeed == 0 )
+        return;
     if( npc->face_entity == id )
         return;
     npc->face_entity = id;

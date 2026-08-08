@@ -2253,8 +2253,15 @@ npc_spawn(
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
         {
-            const struct Mock230NpcInfo* info = mock230_npcinfo(type);
+            /* The ungated row: a nameless multinpc instance still has a
+             * footprint and still has to obey its turnspeed. */
+            const struct Mock230NpcInfo* info = mock230_npcinfo_record(type);
             npc->size = (info && info->size > 0) ? info->size : 1;
+            /* The server overlay wins when it states one, because the cache
+             * the server booted from is not necessarily the cache the client
+             * did. Unstated (-1) defers to the record. */
+            npc->turnspeed = def->turnspeed >= 0 ? def->turnspeed
+                                                 : (info ? info->turnspeed : 32);
         }
         npc->blockwalk = def->blockwalk;
         npc->blocksight = def->blocksight;
@@ -22494,15 +22501,37 @@ mock230_world_selftest(void)
                 int home_z = zuk->z;
                 int moved = 0;
 
+                int faced = 0;
+                int home_face = zuk->face_entity;
+
                 for( int tick = 0; tick < 12; tick++ )
                 {
                     zuk->mode = MOCK230_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
                     mock230_world_tick(&srv);
                     moved |= zuk->x != home_x || zuk->z != home_z;
+                    faced |= zuk->face_entity != home_face;
+                    faced |= (zuk->masks & MOCK230_NMASK_FACE_ENTITY) != 0;
                 }
                 SELFTEST_CHECK(!moved,
                                "TzKal-Zuk must not chase the player; he left %d,%d for %d,%d",
                                home_x, home_z, zuk->x, zuk->z);
+                /*
+                 * And he must not TURN. `defaultmode=none` does not cover this
+                 * either: every mode at or above playerescape faces the player
+                 * before it decides whether to move, so a fixture npc that
+                 * cannot walk still tracked the player on the wire. The record
+                 * says turnspeed 0 and this end has to honour it — otherwise
+                 * the only thing stopping the rotation is the client's own copy
+                 * of the field, and a client on the unbaked cache turns him.
+                 */
+                SELFTEST_CHECK(zuk->turnspeed == 0,
+                               "TzKal-Zuk's record should reach the server as turnspeed 0, "
+                               "got %d",
+                               zuk->turnspeed);
+                SELFTEST_CHECK(!faced,
+                               "TzKal-Zuk must not turn to face the player; face_entity "
+                               "went %d -> %d",
+                               home_face, zuk->face_entity);
             }
 
             /* Reusing the instance pool returns the same absolute square. The

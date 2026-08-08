@@ -328,6 +328,18 @@ struct Mock230NpcDef
      * 5 nomove, 6 passthru — keep nomove working as today. */
     int moverestrict;
     int nomove; /* derived/compat: set when moverestrict==5 */
+    /**
+     * NpcType.turnspeed, restated on the server. -1 = not stated, use the
+     * cache record's own value.
+     *
+     * The cache carries this field and the client honours it, but the *server*
+     * is what sets the FACE_ENTITY latch an npc turns toward, and the server
+     * boots from whichever cache MOCK230_CACHE_DIR names — normally the
+     * pristine one, not a bake. A fixture that must not turn therefore has to
+     * say so somewhere the server reads unconditionally, or it turns on the
+     * wire and only a baked client stops it on screen.
+     */
+    int turnspeed;
 
     enum Mock230HuntMode huntmode;
     int huntrange;
