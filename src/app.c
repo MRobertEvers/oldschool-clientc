@@ -12127,6 +12127,30 @@ App_SetCanvasSize(
     return 1;
 }
 
+/* True when this node, or anything it hangs off, is hidden — i.e. it does not
+ * reach the screen. `behavior.hide` alone is not that test: hiding a container
+ * leaves every descendant's own flag clear and its stale abs_* box intact, so a
+ * caller that reads geometry off the flat component array sees a hidden
+ * subtree's boxes as live ones. */
+static int
+component_hidden_or_orphaned(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    int guard;
+    assert(tree);
+    for( guard = 0; idx >= 0 && guard < 256; guard++ )
+    {
+        struct UITreeComponent const* c;
+        assert((uint32_t)idx < tree->component_count);
+        c = &tree->components[idx];
+        if( c->freed || c->behavior.hide )
+            return 1;
+        idx = c->parent;
+    }
+    return 0;
+}
+
 int
 App_MeasureRightChromeStripWidth(struct App const* app)
 {
@@ -12157,7 +12181,12 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         int right;
         int w;
 
-        if( c->freed || c->behavior.hide )
+        /* Ancestors too: a speculatively baked panel (the CS2 runtime bakes a
+         * pack the moment a script touches it) is hidden at its group root,
+         * while the right-docked column inside it keeps a clear flag and a
+         * full-height box — the exact signature this loop looks for. Measuring
+         * that column grew the fixed canvas by a panel that was never open. */
+        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
             continue;
         w = c->position.abs_w;
         if( w <= 0 || c->position.abs_x <= 0 ||

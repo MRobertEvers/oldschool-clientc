@@ -379,6 +379,33 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
             UITree_Reparent(tree, pack_root_idx, mount_idx);
     }
 
+    /*
+     * A pack nobody mounted is not on screen yet, so it must not be drawn or
+     * measured. This bake is speculative — the script only *touched* the group
+     * (an if_hassub, a cc_find on a panel that is still closed) — and without
+     * this the copy sits at the tree root, visible, laid out against the whole
+     * canvas.
+     *
+     * That is not merely a stray draw. The fixed-mode canvas is sized from the
+     * widest right-docked full-height column in the tree (the popout strip, see
+     * App_MeasureRightChromeStripWidth), and a speculatively baked panel root
+     * has exactly that shape: the login arming of XP tracker 729 baked a 264-wide
+     * right-docked column, so fixed mode grew the canvas to 765+264 and left a
+     * 222px black band between the classic frame and the 42px strip.
+     *
+     * hide_unmounted, not a plain hide: it is the same marker the spillover
+     * sweep and a replacing mount use, and it is what the eventual open (sub or
+     * top) knows how to undo.
+     */
+    if( pack_root_idx >= 0 && tree->components[pack_root_idx].parent < 0 &&
+        !UITree_InterfaceParentIsMountedGroup(tree, self->await_id) )
+    {
+        struct UITreeComponent* root = &tree->components[pack_root_idx];
+        if( !root->behavior.hide )
+            root->behavior.hide_unmounted = 1;
+        root->behavior.hide = 1;
+    }
+
     UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     if( self->host->bridge )

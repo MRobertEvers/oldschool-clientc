@@ -536,6 +536,34 @@ Task_InterfaceOpen_Run(
         }
         mount_pack_under_target(self);
     }
+    else
+    {
+        /* IF_OPENTOP: no mount target, so the group stays a tree root and
+         * mount_pack_under_target never runs — but the same hide it undoes can
+         * already be on this pack. The CS2 runtime hides a pack it baked
+         * speculatively, and the spillover sweep hides a root nothing had
+         * mounted yet; either one applied to a group that is now being opened
+         * as the toplevel would render the whole gameframe blank, with nothing
+         * to point at. Clearing hide_unmounted here is the opentop half of the
+         * same bookkeeping. */
+        struct UITreeNodeSet const* gset =
+            UITree_GroupNodes(self->tree, self->interface_id);
+        int gi;
+        for( gi = 0; gset && gi < gset->count; gi++ )
+        {
+            int32_t idx = gset->slots[gi];
+            struct UITreeComponent* c;
+            assert(idx >= 0 && (uint32_t)idx < self->tree->component_count);
+            c = &self->tree->components[idx];
+            if( c->freed || c->component_id < 0 )
+                continue;
+            if( c->behavior.hide_unmounted )
+            {
+                c->behavior.hide = 0;
+                c->behavior.hide_unmounted = 0;
+            }
+        }
+    }
 
     /* 5. Layout at full client canvas (host size via parent abs after reparent). */
     layout_tree(self);
