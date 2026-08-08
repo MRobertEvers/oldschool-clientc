@@ -21,6 +21,9 @@ struct Win32TimingState
 
     int now_seen;
     uint64_t last_now_ms;
+
+    int now_us_seen;
+    uint64_t last_now_us;
 };
 
 static struct Win32TimingState timing;
@@ -73,6 +76,24 @@ qpc_now_ms(void)
 }
 
 static uint64_t
+qpc_now_us(void)
+{
+    LARGE_INTEGER counter;
+    uint64_t whole;
+    uint64_t remainder;
+    uint64_t frequency = (uint64_t)timing.qpc_frequency.QuadPart;
+
+    if( !QueryPerformanceCounter(&counter) || counter.QuadPart < 0 )
+        return UINT64_MAX;
+
+    /* Split before multiplying, for the reason qpc_now_ms gives — with six more
+     * digits of scale the direct form overflows that much sooner. */
+    whole = (uint64_t)counter.QuadPart / frequency;
+    remainder = (uint64_t)counter.QuadPart % frequency;
+    return whole * 1000000u + remainder * 1000000u / frequency;
+}
+
+static uint64_t
 fallback_now_ms(void)
 {
     DWORD current = GetTickCount();
@@ -109,6 +130,31 @@ PlatformWin32Timing_NowMs(void)
         return timing.last_now_ms;
     timing.now_seen = 1;
     timing.last_now_ms = now;
+    return now;
+}
+
+uint64_t
+PlatformWin32Timing_NowUs(void)
+{
+    uint64_t now;
+
+    if( timing.references == 0 )
+        PlatformWin32Timing_Init();
+    if( timing.qpc_valid )
+    {
+        now = qpc_now_us();
+        if( now == UINT64_MAX )
+            timing.qpc_valid = 0;
+    }
+    /* GetTickCount is the XP fallback and has nothing finer to offer; scaling
+     * it keeps the unit contract, not the resolution. */
+    if( !timing.qpc_valid )
+        now = fallback_now_ms() * 1000u;
+
+    if( timing.now_us_seen && now < timing.last_now_us )
+        return timing.last_now_us;
+    timing.now_us_seen = 1;
+    timing.last_now_us = now;
     return now;
 }
 

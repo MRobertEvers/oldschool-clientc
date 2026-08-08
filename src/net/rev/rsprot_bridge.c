@@ -470,6 +470,9 @@ bridge_midi_song(int revision, uint8_t const* data, int len, struct RevPacket* o
 {
     BRIDGE_RUN(rsprot_midi_song_v2_out, MsgMidiSongV2)
     out->_midi_song.id = msg.id;
+    /* Speeds are client cycles; the player wants milliseconds. */
+    out->_midi_song.fade_out_ms = msg.fade_out_speed * 20;
+    out->_midi_song.fade_in_ms = msg.fade_in_speed * 20;
     return 1;
 }
 

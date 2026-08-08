@@ -36,6 +36,8 @@ static const struct Mock230ObjInfo k_unknown = {
     .noted_id = -1,
     .noted_template = -1,
     .cert_id = -1,
+    .placeholder_id = -1,
+    .placeholder_template = -1,
 };
 
 /*
@@ -463,6 +465,9 @@ record(
     entry->noted_id = obj->noted_id;
     entry->noted_template = obj->noted_template;
     entry->cert_id = obj->noted_template < 0 ? obj->noted_id : -1;
+    /* Placeholders, the same shape as notes above — opcodes 148/149. */
+    entry->placeholder_id = obj->placeholder_id;
+    entry->placeholder_template = obj->placeholder_template_id;
     for( int i = 0; i < 5; i++ )
         entry->if_ops[i] = obj->if_actions[i] ? strdup(obj->if_actions[i]) : NULL;
 
@@ -572,6 +577,8 @@ mock230_objinfo_load(const char* cache_dir)
         g_objs[i].noted_id = -1;
         g_objs[i].noted_template = -1;
         g_objs[i].cert_id = -1;
+        g_objs[i].placeholder_id = -1;
+        g_objs[i].placeholder_template = -1;
     }
 
     for( int i = 0; i < files->file_count; i++ )
@@ -610,6 +617,23 @@ mock230_objinfo_load(const char* cache_dir)
          * `certtemplate`. The real client composes "Swapping this note at any
          * bank…" from the template; borrowing the item's own line is the
          * closest a server-side `oc_desc` can get without inventing text. */
+        if( !g_objs[id].desc && g_objs[real].desc )
+            g_objs[id].desc = strdup(g_objs[real].desc);
+    }
+
+    /* A bank placeholder is `null` in the cache for the same reason a note is,
+     * and borrows the same way. Without this every server-side sentence about
+     * one — `::container`, a "Released N placeholder(s)" line, an examine —
+     * reads "item", and the two forms of one object stop looking related. */
+    for( int id = 0; id < g_obj_count; id++ )
+    {
+        int real = g_objs[id].placeholder_id;
+
+        if( g_objs[id].name || g_objs[id].placeholder_template < 0 )
+            continue;
+        if( real < 0 || real >= g_obj_count || !g_objs[real].name )
+            continue;
+        g_objs[id].name = strdup(g_objs[real].name);
         if( !g_objs[id].desc && g_objs[real].desc )
             g_objs[id].desc = strdup(g_objs[real].desc);
     }

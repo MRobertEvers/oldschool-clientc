@@ -535,13 +535,32 @@ soft3d_draw_sprite(
             }
         }
 
-        ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, 0, 0, angle_2d);
-
         {
-            int draw_w = cmd->w > 0 ? cmd->w : sw;
-            int draw_h = cmd->h > 0 ? cmd->h : sh;
+            int const unrot_w = sw;
+            int const unrot_h = sh;
+            int const box_w = cmd->w > 0 ? cmd->w : unrot_w;
+            int const box_h = cmd->h > 0 ? cmd->h : unrot_h;
+            int draw_x = cmd->x;
+            int draw_y = cmd->y;
+            int draw_w = box_w;
+            int draw_h = box_h;
+
+            ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, 0, 0, angle_2d);
+
+            /* Rotation grows the buffer past the nominal box (a square turned
+             * 45 degrees needs sqrt(2) times the room). Scale by the *box*
+             * ratio, not the rotated one, and keep the result centred on the
+             * box: scale-then-rotate, so a spinning icon holds its size
+             * instead of pumping smaller as it turns. */
+            if( angle_2d != 0 && unrot_w > 0 && unrot_h > 0 )
+            {
+                draw_w = sw * box_w / unrot_w;
+                draw_h = sh * box_h / unrot_h;
+                draw_x = cmd->x + (box_w - draw_w) / 2;
+                draw_y = cmd->y + (box_h - draw_h) / 2;
+            }
             ToriDraw2D_BlitArgbScaled(
-                &vp, cmd->x, cmd->y, draw_w, draw_h, spr_px, sw, sh, soft->pixels);
+                &vp, draw_x, draw_y, draw_w, draw_h, spr_px, sw, sh, soft->pixels);
         }
     }
     else
@@ -801,6 +820,8 @@ soft3d_draw_model(
             cmd->pick_tile_z,
             cmd->pick_tile_level);
 
+    if( cmd->pick_only )
+        return;
     if( ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene) <= 0 )
         return;
     ToriDraw_RenderModel3Raster(

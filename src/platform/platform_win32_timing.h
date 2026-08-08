@@ -14,6 +14,10 @@ PlatformWin32Timing_Shutdown(void);
 uint64_t
 PlatformWin32Timing_NowMs(void);
 
+/** The same clock in microseconds, for measuring a frame rather than pacing it. */
+uint64_t
+PlatformWin32Timing_NowUs(void);
+
 void
 PlatformWin32Timing_SleepUntilMs(uint64_t deadline_ms);
 

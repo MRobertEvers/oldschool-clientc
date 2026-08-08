@@ -199,10 +199,22 @@ ToriRS_PickHitsClassify(
 
         if( hit->is_terrain )
         {
-            /* Lower levels still render under the player, so their tiles keep
-             * producing terrain hits — but the player only ever walks/clicks on
-             * their own level's ground. */
-            if( player_level >= 0 && hit->tile_level != player_level )
+            /*
+             * Ground ABOVE the player is never a walk target — that is the
+             * roof-level floor of a building you are standing outside of. The
+             * reference refuses it where the tile records its hit, not later:
+             * deob class155 method5213/method5214 guard the `method4269` call
+             * with `Statics.field2292 <= worldView.getPlane()`, and field2292
+             * is the tile's own draw level, stashed by method5218/method5222
+             * immediately before the paint.
+             *
+             * `<=`, not `==`, and the difference is load-bearing: a bridge deck
+             * and every VIS_BELOW tile draw at a LOWER level than the player
+             * standing on them (method4161 returns draw level 0 for a tile
+             * carrying the link-below flag), so equality would make the ground
+             * under your own feet unclickable.
+             */
+            if( player_level >= 0 && hit->tile_level > player_level )
                 continue;
             /* Hits arrive in render order, back-to-front: the last terrain
              * hit is nearest. */

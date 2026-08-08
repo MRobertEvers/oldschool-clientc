@@ -5668,6 +5668,8 @@ d3d9_draw_model(
             command->pick_tile_z,
             command->pick_tile_level);
 
+    if( command->pick_only )
+        return;
     if( renderer->z_buffer_enabled )
         face_count = trspk_toridraw_face_count(command->model);
     else

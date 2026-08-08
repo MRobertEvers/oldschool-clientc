@@ -2899,8 +2899,15 @@ exec_widget_set_int(
             node->u.rs_model.anim_frame_cycle = 0;
         }
         break;
-    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
+    /* IF/CC_SET2DANGLE. The only animated user is the world map's marker
+     * timer (clientscript 1758 re-states the angle every tick from
+     * clientclock), so a no-op here reads as "the You Are Here arrow is drawn
+     * but never turns". */
     case CS2VM_WIDGET_INT_ANGLE_2D:
+        (void)UITree_ApplyGraphic2DAngle(
+            rs_cs2_tree(host), request.component_id, request.value);
+        break;
+    case CS2VM_WIDGET_INT_MODEL_ORTHOG:
     case CS2VM_WIDGET_INT_FILL_MODE:
     case CS2VM_WIDGET_INT_TRANS_BOT:
     case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:

@@ -78,6 +78,11 @@ ToriDraw_ProjectedModelContainsAabb(
     int screen_x,
     int screen_y);
 
+/** Per-face hit test against the last projected model, ported from the
+ *  reference render2 pick pass. A face counts when the cursor (grown by 5px)
+ *  overlaps its screen bounding box — deliberately loose, so the gaps in a
+ *  sparse model still pick. Faces hidden by lighting/mergeNormals and faces
+ *  with a near-clipped vertex are skipped; backfacing ones are not. */
 bool
 ToriDraw_ProjectedModelContainsPoint(
     struct ToriDraw_Scene* scene,

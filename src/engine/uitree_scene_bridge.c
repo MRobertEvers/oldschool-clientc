@@ -973,6 +973,27 @@ bridge_ensure_obj_icon(
     if( !obj )
         return -1;
 
+    /*
+     * A bank placeholder draws as the item it stands for, full stop.
+     *
+     * Unlike a note it has no template of its own to composite onto — the
+     * reference's item-sprite builder takes the `placeholderId` branch, renders
+     * that item's sprite and blits it at 0,0 with nothing underneath — so the
+     * whole of the difference is resolving to the linked objtype here and
+     * letting the ordinary path below run. The faded look is the interface's:
+     * `bankmain_drawitem` sets `cc_settrans(120)` on a placeholder cell.
+     */
+    if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 &&
+        obj->placeholder_link > 0 )
+    {
+        struct ToriRS_Objtype* linked =
+            CacheProvider_ObjtypeGet(bridge->provider, obj->placeholder_link);
+
+        if( !linked )
+            return -1;
+        obj = linked;
+    }
+
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
     {
         /* Bank note (reference ObjType.genCert + getSprite cert branch): the

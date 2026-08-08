@@ -669,49 +669,97 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, uint8_t *inbuf, int len) {
     return RETVAL_OK;
 }
 
-static void bzip_fatal(int retval) {
+static void bzip_report(int retval) {
     fprintf(stderr, "bzip error: %s\n", bunzip_errors[-retval]);
-    exit(1);
 }
 
-void bzip_decompress(int8_t *file_data, int8_t *archive_data, int archive_size,
-                     int offset) {
-    uint8_t *headered = malloc(archive_size + 4);
-    memcpy(headered, BZIP_HEADER, 4);
-    memcpy(headered + 4, archive_data + offset, archive_size);
+/* Decompress into a buffer of known capacity.
+ *
+ * Returns RETVAL_OK, or a negative RETVAL_* the caller is expected to handle.
+ * It reports the reason on stderr but never exits: callers decode bytes that
+ * can be corrupt (a torn cache write, a truncated download), and a corrupt
+ * container has to be recoverable data rather than a dead process -- the JS5
+ * incremental cache repairs exactly this by refetching the group.
+ *
+ * `file_capacity` bounds every write. bzip2 streams state their own output
+ * length only per block, so without it a stream that inflates past the
+ * container's declared size walks off the end of the caller's buffer.
+ */
+int bzip_decompress(int8_t *file_data, int file_capacity, int8_t *archive_data,
+                    int archive_size, int offset) {
+    if (!file_data || !archive_data || file_capacity < 0 || archive_size < 0) {
+        return RETVAL_DATA_ERROR;
+    }
 
-    bunzip_data *bd;
+    uint8_t *headered = malloc((size_t)archive_size + 4);
+    if (!headered) {
+        return RETVAL_OUT_OF_MEMORY;
+    }
+    memcpy(headered, BZIP_HEADER, 4);
+    memcpy(headered + 4, archive_data + offset, (size_t)archive_size);
+
+    bunzip_data *bd = NULL;
     int retval;
 
     if ((retval = start_bunzip(&bd, -1, headered, archive_size + 4)) < 0) {
         free(headered);
-        free(bd->dbuf);
-        free(bd);
-        bzip_fatal(retval);
+        /* start_bunzip publishes *bdp before it can fail on anything but the
+         * allocation itself, so bd is NULL only in the out-of-memory case. */
+        if (bd) {
+            free(bd->dbuf);
+            free(bd);
+        }
+        bzip_report(retval);
+        return retval;
     }
 
     int write_offset = 0;
 
     while (1) {
-        retval = read_bunzip(bd, file_data + write_offset, IOBUF_SIZE);
+        int remaining = file_capacity - write_offset;
+        int chunk = remaining < IOBUF_SIZE ? remaining : IOBUF_SIZE;
+
+        if (chunk <= 0) {
+            /* Output is full, which is the normal end for a container whose
+             * declared size is exact. One more byte separates that from a
+             * stream claiming to be longer than declared.
+             *
+             * read_bunzip signals the end two different ways and both are
+             * benign here: RETVAL_LAST_BLOCK once writeCount has gone
+             * negative, or a gotcount of 0 when this call is the one that
+             * discovers the final block. Only a positive count means bytes
+             * were still coming. */
+            int8_t overflow_probe;
+            retval = read_bunzip(bd, &overflow_probe, 1);
+            if (retval > 0) {
+                retval = RETVAL_DATA_ERROR;
+            } else if (retval == RETVAL_LAST_BLOCK || retval == 0) {
+                retval = RETVAL_OK;
+            }
+            break;
+        }
+
+        retval = read_bunzip(bd, file_data + write_offset, chunk);
 
         /* finished */
-        if (retval == -1) {
-            free(bd->dbuf);
-            free(bd);
-            free(headered);
-            return;
+        if (retval == RETVAL_LAST_BLOCK) {
+            retval = RETVAL_OK;
+            break;
         }
 
         /* error */
         if (retval < 0) {
-            free(headered);
-            free(bd->dbuf);
-            free(bd);
-            bzip_fatal(retval);
-            return;
+            break;
         }
 
-        write_offset += IOBUF_SIZE;
+        write_offset += chunk;
     }
+
+    free(bd->dbuf);
+    free(bd);
+    free(headered);
+    if (retval < 0) {
+        bzip_report(retval);
+    }
+    return retval;
 }

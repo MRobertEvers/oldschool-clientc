@@ -1937,6 +1937,65 @@ world_builder_minimap_add_loc_mapfunction(
     }
 }
 
+/*
+ * One loc's ambient sound, if it has one.
+ *
+ * Registered from the same two placement paths the minimap gathers use, and for
+ * the same reason: this is the only point that has the placed loc *and* its
+ * resolved config. Recovering it later would mean walking the map squares a
+ * second time and re-running the varbit transform, and a multiloc's transform
+ * can change which sound it emits.
+ *
+ * The footprint centre is used rather than the south-west tile so a large loc
+ * (a waterfall spanning four tiles) pans from where it looks like it is.
+ */
+static void
+world_builder_add_loc_area_sound(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc const* map_loc,
+    struct ToriRS_Location const* config_loc,
+    int scene_x,
+    int scene_z)
+{
+    struct World* world = builder->world;
+    int scene_size = world->_scene_size;
+    int centre_x;
+    int centre_z;
+    int size_x;
+    int size_z;
+
+    if( config_loc->ambient_sound_id < 0 && config_loc->ambient_sound_id_count <= 0 )
+        return;
+    if( map_loc->chunk_pos_level < 0 || map_loc->chunk_pos_level >= COLLISION_LEVELS )
+        return;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= scene_size || scene_z >= scene_size )
+        return;
+
+    /* Orientation swaps the footprint, exactly as it does for collision. */
+    size_x = config_loc->size_x;
+    size_z = config_loc->size_z;
+    if( (map_loc->orientation & 1) != 0 )
+    {
+        int swap = size_x;
+        size_x = size_z;
+        size_z = swap;
+    }
+    centre_x = scene_x + (size_x > 1 ? size_x / 2 : 0);
+    centre_z = scene_z + (size_z > 1 ? size_z / 2 : 0);
+
+    World_AddAreaSound(
+        world,
+        centre_x,
+        centre_z,
+        map_loc->chunk_pos_level,
+        config_loc->ambient_sound_id,
+        config_loc->ambient_sound_ids,
+        config_loc->ambient_sound_id_count,
+        config_loc->ambient_sound_ticks_min,
+        config_loc->ambient_sound_ticks_max,
+        config_loc->ambient_sound_distance);
+}
+
 static void
 world_builder_minimap_add_loc(
     struct WorldBuilder* builder,
@@ -2028,6 +2087,7 @@ world_builder_minimap_add_chunk_walls(
             continue;
 
         world_builder_minimap_add_loc(builder, map_loc, config_loc, offset_x, offset_z);
+        world_builder_add_loc_area_sound(builder, map_loc, config_loc, offset_x, offset_z);
     }
 }
 

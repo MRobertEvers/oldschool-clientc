@@ -1836,6 +1836,8 @@ UITree_Push(
         component->u.rs_graphic.graphic_shadow = spec->u.rs_graphic.graphic_shadow;
         component->u.rs_graphic.flip_h = spec->u.rs_graphic.flip_h;
         component->u.rs_graphic.flip_v = spec->u.rs_graphic.flip_v;
+        component->u.rs_graphic.sprite_angle_r2pi65536 =
+            spec->u.rs_graphic.sprite_angle_r2pi65536;
         break;
 
     case UIELEM_RS_RECT:
@@ -2752,6 +2754,37 @@ UITree_ApplyGraphicShadow(
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
     tree->components[idx].u.rs_graphic.graphic_shadow = shadow_colour;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
+UITree_ApplyGraphic2DAngle(
+    struct UITree* tree,
+    int component_id,
+    int angle_r2pi65536)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
+        return false;
+    /* Wrapped, not clamped: the world map's marker timer walks the angle up
+     * past a full turn, and the rotate helper's tables want 0..65535. */
+    angle_r2pi65536 &= 0xFFFF;
+    {
+        /* A rotation that never arrives and a rotation that arrives and is then
+         * discarded downstream look the same on screen, so the setter is worth
+         * a trace of its own. */
+        static int debug = -1;
+        if( debug < 0 )
+            debug = getenv("TORIRS_ANGLE_DEBUG") != NULL;
+        if( debug )
+            fprintf(
+                stderr, "set2dangle: com=0x%08x angle=%d\n", component_id, angle_r2pi65536);
+    }
+    if( tree->components[idx].u.rs_graphic.sprite_angle_r2pi65536 == angle_r2pi65536 )
+        return true;
+    tree->components[idx].u.rs_graphic.sprite_angle_r2pi65536 = angle_r2pi65536;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

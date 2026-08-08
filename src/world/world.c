@@ -51,6 +51,7 @@ World_Free(struct World* world)
     free(world->obj_raise);
     free(world->tile_last_occupied_cycle);
     free(world->mapscenes);
+    free(world->area_sounds);
     World_EntityListFree(&world->entities);
     free(world);
 }
@@ -85,6 +86,46 @@ World_AddMapSceneIcon(
     icon->mapscene = mapscene;
     icon->width = width;
     icon->length = length;
+}
+
+void
+World_AddAreaSound(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int sound_id,
+    const int* sound_ids,
+    int sound_id_count,
+    int ticks_min,
+    int ticks_max,
+    int distance)
+{
+    struct World_AreaSound* entry;
+
+    if( !world )
+        return;
+    if( world->area_sound_count >= world->area_sound_capacity )
+    {
+        int new_cap = world->area_sound_capacity ? world->area_sound_capacity * 2 : 64;
+        struct World_AreaSound* grown = (struct World_AreaSound*)realloc(
+            world->area_sounds, (size_t)new_cap * sizeof(*grown));
+        if( !grown )
+            return;
+        world->area_sounds = grown;
+        world->area_sound_capacity = new_cap;
+    }
+
+    entry = &world->area_sounds[world->area_sound_count++];
+    entry->x = x;
+    entry->z = z;
+    entry->level = level;
+    entry->sound_id = sound_id;
+    entry->sound_ids = sound_ids;
+    entry->sound_id_count = sound_id_count;
+    entry->ticks_min = ticks_min;
+    entry->ticks_max = ticks_max;
+    entry->distance = distance;
 }
 
 int
@@ -207,6 +248,8 @@ World_ResetSceneAlloc(
     assert(world->event_count == 0 && "drain EntityRemoved before World_ResetSceneAlloc");
     world->mapfunc_count = 0;
     world->mapscene_count = 0;
+    world->area_sound_count = 0;
+    world->area_sound_generation++;
     /* Loc-change records survive the scene reset and are shifted by
      * World_ShiftEntities (Client-TS locChanges / deob field1353). The server
      * re-sends zone state for anything that must reappear visually. */

@@ -1052,13 +1052,23 @@ ToriDraw_Project(
 }
 
 /**
- * Sign-only barycentric containment. Dividing all three coordinates by the
- * same `denominator` cannot change which of them are negative, so folding the
- * denominator's sign in and comparing the raw numerators against zero gives
- * the same answer with no divides and no float at all.
+ * The reference's per-face hit test is NOT containment: it asks whether the
+ * cursor, grown by `TORIDRAW_PICK_SLOP` in each direction, overlaps the
+ * triangle's screen bounding box. Client-TS names it exactly what it is —
+ * Model.isMouseRoughlyInsideTriangle (Model.ts:2413) — and the 239 deob
+ * inlines the same four comparisons (class144.method4915:1625-1646) around a
+ * slop of 5.
+ *
+ * The looseness is the whole point. A rock, a fence or a set of climbing
+ * handholds is a handful of small triangles with gaps between them; exact
+ * barycentric containment (what this used to do) makes the gaps dead space and
+ * those locs nearly unclickable, which is precisely the agility-obstacle
+ * complaint. Face bboxes overlap far enough to fill the silhouette.
  */
+#define TORIDRAW_PICK_SLOP 5
+
 static inline bool
-toridraw_triangle_contains_point(
+toridraw_mouse_roughly_inside_triangle(
     int x1,
     int y1,
     int x2,
@@ -1068,22 +1078,19 @@ toridraw_triangle_contains_point(
     int x,
     int y)
 {
-    int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-    if( denominator == 0 )
+    if( y + TORIDRAW_PICK_SLOP < y1 && y + TORIDRAW_PICK_SLOP < y2 &&
+        y + TORIDRAW_PICK_SLOP < y3 )
         return false;
-
-    int a_num = (y2 - y3) * (x - x3) + (x3 - x2) * (y - y3);
-    int b_num = (y3 - y1) * (x - x3) + (x1 - x3) * (y - y3);
-    int c_num = denominator - a_num - b_num; /* c = 1 - a - b, unnormalized */
-
-    if( denominator < 0 )
-    {
-        a_num = -a_num;
-        b_num = -b_num;
-        c_num = -c_num;
-    }
-
-    return a_num >= 0 && b_num >= 0 && c_num >= 0;
+    if( y - TORIDRAW_PICK_SLOP > y1 && y - TORIDRAW_PICK_SLOP > y2 &&
+        y - TORIDRAW_PICK_SLOP > y3 )
+        return false;
+    if( x + TORIDRAW_PICK_SLOP < x1 && x + TORIDRAW_PICK_SLOP < x2 &&
+        x + TORIDRAW_PICK_SLOP < x3 )
+        return false;
+    if( x - TORIDRAW_PICK_SLOP > x1 && x - TORIDRAW_PICK_SLOP > x2 &&
+        x - TORIDRAW_PICK_SLOP > x3 )
+        return false;
+    return true;
 }
 
 bool
@@ -1114,6 +1121,7 @@ ToriDraw_ProjectedModelContainsPoint(
     faceint_t* fia = NULL;
     faceint_t* fib = NULL;
     faceint_t* fic = NULL;
+    hsl16_t* colors_c = NULL;
     int face_count = 0;
 
     switch( hnd.kind )
@@ -1124,6 +1132,7 @@ ToriDraw_ProjectedModelContainsPoint(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
+        colors_c = m->face_colors_c;
         face_count = m->face_count;
         break;
     }
@@ -1133,18 +1142,49 @@ ToriDraw_ProjectedModelContainsPoint(
 
     for( int i = 0; i < face_count; i++ )
     {
+        /*
+         * Hidden faces do not pick. `faceColourC == -2` is the reference's one
+         * hidden marker (class144.method4915:1575, Client-TS Model.ts:1856
+         * spells the same thing as faceRenderType -1 because it hides on the
+         * lit model instead), and ModelData.light stamps it for render type 2:
+         * a fully transparent face, and every face mergeNormals removed where
+         * two adjacent locs share all three vertices (class136:644/652). Here
+         * that sentinel is TORIDRAWHSL16_HIDDEN, written by ToriDraw_Light.
+         *
+         * Note what is deliberately NOT filtered: the reference runs this pick
+         * *after* computing the winding cull and ignores it (class144:1616 vs
+         * :1618), so a backfacing face still picks, and so does a face the
+         * depth sort later drops.
+         */
+        if( colors_c && colors_c[i] == TORIDRAWHSL16_HIDDEN )
+            continue;
+
         int face_a = fia[i];
         int face_b = fib[i];
         int face_c = fic[i];
 
         int x1 = scene->screen_vertices_x[face_a];
-        int y1 = scene->screen_vertices_y[face_a];
         int x2 = scene->screen_vertices_x[face_b];
-        int y2 = scene->screen_vertices_y[face_b];
         int x3 = scene->screen_vertices_x[face_c];
+
+        /*
+         * Near-clipped faces do not pick either (the reference reaches its
+         * pick only down the not-near-clipped arm, class144:1615). Mandatory
+         * rather than cosmetic here: the projection parks a behind-the-eye
+         * vertex at screen x -5000 and leaves its y *undivided*, so the bbox
+         * test above would see a triangle spanning the screen and swallow
+         * every click behind the model. A genuine -5000 is nudged to -5001 by
+         * the projection, so the sentinel is unambiguous.
+         */
+        if( x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+            x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+            continue;
+
+        int y1 = scene->screen_vertices_y[face_a];
+        int y2 = scene->screen_vertices_y[face_b];
         int y3 = scene->screen_vertices_y[face_c];
 
-        if( toridraw_triangle_contains_point(
+        if( toridraw_mouse_roughly_inside_triangle(
                 x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y) )
             return true;
     }

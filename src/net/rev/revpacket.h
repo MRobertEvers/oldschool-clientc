@@ -621,6 +621,17 @@ struct PktSynthSound
 struct PktMidiSong
 {
     int id; /* g2 */
+    /*
+     * Fade envelope, in milliseconds, from MIDI_SONG_V2.
+     *
+     * The wire carries four numbers in client cycles -- a delay and a speed for
+     * each direction. Only the speeds are a fade *length*; the delays are a
+     * pre-roll the player does not need, because a switch here already waits
+     * for the load. Zero on the pre-V2 form, which reads correctly as "switch
+     * immediately".
+     */
+    int fade_out_ms;
+    int fade_in_ms;
 };
 
 struct PktMidiJingle

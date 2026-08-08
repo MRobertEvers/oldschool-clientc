@@ -5,28 +5,25 @@
  * lane. The browser-specific constraints below are registered centrally in
  * docs/platform_quirks.md.
  *
- * What the browser forces on the design, and why the interface looks the way it
- * does:
+ * What the browser forces on the design:
  *
  *   - **The game cannot own the clock.** Playback is scheduled by the browser's
- *     AudioContext. A command queue drained once per frame fits that; a callback
- *     mixer the game drives would not.
+ *     AudioContext. A command queue drained once per frame fits that; a
+ *     callback mixer the game drives would not.
  *   - **Audio may not start before a user gesture.** Every major browser
  *     suspends a fresh AudioContext until a click or key. So Init cannot fail
  *     just because the context is suspended: it reports success, resumes on the
- *     first gesture, and clips submitted before then are dropped — counted, not
- *     queued, because a sound that arrives seconds late is worse than one that
- *     never plays.
- *   - **Buffers must be copied, not referenced.** A drained command's PCM is
- *     borrowed and the heap can move under WebAssembly memory growth, so each
- *     clip is copied into a JS-side AudioBuffer at submit time. Hence the
- *     interface promising validity only until the next drain — that is exactly
- *     long enough.
+ *     first gesture, and blocks rendered before then are dropped -- counted,
+ *     not queued, because audio that arrives seconds late is worse than audio
+ *     that never played.
+ *   - **Buffers must be copied, not referenced.** The heap moves under
+ *     WebAssembly memory growth, so each mixed block is copied into a JS-side
+ *     AudioBuffer at schedule time.
  *
- * Unlike the SDL2 backend, clips here *do* overlap: WebAudio gives every
- * AudioBufferSourceNode its own voice and refusing that would mean writing a
- * mixer to be less capable. The game's own overlap rule still runs first, so what
- * reaches here is already the set the reference would have played.
+ * The mix itself is `ToriRS_Mixer`, the same one the native backend runs, so
+ * voices, loops, fades and bus volumes behave identically in a browser and out
+ * of one. What is left here is scheduling: keep a playhead a little ahead of
+ * the context's clock and queue one AudioBuffer per frame at it.
  */
 
 #if defined(__EMSCRIPTEN__)
@@ -39,13 +36,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * The JS side. One AudioContext and one gain node for effect volume.
- *
- * The PCM is 8-bit unsigned; WebAudio wants float in [-1, 1], so each sample is
- * (byte - 128) / 128. Done here rather than in C to keep one copy of the data
- * rather than two.
- */
+/** How far ahead of the context clock to keep the schedule, in seconds. */
+#define WASM_AUDIO_LEAD 0.08
+/** Frames per scheduled block: one 50Hz tick. */
+#define WASM_AUDIO_BLOCK_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 50)
+
 EM_JS(int, torirs_audio_js_init, (int sample_rate), {
     if( !Module.torirsAudio )
         Module.torirsAudio = {};
@@ -59,80 +54,71 @@ EM_JS(int, torirs_audio_js_init, (int sample_rate), {
     state.gain = state.context.createGain();
     state.gain.gain.value = 1.0;
     state.gain.connect(state.context.destination);
-    state.resumed = state.context.state === 'running';
-
-    // Browsers suspend a fresh context until the user interacts. Resume on the
-    // first gesture of any kind, then stop listening.
+    state.playhead = 0;
+    state.dropped = 0;
+    // A suspended context cannot play; resume on the first gesture the page
+    // sees. Registering both covers browsers that only honour one.
     var resume = function() {
-        if( state.context.state !== 'running' )
-            state.context.resume().then(function() { state.resumed = true; });
-        else
-            state.resumed = true;
+        if( state.context.state === 'suspended' )
+            state.context.resume();
     };
-    ['pointerdown', 'keydown', 'touchend'].forEach(function(event) {
-        window.addEventListener(event, resume, { once : false, passive : true });
-    });
-    document.addEventListener('visibilitychange', function() {
-        if( !document.hidden )
-            resume();
-    });
+    window.addEventListener('click', resume, { once : false });
+    window.addEventListener('keydown', resume, { once : false });
     return 1;
 });
 
-EM_JS(int, torirs_audio_js_play, (const uint8_t* pcm, int count, int sample_rate), {
+/** Schedule one interleaved stereo int16 block. Returns 1 if it was queued. */
+EM_JS(int, torirs_audio_js_push, (int ptr, int frames, int sample_rate), {
     var state = Module.torirsAudio;
     if( !state || !state.context )
         return 0;
     if( state.context.state !== 'running' )
-        return 0; /* pre-gesture: drop rather than schedule late */
-
-    var buffer = state.context.createBuffer(1, count, sample_rate);
-    var channel = buffer.getChannelData(0);
-    for( var i = 0; i < count; i++ )
-        channel[i] = (HEAPU8[pcm + i] - 128) / 128.0;
-
+    {
+        state.dropped += frames;
+        return 0;
+    }
+    var buffer = state.context.createBuffer(2, frames, sample_rate);
+    var left = buffer.getChannelData(0);
+    var right = buffer.getChannelData(1);
+    var base = ptr >> 1;
+    for( var i = 0; i < frames; i++ )
+    {
+        left[i] = HEAP16[base + i * 2] / 32768;
+        right[i] = HEAP16[base + i * 2 + 1] / 32768;
+    }
     var source = state.context.createBufferSource();
     source.buffer = buffer;
     source.connect(state.gain);
-    source.start();
-    if( !state.playing )
-        state.playing = [];
-    state.playing.push(source);
-    source.onended = function() {
-        var at = state.playing.indexOf(source);
-        if( at >= 0 )
-            state.playing.splice(at, 1);
-    };
+    var now = state.context.currentTime;
+    if( state.playhead < now + 0.01 )
+        state.playhead = now + 0.01;
+    source.start(state.playhead);
+    state.playhead += frames / sample_rate;
     return 1;
 });
 
-EM_JS(void, torirs_audio_js_stop, (void), {
+/** Seconds of audio already scheduled but not yet played. */
+EM_JS(double, torirs_audio_js_scheduled, (), {
     var state = Module.torirsAudio;
-    if( !state || !state.playing )
-        return;
-    state.playing.forEach(function(source) {
-        try
-        {
-            source.stop();
-        }
-        catch( e )
-        {
-        }
-    });
-    state.playing = [];
+    if( !state || !state.context )
+        return 0;
+    var ahead = state.playhead - state.context.currentTime;
+    return ahead > 0 ? ahead : 0;
 });
 
-EM_JS(void, torirs_audio_js_set_volume, (double gain), {
+EM_JS(int, torirs_audio_js_dropped, (), {
     var state = Module.torirsAudio;
-    if( state && state.gain )
-        state.gain.gain.value = gain;
+    return state ? (state.dropped | 0) : 0;
 });
 
 struct PlatformAudio
 {
     int sample_rate;
-    int volume;
-    struct PlatformAudioStats stats;
+    bool device_open;
+    struct ToriRS_Mixer mixer;
+    int16_t block[WASM_AUDIO_BLOCK_FRAMES * TORIRS_AUDIO_CHANNELS];
+    int commands;
+    int frames_played;
 };
 
 struct PlatformAudio*
@@ -140,8 +126,8 @@ PlatformAudio_New(void)
 {
     struct PlatformAudio* audio = calloc(1, sizeof(*audio));
     assert(audio);
-    audio->volume = TORIRS_AUDIO_VOLUME_MAX;
-    audio->stats.volume = TORIRS_AUDIO_VOLUME_MAX;
+    audio->sample_rate = TORIRS_AUDIO_SAMPLE_RATE;
+    ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
     return audio;
 }
 
@@ -152,15 +138,10 @@ PlatformAudio_Init(
 {
     if( !audio )
         return false;
-    audio->sample_rate = sample_rate > 0 ? sample_rate : 22050;
-    if( !torirs_audio_js_init(audio->sample_rate) )
-    {
-        fprintf(stderr, "audio: no AudioContext in this browser\n");
-        return false;
-    }
-    /* Open, though possibly suspended until the first user gesture. */
-    audio->stats.device_open = true;
-    return true;
+    audio->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
+    ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
+    audio->device_open = torirs_audio_js_init(audio->sample_rate) != 0;
+    return audio->device_open;
 }
 
 void
@@ -168,7 +149,7 @@ PlatformAudio_Free(struct PlatformAudio* audio)
 {
     if( !audio )
         return;
-    torirs_audio_js_stop();
+    ToriRS_Mixer_Free(&audio->mixer);
     free(audio);
 }
 
@@ -179,39 +160,8 @@ PlatformAudio_Submit(
 {
     if( !audio || !command )
         return;
-
-    switch( command->kind )
-    {
-    case TORIRS_AUDIO_CMD_PLAY_PCM:
-        audio->stats.submitted++;
-        if( !command->pcm || command->sample_count <= 0 || audio->volume <= 0 )
-        {
-            audio->stats.dropped++;
-            break;
-        }
-        if( torirs_audio_js_play(
-                command->pcm,
-                command->sample_count,
-                command->sample_rate > 0 ? command->sample_rate : audio->sample_rate) )
-            audio->stats.played++;
-        else
-            audio->stats.dropped++;
-        break;
-    case TORIRS_AUDIO_CMD_STOP_ALL:
-        torirs_audio_js_stop();
-        break;
-    case TORIRS_AUDIO_CMD_SET_VOLUME:
-        audio->volume = command->volume < 0 ? 0
-                        : command->volume > TORIRS_AUDIO_VOLUME_MAX
-                            ? TORIRS_AUDIO_VOLUME_MAX
-                            : command->volume;
-        audio->stats.volume = audio->volume;
-        torirs_audio_js_set_volume((double)audio->volume / (double)TORIRS_AUDIO_VOLUME_MAX);
-        break;
-    case TORIRS_AUDIO_CMD_NONE:
-    default:
-        break;
-    }
+    audio->commands++;
+    ToriRS_Mixer_Apply(&audio->mixer, command);
 }
 
 void
@@ -226,24 +176,64 @@ PlatformAudio_SubmitAll(
         PlatformAudio_Submit(audio, &commands[i]);
 }
 
-int
-PlatformAudio_QueuedBytes(struct PlatformAudio* audio)
+void
+PlatformAudio_Update(struct PlatformAudio* audio)
 {
-    /* WebAudio schedules rather than queues; nothing meaningful to report. */
-    (void)audio;
-    return 0;
+    if( !audio || !audio->device_open )
+        return;
+    /* One block ahead of the lead is enough; scheduling more only adds
+     * latency, and the browser will not thank us for a hundred queued nodes. */
+    if( torirs_audio_js_scheduled() > WASM_AUDIO_LEAD )
+        return;
+    ToriRS_Mixer_Render(&audio->mixer, audio->block, WASM_AUDIO_BLOCK_FRAMES);
+    if( torirs_audio_js_push(
+            (int)(intptr_t)audio->block, WASM_AUDIO_BLOCK_FRAMES, audio->sample_rate) )
+        audio->frames_played += WASM_AUDIO_BLOCK_FRAMES;
+}
+
+void
+PlatformAudio_Feedback(
+    struct PlatformAudio* audio,
+    struct ToriRS_AudioFeedback* out)
+{
+    if( !out )
+        return;
+    memset(out, 0, sizeof(*out));
+    if( !audio )
+        return;
+    ToriRS_Mixer_Feedback(&audio->mixer, out);
+    out->device_open = audio->device_open;
 }
 
 struct PlatformAudioStats
 PlatformAudio_Stats(struct PlatformAudio* audio)
 {
-    struct PlatformAudioStats empty;
+    struct PlatformAudioStats stats;
+    struct ToriRS_MixerStats mixer_stats;
+
+    memset(&stats, 0, sizeof(stats));
     if( !audio )
-    {
-        memset(&empty, 0, sizeof(empty));
-        return empty;
-    }
-    return audio->stats;
+        return stats;
+    mixer_stats = ToriRS_Mixer_Stats(&audio->mixer);
+    stats.commands = audio->commands;
+    stats.assets_live = mixer_stats.assets_live;
+    stats.voices_live = mixer_stats.voices_live;
+    stats.voices_started = mixer_stats.voices_started;
+    stats.voices_stolen = mixer_stats.voices_stolen;
+    stats.voices_rejected = mixer_stats.voices_rejected;
+    stats.frames_played = audio->frames_played;
+    stats.stream_dropped_frames = mixer_stats.stream_dropped_frames + torirs_audio_js_dropped();
+    stats.stream_starved_frames = mixer_stats.stream_starved_frames;
+    for( int i = 0; i < TORIRS_AUDIO_BUS_COUNT; i++ )
+        stats.bus_volume[i] = mixer_stats.bus_volume[i];
+    stats.device_open = audio->device_open;
+    return stats;
+}
+
+int
+PlatformAudio_LiveAssetCount(struct PlatformAudio* audio)
+{
+    return audio ? ToriRS_Mixer_LiveAssetCount(&audio->mixer) : 0;
 }
 
 #endif /* __EMSCRIPTEN__ */

@@ -66,6 +66,10 @@ struct UITreeEmitDesc
     int filled;
     /** Camera-yaw rotation for compass/minimap chrome (2048 = full turn). */
     int rotation_r2pi2048;
+    /** SPRITE: IF3 spriteAngle / CC_SET2DANGLE (65536 = full turn). Rotates the
+     *  image about the widget box centre; a different scale to the field above,
+     *  and the two never apply to the same emit. */
+    int sprite_angle_r2pi65536;
     /** MINIMAP: pivot inside the baked map texture for the camera position. */
     int src_anchor_x;
     int src_anchor_y;

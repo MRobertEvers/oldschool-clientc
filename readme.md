@@ -4,6 +4,11 @@ Rewrite of the osrs renderer.
 
 ## Building
 
+> **[BUILD_AND_RUN.md](BUILD_AND_RUN.md)** is the full cross-platform build and
+> run guide — every platform, the servers, the content pipeline, RuneLite, and
+> every tool in this repository, with commands. The summary below is the short
+> version.
+
 The current client is built by [`src/makefile`](src/makefile). The root CMake
 project and the `v0`/`v1` trees are historical snapshots, not alternate build
 lanes.

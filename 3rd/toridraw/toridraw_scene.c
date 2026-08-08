@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,6 +46,13 @@ struct MapEntry_Font
     int id;
     struct ToriDraw_Font* font;
 };
+
+struct MapEntry_Sound
+{
+    int id;
+    struct ToriDraw_Sound* sound;
+};
+
 
 struct ToriDraw_ScenePendingPose
 {
@@ -212,6 +220,26 @@ td_scene_emit_font(
     event.kind = kind;
     event.texture_id = font_id;
     event.font = font;
+    scene->event_queue.events[scene->event_queue.count++] = event;
+}
+
+static void
+td_scene_emit_sound(
+    struct ToriDraw_Scene* scene,
+    enum ToriDraw_EventKind kind,
+    int sound_id,
+    struct ToriDraw_Sound* sound)
+{
+    struct ToriDraw_Event event;
+
+    assert(scene);
+    if( scene->event_queue.count >= TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = kind;
+    event.sound_id = sound_id;
+    event.sound = sound;
     scene->event_queue.events[scene->event_queue.count++] = event;
 }
 
@@ -427,10 +455,11 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
     scene->animation_hmap = td_scene_map_new(sizeof(struct MapEntry_Animation), 512);
     scene->sprites_hmap = td_scene_map_new(sizeof(struct MapEntry_Sprite), 1024);
     scene->fonts_hmap = td_scene_map_new(sizeof(struct MapEntry_Font), 16);
+    scene->sounds_hmap = td_scene_map_new(sizeof(struct MapEntry_Sound), 64);
     ToriDraw_IntrusiveListInit(&scene->elements);
 
     if( !scene->models_hmap || !scene->animation_hmap || !scene->sprites_hmap ||
-        !scene->fonts_hmap )
+        !scene->fonts_hmap || !scene->sounds_hmap )
     {
         ToriDraw_SceneGraphShutdown(scene);
         return false;
@@ -490,6 +519,19 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
         td_scene_map_free(scene->fonts_hmap);
     }
 
+    if( scene->sounds_hmap )
+    {
+        struct ToriDraw_MapIter* iter = ToriDraw_MapIterNew(scene->sounds_hmap);
+        struct MapEntry_Sound* entry = NULL;
+        while( (entry = (struct MapEntry_Sound*)ToriDraw_MapIterNext(iter)) )
+        {
+            if( entry->sound )
+                ToriDraw_SoundFree(entry->sound);
+        }
+        ToriDraw_MapIterFree(iter);
+        td_scene_map_free(scene->sounds_hmap);
+    }
+
     if( scene->tex_state )
         td_scene_free_textures(&scene->tex_state->texture_map);
 
@@ -497,6 +539,7 @@ ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
     scene->animation_hmap = NULL;
     scene->sprites_hmap = NULL;
     scene->fonts_hmap = NULL;
+    scene->sounds_hmap = NULL;
     memset(scene->cache_fonts, 0, sizeof(scene->cache_fonts));
     scene->pending_poses = NULL;
 }
@@ -518,7 +561,10 @@ ToriDraw_SceneSpriteAdd(
         scene->sprites_hmap, &element_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
-    td_scene_maybe_grow_hmap(scene->sprites_hmap);
+    /* No post-search grow: it reallocates the slot buffer and would dangle the
+     * entry pointer the writes below use. `td_scene_prepare_hmap_insert` above
+     * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
+     * write actually looks like when it happens. */
 
     if( entry->sprites )
     {
@@ -607,7 +653,10 @@ ToriDraw_SceneFontAdd(
         (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
-    td_scene_maybe_grow_hmap(scene->fonts_hmap);
+    /* No post-search grow: it reallocates the slot buffer and would dangle the
+     * entry pointer the writes below use. `td_scene_prepare_hmap_insert` above
+     * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
+     * write actually looks like when it happens. */
 
     if( entry->font )
     {
@@ -618,6 +667,170 @@ ToriDraw_SceneFontAdd(
     entry->id = font_id;
     entry->font = font;
     td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_LOAD, font_id, font);
+}
+
+/* --- sound assets --------------------------------------------------------- */
+
+struct ToriDraw_Sound*
+ToriDraw_SoundNew(
+    int16_t* samples,
+    int sample_count,
+    int sample_rate,
+    int loop_start,
+    int loop_end,
+    int queue_delay)
+{
+    struct ToriDraw_Sound* sound;
+
+    if( !samples || sample_count <= 0 )
+    {
+        free(samples);
+        return NULL;
+    }
+    sound = calloc(1, sizeof(*sound));
+    if( !sound )
+    {
+        free(samples);
+        return NULL;
+    }
+    sound->samples = samples;
+    sound->sample_count = sample_count;
+    sound->sample_rate = sample_rate;
+    sound->loop_start = loop_start;
+    sound->loop_end = loop_end;
+    sound->queue_delay = queue_delay;
+    return sound;
+}
+
+void
+ToriDraw_SoundFree(struct ToriDraw_Sound* sound)
+{
+    if( !sound )
+        return;
+    free(sound->samples);
+    free(sound);
+}
+
+void
+ToriDraw_SceneSoundAdd(
+    struct ToriDraw_Scene* scene,
+    int sound_id,
+    struct ToriDraw_Sound* sound)
+{
+    assert(scene);
+    if( sound_id < 0 || !sound )
+    {
+        ToriDraw_SoundFree(sound);
+        return;
+    }
+
+    /*
+     * Grow *before* the search and never after it.
+     *
+     * `td_scene_maybe_grow_hmap` reallocates the map's slot buffer, so an entry
+     * pointer taken before it dangles afterwards -- and the writes below would
+     * land in freed memory while the copy that survived the rehash kept an
+     * uninitialised `sound`. The symptom is not a crash: the clip is simply not
+     * in the map, the next lookup misses, and the previous one leaks. It only
+     * bites on the two adds that straddle a growth threshold, which is why it
+     * survives casual testing.
+     *
+     * `td_scene_prepare_hmap_insert` already grows whenever the map is at 3/4,
+     * so there is always room for the insert that follows.
+     */
+    td_scene_prepare_hmap_insert(scene->sounds_hmap);
+    struct MapEntry_Sound* existing = (struct MapEntry_Sound*)ToriDraw_MapSearch(
+        scene->sounds_hmap, &sound_id, TORIDRAW_MAP_FIND);
+    struct MapEntry_Sound* entry;
+
+    /*
+     * A fresh slot's payload is uninitialised (the map's buffer is malloc'd and
+     * INSERT only writes the key), so `entry->sound` is only meaningful when the
+     * key was already present. FIND first, then INSERT -- they return the same
+     * slot for an existing key.
+     */
+    if( existing && existing->sound )
+    {
+        /* Unload before free: the event carries the id, and a backend that
+         * copied the samples needs to be told to drop its copy before this one
+         * goes away. */
+        td_scene_emit_sound(scene, TORIDRAW_EVENT_SOUND_UNLOAD, sound_id, existing->sound);
+        ToriDraw_SoundFree(existing->sound);
+        existing->sound = NULL;
+    }
+
+    entry = (struct MapEntry_Sound*)ToriDraw_MapSearch(
+        scene->sounds_hmap, &sound_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+    {
+        ToriDraw_SoundFree(sound);
+        return;
+    }
+
+    entry->id = sound_id;
+    entry->sound = sound;
+    td_scene_emit_sound(scene, TORIDRAW_EVENT_SOUND_LOAD, sound_id, sound);
+}
+
+struct ToriDraw_Sound*
+ToriDraw_SceneSoundGet(
+    struct ToriDraw_Scene* scene,
+    int sound_id)
+{
+    struct MapEntry_Sound* entry;
+
+    assert(scene);
+    if( sound_id < 0 || !scene->sounds_hmap )
+        return NULL;
+    entry = (struct MapEntry_Sound*)ToriDraw_MapSearch(
+        scene->sounds_hmap, &sound_id, TORIDRAW_MAP_FIND);
+    return entry ? entry->sound : NULL;
+}
+
+bool
+ToriDraw_SceneSoundHas(
+    struct ToriDraw_Scene* scene,
+    int sound_id)
+{
+    return ToriDraw_SceneSoundGet(scene, sound_id) != NULL;
+}
+
+void
+ToriDraw_SceneSoundRemove(
+    struct ToriDraw_Scene* scene,
+    int sound_id)
+{
+    struct MapEntry_Sound* entry;
+
+    assert(scene);
+    if( sound_id < 0 || !scene->sounds_hmap )
+        return;
+    entry = (struct MapEntry_Sound*)ToriDraw_MapSearch(
+        scene->sounds_hmap, &sound_id, TORIDRAW_MAP_FIND);
+    if( !entry || !entry->sound )
+        return;
+    td_scene_emit_sound(scene, TORIDRAW_EVENT_SOUND_UNLOAD, sound_id, entry->sound);
+    ToriDraw_SoundFree(entry->sound);
+    entry->sound = NULL;
+    entry->id = -1;
+}
+
+void
+ToriDraw_SceneSoundsReemitLoads(struct ToriDraw_Scene* scene)
+{
+    struct ToriDraw_MapIter* iter;
+    struct MapEntry_Sound* entry = NULL;
+
+    assert(scene);
+    if( !scene->sounds_hmap )
+        return;
+    iter = ToriDraw_MapIterNew(scene->sounds_hmap);
+    while( (entry = (struct MapEntry_Sound*)ToriDraw_MapIterNext(iter)) )
+    {
+        if( entry->sound )
+            td_scene_emit_sound(scene, TORIDRAW_EVENT_SOUND_LOAD, entry->id, entry->sound);
+    }
+    ToriDraw_MapIterFree(iter);
 }
 
 struct ToriDraw_Font*
@@ -676,7 +889,10 @@ ToriDraw_SceneModelAdd(
         scene->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
-    td_scene_maybe_grow_hmap(scene->models_hmap);
+    /* No post-search grow: it reallocates the slot buffer and would dangle the
+     * entry pointer the writes below use. `td_scene_prepare_hmap_insert` above
+     * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
+     * write actually looks like when it happens. */
 
     entry->id = model_id;
     entry->model = model;
@@ -742,7 +958,10 @@ ToriDraw_SceneAnimationAdd(
         scene->animation_hmap, &anim_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
-    td_scene_maybe_grow_hmap(scene->animation_hmap);
+    /* No post-search grow: it reallocates the slot buffer and would dangle the
+     * entry pointer the writes below use. `td_scene_prepare_hmap_insert` above
+     * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
+     * write actually looks like when it happens. */
 
     if( entry->animation )
         ToriDraw_AnimationFree(entry->animation);

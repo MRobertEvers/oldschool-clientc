@@ -203,6 +203,11 @@ struct Mock230ZoneLoc
     int shape;
     int loc_id, angle;
     int base_loc_id, base_angle;
+    /** 1 when a `loc_add` put this loc here *over* the map square's own loc,
+     *  which is still standing underneath. A rebuild has to reproduce that
+     *  rather than replace the square's loc, or removing this one again leaves
+     *  the tile empty — see mock230_scene_add_loc. */
+    int over_base;
 };
 
 /* ------------------------------------------------------------------ */
@@ -304,7 +309,8 @@ mock230_zone_loc_changed(
     int loc_id,
     int angle,
     int base_loc_id,
-    int base_angle);
+    int base_angle,
+    int over_base);
 
 /**
  * Queue LOC_ANIM for the loc at (x,z,level) with the given shape/angle and seq.

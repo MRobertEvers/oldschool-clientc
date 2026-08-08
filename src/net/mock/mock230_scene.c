@@ -266,6 +266,9 @@ mock230_loc_resolve_transform(
 /* Building collision                                                  */
 /* ------------------------------------------------------------------ */
 
+static void apply_terrain_column(int scene_x, int scene_z);
+static void restamp_after_removal(const struct Mock230SceneLoc* removed);
+
 /*
  * Which collision primitive a loc contributes, by shape. Mirrors
  * src/engine/world_builder/world_collision.u.c — the client's own switch — and
@@ -379,6 +382,92 @@ apply_loc_collision(
          * unhandled — hence the explicit case rather than a silent fallthrough.
          */
         break;
+    }
+
+    /* A removal takes the bits it shares with whatever else is still standing.
+     * Put those back — see restamp_after_removal. */
+    if( !add )
+        restamp_after_removal(loc);
+}
+
+/*
+ * The tiles a loc's collision stamp can reach, in absolute coordinates and
+ * inclusive: its footprint, plus one tile of margin because a wall stamps the
+ * complementary bit onto the neighbour across its edge.
+ */
+static void
+loc_stamp_box(
+    const struct Mock230SceneLoc* loc,
+    int* x0,
+    int* z0,
+    int* x1,
+    int* z1)
+{
+    int w = loc->size_x > 0 ? loc->size_x : 1;
+    int h = loc->size_z > 0 ? loc->size_z : 1;
+
+    *x0 = loc->x - 1;
+    *z0 = loc->z - 1;
+    *x1 = loc->x + w;
+    *z1 = loc->z + h;
+}
+
+/*
+ * Collision is a function of the loc set, not a running total.
+ *
+ * `collision_map_del_wall` / `del_loc` / `del_floor` clear their bits
+ * unconditionally — that is the reference's own primitive — and two things
+ * routinely share a bit. A wall on the east edge of (x,z) and a wall on the
+ * west edge of (x+1,z) are the *same edge*, so they stamp the same two flags;
+ * a ground-decor loc's FLOOR is the same bit the map square's own Block
+ * setting stamps; and a door that swings flush against a wall lands on the
+ * very tile that wall already covers. Clearing one used to take the other with
+ * it and nothing put it back, so the hole was permanent.
+ *
+ * Measured over every map square in cache.osrs239: 75 of the game's doors
+ * punched a hole in a neighbouring wall the first time they were opened and
+ * closed again, making 44 wall edges walkable that are not. `test-collision-doors`
+ * is the regression.
+ *
+ * So a removal is "clear, then put back everything else that is still there":
+ * the map square's terrain for the tiles the stamp could have touched, and
+ * every other active loc whose own stamp reaches them. Adds are ORs, so
+ * re-stamping more than strictly necessary costs time and nothing else.
+ */
+static void
+restamp_after_removal(const struct Mock230SceneLoc* removed)
+{
+    int x0, z0, x1, z1;
+
+    if( g_base_x < 0 )
+        return;
+    loc_stamp_box(removed, &x0, &z0, &x1, &z1);
+
+    for( int x = x0; x <= x1; x++ )
+    {
+        for( int z = z0; z <= z1; z++ )
+        {
+            int scene_x = x - g_base_x;
+            int scene_z = z - g_base_z;
+
+            if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
+                scene_z >= SCENE_TILES )
+                continue;
+            apply_terrain_column(scene_x, scene_z);
+        }
+    }
+
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        struct Mock230SceneLoc* other = &g_locs[i];
+        int ox0, oz0, ox1, oz1;
+
+        if( other == removed || !other->active )
+            continue;
+        loc_stamp_box(other, &ox0, &oz0, &ox1, &oz1);
+        if( ox1 < x0 || ox0 > x1 || oz1 < z0 || oz0 > z1 )
+            continue;
+        apply_loc_collision(other, 1);
     }
 }
 
@@ -504,43 +593,51 @@ gather_terrain_square(
  *
  * Roof bits stay on the raw cache level (LostCity changeRoofCollision).
  */
+/* One column's terrain rules, so a runtime restamp can redo a handful of tiles
+ * without walking the scene. `g_link_below` must already be filled — it is a
+ * property of the whole column and the build pass above owns it. */
+static void
+apply_terrain_column(
+    int scene_x,
+    int scene_z)
+{
+    int link_below = g_link_below[scene_x][scene_z];
+
+    for( int level = 0; level < SCENE_LEVELS; level++ )
+    {
+        uint8_t settings = g_settings[level][scene_x][scene_z];
+        int true_level = level;
+
+        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 )
+        {
+            if( link_below )
+                true_level--;
+            if( true_level >= 0 && true_level < SCENE_LEVELS && g_collision[true_level] )
+                collision_map_add_floor(g_collision[true_level], scene_x, scene_z);
+        }
+
+        /* Roofed-ness, which is what moverestrict=indoors/outdoors reads.
+         * REMOVE_ROOF marks the tiles the client hides roofs over, i.e. the
+         * ones that are indoors, and it is the same bit the reference stamps
+         * ROOF from (LostCity GameMap). Raw cache level, no bridge shift. */
+        if( (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) != 0 && g_collision[level] )
+            collision_map_change_roof(g_collision[level], scene_x, scene_z, 1);
+    }
+}
+
 static void
 apply_terrain_rules(void)
 {
     for( int scene_x = 0; scene_x < SCENE_TILES; scene_x++ )
-    {
         for( int scene_z = 0; scene_z < SCENE_TILES; scene_z++ )
-        {
-            int link_below = (g_settings[1][scene_x][scene_z] &
-                              RSCACHE_FLOFLAG_LINK_BELOW) != 0;
-
-            if( link_below )
+            if( (g_settings[1][scene_x][scene_z] & RSCACHE_FLOFLAG_LINK_BELOW) != 0 )
                 g_link_below[scene_x][scene_z] = 1;
 
-            for( int level = 0; level < SCENE_LEVELS; level++ )
-            {
-                uint8_t settings = g_settings[level][scene_x][scene_z];
-                int true_level = level;
-
-                if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 )
-                {
-                    if( link_below )
-                        true_level--;
-                    if( true_level >= 0 && true_level < SCENE_LEVELS &&
-                        g_collision[true_level] )
-                        collision_map_add_floor(g_collision[true_level], scene_x, scene_z);
-                }
-
-                /* Roofed-ness, which is what moverestrict=indoors/outdoors
-                 * reads. REMOVE_ROOF marks the tiles the client hides roofs
-                 * over, i.e. the ones that are indoors, and it is the same bit
-                 * the reference stamps ROOF from (LostCity GameMap). Raw cache
-                 * level, no bridge shift. */
-                if( (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) != 0 && g_collision[level] )
-                    collision_map_change_roof(g_collision[level], scene_x, scene_z, 1);
-            }
-        }
-    }
+    /* LINK_BELOW for the whole scene first: the shift below reads it, and a
+     * column is not complete until every plane has been gathered. */
+    for( int scene_x = 0; scene_x < SCENE_TILES; scene_x++ )
+        for( int scene_z = 0; scene_z < SCENE_TILES; scene_z++ )
+            apply_terrain_column(scene_x, scene_z);
 }
 
 /*
@@ -1031,22 +1128,52 @@ mock230_scene_find_loc_exact(
     int level,
     int shape)
 {
-    for( int i = 0; i < g_loc_count; i++ )
+    int added = -1;
+    int from_square = -1;
+    int tombstone = -1;
+
+    /*
+     * The loc's own corner and its own shape, and *not* its footprint: this is
+     * the mutation lookup, and a mutation addresses the loc the wire names
+     * rather than whatever a click landed on.
+     *
+     * Three tiers, and each one is load-bearing:
+     *
+     *   1. an active loc a `loc_add` put here. A `loc_add` leaves the map
+     *      square's own loc standing beside it (mock230_scene_add_loc), so "the
+     *      loc on this tile" for a following `loc_change` / `loc_del` is the
+     *      added one. Answering with the square's instead would let a door that
+     *      swung past a wall close by deleting that wall.
+     *   2. the map square's loc, which is what every mutation on an untouched
+     *      tile means.
+     *   3. a static tombstone — inactive, but the square still has a loc here.
+     *      This is how a `loc_del` on a map-square loc is undone: the slot stays
+     *      addressable with nothing live on the tile.
+     */
+    for( int i = g_loc_count - 1; i >= 0; i-- )
     {
         struct Mock230SceneLoc* loc = &g_locs[i];
 
-        /* The loc's own corner and its own shape, and *not* its footprint: this
-         * is the mutation lookup, and a mutation addresses the loc the wire
-         * names rather than whatever a click landed on. An inactive slot still
-         * matches when it is a static tombstone, which is how a `loc_del` is
-         * undone. */
         if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
             continue;
-        if( !loc->active && !loc->is_static )
-            continue;
-        return i;
+        if( loc->active && !loc->is_static )
+        {
+            if( added < 0 )
+                added = i;
+        }
+        else if( loc->active )
+        {
+            if( from_square < 0 )
+                from_square = i;
+        }
+        else if( loc->is_static && tombstone < 0 )
+            tombstone = i;
     }
-    return -1;
+    if( added >= 0 )
+        return added;
+    if( from_square >= 0 )
+        return from_square;
+    return tombstone;
 }
 
 int
@@ -1104,6 +1231,29 @@ mock230_scene_add_loc(
         return -1;
     if( !mock230_scene_contains(x, z) )
         return -1;
+
+    /*
+     * The map square's own loc on this tile is left exactly where it is.
+     *
+     * That is the reference: `World.addLoc` stamps the new loc's collision and
+     * calls `Zone.addLoc`, which appends to the zone's list — neither one so
+     * much as looks at what is already there, and `Zone.removeLoc` puts a
+     * static loc back on the list rather than dropping it. Consuming it instead
+     * is what made a swinging door delete the wall it swung against: the wall's
+     * slot became the door, and closing the door left the tile empty.
+     *
+     * A *dynamic* loc already here is a different matter — the wire carries one
+     * loc per (tile, layer), so a second `loc_add` on the same tile is
+     * replacing the first, and stacking them would grow the array without bound
+     * for a world that cycles one on a timer.
+     */
+    {
+        int prior = mock230_scene_find_loc_exact(x, z, level, shape);
+        struct Mock230SceneLoc* held = mock230_scene_loc(prior);
+
+        if( held && held->active && !held->is_static )
+            mock230_scene_remove_loc(prior);
+    }
 
     /*
      * A slot a `loc_del` freed is reused before the array grows. Slots are

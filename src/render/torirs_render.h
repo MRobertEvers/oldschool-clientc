@@ -90,6 +90,8 @@ struct ToriRS_RenderCommand_Model
      *  scale and is otherwise unclickable. */
     bool pick_aabb;
     bool pick_terrain;
+    /** Occluded terrain: project and hit-test but skip rasterization. */
+    bool pick_only;
     int pick_tile_x; /* -1 for non-terrain */
     int pick_tile_z;
     int pick_tile_level;

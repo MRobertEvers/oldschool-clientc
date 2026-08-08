@@ -121,6 +121,7 @@ painter_w3d_emit_ground_pass(
     int tile_sz,
     int camera_sx,
     int camera_sz,
+    int camera_slevel,
     struct TilePaint* tile_paint)
 {
     struct PaintersElement* element = NULL;
@@ -178,13 +179,17 @@ painter_w3d_emit_ground_pass(
         }
     }
 
-    if( !ground_hidden )
-        {
+    {
             /* See PaintersTile::terrain_levels. */
             unsigned set = tile->terrain_levels;
             for( int ml = 0; ml < 4; ml++ )
                 if( set & (1u << ml) )
-                    push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                {
+                    if( !ground_hidden )
+                        push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                    else if( camera_slevel >= 0 && ml <= camera_slevel )
+                        push_command_terrain_pick_only(buffer, tile_sx, tile_sz, ml);
+                }
         }
 
     if( tile->wall_a != -1 )
@@ -369,7 +374,6 @@ painter_paint_world3d(
     int camera_sz,
     int camera_slevel)
 {
-    (void)camera_slevel;
     if( !painter->w3d_ctx && w3d_ctx_init(painter) != 0 )
         return -1;
     if( !W3(painter)->paints )
@@ -566,7 +570,8 @@ painter_paint_world3d(
 
             wp->draw_front = 0;
             painter_w3d_emit_ground_pass(
-                painter, buffer, tile, tile_sx, tile_sz, camera_sx, camera_sz, tile_paint);
+                painter, buffer, tile, tile_sx, tile_sz, camera_sx, camera_sz, camera_slevel,
+                tile_paint);
 
             unsigned spans = tile->spans;
             if( spans )

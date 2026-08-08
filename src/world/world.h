@@ -96,6 +96,34 @@ struct World_MapFunctionIcon
  * per baked level in app_rebuild_world_map. `width`/`length` are the loc's raw
  * config footprint (size_x/size_z, NOT orientation-swapped — drawDetail centers
  * with the raw values). */
+/*
+ * A loc in the built scene that emits ambient sound.
+ *
+ * Gathered at scene build the same way mapscene icons are, for the same reason:
+ * the builder is the only place that has both the placed loc and its config, and
+ * re-deriving either afterwards would mean walking the map again. The audio
+ * layer turns each of these into a looping voice whose volume and pan follow the
+ * camera, and drops them all when the scene is rebuilt.
+ */
+struct World_AreaSound
+{
+    /** Scene-space centre of the loc's footprint, in tiles. */
+    int x;
+    int z;
+    int level;
+    /** The continuous sound, or -1 when this loc uses the random set. */
+    int sound_id;
+    /** Random alternatives, borrowed from the loc config (which outlives the
+     *  scene: configs are cached by the provider, not by the world). */
+    const int* sound_ids;
+    int sound_id_count;
+    /** Ticks between plays for the random set. */
+    int ticks_min;
+    int ticks_max;
+    /** Tiles at which it is inaudible. */
+    int distance;
+};
+
 struct World_MapSceneIcon
 {
     int x;
@@ -220,6 +248,15 @@ struct World
     struct World_MapSceneIcon* mapscenes;
     int mapscene_count;
     int mapscene_capacity;
+
+    /** Ambient-sound emitters gathered at scene build. Same lifetime rules as
+     *  mapscenes: buffer persists across rebuilds, count resets. */
+    struct World_AreaSound* area_sounds;
+    int area_sound_count;
+    int area_sound_capacity;
+    /** Bumped on every rebuild so the audio layer can tell "same list" from
+     *  "new list that happens to be the same length". */
+    int area_sound_generation;
 
     /** Client-side temporary loc-change list (Client-TS locChanges /
      * deob world.field1353). Pushed by App_WorldLocChange; shifted on
@@ -348,6 +385,21 @@ World_AddMapSceneIcon(
     int mapscene,
     int width,
     int length);
+
+/** Append an ambient-sound emitter, growing world->area_sounds as needed.
+ *  Silently no-ops on alloc failure. */
+void
+World_AddAreaSound(
+    struct World* world,
+    int x,
+    int z,
+    int level,
+    int sound_id,
+    const int* sound_ids,
+    int sound_id_count,
+    int ticks_min,
+    int ticks_max,
+    int distance);
 
 void
 World_SetHeightFn(

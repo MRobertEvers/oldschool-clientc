@@ -73,8 +73,11 @@ typedef struct {
 extern const char BZIP_HEADER[];
 extern const char *bunzip_errors[];
 
-void bzip_decompress(int8_t *file_data, int8_t *archive_data, int archive_size,
-                     int offset);
+/* Returns RETVAL_OK, or a negative RETVAL_* on a corrupt or over-long stream.
+ * Never exits: corrupt container bytes are recoverable data to the caller.
+ * `file_capacity` bounds every write into `file_data`. */
+int bzip_decompress(int8_t *file_data, int file_capacity, int8_t *archive_data,
+                    int archive_size, int offset);
 
 /* --- compression (bzip_encode.c) --- */
 

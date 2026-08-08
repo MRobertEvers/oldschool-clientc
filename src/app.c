@@ -558,7 +558,7 @@ app_worldmap_build_icons(
     int centre_y,
     int display_x,
     int display_y,
-    int scale);
+    int region_px);
 
 /*
  * One map element icon at a screen position, loading its config and sprite on
@@ -788,7 +788,18 @@ app_worldmap_build_tiles(
     int box_y = req->u.get_worldmap_tiles.box_y;
     int box_w = req->u.get_worldmap_tiles.box_w;
     int box_h = req->u.get_worldmap_tiles.box_h;
-    int scale;
+    /* Two scales, deliberately: `bake_scale` is the whole-pixel size regions
+     * are rendered at (bakes are keyed by it, so it must not follow the zoom
+     * animation or every intermediate value would rebake the whole view), and
+     * `scale_fp` is where the zoom actually is this frame. Everything measured
+     * on screen uses the second; only RegionSprite takes the first. */
+    int bake_scale;
+    int scale_fp;
+    /* Pixel width of a whole region at the live zoom, and the unit every
+     * position below is derived from — reference method5686 computes exactly
+     * this (`(int)(zoom * 64)`) and lays regions out in multiples of it, so
+     * neighbours stay flush instead of drifting apart by a rounding error. */
+    int region_px;
     int display_x;
     int display_y;
     int centre_x;
@@ -902,7 +913,15 @@ app_worldmap_build_tiles(
         }
     }
 
-    scale = RS_WorldMap_ZoomScale(map);
+    bake_scale = RS_WorldMap_ZoomScale(map);
+    scale_fp = RS_WorldMap_ZoomScaleFp(map);
+    if( bake_scale <= 0 )
+        bake_scale = 1;
+    if( scale_fp <= 0 )
+        scale_fp = RS_WORLDMAP_ZOOM_SCALE_ONE;
+    region_px = WORLD_MAP_TERRAIN_X * scale_fp / RS_WORLDMAP_ZOOM_SCALE_ONE;
+    if( region_px <= 0 )
+        region_px = 1;
     RS_WorldMap_DisplayPosition(map, &display_x, &display_y);
     if( display_x < 0 || display_y < 0 )
         return 0;
@@ -918,10 +937,10 @@ app_worldmap_build_tiles(
 
     /* One region of slack each way so a half-visible region at the edge is
      * still drawn (reference uses the same +/-64 tiles). */
-    min_x = display_x - box_w / (2 * scale) - WORLD_MAP_TERRAIN_X;
-    max_x = display_x + box_w / (2 * scale) + WORLD_MAP_TERRAIN_X;
-    min_y = display_y - box_h / (2 * scale) - WORLD_MAP_TERRAIN_Z;
-    max_y = display_y + box_h / (2 * scale) + WORLD_MAP_TERRAIN_Z;
+    min_x = display_x - box_w * WORLD_MAP_TERRAIN_X / (2 * region_px) - WORLD_MAP_TERRAIN_X;
+    max_x = display_x + box_w * WORLD_MAP_TERRAIN_X / (2 * region_px) + WORLD_MAP_TERRAIN_X;
+    min_y = display_y - box_h * WORLD_MAP_TERRAIN_Z / (2 * region_px) - WORLD_MAP_TERRAIN_Z;
+    max_y = display_y + box_h * WORLD_MAP_TERRAIN_Z / (2 * region_px) + WORLD_MAP_TERRAIN_Z;
 
     min_region_x = min_x / WORLD_MAP_TERRAIN_X;
     max_region_x = max_x / WORLD_MAP_TERRAIN_X;
@@ -992,7 +1011,7 @@ app_worldmap_build_tiles(
                 area,
                 region_x,
                 region_y,
-                scale,
+                bake_scale,
                 &size,
                 &fallback_scene_id);
             /* Mid-zoom the right bake may not exist yet; a bake of the same
@@ -1006,14 +1025,17 @@ app_worldmap_build_tiles(
             tile = &app->worldmap_tiles[app->worldmap_tile_count++];
             tile->scene_id = scene_id;
             tile->atlas_index = 0;
-            tile->x = centre_x + (region_x * WORLD_MAP_TERRAIN_X - display_x) * scale;
-            tile->y =
-                centre_y - ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
-                               scale;
-            /* The box is a region at the *current* zoom either way — that is
-             * what makes the stand-in line up with its neighbours. */
-            tile->w = WORLD_MAP_TERRAIN_X * scale;
-            tile->h = WORLD_MAP_TERRAIN_Z * scale;
+            tile->x = centre_x +
+                      (region_x * WORLD_MAP_TERRAIN_X - display_x) * region_px /
+                          WORLD_MAP_TERRAIN_X;
+            tile->y = centre_y -
+                      ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
+                          region_px / WORLD_MAP_TERRAIN_Z;
+            /* The box is a region at the *live* zoom either way — that is what
+             * makes both the stand-in bake and a bake at another zoom step line
+             * up with their neighbours while the transition runs. */
+            tile->w = region_px;
+            tile->h = region_px;
             tile->scaled = 1;
             (void)size;
         }
@@ -1035,7 +1057,7 @@ app_worldmap_build_tiles(
                 area,
                 region_x,
                 region_y,
-                scale,
+                bake_scale,
                 NULL,
                 NULL);
             int icon_count =
@@ -1045,14 +1067,14 @@ app_worldmap_build_tiles(
                 app_worldmap_push_icon(
                     app,
                     icons[i].element_id,
-                    centre_x +
-                        (region_x * WORLD_MAP_TERRAIN_X + icons[i].tile_x - display_x) * scale,
-                    centre_y -
-                        (region_y * WORLD_MAP_TERRAIN_Z + icons[i].tile_y - display_y) * scale);
+                    centre_x + (region_x * WORLD_MAP_TERRAIN_X + icons[i].tile_x - display_x) *
+                                   region_px / WORLD_MAP_TERRAIN_X,
+                    centre_y - (region_y * WORLD_MAP_TERRAIN_Z + icons[i].tile_y - display_y) *
+                                   region_px / WORLD_MAP_TERRAIN_Z);
         }
     }
 
-    app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, scale);
+    app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, region_px);
 
     app->worldmap_debug_frame++;
     if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
@@ -1068,9 +1090,10 @@ app_worldmap_build_tiles(
             queued++;
         fprintf(
             stderr,
-            "worldmap frame: display=%d,%d scale=%d regions x=%d..%d y=%d..%d blits=%d "
-            "queued_tasks=%d\n",
-            display_x, display_y, scale, min_region_x, max_region_x, min_region_y, max_region_y,
+            "worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
+            "regions x=%d..%d y=%d..%d blits=%d queued_tasks=%d\n",
+            display_x, display_y, RS_WorldMap_Zoom(map), bake_scale, region_px,
+            min_region_x, max_region_x, min_region_y, max_region_y,
             app->worldmap_tile_count, queued);
     }
 
@@ -1199,7 +1222,7 @@ app_worldmap_build_icons(
     int centre_y,
     int display_x,
     int display_y,
-    int scale)
+    int region_px)
 {
     for( int i = 0; i < area->icon_count; i++ )
     {
@@ -1222,8 +1245,8 @@ app_worldmap_build_icons(
         app_worldmap_push_icon(
             app,
             icon->element,
-            centre_x + (map_x - display_x) * scale,
-            centre_y - (map_y - display_y) * scale);
+            centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X,
+            centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z);
     }
 }
 
@@ -1246,7 +1269,7 @@ app_worldmap_click(
 {
     int display_x = 0;
     int display_y = 0;
-    int scale;
+    int scale_fp;
     int map_x;
     int map_y;
     int source;
@@ -1260,12 +1283,16 @@ app_worldmap_click(
     RS_WorldMap_DisplayPosition(app->host.worldmap, &display_x, &display_y);
     if( display_x < 0 || display_y < 0 )
         return;
-    scale = RS_WorldMap_ZoomScale(app->host.worldmap);
-    if( scale <= 0 )
+    /* The live scale, not the target: this inverts what was drawn, and mid
+     * zoom-transition those differ. */
+    scale_fp = RS_WorldMap_ZoomScaleFp(app->host.worldmap);
+    if( scale_fp <= 0 )
         return;
 
-    map_x = display_x + (mouse_x - (app->worldmap_box_x + app->worldmap_box_w / 2)) / scale;
-    map_y = display_y - (mouse_y - (app->worldmap_box_y + app->worldmap_box_h / 2)) / scale;
+    map_x = display_x + (mouse_x - (app->worldmap_box_x + app->worldmap_box_w / 2)) *
+                            RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
+    map_y = display_y - (mouse_y - (app->worldmap_box_y + app->worldmap_box_h / 2)) *
+                            RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
 
     source = RS_WorldMap_DisplayToSource(
         app->host.worldmap, ToriRS_WorldMapPackCoord(0, map_x, map_y));
@@ -1410,7 +1437,7 @@ app_worldmap_drag_tick(
     }
 
     {
-        int scale = RS_WorldMap_ZoomScale(app->host.worldmap);
+        int scale_fp = RS_WorldMap_ZoomScaleFp(app->host.worldmap);
         int dx = mouse_x - app->worldmap_drag_x;
         int dy = mouse_y - app->worldmap_drag_y;
         int next_x;
@@ -1418,12 +1445,12 @@ app_worldmap_drag_tick(
         int current_x = 0;
         int current_y = 0;
 
-        if( scale <= 0 )
-            scale = 1;
+        if( scale_fp <= 0 )
+            scale_fp = RS_WORLDMAP_ZOOM_SCALE_ONE;
         /* Screen y grows downward, map y northward, and the map moves opposite
          * the pointer — the tile under the cursor stays under it. */
-        next_x = app->worldmap_drag_display_x - dx / scale;
-        next_y = app->worldmap_drag_display_y + dy / scale;
+        next_x = app->worldmap_drag_display_x - dx * RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
+        next_y = app->worldmap_drag_display_y + dy * RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
 
         RS_WorldMap_DisplayPosition(app->host.worldmap, &current_x, &current_y);
         if( next_x == current_x && next_y == current_y )
@@ -2474,6 +2501,18 @@ app_host_request(
             req->u.get_obj_icon_bordered.count > 0 ? req->u.get_obj_icon_bordered.count : 1);
     case UITREE_HOST_GET_IF_EVENTS:
         return (int)app_if_events_for_node(app, req->u.get_if_events.com_id);
+    /* The developer overlay's display list, handed over by pointer — the array
+     * is owned by app->dbg_ui and outlives the frame. With the panel hidden the
+     * list is empty and this returns 0, which is the whole cost of a declared
+     * but switched-off overlay. */
+    case UITREE_HOST_GET_DEBUG_OVERLAY:
+    {
+        int count = 0;
+        if( !req->u.get_debug_overlay.out_prims )
+            return 0;
+        *req->u.get_debug_overlay.out_prims = ToriDbgUI_Prims(&app->dbg_ui, &count);
+        return count;
+    }
     default:
         return 0;
     }
@@ -2981,6 +3020,129 @@ app_provider_set_cache_profile(
     CacheProvider_SetProfile(app->provider, &profile);
 }
 
+/* ---- Developer overlay ------------------------------------------------- *
+ *
+ * One minimenu-styled ToriDbgUI panel (src/ui/README_DEBUG_OVERLAY.md) holding
+ * the frame time, averaged over the last APP_DEBUG_FRAME_SAMPLES frames. The
+ * App feeds the model; the node that draws it is declared by the manifest
+ * (`type=debug_overlay`, docs/debug_overlay.md §2) and answered through
+ * UITREE_HOST_GET_DEBUG_OVERLAY.
+ *
+ * A hidden panel builds no primitives, so the overlay costs one host call and
+ * nothing else until the toggle key turns it on. The samples keep accumulating
+ * either way — the average is a property of the client, not of whether anyone
+ * is looking at it, and a readout that starts at "--" for ten frames after
+ * every toggle would be useless for exactly the stutter it is there to catch.
+ */
+
+/** Toggle key. Deliberately not one of the letters the camera and paint-limit
+ *  debug keys already own (W/A/S/D/R/F, U, M, I/J/K/L/comma), and not a digit —
+ *  those are the revconfig hotkey row (app_debug_digit_key). */
+#define APP_DEBUG_OVERLAY_KEY TORIRSK_P
+
+/* Sizes the panel. The title is the widest string the panel will ever hold, so
+ * content sizing (fixed_w 0) settles on one width and the panel never resizes
+ * as the digits change under it. */
+static char const k_app_debug_overlay_title[] = "Frame time (10-frame avg)";
+
+static void
+app_debug_overlay_init(struct App* app)
+{
+    assert(app);
+
+    ToriDbgUI_Init(&app->dbg_ui);
+    app->dbg_visible = 0;
+    app->dbg_frame_head = 0;
+    app->dbg_frame_count = 0;
+    app->dbg_panel = ToriDbgUI_PanelAdd(
+        &app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
+    app->dbg_frame_row = ToriDbgUI_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
+    ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
+}
+
+void
+App_NoteFrameTime(
+    struct App* app,
+    uint64_t frame_us)
+{
+    assert(app);
+
+    app->dbg_frame_us[app->dbg_frame_head] =
+        frame_us > UINT32_MAX ? UINT32_MAX : (uint32_t)frame_us;
+    app->dbg_frame_head = (app->dbg_frame_head + 1) % APP_DEBUG_FRAME_SAMPLES;
+    if( app->dbg_frame_count < APP_DEBUG_FRAME_SAMPLES )
+        app->dbg_frame_count++;
+}
+
+/** Mean of the samples held so far, in microseconds. 0 when there are none. */
+static uint32_t
+app_debug_frame_mean_us(struct App const* app)
+{
+    uint64_t total = 0;
+
+    if( app->dbg_frame_count <= 0 )
+        return 0;
+    for( int i = 0; i < app->dbg_frame_count; i++ )
+        total += app->dbg_frame_us[i];
+    return (uint32_t)(total / (uint64_t)app->dbg_frame_count);
+}
+
+/*
+ * Toggle the overlay, refresh its readout, rebuild its display list.
+ *
+ * Runs before the BOOTING early-out in App_RunOnce so the key still latches
+ * during a boot, and before the emit rebuild so a changed readout reaches the
+ * same frame's display list rather than the next one's.
+ */
+static void
+app_debug_overlay_tick(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(input);
+
+    /* Suppressed while a text line has focus, like the camera keys: typing a
+     * message must not flip debug chrome. */
+    if( !app->chat_input_active && !app->chat.social_input_open &&
+        !app->chat.dialog_input_open &&
+        LibToriRS_Input_IsKeyDown(input, APP_DEBUG_OVERLAY_KEY) )
+    {
+        app->dbg_visible = !app->dbg_visible;
+        ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, app->dbg_visible);
+    }
+
+    if( app->dbg_visible )
+    {
+        uint32_t const mean_us = app_debug_frame_mean_us(app);
+        char text[TORIDBG_INPUT_MAX];
+
+        /* Two decimals: the samples are microseconds, and rounding a 3.4 ms
+         * frame to "3 ms" throws away the part that moves. */
+        if( app->dbg_frame_count > 0 )
+            snprintf(
+                text,
+                sizeof(text),
+                "%u.%02u ms",
+                (unsigned)(mean_us / 1000u),
+                (unsigned)((mean_us % 1000u) / 10u));
+        else
+            snprintf(text, sizeof(text), "--");
+        /* Compare-then-set: an unchanged readout dirties nothing, so a steady
+         * client rebuilds no display list and requests no redraw. */
+        ToriDbgUI_SetText(&app->dbg_ui, app->dbg_frame_row, text);
+    }
+
+    /* Build returns 0 on a frame where nothing moved. When it did rebuild the
+     * canvas is stale — including the frame the panel was hidden on, whose
+     * vacated pixels are still on screen until something repaints them. */
+    if( ToriDbgUI_Build(&app->dbg_ui) )
+    {
+        app->need_redraw = 1;
+        ToriDbgUI_DamageClear(&app->dbg_ui);
+    }
+}
+
 void
 App_SetWorldRenderMode(
     struct App* app,
@@ -3160,14 +3322,12 @@ App_Init(
     ToriRS_AudioQueue_Reset(&app->audio_out);
     /* State the starting volume once, so a backend is never left guessing at a
      * gain the game already has an opinion about (reference Client.waveVolume). */
-    {
-        struct ToriRS_AudioCommand volume_command;
-        memset(&volume_command, 0, sizeof(volume_command));
-        volume_command.kind = TORIRS_AUDIO_CMD_SET_VOLUME;
-        volume_command.sound_id = -1;
-        volume_command.volume = app->audio.volume;
-        ToriRS_AudioQueue_Push(&app->audio_out, &volume_command);
-    }
+    RS_Audio_SetBusVolume(
+        &app->audio, TORIRS_AUDIO_BUS_EFFECTS, app->audio.effect_volume, &app->audio_out);
+    RS_Audio_SetBusVolume(
+        &app->audio, TORIRS_AUDIO_BUS_AREA, app->audio.area_volume, &app->audio_out);
+    RS_Audio_SetBusVolume(
+        &app->audio, TORIRS_AUDIO_BUS_MUSIC, app->audio.music_volume, &app->audio_out);
     app->inv_drag_com_id = -1;
     app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
@@ -3216,6 +3376,7 @@ App_Init(
     app->ui_host.request = app_host_request;
     UIInteraction_Init(&app->interact);
     UIHoverText_Reset(&app->hover_text);
+    app_debug_overlay_init(app);
     app->hover_com_id = -1;
     app->clicked_com_id = -1;
     app->need_redraw = 1;
@@ -5279,7 +5440,52 @@ app_logic_tick(struct App* app)
 
     /* Sound queue on the client tick: the server's play delays are in ticks and
      * the reference runs its queue from the same clock (soundsDoQueue). */
-    RS_Audio_Tick(&app->audio, app->provider, &app->runner, &app->audio_out);
+    /*
+     * The listener is the camera's tile, not the player's: the camera is what
+     * the stereo field is built around, and in an orbit view they can be
+     * several tiles apart. Falls back to the origin before a world exists.
+     */
+    {
+        int listener_x = 0;
+        int listener_z = 0;
+        int listener_level = 0;
+        if( app->world )
+        {
+            /* World units are tiles << 7 (the reference's coord scale). */
+            listener_x = app->world_camera_pos.x >> 7;
+            listener_z = app->world_camera_pos.z >> 7;
+            listener_level = app_cinema_level(app);
+        }
+        RS_Audio_Tick(
+            &app->audio,
+            app->provider,
+            &app->runner,
+            app->scene,
+            app->world,
+            listener_x,
+            listener_z,
+            listener_level,
+            &app->audio_feedback,
+            &app->audio_out);
+
+        /* A music request the player has accepted but no loader has picked up
+         * yet becomes a task here, once. The player refuses to hand out the
+         * same request twice, so this cannot pile up. */
+        if( app->provider && !app->audio.music_loading )
+        {
+            int song_id = -1;
+            enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+            if( ToriRS_Music_TakeLoadRequest(&app->audio.music, &song_id, &source) )
+            {
+                struct ToriRS_Task* task = CreateTask_MusicLoad(
+                    app->provider, &app->audio.music, song_id, (int)source);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                else
+                    ToriRS_Music_LoadFailed(&app->audio.music, song_id);
+            }
+        }
+    }
 
     RS_CS2Host_Tick(&app->host);
 
@@ -12014,6 +12220,40 @@ App_PlaySound(
     RS_Audio_Synth(&app->audio, sound_id, loops, delay);
 }
 
+void
+App_SetAudioFeedback(
+    struct App* app,
+    const struct ToriRS_AudioFeedback* feedback)
+{
+    assert(app);
+    if( feedback )
+        app->audio_feedback = *feedback;
+    else
+        memset(&app->audio_feedback, 0, sizeof(app->audio_feedback));
+}
+
+void
+App_PlaySong(
+    struct App* app,
+    int song_id,
+    bool loop,
+    int fade_out_ms,
+    int fade_in_ms)
+{
+    assert(app);
+    RS_Audio_Song(&app->audio, song_id, loop, fade_out_ms, fade_in_ms);
+}
+
+void
+App_PlayJingle(
+    struct App* app,
+    int jingle_id,
+    int length_ms)
+{
+    assert(app);
+    RS_Audio_Jingle(&app->audio, jingle_id, length_ms);
+}
+
 int
 App_DrainAudio(
     struct App* app,
@@ -12337,6 +12577,10 @@ App_RunOnce(
 
     assert(app);
     assert(input);
+
+    /* Developer overlay first: its toggle key has to latch during a boot too,
+     * and its readout has to be current before this frame's emit rebuild. */
+    app_debug_overlay_tick(app, input);
 
     /* Pump the async pipeline (bounded — never a blocking drain). While
      * BOOTING the budget is generous so a native boot converges in a few

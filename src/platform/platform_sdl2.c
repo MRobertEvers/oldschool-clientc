@@ -953,6 +953,20 @@ PlatformSDL2_Ticks64(void)
     return SDL_GetTicks64();
 }
 
+uint64_t
+PlatformSDL2_TicksUs(void)
+{
+    uint64_t const frequency = SDL_GetPerformanceFrequency();
+    uint64_t const counter = SDL_GetPerformanceCounter();
+
+    if( frequency == 0 )
+        return SDL_GetTicks64() * 1000u;
+    /* Split before multiplying: the counter is ticks since boot, and a direct
+     * counter*1000000 overflows 64 bits after a few days of uptime on a
+     * nanosecond-resolution clock even though the microsecond result fits. */
+    return (counter / frequency) * 1000000u + (counter % frequency) * 1000000u / frequency;
+}
+
 void
 PlatformSDL2_SleepUntil(uint64_t deadline_ms)
 {

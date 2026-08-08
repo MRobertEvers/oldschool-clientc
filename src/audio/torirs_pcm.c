@@ -1,0 +1,387 @@
+#include "audio/torirs_pcm.h"
+
+#include <math.h>
+#include <string.h>
+
+void
+ToriRS_PcmGains(
+    int volume,
+    int pan,
+    int* out_left,
+    int* out_right)
+{
+    double normalised;
+
+    if( volume < 0 )
+        volume = 0;
+    if( volume > TORIRS_PCM_VOLUME_UNITY )
+        volume = TORIRS_PCM_VOLUME_UNITY;
+    if( pan < 0 )
+        pan = 0;
+    if( pan > TORIRS_PCM_PAN_MAX )
+        pan = TORIRS_PCM_PAN_MAX;
+
+    /* Reference: left = vol * sqrt((PAN_MAX - pan) / (PAN_MAX/2)),
+     *            right = vol * sqrt(pan / (PAN_MAX/2)).
+     * Both are 1 at centre, so unity volume is unity gain on both channels. */
+    normalised = (double)volume / (double)TORIRS_PCM_VOLUME_UNITY * (double)TORIRS_PCM_GAIN_ONE;
+    *out_left =
+        (int)(normalised * sqrt((double)(TORIRS_PCM_PAN_MAX - pan) / (TORIRS_PCM_PAN_MAX / 2)) +
+              0.5);
+    *out_right = (int)(normalised * sqrt((double)pan / (TORIRS_PCM_PAN_MAX / 2)) + 0.5);
+}
+
+/** Playback step in 8.8, clamped so a wild rate cannot make the loop spin. */
+static int
+step_for_rate(
+    int rate_numerator,
+    int rate_denominator)
+{
+    int64_t step;
+
+    if( rate_denominator <= 0 )
+        return TORIRS_PCM_POSITION_ONE;
+    step = ((int64_t)rate_numerator * TORIRS_PCM_POSITION_ONE) / rate_denominator;
+    if( step < 1 )
+        step = 1;
+    if( step > 64 * TORIRS_PCM_POSITION_ONE )
+        step = 64 * TORIRS_PCM_POSITION_ONE;
+    return (int)step;
+}
+
+void
+ToriRS_PcmVoice_Start(
+    struct ToriRS_PcmVoice* voice,
+    const struct ToriRS_PcmSound* sound,
+    int rate_numerator,
+    int rate_denominator,
+    int volume,
+    int pan,
+    int loop_count)
+{
+    if( !voice )
+        return;
+    memset(voice, 0, sizeof(*voice));
+    if( !sound || !sound->samples || sound->sample_count <= 0 )
+        return;
+
+    voice->sound = sound;
+    voice->position = 0;
+    voice->step = step_for_rate(rate_numerator, rate_denominator);
+    voice->loops_left = loop_count;
+    voice->volume = volume;
+    voice->pan = pan;
+    ToriRS_PcmGains(volume, pan, &voice->left_gain, &voice->right_gain);
+    voice->target_left_gain = voice->left_gain;
+    voice->target_right_gain = voice->right_gain;
+    voice->active = true;
+}
+
+void
+ToriRS_PcmVoice_SetGain(
+    struct ToriRS_PcmVoice* voice,
+    int volume,
+    int pan,
+    int ramp_frames)
+{
+    int left;
+    int right;
+
+    if( !voice || !voice->active )
+        return;
+    voice->volume = volume;
+    voice->pan = pan;
+    ToriRS_PcmGains(volume, pan, &left, &right);
+    if( ramp_frames <= 0 )
+    {
+        voice->left_gain = left;
+        voice->right_gain = right;
+        voice->ramp_frames = 0;
+        voice->ramp_to_stop = false;
+        voice->target_left_gain = left;
+        voice->target_right_gain = right;
+        return;
+    }
+    voice->target_left_gain = left;
+    voice->target_right_gain = right;
+    voice->ramp_frames = ramp_frames;
+    voice->ramp_to_stop = false;
+    voice->left_step = (left - voice->left_gain) / ramp_frames;
+    voice->right_step = (right - voice->right_gain) / ramp_frames;
+}
+
+void
+ToriRS_PcmVoice_SetRate(
+    struct ToriRS_PcmVoice* voice,
+    int rate_numerator,
+    int rate_denominator)
+{
+    int magnitude;
+
+    if( !voice || !voice->active )
+        return;
+    magnitude = step_for_rate(rate_numerator, rate_denominator);
+    /* Direction is loop state, not a rate property: a ping-pong voice halfway
+     * through its backward pass must stay backward across a pitch bend. */
+    voice->step = voice->step < 0 ? -magnitude : magnitude;
+}
+
+void
+ToriRS_PcmVoice_Stop(
+    struct ToriRS_PcmVoice* voice,
+    int ramp_frames)
+{
+    if( !voice || !voice->active )
+        return;
+    if( ramp_frames <= 0 )
+    {
+        voice->active = false;
+        return;
+    }
+    voice->target_left_gain = 0;
+    voice->target_right_gain = 0;
+    voice->ramp_frames = ramp_frames;
+    voice->ramp_to_stop = true;
+    voice->left_step = -voice->left_gain / ramp_frames;
+    voice->right_step = -voice->right_gain / ramp_frames;
+}
+
+void
+ToriRS_PcmVoice_Seek(
+    struct ToriRS_PcmVoice* voice,
+    int sample_position)
+{
+    if( !voice || !voice->sound )
+        return;
+    if( sample_position < 0 )
+        sample_position = 0;
+    if( sample_position > voice->sound->sample_count )
+        sample_position = voice->sound->sample_count;
+    voice->position = sample_position << TORIRS_PCM_POSITION_SHIFT;
+}
+
+void
+ToriRS_PcmVoice_SeekFixed(
+    struct ToriRS_PcmVoice* voice,
+    int fixed_position)
+{
+    int limit;
+
+    if( !voice || !voice->sound )
+        return;
+    limit = voice->sound->sample_count << TORIRS_PCM_POSITION_SHIFT;
+    if( fixed_position < 0 )
+        fixed_position = 0;
+    if( fixed_position > limit )
+        fixed_position = limit;
+    voice->position = fixed_position;
+}
+
+void
+ToriRS_PcmVoice_SetStep(
+    struct ToriRS_PcmVoice* voice,
+    int step)
+{
+    if( !voice )
+        return;
+    if( step < 1 )
+        step = 1;
+    if( step > 64 * TORIRS_PCM_POSITION_ONE )
+        step = 64 * TORIRS_PCM_POSITION_ONE;
+    voice->step = voice->step < 0 ? -step : step;
+}
+
+void
+ToriRS_PcmVoice_SetBackwards(
+    struct ToriRS_PcmVoice* voice,
+    bool backwards)
+{
+    int magnitude;
+
+    if( !voice )
+        return;
+    magnitude = voice->step < 0 ? -voice->step : voice->step;
+    voice->step = backwards ? -magnitude : magnitude;
+}
+
+bool
+ToriRS_PcmVoice_Exhausted(const struct ToriRS_PcmVoice* voice)
+{
+    if( !voice || !voice->sound )
+        return true;
+    return voice->position < 0 ||
+           voice->position >= (voice->sound->sample_count << TORIRS_PCM_POSITION_SHIFT);
+}
+
+/** Loop bounds in samples, falling back to the whole clip. */
+static void
+loop_bounds(
+    const struct ToriRS_PcmSound* sound,
+    int* out_start,
+    int* out_end)
+{
+    int start = sound->loop_start;
+    int end = sound->loop_end;
+
+    if( end <= start || end > sound->sample_count )
+    {
+        start = 0;
+        end = sound->sample_count;
+    }
+    if( start < 0 )
+        start = 0;
+    *out_start = start;
+    *out_end = end;
+}
+
+/**
+ * Advance one frame, applying the loop rule.
+ *
+ * Returns false when the voice has run off the end and has no loop left, which
+ * is what ends it. Ping-pong reflects the position about the bound and flips
+ * the step, which is the reference's `position = bound + bound - 1 - position`.
+ */
+static bool
+advance(struct ToriRS_PcmVoice* voice)
+{
+    const struct ToriRS_PcmSound* sound = voice->sound;
+    int loop_start;
+    int loop_end;
+    int limit_low;
+    int limit_high;
+
+    voice->position += voice->step;
+    loop_bounds(sound, &loop_start, &loop_end);
+    limit_low = loop_start << TORIRS_PCM_POSITION_SHIFT;
+    limit_high = loop_end << TORIRS_PCM_POSITION_SHIFT;
+
+    if( voice->step >= 0 )
+    {
+        if( voice->position < limit_high )
+            return true;
+        if( voice->loops_left == 0 )
+            return false;
+        if( voice->loops_left > 0 )
+            voice->loops_left--;
+        if( sound->ping_pong )
+        {
+            voice->position = limit_high + limit_high - 1 - voice->position;
+            voice->step = -voice->step;
+            if( voice->position < limit_low )
+                voice->position = limit_low;
+        }
+        else
+        {
+            int span = limit_high - limit_low;
+            if( span <= 0 )
+                return false;
+            voice->position = limit_low + (voice->position - limit_low) % span;
+        }
+        return true;
+    }
+
+    if( voice->position >= limit_low )
+        return true;
+    if( voice->loops_left == 0 )
+        return false;
+    if( voice->loops_left > 0 )
+        voice->loops_left--;
+    if( sound->ping_pong )
+    {
+        voice->position = limit_low + limit_low - 1 - voice->position;
+        voice->step = -voice->step;
+        if( voice->position >= limit_high )
+            voice->position = limit_high - 1;
+    }
+    else
+    {
+        int span = limit_high - limit_low;
+        if( span <= 0 )
+            return false;
+        voice->position = limit_high - 1 - ((limit_high - 1 - voice->position) % span);
+    }
+    return true;
+}
+
+/** Linearly interpolated sample at the voice's 8.8 position. */
+static int
+sample_at(const struct ToriRS_PcmVoice* voice)
+{
+    const struct ToriRS_PcmSound* sound = voice->sound;
+    int index = voice->position >> TORIRS_PCM_POSITION_SHIFT;
+    int fraction = voice->position & (TORIRS_PCM_POSITION_ONE - 1);
+    int current;
+    int next;
+
+    if( index < 0 )
+        index = 0;
+    if( index >= sound->sample_count )
+        index = sound->sample_count - 1;
+    current = sound->samples[index];
+    next = index + 1 < sound->sample_count ? sound->samples[index + 1] : current;
+    return current + (((next - current) * fraction) >> TORIRS_PCM_POSITION_SHIFT);
+}
+
+/** One ramp step; ends the voice when a fade-to-stop lands. */
+static void
+step_ramp(struct ToriRS_PcmVoice* voice)
+{
+    if( voice->ramp_frames <= 0 )
+        return;
+    voice->left_gain += voice->left_step;
+    voice->right_gain += voice->right_step;
+    if( --voice->ramp_frames == 0 )
+    {
+        voice->left_gain = voice->target_left_gain;
+        voice->right_gain = voice->target_right_gain;
+        if( voice->ramp_to_stop )
+            voice->active = false;
+    }
+}
+
+bool
+ToriRS_PcmVoice_Mix(
+    struct ToriRS_PcmVoice* voice,
+    int32_t* out,
+    int frames)
+{
+    if( !voice || !voice->active || !voice->sound || !out )
+        return voice && voice->active;
+
+    for( int i = 0; i < frames; i++ )
+    {
+        int value = sample_at(voice);
+
+        out[i * 2] += (value * voice->left_gain) >> TORIRS_PCM_GAIN_SHIFT;
+        out[i * 2 + 1] += (value * voice->right_gain) >> TORIRS_PCM_GAIN_SHIFT;
+        step_ramp(voice);
+        if( !voice->active )
+            return false;
+        if( !advance(voice) )
+        {
+            voice->active = false;
+            return false;
+        }
+    }
+    return true;
+}
+
+void
+ToriRS_PcmVoice_Skip(
+    struct ToriRS_PcmVoice* voice,
+    int frames)
+{
+    if( !voice || !voice->active || !voice->sound )
+        return;
+    for( int i = 0; i < frames; i++ )
+    {
+        step_ramp(voice);
+        if( !voice->active )
+            return;
+        if( !advance(voice) )
+        {
+            voice->active = false;
+            return;
+        }
+    }
+}

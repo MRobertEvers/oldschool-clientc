@@ -17,6 +17,10 @@
 #define RS_WORLDMAP_DEFAULT_DISPLAY_HEIGHT 334
 /* Panning covers the remaining distance in at most this many ticks. */
 #define RS_WORLDMAP_PAN_STEPS 8
+/* Zooming closes a thirtieth of the remaining scale per tick (reference
+ * method12703's `zoom / 30.0F` step): ~40 ticks, i.e. under a second, for a
+ * one-step change whichever step it is. */
+#define RS_WORLDMAP_ZOOM_STEPS 30
 
 static bool
 id_set_contains(
@@ -96,6 +100,8 @@ normalize_zoom(int zoom_percentage)
     }
 }
 
+/* Whole pixels per tile a region is baked at. The reference bakes at
+ * ceil(zoom), so 37% (1.5 px/tile) bakes at 2 and is drawn down to 1.5. */
 static int
 zoom_scale_pixels_per_tile(int zoom_percentage)
 {
@@ -104,7 +110,7 @@ zoom_scale_pixels_per_tile(int zoom_percentage)
     case 25:
         return 1;
     case 37:
-        /* 1.5px per tile; the tile counts below round up either way. */
+        /* 1.5px per tile, baked at 2 — see RS_WorldMap_ZoomScaleFp. */
         return 2;
     case 50:
         return 2;
@@ -117,10 +123,33 @@ zoom_scale_pixels_per_tile(int zoom_percentage)
     }
 }
 
+/* Exact pixels per tile for a zoom step (reference getZoomScale: 1, 1.5, 2, 3,
+ * 4, 8), in RS_WORLDMAP_ZOOM_SCALE_ONE-ths so 37% keeps its half pixel. */
+static int
+zoom_scale_fp_for(int zoom_percentage)
+{
+    switch( zoom_percentage )
+    {
+    case 25:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE;
+    case 37:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 3 / 2;
+    case 50:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 2;
+    case 75:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 3;
+    case 100:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 4;
+    default:
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 8;
+    }
+}
+
 static void
 recompute_display_size(struct RS_WorldMapState* state)
 {
-    int pixels_per_tile = zoom_scale_pixels_per_tile(state->zoom_percentage);
+    int scale_fp = state->zoom_scale_now_fp > 0 ? state->zoom_scale_now_fp
+                                                : RS_WORLDMAP_ZOOM_SCALE_ONE;
     int width = state->display_pixel_width;
     int height = state->display_pixel_height;
 
@@ -129,8 +158,57 @@ recompute_display_size(struct RS_WorldMapState* state)
     if( height <= 0 )
         height = RS_WORLDMAP_DEFAULT_DISPLAY_HEIGHT;
 
-    state->display_width = (width + pixels_per_tile - 1) / pixels_per_tile;
-    state->display_height = (height + pixels_per_tile - 1) / pixels_per_tile;
+    /* ceil(pixels / zoom), from the *animating* scale: WORLDMAP_GETSIZE reads
+     * this back and the reference fills it in from the same value it drew with
+     * (field6611/6612, assigned in the draw from field6609). */
+    state->display_width =
+        (width * RS_WORLDMAP_ZOOM_SCALE_ONE + scale_fp - 1) / scale_fp;
+    state->display_height =
+        (height * RS_WORLDMAP_ZOOM_SCALE_ONE + scale_fp - 1) / scale_fp;
+}
+
+/*
+ * One cycle of the zoom transition: move the live scale a thirtieth of itself
+ * toward the target (reference method12703, min/max-clamped the same way, so a
+ * step never overshoots). Geometric rather than linear, which is what makes
+ * 25%->200% and 100%->200% feel like the same gesture.
+ */
+static bool
+cycle_zoom(struct RS_WorldMapState* state)
+{
+    int cur = state->zoom_scale_now_fp;
+    int target = state->zoom_scale_fp;
+    int step;
+
+    if( target <= 0 )
+        return false;
+    if( cur <= 0 )
+    {
+        state->zoom_scale_now_fp = target;
+        recompute_display_size(state);
+        return true;
+    }
+    if( cur == target )
+        return false;
+
+    step = cur / RS_WORLDMAP_ZOOM_STEPS;
+    if( step < 1 )
+        step = 1; /* or a 1px/tile zoom-in would never leave the ground */
+    if( cur < target )
+    {
+        cur += step;
+        if( cur > target )
+            cur = target;
+    }
+    else
+    {
+        cur -= step;
+        if( cur < target )
+            cur = target;
+    }
+    state->zoom_scale_now_fp = cur;
+    recompute_display_size(state);
+    return true;
 }
 
 static void
@@ -206,7 +284,7 @@ select_area(
     state->current_area = area;
     state->icon_index = 0;
     if( area->zoom > 0 )
-        RS_WorldMap_SetZoom(state, area->zoom);
+        RS_WorldMap_SetZoomInstant(state, area->zoom);
     ToriRS_WorldMapUnpackCoord(area->origin, &plane, &x, &y);
     jump_to_source_or_origin_instant(state, plane, x, y);
 }
@@ -219,6 +297,8 @@ RS_WorldMap_New(struct CacheProvider* provider)
     assert(state);
     state->provider = provider;
     state->zoom_percentage = RS_WORLDMAP_DEFAULT_ZOOM;
+    state->zoom_scale_fp = zoom_scale_fp_for(RS_WORLDMAP_DEFAULT_ZOOM);
+    state->zoom_scale_now_fp = state->zoom_scale_fp;
     state->target_x = -1;
     state->target_y = -1;
     state->elements_enabled = true;
@@ -368,6 +448,14 @@ RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state)
 }
 
 int
+RS_WorldMap_ZoomScaleFp(struct RS_WorldMapState const* state)
+{
+    if( !state || state->zoom_scale_now_fp <= 0 )
+        return RS_WORLDMAP_ZOOM_SCALE_ONE * 4;
+    return state->zoom_scale_now_fp;
+}
+
+int
 RS_WorldMap_Zoom(struct RS_WorldMapState const* state)
 {
     return state ? state->zoom_percentage : RS_WORLDMAP_DEFAULT_ZOOM;
@@ -380,6 +468,19 @@ RS_WorldMap_SetZoom(
 {
     assert(state);
     state->zoom_percentage = normalize_zoom(zoom_percentage);
+    state->zoom_scale_fp = zoom_scale_fp_for(state->zoom_percentage);
+    /* display_width/height stay on the live scale; the cycle recomputes them
+     * as it eases across. */
+}
+
+void
+RS_WorldMap_SetZoomInstant(
+    struct RS_WorldMapState* state,
+    int zoom_percentage)
+{
+    assert(state);
+    RS_WorldMap_SetZoom(state, zoom_percentage);
+    state->zoom_scale_now_fp = state->zoom_scale_fp;
     recompute_display_size(state);
 }
 
@@ -491,7 +592,7 @@ RS_WorldMap_JumpToMap(
     state->current_area = area;
     state->icon_index = 0;
     if( area->zoom > 0 )
-        RS_WorldMap_SetZoom(state, area->zoom);
+        RS_WorldMap_SetZoomInstant(state, area->zoom);
 
     /* There is no local player to prefer yet, so the fallback coord always
      * wins — same result as the reference when the player is off this map. */
@@ -629,6 +730,10 @@ RS_WorldMap_Cycle(struct RS_WorldMapState* state)
 
     assert(state);
     changed = cycle_flash(state);
+    /* Before the pan step, as in the reference (method12703 then method12705):
+     * the pan measures nothing in pixels, so the order only matters for the
+     * redraw flag, but keeping it matches where a future coupling would sit. */
+    changed |= cycle_zoom(state);
     if( state->target_x == -1 || state->target_y == -1 )
         return changed;
 

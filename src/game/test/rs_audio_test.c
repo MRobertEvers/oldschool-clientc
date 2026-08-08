@@ -21,6 +21,8 @@
 
 #include "audio/torirs_audio.h"
 #include "engine/cache_provider.h"
+#include <toridraw.h>
+#include <toridraw_scene.h>
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_sound_from_rscache.h"
@@ -54,6 +56,8 @@ static int g_fail = 0;
 
 /** One frame: tick the game's sound queue, pump async loads, hand the platform
  *  whatever came out. Exactly the order main.c uses. */
+static struct ToriDraw_Scene* g_scene = NULL;
+
 static void
 frame(
     struct RS_Audio* audio,
@@ -65,12 +69,17 @@ frame(
     struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
     int count;
 
-    RS_Audio_Tick(audio, provider, runner, queue);
+    /* No world and no device: the listener is the origin and the music player
+     * synthesises nothing, which is what a headless run looks like. */
+    RS_Audio_Tick(audio, provider, runner, g_scene, NULL, 0, 0, 0, NULL, queue);
     /* Loads the tick queued must complete before the next tick can see them. */
     if( runner )
         TaskRunner_Drain(runner);
     count = ToriRS_AudioQueue_Drain(queue, commands, TORIRS_AUDIO_QUEUE_MAX);
     PlatformAudio_SubmitAll(platform, commands, count);
+    /* Mixing is what turns an accepted command into audible samples, and the
+     * peak this leaves behind is what the audibility checks read. */
+    PlatformAudio_Update(platform);
 }
 
 /** Run frames until `audio->played` grows, or `limit` frames pass. */
@@ -122,7 +131,9 @@ test_queue_without_cache(void)
     ToriRS_AudioQueue_Reset(&queue);
 
     CHECK(audio.enabled, "sound starts enabled");
-    CHECK(audio.volume == RS_AUDIO_DEFAULT_VOLUME, "volume starts at the reference default");
+    CHECK(
+        audio.effect_volume == RS_AUDIO_DEFAULT_VOLUME,
+        "effect volume starts at the reference default");
 
     /* An effect that will never become resident is dropped, not leaked. */
     RS_Audio_Synth(&audio, 12345, 1, 0);
@@ -135,26 +146,28 @@ test_queue_without_cache(void)
 
     /* Volume levels: the reference's 128/96/64/32/mute ladder. */
     RS_Audio_SetVolumeLevel(&audio, 0, &queue);
-    CHECK(audio.volume == 128 && audio.enabled, "level 0 -> 128");
+    CHECK(audio.effect_volume == 255 && audio.enabled, "level 0 -> full");
     RS_Audio_SetVolumeLevel(&audio, 3, &queue);
-    CHECK(audio.volume == 32 && audio.enabled, "level 3 -> 32");
+    CHECK(audio.effect_volume == 64 && audio.enabled, "level 3 -> quarter");
     RS_Audio_SetVolumeLevel(&audio, 4, &queue);
     CHECK(!audio.enabled, "level 4 -> muted");
     RS_Audio_Synth(&audio, 0, 1, 0);
     CHECK(audio.count == 0, "muted: packets are not queued at all");
     RS_Audio_SetVolumeLevel(&audio, 2, &queue);
-    CHECK(audio.volume == 64 && audio.enabled, "level 2 -> 64, re-enabled");
+    CHECK(audio.effect_volume == 128 && audio.enabled, "level 2 -> half, re-enabled");
     RS_Audio_SetVolumeLevel(&audio, 9, &queue);
-    CHECK(audio.volume == 64, "unknown level ignored");
+    CHECK(audio.effect_volume == 128, "unknown level ignored");
 
     /* The volume commands reached the platform. */
     {
         struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
         int count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
         PlatformAudio_SubmitAll(platform, commands, count);
-        /* Four: the unknown level pushed nothing. */
-        CHECK(count == 4, "one volume command per accepted level change");
-        CHECK(PlatformAudio_Stats(platform).volume == 64, "platform ended at volume 64");
+        /* Two buses per accepted level change; the unknown level pushed none. */
+        CHECK(count == 8, "effects and area buses set on every accepted level change");
+        CHECK(
+            PlatformAudio_Stats(platform).bus_volume[TORIRS_AUDIO_BUS_EFFECTS] == 128,
+            "platform ended at half volume on the effects bus");
     }
 
     /* Queue cap is the reference's 50. */
@@ -222,6 +235,11 @@ harness_init(
         printf("  SKIP: %s not present\n", cache_dir);
         return false;
     }
+
+    /* A scene per harness, like a scene per boot: assets from one cache must
+     * not be visible to the next, or "how many assets are live" means nothing. */
+    ToriDraw_SceneFree(g_scene);
+    g_scene = ToriDraw_SceneNew(0);
 
     harness->platform = PlatformAudio_New();
     PlatformAudio_Init(harness->platform, TORIRS_AUDIO_SAMPLE_RATE);
@@ -309,26 +327,31 @@ test_cache_pipeline(
                 RS_AUDIO_LOAD_WAIT_TICKS),
             message);
 
-        played_ids[index] = PlatformAudioNull_LastSoundId(harness.platform);
-        if( PlatformAudioNull_LastNonSilentSamples(harness.platform) > 0 )
+        played_ids[index] = PlatformAudioNull_LastVoiceSource(harness.platform);
+        if( PlatformAudioNull_LastPeak(harness.platform) > 0 )
             audible++;
     }
 
     CHECK(played_ids[0] == 0 && played_ids[1] == 1 && played_ids[2] == 2,
           "the platform saw each effect id in order");
-    CHECK(audible == 3, "every clip carried non-silent samples");
-    CHECK(PlatformAudio_Stats(harness.platform).played == 3, "three clips accepted");
-    CHECK(PlatformAudio_Stats(harness.platform).dropped == 0, "none dropped at the platform");
+    CHECK(audible == 3, "every clip mixed to non-silent samples");
+    CHECK(PlatformAudio_Stats(harness.platform).voices_started == 3, "three voices started");
+    CHECK(
+        PlatformAudio_Stats(harness.platform).voices_rejected == 0,
+        "no voice named an asset the backend lacked");
+    CHECK(
+        PlatformAudio_Stats(harness.platform).assets_live == 3,
+        "one retained asset per distinct effect");
 
     /* Delay: the server's tick count is honoured, plus the effect's own trim. */
     {
-        struct ToriRS_Sound* sound;
+        struct ToriDraw_Sound* sound;
         int before;
 
         frames_until_silent(
             &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
-        sound = CacheProvider_SoundGet(harness.provider, 0);
-        CHECK(sound != NULL, "effect 0 is resident after playing");
+        sound = ToriDraw_SceneSoundGet(g_scene, 0);
+        CHECK(sound != NULL, "effect 0 is a published scene asset after playing");
         RS_Audio_Synth(&harness.audio, 0, 1, 10);
         before = harness.audio.tick;
         CHECK(
@@ -347,37 +370,41 @@ test_cache_pipeline(
             "played on pass delay + trim + 1");
     }
 
-    /* Loop repeats: three passes of the loop span, on an effect that has one. */
+    /*
+     * Loop repeats are now the mixer's job rather than a pre-expanded buffer,
+     * so what is checked here is that the clip's loop span survived the trip
+     * into the scene asset -- which is what the mixer loops on.
+     */
     {
-        struct ToriRS_Sound* looping = NULL;
-        for( int id = 0; id < 200 && !looping; id++ )
+        struct ToriDraw_Sound* published = NULL;
+        for( int id = 0; id < 200 && !published; id++ )
         {
-            struct ToriRS_Sound* candidate;
+            struct ToriDraw_Sound* candidate;
             struct ToriRS_Task* task = CreateTask_SoundLoad(harness.provider, id);
             if( task )
             {
                 ToriRS_TaskQueue_Add(harness.runner.queue, task);
                 TaskRunner_Drain(&harness.runner);
             }
-            candidate = CacheProvider_SoundGet(harness.provider, id);
+            RS_Audio_Synth(&harness.audio, id, 1, 0);
+            frame(
+                &harness.audio,
+                harness.provider,
+                &harness.runner,
+                &harness.queue,
+                harness.platform);
+            candidate = ToriDraw_SceneSoundGet(g_scene, id);
             if( candidate && candidate->loop_start >= 0 &&
                 candidate->loop_end > candidate->loop_start )
-                looping = candidate;
+                published = candidate;
         }
-        if( !looping )
-        {
+        if( !published )
             printf("  SKIP: %s has no looping effect in the first 200 ids\n", label);
-        }
         else
-        {
-            int span = looping->loop_end - looping->loop_start;
-            int expanded = 0;
-            uint8_t* pcm = ToriRS_SoundExpandLoops(looping, 3, &expanded);
-            CHECK(pcm != NULL, "loop expansion produced a buffer");
-            CHECK(expanded == looping->sample_count + span * 2,
-                  "three plays of the loop span lengthen the clip by two spans");
-            free(pcm);
-        }
+            CHECK(
+                published->loop_end > published->loop_start &&
+                    published->loop_end <= published->sample_count,
+                "the published asset carries a usable loop span");
     }
 
     harness_free(&harness);
@@ -450,8 +477,8 @@ test_overlap_rule(
     RS_Audio_Synth(&harness.audio, shortest_id, 1, 0);
     frame(&harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
     CHECK(harness.audio.dropped_overlap == 1, "short effect refused under the long one");
-    CHECK(PlatformAudioNull_LastSoundId(harness.platform) == longest_id,
-          "the platform still has the long clip");
+    CHECK(PlatformAudioNull_LastVoiceSource(harness.platform) == longest_id,
+          "the platform's last voice is still the long clip");
 
     /* Once it has finished, the short one is welcome. */
     frames_until_silent(
@@ -466,7 +493,7 @@ test_overlap_rule(
             harness.platform,
             50),
         "short effect plays once the long one ends");
-    CHECK(PlatformAudioNull_LastSoundId(harness.platform) == shortest_id,
+    CHECK(PlatformAudioNull_LastVoiceSource(harness.platform) == shortest_id,
           "the platform saw the short clip");
 
     harness_free(&harness);
@@ -477,6 +504,10 @@ main(void)
 {
     struct RSCache dat1_profile;
     struct RSCache dat2_profile;
+
+    /* Clips are scene assets now, so the game layer needs a scene to publish
+     * into even with nothing to draw. */
+    g_scene = ToriDraw_SceneNew(0);
 
     test_queue_without_cache();
 
@@ -494,6 +525,9 @@ main(void)
     test_cache_pipeline("dat1 254", REPO_ROOT "/cache254.lostcity", true, &dat1_profile);
     test_cache_pipeline("dat2 230", REPO_ROOT "/cache.osrs230", false, &dat2_profile);
     test_overlap_rule(REPO_ROOT "/cache254.lostcity", &dat1_profile);
+
+    ToriDraw_SceneFree(g_scene);
+    g_scene = NULL;
 
     if( g_fail )
         printf("rs_audio_test: %d FAILED\n", g_fail);

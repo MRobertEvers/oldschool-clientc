@@ -726,7 +726,17 @@ bank_push_settings(struct Mock230Server* srv)
      * worn button over a bank that implements neither.
      */
     mock230_bank_set_varbit(srv, ids->varbit_bank_showincinerator, 0);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_leaveplaceholders, 0);
+    /*
+     * `bank_leaveplaceholders` is NOT pushed to 0 any more.
+     *
+     * It used to be, under the same "no server state behind it" rule as the
+     * incinerator, and that stopped being true the moment withdrawing could
+     * leave a placeholder behind. The varbit *is* the storage — it lives in
+     * varp 1053, which is `transmit=yes` and `scope=perm` — so forcing it here
+     * threw the player's setting away on every open, and the Enable/Disable
+     * button appeared to work (the client flips its own copy) right up until
+     * the next visit.
+     */
     /* The side panel draws a lock overlay on every inventory slot unless told
      * to ignore the lock varbit, which the mock never sets. */
     mock230_bank_set_varbit(srv, ids->varbit_bank_side_slot_ignore, 1);
@@ -940,6 +950,26 @@ bank_add(
     if( slot >= 0 )
     {
         bank_write(bank, slot, obj_id, bank->slots[slot].count + count);
+        return count;
+    }
+
+    /*
+     * Before any of the placement rules below: the obj's own placeholder, if
+     * the bank is holding one.
+     *
+     * A placeholder *is* the slot this item came out of, remembered — landing
+     * beside it instead of in it is the one outcome the feature exists to
+     * prevent, and it also leaves a stale placeholder for an item that is now
+     * back. It wins over the current tab for the same reason: the player put it
+     * there, and the tab is only a default for something with no home.
+     *
+     * `bank_slot_of` cannot find it because a placeholder is a *different obj*
+     * (14730 for a bronze sword), which is exactly why this needs its own scan.
+     */
+    slot = mock230_container_placeholder_slot(bank->slots, bank->size, obj_id);
+    if( slot >= 0 )
+    {
+        bank_write(bank, slot, obj_id, count);
         return count;
     }
 

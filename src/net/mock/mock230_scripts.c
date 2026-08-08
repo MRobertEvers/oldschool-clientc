@@ -4866,7 +4866,8 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_world_loc_set(srv, x, z, level, shape, loc_id, angle) )
+        if( !mock230_world_loc_set(srv, x, z, level, shape, loc_id, angle,
+                                   MOCK230_LOC_SET_CHANGE) )
         {
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
@@ -4917,7 +4918,8 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_world_loc_set(srv, x, z, level, shape, -1, angle) )
+        if( !mock230_world_loc_set(srv, x, z, level, shape, -1, angle,
+                                   MOCK230_LOC_SET_CHANGE) )
         {
             SSVM_Abort(state, "loc_del on a loc that is already gone");
             return 1;
@@ -4963,7 +4965,7 @@ mock230_script_command(
             return 1;
 
         if( !mock230_world_loc_set(srv, coord_x(coord), coord_z(coord), coord_level(coord),
-                                   shape, loc_id, angle) )
+                                   shape, loc_id, angle, MOCK230_LOC_SET_ADD) )
         {
             SSVM_Abort(state, "loc_add %d at %d,%d failed — unknown loc or outside the scene",
                        loc_id, coord_x(coord), coord_z(coord));
@@ -7783,6 +7785,36 @@ mock230_script_command(
         else
             SSVM_PushInt(state, (info->noted_template >= 0 && info->noted_id >= 0)
                                     ? info->noted_id
+                                    : obj_id);
+        return 1;
+    }
+
+    /*
+     * oc_placeholder / oc_unplaceholder: the bank-placeholder form of an obj
+     * and back. The note pair above in every respect (see Mock230ObjInfo) —
+     * opcodes 148/149 instead of 97/98 — and deliberately the same shape, so
+     * "does this slot hold a placeholder" reads identically here and in
+     * `bankmain_drawitem`: `oc_unplaceholder($obj) ! $obj`.
+     *
+     * Forward: an item states `placeholder_id` and no template.
+     * Back: a placeholder states both, and `placeholder_id` is the item.
+     */
+    case SS_OP_OC_PLACEHOLDER:
+    case SS_OP_OC_UNPLACEHOLDER:
+    {
+        int32_t obj_id;
+        const struct Mock230ObjInfo* info;
+
+        if( !SSVM_PopInt(state, &obj_id) )
+            return 1;
+        info = mock230_objinfo((int)obj_id);
+        if( opcode == SS_OP_OC_PLACEHOLDER )
+            SSVM_PushInt(state, (info->placeholder_template < 0 && info->placeholder_id >= 0)
+                                    ? info->placeholder_id
+                                    : obj_id);
+        else
+            SSVM_PushInt(state, (info->placeholder_template >= 0 && info->placeholder_id >= 0)
+                                    ? info->placeholder_id
                                     : obj_id);
         return 1;
     }

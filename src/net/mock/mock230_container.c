@@ -458,6 +458,38 @@ mock230_container_set(
  *
  * Returns the number added: never negative, never more than `count`.
  */
+/*
+ * The slot holding this obj's *placeholder*, or -1.
+ *
+ * A bank placeholder is the slot an item came out of, remembered — so the item
+ * coming back has to land in that slot rather than beside it, or the feature
+ * does the opposite of what it is for. The link is the obj record's own
+ * (opcode 148, `Mock230ObjInfo.placeholder_id`), read forward: an *item* states
+ * its placeholder and no template.
+ *
+ * Not gated on the container being a bank, and it needs no gate: a placeholder
+ * obj only ever exists in one, so the scan cannot match anywhere else.
+ */
+int
+mock230_container_placeholder_slot(
+    const struct Mock230Item* items,
+    int slots,
+    int obj_id)
+{
+    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    int placeholder;
+
+    if( !items || slots <= 0 )
+        return -1;
+    if( info->placeholder_template >= 0 || info->placeholder_id < 0 )
+        return -1;
+    placeholder = info->placeholder_id;
+    for( int i = 0; i < slots; i++ )
+        if( items[i].obj_id == placeholder )
+            return i;
+    return -1;
+}
+
 int
 mock230_container_add(
     struct Mock230Container* container,
@@ -468,6 +500,7 @@ mock230_container_add(
     int stackable;
     int free_slots = 0;
     int added = 0;
+    int placeholder_slot;
 
     if( !container || !container->used || !container->items )
         return 0;
@@ -481,6 +514,8 @@ mock230_container_add(
         if( container->items[i].obj_id < 0 )
             free_slots++;
     }
+    placeholder_slot =
+        mock230_container_placeholder_slot(container->items, container->slots, obj_id);
 
     if( stackable )
     {
@@ -493,6 +528,9 @@ mock230_container_add(
             if( container->items[i].obj_id == obj_id )
                 slot = i;
         }
+        /* The placeholder before any free slot: it *is* where this belongs. */
+        if( slot < 0 )
+            slot = placeholder_slot;
         if( slot < 0 )
         {
             for( int i = 0; i < container->slots && slot < 0; i++ )
@@ -520,7 +558,14 @@ mock230_container_add(
         return count;
     }
 
-    /* Unstackable: one slot holding all of it, pending `stackType`. See above. */
+    /* Unstackable: one slot holding all of it, pending `stackType`. See above.
+     * A placeholder slot is not free but is available to the obj it stands for,
+     * so it satisfies the space test as well as winning the position. */
+    if( placeholder_slot >= 0 )
+    {
+        mock230_container_set(container, placeholder_slot, obj_id, count);
+        return count;
+    }
     if( free_slots <= 0 )
         return 0;
     for( int i = 0; i < container->slots; i++ )

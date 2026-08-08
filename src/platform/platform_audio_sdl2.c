@@ -9,44 +9,35 @@
 /*
  * SDL2 audio backend.
  *
- * Deliberately the simplest thing that is correct: one queue-mode device (no
- * callback, no mixer) that clips are pushed into with SDL_QueueAudio. That is
- * what the reference does — Client3's platform_play_wave queues onto one device
- * and skips the clip if anything is still playing — and it means there is no
- * audio thread to synchronise with, which matters for the same reason it matters
- * to the renderer: everything the game does stays on one thread.
+ * Queue mode, not a callback: `PlatformAudio_Update` mixes on the frame loop's
+ * thread and pushes the block with SDL_QueueAudio. There is no audio thread and
+ * therefore no lock, which matters for the same reason it matters to the
+ * renderer -- everything the game does stays on one thread, and a mixer that
+ * could be re-entered while the game is loading an asset would need one.
  *
- * The consequence is that sound effects do not overlap. That is authentic
- * behaviour rather than a shortcut (the 2004 client is monophonic for effects),
- * and the game's own overlap rule already decides which clip wins before it gets
- * here.
- *
- * Volume is applied on the way in rather than by the device, because an 8-bit
- * queue device has no gain: each byte is scaled about the 128 midpoint, which is
- * exactly what Client3 does.
+ * The cost is latency: the device runs behind by whatever is queued. The target
+ * below is what bounds it.
  */
 
-#define PLATFORM_AUDIO_MAX_CLIP_BYTES (4 * 1024 * 1024)
-
-static bool
-audio_trace(void)
-{
-    static int enabled = -1;
-    if( enabled < 0 )
-        enabled = getenv("TORIRS_AUDIO_DEBUG") != NULL ? 1 : 0;
-    return enabled != 0;
-}
+/** Aim to keep this much queued. Below it the device can underrun on a slow
+ *  frame; far above it a volume change is audibly late because everything
+ *  already queued plays first. 80ms is about four frames. */
+#define AUDIO_TARGET_QUEUED_MS 80
+/** Never render more than this in one call, so a stall does not turn into a
+ *  multi-second render that stalls the next frame too. */
+#define AUDIO_MAX_RENDER_MS 200
 
 struct PlatformAudio
 {
     SDL_AudioDeviceID device;
     int sample_rate;
-    int volume;
     bool owns_sdl_audio;
-    struct PlatformAudioStats stats;
-    /** Scratch for the volume-scaled copy; grown as needed, never per clip. */
-    uint8_t* scaled;
-    int scaled_capacity;
+    bool device_open;
+    struct ToriRS_Mixer mixer;
+    int16_t* block;
+    int block_frames;
+    int commands;
+    int frames_played;
 };
 
 struct PlatformAudio*
@@ -54,8 +45,7 @@ PlatformAudio_New(void)
 {
     struct PlatformAudio* audio = calloc(1, sizeof(*audio));
     assert(audio);
-    audio->volume = TORIRS_AUDIO_VOLUME_MAX;
-    audio->stats.volume = TORIRS_AUDIO_VOLUME_MAX;
+    ToriRS_Mixer_Init(&audio->mixer, TORIRS_AUDIO_SAMPLE_RATE);
     return audio;
 }
 
@@ -65,11 +55,13 @@ PlatformAudio_Init(
     int sample_rate)
 {
     SDL_AudioSpec want;
+    SDL_AudioSpec have;
 
     if( !audio )
         return false;
 
-    audio->sample_rate = sample_rate > 0 ? sample_rate : 22050;
+    audio->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
+    ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
 
     if( SDL_WasInit(SDL_INIT_AUDIO) == 0 )
     {
@@ -83,21 +75,35 @@ PlatformAudio_Init(
 
     memset(&want, 0, sizeof(want));
     want.freq = audio->sample_rate;
-    want.format = AUDIO_U8;
-    want.channels = 1;
+    want.format = AUDIO_S16SYS;
+    want.channels = TORIRS_AUDIO_CHANNELS;
     /* Small enough that a clip starts promptly, large enough not to underrun on
      * a 50Hz game loop. */
     want.samples = 512;
     want.callback = NULL;
 
-    audio->device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
+    audio->device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if( audio->device == 0 )
     {
         fprintf(stderr, "audio: SDL_OpenAudioDevice: %s\n", SDL_GetError());
         return false;
     }
+    if( have.freq != audio->sample_rate || have.channels != TORIRS_AUDIO_CHANNELS )
+    {
+        /* We asked for no conversion; if SDL gave us something else the mixer
+         * would be producing the wrong rate. Say so rather than play it fast. */
+        fprintf(
+            stderr,
+            "audio: device opened at %dHz x%d, wanted %dHz x%d\n",
+            have.freq,
+            have.channels,
+            audio->sample_rate,
+            TORIRS_AUDIO_CHANNELS);
+        audio->sample_rate = have.freq;
+        ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
+    }
     SDL_PauseAudioDevice(audio->device, 0);
-    audio->stats.device_open = true;
+    audio->device_open = true;
     return true;
 }
 
@@ -110,89 +116,9 @@ PlatformAudio_Free(struct PlatformAudio* audio)
         SDL_CloseAudioDevice(audio->device);
     if( audio->owns_sdl_audio )
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
-    free(audio->scaled);
+    ToriRS_Mixer_Free(&audio->mixer);
+    free(audio->block);
     free(audio);
-}
-
-/** The clip, scaled to the current volume. Returns the original when no scaling
- *  is needed, or NULL if the scratch buffer could not grow. */
-static const uint8_t*
-apply_volume(
-    struct PlatformAudio* audio,
-    const uint8_t* pcm,
-    int count)
-{
-    if( audio->volume >= TORIRS_AUDIO_VOLUME_MAX )
-        return pcm;
-    if( audio->scaled_capacity < count )
-    {
-        uint8_t* grown = realloc(audio->scaled, (size_t)count);
-        if( !grown )
-            return NULL;
-        audio->scaled = grown;
-        audio->scaled_capacity = count;
-    }
-    for( int i = 0; i < count; i++ )
-        audio->scaled[i] =
-            (uint8_t)((((int)pcm[i] - 128) * audio->volume / TORIRS_AUDIO_VOLUME_MAX) + 128);
-    return audio->scaled;
-}
-
-static void
-play_pcm(
-    struct PlatformAudio* audio,
-    const struct ToriRS_AudioCommand* command)
-{
-    const uint8_t* pcm;
-
-    audio->stats.submitted++;
-    if( !audio->device || !command->pcm || command->sample_count <= 0 )
-    {
-        audio->stats.dropped++;
-        return;
-    }
-    if( command->sample_count > PLATFORM_AUDIO_MAX_CLIP_BYTES )
-    {
-        /* A clip this long is a mis-decoded effect, not a sound. */
-        fprintf(stderr, "audio: refusing %d-sample clip (id %d)\n",
-                command->sample_count, command->sound_id);
-        audio->stats.dropped++;
-        return;
-    }
-    if( audio->volume <= 0 )
-    {
-        audio->stats.dropped++;
-        return;
-    }
-    /* Monophonic, like the reference: a clip arriving while another is still
-     * playing is dropped rather than mixed. */
-    if( SDL_GetQueuedAudioSize(audio->device) > 0 )
-    {
-        audio->stats.dropped++;
-        return;
-    }
-
-    pcm = apply_volume(audio, command->pcm, command->sample_count);
-    if( !pcm )
-    {
-        audio->stats.dropped++;
-        return;
-    }
-    if( SDL_QueueAudio(audio->device, pcm, (uint32_t)command->sample_count) != 0 )
-    {
-        fprintf(stderr, "audio: SDL_QueueAudio: %s\n", SDL_GetError());
-        audio->stats.dropped++;
-        return;
-    }
-    audio->stats.played++;
-    if( audio_trace() )
-        fprintf(
-            stderr,
-            "audio(sdl2): queued id=%d samples=%d rate=%d volume=%d\n",
-            command->sound_id,
-            command->sample_count,
-            command->sample_rate,
-            audio->volume);
 }
 
 void
@@ -202,27 +128,8 @@ PlatformAudio_Submit(
 {
     if( !audio || !command )
         return;
-
-    switch( command->kind )
-    {
-    case TORIRS_AUDIO_CMD_PLAY_PCM:
-        play_pcm(audio, command);
-        break;
-    case TORIRS_AUDIO_CMD_STOP_ALL:
-        if( audio->device )
-            SDL_ClearQueuedAudio(audio->device);
-        break;
-    case TORIRS_AUDIO_CMD_SET_VOLUME:
-        audio->volume = command->volume < 0 ? 0
-                        : command->volume > TORIRS_AUDIO_VOLUME_MAX
-                            ? TORIRS_AUDIO_VOLUME_MAX
-                            : command->volume;
-        audio->stats.volume = audio->volume;
-        break;
-    case TORIRS_AUDIO_CMD_NONE:
-    default:
-        break;
-    }
+    audio->commands++;
+    ToriRS_Mixer_Apply(&audio->mixer, command);
 }
 
 void
@@ -237,22 +144,97 @@ PlatformAudio_SubmitAll(
         PlatformAudio_Submit(audio, &commands[i]);
 }
 
-int
-PlatformAudio_QueuedBytes(struct PlatformAudio* audio)
+static bool
+ensure_block(
+    struct PlatformAudio* audio,
+    int frames)
 {
-    if( !audio || !audio->device )
-        return 0;
-    return (int)SDL_GetQueuedAudioSize(audio->device);
+    int16_t* grown;
+
+    if( audio->block_frames >= frames )
+        return true;
+    grown = realloc(audio->block, (size_t)frames * TORIRS_AUDIO_CHANNELS * sizeof(int16_t));
+    if( !grown )
+        return false;
+    audio->block = grown;
+    audio->block_frames = frames;
+    return true;
+}
+
+void
+PlatformAudio_Update(struct PlatformAudio* audio)
+{
+    int queued_frames;
+    int target_frames;
+    int wanted;
+
+    if( !audio || !audio->device_open || !audio->device )
+        return;
+
+    queued_frames =
+        (int)(SDL_GetQueuedAudioSize(audio->device) / (TORIRS_AUDIO_CHANNELS * sizeof(int16_t)));
+    target_frames = audio->sample_rate * AUDIO_TARGET_QUEUED_MS / 1000;
+    wanted = target_frames - queued_frames;
+    if( wanted <= 0 )
+        return;
+    if( wanted > audio->sample_rate * AUDIO_MAX_RENDER_MS / 1000 )
+        wanted = audio->sample_rate * AUDIO_MAX_RENDER_MS / 1000;
+    if( !ensure_block(audio, wanted) )
+        return;
+
+    ToriRS_Mixer_Render(&audio->mixer, audio->block, wanted);
+    if( SDL_QueueAudio(
+            audio->device,
+            audio->block,
+            (uint32_t)wanted * TORIRS_AUDIO_CHANNELS * (uint32_t)sizeof(int16_t)) != 0 )
+    {
+        fprintf(stderr, "audio: SDL_QueueAudio: %s\n", SDL_GetError());
+        return;
+    }
+    audio->frames_played += wanted;
+}
+
+void
+PlatformAudio_Feedback(
+    struct PlatformAudio* audio,
+    struct ToriRS_AudioFeedback* out)
+{
+    if( !out )
+        return;
+    memset(out, 0, sizeof(*out));
+    if( !audio )
+        return;
+    ToriRS_Mixer_Feedback(&audio->mixer, out);
+    out->device_open = audio->device_open;
 }
 
 struct PlatformAudioStats
 PlatformAudio_Stats(struct PlatformAudio* audio)
 {
-    struct PlatformAudioStats empty;
+    struct PlatformAudioStats stats;
+    struct ToriRS_MixerStats mixer_stats;
+
+    memset(&stats, 0, sizeof(stats));
     if( !audio )
-    {
-        memset(&empty, 0, sizeof(empty));
-        return empty;
-    }
-    return audio->stats;
+        return stats;
+    mixer_stats = ToriRS_Mixer_Stats(&audio->mixer);
+    stats.commands = audio->commands;
+    stats.assets_live = mixer_stats.assets_live;
+    stats.voices_live = mixer_stats.voices_live;
+    stats.voices_started = mixer_stats.voices_started;
+    stats.voices_stolen = mixer_stats.voices_stolen;
+    stats.voices_rejected = mixer_stats.voices_rejected;
+    stats.frames_played = audio->frames_played;
+    stats.stream_dropped_frames = mixer_stats.stream_dropped_frames;
+    stats.stream_starved_frames = mixer_stats.stream_starved_frames;
+    for( int i = 0; i < TORIRS_AUDIO_BUS_COUNT; i++ )
+        stats.bus_volume[i] = mixer_stats.bus_volume[i];
+    stats.device_open = audio->device_open;
+    return stats;
+}
+
+int
+PlatformAudio_LiveAssetCount(struct PlatformAudio* audio)
+{
+    return audio ? ToriRS_Mixer_LiveAssetCount(&audio->mixer) : 0;
 }

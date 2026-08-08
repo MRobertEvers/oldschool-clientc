@@ -582,6 +582,24 @@ struct Mock230ObjInfo
     int noted_template;
     /** The note form of this item, or -1. */
     int cert_id;
+    /*
+     * Bank placeholders, and they are the note link's twin — opcodes 148/149
+     * against 97/98, the same two fields with the same two meanings.
+     *
+     * A *placeholder* record carries `placeholder_template` (the shared
+     * `template_for_placeholder` obj it borrows its shape from) and
+     * `placeholder_id`, the item it stands for. A plain item carries only
+     * `placeholder_id`, pointing forward at its placeholder. So both directions
+     * read straight out of the record and neither needs an index:
+     *
+     *   1277  Bronze sword   placeholder 14730 / template     -1
+     *  14730  "null"         placeholder  1277 / template  14401
+     *
+     * -1 for both when the cache gives an obj no placeholder, which is most of
+     * them — a placeholder exists only for items a bank can hold.
+     */
+    int placeholder_id;
+    int placeholder_template;
     /** 1 when the cache had a record for this id at all. Not the same as
      *  "has a name": every note record is named `null`, because a note takes
      *  its name from the item it stands for. Gating on the name — which is what
@@ -2890,7 +2908,23 @@ mock230_world_login(struct Mock230Player* player);
  * `(x, z, level, shape)` is the key rather than a scene slot because that is
  * what LOC_ADD_CHANGE and LOC_DEL carry, and because a scene slot does not
  * survive a rebuild.
+ *
+ * `kind` is `loc_add` versus `loc_change`, and the two are not the same
+ * mutation even though they can name the same tile. The reference's `loc_add`
+ * appends a loc to the zone and leaves the map square's own loc standing
+ * (`Zone.addLoc` / `World.addLoc` — neither touches an existing one), where
+ * `loc_change` mutates that loc in place (`World.changeLoc` removes its
+ * collision and adds the new type's). Collapsing both onto "replace whatever is
+ * on this tile" is what made an opened door eat the wall it swung against.
  */
+enum Mock230LocSetKind
+{
+    /** `loc_change`, and every revert: mutate the loc that is on the tile. */
+    MOCK230_LOC_SET_CHANGE = 0,
+    /** `loc_add`: a new loc over whatever the map square has here. */
+    MOCK230_LOC_SET_ADD = 1,
+};
+
 int
 mock230_world_loc_set(
     struct Mock230Server* srv,
@@ -2899,7 +2933,8 @@ mock230_world_loc_set(
     int level,
     int shape,
     int loc_id,
-    int angle);
+    int angle,
+    enum Mock230LocSetKind kind);
 
 /** Re-apply every recorded loc change to a scene that has just been rebuilt
  *  from the cache. Without this the server forgets its own doors whenever the

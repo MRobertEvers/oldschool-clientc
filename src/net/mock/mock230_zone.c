@@ -422,7 +422,8 @@ mock230_zone_loc_changed(
     int loc_id,
     int angle,
     int base_loc_id,
-    int base_angle)
+    int base_angle,
+    int over_base)
 {
     struct Mock230Zone* zone = zone_at(srv, x, z, level);
     struct Mock230ZoneLoc* loc;
@@ -452,6 +453,7 @@ mock230_zone_loc_changed(
     }
     loc->loc_id = loc_id;
     loc->angle = angle;
+    loc->over_base = over_base;
 
     memset(&event, 0, sizeof(event));
     event.receiver_pid = -1;

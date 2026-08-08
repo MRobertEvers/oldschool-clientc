@@ -2826,8 +2826,16 @@ gl3_ev_sprite(
         int const box_h = spr_cmd->h > 0 ? spr_cmd->h : nominal_h;
         float const sx = (float)box_w / (float)nominal_w;
         float const sy = (float)box_h / (float)nominal_h;
-        float const dx0 = (float)spr_cmd->x + (float)ox * sx;
-        float const dy0 = (float)spr_cmd->y + (float)oy * sy;
+        /* A rotated variant is larger than the nominal box it was baked from
+         * (sqrt(2) at 45 degrees), and it has to stay centred on the box —
+         * Soft3D does the same. Unrotated this is the identity, since then
+         * sw x sh is exactly the nominal box. */
+        float const rot_cx =
+            spr_cmd->sprite_angle_r2pi65536 != 0 ? ((float)box_w - (float)sw * sx) * 0.5f : 0.0f;
+        float const rot_cy =
+            spr_cmd->sprite_angle_r2pi65536 != 0 ? ((float)box_h - (float)sh * sy) * 0.5f : 0.0f;
+        float const dx0 = (float)spr_cmd->x + (float)ox * sx + rot_cx;
+        float const dy0 = (float)spr_cmd->y + (float)oy * sy + rot_cy;
         float const dx1 = dx0 + (float)sw * sx;
         float const dy1 = dy0 + (float)sh * sy;
         float const uv_bounds[4] = { u0, v0, u1, v1 };
@@ -3892,6 +3900,8 @@ gl3_ev_model_draw(
             mcmd->pick_tile_x,
             mcmd->pick_tile_z,
             mcmd->pick_tile_level);
+    if( mcmd->pick_only )
+        return;
     {
         int face_count = ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
         int* face_order;

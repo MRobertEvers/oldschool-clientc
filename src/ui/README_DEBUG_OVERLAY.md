@@ -162,8 +162,9 @@ resolves both baked fonts through the scene bridge itself and marks the node
 Declared *after* the frame means painted after it, and the ordering survives
 everything the CS2 scripts do to the frame — see
 [`docs/debug_overlay.md`](../../docs/debug_overlay.md) §3 for why, and for the
-`TORIRS_DUMP_ROOTS` check. `manifest_osrs230_dev.ini` is the lane that carries
-this block.
+`TORIRS_DUMP_ROOTS` check. Every manifest with a root layout carries this block;
+what the client then puts in the model — a ten-frame frame-time average behind
+the `P` key — is `app_debug_overlay_*` in `src/app.c`, and §5 of that document.
 
 By hand, for a host with no manifest (this is what the tests do):
 

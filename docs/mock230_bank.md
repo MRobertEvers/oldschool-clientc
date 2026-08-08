@@ -310,12 +310,66 @@ server state behind it, and the varbit that hides it is pushed on open.
 
 | what | why |
 | --- | --- |
-| **Placeholders** | `bank_leaveplaceholders` is pushed to 0. A placeholder is a third slot state (obj, empty, remembered), and nothing else in the mock has one. |
 | **The incinerator** | `bank_showincinerator` pushed to 0. |
-| **Bank equipment wornslots / Remove ops, potion store, deposit box, bank pin** | Bonus *texts* on bankmain are painted by `~equipment_refresh` / `~bank_equipment_refresh` (same sum as the equipment screen). Wornslot icons, Remove ops, potion store, deposit box and PIN are separate. |
+| **Potion store, deposit box, bank pin** | Separate features; the PIN has since landed (`interface_bankpin`). |
+| **Per-item "Placeholder" (op 10)** | `~script669` offers it while the *global* setting is off. It is a per-slot flag — "remember this one when it goes" — and this bank has no per-slot state to keep it in. Deliberately unbound rather than guessed at. |
 | **Search** | Client-side filtering the server never sees. |
 | **Membership / reduced capacity** | LostCity's `^bank_free_slots` gate and `BANK_EXTRA_BLOCKS_PURCHASED`. Every slot is free; `bankmain:capacity` is `inv_size(bank)` (1410). |
 | **Tab collapse / strip reorder** | Assigning a stack to a tab works (`INV_BUTTOND` onto `bankmain:tabs` → `mock230_bank_move_to_tab`); Collapse-tab and dragging tabs past each other are still client chrome only. |
+
+### The equipment view (now wired)
+
+`interface_bank/scripts/bank_worn.rs2`. The panel behind `bankmain:wornitems_button`
+drew from the start — the client owns all of it — but it did nothing, because the
+server owes it three facts and was sending none of them:
+
+- **`%if2` (varp 262), the equipable-slot mask.** Bit N set = backpack slot N
+  holds something with a wearpos. `bankside_extraop` (2576) and
+  `bankside_worn_drawitem` (3327) both read it with
+  `testbit(%var262, $index)`, and it is the whole of the Wear/Wield row on the
+  side panel — plus, in the worn view, which cells draw solid and which at
+  trans 120. Zero meant *every* side-panel item greyed out with no equip option.
+  It is one of the cache's six general-purpose interface varps (261..266), so
+  `@closebank` gives it back.
+- **`if_setevents` on the eleven `bankmain:wornslot*`.** `wear_updateslot` (546)
+  writes op 1 Remove, op 2 Bank and op 10 Examine onto them; without the arming
+  the client showed those rows, ran its own hook and sent nothing.
+- **`%bank_wornview`.** The side panel's equip verb is op 9 in the normal view
+  and op 1 in the worn view, and op 9 in the worn view is "Deposit" — the same
+  component and op index meaning two things. The client keeps the view in
+  `%varcint386`, which a server cannot read, so the two view buttons are armed
+  and the server mirrors the state machine in `bankmain_viewbuttons` (3276).
+
+### Placeholders (now wired)
+
+`interface_bank/scripts/bank_placeholder.rs2`. A placeholder is the third slot
+state — obj, empty, *remembered* — and the cache carries it exactly the way it
+carries bank notes: obj opcodes 148/149 against the note's 97/98, an item naming
+its placeholder and a placeholder naming the item back. New server commands
+`oc_placeholder` / `oc_unplaceholder` (11020/11021) read that link, named after
+the CS2 commands the client has had all along so the server's "is this a
+placeholder" test is the client's, character for character.
+
+- The padlock button is armed; `bankmain_toggleplaceholders_op` (1269) writes
+  varbit 3755 client-side and sends nothing, so this is the same dual-write the
+  Note and Swap/Insert buttons use. The varbit *is* the storage (varp 1053,
+  perm + transmit), so `bank_push_settings` no longer forces it to 0 — which it
+  did, silently throwing the setting away on every open.
+- A withdraw that empties a slot leaves `oc_placeholder($obj)` in it with a
+  count of **0**. That count is why `mock230_send_inv_full` had to stop treating
+  `count > 0` as the occupancy test: it sent placeholders as empty slots.
+- A deposit reclaims its own placeholder slot before any other placement rule
+  (`mock230_container_placeholder_slot`), because a placeholder *is* where that
+  item belongs — landing beside it is the one outcome the feature exists to
+  prevent.
+- Op 8 is "Withdraw-All-but-1" on an item and "Release" on a placeholder; the
+  cell's contents pick. Op 7 on the tab strip releases the lot.
+
+The client needed one change to draw them: a placeholder record has no model and
+no name of its own, so `bridge_obj_icon` resolves it to the linked item (the
+reference's item-sprite builder takes the same `placeholderId` branch) and
+`CacheProvider_ObjtypeGet` borrows the name the way it already borrows a note's.
+The faded look is the interface's — `bankmain_drawitem` sets `cc_settrans(120)`.
 
 ### Capacity and tabs (now wired)
 

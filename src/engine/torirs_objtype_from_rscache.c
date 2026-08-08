@@ -78,6 +78,9 @@ ToriRS_ObjtypeFromRSCacheDat1(
     objtype->inventory_model_id = src->model;
     objtype->cert_link = src->certlink;
     objtype->cert_template = src->certtemplate;
+    /* dat1 has no placeholder opcodes — the feature postdates the epoch. */
+    objtype->placeholder_link = -1;
+    objtype->placeholder_template = -1;
     objtype->zoom2d = src->zoom2d;
     objtype->xan2d = src->xan2d;
     objtype->yan2d = src->yan2d;
@@ -188,6 +191,8 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->inventory_model_id = src->inventory_model_id;
     objtype->cert_link = src->noted_id;
     objtype->cert_template = src->noted_template;
+    objtype->placeholder_link = src->placeholder_id;
+    objtype->placeholder_template = src->placeholder_template_id;
     objtype->zoom2d = src->zoom2d;
     objtype->xan2d = src->xan2d;
     objtype->yan2d = src->yan2d;

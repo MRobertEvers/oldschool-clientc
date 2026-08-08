@@ -497,13 +497,17 @@ painter_paint_distancemetric(
                 }
             }
 
-            if( !ground_hidden )
                 {
                     /* See PaintersTile::terrain_levels. */
                     unsigned set = tile->terrain_levels;
                     for( int ml = 0; ml < 4; ml++ )
                         if( set & (1u << ml) )
-                            push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                        {
+                            if( !ground_hidden )
+                                push_command_terrain(buffer, tile_sx, tile_sz, ml);
+                            else if( camera_slevel >= 0 && ml <= camera_slevel )
+                                push_command_terrain_pick_only(buffer, tile_sx, tile_sz, ml);
+                        }
                 }
 
             if( tile->wall_a != -1 )

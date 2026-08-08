@@ -69,6 +69,13 @@ obj_model_render_obj_id(
     assert(obj);
     if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
         return obj->cert_template;
+    /* A bank placeholder has no model of its own either; unlike a note it has
+     * no template paper to draw, so the linked item *is* the render obj — the
+     * reference's item-sprite builder generates `placeholderId`'s sprite and
+     * blits it with nothing under it. */
+    if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 &&
+        obj->placeholder_link > 0 )
+        return obj->placeholder_link;
     return resolved_id;
 }
 

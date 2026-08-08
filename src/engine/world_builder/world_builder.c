@@ -425,6 +425,7 @@ WorldBuilder_RebuildInstanceZoneScenery(
          * in the square-offset walkers the ordinary path uses. */
         world_builder_minimap_add_loc(builder, &placed, config_loc, scene_x, scene_z);
         world_builder_minimap_add_loc_mapfunction(builder, &placed, config_loc, scene_x, scene_z);
+        world_builder_add_loc_area_sound(builder, &placed, config_loc, scene_x, scene_z);
     }
 }
 

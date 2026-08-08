@@ -7688,7 +7688,8 @@ mock230_world_loc_set(
     int level,
     int shape,
     int loc_id,
-    int angle)
+    int angle,
+    enum Mock230LocSetKind kind)
 {
     int slot = mock230_scene_find_loc_exact(x, z, level, shape);
     struct Mock230SceneLoc* existing = mock230_scene_loc(slot);
@@ -7701,6 +7702,11 @@ mock230_world_loc_set(
     struct Mock230ZoneLoc* known = mock230_zone_loc_find(srv, x, z, level, shape);
     int base_id = known ? known->base_loc_id : (existing ? existing->loc_id : -1);
     int base_angle = known ? known->base_angle : (existing ? existing->angle : 0);
+    /* Read before anything touches the scene: `mock230_scene_add_loc` can grow
+     * the loc array, and `existing` points into it. */
+    int existing_active = existing && existing->active;
+    int existing_angle = existing ? existing->angle : angle;
+    int over_base = 0;
 
     /*
      * A tile the scene window does not cover. The reference has no such case —
@@ -7734,17 +7740,43 @@ mock230_world_loc_set(
         {
             return 0;
         }
-        mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle);
+        /* No scene out here, so nothing is standing underneath to preserve —
+         * `base_id` stays -1 unless an earlier in-scene change captured it. */
+        mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
+                                 0);
         return 1;
     }
 
     if( loc_id < 0 )
     {
+        struct Mock230SceneLoc* revealed;
+
         if( !existing || !mock230_scene_remove_loc(slot) )
             return 0;
         /* The removed loc's own angle, not the caller's: LOC_DEL carries
          * shape+angle and the client matches on both. */
-        angle = existing->angle;
+        angle = existing_angle;
+
+        /*
+         * Removing a `loc_add`ed loc uncovers the map square's own loc, which
+         * was never removed (mock230_scene_add_loc). The tile is not empty, so
+         * the clients must not be told it is: send that loc instead, which is
+         * also what retires the ZoneMap record, because a tile back to what the
+         * cache says has nothing left to replay.
+         */
+        revealed = mock230_scene_loc(mock230_scene_find_loc_exact(x, z, level, shape));
+        if( revealed && revealed->active )
+        {
+            mock230_zone_loc_changed(srv, x, z, level, shape, revealed->loc_id,
+                                     revealed->angle, base_id, base_angle, 0);
+            return 1;
+        }
+    }
+    else if( kind == MOCK230_LOC_SET_ADD )
+    {
+        if( mock230_scene_add_loc(x, z, level, loc_id, shape, angle) < 0 )
+            return 0;
+        over_base = existing_active;
     }
     else if( existing )
     {
@@ -7756,7 +7788,8 @@ mock230_world_loc_set(
         return 0;
     }
 
-    mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle);
+    mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
+                             over_base);
     return 1;
 }
 
@@ -7779,10 +7812,13 @@ reapply_loc(
         mock230_scene_remove_loc(slot);
         return;
     }
-    if( mock230_scene_loc(slot) )
-        mock230_scene_replace_loc(slot, loc->loc_id, loc->angle);
-    else
+    /* `over_base` replays a `loc_add` as an add — the map square's own loc has
+     * to keep standing underneath, or removing this one again leaves the tile
+     * empty and the wall a door swung past never comes back. */
+    if( loc->over_base || !mock230_scene_loc(slot) )
         mock230_scene_add_loc(loc->x, loc->z, loc->level, loc->loc_id, loc->shape, loc->angle);
+    else
+        mock230_scene_replace_loc(slot, loc->loc_id, loc->angle);
 }
 
 void
@@ -7835,7 +7871,7 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
          * reported rather than swallowed.
          */
         if( !mock230_world_loc_set(srv, entry->x, entry->z, entry->level, entry->shape,
-                                   entry->loc_id, entry->angle) &&
+                                   entry->loc_id, entry->angle, MOCK230_LOC_SET_CHANGE) &&
             srv->verbose )
             fprintf(stderr,
                     "mock230: a loc revert at %d,%d could not apply — outside the built "
@@ -19510,6 +19546,220 @@ mock230_world_selftest(void)
 
         mock230_bank_close(&srv);
     bank_ladder_done:;
+    }
+
+    /*
+     * The bank's worn view, which is three server facts and no drawing.
+     *
+     * Every check here is against something that reported *nothing* when it was
+     * missing: the panel drew, the slots drew, the stat rows filled in, and the
+     * only symptom was that clicking did nothing and every side-panel item was
+     * grey. See interface_bank/scripts/bank_worn.rs2.
+     */
+    fprintf(stderr, "mock230 selftest: bank worn view (equip / unequip / mask)\n");
+    {
+        struct Mock230Bank* bank = &player->bank;
+        int loaded;
+        int if2;
+        int sword_slot = 2;
+
+        selftest_reset_world(&srv, player, 402, 402);
+        loaded = mock230_scripts_load(
+            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_worn_done;
+        }
+        if2 = mock230_content_symbol(MOCK230_PACK_VARP, "if2");
+        SELFTEST_CHECK(if2 == 262, "if2 must be varp 262 (the mask the client reads), got %d",
+                       if2);
+
+        /* One wearable and one that is not, in known slots. */
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        {
+            player->inv[i].obj_id = -1;
+            player->inv[i].count = 0;
+        }
+        player->inv[sword_slot].obj_id = 1277; /* bronze_sword */
+        player->inv[sword_slot].count = 1;
+        player->inv[5].obj_id = 995; /* coins */
+        player->inv[5].count = 100;
+        mock230_bank_open(&srv);
+
+        /*
+         * The mask. Bit 2 set (the sword), bit 5 clear (coins) — and the whole
+         * point is the second half: a mask that just said "every occupied slot"
+         * would pass a test that only looked for the sword.
+         */
+        SELFTEST_CHECK((player->varps[262] & (1 << sword_slot)) != 0,
+                       "if2 bit %d should be set for a wearable item (mask 0x%x)",
+                       sword_slot, player->varps[262]);
+        SELFTEST_CHECK((player->varps[262] & (1 << 5)) == 0,
+                       "if2 bit 5 must stay clear for coins (mask 0x%x)", player->varps[262]);
+
+        /* Wearing out of the side panel. Op 9 is the equip verb in the normal
+         * view (`bankside_extraop`), which is the view a freshly opened bank is
+         * in — `[if_open,bankmain]` zeroes %bank_wornview. */
+        player->last_slot = sword_slot;
+        SELFTEST_CHECK(
+            mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 9) ==
+                MOCK230_TRIGGER_RAN,
+            "if_button9 on the bank side panel should bind (Wear)");
+        SELFTEST_CHECK(player->worn[3].obj_id == 1277,
+                       "and put the sword on wearpos 3, got %d", player->worn[3].obj_id);
+        SELFTEST_CHECK(player->inv[sword_slot].obj_id != 1277,
+                       "leaving the backpack slot it came out of");
+        SELFTEST_CHECK((player->varps[262] & (1 << sword_slot)) == 0,
+                       "and clearing that slot's bit (mask 0x%x)", player->varps[262]);
+
+        /* Taking it off again, from the worn panel's own slot component. */
+        {
+            int wornslot3 =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:wornslot3");
+
+            SELFTEST_CHECK(wornslot3 > 0, "bankmain:wornslot3 must name a component");
+            SELFTEST_CHECK(
+                mock230_scripts_run_if_button(&srv, wornslot3, 1) == MOCK230_TRIGGER_RAN,
+                "if_button1 on bankmain:wornslot3 should bind (Remove)");
+            SELFTEST_CHECK(player->worn[3].obj_id < 0,
+                           "and take the sword off, got %d", player->worn[3].obj_id);
+            SELFTEST_CHECK((player->varps[262] & 0xfffffff) != 0,
+                           "the mask should come back with it (mask 0x%x)", player->varps[262]);
+
+            /* Op 2 is "Bank" — off the body straight into the bank, which is
+             * not `~unequip` followed by a deposit and must work with a full
+             * backpack. */
+            player->last_slot = 0;
+            mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 9);
+            SELFTEST_CHECK(player->worn[3].obj_id == 1277, "re-equip for the Bank op");
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                player->inv[i].obj_id = 995;
+                player->inv[i].count = 1;
+            }
+            SELFTEST_CHECK(
+                mock230_scripts_run_if_button(&srv, wornslot3, 2) == MOCK230_TRIGGER_RAN,
+                "if_button2 on bankmain:wornslot3 should bind (Bank)");
+            SELFTEST_CHECK(player->worn[3].obj_id < 0,
+                           "Bank should work with no backpack space, got %d",
+                           player->worn[3].obj_id);
+            SELFTEST_CHECK(mock230_bank_count(&srv, 1277) == 1,
+                           "and the sword should be in the bank");
+        }
+
+        /* Closing must give the shared scratch varp back. `if2` is six panels'
+         * scratch space, not the bank's, so a mask left in it is a bug in
+         * whatever opens next. The trigger is content's `[if_close,bankmain]`,
+         * driven here by its subject rather than by a real client close. */
+        mock230_bank_close(&srv);
+        mock230_scripts_run_trigger_specific(
+            &srv, SS_TRIGGER_IF_CLOSE, ids->iface_bankmain, -1, -1);
+        SELFTEST_CHECK(player->varps[262] == 0,
+                       "closing the bank must clear if2 (it is shared), got 0x%x",
+                       player->varps[262]);
+    bank_worn_done:;
+    }
+
+    /*
+     * Placeholders. The feature is one varbit, one write on withdraw and one
+     * op that means two things — see interface_bank/scripts/bank_placeholder.rs2.
+     */
+    fprintf(stderr, "mock230 selftest: bank placeholders\n");
+    {
+        struct Mock230Bank* bank = &player->bank;
+        int loaded;
+        int placeholder;
+        int com_placeholder;
+
+        selftest_reset_world(&srv, player, 402, 402);
+        loaded = mock230_scripts_load(
+            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+            goto bank_placeholder_done;
+        }
+
+        placeholder = mock230_objinfo(1277)->placeholder_id;
+        SELFTEST_CHECK(placeholder == 14730,
+                       "the cache should link bronze_sword to placeholder 14730, got %d",
+                       placeholder);
+        SELFTEST_CHECK(mock230_objinfo(placeholder)->placeholder_template >= 0,
+                       "and the placeholder record should carry a template");
+        SELFTEST_CHECK(mock230_objinfo(placeholder)->placeholder_id == 1277,
+                       "pointing back at the sword");
+
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        {
+            player->inv[i].obj_id = -1;
+            player->inv[i].count = 0;
+        }
+        for( int i = 0; i < bank->size; i++ )
+        {
+            bank->slots[i].obj_id = -1;
+            bank->slots[i].count = 0;
+        }
+        bank->slots[0].obj_id = 1277;
+        bank->slots[0].count = 1;
+        mock230_bank_open(&srv);
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
+
+        /* Off by default: the withdraw empties the slot outright. */
+        mock230_bank_set_varbit(&srv, ids->varbit_bank_leaveplaceholders, 0);
+        player->last_slot = 0;
+        mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 1);
+        SELFTEST_CHECK(bank->slots[0].obj_id < 0,
+                       "with placeholders off a withdraw should leave a gap, got %d",
+                       bank->slots[0].obj_id);
+
+        /* The button. It is a toggle and the client flips its own copy, so the
+         * test is that the *server's* varbit moved — the half that was missing. */
+        com_placeholder = mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:placeholder");
+        SELFTEST_CHECK(com_placeholder > 0, "bankmain:placeholder must name a component");
+        SELFTEST_CHECK(
+            mock230_scripts_run_if_button(&srv, com_placeholder, 1) == MOCK230_TRIGGER_RAN,
+            "if_button1 on the placeholder button should bind");
+        SELFTEST_CHECK(
+            mock230_bank_get_varbit(&srv, ids->varbit_bank_leaveplaceholders) == 1,
+            "and turn the setting on");
+
+        /* On: the slot keeps its place, as the placeholder obj with a count of
+         * zero — which is exactly what the client tests for. */
+        bank->slots[0].obj_id = 1277;
+        bank->slots[0].count = 1;
+        player->last_slot = 0;
+        mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 1);
+        SELFTEST_CHECK(bank->slots[0].obj_id == placeholder,
+                       "a withdraw should leave the placeholder, got %d", bank->slots[0].obj_id);
+        SELFTEST_CHECK(bank->slots[0].count == 0,
+                       "with a count of zero, got %d", bank->slots[0].count);
+
+        /* Depositing it back must reclaim that exact slot rather than land
+         * beside its own placeholder. Slot 1 is deliberately occupied so a
+         * first-free-slot bug cannot pass. */
+        bank->slots[1].obj_id = 995;
+        bank->slots[1].count = 10;
+        player->last_slot = 0;
+        mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 2);
+        SELFTEST_CHECK(bank->slots[0].obj_id == 1277 && bank->slots[0].count == 1,
+                       "a deposit should reclaim its placeholder slot, got %d x%d",
+                       bank->slots[0].obj_id, bank->slots[0].count);
+
+        /* Release: op 8 is Withdraw-All-but-1 on an item and Release on a
+         * placeholder, and only the cell's contents tell them apart. */
+        bank->slots[0].obj_id = placeholder;
+        bank->slots[0].count = 0;
+        player->last_slot = 0;
+        SELFTEST_CHECK(
+            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 8) ==
+                MOCK230_TRIGGER_RAN,
+            "if_button8 should bind for Release");
+        SELFTEST_CHECK(bank->slots[0].obj_id < 0,
+                       "Release should empty the slot, got %d", bank->slots[0].obj_id);
+
+        mock230_bank_close(&srv);
+    bank_placeholder_done:;
     }
 
     fprintf(stderr, "mock230 selftest: bank open sends both halves\n");

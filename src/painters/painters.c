@@ -1356,6 +1356,24 @@ push_command_terrain(
     };
 }
 
+static inline void
+push_command_terrain_pick_only(
+    struct PaintersBuffer* buffer,
+    int sx,
+    int sz,
+    int slevel)
+{
+    ensure_command_capacity(buffer, 1);
+    buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
+        ._terrain = {
+            ._bf_kind = PNTR_CMD_TERRAIN_PICK_ONLY,
+            ._bf_terrain_x = sx,
+            ._bf_terrain_z = sz,
+            ._bf_terrain_y = slevel,
+        },
+    };
+}
+
 static inline int
 far_wall_flags(
     int camera_sx,

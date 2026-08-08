@@ -765,6 +765,7 @@ translate_ui_cmd(
         out->u.sprite.tiled = desc->tiled;
         out->u.sprite.flip_h = desc->flip_h;
         out->u.sprite.flip_v = desc->flip_v;
+        out->u.sprite.sprite_angle_r2pi65536 = desc->sprite_angle_r2pi65536;
         return true;
 
     case UITREE_EMIT_TEXT:
@@ -1544,7 +1545,8 @@ try_emit_world_draw_model(
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             element_id = (int)cmd->_entity._bf_entity;
-        else if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
+        else if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
+                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
             element_id = World_TerrainElementAt(
                 frame->world,
                 (int)cmd->_terrain._bf_terrain_x,
@@ -1614,9 +1616,11 @@ try_emit_world_draw_model(
                     /* cmd= is the painters_index of this command — the unit
                      * TORIRS_PAINT_LIMIT caps at, so a cap of cmd+1 draws up
                      * to and including this line. */
-                    if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
-                        fprintf(stderr, "order %4d cmd=%4d TERRAIN tile=%d,%d L%d\n", seq++,
+                    if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
+                        cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
+                        fprintf(stderr, "order %4d cmd=%4d TERRAIN%s tile=%d,%d L%d\n", seq++,
                                 frame->painters_index - 1,
+                                cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ? "(pick)" : "",
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
                     else
@@ -1640,9 +1644,11 @@ try_emit_world_draw_model(
         out->u.model.dynamic = el->dynamic;
         out->u.model.pickable = true;
         out->u.model.pick_aabb = el->pick_aabb;
-        if( cmd->_bf_kind == PNTR_CMD_TERRAIN )
+        if( cmd->_bf_kind == PNTR_CMD_TERRAIN ||
+            cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
         {
             out->u.model.pick_terrain = true;
+            out->u.model.pick_only = (cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY);
             out->u.model.pick_tile_x = (int)cmd->_terrain._bf_terrain_x;
             out->u.model.pick_tile_z = (int)cmd->_terrain._bf_terrain_z;
             out->u.model.pick_tile_level = (int)cmd->_terrain._bf_terrain_y;

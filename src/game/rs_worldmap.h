@@ -25,7 +25,17 @@ struct RS_WorldMapState
     struct ToriRS_WorldMapAreas* areas;
     struct ToriRS_WorldMapArea* current_area;
 
+    /* The zoom *step* the scripts set and read back (25/37/50/75/100/200). */
     int zoom_percentage;
+    /*
+     * Pixels per map tile in RS_WORLDMAP_ZOOM_SCALE_ONE-ths. `zoom_scale_fp` is
+     * the step above expressed as a scale; `zoom_scale_now_fp` chases it a
+     * fraction per client cycle so a zoom step is a transition rather than a
+     * jump (reference field6583 / field6609 — RS_WorldMap_Cycle is the driver).
+     * Everything drawn measures from the animating one.
+     */
+    int zoom_scale_fp;
+    int zoom_scale_now_fp;
     /* Centre of the view, in map surface tiles. */
     int display_x;
     int display_y;
@@ -93,9 +103,25 @@ RS_WorldMap_SetDisplayPosition(
     int x,
     int y);
 
-/** Pixels per map tile at the current zoom (reference getZoomScale). */
+/** Fixed-point denominator for RS_WorldMap_ZoomScaleFp. */
+#define RS_WORLDMAP_ZOOM_SCALE_ONE 256
+
+/**
+ * Whole pixels per map tile the surface regions are *baked* at: the target
+ * zoom's scale rounded up (reference getZoomScale, which the renderer ceils).
+ * Bakes are keyed by it, so it deliberately does not follow the animation —
+ * mid-zoom the bake is stretched to the box the fp scale asks for.
+ */
 int
 RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state);
+
+/**
+ * Pixels per map tile *right now*, in RS_WORLDMAP_ZOOM_SCALE_ONE-ths, mid
+ * animation included. This is the one every on-screen measurement wants; the
+ * integer above only says which bake to ask for.
+ */
+int
+RS_WorldMap_ZoomScaleFp(struct RS_WorldMapState const* state);
 
 struct ToriRS_WorldMapArea*
 RS_WorldMap_Area(
@@ -114,8 +140,15 @@ RS_WorldMap_Init(struct RS_WorldMapState* state);
 int
 RS_WorldMap_Zoom(struct RS_WorldMapState const* state);
 
+/** WORLDMAP_SETZOOM: retarget the zoom; the scale eases there over the next
+ *  cycles. `instant` snaps instead, which is what selecting a map area does. */
 void
 RS_WorldMap_SetZoom(
+    struct RS_WorldMapState* state,
+    int zoom_percentage);
+
+void
+RS_WorldMap_SetZoomInstant(
     struct RS_WorldMapState* state,
     int zoom_percentage);
 

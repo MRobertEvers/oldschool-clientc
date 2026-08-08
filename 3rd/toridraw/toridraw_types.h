@@ -29,6 +29,14 @@ ToriDraw_NormalizeFaceTextureCoord(int raw, int textured_face_count)
 #define TORIDRAWHSL16_HIDDEN ((hsl16_t)0xFFFF)
 #define TORIDRAWHSL16_FLAT ((hsl16_t)0xFF7F)
 
+/**
+ * Screen x parked here by the projection kernels (projection16_simd.*.u.c) when
+ * a vertex falls behind the near plane; its screen y is left *undivided*, so
+ * consumers must reject the whole face rather than read the pair. A genuinely
+ * projected -5000 is nudged to -5001 there so the sentinel stays unambiguous.
+ */
+#define TORIDRAW_SCREEN_X_NEAR_CLIPPED (-5000)
+
 struct ToriDraw_BoundsCylinder
 {
     int center_to_top_edge;
@@ -258,6 +266,34 @@ struct ToriDraw_Vec;
 struct ToriDraw_ScenePendingPose;
 struct ToriDraw_Sprite;
 struct ToriDraw_Font;
+struct ToriDraw_Sound;
+
+/*
+ * A decoded sound clip held by the scene.
+ *
+ * Sound is an *asset*, exactly like a model or a sprite: the game decodes it
+ * once, hands it to the scene under an id, and the scene's load/unload events
+ * carry it to whichever backend is listening. Keeping it here rather than in a
+ * private cache is what lets one rule -- "the scene owns loaded assets, and
+ * clearing the scene unloads them" -- cover audio too, so an area sound cannot
+ * outlive the map it belongs to.
+ *
+ * PCM is 16-bit signed mono. `loop_start`/`loop_end` are sample offsets and are
+ * the clip's own loop span, not a playback choice; whether a given play loops is
+ * decided per voice.
+ */
+struct ToriDraw_Sound
+{
+    int16_t* samples; /* owned */
+    int sample_count;
+    int sample_rate;
+    int loop_start;
+    int loop_end;
+    /** Ticks of silence trimmed off the front (the reference's Wave.trim), which
+     *  the game adds back to the server's play delay. Carried with the clip
+     *  because it is a property of the clip, not of a play. */
+    int queue_delay;
+};
 
 #define TORIDRAW_SCENE_INVALID_BATCH_ID (-1)
 #define TORIDRAW_SCENE_INVALID_ELEMENT_ID (-1)
@@ -277,6 +313,8 @@ enum ToriDraw_EventKind
     TORIDRAW_EVENT_SPRITE_UNLOAD,
     TORIDRAW_EVENT_FONT_LOAD,
     TORIDRAW_EVENT_FONT_UNLOAD,
+    TORIDRAW_EVENT_SOUND_LOAD,
+    TORIDRAW_EVENT_SOUND_UNLOAD,
     TORIDRAW_EVENT_BATCH_BEGIN,
     TORIDRAW_EVENT_BATCH_MODEL_ADD,
     TORIDRAW_EVENT_BATCH_ANIM_ADD,
@@ -299,6 +337,8 @@ struct ToriDraw_Event
     struct ToriDraw_Sprite** sprites;
     int sprite_count;
     struct ToriDraw_Font* font;
+    struct ToriDraw_Sound* sound;
+    int sound_id;
     struct ToriDraw_Position world_position;
 };
 
@@ -414,6 +454,8 @@ struct ToriDraw_Scene
     struct ToriDraw_Map* animation_hmap;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
+    /** Decoded sound clips by id — see ToriDraw_SceneSoundAdd. */
+    struct ToriDraw_Map* sounds_hmap;
     /** Always-resident cache fonts indexed by revconfig cache_font_id 0–3. */
     struct ToriDraw_Font* cache_fonts[TORIDRAW_CACHE_FONT_SLOT_COUNT];
     struct ToriDraw_IntrusiveList elements;

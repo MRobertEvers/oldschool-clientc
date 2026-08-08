@@ -1280,12 +1280,23 @@ RS_GameProto_Exec(
                 packet->_synth_sound.delay);
         break;
     case PKT_NAME_MIDI_SONG:
+        /*
+         * The V2 form the modern revisions send carries a fade envelope; the
+         * older one does not and decodes to zeroes, which reads correctly as
+         * "switch immediately". A track always loops -- it is background music,
+         * and the server only ever replaces it.
+         */
         if( ctx->app )
-            RS_Audio_Song(&ctx->app->audio, packet->_midi_song.id);
+            App_PlaySong(
+                ctx->app,
+                packet->_midi_song.id,
+                true,
+                packet->_midi_song.fade_out_ms,
+                packet->_midi_song.fade_in_ms);
         break;
     case PKT_NAME_MIDI_JINGLE:
         if( ctx->app )
-            RS_Audio_Jingle(&ctx->app->audio, packet->_midi_jingle.id, packet->_midi_jingle.delay);
+            App_PlayJingle(ctx->app, packet->_midi_jingle.id, packet->_midi_jingle.delay);
         break;
 
     /* ---- remaining interface packets ---- */

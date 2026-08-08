@@ -253,6 +253,7 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_NpcLoad = CreateTask_Dat2NpcLoad,
     .Task_SpotanimLoad = CreateTask_Dat2SpotanimLoad,
     .Task_SoundLoad = CreateTask_Dat2SoundLoad,
+    .Task_MusicLoad = CreateTask_Dat2MusicLoad,
     .Task_IdkLoad = CreateTask_Dat2IdkLoad,
     .Task_MapTerrainLoad = CreateTask_Dat2MapTerrainLoad,
     .Task_MapSceneryLoad = CreateTask_Dat2MapSceneryLoad,

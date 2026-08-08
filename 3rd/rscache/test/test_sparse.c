@@ -24,6 +24,16 @@ cleanup_directory(const char* directory)
 {
     static const int indexes[] = { 2, 7, 255 };
     char path[1024];
+
+    /* RSCache_Dat2DiskWriteArchive caches its .dat2 and .idxN handles keyed on
+     * the directory path, and its contract (see dat2disk.c) is that a caller
+     * deleting a cache file mid-run drops those handles first. Without this,
+     * the next group recreates the same paths, the cached handles still refer
+     * to the deleted inodes, and every write lands in a file nothing can read
+     * back -- reported as a short read from the group that follows, three
+     * checks later and nowhere near the cause. */
+    RSCache_Dat2DiskWriteFlush();
+
     for( size_t i = 0; i < sizeof(indexes) / sizeof(indexes[0]); ++i )
     {
         snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, indexes[i]);

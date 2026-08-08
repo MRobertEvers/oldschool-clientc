@@ -901,6 +901,55 @@ RSCache_IO_Dat2SpriteDecode(
     return archive;
 }
 
+/*
+ * Music tables: tracks (6), jingles (11), samples (14) and patches (15).
+ *
+ * One generic pair rather than four, because the caller already knows which
+ * table it wants and every one of them is "give me this archive whole": a song
+ * is one blob, a patch is one blob, a sample is one blob. The table is passed
+ * through so the decode side can assert it got what it asked for.
+ */
+static inline void
+RSCache_IO_Dat2MusicLoad(
+    struct ToriRS_IO* io,
+    int slot_id,
+    int table_id,
+    int archive_id)
+{
+    assert(io);
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    assert(item->kind == TORIRS_IOK_NONE);
+    ToriRS_IO_QueueCache(io, slot_id, 0, table_id, archive_id, TORIRS_IO_CACHE_DAT2);
+}
+
+/** Takes ownership of the archive from the slot. NULL when the cache has no
+ *  archive for that id, which is normal: a song can name a patch a local cache
+ *  does not carry. */
+static inline struct RSCache_Dat2DiskArchive*
+RSCache_IO_Dat2MusicDecode(
+    struct ToriRS_IO* io,
+    int slot_id,
+    int table_id)
+{
+    assert(io);
+    struct RSCache_Dat2DiskArchive* archive = NULL;
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    assert(item->kind == TORIRS_IOK_CACHE);
+    assert(item->u.cache.table_id == table_id);
+    assert(item->u.cache.flags == TORIRS_IO_CACHE_DAT2);
+
+    archive = item->data;
+    item->data = NULL;
+    item->data_size = 0;
+    if( item->error_code != 0 || !archive )
+    {
+        ToriRS_IO_ClearItem(item);
+        return NULL;
+    }
+    ToriRS_IO_ClearItem(item);
+    return archive;
+}
+
 /* Sound effects: one archive per effect id. Modern OldSchool sometimes makes it
  * a two-file group (synth record + compressed sample), so the archive is handed
  * over whole and the caller splits it — see task_dat2_sound_load.c. */

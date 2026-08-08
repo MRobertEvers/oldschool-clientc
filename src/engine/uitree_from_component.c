@@ -169,6 +169,7 @@ UITree_FillBuildFromToriRS(
     dst->graphic_active = src->graphic_active;
     dst->outline = src->outline;
     dst->graphic_shadow = src->graphic_shadow;
+    dst->sprite_angle = src->sprite_angle;
     dst->horizontal_flip = src->horizontal_flip;
     dst->vertical_flip = src->vertical_flip;
     dst->tiled = src->tiled;

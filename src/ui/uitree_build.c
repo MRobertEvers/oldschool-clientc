@@ -112,6 +112,7 @@ UITree_PushBuildComponent(
         spec.u.rs_graphic.graphic_shadow = comp->graphic_shadow;
         spec.u.rs_graphic.flip_h = comp->horizontal_flip;
         spec.u.rs_graphic.flip_v = comp->vertical_flip;
+        spec.u.rs_graphic.sprite_angle_r2pi65536 = comp->sprite_angle;
         break;
 
     case UIBUILD_MODEL:

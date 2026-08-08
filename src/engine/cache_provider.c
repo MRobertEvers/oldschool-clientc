@@ -1754,6 +1754,31 @@ CacheProvider_ObjtypeGet(
             }
         }
     }
+
+    /*
+     * The same lazy patch for a bank placeholder, which is a note in every
+     * structural respect (opcodes 148/149 against 97/98): a record with no name
+     * of its own standing for one that has. Without this the bank's Examine and
+     * its `<col=ff9040>` op-base both read empty on every placeholder cell,
+     * because `bankmain_drawitem` sets `cc_setopbase("<oc_name($obj0)>")` from
+     * this objtype and the cache stores none.
+     *
+     * No synthesized examine: OldSchool's placeholders keep the item's own.
+     * Stackability is not forced either — a placeholder holds a count of 0 and
+     * draws no number.
+     */
+    if( objtype && objtype->placeholder_template >= 0 && objtype->name[0] == '\0' &&
+        objtype->placeholder_link > 0 )
+    {
+        struct MapEntry_ProviderObjtype* link_entry =
+            (struct MapEntry_ProviderObjtype*)hmap_search(
+                provider->objtype_cache, &objtype->placeholder_link, HMAP_FIND);
+        if( link_entry && link_entry->objtype && link_entry->objtype->name[0] )
+        {
+            memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
+            memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+        }
+    }
     return objtype;
 }
 

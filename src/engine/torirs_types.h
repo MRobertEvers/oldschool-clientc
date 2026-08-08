@@ -230,6 +230,27 @@ struct ToriRS_Location
     int retexture_count;
     int map_scene_id;
     int map_function_id;
+
+    /*
+     * Ambient ("area") sound. A loc with one of these emits it continuously
+     * while it is in the scene, at a volume that falls off with distance --
+     * waterfalls, furnaces, machinery, wind. Nothing on the wire starts them:
+     * the client finds them by walking the scene it just built, which is why
+     * they have to survive the config adaptor.
+     *
+     * `ambient_sound_ids` is an alternative *set*: when it is non-empty the loc
+     * picks one at random each time, and `ambient_sound_ticks_min/max` are the
+     * gap between plays. `ambient_sound_id` alone means a continuous loop.
+     */
+    int ambient_sound_id;
+    /** Tiles at which the sound is inaudible. 0 means "no falloff stated". */
+    int ambient_sound_distance;
+    /** Reference "retain": keeps the sound alive briefly after the loc leaves. */
+    int ambient_sound_retain;
+    int ambient_sound_ticks_min;
+    int ambient_sound_ticks_max;
+    int* ambient_sound_ids;
+    int ambient_sound_id_count;
     int transform_varbit;
     int transform_varp;
     int* transforms;
@@ -343,6 +364,22 @@ struct ToriRS_Objtype
      * a note. */
     int cert_link;
     int cert_template;
+    /*
+     * Bank-placeholder linkage (dat2 opcodes 148/149) — the note pair's twin,
+     * and read the same way. When `placeholder_template >= 0` this record is a
+     * placeholder: it carries no model, no name and no ops of its own, and
+     * `placeholder_link` names the item it stands for.
+     *
+     * The reference draws such a record by generating the *linked item's* icon
+     * and nothing else (Deobfuscator Statics.method... the `field5038 != -1`
+     * arm of the item-sprite builder: it renders `placeholderId` and blits it
+     * straight down, with no template paper the way a note has). The greying is
+     * not here — `bankmain_drawitem` sets `cc_settrans(120)` on the cell.
+     *
+     * -1 = not a placeholder / has no placeholder.
+     */
+    int placeholder_link;
+    int placeholder_template;
     /** Weapon/equipment class from the cache record's `category` field, or 0.
      *  This is the key the combat interface's dbtable
      *  (`combat_interface_weapon_category`) is looked up by — cache.osrs230

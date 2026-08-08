@@ -2047,7 +2047,7 @@ put_inv_slot(
     struct RSAreaBuf* buf,
     const struct Mock230Item* item)
 {
-    if( !item || item->obj_id < 0 || item->count <= 0 )
+    if( !item || item->obj_id < 0 )
     {
         rsab_p1_alt2(buf, 0);
         rsab_p2(buf, 0);
@@ -2083,8 +2083,14 @@ mock230_send_inv_full(
             for( int i = 0; i < slot_count; i++ )
             {
                 const struct Mock230Item* it = slots ? &slots[i] : NULL;
+                /* `obj_id >= 0` is the occupancy test, not `count > 0`. A bank
+                 * placeholder is a real obj with a count of zero, and filtering
+                 * on the count sent it as an empty slot — so a bank with
+                 * placeholders in it decoded as gaps and `bankmain_drawitem`
+                 * never reached its `oc_unplaceholder` branch. The rev-239
+                 * writer has always encoded the pair independently. */
                 pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_FULL, i,
-                             (it && it->count > 0) ? it->obj_id : -1,
+                             (it && it->obj_id >= 0) ? it->obj_id : -1,
                              it ? it->count : 0);
             }
         }
@@ -2153,8 +2159,9 @@ mock230_send_inv_partial(
                 continue;
             if( v5 )
             {
+                /* Occupancy is `obj_id >= 0` here too — see the FULL encoder. */
                 pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_PARTIAL, i,
-                             slots[i].count > 0 ? slots[i].obj_id : -1,
+                             slots[i].obj_id >= 0 ? slots[i].obj_id : -1,
                              slots[i].count);
                 continue;
             }

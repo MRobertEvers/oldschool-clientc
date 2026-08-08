@@ -283,10 +283,16 @@ RSCache_FileListDatNewFromDecode(
             return NULL;
         }
 
+        /* Not an assert: a corrupt container is data, and under NDEBUG the
+         * assert vanished and published an uninitialised buffer. */
         int decompressed_size = RSCache_CompressionBzipDecompress(
             (uint8_t*)decompressed_archive, actual_size, (uint8_t*)compressed_data, size);
-        assert(decompressed_size == actual_size);
         free(compressed_data);
+        if( decompressed_size != actual_size )
+        {
+            free(decompressed_archive);
+            return NULL;
+        }
 
         data_buffer.data = (uint8_t*)decompressed_archive;
         data_buffer.size = (uint32_t)actual_size;
@@ -365,9 +371,14 @@ RSCache_FileListDatNewFromDecode(
                 goto error;
             }
 
-            RSCache_CompressionBzipDecompress(
+            int file_decompressed_size = RSCache_CompressionBzipDecompress(
                 (uint8_t*)file_data, file_actual_size, (uint8_t*)compressed_file_data, file_size);
             free(compressed_file_data);
+            if( file_decompressed_size != file_actual_size )
+            {
+                free(file_data);
+                goto error;
+            }
         }
 
         filelist->files[i] = file_data;

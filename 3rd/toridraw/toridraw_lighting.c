@@ -367,9 +367,18 @@ ToriDraw_ApplyLighting(
             }
             else if( type == 3 )
             {
-                // 128 is black in the pallette.
+                /* Untextured type 3 (cache alpha 254) is flat *black*, not
+                 * hidden — the reference writes colour 128 and the flat
+                 * sentinel, not the hidden one (deob class136:506-508). The
+                 * raster still drops it on the alpha rule below, so nothing
+                 * new is drawn; what changes is that the face keeps its
+                 * identity as visible geometry, and the per-face pick hit
+                 * tests it the way the reference does. HIDDEN here made those
+                 * faces silently unclickable.
+                 *
+                 * 128 is black in the pallette. */
                 face_colors_a_hsl16[i] = (hsl16_t)128;
-                face_colors_c_hsl16[i] = TORIDRAWHSL16_HIDDEN;
+                face_colors_c_hsl16[i] = TORIDRAWHSL16_FLAT;
             }
             else
             {

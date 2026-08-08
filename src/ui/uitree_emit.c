@@ -354,6 +354,9 @@ UITree_EmitFill(
                 out->flip_h = component->u.rs_graphic.flip_h;
                 out->flip_v = component->u.rs_graphic.flip_v;
             }
+            /* Independent of which graphic variant was chosen above — the
+             * angle is a property of the component, not of the sprite. */
+            out->sprite_angle_r2pi65536 = component->u.rs_graphic.sprite_angle_r2pi65536;
             if( component->u.rs_graphic.graphic_hitbox_only )
                 return false;
         }

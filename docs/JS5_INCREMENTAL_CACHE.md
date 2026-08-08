@@ -1,5 +1,10 @@
 # Incremental JS5 cache loading
 
+This file is the configuration and protocol-fidelity reference. The working
+document — current TODOs, procedures, measured discoveries and the decision log
+— is [`JS5_INCREMENTAL_CACHE.md`](../JS5_INCREMENTAL_CACHE.md) at the repository
+root.
+
 For the pinned RuneLite/GamePack source provenance and a source-to-C mapping,
 see [`src/js5/README.md`](../src/js5/README.md).
 
@@ -9,12 +14,21 @@ interfaces. JS5 is off by default.
 
 ## Boot contract
 
-The executor opens or creates a non-truncating sparse `main_file_cache.dat2`,
-then calls `App_Init` normally. Immediately afterwards it attaches JS5 to the
-native `PlatformX_IO` instance and blocks before `App_OpenRootInterface` until
-the server's `255/255` master index and every present reference table have been
-validated and installed. This is the metadata-prime barrier: no game task is
-stepped before the cache has server-authoritative reference metadata.
+The executor opens or creates a non-truncating sparse `main_file_cache.dat2` and
+then blocks on the metadata-prime barrier: the server's `255/255` master index
+and every present reference table are validated and installed before anything
+else runs. Only then does it call `App_Init`, after which it attaches JS5 to the
+native `PlatformX_IO` instance for the rest of the session.
+
+The barrier runs **before** `App_Init`, not after it. `App_Init` decodes
+reference tables itself, so a torn or corrupt `255/N` container reached the
+decompressor before the producer that exists to repair it had been attached, and
+took the process down. Priming first is what makes the stated invariant — no
+game task stepped before the cache has server-authoritative reference metadata —
+actually hold. The client attached after `App_Init` re-validates the same tables
+against the same master index; on a warm cache that second pass is a local CRC
+check costing 208 bytes, so the ordering costs one extra connection and nothing
+else. See the root document's "Major discoveries" for the measurements.
 
 After the barrier, the frame loop pumps JS5 in bounded non-blocking steps. A
 normal DAT2 read remains synchronous on a cache hit. A miss is parked by the

@@ -29,6 +29,7 @@
 #include "toridraw_scene.h"
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
+#include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_host.h"
 #include "ui/uitree_hovertext.h"
@@ -253,6 +254,9 @@ enum ToriRS_WorldRenderMode
     TORIRS_WORLD_PAINTER = 0,
     TORIRS_WORLD_DEPTH = 1,
 };
+
+/** Frames the developer overlay's frame-time readout averages over. */
+#define APP_DEBUG_FRAME_SAMPLES 10
 
 struct App
 {
@@ -594,6 +598,23 @@ struct App
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
+    /* Developer overlay (src/ui/README_DEBUG_OVERLAY.md): one minimenu-styled
+     * panel carrying the frame time, averaged over the last
+     * APP_DEBUG_FRAME_SAMPLES frames. It is hidden until the toggle key, and a
+     * hidden panel builds no primitives at all — the emit pass then costs one
+     * host call and paints nothing, which is why it can stay declared in a
+     * manifest permanently. The ring below keeps filling while it is hidden,
+     * so the average is already settled the frame it is shown. */
+    struct ToriDbgUI dbg_ui;
+    /** Panel / frame-time row handles, -1 until App_Init built them. */
+    int dbg_panel;
+    int dbg_frame_row;
+    int dbg_visible;
+    /** Frame durations in microseconds, newest written at dbg_frame_head. */
+    uint32_t dbg_frame_us[APP_DEBUG_FRAME_SAMPLES];
+    int dbg_frame_head;
+    /** Samples written so far, capped at APP_DEBUG_FRAME_SAMPLES. */
+    int dbg_frame_count;
     uint64_t last_logic_ms;
     /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
      *  frame because the minimenu action path has no LibToriRS_Input in hand,
@@ -661,6 +682,10 @@ struct App
     /* ---- server-driven state (Part 5 packet coverage) ---- */
     /** Audio packet sink (no playback backend). */
     struct RS_Audio audio;
+    /** What the host reported about its audio device before this frame. The
+     *  music player reads it to decide how much to synthesise; zeroed means
+     *  "no device", and nothing is rendered. */
+    struct ToriRS_AudioFeedback audio_feedback;
     /** Outbound audio requests for the host to hand a backend (App_DrainAudio). */
     struct ToriRS_AudioQueue audio_out;
     /**
@@ -1362,6 +1387,34 @@ App_PlaySound(
     int delay);
 
 /**
+ * Tell the game what the host's audio device is doing.
+ *
+ * Called once per frame *before* the tick, because the music player sizes its
+ * synthesis from the stream headroom reported here. A host that never calls it
+ * leaves the feedback zeroed, which reads as "no device" and costs nothing.
+ */
+void
+App_SetAudioFeedback(
+    struct App* app,
+    const struct ToriRS_AudioFeedback* feedback);
+
+/** Play a music track (MIDI_SONG / MIDI_SONG_V2). */
+void
+App_PlaySong(
+    struct App* app,
+    int song_id,
+    bool loop,
+    int fade_out_ms,
+    int fade_in_ms);
+
+/** Play a jingle, resuming the song afterwards (MIDI_JINGLE). */
+void
+App_PlayJingle(
+    struct App* app,
+    int jingle_id,
+    int length_ms);
+
+/**
  * Take the audio requests the game produced since the last call.
  *
  * The outbound half of the audio interface: the game queues what should be heard
@@ -1379,6 +1432,24 @@ App_DrainAudio(
     struct App* app,
     struct ToriRS_AudioCommand* out,
     int max);
+
+/**
+ * Report how long the frame the host just finished took, in microseconds.
+ *
+ * The developer overlay's frame-time readout is the mean of the last
+ * APP_DEBUG_FRAME_SAMPLES of these. The App owns no clock — the shell measures
+ * the interval it wants reported and hands it over, the same way the caret
+ * blink is app-driven in ui/. A host that never calls this simply gets a
+ * readout of "--"; nothing else changes.
+ *
+ * Measure the frame's *work*, not its wall clock: a capped loop sleeps out the
+ * residual of its 20 ms budget, and timing across that sleep reports the cap
+ * back rather than the cost of the frame.
+ */
+void
+App_NoteFrameTime(
+    struct App* app,
+    uint64_t frame_us);
 
 /**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks

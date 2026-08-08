@@ -141,6 +141,16 @@ PlatformSDL2_PresentGL(struct PlatformSDL2* platform);
 uint64_t
 PlatformSDL2_Ticks64(void);
 
+/**
+ * The same monotonic clock at microsecond resolution.
+ *
+ * Millisecond ticks are what the 20 ms frame budget is paced against, but they
+ * are too coarse to measure a frame *with*: a few-millisecond frame quantises
+ * to a couple of integers, and the quantisation survives averaging.
+ */
+uint64_t
+PlatformSDL2_TicksUs(void);
+
 /** Wait until an absolute PlatformSDL2_Ticks64() deadline. */
 void
 PlatformSDL2_SleepUntil(uint64_t deadline_ms);

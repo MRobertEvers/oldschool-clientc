@@ -1,5 +1,9 @@
 #ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
+/* Darwin files mkdtemp() under BSD extensions, which _POSIX_C_SOURCE hides. */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE 1
+#endif
 #endif
 
 #include "js5/js5.h"

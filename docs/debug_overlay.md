@@ -165,21 +165,64 @@ The declared pair is still at slots 0 and 1, in declared order. Kept out of
 
 ## 4. Which manifests declare the overlay
 
-Only `manifest_osrs230_dev.ini`. Every other manifest was ported to the same
-one-path root build — `chrome=revconfig` plus the two-section block above minus
-the overlay — so they are pixel-identical to before and gain the ability to
-declare one by adding two lines.
+Every manifest that declares a root layout at all — the block above is in each
+of them, verbatim. That is affordable because a switched-off overlay is not a
+cheap drawing, it is *no* drawing: the panel is hidden, `ToriDbgUI_Build`
+produces an empty display list, `UITREE_HOST_GET_DEBUG_OVERLAY` returns 0 and
+the emit pass appends nothing. One host call a frame, no pixels. Measured on
+`manifest_osrs230.ini`, 30 frames, `SDL_VIDEODRIVER=dummy`: `tree_components`
+1069 → 1070 (the overlay node) and a byte-identical exit BMP.
 
-**The overlay is declared, not fed.** `app_host_request` (`src/app.c`) has no
-`case UITREE_HOST_GET_DEBUG_OVERLAY`; only the test harness
-(`src/ui/test/test_harness.h`) answers it. A declared overlay is therefore a
-live but empty display list costing one host call a frame, and it changes no
-pixels — which is how the parity sweep below could be run with it declared.
-Wiring app-side content into it is the next piece of work, not part of this one.
+`manifest_osrs230_zuk.ini`, `manifest_rs254.ini` and `manifest_rs377.ini`
+declare no `[revconfig:layout:root]` and so have nowhere to hang it; they take
+the synthesised default root (§1) and would need the two sections spelled out.
 
 ---
 
-## 5. Verified
+## 5. What the client feeds it
+
+One panel, in the minimenu style: the frame time, averaged over the last ten
+frames. `P` toggles it. Both halves live in `src/app.c` next to the rest of the
+frame state (`app_debug_overlay_*`), and the display list reaches the tree
+through `case UITREE_HOST_GET_DEBUG_OVERLAY` in `app_host_request`.
+
+**The App owns no clock**, the same way `ui/` owns none. `src/main.c` measures
+the frame and hands the number over with `App_NoteFrameTime`:
+
+```c
+TORIRS_PERF_FRAME_END();
+App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
+```
+
+Placed where the perf harness closes its own frame timer, and for the same
+reason: a capped loop sleeps out the residual of its 20 ms budget straight
+after, and an interval that spans that sleep reports the cap back instead of
+the cost of the frame. `PlatformSDL2_TicksUs` is new — millisecond ticks pace
+the loop but cannot measure it, because a few-millisecond frame quantises to a
+couple of integers and the quantisation survives the averaging.
+
+Three details that are deliberate:
+
+* **The samples keep accumulating while the overlay is hidden.** The average is
+  a property of the client, not of whether anyone is looking; a readout that
+  spent ten frames saying `--` after every toggle would miss exactly the
+  stutter it was opened to catch.
+* **The panel title is the widest string it will ever hold**, so content sizing
+  settles on one width and the box does not breathe as the digits change.
+* **`app_debug_overlay_tick` runs first in `App_RunOnce`** — before the
+  `APP_STATE_BOOTING` early-out, so the key still latches during a boot, and
+  before the emit rebuild, so a changed readout reaches this frame's display
+  list rather than the next one's. It marks `need_redraw` only when
+  `ToriDbgUI_Build` actually rebuilt, which on a steady readout is never.
+
+Verified on `manifest_osrs230_dev.ini`, 60 frames, headless: the overlay
+reports 19.30 ms against the perf harness's `frame_ns p50 = 18.3 ms` for the
+same run, and pressing `P` twice gives a frame byte-identical to never pressing
+it at all — the vacated pixels are repainted, not left behind.
+
+---
+
+## 6. Verified
 
 Built with `mingw32-make -C src -j8 all`, clean.
 
@@ -208,7 +251,7 @@ retained / damage / widgets)`), `test-debug-overlay-visual` (9 BMPs),
 
 ---
 
-## 6. Two things that look wrong and are correct
+## 7. Two things that look wrong and are correct
 
 **The relayout in the middle of `task_uitree_build.c`.** Step 4b resolves layout
 between the on_load loop and the transmit dispatch, and then step 7 resolves it

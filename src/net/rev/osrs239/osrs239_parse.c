@@ -878,13 +878,20 @@ osrs239_parse(
     case PKT_NAME_MIDI_SONG:
     {
         struct PktMidiSong* p = &out->_midi_song;
+        int fade_in_speed;
+        int fade_out_speed;
         (void)RSProt_BufferG2Le(&c); /* fade-in delay */
-        (void)RSProt_BufferG2Be(&c);      /* fade-out delay */
+        (void)RSProt_BufferG2Be(&c); /* fade-out delay */
         p->id = RSProt_BufferG2Le_add128(&c);
-        (void)RSProt_BufferG2Be(&c);      /* fade-in speed */
-        (void)RSProt_BufferG2Le_add128(&c); /* fade-out speed */
+        fade_in_speed = RSProt_BufferG2Be(&c);
+        fade_out_speed = RSProt_BufferG2Le_add128(&c);
         if( p->id == 65535 )
             p->id = -1;
+        /* Speeds are client cycles; the player works in milliseconds. The
+         * delays above are a pre-roll the player does not need -- a switch here
+         * already waits on the load, which is longer than any of them. */
+        p->fade_in_ms = fade_in_speed * 20;
+        p->fade_out_ms = fade_out_speed * 20;
         return c.err ? 0 : 1;
     }
 

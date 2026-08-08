@@ -115,6 +115,7 @@ ToriRS_LocationFree(struct ToriRS_Location* loc)
     free(loc->retextures_from);
     free(loc->retextures_to);
     free(loc->transforms);
+    free(loc->ambient_sound_ids);
     free(loc);
 }
 

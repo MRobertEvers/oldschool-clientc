@@ -10,6 +10,7 @@
 
 struct CS2VM2_Script;
 struct CacheProviderVTable;
+struct ToriRS_MusicPlayer;
 struct ToriDraw_Scene;
 struct ToriRS_Sprite;
 struct ToriRS_Font;
@@ -182,6 +183,19 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_SoundLoad)(
         struct CacheProvider* provider,
         int sound_id);
+
+    /**
+     * Load a music track (or jingle) and everything it needs to play.
+     *
+     * dat2 only: the music tables (6, 11, 14, 15) do not exist in a dat1 cache,
+     * whose era had no streamed soundbank. NULL there rather than an empty task,
+     * so the caller can tell "this cache has no music" from "the load failed".
+     */
+    struct ToriRS_Task* (*Task_MusicLoad)(
+        struct CacheProvider* provider,
+        struct ToriRS_MusicPlayer* player,
+        int song_id,
+        int source);
     struct ToriRS_Task* (*Task_IdkLoad)(
         struct CacheProvider* provider,
         int idk_id);
@@ -940,6 +954,19 @@ CreateTask_SoundLoad(
     if( !provider->vtable->Task_SoundLoad )
         return NULL;
     return provider->vtable->Task_SoundLoad(provider, sound_id);
+}
+
+/** Music track/jingle load. NULL when the cache has no music tables. */
+static inline struct ToriRS_Task*
+CreateTask_MusicLoad(
+    struct CacheProvider* provider,
+    struct ToriRS_MusicPlayer* player,
+    int song_id,
+    int source)
+{
+    if( !provider || !provider->vtable->Task_MusicLoad )
+        return NULL;
+    return provider->vtable->Task_MusicLoad(provider, player, song_id, source);
 }
 
 static inline struct ToriRS_Task*

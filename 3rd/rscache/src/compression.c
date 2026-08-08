@@ -162,7 +162,15 @@ RSCache_CompressionBzipDecompress(
     uint8_t* compressed_data,
     int compressed_length)
 {
-    bzip_decompress((int8_t*)out, (int8_t*)compressed_data, compressed_length, 0);
+    /* 0 means "failed", matching the gzip path above. A corrupt bzip container
+     * used to take the process down inside bzip_decompress; it now reports and
+     * returns, so a bad group is a failed read the caller can recover from. */
+    if( !out || !compressed_data || out_length < 0 || compressed_length < 0 )
+        return 0;
+    if( bzip_decompress(
+            (int8_t*)out, out_length, (int8_t*)compressed_data, compressed_length, 0) !=
+        RETVAL_OK )
+        return 0;
     return (uint32_t)out_length;
 }
 

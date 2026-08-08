@@ -177,6 +177,25 @@ mock230_item_set_var(
     int value);
 
 /**
+ * The slot holding `obj_id`'s bank *placeholder*, or -1.
+ *
+ * A placeholder is the slot an item came out of, remembered — a different obj
+ * id (14730 for a bronze sword) sitting in the bank with a count of zero — so a
+ * scan for the item itself cannot find it and every "where does this land"
+ * decision has to ask this first. The link is the obj record's own, opcode 148.
+ *
+ * Takes the raw array rather than a container row because the bank's slots are
+ * reached both ways here: as an adopted container row (`inv_add(bank, …)`) and
+ * as `player->bank.slots` directly (`mock230_bank_deposit`). One rule, one
+ * implementation, both callers.
+ */
+int
+mock230_container_placeholder_slot(
+    const struct Mock230Item* items,
+    int slots,
+    int obj_id);
+
+/**
  * Put `count` of `obj_id` in, the way `Inventory.add` does, and say how many
  * landed.
  *

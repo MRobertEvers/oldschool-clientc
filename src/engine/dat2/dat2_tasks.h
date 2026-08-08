@@ -169,4 +169,16 @@ CreateTask_Dat2MapElementLoad(
     struct CacheProvider* provider,
     int element_id);
 
+/**
+ * Load a music track (or jingle) and everything it needs to play: the packed
+ * MIDI, the instrument patches its manifest names, and the samples those
+ * patches' used notes reference. See task_dat2_music_load.c.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2MusicLoad(
+    struct CacheProvider* provider,
+    struct ToriRS_MusicPlayer* player,
+    int song_id,
+    int source);
+
 #endif

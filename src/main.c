@@ -18,6 +18,7 @@
 #include "platform/platform_sdl2.h"
 #if !defined(TORIRS_PLATFORM_WEB)
 #include "platform/platform_x_io_js5.h"
+#include "platform/platform_x_io_js5_cache.h"
 #endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
@@ -582,6 +583,9 @@ static struct ToriRS_D3D9* d3d9;
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
 static int sim_sound_id = -1;
+static int sim_song_id = -1;
+static int sim_jingle_id = -1;
+static int sim_music_done;
 static int sim_sound_loops = 1;
 static int sim_sound_every;
 static long sim_sound_next;
@@ -641,6 +645,7 @@ frame_loop_step(void)
 
     uint64_t now;
     int app_redraw;
+    uint64_t frame_start_us;
 #if !defined(__EMSCRIPTEN__)
     uint64_t frame_start_ms;
 #endif
@@ -654,6 +659,12 @@ frame_loop_step(void)
      * pre-poll work and made nominal 20 ms frames longer than 20 ms. */
     frame_start_ms = PlatformSDL2_Ticks64();
 #endif
+    /* The developer overlay's readout (App_NoteFrameTime), which measures the
+     * same interval the perf harness calls a frame — and, like it, is closed
+     * before the pacing sleep so the number is work and not the cap. Sampled
+     * on every platform: the browser lane has no sleep to exclude but has the
+     * same question to answer. */
+    frame_start_us = PlatformSDL2_TicksUs();
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -775,6 +786,22 @@ frame_loop_step(void)
         }
         App_RefreshAfterTreeMutation(&app);
         sim_sethide_done = 1;
+    }
+
+    if( (sim_song_id >= 0 || sim_jingle_id >= 0) && app.app_state == APP_STATE_READY &&
+        !sim_music_done )
+    {
+        if( sim_song_id >= 0 )
+        {
+            fprintf(stderr, "sim_music: playing track %d\n", sim_song_id);
+            App_PlaySong(&app, sim_song_id, true, 0, 0);
+        }
+        if( sim_jingle_id >= 0 )
+        {
+            fprintf(stderr, "sim_music: playing jingle %d\n", sim_jingle_id);
+            App_PlayJingle(&app, sim_jingle_id, 0);
+        }
+        sim_music_done = 1;
     }
 
     /* TORIRS_SIM_SOUND=id[,loops[,every_ticks]]: queue a sound effect
@@ -1531,21 +1558,34 @@ frame_loop_step(void)
     }
     }
 
-    /* The game asked; the platform plays. Once per frame, after the tick
-     * that queued the requests and before the next one recycles their
-     * PCM (App_DrainAudio lends it for exactly this long). */
+    /*
+     * The game asked; the platform plays. Once per frame, after the tick that
+     * queued the requests -- a command's PCM is borrowed for exactly the
+     * duration of the submit, which the backend copies inside.
+     *
+     * Then Update mixes and feeds the device, and Feedback reports how far
+     * ahead the music stream is so the *next* tick knows how much to
+     * synthesise. That ordering is the whole contract; see
+     * platform/platform_audio.h.
+     */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_FRAME_POST)
     {
+        struct ToriRS_AudioFeedback audio_feedback;
+
         PlatformAudio_SubmitAll(
             audio,
             audio_commands,
             App_DrainAudio(&app, audio_commands, TORIRS_AUDIO_QUEUE_MAX));
+        PlatformAudio_Update(audio);
+        PlatformAudio_Feedback(audio, &audio_feedback);
+        App_SetAudioFeedback(&app, &audio_feedback);
         update_window_title(sdl, &app, cfg.interface_id);
     }
     /* Close the work timer before pacing sleeps — otherwise capped runs always
      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
      * flat 1 ms that hides real drift. */
     TORIRS_PERF_FRAME_END();
+    App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
     /* The browser paces us: emscripten_set_main_loop is backed by
      * requestAnimationFrame, and a blocking sleep here would stall the page's
      * whole main thread rather than yield it. */
@@ -1783,6 +1823,33 @@ frame_loop_teardown(void)
     CmdBus_RecordClose(&bus);
 
     NetTransport_Free(sock);
+    /*
+     * The audio ledger, and the leak check the retained API makes possible.
+     *
+     * `assets_live` at exit is how many clips the backend still holds. A
+     * session that played sounds ends with a few, because the scene keeps them
+     * until it is torn down and that happens after this line -- so what this
+     * catches is not "> 0" but a count that keeps *climbing* across a run, which
+     * is the signature of ids being reloaded rather than reused. Everything else
+     * here is the one place to see whether the mixer was starved, saturated or
+     * muted.
+     */
+    if( ToriRS_AudioTraceEnabled() )
+    {
+        struct PlatformAudioStats stats = PlatformAudio_Stats(audio);
+        fprintf(
+            stderr,
+            "audio: %d commands, %d voices started (%d stolen, %d rejected), "
+            "%d frames played, stream %d dropped / %d starved, %d assets still live\n",
+            stats.commands,
+            stats.voices_started,
+            stats.voices_stolen,
+            stats.voices_rejected,
+            stats.frames_played,
+            stats.stream_dropped_frames,
+            stats.stream_starved_frames,
+            stats.assets_live);
+    }
     PlatformAudio_Free(audio);
 #if defined(TORIRS_HAVE_D3D9)
     ToriRS_D3D9_Free(d3d9);
@@ -1847,10 +1914,88 @@ set_executor_js5_host(char const* value)
 }
 
 #if !defined(TORIRS_PLATFORM_WEB)
+static void
+executor_js5_config(struct Js5Config* js5)
+{
+    Js5ConfigInit(js5);
+    js5->host = executor_cfg.js5_host;
+    js5->primary_port = (uint16_t)executor_cfg.js5_port;
+    js5->fallback_port = (uint16_t)executor_cfg.js5_fallback_port;
+    js5->revision = (uint32_t)executor_cfg.js5_revision;
+}
+
+/*
+ * Bring every reference table to a server-validated state on disk.
+ *
+ * This has to happen before App_Init, not with the attached producer after it.
+ * App_Init decodes reference tables itself, and a decode is not a tolerant
+ * read: a torn or corrupt 255/N container reaches bzip as a short buffer and
+ * takes the process down ("bzip error: Unexpected input EOF") before the
+ * producer that exists to repair it has been attached. An absent table is
+ * survivable and a corrupt one is not, which is the wrong way round for a cache
+ * whose first boot writes all 23 of them.
+ *
+ * The client attached after App_Init then re-validates the same tables against
+ * the same master index. That second pass is a local CRC check, not a second
+ * download -- measured at 208 bytes against a warm cache -- so the ordering
+ * costs one extra connection and nothing else.
+ */
+static int
+executor_prime_js5_reference_tables(struct RSCache_Dat2Disk* sparse)
+{
+    struct PlatformXIOJs5Cache* prime;
+    struct Js5Config js5;
+    int status = 0;
+
+    executor_js5_config(&js5);
+    prime = PlatformXIOJs5Cache_New(sparse, &js5);
+    if( !prime )
+    {
+        fprintf(stderr, "torirs: failed to attach JS5 reference-table primer\n");
+        return -1;
+    }
+
+    while( status == 0 )
+    {
+        if( PlatformXIOJs5Cache_Tick(prime, PlatformSDL2_Ticks64()) < 0 )
+            status = -1;
+        else if( PlatformXIOJs5Cache_MetadataReady(prime) )
+            status = 1;
+        else
+            PlatformSDL2_SleepUntil(PlatformSDL2_Ticks64() + 1u);
+    }
+
+    {
+        struct Js5Progress progress;
+        PlatformXIOJs5Cache_GetProgress(prime, &progress);
+        if( status < 0 )
+            fprintf(
+                stderr,
+                "torirs: JS5 reference-table prime failed (error=%d state=%d "
+                "status=%u port=%u)\n",
+                (int)progress.last_error,
+                (int)progress.state,
+                (unsigned)progress.handshake_status,
+                (unsigned)progress.current_port);
+        else
+            /* Report here as well as after App_Init: this pass is the one that
+             * actually downloads on a cold cache, so without it a first boot
+             * reports the second pass's local-validation cost and looks free. */
+            fprintf(
+                stderr,
+                "torirs: JS5 reference tables primed (%u references, %llu network bytes)\n",
+                (unsigned)progress.references_ready,
+                (unsigned long long)progress.bytes_received);
+    }
+    PlatformXIOJs5Cache_Free(prime);
+    return status < 0 ? -1 : 0;
+}
+
 static int
 executor_prepare_js5_cache(void)
 {
     struct RSCache_Dat2Disk* sparse;
+    int status;
 
     if( !executor_cfg.js5_enabled )
         return 0;
@@ -1864,8 +2009,9 @@ executor_prepare_js5_cache(void)
             cfg.cache_dir);
         return -1;
     }
+    status = executor_prime_js5_reference_tables(sparse);
     RSCache_Dat2DiskFree(sparse);
-    return 0;
+    return status;
 }
 
 static int
@@ -1877,11 +2023,7 @@ executor_attach_and_prime_js5(void)
     if( !executor_cfg.js5_enabled )
         return 0;
 
-    Js5ConfigInit(&js5);
-    js5.host = executor_cfg.js5_host;
-    js5.primary_port = (uint16_t)executor_cfg.js5_port;
-    js5.fallback_port = (uint16_t)executor_cfg.js5_fallback_port;
-    js5.revision = (uint32_t)executor_cfg.js5_revision;
+    executor_js5_config(&js5);
     if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
     {
         fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
@@ -3258,6 +3400,15 @@ main(
         audio = PlatformAudio_New();
         if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
             fprintf(stderr, "audio: no device; running silent\n");
+
+        /* TORIRS_SIM_SONG / TORIRS_SIM_JINGLE=<id>: start a music track or a
+         * jingle once the client is up. The only way to hear the synth without
+         * a server, and the check that "music plays" means a speaker rather
+         * than a counter. */
+        if( getenv("TORIRS_SIM_SONG") )
+            sim_song_id = atoi(getenv("TORIRS_SIM_SONG"));
+        if( getenv("TORIRS_SIM_JINGLE") )
+            sim_jingle_id = atoi(getenv("TORIRS_SIM_JINGLE"));
 
         if( getenv("TORIRS_SIM_SOUND") )
         {

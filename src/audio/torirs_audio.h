@@ -8,72 +8,181 @@
  * The platform <-> game audio interface.
  *
  * The game never touches an audio device. It decides *what* should be heard and
- * puts a command on a queue; the host drains that queue once per frame and hands
+ * puts commands on a queue; the host drains that queue once per frame and hands
  * each command to whichever backend it built (src/platform/platform_audio.h).
  * Same split as rendering, where the game builds a ToriRS_Frame and the host
- * gives it to a renderer — and for the same reason: the game has to run in
+ * gives it to a renderer -- and for the same reason: the game has to run in
  * places that cannot own an audio device, from a headless test to a WebAssembly
- * page where playback may only start inside a user gesture.
+ * page where playback may only start inside a user gesture and where the heap
+ * moves underneath any pointer the game handed out.
  *
- * Everything crossing this boundary is plain data:
+ * ## Retained, like the renderer
  *
- *   - PCM is 8-bit unsigned mono (128 = silence), the format the cache's synth
- *     renders to and a RIFF/WAVE payload as-is. Backends convert if they must,
- *     and none has to parse a container.
- *   - Sample buffers are *borrowed*. A drained command's `pcm` stays valid until
- *     the next drain, which is long enough for a backend to copy or submit it.
- *     Nothing here allocates on the audio path.
+ * This interface is *retained*. Clips are **assets**: loaded once under a
+ * handle, referenced by handle from every play, and unloaded explicitly. They
+ * live in the ToriDraw_Scene's asset registry next to models, sprites and fonts
+ * (ToriDraw_SceneSoundAdd), and the scene's own load/unload events become
+ * ASSET_LOAD/ASSET_UNLOAD commands the same way sprite events become
+ * TORIRSRC_SPRITE_LOAD. Nothing on the audio path allocates per play.
  *
- * Deliberately not in this interface: music. Song and jingle packets are
- * recorded by the game (see game/rs_audio.h) but there is no MIDI decoder behind
- * them yet, and an enum value the host can only refuse would be worse than its
- * absence. When there is one, this is where it goes.
+ * That replaces an earlier immediate-mode shape where each play lent the
+ * backend a PCM buffer "until the next drain". It could not express a sound
+ * that outlives a frame -- an area loop, a song -- and it re-expanded the same
+ * clip's loops into a fresh malloc on every play.
+ *
+ * Three kinds of thing cross the boundary:
+ *
+ *   assets   immutable PCM, 16-bit signed mono, with the sample rate and loop
+ *            points the cache gave them. The backend copies on load and owns
+ *            the copy until unload.
+ *   voices   one playback of an asset: volume, pan, playback rate, loop count.
+ *            A voice has a game-chosen id so the game can move it (an area
+ *            sound follows the camera) or stop it. One-shots use the same
+ *            mechanism and simply never refer to the id again.
+ *   streams  PCM the game generates rather than loads -- music, which is
+ *            synthesised from a MIDI track and a cache soundbank and would be
+ *            tens of megabytes if rendered up front. The game pushes blocks
+ *            and the backend rings them.
+ *
+ * ## Buses
+ *
+ * Every voice and stream names a bus, and each bus has its own volume. The game
+ * has three independent volume settings (effects, music, area) and they are
+ * separate settings in the real client too, so mixing them into one number here
+ * would make the settings panel unimplementable.
+ *
+ * ## Ownership
+ *
+ * ASSET_LOAD and STREAM_PUSH carry a pointer. It is borrowed **only for the
+ * duration of the submit call** -- the backend copies immediately. Everything
+ * else in a command is a plain value. Nothing the backend receives outlives the
+ * call, so a moving heap cannot invalidate it.
  */
 
-#define TORIRS_AUDIO_VOLUME_MAX 128
+#define TORIRS_AUDIO_VOLUME_MAX 255
 
 /**
- * Rate to open a device at.
+ * Rate the mixer runs at.
  *
- * Every cache era renders its sound effects at 22050Hz mono (the reference's
- * AUDIO_SAMPLE_RATE, and RSCACHE_SOUND_SAMPLE_RATE), so this is the rate a
- * backend will actually be fed. Each command still carries its own
- * `sample_rate`, so a backend must not assume this one — it is the device
- * default, not a contract.
+ * Every era's sound effects and every music sample render at 22050Hz
+ * (RSCACHE_SOUND_SAMPLE_RATE, and the reference's AUDIO_SAMPLE_RATE), so
+ * resampling only happens for pitch, never for format. Assets still carry their
+ * own rate and are resampled into this one.
  */
 #define TORIRS_AUDIO_SAMPLE_RATE 22050
+
+/** The mixer is stereo so pan means something. */
+#define TORIRS_AUDIO_CHANNELS 2
+
+/** Pan: 0 hard left, 8192 centre, 16384 hard right (the reference's range). */
+#define TORIRS_AUDIO_PAN_CENTRE 8192
+#define TORIRS_AUDIO_PAN_MAX 16384
+
+/** Playback rate is fixed-point: this many units == the asset's natural rate. */
+#define TORIRS_AUDIO_RATE_UNITY 256
+
+/** A voice id the game does not intend to refer to again. */
+#define TORIRS_AUDIO_VOICE_ANON (-1)
+
+enum ToriRS_AudioBus
+{
+    /** Combat, interaction, interface: everything the server or a script fires. */
+    TORIRS_AUDIO_BUS_EFFECTS = 0,
+    /** Songs and jingles. */
+    TORIRS_AUDIO_BUS_MUSIC,
+    /** Looping scenery sound: waterfalls, furnaces, machinery. */
+    TORIRS_AUDIO_BUS_AREA,
+    TORIRS_AUDIO_BUS_COUNT
+};
 
 enum ToriRS_AudioCommandKind
 {
     TORIRS_AUDIO_CMD_NONE = 0,
-    /** Play a PCM clip once, now. Clips may overlap or drop — see the backend. */
-    TORIRS_AUDIO_CMD_PLAY_PCM,
-    /** Silence anything currently playing and drop anything queued. */
+
+    /** Copy PCM into the backend under `asset_id`. Replaces any asset already
+     *  there (which is how a re-decoded clip updates in place). */
+    TORIRS_AUDIO_CMD_ASSET_LOAD,
+    /** Drop an asset. Voices still playing it are stopped first -- a backend
+     *  must never be left pointing at freed samples. */
+    TORIRS_AUDIO_CMD_ASSET_UNLOAD,
+    /** Drop every asset and stop every voice. Sent on a cache/scene reset. */
+    TORIRS_AUDIO_CMD_ASSET_CLEAR,
+
+    /** Start `asset_id` on `voice_id`. Starting a voice id that is already
+     *  playing replaces it. */
+    TORIRS_AUDIO_CMD_VOICE_START,
+    /** Retarget a live voice's volume/pan/rate, optionally ramped. Ignored for
+     *  a voice that has finished, which is not an error: an area sound updates
+     *  its pan every frame and may have been reaped in between. */
+    TORIRS_AUDIO_CMD_VOICE_UPDATE,
+    /** Stop a voice, optionally with a fade so it does not click. */
+    TORIRS_AUDIO_CMD_VOICE_STOP,
+
+    /** Create (or reset) a stream. */
+    TORIRS_AUDIO_CMD_STREAM_OPEN,
+    /** Append interleaved PCM for `channels` channels. Frames past the ring's
+     *  capacity are dropped and counted. */
+    TORIRS_AUDIO_CMD_STREAM_PUSH,
+    TORIRS_AUDIO_CMD_STREAM_CLOSE,
+    /** Ramp a stream's own gain -- how music fades in and out. */
+    TORIRS_AUDIO_CMD_STREAM_VOLUME,
+
+    /** Set a bus volume, 0..TORIRS_AUDIO_VOLUME_MAX. */
+    TORIRS_AUDIO_CMD_BUS_VOLUME,
+    /** Silence everything currently sounding; assets and streams stay loaded. */
     TORIRS_AUDIO_CMD_STOP_ALL,
-    /** Set the effect volume, 0..TORIRS_AUDIO_VOLUME_MAX. */
-    TORIRS_AUDIO_CMD_SET_VOLUME,
 };
 
 struct ToriRS_AudioCommand
 {
     enum ToriRS_AudioCommandKind kind;
 
-    /* PLAY_PCM */
-    /** Borrowed until the next drain. 8-bit unsigned mono. */
-    const uint8_t* pcm;
+    /* ASSET_LOAD / ASSET_UNLOAD, and the asset a VOICE_START refers to. */
+    int asset_id;
+    /** Borrowed for the duration of the submit call only. 16-bit signed mono. */
+    const int16_t* pcm;
     int sample_count;
     int sample_rate;
-    int channels;
-    /** Which cache effect this is, for logs and tests. -1 when not from one. */
-    int sound_id;
+    /** Loop span in samples. `loop_end > loop_start` makes a voice with
+     *  loop_count != 0 repeat that span rather than the whole clip. */
+    int loop_start;
+    int loop_end;
 
-    /* SET_VOLUME */
+    /* VOICE_* */
+    int voice_id;
+    enum ToriRS_AudioBus bus;
+    /** 0..TORIRS_AUDIO_VOLUME_MAX. */
     int volume;
+    /** 0..TORIRS_AUDIO_PAN_MAX, TORIRS_AUDIO_PAN_CENTRE is centre. */
+    int pan;
+    /** Playback rate relative to TORIRS_AUDIO_RATE_UNITY. */
+    int rate;
+    /** 0 = play once, -1 = loop forever, n > 0 = play the loop span n times. */
+    int loop_count;
+    /** Ramp length in milliseconds for UPDATE and STOP. 0 is immediate. */
+    int fade_ms;
+
+    /* STREAM_* */
+    int stream_id;
+    int channels;
+    int frame_count;
+
+    /* BUS_VOLUME */
+    enum ToriRS_AudioBus target_bus;
+
+    /** Which cache effect/song this came from, for logs and tests. -1 when it
+     *  is not from one. Never used to make a decision. */
+    int source_id;
 };
 
-/** Ring of pending commands. Sized well past a frame's worth: the reference
- *  caps its own sound queue at 50 and plays at most a handful per tick. */
-#define TORIRS_AUDIO_QUEUE_MAX 32
+/**
+ * Ring of pending commands.
+ *
+ * Sized for a busy frame: a scene rebuild can unload and reload every area
+ * sound at once, which is a few dozen commands, and the queue must not be the
+ * thing that drops them.
+ */
+#define TORIRS_AUDIO_QUEUE_MAX 256
 
 struct ToriRS_AudioQueue
 {
@@ -81,9 +190,30 @@ struct ToriRS_AudioQueue
     int count;
     /** Commands dropped because the queue was full since the last drain. A
      *  non-zero value means the host is not draining, which is a wiring bug
-     *  rather than an audio one — so it is counted rather than ignored. */
+     *  rather than an audio one -- so it is counted rather than ignored. */
     int dropped;
 };
+
+/**
+ * What the host tells the game before it builds a frame's audio.
+ *
+ * Only streams need this. The game synthesises music itself and has to know how
+ * far ahead it is allowed to run; without a number from the device it would
+ * either starve (audible gaps) or run away (seconds of latency). Everything
+ * else in this interface is one-way.
+ */
+struct ToriRS_AudioFeedback
+{
+    /** True when a device is open. When false the game may skip synthesis
+     *  entirely rather than render PCM nobody will hear. */
+    bool device_open;
+    /** Frames of headroom in stream 0's ring: how many the game may push now. */
+    int stream_headroom[4];
+    /** Frames still buffered in stream 0's ring, for latency diagnostics. */
+    int stream_buffered[4];
+};
+
+#define TORIRS_AUDIO_STREAM_MAX 4
 
 static inline void
 ToriRS_AudioQueue_Reset(struct ToriRS_AudioQueue* queue)
@@ -109,12 +239,34 @@ ToriRS_AudioQueue_Push(
     return true;
 }
 
+/** Zero a command and give it the defaults every kind shares. */
+static inline void
+ToriRS_AudioCommand_Init(
+    struct ToriRS_AudioCommand* command,
+    enum ToriRS_AudioCommandKind kind)
+{
+    if( !command )
+        return;
+    for( unsigned i = 0; i < sizeof(*command); i++ )
+        ((unsigned char*)command)[i] = 0;
+    command->kind = kind;
+    command->asset_id = -1;
+    command->voice_id = TORIRS_AUDIO_VOICE_ANON;
+    command->stream_id = -1;
+    command->source_id = -1;
+    command->volume = TORIRS_AUDIO_VOLUME_MAX;
+    command->pan = TORIRS_AUDIO_PAN_CENTRE;
+    command->rate = TORIRS_AUDIO_RATE_UNITY;
+    command->channels = 1;
+}
+
 /**
  * Copy up to `max` commands out and clear the queue.
  *
  * The queue is emptied whether or not everything fitted: a command the host had
- * no room for is a command it will never take, and keeping it would play a sound
- * a frame or more late. Returns how many were written.
+ * no room for is a command it will never take, and keeping it would apply a
+ * volume change or start a sound a frame or more late. Returns how many were
+ * written.
  */
 static inline int
 ToriRS_AudioQueue_Drain(

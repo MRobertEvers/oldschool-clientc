@@ -334,6 +334,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
+	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
+	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
+	engine/dat2/task_dat2_music_load.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
 	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
@@ -785,6 +788,21 @@ test-sound: $(OBJ_DIR) $(AUDIO_TEST_OBJS)
 		$(AUDIO_TEST_OBJS) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_audio_test
 
+# Audio engine, with no device: the mixer's retained contract (assets, voices,
+# loops, fades, buses, streams) and a real song rendered out of a real cache.
+# Links only the audio units and rscache -- nothing here needs the client.
+AUDIO_ENGINE_SRCS = audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
+	audio/torirs_soundbank.c audio/torirs_midi_synth.c
+test-audio: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o \
+		$(OBJ_DIR)/ini.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/audio_test \
+		audio/test/audio_test.c $(AUDIO_ENGINE_SRCS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/bmp.o $(OBJ_DIR)/ini.o \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/audio_test ..
+
 # Derived-cache LRU eviction. Never fires during a boot (one scene is well under
 # the keep threshold), so it needs a test of its own or it ships unexercised.
 CACHE_TRIM_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
@@ -1151,6 +1169,12 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		world/test/world_test_route.c world/test/world_test_main.c \
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/world_test
+
+test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
+		render/test/pick_face_test.c \
+		$(OBJ_DIR)/toridraw_unity.o
+	./$(OBJ_DIR)/pick_face_test
 
 test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
@@ -1714,12 +1738,36 @@ PARAM_TEST_SRCS = $(MOCK230_CORE_SRCS) net/jbase37.c net/wordpack.c \
 	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
 .PHONY: test-mock230-param
 test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/param_test \
 		net/mock/test/param_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
+
+# The collision map the server routes on, against real map squares: wall bits
+# paired on both tiles of every edge, closed doors blocking their own edge, no
+# diagonal step across any doorway open or shut, and a door that opens and
+# closes leaving the map byte-identical. That last one is the regression — a
+# door swinging flush against a wall used to clear the wall's bits when it shut,
+# on 75 of the game's doors.
+#
+# Only the scene builder and the collision map link here: no content, no VM, no
+# world. `mock230_varbit_get` is stubbed in the test for the multiloc resolve.
+# TORIRS_COLLISION_DOORS_FULL=1 sweeps the whole overworld instead of the
+# curated squares (~45s).
+.PHONY: test-collision-doors
+test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/collision_doors_test \
+		net/mock/test/collision_doors_test.c \
+		net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/collision_doors_test
 
 # The `loc_*` / `lc_*` config reads. Same two halves as test-mock230-param and
 # the same link line, plus one thing that test does not need: it builds a real
@@ -1728,11 +1776,13 @@ test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/to
 # nothing about the slot-not-pointer convention that exists to survive a rebuild.
 .PHONY: test-mock230-loc
 test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_test \
 		net/mock/test/loc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/loc_test
 
 # The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
@@ -1742,11 +1792,13 @@ test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 # and no pack — the npcs go straight into the pool.
 .PHONY: test-mock230-npc
 test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/npc_test \
 		net/mock/test/npc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/npc_test
 
 # The namespace register: defaults, [namespace:*] overlay, pack-filename

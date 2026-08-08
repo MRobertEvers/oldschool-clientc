@@ -214,8 +214,21 @@ RSCache_ArchiveDecryptDecompress(
             return false;
         }
 
-        RSCache_CompressionBzipDecompress(
-            (uint8_t*)decompressed_data, uncompressed_length, (uint8_t*)compressed_data, size);
+        /* A failed decompress leaves decompressed_data uninitialised, so it
+         * must not be published. This used to be unreachable because the bzip
+         * decoder exited the process instead of returning; it now reports and
+         * fails, which is what lets a caller treat a corrupt group as a bad
+         * read and refetch it. */
+        if( RSCache_CompressionBzipDecompress(
+                (uint8_t*)decompressed_data,
+                uncompressed_length,
+                (uint8_t*)compressed_data,
+                size) == 0 )
+        {
+            free(decompressed_data);
+            free(compressed_data);
+            return false;
+        }
 
         archive_read_container_revision(&buffer, archive);
 
@@ -246,8 +259,15 @@ RSCache_ArchiveDecryptDecompress(
             return false;
         }
 
-        RSCache_CompressionGzipDecompress(
-            (uint8_t*)decompressed_data, uncompressed_length, compressed_data, size, 0);
+        /* Same contract as the bzip branch above: 0 means the buffer was not
+         * filled and must not be published as archive data. */
+        if( RSCache_CompressionGzipDecompress(
+                (uint8_t*)decompressed_data, uncompressed_length, compressed_data, size, 0) == 0 )
+        {
+            free(decompressed_data);
+            free(compressed_data);
+            return false;
+        }
 
         archive_read_container_revision(&buffer, archive);
 

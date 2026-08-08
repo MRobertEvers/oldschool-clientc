@@ -564,6 +564,9 @@ struct UITreeComponent
             int graphic_shadow;
             uint8_t flip_h;
             uint8_t flip_v;
+            /** IF3 spriteAngle / CC_SET2DANGLE: 65536 = one full turn (not the
+             *  2048-per-turn camera-yaw scale the compass/minimap use). */
+            int sprite_angle_r2pi65536;
         } rs_graphic;
         struct
         {
@@ -987,6 +990,9 @@ struct UITreeNodeSpec
             int graphic_shadow;
             uint8_t flip_h;
             uint8_t flip_v;
+            /** IF3 spriteAngle / CC_SET2DANGLE: 65536 = one full turn (not the
+             *  2048-per-turn camera-yaw scale the compass/minimap use). */
+            int sprite_angle_r2pi65536;
         } rs_graphic;
         struct
         {
@@ -1364,6 +1370,13 @@ UITree_ApplyGraphicShadow(
     struct UITree* tree,
     int component_id,
     int shadow_colour);
+
+/** IF/CC_SET2DANGLE: rotate a graphic about its own centre, 65536 per turn. */
+bool
+UITree_ApplyGraphic2DAngle(
+    struct UITree* tree,
+    int component_id,
+    int angle_r2pi65536);
 
 bool
 UITree_ApplyScrollSize(

@@ -816,6 +816,12 @@ PlatformSDL2_Ticks64(void)
     return PlatformWin32Timing_NowMs();
 }
 
+uint64_t
+PlatformSDL2_TicksUs(void)
+{
+    return PlatformWin32Timing_NowUs();
+}
+
 void
 PlatformSDL2_SleepUntil(uint64_t deadline_ms)
 {

@@ -169,6 +169,26 @@ bucket_emit_terrain(
     (*cur)++;
 }
 
+static inline void
+bucket_emit_terrain_pick_only(
+    struct PaintersElementCommand** cur,
+    struct PaintersElementCommand* end,
+    int sx,
+    int sz,
+    int slevel)
+{
+    assert(*cur < end);
+    **cur = (struct PaintersElementCommand){
+        ._terrain = {
+            ._bf_kind = PNTR_CMD_TERRAIN_PICK_ONLY,
+            ._bf_terrain_x = (uint32_t)sx,
+            ._bf_terrain_z = (uint32_t)sz,
+            ._bf_terrain_y = (uint32_t)slevel,
+        },
+    };
+    (*cur)++;
+}
+
 int
 painter_paint_bucket(
     struct Painter* painter,
@@ -177,8 +197,6 @@ painter_paint_bucket(
     int camera_sz,
     int camera_slevel)
 {
-    (void)camera_slevel;
-
     assert(painter);
     assert(buffer);
     struct PainterBucketCtx* w = BM(painter);
@@ -616,7 +634,6 @@ painter_paint_bucket(
                 }
             }
 
-            if( !ground_hidden )
             {
                 /* Every mesh this tile owns, ascending, so a VisBelow mesh
                  * moved down from above lands on top of the one below it.
@@ -625,8 +642,16 @@ painter_paint_bucket(
                 for( int ml = 0; ml < 4; ml++ )
                     if( set & (1u << ml) )
                     {
-                        bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
-                        painter_wedgelog_paint(e_tile, "floor", ml, -1, -1);
+                        if( !ground_hidden )
+                        {
+                            bucket_emit_terrain(&cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                            painter_wedgelog_paint(e_tile, "floor", ml, -1, -1);
+                        }
+                        else if( camera_slevel >= 0 && ml <= camera_slevel )
+                        {
+                            bucket_emit_terrain_pick_only(
+                                &cmd_cur, cmd_end, tile_sx, tile_sz, ml);
+                        }
                     }
             }
 
@@ -1231,7 +1256,6 @@ painter_collect_visible_depth(
     struct PaintersElementCommand* cmd_base;
     struct PaintersElementCommand* cmd_cur;
     struct PaintersElementCommand* cmd_end;
-    (void)camera_slevel;
     assert(painter);
     assert(buffer);
 
@@ -1353,12 +1377,17 @@ painter_collect_visible_depth(
                             0);
                 }
 
-                if( !ground_hidden )
                 {
                     unsigned terrain = tile->terrain_levels;
                     for( int ml = 0; ml < 4; ml++ )
                         if( terrain & (1u << ml) )
-                            bucket_emit_terrain(&cmd_cur, cmd_end, sx, sz, ml);
+                        {
+                            if( !ground_hidden )
+                                bucket_emit_terrain(&cmd_cur, cmd_end, sx, sz, ml);
+                            else if( camera_slevel >= 0 && ml <= camera_slevel )
+                                bucket_emit_terrain_pick_only(
+                                    &cmd_cur, cmd_end, sx, sz, ml);
+                        }
                 }
 
                 if( tile->wall_a >= 0 )

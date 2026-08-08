@@ -53,13 +53,13 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake poser-gl
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake audioprobe poser-gl
 .DEFAULT_GOAL := all
 
 # poser-gl is not in `all`: it needs SDL2 and an OpenGL 3.3 context, which the
 # other tools do not, and a machine without SDL2 should still build the rest.
 # `make poser-gl` builds it.
-all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake
+all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake audioprobe
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
@@ -68,6 +68,7 @@ port_npc: $(TOOLS)/port_npc/port_npc
 port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
 packfile: $(TOOLS)/packfile/packfile
 fontbake: $(TOOLS)/fontbake/fontbake
+audioprobe: $(TOOLS)/audioprobe/audioprobe
 
 LC_SRCS := \
 	$(TOOLS)/port_lostcity/main.c \
@@ -160,6 +161,10 @@ $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
 $(TOOLS)/fontbake/fontbake: $(TOOLS)/fontbake/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
+# audioprobe — the audio tables, read as bytes. See its header for why it exists.
+$(TOOLS)/audioprobe/audioprobe: $(TOOLS)/audioprobe/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
+
 $(TOOLS)/port_lostcity/port_lostcity: $(LC_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
 
@@ -176,7 +181,8 @@ $(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
 		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
-		$(TOOLS)/cachepack/cachepack $(TOOLS)/fontbake/fontbake $(TOOLS)/poser-gl-c/poser-gl
+		$(TOOLS)/cachepack/cachepack $(TOOLS)/fontbake/fontbake $(TOOLS)/audioprobe/audioprobe \
+		$(TOOLS)/poser-gl-c/poser-gl
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the
 # language layer lives inside the unity TU.

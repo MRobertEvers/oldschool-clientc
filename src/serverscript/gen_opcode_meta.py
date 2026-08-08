@@ -413,6 +413,28 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Empty slot or missing key → get returns 0. Clearing the slot clears vars.
     "INV_SETVAR": (11016, 4, 0, 0, 0),
     "INV_GETVAR": (11017, 3, 0, 1, 0),
+
+    # ---- bank placeholders (11020..11021) --------------------------------
+    #
+    # oc_placeholder(obj)(obj) / oc_unplaceholder(obj)(obj)
+    #
+    # The note pair's twin. The reference has `oc_cert` / `oc_uncert` and no
+    # placeholder equivalent for the plain reason that its era has no
+    # placeholders — the feature arrives in OldSchool years after rev 254 — so
+    # there is nothing to transcribe and these are allocated here rather than
+    # squeezed into the reference's numbering.
+    #
+    # The *client* already has both as CS2 commands 4208/4209, and
+    # `bankmain_drawitem` decides a cell is a placeholder with exactly
+    # `oc_unplaceholder($obj) ! $obj`. Naming them the same thing on this side
+    # means the server's test for "is this slot a placeholder" is the client's
+    # test, character for character, rather than a second spelling that can
+    # drift.
+    #
+    # Both return the input unchanged when the obj has no other form, which is
+    # what `oc_cert` / `oc_uncert` do and what every caller branches on.
+    "OC_PLACEHOLDER": (11020, 1, 0, 1, 0),
+    "OC_UNPLACEHOLDER": (11021, 1, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------

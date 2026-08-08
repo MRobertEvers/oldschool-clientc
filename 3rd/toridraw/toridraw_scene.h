@@ -136,6 +136,55 @@ ToriDraw_SceneCacheFontGet(
     struct ToriDraw_Scene* scene,
     int cache_font_id);
 
+/* Asset registry: sounds
+ *
+ * Decoded audio clips, held exactly like sprites and fonts. Adding emits a
+ * TORIDRAW_EVENT_SOUND_LOAD; replacing or removing emits an UNLOAD first, so a
+ * backend holding a copy is always told before the original goes away. The
+ * scene owns the clip and frees it on shutdown.
+ */
+
+/** Wrap owned PCM in a sound. Takes ownership of `samples` (and frees it if the
+ *  sound cannot be built, so the caller has one ownership rule). */
+struct ToriDraw_Sound*
+ToriDraw_SoundNew(
+    int16_t* samples,
+    int sample_count,
+    int sample_rate,
+    int loop_start,
+    int loop_end,
+    int queue_delay);
+
+void
+ToriDraw_SoundFree(struct ToriDraw_Sound* sound);
+
+void
+ToriDraw_SceneSoundAdd(
+    struct ToriDraw_Scene* scene,
+    int sound_id,
+    struct ToriDraw_Sound* sound);
+
+struct ToriDraw_Sound*
+ToriDraw_SceneSoundGet(
+    struct ToriDraw_Scene* scene,
+    int sound_id);
+
+bool
+ToriDraw_SceneSoundHas(
+    struct ToriDraw_Scene* scene,
+    int sound_id);
+
+/** Drop a clip: emits the unload event, then frees it. */
+void
+ToriDraw_SceneSoundRemove(
+    struct ToriDraw_Scene* scene,
+    int sound_id);
+
+/** Re-emit a load event for every resident clip — for a backend that lost its
+ *  table (a device re-open, a page reload). */
+void
+ToriDraw_SceneSoundsReemitLoads(struct ToriDraw_Scene* scene);
+
 /* Scene elements */
 
 /* Element clear groups. STATIC is the world-builder's terrain/scenery set —

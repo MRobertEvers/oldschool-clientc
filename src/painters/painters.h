@@ -346,6 +346,8 @@ enum PaintersCommandKind
     PNTR_CMD_INVALID = 0,
     PNTR_CMD_ELEMENT,
     PNTR_CMD_TERRAIN,
+    /** Occluded terrain: hit-tested for picking but not rasterized. */
+    PNTR_CMD_TERRAIN_PICK_ONLY,
 };
 
 // Want to pack into 64 bits.

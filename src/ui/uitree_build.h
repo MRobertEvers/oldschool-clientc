@@ -42,6 +42,8 @@ struct UIBuildComponent
     int graphic_active;
     int outline;
     int graphic_shadow;
+    /** dat2 spriteAngle: 65536 = one full turn (IF/CC_SET2DANGLE's scale). */
+    int sprite_angle;
     uint8_t horizontal_flip;
     uint8_t vertical_flip;
     uint8_t tiled;
