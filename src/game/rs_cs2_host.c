@@ -958,6 +958,53 @@ rs_cs2_trigger_op_push(
     host->trigger_op_count++;
 }
 
+/* Queue a sound one of the four SOUND_* opcodes asked the App to play. */
+static void
+rs_cs2_sound_push(
+    struct RS_CS2Host* host,
+    int kind,
+    const struct CS2VM_HostRequest_Sound* sound)
+{
+    int slot;
+
+    assert(host);
+    assert(sound);
+    if( host->sound_count >= RS_CS2_HOST_SOUND_MAX )
+    {
+        fprintf(
+            stderr,
+            "cs2: sound queue full (%d), dropped kind %d id %d\n",
+            RS_CS2_HOST_SOUND_MAX,
+            kind,
+            sound->id);
+        return;
+    }
+    slot = (host->sound_head + host->sound_count) % RS_CS2_HOST_SOUND_MAX;
+    host->sound[slot].kind = kind;
+    host->sound[slot].id = sound->id;
+    host->sound[slot].secondary_id = sound->secondary_id;
+    host->sound[slot].loops = sound->loops;
+    host->sound[slot].delay = sound->delay;
+    host->sound[slot].fade_out_delay = sound->fade_out_delay;
+    host->sound[slot].fade_out_speed = sound->fade_out_speed;
+    host->sound[slot].fade_in_delay = sound->fade_in_delay;
+    host->sound[slot].fade_in_speed = sound->fade_in_speed;
+    host->sound_count++;
+}
+
+bool
+RS_CS2Host_TakeSound(
+    struct RS_CS2Host* host,
+    struct RS_CS2Sound* out)
+{
+    if( !host || !out || host->sound_count <= 0 )
+        return false;
+    *out = host->sound[host->sound_head];
+    host->sound_head = (host->sound_head + 1) % RS_CS2_HOST_SOUND_MAX;
+    host->sound_count--;
+    return true;
+}
+
 bool
 RS_CS2Host_TakeTriggerOp(
     struct RS_CS2Host* host,
@@ -5982,6 +6029,19 @@ rs_cs2_host_exec_dispatch(
             host,
             request->u.cc_trigger_op.component_id,
             request->u.cc_trigger_op.op_index);
+        return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_SOUND_SYNTH:
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SYNTH, &request->u.sound);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_SOUND_SONG:
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG, &request->u.sound);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_SOUND_JINGLE:
+        rs_cs2_sound_push(host, RS_CS2_SOUND_JINGLE, &request->u.sound);
+        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY:
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG_WITHSECONDARY, &request->u.sound);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:

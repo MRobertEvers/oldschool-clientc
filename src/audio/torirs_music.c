@@ -163,6 +163,7 @@ ToriRS_Music_Swap(
 {
     int incoming;
     int outgoing;
+    int resume_tick;
 
     if( !player )
         return;
@@ -179,14 +180,28 @@ ToriRS_Music_Swap(
     outgoing = player->current_song;
 
     /*
-     * Take the position *before* the request, while the outgoing song is still
-     * the one loaded in the synth. This is the whole difference between a swap
-     * and a song change.
+     * Read the position before the request, while the outgoing song is still
+     * the one loaded in the synth -- this is the whole difference between a
+     * swap and a song change.
      */
+    resume_tick = player->synth.current_tick;
     ToriRS_Music_Request(
         player, incoming, TORIRS_MUSIC_SOURCE_TRACK, player->current_loop, fade_out_ms, fade_in_ms);
-    player->request_resume_tick = player->synth.current_tick;
-    player->secondary_song = outgoing;
+
+    /*
+     * Only arm the resume if the request was actually taken.
+     *
+     * Request declines a song that is already playing or already pending. If
+     * the resume tick were armed unconditionally it would survive that decline
+     * and be applied to whatever song changed *next*, which would then start
+     * from the middle of itself -- a swap that did nothing leaving a booby trap
+     * for an unrelated region change later.
+     */
+    if( player->has_request && player->request_song == incoming )
+    {
+        player->request_resume_tick = resume_tick;
+        player->secondary_song = outgoing;
+    }
 }
 
 void

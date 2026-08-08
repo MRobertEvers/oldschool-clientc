@@ -140,6 +140,19 @@ enum CS2VM_HostRequestKind
      *  View-journal → script9189). Real rev-239 wire is IF_SCRIPT_TRIGGER;
      *  over rev-230 this becomes IF_BUTTON1(component, sub). */
     CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL,
+    /*
+     * Sound, driven from a script rather than from a packet.
+     *
+     * SOUND_SYNTH is the interface interaction sound and is by far the most
+     * common -- roughly 600 call sites in a rev-239 cache. The other three are
+     * the CS2-side twins of the MIDI_* server packets and route to the same
+     * music player, so a track started by a script and one started by the
+     * server are the same track.
+     */
+    CS2VM_HOST_REQUEST_SOUND_SYNTH,
+    CS2VM_HOST_REQUEST_SOUND_SONG,
+    CS2VM_HOST_REQUEST_SOUND_JINGLE,
+    CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY,
     // IF Interfaces
     CS2VM_HOST_REQUEST_IF_GETWIDTH,
     CS2VM_HOST_REQUEST_IF_GETHEIGHT,
@@ -829,6 +842,27 @@ struct CS2VM_HostRequest_IF_CallOnResize
 
 /** CC_TRIGGEROP — the dot/active component whose on_op listener to run, and
  *  the op index to report through it (event_opindex). */
+/**
+ * One sound request, shared by all four sound opcodes.
+ *
+ * Which fields are meaningful depends on `kind`: SYNTH uses id/loops/delay,
+ * JINGLE uses id/delay, SONG uses id and the four fade fields, and
+ * SONG_WITHSECONDARY adds secondary_id. Fades arrive in client cycles, as the
+ * scripts and the wire both carry them; the conversion to milliseconds happens
+ * where the player is called, so both entry points convert the same way.
+ */
+struct CS2VM_HostRequest_Sound
+{
+    int id;
+    int secondary_id;
+    int loops;
+    int delay;
+    int fade_out_delay;
+    int fade_out_speed;
+    int fade_in_delay;
+    int fade_in_speed;
+};
+
 struct CS2VM_HostRequest_CC_TriggerOp
 {
     int component_id;
@@ -1501,6 +1535,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_IF_ClearOps if_clear_ops;
         struct CS2VM_HostRequest_IF_CallOnResize if_call_on_resize;
         struct CS2VM_HostRequest_CC_TriggerOp cc_trigger_op;
+        struct CS2VM_HostRequest_Sound sound;
         struct CS2VM_HostRequest_IF_TriggerOpLocal if_triggeroplocal;
         struct CS2VM_HostRequest_IF_ClearOpSubmenu if_clear_op_submenu;
         struct CS2VM_HostRequest_IF_SetObject if_set_object;

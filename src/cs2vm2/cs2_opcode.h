@@ -1647,9 +1647,35 @@
 #define CS2_OP_GETBRIGHTNESS 3182
 #define CS2_OP_SETANTIDRAG 3183
 #define CS2_OP__3184 3184
+/*
+ * sound_synth(synth, loops, delay) -- a cache sound effect from a script.
+ *
+ * Arity read off the decompiled clientscripts rather than assumed: ~600 call
+ * sites in the rev-239 cache, every one of the form `sound_synth(synth_N, 1, 0)`.
+ * These are the interface interaction sounds.
+ */
 #define CS2_OP_SOUND_SYNTH 3200
+/*
+ * sound_song(id, fadeOutDelay, fadeOutSpeed, fadeInDelay, fadeInSpeed).
+ *
+ * The CS2-side twin of MIDI_SONG_V2. The argument order is pinned by two
+ * independent sources agreeing: script9630 defaults absent arguments to
+ * 0/60/60/0 in that order, and RSProt's MidiSongV2 documents the defaults as
+ * fadeOutDelay 0, fadeOutSpeed 60, fadeInDelay 60, fadeInSpeed 0.
+ */
 #define CS2_OP_SOUND_SONG 3201
+/** sound_jingle(id, delay) -- the CS2-side twin of MIDI_JINGLE. */
 #define CS2_OP_SOUND_JINGLE 3202
+/*
+ * sound_song_withsecondary(primary, secondary, fadeOutDelay, fadeOutSpeed,
+ * fadeInDelay, fadeInSpeed) -- the CS2-side twin of MIDI_SONG_WITHSECONDARY.
+ *
+ * Named `_3221` in the decompiler's table. script9630 calls it in the same
+ * breath as sound_song, with a secondary id looked up from the primary, and
+ * falls back to sound_song when that lookup returns -1 -- which is what
+ * identifies it.
+ */
+#define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
 #define CS2_OP_SETVOLUMEMUSIC 3203
 #define CS2_OP_GETVOLUMEMUSIC 3204
 #define CS2_OP_SETVOLUMESOUNDS 3205

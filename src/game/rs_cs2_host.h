@@ -69,6 +69,16 @@ enum RS_CS2SocialSendKind
  * packet; 16 matches the other deferred queues. */
 #define RS_CS2_HOST_TRIGGEROPLOCAL_MAX 16
 
+/*
+ * Pending sound requests from scripts.
+ *
+ * Deeper than the other deferred queues because sound is bulk: a single tab
+ * switch can fire several interaction sounds, and one bake of a busy interface
+ * more. Dropping a UI click sound is not fatal, but the whole point of the
+ * queue is that the common case never reaches the limit.
+ */
+#define RS_CS2_HOST_SOUND_MAX 64
+
 struct RS_CS2SocialSend
 {
     int kind; /* enum RS_CS2SocialSendKind */
@@ -86,6 +96,37 @@ struct RS_CS2TriggerOp
 {
     int component_id;
     int op_index;
+};
+
+/**
+ * A sound a script asked for, waiting for the App to play it.
+ *
+ * Queued rather than played inline for the same reason as the other host
+ * requests: this is reached from inside a running CS2 script, which has no
+ * business touching the audio queue mid-execution -- and a script that yields
+ * and rolls back should not have already made a noise.
+ */
+struct RS_CS2Sound
+{
+    /** enum RS_CS2SoundKind. */
+    int kind;
+    int id;
+    int secondary_id;
+    int loops;
+    /** Client cycles, as the scripts carry them; converted where it is played. */
+    int delay;
+    int fade_out_delay;
+    int fade_out_speed;
+    int fade_in_delay;
+    int fade_in_speed;
+};
+
+enum RS_CS2SoundKind
+{
+    RS_CS2_SOUND_SYNTH = 0,
+    RS_CS2_SOUND_SONG,
+    RS_CS2_SOUND_JINGLE,
+    RS_CS2_SOUND_SONG_WITHSECONDARY,
 };
 
 /** An IF_TRIGGEROPLOCAL request: IF_BUTTON1(component, sub) to send. */
@@ -486,6 +527,12 @@ struct RS_CS2Host
     int trigger_op_count;
     int trigger_op_head;
 
+    /** Sounds SOUND_SYNTH/SONG/JINGLE asked for, drained by the App's tick
+     *  through RS_CS2Host_TakeSound. */
+    struct RS_CS2Sound sound[RS_CS2_HOST_SOUND_MAX];
+    int sound_count;
+    int sound_head;
+
     /** (component, sub) pairs IF_TRIGGEROPLOCAL asked to send as IF_BUTTON1,
      *  drained by the App's tick through RS_CS2Host_TakeTriggerOpLocal. */
     struct RS_CS2TriggerOpLocal triggeroplocal[RS_CS2_HOST_TRIGGEROPLOCAL_MAX];
@@ -563,6 +610,12 @@ RS_CS2Host_TakeCallOnResize(
  *  queue is empty. The App drains this once per tick and runs each
  *  component's on_op listener with event_opindex set to op_index; nothing
  *  else may consume it. */
+/** Pop the oldest queued script sound. False when the queue is empty. */
+bool
+RS_CS2Host_TakeSound(
+    struct RS_CS2Host* host,
+    struct RS_CS2Sound* out);
+
 bool
 RS_CS2Host_TakeTriggerOp(
     struct RS_CS2Host* host,

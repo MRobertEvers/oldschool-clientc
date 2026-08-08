@@ -976,9 +976,19 @@ test_midi_seek(void)
     /* The state events before the seek point were applied... */
     CHECK_EQ(synth.channels[0].patch_id, 40);
     CHECK_EQ(synth.channels[0].volume, 100 << 7);
-    /* ...but the note struck at tick 100 was not replayed. */
+    /*
+     * ...but the note struck at tick 100 was not replayed.
+     *
+     * Checked via the *dropped* counter, not `notes_started`. The bank here is
+     * empty, so a note that reaches channel_note_on is dropped for having no
+     * patch and never counts as started -- meaning `notes_started == 0` holds
+     * whether the note was suppressed or merely unplayable, and asserting it
+     * would pass even with the suppression removed. This distinguishes: a
+     * suppressed note never reaches the lookup at all.
+     */
     CHECK_EQ(ToriRS_MidiSynth_LiveNoteCount(&synth), 0);
     CHECK_EQ(synth.stats.notes_started, 0);
+    CHECK_EQ(synth.stats.notes_dropped_no_patch, 0);
     /* The audio clock landed with the sequencer, so the first render does not
      * replay the span that was just skipped. */
     CHECK(synth.position == synth.next_event_time);
@@ -1025,9 +1035,25 @@ test_music_swap_state(void)
     CHECK_EQ(player.request_fade_out_ms, 100);
     CHECK_EQ(player.request_fade_in_ms, 200);
     CHECK_EQ(player.secondary_song, 42);
-    /* The position was captured before the request, from the outgoing song. */
     CHECK_EQ(player.request_resume_tick, 1234);
     CHECK(player.request_loop);
+
+    /*
+     * A swap whose target is already playing must not leave the resume armed.
+     *
+     * Request declines the redundant change, and an armed resume tick would
+     * then be spent on whatever song changed next -- that song would start from
+     * the middle of itself, far from the swap that caused it.
+     */
+    ToriRS_Music_Init(&player);
+    player.current_song = 42;
+    player.current_source = TORIRS_MUSIC_SOURCE_TRACK;
+    player.state = TORIRS_MUSIC_PLAYING;
+    player.synth.current_tick = 999;
+    ToriRS_Music_SetSecondary(&player, 42); /* the variant *is* what is playing */
+    ToriRS_Music_Swap(&player, 0, 0);
+    CHECK(!player.has_request);
+    CHECK_EQ(player.request_resume_tick, 0);
 
     ToriRS_Music_Free(&player);
 }

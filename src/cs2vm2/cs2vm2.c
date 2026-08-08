@@ -2023,6 +2023,111 @@ CS2VM2_Op_CC_SetTrans(
  * same reason as IF_CALLONRESIZE: this is reached from inside a running CS2
  * script and the host has no runner to nest a second one on.
  */
+/*
+ * The four sound opcodes.
+ *
+ * Arguments are popped last-to-first, which is why each of these reads its
+ * fields in reverse of the source-level call. Getting that backwards is silent
+ * -- sound_synth(synth, 1, 0) with the order reversed plays synth 0 with 1
+ * repeat at a delay of `synth`, which is a real sound at a real time, just the
+ * wrong one -- so the pop order is written out per field rather than inferred.
+ */
+static int
+sound_request(
+    struct CS2VM2_Thread* vm,
+    enum CS2VM_HostRequestKind kind,
+    struct CS2VM_HostRequest_Sound* sound)
+{
+    struct CS2VM_HostRequest request;
+
+    memset(&request, 0, sizeof(request));
+    request.kind = kind;
+    request.u.sound = *sound;
+    return vm->vm->host_exec(vm, &request);
+}
+
+int
+CS2VM2_Op_SoundSynth(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_Sound sound;
+
+    (void)frame;
+    (void)operand;
+    memset(&sound, 0, sizeof(sound));
+    /* sound_synth(synth, loops, delay) */
+    if( CS2VM2_PopInt(vm, &sound.delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.loops) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return sound_request(vm, CS2VM_HOST_REQUEST_SOUND_SYNTH, &sound);
+}
+
+int
+CS2VM2_Op_SoundSong(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_Sound sound;
+
+    (void)frame;
+    (void)operand;
+    memset(&sound, 0, sizeof(sound));
+    /* sound_song(id, fadeOutDelay, fadeOutSpeed, fadeInDelay, fadeInSpeed) */
+    if( CS2VM2_PopInt(vm, &sound.fade_in_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_in_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_out_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_out_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return sound_request(vm, CS2VM_HOST_REQUEST_SOUND_SONG, &sound);
+}
+
+int
+CS2VM2_Op_SoundJingle(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_Sound sound;
+
+    (void)frame;
+    (void)operand;
+    memset(&sound, 0, sizeof(sound));
+    /* sound_jingle(id, delay) */
+    if( CS2VM2_PopInt(vm, &sound.delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return sound_request(vm, CS2VM_HOST_REQUEST_SOUND_JINGLE, &sound);
+}
+
+int
+CS2VM2_Op_SoundSongWithSecondary(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_Sound sound;
+
+    (void)frame;
+    (void)operand;
+    memset(&sound, 0, sizeof(sound));
+    /* _3221(primary, secondary, fadeOutDelay, fadeOutSpeed, fadeInDelay,
+     *       fadeInSpeed) -- script9630 passes the same four fade arguments it
+     *       would have passed to sound_song, with the secondary spliced in. */
+    if( CS2VM2_PopInt(vm, &sound.fade_in_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_in_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_out_speed) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.fade_out_delay) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.secondary_id) != CS2VM_EXECNO_OK ||
+        CS2VM2_PopInt(vm, &sound.id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return sound_request(vm, CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY, &sound);
+}
+
 int
 CS2VM2_Op_CC_TriggerOp(
     struct CS2VM2_Thread* vm,
@@ -9590,6 +9695,14 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnSubChange(vm, frame, operand);
     case CS2_OP_CC_TRIGGEROP:
         return CS2VM2_Op_CC_TriggerOp(vm, frame, operand);
+    case CS2_OP_SOUND_SYNTH:
+        return CS2VM2_Op_SoundSynth(vm, frame, operand);
+    case CS2_OP_SOUND_SONG:
+        return CS2VM2_Op_SoundSong(vm, frame, operand);
+    case CS2_OP_SOUND_JINGLE:
+        return CS2VM2_Op_SoundJingle(vm, frame, operand);
+    case CS2_OP_SOUND_SONG_WITHSECONDARY:
+        return CS2VM2_Op_SoundSongWithSecondary(vm, frame, operand);
     case CS2_OP_IF_GETWIDTH:
         return CS2VM2_Op_IF_GetWidth(vm, frame, operand);
     case CS2_OP_IF_GETHEIGHT:
