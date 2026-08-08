@@ -538,6 +538,31 @@ main(void)
               got.hi_res_direction);
     }
 
+    /* An inner-ring endpoint uses WALK geometry even when the actor is
+     * running. RuneLite keys its method2600 local repath off this independent
+     * traversal value, not off the two-bit movement opcode. */
+    rsab_wrap(&buf, storage, sizeof(storage));
+    {
+        struct Mock239PlayerExt ext;
+        struct PktPlayerInfoOp ops[64];
+        struct PktPlayerInfoOp const* move = NULL;
+        int op_count;
+
+        memset(&ext, 0, sizeof(ext));
+        ext.has_temp_move_speed = 1;
+        ext.temp_move_speed = 2;
+        mock239_playerinfo_write(
+            &buf, LOCAL_INDEX, MOCK239_PLAYER_WALK, 2, 0, NULL, 0, &ext);
+        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 64);
+        for( int i = 0; i < op_count; i++ )
+            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+                move = &ops[i];
+        CHECK(move && move->_local_xz_level.has_move_speed &&
+                  move->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN &&
+                  !move->_local_xz_level.jump,
+              "WALK geometry independently carries RUN traversal for corner repath");
+    }
+
     fprintf(stderr, "mock239-playerinfo: drawable hitmark block\n");
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;

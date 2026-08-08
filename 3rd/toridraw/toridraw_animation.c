@@ -75,6 +75,46 @@ ToriDraw_AnimationAdvanceObjectFrame(struct ToriDraw_Animation const* anim, int*
     return true;
 }
 
+bool
+ToriDraw_AnimationAdvanceObjectCycles(
+    struct ToriDraw_Animation const* anim,
+    int* frame,
+    int* frame_cycle,
+    int cycles)
+{
+    int cycle;
+
+    if( !anim || !frame || !frame_cycle || !anim->frames || anim->frame_count <= 0 ||
+        *frame < 0 || *frame >= anim->frame_count )
+        return false;
+
+    cycle = *frame_cycle;
+    if( cycle < 0 )
+        cycle = 0;
+    if( cycles > 0 )
+        cycle += cycles;
+
+    /* rev239 class405.method9325/class454: advance only while accumulated
+     * time is strictly greater than the current frame length, then subtract
+     * that length rather than resetting the counter. Sequence data should not
+     * contain non-positive lengths; treating one as a one-cycle frame keeps a
+     * malformed record from making this loop non-terminating. */
+    while( cycle > (anim->frames[*frame].delay > 0 ? anim->frames[*frame].delay : 1) )
+    {
+        int delay = anim->frames[*frame].delay > 0 ? anim->frames[*frame].delay : 1;
+
+        cycle -= delay;
+        if( !ToriDraw_AnimationAdvanceObjectFrame(anim, frame) )
+        {
+            *frame_cycle = cycle;
+            return false;
+        }
+    }
+
+    *frame_cycle = cycle;
+    return true;
+}
+
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 {

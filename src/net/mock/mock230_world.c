@@ -316,19 +316,6 @@ player_travel_extra(void)
     return COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
 }
 
-/* The modern GPI stream describes one net displacement per server tick. The
- * classic stream can carry both individual run directions, so only v5 needs
- * turns which land in the unrepresentable inner 3x3 ring split across ticks. */
-static int
-player_wire_uses_v5_movement(struct Mock230Player const* player)
-{
-    struct Mock230Server const* srv = player ? player->world : NULL;
-    struct Mock230Wire const* wire =
-        (srv && srv->wire) ? srv->wire : mock230_wire_default();
-
-    return wire && wire->revision >= 239;
-}
-
 /*
  * `Npc.blockWalkFlag()`. The hard blocks always apply; the two opt-outs are
  * orthogonal, and `moverestrict=blocked` opts out of all of it — an npc that
@@ -1983,43 +1970,9 @@ advance_player(struct Mock230Server* srv)
 
         for( int i = 0; i < max_tiles; i++ )
         {
-            int rollback_x = player->x;
-            int rollback_z = player->z;
-            int rollback_last_x = player->last_step_x;
-            int rollback_last_z = player->last_step_z;
-            int rollback_waypoint = player->waypoint_index;
             int dir = player_take_step(player);
             if( dir < 0 )
                 break;
-
-            /* RuneLite's size-1 flood (rev-239 class168) admits a diagonal
-             * only when all three masks are clear: the destination and both
-             * adjoining cardinal tiles. The v5 RUN opcode cannot represent a
-             * two-step turn whose net displacement falls inside the 3x3 WALK
-             * ring. Encoding that turn as one WALK is safe only if that direct
-             * step passes the same collision test. Otherwise retain the second
-             * leg for the next tick. The classic stream carries both original
-             * directions and needs no split. */
-            if( i == 1 && player_wire_uses_v5_movement(player) )
-            {
-                int net_x = player->x - from_x;
-                int net_z = player->z - from_z;
-                int diagonal_dir = mock230_step_direction(net_x, net_z);
-
-                if( net_x >= -1 && net_x <= 1 && net_z >= -1 && net_z <= 1 &&
-                    (net_x != 0 || net_z != 0) && diagonal_dir >= 0 &&
-                    !mock230_scene_can_step(player->level, from_x, from_z, diagonal_dir) )
-                {
-                    player_set_occupancy(player, 0);
-                    player->x = rollback_x;
-                    player->z = rollback_z;
-                    player->last_step_x = rollback_last_x;
-                    player->last_step_z = rollback_last_z;
-                    player->waypoint_index = rollback_waypoint;
-                    player_set_occupancy(player, 1);
-                    break;
-                }
-            }
             player->move_dirs[player->move_count++] = dir;
             player->steps_taken++;
         }
@@ -2028,10 +1981,10 @@ advance_player(struct Mock230Server* srv)
          * MOCK230_MOVE_TRACE=1 — the tiles this tick, and how the wire will
          * describe them.
          *
-         * A blocked-corner turn is deliberately split across ticks above, so
-         * it appears here as two cardinal WALK updates instead of an ambiguous
-         * net diagonal. A legal open-ground two-step turn may still collapse
-         * to WALK(diagonal), because no corner geometry is skipped there.
+         * A running two-step turn can have a one-tile diagonal net displacement,
+         * so v239 carries WALK geometry plus RUN traversal. RuneLite uses that
+         * traversal to pathfind locally (method2600) and retain the corner tile;
+         * the classic stream carries both directions directly.
          */
         if( getenv("MOCK230_MOVE_TRACE") && (player->steps_taken || from_x != player->x ||
                                              from_z != player->z) )
@@ -16751,10 +16704,10 @@ mock230_world_selftest(void)
                        player->move_count);
         SELFTEST_CHECK(player->x == start_x + 3, "ran two tiles, x=%d", player->x);
 
-        /* A run may cover two tiles, but not collapse an orthogonal route
-         * around a blocked corner into one diagonal update. Find that geometry
-         * in the real scene, queue its two legal cardinal legs, and pin both
-         * authoritative position and emitted movement count. */
+        /* Find a real blocked corner and pin the server side of RuneLite's
+         * model: the run still consumes both legal cardinal legs this tick.
+         * V239 reports their net endpoint with RUN traversal; method2600 on the
+         * client reconstructs this same intermediate tile. */
         {
             int corner_x = -1;
             int corner_z = -1;
@@ -16764,13 +16717,6 @@ mock230_world_selftest(void)
             int end_z = -1;
             int scene_x = mock230_scene_origin(srv.zone_x);
             int scene_z = mock230_scene_origin(srv.zone_z);
-            struct Mock230Wire const* saved_wire = srv.wire;
-            struct Mock230Wire const* wire239 = mock230_wire_by_name("osrs239");
-
-            SELFTEST_CHECK(wire239 != NULL, "rev239 wire exists for corner-run test");
-            if( wire239 )
-                srv.wire = wire239;
-
             for( int x = scene_x + 1; x < scene_x + MOCK230_SCENE_TILES - 1 && corner_x < 0;
                  x++ )
             {
@@ -16831,21 +16777,15 @@ mock230_world_selftest(void)
                 player->dest_z = end_z;
 
                 mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->move_count == 1,
-                               "corner run emits only its first cardinal leg, got %d",
+                SELFTEST_CHECK(player->move_count == 2,
+                               "corner run consumes both cardinal legs, got %d",
                                player->move_count);
-                SELFTEST_CHECK(player->x == middle_x && player->z == middle_z,
-                               "corner run stops at intermediate %d,%d, got %d,%d", middle_x,
-                               middle_z, player->x, player->z);
-                SELFTEST_CHECK(player->waypoint_index == 0,
-                               "corner run retains its second leg for the next tick");
-
-                mock230_world_tick(&srv);
                 SELFTEST_CHECK(player->x == end_x && player->z == end_z,
-                               "corner run reaches endpoint next tick, got %d,%d", player->x,
+                               "corner run reaches its endpoint this tick, got %d,%d", player->x,
                                player->z);
+                SELFTEST_CHECK(player->move_dirs[0] != player->move_dirs[1],
+                               "corner run retains two distinct directions");
             }
-            srv.wire = saved_wire;
         }
 
         /* Waypoints more than a tile apart are walked greedily, not teleported:
@@ -22887,8 +22827,9 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 2,
-                           "the flank walls need the bind cycle plus one cutscene hold tick; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
+                           "the flank walls need the bind cycle, two hold ticks, and the "
+                           "middle-wall lead tick; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(rocks_tick == anim_tick + 6,
@@ -22925,10 +22866,10 @@ mock230_world_selftest(void)
                                east ? east->angle : -1);
             }
             /* The rigid centre glyph remains through cutscene setup, then is
-             * removed on the same server tick that sends both LOC_ANIM packets.
-             * Sequence 7561 is Kronos's wrong asset and must never be sent. */
-            SELFTEST_CHECK(mid_removal_tick == anim_tick,
-                           "the centre glyph must clear on the dedicated side-wall animation "
+             * removed one server tick before both LOC_ANIM packets. Sequence
+             * 7561 is Kronos's wrong asset and must never be sent. */
+            SELFTEST_CHECK(mid_removal_tick == anim_tick - 1,
+                           "the centre glyph must clear one tick before the side-wall animation "
                            "tick; got mid=%d change=%d anim=%d",
                            mid_removal_tick, change_tick, anim_tick);
             SELFTEST_CHECK(total_pillar_seq == 0,
@@ -23063,8 +23004,9 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 2,
-                           "the repeated seal should preserve the bind cycle and hold tick; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
+                           "the repeated seal should preserve the bind, hold, and middle lead "
+                           "ticks; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,

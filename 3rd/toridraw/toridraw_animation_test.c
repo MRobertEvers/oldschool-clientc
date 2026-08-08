@@ -19,6 +19,11 @@ int
 main(void)
 {
     struct ToriDraw_Animation anim = { .frame_count = 90, .frame_step = 1 };
+    struct ToriDraw_AnimFrame timed_frames[] = {
+        { .delay = 2 },
+        { .delay = 3 },
+        { .delay = 1 },
+    };
     struct ToriDraw_Scene* scene;
     struct ToriDraw_SceneElement* element;
     int frame;
@@ -39,6 +44,32 @@ main(void)
     anim.frame_step = -1;
     frame = 89;
     CHECK(!ToriDraw_AnimationAdvanceObjectFrame(&anim, &frame), "no frame step ends object sequence");
+
+    /* rev239 DynamicObject timing: a length-2 frame is visible for both
+     * cycle 1 and cycle 2, and advances only when the accumulator reaches 3. */
+    anim.frames = timed_frames;
+    anim.frame_count = 3;
+    anim.frame_step = 1;
+    frame = 0;
+    {
+        int cycle = 0;
+        CHECK(ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 1),
+              "first held-frame cycle remains live");
+        CHECK(frame == 0 && cycle == 1, "length-2 frame holds cycle one");
+        CHECK(ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 1),
+              "second held-frame cycle remains live");
+        CHECK(frame == 0 && cycle == 2, "length-2 frame holds cycle two");
+        CHECK(ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 1),
+              "crossing held-frame boundary remains live");
+        CHECK(frame == 1 && cycle == 1, "strict boundary preserves one-cycle remainder");
+
+        CHECK(ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 2),
+              "length-3 frame accepts catch-up cycles");
+        CHECK(frame == 1 && cycle == 3, "length-3 frame holds through its declared length");
+        CHECK(ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 1),
+              "length-3 frame advances after its declared length");
+        CHECK(frame == 2 && cycle == 1, "variable-length boundary preserves remainder");
+    }
 
     scene = ToriDraw_SceneNew(0);
     CHECK(scene != NULL, "scene allocation");

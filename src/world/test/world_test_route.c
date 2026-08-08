@@ -726,10 +726,10 @@ test_route_coordinate_coincidence(void)
     TEST_ASSERT(fp.sx == 21 && fp.size_x == 1 && fp.sz == 30 && fp.size_z == 1,
                 "settled footprint is a single tile");
 
-    /* A modern server update can collapse a running two-step turn into the net
-     * diagonal endpoint. With the east side tile blocked, (30,30)->(31,31)
-     * must be drawn north to (30,31), then east — never straight through the
-     * corner at (31,30). */
+    /* RuneLite method3189 calls method2600 for RUN traversal before queuing the
+     * server-reported endpoint. With the east side tile blocked,
+     * (30,30)->(31,31) must remain a continuous run north to (30,31), then
+     * east — never walk or draw straight through the corner at (31,30). */
     {
         int corner_pi = World_PlayerSpawn(world, 12, 0, 30, 30, idle);
         struct WorldEntity_Player* corner =
@@ -746,6 +746,8 @@ test_route_coordinate_coincidence(void)
                     "corner waypoint takes the legal north-first route");
         TEST_ASSERT(corner->pathing.route_x[0] == 31 && corner->pathing.route_z[0] == 31,
                     "corner-aware route retains the authoritative endpoint");
+        TEST_ASSERT(corner->pathing.route_run[1] == 1 && corner->pathing.route_run[0] == 1,
+                    "both reconstructed corner legs retain RUN traversal");
 
         for( int cycle = 0; cycle < 64 && corner->pathing.route_length == 2; cycle++ )
         {

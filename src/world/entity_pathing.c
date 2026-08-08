@@ -2,6 +2,7 @@
 
 #include "engine/world_builder/collision_map.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 void
@@ -160,27 +161,25 @@ World_EntityPathingJumpCollisionAware(
 {
     int src_x = pathing->route_x[0];
     int src_z = pathing->route_z[0];
-    int dx = x - src_x;
-    int dz = z - src_z;
 
-    if( !force_teleport && collision && (dx == -1 || dx == 1) &&
-        (dz == -1 || dz == 1) &&
-        !collision_map_can_travel(collision, src_x, src_z, dx, dz, 1, 0) )
+    /* RuneLite rev-239 Statics.method3189 -> method2600: RUN traversal is
+     * geometry-independent from the GPI WALK/RUN displacement opcode. Before
+     * the reported endpoint is queued, run the client pathfinder from the
+     * newest queued tile and retain every intermediate turn. The renderer then
+     * consumes a continuous run route around the corner instead of either
+     * cutting the diagonal or slowing the server tick to a walk. */
+    if( !force_teleport && collision && step_type == WORLD_PATHSTEP_RUN )
     {
-        int x_first =
-            collision_map_can_travel(collision, src_x, src_z, dx, 0, 1, 0) &&
-            collision_map_can_travel(collision, src_x + dx, src_z, 0, dz, 1, 0);
-        int z_first =
-            collision_map_can_travel(collision, src_x, src_z, 0, dz, 1, 0) &&
-            collision_map_can_travel(collision, src_x, src_z + dz, dx, 0, 1, 0);
+        int route_x[10];
+        int route_z[10];
+        int route_len = collision_map_try_route(
+            collision, src_x, src_z, x, z, true, route_x, route_z, 10, NULL);
 
-        /* The authoritative mover did reach the diagonal endpoint. If either
-         * L-shaped route explains it, retain that corner tile in the local
-         * queue instead of interpolating straight through the obstruction. */
-        if( x_first )
-            World_EntityPathingPushXZ(pathing, src_x + dx, src_z, step_type);
-        else if( z_first )
-            World_EntityPathingPushXZ(pathing, src_x, src_z + dz, step_type);
+        /* try_route is destination-first; actor queues are filled source-first.
+         * Exclude route[0], because World_EntityPathingJump queues the reported
+         * endpoint below exactly as method3189 does after method2600 returns. */
+        for( int i = route_len - 1; i > 0; i-- )
+            World_EntityPathingPushXZ(pathing, route_x[i], route_z[i], step_type);
     }
 
     {

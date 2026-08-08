@@ -6242,18 +6242,15 @@ app_world_tick_animations(struct App* app)
             const struct ToriDraw_Animation* anim = element->animation;
             if( !anim || anim->frame_count <= 0 || !anim->frames )
                 continue;
-            element->anim_cycle++;
-            /* This counter starts at zero, whereas DynamicObject seeds
-             * cycleStart one client cycle behind. `>=` therefore preserves
-             * the reference's effective per-frame dwell time. */
-            if( element->anim_cycle >= anim->frames[element->anim_frame].delay )
             {
-                if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                int old_frame = element->anim_frame;
+
+                if( !ToriDraw_AnimationAdvanceObjectCycles(
+                        anim, &element->anim_frame, &element->anim_cycle, 1) )
                     ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
-                element->anim_cycle = 0;
                 /* Play any frame sounds for the new frame. A finished
                  * DynamicObject has no sequence, so it cannot emit another. */
-                if( element->anim_seq_id != -1 )
+                if( element->anim_seq_id != -1 && element->anim_frame != old_frame )
                     app_play_frame_sounds(
                         app,
                         anim,
@@ -8191,16 +8188,10 @@ app_world_catch_up_object_seq(
                 element->anim_cycle = 0;
             }
         }
-        else if( anim->frames && anim->frame_count > 0 )
-        {
-            element->anim_cycle++;
-            if( element->anim_cycle >= anim->frames[element->anim_frame].delay )
-            {
-                if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
-                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
-                element->anim_cycle = 0;
-            }
-        }
+        else if( anim->frames && anim->frame_count > 0 &&
+                 !ToriDraw_AnimationAdvanceObjectCycles(
+                     anim, &element->anim_frame, &element->anim_cycle, 1) )
+            ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
     }
 }
 

@@ -112,6 +112,18 @@ ToriDraw_AnimationSetSeqMeta(
 bool
 ToriDraw_AnimationAdvanceObjectFrame(struct ToriDraw_Animation const* anim, int* frame);
 
+/** Advance a DynamicObject-style sequence by client cycles. `frame_cycle` is
+ * the elapsed time within the current frame. A frame remains current while
+ * frame_cycle <= its cache length; crossing the boundary preserves the
+ * remainder, matching the rev239 sequence player. Returns false when the
+ * sequence terminates because it has no valid frame step. */
+bool
+ToriDraw_AnimationAdvanceObjectCycles(
+    struct ToriDraw_Animation const* anim,
+    int* frame,
+    int* frame_cycle,
+    int cycles);
+
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);
 

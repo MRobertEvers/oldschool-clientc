@@ -36,10 +36,8 @@ World_EntityPathingJump(
     int x,
     int z);
 
-/* Modern player-info sends only the final coordinate of a server tick. When a
- * runner turns through two orthogonal steps, that can look like a one-tile
- * diagonal even though the direct diagonal is blocked. Reconstruct the legal
- * intermediate tile so draw interpolation follows the route around the corner. */
+/* RuneLite rev-239 method2600 equivalent: RUN traversal pathfinds locally to
+ * the reported endpoint and queues intermediate turns before that endpoint. */
 enum World_PathingJump
 World_EntityPathingJumpCollisionAware(
     struct WorldEntityFacet_Pathing* pathing,

@@ -3098,7 +3098,8 @@ mock230_send_player_info(struct Mock230Player* player)
          *
          * A two-step turn can finish one diagonal tile away (for example east
          * then north).  That displacement is representable by WALK, not RUN;
-         * using WALK preserves both the coordinate and a locomotion pose.
+         * WALK carries its geometry while TEMP_MOVE_SPEED below independently
+         * preserves RUN traversal and triggers the client's local repath.
          */
         {
             int dx = player->x - player->v5_last_x;
@@ -3177,11 +3178,14 @@ mock230_send_player_info(struct Mock230Player* player)
                 &ext.face, player->masks, MOCK230_PMASK_FACE_ENTITY,
                 MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
                 player->face_z, 0);
-            if( movement == MOCK239_PLAYER_RUN )
+            if( player->running && player->move_count > 0 &&
+                movement != MOCK239_PLAYER_TELEPORT )
             {
-                /* Opcode 2 states a two-tile displacement; it does not select
-                 * the run locomotion by itself. Revision 239 stages movement
-                 * using TEMP_MOVE_SPEED=2 in the extended tail. */
+                /* The movement opcode states geometry, not traversal. A runner
+                 * whose remaining route is only one tile still uses WALK
+                 * geometry with class174.field2474 (TEMP_MOVE_SPEED=2). That
+                 * RUN traversal is also what makes RuneLite method3189 invoke
+                 * method2600 and locally retain corner waypoints. */
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
