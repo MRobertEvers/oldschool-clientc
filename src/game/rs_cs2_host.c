@@ -28,6 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int clamp_percent(int value);
+
 #ifndef UITREE_CLICK_DEBUG
 #define UITREE_CLICK_DEBUG 0
 #endif
@@ -660,11 +662,15 @@ RS_CS2Host_Init(
     host->mouse_x = -1;
     host->mouse_y = -1;
     host->cam_follow_height = 0;
-    /* Volumes start muted (0); a settings panel or the server drives them up.
-     * memset already zeroed these — kept explicit alongside the getters they back. */
-    host->volume_music = 0;
-    host->volume_sounds = 0;
-    host->volume_area_sounds = 0;
+    /* The audio engine starts at full gain; the option host must report the
+     * same state before interface 116 sends its first slider update. */
+    host->volume_music = 100;
+    host->volume_sounds = 100;
+    host->volume_area_sounds = 100;
+    host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME] = 100;
+    host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME] = 100;
+    host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME] = 100;
+    host->device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME] = 100;
     /* Start at the low end of the documented 2..8 range; a settings panel or the
      * server can drive it. Real default is TBD once minimap zoom is rendered. */
     host->minimap_zoom = 2;
@@ -1003,6 +1009,62 @@ RS_CS2Host_TakeSound(
     host->sound_head = (host->sound_head + 1) % RS_CS2_HOST_SOUND_MAX;
     host->sound_count--;
     return true;
+}
+
+bool
+RS_CS2Host_TakeAudioSettings(
+    struct RS_CS2Host* host,
+    struct RS_CS2AudioSettings* out)
+{
+    if( !host || !out || !host->audio_settings_dirty )
+        return false;
+    out->master = host->device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME];
+    out->music = host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME];
+    out->sounds = host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME];
+    out->area_sounds = host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME];
+    host->audio_settings_dirty = false;
+    return true;
+}
+
+void
+RS_CS2Host_SyncAudioVarp(
+    struct RS_CS2Host* host,
+    int varp_id)
+{
+    int value;
+
+    if( !host || !host->varps )
+        return;
+    switch( varp_id )
+    {
+    case RS_CS2_VARP_MASTER_VOLUME:
+        value = clamp_percent(VarPManager_GetVarp(host->varps, varp_id));
+        host->device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME] = value;
+        break;
+    case RS_CS2_VARP_MUSIC_VOLUME:
+        value = clamp_percent(VarPManager_GetVarp(host->varps, varp_id));
+        host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME] = value;
+        host->volume_music = value;
+        break;
+    case RS_CS2_VARP_SOUND_VOLUME:
+        value = clamp_percent(VarPManager_GetVarp(host->varps, varp_id));
+        host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME] = value;
+        host->volume_sounds = value;
+        break;
+    case RS_CS2_VARP_AREA_VOLUME:
+    case RS_CS2_VARP_AREA_OVERRIDE_ENABLED:
+    case RS_CS2_VARP_AREA_OVERRIDE_VOLUME:
+        value = VarPManager_GetVarp(host->varps, RS_CS2_VARP_AREA_OVERRIDE_ENABLED) == 1
+                    ? VarPManager_GetVarp(host->varps, RS_CS2_VARP_AREA_OVERRIDE_VOLUME)
+                    : VarPManager_GetVarp(host->varps, RS_CS2_VARP_AREA_VOLUME);
+        value = clamp_percent(value);
+        host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME] = value;
+        host->volume_area_sounds = value;
+        break;
+    default:
+        return;
+    }
+    host->audio_settings_dirty = true;
 }
 
 bool
@@ -1642,14 +1704,27 @@ exec_minimenu(
     }
 }
 
-/*
- * Audio volumes (3203..3208) and client/game/device options (3209..3217). The
- * volume values are host-owned (round-trip: a SET is read back by the matching
- * GET), the port having no audio mixer yet. The keyed option families have no
- * backing store here — SET is a no-op, GET answers 0, GETRANGE answers a 0..255
- * span — enough for a settings panel to run; wire real option state through here
- * when it exists (request.option_id / request.value carry the key + payload).
- */
+static int
+clamp_percent(int value)
+{
+    if( value < 0 )
+        return 0;
+    if( value > 100 )
+        return 100;
+    return value;
+}
+
+static bool
+option_id_valid(int id)
+{
+    return id >= 0 && id < RS_CS2_OPTION_MAX;
+}
+
+/* Audio volumes (3203..3208) and client/game/device options (3209..3217).
+ * Interface 116 writes music/effects/area through game options 7/8/9 and
+ * master through device option 19. Store every in-range option for GET
+ * round-trips; flag the four audio ids for the App to apply after the script
+ * completes, beside the existing deferred sound requests. */
 static int
 exec_client_option(
     struct RS_CS2Host* host,
@@ -1659,36 +1734,82 @@ exec_client_option(
     switch( request.opcode )
     {
     case CS2_OP_SETVOLUMEMUSIC:
-        host->volume_music = request.value;
+        host->volume_music = clamp_percent(request.value);
+        host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME] = host->volume_music;
+        host->audio_settings_dirty = true;
         return CS2VM_EXECNO_OK;
     case CS2_OP_GETVOLUMEMUSIC:
         return CS2VM2_PushInt(thread, host->volume_music);
     case CS2_OP_SETVOLUMESOUNDS:
-        host->volume_sounds = request.value;
+        host->volume_sounds = clamp_percent(request.value);
+        host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME] = host->volume_sounds;
+        host->audio_settings_dirty = true;
         return CS2VM_EXECNO_OK;
     case CS2_OP_GETVOLUMESOUNDS:
         return CS2VM2_PushInt(thread, host->volume_sounds);
     case CS2_OP_SETVOLUMEAREASOUNDS:
-        host->volume_area_sounds = request.value;
+        host->volume_area_sounds = clamp_percent(request.value);
+        host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME] = host->volume_area_sounds;
+        host->audio_settings_dirty = true;
         return CS2VM_EXECNO_OK;
     case CS2_OP_GETVOLUMEAREASOUNDS:
         return CS2VM2_PushInt(thread, host->volume_area_sounds);
 
     case CS2_OP_CLIENTOPTION_SET:
+        if( option_id_valid(request.option_id) )
+            host->client_options[request.option_id] = request.value;
+        return CS2VM_EXECNO_OK;
     case CS2_OP_GAMEOPTION_SET:
+        if( option_id_valid(request.option_id) )
+        {
+            int value = request.value;
+            if( request.option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME ||
+                request.option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME ||
+                request.option_id == RS_CS2_GAMEOPTION_AREA_VOLUME )
+                value = clamp_percent(value);
+            host->game_options[request.option_id] = value;
+            if( request.option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME )
+                host->volume_music = value;
+            else if( request.option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME )
+                host->volume_sounds = value;
+            else if( request.option_id == RS_CS2_GAMEOPTION_AREA_VOLUME )
+                host->volume_area_sounds = value;
+            else
+                return CS2VM_EXECNO_OK;
+            host->audio_settings_dirty = true;
+        }
+        return CS2VM_EXECNO_OK;
     case CS2_OP_DEVICEOPTION_SET:
+        if( option_id_valid(request.option_id) )
+        {
+            host->device_options[request.option_id] =
+                request.option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME
+                    ? clamp_percent(request.value)
+                    : request.value;
+            if( request.option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME )
+                host->audio_settings_dirty = true;
+        }
         return CS2VM_EXECNO_OK;
     case CS2_OP_CLIENTOPTION_GET:
+        return CS2VM2_PushInt(
+            thread,
+            option_id_valid(request.option_id) ? host->client_options[request.option_id] : 0);
     case CS2_OP_GAMEOPTION_GET:
+        return CS2VM2_PushInt(
+            thread,
+            option_id_valid(request.option_id) ? host->game_options[request.option_id] : 0);
     case CS2_OP_DEVICEOPTION_GET:
-        return CS2VM2_PushInt(thread, 0);
+        return CS2VM2_PushInt(
+            thread,
+            option_id_valid(request.option_id) ? host->device_options[request.option_id] : 0);
     case CS2_OP_DEVICEOPTION_GETRANGE:
     {
         /* min then max (reference range order). */
+        int max = request.option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME ? 100 : 255;
         int result = CS2VM2_PushInt(thread, 0);
         if( result != CS2VM_EXECNO_OK )
             return result;
-        return CS2VM2_PushInt(thread, 255);
+        return CS2VM2_PushInt(thread, max);
     }
     default:
         fprintf(stderr, "exec_client_option: unhandled opcode %d\n", request.opcode);

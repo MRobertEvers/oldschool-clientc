@@ -81,6 +81,10 @@ struct UIIntent
 {
     int component_id;
     struct UITreeRuntimeScriptHook const* hook;
+    /** This intent is the component's primary pointer click. Kept separate
+     *  from event_mouse because clicks and hover/drag hooks can both carry
+     *  component-relative coordinates. */
+    int is_click;
     int has_event_mouse;
     int event_mouse_x;
     int event_mouse_y;

@@ -41,9 +41,9 @@
  * ## Volumes
  *
  * Three independent settings -- effects, music, area -- each mapped onto a
- * mixer bus. The reference has three sliders and the game reads them from
- * different varps, so collapsing them into one number here would make the
- * settings panel unimplementable.
+ * mixer bus, plus the master slider multiplied into all three. The reference
+ * reads them from distinct options, so collapsing them into one number here
+ * would make the settings panel unimplementable.
  */
 
 struct CacheProvider;
@@ -123,7 +123,8 @@ struct RS_Audio
      * tick.
      */
     bool effects_monophonic;
-    /** 0..TORIRS_AUDIO_VOLUME_MAX, per bus. */
+    /** 0..TORIRS_AUDIO_VOLUME_MAX. Per-bus values are pre-master settings. */
+    int master_volume;
     int effect_volume;
     int area_volume;
     int music_volume;
@@ -308,6 +309,13 @@ void
 RS_Audio_SetBusVolume(
     struct RS_Audio* audio,
     enum ToriRS_AudioBus bus,
+    int volume,
+    struct ToriRS_AudioQueue* out);
+
+/** Set the master gain and re-emit all three effective bus gains. */
+void
+RS_Audio_SetMasterVolume(
+    struct RS_Audio* audio,
     int volume,
     struct ToriRS_AudioQueue* out);
 

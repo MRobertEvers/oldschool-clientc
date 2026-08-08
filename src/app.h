@@ -239,6 +239,9 @@ struct AppSeqBindPending
 {
     int element_id;
     int seq_id;
+    /** World/client cycle on which LOC_ANIM requested the sequence. Async
+     * loading must not reset a DynamicObject's clock when the bind lands. */
+    int start_cycle;
 };
 
 /** One visible map surface region, with its distance from the view centre. */

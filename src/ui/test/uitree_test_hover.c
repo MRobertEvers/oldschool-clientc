@@ -1,6 +1,52 @@
 #include "test_harness.h"
 
+#include "input/torirs_input.h"
+#include "uitree_interact.h"
+
 #include <stdlib.h>
+
+void
+test_click_event_coords(void)
+{
+    struct UITree* tree;
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t track;
+    int found = 0;
+
+    printf("TEST: onClick event mouse is hook-component relative\n");
+    tree = UITree_New(8);
+    UITree_TestHostInit(&host, &hs);
+    track = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 700, 100, 40, 200, 20);
+    tree->components[track].if3 = 1;
+    UITree_HooksMut(&tree->components[track])->on_click.script_id = 9226;
+    UITree_TestResolve(tree);
+
+    UIInteraction_Init(&interact);
+    input = LibToriRS_Input_Init(&storage, 0);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+    for( int i = 0; i < out.intent_count; i++ )
+    {
+        if( !out.intents[i].hook || out.intents[i].hook->script_id != 9226 )
+            continue;
+        found = 1;
+        TEST_ASSERT(out.intents[i].is_click, "onClick intent is classified as a click");
+        TEST_ASSERT(out.intents[i].has_event_mouse, "onClick carries event mouse coordinates");
+        TEST_ASSERT(out.intents[i].event_mouse_x == 60, "event_mousex is relative to track");
+        TEST_ASSERT(out.intents[i].event_mouse_y == 7, "event_mousey is relative to track");
+    }
+    TEST_ASSERT(found, "slider-like track dispatches its onClick hook");
+    UITree_Free(tree);
+}
 
 void
 test_hover_input(void)

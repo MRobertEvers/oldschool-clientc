@@ -316,6 +316,19 @@ player_travel_extra(void)
     return COLL_FLAG_BLOCK_NPC_AND_PLAYERS;
 }
 
+/* The modern GPI stream describes one net displacement per server tick. The
+ * classic stream can carry both individual run directions, so only v5 needs
+ * turns which land in the unrepresentable inner 3x3 ring split across ticks. */
+static int
+player_wire_uses_v5_movement(struct Mock230Player const* player)
+{
+    struct Mock230Server const* srv = player ? player->world : NULL;
+    struct Mock230Wire const* wire =
+        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+
+    return wire && wire->revision >= 239;
+}
+
 /*
  * `Npc.blockWalkFlag()`. The hard blocks always apply; the two opt-outs are
  * orthogonal, and `moverestrict=blocked` opts out of all of it — an npc that
@@ -1970,9 +1983,43 @@ advance_player(struct Mock230Server* srv)
 
         for( int i = 0; i < max_tiles; i++ )
         {
+            int rollback_x = player->x;
+            int rollback_z = player->z;
+            int rollback_last_x = player->last_step_x;
+            int rollback_last_z = player->last_step_z;
+            int rollback_waypoint = player->waypoint_index;
             int dir = player_take_step(player);
             if( dir < 0 )
                 break;
+
+            /* RuneLite's size-1 flood (rev-239 class168) admits a diagonal
+             * only when all three masks are clear: the destination and both
+             * adjoining cardinal tiles. The v5 RUN opcode cannot represent a
+             * two-step turn whose net displacement falls inside the 3x3 WALK
+             * ring. Encoding that turn as one WALK is safe only if that direct
+             * step passes the same collision test. Otherwise retain the second
+             * leg for the next tick. The classic stream carries both original
+             * directions and needs no split. */
+            if( i == 1 && player_wire_uses_v5_movement(player) )
+            {
+                int net_x = player->x - from_x;
+                int net_z = player->z - from_z;
+                int diagonal_dir = mock230_step_direction(net_x, net_z);
+
+                if( net_x >= -1 && net_x <= 1 && net_z >= -1 && net_z <= 1 &&
+                    (net_x != 0 || net_z != 0) && diagonal_dir >= 0 &&
+                    !mock230_scene_can_step(player->level, from_x, from_z, diagonal_dir) )
+                {
+                    player_set_occupancy(player, 0);
+                    player->x = rollback_x;
+                    player->z = rollback_z;
+                    player->last_step_x = rollback_last_x;
+                    player->last_step_z = rollback_last_z;
+                    player->waypoint_index = rollback_waypoint;
+                    player_set_occupancy(player, 1);
+                    break;
+                }
+            }
             player->move_dirs[player->move_count++] = dir;
             player->steps_taken++;
         }
@@ -1981,17 +2028,10 @@ advance_player(struct Mock230Server* srv)
          * MOCK230_MOVE_TRACE=1 — the tiles this tick, and how the wire will
          * describe them.
          *
-         * The one thing this answers that nothing else can: a running player
-         * who turns a corner takes two steps whose *net* displacement is one
-         * diagonal tile, and the rev-239 player stream has no code for that —
-         * its 4-bit run table is the outer ring of a 5x5, so `(±1, ±1)` goes
-         * out as a single diagonal WALK (rsprot `PlayerInfo.prepareHighResMovement`,
-         * and rsmod hands rsprot only the final coord). The client then glides
-         * across the corner because it was never told the tile in between.
-         *
-         * So `steps=2 net=(1,1)` in this trace is the protocol, and `steps=1`
-         * with a diagonal delta beside a wall corner would be a collision bug.
-         * They look identical on screen and are not the same thing.
+         * A blocked-corner turn is deliberately split across ticks above, so
+         * it appears here as two cardinal WALK updates instead of an ambiguous
+         * net diagonal. A legal open-ground two-step turn may still collapse
+         * to WALK(diagonal), because no corner geometry is skipped there.
          */
         if( getenv("MOCK230_MOVE_TRACE") && (player->steps_taken || from_x != player->x ||
                                              from_z != player->z) )
@@ -16711,6 +16751,103 @@ mock230_world_selftest(void)
                        player->move_count);
         SELFTEST_CHECK(player->x == start_x + 3, "ran two tiles, x=%d", player->x);
 
+        /* A run may cover two tiles, but not collapse an orthogonal route
+         * around a blocked corner into one diagonal update. Find that geometry
+         * in the real scene, queue its two legal cardinal legs, and pin both
+         * authoritative position and emitted movement count. */
+        {
+            int corner_x = -1;
+            int corner_z = -1;
+            int middle_x = -1;
+            int middle_z = -1;
+            int end_x = -1;
+            int end_z = -1;
+            int scene_x = mock230_scene_origin(srv.zone_x);
+            int scene_z = mock230_scene_origin(srv.zone_z);
+            struct Mock230Wire const* saved_wire = srv.wire;
+            struct Mock230Wire const* wire239 = mock230_wire_by_name("osrs239");
+
+            SELFTEST_CHECK(wire239 != NULL, "rev239 wire exists for corner-run test");
+            if( wire239 )
+                srv.wire = wire239;
+
+            for( int x = scene_x + 1; x < scene_x + MOCK230_SCENE_TILES - 1 && corner_x < 0;
+                 x++ )
+            {
+                for( int z = scene_z + 1;
+                     z < scene_z + MOCK230_SCENE_TILES - 1 && corner_x < 0; z++ )
+                {
+                    for( int dx = -1; dx <= 1 && corner_x < 0; dx += 2 )
+                    {
+                        for( int dz = -1; dz <= 1; dz += 2 )
+                        {
+                            int diagonal = mock230_step_direction(dx, dz);
+                            int first_x = mock230_step_direction(dx, 0);
+                            int second_z = mock230_step_direction(0, dz);
+                            int first_z = mock230_step_direction(0, dz);
+                            int second_x = mock230_step_direction(dx, 0);
+
+                            if( mock230_scene_can_step(0, x, z, diagonal) )
+                                continue;
+                            if( mock230_scene_can_step(0, x, z, first_x) &&
+                                mock230_scene_can_step(0, x + dx, z, second_z) )
+                            {
+                                corner_x = x;
+                                corner_z = z;
+                                middle_x = x + dx;
+                                middle_z = z;
+                            }
+                            else if( mock230_scene_can_step(0, x, z, first_z) &&
+                                     mock230_scene_can_step(0, x, z + dz, second_x) )
+                            {
+                                corner_x = x;
+                                corner_z = z;
+                                middle_x = x;
+                                middle_z = z + dz;
+                            }
+                            if( corner_x >= 0 )
+                            {
+                                end_x = x + dx;
+                                end_z = z + dz;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            SELFTEST_CHECK(corner_x >= 0, "scene contains a legal route around a corner");
+            if( corner_x >= 0 )
+            {
+                selftest_park_player(&srv, corner_x, corner_z);
+                player->run_energy = MOCK230_RUN_ENERGY_MAX;
+                player->run_toggle = 1;
+                player->waypoints[1].x = (int16_t)middle_x;
+                player->waypoints[1].z = (int16_t)middle_z;
+                player->waypoints[0].x = (int16_t)end_x;
+                player->waypoints[0].z = (int16_t)end_z;
+                player->waypoint_index = 1;
+                player->dest_x = end_x;
+                player->dest_z = end_z;
+
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->move_count == 1,
+                               "corner run emits only its first cardinal leg, got %d",
+                               player->move_count);
+                SELFTEST_CHECK(player->x == middle_x && player->z == middle_z,
+                               "corner run stops at intermediate %d,%d, got %d,%d", middle_x,
+                               middle_z, player->x, player->z);
+                SELFTEST_CHECK(player->waypoint_index == 0,
+                               "corner run retains its second leg for the next tick");
+
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->x == end_x && player->z == end_z,
+                               "corner run reaches endpoint next tick, got %d,%d", player->x,
+                               player->z);
+            }
+            srv.wire = saved_wire;
+        }
+
         /* Waypoints more than a tile apart are walked greedily, not teleported:
          * the client only sends the turning points of its route, and the
          * server stores the same. */
@@ -22632,6 +22769,7 @@ mock230_world_selftest(void)
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
+            int cam_reset_tick = -1;
             int zuk_tick = -1;
             int zuk_slot = -1;
             int mid_removal_tick = -1;
@@ -22665,6 +22803,7 @@ mock230_world_selftest(void)
                 int tick_left_seq;
                 int tick_right_seq;
                 int tick_pillar_seq;
+                int tick_cam_reset;
 
                 mock230_capture_begin(&srv, &capture);
                 mock230_world_tick(&srv);
@@ -22680,6 +22819,10 @@ mock230_world_selftest(void)
                     &capture, PKT_NAME_LOC_ANIM, long_right);
                 tick_pillar_seq = selftest_rev239_zone_count(
                     &capture, PKT_NAME_LOC_ANIM, collapse);
+                tick_cam_reset = mock230_capture_find(
+                                     &capture,
+                                     mock230_wire_opcode(srv.wire, PKT_NAME_CAM_RESET),
+                                     0) >= 0;
 
                 total_left += tick_left;
                 total_right += tick_right;
@@ -22705,6 +22848,8 @@ mock230_world_selftest(void)
                     change_tick = tick;
                 if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
+                if( tick_cam_reset && anim_tick >= 0 && cam_reset_tick < 0 )
+                    cam_reset_tick = tick;
                 /* Latch on the present -> absent edge. Gating on change_tick
                  * instead made the measurement report change_tick whenever the
                  * wall went first, which is exactly the case under test. */
@@ -22715,8 +22860,7 @@ mock230_world_selftest(void)
                     mid_removal_tick = tick;
                 if( zuk_tick < 0 && selftest_find_npc(&srv, zuk_type) >= 0 )
                     zuk_tick = tick;
-                /* The settled boulder piles are plane-1 locs over the same
-                 * tiles the falling walls occupy on plane 0. */
+                /* State3 is the settled terminal rubble on the bridge plane. */
                 if( rocks_tick < 0 &&
                     mock230_scene_find_loc_id(player->x - 3, player->z + 12, 1, rocks_l) >= 0 &&
                     mock230_scene_find_loc_id(player->x + 2, player->z + 12, 1, rocks_r) >= 0 )
@@ -22743,40 +22887,52 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
-                           "rev239 needs one complete client cycle between change and animation; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 2,
+                           "the flank walls need the bind cycle plus one cutscene hold tick; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
-            /*
-             * Six, not seven: seq 7560/7559 are 90 frames at two client cycles
-             * each — 180 cycles, exactly six server ticks. The extra tick this
-             * used to allow held a finished `max_loops = 99` animation long
-             * enough to begin it a second time.
-             */
             SELFTEST_CHECK(rocks_tick == anim_tick + 6,
-                           "the state3 boulder piles must appear on the tick the 180-cycle "
-                           "fall ends; got anim=%d rocks=%d",
+                           "the settled flank rocks must appear on the 180-cycle "
+                           "animation boundary; got anim=%d rocks=%d",
                            anim_tick, rocks_tick);
-            /* And the falling walls are left alone — 51 of their 90 frames carry
-             * alpha ops, so they dissolve; deleting them would be a pop. */
-            SELFTEST_CHECK(removal_tick < 0,
-                           "the falling side walls must not be deleted; got removal=%d",
-                           removal_tick);
-            /*
-             * The middle wall goes on the tick the side walls visibly change,
-             * which is the state2 swap — not the LOC_ANIM the client's bind gap
-             * forces a cycle later. It cannot fall: model 33037 has no vertex or
-             * face bone map, so seq 7561 moves nothing on it, which is also why
-             * no LOC_ANIM for 7561 may be sent. Removal is the only thing there
-             * is to synchronize.
-             */
-            SELFTEST_CHECK(mid_removal_tick == change_tick,
-                           "the safespot wall must be taken away on the tick the side walls "
-                           "swap to state2; got mid=%d change=%d anim=%d",
+            /* 7560/7559 are 90 frames at two client cycles each: 180 cycles,
+             * exactly six server ticks. The temporary state2 locs are removed
+             * on the same boundary that installs their state3 terminal pose. */
+            SELFTEST_CHECK(removal_tick == anim_tick + 6,
+                           "the temporary falling walls must clear when their 180-cycle "
+                           "sequences end; got anim=%d removal=%d",
+                           anim_tick, removal_tick);
+            SELFTEST_CHECK(removal_tick == rocks_tick,
+                           "state2 removal and state3 replacement must be atomic; "
+                           "got removal=%d rocks=%d",
+                           removal_tick, rocks_tick);
+            SELFTEST_CHECK(cam_reset_tick == rocks_tick,
+                           "the Zuk camera must cut back on the state3 replacement tick; "
+                           "got camera=%d rocks=%d",
+                           cam_reset_tick, rocks_tick);
+            {
+                int west_slot = mock230_scene_find_loc_id(
+                    player->x - 3, player->z + 12, 1, rocks_l);
+                int east_slot = mock230_scene_find_loc_id(
+                    player->x + 2, player->z + 12, 1, rocks_r);
+                struct Mock230SceneLoc* west = mock230_scene_loc(west_slot);
+                struct Mock230SceneLoc* east = mock230_scene_loc(east_slot);
+                SELFTEST_CHECK(west && west->angle == 3,
+                               "west terminal flank must be added at authored rotation 3, got %d",
+                               west ? west->angle : -1);
+                SELFTEST_CHECK(east && east->angle == 3,
+                               "east terminal flank must retain authored rotation 3, got %d",
+                               east ? east->angle : -1);
+            }
+            /* The rigid centre glyph remains through cutscene setup, then is
+             * removed on the same server tick that sends both LOC_ANIM packets.
+             * Sequence 7561 is Kronos's wrong asset and must never be sent. */
+            SELFTEST_CHECK(mid_removal_tick == anim_tick,
+                           "the centre glyph must clear on the dedicated side-wall animation "
+                           "tick; got mid=%d change=%d anim=%d",
                            mid_removal_tick, change_tick, anim_tick);
             SELFTEST_CHECK(total_pillar_seq == 0,
-                           "seq 7561 animates nothing on the rigless middle wall and must "
-                           "not be sent, got %d",
+                           "the server must not send Kronos's incorrect seq 7561, got %d",
                            total_pillar_seq);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
@@ -22907,8 +23063,8 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 1,
-                           "the repeated seal should preserve the one-tick client binding gap; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 2,
+                           "the repeated seal should preserve the bind cycle and hold tick; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,

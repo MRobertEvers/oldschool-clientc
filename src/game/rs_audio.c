@@ -33,6 +33,7 @@ RS_Audio_Init(struct RS_Audio* audio)
     assert(audio);
     memset(audio, 0, sizeof(*audio));
     audio->enabled = true;
+    audio->master_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->effect_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->area_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->music_volume = RS_AUDIO_DEFAULT_VOLUME;
@@ -372,7 +373,7 @@ play_entry(
 {
     struct ToriRS_AudioCommand command;
     int ticks;
-    int volume = audio->effect_volume;
+    int volume = TORIRS_AUDIO_VOLUME_MAX;
     int pan = TORIRS_AUDIO_PAN_CENTRE;
 
     if( !out )
@@ -399,7 +400,7 @@ play_entry(
             camera_x,
             camera_z,
             AUDIO_DEFAULT_DISTANCE,
-            audio->effect_volume,
+            TORIRS_AUDIO_VOLUME_MAX,
             &volume,
             &pan);
         if( volume <= 0 )
@@ -498,7 +499,6 @@ tick_effect_queue(
 
 static void
 stop_area_voice(
-    struct RS_Audio* audio,
     struct RS_AudioAreaVoice* voice,
     struct ToriRS_AudioQueue* out)
 {
@@ -546,7 +546,7 @@ tick_area_sounds(
     if( audio->area_generation != world->area_sound_generation )
     {
         for( int i = 0; i < RS_AUDIO_MAX_AREA_VOICES; i++ )
-            stop_area_voice(audio, &audio->area[i], out);
+            stop_area_voice(&audio->area[i], out);
         audio->area_generation = world->area_sound_generation;
     }
 
@@ -624,7 +624,7 @@ tick_area_sounds(
             continue;
         if( voice->sound_id < 0 )
         {
-            stop_area_voice(audio, voice, out);
+            stop_area_voice(voice, out);
             continue;
         }
 
@@ -924,6 +924,7 @@ RS_Audio_SetBusVolume(
     struct ToriRS_AudioQueue* out)
 {
     struct ToriRS_AudioCommand command;
+    int effective;
 
     if( !audio )
         return;
@@ -936,13 +937,15 @@ RS_Audio_SetBusVolume(
     {
     case TORIRS_AUDIO_BUS_EFFECTS:
         audio->effect_volume = volume;
+        audio->enabled = volume > 0;
         break;
     case TORIRS_AUDIO_BUS_AREA:
         audio->area_volume = volume;
         break;
     case TORIRS_AUDIO_BUS_MUSIC:
         audio->music_volume = volume;
-        ToriRS_Music_SetVolume(&audio->music, volume, out);
+        effective = volume * audio->master_volume / TORIRS_AUDIO_VOLUME_MAX;
+        ToriRS_Music_SetVolume(&audio->music, effective, out);
         return; /* the music player pushes its own bus command */
     default:
         return;
@@ -950,10 +953,36 @@ RS_Audio_SetBusVolume(
 
     if( !out )
         return;
+    effective = volume * audio->master_volume / TORIRS_AUDIO_VOLUME_MAX;
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_BUS_VOLUME);
     command.target_bus = bus;
-    command.volume = volume;
+    command.volume = effective;
     ToriRS_AudioQueue_Push(out, &command);
+}
+
+void
+RS_Audio_SetMasterVolume(
+    struct RS_Audio* audio,
+    int volume,
+    struct ToriRS_AudioQueue* out)
+{
+    int effects;
+    int area;
+    int music;
+
+    if( !audio )
+        return;
+    if( volume < 0 )
+        volume = 0;
+    if( volume > TORIRS_AUDIO_VOLUME_MAX )
+        volume = TORIRS_AUDIO_VOLUME_MAX;
+    effects = audio->effect_volume;
+    area = audio->area_volume;
+    music = audio->music_volume;
+    audio->master_volume = volume;
+    RS_Audio_SetBusVolume(audio, TORIRS_AUDIO_BUS_EFFECTS, effects, out);
+    RS_Audio_SetBusVolume(audio, TORIRS_AUDIO_BUS_AREA, area, out);
+    RS_Audio_SetBusVolume(audio, TORIRS_AUDIO_BUS_MUSIC, music, out);
 }
 
 void

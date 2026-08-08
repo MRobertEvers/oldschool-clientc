@@ -79,6 +79,31 @@ enum RS_CS2SocialSendKind
  */
 #define RS_CS2_HOST_SOUND_MAX 64
 
+/* Cache script option ids used by interface 116's audio panel. */
+#define RS_CS2_GAMEOPTION_MUSIC_VOLUME 7
+#define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
+#define RS_CS2_GAMEOPTION_AREA_VOLUME 9
+#define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
+#define RS_CS2_OPTION_MAX 64
+
+/* Backing varps used by interface 116. Its mute icons write these without
+ * calling GAMEOPTION_SET / DEVICEOPTION_SET. */
+#define RS_CS2_VARP_MUSIC_VOLUME 168
+#define RS_CS2_VARP_SOUND_VOLUME 169
+#define RS_CS2_VARP_AREA_VOLUME 872
+#define RS_CS2_VARP_MASTER_VOLUME 3796
+#define RS_CS2_VARP_AREA_OVERRIDE_ENABLED 5588
+#define RS_CS2_VARP_AREA_OVERRIDE_VOLUME 5589
+
+/** Complete audio-settings snapshot, in the interface's 0..100 domain. */
+struct RS_CS2AudioSettings
+{
+    int master;
+    int music;
+    int sounds;
+    int area_sounds;
+};
+
 struct RS_CS2SocialSend
 {
     int kind; /* enum RS_CS2SocialSendKind */
@@ -306,12 +331,15 @@ struct RS_CS2Host
      *  value silently builds those overlays under a component of an interface
      *  that was never opened, so nothing draws. */
     int top_interface_id;
-    /** Audio volumes, backing the SET/GETVOLUME* opcodes (3203..3208). The port
-     *  has no audio mixer yet; the host owns the values so a settings panel that
-     *  sets one reads the same value back (round-trip, like cam_follow_height). */
+    /** Audio volumes, backing SET/GETVOLUME* and interface 116's GAMEOPTION /
+     *  DEVICEOPTION calls. Values are percentages, matching the CS2 surface. */
     int volume_music;
     int volume_sounds;
     int volume_area_sounds;
+    int client_options[RS_CS2_OPTION_MAX];
+    int game_options[RS_CS2_OPTION_MAX];
+    int device_options[RS_CS2_OPTION_MAX];
+    bool audio_settings_dirty;
     /** Minimap zoom (2..8), backing MINIMAP_SETZOOM / GETZOOM. Host-owned so a
      *  script setting it reads the same value back; the port has no minimap-zoom
      *  render path consuming it yet. */
@@ -615,6 +643,19 @@ bool
 RS_CS2Host_TakeSound(
     struct RS_CS2Host* host,
     struct RS_CS2Sound* out);
+
+/** Take the latest audio settings after a CS2 SET option. Coalesces slider
+ *  drags to one snapshot per app tick. */
+bool
+RS_CS2Host_TakeAudioSettings(
+    struct RS_CS2Host* host,
+    struct RS_CS2AudioSettings* out);
+
+/** Apply interface 116's varp-only mute/unmute path to the option store. */
+void
+RS_CS2Host_SyncAudioVarp(
+    struct RS_CS2Host* host,
+    int varp_id);
 
 bool
 RS_CS2Host_TakeTriggerOp(

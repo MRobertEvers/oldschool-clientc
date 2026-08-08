@@ -677,6 +677,11 @@ ToriRS_Mixer_Feedback(
     if( !mixer )
         return;
     feedback->device_open = true;
+    /* Feedback precedes STREAM_OPEN by a frame. Advertise the capacity a new
+     * stream will have so OPEN and its first PUSH can land in the same tick;
+     * zero here otherwise guarantees one empty callback at every song start. */
+    for( int i = 0; i < 4; i++ )
+        feedback->stream_headroom[i] = TORIRS_MIXER_STREAM_FRAMES;
     for( int i = 0; i < TORIRS_MIXER_MAX_STREAMS && i < 4; i++ )
     {
         const struct ToriRS_MixerStream* stream = &mixer->streams[i];

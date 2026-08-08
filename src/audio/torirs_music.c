@@ -15,14 +15,13 @@
 /**
  * Frames rendered per tick, at most.
  *
- * One client tick is 20ms = 441 frames at 22050. Rendering a few ticks ahead
- * absorbs a slow frame without a gap; rendering much further ahead makes a
- * volume change or a song switch audibly late, because the change only takes
- * effect after everything already buffered has played. Four ticks is the
- * compromise: ~80ms of latency, which is below the threshold where a fade feels
- * detached from the action that caused it.
+ * One client tick is 20ms = 441 frames at 22050. The callback consumes this
+ * ring while the game thread is loading a scene; measured live stalls exceed
+ * the old four-tick (80ms) target. Stream and bus gain are applied when the
+ * callback consumes these samples, so a 500ms PCM reserve does not delay a
+ * volume change or fade.
  */
-#define MUSIC_TARGET_BUFFER_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 50 * 4)
+#define MUSIC_TARGET_BUFFER_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 2)
 #define MUSIC_MAX_RENDER_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 50 * 8)
 
 #define MUSIC_TRACE(...)                                                                           \

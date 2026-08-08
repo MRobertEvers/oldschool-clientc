@@ -1306,6 +1306,43 @@ test_collision_types(void)
     TEST_ASSERT(!collision_map_can_travel_typed(cm, 5, 5, 0, 1, 1, 0, COLL_TYPE_INDOORS),
                 "and not once the roof is gone");
 
+    /* RuneLite rev-239 class168's size-1 diagonal branch performs three mask
+     * tests: destination, X-adjacent tile, and Z-adjacent tile. Pin every
+     * quadrant so no pathfinder/stepper can regress to destination-only corner
+     * cutting. FLOOR is convenient here because it participates in every one
+     * of the deob's 0x402401xx masks. */
+    {
+        static int const diagonals[4][2] = {
+            { -1, -1 }, { -1, 1 }, { 1, -1 }, { 1, 1 }
+        };
+        int const x = 20;
+        int const z = 20;
+
+        for( int i = 0; i < 4; i++ )
+        {
+            int dx = diagonals[i][0];
+            int dz = diagonals[i][1];
+
+            TEST_ASSERT(collision_map_can_travel(cm, x, z, dx, dz, 1, 0),
+                        "open diagonal passes all three RuneLite checks");
+
+            collision_map_add_floor(cm, x + dx, z);
+            TEST_ASSERT(!collision_map_can_travel(cm, x, z, dx, dz, 1, 0),
+                        "blocked X-adjacent tile prevents corner cutting");
+            collision_map_del_floor(cm, x + dx, z);
+
+            collision_map_add_floor(cm, x, z + dz);
+            TEST_ASSERT(!collision_map_can_travel(cm, x, z, dx, dz, 1, 0),
+                        "blocked Z-adjacent tile prevents corner cutting");
+            collision_map_del_floor(cm, x, z + dz);
+
+            collision_map_add_floor(cm, x + dx, z + dz);
+            TEST_ASSERT(!collision_map_can_travel(cm, x, z, dx, dz, 1, 0),
+                        "blocked diagonal destination prevents movement");
+            collision_map_del_floor(cm, x + dx, z + dz);
+        }
+    }
+
     collision_map_free(cm);
 }
 

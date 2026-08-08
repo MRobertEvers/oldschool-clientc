@@ -459,6 +459,13 @@ test_stream(void)
     }
 
     ToriRS_Mixer_Init(&mixer, 22050);
+    /* Feedback is sampled before a game's STREAM_OPEN command. A new stream
+     * must advertise future capacity or its first PUSH is delayed a tick and
+     * the callback is guaranteed to render an empty block. */
+    ToriRS_Mixer_Feedback(&mixer, &feedback);
+    CHECK_EQ(feedback.stream_headroom[0], TORIRS_MIXER_STREAM_FRAMES);
+    CHECK_EQ(feedback.stream_buffered[0], 0);
+
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_OPEN);
     command.stream_id = 0;
     command.channels = 2;

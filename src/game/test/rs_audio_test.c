@@ -27,9 +27,11 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_sound_from_rscache.h"
 #include "game/rs_audio.h"
+#include "game/rs_cs2_host.h"
 #include "features/features.h"
 #include "platform/platform_audio_null.h"
 #include "platform/platform_x_io.h"
+#include "varp/varp_manager.h"
 #include "task_runner.h"
 
 #include <rscache.h>
@@ -54,6 +56,61 @@ static int g_fail = 0;
             g_fail++;                                                                              \
         }                                                                                          \
     } while( 0 )
+
+static void
+test_audio_settings_snapshot(void)
+{
+    struct RS_CS2Host host;
+    struct RS_CS2AudioSettings settings;
+    struct VarPManager varps;
+    struct VarPType* types;
+
+    printf("CS2 audio settings snapshot\n");
+    memset(&host, 0, sizeof(host));
+    host.device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME] = 80;
+    host.game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME] = 25;
+    host.game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME] = 50;
+    host.game_options[RS_CS2_GAMEOPTION_AREA_VOLUME] = 75;
+    host.audio_settings_dirty = true;
+    CHECK(RS_CS2Host_TakeAudioSettings(&host, &settings), "dirty settings snapshot available");
+    CHECK(settings.master == 80, "master option preserved");
+    CHECK(settings.music == 25, "music option preserved");
+    CHECK(settings.sounds == 50, "effects option preserved");
+    CHECK(settings.area_sounds == 75, "area option preserved");
+    CHECK(!RS_CS2Host_TakeAudioSettings(&host, &settings), "snapshot coalesces until next write");
+
+    /* Mute icons write only the backing varp. The varp side effect must update
+     * the same option snapshot as a slider's GAMEOPTION/DEVICEOPTION opcode. */
+    VarPManager_Init(&varps);
+    types = calloc(RS_CS2_VARP_AREA_OVERRIDE_VOLUME + 1, sizeof(*types));
+    CHECK(types != NULL, "audio varp test types allocated");
+    if( types )
+    {
+        CHECK(
+            VarPManager_SetVarpTypes(
+                &varps, types, RS_CS2_VARP_AREA_OVERRIDE_VOLUME + 1),
+            "audio varp test store initialized");
+        host.varps = &varps;
+        host.audio_settings_dirty = false;
+        VarPManager_SetVarpOptimistic(&varps, RS_CS2_VARP_MASTER_VOLUME, 0);
+        RS_CS2Host_SyncAudioVarp(&host, RS_CS2_VARP_MASTER_VOLUME);
+        CHECK(RS_CS2Host_TakeAudioSettings(&host, &settings), "master mute varp dirties settings");
+        CHECK(settings.master == 0, "master mute varp reaches device option");
+
+        VarPManager_SetVarpOptimistic(&varps, RS_CS2_VARP_MUSIC_VOLUME, 57);
+        RS_CS2Host_SyncAudioVarp(&host, RS_CS2_VARP_MUSIC_VOLUME);
+        CHECK(RS_CS2Host_TakeAudioSettings(&host, &settings), "music mute varp dirties settings");
+        CHECK(settings.music == 57, "music varp reaches game option");
+
+        VarPManager_SetVarpOptimistic(&varps, RS_CS2_VARP_AREA_OVERRIDE_ENABLED, 1);
+        VarPManager_SetVarpOptimistic(&varps, RS_CS2_VARP_AREA_OVERRIDE_VOLUME, 42);
+        RS_CS2Host_SyncAudioVarp(&host, RS_CS2_VARP_AREA_OVERRIDE_VOLUME);
+        CHECK(RS_CS2Host_TakeAudioSettings(&host, &settings), "area override dirties settings");
+        CHECK(settings.area_sounds == 42, "active area override reaches game option");
+    }
+    free(types);
+    VarPManager_Free(&varps);
+}
 
 /** One frame: tick the game's sound queue, pump async loads, hand the platform
  *  whatever came out. Exactly the order main.c uses. */
@@ -169,6 +226,38 @@ test_queue_without_cache(void)
         CHECK(
             PlatformAudio_Stats(platform).bus_volume[TORIRS_AUDIO_BUS_EFFECTS] == 128,
             "platform ended at half volume on the effects bus");
+    }
+
+    /* Interface sliders are independent percentages under one master gain.
+     * Stored bus values remain pre-master so unmuting restores them exactly. */
+    ToriRS_AudioQueue_Reset(&queue);
+    RS_Audio_SetMasterVolume(&audio, 128, &queue);
+    RS_Audio_SetBusVolume(&audio, TORIRS_AUDIO_BUS_EFFECTS, 200, &queue);
+    RS_Audio_SetBusVolume(&audio, TORIRS_AUDIO_BUS_AREA, 100, &queue);
+    RS_Audio_SetBusVolume(&audio, TORIRS_AUDIO_BUS_MUSIC, 50, &queue);
+    {
+        struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+        int count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        struct PlatformAudioStats stats;
+        PlatformAudio_SubmitAll(platform, commands, count);
+        stats = PlatformAudio_Stats(platform);
+        CHECK(audio.master_volume == 128, "master setting retained");
+        CHECK(audio.effect_volume == 200, "effects setting retained before master");
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS] == 100, "master scales effects once");
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_AREA] == 50, "master scales area once");
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC] == 25, "master scales music once");
+    }
+    ToriRS_AudioQueue_Reset(&queue);
+    RS_Audio_SetMasterVolume(&audio, 0, &queue);
+    {
+        struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+        int count = ToriRS_AudioQueue_Drain(&queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        struct PlatformAudioStats stats;
+        PlatformAudio_SubmitAll(platform, commands, count);
+        stats = PlatformAudio_Stats(platform);
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS] == 0, "master mute silences effects");
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_AREA] == 0, "master mute silences area");
+        CHECK(stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC] == 0, "master mute silences music");
     }
 
     /* Queue cap is the reference's 50. */
@@ -554,6 +643,7 @@ main(void)
      * into even with nothing to draw. */
     g_scene = ToriDraw_SceneNew(0);
 
+    test_audio_settings_snapshot();
     test_queue_without_cache();
 
     if( !RSCache_ProfileByName("lc254", &dat1_profile) )

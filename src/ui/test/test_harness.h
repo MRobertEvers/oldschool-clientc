@@ -156,6 +156,7 @@ UITree_TestResolve(struct UITree* tree)
 void test_dirty_marking(void);
 void test_walk_topology(void);
 void test_hover_input(void);
+void test_click_event_coords(void);
 void test_layout_build(void);
 void test_mutate_emit(void);
 void test_apply_object_silhouette(void);

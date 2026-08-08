@@ -8,6 +8,7 @@ main(void)
     test_dirty_marking();
     test_walk_topology();
     test_hover_input();
+    test_click_event_coords();
     test_layout_build();
     test_mutate_emit();
     test_apply_object_silhouette();

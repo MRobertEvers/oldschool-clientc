@@ -1063,7 +1063,15 @@ interact_click(
         struct UIIntent intent = {
             .component_id = hook_com_id,
             .hook = click_hook,
+            .is_click = 1,
         };
+        /* onClick event_mouse is relative to the component whose hook is
+         * dispatched, just like hover/repeat. Slider tracks consume that value
+         * directly to turn the click position into a percentage; leaving it
+         * unset reused the host's previous event coordinates and made the
+         * thumb jump somewhere unrelated to the pointer. */
+        if( hook_com_id >= 0 )
+            hover_event_coords(tree, hook_com_id, click_x, click_y, &intent);
         intent_push(out, &intent);
     }
     out->need_redraw = 1;

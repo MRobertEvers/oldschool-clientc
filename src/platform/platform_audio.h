@@ -70,10 +70,15 @@ struct PlatformAudioStats
     int queue_min_frames;
     int queue_max_frames;
     int queue_current_frames;
+    double queue_mean_frames;
     double update_interval_min_ms;
     double update_interval_max_ms;
     double update_interval_mean_ms;
+    double callback_period_ms;
+    double callback_jitter_max_ms;
     double render_max_ms;
+    /** Capture frames lost because the diagnostic writer could not keep up. */
+    int capture_dropped_frames;
 };
 
 struct PlatformAudio*

@@ -1851,17 +1851,30 @@ frame_loop_teardown(void)
             stats.assets_live);
         fprintf(
             stderr,
-            "audio: %d updates, %d device underruns, queue %d..%d frames "
-            "(now %d), interval %.1f/%.1f/%.1f ms, render peak %.2f ms\n",
+            "audio: bus gains effects/music/area %d/%d/%d\n",
+            stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS],
+            stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC],
+            stats.bus_volume[TORIRS_AUDIO_BUS_AREA]);
+        fprintf(
+            stderr,
+            "audio: %d callbacks, %d underruns, period %.2f ms, "
+            "interval %.2f/%.2f/%.2f ms, jitter peak %.2f ms, render peak %.2f ms\n",
             stats.updates,
             stats.underruns,
-            stats.queue_min_frames,
-            stats.queue_max_frames,
-            stats.queue_current_frames,
+            stats.callback_period_ms,
             stats.update_interval_min_ms,
             stats.update_interval_mean_ms,
             stats.update_interval_max_ms,
+            stats.callback_jitter_max_ms,
             stats.render_max_ms);
+        fprintf(
+            stderr,
+            "audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
+            stats.queue_min_frames,
+            stats.queue_mean_frames,
+            stats.queue_max_frames,
+            stats.queue_current_frames,
+            stats.capture_dropped_frames);
     }
     PlatformAudio_Free(audio);
 #if defined(TORIRS_HAVE_D3D9)

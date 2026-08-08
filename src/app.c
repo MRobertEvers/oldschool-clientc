@@ -44,6 +44,7 @@
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "toridraw.h"
+#include "toridraw_model_transform.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_obj_cell.h"
@@ -2936,6 +2937,11 @@ app_varp_change(void* userdata, int varp_id)
     struct App* app = (struct App*)userdata;
 
     app_varp_refresh_loc_transforms(app, varp_id);
+    /* Modern audio slider clicks call GAMEOPTION/DEVICEOPTION directly, while
+     * the four mute icons only write their backing varps. Both paths must
+     * reach the same host snapshot; this is the reference's client-side varp
+     * side effect and deliberately does not feed the var-transmit ring. */
+    RS_CS2Host_SyncAudioVarp(&app->host, varp_id);
 }
 
 /*
@@ -5730,6 +5736,42 @@ app_logic_tick(struct App* app)
         }
     }
 
+    /* Interface 116's four audio sliders arrive as CS2 option writes. The host
+     * coalesces drag events; apply the latest complete snapshot here so VM
+     * rollback cannot leak an audio side effect and the App remains the sole
+     * owner of audio_out. Percentages are rounded onto the mixer's 0..255
+     * domain, then master is multiplied into each bus by RS_Audio. */
+    {
+        struct RS_CS2AudioSettings settings;
+        if( RS_CS2Host_TakeAudioSettings(&app->host, &settings) )
+        {
+            int master = (settings.master * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
+            int music = (settings.music * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
+            int sounds = (settings.sounds * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
+            int area = (settings.area_sounds * TORIRS_AUDIO_VOLUME_MAX + 50) / 100;
+
+            if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
+                fprintf(
+                    stderr,
+                    "audio settings: master %d%%, music %d%%, effects %d%%, area %d%% "
+                    "-> buses %d/%d/%d\n",
+                    settings.master,
+                    settings.music,
+                    settings.sounds,
+                    settings.area_sounds,
+                    music * master / TORIRS_AUDIO_VOLUME_MAX,
+                    sounds * master / TORIRS_AUDIO_VOLUME_MAX,
+                    area * master / TORIRS_AUDIO_VOLUME_MAX);
+            RS_Audio_SetMasterVolume(&app->audio, master, &app->audio_out);
+            RS_Audio_SetBusVolume(
+                &app->audio, TORIRS_AUDIO_BUS_MUSIC, music, &app->audio_out);
+            RS_Audio_SetBusVolume(
+                &app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
+            RS_Audio_SetBusVolume(
+                &app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
+        }
+    }
+
     /*
      * Sounds CS2 asked for this tick.
      *
@@ -8104,13 +8146,72 @@ app_element_set_anim(
     el->skeletal_play_frames = el->is_skeletal ? anim->frame_count : 0;
 }
 
+/* Advance a newly-bound packet animation over the client cycles its async load
+ * consumed. The reference constructs a DynamicObject at LOC_ANIM receipt, so
+ * loading is synchronous from its clock's point of view; beginning at frame 0
+ * when our task finishes makes two sequences from one enclosed zone update
+ * start at different times.
+ *
+ * Use the same counters as app_world_tick_animations rather than converting a
+ * cycle count to a frame by division: frame lengths vary, and frameStep=1 holds
+ * these Inferno locs on their terminal frame. DynamicObject caps catch-up at
+ * 100 cycles for a looping sequence, which also bounds this loop after a stall. */
+static void
+app_world_catch_up_object_seq(
+    struct App* app,
+    int element_id,
+    struct ToriDraw_Animation* anim,
+    int elapsed_cycles)
+{
+    struct ToriDraw_SceneElement* element;
+
+    if( !anim || elapsed_cycles <= 0 )
+        return;
+    if( anim->frame_step > 0 && elapsed_cycles > 100 )
+        elapsed_cycles = 100;
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !element )
+        return;
+
+    for( int cycle = 0; cycle < elapsed_cycles && element->anim_seq_id != -1; cycle++ )
+    {
+        if( element->is_skeletal )
+        {
+            int play_frames = element->skeletal_play_frames;
+            if( play_frames <= 0 )
+                play_frames = anim->frame_count;
+            element->anim_cycle++;
+            if( element->anim_cycle >= 1 )
+            {
+                if( anim->frame_count == play_frames &&
+                    !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                else
+                    element->anim_frame = (element->anim_frame + 1) % play_frames;
+                element->anim_cycle = 0;
+            }
+        }
+        else if( anim->frames && anim->frame_count > 0 )
+        {
+            element->anim_cycle++;
+            if( element->anim_cycle >= anim->frames[element->anim_frame].delay )
+            {
+                if( !ToriDraw_AnimationAdvanceObjectFrame(anim, &element->anim_frame) )
+                    ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                element->anim_cycle = 0;
+            }
+        }
+    }
+}
+
 /* Try binding a loaded scene animation onto an element. Returns 1 when bound
  * OR permanently unbindable (failed/empty sentinel), 0 while still loading. */
 static int
 app_world_try_bind_seq(
     struct App* app,
     int element_id,
-    int seq_id)
+    int seq_id,
+    int start_cycle)
 {
     struct ToriDraw_Animation* anim;
 
@@ -8127,10 +8228,22 @@ app_world_try_bind_seq(
         ToriDraw_SceneElementSetAnimation(app->scene, element_id, anim, true);
         if( el )
             app_element_set_anim(el, anim);
+        if( app->world )
+            app_world_catch_up_object_seq(
+                app, element_id, anim, app->world->cycle - start_cycle);
         if( getenv("TORIRS_ANIM_DEBUG") )
             fprintf(
-                stderr, "seq_bind: element=%d seq=%d frames=%d skeletal=%d\n", element_id, seq_id,
-                anim->frame_count, anim->skeletal ? 1 : 0);
+                stderr,
+                "seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
+                "frame=%d cycle=%d\n",
+                element_id,
+                seq_id,
+                anim->frame_count,
+                anim->skeletal ? 1 : 0,
+                start_cycle,
+                app->world ? app->world->cycle : start_cycle,
+                el ? el->anim_frame : -1,
+                el ? el->anim_cycle : -1);
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
@@ -8148,6 +8261,7 @@ app_world_apply_seq(
     int seq_id)
 {
     struct ToriRS_Task* task;
+    int const start_cycle = app->world ? app->world->cycle : 0;
 
     if( seq_id < 0 )
         return;
@@ -8155,13 +8269,14 @@ app_world_apply_seq(
     if( task )
         ToriRS_TaskQueue_Add(app->runner.queue, task);
 
-    if( app_world_try_bind_seq(app, element_id, seq_id) )
+    if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
     if( app->seq_bind_pending_count < (int)(sizeof(app->seq_bind_pending) /
                                             sizeof(app->seq_bind_pending[0])) )
     {
         app->seq_bind_pending[app->seq_bind_pending_count].element_id = element_id;
         app->seq_bind_pending[app->seq_bind_pending_count].seq_id = seq_id;
+        app->seq_bind_pending[app->seq_bind_pending_count].start_cycle = start_cycle;
         app->seq_bind_pending_count++;
     }
 }
@@ -8176,7 +8291,8 @@ app_world_bind_pending_seqs(struct App* app)
         struct AppSeqBindPending* pend = &app->seq_bind_pending[i];
         if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
             continue; /* element despawned while loading */
-        if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id) )
+        if( app_world_try_bind_seq(
+                app, pend->element_id, pend->seq_id, pend->start_cycle) )
         {
             app->need_redraw = 1;
             continue;
@@ -12088,8 +12204,13 @@ app_minimenu_run_option(
                  * a component the server never armed produces a perfectly good menu
                  * row and sends nothing. */
                 if( getenv("TORIRS_CLICK_DEBUG") )
-                    fprintf(stderr, "clickdbg: op%d on com=0x%x events=0x%x net=%d\n", op_num,
-                            opt.pick.id, events, app->net ? 1 : 0);
+                    fprintf(
+                        stderr,
+                        "clickdbg: op%d on com=0x%x events=0x%x net=%d\n",
+                        op_num,
+                        opt.pick.id,
+                        events,
+                        app->net ? 1 : 0);
                 if( events & (1u << op_num) )
                 {
                     int target;
@@ -12987,15 +13108,16 @@ App_RunOnce(
                 ran_cs2 = 1;
             app->interact.minimenu = saved;
 
-            /* Drop the legacy click intent (the only intent kind carrying
-             * neither event-mouse nor drag context) so the hook does not run
-             * twice; hover/wheel/hold intents pass through untouched. */
+            /* Drop the legacy click intent so the hook does not run twice;
+             * hover/wheel/hold intents pass through untouched. Clicks carry
+             * event_mouse too (slider tracks need it), so intent kind rather
+             * than event context distinguishes them. */
             {
                 int kept = 0;
                 for( int i = 0; i < out.intent_count; i++ )
                 {
                     struct UIIntent const* intent = &out.intents[i];
-                    if( !intent->has_event_mouse && !intent->has_drag_target &&
+                    if( intent->is_click &&
                         (intent->component_id == out.clicked_com_id || intent->component_id < 0) )
                         continue;
                     out.intents[kept++] = out.intents[i];
@@ -13136,7 +13258,7 @@ App_RunOnce(
         for( int i = 0; i < out.intent_count; i++ )
         {
             struct UIIntent const* intent = &out.intents[i];
-            if( !intent->has_event_mouse && !intent->has_drag_target )
+            if( intent->is_click )
                 continue;
             out.intents[kept++] = out.intents[i];
         }
@@ -14467,6 +14589,48 @@ App_WorldSceneryAnim(
             World_EntityPoolGet(&app->world->entities.scenery, idx);
         if( scenery && scenery->element_id >= 0 )
         {
+            struct ToriDraw_SceneElement* element =
+                ToriDraw_SceneElementGet(app->scene, scenery->element_id);
+
+            /* A loc with no config animation is built as static scenery: its
+             * map orientation is baked directly into its vertices. LOC_ANIM
+             * turns that same loc into the reference client's DynamicObject,
+             * whose order is the opposite — animate the unrotated model, then
+             * apply the loc orientation while drawing it.
+             *
+             * Without this conversion, translation/rotation ops from a
+             * packet-attached sequence run in world axes. The Inferno's
+             * angle-3 falling walls are the visible failure: their inner
+             * sections move behind the flanks even though 7559 and 7560 start
+             * together. Undo the baked quarter-turn once and carry it as the
+             * element yaw from then on. Shape 11 already owns the extra
+             * diagonal half-turn in its draw yaw, so preserve that base.
+             *
+             * Config-animated locs already arrive in this representation;
+             * their yaw is the desired value and the guard leaves them alone.
+             */
+            if( element && element->model.kind == TORIDRAWMK_MODEL &&
+                element->model.u.model.model &&
+                (loc_shape == RSCACHE_LOC_SHAPE_SCENERY ||
+                 loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL) )
+            {
+                int const angle = scenery->angle & 3;
+                int const base_yaw =
+                    loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ? 256 : 0;
+                int const wanted_yaw = base_yaw + angle * 512;
+
+                if( angle != 0 && element->world_position.yaw == base_yaw )
+                {
+                    ToriDraw_ModelOrient(element->model.u.model.model, (4 - angle) & 3);
+                    ToriDraw_SceneElementSetPosition(
+                        app->scene,
+                        scenery->element_id,
+                        element->world_position.x,
+                        element->world_position.y,
+                        element->world_position.z,
+                        wanted_yaw);
+                }
+            }
             app_world_apply_seq(app, scenery->element_id, seq_id);
             app->need_redraw = 1;
         }
