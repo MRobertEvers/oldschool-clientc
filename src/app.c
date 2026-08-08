@@ -5731,6 +5731,52 @@ app_logic_tick(struct App* app)
     }
 
     /*
+     * Sounds CS2 asked for this tick.
+     *
+     * Drained here rather than played from inside the VM so a script that
+     * yields and rolls back has not already made a noise, and so the audio
+     * queue is only touched from the App's own tick. Fades arrive in client
+     * cycles and are converted here, the same 20ms/cycle the MIDI_* packet
+     * readers use -- both paths reach the same music player, so a track a
+     * script starts and one the server starts must behave identically.
+     */
+    {
+        struct RS_CS2Sound sound;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_SOUND_MAX * 2 && RS_CS2Host_TakeSound(&app->host, &sound) )
+        {
+            switch( sound.kind )
+            {
+            case RS_CS2_SOUND_SYNTH:
+                RS_Audio_Synth(&app->audio, sound.id, sound.loops, sound.delay);
+                break;
+            case RS_CS2_SOUND_SONG:
+                App_PlaySong(
+                    app,
+                    sound.id,
+                    true,
+                    sound.fade_out_speed * 20,
+                    sound.fade_in_speed * 20);
+                break;
+            case RS_CS2_SOUND_JINGLE:
+                App_PlayJingle(app, sound.id, sound.delay * 20);
+                break;
+            case RS_CS2_SOUND_SONG_WITHSECONDARY:
+                App_PlaySongWithSecondary(
+                    app,
+                    sound.id,
+                    sound.secondary_id,
+                    sound.fade_out_speed * 20,
+                    sound.fade_in_speed * 20);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    /*
      * if_callonresize — run the on-resize listeners scripts asked for.
      *
      * The layout does not call these; a script does, and it is how a rev-230

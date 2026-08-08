@@ -10498,31 +10498,12 @@ CS2VM2_RunOp(
     case CS2_OP_MOBILE_KEYBOARDHIDE:
         /* No soft keyboard to hide. */
         return CS2VM_EXECNO_OK;
-    case CS2_OP_SOUND_SYNTH:
-    {
-        /* id, loops, delay — audio not implemented; discard args. */
-        int discard;
-        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-        return CS2VM_EXECNO_OK;
-    }
-    case CS2_OP_SOUND_SONG:
-    {
-        int discard;
-        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-        return CS2VM_EXECNO_OK;
-    }
-    case CS2_OP_SOUND_JINGLE:
-    {
-        int discard;
-        if( CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK ||
-            CS2VM2_PopInt(vm, &discard) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-        return CS2VM_EXECNO_OK;
-    }
+    /*
+     * SOUND_SYNTH / SOUND_SONG / SOUND_JINGLE are implemented above, next to
+     * the other host requests. The stubs that used to sit here discarded their
+     * arguments -- and SOUND_SONG discarded *one* when its arity is five,
+     * leaving four ints on the operand stack for whatever ran next.
+     */
     case CS2_OP_IF_CLOSE:
     {
         /*
