@@ -1,6 +1,7 @@
 #include "engine/torirs_npctype_from_rscache.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -130,6 +131,17 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->alwaysontop = src->alwaysontop;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
+    /*
+     * dat1 has no movement-sound opcode. Say so explicitly rather than leaving
+     * the calloc zeroes: 0 is a real sound-effect id, so a zeroed field would
+     * give every npc on this path the same sound.
+     */
+    npctype->sound_idle = -1;
+    npctype->sound_crawl = -1;
+    npctype->sound_walk = -1;
+    npctype->sound_run = -1;
+    npctype->sound_radius = 0;
+    npctype->ambient_sound_volume = 255;
 
     return npctype;
 }
@@ -159,8 +171,48 @@ ToriRS_NpctypeFromRSCacheDat2(
     torirs_copy_menu_actions(npctype->actions, src->actions);
     npctype->combat_level = src->combat_level;
     npctype->size = src->size;
+    npctype->sound_idle = src->sound_idle;
+    npctype->sound_crawl = src->sound_crawl;
+    npctype->sound_walk = src->sound_walk;
+    npctype->sound_run = src->sound_run;
+    npctype->sound_radius = src->sound_radius;
+    npctype->ambient_sound_volume = src->ambient_sound_volume;
     torirs_npctype_copy_models(npctype, src->models, src->models_count);
     torirs_npctype_copy_heads(npctype, src->chathead_models, src->chathead_models_count);
+
+    /*
+     * TORIRS_NPC_SOUND_DEBUG=1 prints every npc that names a movement sound.
+     *
+     * The byte layout of opcode 134 is settled by exact-consumption scanning,
+     * but which of its four ids is idle versus walk versus run is not something
+     * a byte count can tell you. Printing them next to the npc's name is the
+     * check that can: a wrong assignment shows up as a walking sound on a
+     * stationary npc, and the names make that obvious where the numbers do not.
+     */
+    if( npctype->sound_idle >= 0 || npctype->sound_crawl >= 0 || npctype->sound_walk >= 0 ||
+        npctype->sound_run >= 0 )
+    {
+        static int debug = -1;
+
+        if( debug < 0 )
+        {
+            const char* env = getenv("TORIRS_NPC_SOUND_DEBUG");
+            debug = env && *env && *env != '0';
+        }
+        if( debug )
+            fprintf(
+                stderr,
+                "npc-sound: %-5d %-28s idle %-6d crawl %-6d walk %-6d run %-6d "
+                "radius %-3d vol %d\n",
+                npc_id,
+                npctype->name,
+                npctype->sound_idle,
+                npctype->sound_crawl,
+                npctype->sound_walk,
+                npctype->sound_run,
+                npctype->sound_radius,
+                npctype->ambient_sound_volume);
+    }
 
     torirs_npctype_copy_pairs_int(
         &npctype->recolors_from,

@@ -1,5 +1,7 @@
 #include "entity_pathing.h"
 
+#include "engine/world_builder/collision_map.h"
+
 #include <stdint.h>
 
 void
@@ -145,6 +147,49 @@ World_EntityPathingJump(
     }
 
     return World_EntityPathingJump(pathing, true, x, z);
+}
+
+enum World_PathingJump
+World_EntityPathingJumpCollisionAware(
+    struct WorldEntityFacet_Pathing* pathing,
+    struct CollisionMap* collision,
+    bool force_teleport,
+    int x,
+    int z,
+    int step_type)
+{
+    int src_x = pathing->route_x[0];
+    int src_z = pathing->route_z[0];
+    int dx = x - src_x;
+    int dz = z - src_z;
+
+    if( !force_teleport && collision && (dx == -1 || dx == 1) &&
+        (dz == -1 || dz == 1) &&
+        !collision_map_can_travel(collision, src_x, src_z, dx, dz, 1, 0) )
+    {
+        int x_first =
+            collision_map_can_travel(collision, src_x, src_z, dx, 0, 1, 0) &&
+            collision_map_can_travel(collision, src_x + dx, src_z, 0, dz, 1, 0);
+        int z_first =
+            collision_map_can_travel(collision, src_x, src_z, 0, dz, 1, 0) &&
+            collision_map_can_travel(collision, src_x, src_z + dz, dx, 0, 1, 0);
+
+        /* The authoritative mover did reach the diagonal endpoint. If either
+         * L-shaped route explains it, retain that corner tile in the local
+         * queue instead of interpolating straight through the obstruction. */
+        if( x_first )
+            World_EntityPathingPushXZ(pathing, src_x + dx, src_z, step_type);
+        else if( z_first )
+            World_EntityPathingPushXZ(pathing, src_x, src_z + dz, step_type);
+    }
+
+    {
+        enum World_PathingJump jump =
+            World_EntityPathingJump(pathing, force_teleport, x, z);
+        if( jump == WORLD_PATHING_JUMP_WALK )
+            pathing->route_run[0] = step_type == WORLD_PATHSTEP_RUN ? 1 : 0;
+        return jump;
+    }
 }
 
 void

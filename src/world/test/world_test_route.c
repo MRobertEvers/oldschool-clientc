@@ -726,6 +726,40 @@ test_route_coordinate_coincidence(void)
     TEST_ASSERT(fp.sx == 21 && fp.size_x == 1 && fp.sz == 30 && fp.size_z == 1,
                 "settled footprint is a single tile");
 
+    /* A modern server update can collapse a running two-step turn into the net
+     * diagonal endpoint. With the east side tile blocked, (30,30)->(31,31)
+     * must be drawn north to (30,31), then east — never straight through the
+     * corner at (31,30). */
+    {
+        int corner_pi = World_PlayerSpawn(world, 12, 0, 30, 30, idle);
+        struct WorldEntity_Player* corner =
+            World_EntityPoolGet(&world->entities.player, corner_pi);
+        struct CollisionMap* cm = world->collision_maps[0];
+        int start_x = 30 * 128 + 64;
+
+        collision_map_add_floor(cm, 31, 30);
+        World_EntityPathingJumpCollisionAware(
+            &corner->pathing, cm, false, 31, 31, WORLD_PATHSTEP_RUN);
+        TEST_ASSERT(corner->pathing.route_length == 2,
+                    "blocked net diagonal retains its corner waypoint");
+        TEST_ASSERT(corner->pathing.route_x[1] == 30 && corner->pathing.route_z[1] == 31,
+                    "corner waypoint takes the legal north-first route");
+        TEST_ASSERT(corner->pathing.route_x[0] == 31 && corner->pathing.route_z[0] == 31,
+                    "corner-aware route retains the authoritative endpoint");
+
+        for( int cycle = 0; cycle < 64 && corner->pathing.route_length == 2; cycle++ )
+        {
+            World_Cycle(world, 1);
+            TEST_ASSERT((int)corner->draw_position.x == start_x,
+                        "corner rendering does not move diagonally through the blocker");
+        }
+        TEST_ASSERT(corner->pathing.route_length == 1,
+                    "corner rendering completes the intermediate leg");
+        TEST_ASSERT(corner->draw_position.x == (uint32_t)start_x &&
+                        corner->draw_position.z == (uint32_t)(31 * 128 + 64),
+                    "corner rendering reaches the intermediate tile first");
+    }
+
     /* Size-2 NPC: draw center is tile*128 + 2*64, and the padded footprint
      * (60 + (size-1)*64) covers its full 2x2 tile span. */
     int ni = World_NpcSpawn(world, 11, 500, 0, 40, 40, 2, idle);
@@ -1402,4 +1436,3 @@ test_wall_edge_symmetry(void)
 
     collision_map_free(cm);
 }
-

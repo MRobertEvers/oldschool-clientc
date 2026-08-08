@@ -21,11 +21,12 @@
 
 /** Aim to keep this much queued. Below it the device can underrun on a slow
  *  frame; far above it a volume change is audibly late because everything
- *  already queued plays first. 80ms is about four frames. */
-#define AUDIO_TARGET_QUEUED_MS 80
+ *  already queued plays first. 200ms survives the worst observed frame stalls
+ *  (~160ms from loading/rendering spikes) without audible latency on controls. */
+#define AUDIO_TARGET_QUEUED_MS 200
 /** Never render more than this in one call, so a stall does not turn into a
  *  multi-second render that stalls the next frame too. */
-#define AUDIO_MAX_RENDER_MS 200
+#define AUDIO_MAX_RENDER_MS 400
 
 /*
  * TORIRS_AUDIO_WAV=<path> tees every block the device is given into a WAV.
@@ -48,6 +49,16 @@ struct PlatformAudio
     int block_frames;
     int commands;
     int frames_played;
+
+    int updates;
+    int underruns;
+    int queue_min_frames;
+    int queue_max_frames;
+    uint64_t last_update_tick;
+    double interval_min_ms;
+    double interval_max_ms;
+    double interval_sum_ms;
+    double render_max_ms;
 };
 
 struct PlatformAudio*
@@ -114,6 +125,8 @@ PlatformAudio_Init(
     }
     SDL_PauseAudioDevice(audio->device, 0);
     audio->device_open = true;
+    audio->queue_min_frames = INT32_MAX;
+    audio->interval_min_ms = 1e9;
 
     if( getenv("TORIRS_AUDIO_WAV") )
     {
@@ -216,12 +229,37 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     int queued_frames;
     int target_frames;
     int wanted;
+    uint64_t now;
+    uint64_t render_start;
 
     if( !audio || !audio->device_open || !audio->device )
         return;
 
+    now = SDL_GetPerformanceCounter();
+    if( audio->last_update_tick != 0 )
+    {
+        double interval_ms =
+            (double)(now - audio->last_update_tick) * 1000.0 /
+            (double)SDL_GetPerformanceFrequency();
+        if( interval_ms < audio->interval_min_ms )
+            audio->interval_min_ms = interval_ms;
+        if( interval_ms > audio->interval_max_ms )
+            audio->interval_max_ms = interval_ms;
+        audio->interval_sum_ms += interval_ms;
+    }
+    audio->last_update_tick = now;
+
     queued_frames =
         (int)(SDL_GetQueuedAudioSize(audio->device) / (TORIRS_AUDIO_CHANNELS * sizeof(int16_t)));
+
+    audio->updates++;
+    if( queued_frames < audio->queue_min_frames )
+        audio->queue_min_frames = queued_frames;
+    if( queued_frames > audio->queue_max_frames )
+        audio->queue_max_frames = queued_frames;
+    if( queued_frames == 0 && audio->frames_played > 0 )
+        audio->underruns++;
+
     target_frames = audio->sample_rate * AUDIO_TARGET_QUEUED_MS / 1000;
     wanted = target_frames - queued_frames;
     if( wanted <= 0 )
@@ -231,7 +269,16 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     if( !ensure_block(audio, wanted) )
         return;
 
+    render_start = SDL_GetPerformanceCounter();
     ToriRS_Mixer_Render(&audio->mixer, audio->block, wanted);
+    {
+        double render_ms =
+            (double)(SDL_GetPerformanceCounter() - render_start) * 1000.0 /
+            (double)SDL_GetPerformanceFrequency();
+        if( render_ms > audio->render_max_ms )
+            audio->render_max_ms = render_ms;
+    }
+
     if( SDL_QueueAudio(
             audio->device,
             audio->block,
@@ -284,6 +331,18 @@ PlatformAudio_Stats(struct PlatformAudio* audio)
     for( int i = 0; i < TORIRS_AUDIO_BUS_COUNT; i++ )
         stats.bus_volume[i] = mixer_stats.bus_volume[i];
     stats.device_open = audio->device_open;
+    stats.updates = audio->updates;
+    stats.underruns = audio->underruns;
+    stats.queue_min_frames = audio->updates > 0 ? audio->queue_min_frames : 0;
+    stats.queue_max_frames = audio->queue_max_frames;
+    stats.queue_current_frames = audio->device
+        ? (int)(SDL_GetQueuedAudioSize(audio->device) / (TORIRS_AUDIO_CHANNELS * sizeof(int16_t)))
+        : 0;
+    stats.update_interval_min_ms = audio->updates > 1 ? audio->interval_min_ms : 0.0;
+    stats.update_interval_max_ms = audio->interval_max_ms;
+    stats.update_interval_mean_ms =
+        audio->updates > 1 ? audio->interval_sum_ms / (double)(audio->updates - 1) : 0.0;
+    stats.render_max_ms = audio->render_max_ms;
     return stats;
 }
 

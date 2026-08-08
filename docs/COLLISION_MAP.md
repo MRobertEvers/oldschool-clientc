@@ -265,10 +265,13 @@ require bits on both sides and refuse both directions.
   live-map door / fence both-directions refusal.
 - [`src/net/mock/test/collision_doors_test.c`](../src/net/mock/test/collision_doors_test.c)
   — `make -C src test-collision-doors`. Builds real scenes from the cache and
-  asserts, over every `wall_straight` door with an "Open" op: no orphan
-  complementary bit anywhere in the scene, a closed door blocks its own edge, no
-  diagonal step crosses a doorway line open **or** shut, and opening then
-  closing a door leaves the collision map byte-identical. The default 25 squares
+  asserts: no orphan complementary bit anywhere in the scene; **no diagonal step
+  cuts a corner** (a diagonal is legal only when both L-shaped two-step routes
+  are — 3.1M diagonals on the default squares, 70.9M over the full sweep, zero
+  cuts); and over every `wall_straight` door with an "Open" op, that a closed
+  door blocks its own edge, that no diagonal crosses a doorway line open **or**
+  shut, and that opening then closing a door leaves the collision map
+  byte-identical. The default 25 squares
   are the towns plus every square that carried one of the 75 round-trip
   failures; `TORIRS_COLLISION_DOORS_FULL=1` sweeps the whole overworld (480
   scenes, 1,637 doors, ~45s).

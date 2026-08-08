@@ -1181,6 +1181,30 @@ World_PlayerPathJump(
 }
 
 void
+World_PlayerPathJumpCollisionAware(
+    struct World* world,
+    int idx,
+    struct CollisionMap* collision,
+    bool force_teleport,
+    int x,
+    int z,
+    int step_type)
+{
+    assert(world);
+    struct World_EntityPool* pool = &world->entities.player;
+    assert(World_EntityPoolIsActive(pool, idx));
+    struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
+    enum World_PathingJump jump = World_EntityPathingJumpCollisionAware(
+        &player->pathing, collision, force_teleport, x, z, step_type);
+    if( jump == WORLD_PATHING_JUMP_TELEPORT )
+    {
+        World_EntityDrawPositionSetToTile(&player->draw_position, x, z, 1, 1);
+        player->grid_position.x = x;
+        player->grid_position.z = z;
+    }
+}
+
+void
 World_NpcPathJump(
     struct World* world,
     int idx,

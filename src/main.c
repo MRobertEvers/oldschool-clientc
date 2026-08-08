@@ -1849,6 +1849,19 @@ frame_loop_teardown(void)
             stats.stream_dropped_frames,
             stats.stream_starved_frames,
             stats.assets_live);
+        fprintf(
+            stderr,
+            "audio: %d updates, %d device underruns, queue %d..%d frames "
+            "(now %d), interval %.1f/%.1f/%.1f ms, render peak %.2f ms\n",
+            stats.updates,
+            stats.underruns,
+            stats.queue_min_frames,
+            stats.queue_max_frames,
+            stats.queue_current_frames,
+            stats.update_interval_min_ms,
+            stats.update_interval_mean_ms,
+            stats.update_interval_max_ms,
+            stats.render_max_ms);
     }
     PlatformAudio_Free(audio);
 #if defined(TORIRS_HAVE_D3D9)

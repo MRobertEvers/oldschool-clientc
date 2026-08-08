@@ -429,6 +429,18 @@ RSCache_Dat2ConfigNpcInit(struct RSCache_Dat2ConfigNpc* npc)
      * stay distinguishable, and so clear-opcodes 93/107/109 are reproducible. */
     npc->bas_type_id = -1;
     npc->footprint_size = -1;
+    /*
+     * No movement sounds unless opcode 134 says otherwise. Zero would not do:
+     * 0 is a real sound-effect id, so leaving these zeroed would give every npc
+     * in the game the same sound.
+     */
+    npc->sound_idle = -1;
+    npc->sound_crawl = -1;
+    npc->sound_walk = -1;
+    npc->sound_run = -1;
+    npc->sound_radius = 0;
+    /* Opcode 140 scales these; full volume when it is absent. */
+    npc->ambient_sound_volume = 255;
     npc->zbuf = true;
     npc->size = 1;
     npc->standing_animation = -1;
@@ -1121,10 +1133,13 @@ RSCache_Dat2ConfigNpcDecodeOp(
             g2(buffer);
             break;
 
+        case 140:
+            npc->ambient_sound_volume = g1(buffer);
+            break;
+
         case 119: /* loginScreenProps */
         case 125: /* spawnDirection */
         case 128:
-        case 140: /* ambient sound volume */
         case 163:
         case 165:
         case 168:
@@ -1170,13 +1185,30 @@ RSCache_Dat2ConfigNpcDecodeOp(
             break;
         }
 
-        case 134: /* idle / crawl / walk / run sound ids, then a radius */
-            g2(buffer);
-            g2(buffer);
-            g2(buffer);
-            g2(buffer);
-            g1(buffer);
+        case 134:
+        {
+            /*
+             * Movement sounds: idle, crawl, walk, run, then an audible radius.
+             *
+             * The order is the movement speed order the rest of the npc record
+             * uses (the walk/run animation opcodes are laid out the same way),
+             * and 65535 is this format's "absent" for a u2 id.
+             */
+            npc->sound_idle = g2(buffer);
+            npc->sound_crawl = g2(buffer);
+            npc->sound_walk = g2(buffer);
+            npc->sound_run = g2(buffer);
+            npc->sound_radius = g1(buffer);
+            if( npc->sound_idle == 65535 )
+                npc->sound_idle = -1;
+            if( npc->sound_crawl == 65535 )
+                npc->sound_crawl = -1;
+            if( npc->sound_walk == 65535 )
+                npc->sound_walk = -1;
+            if( npc->sound_run == 65535 )
+                npc->sound_run = -1;
             break;
+        }
 
         case 135: /* cursor op + cursor */
         case 136:

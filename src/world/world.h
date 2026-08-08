@@ -595,6 +595,16 @@ World_PlayerPathJump(
     int z);
 
 void
+World_PlayerPathJumpCollisionAware(
+    struct World* world,
+    int idx,
+    struct CollisionMap* collision,
+    bool force_teleport,
+    int x,
+    int z,
+    int step_type);
+
+void
 World_NpcPathJump(
     struct World* world,
     int idx,

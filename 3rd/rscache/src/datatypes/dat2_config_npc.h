@@ -89,6 +89,27 @@ struct RSCache_Dat2ConfigNpc
     bool idle_anim_restart; /* opcode 130 */
     bool zbuf;              /* default true; opcode 147 clears */
 
+    /*
+     * Movement sounds, opcode 134.
+     *
+     * Four sound-effect ids, one per movement state, and the radius (in tiles)
+     * within which they are audible. 65535 on the wire means "no sound for this
+     * state" and is stored as -1, the same sentinel the rest of this struct
+     * uses for an absent id.
+     *
+     * These were decoded and thrown away for a long time -- the byte layout was
+     * needed so the rest of the record stayed aligned, but nothing kept the
+     * values, so an NPC could never be heard moving.
+     */
+    int sound_idle;   /* opcode 134 */
+    int sound_crawl;  /* opcode 134 */
+    int sound_walk;   /* opcode 134 */
+    int sound_run;    /* opcode 134 */
+    int sound_radius; /* opcode 134, tiles */
+
+    /** Opcode 140: volume scale for this npc's sounds, 0..255. 255 when absent. */
+    int ambient_sound_volume;
+
     /** Rev 237+: sub-ops / conditional ops. Plain ops still live in `actions`. */
     struct RSCache_EntityOps entity_ops;
 

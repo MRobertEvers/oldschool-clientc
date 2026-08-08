@@ -1964,13 +1964,50 @@ advance_player(struct Mock230Server* srv)
 
     player->move_count = 0;
     player->steps_taken = 0;
-    for( int i = 0; i < max_tiles; i++ )
     {
-        int dir = player_take_step(player);
-        if( dir < 0 )
-            break;
-        player->move_dirs[player->move_count++] = dir;
-        player->steps_taken++;
+        int from_x = player->x;
+        int from_z = player->z;
+
+        for( int i = 0; i < max_tiles; i++ )
+        {
+            int dir = player_take_step(player);
+            if( dir < 0 )
+                break;
+            player->move_dirs[player->move_count++] = dir;
+            player->steps_taken++;
+        }
+
+        /*
+         * MOCK230_MOVE_TRACE=1 — the tiles this tick, and how the wire will
+         * describe them.
+         *
+         * The one thing this answers that nothing else can: a running player
+         * who turns a corner takes two steps whose *net* displacement is one
+         * diagonal tile, and the rev-239 player stream has no code for that —
+         * its 4-bit run table is the outer ring of a 5x5, so `(±1, ±1)` goes
+         * out as a single diagonal WALK (rsprot `PlayerInfo.prepareHighResMovement`,
+         * and rsmod hands rsprot only the final coord). The client then glides
+         * across the corner because it was never told the tile in between.
+         *
+         * So `steps=2 net=(1,1)` in this trace is the protocol, and `steps=1`
+         * with a diagonal delta beside a wall corner would be a collision bug.
+         * They look identical on screen and are not the same thing.
+         */
+        if( getenv("MOCK230_MOVE_TRACE") && (player->steps_taken || from_x != player->x ||
+                                             from_z != player->z) )
+        {
+            int net_x = player->x - from_x;
+            int net_z = player->z - from_z;
+
+            fprintf(stderr,
+                    "move: %s from=%d,%d to=%d,%d steps=%d net=(%d,%d) %s wire=%s\n",
+                    player->display_name, from_x, from_z, player->x, player->z,
+                    player->steps_taken, net_x, net_z,
+                    player->running ? "run" : "walk",
+                    (net_x >= -1 && net_x <= 1 && net_z >= -1 && net_z <= 1)
+                        ? ((net_x && net_z) ? "WALK(diagonal)" : "WALK")
+                        : "RUN");
+        }
     }
 
     if( !player_has_waypoints(player) && player->dest_x >= 0 )

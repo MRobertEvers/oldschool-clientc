@@ -8,7 +8,7 @@
  * squares of geometry nobody wrote by hand, and every bug this file exists for
  * was a rule that read correctly and met data it did not expect.
  *
- * ── The four invariants ──────────────────────────────────────────────
+ * ── The invariants ───────────────────────────────────────────────────
  *
  * 1. **No orphan complementary wall bit.** A wall stamps two flags, one on each
  *    tile of its edge (docs/COLLISION_MAP.md §0). A tile carrying `WALL_WEST`
@@ -19,7 +19,15 @@
  * 2. **A closed door blocks its own edge.** The positive control. Without it
  *    every other assertion here passes on a collision map that is simply empty.
  *
- * 3. **No diagonal through a doorway.** The one the player notices. A door's
+ * 3. **No diagonal step cuts a corner, anywhere.** The rule the player states:
+ *    you path *around* a corner, you do not clip it. A diagonal is legal only
+ *    if both L-shaped two-step routes between the same endpoints are legal.
+ *    `collision_map_can_travel` is built to guarantee that; the guarantee is
+ *    only as good as the flags, so it is measured over every tile of every
+ *    scene rather than argued from the code.
+ *
+ * 4. **No diagonal through a doorway.** The special case of 3 that people hit
+ *    first, and worth its own count. A door's
  *    edge separates two tiles; the four diagonal steps that cross that line
  *    have to be refused whether the door is open or shut, and they are refused
  *    by the walls flanking the gap rather than by any rule about doors. So this
@@ -31,7 +39,7 @@
  *    so a step *out of* a blocked tile can be "legal" and is not a route the
  *    flood could ever take.
  *
- * 4. **Opening and closing a door leaves the collision map byte-identical.**
+ * 5. **Opening and closing a door leaves the collision map byte-identical.**
  *    The one that was broken. `collision_map_del_wall` clears its bits
  *    unconditionally — the reference's own primitive — and a door that swings
  *    flush against a wall lands on the very tile that wall stamps, so closing
@@ -110,6 +118,8 @@ struct Totals
     int leaks_closed;
     int leaks_open;
     int roundtrip;
+    long long diagonals;
+    long long corner_cuts;
     int reported;
 };
 
@@ -152,6 +162,21 @@ count_orphans(struct CollisionMap* cm)
     return bad;
 }
 
+/*
+ * "You cannot cut a corner", stated directly and over every tile.
+ *
+ * A diagonal step is legal only if both L-shaped two-step routes between the
+ * same endpoints are legal. That is what `collision_map_can_travel` is supposed
+ * to guarantee — it reads the destination's diagonal composite plus the two
+ * tiles the diagonal passes between — but the guarantee is only as good as the
+ * flags, and the flags come from 11,733 map squares nobody wrote by hand. So it
+ * is measured rather than argued: a wall whose bits went missing shows up here
+ * as a legal diagonal with an illegal leg, which is exactly a player walking
+ * diagonally past a corner instead of pathing around it.
+ */
+static void
+count_corner_cuts(struct CollisionMap* cm, struct Totals* t, int base_x, int base_z, int level);
+
 /* A size-1 step, refused when the mover could not be standing on (x, z) to
  * begin with — see the header note on invariant 3. */
 static int
@@ -169,6 +194,38 @@ can_step(
     if( cm->flags[x * cm->size_z + z] & COLL_FLAG_WALK_BLOCKED )
         return 0;
     return collision_map_can_travel(cm, x, z, dx, dz, 1, 0);
+}
+
+static void
+count_corner_cuts(
+    struct CollisionMap* cm,
+    struct Totals* t,
+    int base_x,
+    int base_z,
+    int level)
+{
+    for( int x = 1; x < cm->size_x - 1; x++ )
+    {
+        for( int z = 1; z < cm->size_z - 1; z++ )
+        {
+            for( int dx = -1; dx <= 1; dx += 2 )
+            {
+                for( int dz = -1; dz <= 1; dz += 2 )
+                {
+                    if( !can_step(cm, x, z, dx, dz) )
+                        continue;
+                    t->diagonals++;
+                    if( can_step(cm, x, z, dx, 0) && can_step(cm, x + dx, z, 0, dz) &&
+                        can_step(cm, x, z, 0, dz) && can_step(cm, x, z + dz, dx, 0) )
+                        continue;
+                    t->corner_cuts++;
+                    if( t->reported++ < REPORT_MAX )
+                        printf("       corner cut L%d (%d,%d) -> (%d,%d)\n", level,
+                               base_x + x, base_z + z, base_x + x + dx, base_z + z + dz);
+                }
+            }
+        }
+    }
 }
 
 /* The two tiles a wall_straight separates, and the unit vector along its edge.
@@ -304,6 +361,7 @@ sweep_scene(
         if( !cm )
             continue;
         t->orphans += count_orphans(cm);
+        count_corner_cuts(cm, t, base_x, base_z, level);
         bytes = (size_t)(cm->size_x * cm->size_z) * sizeof(int);
         before[level] = malloc(bytes);
         if( before[level] )
@@ -501,6 +559,8 @@ main(int argc, char** argv)
     CHECK_GT(t.zones, 0, "scenes built from the cache");
     CHECK_GT(t.doors, 0, "doors found to swing");
     CHECK_EQ(t.orphans, 0, "wall bits with no complement on the other tile");
+    CHECK_GT(t.diagonals, 0, "legal diagonal steps examined");
+    CHECK_EQ(t.corner_cuts, 0, "diagonal steps that cut a corner");
     CHECK_EQ(t.closed_edge_walkable, 0, "closed doors whose own edge is walkable");
     CHECK_EQ(t.leaks_closed, 0, "closed doorways a diagonal step can cross");
     CHECK_EQ(t.leaks_open, 0, "open doorways a diagonal step can cross");

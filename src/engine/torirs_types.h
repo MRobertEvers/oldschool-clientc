@@ -274,6 +274,22 @@ struct ToriRS_Npctype
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int combat_level;
     int size;
+
+    /*
+     * Movement sounds (dat2 npc opcode 134) and their volume scale (140).
+     *
+     * -1 for a state with no sound. `sound_radius` is the distance in tiles
+     * beyond which the npc is not heard; 0 means the record named no sounds.
+     * These were decoded and discarded until now, so npcs have never been
+     * audible moving.
+     */
+    int sound_idle;
+    int sound_crawl;
+    int sound_walk;
+    int sound_run;
+    int sound_radius;
+    /** 0..255, 255 when the record does not scale them. */
+    int ambient_sound_volume;
     int* models;
     int models_count;
     /** Chathead models (dat1 NpcType.heads / dat2 chathead_models). Merged and

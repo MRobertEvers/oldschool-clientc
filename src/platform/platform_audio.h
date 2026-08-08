@@ -63,6 +63,17 @@ struct PlatformAudioStats
     int bus_volume[TORIRS_AUDIO_BUS_COUNT];
     /** False when no device was opened — the null backend, or a failed open. */
     bool device_open;
+
+    /** Real-time path diagnostics (SDL2 backend only, zero elsewhere). */
+    int updates;
+    int underruns;
+    int queue_min_frames;
+    int queue_max_frames;
+    int queue_current_frames;
+    double update_interval_min_ms;
+    double update_interval_max_ms;
+    double update_interval_mean_ms;
+    double render_max_ms;
 };
 
 struct PlatformAudio*

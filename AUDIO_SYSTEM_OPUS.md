@@ -115,15 +115,23 @@ re-parse to their declared track lengths.
 - [x] Effect monophony gated on the era feature table (2004 only)
 - [x] mock230 sends a track on login so the music path is reachable at all
 - [ ] Random-set area emitters use a deterministic cycle, not the reference's RNG
-- [ ] `MIDI_SONG_WITHSECONDARY` and `MIDI_SWAP` are still `PKT_NAME_NONE`
-- [ ] CS2 host opcodes for sound (`SOUND_SYNTH`, `SOUND_SONG`, `SOUND_JINGLE`)
-- [ ] NPC sounds: the npc decoder *consumes and discards* opcode 134 (idle /
-      crawl / walk / run sound ids plus a radius) and 140 (ambient sound volume),
-      so they never reach a struct the game could read
+- [x] `MIDI_SONG_WITHSECONDARY` (op 99) and `MIDI_SWAP` (op 107) routed, parsed
+      and executed, with position-preserving swap (`ToriRS_MidiSynth_PlayFrom`)
+- [x] CS2 host opcodes for sound: `SOUND_SYNTH` 3200, `SOUND_SONG` 3201,
+      `SOUND_JINGLE` 3202 and `SOUND_SONG_WITHSECONDARY` 3221, queued on the
+      host and drained by the App tick
+- [x] NPC sounds: opcodes 134 (idle / crawl / walk / run ids plus a radius) and
+      140 (volume scale) are decoded into `RSCache_Dat2ConfigNpc` and carried
+      through to `ToriRS_Npctype` instead of being read and thrown away.
+      **No playback is wired, because rev 239 has none to play** — see D21.
+      `TORIRS_NPC_SOUND_DEBUG=1` prints any npc that names one.
 
 ### Phase 5 — verification
-- [x] `make -C src test-audio` — 75 checks: mixer contract + a real song rendered
+- [x] `make -C src test-audio` — 101 checks: mixer contract, a real song rendered,
+      MIDI seek and the song-swap state machine
 - [x] `make -C src test-sound` — game layer end to end on dat1 254 and dat2 230
+- [x] `make -C src test-midi-packets` — the three rev-239 music prots encoded as
+      RSProt encodes them and parsed back, plus truncation rejection
 - [x] `make -C 3rd/rscache test` — includes `test_music`, 239,486 checks
 - [x] Leak audit under `leaks`: zero audio leaks (found and fixed two, see D9)
 - [x] Live headless run: 251k frames pushed, 0 starved, 0 dropped

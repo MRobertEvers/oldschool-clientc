@@ -8,6 +8,8 @@
 #define WORLD_PATHSTEP_WALK 0
 #define WORLD_PATHSTEP_RUN 1
 
+struct CollisionMap;
+
 enum World_PathingJump
 {
     WORLD_PATHING_JUMP_TELEPORT,
@@ -33,6 +35,19 @@ World_EntityPathingJump(
     bool force_teleport,
     int x,
     int z);
+
+/* Modern player-info sends only the final coordinate of a server tick. When a
+ * runner turns through two orthogonal steps, that can look like a one-tile
+ * diagonal even though the direct diagonal is blocked. Reconstruct the legal
+ * intermediate tile so draw interpolation follows the route around the corner. */
+enum World_PathingJump
+World_EntityPathingJumpCollisionAware(
+    struct WorldEntityFacet_Pathing* pathing,
+    struct CollisionMap* collision,
+    bool force_teleport,
+    int x,
+    int z,
+    int step_type);
 
 void
 World_EntityDrawPositionSetToTile(
