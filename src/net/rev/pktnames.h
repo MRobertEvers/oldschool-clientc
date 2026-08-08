@@ -139,6 +139,10 @@ enum GameProtoPktName
     PKT_NAME_SYNTH_SOUND,
     PKT_NAME_MIDI_SONG,
     PKT_NAME_MIDI_JINGLE,
+    /** A track plus a pre-queued tonal variant, swappable without restarting. */
+    PKT_NAME_MIDI_SONG_WITHSECONDARY,
+    /** Crossfade to that variant, in place. */
+    PKT_NAME_MIDI_SWAP,
     /** Stop the current track, with a fade. */
     PKT_NAME_MIDI_SONG_STOP,
     /**

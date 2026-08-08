@@ -25,7 +25,9 @@
 
 #include "audio/torirs_audio.h"
 #include "audio/torirs_midi_synth.h"
+#include "audio/torirs_midi_synth.h"
 #include "audio/torirs_mixer.h"
+#include "audio/torirs_music.h"
 #include "audio/torirs_pcm.h"
 #include "audio/torirs_soundbank.h"
 
@@ -874,6 +876,162 @@ test_render_song(
     RSCache_Dat2DiskFree(disk);
 }
 
+
+/* --- seeking, which MIDI_SWAP is built on ---------------------------------- */
+
+/** Append a variable-length quantity. */
+static int
+smf_vlq(uint8_t* out, int value)
+{
+    if( value < 128 )
+    {
+        out[0] = (uint8_t)value;
+        return 1;
+    }
+    out[0] = (uint8_t)(0x80 | (value >> 7));
+    out[1] = (uint8_t)(value & 127);
+    return 2;
+}
+
+/*
+ * A hand-built single-track SMF:
+ *
+ *   tick   0  program change ch0 -> 40, controller 7 (volume) -> 100
+ *   tick 100  note on  ch0 note 60
+ *   tick 200  note off ch0 note 60
+ *   tick 300  end of track
+ *
+ * Seeking past tick 100 must arrive with the program and volume applied and
+ * *without* note 60 sounding. Those two requirements pull in opposite
+ * directions -- the naive implementations either replay everything (and the
+ * skipped notes all fire at once) or skip everything (and the channel is left
+ * on the default instrument at the default volume) -- which is why this is
+ * tested on a file whose expected state is written down rather than on cache
+ * content where "sounds about right" is the only available check.
+ */
+static int
+build_test_smf(uint8_t* out)
+{
+    uint8_t* p = out;
+    uint8_t* track_len;
+
+    memcpy(p, "MThd", 4);
+    p += 4;
+    p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 6; p += 4;
+    p[0] = 0; p[1] = 0; p += 2;   /* format 0 */
+    p[0] = 0; p[1] = 1; p += 2;   /* one track */
+    p[0] = 0; p[1] = 96; p += 2;  /* division */
+
+    memcpy(p, "MTrk", 4);
+    p += 4;
+    track_len = p;
+    p += 4;
+
+    p += smf_vlq(p, 0);
+    *p++ = 0xC0; *p++ = 40;              /* program change */
+    p += smf_vlq(p, 0);
+    *p++ = 0xB0; *p++ = 7; *p++ = 100;   /* channel volume */
+    p += smf_vlq(p, 100);
+    *p++ = 0x90; *p++ = 60; *p++ = 100;  /* note on */
+    p += smf_vlq(p, 100);
+    *p++ = 0x80; *p++ = 60; *p++ = 0;    /* note off */
+    p += smf_vlq(p, 100);
+    *p++ = 0xFF; *p++ = 0x2F; *p++ = 0;  /* end of track */
+
+    {
+        long n = p - track_len - 4;
+        track_len[0] = (uint8_t)(n >> 24);
+        track_len[1] = (uint8_t)(n >> 16);
+        track_len[2] = (uint8_t)(n >> 8);
+        track_len[3] = (uint8_t)n;
+    }
+    return (int)(p - out);
+}
+
+static void
+test_midi_seek(void)
+{
+    uint8_t smf[256];
+    int size = build_test_smf(smf);
+    struct ToriRS_SoundBank bank;
+    struct ToriRS_MidiSynth synth;
+
+    ToriRS_SoundBank_Init(&bank);
+
+    /* From the top: the note is struck. */
+    ToriRS_MidiSynth_Init(&synth, &bank, 22050);
+    CHECK(ToriRS_MidiSynth_Play(&synth, smf, size, false));
+    {
+        int16_t block[512 * 2];
+        ToriRS_MidiSynth_Render(&synth, block, 512);
+    }
+    CHECK_EQ(synth.channels[0].patch_id, 40);
+    CHECK_EQ(synth.channels[0].volume, 100 << 7);
+    ToriRS_MidiSynth_Free(&synth);
+
+    /* Seeking past the note: same channel state, note not sounding. */
+    ToriRS_MidiSynth_Init(&synth, &bank, 22050);
+    CHECK(ToriRS_MidiSynth_PlayFrom(&synth, smf, size, false, 150));
+    CHECK(synth.current_tick >= 150);
+    /* The state events before the seek point were applied... */
+    CHECK_EQ(synth.channels[0].patch_id, 40);
+    CHECK_EQ(synth.channels[0].volume, 100 << 7);
+    /* ...but the note struck at tick 100 was not replayed. */
+    CHECK_EQ(ToriRS_MidiSynth_LiveNoteCount(&synth), 0);
+    CHECK_EQ(synth.stats.notes_started, 0);
+    /* The audio clock landed with the sequencer, so the first render does not
+     * replay the span that was just skipped. */
+    CHECK(synth.position == synth.next_event_time);
+    ToriRS_MidiSynth_Free(&synth);
+
+    /* A zero/negative start tick is exactly Play. */
+    ToriRS_MidiSynth_Init(&synth, &bank, 22050);
+    CHECK(ToriRS_MidiSynth_PlayFrom(&synth, smf, size, false, 0));
+    CHECK_EQ(synth.current_tick, 0);
+    ToriRS_MidiSynth_Free(&synth);
+
+    ToriRS_SoundBank_Free(&bank);
+}
+
+static void
+test_music_swap_state(void)
+{
+    struct ToriRS_MusicPlayer player;
+
+    ToriRS_Music_Init(&player);
+
+    /* Nothing queued and nothing playing: a swap must not become a song change,
+     * because MIDI_SWAP carries no id of its own. */
+    CHECK_EQ(player.secondary_song, -1);
+    ToriRS_Music_Swap(&player, 100, 100);
+    CHECK(!player.has_request);
+
+    /* A queued variant with nothing playing is still a no-op. */
+    ToriRS_Music_SetSecondary(&player, 77);
+    CHECK_EQ(player.secondary_song, 77);
+    ToriRS_Music_Swap(&player, 100, 100);
+    CHECK(!player.has_request);
+
+    /* With a song playing, the swap requests the variant and keeps the outgoing
+     * song as the new secondary, so swapping again comes back. */
+    player.current_song = 42;
+    player.current_source = TORIRS_MUSIC_SOURCE_TRACK;
+    player.current_loop = true;
+    player.state = TORIRS_MUSIC_PLAYING;
+    player.synth.current_tick = 1234;
+    ToriRS_Music_Swap(&player, 100, 200);
+    CHECK(player.has_request);
+    CHECK_EQ(player.request_song, 77);
+    CHECK_EQ(player.request_fade_out_ms, 100);
+    CHECK_EQ(player.request_fade_in_ms, 200);
+    CHECK_EQ(player.secondary_song, 42);
+    /* The position was captured before the request, from the outgoing song. */
+    CHECK_EQ(player.request_resume_tick, 1234);
+    CHECK(player.request_loop);
+
+    ToriRS_Music_Free(&player);
+}
+
 int
 main(
     int argc,
@@ -906,8 +1064,13 @@ main(
     GROUP("mixer: clear and stop-all");
     test_asset_clear_and_stop_all();
 
+
     GROUP("soundbank");
     test_soundbank_refcounts();
+
+    GROUP("midi seek and song swap");
+    test_midi_seek();
+    test_music_swap_state();
 
     GROUP("render a real song");
     snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);

@@ -824,6 +824,34 @@ RS_Audio_Song(
 }
 
 void
+RS_Audio_SongWithSecondary(
+    struct RS_Audio* audio,
+    int primary_id,
+    int secondary_id,
+    int fade_out_ms,
+    int fade_in_ms)
+{
+    if( !audio )
+        return;
+    ToriRS_Music_Request(
+        &audio->music, primary_id, TORIRS_MUSIC_SOURCE_TRACK, true, fade_out_ms, fade_in_ms);
+    /* After the request: an ordinary track request is what clears any variant
+     * left over from a previous region, and this one has to survive it. */
+    ToriRS_Music_SetSecondary(&audio->music, secondary_id);
+}
+
+void
+RS_Audio_SongSwap(
+    struct RS_Audio* audio,
+    int fade_out_ms,
+    int fade_in_ms)
+{
+    if( !audio )
+        return;
+    ToriRS_Music_Swap(&audio->music, fade_out_ms, fade_in_ms);
+}
+
+void
 RS_Audio_SongStop(
     struct RS_Audio* audio,
     int fade_out_ms)

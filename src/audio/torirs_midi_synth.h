@@ -152,6 +152,9 @@ struct ToriRS_MidiSynth
     int order[TORIRS_MIDI_MAX_NODES];
     int order_count;
 
+    /** Set while fast-forwarding: state events apply, note-ons do not. */
+    bool seeking;
+
     /* Sequencer position, in the reader's microsecond*division units. */
     int64_t position;
     int64_t next_event_time;
@@ -200,6 +203,24 @@ ToriRS_MidiSynth_Playing(const struct ToriRS_MidiSynth* synth)
 }
 
 /** True once a non-looping song has run out and every note has died away. */
+/**
+ * Play, starting from `start_tick` rather than the beginning.
+ *
+ * Everything before `start_tick` is run for its *state* -- program changes,
+ * controllers, pitch bends -- with note-ons suppressed, so the song arrives at
+ * that point configured as it would have been had it played there. This is what
+ * MIDI_SWAP needs: the secondary song is a tonal variant of the primary, and
+ * swapping should change the instrumentation under a phrase that keeps running,
+ * not restart it. `start_tick <= 0` is exactly ToriRS_MidiSynth_Play.
+ */
+bool
+ToriRS_MidiSynth_PlayFrom(
+    struct ToriRS_MidiSynth* synth,
+    const uint8_t* midi,
+    int midi_size,
+    bool looping,
+    int start_tick);
+
 bool
 ToriRS_MidiSynth_Finished(const struct ToriRS_MidiSynth* synth);
 

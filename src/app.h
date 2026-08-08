@@ -1419,6 +1419,20 @@ App_PlaySong(
 
 /** Play a jingle, resuming the song afterwards (MIDI_JINGLE). */
 void
+App_PlaySongWithSecondary(
+    struct App* app,
+    int primary_id,
+    int secondary_id,
+    int fade_out_ms,
+    int fade_in_ms);
+
+void
+App_SwapSong(
+    struct App* app,
+    int fade_out_ms,
+    int fade_in_ms);
+
+void
 App_PlayJingle(
     struct App* app,
     int jingle_id,

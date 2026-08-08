@@ -383,6 +383,99 @@ cmd_midi(
     return 0;
 }
 
+/*
+ * Render a song twice: straight through, and by seeking into it.
+ *
+ * The seek is what MIDI_SWAP is built on, and a seek has a specific way of
+ * being wrong that is invisible in a single render: arriving at the target tick
+ * with the wrong instrument or volume selected, because the program changes and
+ * controllers before that point were skipped along with the notes. Comparing a
+ * seeked render against the tail of a full one catches exactly that -- the two
+ * cannot match unless the channel state was reconstructed.
+ *
+ * They are not expected to be bit-identical: notes struck before the seek point
+ * are still ringing in the full render and were deliberately not started in the
+ * seeked one. What must match is the material that starts after it.
+ */
+static int
+cmd_seek(
+    const char* cache,
+    const char* rev,
+    int id,
+    int start_tick,
+    const struct options* opt)
+{
+    struct AudioSongLoad load;
+    struct ToriRS_MidiSynth synth;
+    struct AudioAnalysis full_a;
+    struct AudioAnalysis seek_a;
+    int frames = (int)(opt->seconds * HARNESS_RATE);
+    int16_t* full;
+    int16_t* seeked;
+
+    if( !AudioSongLoad_Open(&load, cache, rev, AUDIO_SONG_TRACK, id) )
+    {
+        fprintf(stderr, "cannot load song %d\n", id);
+        AudioSongLoad_Free(&load);
+        return 1;
+    }
+    g_peak_notes = 0;
+    g_peak_held = 0;
+    full = render_song(&load, frames, NULL);
+
+    seeked = calloc((size_t)frames * 2, sizeof(int16_t));
+    if( !full || !seeked )
+    {
+        free(full);
+        free(seeked);
+        AudioSongLoad_Free(&load);
+        return 1;
+    }
+    ToriRS_MidiSynth_Init(&synth, &load.bank, HARNESS_RATE);
+    if( !ToriRS_MidiSynth_PlayFrom(
+            &synth, load.song->midi, load.song->midi_size, true, start_tick) )
+    {
+        fprintf(stderr, "seek failed\n");
+        ToriRS_MidiSynth_Free(&synth);
+        free(full);
+        free(seeked);
+        AudioSongLoad_Free(&load);
+        return 1;
+    }
+    printf(
+        "song %d: seeking to tick %d landed at tick %d\n",
+        id,
+        start_tick,
+        synth.current_tick);
+    ToriRS_MidiSynth_Render(&synth, seeked, frames);
+    printf("  channels configured at the seek point:\n");
+    for( int i = 0; i < 16; i++ )
+    {
+        const struct ToriRS_MidiChannel* ch = &synth.channels[i];
+
+        if( ch->patch_id != 0 || ch->volume != 0 )
+            printf(
+                "    ch%-2d patch %-5d volume %-6d expression %-6d pan %d\n",
+                i,
+                ch->patch_id,
+                ch->volume,
+                ch->expression,
+                ch->pan);
+    }
+    AudioAnalyse(full, frames, 2, HARNESS_RATE, &full_a);
+    AudioAnalyse(seeked, frames, 2, HARNESS_RATE, &seek_a);
+    AudioAnalyse_PrintLine("  from the top ", &full_a);
+    AudioAnalyse_PrintLine("  after a seek ", &seek_a);
+    if( opt->out_path )
+        AudioWriteWav(opt->out_path, seeked, frames, 2, HARNESS_RATE);
+
+    ToriRS_MidiSynth_Free(&synth);
+    free(full);
+    free(seeked);
+    AudioSongLoad_Free(&load);
+    return seek_a.silent ? 1 : 0;
+}
+
 static int
 cmd_song(
     const char* cache,
@@ -808,7 +901,7 @@ main(
     char** argv)
 {
     struct options opt;
-    const char* positional[4] = { NULL, NULL, NULL, NULL };
+    const char* positional[5] = { NULL, NULL, NULL, NULL, NULL };
     int positional_count = 0;
 
     memset(&opt, 0, sizeof(opt));
@@ -828,7 +921,7 @@ main(
             g_verbose = 1;
         else if( strcmp(argv[i], "-b") == 0 && i + 1 < argc )
             opt.block = atoi(argv[++i]);
-        else if( positional_count < 4 )
+        else if( positional_count < 5 )
             positional[positional_count++] = argv[i];
     }
     if( positional_count < 1 )
@@ -851,6 +944,13 @@ main(
         return cmd_sweep(positional[1], positional[2], AUDIO_SONG_JINGLE, &opt);
     if( strcmp(positional[0], "stream") == 0 && positional_count >= 4 )
         return cmd_stream(positional[1], positional[2], atoi(positional[3]), &opt);
+    if( strcmp(positional[0], "seek") == 0 && positional_count >= 4 )
+        return cmd_seek(
+            positional[1],
+            positional[2],
+            atoi(positional[3]),
+            positional_count >= 5 ? atoi(positional[4]) : 1920,
+            &opt);
     if( strcmp(positional[0], "midi") == 0 && positional_count >= 4 )
         return cmd_midi(positional[1], positional[2], atoi(positional[3]), AUDIO_SONG_TRACK);
     if( strcmp(positional[0], "wav") == 0 && positional_count >= 2 )

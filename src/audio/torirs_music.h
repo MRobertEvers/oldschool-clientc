@@ -92,6 +92,24 @@ struct ToriRS_MusicPlayer
     int resume_song;
     bool resume_loop;
 
+    /**
+     * The tonal variant MIDI_SWAP crossfades to. -1 when none is queued.
+     *
+     * Pre-queued by MIDI_SONG_WITHSECONDARY so the variant's soundfont can be
+     * loaded before the swap is asked for. A swap exchanges this with
+     * `current_song`, so swapping twice returns to where it started -- the
+     * reference calls it hot-swapping "at any point", not a one-way move.
+     */
+    int secondary_song;
+    /**
+     * Tick the next installed song should start at rather than 0.
+     *
+     * The point of a swap is that the phrase does not restart, so the incoming
+     * variant has to pick up where the outgoing one had got to. Cleared once
+     * consumed, because an ordinary song change must start from the top.
+     */
+    int request_resume_tick;
+
     /** Stream id in the mixer, and whether it is open. */
     int stream_id;
     bool stream_open;
@@ -150,6 +168,30 @@ ToriRS_Music_Stop(
     int fade_out_ms);
 
 /** Set the music volume, 0..TORIRS_AUDIO_VOLUME_MAX. */
+/**
+ * Pre-queue a tonal variant of the current song for a later MIDI_SWAP.
+ *
+ * Recording it does not load it; the load happens when the swap is asked for.
+ * Pass -1 to forget the variant.
+ */
+void
+ToriRS_Music_SetSecondary(
+    struct ToriRS_MusicPlayer* player,
+    int song_id);
+
+/**
+ * Crossfade to the pre-queued variant, keeping the playback position.
+ *
+ * A no-op when nothing is queued or nothing is playing, which is what the
+ * reference does. The outgoing song becomes the new secondary, so a second
+ * swap comes back.
+ */
+void
+ToriRS_Music_Swap(
+    struct ToriRS_MusicPlayer* player,
+    int fade_out_ms,
+    int fade_in_ms);
+
 void
 ToriRS_Music_SetVolume(
     struct ToriRS_MusicPlayer* player,

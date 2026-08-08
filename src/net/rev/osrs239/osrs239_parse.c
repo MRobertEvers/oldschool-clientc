@@ -896,6 +896,53 @@ osrs239_parse(
     }
 
     /*
+     * MidiSongWithSecondaryEncoder (rev 239), field order straight off the
+     * encoder:
+     *   p2(primaryId) p2Alt3(fadeInDelay) p2Alt1(secondaryId)
+     *   p2(fadeOutSpeed) p2Alt1(fadeOutDelay) p2Alt3(fadeInSpeed)
+     * The ids are interleaved *between* the fade fields rather than adjacent,
+     * which is why this is transcribed rather than guessed from the V2 layout.
+     */
+    case PKT_NAME_MIDI_SONG_WITHSECONDARY:
+    {
+        struct PktMidiSongWithSecondary* p = &out->_midi_song_with_secondary;
+        int fade_in_speed;
+        int fade_out_speed;
+
+        p->primary_id = RSProt_BufferG2Be(&c);
+        (void)RSProt_BufferG2Le_add128(&c); /* fade-in delay */
+        p->secondary_id = RSProt_BufferG2Le(&c);
+        fade_out_speed = RSProt_BufferG2Be(&c);
+        (void)RSProt_BufferG2Le(&c); /* fade-out delay */
+        fade_in_speed = RSProt_BufferG2Le_add128(&c);
+        if( p->primary_id == 65535 )
+            p->primary_id = -1;
+        if( p->secondary_id == 65535 )
+            p->secondary_id = -1;
+        /* Speeds are client cycles; the player works in milliseconds. As with
+         * MIDI_SONG_V2 the delays are a pre-roll the load already exceeds. */
+        p->fade_in_ms = fade_in_speed * 20;
+        p->fade_out_ms = fade_out_speed * 20;
+        return c.err ? 0 : 1;
+    }
+
+    /*
+     * MidiSwapEncoder (rev 239):
+     *   p2(fadeOutSpeed) p2(fadeInDelay) p2Alt2(fadeInSpeed) p2(fadeOutDelay)
+     * No id -- the target is whatever the last WITHSECONDARY pre-queued.
+     */
+    case PKT_NAME_MIDI_SWAP:
+    {
+        struct PktMidiSwap* p = &out->_midi_swap;
+
+        p->fade_out_ms = RSProt_BufferG2Be(&c) * 20;
+        (void)RSProt_BufferG2Be(&c); /* fade-in delay */
+        p->fade_in_ms = RSProt_BufferG2Be_add128(&c) * 20;
+        (void)RSProt_BufferG2Be(&c); /* fade-out delay */
+        return c.err ? 0 : 1;
+    }
+
+    /*
      * MidiSongStopEncoder v12 (rev 239): p2Alt3 delay, p2Alt3 speed. The speed
      * is the fade length; the delay is a pre-roll the player does not need,
      * because stopping already waits for nothing.

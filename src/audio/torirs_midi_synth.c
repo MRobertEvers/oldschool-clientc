@@ -674,9 +674,16 @@ dispatch_event(
     {
         int note = (packed >> 8) & 127;
         int velocity = (packed >> 16) & 127;
-        if( velocity > 0 )
+        /*
+         * While seeking, run the song's state forward without sounding it.
+         * Program changes, controllers and pitch bends must all be applied --
+         * arriving at tick N with the wrong instrument selected is the whole
+         * failure mode a seek has to avoid -- but the notes that were struck on
+         * the way there are in the past and must not all fire at once.
+         */
+        if( velocity > 0 && !synth->seeking )
             channel_note_on(synth, channel_index, note, velocity);
-        else
+        else if( velocity == 0 )
             channel_note_off(synth, channel_index, note);
         break;
     }
@@ -788,6 +795,61 @@ ToriRS_MidiSynth_Play(
     }
     synth->current_tick = synth->file.track_tick[synth->current_track];
     synth->next_event_time = ToriRS_MidiFile_TimeAt(&synth->file, synth->current_tick);
+    return true;
+}
+
+/** Defined below, with the rest of the sequencer. */
+static void
+dispatch_due_events(struct ToriRS_MidiSynth* synth);
+
+/**
+ * Bound on seek iterations.
+ *
+ * A seek advances one event batch per turn, so a long song legitimately needs
+ * thousands. This only has to stop a malformed file whose tick never reaches
+ * the target from spinning forever.
+ */
+#define TORIRS_MIDI_SEEK_GUARD 1000000
+
+bool
+ToriRS_MidiSynth_PlayFrom(
+    struct ToriRS_MidiSynth* synth,
+    const uint8_t* midi,
+    int midi_size,
+    bool looping,
+    int start_tick)
+{
+    int guard = 0;
+
+    if( !ToriRS_MidiSynth_Play(synth, midi, midi_size, looping) )
+        return false;
+    if( start_tick <= 0 )
+        return true;
+
+    /*
+     * Fast-forward the sequencer to `start_tick` without sounding anything.
+     *
+     * This is what MIDI_SWAP means by swapping "while letting the song play on
+     * from where it was, rather than re-starting" -- the secondary is a tonal
+     * variant of the same arrangement, so the listener should hear the
+     * instrumentation change under a phrase that keeps going, not the phrase
+     * start over. Seeking by replaying state-only events is the standard way:
+     * there is no index into a MIDI stream, and the channel state at tick N is
+     * the accumulation of every controller and program change before it.
+     *
+     * The guard bounds a malformed file whose tick never reaches the target.
+     */
+    synth->seeking = true;
+    while( synth->playing && synth->current_tick < start_tick )
+    {
+        if( ++guard > TORIRS_MIDI_SEEK_GUARD )
+            break;
+        dispatch_due_events(synth);
+    }
+    synth->seeking = false;
+    /* The audio clock has to land where the sequencer did, or the first render
+     * would replay the whole span it just skipped. */
+    synth->position = synth->next_event_time;
     return true;
 }
 

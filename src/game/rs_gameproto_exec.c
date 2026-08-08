@@ -1287,6 +1287,26 @@ RS_GameProto_Exec(
                 packet->_synth_sound.loops,
                 packet->_synth_sound.delay);
         break;
+    case PKT_NAME_MIDI_SONG_WITHSECONDARY:
+        /*
+         * Same as MIDI_SONG, plus a variant of the same arrangement held ready
+         * for a later MIDI_SWAP. Tracks always loop.
+         */
+        if( ctx->app )
+            App_PlaySongWithSecondary(
+                ctx->app,
+                packet->_midi_song_with_secondary.primary_id,
+                packet->_midi_song_with_secondary.secondary_id,
+                packet->_midi_song_with_secondary.fade_out_ms,
+                packet->_midi_song_with_secondary.fade_in_ms);
+        break;
+    case PKT_NAME_MIDI_SWAP:
+        if( ctx->app )
+            App_SwapSong(
+                ctx->app,
+                packet->_midi_swap.fade_out_ms,
+                packet->_midi_swap.fade_in_ms);
+        break;
     case PKT_NAME_MIDI_SONG:
         /*
          * The V2 form the modern revisions send carries a fade envelope; the

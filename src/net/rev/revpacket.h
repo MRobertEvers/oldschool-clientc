@@ -640,6 +640,35 @@ struct PktMidiJingle
     int delay; /* g2 */
 };
 
+/**
+ * A song plus a pre-queued tonal variant of itself.
+ *
+ * `secondary_id` is not the next track -- it is the same arrangement with a
+ * different mood (an upbeat versus a somber mix of one piece). MIDI_SWAP later
+ * crossfades to it *without restarting*, so the phrase keeps running and only
+ * the instrumentation changes. That is why the two ids arrive together: the
+ * client has to have the variant's soundfont ready before the swap arrives.
+ */
+struct PktMidiSongWithSecondary
+{
+    int primary_id;
+    int secondary_id;
+    int fade_out_ms;
+    int fade_in_ms;
+};
+
+/**
+ * Crossfade to the variant pre-queued by MIDI_SONG_WITHSECONDARY.
+ *
+ * Carries no id: the target is whatever the last WITHSECONDARY named. With no
+ * pending secondary this is a no-op, which is what the reference does too.
+ */
+struct PktMidiSwap
+{
+    int fade_out_ms;
+    int fade_in_ms;
+};
+
 struct PktMidiSongStop
 {
     /** Fade length in milliseconds (the wire carries client cycles). */
@@ -836,6 +865,8 @@ struct RevPacket
         struct PktMidiSong _midi_song;
         struct PktMidiJingle _midi_jingle;
         struct PktMidiSongStop _midi_song_stop;
+        struct PktMidiSongWithSecondary _midi_song_with_secondary;
+        struct PktMidiSwap _midi_swap;
         struct PktAmbientSoundStart _ambientsound_start;
         struct PktAmbientSoundStop _ambientsound_stop;
         struct PktSetMapFlag _set_map_flag;

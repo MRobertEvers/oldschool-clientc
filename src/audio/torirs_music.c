@@ -43,6 +43,7 @@ ToriRS_Music_Init(struct ToriRS_MusicPlayer* player)
     player->current_song = -1;
     player->request_song = -1;
     player->resume_song = -1;
+    player->secondary_song = -1;
     player->stream_id = MUSIC_STREAM_ID;
     player->volume = TORIRS_AUDIO_VOLUME_MAX;
     player->state = TORIRS_MUSIC_IDLE;
@@ -142,6 +143,50 @@ ToriRS_Music_Stop(
         return;
     player->resume_song = -1;
     ToriRS_Music_Request(player, -1, TORIRS_MUSIC_SOURCE_TRACK, false, fade_out_ms, 0);
+}
+
+void
+ToriRS_Music_SetSecondary(
+    struct ToriRS_MusicPlayer* player,
+    int song_id)
+{
+    if( !player )
+        return;
+    player->secondary_song = song_id;
+}
+
+void
+ToriRS_Music_Swap(
+    struct ToriRS_MusicPlayer* player,
+    int fade_out_ms,
+    int fade_in_ms)
+{
+    int incoming;
+    int outgoing;
+
+    if( !player )
+        return;
+    /*
+     * Nothing queued, or nothing to swap out of: the reference no-ops rather
+     * than treating this as a plain song change, because a swap carries no id
+     * of its own -- there would be nothing to play.
+     */
+    if( player->secondary_song < 0 || player->current_song < 0 ||
+        player->state != TORIRS_MUSIC_PLAYING )
+        return;
+
+    incoming = player->secondary_song;
+    outgoing = player->current_song;
+
+    /*
+     * Take the position *before* the request, while the outgoing song is still
+     * the one loaded in the synth. This is the whole difference between a swap
+     * and a song change.
+     */
+    ToriRS_Music_Request(
+        player, incoming, TORIRS_MUSIC_SOURCE_TRACK, player->current_loop, fade_out_ms, fade_in_ms);
+    player->request_resume_tick = player->synth.current_tick;
+    player->secondary_song = outgoing;
 }
 
 void
@@ -270,7 +315,12 @@ ToriRS_Music_Installed(
     for( int i = 0; i < patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
         player->retained_patches[player->retained_count++] = patch_ids[i];
 
-    if( !ToriRS_MidiSynth_Play(&player->synth, song->midi, song->midi_size, player->current_loop) )
+    if( !ToriRS_MidiSynth_PlayFrom(
+            &player->synth,
+            song->midi,
+            song->midi_size,
+            player->current_loop,
+            player->request_resume_tick) )
     {
         MUSIC_TRACE("music: song %d is not a MIDI file after unpack\n", song_id);
         release_current(player);
@@ -280,6 +330,9 @@ ToriRS_Music_Installed(
         player->songs_failed++;
         return;
     }
+
+    /* Consumed: an ordinary song change after this must start from the top. */
+    player->request_resume_tick = 0;
 
     /*
      * The stream is opened on the next tick rather than here.

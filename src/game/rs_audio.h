@@ -235,6 +235,27 @@ RS_Audio_Song(
     int fade_in_ms);
 
 /** MIDI_SONG_STOP. */
+/**
+ * Play `primary_id` and pre-queue `secondary_id` as its tonal variant.
+ *
+ * The variant is not loaded here -- only remembered -- because the server sends
+ * this on entering a region and may never send the swap.
+ */
+void
+RS_Audio_SongWithSecondary(
+    struct RS_Audio* audio,
+    int primary_id,
+    int secondary_id,
+    int fade_out_ms,
+    int fade_in_ms);
+
+/** Crossfade to the pre-queued variant without restarting the phrase. */
+void
+RS_Audio_SongSwap(
+    struct RS_Audio* audio,
+    int fade_out_ms,
+    int fade_in_ms);
+
 void
 RS_Audio_SongStop(
     struct RS_Audio* audio,
