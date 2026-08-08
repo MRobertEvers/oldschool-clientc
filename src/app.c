@@ -8223,10 +8223,19 @@ app_world_try_bind_seq(
             app_world_catch_up_object_seq(
                 app, element_id, anim, app->world->cycle - start_cycle);
         if( getenv("TORIRS_ANIM_DEBUG") )
+        {
+            /* The rig, not just the binding. A seq binds to any element, but
+             * types 0-3 need `vertex_bones` and type 5 needs `face_bones`; a
+             * model carrying neither discards every op and stands perfectly
+             * still while its neighbours animate. That failure is invisible
+             * here without these three numbers — it looks exactly like a
+             * sequence that was never sent. */
+            struct ToriDraw_Model const* m =
+                (el && el->model.kind == TORIDRAWMK_MODEL) ? el->model.u.model.model : NULL;
             fprintf(
                 stderr,
                 "seq_bind: element=%d seq=%d frames=%d skeletal=%d start=%d now=%d "
-                "frame=%d cycle=%d\n",
+                "frame=%d cycle=%d kind=%d vbones=%d fbones=%d falpha=%d\n",
                 element_id,
                 seq_id,
                 anim->frame_count,
@@ -8234,7 +8243,12 @@ app_world_try_bind_seq(
                 start_cycle,
                 app->world ? app->world->cycle : start_cycle,
                 el ? el->anim_frame : -1,
-                el ? el->anim_cycle : -1);
+                el ? el->anim_cycle : -1,
+                el ? (int)el->model.kind : -1,
+                m && m->vertex_bones ? m->vertex_bones->bones_count : -1,
+                m && m->face_bones ? m->face_bones->bones_count : -1,
+                m && m->face_alphas ? 1 : 0);
+        }
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(

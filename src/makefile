@@ -498,7 +498,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb
 
 all: $(OBJ_DIR) $(TARGET)
@@ -2155,3 +2155,13 @@ test-midi-packets: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
 		$(OBJ_DIR)/jbase37.o -lm
 	./$(OBJ_DIR)/midi_packet_test
+
+# seal_rig_scan: which sequence can drive which model, computed from the cache.
+# Model labels vs framemap bone groups — see src/engine/test/seal_rig_scan.c.
+test-seal-rig: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/seal_rig_scan \
+		engine/test/seal_rig_scan.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	cd .. && ./src/$(OBJ_DIR)/seal_rig_scan

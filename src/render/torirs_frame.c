@@ -1514,6 +1514,72 @@ ToriRS_Frame_PaintLimitGet(void)
     return g_paint_limit;
 }
 
+/*
+ * TORIRS_ONLY_LOC=<id>[,<id>...] — draw ONLY scenery whose loc id is listed,
+ * and no terrain at all. Everything else in the world pass is dropped, so the
+ * named locs stand alone against the cleared frame.
+ *
+ * A screenshot of a wall inside a cave cannot answer "is this one loc or three,
+ * and are they moving together" — the neighbouring cliff, the floor and the
+ * lava all read as part of the same rock, and an occluding loc in front hides
+ * exactly the seam in question. Isolating the locs makes the seam the only
+ * thing on screen. Built for the Inferno seal (30337 / 30338 / 30336 and their
+ * state2 ids), where three separately-animated pieces have to look like one
+ * wall face going down.
+ *
+ * Debug-only and off unless the variable is set: parsed once, then a linear
+ * scan of at most ONLY_LOC_MAX ids per emitted element.
+ */
+#define ONLY_LOC_MAX 16
+static int g_only_loc[ONLY_LOC_MAX];
+static int g_only_loc_count = -1;
+
+static void
+only_loc_init(void)
+{
+    char const* env;
+    char const* p;
+
+    if( g_only_loc_count >= 0 )
+        return;
+    g_only_loc_count = 0;
+    env = getenv("TORIRS_ONLY_LOC");
+    if( !env )
+        return;
+    for( p = env; *p && g_only_loc_count < ONLY_LOC_MAX; )
+    {
+        char* end;
+        long v = strtol(p, &end, 0);
+        if( end == p )
+            break;
+        g_only_loc[g_only_loc_count++] = (int)v;
+        p = (*end == ',') ? end + 1 : end;
+    }
+    fprintf(stderr, "only_loc: %d id(s), terrain suppressed\n", g_only_loc_count);
+}
+
+static bool
+frame_only_loc_allows(
+    struct ToriRS_Frame* frame,
+    int cmd_kind,
+    int element_id)
+{
+    struct WorldEntity_Scenery* sc;
+
+    only_loc_init();
+    if( g_only_loc_count <= 0 )
+        return true;
+    if( cmd_kind != PNTR_CMD_ELEMENT )
+        return false; /* terrain and pick-only commands */
+    sc = World_SceneryGetByElementId(frame->world, element_id);
+    if( !sc )
+        return false;
+    for( int i = 0; i < g_only_loc_count; i++ )
+        if( sc->loc_id == g_only_loc[i] )
+            return true;
+    return false;
+}
+
 static bool
 try_emit_world_draw_model(
     struct ToriRS_Frame* frame,
@@ -1573,6 +1639,9 @@ try_emit_world_draw_model(
                 frame->dbg_drop_no_model++;
             continue;
         }
+
+        if( !frame_only_loc_allows(frame, cmd->_bf_kind, element_id) )
+            continue;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
             frame->dbg_emit_element++;

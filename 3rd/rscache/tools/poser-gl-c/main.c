@@ -47,6 +47,7 @@ usage(void)
         "  --self-test       drive the editing commands and exit\n"
         "  --shot PATH  render, write a BMP of the window and exit\n"
         "  --shot-frames N   frames to run before --shot (default 60)\n"
+        "  --camdist N       orbit camera distance (default 500; larger = wider)\n"
         "\n"
         "Controls\n"
         "  left drag        pan, or drag a gizmo axis / joint\n"
@@ -321,6 +322,7 @@ main(int argc, char** argv)
     float last_mouse_y = 0.0f;
     const char* shot_path = NULL;
     int shot_frames = 60;
+    float cam_dist = 0.0f;
     int frame_index = 0;
     int start_npc = INT32_MIN;
     int start_seq = -1;
@@ -365,6 +367,8 @@ main(int argc, char** argv)
             shot_path = argv[++i];
         else if( strcmp(argv[i], "--shot-frames") == 0 && i + 1 < argc )
             shot_frames = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--camdist") == 0 && i + 1 < argc )
+            cam_dist = (float)atof(argv[++i]);
         else if( strcmp(argv[i], "--font-specimen") == 0 && i + 1 < argc )
             return write_font_specimen(argv[++i]);
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
@@ -425,7 +429,10 @@ main(int argc, char** argv)
         SDL_Quit();
         return 1;
     }
-    SDL_GL_SetSwapInterval(1);
+    /* Vsync stalls forever for an occluded window on macOS (Cocoa gates the
+     * swap), which turns every headless --shot run into a hang. Screenshot
+     * harness runs render as fast as they can; interactive keeps vsync. */
+    SDL_GL_SetSwapInterval(shot_path ? 0 : 1);
 
     if( pg_gl_load() != 0 )
     {
@@ -472,6 +479,8 @@ main(int argc, char** argv)
             fprintf(stderr, "poser-gl: sequence %d absent\n", start_seq);
     }
 
+    if( cam_dist > 0.0f )
+        app.camera.distance = cam_dist;
     if( import_pgl )
         pg_import_pgl(&app, import_pgl);
     if( run_self_test )
