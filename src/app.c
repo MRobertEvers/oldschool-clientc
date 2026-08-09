@@ -11878,6 +11878,17 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+    /*
+     * TORIRS_CLICK_DEBUG=1: the same readout the generic left-click path
+     * prints, for the clicks that never reach it.
+     *
+     * A click on a FILLED item cell is claimed by the drag machine and resolved
+     * here instead, so `clickdbg` never sees the one case where the armed
+     * selection decides the answer — a spell aimed at an inventory item. The
+     * selection is printed with the rows because the difference between "no
+     * cast row was built" and "the cast row was built but Wear outranked it" is
+     * the whole question, and neither is visible from the outcome.
+     */
     if( getenv("TORIRS_CLICK_DEBUG") )
     {
         fprintf(stderr, "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",

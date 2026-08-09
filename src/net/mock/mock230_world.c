@@ -9585,6 +9585,92 @@ selftest_find_npc(
     return -1;
 }
 
+/*
+ * The npc this test needs, standing where this test needs it.
+ *
+ * Selftests used to take their subjects out of the world roster — "find me the
+ * goblin", "find me a guard" — and that worked while the roster was 63 npcs
+ * somebody here had chosen. It is 23,139 now and none of them was chosen: it is
+ * OldSchool's own roster (docs/ITEM_AND_NPCS.md), only part of it is standing at
+ * any moment (MOCK230_STATIC_SPAWN_IN), and Lumbridge turns out to hold
+ * `goblin_unarmed_melee_1..8` rather than `goblin`, `deadman_guard_lumbridge`
+ * rather than `guard1`, and no Turael at all.
+ *
+ * A test that asserts the world contains a particular npc is asserting
+ * *content*, and it fails whenever content is corrected — which is the wrong
+ * way round, because the thing under test is the engine. So a test states the
+ * fixture it needs and gets it: the roster's copy when there is one standing
+ * where the test asked, and its own otherwise.
+ *
+ * "Where the test asked" is the half that cannot be dropped. Taking any npc of
+ * the right type is what the roster's six Tool Leprechauns broke: the nearest
+ * real one is 26 tiles from the castle, `selftest_find_npc` returned it, and
+ * the op the test then sent went to an npc the player would have had to walk
+ * to — so the store never opened and three checks failed for a reason that had
+ * nothing to do with the store.
+ */
+static int
+selftest_require_npc(
+    struct Mock230Server* srv,
+    int npc_type,
+    int x,
+    int z,
+    int level)
+{
+    int slot = selftest_find_npc(srv, npc_type);
+
+    if( slot >= 0 && srv->npcs[slot].level == level )
+    {
+        int dx = abs(srv->npcs[slot].x - x);
+        int dz = abs(srv->npcs[slot].z - z);
+
+        /* Two tiles: near enough that the test's own "stand beside it" is still
+         * beside it, far enough that an exact-tile demand would rebuild the
+         * fixture over a roster npc that is effectively where it was wanted. */
+        if( dx <= 2 && dz <= 2 )
+            return slot;
+    }
+    return npc_spawn(srv, npc_type, x, z, level);
+}
+
+/*
+ * The goblins `selftest.rs2` searches for, standing where it says they stand.
+ *
+ * `[proc,selftest_npc_find]` and `[proc,selftest_iterators]` are about
+ * `npc_find`'s radius arithmetic: nothing within 3 tiles of the castle,
+ * something within 64, and the nearest one winning. They were written against
+ * the hand-authored Lumbridge roster, whose goblins were 25 tiles east — and
+ * OldSchool's own roster stands `goblin_unarmed_melee_1..8` on that ground, not
+ * `goblin`, so the searches found nothing and the arithmetic went untested.
+ *
+ * Three fixtures at the goblin camp's real coordinates restore the question the
+ * scripts are asking. They are placed rather than found for the reason
+ * `selftest_require_npc` gives: the distances are the test's, so the npcs at
+ * those distances have to be the test's too.
+ */
+static void
+selftest_require_goblins(struct Mock230Server* srv)
+{
+    static const int k_camp[3][2] = { { 3244, 3244 }, { 3247, 3244 }, { 3241, 3242 } };
+    int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+
+    if( goblin < 0 )
+        return;
+    for( int i = 0; i < 3; i++ )
+    {
+        int slot;
+
+        for( slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            if( srv->npcs[slot].active && srv->npcs[slot].type == goblin &&
+                srv->npcs[slot].x == k_camp[i][0] && srv->npcs[slot].z == k_camp[i][1] )
+                break;
+        }
+        if( slot == MOCK230_NPC_MAX )
+            npc_spawn(srv, goblin, k_camp[i][0], k_camp[i][1], 0);
+    }
+}
+
 static int
 selftest_find(
     const struct Mock230Player* player,
@@ -13149,12 +13235,12 @@ mock230_world_selftest(void)
             if( ok )
             {
                 static struct Mock230Capture capture;
-                int slot_npc = selftest_find_npc(&srv, leprechaun);
+                int slot_npc = selftest_require_npc(&srv, leprechaun, g_home_x + 2, g_home_z - 2, 0);
                 uint8_t payload[6];
                 uint8_t button[6];
 
                 /* ---- the open ------------------------------------------- */
-                SELFTEST_CHECK(slot_npc >= 0, "the roster should include the Tool Leprechaun");
+                SELFTEST_CHECK(slot_npc >= 0, "the fixture Tool Leprechaun should exist");
                 if( slot_npc >= 0 )
                 {
                     int open_a;
@@ -13719,7 +13805,7 @@ mock230_world_selftest(void)
             if( ok )
             {
                 static struct Mock230Capture capture;
-                int slot_npc = selftest_find_npc(&srv, turael);
+                int slot_npc = selftest_require_npc(&srv, turael, g_home_x + 4, g_home_z - 2, 0);
                 uint8_t payload[6];
                 uint8_t button[6];
                 int owned_before[3];
@@ -13750,7 +13836,7 @@ mock230_world_selftest(void)
     } while( 0 )
 
                 /* ---- the open, and the order of its two packets ---------- */
-                SELFTEST_CHECK(slot_npc >= 0, "the roster should include Turael");
+                SELFTEST_CHECK(slot_npc >= 0, "the fixture Turael should exist");
                 if( slot_npc >= 0 )
                 {
                     int open_at;
@@ -14356,11 +14442,11 @@ mock230_world_selftest(void)
              * always takes the refusal branch and parks on its ~mesbox.
              */
             {
-                int guard = selftest_find_npc(&srv, 3254);
+                int guard = selftest_require_npc(&srv, 3254, g_home_x + 6, g_home_z - 2, 0);
                 int thieving = mock230_content_symbol(MOCK230_PACK_STAT, "thieving");
                 uint8_t npc_payload[2];
 
-                SELFTEST_CHECK(guard >= 0, "the roster should include a guard");
+                SELFTEST_CHECK(guard >= 0, "the fixture guard should exist");
                 SELFTEST_CHECK(thieving == 17, "thieving should be stat 17, got %d", thieving);
                 if( guard >= 0 && thieving >= 0 )
                 {
@@ -14445,8 +14531,8 @@ mock230_world_selftest(void)
          * used 655, which cache.osrs230 also names "Goblin" but which OpenRune
          * calls `goblin_red_soldier_2`: two different monsters with the same
          * display name, and the reason ids get validated rather than trusted. */
-        goblin = selftest_find_npc(&srv, 3028);
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
 
         /*
          * The combat tab's auto-retaliate button, end to end.
@@ -14951,9 +15037,9 @@ mock230_world_selftest(void)
          * leaves it and the respawn restores it: a `npc_sethuntmode` made for
          * one phase of one fight used to outlive the npc it was made for.
          */
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -15050,9 +15136,9 @@ mock230_world_selftest(void)
          * has-not-moved-for-two-ticks arm applies and the wait is zero. The two
          * moving arms are `SS_OP_NPC_ARRIVEDELAY`'s own, tested in embed_test.
          */
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -15126,9 +15212,9 @@ mock230_world_selftest(void)
          * live in player/configs/death.constant, and a test that restated them
          * would be the same duplication the C constants were.
          */
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -15206,9 +15292,9 @@ mock230_world_selftest(void)
          * — it is the one that produced "facing never clears", because the other
          * three end a fight and this one just leaves.
          */
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -15858,7 +15944,7 @@ mock230_world_selftest(void)
         int travel = mock230_content_symbol(MOCK230_PACK_SPOTANIM,
                                             "sp_attack_arrow_travel_faerdhinen_infinite");
         int reach = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
         const struct Mock230ObjParam* range_param =
             (bow > 0 && reach >= 0) ? mock230_obj_param(bow, reach) : NULL;
 
@@ -15869,7 +15955,7 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(range_param != NULL && range_param->ival == 10,
                        "the cache states weapon_attackrange=10 on it, got %d",
                        range_param ? range_param->ival : -1);
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         SELFTEST_CHECK(wire239 != NULL, "the osrs239 wire adapter should exist");
 
         if( bow > 0 && travel > 0 && goblin >= 0 && wire239 )
@@ -16403,7 +16489,7 @@ mock230_world_selftest(void)
          * A target the flood cannot reach is what clears.
          */
         {
-            int goblin = selftest_find_npc(&srv, 3028);
+            int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
             /*
              * Park first, then resolve the door — not the other way round.
              *
@@ -16445,7 +16531,7 @@ mock230_world_selftest(void)
                 steps_clear(player);
             }
 
-            SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+            SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
             if( goblin >= 0 )
             {
                 struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -18049,9 +18135,9 @@ mock230_world_selftest(void)
          * the live approach tile; mid-path must not repath (Test 30).
          */
         {
-            int goblin = selftest_find_npc(&srv, 3028);
+            int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-            SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+            SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
             if( goblin >= 0 )
             {
                 struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -20299,9 +20385,9 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: an npc pursues the player\n");
     {
-        int goblin = selftest_find_npc(&srv, 3028);
+        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
@@ -21512,9 +21598,22 @@ mock230_world_selftest(void)
                 int end_range;
 
                 mock230_scripts_run_script(&srv, script->id);
+                /*
+                 * The chicken the script just added, and only that one.
+                 *
+                 * `x == 3230` alone used to be enough to name it. It is not any
+                 * more: the world roster stands chickens at 3230,3298 and
+                 * 3230,3299 (Lumbridge's coop), so this picked one of those —
+                 * a bird with a wander mode, minding its own business — and
+                 * then asserted that setting its mode held it still.
+                 *
+                 * `static_spawn < 0` is the discriminator that cannot go stale:
+                 * it means "no roster entry stood this up", which is exactly
+                 * what "the script added it" is.
+                 */
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                     if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                        srv.npcs[i].x == 3230 )
+                        srv.npcs[i].static_spawn < 0 && srv.npcs[i].x == 3230 )
                         follower = i;
                 SELFTEST_CHECK(follower >= 0, "the follower should be spawned");
 
@@ -21644,6 +21743,27 @@ mock230_world_selftest(void)
                      * this would be indistinguishable from never having set a
                      * mode. */
                     srv.npcs[follower].mode = MOCK230_NPCMODE_NONE;
+                    /*
+                     * And drop the route the follow laid down, which is what
+                     * makes the check below about the *mode* rather than about
+                     * a leftover.
+                     *
+                     * `none` does not stop an npc that still holds a waypoint,
+                     * on purpose: `Npc.noMode()` is `updateMovement()` in the
+                     * reference, so a route a script queued with `npc_walk`
+                     * outlives the mode being cleared — the Inferno's Ancestral
+                     * Glyph depends on exactly that. The follow above queues a
+                     * waypoint through the same field, so a follower that had
+                     * not yet reached the player was still holding one here and
+                     * walked it out over the ten ticks.
+                     *
+                     * That it passed before is luck rather than correctness:
+                     * the follow used to consume its last waypoint because it
+                     * arrived, and it arrives or not depending on where the
+                     * fixture chicken started. This clear is what the test
+                     * always meant.
+                     */
+                    npc_clear_waypoints(&srv.npcs[follower]);
                     {
                         int px = srv.npcs[follower].x;
                         int pz = srv.npcs[follower].z;
@@ -21661,11 +21781,36 @@ mock230_world_selftest(void)
                 {
                     int runner = -1;
 
+                    /*
+                     * Park the player off the runner's row, and do it here
+                     * rather than inheriting wherever the follow block above
+                     * finished.
+                     *
+                     * `npc_add(0_50_50_26_18, ...)` puts the errand chicken on
+                     * z=3218, and the previous block leaves the player due west
+                     * on the same row — so the two are cardinally aligned, and
+                     * `mock230_scene_naive_path` returns the *source* tile for a
+                     * pure cardinal approach to a 1x1 destination (see
+                     * `mock230_world_npc_walk_to`, which discards that result
+                     * the way LostCity's findNaivePath does). The runner then
+                     * stands still for thirty ticks and never arrives, and the
+                     * test reads as "opplayer2 does not fire" when what it
+                     * caught is a fixture standing on the one geometry the
+                     * greedy stepper cannot walk.
+                     *
+                     * Three tiles north-west: far enough to need the walk, off
+                     * both axes so there is a step to take.
+                     */
+                    selftest_park_player(&srv, 3224, 3221);
+
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     mock230_scripts_run_script(&srv, script->id);
+                    /* `static_spawn < 0` for the same reason the follower
+                     * above needs it: a coordinate is not an identity once the
+                     * world roster has its own chickens on the same ground. */
                     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                         if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                            srv.npcs[i].x == 3226 )
+                            srv.npcs[i].static_spawn < 0 && srv.npcs[i].x == 3226 )
                             runner = i;
                     SELFTEST_CHECK(runner >= 0, "the opplayer2 npc should be spawned");
 
@@ -21688,6 +21833,95 @@ mock230_world_selftest(void)
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             mock230_scripts_free(&srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: the world roster follows the scene window\n");
+    {
+        /*
+         * The roster is 23,139 spawns and the npc pool is 4,096, so what the
+         * world holds has to be a window on to it rather than the whole thing
+         * (MOCK230_STATIC_SPAWN_IN). This is that window, asserted as a
+         * *difference*: stand the scene in Lumbridge, count what is up, move it
+         * to Varrock, count again.
+         *
+         * Counting roster npcs specifically — `static_spawn >= 0` — because the
+         * pool also holds whatever the tests above added, and those do not
+         * move with the window and would blunt the comparison.
+         *
+         * The falsifiable part is the third check. A sync that realised
+         * everything, or nothing, or that never retired, passes "some npcs
+         * exist near Lumbridge" and "some npcs exist near Varrock"; only "the
+         * two sets are not the same set" says the window moved.
+         */
+        int spawn_count = 0;
+        const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&spawn_count);
+
+        if( spawn_count < 1000 )
+        {
+            fprintf(stderr, "  SKIP  no world roster in this content tree\n");
+        }
+        else
+        {
+            int lumbridge = 0;
+            int varrock = 0;
+            int overlap = 0;
+            static uint8_t seen[1 << 16];
+
+            memset(seen, 0, sizeof(seen));
+            for( int slot = 0; slot < srv.npc_slot_max; slot++ )
+            {
+                if( srv.npcs[slot].active && srv.npcs[slot].static_spawn >= 0 )
+                {
+                    int index = srv.npcs[slot].static_spawn;
+
+                    lumbridge++;
+                    if( index < (int)sizeof(seen) )
+                        seen[index] = 1;
+                }
+            }
+            SELFTEST_CHECK(lumbridge > 100,
+                           "Lumbridge should stand a few hundred roster npcs, got %d", lumbridge);
+            SELFTEST_CHECK(lumbridge < spawn_count,
+                           "and not the whole roster (%d of %d)", lumbridge, spawn_count);
+
+            /*
+             * Ardougne, and the distance is the point: 560 tiles west is well
+             * past MOCK230_STATIC_SPAWN_OUT, so every Lumbridge entry is
+             * *retired* rather than merely joined by new ones.
+             *
+             * Varrock is the tempting choice and it is the wrong one — 3213,3428
+             * is 208 tiles from the castle and OUT is 224, so 709 of Lumbridge's
+             * npcs are still legitimately standing there and the check below
+             * would read as a bug in the sync.
+             */
+            srv.zone_x = 2662 >> 3;
+            srv.zone_z = 3305 >> 3;
+            mock230_world_scene_rebuild(&srv);
+
+            for( int slot = 0; slot < srv.npc_slot_max; slot++ )
+            {
+                if( srv.npcs[slot].active && srv.npcs[slot].static_spawn >= 0 )
+                {
+                    int index = srv.npcs[slot].static_spawn;
+
+                    varrock++;
+                    if( index < (int)sizeof(seen) && seen[index] )
+                        overlap++;
+                }
+            }
+            SELFTEST_CHECK(varrock > 100,
+                           "Ardougne should stand a few hundred of its own, got %d", varrock);
+            SELFTEST_CHECK(overlap == 0,
+                           "and none of Lumbridge's, got %d still standing", overlap);
+            SELFTEST_CHECK(varrock <= MOCK230_NPC_MAX,
+                           "which has to fit the pool, %d vs %d", varrock, MOCK230_NPC_MAX);
+
+            /* Put the world back where the rest of the suite expects it. */
+            srv.zone_x = 3222 >> 3;
+            srv.zone_z = 3218 >> 3;
+            mock230_world_scene_rebuild(&srv);
+            (void)spawns;
         }
     }
 
@@ -22557,6 +22791,140 @@ mock230_world_selftest(void)
                            "and the pile was not picked up — the backpack still holds only the "
                            "one the fixture put there");
 
+            /*
+             * ---- the *t family: a targeted cast ---------------------------
+             *
+             * Same four shapes, one difference that decides everything: the
+             * trigger's subject is the SPELL, not what it was aimed at. The
+             * fixtures are in selftest_cast.rs2, all four bound to
+             * `magic_spellbook:league_home_teleport` because nothing else in the
+             * tree binds it — so a hit here cannot be another spell's script.
+             *
+             * A spellbook component uid is 14 million and up, past the compiled
+             * lookup key's `1 << 21` ceiling, so every one of these compiled
+             * name-addressed. Dispatching by key alone finds nothing and finds
+             * it silently: the caller reads it as "this spell has no content"
+             * and answers "Nothing interesting happens", which is exactly what
+             * a spell with no engine support looks like. That is the failure
+             * this section exists to catch.
+             */
+            {
+                int spell = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                                   "magic_spellbook:league_home_teleport");
+
+                SELFTEST_CHECK(spell > 0, "the selftest spell component should resolve, got %d",
+                               spell);
+                SELFTEST_CHECK(spell >= (1 << 21),
+                               "and it must be past the key ceiling — below it the by-name rung "
+                               "this section is about would never be reached (%d)", spell);
+
+                if( spell > 0 )
+                {
+                    /* opheldt: no walk, and the item has to arrive in
+                     * `last_item` — the alchemy scripts read it from there. */
+                    selftest_park_player(&srv, 3222, 3218);
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    rsab_wrap(&out, payload, sizeof(payload));
+                    rsab_p2(&out, bucket);
+                    rsab_p2(&out, SLOT_BUCKET);
+                    rsab_p4(&out, 0);
+                    rsab_p4(&out, spell);
+                    mock230_world_handle(player, PKTOUT_NAME_OPHELDT, payload,
+                                         (int)rsab_len(&out));
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 80,
+                                   "[opheldt,<spell>] runs with the spell as its subject and the "
+                                   "clicked item in last_item, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    /* aploct: the ap rung, from range. `fire_remains` also
+                     * binds `[aplocu]` (20), so a cast that fell through to the
+                     * use-on family would be visible as the wrong number rather
+                     * than as silence. */
+                    selftest_park_player(&srv, 3222, 3218);
+                    mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addloc]", NULL, 0);
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    rsab_wrap(&out, payload, sizeof(payload));
+                    rsab_p2(&out, 3220);
+                    rsab_p2(&out, 3224);
+                    rsab_p2(&out, remains);
+                    rsab_p4(&out, spell);
+                    mock230_world_handle(player, PKTOUT_NAME_OPLOCT, payload, (int)rsab_len(&out));
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 60,
+                                   "[aploct,<spell>] runs keyed by the spell, not by the loc and "
+                                   "not as a use-on, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    /* apobjt: the ground-obj form. Telekinetic Grab is the only
+                     * live user of it, and it is the one shape where the target
+                     * is reached by standing on the tile. */
+                    selftest_park_player(&srv, 3222, 3218);
+                    mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addobj]", NULL, 0);
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    rsab_wrap(&out, payload, sizeof(payload));
+                    rsab_p2(&out, 3224);
+                    rsab_p2(&out, 3218);
+                    rsab_p2(&out, bones);
+                    rsab_p4(&out, spell);
+                    mock230_world_handle(player, PKTOUT_NAME_OPOBJT, payload, (int)rsab_len(&out));
+                    SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                                   "the walk onto the pile completes");
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 70,
+                                   "[apobjt,<spell>] runs keyed by the spell, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    /* apnpct: the form every combat spell uses. Hans patrols, so
+                     * park beside him and hold him still — the assertion is the
+                     * cast bind, not that a patroller can be caught. */
+                    {
+                        int hans = selftest_find_npc(&srv, hans_type);
+
+                        SELFTEST_CHECK(hans >= 0, "hans should be on the roster");
+                        if( hans >= 0 )
+                        {
+                            struct Mock230Npc* hnpc = &srv.npcs[hans];
+                            int keep_mode = hnpc->mode;
+
+                            hnpc->mode = MOCK230_NPCMODE_NONE;
+                            hnpc->waypoint_index = -1;
+                            selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                            rsab_wrap(&out, payload, sizeof(payload));
+                            rsab_p2(&out, hans);
+                            rsab_p4(&out, spell);
+                            mock230_world_handle(player, PKTOUT_NAME_OPNPCT, payload,
+                                                 (int)rsab_len(&out));
+                            SELFTEST_CHECK(selftest_settle(&srv, 80) >= 0,
+                                           "the approach to the npc should complete");
+                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
+                                           "[apnpct,<spell>] runs keyed by the spell and matches "
+                                           "no npc, got %d",
+                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                            hnpc->mode = keep_mode;
+                        }
+                    }
+
+                    /* A cast nothing binds runs nothing at all — the same
+                     * negative the use-on family asserts. `back_button` is a
+                     * real component of the same interface with no script. */
+                    {
+                        int unbound = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                                             "magic_spellbook:back_button");
+                        selftest_park_player(&srv, 3222, 3218);
+                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
+                        rsab_wrap(&out, payload, sizeof(payload));
+                        rsab_p2(&out, bucket);
+                        rsab_p2(&out, SLOT_BUCKET);
+                        rsab_p4(&out, 0);
+                        rsab_p4(&out, unbound);
+                        mock230_world_handle(player, PKTOUT_NAME_OPHELDT, payload,
+                                             (int)rsab_len(&out));
+                        SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 78,
+                                       "a cast nothing binds runs no script at all, got %d",
+                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    }
+                }
+            }
+
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 inv_set(player, i, -1, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -22833,6 +23201,8 @@ mock230_world_selftest(void)
             int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
             int expected = 0;
 
+            selftest_require_goblins(&srv);
+
             for( int i = 0; i < MOCK230_NPC_MAX; i++ )
             {
                 struct Mock230Npc* npc = &srv.npcs[i];
@@ -22925,6 +23295,8 @@ mock230_world_selftest(void)
             const struct SSVM_Script* script;
             int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
             int before;
+
+            selftest_require_goblins(&srv);
 
             script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_find]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_find] should be in the pack");

@@ -479,10 +479,20 @@ mock239_inbound_translate(
         return PKTOUT_NAME_OPOBJU;
     }
 
-    /* OpPlayerTDecoder: g2Alt2 selectedSub, g1Alt1 ctrl, g2Alt3 selectedObj,
+    /*
+     * OpPlayerTDecoder: g2Alt2 selectedSub, g1Alt1 ctrl, g2Alt3 selectedObj,
      * gCombinedIdAlt2 selectedCombinedId, g2 index. Same T-carries-both shape
      * as the three above; this one had no case at all, so "use item on player"
-     * and "cast at player" were both dropped before reaching a handler. */
+     * and "cast at player" were both dropped in translation.
+     *
+     * Neither name has a world handler yet, and that is deliberate rather than
+     * missed: rev 230 assigns no OPPLAYERU opcode at all (see the
+     * `opplayeru`/`applayeru` note in mock230_world.c) and no content in this
+     * tree binds `[applayert]` — PvP magic is deferred in
+     * docs/MAGIC_CONTENT_PORT_PLAN.md. An unrouted name is dropped by
+     * mock230_world_handle, so this decodes correctly and waits, instead of
+     * being a shape nobody has read.
+     */
     case PKTOUT_NAME_OPPLAYERT:
     {
         int sel_sub = rsab_g2_alt2(&r);
