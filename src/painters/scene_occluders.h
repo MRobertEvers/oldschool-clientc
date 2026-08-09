@@ -50,7 +50,7 @@ enum OccluderHides
 #define OCCLUDER_ROOF_MIN_CLEARANCE 128
 /** Cap per top-level, matching Client-TS World.levelOccluders capacity. */
 #define OCCLUDER_MAX_PER_LEVEL 500
-/** Draw-distance clamp — modern Scene.setDrawDistance (class333.method2818). */
+/** Draw-distance clamp — rev-239 Scene preference (class112.method3959). */
 #define OCCLUDER_DRAW_DISTANCE_MIN 25
 #define OCCLUDER_DRAW_DISTANCE_MAX 90
 /** Far clip scene units per draw-distance tile (deob class243.method4457). */

@@ -26,6 +26,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .ground_click_nearest_model = TORIRS_NEAREST_RING3_STEPS,
     .los_symmetric_pvp = 0,
     .route_window_tiles = 0,
+    .painter_draw_distance = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
     .effects_monophonic = 1,
@@ -61,6 +62,9 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* Project default for OSRS; the official preference's valid range is
+     * 25..90 and a manifest may select any value in it. */
+    .painter_draw_distance = 32,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
     /* The modern client mixes effects; only the 2004 one is monophonic. */
@@ -86,6 +90,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    .painter_draw_distance = 0,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
      * light with absolute ambient 128 + actor dir (PlayerChatheadFactory). */
     .npc_light_uses_type_ambient_contrast = 1,
@@ -148,6 +153,19 @@ ToriRS_Features_NearestModelByName(char const* name)
             return k_nearest_models[i].model;
     }
     return -1;
+}
+
+int
+ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features)
+{
+    int distance = features ? features->painter_draw_distance : 0;
+    if( distance == 0 )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
+    if( distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
+    if( distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MAX;
+    return distance;
 }
 
 char const*

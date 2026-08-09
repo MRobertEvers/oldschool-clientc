@@ -41,6 +41,19 @@
  *                 every cache-only boot. State it when the *server* diverges
  *                 from what the cache implies (xrsps paths server-side over a
  *                 rev-233 cache, so it needs era=server_routed).
+ *                 ground_click_nearest=ring3|box10_rect|none
+ *                 Per-item override of the era's unreachable-ground-click
+ *                 fallback (enum ToriRS_NearestModel): `ring3` is Client-TS's
+ *                 3x3 lowest-step-count ring, `box10_rect` the official OSRS
+ *                 21x21 search ranked by squared distance to the target rect,
+ *                 `none` no fallback at all. Absent keeps the era's. Only the
+ *                 client's own routing reads this — under a server-authoritative
+ *                 era the server answers the click, so set the same model there
+ *                 (mock230: MOCK230_GROUND_CLICK_NEAREST).
+ *                 painter_draw_distance=<25..90>
+ *                 Painter radius in tiles. Client-TS is fixed at 25. Modern
+ *                 OSRS class112.method3959 accepts 25 through 90 inclusive;
+ *                 absent keeps the era's value (25 for LostCity, 32 for OSRS).
  *   [render:light]  Optional overrides for the two model-light regimes and the
  *                 two places xrsps diverges from Client-TS (see
  *                 docs/MODEL_LIGHTING.md). Absent keys keep the compiled-in /
@@ -201,6 +214,8 @@ struct BootManifest
     /* [features:boot] ground_click_nearest — enum ToriRS_NearestModel, or -1
      * for "not stated, keep the era's". Defaulted in BootManifest_Init. */
     int features_ground_click_nearest;
+    /* [features:boot] painter_draw_distance, or 0 for "not stated". */
+    int features_painter_draw_distance;
 
     /* [render:light] — optional overrides. Each *_set flag is 1 when the key
      * was present; App_Init merges set fields over the era/compiled defaults. */

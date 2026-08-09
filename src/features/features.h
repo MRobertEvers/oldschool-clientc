@@ -20,11 +20,10 @@
  *   [features:boot] era=<name>  >  TORIRS_FEATURES_ERA  >
  *   ToriRS_Features_ForCache(epoch, revision)
  *
- * Today the table only carries interaction/routing behaviour, because that is
- * where the first genuine two-model split turned up (see
- * docs/PATHING_INTERACTION_PARITY.md). Other era-conditional behaviour should
- * move here rather than growing new `cache_revision >= N` tests at the call
- * site.
+ * Interaction/routing was the first genuine two-model split (see
+ * docs/PATHING_INTERACTION_PARITY.md); painter, lighting, and audio differences
+ * live here as well. Other era-conditional behaviour should move here rather
+ * than growing new `cache_revision >= N` tests at the call site.
  */
 
 /** Named client-behaviour generations. */
@@ -102,6 +101,14 @@ enum ToriRS_ApproachModel
     TORIRS_APPROACH_RECT = 1,
 };
 
+/* Modern OSRS class112.method3959 clamps its scene draw-distance preference
+ * to this interval. Client-TS has no preference and hard-codes the minimum. */
+enum
+{
+    TORIRS_PAINTER_DRAW_DISTANCE_MIN = 25,
+    TORIRS_PAINTER_DRAW_DISTANCE_MAX = 90,
+};
+
 struct ToriRS_FeatureTable
 {
     enum ToriRS_FeatureEra era;
@@ -177,6 +184,15 @@ struct ToriRS_FeatureTable
      */
     int route_window_tiles;
 
+    /* --- scene painter -------------------------------------------------- */
+
+    /**
+     * Painter radius in tiles. 0 means Client-TS's fixed 25-tile radius, which
+     * preserves the table's zero-is-classic rule. Values 25..90 select the
+     * configurable modern OSRS radius (deob class112.method3959).
+     */
+    int painter_draw_distance;
+
     /* --- model lighting -------------------------------------------------- */
 
     /**
@@ -233,6 +249,10 @@ ToriRS_Features_ByName(char const* name);
  */
 int
 ToriRS_Features_NearestModelByName(char const* name);
+
+/** Resolve the feature table's 0 sentinel to Client-TS's 25-tile radius. */
+int
+ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features);
 
 /** The name `ToriRS_Features_NearestModelByName` would map back to a model, for
  *  logging. Unknown values read as "?". */

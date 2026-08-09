@@ -7284,6 +7284,14 @@ mock230_world_login_finish(struct Mock230Player* player)
     mock230_send_update_pid(player, player->pid);
     mock230_send_player_info(player);
 
+    /* Prime client-visible wall-clock state before mounting the gameframe.
+     * magic_spellbook's onload compares date_minutes (varp 3078) with the Home
+     * and Minigame Teleport last-use stamps (892/888). A fresh client has zero
+     * for all three, so mounting first makes 0-0 look like both teleports were
+     * just used and dims them. The proc owns the var meanings and the minute
+     * timer; this ordering is the engine's responsibility. */
+    mock230_scripts_run_proc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+
     /* 2. Gameframe root + the HUD and sidebar panels mounted into it.
      *    Mount table is content `gameframe.enum`. Open the top that matches the
      *    saved Display-panel preference immediately (Fixed / Classic / Modern);
@@ -8484,6 +8492,35 @@ enum
             g_selftest_failures++;                                                                 \
         }                                                                                          \
     } while( 0 )
+
+/* Locate one wide varp write in a captured login flight. Rev 239 applies an
+ * Alt2 transform to the id; the other mock wires use the legacy p2 id. */
+static int
+selftest_capture_find_varp_large(
+    struct Mock230Capture* capture,
+    struct Mock230Wire const* wire,
+    int varp_id)
+{
+    int opcode;
+
+    if( !capture || !wire || varp_id < 0 )
+        return -1;
+    opcode = mock230_wire_opcode(wire, PKT_NAME_VARP_LARGE);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct Mock230CapturedPacket* pkt = &capture->packets[i];
+        struct RSAreaBuf body;
+        int id;
+
+        if( pkt->opcode != opcode || pkt->len != 6 )
+            continue;
+        rsab_wrap(&body, pkt->data, (size_t)pkt->len);
+        id = strcmp(wire->name, "osrs239") == 0 ? rsab_g2_alt2(&body) : rsab_g2(&body);
+        if( id == varp_id )
+            return i;
+    }
+    return -1;
+}
 
 /*
  * Put the world and the player back to a known state at a chosen origin zone.
@@ -14304,6 +14341,9 @@ mock230_world_selftest(void)
         int stat = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_STAT);
         int inv_full = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_INV_FULL);
         int tick_end = mock230_wire_opcode(srv.wire, PKT_NAME_SERVER_TICK_END);
+        int date_varp = mock230_content_symbol(MOCK230_PACK_VARP, "date_minutes");
+        int clock_at = -1;
+        int clock_opentop_at = -1;
         /* PLAYER_INFO must precede interfaces/stats; classic wires identify
          * self with UPDATE_PID first, while revision 239 states the index in
          * LoginResponse.Ok and has no such packet. Resolve actual opcodes from
@@ -14346,6 +14386,8 @@ mock230_world_selftest(void)
                            "the classic login burst should identify/place before UI state");
             SELFTEST_CHECK(!player->login_scene_pending,
                            "the classic wire must not arm the asynchronous scene barrier");
+            clock_at = selftest_capture_find_varp_large(&capture, srv.wire, date_varp);
+            clock_opentop_at = mock230_capture_find(&capture, opentop, 0);
         }
         else
         {
@@ -14436,6 +14478,8 @@ mock230_world_selftest(void)
                 "the acknowledged rev-239 scene should place before UI/stats and tick end");
             SELFTEST_CHECK(!player->login_scene_pending && player->login_pending,
                            "scene acknowledgement should release exactly one [login] latch");
+            clock_at = selftest_capture_find_varp_large(&capture, srv.wire, date_varp);
+            clock_opentop_at = mock230_capture_find(&capture, opentop, 0);
 
             /* A duplicate completion is normal client noise, not a second login. */
             mock230_capture_begin(&srv, &capture);
@@ -14446,6 +14490,22 @@ mock230_world_selftest(void)
                                mock230_capture_find(&capture, stat, 0) < 0 &&
                                mock230_capture_find(&capture, tick_end, 0) < 0,
                            "duplicate MAP_BUILD_COMPLETE must not replay the login burst");
+        }
+        if( srv.scripts_ok )
+        {
+            SELFTEST_CHECK(date_varp == 3078,
+                           "date_minutes must retain client varp 3078, got %d", date_varp);
+            SELFTEST_CHECK(
+                date_varp >= 0 && player->varps[date_varp] > 1000000,
+                "login must prime date_minutes with wall-clock minutes, got %d",
+                date_varp >= 0 ? player->varps[date_varp] : -1);
+            SELFTEST_CHECK(clock_at >= 0,
+                           "login must transmit date_minutes through VARP_LARGE");
+            SELFTEST_CHECK(clock_at >= 0 && clock_opentop_at >= 0 &&
+                               clock_at < clock_opentop_at,
+                           "date_minutes must precede IF_OPENTOP so spellbook onload sees it "
+                           "(clock %d, opentop %d)",
+                           clock_at, clock_opentop_at);
         }
         {
             int origin_x = mock230_scene_origin(srv.zone_x);

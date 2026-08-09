@@ -122,6 +122,7 @@ test_load_fields(void)
     CHECK(bm.npc_type_ambient_contrast == 1);
     CHECK(bm.player_head_ambient_set == 1);
     CHECK(bm.player_head_ambient == 128);
+    CHECK(bm.features_painter_draw_distance == 90);
 }
 
 static void
@@ -188,6 +189,12 @@ test_apply_to_config(void)
     CHECK(cfg.light_npc_type_ambient_contrast == 1);
     CHECK(cfg.light_player_head_ambient_set == 1);
     CHECK(cfg.light_player_head_ambient == 128);
+
+    CHECK(cfg.features_era && strcmp(cfg.features_era, "server_routed") == 0);
+    CHECK(cfg.features_ground_click_nearest_set == 1);
+    CHECK(cfg.features_ground_click_nearest == TORIRS_NEAREST_BOX10_RECT);
+    CHECK(cfg.features_painter_draw_distance_set == 1);
+    CHECK(cfg.features_painter_draw_distance == 90);
 }
 
 /* ApplyToConfig must only write fields the manifest actually set, so a
@@ -208,6 +215,9 @@ test_partial_apply_preserves_unset(void)
     bm.spawn_spotanim_delay = -1;
     bm.spawn_proj_model_id = -1;
     bm.spawn_proj_seq_id = -1;
+    /* 0 is TORIRS_NEAREST_RING3_STEPS, a real model — the sentinel keeps a
+     * zeroed manifest from reading as "override the era to the 2004 ring". */
+    bm.features_ground_click_nearest = -1;
     /* Only a host is provided; everything else stays unset. */
     snprintf(bm.host, sizeof(bm.host), "manifesthost");
 
@@ -222,6 +232,8 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.connect_user && strcmp(cfg.connect_user, "cli_user") == 0);
     CHECK(cfg.connect_port == 0);
     CHECK(cfg.spawn_npc_id == -1);
+    CHECK(cfg.features_ground_click_nearest_set == 0);
+    CHECK(cfg.features_painter_draw_distance_set == 0);
     /* Set: host became the connect target. */
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
 

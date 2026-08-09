@@ -75,23 +75,30 @@ test_try_route(void)
     int route_z[256];
     int nearest = -1;
     int len;
+    /* The 2004 fallback under test here; test_try_route_nearest_models covers
+     * how the official one differs. */
+    struct CollisionNearestOpts ring;
+    struct CollisionNearestOpts none;
+
+    collision_nearest_opts_from_model(TORIRS_NEAREST_RING3_STEPS, &ring);
+    collision_nearest_opts_from_model(TORIRS_NEAREST_NONE, &none);
 
     /* Straight line: no direction change, so only the destination is
      * recorded (reference sends a 1-waypoint packet). */
-    len = collision_map_try_route(cm, 10, 10, 10, 20, true, route_x, route_z, 256, &nearest);
+    len = collision_map_try_route(cm, 10, 10, 10, 20, &ring, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len == 1, "straight line: single waypoint");
     TEST_ASSERT(route_x[0] == 10 && route_z[0] == 20, "straight line: route[0] = dest");
     TEST_ASSERT(nearest == 0, "straight line: no nearest fallback");
 
     /* Clicking your own tile is still a 1-entry route (reference sends it). */
-    len = collision_map_try_route(cm, 10, 10, 10, 10, true, route_x, route_z, 256, &nearest);
+    len = collision_map_try_route(cm, 10, 10, 10, 10, &ring, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len == 1 && route_x[0] == 10 && route_z[0] == 10, "src == dst: 1-entry route");
 
     /* Wall of blocked floor at z=15, x=5..15: the path must turn around it,
      * so the route has turn points and the replay stays on walkable tiles. */
     for( int x = 5; x <= 15; x++ )
         collision_map_add_floor(cm, x, 15);
-    len = collision_map_try_route(cm, 10, 10, 10, 20, true, route_x, route_z, 256, &nearest);
+    len = collision_map_try_route(cm, 10, 10, 10, 20, &ring, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len >= 2, "around wall: has turn points");
     TEST_ASSERT(route_x[0] == 10 && route_z[0] == 20, "around wall: route[0] = dest");
     TEST_ASSERT(nearest == 0, "around wall: reachable, no fallback");
@@ -100,7 +107,7 @@ test_try_route(void)
     /* Blocked destination: try-nearest resolves to a tile in the 3x3 ring
      * around it (reference tryMoveNearest = 1 in the anticheat trailer). */
     collision_map_add_floor(cm, 10, 20);
-    len = collision_map_try_route(cm, 10, 10, 10, 20, true, route_x, route_z, 256, &nearest);
+    len = collision_map_try_route(cm, 10, 10, 10, 20, &ring, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len >= 1, "nearest: route found");
     TEST_ASSERT(nearest == 1, "nearest: fallback used");
     TEST_ASSERT(
@@ -109,17 +116,105 @@ test_try_route(void)
         "nearest: dest in ring, not the blocked tile");
     TEST_ASSERT(route_replay_valid(cm, 10, 10, route_x, route_z, len), "nearest: replay valid");
 
-    /* Same click without try_nearest: reference tryMove returns false and
-     * sends no packet. */
-    len = collision_map_try_route(cm, 10, 10, 10, 20, false, route_x, route_z, 256, &nearest);
+    /* Same click under NEAREST_NONE: reference tryMove returns false and sends
+     * no packet. */
+    len = collision_map_try_route(cm, 10, 10, 10, 20, &none, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len == -1, "blocked dest without nearest: no route");
 
-    /* Destination plus its whole ring blocked: even try-nearest fails. */
+    /* Destination plus its whole ring blocked: the 3x3 ring has nothing left to
+     * pick, so RING3 gives up. This is the case the official BOX10_RECT model
+     * still answers — see test_try_route_nearest_models. */
     for( int x = 29; x <= 31; x++ )
         for( int z = 29; z <= 31; z++ )
             collision_map_add_floor(cm, x, z);
-    len = collision_map_try_route(cm, 10, 10, 30, 30, true, route_x, route_z, 256, &nearest);
-    TEST_ASSERT(len == -1, "sealed dest: no route even with nearest");
+    len = collision_map_try_route(cm, 10, 10, 30, 30, &ring, route_x, route_z, 256, &nearest);
+    TEST_ASSERT(len == -1, "sealed dest: ring3 gives up");
+
+    collision_map_free(cm);
+}
+
+/*
+ * The two named unreachable-click models, on the geometry that separates them.
+ *
+ * Client-TS looks one tile out; the official client and every rsmod-family
+ * server look ten and rank by squared distance to the target. Anything walled
+ * off by more than a tile — across a river, inside a compound, behind a fence —
+ * is where the 2004 rule reads as "the click did nothing".
+ */
+void
+test_try_route_nearest_models(void)
+{
+    printf("TEST: try_route nearest models (ring3 vs box10_rect)\n");
+
+    struct CollisionMap* cm = collision_map_new(64, 64);
+    int route_x[256];
+    int route_z[256];
+    int nearest = -1;
+    int len;
+    struct CollisionNearestOpts ring;
+    struct CollisionNearestOpts box;
+    struct CollisionNearestOpts none;
+
+    collision_nearest_opts_from_model(TORIRS_NEAREST_RING3_STEPS, &ring);
+    collision_nearest_opts_from_model(TORIRS_NEAREST_BOX10_RECT, &box);
+    collision_nearest_opts_from_model(TORIRS_NEAREST_NONE, &none);
+
+    /* The encodings themselves, so a silent edit to one model cannot pass. */
+    TEST_ASSERT(ring.range == 1 && ring.max_dist == 100 && ring.rank_by_rect_distance == 0,
+                "ring3 = 3x3 box, dist < 100, ranked by step count");
+    TEST_ASSERT(box.range == 10 && box.max_dist == 100 && box.rank_by_rect_distance == 1,
+                "box10_rect = 21x21 box, dist < 100, ranked by rect distance");
+    TEST_ASSERT(none.range == 0, "none disables the fallback");
+    {
+        /* An unrecognised model is the classic ring, not an empty fallback. */
+        struct CollisionNearestOpts bogus;
+        collision_nearest_opts_from_model(4242, &bogus);
+        TEST_ASSERT(bogus.range == 1 && bogus.rank_by_rect_distance == 0,
+                    "unknown model falls back to ring3");
+    }
+
+    /*
+     * A sealed 5x5 block at (28..32, 28..32) with the click at its centre. The
+     * whole 3x3 ring around (30,30) is inside the block, so ring3 has nothing
+     * to offer; the nearest open tile is two out, well inside box10's reach.
+     */
+    for( int x = 28; x <= 32; x++ )
+        for( int z = 28; z <= 32; z++ )
+            collision_map_add_floor(cm, x, z);
+
+    len = collision_map_try_route(cm, 10, 10, 30, 30, &ring, route_x, route_z, 256, &nearest);
+    TEST_ASSERT(len == -1, "sealed 5x5: ring3 finds nothing");
+
+    nearest = -1;
+    len = collision_map_try_route(cm, 10, 10, 30, 30, &box, route_x, route_z, 256, &nearest);
+    TEST_ASSERT(len >= 1, "sealed 5x5: box10_rect still routes");
+    TEST_ASSERT(nearest == 1, "sealed 5x5: box10_rect reports the fallback");
+    TEST_ASSERT(route_replay_valid(cm, 10, 10, route_x, route_z, len),
+                "sealed 5x5: box10_rect replay valid");
+    {
+        /* Ranked by squared distance to the destination, so the arrival tile
+         * hugs the block: Chebyshev 3 from the centre of a 5x5 is the first
+         * open ring. Anything further out would mean the ranking is not
+         * running. */
+        int dx = route_x[0] - 30;
+        int dz = route_z[0] - 30;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        TEST_ASSERT(dx == 3 || dz == 3, "sealed 5x5: arrival is on the block's outside edge");
+        TEST_ASSERT(dx <= 3 && dz <= 3, "sealed 5x5: arrival is the closest open ring");
+    }
+
+    /* Nothing at all within ten tiles of the destination: even box10 declines,
+     * which is the official "no movement" outcome rather than a long walk. */
+    for( int x = 0; x < 64; x++ )
+        for( int z = 0; z < 64; z++ )
+            if( x >= 40 || z >= 40 )
+                collision_map_add_floor(cm, x, z);
+    nearest = -1;
+    len = collision_map_try_route(cm, 10, 10, 55, 55, &box, route_x, route_z, 256, &nearest);
+    TEST_ASSERT(len == -1, "far sealed dest: box10_rect declines rather than half-walking");
 
     collision_map_free(cm);
 }
@@ -553,8 +648,12 @@ test_features_eras(void)
     TEST_ASSERT(lostcity->approach_model == TORIRS_APPROACH_LEGACY_SHAPE, "lostcity uses shapes");
     TEST_ASSERT(lostcity->npc_approach_uses_size == 0, "lostcity npc target is 1x1");
     TEST_ASSERT(lostcity->op_click_nearest_range == 0, "lostcity has no op-click fallback");
+    TEST_ASSERT(lostcity->ground_click_nearest_model == TORIRS_NEAREST_RING3_STEPS,
+                "lostcity ground click uses the 3x3 ring");
     TEST_ASSERT(lostcity->los_symmetric_pvp == 0, "lostcity LoS is asymmetric");
     TEST_ASSERT(lostcity->route_window_tiles == 0, "lostcity floods its whole scene");
+    TEST_ASSERT(ToriRS_Features_PainterDrawDistance(lostcity) == 25,
+                "lostcity painter is Client-TS's fixed 25 tiles");
 
     TEST_ASSERT(osrs->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
                 "osrs is server-authoritative");
@@ -562,15 +661,48 @@ test_features_eras(void)
     TEST_ASSERT(osrs->npc_approach_uses_size == 1, "osrs npc target is size-aware");
     TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
     TEST_ASSERT(osrs->nearest_ranks_by_rect_distance == 1, "osrs ranks by rect distance");
+    TEST_ASSERT(osrs->ground_click_nearest_model == TORIRS_NEAREST_BOX10_RECT,
+                "osrs ground click uses the official 21x21 search");
     TEST_ASSERT(osrs->los_symmetric_pvp == 1, "osrs PvP LoS is symmetric");
     TEST_ASSERT(osrs->route_window_tiles == COLLISION_ROUTE_WINDOW,
                 "osrs floods rsmod's fixed window");
+    TEST_ASSERT(ToriRS_Features_PainterDrawDistance(osrs) == 32,
+                "osrs painter defaults to 32 tiles");
+    {
+        struct ToriRS_FeatureTable overridden = *osrs;
+        overridden.painter_draw_distance = 90;
+        TEST_ASSERT(ToriRS_Features_PainterDrawDistance(&overridden) == 90,
+                    "osrs painter preference supports the official 90-tile maximum");
+        overridden.painter_draw_distance = 24;
+        TEST_ASSERT(ToriRS_Features_PainterDrawDistance(&overridden) == 25,
+                    "painter preference clamps below the official minimum");
+        overridden.painter_draw_distance = 91;
+        TEST_ASSERT(ToriRS_Features_PainterDrawDistance(&overridden) == 90,
+                    "painter preference clamps above the official maximum");
+    }
 
     TEST_ASSERT(routed->pathing_mode == TORIRS_PATHING_SERVER_AUTHORITATIVE,
                 "server_routed defers to the server");
     TEST_ASSERT(routed->approach_model == TORIRS_APPROACH_RECT,
                 "server_routed shares the shape-keyed rect model");
     TEST_ASSERT(routed->los_symmetric_pvp == 1, "server_routed PvP LoS is symmetric");
+    TEST_ASSERT(routed->ground_click_nearest_model == TORIRS_NEAREST_BOX10_RECT,
+                "server_routed ground click uses the 21x21 search");
+
+    /* The model names, which the manifest key and the mock's env var parse. */
+    TEST_ASSERT(ToriRS_Features_NearestModelByName("ring3") == TORIRS_NEAREST_RING3_STEPS,
+                "NearestModelByName resolves ring3");
+    TEST_ASSERT(ToriRS_Features_NearestModelByName("box10_rect") == TORIRS_NEAREST_BOX10_RECT,
+                "NearestModelByName resolves box10_rect");
+    TEST_ASSERT(ToriRS_Features_NearestModelByName("none") == TORIRS_NEAREST_NONE,
+                "NearestModelByName resolves none");
+    TEST_ASSERT(ToriRS_Features_NearestModelByName("box10") < 0,
+                "NearestModelByName rejects a near-miss rather than reading it as ring3");
+    TEST_ASSERT(ToriRS_Features_NearestModelByName(NULL) < 0,
+                "NearestModelByName tolerates NULL");
+    TEST_ASSERT(strcmp(ToriRS_Features_NearestModelName(TORIRS_NEAREST_BOX10_RECT),
+                       "box10_rect") == 0,
+                "NearestModelName round-trips");
 
     /* Derivation from the cache identity: the lineage decides, not the number.
      * RSCACHE_EPOCH_DAT1 = 1, DAT2 = 2; RSCACHE_GAME_OLDSCHOOL = 1, RS2 = 2. */

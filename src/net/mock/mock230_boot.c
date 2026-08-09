@@ -86,18 +86,38 @@ mock230_boot_defaults(struct Mock230BootConfig* config)
 int
 mock230_boot_load(const struct Mock230BootConfig* config)
 {
-    struct ToriRS_FeatureTable const* features;
+    /* The server's own copy of the era table, so the env override below has
+     * somewhere writable to land. Static because mock230_scene keeps a pointer
+     * to it for the life of the process. */
+    static struct ToriRS_FeatureTable features;
 
     mock230_world_set_cache_dir(config->cache_dir);
 
-    /* Era feature table — approach model and op-click nearest fallback. The
-     * server and client must agree; this cache is OldSchool/dat2 so OSRS. */
-    features = ToriRS_Features_ForCache(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2,
-                                        MOCK230_CACHE_REVISION);
-    mock230_scene_set_features(features);
-    fprintf(stderr, "mock230: features era=%s approach=%s op_nearest=%d\n", features->name,
-            features->approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
-            features->op_click_nearest_range);
+    /* Era feature table — approach model and nearest fallbacks. The server and
+     * client must agree; this cache is OldSchool/dat2 so OSRS. */
+    features = *ToriRS_Features_ForCache(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2,
+                                         MOCK230_CACHE_REVISION);
+    /* The server half of the client's `[features:boot] ground_click_nearest`.
+     * Modern routing happens here, not in the client, so this is the knob that
+     * actually decides where an unreachable ground click puts the player. */
+    {
+        char const* env = getenv("MOCK230_GROUND_CLICK_NEAREST");
+        int model = env && env[0] ? ToriRS_Features_NearestModelByName(env) : -1;
+        if( env && env[0] && model < 0 )
+            fprintf(stderr,
+                    "mock230: MOCK230_GROUND_CLICK_NEAREST must be "
+                    "ring3|box10_rect|none, got '%s'\n",
+                    env);
+        else if( model >= 0 )
+            features.ground_click_nearest_model = model;
+    }
+    mock230_scene_set_features(&features);
+    fprintf(stderr,
+            "mock230: features era=%s approach=%s op_nearest=%d ground_nearest=%s\n",
+            features.name,
+            features.approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
+            features.op_click_nearest_range,
+            ToriRS_Features_NearestModelName(features.ground_click_nearest_model));
 
     /* 1. The cache's own tables. The content tree overlays these, so they have
      *    to exist before it is read. */

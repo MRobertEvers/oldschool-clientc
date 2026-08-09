@@ -20,6 +20,7 @@ main(void)
     test_delaymove_gate();
     test_entity_face();
     test_try_route();
+    test_try_route_nearest_models();
     test_try_route_op();
     test_try_route_op_forceapproach();
     test_force_approach_rotation();

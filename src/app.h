@@ -190,6 +190,17 @@ struct AppConfig
      * "osrs" or "server_routed" (src/features/features.h). NULL/"" = derive
      * from the cache identity; TORIRS_FEATURES_ERA still overrides. */
     char const* features_era;
+    /** `[features:boot] ground_click_nearest` — enum ToriRS_NearestModel, only
+     * read when the _set flag is 1 (0 is a real model, RING3_STEPS). Overrides
+     * the era table's ground_click_nearest_model; TORIRS_GROUND_CLICK_NEAREST
+     * overrides both. */
+    int features_ground_click_nearest;
+    int features_ground_click_nearest_set;
+    /** `[features:boot] painter_draw_distance`, in the official OSRS 25..90
+     * tile interval. Absent keeps Client-TS's fixed 25-tile radius;
+     * TORIRS_DRAW_DISTANCE overrides it at runtime. */
+    int features_painter_draw_distance;
+    int features_painter_draw_distance_set;
     /** `[render:light]` overrides. Each *_set flag is 1 when the manifest key
      * was present; App_Init merges set fields over era/compiled defaults. */
     int light_actor_ambient;
@@ -610,8 +621,14 @@ struct App
     int net_enabled;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
-     *  offline click still has to pick an approach model. */
+     *  offline click still has to pick an approach model. Points at
+     *  `features_storage`, not at the era singleton. */
     struct ToriRS_FeatureTable const* features;
+    /** The app's own copy of the era table, so a `[features:boot]` per-item
+     *  override lands somewhere writable. App_Init copies the resolved era in,
+     *  applies the overrides and points `features` here. Read through
+     *  `features`; this member exists to own the storage. */
+    struct ToriRS_FeatureTable features_storage;
     /** Effective lighting behaviour after era + `[render:light]` merge.
      *  Call sites read these rather than features->npc_light_* directly so a
      *  manifest override wins without mutating the const era table. */

@@ -108,6 +108,45 @@ References: OSRS Wiki
 [Pathfinding](https://oldschool.runescape.wiki/w/Pathfinding);
 rsmod `RouteFinding.kt`; LostCity `PathFinder.ts`; Kronos `RouteFinder.java`.
 
+#### 2.1.1 The unreachable click, and the feature item that selects it
+
+The `moveNear` scan above is not a detail of the BFS — it is *the whole* of
+"click somewhere you cannot stand and the game walks you as close as it can",
+and the two eras answer it differently. `enum ToriRS_NearestModel`
+(`src/features/features.h`) names both:
+
+| Model | Box | Ranking | Reference |
+|---|---|---|---|
+| `ring3` | 3×3 (±1) | first tile with the lowest step count | Client-TS `tryMove`, the `tryNearest` block |
+| `box10_rect` | 21×21 (±10) | least squared distance to the target rect, ties → shorter flood | official rev-239 `Statics.method5592`; rsmod / LostCity `findClosestApproachPoint` |
+| `none` | — | — | Client-TS passes `tryNearest = false` for every interaction click |
+
+Both cap candidates at flood distance `< 100`, and both mean "no movement at
+all" when the box is empty.
+
+**In modern OSRS this is a server behaviour.** The rev-239 client sends
+`MOVE_GAMECLICK` — opcode 114, a 5-byte body of absolute x, absolute z and a
+key-combination byte (`deob/client.java:9296`) — with no reachability test and
+no path of its own, and draws the yellow click cross regardless. Its copy of
+the routine exists only to reconstruct intermediate tiles for a *reported*
+WALK/RUN move (`Statics.method2600`). So under an `osrs` era the model that
+matters is the one the **server** holds; the client's copy only runs under the
+legacy client-BFS era.
+
+The era table carries it as `ground_click_nearest_model`, defaulting to `ring3`
+for `lostcity` and `box10_rect` for `osrs` / `server_routed`. Override it per
+boot:
+
+- client — `[features:boot] ground_click_nearest=ring3|box10_rect|none`, or
+  `TORIRS_GROUND_CLICK_NEAREST` (env wins);
+- mock server — `MOCK230_GROUND_CLICK_NEAREST`, same three names. Its boot line
+  prints the resolved value.
+
+The op/interaction click keeps its own pair of fields
+(`op_click_nearest_range`, `nearest_ranks_by_rect_distance`) because the 2004
+client genuinely diverges there: a ring for the ground, nothing at all for an
+interaction.
+
 ### 2.2 Naive / "dumb" pathfinder — all NPCs
 
 One destination tile per call, then a greedy walk: **diagonal first, else

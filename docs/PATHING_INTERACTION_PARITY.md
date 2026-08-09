@@ -102,6 +102,12 @@ setting `tryMoveNearest = 1` (which rides in the minimap anticheat trailer).
 **Interaction clicks (`type 2`) have no fallback** — an unreachable loc/NPC
 produces no MOVE_OPCLICK, but the OP packet is still sent.
 
+That ring is the *2004* rule and this section describes the 2004 client only.
+Modern OSRS answers the same failure server-side over a 21×21 box ranked by
+squared distance — a different model, selected by the era's
+`ground_click_nearest_model`. See
+[`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) §2.1.1.
+
 ### 1.5 Backtrace and packet
 
 Backtrace from the arrival tile toward the source, recording an entry **only on
@@ -391,7 +397,7 @@ is **shape-keyed** via `collision_exit_strategy(shape)` — wall 0–3/9, wall-d
 | **D3** | `World_SceneryRegister` now takes the **route** footprint, derived once inside `scenery_load_model` from `config_loc->size_x/size_z` angle-swapped — so ground decor routes as its true size while still rendering on one tile. |
 | **D4** | `app_try_move_loc` returns 0 when the scenery lookup misses, and all three loc call sites drop the whole click (no OPLOC/OPLOCU/OPLOCT), matching `interactWithLoc`'s early return on `typecode2 == -1`. |
 | **D5** | `npc_approach_uses_size`. |
-| **D7** | `struct CollisionNearestOpts` + `collision_nearest_fallback`, shared by the ground-click 3×3 ring (identical in both references, so not era-conditional) and the era's op-click box. |
+| **D7** | `struct CollisionNearestOpts` + `collision_nearest_fallback`, shared by the ground click and the op click. Both are era-conditional: the ground click reads `ground_click_nearest_model` through `collision_nearest_opts_from_model` (2004 = the 3×3 ring, OSRS = the official 21×21 rect search), the op click reads `op_click_nearest_range` / `nearest_ranks_by_rect_distance`. The earlier claim that the ground ring was "identical in both references, so not era-conditional" was wrong — see [`OSRS_PATHING_LOS.md`](OSRS_PATHING_LOS.md) §2.1.1. |
 | **D10** | `map_tile->shape_select` registered instead of the model-selection shape, so a diagonal centrepiece records shape 11. |
 
 ### 5.5 Tests — `make -C src test-world`

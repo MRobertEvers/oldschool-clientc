@@ -686,6 +686,25 @@ bm_set_kv(
             bm->features_ground_click_nearest = model;
             return;
         }
+        if( strcmp(key, "painter_draw_distance") == 0 )
+        {
+            int distance;
+            if( !bm_parse_int(key, value, &distance) )
+                return;
+            if( distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
+                distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+            {
+                fprintf(stderr,
+                        "bootmanifest: [features] painter_draw_distance must be "
+                        "%d..%d, got '%s'\n",
+                        TORIRS_PAINTER_DRAW_DISTANCE_MIN,
+                        TORIRS_PAINTER_DRAW_DISTANCE_MAX,
+                        value);
+                return;
+            }
+            bm->features_painter_draw_distance = distance;
+            return;
+        }
         break;
 
     case BM_SECTION_RENDER:
@@ -788,6 +807,9 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->cache_epoch = RSCACHE_EPOCH_UNSET;
     bm->cache_revision = -1;
     bm->js5_enabled = -1;
+    /* -1 = "not stated": 0 is TORIRS_NEAREST_RING3_STEPS, a real model, so a
+     * zeroed struct must not read as an override to it. */
+    bm->features_ground_click_nearest = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
     bm->spawn_npc_id = -1;
@@ -955,6 +977,16 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
 
     if( bm->features_era[0] )
         cfg->features_era = bm->features_era;
+    if( bm->features_ground_click_nearest >= 0 )
+    {
+        cfg->features_ground_click_nearest = bm->features_ground_click_nearest;
+        cfg->features_ground_click_nearest_set = 1;
+    }
+    if( bm->features_painter_draw_distance > 0 )
+    {
+        cfg->features_painter_draw_distance = bm->features_painter_draw_distance;
+        cfg->features_painter_draw_distance_set = 1;
+    }
 
     if( bm->actor_ambient_set )
     {

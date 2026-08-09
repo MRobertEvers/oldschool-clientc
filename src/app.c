@@ -3429,8 +3429,49 @@ App_Init(
             app->features = ToriRS_Features_ForCache(
                 cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
         assert(app->features);
+
+        /*
+         * Per-item overrides on top of the era.
+         *
+         * The era getters hand back shared static singletons, so an override
+         * has to be written into the app's own copy — otherwise one manifest
+         * key would move the table every other boot in the process reads. This
+         * is the copy app->features points at from here on; the singleton stays
+         * the pristine statement of what the era is.
+         */
+        app->features_storage = *app->features;
+        app->features = &app->features_storage;
+        {
+            char const* env = getenv("TORIRS_GROUND_CLICK_NEAREST");
+            int model = -1;
+            if( cfg->features_ground_click_nearest_set )
+                model = cfg->features_ground_click_nearest;
+            if( env && env[0] )
+            {
+                int from_env = ToriRS_Features_NearestModelByName(env);
+                if( from_env < 0 )
+                    fprintf(stderr,
+                            "app: TORIRS_GROUND_CLICK_NEAREST must be "
+                            "ring3|box10_rect|none, got '%s'\n",
+                            env);
+                else
+                    model = from_env;
+            }
+            if( model >= 0 )
+                app->features_storage.ground_click_nearest_model = model;
+        }
+        if( cfg->features_painter_draw_distance_set )
+            app->features_storage.painter_draw_distance =
+                cfg->features_painter_draw_distance;
+
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "app: features era=%s\n", app->features->name);
+            fprintf(stderr,
+                    "app: features era=%s ground_click_nearest=%s "
+                    "painter_draw_distance=%d\n",
+                    app->features->name,
+                    ToriRS_Features_NearestModelName(
+                        app->features->ground_click_nearest_model),
+                    ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
@@ -6584,9 +6625,11 @@ app_update_painter_cull(
     painter = world->painter;
     {
         char const* dd = getenv("TORIRS_DRAW_DISTANCE");
-        int v;
-        if( dd && dd[0] != '\0' && sscanf(dd, "%d", &v) == 1 )
-            painter_set_draw_distance(painter, v);
+        int v = ToriRS_Features_PainterDrawDistance(app->features);
+        int from_env;
+        if( dd && dd[0] != '\0' && sscanf(dd, "%d", &from_env) == 1 )
+            v = from_env;
+        painter_set_draw_distance(painter, v);
     }
     radius = painter_get_draw_distance(painter);
 
