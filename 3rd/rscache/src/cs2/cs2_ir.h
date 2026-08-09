@@ -423,6 +423,17 @@ RSCache_CS2_TypingsOfVariable(
     struct RSCache_CS2_Typings* typings,
     struct RSCache_CS2_Variable* variable);
 
+/**
+ * Look up an array variable's element typing, creating it with the supplied
+ * stack bank on first use. Array variables represent their elements in the IR,
+ * so their bank cannot be derived from RSCACHE_CS2_VAR_ARRAY alone.
+ */
+struct RSCache_CS2_Typing*
+RSCache_CS2_TypingsOfArray(
+    struct RSCache_CS2_Typings* typings,
+    struct RSCache_CS2_Variable* variable,
+    enum RSCache_CS2_StackType element_stack);
+
 struct RSCache_CS2_Typing*
 RSCache_CS2_TypingsOfProto(struct RSCache_CS2_Typings* typings, enum RSCache_CS2_ProtoId proto);
 

@@ -6256,13 +6256,39 @@ app_world_sync_positions(struct App* app)
 }
 
 /*
- * Play frame sounds for a sequence animation when its frame advances.
+ * Sequence-frame-sound picker RNG.
  *
- * The sounds are stored in the ToriDraw_Animation as a map of frame indices to
- * sound ids. `world_x`/`world_z` are the element's position in world units, so
- * the sound is attenuated and panned from where the thing making it is standing
- * -- a smithing hammer three squares away should not be as loud as one under the
- * camera. Pass -1 for a sound with no place in the scene.
+ * The reference uses `Math.random()`. A fixed-seed LCG is used instead so a
+ * headless run picks the same alternatives every time -- the screenshot and BMP
+ * harnesses compare frames, and a genuinely random audio path would still be a
+ * genuinely random *counter* in the audio ledger `TORIRS_AUDIO_DEBUG` prints.
+ * The sequence is long enough that no frame's alternatives correlate.
+ */
+static uint32_t g_frame_sound_rng = 0x9e3779b9u;
+
+static uint32_t
+app_next_random(struct App* app)
+{
+    (void)app;
+    g_frame_sound_rng = g_frame_sound_rng * 1664525u + 1013904223u;
+    return g_frame_sound_rng >> 16;
+}
+
+/*
+ * Play a frame sound for a sequence animation when its frame advances.
+ *
+ * `world_x`/`world_z` are the element's position in world units, so the sound is
+ * attenuated and panned from where the thing making it is standing -- a smithing
+ * hammer three squares away should not be as loud as one under the camera. Pass
+ * -1 for a sound with no place in the scene.
+ *
+ * A frame may declare **several alternative** sounds and exactly one of them
+ * plays, chosen in proportion to the entries' weights (rev226+; 67 osrs239
+ * frames carry up to six). The map is sorted by frame index with repeats, so the
+ * alternatives for a frame are a contiguous run -- the binary search finds *a*
+ * member of that run and the run has to be widened from there. Stopping at the
+ * first hit, which is what this used to do, made the choice a function of where
+ * the search happened to land.
  */
 static void
 app_play_frame_sounds(
@@ -6272,36 +6298,79 @@ app_play_frame_sounds(
     int world_x,
     int world_z)
 {
+    int left = 0;
+    int right;
+    int hit = -1;
+    int first;
+    int last;
+    int total_weight = 0;
+    int roll;
+    int chosen;
+    struct ToriDraw_AnimFrameSound const* sound;
+
     if( !anim || !app || anim->frame_sounds.count <= 0 )
         return;
 
-    /* Binary search for the current frame in the frame_sounds.frame_indices array */
-    int left = 0;
-    int right = anim->frame_sounds.count - 1;
+    right = anim->frame_sounds.count - 1;
     while( left <= right )
     {
         int mid = (left + right) / 2;
         int frame_idx = anim->frame_sounds.frame_indices[mid];
         if( frame_idx == current_frame )
         {
-            /* Found a matching frame; queue all sounds for this frame */
-            struct ToriDraw_AnimFrameSound const* sound = &anim->frame_sounds.sounds[mid];
-            if( world_x >= 0 )
-                RS_Audio_SynthAt(
-                    &app->audio, sound->id, sound->loops, 0, world_x >> 7, world_z >> 7);
-            else
-                RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
-            return;
+            hit = mid;
+            break;
         }
-        else if( frame_idx < current_frame )
-        {
+        if( frame_idx < current_frame )
             left = mid + 1;
-        }
         else
-        {
             right = mid - 1;
+    }
+    if( hit < 0 )
+        return;
+
+    first = hit;
+    while( first > 0 && anim->frame_sounds.frame_indices[first - 1] == current_frame )
+        first--;
+    last = hit;
+    while( last + 1 < anim->frame_sounds.count &&
+           anim->frame_sounds.frame_indices[last + 1] == current_frame )
+        last++;
+
+    chosen = first;
+    if( last > first )
+    {
+        /*
+         * Weights are relative, and an entry that declares none (-1, the pre-226
+         * shape) counts as one -- otherwise a single unweighted alternative in a
+         * weighted run could never be picked.
+         */
+        for( int i = first; i <= last; i++ )
+            total_weight += anim->frame_sounds.sounds[i].weight > 0
+                                ? anim->frame_sounds.sounds[i].weight
+                                : 1;
+        roll = (int)(app_next_random(app) % (uint32_t)(total_weight > 0 ? total_weight : 1));
+        for( int i = first; i <= last; i++ )
+        {
+            int w =
+                anim->frame_sounds.sounds[i].weight > 0 ? anim->frame_sounds.sounds[i].weight : 1;
+            if( roll < w )
+            {
+                chosen = i;
+                break;
+            }
+            roll -= w;
         }
     }
+
+    sound = &anim->frame_sounds.sounds[chosen];
+    if( sound->id < 0 )
+        return;
+    if( world_x >= 0 )
+        RS_Audio_SynthAt(
+            &app->audio, sound->id, sound->loops, 0, world_x >> 7, world_z >> 7, sound->radius, 0);
+    else
+        RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
 }
 
 /* One client tick of scene-element animation frames. UITreeAnim only advances
@@ -8250,7 +8319,7 @@ app_world_scene_element_create(
              * built over *every* projected vertex, including geometry that is
              * never drawn, which inflates it further.
              *
-             * ToriDraw_ProjectedModelContainsPoint still uses the AABB as its
+             * ToriDraw_ProjectedModelMouseHitTest still uses the AABB as its
              * cheap reject before walking faces, so this costs a triangle scan
              * only on models the cursor is actually over.
              */
@@ -12747,6 +12816,21 @@ App_PlaySound(
 {
     assert(app);
     RS_Audio_Synth(&app->audio, sound_id, loops, delay);
+}
+
+void
+App_PlaySoundAt(
+    struct App* app,
+    int sound_id,
+    int loops,
+    int delay,
+    int tile_x,
+    int tile_z,
+    int radius,
+    int inner)
+{
+    assert(app);
+    RS_Audio_SynthAt(&app->audio, sound_id, loops, delay, tile_x, tile_z, radius, inner);
 }
 
 void

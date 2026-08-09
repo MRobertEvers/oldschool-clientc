@@ -83,8 +83,12 @@ KINDS = [
     "ASSIGN",
     "BASIC",
     "TYPED_POP",
+    "DESCRIPTOR_ARGS",
+    "VARIADIC_INT_RESULT",
     "CLIENTSCRIPT",
     "PARAM",
+    "ACTIVE_PARAM",
+    "COMPONENT_PARAM",
     "DB_GETFIELD",
     "DB_FIND",
 ]

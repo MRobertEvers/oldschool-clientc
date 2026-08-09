@@ -105,8 +105,16 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_BASIC,
     /** One argument's stack is selected by the final literal base-type code. */
     RSCACHE_CS2_CMD_TYPED_POP,
+    /** Three fixed ints, descriptor-selected values, then the descriptor string. */
+    RSCACHE_CS2_CMD_DESCRIPTOR_ARGS,
+    /** Rev-239 opcode 210: all pending int payload values, one int result. */
+    RSCACHE_CS2_CMD_VARIADIC_INT_RESULT,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
+    /** Active-component param lookup; result stack comes from the param config. */
+    RSCACHE_CS2_CMD_ACTIVE_PARAM,
+    /** Explicit (param, interface, subcomponent) lookup with dynamic result stack. */
+    RSCACHE_CS2_CMD_COMPONENT_PARAM,
     /** db_getfield: pops (dbrow, dbcolumn, index), pushes the column's fields. */
     RSCACHE_CS2_CMD_DB_GETFIELD,
     /** db_find and friends: the search value's stack comes from the column. */

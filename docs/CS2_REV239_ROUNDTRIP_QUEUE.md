@@ -541,3 +541,129 @@ are the next step.
 - Every new signature cites the official handler it came from.
 - The whole-corpus number is in this document, updated, next to the 2026-08-05
   baseline so the delta is visible.
+
+## 10. 2026-08-09 official-client pass and current queue
+
+This section supersedes the numerical baseline above. It records a fresh run
+against the current tree, the official-client experiment performed for this
+pass, and the changes made from that evidence.
+
+### 10.1 Complete current inventory
+
+The authoritative list is
+[`CS2_REV239_ROUNDTRIP_FAILURES.tsv`](CS2_REV239_ROUNDTRIP_FAILURES.tsv). It has
+one row for every non-exact script, including the stage and diagnostic. It is
+generated from the unsuppressed whole-corpus output so IDs are not copied by
+hand:
+
+```sh
+make -C 3rd/rscache tools
+./3rd/rscache/tools/cs2/cs2 roundtrip \
+  --cache cache.osrs239 --rev osrs239 > /tmp/cs2-roundtrip.log 2>&1
+python3 tools/perf/cs2_roundtrip_report.py /tmp/cs2-roundtrip.log \
+  > docs/CS2_REV239_ROUNDTRIP_FAILURES.tsv
+```
+
+Measured on 2026-08-09 after the changes below:
+
+```text
+9615/9725 decompiled, 9610 compiled, 9161 same-length, 8540 exact
+```
+
+That is 1,185 identified non-exact scripts: 110 decompile failures, 5 compile
+failures, and 1,070 compiled byte differences. The five compile failures are
+3303, 5500, 8474, 9162, and 9195. The decompile failures are:
+
+```text
+0,84,89,192,663,1189,1202,1211,1212,1738,1939,2633,5161,5355,5360,
+5955,6498,6501,6503,6505,6507,6689,7227,7232,7496,7547,7551,7777,
+7898,7967,7969,8117,8118,8120,8127,8132,8135,8140,8149,8159,8236,
+8244,8245,8246,8268,8271,8272,8325,8327,8340,8341,8342,8344,8351,
+8389,8406,8410,8411,8424,8426,8431,8433,8436,8437,8438,8446,8447,
+8460,8462,8466,8468,8472,8491,8564,8690,8702,8818,8828,8834,8997,
+8999,9130,9142,9183,9188,9260,9266,9272,9278,9290,9345,9369,9383,
+9398,9399,9405,9406,9407,9460,9461,9511,9520,9526,9574,9584,9588,
+9591,9601,9611,9721
+```
+
+The dominant reported decompile endpoints are 21 bad return depths, 19 string
+local pops, 18 equality branches, and 9 opcode-2929 sites. Most are downstream
+symptoms of an earlier bad stack shape, not faults in return/local/branch.
+
+For comparison, the current checkout began this pass at
+`9094/9725 decompiled, 9090 compiled, 8658 same-length, 8070 exact`. The net
+gain is 521 decompiles, 520 recompiles, 503 same-length results, and 470 exact
+roundtrips.
+
+### 10.2 Plan for running the failure queue in the official deob
+
+Use `/Users/matthewevers/Documents/git_repos/Deobfuscator/` and read
+`instr/DEOB_DEFECTS.md` before changing or rebuilding the readable source. The
+repeatable procedure is:
+
+1. Build `instr/src`, then gate it with `instr/tools/verify_api.py`. The gate
+   printed `API surface complete.` for this pass.
+2. Start the rev-239 mock server and javconfig exactly as in
+   `instr/RUNNING.md`, but use an isolated cache directory such as
+   `~/jagexcache/torirs239_cs2rt/LIVE`; never reuse the live-client cache.
+3. Launch with `-Dcs2.stacktrace=true`, log in, and consume the IDs from the TSV
+   rather than sweeping the numeric range blindly.
+4. For each ID, issue `cs2trace <id> <path>`, with a ten-second socket timeout.
+   Save the trace even if the invocation throws. Restart and log in again when
+   the JVM exits or stops answering, then continue at the next ID.
+5. Record the last successful `(scriptId, pc, opcode)` and the before/after int,
+   string, and long stack pointers. Cross-reference that opcode with the same
+   numbered handler in `src_osrs239_rl1_12_33/deob/Statics.java`.
+6. Group failures by the first divergent opcode/stack delta, implement one
+   group, regenerate the TSV, and only then queue the survivors for another
+   official run.
+
+This restart-per-ID plan is deliberate. The broad sweep completed windows
+0..3249, then the 3250..3499 window stopped making useful progress around
+script 3450. Its partial aggregate files are in
+`/tmp/cs2rt_official_sweep/`. A pathological script must not prevent later
+failure IDs from being observed.
+
+### 10.3 Behavior observed in the official client
+
+Targeted `cs2trace` runs completed for scripts 41, 9444, 9455, 8872, 8729, and
+9400. Scripts 9444 and 8872 threw later on default-state null/runtime paths, but
+their traces were still flushed, which is the expected and useful behavior of
+the harness.
+
+| opcode / witness | official behavior | consequence |
+| --- | --- | --- |
+| 2300 `if_setop`, `Statics.method12438` | The >=2000 preamble pops the explicit component; case 1300 then pops the option index and string. Source order is `(index, string, component)`. | Correct the inter-bank source ordering; stack-count telemetry alone cannot determine it. |
+| 1704, script 41 | Two int-valued calls go from `3i/0s` to `0i/0s`; the string-valued call goes from `2i/1s` to `0i/0s`. `method12337` pops type code, typed value, then param. | Signature is `(param, value, type)`, with the value bank selected at runtime. |
+| 1703, `method12337` | Pops a param ID and pushes int, string, or long according to that param's config; the component is implicit and its operand selects active/dot. | A fixed `1i -> 1i` signature is wrong; use param metadata. |
+| 216, `method4548` | Pops type code, typed value, and param, then pushes an int result. | `(param, value, type) -> int`. |
+| 2704, `method3056` | Pops uid, child, and type together, then the selected value and param. | `(param, value, uid, child, type)`. |
+| 8005, script 9455 | Goes from `4i/1s` to `1i/0s`: four int inputs plus the string handle are consumed and one int is produced. | The dynamic value is an additional input, not one of the three fixed ints. |
+| 8010, script 8729 | Goes from `4i/1s` to `0i/0s`. | Same inputs as 8005, no result. |
+| 8024/8025, `method12336` | Pop type code, then one selected value, then the string array handle; 8025 additionally pops the insertion index. | Their static int-only signatures lose string arrays. |
+| 2929, `method1005`/`method989` | Pops a descriptor string, one int/string argument per descriptor character, then three fixed ints. | Still needs a dedicated variable-arity hook kind; it accounts for 9 current decompile failures. |
+
+The selector passed to `method6560` is the serialized `class634` ID: 0 int, 1
+long, 2 string (and 5 is the unsupported custom entry). `method10054` then
+switches on a different internal field whose case labels are 3 int, 1 long, and
+2 string. Mixing those two numberings is an easy way to misread the handler.
+
+### 10.4 Fixes made from those observations
+
+- Corrected `if_setop` argument order. By itself this moved the corpus from
+  8,070 to 8,452 exact scripts.
+- Added `RSCACHE_CS2_CMD_TYPED_POP` and used a `PROTO_NONE` slot for the value
+  selected by the final literal base-type code. It covers 216, 1704, 2704,
+  8005, 8006, 8007, 8010, 8024, and 8025 in both decompiler and compiler.
+- Added `RSCACHE_CS2_CMD_ACTIVE_PARAM` for opcode 1703, resolving its result
+  bank from the param config while preserving active/dot form.
+- When an array is defined in a caller, infer an otherwise unknown array-read
+  bank from an immediately following typed selector or string-local store. This
+  is what allows scripts 8430 and 9400 to round-trip without pretending every
+  array element is int.
+
+Focused checks now make scripts 41, 8872, 8729, and 9400 byte-exact; 8430 now
+decompiles and recompiles at the original length. The next implementation group
+is opcode 2929, followed by the missing signatures 7453, 6860, 7816, 7806, and
+7808. After each group, regenerate the TSV and feed only its remaining IDs back
+through the targeted official-client runner.

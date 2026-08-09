@@ -91,19 +91,9 @@ World_AddMapSceneIcon(
 void
 World_AddAreaSound(
     struct World* world,
-    int x,
-    int z,
-    int level,
-    int sound_id,
-    const int* sound_ids,
-    int sound_id_count,
-    int ticks_min,
-    int ticks_max,
-    int distance)
+    const struct World_AreaSound* source)
 {
-    struct World_AreaSound* entry;
-
-    if( !world )
+    if( !world || !source )
         return;
     if( world->area_sound_count >= world->area_sound_capacity )
     {
@@ -116,16 +106,7 @@ World_AddAreaSound(
         world->area_sound_capacity = new_cap;
     }
 
-    entry = &world->area_sounds[world->area_sound_count++];
-    entry->x = x;
-    entry->z = z;
-    entry->level = level;
-    entry->sound_id = sound_id;
-    entry->sound_ids = sound_ids;
-    entry->sound_id_count = sound_id_count;
-    entry->ticks_min = ticks_min;
-    entry->ticks_max = ticks_max;
-    entry->distance = distance;
+    world->area_sounds[world->area_sound_count++] = *source;
 }
 
 int

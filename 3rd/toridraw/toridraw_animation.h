@@ -23,12 +23,36 @@ struct ToriDraw_AnimFrame
     int delay;
 };
 
+/*
+ * One sound a sequence frame emits.
+ *
+ * `radius` is the reference's `location` field, and the name here is the one
+ * the client's own use justifies: `addSequenceSoundEffect` packs it into the
+ * low byte of a `(radius | tileZ << 8 | tileX << 16)` word, and the sound queue
+ * reads that byte back as `(word & 255) * 128` -- an audible range in fine
+ * units, beyond which the sound is discarded rather than attenuated. It is not
+ * a position or a placement mode; 3,906 of osrs239's 4,329 frame sounds carry
+ * one, and the 423 that do not are audible essentially nowhere.
+ *
+ * `weight` (rev226+) is a relative likelihood among the sounds sharing a frame.
+ * A frame with several entries plays *one* of them, chosen in proportion; 67
+ * osrs239 frames have up to six alternatives.
+ */
 struct ToriDraw_AnimFrameSound
 {
     int id;
     int loops;
+    int radius;
+    int retain;
+    int weight;
 };
 
+/*
+ * Frame index -> sound, sorted by frame index, with **repeats allowed**: a
+ * frame carrying several alternative sounds appears once per alternative, in a
+ * contiguous run. Consumers must widen a hit to its whole run rather than stop
+ * at the first match.
+ */
 struct ToriDraw_AnimFrameSoundMap
 {
     int* frame_indices;

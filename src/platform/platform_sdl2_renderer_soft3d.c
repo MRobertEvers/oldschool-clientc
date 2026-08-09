@@ -809,7 +809,7 @@ soft3d_draw_model(
     if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 &&
         (cmd->pick_aabb ? ToriDraw_ProjectedModelContainsAabb(
                               soft->scene, soft->pick_mouse_x, soft->pick_mouse_y)
-                        : ToriDraw_ProjectedModelContainsPoint(
+                        : ToriDraw_ProjectedModelMouseHitTest(
                               soft->scene, cmd->model, &soft->view_port_3d, soft->pick_mouse_x,
                               soft->pick_mouse_y)) )
         ToriRS_PickHitsAdd(

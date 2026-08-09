@@ -798,6 +798,23 @@ RSCache_CS2_TypingsOfVariable(
 }
 
 struct RSCache_CS2_Typing*
+RSCache_CS2_TypingsOfArray(
+    struct RSCache_CS2_Typings* typings,
+    struct RSCache_CS2_Variable* variable,
+    enum RSCache_CS2_StackType element_stack)
+{
+    assert(variable->kind == RSCACHE_CS2_VAR_ARRAY);
+    struct RSCache_CS2_Typing* typing =
+        (struct RSCache_CS2_Typing*)RSCache_CS2_MapGet(&typings->variables, variable);
+    if( !typing )
+    {
+        typing = RSCache_CS2_TypingNew(typings, element_stack);
+        RSCache_CS2_MapPut(&typings->variables, variable, typing);
+    }
+    return typing;
+}
+
+struct RSCache_CS2_Typing*
 RSCache_CS2_TypingsOfProto(struct RSCache_CS2_Typings* typings, enum RSCache_CS2_ProtoId proto)
 {
     assert(proto >= 0 && proto < RSCACHE_CS2_PROTO_COUNT_);

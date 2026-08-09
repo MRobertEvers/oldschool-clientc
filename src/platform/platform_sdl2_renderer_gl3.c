@@ -3890,7 +3890,7 @@ gl3_ev_model_draw(
     if( renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0 &&
         (mcmd->pick_aabb
                 ? ToriDraw_ProjectedModelContainsAabb(ctx, renderer->pick_mouse_x, renderer->pick_mouse_y)
-                : ToriDraw_ProjectedModelContainsPoint(
+                : ToriDraw_ProjectedModelMouseHitTest(
                       ctx, mcmd->model, &renderer->cur_3d.view_port, renderer->pick_mouse_x,
                       renderer->pick_mouse_y)) )
         ToriRS_PickHitsAdd(

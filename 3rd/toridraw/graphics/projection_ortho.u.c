@@ -135,11 +135,11 @@ project_vertices_array_ortho_fused_noclip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
+    int const cos_camera_pitch = g_cos_table[camera_pitch];
     int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
+    int const cos_camera_yaw = g_cos_table[camera_yaw];
     int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
+    int const cos_model_yaw = g_cos_table[model_yaw];
     int const sin_model_yaw = g_sin_table[model_yaw];
 
     int i = 0;
@@ -315,11 +315,11 @@ project_vertices_array_ortho_fused_clip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
+    int const cos_camera_pitch = g_cos_table[camera_pitch];
     int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
+    int const cos_camera_yaw = g_cos_table[camera_yaw];
     int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
+    int const cos_model_yaw = g_cos_table[model_yaw];
     int const sin_model_yaw = g_sin_table[model_yaw];
 
     int i = 0;
@@ -505,11 +505,11 @@ project_vertices_array_ortho_fused_notex_noclip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
+    int const cos_camera_pitch = g_cos_table[camera_pitch];
     int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
+    int const cos_camera_yaw = g_cos_table[camera_yaw];
     int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
+    int const cos_model_yaw = g_cos_table[model_yaw];
     int const sin_model_yaw = g_sin_table[model_yaw];
 
     int i = 0;
@@ -666,11 +666,11 @@ project_vertices_array_ortho_fused_notex_clip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = RSCacheDat2A_NoiseCosTable[camera_pitch];
+    int const cos_camera_pitch = g_cos_table[camera_pitch];
     int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = RSCacheDat2A_NoiseCosTable[camera_yaw];
+    int const cos_camera_yaw = g_cos_table[camera_yaw];
     int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = RSCacheDat2A_NoiseCosTable[model_yaw];
+    int const cos_model_yaw = g_cos_table[model_yaw];
     int const sin_model_yaw = g_sin_table[model_yaw];
 
     int i = 0;

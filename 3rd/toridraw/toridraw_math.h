@@ -15,7 +15,7 @@ static inline int
 ToriDraw_Cos(int angle_r2pi2048)
 {
     assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
-    return RSCacheDat2A_NoiseCosTable[angle_r2pi2048];
+    return g_cos_table[angle_r2pi2048];
 }
 
 static inline int

@@ -1339,7 +1339,9 @@ cs2_cc_infer_call_type(struct cs2_cc_compiler* cc)
     const struct RSCache_CS2_CommandInfo* info =
         opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
     if( !info ||
-        (info->kind != RSCACHE_CS2_CMD_ENUM && info->kind != RSCACHE_CS2_CMD_PARAM) )
+        (info->kind != RSCACHE_CS2_CMD_ENUM && info->kind != RSCACHE_CS2_CMD_PARAM &&
+         info->kind != RSCACHE_CS2_CMD_ACTIVE_PARAM &&
+         info->kind != RSCACHE_CS2_CMD_COMPONENT_PARAM) )
         return cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
 
     int position = cc->position;
@@ -1360,6 +1362,22 @@ cs2_cc_infer_call_type(struct cs2_cc_compiler* cc)
                 cs2_cc_next(cc);
                 if( cs2_cc_accept_punct(cc, ',') && cc->token.kind == CS2_CC_TOK_IDENT )
                     result = RSCache_CS2_TypeOfLiteral(cc->token.text);
+            }
+        }
+        else if( (info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
+                  info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM) && cc->options &&
+                 cc->options->param_types.load )
+        {
+            /* cc_getcomponentparam(<param>) — the active component is implicit. */
+            if( cc->token.kind == CS2_CC_TOK_IDENT )
+            {
+                int param_id = -1;
+                if( RSCache_CS2_NamesLookupId(
+                        cs2_cc_names(cc), RSCACHE_CS2_NAMES_PARAM, cc->token.text,
+                        &param_id) ||
+                    cs2_cc_parse_id_suffixed(cc->token.text, &param_id) )
+                    result = cc->options->param_types.load(
+                        cc->options->param_types.user, param_id);
             }
         }
         else if( cc->options && cc->options->param_types.load )
@@ -1732,8 +1750,16 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                         pushed = RSCache_CS2_TypeOfLiteral(literal);
                     }
                     else if(
-                        probe && probe->kind == RSCACHE_CS2_CMD_PARAM &&
-                        cs2_cc_call_argument_word(cc, 1, literal, (int)sizeof(literal)) )
+                        probe &&
+                        (probe->kind == RSCACHE_CS2_CMD_PARAM ||
+                         probe->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
+                         probe->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM) &&
+                        cs2_cc_call_argument_word(
+                            cc,
+                            (probe->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
+                             probe->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM) ? 0 : 1,
+                            literal,
+                            (int)sizeof(literal)) )
                     {
                         /* Named or `param_<id>` — the second is what a decompile
                          * without RuneStar's tables writes, and it is the whole
@@ -1922,11 +1948,57 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         cs2_cc_hook(cc, opcode, dot);
         return;
     }
-    if( info->kind == RSCACHE_CS2_CMD_PARAM || info->kind == RSCACHE_CS2_CMD_ENUM )
+    if( info->kind == RSCACHE_CS2_CMD_DESCRIPTOR_ARGS )
+    {
+        /* The final source argument is the literal descriptor emitted by the
+         * decompiler. Every preceding expression therefore already writes to
+         * the correct physical stack; no fixed generated signature applies. */
+        if( !cs2_cc_expect_punct(cc, '(') )
+            return;
+        int written = 0;
+        while( !cc->failed && !cs2_cc_at_punct(cc, ')') &&
+               cc->token.kind != CS2_CC_TOK_END )
+        {
+            if( written && !cs2_cc_expect_punct(cc, ',') )
+                return;
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_NONE);
+            written++;
+        }
+        if( written < 4 )
+        {
+            cs2_cc_fail(cc, "'%s' needs three fixed arguments and a descriptor", name);
+            return;
+        }
+        cs2_cc_expect_punct(cc, ')');
+        cs2_cc_emit(cc, opcode, 0);
+        return;
+    }
+    if( info->kind == RSCACHE_CS2_CMD_VARIADIC_INT_RESULT )
+    {
+        if( !cs2_cc_expect_punct(cc, '(') )
+            return;
+        int written = 0;
+        while( !cc->failed && !cs2_cc_at_punct(cc, ')') &&
+               cc->token.kind != CS2_CC_TOK_END )
+        {
+            if( written++ && !cs2_cc_expect_punct(cc, ',') )
+                return;
+            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_INT);
+        }
+        cs2_cc_expect_punct(cc, ')');
+        cs2_cc_emit(cc, opcode, 0);
+        return;
+    }
+    if( info->kind == RSCACHE_CS2_CMD_PARAM || info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
+        info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM || info->kind == RSCACHE_CS2_CMD_ENUM )
     {
         /* Both take a fixed argument list the generated table does not carry,
          * because what they push depends on an operand. */
-        int arg_count = info->kind == RSCACHE_CS2_CMD_ENUM ? 4 : 2;
+        int arg_count = info->kind == RSCACHE_CS2_CMD_ENUM
+                            ? 4
+                            : (info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM
+                                   ? 1
+                                   : (info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM ? 3 : 2));
         if( !cs2_cc_expect_punct(cc, '(') )
             return;
         for( int i = 0; i < arg_count && !cc->failed; i++ )
@@ -1936,16 +2008,23 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
             enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
             if( info->kind == RSCACHE_CS2_CMD_ENUM && i < 2 )
                 expected = RSCACHE_CS2_TYPE_TYPE;
-            else if( info->kind == RSCACHE_CS2_CMD_PARAM && i == 1 )
+            else if( (info->kind == RSCACHE_CS2_CMD_PARAM && i == 1) ||
+                     ((info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
+                       info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM) && i == 0) )
                 expected = RSCACHE_CS2_TYPE_PARAM;
             else if( info->kind == RSCACHE_CS2_CMD_PARAM && i == 0 )
                 expected = RSCache_CS2_ProtoGet(
                                (enum RSCache_CS2_ProtoId)info->extra)
                                ->type;
+            else if( info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM && i == 1 )
+                expected = RSCACHE_CS2_TYPE_INTERFACE;
+            else if( info->kind == RSCACHE_CS2_CMD_COMPONENT_PARAM && i == 2 )
+                expected = RSCACHE_CS2_TYPE_INT;
             cs2_cc_argument(cc, expected);
         }
         cs2_cc_expect_punct(cc, ')');
-        cs2_cc_emit(cc, opcode, 0);
+        cs2_cc_emit(
+            cc, opcode, info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ? (dot ? 1 : 0) : 0);
         return;
     }
     if( info->kind == RSCACHE_CS2_CMD_DB_GETFIELD || info->kind == RSCACHE_CS2_CMD_DB_FIND )

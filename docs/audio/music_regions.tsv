@@ -1,0 +1,441 @@
+region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
+1154	4	130	256	8320	Jungly 1	jungly1
+4883	19	19	1216	1216	Maws, Jaws & Claws	maws_jaws_claws
+5139	20	19	1280	1216	That Sullen Hall	that_sullen_hall
+5140	20	20	1280	1280	Maws, Jaws & Claws	maws_jaws_claws
+5395	21	19	1344	1216	Maws, Jaws & Claws	maws_jaws_claws
+6234	24	90	1536	5760	Close Quarters	close quarters
+6454	25	54	1600	3456	Country Jig	unknown
+6461	25	61	1600	3904	The Doors of Dinh	477
+6462	25	62	1600	3968	Ice and Fire	483
+6475	25	75	1600	4800	Grimly Fiendish	grimly_fiendish
+6731	26	75	1664	4800	Grimly Fiendish	grimly_fiendish
+6992	27	80	1728	5120	The Mad Mole	the mad mole
+7236	28	68	1792	4352	Dagannoth Dawn	dagannoth dawn
+7492	29	68	1856	4352	Xenophobe	xenophobe
+7496	29	72	1856	4608	Temple of Light	temple of light
+7499	29	75	1856	4800	Trawler	trawler
+7504	29	80	1856	5120	Head to Head	head to head
+7507	29	83	1856	5312	Chef Surprise	chef surprize
+7748	30	68	1920	4352	Dagannoth Dawn	dagannoth dawn
+7752	30	72	1920	4608	Fight or Flight	fight or flight
+7753	30	73	1920	4672	Bubble and Squeak	bubble and squeak
+7754	30	74	1920	4736	The Quizmaster	the quizmaster
+7755	30	75	1920	4800	Trawler Minor	trawler minor
+7757	30	77	1920	4928	Have a Blast	have a blast
+8005	31	69	1984	4416	Diango's Little Helpers	diango's little helpers
+8010	31	74	1984	4736	Artistry	artistry
+8014	31	78	1984	4992	Waterlogged	waterlogged
+8261	32	69	2048	4416	In the Clink	in the clink
+8396	32	204	2048	13056	Riverside	riverside
+8497	33	49	2112	3136	Meridian	meridian
+8498	33	50	2112	3200	Woodland	woodland
+8499	33	51	2112	3264	Everywhere	everywhere
+8519	33	71	2112	4544	Iban	iban
+8523	33	75	2112	4800	Stratosphere	stratosphere
+8526	33	78	2112	4992	Shadowland	shadowland
+8527	33	79	2112	5056	Aye Car Rum Ba	aye car rum ba
+8528	33	80	2112	5120	Blistering Barnacles	blistering barnacles
+8751	34	47	2176	3008	Thrall of the Serpent	thrall_of_the_serpent
+8752	34	48	2176	3072	Exposed	exposed
+8779	34	75	2176	4800	La Mort	la mort
+8781	34	77	2176	4928	Competition	competition
+8782	34	78	2176	4992	Stagnant	stagnant
+9007	35	47	2240	3008	Coil	coil
+9008	35	48	2240	3072	Lost Soul	lost soul
+9009	35	49	2240	3136	Forest	forest
+9010	35	50	2240	3200	Breeze	breeze
+9011	35	51	2240	3264	Creature Cruelty	creature cruelty
+9033	35	73	2240	4672	Attack 5	attack5
+9034	35	74	2240	4736	Hermit	hermit
+9035	35	75	2240	4800	Complication	complication
+9038	35	78	2240	4992	Natural	natural
+9263	36	47	2304	3008	Romper Chomper	romper chomper
+9265	36	49	2304	3136	Far Away	far away
+9266	36	50	2304	3200	Elven Mist	elven mist
+9267	36	51	2304	3264	Overpass	overpass
+9268	36	52	2304	3328	Tree Spirits	tree spirits
+9269	36	53	2304	3392	Gnome Village 2	gnome village2
+9270	36	54	2304	3456	Gnomeball	gnomeball
+9272	36	56	2304	3584	Making Waves	making waves
+9273	36	57	2304	3648	Making Waves	making waves
+9275	36	59	2304	3776	Volcanic Vikings	volcanic vikings
+9293	36	77	2304	4928	Claustrophobia	claustrophobia
+9294	36	78	2304	4992	Dead Quiet	dead quiet
+9366	36	150	2304	9600	Well Of Voyage	well of voyage
+9369	36	153	2304	9792	Intrepid	intrepid
+9520	37	48	2368	3072	Castlewars	castlewars
+9521	37	49	2368	3136	Serenade	serenade
+9523	37	51	2368	3264	Moody	moody
+9540	37	68	2368	4352	Faerie	faerie
+9545	37	73	2368	4672	Voodoo Cult	voodoo cult
+9547	37	75	2368	4800	Understanding	understanding
+9551	37	79	2368	5056	TzHaar!	tzhaar
+9552	37	80	2368	5120	Fire and Brimstone	fire and brimstone
+9620	37	148	2368	9472	Ready for Battle	ready for battle
+9621	37	149	2368	9536	Underground Pass	upass
+9623	37	151	2368	9664	Cursed	cursed
+9774	38	46	2432	2944	Soundscape	soundscape
+9775	38	47	2432	3008	Zogre Dance	zogre dance
+9776	38	48	2432	3072	Melodrama	melodrama
+9778	38	50	2432	3200	Expecting	expecting
+9780	38	52	2432	3328	Neverland	neverland
+9781	38	53	2432	3392	Gnome Village	gnome village
+9782	38	54	2432	3456	Gnome King	gnome king
+9796	38	68	2432	4352	Chickened Out	chickened out
+9797	38	69	2432	4416	Crystal Castle	crystal castle
+9802	38	74	2432	4736	Frogland	frogland
+9803	38	75	2432	4800	Righteousness	righteousness
+9805	38	77	2432	4928	The Chosen	the chosen
+9808	38	80	2432	5120	In The Pits	in the pits
+9810	38	82	2432	5248	Funny Bunnies	funny bunnies
+9875	38	147	2432	9408	Wayward	wayward
+9878	38	150	2432	9600	Expecting	expecting
+9882	38	154	2432	9856	Narnode's Theme	narnode's theme
+9886	38	158	2432	10112	The Monsters Below	the monsters below
+10031	39	47	2496	3008	Gaol	gaol
+10032	39	48	2496	3072	Big Chords	big chords
+10033	39	49	2496	3136	Emotion	emotion
+10034	39	50	2496	3200	Attack 1	attack1
+10035	39	51	2496	3264	Sad Meadow	sad meadow
+10036	39	52	2496	3328	March	march
+10037	39	53	2496	3392	Waterfall	waterfall
+10038	39	54	2496	3456	Voyage	voyage
+10039	39	55	2496	3520	Legion	legion
+10040	39	56	2496	3584	Lighthouse	lighthouse
+10042	39	58	2496	3712	The Desolate Isle	the desolate isle
+10044	39	60	2496	3840	Miscellania	miscellania
+10057	39	73	2496	4672	Mage Arena	mage arena
+10058	39	74	2496	4736	Evil Bob's Island	evil bobs island
+10059	39	75	2496	4800	Heart and Mind	heart and mind
+10061	39	77	2496	4928	In Between	in between
+10131	39	147	2496	9408	Gaol	gaol
+10133	39	149	2496	9536	Emotion	emotion
+10134	39	150	2496	9600	Alone	alone
+10135	39	151	2496	9664	The Cellar Dwellers	the cellar dwellers
+10136	39	152	2496	9728	The Tower	the tower
+10137	39	153	2496	9792	Waterfall	waterfall
+10138	39	154	2496	9856	Theme	theme
+10140	39	156	2496	9984	Out of the Deep	out of the deep
+10142	39	158	2496	10112	Subterranea	subterranea
+10286	40	46	2560	2944	Grumpy	grumpy
+10287	40	47	2560	3008	In The Manor	in the manor
+10288	40	48	2560	3072	Magic Dance	magic dance
+10289	40	49	2560	3136	Attack 4	attack4
+10290	40	50	2560	3200	Ballad Of Enchantment	ballad of enchantment
+10291	40	51	2560	3264	Knightly	knightly
+10292	40	52	2560	3328	The Tower	the tower
+10293	40	53	2560	3392	Mellow	mellow
+10294	40	54	2560	3456	Theme	theme
+10296	40	56	2560	3584	Saga	saga
+10297	40	57	2560	3648	Rellekka	rellekka
+10300	40	60	2560	3840	Etceteria	etcetera
+10309	40	69	2560	4416	Emotion	emotion
+10310	40	70	2560	4480	Technology	technology
+10314	40	74	2560	4736	Pheasant Peasant	pheasant peasant
+10315	40	75	2560	4800	Quest	quest
+10387	40	147	2560	9408	Attack 6	attack6
+10388	40	148	2560	9472	Cavern	cavern
+10389	40	149	2560	9536	Attack 4	attack4
+10393	40	153	2560	9792	Goblin Game	goblin game
+10536	41	40	2624	2560	Pest Control	pest control
+10537	41	41	2624	2624	Null and Void	null and void
+10542	41	46	2624	2944	Chompy Hunt	chompy hunt
+10544	41	48	2624	3072	Long Ago	long ago
+10545	41	49	2624	3136	Fanfare 3	fanfare3
+10546	41	50	2624	3200	Upcoming	upcoming
+10547	41	51	2624	3264	Baroque	baroque
+10548	41	52	2624	3328	Wonderous	wonderous
+10549	41	53	2624	3392	Lasting	lasting
+10550	41	54	2624	3456	Talking Forest	talking forest
+10551	41	55	2624	3520	Lullaby	lullaby
+10569	41	73	2624	4672	Miles Away	miles away
+10571	41	75	2624	4800	Down To Earth	down to earth
+10575	41	79	2624	5056	Path of Peril	path of peril
+10642	41	146	2624	9344	Chompy Hunt	chompy hunt
+10644	41	148	2624	9472	7th Realm	7th realm
+10645	41	149	2624	9536	7th Realm	7th realm
+10646	41	150	2624	9600	Catch me if you can	catch me if you can
+10647	41	151	2624	9664	Crystal Sword	crystal sword
+10648	41	152	2624	9728	Chain Of Command	chain of command
+10652	41	156	2624	9984	The Navigator	the navigator
+10653	41	157	2624	10048	Warrior	warrior
+10794	42	42	2688	2688	Island Life	island life
+10795	42	43	2688	2752	Anywhere	anywhere
+10801	42	49	2688	3136	Landlubber	landlubber
+10802	42	50	2688	3200	Jungly 2	jungly2
+10803	42	51	2688	3264	Riverside	riverside
+10804	42	52	2688	3328	Trinity	trinity
+10805	42	53	2688	3392	Magical Journey	magical journey
+10806	42	54	2688	3456	Overture	overture
+10807	42	55	2688	3520	Monarch Waltz	monarch waltz
+10808	42	56	2688	3584	Legend	legend
+10809	42	57	2688	3648	Borderland	borderland
+10821	42	69	2688	4416	Chamber	chamber
+10822	42	70	2688	4480	Deep Down	deep down
+10823	42	71	2688	4544	Deep Down	deep down
+10827	42	75	2688	4800	Zealot	zealot
+10894	42	142	2688	9088	Find My Way	find my way
+10895	42	143	2688	9152	Showdown	showdown
+10899	42	147	2688	9408	Karamja Jam	karamja jam
+10900	42	148	2688	9472	Karamja Jam	karamja jam
+10901	42	149	2688	9536	Pathways	pathways
+10903	42	151	2688	9664	Escape	escape
+10904	42	152	2688	9728	Trinity	trinity
+10905	42	153	2688	9792	Chain Of Command	chain of command
+10906	42	154	2688	9856	Twilight	twilight
+10908	42	156	2688	9984	Masquerade	masquerade
+11051	43	43	2752	2752	Monkey Badness	monkey badness
+11053	43	45	2752	2880	Spooky Jungle	spookyjungle
+11054	43	46	2752	2944	Jungly 1	jungly1
+11055	43	47	2752	3008	Jungly 3	jungly3
+11056	43	48	2752	3072	Nomad	nomad
+11057	43	49	2752	3136	High Seas	high seas
+11058	43	50	2752	3200	Jolly R	jollyr
+11059	43	51	2752	3264	Fruits de Mer	fruits de mer
+11060	43	52	2752	3328	Background	background
+11061	43	53	2752	3392	Lightwalk	lightwalk
+11065	43	57	2752	3648	Settlement	settlement
+11066	43	58	2752	3712	Hells Bells	hells bells
+11068	43	60	2752	3840	Romancing the Crone	romancing the crone
+11077	43	69	2752	4416	Haunted Mine	haunted mine
+11078	43	70	2752	4480	Chamber	chamber
+11081	43	73	2752	4672	Sad Meadow	sad meadow
+11083	43	75	2752	4800	Miracle Dance	miracle dance
+11151	43	143	2752	9152	Temple	temple
+11153	43	145	2752	9280	Superstition	superstition
+11157	43	149	2752	9536	Aztec	aztec
+11164	43	156	2752	9984	The Slayer	the slayer
+11165	43	157	2752	10048	Cave of Beasts	cave of beasts
+11166	43	158	2752	10112	Marzipan	marzipan
+11309	44	45	2816	2880	Jungle Island	jungle island
+11310	44	46	2816	2944	Ambient Jungle	ambient jungle
+11311	44	47	2816	3008	Tribal	tribal
+11312	44	48	2816	3072	Tribal Background	tribal background
+11313	44	49	2816	3136	Jungle Island	jungle island
+11314	44	50	2816	3200	The Shadow	the shadow
+11316	44	52	2816	3328	Background	background
+11317	44	53	2816	3392	Fishing	fishing
+11318	44	54	2816	3456	Ice Melody	ice melody
+11319	44	55	2816	3520	Kingdom	kingdom
+11319	44	55	2816	3520	Warriors' Guild	warriors guild
+11320	44	56	2816	3584	Tremble	tremble
+11321	44	57	2816	3648	Sojourn	sojourn
+11322	44	58	2816	3712	Stranded	stranded
+11323	44	59	2816	3776	Frostbite	frostbite
+11339	44	75	2816	4800	Serene	serene
+11343	44	79	2816	5056	Rat Hunt	rat hunt
+11412	44	148	2816	9472	Tribal Background	tribal background
+11413	44	149	2816	9536	Dangerous Road	dangerous road
+11414	44	150	2816	9600	Attack 2	attack2
+11416	44	152	2816	9728	Underground	underground
+11417	44	153	2816	9792	Arabique	arabique
+11418	44	154	2816	9856	Beyond	beyond
+11419	44	155	2816	9920	Beyond	beyond
+11421	44	157	2816	10048	Marzipan	marzipan
+11422	44	158	2816	10112	Time to Mine	time to mine
+11423	44	159	2816	10176	Land of the Dwarves	land of the dwarves
+11562	45	42	2880	2688	Marooned	marooned
+11565	45	45	2880	2880	Reggae	reggae
+11566	45	46	2880	2944	Tribal 2	tribal2
+11567	45	47	2880	3008	Reggae 2	reggae2
+11568	45	48	2880	3072	Jungle Troubles	jungle troubles
+11569	45	49	2880	3136	Sea Shanty	sea shanty
+11570	45	50	2880	3200	Emperor	emperor
+11571	45	51	2880	3264	Miles Away	miles away
+11572	45	52	2880	3328	Arrival	arrival
+11573	45	53	2880	3392	Horizon	horizon
+11574	45	54	2880	3456	Splendour	splendour
+11575	45	55	2880	3520	Principality	principality
+11576	45	56	2880	3584	Contest	contest
+11578	45	58	2880	3712	Stranded	stranded
+11589	45	69	2880	4416	Xenophobe	xenophobe
+11591	45	71	2880	4544	Time Out	time out
+11595	45	75	2880	4800	Rune Essence	rune essence
+11599	45	79	2880	5056	Rat a Tat Tat	rat a tat tat
+11602	45	82	2880	5248	Camelot	camelot
+11665	45	145	2880	9280	Voodoo Cult	voodoo cult
+11666	45	146	2880	9344	Oriental	oriental
+11668	45	148	2880	9472	Spooky Jungle	spookyjungle
+11670	45	150	2880	9600	Emperor	emperor
+11671	45	151	2880	9664	Royale	royale
+11672	45	152	2880	9728	Dunjun	dunjun
+11676	45	156	2880	9984	Expedition	expedition
+11677	45	157	2880	10048	Mad Eadgar	mad eadgar
+11678	45	158	2880	10112	Tale of Keldagrim	tale of keldagrim
+11823	46	47	2944	3008	Fanfare 2	fanfare2
+11824	46	48	2944	3072	Mudskipper Melody	mudskipper melody
+11825	46	49	2944	3136	Attention	attention
+11826	46	50	2944	3200	Courage	courage
+11826	46	50	2944	3200	Long Way Home	long way home
+11827	46	51	2944	3264	Nightfall	nightfall
+11828	46	52	2944	3328	Fanfare	fanfare
+11829	46	53	2944	3392	Scape Soft	scape soft
+11831	46	55	2944	3520	Wonder	wonder
+11832	46	56	2944	3584	Wilderness	wilderness
+11833	46	57	2944	3648	Troubled	troubled
+11834	46	58	2944	3712	Wilderness 3	wilderness3
+11835	46	59	2944	3776	Deep Wildy	deep wildy
+11837	46	61	2944	3904	Serene	serene
+11853	46	77	2944	4928	The Rogues' Den	the rogues den
+11924	46	148	2944	9472	Davy Jones' Locker	davy jones locker
+11925	46	149	2944	9536	Starlight	starlight
+11926	46	150	2944	9600	Sarim's Vermin	sarim's vermin
+11929	46	153	2944	9792	Cave Background	cave background
+11930	46	154	2944	9856	Too Many Cooks...	too many cooks
+11936	46	160	2944	10240	Serene	serene
+12081	47	49	3008	3136	Tomorrow	tomorrow
+12082	47	50	3008	3200	Sea Shanty 2	sea shanty2
+12083	47	51	3008	3264	Wander	wander
+12084	47	52	3008	3328	Workshop	workshop
+12085	47	53	3008	3392	Dwarf Theme	dwarf theme
+12086	47	54	3008	3456	Alone	alone
+12087	47	55	3008	3520	Inspiration	inspiration
+12088	47	56	3008	3584	Army Of Darkness	army of darkness
+12089	47	57	3008	3648	Legion	legion
+12090	47	58	3008	3712	Gaol	gaol
+12091	47	59	3008	3776	Wilderness 2	wilderness2
+12092	47	60	3008	3840	Wild Side	wild side
+12093	47	61	3008	3904	Pirates of Peril	pirates of peril
+12105	47	73	3008	4672	Pharaoh's Tomb	pharoah's tomb
+12107	47	75	3008	4800	Into the Abyss	into the abyss
+12109	47	77	3008	4928	The Rogues' Den	the rogues den
+12111	47	79	3008	5056	The Far Side	the far side
+12113	47	81	3008	5184	No Way Out	no way out
+12117	47	85	3008	5440	Marooned	marooned
+12181	47	149	3008	9536	Woe of the Wyvern	woe of the wyvern
+12184	47	152	3008	9728	Cave Background	cave background
+12192	47	160	3008	10240	Attack 3	attack3
+12193	47	161	3008	10304	Cavern	cavern
+12337	48	49	3072	3136	Vision	vision
+12338	48	50	3072	3200	Unknown Land	unknown land
+12339	48	51	3072	3264	Start	start
+12340	48	52	3072	3328	Spooky	spooky
+12341	48	53	3072	3392	Barbarianism	barbarianism
+12342	48	54	3072	3456	Forever	forever
+12343	48	55	3072	3520	Dangerous	dangerous
+12343	48	55	3072	3520	Lightness	lightness
+12344	48	56	3072	3584	Wildwood	wildwood
+12345	48	57	3072	3648	Undercurrent	undercurrent
+12346	48	58	3072	3712	Wilderness	wilderness
+12349	48	61	3072	3904	Mage Arena	mage arena
+12369	48	81	3072	5184	No Way Out	no way out
+12433	48	145	3072	9280	Lament	lament
+12436	48	148	3072	9472	Vision	vision
+12437	48	149	3072	9536	Scape Ape	scape_ape
+12438	48	150	3072	9600	Down Below	down below
+12440	48	152	3072	9728	Tiptoe	tiptoe
+12441	48	153	3072	9792	Barbarianism	barbarianism
+12589	49	45	3136	2880	Scarab	scarab
+12590	49	46	3136	2944	Bandit Camp	bandit camp
+12591	49	47	3136	3008	The Desert	the desert
+12593	49	49	3136	3136	Book Of Spells	book of spells
+12594	49	50	3136	3200	Dream	dream
+12595	49	51	3136	3264	Flute Salad	flute salad
+12596	49	52	3136	3328	Greatness	greatness
+12597	49	53	3136	3392	Spirit	spirit
+12598	49	54	3136	3456	The Trade Parade	the trade parade
+12599	49	55	3136	3520	Doorways	doorways
+12599	49	55	3136	3520	Lightness	lightness
+12600	49	56	3136	3584	Moody	moody
+12601	49	57	3136	3648	Dead Can Dance	dead can dance
+12602	49	58	3136	3712	Close Quarters	close quarters
+12604	49	60	3136	3840	Scape Wild	scape wild
+12619	49	75	3136	4800	Corporal Punishment	corporal punishment
+12693	49	149	3136	9536	Cave of the Goblins	cave of the goblins
+12694	49	150	3136	9600	Monster Melee	monster melee
+12696	49	152	3136	9728	Victory is Mine	victory is mine
+12697	49	153	3136	9792	Cellar Song	cellar song
+12698	49	154	3136	9856	Scape Ape	scape_ape
+12843	50	43	3200	2752	City of the Dead	city of the dead
+12846	50	46	3200	2944	Sunburn	sunburn
+12848	50	48	3200	3072	Arabian 3	arabian3
+12849	50	49	3200	3136	Yesteryear	yesteryear
+12850	50	50	3200	3200	Harmony	harmony
+12851	50	51	3200	3264	Autumn Voyage	autumn voyage
+12852	50	52	3200	3328	Expanse	expanse
+12853	50	53	3200	3392	Garden	garden
+12854	50	54	3200	3456	Adventure	adventure
+12855	50	55	3200	3520	Crystal Sword	crystal sword
+12856	50	56	3200	3584	Faithless	faithless
+12857	50	57	3200	3648	Scape Wild	scape wild
+12858	50	58	3200	3712	Shining	shining
+12861	50	61	3200	3904	Nightfall	nightfall
+12945	50	145	3200	9280	Sarcophagus	sarcophagus
+12946	50	146	3200	9344	Bone Dry	bone dry
+12948	50	148	3200	9472	Tears of Guthix	tears of guthix
+12949	50	149	3200	9536	Starlight	starlight
+12950	50	150	3200	9600	Harmony 2	harmony2
+12952	50	152	3200	9728	Expanse	expanse
+13099	51	43	3264	2752	City of the Dead	city of the dead
+13100	51	44	3264	2816	Sphinx	sphinx
+13102	51	46	3264	2944	Desert Voyage	desert voyage
+13104	51	48	3264	3072	Egypt	egypt
+13105	51	49	3264	3136	Al Kharid	al kharid
+13106	51	50	3264	3200	Arabian	arabian
+13107	51	51	3264	3264	Arabian 2	arabian2
+13108	51	52	3264	3328	Still Night	still night
+13109	51	53	3264	3392	Medieval	medieval
+13110	51	54	3264	3456	Doorways	doorways
+13111	51	55	3264	3520	Forbidden	forbidden
+13113	51	57	3264	3648	Witching	witching
+13116	51	60	3264	3840	Scape Sad	scape sad
+13117	51	61	3264	3904	Regal	regal
+13131	51	75	3264	4800	Altar Ego	altar_ego
+13199	51	143	3264	9152	Mirage	mirage
+13203	51	147	3264	9408	Lonesome	lonesome
+13206	51	150	3264	9600	The Lost Melody	the lost melody
+13209	51	153	3264	9792	No Way Out	no way out
+13356	52	44	3328	2816	Pharaoh's Tomb	pharoah's tomb
+13357	52	45	3328	2880	Sunburn	sunburn
+13358	52	46	3328	2944	Dynasty	dynasty
+13359	52	47	3328	3008	Desert Voyage	desert voyage
+13362	52	50	3328	3200	Duel Arena	duel arena
+13363	52	51	3328	3264	Shine	shine
+13364	52	52	3328	3328	Venture	venture
+13365	52	53	3328	3392	Lullaby	lullaby
+13366	52	54	3328	3456	Parade	parade
+13368	52	56	3328	3584	Underground	underground
+13369	52	57	3328	3648	Dark	dark
+13373	52	61	3328	3904	Everlasting Fire	everlasting fire
+13457	52	145	3328	9280	The Genie	the genie
+13461	52	149	3328	9536	Spirits of the Elid	spirits of elid
+13464	52	152	3328	9728	Venture 2	venture2
+13613	53	45	3392	2880	Over to Nardah	over to nardah
+13614	53	46	3392	2944	Desert Heat	desert heat
+13616	53	48	3392	3072	The Golem	the golem
+13617	53	49	3392	3136	Arabian	arabian
+13618	53	50	3392	3200	Shadowland	shadowland
+13619	53	51	3392	3264	Bone Dance	bone dance
+13620	53	52	3392	3328	Natural	natural
+13621	53	53	3392	3392	Dead Quiet	dead quiet
+13622	53	54	3392	3456	Morytania	morytania
+13623	53	55	3392	3520	The Terrible Tower	the terrible tower
+13718	53	150	3392	9600	Spooky 2	spooky2
+13720	53	152	3392	9728	Grotto	grotto
+13722	53	154	3392	9856	Mausoleum	mausoleum
+13872	54	48	3456	3072	The Golem	the golem
+13873	54	49	3456	3136	Distant Land	distant land
+13875	54	51	3456	3264	Shadowland	shadowland
+13876	54	52	3456	3328	Stagnant	stagnant
+13877	54	53	3456	3392	Waterlogged	waterlogged
+13878	54	54	3456	3456	Village	village
+13879	54	55	3456	3520	Fenkenstrain's Refrain	fenkenstrain's refrain
+13972	54	148	3456	9472	Insect Queen	insect queen
+13975	54	151	3456	9664	Lair	lair
+13977	54	153	3456	9792	Stillness	stillness
+13979	54	155	3456	9920	Body Parts	body parts
+14131	55	51	3520	3264	Dance of Death	dance of death
+14131	55	51	3520	3264	Dance of the Undead	dance of the undead
+14134	55	54	3520	3456	Deadlands	deadlands
+14135	55	55	3520	3520	Fenkenstrain's Refrain	fenkenstrain's refrain
+14231	55	151	3520	9664	Dangerous Way	dangerous way
+14234	55	154	3520	9856	Barking Mad	barking mad
+14390	56	54	3584	3456	Deadlands	deadlands
+14391	56	55	3584	3520	Shipwrecked	shipwrecked
+14638	57	46	3648	2944	In the Brine	in the brine
+14646	57	54	3648	3456	The Other Side	the other side
+14647	57	55	3648	3520	The Other Side	the other side
+14746	57	154	3648	9856	Phasmatys	phasmatys
+14747	57	155	3648	9920	Brew Hoo Hoo!	brew hoo hoo
+15159	59	55	3776	3520	Dragontooth Island	dragontooth island

@@ -8540,6 +8540,35 @@ selftest_capture_find_varp_large(
     return -1;
 }
 
+/* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
+ * zero-terminated type string and reverse-ordered arguments. The Zuk timing
+ * gate only needs to identify fade_overlay's 948, not decode its arguments. */
+static int
+selftest_capture_has_clientscript(
+    struct Mock230Capture const* capture,
+    struct Mock230Wire const* wire,
+    int script_id)
+{
+    int opcode;
+
+    if( !capture || !wire )
+        return 0;
+    opcode = mock230_wire_opcode(wire, PKT_NAME_RUNCLIENTSCRIPT);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct Mock230CapturedPacket const* pkt = &capture->packets[i];
+        uint8_t const* id;
+
+        if( pkt->opcode != opcode || pkt->len < 4 )
+            continue;
+        id = &pkt->data[pkt->len - 4];
+        if( (int)(((uint32_t)id[0] << 24) | ((uint32_t)id[1] << 16) |
+                  ((uint32_t)id[2] << 8) | (uint32_t)id[3]) == script_id )
+            return 1;
+    }
+    return 0;
+}
+
 /*
  * Put the world and the player back to a known state at a chosen origin zone.
  *
@@ -23336,6 +23365,8 @@ mock230_world_selftest(void)
                 MOCK230_PACK_SEQ, "inferno_collapsing_wall_side_right");
             const int zuk_type = mock230_content_symbol(
                 MOCK230_PACK_NPC, "inferno_tzkalzuk_placeholder");
+            const int glyph_type = mock230_content_symbol(
+                MOCK230_PACK_NPC, "inferno_moving_safespot");
             const int middle = mock230_content_symbol(
                 MOCK230_PACK_LOC, "inferno_collapsing_wall_safespot_state1");
             const int rocks_l = mock230_content_symbol(
@@ -23349,6 +23380,12 @@ mock230_world_selftest(void)
             int cam_reset_tick = -1;
             int zuk_tick = -1;
             int zuk_slot = -1;
+            int fade_in_tick = -1;
+            int glyph_add_tick = -1;
+            int glyph_move_tick = -1;
+            int glyph_spawn_x = 0;
+            int glyph_spawn_z = 0;
+            int glyph_seen = 0;
             int mid_removal_tick = -1;
             int mid_seen = 0;
             int total_left = 0;
@@ -23425,6 +23462,9 @@ mock230_world_selftest(void)
                     change_tick = tick;
                 if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
+                if( fade_in_tick < 0 &&
+                    selftest_capture_has_clientscript(&capture, srv.wire, 948) )
+                    fade_in_tick = tick;
                 if( tick_cam_reset && anim_tick >= 0 && cam_reset_tick < 0 )
                     cam_reset_tick = tick;
                 /* Latch on the present -> absent edge. Gating on change_tick
@@ -23437,6 +23477,25 @@ mock230_world_selftest(void)
                     mid_removal_tick = tick;
                 if( zuk_tick < 0 && selftest_find_npc(&srv, zuk_type) >= 0 )
                     zuk_tick = tick;
+                {
+                    int glyph_slot = selftest_find_npc(&srv, glyph_type);
+                    if( glyph_slot >= 0 )
+                    {
+                        struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                        if( !glyph_seen )
+                        {
+                            glyph_seen = 1;
+                            glyph_add_tick = tick;
+                            glyph_spawn_x = glyph->x;
+                            glyph_spawn_z = glyph->z;
+                        }
+                        else if( glyph_move_tick < 0 &&
+                                 (glyph->x != glyph_spawn_x || glyph->z != glyph_spawn_z) )
+                        {
+                            glyph_move_tick = tick;
+                        }
+                    }
+                }
                 /* State3 is the settled terminal rubble on the bridge plane. */
                 if( rocks_tick < 0 &&
                     mock230_scene_find_loc_id(player->x - 3, player->z + 12, 1, rocks_l) >= 0 &&
@@ -23464,11 +23523,19 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
-                           "the flank walls need the bind cycle, two hold ticks, and the "
-                           "middle-wall lead tick; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
+                           "the flank walls need one black bind tick, four fade ticks, "
+                           "and the middle-wall lead tick; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
+            SELFTEST_CHECK(fade_in_tick == change_tick + 1,
+                           "the state2 loc changes need one complete fully-black tick before "
+                           "fade-in; got change=%d fade=%d",
+                           change_tick, fade_in_tick);
+            SELFTEST_CHECK(glyph_move_tick == anim_tick,
+                           "the glyph must take its first step on the flank LOC_ANIM tick; "
+                           "got glyph=%d anim=%d",
+                           glyph_move_tick, anim_tick);
             SELFTEST_CHECK(rocks_tick == anim_tick + 6,
                            "the settled flank rocks must appear on the 180-cycle "
                            "animation boundary; got anim=%d rocks=%d",
@@ -23502,26 +23569,18 @@ mock230_world_selftest(void)
                                "east terminal flank must retain authored rotation 3, got %d",
                                east ? east->angle : -1);
             }
-            /* The rigid centre glyph remains through cutscene setup, then is
-             * removed one server tick before both LOC_ANIM packets. Sequence
-             * 7561 is Kronos's wrong asset and must never be sent. */
-            SELFTEST_CHECK(mid_removal_tick == anim_tick - 1,
-                           "the centre glyph must clear one tick before the side-wall animation "
-                           "tick; got mid=%d change=%d anim=%d",
-                           mid_removal_tick, change_tick, anim_tick);
+            SELFTEST_CHECK(mid_removal_tick == glyph_add_tick,
+                           "the centre wall and glyph NPC must exchange on one tick; "
+                           "got middle=%d glyph=%d",
+                           mid_removal_tick, glyph_add_tick);
             SELFTEST_CHECK(total_pillar_seq == 0,
                            "the server must not send Kronos's incorrect seq 7561, got %d",
                            total_pillar_seq);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
-            /*
-             * An npc is on every client from the tick it is added, so a Zuk
-             * added to schedule the collapse is a Zuk standing in his idle pose
-             * in front of walls that have not started to fall. He belongs on the
-             * floor no earlier than the tick the seal lets go.
-             */
-            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick >= anim_tick,
-                           "TzKal-Zuk must not appear before the seal animates; "
+            /* zuk_spawn begins one tick before the flank animations. */
+            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick == anim_tick - 1,
+                           "TzKal-Zuk's spawn animation must lead the flanks by one tick; "
                            "got zuk=%d anim=%d",
                            zuk_tick, anim_tick);
 
@@ -23641,9 +23700,9 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
-                           "the repeated seal should preserve the bind, hold, and middle lead "
-                           "ticks; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
+                           "the repeated seal should preserve the black bind, fade, and "
+                           "middle lead ticks; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,

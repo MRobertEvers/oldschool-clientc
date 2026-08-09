@@ -208,6 +208,127 @@ test_midi_swap(void)
     CHECK_EQ(out._midi_swap.fade_in_ms, 23 * 20);
 }
 
+/* The one-byte writers SoundAreaEncoder uses. */
+static void
+p1(int v)
+{
+    *g_w++ = (uint8_t)v;
+}
+
+static void
+p1_alt1(int v)
+{
+    *g_w++ = (uint8_t)(v + 128);
+}
+
+static void
+p1_alt2(int v)
+{
+    *g_w++ = (uint8_t)(0 - v);
+}
+
+static void
+p1_alt3(int v)
+{
+    *g_w++ = (uint8_t)(128 - v);
+}
+
+/*
+ * SOUND_AREA, the positional sound.
+ *
+ * Worth its own case for two reasons beyond the usual byte-order paranoia.
+ * Every field here is a small integer in one of four one-byte encodings, three
+ * of which *negate* or offset the value, so a field read with the wrong one
+ * still yields a small plausible number -- a radius of 6 read as alt2 is 250,
+ * which is not obviously wrong anywhere downstream, it just makes a door
+ * audible across the map.
+ *
+ * And it is the sub-packet whose absence used to `break` the enclosed-zone
+ * loop, discarding every later sub-packet in the batch. The second half of this
+ * test is that batch: a SOUND_AREA followed by a MAP_ANIM, asserting the
+ * MAP_ANIM still arrives.
+ */
+static void
+test_sound_area(void)
+{
+    uint8_t bytes[7];
+    struct RevPacket out;
+
+    printf("-- SOUND_AREA\n");
+    memset(&out, 0, sizeof(out));
+    g_w = bytes;
+    /* SoundAreaEncoder v19 (rev 239). */
+    p1_alt3(0x35); /* coordInZone: dx 3, dz 5 */
+    p1_alt2(2);    /* dropOffRange (inner)    */
+    p1(6);         /* range (radius)          */
+    p1_alt2(9);    /* delay                   */
+    p1_alt1(3);    /* loops                   */
+    p2(0x1234);    /* id                      */
+    CHECK_EQ(g_w - bytes, (long)sizeof(bytes));
+
+    CHECK_EQ(osrs239_parse(NULL, PKT_NAME_SOUND_AREA, bytes, (int)sizeof(bytes), &out), 1);
+    CHECK_EQ(out._sound_area.pos, 0x35);
+    CHECK_EQ(out._sound_area.inner, 2);
+    CHECK_EQ(out._sound_area.radius, 6);
+    CHECK_EQ(out._sound_area.delay, 9);
+    CHECK_EQ(out._sound_area.loops, 3);
+    CHECK_EQ(out._sound_area.id, 0x1234);
+}
+
+static void
+test_sound_area_does_not_truncate_a_zone_batch(void)
+{
+    /*
+     * UPDATE_ZONE_PARTIAL_ENCLOSED: base x, base z, then (ordinal, payload)*.
+     * Ordinal 14 is SOUND_AREA, 5 is MAP_ANIM. Before SOUND_AREA was mapped,
+     * the unknown ordinal made the loop break and the MAP_ANIM after it was
+     * never decoded -- so this asserts the *second* sub-packet, not the first.
+     */
+    uint8_t bytes[64];
+    struct RevPacket out;
+    int len;
+
+    printf("-- a SOUND_AREA does not truncate the zone batch after it\n");
+    memset(&out, 0, sizeof(out));
+    g_w = bytes;
+    p1(40); /* base x */
+    p1(50); /* base z */
+
+    p1(14);        /* ordinal: SOUND_AREA */
+    p1_alt3(0x35);
+    p1_alt2(2);
+    p1(6);
+    p1_alt2(9);
+    p1_alt1(3);
+    p2(0x1234);
+
+    p1(5); /* ordinal: MAP_ANIM */
+    {
+        /* MapAnimEncoder v19: p1Alt2 delay, p2Alt2 id, p1Alt1 height,
+         * p1Alt2 coordInZone -- transcribed from the generated codec. */
+        uint8_t* start = g_w;
+        p1_alt2(11);    /* delay  */
+        p2_alt2(0x0777); /* id     */
+        p1_alt1(4);      /* height */
+        p1_alt2(0x21);   /* coordInZone */
+        CHECK_EQ(g_w - start, 5);
+    }
+
+    len = (int)(g_w - bytes);
+    CHECK_EQ(
+        osrs239_parse(NULL, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, bytes, len, &out), 1);
+    CHECK_EQ(out._update_zone_enclosed.count, 2);
+    if( out._update_zone_enclosed.count == 2 )
+    {
+        CHECK_EQ(out._update_zone_enclosed.entries[0].name, PKT_NAME_SOUND_AREA);
+        CHECK_EQ(out._update_zone_enclosed.entries[0]._sound_area.id, 0x1234);
+        CHECK_EQ(out._update_zone_enclosed.entries[1].name, PKT_NAME_MAP_ANIM);
+        CHECK_EQ(out._update_zone_enclosed.entries[1]._map_anim.id, 0x0777);
+    }
+    if( out._update_zone_enclosed.entries )
+        free(out._update_zone_enclosed.entries);
+}
+
 static void
 test_short_buffers_are_rejected(void)
 {
@@ -243,6 +364,8 @@ main(void)
     test_midi_song_with_secondary();
     test_midi_song_with_secondary_absent_ids();
     test_midi_swap();
+    test_sound_area();
+    test_sound_area_does_not_truncate_a_zone_batch();
     test_short_buffers_are_rejected();
 
     if( g_failures )

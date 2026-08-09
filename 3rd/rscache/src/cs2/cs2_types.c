@@ -51,6 +51,7 @@ static const struct cs2_type_info cs2_types[RSCACHE_CS2_TYPE_COUNT] = {
     [RSCACHE_CS2_TYPE_PLAYER_UID] = { "player_uid", 'p' },
     [RSCACHE_CS2_TYPE_TYPE] = { "type", 0 },
     [RSCACHE_CS2_TYPE_DBROW] = { "dbrow", 0xD0 },
+    [RSCACHE_CS2_TYPE_ENUMKEY_D8] = { "enumkey_d8", 0xD8 },
 };
 
 const char*

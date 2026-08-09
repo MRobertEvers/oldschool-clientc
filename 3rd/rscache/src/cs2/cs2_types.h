@@ -72,6 +72,8 @@ enum RSCache_CS2_Type
      * arrived with the DB_* opcodes. Descriptor 0xD0, per the ScriptVarType
      * table this repo already carries in src/serverscript/ssc_symbols.c. */
     RSCACHE_CS2_TYPE_DBROW,
+    /** Rev-239 enum key descriptor 0xD8; an int-stack semantic id. */
+    RSCACHE_CS2_TYPE_ENUMKEY_D8,
 
     RSCACHE_CS2_TYPE_COUNT,
     RSCACHE_CS2_TYPE_NONE = -1,

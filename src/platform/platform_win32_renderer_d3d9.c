@@ -5654,7 +5654,7 @@ d3d9_draw_model(
         (command->pick_aabb
                 ? ToriDraw_ProjectedModelContainsAabb(
                       renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
-                : ToriDraw_ProjectedModelContainsPoint(
+                : ToriDraw_ProjectedModelMouseHitTest(
                       renderer->scene,
                       command->model,
                       &renderer->cur_3d.view_port,

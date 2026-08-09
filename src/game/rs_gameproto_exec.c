@@ -260,6 +260,9 @@ zone_sub_packet_copy(
     case PKT_NAME_MAP_ANIM:
         dst->_map_anim = *(struct PktMapAnim const*)payload;
         return 1;
+    case PKT_NAME_SOUND_AREA:
+        dst->_sound_area = *(struct PktSoundArea const*)payload;
+        return 1;
     case PKT_NAME_MAP_PROJANIM:
         dst->_map_projanim = *(struct PktMapProjAnim const*)payload;
         return 1;
@@ -447,6 +450,19 @@ exec_zone_sub_packet_at(
             zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
             App_WorldSpotanimSpawn(app, tile_x, tile_z, level, pkt->id, pkt->height, pkt->delay);
         }
+        break;
+    }
+    case PKT_NAME_SOUND_AREA:
+    {
+        /*
+         * A one-shot sound at a tile, with its own audible radius. The level is
+         * decoded but not used to gate it: the reference range-checks in x/z
+         * only, and a forge on the floor below is meant to be heard.
+         */
+        struct PktSoundArea const* pkt = payload;
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_PlaySoundAt(
+            app, pkt->id, pkt->loops, pkt->delay, tile_x, tile_z, pkt->radius, pkt->inner);
         break;
     }
     case PKT_NAME_MAP_PROJANIM:
@@ -1012,6 +1028,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_MAP_ANIM:
         exec_zone_sub_packet(ctx, PKT_NAME_MAP_ANIM, &packet->_map_anim);
+        break;
+    case PKT_NAME_SOUND_AREA:
+        exec_zone_sub_packet(ctx, PKT_NAME_SOUND_AREA, &packet->_sound_area);
         break;
     case PKT_NAME_MAP_PROJANIM:
         exec_zone_sub_packet(ctx, PKT_NAME_MAP_PROJANIM, &packet->_map_projanim);

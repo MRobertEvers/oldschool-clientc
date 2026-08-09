@@ -87,12 +87,22 @@ queue_effect(
     int loops,
     int delay,
     int tile_x,
-    int tile_z)
+    int tile_z,
+    int radius,
+    int inner)
 {
     struct RS_AudioEntry* entry;
 
     assert(audio);
     if( !audio->enabled || synth_id < 0 )
+        return;
+    /*
+     * Zero repeats is not "play once" -- the reference refuses the entry
+     * outright (`Message.queueSoundEffect` requires `var1 != 0`), because the
+     * count it eventually hands the mixer is `loops - 1` and zero means the
+     * caller asked for nothing.
+     */
+    if( loops == 0 )
         return;
     if( audio->count >= RS_AUDIO_QUEUE_MAX )
     {
@@ -107,14 +117,17 @@ queue_effect(
     entry->delay = delay;
     entry->tile_x = tile_x;
     entry->tile_z = tile_z;
+    entry->radius = radius;
+    entry->inner = inner;
 
     AUDIO_TRACE(
-        "rs_audio: queued effect %d loops=%d delay=%d at (%d,%d)\n",
+        "rs_audio: queued effect %d loops=%d delay=%d at (%d,%d) radius=%d\n",
         synth_id,
         loops,
         delay,
         tile_x,
-        tile_z);
+        tile_z,
+        radius);
 }
 
 void
@@ -124,7 +137,7 @@ RS_Audio_Synth(
     int loops,
     int delay)
 {
-    queue_effect(audio, synth_id, loops, delay, -1, -1);
+    queue_effect(audio, synth_id, loops, delay, -1, -1, 0, 0);
 }
 
 void
@@ -134,9 +147,11 @@ RS_Audio_SynthAt(
     int loops,
     int delay,
     int tile_x,
-    int tile_z)
+    int tile_z,
+    int radius,
+    int inner)
 {
-    queue_effect(audio, synth_id, loops, delay, tile_x, tile_z);
+    queue_effect(audio, synth_id, loops, delay, tile_x, tile_z, radius, inner);
 }
 
 static void
@@ -162,25 +177,104 @@ length_in_ticks(
 
 /* --- positional attenuation ----------------------------------------------- */
 
+/** Fine units per tile. The reference works in these throughout; a tile centre
+ *  is `tile * 128 + 64`, and an emitter's box spans `[x*128, (x+size)*128)`. */
+#define AUDIO_FINE 128
+
 /**
- * Volume and pan for a sound at a tile, heard from the camera's tile.
+ * Distance from the listener to an emitter's footprint box, in fine units.
  *
- * Distance is **Chebyshev** (the larger of |dx| and |dz|), not Manhattan. Every
- * radius in this game is a square: a loc's `ambient_sound_distance`, an npc's
- * wander range, a spell's area. Manhattan overstates a diagonal offset by up to
- * 2x, so an emitter eight tiles north-east of the camera measured 16 and fell
- * outside a radius it is well inside -- which is most of why the area sounds
- * were coming out at a tenth of their volume.
+ * The reference (`Statics.method10796`, osrs239 `deob/Statics.java:15309`, and
+ * `AreaSoundManager.redraw` in rt4) clamps the listener against the box on each
+ * axis independently and **sums** the two overshoots, then subtracts half a tile
+ * and floors at zero.
  *
- * The falloff itself is `(radius - d) / radius` with a floor: a sound *at* the
- * edge of its radius should be quiet, not silent, and dropping linearly to zero
- * makes the whole outer half of the radius inaudible in practice. The floor is
- * what makes walking towards a waterfall a fade-in rather than a switch.
+ * Two things about it are easy to get wrong and were both wrong here before.
+ * It is a *box*, not a point: a four-tile waterfall is at distance zero from
+ * anywhere along its length, so it does not get quieter as you walk past the
+ * middle of it. And the metric is Manhattan, not Chebyshev -- an earlier change
+ * to Chebyshev was really compensating for the missing box and the missing
+ * half-tile dead zone, which between them are worth more than the metric.
+ */
+static int
+box_distance_fine(
+    int listener_x_fine,
+    int listener_z_fine,
+    int min_x_fine,
+    int min_z_fine,
+    int max_x_fine,
+    int max_z_fine)
+{
+    int distance = 0;
+
+    if( listener_x_fine < min_x_fine )
+        distance += min_x_fine - listener_x_fine;
+    else if( listener_x_fine > max_x_fine )
+        distance += listener_x_fine - max_x_fine;
+
+    if( listener_z_fine < min_z_fine )
+        distance += min_z_fine - listener_z_fine;
+    else if( listener_z_fine > max_z_fine )
+        distance += listener_z_fine - max_z_fine;
+
+    distance -= AUDIO_FINE / 2;
+    return distance < 0 ? 0 : distance;
+}
+
+/**
+ * Volume for a distance, given the audible radius and the full-volume inner
+ * radius (all fine units).
  *
- * The camera's *yaw* is deliberately not used. The reference pans area sounds by
- * world offset and not by facing, and rotating the pan with the camera makes a
+ * Reference (`class91.method3002`): flat at full volume out to `inner`, then
+ * `(radius - d) / (radius - inner)` from there to `radius`, then silent. rt4 is
+ * the same expression with `inner = 0`, which is what every era before OldSchool
+ * 220 does and what a loc that declares no inner radius gets.
+ *
+ * There is deliberately **no floor**. An earlier version clamped this at a
+ * quarter of full volume, which put a step exactly at the radius -- audible at
+ * 25% one tile in, silent one tile out. The inner radius is the reference's
+ * answer to "it should not fade the whole way in", and 54 osrs239 locs use it.
+ */
+static int
+falloff_volume(
+    int distance_fine,
+    int radius_fine,
+    int inner_fine,
+    int base_volume)
+{
+    if( radius_fine <= 0 || distance_fine > radius_fine )
+        return 0;
+    if( inner_fine >= radius_fine || distance_fine <= inner_fine )
+        return base_volume;
+    return base_volume * (radius_fine - distance_fine) / (radius_fine - inner_fine);
+}
+
+/**
+ * Stereo placement for an emitter, from its horizontal offset.
+ *
+ * The camera's *yaw* is deliberately not used. The reference pans by world
+ * offset and not by facing, and rotating the pan with the camera makes a
  * waterfall swing across the stereo field every time the player turns, which is
  * far more distracting than the fixed field being slightly wrong.
+ */
+static int
+pan_for_offset(
+    int dx_fine,
+    int radius_fine)
+{
+    if( radius_fine <= 0 )
+        return TORIRS_AUDIO_PAN_CENTRE;
+    if( dx_fine <= -radius_fine )
+        return 0;
+    if( dx_fine >= radius_fine )
+        return TORIRS_AUDIO_PAN_MAX;
+    return TORIRS_AUDIO_PAN_CENTRE + (dx_fine * TORIRS_AUDIO_PAN_CENTRE) / radius_fine;
+}
+
+/**
+ * Volume and pan for a point emitter one tile across -- a frame sound, or a
+ * SOUND_AREA. The box degenerates to the single tile it stands on, which is
+ * what `addSequenceSoundEffect` does (it packs one tile, not a footprint).
  */
 static void
 positional_gain(
@@ -188,40 +282,27 @@ positional_gain(
     int tile_z,
     int camera_x,
     int camera_z,
-    int distance,
+    int radius_tiles,
+    int inner_tiles,
     int base_volume,
     int* out_volume,
     int* out_pan)
 {
-    int dx = tile_x - camera_x;
-    int dz = tile_z - camera_z;
-    int abs_x = dx < 0 ? -dx : dx;
-    int abs_z = dz < 0 ? -dz : dz;
-    int magnitude;
-    int falloff;
+    int listener_x = camera_x * AUDIO_FINE + AUDIO_FINE / 2;
+    int listener_z = camera_z * AUDIO_FINE + AUDIO_FINE / 2;
+    int min_x = tile_x * AUDIO_FINE;
+    int min_z = tile_z * AUDIO_FINE;
+    int radius_fine;
+    int distance;
 
-    if( distance <= 0 )
-        distance = AUDIO_DEFAULT_DISTANCE;
-    magnitude = abs_x > abs_z ? abs_x : abs_z;
-    if( magnitude >= distance )
-    {
-        *out_volume = 0;
-        *out_pan = TORIRS_AUDIO_PAN_CENTRE;
-        return;
-    }
-    falloff = base_volume * (distance - magnitude) / distance;
-    /* Never below a quarter inside the radius: the radius is where it becomes
-     * inaudible, not where it becomes quiet. */
-    if( falloff < base_volume / 4 )
-        falloff = base_volume / 4;
-    *out_volume = falloff;
+    if( radius_tiles <= 0 )
+        radius_tiles = AUDIO_DEFAULT_DISTANCE;
+    radius_fine = radius_tiles * AUDIO_FINE;
+    distance =
+        box_distance_fine(listener_x, listener_z, min_x, min_z, min_x + AUDIO_FINE, min_z + AUDIO_FINE);
 
-    if( dx <= -distance )
-        *out_pan = 0;
-    else if( dx >= distance )
-        *out_pan = TORIRS_AUDIO_PAN_MAX;
-    else
-        *out_pan = TORIRS_AUDIO_PAN_CENTRE + (dx * TORIRS_AUDIO_PAN_CENTRE) / distance;
+    *out_volume = falloff_volume(distance, radius_fine, inner_tiles * AUDIO_FINE, base_volume);
+    *out_pan = pan_for_offset(min_x + AUDIO_FINE / 2 - listener_x, radius_fine);
 }
 
 /* --- asset publication ---------------------------------------------------- */
@@ -399,7 +480,8 @@ play_entry(
             entry->tile_z,
             camera_x,
             camera_z,
-            AUDIO_DEFAULT_DISTANCE,
+            entry->radius,
+            entry->inner,
             TORIRS_AUDIO_VOLUME_MAX,
             &volume,
             &pan);
@@ -447,17 +529,47 @@ tick_effect_queue(
     int camera_z,
     struct ToriRS_AudioQueue* out)
 {
+    /*
+     * The reference's loop, in its order, because the order *is* the behaviour
+     * (HealthBarUpdate.method1769):
+     *
+     *     delays[i]--;                       // always, before anything else
+     *     if (delays[i] >= -10) {
+     *         if (clip == null) {
+     *             clip = read(id); if (clip == null) continue;
+     *             delays[i] += clip.calculateDelay();
+     *         }
+     *         if (delays[i] < 0) { play(i); delays[i] = -100; }
+     *     } else remove(i);
+     *
+     * Decrementing first is not a detail. Holding the countdown until the clip
+     * arrives makes every millisecond of load latency a millisecond of lateness,
+     * which is heard as the first swing of a weapon landing behind its animation
+     * and every later swing being fine.
+     */
     for( int index = 0; index < audio->count; index++ )
     {
         struct RS_AudioEntry* entry = &audio->queue[index];
-        struct ToriDraw_Sound* sound =
-            publish_sound(audio, provider, scene, out, entry->sound_id);
+        struct ToriDraw_Sound* sound;
 
+        entry->delay--;
+
+        if( entry->delay < -RS_AUDIO_LATE_LIMIT_TICKS )
+        {
+            audio->dropped_absent++;
+            AUDIO_TRACE(
+                "rs_audio: dropping effect %d, %d ticks late\n",
+                entry->sound_id,
+                -entry->delay);
+            remove_entry(audio, index);
+            index--;
+            continue;
+        }
+
+        sound = publish_sound(audio, provider, scene, out, entry->sound_id);
         if( !sound )
         {
-            /* Ask once, then wait. Not counting down while waiting keeps the
-             * server's delay meaningful: it is relative to the effect's own
-             * start, which is not known until the effect is rendered. */
+            /* Ask once, then let the countdown carry on without it. */
             if( !entry->load_requested && provider && runner )
             {
                 struct ToriRS_Task* task = CreateTask_SoundLoad(provider, entry->sound_id);
@@ -465,29 +577,19 @@ tick_effect_queue(
                 if( task )
                     ToriRS_TaskQueue_Add(runner->queue, task);
             }
-            if( ++entry->waited >= RS_AUDIO_LOAD_WAIT_TICKS )
-            {
-                audio->dropped_absent++;
-                AUDIO_TRACE(
-                    "rs_audio: giving up on effect %d (never became resident)\n",
-                    entry->sound_id);
-                remove_entry(audio, index);
-                index--;
-            }
             continue;
         }
 
         if( !entry->delay_resolved )
         {
-            /* Reference: waveDelay = delay + Wave.delays[id]. */
+            /* Reference: `delays[i] += clip.calculateDelay()` -- the silent
+             * lead-in the render trimmed off the front, added back as ticks so
+             * the audible onset lands where the server asked for it. */
             entry->delay += sound->queue_delay;
             entry->delay_resolved = true;
         }
-        if( entry->delay > 0 )
-        {
-            entry->delay--;
+        if( entry->delay >= 0 )
             continue;
-        }
 
         play_entry(audio, entry, sound, camera_x, camera_z, out);
         remove_entry(audio, index);
@@ -497,34 +599,138 @@ tick_effect_queue(
 
 /* --- area sounds ---------------------------------------------------------- */
 
+/**
+ * Per-emitter PRNG.
+ *
+ * The reference picks the random set's next sound and its next gap with
+ * `Math.random()`. Using the global tick instead (which is what this did) makes
+ * every emitter in the scene fire on the same schedule and always pick
+ * `sound_ids[0]`, so a forest is one bird repeating. A tiny LCG seeded from the
+ * emitter's identity keeps them independent *and* keeps a headless run
+ * reproducible, which `Math.random()` would not.
+ */
+static uint32_t
+area_rand(struct RS_AudioAreaVoice* voice)
+{
+    voice->rng = voice->rng * 1664525u + 1013904223u;
+    return voice->rng >> 16;
+}
+
+static void
+stop_area_stream(
+    int* voice_id,
+    struct ToriRS_AudioQueue* out,
+    int fade_ms)
+{
+    struct ToriRS_AudioCommand command;
+
+    if( *voice_id <= 0 )
+        return;
+    if( out )
+    {
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_STOP);
+        command.voice_id = *voice_id;
+        command.fade_ms = fade_ms;
+        ToriRS_AudioQueue_Push(out, &command);
+    }
+    *voice_id = 0;
+}
+
 static void
 stop_area_voice(
     struct RS_AudioAreaVoice* voice,
     struct ToriRS_AudioQueue* out)
 {
-    struct ToriRS_AudioCommand command;
-
     if( !voice->active )
         return;
-    if( out && voice->voice_id > 0 )
-    {
-        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_STOP);
-        command.voice_id = voice->voice_id;
-        /* A short fade rather than a cut: an area loop stopped dead clicks, and
-         * the scene rebuild that stops it is already a busy frame. */
-        command.fade_ms = 60;
-        ToriRS_AudioQueue_Push(out, &command);
-    }
+    /* A short fade rather than a cut: an area loop stopped dead clicks, and the
+     * scene rebuild that stops it is already a busy frame. The reference ramps
+     * to zero over 150ms when an emitter goes out of range. */
+    stop_area_stream(&voice->primary_voice_id, out, RS_AUDIO_AREA_FADE_MS);
     memset(voice, 0, sizeof(*voice));
+}
+
+/** Volume and pan for an emitter's footprint box, from the camera's tile. */
+static void
+area_gain(
+    const struct RS_AudioAreaVoice* voice,
+    int camera_x,
+    int camera_z,
+    int* out_volume,
+    int* out_pan)
+{
+    int listener_x = camera_x * AUDIO_FINE + AUDIO_FINE / 2;
+    int listener_z = camera_z * AUDIO_FINE + AUDIO_FINE / 2;
+    int min_x = voice->min_x * AUDIO_FINE;
+    int min_z = voice->min_z * AUDIO_FINE;
+    int max_x = voice->max_x * AUDIO_FINE;
+    int max_z = voice->max_z * AUDIO_FINE;
+    int radius_fine = (voice->radius > 0 ? voice->radius : AUDIO_DEFAULT_DISTANCE) * AUDIO_FINE;
+    int inner_fine = voice->inner * AUDIO_FINE;
+    int distance = box_distance_fine(listener_x, listener_z, min_x, min_z, max_x, max_z);
+    int centre_x = (min_x + max_x) / 2;
+
+    *out_volume = falloff_volume(distance, radius_fine, inner_fine, TORIRS_AUDIO_VOLUME_MAX);
+    *out_pan = pan_for_offset(centre_x - listener_x, radius_fine);
+}
+
+/** Distance in tiles from the camera to an emitter's box, for slot ranking. */
+static int
+source_distance_tiles(
+    const struct World_AreaSound* source,
+    int camera_x,
+    int camera_z)
+{
+    return box_distance_fine(
+               camera_x * AUDIO_FINE + AUDIO_FINE / 2,
+               camera_z * AUDIO_FINE + AUDIO_FINE / 2,
+               source->x * AUDIO_FINE,
+               source->z * AUDIO_FINE,
+               (source->x + source->size_x) * AUDIO_FINE,
+               (source->z + source->size_z) * AUDIO_FINE) /
+           AUDIO_FINE;
+}
+
+/** Is this live voice the same emitter as this scene record? */
+static bool
+voice_matches_source(
+    const struct RS_AudioAreaVoice* voice,
+    const struct World_AreaSound* source)
+{
+    return voice->loc_id == source->loc_id && voice->level == source->level &&
+           voice->min_x == source->x && voice->min_z == source->z;
+}
+
+static void
+bind_voice(
+    struct RS_AudioAreaVoice* voice,
+    const struct World_AreaSound* source,
+    int source_index)
+{
+    voice->source_index = source_index;
+    voice->loc_id = source->loc_id;
+    voice->min_x = source->x;
+    voice->min_z = source->z;
+    voice->max_x = source->x + (source->size_x > 0 ? source->size_x : 1);
+    voice->max_z = source->z + (source->size_z > 0 ? source->size_z : 1);
+    voice->level = source->level;
+    voice->radius = source->distance;
+    voice->inner = source->inner;
+    voice->primary_sound = source->sound_id;
+    voice->set_ids = source->sound_ids;
+    voice->set_count = source->sound_id_count;
+    voice->ticks_min = source->ticks_min;
+    voice->ticks_max = source->ticks_max;
 }
 
 /**
  * Keep the live area voices matching the scene.
  *
- * Rebuilding the world replaces the emitter list wholesale, so every voice is
- * dropped and the nearest emitters are re-acquired. Within a generation the
- * voices persist and only their gain moves, which is what stops a waterfall
- * restarting every time the player takes a step.
+ * A rebuild replaces the emitter list wholesale, but the *world* mostly did not
+ * change: crossing a chunk boundary re-emits the same waterfall at the same
+ * place. Voices are therefore re-bound to the emitter they already match rather
+ * than stopped and restarted, which is what the reference does (it keys loc
+ * emitters by level/x/z/locType.id and removes only what actually left).
  */
 static void
 tick_area_sounds(
@@ -545,8 +751,35 @@ tick_area_sounds(
 
     if( audio->area_generation != world->area_sound_generation )
     {
-        for( int i = 0; i < RS_AUDIO_MAX_AREA_VOICES; i++ )
-            stop_area_voice(&audio->area[i], out);
+        /* Re-bind what survived, stop what did not. `source_index` is only
+         * meaningful within a generation, so every voice is re-resolved here. */
+        for( int slot = 0; slot < RS_AUDIO_MAX_AREA_VOICES; slot++ )
+        {
+            struct RS_AudioAreaVoice* voice = &audio->area[slot];
+            int found = -1;
+
+            if( !voice->active )
+                continue;
+            for( int i = 0; i < world->area_sound_count && found < 0; i++ )
+            {
+                if( voice_matches_source(voice, &world->area_sounds[i]) )
+                    found = i;
+            }
+            if( found < 0 )
+            {
+                stop_area_voice(voice, out);
+                continue;
+            }
+            /*
+             * Re-bind rather than re-create: a multiloc that changed state
+             * points at a different sound now, and the reference's
+             * `AreaSound.update()` stops the primary stream exactly when the id
+             * changes and leaves it alone when it did not.
+             */
+            if( voice->primary_sound != world->area_sounds[found].sound_id )
+                stop_area_stream(&voice->primary_voice_id, out, RS_AUDIO_AREA_FADE_MS);
+            bind_voice(voice, &world->area_sounds[found], found);
+        }
         audio->area_generation = world->area_sound_generation;
     }
 
@@ -563,9 +796,7 @@ tick_area_sounds(
         for( int i = 0; i < world->area_sound_count; i++ )
         {
             const struct World_AreaSound* source = &world->area_sounds[i];
-            int dx;
-            int dz;
-            int magnitude;
+            int distance;
             bool taken = false;
 
             if( source->level != camera_level )
@@ -577,15 +808,13 @@ tick_area_sounds(
             }
             if( taken )
                 continue;
-            dx = source->x - camera_x;
-            dz = source->z - camera_z;
-            magnitude = (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
-            if( magnitude >= (source->distance > 0 ? source->distance : AUDIO_DEFAULT_DISTANCE) )
+            distance = source_distance_tiles(source, camera_x, camera_z);
+            if( distance >= (source->distance > 0 ? source->distance : AUDIO_DEFAULT_DISTANCE) )
                 continue;
-            if( best < 0 || magnitude < best_distance )
+            if( best < 0 || distance < best_distance )
             {
                 best = i;
-                best_distance = magnitude;
+                best_distance = distance;
             }
         }
         if( best < 0 )
@@ -596,129 +825,147 @@ tick_area_sounds(
             struct RS_AudioAreaVoice* voice = &audio->area[slot];
             memset(voice, 0, sizeof(*voice));
             voice->active = true;
-            voice->source_index = best;
-            voice->tile_x = source->x;
-            voice->tile_z = source->z;
-            voice->level = source->level;
-            voice->distance = source->distance;
-            voice->ticks_min = source->ticks_min;
-            voice->ticks_max = source->ticks_max;
-            voice->random_set = source->sound_id < 0 && source->sound_id_count > 0;
-            voice->sound_id =
-                voice->random_set ? source->sound_ids[0] : source->sound_id;
-            voice->voice_id = 0;
+            bind_voice(voice, source, best);
+            /* Seed from the emitter's place in the world, not from the slot: the
+             * same waterfall re-acquired into a different slot keeps its
+             * rhythm. */
+            voice->rng = (uint32_t)(source->x * 73856093) ^ (uint32_t)(source->z * 19349663) ^
+                         (uint32_t)(source->loc_id * 83492791);
             voice->ticks_until_next = 0;
         }
     }
 
-    /* Drive: publish the clip, start or update the voice, retrigger the random
-     * ones on their own schedule. */
+    /* Drive: publish the clips, hold the continuous stream's gain on the camera,
+     * and fire the random set on its own schedule. Both streams run at once --
+     * `bgsound` and `bgsounds` are independent fields and a loc that declares
+     * both hums *and* clanks. */
     for( int slot = 0; slot < RS_AUDIO_MAX_AREA_VOICES; slot++ )
     {
         struct RS_AudioAreaVoice* voice = &audio->area[slot];
-        struct ToriDraw_Sound* sound;
         int volume;
         int pan;
 
         if( !voice->active )
             continue;
-        if( voice->sound_id < 0 )
+        if( voice->primary_sound < 0 && voice->set_count <= 0 )
         {
             stop_area_voice(voice, out);
             continue;
         }
 
-        sound = publish_sound(audio, provider, scene, out, voice->sound_id);
-        if( !sound )
+        area_gain(voice, camera_x, camera_z, &volume, &pan);
+
+        /* Out of range: the reference ramps both streams to zero over 150ms and
+         * keeps the emitter, rather than dropping it and restarting on the way
+         * back in. */
+        if( volume <= 0 || voice->level != camera_level )
         {
-            if( provider && runner )
-            {
-                struct ToriRS_Task* task = CreateTask_SoundLoad(provider, voice->sound_id);
-                if( task )
-                    ToriRS_TaskQueue_Add(runner->queue, task);
-            }
+            stop_area_stream(&voice->primary_voice_id, out, RS_AUDIO_AREA_FADE_MS);
             continue;
         }
 
-        positional_gain(
-            voice->tile_x,
-            voice->tile_z,
-            camera_x,
-            camera_z,
-            voice->distance,
-            TORIRS_AUDIO_VOLUME_MAX,
-            &volume,
-            &pan);
-
-        if( voice->random_set )
+        /* --- the continuous stream --- */
+        if( voice->primary_sound >= 0 )
         {
+            struct ToriDraw_Sound* sound =
+                publish_sound(audio, provider, scene, out, voice->primary_sound);
+
+            if( !sound )
+            {
+                if( provider && runner )
+                {
+                    struct ToriRS_Task* task =
+                        CreateTask_SoundLoad(provider, voice->primary_sound);
+                    if( task )
+                        ToriRS_TaskQueue_Add(runner->queue, task);
+                }
+            }
+            else if( voice->primary_voice_id == 0 && out )
+            {
+                voice->primary_voice_id = next_voice_id(audio);
+                ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+                command.asset_id = voice->primary_sound;
+                command.voice_id = voice->primary_voice_id;
+                command.bus = TORIRS_AUDIO_BUS_AREA;
+                command.volume = volume;
+                command.pan = pan;
+                command.loop_count = -1;
+                command.source_id = voice->primary_sound;
+                command.fade_ms = RS_AUDIO_AREA_FADE_MS;
+                ToriRS_AudioQueue_Push(out, &command);
+                AUDIO_TRACE(
+                    "rs_audio: area loop %d box=(%d,%d)-(%d,%d) r=%d inner=%d vol=%d pan=%d\n",
+                    voice->primary_sound,
+                    voice->min_x,
+                    voice->min_z,
+                    voice->max_x,
+                    voice->max_z,
+                    voice->radius,
+                    voice->inner,
+                    volume,
+                    pan);
+            }
+            else if( voice->primary_voice_id != 0 && out )
+            {
+                ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_UPDATE);
+                command.voice_id = voice->primary_voice_id;
+                command.volume = volume;
+                command.pan = pan;
+                /* Ramp over a tick so walking past an emitter is a slide, not a
+                 * staircase of 20ms steps. */
+                command.fade_ms = 20;
+                command.rate = 0;
+                ToriRS_AudioQueue_Push(out, &command);
+            }
+        }
+
+        /* --- the random set --- */
+        if( voice->set_count > 0 && voice->set_ids )
+        {
+            int pick;
+            struct ToriDraw_Sound* sound;
+
             if( voice->ticks_until_next > 0 )
             {
                 voice->ticks_until_next--;
                 continue;
             }
-            /*
-             * Deterministic rather than random: the gap cycles through the
-             * declared range. A pseudo-random gap would make a headless run
-             * non-reproducible for no audible benefit -- the point of the range
-             * is that repeated plays are not metronomic, and cycling achieves
-             * that.
-             */
+
+            pick = voice->set_ids[area_rand(voice) % (uint32_t)voice->set_count];
+            sound = publish_sound(audio, provider, scene, out, pick);
+            if( !sound )
+            {
+                /* Ask for it and try again next tick. Not rescheduling here is
+                 * deliberate: the gap is measured from the last *play*. */
+                if( provider && runner )
+                {
+                    struct ToriRS_Task* task = CreateTask_SoundLoad(provider, pick);
+                    if( task )
+                        ToriRS_TaskQueue_Add(runner->queue, task);
+                }
+                continue;
+            }
+
             {
                 int span = voice->ticks_max - voice->ticks_min;
                 voice->ticks_until_next =
-                    voice->ticks_min + (span > 0 ? (audio->tick % (span + 1)) : 0);
+                    voice->ticks_min + (span > 0 ? (int)(area_rand(voice) % (uint32_t)span) : 0);
                 if( voice->ticks_until_next <= 0 )
-                    voice->ticks_until_next = 50;
+                    voice->ticks_until_next = RS_AUDIO_AREA_SET_FALLBACK_TICKS;
             }
-            if( volume <= 0 || !out )
+            if( !out )
                 continue;
             ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
-            command.asset_id = voice->sound_id;
+            command.asset_id = pick;
             command.voice_id = next_voice_id(audio);
             command.bus = TORIRS_AUDIO_BUS_AREA;
             command.volume = volume;
             command.pan = pan;
             command.loop_count = 0;
-            command.source_id = voice->sound_id;
-            ToriRS_AudioQueue_Push(out, &command);
-            continue;
-        }
-
-        if( voice->voice_id == 0 )
-        {
-            if( !out )
-                continue;
-            voice->voice_id = next_voice_id(audio);
-            ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
-            command.asset_id = voice->sound_id;
-            command.voice_id = voice->voice_id;
-            command.bus = TORIRS_AUDIO_BUS_AREA;
-            command.volume = volume;
-            command.pan = pan;
-            command.loop_count = -1;
-            command.source_id = voice->sound_id;
+            command.source_id = pick;
             ToriRS_AudioQueue_Push(out, &command);
             AUDIO_TRACE(
-                "rs_audio: area sound %d at (%d,%d) radius=%d vol=%d pan=%d\n",
-                voice->sound_id,
-                voice->tile_x,
-                voice->tile_z,
-                voice->distance,
-                volume,
-                pan);
-        }
-        else if( out )
-        {
-            ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_UPDATE);
-            command.voice_id = voice->voice_id;
-            command.volume = volume;
-            command.pan = pan;
-            /* Ramp over a tick so walking past an emitter is a slide, not a
-             * staircase of 20ms steps. */
-            command.fade_ms = 20;
-            command.rate = 0;
-            ToriRS_AudioQueue_Push(out, &command);
+                "rs_audio: area one-shot %d, next in %d ticks\n", pick, voice->ticks_until_next);
         }
     }
 }

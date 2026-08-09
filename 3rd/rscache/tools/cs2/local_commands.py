@@ -49,7 +49,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # are plain INT because the method establishes counts, not meanings — the
     # first argument is a component in every site traced, but one shape is not a
     # signature. src/cs2vm2 carries the same counts, and drops the arguments.
-    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
+    # The official deob's older method12650/210 is 5 -> 0, but every rev-239
+    # cache call site has the evolved ABI: six inputs and one boolean-like
+    # result (the same net -5). Both the six-push and seven-push/outer-value
+    # shapes then reach their following comparison with exactly two operands.
+    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
+    # The cache's 7200-range collection iterators consume their selectors;
+    # vendored Command.kt recorded only the result side.
+    "_7206": (["INT"], ["INT"], False),
+    "_7209": (["INT", "INT"], ["INT"], False),
     # 4016 / 4017 = { int_in 2, int_out 1 }.
     "MIN": (["INT", "INT"], ["INT"], False),
     "MAX": (["INT", "INT"], ["INT"], False),
@@ -191,14 +199,10 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # selected int/string/long stack, then the param id. The active component
     # comes from the handler preamble and the operand selects its dot form.
     "_1704": (["INT", "NONE", "INT"], [], True),
-    # 2929 has NO fixed signature and this one is wrong. The rev-239 client
-    # calls `method989` — pop a descriptor string, then one value per character,
-    # 'i' from the int stack and anything else from the string stack — which is
-    # the hook-argument mechanism, and then pops three more ints. So it is a
-    # hook that also carries three plain arguments, a shape none of this tool's
-    # command kinds can express: CLIENTSCRIPT pops exactly one component for an
-    # opcode >= 2000. Left as recorded, wrongly, because removing it only trades
-    # eight mis-decompiles for eight refusals; it needs a kind of its own.
+    # 2929 has no fixed signature. The rev-239 client calls `method989` — pop a
+    # descriptor string, then one value per character, 'i' from the int stack
+    # and anything else from the string stack — then pops three fixed ints.
+    # DESCRIPTOR_ARGS handles that shape; this tuple only supplies its name.
     "_2929": (["INT", "INT", "INT", "INT", "STRING"], [], False),
     "_1506": ([], ["INT"], False),
     "_213": ([], ["INT"], False),
@@ -288,12 +292,24 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_1145": (["INT"], [], False),
     "_1151": (["STRING", "STRING", "STRING"], [], False),
     "_3221": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
+    # Dormant notification ABI in this cache: two strings, two ints, then an
+    # int result. The rev-239 client handler is only a no-argument stub that
+    # pushes 0, so the cache call sites are the source-order evidence.
+    "local_notification": (["STRING", "STRING", "INT", "INT"], ["INT"], False),
+    # Two menu indices, generated submenu text, then the explicit component.
+    # The older official client has no 2311 case, but both cache witnesses use
+    # this same inter-bank order.
+    "if_setopsubmenu": (["INT", "INT", "STRING", "COMPONENT"], [], False),
+    # Companion clear/reset form: option index and explicit component.
+    "_2310": (["INT", "COMPONENT"], [], False),
     # 4123 pushes a string too, which the call-site pass missed because every
     # site it could use had a `gosub` in the same run. `--override 4123:0,3,0,1`
     # decompiles 14 more scripts than `0,3,0,0`; nothing else in the space beats it.
     "_4123": (["STRING", "STRING", "STRING"], ["STRING"], False),
-    "_7041": (["INT", "STRING"], [], False),
-    "_7042": (["INT", "STRING"], [], False),
+    "_7041": (["STRING", "INT"], [], False),
+    # Source order is string then selector. The physical client pops the two
+    # independent banks directly, so a net-only table cannot recover this.
+    "_7042": (["STRING", "INT"], [], False),
     "_7615": (["INT"], [], False),
     # 8019: was recorded as (str,str)->() from an incomplete call-site pass.
     # Script 9153 pins the push: after `push ""; push $arr; push "||::p||";
@@ -392,7 +408,8 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # ones, which is why the 7600+ and 8005+ opcodes are still unknown.
     "_1130": (["STRING"], [], True),
     "_1131": (["INT", "INT"], [], True),
-    "_1132": (["INT", "STRING"], [], True),
+    # method12438/1132 calls method7303(popString(), popInt()).
+    "_1132": (["STRING", "INT"], [], True),
     "_1133": (["INT"], [], True),
     "_1134": (["INT"], [], True),
     "_1135": (["STRING"], [], True),
@@ -411,7 +428,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_1210": (["INT"], [], True),
     "_1434": ([], [], True),
     "_1435": ([], [], True),
-    "_1708": ([], [], True),
+    # method7565 always consumes the string key and pushes an int result; the
+    # component itself is implicit in this active-form opcode.
+    "_1708": (["STRING"], ["INT"], True),
     "_2708": (["INT"], [], False),
     "_2709": (["INT"], [], False),
     "_3146": (["INT"], [], False),
@@ -476,9 +495,11 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_6638": (["INT", "INT"], ["INT", "INT"], False),                      # +14
     "MEC_SPRITE": (["INT"], ["INT", "INT"], False),                        # +14
     "_6623": (["INT"], ["INT", "INT"], False),                             # +13
-    "WORLDMAP_LISTELEMENT_START": ([], ["INT", "INT", "INT", "INT"], False),  # +13
-    "WORLDMAP_LISTELEMENT_NEXT": ([], ["INT", "INT", "INT", "INT"], False),   # +13
-    "MEC_TEXT": (["INT"], ["STRING", "STRING"], False),                    # +13
+    # method3100/6639 and /6640 push element id then packed coord: two ints.
+    "WORLDMAP_LISTELEMENT_START": ([], ["INT", "INT"], False),
+    "WORLDMAP_LISTELEMENT_NEXT": ([], ["INT", "INT"], False),
+    # method3100/6693 pushes one text string (or an empty default).
+    "MEC_TEXT": (["INT"], ["STRING"], False),
     "MEC_CATEGORY": (["INT"], ["INT", "INT"], False),                      # +10
     "SOUND_SONG": (["INT", "INT", "INT", "INT", "INT"], [], False),        # +1
     # ---------------------------------------------------------------
@@ -492,10 +513,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # opcode, and take the arity that decompiles the most -- accepted only where
     # one candidate stands alone.
     #
-    # 1703 is the largest single blocker in the cache: one int in, one int out,
-    # decompiling 45 of its 87 scripts where no other arity in the space
-    # decompiles any, and 45 more scripts across the cache besides.
-    "_1703": (["INT"], ["INT"], True),
+    # method12337 resolves the param config and pushes its declared int/string/
+    # long value from the active component. Its result is not statically int.
+    "_1703": (["INT"], [], True),
 
     # ---------------------------------------------------------------
     # Read out of the *rev-239* client, which the block above did not have.
@@ -641,16 +661,39 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #               from here, so it pushes one and not a string.
     "_6854": (["INT", "INT"], ["INT"], False),
     "_6859": (["INT", "INT"], ["INT"], False),
+    # `method3101` handles only 6809, so the official runtime reports 6860 and
+    # 6861 as unhandled. In dormant cache paths both are no-argument int
+    # producers: each follows the other operand and is consumed by multiply.
+    "_6860": ([], ["INT"], False),
+    "_6861": ([], ["INT"], False),
     "_7043": (["STRING", "INT"], ["INT"], False),
     "_7451": (["INT"], ["INT"], False),
+    # The official rev-239 dispatch (`method12357`) handles only 7463. Targeted
+    # `cs2trace` runs therefore record this 7453..7456 block as unhandled
+    # (return code 2,
+    # no stack mutation). The cache nevertheless contains them behind paths
+    # that are unreachable in this client build. Their call sites settle the
+    # compiler contract: each consumes one int and leaves the int immediately
+    # compared with 1.
+    "_7453": (["INT"], ["INT"], False),
+    "_7454": (["INT"], ["INT"], False),
+    "_7455": (["INT"], ["INT"], False),
+    "_7456": (["INT"], ["INT"], False),
     "_7600": (["STRING", "INT", "INT", "INT"], [], False),
     "_7800": (["STRING", "INT"], [], False),
     "_7803": (["INT"], ["INT"], False),
     "_7804": (["INT"], ["INT"], False),
     "_7805": (["INT"], ["INT"], False),
+    # `method11128` likewise implements only 7900/7901; the official runtime
+    # refuses this older hiscores block. Corpus inference supplies the dormant
+    # source contract: lookup by game index returns rank, overall returns the
+    # rank and split score, and 7816 supplies a status/result int.
+    "_7806": (["INT"], ["INT"], False),
     "_7807": ([], ["INT"], False),
+    "_7808": ([], ["INT", "INT"], False),
     "_7813": (["INT"], ["INT"], False),
     "_7814": (["INT"], ["INT"], False),
+    "_7816": ([], ["INT"], False),
     "_7820": (["STRING"], ["INT"], False),
 
     # ---------------------------------------------------------------
@@ -686,8 +729,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "mec_category": (["INT"], ["INT"], False),            # net (0,0)
     "_8000": (["STRING", "STRING"], [], False),           # net (0,-2) x26
     "_8001": (["STRING", "INT", "INT"], [], False),       # net (-2,-1)
-    "chat_gethistoryex_byuid": (["INT"], ["INT", "INT", "INT", "INT",
-                                          "STRING", "STRING", "STRING", "STRING"], False),
+    # method10962/5031 pushes into independent physical banks in this source
+    # order. The interleaving matters to the tuple reconstructed by the IR.
+    "chat_gethistoryex_byuid": (["INT"], ["INT", "INT", "STRING", "STRING",
+                                          "STRING", "INT", "STRING", "INT"], False),
+    # Rev-239 gameframe scripts pass (x, y) and consume the resulting bound.
+    "safearea_getmaxy_alt": (["INT", "INT"], [], False),
+    # The neighbouring safe-area host command consumes its mode selector. The
+    # vendored camera-era name/signature predates this opcode assignment.
+    "cam_getyaw": (["INT"], [], False),
 
     # ---------------------------------------------------------------
     # Active-component ("dot") forms these rows had marked False.
@@ -724,14 +774,16 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # handler preamble (method4754/method1470/method6296/method12337) selects
     # field5113 over field2369 before it looks at the opcode at all.
     "_209": ([], ["INT"], True),
-    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], [], True),
+    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], True),
     "_212": (["INT"], ["INT"], True),
     "_213": ([], ["INT"], True),
     "_1128": (["INT", "INT"], [], True),
     "_1506": ([], ["INT"], True),
     "_1624": ([], ["INT"], True),
     "cc_setcomponentparam": (["INT", "NONE", "INT"], [], True),
-    "cc_callonresize": (["BOOLEAN"], [], True),
+    # method1005/1927 reads only the implicit active component; opcode 2927's
+    # explicit component is supplied by the generic IF_* preamble.
+    "cc_callonresize": ([], [], True),
 }
 
 # opcode -> handler kind, for commands whose stack shape is not a fixed
@@ -753,7 +805,14 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
 # one out -- desynchronised the operand stack of every script that read a
 # multi-field column, which is what took script 7603 and 79 others.
 LOCAL_KINDS: dict[int, str] = {
+    # Rev-239 call sites carry either six or seven int operands and immediately
+    # consume one int result. Preserve the cache's variable payload explicitly;
+    # the official deob's older 5 -> 0 implementation documents the ABI drift.
+    210: "VARIADIC_INT_RESULT",
     216: "TYPED_POP",
+    2929: "DESCRIPTOR_ARGS",
+    1703: "ACTIVE_PARAM",
+    2703: "COMPONENT_PARAM",
     1704: "TYPED_POP",
     2704: "TYPED_POP",
     8005: "TYPED_POP",
@@ -762,6 +821,10 @@ LOCAL_KINDS: dict[int, str] = {
     8010: "TYPED_POP",
     8024: "TYPED_POP",
     8025: "TYPED_POP",
+    # method4380 parses the descriptor/script-id payload just like the other
+    # 1400-range callbacks; the vendored table mislabeled these as Basic.
+    1434: "CLIENTSCRIPT",
+    1435: "CLIENTSCRIPT",
     7502: "DB_GETFIELD",
     7500: "DB_FIND",
     7507: "DB_FIND",

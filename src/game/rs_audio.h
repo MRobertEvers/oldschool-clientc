@@ -56,10 +56,27 @@ struct World;
  *  handler drops anything past that. */
 #define RS_AUDIO_QUEUE_MAX 50
 
-/** How long a queued effect waits for its clip, in client ticks (20ms each).
- *  100 = two seconds, far longer than a cache read, so hitting it means the
- *  effect is absent or undecodable rather than slow. */
-#define RS_AUDIO_LOAD_WAIT_TICKS 100
+/**
+ * How late an effect may be and still be worth playing, in client ticks (20ms).
+ *
+ * The reference's `delays[i] >= -10` window. It is the whole answer to "the clip
+ * was not resident when it came due": keep counting down, and once the entry is
+ * ten ticks past its moment, discard it. A swing sound that arrives after the
+ * swing is worse than no swing sound -- it lands on the *next* attack.
+ *
+ * This is not a load timeout. The countdown runs whether or not the clip is
+ * resident, exactly as the reference's does, so an effect that is still loading
+ * when it comes due plays the instant it arrives (if it arrives inside the
+ * window) rather than `delay` ticks after it arrives.
+ *
+ * The consequence, stated because it is a real behaviour change: a cold clip
+ * whose load takes longer than 10 ticks is now silent rather than late. The next
+ * request for the same effect finds it resident and plays on time, so what this
+ * costs is the first play of a never-heard sound, which is what the reference
+ * costs too (its archive reads are synchronous and in-memory, so it simply never
+ * hits the window).
+ */
+#define RS_AUDIO_LATE_LIMIT_TICKS 10
 
 /**
  * Reference default (Client.waveVolume = 128 on its 0..128 scale), on the
@@ -73,40 +90,85 @@ struct World;
 /** Concurrent area-sound emitters. Beyond this the nearest win. */
 #define RS_AUDIO_MAX_AREA_VOICES 12
 
+/** Ramp applied when an area emitter starts, stops, or goes out of range. The
+ *  reference's `method12534(0, …, 150, …)` -- a cut clicks. */
+#define RS_AUDIO_AREA_FADE_MS 150
+
+/** Gap used when a random-set loc declares a degenerate one (min == max == 0).
+ *  Ten seconds: audible as "occasionally", which is what the field means. */
+#define RS_AUDIO_AREA_SET_FALLBACK_TICKS 500
+
 struct RS_AudioEntry
 {
     int sound_id;
     int loops;
-    /** Ticks until this plays. Only counted down once the clip is resident. */
+    /**
+     * Ticks until this plays, counted down every tick regardless of whether the
+     * clip is resident -- see RS_AUDIO_LATE_LIMIT_TICKS. Goes negative: the
+     * effect fires on the tick it first reads below zero, and is discarded once
+     * it passes -RS_AUDIO_LATE_LIMIT_TICKS.
+     */
     int delay;
     /** Set once ToriDraw_Sound.queue_delay has been folded into `delay`. */
     bool delay_resolved;
     /** Set once a load has been asked for, so it is asked for exactly once. */
     bool load_requested;
-    int waited;
     /** Where it should sound from, in scene tiles; -1 for "not positional",
-     *  which plays it centred at full volume (UI and self-inflicted sounds). */
+     *  which plays it centred at full volume (UI and self-inflicted sounds).
+     *  SYNTH_SOUND is deliberately in that class: the reference queues it with
+     *  a zero location, which its mixer reads as "full volume, no pan". */
     int tile_x;
     int tile_z;
+    /** Audible radius in tiles, 0 for "none stated" (falls back to
+     *  AUDIO_DEFAULT_DISTANCE). A sequence frame sound carries its own in the
+     *  low nibble of the record, and SOUND_AREA carries one on the wire. */
+    int radius;
+    /** Radius within which it is at full volume, as for area emitters. Frame
+     *  sounds state none (0); SOUND_AREA carries one from rev 221 on. */
+    int inner;
 };
 
-/** One live area emitter. */
+/**
+ * One live area emitter.
+ *
+ * An emitter can sound *two* ways at once, and the reference runs both streams
+ * off one record: `primary` is a single sound looping forever, `secondary` fires
+ * one shot picked at random out of a set every few seconds. A loc that declares
+ * both hums and clanks; modelling them as alternatives silences the clank.
+ */
 struct RS_AudioAreaVoice
 {
     bool active;
-    int voice_id;
-    int sound_id;
-    int tile_x;
-    int tile_z;
-    int level;
-    int distance;
-    /** Random-set emitters re-trigger rather than loop. */
-    bool random_set;
+
+    /** The continuous loop. `primary_sound < 0` when the loc declares no
+     *  continuous sound, in which case no primary voice is ever started. */
+    int primary_voice_id;
+    int primary_sound;
+
+    /** The random set. Borrowed from the loc config, which outlives the scene. */
+    const int* set_ids;
+    int set_count;
     int ticks_until_next;
     int ticks_min;
     int ticks_max;
-    /** Index into world->area_sounds this came from, so a rebuild can tell
-     *  which voices are still wanted. */
+    /** Per-emitter PRNG state, so two identical waterfalls do not fire in
+     *  lockstep and a headless run is still reproducible. */
+    uint32_t rng;
+
+    /** Footprint box in scene tiles: [min_x, max_x) x [min_z, max_z). */
+    int min_x;
+    int min_z;
+    int max_x;
+    int max_z;
+    int level;
+    /** Audible radius and the full-volume inner radius, in tiles. */
+    int radius;
+    int inner;
+
+    /** Identity of the loc this came from, so a scene rebuild can keep a voice
+     *  that is still in the new scene instead of restarting it. */
+    int loc_id;
+    /** Index into world->area_sounds for the current generation. */
     int source_index;
 };
 
@@ -202,8 +264,14 @@ RS_Audio_Synth(
 
 /**
  * The same, but from somewhere in the scene: the clip is attenuated and panned
- * by the tile's distance from the camera. Used by sequence frame sounds and by
- * anything the server places rather than aims at the player.
+ * by the tile's distance from the camera, and dropped outright beyond `radius`.
+ * Used by sequence frame sounds and by anything the server places rather than
+ * aims at the player (SOUND_AREA).
+ *
+ * `radius` is in tiles; 0 means the caller has no radius to state, which falls
+ * back to AUDIO_DEFAULT_DISTANCE. Both real sources do state one -- a frame
+ * sound in the low nibble of its record, SOUND_AREA in the high nibble of its
+ * second byte -- so 0 is a fallback, not the normal case.
  */
 void
 RS_Audio_SynthAt(
@@ -212,7 +280,9 @@ RS_Audio_SynthAt(
     int loops,
     int delay,
     int tile_x,
-    int tile_z);
+    int tile_z,
+    int radius,
+    int inner);
 
 /**
  * AMBIENTSOUND_START / _STOP: set the region's background bed, or -1 to stop it.

@@ -144,6 +144,13 @@ seq_copy_frame_sounds(
         {
             anim->frame_sounds.sounds[i].id = seq->frame_sounds.sounds[i].id;
             anim->frame_sounds.sounds[i].loops = seq->frame_sounds.sounds[i].loops;
+            /* `location` is the audible radius in tiles -- see the struct's
+             * header. Dropping it left every frame sound on the queue's
+             * fallback radius, so a hammer blow meant to carry three tiles
+             * carried twelve. */
+            anim->frame_sounds.sounds[i].radius = seq->frame_sounds.sounds[i].location;
+            anim->frame_sounds.sounds[i].retain = seq->frame_sounds.sounds[i].retain;
+            anim->frame_sounds.sounds[i].weight = seq->frame_sounds.sounds[i].weight;
         }
     }
     else

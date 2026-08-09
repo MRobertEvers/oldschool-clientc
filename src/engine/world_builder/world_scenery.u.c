@@ -1946,8 +1946,11 @@ world_builder_minimap_add_loc_mapfunction(
  * second time and re-running the varbit transform, and a multiloc's transform
  * can change which sound it emits.
  *
- * The footprint centre is used rather than the south-west tile so a large loc
- * (a waterfall spanning four tiles) pans from where it looks like it is.
+ * The south-west tile and the footprint are both recorded, because the
+ * reference measures the listener's distance to the emitter's *box*: a
+ * four-tile waterfall is at distance zero from anywhere along its length, and
+ * collapsing it to a centre point makes it quieter at the ends than in the
+ * middle, which a waterfall conspicuously is not.
  */
 static void
 world_builder_add_loc_area_sound(
@@ -1959,8 +1962,7 @@ world_builder_add_loc_area_sound(
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
-    int centre_x;
-    int centre_z;
+    struct World_AreaSound emitter;
     int size_x;
     int size_z;
 
@@ -1980,20 +1982,28 @@ world_builder_add_loc_area_sound(
         size_x = size_z;
         size_z = swap;
     }
-    centre_x = scene_x + (size_x > 1 ? size_x / 2 : 0);
-    centre_z = scene_z + (size_z > 1 ? size_z / 2 : 0);
 
-    World_AddAreaSound(
-        world,
-        centre_x,
-        centre_z,
-        map_loc->chunk_pos_level,
-        config_loc->ambient_sound_id,
-        config_loc->ambient_sound_ids,
-        config_loc->ambient_sound_id_count,
-        config_loc->ambient_sound_ticks_min,
-        config_loc->ambient_sound_ticks_max,
-        config_loc->ambient_sound_distance);
+    memset(&emitter, 0, sizeof(emitter));
+    emitter.x = scene_x;
+    emitter.z = scene_z;
+    emitter.size_x = size_x > 0 ? size_x : 1;
+    emitter.size_z = size_z > 0 ? size_z : 1;
+    emitter.level = map_loc->chunk_pos_level;
+    emitter.loc_id = config_loc->id;
+    emitter.sound_id = config_loc->ambient_sound_id;
+    emitter.sound_ids = config_loc->ambient_sound_ids;
+    emitter.sound_id_count = config_loc->ambient_sound_id_count;
+    emitter.ticks_min = config_loc->ambient_sound_ticks_min;
+    emitter.ticks_max = config_loc->ambient_sound_ticks_max;
+    emitter.distance = config_loc->ambient_sound_distance;
+    /*
+     * `ambient_sound_retain` is the fourth field of loc opcode 78/79 and the
+     * name is a misnomer inherited from cache tooling: `class91` uses it as the
+     * radius inside which the emitter is at full volume, not as a linger time.
+     */
+    emitter.inner = config_loc->ambient_sound_retain;
+
+    World_AddAreaSound(world, &emitter);
 }
 
 static void

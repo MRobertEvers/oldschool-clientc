@@ -1194,6 +1194,13 @@ test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/pick_face_test
 
+test-trig-tables-share: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trig_tables_share_test \
+		render/test/trig_tables_share_test.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c $(TORIDRAW_DIR)/toridraw_math.c \
+		$(RSCACHE_DIR)/src/datatypes/noise.c -lm
+	./$(OBJ_DIR)/trig_tables_share_test
+
 test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -I$(SRC_DIR)/engine/world_builder \
 		-o $(OBJ_DIR)/painters_test_occluders \

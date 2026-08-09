@@ -397,6 +397,28 @@ struct PktMapAnim
     int delay;  /* g2 */
 };
 
+/*
+ * SOUND_AREA (osrs239 zone sub-ordinal 14, standalone opcode 32).
+ *
+ * A sound effect at a place in the world. The rev-221+ layout splits the two
+ * radii the way loc ambient sounds do: `radius` is where it becomes inaudible,
+ * `inner` is where it stops being at full volume. The older single-radius form
+ * (the 2004-era client packs radius and loops into one byte) is the same idea
+ * with `inner` fixed at zero.
+ *
+ * `pos` is kept packed the way every other zone sub-packet keeps it, so the
+ * zone's base coordinate is applied in one place by the executor.
+ */
+struct PktSoundArea
+{
+    int pos;    /* (dx << 4) | dz within the zone */
+    int radius; /* tiles; `range` on the wire */
+    int inner;  /* tiles; `drop_off_range` on the wire */
+    int loops;
+    int id;
+    int delay; /* client ticks */
+};
+
 /* One decoded zone sub-packet from UPDATE_ZONE_PARTIAL_ENCLOSED. */
 struct PktZoneSubPacket
 {
@@ -413,6 +435,7 @@ struct PktZoneSubPacket
         struct PktLocMerge _loc_merge;
         struct PktMapProjAnim _map_projanim;
         struct PktMapAnim _map_anim;
+        struct PktSoundArea _sound_area;
     };
 };
 
@@ -837,6 +860,7 @@ struct RevPacket
         struct PktLocMerge _loc_merge;
         struct PktMapProjAnim _map_projanim;
         struct PktMapAnim _map_anim;
+        struct PktSoundArea _sound_area;
         struct PktCamLookAt _cam_lookat;
         struct PktCamMoveTo _cam_moveto;
         struct PktCamShake _cam_shake;

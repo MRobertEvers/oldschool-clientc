@@ -1489,6 +1489,24 @@ App_PlaySound(
     int delay);
 
 /**
+ * SOUND_AREA: the same, at a place in the world.
+ *
+ * `radius` is where it becomes inaudible and `inner` where it stops being at
+ * full volume, both in tiles. Outside `radius` the reference discards the entry
+ * rather than playing it quietly, which is why this is not just a volume hint.
+ */
+void
+App_PlaySoundAt(
+    struct App* app,
+    int sound_id,
+    int loops,
+    int delay,
+    int tile_x,
+    int tile_z,
+    int radius,
+    int inner);
+
+/**
  * Tell the game what the host's audio device is doing.
  *
  * Called once per frame *before* the tick, because the music player sizes its

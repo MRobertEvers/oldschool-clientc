@@ -2473,6 +2473,25 @@ the name tables and nothing to compare against. Eight of the ten fixes above are
 compiler-side and outside what G1 measures; the two reconstruction changes are
 not, and are unvalidated.
 
+### G12. Rev-239 typed-stack commands diverge from the 2021 reference *(Deviation)*
+
+The RuneStar reference corpus predates the rev-239 client behavior now used for
+opcodes 1703, 1704, 216, 2704, 8005–8007, 8010, 8024 and 8025. It records fixed
+int-stack signatures. The official client does not have fixed signatures:
+`Statics.method6560` selects an int, string or long pop from a base-type operand,
+and opcode 1703 selects its result bank from the param config.
+
+This is confirmed both by the official source and by `CS2Trace`: script 41's
+1704 calls consume either `3i` or `2i+1s`; script 9455's 8005 consumes `4i+1s`
+and pushes `1i`; script 8729's 8010 consumes `4i+1s`. Preserving the old source
+text would knowingly describe the wrong VM behavior.
+
+Measured against RuneStar/cs2 at 2a8b8fc after installing the official behavior:
+6,487 sources compare, 6,293 are identical and exactly 194 differ. `test_cs2`
+pins both figures: a 195th divergence still fails, while the known set remains
+visible on every run. The rev-239 whole-cache result and the complete residual
+inventory are recorded in `docs/CS2_REV239_ROUNDTRIP_QUEUE.md` §10.
+
 ---
 
 ## F. Not ours

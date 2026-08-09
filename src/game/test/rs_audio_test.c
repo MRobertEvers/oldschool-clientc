@@ -45,6 +45,16 @@
 
 static int g_fail = 0;
 
+/*
+ * Frame budget for "this effect should play".
+ *
+ * Not RS_AUDIO_LATE_LIMIT_TICKS: that is how late an effect may be *before it
+ * is discarded*, and an effect queued with a delay may legitimately take
+ * `delay + trim` frames to come due. This is just a generous ceiling for a test
+ * that would otherwise loop forever.
+ */
+#define RS_AUDIO_EFFECT_TEST_FRAMES 64
+
 #define CHECK(cond, msg)                                                                           \
     do                                                                                             \
     {                                                                                              \
@@ -193,12 +203,16 @@ test_queue_without_cache(void)
         audio.effect_volume == RS_AUDIO_DEFAULT_VOLUME,
         "effect volume starts at the reference default");
 
-    /* An effect that will never become resident is dropped, not leaked. */
+    /* An effect that will never become resident is dropped, not leaked -- and
+     * dropped on the reference's schedule, ten ticks past its due time rather
+     * than whenever a load timeout expires. */
     RS_Audio_Synth(&audio, 12345, 1, 0);
     CHECK(audio.count == 1, "synth packet queued");
-    for( int i = 0; i < RS_AUDIO_LOAD_WAIT_TICKS + 2; i++ )
+    for( int i = 0; i < RS_AUDIO_LATE_LIMIT_TICKS; i++ )
         frame(&audio, NULL, NULL, &queue, platform);
-    CHECK(audio.count == 0, "entry dropped after the load wait");
+    CHECK(audio.count == 1, "still queued inside the late window");
+    frame(&audio, NULL, NULL, &queue, platform);
+    CHECK(audio.count == 0, "entry dropped once past the late window");
     CHECK(audio.dropped_absent == 1, "drop counted as absent");
     CHECK(audio.played == 0, "nothing played");
 
@@ -419,7 +433,7 @@ test_cache_pipeline(
                 &harness.runner,
                 &harness.queue,
                 harness.platform,
-                RS_AUDIO_LOAD_WAIT_TICKS),
+                RS_AUDIO_EFFECT_TEST_FRAMES),
             message);
 
         played_ids[index] = PlatformAudioNull_LastVoiceSource(harness.platform);
@@ -617,18 +631,90 @@ test_polyphonic_era(
     CHECK(
         frames_until_play(
             &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform,
-            RS_AUDIO_LOAD_WAIT_TICKS),
+            RS_AUDIO_EFFECT_TEST_FRAMES),
         "first effect played");
     RS_Audio_Synth(&harness.audio, 1, 1, 0);
     CHECK(
         frames_until_play(
             &harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform,
-            RS_AUDIO_LOAD_WAIT_TICKS),
+            RS_AUDIO_EFFECT_TEST_FRAMES),
         "second effect played over the first");
     CHECK(harness.audio.dropped_overlap == 0, "nothing refused for overlapping");
     CHECK(
         PlatformAudio_Stats(harness.platform).voices_live >= 1,
         "the backend is sounding at least one voice");
+
+    harness_free(&harness);
+}
+
+/*
+ * The one that matters for combat: an effect whose clip is not resident when it
+ * comes due must play the moment it arrives, not `delay` ticks after it arrives.
+ *
+ * Every other test here publishes its clip before it queues anything, which is
+ * why they all passed while the countdown was paused during the load -- for a
+ * resident clip a paused countdown and a running one give the same answer. The
+ * whole defect lives in the not-yet-resident case, so this test has to hold the
+ * loader back on purpose: `frame` drains the task runner, so a frame that skips
+ * the drain is a frame in which the clip cannot become resident.
+ */
+static void
+test_late_load_timing(
+    const char* cache_dir,
+    const struct RSCache* profile)
+{
+    struct harness harness;
+    const int stall_frames = 4;
+    int played_after;
+
+    printf("timing under a slow load\n");
+    if( !harness_init(&harness, cache_dir, false, profile) )
+        return;
+
+    /* A delay of 2 with the clip withheld for 4 ticks: by the time it lands the
+     * effect is already 2 ticks overdue and must fire at once. */
+    RS_Audio_Synth(&harness.audio, 0, 1, 2);
+    for( int i = 0; i < stall_frames; i++ )
+    {
+        struct ToriRS_AudioCommand commands[TORIRS_AUDIO_QUEUE_MAX];
+        int count;
+        RS_Audio_Tick(
+            &harness.audio, harness.provider, &harness.runner, g_scene, NULL, 0, 0, 0, NULL,
+            &harness.queue);
+        /* No TaskRunner_Drain: the load stays outstanding. */
+        count = ToriRS_AudioQueue_Drain(&harness.queue, commands, TORIRS_AUDIO_QUEUE_MAX);
+        PlatformAudio_SubmitAll(harness.platform, commands, count);
+        PlatformAudio_Update(harness.platform);
+    }
+    CHECK(harness.audio.played == 0, "nothing played while the clip was withheld");
+    CHECK(harness.audio.count == 1, "the entry survived the stall");
+
+    /* One frame with the drain: the load completes and the effect is overdue. */
+    TaskRunner_Drain(&harness.runner);
+    played_after = harness.audio.played;
+    frame(&harness.audio, harness.provider, &harness.runner, &harness.queue, harness.platform);
+    CHECK(
+        harness.audio.played == played_after + 1,
+        "an overdue effect plays on the tick its clip arrives");
+
+    /*
+     * And the other half of the rule: a clip that never arrives inside the late
+     * window is discarded rather than played arbitrarily late. Sound id -1 can
+     * never resolve, so this measures the window and nothing else.
+     */
+    {
+        int dropped_before = harness.audio.dropped_absent;
+        RS_Audio_Synth(&harness.audio, 999999, 1, 0);
+        CHECK(harness.audio.count == 1, "unresolvable effect queued");
+        for( int i = 0; i < RS_AUDIO_LATE_LIMIT_TICKS + 2; i++ )
+            frame(
+                &harness.audio, harness.provider, &harness.runner, &harness.queue,
+                harness.platform);
+        CHECK(harness.audio.count == 0, "unresolvable effect discarded");
+        CHECK(
+            harness.audio.dropped_absent == dropped_before + 1,
+            "the discard was counted, not silently forgotten");
+    }
 
     harness_free(&harness);
 }
@@ -661,6 +747,7 @@ main(void)
     test_cache_pipeline("dat2 230", REPO_ROOT "/cache.osrs230", false, &dat2_profile);
     test_overlap_rule(REPO_ROOT "/cache254.lostcity", &dat1_profile);
     test_polyphonic_era(REPO_ROOT "/cache.osrs230", &dat2_profile);
+    test_late_load_timing(REPO_ROOT "/cache.osrs230", &dat2_profile);
 
     ToriDraw_SceneFree(g_scene);
     g_scene = NULL;

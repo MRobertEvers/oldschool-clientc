@@ -116,7 +116,7 @@ add_face(int a, int b, int c)
 static bool
 pick(int mouse_x, int mouse_y)
 {
-    return ToriDraw_ProjectedModelContainsPoint(
+    return ToriDraw_ProjectedModelMouseHitTest(
         &g_fx.scene, g_fx.hnd, &g_fx.view_port, CENTER_X + mouse_x, CENTER_Y + mouse_y);
 }
 
@@ -217,6 +217,7 @@ test_near_clipped_faces_do_not_pick(void)
 
     g_fx.sx[b] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
     g_fx.sy[b] = 3000000; /* what the projection leaves behind: y, not y/z */
+    g_fx.scene.near_clipped = true;
 
     CHECK(!pick(5, 5), "a face with a near-clipped vertex must not pick");
     CHECK(!pick(400, 400), "and must not swallow clicks far from the model");

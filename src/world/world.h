@@ -107,11 +107,20 @@ struct World_MapFunctionIcon
  */
 struct World_AreaSound
 {
-    /** Scene-space centre of the loc's footprint, in tiles. */
+    /** Scene-space south-west tile of the loc's footprint. */
     int x;
     int z;
+    /** Footprint in tiles, with the loc's orientation already applied. The
+     *  reference measures distance to the *box*, not to a point, so a
+     *  four-tile waterfall is equally loud along its whole length. */
+    int size_x;
+    int size_z;
     int level;
-    /** The continuous sound, or -1 when this loc uses the random set. */
+    /** The loc's config id, so a scene rebuild can recognise an emitter it is
+     *  already playing instead of restarting it. */
+    int loc_id;
+    /** The continuous sound, or -1 when this loc declares none. Independent of
+     *  the random set below: a loc may declare both, and 33 in osrs239 do. */
     int sound_id;
     /** Random alternatives, borrowed from the loc config (which outlives the
      *  scene: configs are cached by the provider, not by the world). */
@@ -122,6 +131,9 @@ struct World_AreaSound
     int ticks_max;
     /** Tiles at which it is inaudible. */
     int distance;
+    /** Tiles within which it is at full volume; the falloff runs from here out
+     *  to `distance`. Loc opcode 78/79's fourth field. */
+    int inner;
 };
 
 struct World_MapSceneIcon
@@ -386,20 +398,14 @@ World_AddMapSceneIcon(
     int width,
     int length);
 
-/** Append an ambient-sound emitter, growing world->area_sounds as needed.
- *  Silently no-ops on alloc failure. */
+/** Append an ambient-sound emitter (copied), growing world->area_sounds as
+ *  needed. Silently no-ops on alloc failure. Takes the whole record rather than
+ *  a parameter list because the emitter grew a footprint, an inner radius and a
+ *  loc id, and a nine-int call is where transposed arguments live. */
 void
 World_AddAreaSound(
     struct World* world,
-    int x,
-    int z,
-    int level,
-    int sound_id,
-    const int* sound_ids,
-    int sound_id_count,
-    int ticks_min,
-    int ticks_max,
-    int distance);
+    const struct World_AreaSound* source);
 
 void
 World_SetHeightFn(

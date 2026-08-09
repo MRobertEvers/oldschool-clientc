@@ -25,6 +25,7 @@
 #include "packets/update_zone_partial_enclosed.h"
 #include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
+#include "packets/sound_area.h"
 
 /*
  * Revision-239 parse (server -> this client).
@@ -177,6 +178,7 @@ osrs239_zone_name(int ordinal)
     case OSRS239_ZONE_OBJ_DEL: return PKT_NAME_OBJ_DEL;
     case OSRS239_ZONE_OBJ_ENABLED_OPS: return PKT_NAME_OBJ_REVEAL;
     case OSRS239_ZONE_MAP_PROJANIM_V2: return PKT_NAME_MAP_PROJANIM;
+    case OSRS239_ZONE_SOUND_AREA: return PKT_NAME_SOUND_AREA;
     default: return PKT_NAME_NONE;
     }
 }
@@ -309,6 +311,25 @@ osrs239_read_zone_sub(
         out->_map_anim.id = m.id;
         out->_map_anim.delay = m.delay;
         out->_map_anim.pos = m.coord_in_zone_packed;
+        return 1;
+    }
+
+    /*
+     * Leaving this unmapped did more than lose the sound. An ordinal with no
+     * case falls through to PKT_NAME_NONE, this function returns 0, and the
+     * enclosed-zone loop `break`s -- so one area sound discarded every
+     * *remaining* sub-packet in that batch: loc changes, obj spawns,
+     * projectiles. It logged `unknown sub-ordinal 14` and nothing else.
+     */
+    case PKT_NAME_SOUND_AREA:
+    {
+        ZONE_RUN(rsprot_sound_area_out, MsgSoundArea, m);
+        out->_sound_area.pos = m.coord_in_zone_packed;
+        out->_sound_area.radius = m.range;
+        out->_sound_area.inner = m.drop_off_range;
+        out->_sound_area.loops = m.loops;
+        out->_sound_area.id = m.id;
+        out->_sound_area.delay = m.delay;
         return 1;
     }
 
@@ -1363,6 +1384,7 @@ osrs239_parse(
     case PKT_NAME_OBJ_COUNT:
     case PKT_NAME_MAP_ANIM:
     case PKT_NAME_MAP_PROJANIM:
+    case PKT_NAME_SOUND_AREA:
     {
         struct PktZoneSubPacket sub;
 
@@ -1381,6 +1403,7 @@ osrs239_parse(
         case PKT_NAME_OBJ_REVEAL:     out->_obj_reveal = sub._obj_reveal; break;
         case PKT_NAME_OBJ_COUNT:      out->_obj_count = sub._obj_count; break;
         case PKT_NAME_MAP_ANIM:       out->_map_anim = sub._map_anim; break;
+        case PKT_NAME_SOUND_AREA:     out->_sound_area = sub._sound_area; break;
         default:                      out->_map_projanim = sub._map_projanim; break;
         }
         return 1;

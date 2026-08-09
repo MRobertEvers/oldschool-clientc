@@ -32,17 +32,25 @@ extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
 #endif
 
 extern const int* g_sin_table;
-extern const int* RSCacheDat2A_NoiseCosTable;
+extern const int* g_cos_table;
 extern const int* g_tan_table;
 
 void
 ToriDraw_SetSinTable(const int* table);
+/**
+ * Select the 2,048-entry 16.16 cosine table used by ToriDraw.
+ *
+ * ToriDraw does not take ownership. Passing NULL restores its standalone
+ * built-in table, so callers may optionally share a table owned by another
+ * library without creating a dependency on that library.
+ */
 void
 ToriDraw_SetCosTable(const int* table);
 void
 ToriDraw_SetTanTable(const int* table);
 const int*
 ToriDraw_GetSinTable(void);
+/** Return the cosine-table pointer currently used by ToriDraw. */
 const int*
 ToriDraw_GetCosTable(void);
 const int*

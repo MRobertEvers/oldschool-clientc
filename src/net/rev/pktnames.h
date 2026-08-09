@@ -167,6 +167,17 @@ enum GameProtoPktName
     PKT_NAME_OBJ_COUNT,
     PKT_NAME_MAP_ANIM,
     PKT_NAME_OBJ_ADD,
+    /**
+     * A sound effect played at a place in the world rather than at the player:
+     * a door three squares away, another player's furnace. Carries its own
+     * audible radius, and the client discards it outright when the listener is
+     * outside that radius rather than attenuating to nothing.
+     *
+     * Distinct from SYNTH_SOUND, which is the *unpositioned* one the reference
+     * queues with a zero location and plays at full volume. Both go through the
+     * same effect queue.
+     */
+    PKT_NAME_SOUND_AREA,
 
     /*
      * The origin NPC_INFO's low-resolution deltas are relative to, as a
