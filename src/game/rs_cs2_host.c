@@ -91,6 +91,32 @@ rs_cs2_node(
     return &tree->components[idx];
 }
 
+/*
+ * `if_gettargetmask` / `cc_gettargetmask` — deob
+ * `method7577(method12093(events, widget))`, i.e. the target-type bits of the
+ * component's EFFECTIVE event flags: the server's IF_SETEVENTS override where
+ * one exists, the cache's decoded flags where it does not.
+ *
+ * The decoded half is pre-extracted onto the node (behavior.target_mask) so the
+ * two cache generations' different storage is settled once, at decode. Only the
+ * override arm has to do the shift here, and it does it on the raw events word
+ * because that is what IF_SETEVENTS carries.
+ */
+static int
+rs_cs2_target_mask(
+    struct RS_CS2Host* host,
+    int component_id)
+{
+    struct UITreeComponent const* node;
+    int events = 0;
+
+    if( host->events_override_for_component &&
+        host->events_override_for_component(host->events_user, component_id, &events) )
+        return (events >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS;
+    node = rs_cs2_node(host, component_id);
+    return node ? (int)node->behavior.target_mask : 0;
+}
+
 static int
 rs_cs2_yield(
     struct RS_CS2Host* host,
@@ -6142,6 +6168,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
         node = rs_cs2_node(host, request->u.cc_gettrans.component_id);
         return CS2VM2_PushInt(vm, node ? node->trans : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETTARGETMASK:
+    case CS2VM_HOST_REQUEST_IF_GETTARGETMASK:
+        return CS2VM2_PushInt(
+            vm, rs_cs2_target_mask(host, request->u.cc_gettext.component_id));
 
     case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
         return exec_cc_getcomponentparam(host, vm, request->u.cc_component_param);

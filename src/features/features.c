@@ -1,6 +1,7 @@
 #include "features/features.h"
 
-#include "rscache_profile.h" /* enum RSCache_Epoch */
+#include "engine/torirs_types.h" /* TORIRS_TARGET_MASK_HELD_* */
+#include "rscache_profile.h"     /* enum RSCache_Epoch */
 
 #include <stddef.h>
 #include <string.h>
@@ -26,6 +27,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .ground_click_nearest_model = TORIRS_NEAREST_RING3_STEPS,
     .los_symmetric_pvp = 0,
     .route_window_tiles = 0,
+    .target_mask_held = TORIRS_TARGET_MASK_HELD_CLASSIC,
     .painter_draw_distance = 0,
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
@@ -62,6 +64,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* IF3 moved the held-item target flag one bit up. */
+    .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     /* Project default for OSRS; the official preference's valid range is
      * 25..90 and a manifest may select any value in it. */
     .painter_draw_distance = 32,
@@ -90,6 +94,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     .painter_draw_distance = 0,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads
      * light with absolute ambient 128 + actor dir (PlayerChatheadFactory). */

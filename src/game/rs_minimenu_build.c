@@ -273,7 +273,9 @@ add_inv_slot_select_row(
     }
     if( sel->mode == RS_MINIMENU_SELECT_TARGET )
     {
-        if( (sel->target_mask & 0x10) == 0 )
+        int const held_bit = sel->target_mask_held_bit != 0 ? sel->target_mask_held_bit
+                                                           : TORIRS_TARGET_MASK_HELD_CLASSIC;
+        if( (sel->target_mask & held_bit) == 0 )
             return true; /* spell does not target held items */
         snprintf(text, sizeof(text), "%s @lre@ %s", sel->target_op, obj_name);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_HELD, 0, pick);
@@ -654,6 +656,82 @@ add_target_button_row(
     return true;
 }
 
+/*
+ * Does this component offer an IF3 "Cast <spell>" row?
+ *
+ * IF3 has no `buttonType` at all — the field is IF1's, and every IF3 widget
+ * decodes it as 0 — so the branch above can never fire for an OldSchool
+ * spellbook. The reference's test is instead deob `method12079`: a non-zero
+ * target mask AND a non-empty target verb, with no button type involved
+ * (`method5229`'s `if (!isIf3) return;` walk). Gating on buttonType was why
+ * every rev-230/239 spell built a plain button row and nothing ever armed.
+ */
+static bool
+component_offers_if3_target(struct UITreeComponent const* node)
+{
+    return node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET &&
+           node->behavior.target_mask != 0 && node->menu_options.target_verb[0] != '\0';
+}
+
+/*
+ * The IF3 op walk: slots high to low, with the target verb inserted where the
+ * walk reaches `targetPriority` and everything above that slot deprioritized
+ * (deob method5229's trailing loop, the same rule add_obj_cell_rows already
+ * follows for item cells).
+ *
+ * Insertion order is draw order reversed, so emitting high slots first puts op 1
+ * on top and leaves the target row sitting directly under the operation that
+ * owns its priority — which is also what decides the left-click default, since
+ * a deprioritized action can never be it. High Alchemy is the case that shows
+ * it: ops 9 and 10 ("Animation", "Warnings") sit above priority 4, so they
+ * stay right-click-only and "Cast High Alchemy" is what a left click does.
+ */
+static int
+add_if3_target_op_rows(
+    struct UIMinimenu* menu,
+    struct UITreeComponent const* node,
+    struct UITreeMenuOptions const* rows,
+    struct UIMinimenuPick pick)
+{
+    struct UITreeMenuOptions const* opts = &node->menu_options;
+    int const before = menu->option_count;
+    /* IF3 has no targetText: the row's target is the component's opBase, which
+     * is the same string its op rows are suffixed with and which the spellbook
+     * fills in already coloured (`<col=00ff00>Wind Strike</col>`). */
+    char const* base = opts->option;
+    char text[UITREE_MINIMENU_OPTION_LEN];
+    /* The reference walks 32 operation slots; this tree stores 10. A priority
+     * past the end still has to produce its row, so it lands on the first slot
+     * walked — the same "above every op" position it holds there. A negative
+     * priority is `cc_settargetpriority(-1)`, "no target row at all". */
+    int const priority = node->target_priority >= UITREE_MENU_OPTION_SLOTS
+                             ? UITREE_MENU_OPTION_SLOTS - 1
+                             : node->target_priority;
+
+    for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
+    {
+        if( i == priority )
+        {
+            snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+        }
+        if( !rows || rows->ops[i][0] == '\0' )
+            continue;
+        {
+            int action =
+                rows->op_actions[i] != 0 ? rows->op_actions[i] : k_inv_button_action[i];
+            if( i > priority )
+                action = UIMinimenu_ActionDeprioritize(action);
+            if( base[0] != '\0' )
+                snprintf(text, sizeof(text), "%s %s", rows->ops[i], base);
+            else
+                snprintf(text, sizeof(text), "%s", rows->ops[i]);
+            UIMinimenu_AddOption(menu, text, action, i, pick);
+        }
+    }
+    return menu->option_count - before;
+}
+
 /* Generic component rows: social first, else op rows (with the component's
  * option label as the row target — reference "<op> <target>") or, for
  * op-less buttons, a single label row. Port of v1
@@ -720,6 +798,19 @@ add_component_rows(
         }
         else
             rows = &filtered;
+    }
+
+    /* An IF3 target component's verb and its ops are ONE ordered walk, not two
+     * competing branches: High Alchemy carries "Animation" and "Warnings"
+     * alongside "Cast High Alchemy" and the reference emits all three from the
+     * same loop. Falling into the plain op path instead would emit the ops and
+     * silently drop the cast; taking the classic early-return would emit the
+     * cast and drop the ops. */
+    if( select_mode == RS_MINIMENU_SELECT_NONE && component_offers_if3_target(node) )
+    {
+        ops_added = add_if3_target_op_rows(menu, node, rows, pick);
+        if( ops_added > 0 )
+            return menu->option_count - before;
     }
 
     if( rows )

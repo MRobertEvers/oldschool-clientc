@@ -929,7 +929,7 @@ def seq_names_by_rig(rigs, rig_seq_index):
 
 
 def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
-                 decisions, write):
+                 decisions, sound_by_name, write):
     """Correct animation rows in hand-authored `.npc` files that name a sequence
     the npc's own model cannot play.
 
@@ -955,6 +955,7 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     exclude = os.path.abspath(out_path)
     defaults = load_default_anims(content_dir)
     fixed, filled, unfixable, unfillable = [], [], [], []
+    filled_sounds = []
     checked = playable = 0
     states_server_field = set()
     rig_seq_index = defaultdict(set)
@@ -993,6 +994,7 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                     continue
                 entry = decisions.get(gameval)
                 stated = {}
+                stated_sounds = set()
                 last_param = head
                 for i in range(head + 1, end):
                     s = lines[i].strip()
@@ -1002,6 +1004,8 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                     key, _, value = s[6:].partition(",")
                     if key in ANIM_KEYS and value:
                         stated[key] = (i, value)
+                    if key in SOUND_KEYS and value:
+                        stated_sounds.add(key)
                     if key in ANIM_KEYS or key in SOUND_KEYS:
                         states_server_field.add(gameval)
 
@@ -1065,6 +1069,27 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                     filled.append((gameval, key, fill, fn))
                     states_server_field.add(gameval)
 
+                # (c) the sounds, which need no rig test at all.
+                #
+                # A sound is not built on a skeleton, so the only question is
+                # whether the pack knows the name -- and the default is silence
+                # (-1), so an omitted row is *always* a silent npc rather than a
+                # possibly-correct inherited one. That makes this simpler than
+                # the animation case above and it was missed for exactly that
+                # reason: the first repair pass only looked at `_anim` rows, so
+                # every authored npc stayed mute. The Lumbridge roster is all
+                # authored, so that was every npc a new player meets.
+                for key in SOUND_KEYS:
+                    if key in stated_sounds:
+                        continue
+                    name = entry[2].get(key, (None,))[0] if entry else None
+                    ident = sound_by_name.get(name) if name else None
+                    if ident is None:
+                        continue
+                    edits.append((last_param + 0.5, "param=%s,%d" % (key, ident)))
+                    filled_sounds.append((gameval, key, name, ident, fn))
+                    states_server_field.add(gameval)
+
             if edits and write:
                 for pos, text in sorted(edits, key=lambda e: -e[0]):
                     if isinstance(pos, float):
@@ -1080,6 +1105,7 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     print("   stated but off-rig, no answer known     %d" % len(unfixable))
     print("   ABSENT and the default cannot play, filled  %d" % len(filled))
     print("   absent, default cannot play, no answer      %d" % len(unfillable))
+    print("   SOUND rows absent (default is silence), filled  %d" % len(filled_sounds))
     for npc, key, old, new, fn in fixed[:6]:
         print("      fix  %-22s %-12s %-24s -> %s" % (npc, key, old, new))
     if len(fixed) > 6:
@@ -1099,12 +1125,16 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     # this one's. Claiming is a merge, so restating an already-listed name is a
     # no-op.
     touched = sorted(states_server_field)
+    for npc, key, name, ident, fn in filled_sounds[:6]:
+        print("      snd  %-22s %-13s %-22s = %d" % (npc, key, name, ident))
+    if len(filled_sounds) > 6:
+        print("      ... and %d more sounds" % (len(filled_sounds) - 6))
     if write and touched:
         added = claim_server_membership(content_dir, touched)
         print("   pack/npc.server: %d name(s) added for edited authored npcs" % added)
     if not write:
         print("   (dry run — pass --write to apply)")
-    return len(fixed) + len(filled)
+    return len(fixed) + len(filled) + len(filled_sounds)
 
 
 def main():
@@ -1246,7 +1276,7 @@ def main():
 
     if args.fix_authored:
         fix_authored(args.content, out_path, seq_framemaps, npc_rigs,
-                     gameval_to_id, decisions, args.write)
+                     gameval_to_id, decisions, sound_by_name, args.write)
 
     if not args.write:
         print("\n(dry run — pass --write to author the ledger and the config)")

@@ -187,16 +187,49 @@ enum
      * silently corrupts a packet instead of failing.
      *
      * So: MOCK230_NPC_MAX is a memory decision (336 bytes per npc, statically
-     * allocated in the world), MOCK230_TRACKED_NPC_MAX is the wire's. Lumbridge
-     * itself is 63 npcs.
+     * allocated in the world), MOCK230_TRACKED_NPC_MAX is the wire's.
      *
      * What made the world cap load-bearing was the encoder scanning every slot
      * in the world for every client every tick; NPC_INFO asks the ZoneMap for
      * the npcs within 15 tiles now (mock230_zone_npcs_near), so the two numbers
      * are free to be different sizes.
+     *
+     * 4096 is sized against MOCK230_STATIC_SPAWN_OUT below, not against the
+     * roster: the world roster is 23,139 spawns (docs/ITEM_AND_NPCS.md) and no
+     * cap could hold it — 16,383 is the wire's own ceiling and the roster is
+     * above it. What has to fit is the densest *window*, which is 2,250 spawns
+     * (Varrock, centred near 3392,3328), and the rest of 4096 is headroom for
+     * everything content npc_adds on top.
      */
-    MOCK230_NPC_MAX = 2048,
+    MOCK230_NPC_MAX = 4096,
     MOCK230_TRACKED_NPC_MAX = 255,
+
+    /*
+     * How much of the world roster is standing up at any moment.
+     *
+     * The content tree states where every npc in OldSchool lives — 23,139 of
+     * them. Creating all of them was what the roster loop used to do, and it
+     * worked while the roster was Lumbridge's 63. It cannot scale, and not
+     * because of memory: the npc slot on the wire is 14 bits, so 16,383 npcs is
+     * the most that can *exist* however much RAM there is.
+     *
+     * So the roster is a statement about the world and the pool is a window on
+     * to it. A spawn is realised when its home tile comes within
+     * MOCK230_STATIC_SPAWN_IN of the scene centre and retired when it passes
+     * MOCK230_STATIC_SPAWN_OUT; the gap between them is hysteresis, and it is
+     * the whole reason there are two numbers. With one, a player pacing across
+     * the boundary would create and destroy the same npcs every rebuild, and
+     * each cycle resets their hitpoints, their aggression and their `[ai_spawn]`.
+     *
+     * IN is well past what anyone can see. The client is told about npcs within
+     * 15 tiles and the scene itself is MOCK230_SCENE_TILES (104), so at 160 an
+     * npc has existed for a hundred tiles' walking before it can be looked at —
+     * which is the property the old create-everything loop was defending, and
+     * the reason it is stated as a distance rather than tuned down to the
+     * visible radius.
+     */
+    MOCK230_STATIC_SPAWN_IN = 160,
+    MOCK230_STATIC_SPAWN_OUT = 224,
     /* The client sends at most 25 waypoints per move request; the server stores
      * the same bound and walks greedily toward the current one (LostCity
      * PathingEntity.waypoints). Scratch buffers for a full expanded route —
@@ -291,11 +324,45 @@ enum
      */
     MOCK230_VARP_SERVER_HEADROOM = 1024,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
-    /* Ground items. Lumbridge's own spawns are a dozen; a busy fight adds a
-     * handful per kill, and they expire. */
-    MOCK230_GROUND_MAX = 256,
+    /* Ground items. The world roster is 2,256 obj spawns
+     * (docs/ITEM_AND_NPCS.md); a busy fight adds a handful per kill, and those
+     * expire.
+     *
+     * Unlike the npc pool this holds the *whole* roster rather than a window on
+     * it, and the difference is the wire: a ground obj has no slot on it —
+     * OBJ_ADD is zone state and the client is told about a zone when it enters
+     * one — so nothing above bounds this but memory, and 4096 entries is a
+     * rounding error next to a map square. Windowing it would buy nothing and
+     * cost the same hysteresis problem the npcs have. */
+    MOCK230_GROUND_MAX = 4096,
     /** Pending `[ai_queue<n>]` entries per npc. */
     MOCK230_NPC_QUEUE_MAX = 4,
+
+    /**
+     * Where an npc is in the death sequence — `Mock230Npc.death_stage`.
+     *
+     * LostCity spends a death across four ticks and three suspensions, and the
+     * stages here are those suspensions. See `mock230_combat_npc_tick` for the
+     * tick-by-tick ledger and `[proc,npc_death]`
+     * (LostCity_Server/content/scripts/skill_combat/scripts/npc/npc_death.rs2)
+     * for the script this reproduces.
+     */
+    /** Alive. Also the value while `death_tick` is -1, which is the real gate. */
+    MOCK230_DEATH_NONE = 0,
+    /** Hitpoints reached zero; `[ai_queue3]` is due next npc phase.
+     *  The reference is `npc_queue(3, 0, 0)` in `[proc,npc_default_damage]`. */
+    MOCK230_DEATH_QUEUED = 1,
+    /** The death script is parked in `npc_arrivedelay`, letting the step it was
+     *  mid-way through finish before it falls over. */
+    MOCK230_DEATH_ARRIVE = 2,
+    /** The death animation is playing; the corpse is waiting out `npc_delay(1)`
+     *  before the drop table runs and `npc_del` removes it. */
+    MOCK230_DEATH_CORPSE = 3,
+    /** The drop table has run — exactly once, which is what this stage exists to
+     *  guarantee — and the npc is waiting to be removed. It stays here while a
+     *  suspended `[ai_queue3]` still owns it, and leaves without being removed
+     *  at all if that script put its hitpoints back. */
+    MOCK230_DEATH_REAP = 4,
     /** Loc mutations that can be waiting to revert at once. Generous: a busy
      *  mining site is a dozen, and the cost is 40 bytes each. */
     MOCK230_LOC_REVERT_MAX = 128,
@@ -1541,6 +1608,11 @@ struct Mock230Npc
     int x, z, level;
     int spawn_x, spawn_z, spawn_level;
     int wander_radius;
+    /** Index into the content roster (`mock230_content_npc_spawns`) when this
+     *  npc is the world standing one of its spawns up, and -1 when content
+     *  npc_added it. Only the first kind is retired when the window moves; an
+     *  npc a script created is that script's to remove. */
+    int static_spawn;
     /** The content block this npc was spawned from, or the engine defaults.
      *  Never NULL on an active npc; owned by mock230_content.c. */
     const struct Mock230NpcDef* def;
@@ -1773,10 +1845,34 @@ struct Mock230Npc
      *  logged-out target is answered. */
     int combat_target;
     int attack_clock;
-    /** Tick the death animation started; -1 while alive. The npc stays visible
-     *  until it expires, which is what makes a death read as a death rather
-     *  than as the npc vanishing. */
+    /**
+     * When the next step of the death sequence is due; -1 while alive.
+     *
+     * `death_tick >= 0` is the engine's "this npc is dying" gate and is read
+     * that way everywhere — hitting it again, engaging it, walking it, picking
+     * it out of a click, roaming. That meaning is unchanged. What it no longer
+     * means is "the death animation started": a death is four ticks and three
+     * waits, and `death_stage` says which wait this deadline belongs to.
+     *
+     * Set once, at the killing blow, so every gate closes on the tick the
+     * hitpoints reach zero rather than a tick later.
+     */
     int death_tick;
+    /** Which step of the death `death_tick` is counting down to —
+     *  `MOCK230_DEATH_*`. Only meaningful while `death_tick >= 0`; the killing
+     *  blow writes both, so the sites that end a death by clearing `death_tick`
+     *  alone stay correct. */
+    int death_stage;
+    /**
+     * Who was fighting this npc when it died, by pool slot.
+     *
+     * The drop table runs on `npc_del`'s tick, three or more ticks after the
+     * blow, and by then `combat_target` has been cleared on both sides — so the
+     * killers have to be captured while they are still known. Copied into
+     * `Mock230Server.loot_credit_players` around the `[ai_queue3]` run, which is
+     * what makes each `obj_add` name its earner to clientscript 7192.
+     */
+    unsigned char death_credit_players[MOCK230_PLAYER_MAX];
     /** Tick to respawn at the spawn tile; -1 when not waiting. */
     int respawn_tick;
     /** Resolved from the cache's sequence names at spawn; -1 = play nothing. */
@@ -2498,6 +2594,15 @@ struct Mock230Server
      *  hosts call that on every login, so this is what stops the second one
      *  respawning the roster under the first player. */
     int world_built;
+
+    /** 1 once the npc pool exists and the roster may be stood up into it.
+     *  `mock230_world_scene_rebuild` runs before `mock230_world_build_entities`
+     *  at login — it has to, collision comes first — and that rebuild would
+     *  otherwise realise the roster into a pool the build is about to memset. */
+    int static_spawns_live;
+    /** Roster entries currently standing, for the boot line and for anyone
+     *  asking why the world holds fewer npcs than the tree states. */
+    int static_npcs_live;
 
     /** Origin zone of the scene every client currently holds, and the window
      *  `mock230_scene_build` keeps collision for. One per world rather than one
@@ -3847,6 +3952,21 @@ mock230_scripts_run_trigger_specific(
     int trigger,
     int type,
     int category,
+    int npc_slot);
+
+/**
+ * A targeted cast's trigger — the `t` family, keyed by the SPELL's component
+ * uid rather than by what it was aimed at.
+ *
+ * By key then by name, because a spell's uid is above `ssc_compile.c`'s
+ * `1 << 21` ceiling and every spell trigger in the tree therefore compiled
+ * name-addressed. See the definition.
+ */
+int
+mock230_scripts_run_spell_trigger(
+    struct Mock230Server* srv,
+    int trigger,
+    int spell_component,
     int npc_slot);
 
 /**

@@ -943,6 +943,7 @@ net_out_oploct(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
         if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 15, &b) < 0 )
@@ -956,12 +957,17 @@ net_out_oploct(
         out_p2_alt1(&b, 0xffff);
         return 1 + (int)b.position;
     }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 8, &b) < 0 )
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 6 + width, &b) < 0 )
         return -1;
     p2(&b, abs_x);
     p2(&b, abs_z);
     p2(&b, loc_id);
-    p2(&b, spell_component_id);
+    /* The spell IS the identity of a targeted cast — `[apnpct,magic:<spell>]`
+     * is keyed by this component and nothing else — so it goes on the wire at
+     * the revision's full component width. Written as `p2` it truncated to the
+     * child index, and every interface's child 11 arrived looking like Wind
+     * Strike. Same rule and same reason as handle_resume_pausebutton's. */
+    out_p_com(&b, width, spell_component_id);
     return 1 + (int)b.position;
 }
 
@@ -1063,6 +1069,7 @@ net_out_opnpct(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
         if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 11, &b) < 0 )
@@ -1074,10 +1081,15 @@ net_out_opnpct(
         p4(&b, spell_component_id);
         return 1 + (int)b.position;
     }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 4, &b) < 0 )
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 2 + width, &b) < 0 )
         return -1;
     p2(&b, npc_slot);
-    p2(&b, spell_component_id);
+    /* The spell IS the identity of a targeted cast — `[apnpct,magic:<spell>]`
+     * is keyed by this component and nothing else — so it goes on the wire at
+     * the revision's full component width. Written as `p2` it truncated to the
+     * child index, and every interface's child 11 arrived looking like Wind
+     * Strike. Same rule and same reason as handle_resume_pausebutton's. */
+    out_p_com(&b, width, spell_component_id);
     return 1 + (int)b.position;
 }
 
@@ -1142,6 +1154,7 @@ net_out_opobjt(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
         if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 15, &b) < 0 )
@@ -1155,12 +1168,17 @@ net_out_opobjt(
         p2(&b, abs_z);
         return 1 + (int)b.position;
     }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 8, &b) < 0 )
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 6 + width, &b) < 0 )
         return -1;
     p2(&b, abs_x);
     p2(&b, abs_z);
     p2(&b, obj_id);
-    p2(&b, spell_component_id);
+    /* The spell IS the identity of a targeted cast — `[apnpct,magic:<spell>]`
+     * is keyed by this component and nothing else — so it goes on the wire at
+     * the revision's full component width. Written as `p2` it truncated to the
+     * child index, and every interface's child 11 arrived looking like Wind
+     * Strike. Same rule and same reason as handle_resume_pausebutton's. */
+    out_p_com(&b, width, spell_component_id);
     return 1 + (int)b.position;
 }
 
@@ -1243,6 +1261,7 @@ net_out_opplayert(
     int spell_component_id)
 {
     struct RSCache_Buffer b;
+    int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
         if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 11, &b) < 0 )
@@ -1254,10 +1273,15 @@ net_out_opplayert(
         p2(&b, player_slot);
         return 1 + (int)b.position;
     }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 4, &b) < 0 )
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 2 + width, &b) < 0 )
         return -1;
     p2(&b, player_slot);
-    p2(&b, spell_component_id);
+    /* The spell IS the identity of a targeted cast — `[apnpct,magic:<spell>]`
+     * is keyed by this component and nothing else — so it goes on the wire at
+     * the revision's full component width. Written as `p2` it truncated to the
+     * child index, and every interface's child 11 arrived looking like Wind
+     * Strike. Same rule and same reason as handle_resume_pausebutton's. */
+    out_p_com(&b, width, spell_component_id);
     return 1 + (int)b.position;
 }
 

@@ -282,6 +282,23 @@ struct RS_CS2Host
     char local_player_name[RS_CS2_HOST_SOCIAL_NAME_LEN];
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
+    /*
+     * The server's IF_SETEVENTS entry for a component, for the opcodes that
+     * must read the *effective* flags rather than the cache's. Returns nonzero
+     * and fills `*out_events` when the server declared one; zero when it did
+     * not, leaving the caller on the widget's decoded flags.
+     *
+     * Deob `method12093` is that rule exactly, and it is why this reports
+     * presence rather than returning a merged answer: a *zero* override is
+     * meaningful (it disarms cache-authored flags) and must not read as absent.
+     *
+     * A callback for the same reason RS_MinimenuBuildCtx.events_for_component
+     * is one — the store lives on the App and this header stays clear of the
+     * game layer. NULL = no server events, correct for the classic revisions.
+     */
+    int (*events_override_for_component)(void* user, int com_id, int* out_events);
+    void* events_user;
+
     bool has_pending;
     struct CS2VM_HostRequest pending;
 

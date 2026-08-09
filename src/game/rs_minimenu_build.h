@@ -50,9 +50,14 @@ struct RS_MinimenuSelection
     int obj_com_id;
     /* TARGET: the spell verb ("Cast Wind Strike") + which target kinds it
      * accepts (reference targetOp / targetMask bits: 0x1 obj, 0x2 npc, 0x4 loc,
-     * 0x8 player, 0x10 held). */
+     * 0x8 player). */
     char target_op[64];
     int target_mask;
+    /** Which bit of target_mask means "a held item" — 0x10 classic, 0x20
+     *  OldSchool. Carried on the selection rather than read here because it is
+     *  a ToriRS_Features slot (`target_mask_held`) and this file has no era.
+     *  0 leaves the classic value, per the feature table's own rule. */
+    int target_mask_held_bit;
 };
 
 struct RS_MinimenuBuildCtx

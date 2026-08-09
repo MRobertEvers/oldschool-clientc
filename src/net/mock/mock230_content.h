@@ -332,7 +332,10 @@ struct Mock230NpcDef
     int ranged;
 
     int respawnrate; /* ticks from despawn to respawn */
-    int death_delay; /* ticks the corpse lies there before it despawns */
+    /* Ticks the corpse lies there once the death *animation* has started — the
+     * reference's `npc_delay(1)` in `[proc,npc_death]`, which is two. The blow
+     * itself is one tick earlier than that, plus `npc_arrivedelay`. */
+    int death_delay;
     int wanderrange; /* 0 = stays put */
     int blockwalk;   /* 0 none, 1 npc, 2 all, 3 player; default 1 (npc) */
     int blocksight;  /* default 0 */

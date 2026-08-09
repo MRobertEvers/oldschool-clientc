@@ -422,6 +422,35 @@ creature and keeps the action word, so the last underscore-token of the broken
 name is a key into the rig — accepted only when it matches exactly one sequence
 there. `sink` is a shade's death and nothing in `ACTION_WORDS` knows that.
 
+### And the sounds, which the first two passes both skipped
+
+`--fix-authored` began as an *animation* repair, so it corrected and filled
+`*_anim` rows and left `*_sound` alone. Every authored npc therefore stayed mute
+— and since the Lumbridge roster is entirely authored, that was every npc a new
+player meets, while the ledger held `goblin_attack` / `goblin_hit` /
+`goblin_death` the whole time.
+
+The sound case needs no rig test: a sound is not built on a skeleton, so the only
+question is whether the pack knows the name. And the default is silence, so an
+omitted row is *always* a mute npc rather than a possibly-correct inherited one —
+which makes it simpler than the animation case, and is why it was overlooked.
+**217 rows filled.**
+
+### Unarmed made no noise at all
+
+`[proc,combat_attack_sound]` opened with `if ($weapon ! null)` and fell through to
+`return(-1)`, so a bare-handed swing was silent — the first combat sound a new
+player would ever not hear. The animation half picked `human_unarmedpunch` /
+`human_unarmedkick` in the branch immediately above it.
+
+The reference returns both from *one* proc precisely so they cannot drift:
+`[proc,combat_swing_anim_and_synth]` answers `(human_unarmedpunch, unarmed_punch)`
+and `(human_unarmedkick, unarmed_kick)` as pairs. This tree splits them across two
+procs to keep each return type simple, and that split is exactly how they drifted.
+The unarmed branch is now written to the same shape on the same condition —
+`^style_melee_aggressive` gives 2565 (`unarmed_kick`), everything else 2566
+(`unarmed_punch`).
+
 ### What genuinely cannot be answered
 
 **10 rows**: the Mort'ton shades' `attack_anim` and `defend_anim`. Their rig

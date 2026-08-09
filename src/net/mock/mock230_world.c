@@ -54,6 +54,14 @@ static int g_home_z = 3218;
 static void
 mock230_world_build_entities(struct Mock230Server* srv);
 
+/* Declared up here because the scene rebuild — the one place the window moves —
+ * is a thousand lines above where the roster lives. */
+static void
+world_static_npcs_sync(struct Mock230Server* srv);
+
+static void
+world_static_npcs_reset(void);
+
 static void
 mock230_world_login_finish(struct Mock230Player* player);
 
@@ -1013,6 +1021,18 @@ run_interaction_trigger(
     const struct Mock230Interaction* interaction,
     int trigger)
 {
+    /*
+     * A cast is keyed by the spell, not by what it is aimed at — the reference
+     * writes one `[apnpct,magic_spellbook:wind_strike]` per spell and matches no
+     * npc — and its subject is a *component uid*, which does not fit the
+     * compiled lookup key. So it needs its own dispatcher, and it needs it for
+     * every target kind including LOC, whose by-name rung is about the loc.
+     * See mock230_scripts_run_spell_trigger.
+     */
+    if( interaction->spell )
+        return mock230_scripts_run_spell_trigger(srv, trigger, interaction->spell,
+                                                 interaction->npc_slot);
+
     if( interaction->kind == MOCK230_INTERACT_LOC )
     {
         int slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
@@ -1027,12 +1047,8 @@ run_interaction_trigger(
     }
     {
         int category = interaction_category(interaction);
-        /* A cast is keyed by the spell, not by what it is aimed at — the
-         * reference writes one `[apnpct,magic:<spell>]` per spell and matches no
-         * npc. See `Mock230Interaction.spell`. */
-        int type = interaction->spell ? interaction->spell : interaction->target_id;
 
-        return mock230_scripts_run_trigger(srv, trigger, type, category,
+        return mock230_scripts_run_trigger(srv, trigger, interaction->target_id, category,
                                            interaction->npc_slot);
     }
 }
@@ -2038,10 +2054,22 @@ mock230_world_scene_rebuild(struct Mock230Server* srv)
                                  mock230_scene_origin(srv->zone_z) + MOCK230_SCENE_TILES / 2) == 0 )
     {
         mock230_scene_build(mock230_world_cache_dir(), srv->zone_x, srv->zone_z);
+        world_static_npcs_sync(srv);
         return;
     }
     mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
     mock230_scene_build_instance(mock230_world_cache_dir(), srv->zone_x, srv->zone_z, &window);
+    /*
+     * The roster follows the window, and this is the only place the window
+     * moves — every re-centre, every instance build and the login build all
+     * come through here, which is why the sync hangs off this rather than off
+     * each of their call sites.
+     *
+     * After the scene, not before: a spawn is placed against collision
+     * (`npc_spawn` stamps occupancy), and standing one up against the scene it
+     * is leaving would file it in the wrong zones.
+     */
+    world_static_npcs_sync(srv);
 }
 
 /*
@@ -2360,6 +2388,11 @@ npc_spawn(
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
          * every npc in the world would vanish on the first pass. */
         npc->despawn_tick = -1;
+        /* Explicit, because the memset above makes it 0 and 0 is a valid
+         * roster index: every script-created npc would claim spawn 0 and be
+         * retired the first time the window moved past it. The roster sync
+         * overwrites this immediately after the call that is its own. */
+        npc->static_spawn = -1;
         /* Phase 3 runs `[ai_spawn]` on the next tick — see the field. */
         npc->spawn_pending = 1;
 
@@ -3316,14 +3349,21 @@ mock230_world_ground_find(
 /*
  * The handle, and why it is not just the slot.
  *
- * MOCK230_GROUND_MAX is 256, so nine bits carry `slot + 1` and everything above
- * is the slot's generation. The generation is what makes the handle name an
- * *obj* rather than an *index*: a script that suspends between `obj_find` and
- * `obj_takeitem` resumes into a world where its pile may have been taken and
- * the slot handed to somebody else's drop, and an index would resolve to that
- * drop with nothing failing.
+ * MOCK230_GROUND_MAX is 4096, so thirteen bits carry `slot + 1` and everything
+ * above is the slot's generation. The generation is what makes the handle name
+ * an *obj* rather than an *index*: a script that suspends between `obj_find`
+ * and `obj_takeitem` resumes into a world where its pile may have been taken
+ * and the slot handed to somebody else's drop, and an index would resolve to
+ * that drop with nothing failing.
+ *
+ * This was 9 bits when the pool was 256, and the assertion below is what said
+ * so when the pool grew to hold the world's 2,256 obj spawns. Widening the slot
+ * field narrows the generation, and the narrow case is the one that matters:
+ * `intptr_t` is 32 bits under emscripten, which leaves 19 bits — half a million
+ * take-and-respawn cycles on a single slot before a handle can repeat, against
+ * a spawn that respawns on a timer measured in ticks.
  */
-#define MOCK230_OBJ_HANDLE_SLOT_BITS 9
+#define MOCK230_OBJ_HANDLE_SLOT_BITS 13
 
 /* `slot + 1` has to fit under the generation, or two different objs can share a
  * handle and the identity check silently stops checking. */
@@ -4285,6 +4325,248 @@ useon_interact(
     mock230_world_process_interaction(srv);
 }
 
+/*
+ * The cast twin of `useon_interact`: latch the target, walk to it, and let the
+ * arrival resolve to the `t` trigger family.
+ *
+ * Everything about the walk is identical — a cast is an interaction like any
+ * other — so the only difference is which field the interaction carries.
+ * `use_on` names an item and leaves the trigger keyed by the target;
+ * `spell` names the spell's component and makes the SPELL the trigger's
+ * subject, which is what `[apnpct,magic_spellbook:wind_strike]` matches on.
+ * See Mock230Interaction.spell and interaction_ap_trigger, which already knew
+ * how to route this and had no caller from the wire.
+ *
+ * No check that the target advertises anything: an npc does not have to offer
+ * an option to be castable at, and the reference tests only that the spell
+ * component is non-null (the same rule `p_opnpct` follows).
+ */
+static void
+spell_interact(
+    struct Mock230Server* srv,
+    enum Mock230InteractionKind kind,
+    int npc_slot,
+    int target_id,
+    int tile_x,
+    int tile_z,
+    int level,
+    int size_x,
+    int size_z,
+    int spell_component)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    if( spell_component <= 0 )
+        return;
+
+    mock230_world_clear_pending_action(srv);
+
+    /* op 1 is a placeholder, as in useon_interact: once `spell` is set
+     * `interaction_ap_trigger` ignores the op number entirely. */
+    mock230_world_interaction_set(srv, kind, 1, npc_slot, target_id, tile_x, tile_z, level, size_x,
+                                  size_z);
+    player->interaction.spell = spell_component;
+
+    if( kind == MOCK230_INTERACT_OBJ )
+    {
+        struct CollisionApproach exact;
+        mock230_scene_obj_approach(0, &exact);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &exact);
+        if( !player_has_waypoints(player) &&
+            !mock230_scene_reached(player->level, player->x, player->z, tile_x, tile_z, &exact) )
+        {
+            struct CollisionApproach adj;
+            mock230_scene_obj_approach(1, &adj);
+            mock230_world_walk_to_approach(srv, tile_x, tile_z, &adj);
+        }
+    }
+    else if( kind == MOCK230_INTERACT_NPC || kind == MOCK230_INTERACT_PLAYER )
+    {
+        struct CollisionApproach approach;
+        mock230_scene_npc_approach(size_x, &approach);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &approach);
+    }
+    else
+    {
+        int loc_slot = mock230_scene_find_loc(tile_x, tile_z, level, target_id);
+        struct CollisionApproach approach;
+        mock230_scene_loc_approach(loc_slot, &approach);
+        mock230_world_walk_to_approach(srv, tile_x, tile_z, &approach);
+    }
+
+    mock230_world_process_interaction(srv);
+}
+
+/* The `p4 spellComponent` tail every targeted-cast body ends with. Four bytes,
+ * unlike the use-on tail's two, because the component IS the trigger subject
+ * here — see put_spell_tail in mock239_inbound.c. */
+static int
+spell_tail(
+    struct RSAreaBuf* buf,
+    int* out_spell)
+{
+    int spell = rsab_g4(buf);
+    if( !rsab_ok(buf) || spell <= 0 )
+        return 0;
+    *out_spell = spell;
+    return 1;
+}
+
+/* OPLOCT: p2 x, p2 z, p2 locId, p4 spellComponent. */
+static void
+handle_oploct(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int loc_id;
+    int spell;
+    int slot;
+    struct Mock230SceneLoc* loc;
+    int size_x = 1;
+    int size_z = 1;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    loc_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPLOCT loc=%d at %d,%d spell=%d|%d\n", loc_id, tile_x, tile_z,
+                (spell >> 16) & 0xffff, spell & 0xffff);
+
+    slot = mock230_scene_find_loc(tile_x, tile_z, srv->active_player->level, loc_id);
+    loc = mock230_scene_loc(slot);
+    if( loc )
+    {
+        tile_x = loc->x;
+        tile_z = loc->z;
+        size_x = loc->size_x > 0 ? loc->size_x : 1;
+        size_z = loc->size_z > 0 ? loc->size_z : 1;
+    }
+    spell_interact(srv, MOCK230_INTERACT_LOC, -1, loc_id, tile_x, tile_z,
+                   srv->active_player->level, size_x, size_z, spell);
+}
+
+/* OPNPCT: p2 npcSlot, p4 spellComponent. */
+static void
+handle_opnpct(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int slot;
+    int spell;
+    struct Mock230Npc* npc;
+    const struct Mock230NpcInfo* info;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    slot = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    if( !spell_tail(&buf, &spell) )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPNPCT slot=%d type=%d spell=%d|%d\n", slot, npc->type,
+                (spell >> 16) & 0xffff, spell & 0xffff);
+
+    info = mock230_npcinfo(npc->type);
+    spell_interact(srv, MOCK230_INTERACT_NPC, slot, npc->type, npc->x, npc->z, npc->level,
+                   info->size, info->size, spell);
+
+    /* Same reason as OPNPCU: idle roaming stays parked until the response has
+     * had time to show, and the npc may not have survived the dispatch. */
+    if( npc->active )
+        npc->next_roam_tick = srv->tick + 8;
+}
+
+/* OPOBJT: p2 x, p2 z, p2 objId, p4 spellComponent. */
+static void
+handle_opobjt(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int tile_x;
+    int tile_z;
+    int obj_id;
+    int spell;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    tile_x = rsab_g2(&buf);
+    tile_z = rsab_g2(&buf);
+    obj_id = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPOBJT obj=%d at %d,%d spell=%d|%d\n", obj_id, tile_x, tile_z,
+                (spell >> 16) & 0xffff, spell & 0xffff);
+
+    spell_interact(srv, MOCK230_INTERACT_OBJ, -1, obj_id, tile_x, tile_z,
+                   srv->active_player->level, 1, 1, spell);
+}
+
+/*
+ * OPHELDT: p2 obj, p2 slot, p4 itemComponent, p4 spellComponent — "cast this
+ * spell on that inventory item" (High Alchemy, Superheat, the enchants).
+ *
+ * Answered on the spot rather than queued, exactly as OPHELDU is and for the
+ * same reason: the item is already in the player's hand, so there is nothing to
+ * walk to. The trigger's subject is the SPELL — `[opheldt,magic_spellbook:
+ * high_alchemy]`, one script per spell — and the item travels in `last_item`,
+ * which is how the content reads it (`@magic_spell_high_alch(^highlvl_alchemy,
+ * last_item)`).
+ */
+static void
+handle_opheldt(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    struct RSAreaBuf buf;
+    int obj_id;
+    int slot;
+    int component;
+    int spell;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    obj_id = rsab_g2(&buf);
+    slot = rsab_g2(&buf);
+    component = rsab_g4(&buf);
+    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+        return;
+    if( slot < 0 || slot >= MOCK230_INV_SLOTS || player->inv[slot].obj_id != obj_id )
+        return;
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPHELDT obj=%d (%s) slot=%d com=%d|%d spell=%d|%d\n", obj_id,
+                mock230_objinfo(obj_id)->name, slot, (component >> 16) & 0xffff,
+                component & 0xffff, (spell >> 16) & 0xffff, spell & 0xffff);
+
+    mock230_world_clear_pending_action(srv);
+
+    player->last_item = obj_id;
+    player->last_slot = slot;
+    player->last_com = component;
+
+    if( mock230_scripts_run_spell_trigger(srv, SS_TRIGGER_OPHELDT, spell, -1) ==
+        MOCK230_TRIGGER_NONE )
+        mock230_say(srv, "nothing_interesting_message", NULL);
+}
+
 /* OPLOCU: p2 x, p2 z, p2 locId, then the used-item tail. */
 static void
 handle_oplocu(
@@ -4879,6 +5161,52 @@ handle_opobju_packet(
 {
     (void)name;
     handle_opobju(srv, payload, len);
+}
+
+/* The four targeted-cast packets, the `t` family. One name each, for the same
+ * reason as the use-on four: a cast carries no op number. */
+static void
+handle_opheldt_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opheldt(srv, payload, len);
+}
+
+static void
+handle_oploct_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_oploct(srv, payload, len);
+}
+
+static void
+handle_opnpct_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opnpct(srv, payload, len);
+}
+
+static void
+handle_opobjt_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opobjt(srv, payload, len);
 }
 
 static void
@@ -6167,6 +6495,10 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_OPLOCU, handle_oplocu_packet },
     { PKTOUT_NAME_OPNPCU, handle_opnpcu_packet },
     { PKTOUT_NAME_OPOBJU, handle_opobju_packet },
+    { PKTOUT_NAME_OPHELDT, handle_opheldt_packet },
+    { PKTOUT_NAME_OPLOCT, handle_oploct_packet },
+    { PKTOUT_NAME_OPNPCT, handle_opnpct_packet },
+    { PKTOUT_NAME_OPOBJT, handle_opobjt_packet },
 
     { PKTOUT_NAME_IF_BUTTON, handle_if_button },
     { PKTOUT_NAME_IF_BUTTON1, handle_if_button_op },
@@ -6927,6 +7259,13 @@ mock230_world_reset(struct Mock230Server* srv)
      * descriptors. */
     mock230_mapinstance_reset();
     srv->npc_slot_max = 0;
+    /* The roster's marks are the world's too, and for the same reason: the next
+     * world's `mock230_world_build_entities` memsets the npc pool, so a
+     * surviving "already standing" byte would leave that spawn permanently
+     * unrealised — an npc missing from a world for no reason anything logs. */
+    srv->static_spawns_live = 0;
+    srv->static_npcs_live = 0;
+    world_static_npcs_reset();
 }
 
 /*
@@ -7113,6 +7452,134 @@ mock230_world_player_init(struct Mock230Player* player)
     mock230_bank_init_player(player);
 }
 
+/* ------------------------------------------------------------------ */
+/* The world roster, and the window on to it                           */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Which roster entries are currently standing up.
+ *
+ * One byte per spawn, allocated on first use and sized to the content tree's
+ * roster, which does not change while a process lives. File-static rather than
+ * a field on the server for the same reason `mock230_content_npc_spawns` is:
+ * the roster belongs to the content, and the selftest runs many *worlds*
+ * against one content load. `world_static_npcs_reset` is what a new world
+ * calls, and it clears the marks without reallocating.
+ */
+static uint8_t* g_static_realised;
+static int g_static_realised_count;
+
+static void
+world_static_npcs_reset(void)
+{
+    int count = 0;
+
+    mock230_content_npc_spawns(&count);
+    if( count != g_static_realised_count )
+    {
+        free(g_static_realised);
+        g_static_realised = count > 0 ? calloc((size_t)count, 1) : NULL;
+        g_static_realised_count = g_static_realised ? count : 0;
+        return;
+    }
+    if( g_static_realised )
+        memset(g_static_realised, 0, (size_t)g_static_realised_count);
+}
+
+/*
+ * Stand up the roster entries near the scene, retire the ones that are not.
+ *
+ * Chebyshev distance from the scene's centre tile, not Euclidean: the scene is
+ * a square and so is everything else that reasons about it, and a circle
+ * inscribed in it would retire npcs in the corners of the very window the
+ * client is holding.
+ *
+ * Both halves are unconditional passes over their own domain rather than a diff
+ * of the two, because the pool and the roster fall out of step for reasons that
+ * are nobody's bug: an npc dies and its slot is reused, `npc_spawn` declines
+ * because the pool is full, a script removes one. A pass that re-derives the
+ * answer from `active` and `static_spawn` cannot drift; a pass that trusted a
+ * remembered delta would leak a slot the first time one of those happened.
+ */
+static void
+world_static_npcs_sync(struct Mock230Server* srv)
+{
+    int count = 0;
+    const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&count);
+    int centre_x = mock230_scene_origin(srv->zone_x) + MOCK230_SCENE_TILES / 2;
+    int centre_z = mock230_scene_origin(srv->zone_z) + MOCK230_SCENE_TILES / 2;
+    int live = 0;
+    int declined = 0;
+
+    if( !srv->static_spawns_live || !spawns || count <= 0 )
+        return;
+    if( g_static_realised_count != count )
+        world_static_npcs_reset();
+    if( !g_static_realised )
+        return;
+
+    /* Retire first, so the slots the outgoing npcs held are available to the
+     * incoming ones in the same pass. A player crossing a boundary gains and
+     * loses roughly the same number, and doing it the other way round would
+     * make the pool briefly need to hold both sides at once. */
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct Mock230Npc* npc = &srv->npcs[slot];
+        int index = npc->static_spawn;
+        int dx;
+        int dz;
+
+        if( !npc->active || index < 0 || index >= count )
+            continue;
+        dx = abs(spawns[index].x - centre_x);
+        dz = abs(spawns[index].z - centre_z);
+        if( dx <= MOCK230_STATIC_SPAWN_OUT && dz <= MOCK230_STATIC_SPAWN_OUT )
+            continue;
+        /* The ordinary NPC_INFO remove path, the same one a despawn uses: the
+         * client is told the way it is told about everything else. Nothing here
+         * is a death, so no drop is rolled and no `[ai_death]` runs — this npc
+         * is not dying, the world is looking away from it. */
+        npc_set_occupancy(npc, 0);
+        npc->active = 0;
+        g_static_realised[index] = 0;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        int dx = abs(spawns[i].x - centre_x);
+        int dz = abs(spawns[i].z - centre_z);
+        int slot;
+
+        if( g_static_realised[i] )
+        {
+            live++;
+            continue;
+        }
+        if( dx > MOCK230_STATIC_SPAWN_IN || dz > MOCK230_STATIC_SPAWN_IN )
+            continue;
+        slot = npc_spawn(srv, spawns[i].npc_id, spawns[i].x, spawns[i].z, spawns[i].level);
+        if( slot < 0 )
+        {
+            declined++;
+            continue;
+        }
+        srv->npcs[slot].static_spawn = i;
+        g_static_realised[i] = 1;
+        live++;
+    }
+
+    srv->static_npcs_live = live;
+    /* `npc_spawn` already names each refusal; this says how big the shortfall
+     * was, which is the number that decides whether MOCK230_NPC_MAX is wrong.
+     * Silence here would read as a scene bug — an empty patch of world — rather
+     * than as the pool running out. */
+    if( declined )
+        fprintf(stderr,
+                "mock230: %d roster spawn(s) declined near %d,%d — the npc pool (%d) is "
+                "smaller than this window needs\n",
+                declined, centre_x, centre_z, MOCK230_NPC_MAX);
+}
+
 /*
  * The npcs and ground objs the map squares state. Part of the world, not of a
  * login — which is why it moved out of what is now mock230_world_player_init.
@@ -7121,14 +7588,21 @@ static void
 mock230_world_build_entities(struct Mock230Server* srv)
 {
     /*
-     * The npc roster comes from the content tree's map squares — LostCity's
-     * `==== NPC ====` sections, which are OpenRune's Lumbridge spawn list
-     * transcribed from OpenRune once and authored here since.
+     * The npc roster comes from the content tree's `.spawn` files — 23,139 of
+     * them, every static npc in OldSchool, sourced and checked against this
+     * cache by tools/gen_spawns.py (docs/ITEM_AND_NPCS.md).
      *
-     * Every spawn in the tree is created, not only the ones near the start
-     * tile: the client is only ever told about npcs within 15 tiles, but the
-     * player can walk, and an npc that does not exist until you approach it
-     * would pop into being with full hitpoints in front of you.
+     * This used to create all of them, and the comment that stood here defended
+     * it: the client is told about npcs within 15 tiles, but the player can
+     * walk, and an npc that does not exist until you approach it would pop into
+     * being with full hitpoints in front of you.
+     *
+     * The defence is right and the implementation could not survive the real
+     * roster — 23,139 npcs cannot exist at once on a wire whose npc slot is 14
+     * bits. `world_static_npcs_sync` keeps the property and drops the loop: a
+     * spawn stands up 160 tiles out and is retired at 224, so it has existed
+     * for a hundred tiles' walking before anyone can see it. See
+     * MOCK230_STATIC_SPAWN_IN.
      */
     memset(srv->npcs, 0, sizeof(srv->npcs));
     /* memset leaves death/respawn/despawn at 0. Respawn treats `respawn_tick < 0`
@@ -7143,10 +7617,11 @@ mock230_world_build_entities(struct Mock230Server* srv)
     }
     {
         int count = 0;
-        const struct Mock230MapNpcSpawn* spawns = mock230_content_npc_spawns(&count);
 
-        for( int i = 0; i < count; i++ )
-            npc_spawn(srv, spawns[i].npc_id, spawns[i].x, spawns[i].z, spawns[i].level);
+        mock230_content_npc_spawns(&count);
+        world_static_npcs_reset();
+        srv->static_spawns_live = 1;
+        world_static_npcs_sync(srv);
 
         if( count == 0 )
         {
@@ -7155,8 +7630,8 @@ mock230_world_build_entities(struct Mock230Server* srv)
              * rather than dead, the same way the script fallbacks do. */
             npc_spawn(srv, 3105, g_home_x + 2, g_home_z + 1, 0);
         }
-        fprintf(stderr, "mock230: npc roster %d spawn(s), slot_max=%d\n", count,
-                srv->npc_slot_max);
+        fprintf(stderr, "mock230: npc roster %d spawn(s), %d standing, slot_max=%d\n",
+                count, srv->static_npcs_live, srv->npc_slot_max);
     }
 
     /* Ground objs, from the same map squares. Duration -1 marks them spawns,
@@ -14202,6 +14677,27 @@ mock230_world_selftest(void)
                  * sentinel *because* synth 0 is a real clip. */
                 SELFTEST_CHECK(mock230_content_npc_default()->attack_sound == -1,
                                "an npc nothing describes is silent, not synth 0");
+
+                /*
+                 * The goblin, because it is *authored*, and authored npcs were
+                 * the ones that stayed mute.
+                 *
+                 * The bat above is a generated block, so it only proves the
+                 * generated path. Every npc a new player meets is in
+                 * `areas/lumbridge/configs/lumbridge.npc` — hand-written, and
+                 * hand-written blocks stated no sound at all, so the whole
+                 * Lumbridge roster swung, flinched and died in silence while the
+                 * ledger held `goblin_attack` / `goblin_hit` / `goblin_death` the
+                 * entire time. `--fix-authored` fills them; this is the check
+                 * that it stays filled.
+                 */
+                SELFTEST_CHECK(npc->def && npc->def->attack_sound == 469,
+                               "goblin_attack should reach the authored goblin as "
+                               "synth 469, got %d",
+                               npc->def ? npc->def->attack_sound : -999);
+                SELFTEST_CHECK(npc->def && npc->def->death_sound == 471,
+                               "goblin_death should be 471, got %d",
+                               npc->def ? npc->def->death_sound : -999);
             }
 
             /*
@@ -14391,8 +14887,14 @@ mock230_world_selftest(void)
             /* Corpse despawns, then respawns at its spawn tile at full health.
              * Both windows come off the npc's own record, so a tree that gives
              * the goblin a longer death or a slower respawn moves the test with
-             * it instead of reddening it. */
-            for( int i = 0; i < npc->def->death_delay + 2 && npc->active; i++ )
+             * it instead of reddening it.
+             *
+             * `+ 4`, not `+ 2`: `death_delay` is measured from the death
+             * animation now, and three ticks come before it — one for the
+             * `[ai_queue3]` the killing blow queues, and up to two of
+             * `npc_arrivedelay` for a goblin that was still mid-step when it
+             * died. See `npc_death_step`. */
+            for( int i = 0; i < npc->def->death_delay + 4 && npc->active; i++ )
                 mock230_world_tick(&srv);
             SELFTEST_CHECK(!npc->active, "the corpse should despawn");
 
@@ -14493,7 +14995,9 @@ mock230_world_selftest(void)
              * correct behaviour and would make these checks measure two things.
              */
             selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
-            for( int i = 0; i < npc->def->death_delay + 2 && npc->active; i++ )
+            /* `+ 4` for the three ticks that now precede `death_delay` — see the
+             * matching loop in the fight section above. */
+            for( int i = 0; i < npc->def->death_delay + 4 && npc->active; i++ )
                 mock230_world_tick(&srv);
             SELFTEST_CHECK(!npc->active, "the corpse despawns");
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
@@ -14523,6 +15027,85 @@ mock230_world_selftest(void)
             npc->mode = want_mode;
             npc->huntmode = want_hunt;
             selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: a death is spread over the reference's ticks\n");
+    {
+        /*
+         * The schedule, tick by tick, because it is a schedule and nothing else
+         * in this file would notice it collapsing back into one tick.
+         *
+         * LostCity spends a kill across four ticks — `npc_queue(3, 0, 0)` from
+         * `[proc,npc_default_damage]`, then `[proc,npc_death]`'s `npc_arrivedelay`,
+         * death animation, `npc_delay(1)` and `npc_del`. This engine owns the
+         * sequence (494 drop tables bind `[ai_queue3]` by type or category, so a
+         * content-side death would be skipped by all of them), which means the
+         * only thing holding the schedule to the reference's is an assertion
+         * about the ticks. Every earlier check here passes just as happily with
+         * the whole death done on the tick the damage lands — which is what it
+         * used to do, and what "things die too fast" was.
+         *
+         * A goblin that has been standing still, so `npc_arrivedelay`'s
+         * has-not-moved-for-two-ticks arm applies and the wait is zero. The two
+         * moving arms are `SS_OP_NPC_ARRIVEDELAY`'s own, tested in embed_test.
+         */
+        int goblin = selftest_find_npc(&srv, 3028);
+
+        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        if( goblin >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[goblin];
+            int delay = npc->def->death_delay;
+            int blow;
+
+            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            npc->death_tick = -1;
+            npc->hitpoints = npc->max_hitpoints;
+            /* Fixture, not an assertion: `last_movement` is the moving tick plus
+             * one, so this is "has not moved for a while". */
+            npc->last_movement = srv.tick - 5;
+            npc->anim_id = -1;
+
+            blow = srv.tick;
+            mock230_combat_hit_npc(&srv, goblin, 0, npc->hitpoints);
+
+            SELFTEST_CHECK(npc->hitpoints == 0, "the blow empties the hitpoints");
+            SELFTEST_CHECK(npc->death_stage == MOCK230_DEATH_QUEUED,
+                           "and only queues the death, stage %d", npc->death_stage);
+            SELFTEST_CHECK(npc->death_tick == blow + 1,
+                           "due on the next npc phase, want %d got %d", blow + 1,
+                           npc->death_tick);
+            SELFTEST_CHECK(npc->anim_id != npc->death_seq,
+                           "with no death animation on the blow's own tick, got %d",
+                           npc->anim_id);
+
+            /* +1: `[ai_queue3]`, and with no arrivedelay to serve, the animation
+             * in the same tick. */
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(npc->active, "the corpse is still there a tick later");
+            SELFTEST_CHECK(npc->death_stage == MOCK230_DEATH_CORPSE,
+                           "the death script has reached its animation, stage %d",
+                           npc->death_stage);
+            SELFTEST_CHECK(npc->death_tick == blow + 1 + delay,
+                           "and npc_delay(1) is measured from there, want %d got %d",
+                           blow + 1 + delay, npc->death_tick);
+
+            /* The corpse lies there for `death_delay` ticks and not one fewer —
+             * the half of the ledger a shortened death would break. */
+            for( int i = 0; i < delay - 1 && npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(npc->active, "the corpse outlives death_delay - 1 ticks");
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(!npc->active, "and is reaped on the tick death_delay names");
+            SELFTEST_CHECK(srv.tick >= blow + 1 + delay,
+                           "which is never sooner than the blow plus %d", 1 + delay);
+
+            /* Put the goblin back for whatever measures it next, the same way the
+             * section above does. */
+            for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
         }
     }
 
@@ -23748,15 +24331,14 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
-                           "the flank walls need one black bind tick, four fade ticks, "
-                           "and the middle-wall lead tick; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
+                           "the collapse should follow Kronos's three-tick glyph delay; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
-            SELFTEST_CHECK(fade_in_tick == change_tick + 1,
-                           "the state2 loc changes need one complete fully-black tick before "
-                           "fade-in; got change=%d fade=%d",
-                           change_tick, fade_in_tick);
+            SELFTEST_CHECK(fade_in_tick == anim_tick,
+                           "fade-in and the flank animations must start together; "
+                           "got fade=%d anim=%d",
+                           fade_in_tick, anim_tick);
             SELFTEST_CHECK(glyph_move_tick == anim_tick,
                            "the glyph must take its first step on the flank LOC_ANIM tick; "
                            "got glyph=%d anim=%d",
@@ -23803,9 +24385,8 @@ mock230_world_selftest(void)
                            total_pillar_seq);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
-            /* zuk_spawn begins one tick before the flank animations. */
-            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick == anim_tick - 1,
-                           "TzKal-Zuk's spawn animation must lead the flanks by one tick; "
+            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick == anim_tick,
+                           "TzKal-Zuk and the flank animations must start together; "
                            "got zuk=%d anim=%d",
                            zuk_tick, anim_tick);
 
@@ -23925,9 +24506,8 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
-                           "the repeated seal should preserve the black bind, fade, and "
-                           "middle lead ticks; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
+                           "the repeated seal should preserve the glyph delay; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,

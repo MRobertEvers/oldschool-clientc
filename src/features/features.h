@@ -184,6 +184,23 @@ struct ToriRS_FeatureTable
      */
     int route_window_tiles;
 
+    /* --- widget targeting ------------------------------------------------ */
+
+    /**
+     * Which bit of a component's target mask means "may be cast on a held
+     * item", the one flag in that mask whose position moved between eras.
+     *
+     * 0 = Client-TS's 0x10: `targetMask & 0x10` in the inventory arm of
+     * addComponentOptions, and the `targetMask === 0x10` test that snaps the
+     * sidebar to the backpack when a spell can only target items.
+     * 0x20 = OldSchool, where the deob reads `(targetMask & 0x20) == 32` in the
+     * same place and `magic_spellbook:high_alchemy` decodes to exactly 0x20.
+     *
+     * The other four flags (obj 0x1, npc 0x2, loc 0x4, player 0x8) are shared
+     * by both and need no entry. Zero is the classic value, per the table rule.
+     */
+    int target_mask_held;
+
     /* --- scene painter -------------------------------------------------- */
 
     /**

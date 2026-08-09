@@ -3050,10 +3050,19 @@ init_defaults(void)
     g_npc_default.strength = 1;
     g_npc_default.defence = 1;
     g_npc_default.respawnrate = 25;
-    /* Not 0, which would despawn the corpse on the tick it died and eat the
-     * death animation entirely. A tree that states `death_delay` overrides it;
-     * this is only what a tree stating nothing degrades to. */
-    g_npc_default.death_delay = 3;
+    /*
+     * How long the corpse lies there once the death animation has *started* —
+     * `npc_delay(1)` in `[proc,npc_death]`, which is `tick + 1 + 1` and so two
+     * ticks. It used to be 3 and to be measured from the killing blow, which is
+     * a different thing: the animation now starts a tick later (and later still
+     * if the npc was mid-step), so the same 3 ticks would have been a different
+     * death from the reference's.
+     *
+     * Not 0, which would despawn the corpse on the tick the animation started
+     * and eat it entirely. A tree that states `death_delay` overrides it; this
+     * is only what a tree stating nothing degrades to.
+     */
+    g_npc_default.death_delay = 2;
     g_npc_default.attackrate = 4;
     g_npc_default.attackrange = 1;
     /* The reference's NpcType defaults, and the pair that decides how far a

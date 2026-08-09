@@ -1770,7 +1770,17 @@ main(void)
                       "with loops=1: RS_Audio_QueueEffect refuses loops=0, so a "
                       "literal port of ~sound_within_distance would be silent");
 
-                /* The killing blow. Same npc, same observers. */
+                /*
+                 * The killing blow. Same npc, same observers.
+                 *
+                 * The pumps are what make this a fair test now: the death sound
+                 * is not sent on the blow's tick any more. `[proc,npc_death]`
+                 * plays it, and the blow only queues that script — so it goes
+                 * out on the next npc phase at the earliest, and later still if
+                 * `npc_arrivedelay` has a step to wait out. Four ticks covers
+                 * every arm. The claim is unchanged in substance: the death
+                 * sound follows the flinch rather than replacing it.
+                 */
                 peers[0].saw_synth_count = 0;
                 peers[1].saw_synth_count = 0;
                 mock230_combat_hit_npc(world, npc_slot, 0, npc->hitpoints);
@@ -1778,8 +1788,8 @@ main(void)
                     pump(peers, 2, embed, 1, 64);
                 check(peers[0].saw_synth_count > 0 &&
                           peers[0].saw_synth_id == death_synth,
-                      "and its death sound went out on the killing blow, after "
-                      "the flinch rather than instead of it");
+                      "and its death sound went out once the death script ran, "
+                      "after the flinch rather than instead of it");
 
                 /*
                  * Silence has to be reachable, or every assertion above is

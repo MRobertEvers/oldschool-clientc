@@ -269,17 +269,28 @@ dump_tree_node(
 static void
 dump_hooks(struct App* app)
 {
+    /* Positional: this walks UITreeRuntimeHooks as an array of identically
+     * shaped hooks, so the order has to be the struct's order exactly. It had
+     * drifted — four hooks added to the struct and not here — which silently
+     * relabelled everything past on_mouse_repeat, so an on_target_enter read
+     * back as "on_scroll_wheel" and the spellbook looked wired when it was not. */
     static char const* const hook_names[] = {
-        "on_click",         "on_hold",
-        "on_mouse_over",    "on_mouse_leave",
-        "on_mouse_repeat",  "on_drag",
-        "on_drag_complete", "on_scroll_wheel",
-        "on_key",           "on_op",
-        "on_timer",         "on_var_transmit",
-        "on_inv_transmit",  "on_misc_transmit",
-        "on_friend_transmit", "on_resize",
-        "on_sub_change",
+        "on_click",           "on_hold",
+        "on_mouse_over",      "on_mouse_leave",
+        "on_mouse_repeat",    "on_click_repeat",
+        "on_release",         "on_target_enter",
+        "on_target_leave",    "on_drag",
+        "on_drag_complete",   "on_scroll_wheel",
+        "on_key",             "on_op",
+        "on_timer",           "on_var_transmit",
+        "on_inv_transmit",    "on_misc_transmit",
+        "on_friend_transmit", "on_dialog_abort",
+        "on_resize",          "on_sub_change",
     };
+    _Static_assert(
+        sizeof(hook_names) / sizeof(hook_names[0]) ==
+            sizeof(struct UITreeRuntimeHooks) / sizeof(struct UITreeRuntimeScriptHook),
+        "hook name table must name every UITreeRuntimeHooks slot, in order");
     uint32_t i;
 
     for( i = 0; i < app->tree->component_count; i++ )

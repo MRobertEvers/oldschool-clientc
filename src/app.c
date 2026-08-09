@@ -206,6 +206,13 @@ app_if_events_for_node(
     struct App const* app,
     int com_id);
 
+static int
+app_if_events_override_get(
+    struct App const* app,
+    int com_id,
+    int sub_id,
+    unsigned* out_events);
+
 /* Adapter so rs_minimenu_build can ask about server-declared events without
  * knowing what an App is. Uses the node-aware lookup so a dynamic child
  * inherits its parent's IF_SETEVENTS range (popout:buttons, bank items, …). */
@@ -215,6 +222,23 @@ app_minimenu_events_for_component(void* user, int com_id, int sub_id)
     if( sub_id >= 0 )
         return App_IfEventsGetAt((struct App const*)user, com_id, sub_id);
     return (int)app_if_events_for_node((struct App const*)user, com_id);
+}
+
+/* The CS2 host's twin of the above, for IF/CC_GETTARGETMASK. It reports
+ * *presence* rather than an effective value because that is what the reference
+ * split needs (deob method12093): where the server declared nothing the widget's
+ * own decoded target mask answers, and that one is already normalised per cache
+ * generation on the node — shifting a dat1 mask like a dat2 events word would
+ * turn a real answer into noise. */
+static int
+app_cs2_events_override_for_component(void* user, int com_id, int* out_events)
+{
+    unsigned events = 0;
+    if( !app_if_events_override_get((struct App const*)user, com_id, -1, &events) )
+        return 0;
+    if( out_events )
+        *out_events = (int)events;
+    return 1;
 }
 
 void
@@ -3375,6 +3399,8 @@ App_Init(
     app->chat_source.user = app;
     RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
     app->host.loot = &app->loot;
+    app->host.events_override_for_component = app_cs2_events_override_for_component;
+    app->host.events_user = app;
     /* Publish the boot canvas through the one setter so the host's viewport
      * copy starts out agreeing with the layout root. main.c may already have
      * moved the root (TORIRS_ROOT_SIZE, which must be applied before App_Init
@@ -11392,6 +11418,7 @@ app_minimenu_selection(struct App const* app)
         sel.mode = RS_MINIMENU_SELECT_TARGET;
         snprintf(sel.target_op, sizeof(sel.target_op), "%s", app->targetsel.op);
         sel.target_mask = app->targetsel.mask;
+        sel.target_mask_held_bit = app->features ? app->features->target_mask_held : 0;
     }
     return sel;
 }
@@ -11851,6 +11878,15 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
+    if( getenv("TORIRS_CLICK_DEBUG") )
+    {
+        fprintf(stderr, "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
+                click_x, click_y, scratch.option_count, default_idx,
+                (int)mctx.selection.mode, (unsigned)mctx.selection.target_mask);
+        for( int i = 0; i < scratch.option_count; i++ )
+            fprintf(stderr, "  row[%d] '%s' action=%d\n", i, scratch.options[i].text,
+                    scratch.options[i].action);
+    }
     if( default_idx >= 0 )
     {
         struct UIMinimenu saved = app->interact.minimenu;
@@ -12368,10 +12404,11 @@ app_minimenu_run_option(
         if( idx >= 0 )
         {
             struct UITreeComponent const* node = &app->tree->components[idx];
-            /* targetMask rode in as click_mask on the BUTTON_TARGET node. */
-            app->targetsel.mask = node->behavior.click_mask;
-            /* Reference targetOp = "<verb-prefix> <base> <verb-suffix>". */
+            app->targetsel.mask = node->behavior.target_mask;
+            if( node->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
             {
+                /* Classic targetOp = "<verb-prefix> <base> <verb-suffix>", the
+                 * verb split on its first space (Client-TS TGT_BUTTON). */
                 char const* verb = node->menu_options.target_verb;
                 char const* base = node->menu_options.target_base;
                 char const* space = strchr(verb, ' ');
@@ -12382,6 +12419,19 @@ app_minimenu_run_option(
                 else
                     snprintf(
                         app->targetsel.op, sizeof(app->targetsel.op), "%s %s", verb, base);
+            }
+            else
+            {
+                /* IF3 (deob method523 + the world rows that read it back): the
+                 * verb is whole, its base is the component's opBase — IF3 has no
+                 * targetText — and the target's own name is joined on with an
+                 * arrow rather than a verb suffix, so a row reads
+                 * "Cast <col>Wind Strike</col> -> <col>Goblin</col>". Built into
+                 * one string here because that is the shape the world/inventory
+                 * row builders append the target's name to. */
+                snprintf(
+                    app->targetsel.op, sizeof(app->targetsel.op), "%s %s ->",
+                    node->menu_options.target_verb, node->menu_options.option);
             }
         }
         app_targetsel_dispatch_hook(app, 1);

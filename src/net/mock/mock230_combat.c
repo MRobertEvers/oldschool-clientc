@@ -607,45 +607,42 @@ mock230_combat_hit_npc(
 
     if( npc->hitpoints == 0 )
     {
-        play_npc_seq(npc, npc->death_seq);
         /*
-         * The death noise replaces the flinch noise it just queued, the same
-         * way the death animation replaces the flinch animation on the line
-         * above. Both are sent, and the client's effect queue is what resolves
-         * them: two entries land on the same tick, the flinch first.
+         * Zero hitpoints starts a death; it does not *do* one.
          *
-         * That is a real difference from the animation, where the second
-         * `play_npc_seq` overwrites the first in one mask and only the death is
-         * ever seen. Left as it is rather than suppressed, because a creature
-         * being hit *and* dying makes both noises in the reference — LostCity
-         * plays `defend_sound` from the player's attack script and
-         * `death_sound` from `[proc,npc_death]`, with nothing between them
-         * cancelling the first.
-         */
-        npc_sound_nearby(srv, npc, npc->death_sound, 0);
-
-        /*
-         * How long the corpse lies there is the record's, beside the animation
-         * that has to finish inside it — `death_delay` on the npc, defaulting
-         * through `general/configs/npc_default.npc`. It was three ticks in
-         * mock230.h, which made the corpse of a boss and the corpse of a rat the
-         * same length and neither of them changeable.
+         * The reference's `[proc,npc_default_damage]` (LostCity
+         * skill_combat/scripts/npc/npc_combat.rs2:93) ends the killing hit with
+         * one line — `npc_queue(3, 0, 0)` — and everything anyone would call
+         * "dying" happens in the `[ai_queue3]` that fires afterwards. This used
+         * to play the death animation, sound the death noise, run the drop table
+         * and set the despawn clock right here, on the tick the damage landed,
+         * which is two ticks and a whole death script early. Killing anything
+         * read as the creature blinking out of existence with its loot already
+         * on the floor.
          *
-         * Nothing needs to stop the corpse roaming: `advance_npcs` skips any npc
-         * with a `death_tick`, so the `next_roam_tick` push that used to sit
-         * here — a respawn constant used as a roam delay — was saying twice, in
-         * the wrong units, what the line above already says.
+         * `Npc.processQueue` decrements before it compares and the newly-added
+         * request is not reached in the pass that added it, so `npc_queue(…, 0)`
+         * means "next npc phase". `srv->tick + 1` is that, and
+         * `mock230_combat_npc_tick` picks it up from `death_stage`.
+         *
+         * The masks this no longer touches are the point: the flinch animation
+         * and its noise, queued a few lines up, now reach the client on their
+         * own tick instead of being overwritten by a death animation in the
+         * same one.
          */
-        npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+        npc->death_stage = MOCK230_DEATH_QUEUED;
+        npc->death_tick = srv->tick + 1;
         /*
          * Capture kill attribution before combat_stop clears combat_target.
          * Clientscript 7192 needs the npc type + a per-kill event id; each
          * OBJ_ADD during [ai_queue3] then RUNCLIENTSCRIPTs the killers.
+         *
+         * It is captured here and *spent* three ticks later, when the drop table
+         * finally runs: by then neither side still names the other, so a credit
+         * read at that point would find nobody. `death_credit_players` is the
+         * carrier.
          */
-        srv->loot_credit_armed = 1;
-        srv->loot_credit_npc_type = npc->type;
-        srv->loot_credit_event_id = ++srv->loot_credit_seq;
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
         mock230_combat_stop_npc(srv, slot);
         /*
          * And the *other* half of a target: the mode.
@@ -663,25 +660,27 @@ mock230_combat_hit_npc(
          * had been fighting, ignoring its own wander radius and its leash: a
          * fresh npc that had never been hit, hunting.
          *
-         * Before `mock230_world_npc_died`, so an `[ai_queue3]` that sets a mode
+         * Before the death sequence runs, so an `[ai_queue3]` that sets a mode
          * on the way out keeps it — the same ordering `npc_run_mode` uses when
          * it clears a mode before firing the trigger, and for the same reason.
+         * `[proc,npc_death]` opens with `npc_setmode(none)` too; this is the
+         * earlier half of the same claim, and it has to be the earlier half
+         * because a mode left armed for the tick between the blow and the death
+         * script is a tick of a corpse chasing somebody.
          */
         npc->mode = mock230_world_npc_default_mode(npc);
         for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
             {
-                srv->loot_credit_players[i] = 1;
+                npc->death_credit_players[i] = 1;
                 mock230_combat_stop_player_at(&srv->players[i]);
             }
         }
-        /* The drop table is content: [ai_queue3,<npc>] with obj_add calls, the
-         * same shape as LostCity's. mock230_scripts.c runs it and falls back to
-         * the config's death_drop when nothing is bound. */
-        mock230_world_npc_died(srv, slot);
-        srv->loot_credit_armed = 0;
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        /* The drop table does *not* run here. `[proc,npc_default_death]` calls
+         * `gosub(npc_death)` first and only reaches its `obj_add` once that has
+         * returned — which is after `npc_del`. So the loot lands on the tick the
+         * corpse disappears, and `mock230_combat_npc_tick` is where that is. */
     }
 }
 
@@ -1031,6 +1030,183 @@ maybe_aggress(
     npc->attack_clock = 0;
 }
 
+/*
+ * One step of `[proc,npc_death]`.
+ *
+ * The reference (LostCity skill_combat/scripts/npc/npc_death.rs2) is nine lines
+ * and three of them suspend, so a death is not an event on one tick but a small
+ * script spread over four:
+ *
+ *     npc_walk(npc_coord); npc_setmode(none);
+ *     npc_arrivedelay;                 // 0, 1 or 2 ticks
+ *     ~sound_within_distance(death_sound, …)
+ *     npc_anim(death_anim, 0);
+ *     npc_delay(1);                    // tick + 1 + 1, so two ticks
+ *     npc_del;
+ *
+ * and its caller `[proc,npc_default_death]` only reaches `obj_add` after that
+ * has returned — which is *after* `npc_del`. Written as a ledger, for a killing
+ * blow whose damage lands on tick D:
+ *
+ *     D     hitpoints reach 0, flinch animation, `npc_queue(3, 0, 0)`
+ *     D+1   MOCK230_DEATH_QUEUED  — stop, face nothing, arrivedelay
+ *     D+1+a MOCK230_DEATH_ARRIVE  — death sound and death animation
+ *     D+1+a+death_delay           — the drop table, then npc_del
+ *
+ * with `a` 0 for something standing still, 1 if it moved on the previous tick
+ * and 2 if it moved on this one. `death_delay` is the reference's `npc_delay(1)`
+ * (two ticks) as a per-npc record field, so a boss can lie there longer than a
+ * rat.
+ *
+ * This lives in the engine rather than in `[proc,npc_death]` for one reason
+ * worth stating: `[ai_queue3]` is an *exclusive* trigger (type, then category,
+ * then `_`), and 494 drop tables in the tree bind it by type or category. A
+ * content-side death would be skipped by every one of them, and the npcs that
+ * skipped it would never despawn. The schedule is the reference's; the place is
+ * ours, and the split is the one PORTING_GUIDE §2.3 already documents for
+ * hitpoints, the animation, the delay and the despawn.
+ */
+static void
+npc_death_step(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Npc* npc = &srv->npcs[slot];
+
+    /*
+     * A parked script owns the npc, and a death is not allowed to run underneath
+     * one. `Npc.processNpc` says the same by returning early from `isValid()`
+     * while delayed — no timers, no queues, no modes — and the reason it matters
+     * here is `[ai_queue3]`: `[ai_queue3,kalphite_queen]` suspends on
+     * `npc_delay(0)` half way through its form change, and reaping the npc while
+     * its script is parked orphans the rest of it.
+     *
+     * Deferring by a tick rather than skipping: the step is still owed.
+     */
+    if( srv->tick < npc->delayed_until || npc->active_script )
+    {
+        npc->death_tick = srv->tick + 1;
+        return;
+    }
+
+    switch( npc->death_stage )
+    {
+    case MOCK230_DEATH_QUEUED:
+        /*
+         * `npc_walk(npc_coord)` and `npc_setmode(none)`. The mode was put back
+         * at the blow; the route was not, and a half-walked route is what the
+         * reference's walk-to-your-own-tile cancels. Nothing steps a dying npc
+         * (`advance_npcs` skips anything holding a `death_tick`), so this is
+         * about what the npc wakes up with if a script revives it, not about
+         * the corpse moving.
+         */
+        npc->waypoint_index = -1;
+        /*
+         * `npc_arrivedelay` — the same three arms as SS_OP_NPC_ARRIVEDELAY, and
+         * for the same reason: "let the step I am mid-way through finish before
+         * I fall over". `last_movement` is the moving tick *plus one*, so
+         * `< tick - 1` is "has not moved for two ticks" and needs no wait at
+         * all. Deliberately not routed through `delayed_until`: that field
+         * parks a *script*, and phase 4 offering a resume to an npc that has
+         * none would be a second owner of the same clock.
+         */
+        if( npc->last_movement >= srv->tick - 1 )
+        {
+            npc->death_stage = MOCK230_DEATH_ARRIVE;
+            npc->death_tick =
+                srv->tick + (npc->last_movement == srv->tick - 1 ? 1 : 2);
+            return;
+        }
+        /* Standing still: the reference's `npc_arrivedelay` returns without
+         * suspending and the next line runs in the same tick. */
+        /* FALLTHROUGH */
+
+    case MOCK230_DEATH_ARRIVE:
+        /*
+         * Sound then animation, in the reference's order, and both a clear tick
+         * after the flinch that preceded them — which is the whole point of the
+         * schedule. They used to be queued in `mock230_combat_hit_npc` beside
+         * the flinch, so the death animation overwrote the flinch in one mask
+         * and the two noises arrived together.
+         */
+        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+        play_npc_seq(npc, npc->death_seq);
+        npc->death_stage = MOCK230_DEATH_CORPSE;
+        npc->death_tick = srv->tick + npc_def(npc)->death_delay;
+        return;
+
+    case MOCK230_DEATH_CORPSE:
+        /*
+         * The drop table, and then `npc_del`.
+         *
+         * The order within the tick is the reference's — `gosub(npc_death)`
+         * ends with `npc_del` and `[proc,npc_default_death]` does its `obj_add`
+         * on the line after — but the two statements are swapped here because
+         * `active_npc()` refuses an inactive npc, so a script running after
+         * `active = 0` could not read `npc_coord` to drop anything on. Both
+         * land in the same tick's packets either way, so no client can tell.
+         *
+         * Kill credit is re-armed from what the blow captured: the players who
+         * were fighting this npc three ticks ago, which is nothing the world
+         * still records by now.
+         *
+         * The reap is a stage of its own rather than the tail of this one,
+         * because the script may suspend: `[ai_queue3]` runs exactly once, and
+         * a stage boundary is what says so.
+         */
+        npc->death_stage = MOCK230_DEATH_REAP;
+        npc->death_tick = srv->tick;
+        srv->loot_credit_armed = 1;
+        srv->loot_credit_npc_type = npc->type;
+        srv->loot_credit_event_id = ++srv->loot_credit_seq;
+        memcpy(srv->loot_credit_players, npc->death_credit_players,
+               sizeof(srv->loot_credit_players));
+        mock230_world_npc_died(srv, slot);
+        srv->loot_credit_armed = 0;
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+        if( !npc->active )
+            return; /* the script did its own npc_del */
+        if( srv->tick < npc->delayed_until || npc->active_script )
+        {
+            /* Parked mid-script — the guard at the top of this function picks it
+             * back up, and the reap stage stops the table running twice. */
+            npc->death_tick = srv->tick + 1;
+            return;
+        }
+        /* FALLTHROUGH */
+
+    case MOCK230_DEATH_REAP:
+    default:
+        /*
+         * An `[ai_queue3]` that puts hitpoints back is not a death.
+         *
+         * `[ai_queue3,kalphite_queen]` is the case: `npc_changetype` plus
+         * `npc_statheal(hitpoints, 0, 100)`, and no `gosub(npc_death)` — which
+         * in the reference is precisely how content says "this one does not die
+         * here, it changes form". The engine owns the death now, so the same
+         * sentence has to be readable from the hitpoints, and it is the rule the
+         * player side already uses (`mock230_combat_player_tick`: hitpoints back
+         * above zero means the death is over).
+         */
+        if( npc->hitpoints > 0 )
+        {
+            npc->death_tick = -1;
+            npc->death_stage = MOCK230_DEATH_NONE;
+            return;
+        }
+        mock230_world_npc_occupancy(npc, 0);
+        npc->active = 0;
+        npc->death_tick = -1;
+        npc->death_stage = MOCK230_DEATH_NONE;
+        /* A script may have armed `npc_setrespawn` during [ai_queue3] (GWD
+         * minion sync). Keep that clock; otherwise use the def rate. */
+        if( npc->respawn_tick < 0 )
+            npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
+        return;
+    }
+}
+
 void
 mock230_combat_npc_tick(
     struct Mock230Server* srv,
@@ -1044,15 +1220,7 @@ mock230_combat_npc_tick(
     if( npc->death_tick >= 0 )
     {
         if( srv->tick >= npc->death_tick )
-        {
-            mock230_world_npc_occupancy(npc, 0);
-            npc->active = 0;
-            npc->death_tick = -1;
-            /* A script may have armed `npc_setrespawn` during [ai_queue3] (GWD
-             * minion sync). Keep that clock; otherwise use the def rate. */
-            if( npc->respawn_tick < 0 )
-                npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
-        }
+            npc_death_step(srv, slot);
         return;
     }
 

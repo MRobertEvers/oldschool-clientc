@@ -87,6 +87,47 @@ put_useon_tail(
     rsab_p2(w, (uint16_t)(use_com & 0xffff));
 }
 
+/**
+ * The value 239 puts in the "selected" obj and sub fields when what is armed is
+ * a SPELL rather than an inventory item.
+ *
+ * 239 has no separate targeted-spell opcode: OPNPCT carries both "use this item
+ * on that npc" and "cast this spell at that npc", and the only thing that tells
+ * them apart is that a spell has no item behind it, so both of its item fields
+ * are this sentinel (`net_out_opnpct` vs `net_out_opnpcu`, and IF_BUTTONX's
+ * OUT_IF_BUTTONX_OBJ_NONE for the same reason).
+ *
+ * The distinction is not cosmetic: a use-on resolves against the *target*
+ * (`[apnpcu,door]`), a cast resolves against the *spell*
+ * (`[apnpct,magic_spellbook:wind_strike]`). Translating both to the use-on form
+ * — which this file did — cost every spell its trigger, and cost it silently,
+ * because `useon_tail` then rejects the packet for naming an empty inventory
+ * slot and the cast simply never happens.
+ */
+#define MOCK239_SELECTED_NONE 0xffff
+
+static int
+selected_is_spell(int selected_obj, int selected_sub)
+{
+    return selected_obj == MOCK239_SELECTED_NONE && selected_sub == MOCK239_SELECTED_NONE;
+}
+
+/**
+ * The spell tail every targeted-cast body ends with: the spell's component uid,
+ * whole.
+ *
+ * Four bytes, unlike `put_useon_tail`'s two, and for the opposite reason: there
+ * the component is discarded after the item validates, here it *is* the trigger
+ * subject, so `(218 << 16) | 11` must not arrive as 11.
+ */
+static void
+put_spell_tail(
+    struct RSAreaBuf* w,
+    int spell_com)
+{
+    rsab_p4(w, (uint32_t)spell_com);
+}
+
 /* ------------------------------------------------------------------ */
 
 int
@@ -168,11 +209,13 @@ mock239_inbound_translate(
      * which is the order `handle_opheldu` reads: `obj, slot, com` first is the
      * target, `useObj, useSlot, useCom` second is the selection.
      *
-     * OPHELDT (item on spell) arrives here too and is not separable on the
-     * wire: the spell is simply a target component whose obj is the
-     * not-an-item sentinel. It translates to OPHELDU with that sentinel intact
-     * rather than being guessed at, so a use-on-spell reaches a handler that
-     * can see what it is instead of being dropped here.
+     * OPHELDT (cast a spell on an inventory item — High Alchemy, Superheat,
+     * the enchants) arrives here too, and the same sentinel separates them: the
+     * spell is the TARGET, and being a spell it carries no obj and no slot. It
+     * gets its own canonical body — item first, then the spell's whole
+     * component uid — because `[opheldt,magic_spellbook:high_alchemy]` is keyed
+     * by the spell and `handle_opheldu` would have read the spell's empty item
+     * fields as the subject and dropped the packet.
      */
     case OSRS239_OP_IF_BUTTONT:
     {
@@ -185,6 +228,15 @@ mock239_inbound_translate(
 
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
+        if( selected_is_spell(target_obj, target_sub) )
+        {
+            rsab_p2(&w, (uint16_t)selected_obj);
+            rsab_p2(&w, (uint16_t)selected_sub);
+            rsab_p4(&w, (uint32_t)selected_com);
+            put_spell_tail(&w, target_com);
+            *out_len = (int)rsab_len(&w);
+            return PKTOUT_NAME_OPHELDT;
+        }
         rsab_p2(&w, (uint16_t)target_obj);
         rsab_p2(&w, (uint16_t)target_sub);
         rsab_p4(&w, (uint32_t)target_com);
@@ -352,6 +404,12 @@ mock239_inbound_translate(
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         rsab_p2(&w, (uint16_t)index);
+        if( selected_is_spell(sel_obj, sel_sub) )
+        {
+            put_spell_tail(&w, sel_com);
+            *out_len = (int)rsab_len(&w);
+            return PKTOUT_NAME_OPNPCT;
+        }
         put_useon_tail(&w, sel_obj, sel_sub, sel_com);
         *out_len = (int)rsab_len(&w);
         return PKTOUT_NAME_OPNPCU;
@@ -378,6 +436,12 @@ mock239_inbound_translate(
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         put_tile_target(&w, x, z, id);
+        if( selected_is_spell(sel_obj, sel_sub) )
+        {
+            put_spell_tail(&w, sel_com);
+            *out_len = (int)rsab_len(&w);
+            return PKTOUT_NAME_OPLOCT;
+        }
         put_useon_tail(&w, sel_obj, sel_sub, sel_com);
         *out_len = (int)rsab_len(&w);
         return PKTOUT_NAME_OPLOCU;
@@ -404,9 +468,43 @@ mock239_inbound_translate(
         if( !rsab_ok(&r) )
             return PKTOUT_NAME_NONE;
         put_tile_target(&w, x, z, id);
+        if( selected_is_spell(sel_obj, sel_sub) )
+        {
+            put_spell_tail(&w, sel_com);
+            *out_len = (int)rsab_len(&w);
+            return PKTOUT_NAME_OPOBJT;
+        }
         put_useon_tail(&w, sel_obj, sel_sub, sel_com);
         *out_len = (int)rsab_len(&w);
         return PKTOUT_NAME_OPOBJU;
+    }
+
+    /* OpPlayerTDecoder: g2Alt2 selectedSub, g1Alt1 ctrl, g2Alt3 selectedObj,
+     * gCombinedIdAlt2 selectedCombinedId, g2 index. Same T-carries-both shape
+     * as the three above; this one had no case at all, so "use item on player"
+     * and "cast at player" were both dropped before reaching a handler. */
+    case PKTOUT_NAME_OPPLAYERT:
+    {
+        int sel_sub = rsab_g2_alt2(&r);
+        int sel_obj;
+        int sel_com;
+        int index;
+        (void)rsab_g1_alt1(&r); /* ctrl */
+        sel_obj = rsab_g2_alt3(&r);
+        sel_com = rsab_g4_alt2(&r);
+        index = rsab_g2(&r);
+        if( !rsab_ok(&r) )
+            return PKTOUT_NAME_NONE;
+        rsab_p2(&w, (uint16_t)index);
+        if( selected_is_spell(sel_obj, sel_sub) )
+        {
+            put_spell_tail(&w, sel_com);
+            *out_len = (int)rsab_len(&w);
+            return PKTOUT_NAME_OPPLAYERT;
+        }
+        put_useon_tail(&w, sel_obj, sel_sub, sel_com);
+        *out_len = (int)rsab_len(&w);
+        return PKTOUT_NAME_OPPLAYERU;
     }
 
     /* MoveGameClickDecoder: g2Alt1 x, g2Alt1 z, g1Alt3 keyCombination.

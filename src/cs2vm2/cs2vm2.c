@@ -10279,6 +10279,8 @@ CS2VM2_RunOp(
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETINVCOUNT);
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
+    case CS2_OP_CC_GETTARGETMASK:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETTARGETMASK);
     case CS2_OP_CC_GETCOMPONENTPARAM:
         return CS2VM2_Op_CC_GetComponentParam(vm, frame, operand);
     case CS2_OP_IF_GETCOMPONENTPARAM:
@@ -10337,6 +10339,8 @@ CS2VM2_RunOp(
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETINVOBJECT);
     case CS2_OP_IF_GETINVCOUNT:
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETINVCOUNT);
+    case CS2_OP_IF_GETTARGETMASK:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETTARGETMASK);
     case CS2_OP_IF_GETSCROLLWIDTH:
         return CS2VM2_Op_IF_GetScrollWidth(vm, frame, operand);
     case CS2_OP_SETBIT:

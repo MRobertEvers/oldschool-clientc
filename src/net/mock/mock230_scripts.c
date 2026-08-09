@@ -1918,6 +1918,66 @@ mock230_scripts_run_trigger_specific(
 }
 
 /*
+ * A targeted cast: `[apnpct,magic_spellbook:wind_strike]`,
+ * `[opheldt,magic_spellbook:high_alchemy]` and the loc/obj forms.
+ *
+ * Keyed by the SPELL rather than by what it was aimed at — one script per
+ * spell, matching no npc — so the subject is a component uid, and that is what
+ * makes this its own dispatcher rather than a plain `mock230_scripts_run_trigger`
+ * call. A spell lives in interface 218, so its uid is 14,286,848 and up: past
+ * `ssc_compile.c`'s `1 << 21` ceiling, which means EVERY spell trigger in the
+ * tree compiled name-addressed and none of them is reachable by key. Dispatching
+ * these by key alone finds nothing, and finds nothing *silently* — the caller
+ * reads it as "this spell has no script" and says "Nothing interesting happens".
+ *
+ * The key rung is still tried first, for the same reason run_if_button_trigger
+ * tries both: which spelling a script compiled under is arithmetic, not
+ * authorship, and a spellbook interface below 32 would fit.
+ */
+int
+mock230_scripts_run_spell_trigger(
+    struct Mock230Server* srv,
+    int trigger,
+    int spell_component,
+    int npc_slot)
+{
+    const struct SSVM_Script* script;
+    const char* component;
+    char name[192];
+    int result;
+
+    if( !srv->scripts_ok || spell_component <= 0 )
+        return MOCK230_TRIGGER_NONE;
+
+    /* Specific and unreported, as run_if_button_trigger's key rung is: an
+     * `[apnpct,_]` wildcard would swallow every cast in the game, and a miss
+     * here is the *expected* case (see above), not something to report. */
+    result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, -1, 0, 0);
+    if( result != MOCK230_TRIGGER_NONE )
+        return result;
+
+    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, spell_component);
+    if( !component )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: no [%s] subject name for component %d|%d\n",
+                    SSVM_TriggerName(trigger), (spell_component >> 16) & 0xffff,
+                    spell_component & 0xffff);
+        return MOCK230_TRIGGER_NONE;
+    }
+
+    snprintf(name, sizeof(name), "[%s,%s]", SSVM_TriggerName(trigger), component);
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: no trigger for %s\n", name);
+        return MOCK230_TRIGGER_NONE;
+    }
+    return run_trigger_script(srv, script, npc_slot, -1);
+}
+
+/*
  * One (trigger, component) attempt: by key, then by name.
  *
  * Both spellings have to be tried for every trigger in this family, because
