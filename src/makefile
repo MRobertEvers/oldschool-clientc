@@ -127,6 +127,7 @@ SUBMAKE = $(MAKE) CC=$(HOST_CC)
 # out -- see PLATFORM_EXE_SUFFIX in platform.mk for why the shell's .exe
 # fallback is not good enough here.
 CACHEPACK_BIN = $(RSCACHE_DIR)/tools/cachepack/cachepack$(PLATFORM_EXE_SUFFIX)
+CS2_BIN = $(RSCACHE_DIR)/tools/cs2/cs2$(PLATFORM_EXE_SUFFIX)
 
 RSCACHE_DIR  := $(REPO_ROOT)/3rd/rscache
 RSPROT_DIR   := $(REPO_ROOT)/3rd/rsprot
@@ -499,7 +500,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders
+.PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb
 
 all: $(OBJ_DIR) $(TARGET)
@@ -1722,6 +1723,71 @@ mock230-cache-check:
 		exit 1; \
 	fi; \
 	echo "mock230-cache-check: all $(words $(MOCK230_CACHE_TABLES)) tables present in $(MOCK230_CACHE_DIR)"
+
+# The 2009scape Summoning client records are deliberately absent from the
+# ordinary content walk.  A feature-on cache is a second pass over the explicit
+# marked-lane staging tree.  Its CS2 gate is separate because the committed
+# ordinary tree has known stale sources: cachepack keeps base bytes when a
+# source declines, so only an exact non-zero `compiled N, failed 0` is evidence.
+SUMMONING_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
+SUMMONING_OVERLAY_DIR = $(REPO_ROOT)/build/summoning-overlay
+SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
+SUMMONING_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.summoning
+
+test-summoning-cs2:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cs2
+	@test -d "$(RUNESTAR_CS2_NAMES)" || { \
+		echo "test-summoning-cs2: missing RuneStar names: $(RUNESTAR_CS2_NAMES)" >&2; exit 1; }
+	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
+		expected=$$(find "$(SUMMONING_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
+		[ "$$expected" -gt 0 ] || { echo "test-summoning-cs2: zero scripts" >&2; exit 1; }; \
+		$(CS2_BIN) compile --src "$(SUMMONING_LANE)/scripts" \
+			--raw "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
+		cat "$$log"; \
+		grep -qx "compiled $$expected, failed 0" "$$log" || { \
+			echo "test-summoning-cs2: expected compiled $$expected, failed 0" >&2; exit 1; }
+
+test-summoning-isolation:
+	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
+
+# Supply two snapshots around any ordinary/flag-off operation.  The helper
+# compares every regular cache file and refuses a vacuous zero-check pass.
+test-summoning-byte-identity:
+	@test -n "$(SUMMONING_CACHE_BEFORE)" -a -n "$(SUMMONING_CACHE_AFTER)" || { \
+		echo "usage: make test-summoning-byte-identity SUMMONING_CACHE_BEFORE=... SUMMONING_CACHE_AFTER=..." >&2; exit 1; }
+	@test "$(abspath $(SUMMONING_CACHE_BEFORE))" != "$(abspath $(SUMMONING_CACHE_AFTER))" || { \
+		echo "test-summoning-byte-identity: before and after must be distinct snapshots" >&2; exit 1; }
+	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
+		--compare-cache "$(SUMMONING_CACHE_BEFORE)" "$(SUMMONING_CACHE_AFTER)"
+
+mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-cs2
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
+	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
+		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
+	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
+		--tree $(MOCK230_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
+	rm -rf $(REPO_ROOT)/cache.osrs239.summoning
+	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
+		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
+		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
+		--rev osrs239 --assets --binary --gamevals
+	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
+	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
+		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
+			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 >"$$log" 2>&1; \
+		cat "$$log"; grep -qx 'decompiled 3, failed 0, total 3' "$$log"; \
+		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
+		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
+		echo "mock230-cache-summoning: verified 3 clientscript archives"
+
+test-summoning-phase1: mock230-cache-summoning mock230-scripts mock230-servpack
+	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
+		EMBED_SERVER=1 TORIDRAW_OPT=1 all
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
+		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
+		--flag-off $(REPO_ROOT)/cache.osrs239 --manifest $(REPO_ROOT)/manifest_osrs239.ini
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it

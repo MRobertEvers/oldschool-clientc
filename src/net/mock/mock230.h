@@ -320,6 +320,24 @@ enum
     MOCK230_PLAYER_VIEW_TILES = 15,
 
     /*
+     * What one client's area can hold — and the only npc ceiling in this server
+     * that is a statement about the game rather than about memory.
+     *
+     * The world map is unbounded by design: every npc, obj and player is filed
+     * in it and nothing there is sized to a client. What is bounded is the 7x7
+     * zone window a client subscribes to, which is 56x56 tiles across four
+     * planes. OldSchool's densest ground (Varrock) runs about 0.011 npcs per
+     * tile, so a full window is a few dozen; 1024 is two orders of margin and
+     * still 4KB per client.
+     *
+     * Overflow is loud rather than silent (`area_list_add`), because the
+     * failure it would otherwise produce is a client never being told about an
+     * npc standing in front of it.
+     */
+    MOCK230_AREA_NPC_MAX = 1024,
+    MOCK230_AREA_PLAYER_MAX = MOCK230_PLAYER_MAX,
+
+    /*
      * Player variables the scripts can read and write.
      *
      * This used to be 256, which covered everything the mock's own content
@@ -2054,10 +2072,23 @@ struct Mock230PlayerArea
      * drop ones at 5 — unreachable while the roster was 63 npcs and ordinary
      * now.
      */
-    int npcs[MOCK230_TRACKED_NPC_MAX];
+    int npcs[MOCK230_AREA_NPC_MAX];
     int npc_count;
-    int players[MOCK230_PLAYER_MAX];
+    int players[MOCK230_AREA_PLAYER_MAX];
     int player_count;
+
+    /**
+     * The build-area origin the window was last computed against.
+     *
+     * The window is a function of TWO things — the player's zone and the build
+     * area it is clipped to — and only the first is obvious. Re-centring the
+     * scene moves the clip under a standing player, so a move that only watched
+     * `zone_index` left the subscription describing a build area that no longer
+     * exists. Every path that re-centres happens to call
+     * `mock230_zone_player_reset` today, which forced a recompute by accident;
+     * this makes the dependency the thing that is checked.
+     */
+    int built_zone_x, built_zone_z;
 };
 
 struct Mock230Player

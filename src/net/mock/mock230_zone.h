@@ -309,16 +309,41 @@ mock230_zone_npcs_near(
     int max);
 
 /**
- * Rebuild `player->area` — the zone subscription and the entities in it.
+ * Move `player`'s zone subscription to wherever the player now stands.
  *
- * Phase 8, once per player, after the map's membership sync and before anything
- * encodes. PLAYER_INFO, NPC_INFO and the zone flush all read what this leaves;
- * calling it later than the entity streams (which is where it used to happen,
- * inside `mock230_zone_update_player`) judges a player who changed zone this
- * tick against last tick's window.
+ * Phase 8, after the map reconciles membership. A set difference, not a
+ * rebuild: a player crossing a zone boundary leaves 7 columns of zones and
+ * enters 7, and the other 42 are not touched. A player who has not changed
+ * zone costs one compare.
+ *
+ * Subscribing to a zone takes its entities into `player->area`; unsubscribing
+ * drops them. Everything after that is pushed by the map — see `refile`.
  */
 void
-mock230_area_refresh(struct Mock230Player* player);
+mock230_area_move(struct Mock230Player* player);
+
+/**
+ * Unsubscribe from every zone and empty the area.
+ *
+ * Both ends, which is the point: each zone in the window holds this player's
+ * pid, so an area cleared from one side only would leave the map pushing into
+ * a client that no longer claims the zone.
+ */
+void
+mock230_area_clear(struct Mock230Player* player);
+
+/**
+ * What `player->area.npcs` should contain, recomputed from the map.
+ *
+ * The audit for an incrementally maintained structure. A push model's failure
+ * is a change that never arrives — silent by construction — so the slow answer
+ * has to be obtainable for a test to compare against.
+ */
+int
+mock230_area_audit_npcs(
+    const struct Mock230Player* player,
+    int* out,
+    int max);
 
 /* ------------------------------------------------------------------ */
 /* Loc records                                                         */

@@ -3932,8 +3932,9 @@ mock230_send_npc_info(struct Mock230Player* player)
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
-            int in_range = npc->active && npc->level == player->level && dx >= -15 &&
-                           dx <= 15 && dz >= -15 && dz <= 15;
+            int in_range = npc->active && npc->level == player->level &&
+                           dx >= -MOCK230_NPC_VIEW_TILES && dx <= MOCK230_NPC_VIEW_TILES &&
+                           dz >= -MOCK230_NPC_VIEW_TILES && dz <= MOCK230_NPC_VIEW_TILES;
 
             if( !in_range || npc->tele )
             {
@@ -4005,8 +4006,14 @@ mock230_send_npc_info(struct Mock230Player* player)
              * removed... every tick, and never renders. The wire's capacity is
              * not the view distance.
              */
+            /* The plane, here rather than in the candidate set. The area is a
+             * *subscription* and it spans all four on purpose — a loc change
+             * one storey up still has to reach this client — so the entity
+             * streams, which are single-plane, filter at the point of use. */
+            if( npc->level != player->level )
+                continue;
             if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
-            dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
+                dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
                 continue;
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;
@@ -4203,6 +4210,9 @@ mock230_send_npc_info(struct Mock230Player* player)
             continue;
         dx = npc->x - player->x;
         dz = npc->z - player->z;
+        /* Plane at the point of use — see the v5 path above. */
+        if( npc->level != player->level )
+            continue;
         if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
             dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
             continue;

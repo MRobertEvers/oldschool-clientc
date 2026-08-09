@@ -52,6 +52,18 @@ struct Mock230Zone
     int* npcs;
     int npc_count, npc_capacity;
 
+    /**
+     * Pids whose area currently subscribes to this zone.
+     *
+     * The back-pointer that makes the map able to *push*. Membership changes
+     * here (an npc walks in, a player logs out) are handed to exactly the
+     * clients that asked to hear about this zone, instead of every client
+     * re-deriving the answer for its whole window every tick. Bounded by
+     * MOCK230_PLAYER_MAX, so it is a handful of ints.
+     */
+    int* subscribers;
+    int subscriber_count, subscriber_capacity;
+
     /** `Mock230Server.players` pids standing in this zone.
      *
      *  Players were the one kind of entity the ZoneMap did not know about, and
@@ -121,6 +133,13 @@ grow(
 /* ------------------------------------------------------------------ */
 /* The map                                                             */
 /* ------------------------------------------------------------------ */
+
+static void
+list_add(
+    int** list,
+    int* count,
+    int* capacity,
+    int value);
 
 static int
 probe(
@@ -208,6 +227,28 @@ zone_at(
 
     map->slots[i] = zone;
     map->count++;
+    /*
+     * A zone that has just come into existence inherits whoever was already
+     * subscribed to it — see `area_subscribe` for why the subscription can
+     * predate the zone. Nothing is pushed here: a new zone is empty, so there
+     * is nothing to hand over; this only makes sure the *next* thing to happen
+     * in it reaches the clients that asked.
+     */
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        struct Mock230Player* sub = &srv->players[pid];
+
+        if( !sub->active || !sub->world )
+            continue;
+        for( int a = 0; a < sub->area.zone_count; a++ )
+        {
+            if( sub->area.zones[a] != index )
+                continue;
+            list_add(&zone->subscribers, &zone->subscriber_count, &zone->subscriber_capacity,
+                     pid);
+            break;
+        }
+    }
     /* Half load factor: a linear probe degrades sharply past that, and the
      * whole table is a few hundred pointers. */
     if( map->count * 2 >= map->capacity )
@@ -260,6 +301,7 @@ mock230_zone_free(struct Mock230Server* srv)
         free(zone->objs);
         free(zone->npcs);
         free(zone->players);
+        free(zone->subscribers);
         free(zone->events);
         free(zone->shared);
         free(zone);
@@ -767,6 +809,20 @@ list_del(
  * spelled: leave the old zone and file nowhere.
  */
 static void
+zone_notify_add(
+    struct Mock230Server* srv,
+    struct Mock230Zone* zone,
+    int slot,
+    enum Mock230ZoneKind kind);
+
+static void
+zone_notify_del(
+    struct Mock230Server* srv,
+    struct Mock230Zone* zone,
+    int slot,
+    enum Mock230ZoneKind kind);
+
+static void
 refile(
     struct Mock230Server* srv,
     int* filed,
@@ -793,6 +849,10 @@ refile(
                 list_del(zone->objs, &zone->obj_count, slot);
             else
                 list_del(zone->players, &zone->player_count, slot);
+            /* The push, on the way out. After the membership edit, so a
+             * subscriber that is losing this entity is told about a zone that
+             * already agrees it has gone. */
+            zone_notify_del(srv, zone, slot, kind);
         }
     }
     *filed = want;
@@ -810,6 +870,10 @@ refile(
         list_add(&zone->objs, &zone->obj_count, &zone->obj_capacity, slot);
     else
         list_add(&zone->players, &zone->player_count, &zone->player_capacity, slot);
+    /* And on the way in. Removal first and addition second across the whole
+     * function, so a client subscribed to BOTH the zone being left and the one
+     * being entered nets out holding the entity exactly once. */
+    zone_notify_add(srv, zone, slot, kind);
 }
 
 void
@@ -1000,34 +1064,362 @@ mock230_zone_obj_counted(
  * The set is four times larger and the per-tick work is not: the flush skips a
  * zone with no events in one test, and empty planes are the common case.
  */
+/* ------------------------------------------------------------------ */
+/* Subscriptions                                                       */
+/* ------------------------------------------------------------------ */
+
+static int
+holds(
+    const int* set,
+    int count,
+    int index);
+
+/*
+ * A client's area is a *subscription*, not a query.
+ *
+ * The world map is authoritative and unbounded: every npc, obj and player in
+ * the game is filed in it, and nothing about it is sized to what one client can
+ * see. What is bounded is the other end — the entities inside the 7x7 zone
+ * window one client subscribes to — and that is the whole reason the two are
+ * separate structures rather than one with a limit on it.
+ *
+ * The window MOVES, and moving it is the operation this is built around. A
+ * player crossing a zone boundary leaves 7 columns of zones and enters 7; the
+ * other 42 are unchanged and must not be touched, because touching them means
+ * re-reading their membership and rewriting entries that did not change. So the
+ * move is a set difference and the entity lists are maintained by the
+ * subscribe/unsubscribe pair rather than rebuilt.
+ *
+ * Everything the map does to membership after that is a push:
+ * `zone_notify_*` hands the change to that zone's subscribers and to nobody
+ * else.
+ */
+
+/** Is `index` in the 7x7 window centred on (centre_x, centre_z), clipped to the
+ *  build area? The one place the window's shape is written down. */
+static int
+window_holds(
+    const struct Mock230Server* srv,
+    int centre_x,
+    int centre_z,
+    int index)
+{
+    int zone_x = index & 0x7ff;
+    int zone_z = (index >> 11) & 0x7ff;
+
+    if( zone_x < centre_x - MOCK230_ZONE_VIEW_RADIUS ||
+        zone_x > centre_x + MOCK230_ZONE_VIEW_RADIUS )
+        return 0;
+    if( zone_z < centre_z - MOCK230_ZONE_VIEW_RADIUS ||
+        zone_z > centre_z + MOCK230_ZONE_VIEW_RADIUS )
+        return 0;
+    /* Clipped to the build area, which is what a tile box is not and why
+     * NPC_INFO used to name npcs outside the region the client has a scene
+     * for. */
+    if( zone_x < srv->zone_x - MOCK230_ZONE_BUILD_RADIUS ||
+        zone_x > srv->zone_x + MOCK230_ZONE_BUILD_RADIUS )
+        return 0;
+    if( zone_z < srv->zone_z - MOCK230_ZONE_BUILD_RADIUS ||
+        zone_z > srv->zone_z + MOCK230_ZONE_BUILD_RADIUS )
+        return 0;
+    return 1;
+}
+
 static void
-rebuild_active(struct Mock230Player* player)
+area_list_add(
+    int* list,
+    int* count,
+    int max,
+    int value,
+    const char* what)
+{
+    for( int i = 0; i < *count; i++ )
+    {
+        if( list[i] == value )
+            return; /* already here: two zones cannot hold one entity */
+    }
+    if( *count >= max )
+    {
+        /* Loud, because the alternative is a client quietly never being told
+         * about an entity standing in front of it. The bound is on the AREA and
+         * the area is a 7x7 zone window, so hitting it means either the window
+         * grew or something is stacking entities far past anything OldSchool
+         * does on one screen. */
+        static int warned;
+
+        if( !warned )
+        {
+            fprintf(stderr,
+                    "mock230: a client's area is full of %ss (%d) — raise the cap or "
+                    "narrow the window; entities are being dropped\n",
+                    what, max);
+            warned = 1;
+        }
+        return;
+    }
+    list[(*count)++] = value;
+}
+
+static void
+area_list_del(
+    int* list,
+    int* count,
+    int value)
+{
+    for( int i = 0; i < *count; i++ )
+    {
+        if( list[i] != value )
+            continue;
+        list[i] = list[--(*count)];
+        return;
+    }
+}
+
+/** Add every entity standing in `zone` to `player`'s area. */
+static void
+area_take_zone(
+    struct Mock230Player* player,
+    struct Mock230Zone* zone)
+{
+    if( !zone )
+        return;
+    for( int i = 0; i < zone->npc_count; i++ )
+        area_list_add(player->area.npcs, &player->area.npc_count, MOCK230_AREA_NPC_MAX,
+                      zone->npcs[i], "npc");
+    for( int i = 0; i < zone->player_count; i++ )
+        area_list_add(player->area.players, &player->area.player_count,
+                      MOCK230_AREA_PLAYER_MAX, zone->players[i], "player");
+}
+
+/** Drop every entity standing in `zone` from `player`'s area. */
+static void
+area_drop_zone(
+    struct Mock230Player* player,
+    struct Mock230Zone* zone)
+{
+    if( !zone )
+        return;
+    for( int i = 0; i < zone->npc_count; i++ )
+        area_list_del(player->area.npcs, &player->area.npc_count, zone->npcs[i]);
+    for( int i = 0; i < zone->player_count; i++ )
+        area_list_del(player->area.players, &player->area.player_count, zone->players[i]);
+}
+
+static void
+area_subscribe(
+    struct Mock230Player* player,
+    int index)
 {
     struct Mock230Server* srv = player->world;
-    int centre_x = player->x >> 3;
-    int centre_z = player->z >> 3;
-    int left = srv->zone_x - MOCK230_ZONE_BUILD_RADIUS;
-    int right = srv->zone_x + MOCK230_ZONE_BUILD_RADIUS;
-    int bottom = srv->zone_z - MOCK230_ZONE_BUILD_RADIUS;
-    int top = srv->zone_z + MOCK230_ZONE_BUILD_RADIUS;
+    struct Mock230Zone* zone;
 
-    player->area.zone_count = 0;
+    if( player->area.zone_count >= MOCK230_ZONE_ACTIVE_MAX )
+        return;
+    player->area.zones[player->area.zone_count++] = index;
+    /*
+     * `zone_by_index`, which does NOT create.
+     *
+     * Subscribing to a zone nothing has ever happened in is the common case —
+     * most of a 7x7x4 window is empty ground — and creating one per
+     * subscription meant up to 196 callocs every time a player crossed a zone
+     * boundary. The map filled with empty zones, rehashed, and the run stopped
+     * finishing.
+     *
+     * The subscription is recorded on this side regardless; a zone that comes
+     * into existence later adopts its subscribers in `zone_at` by asking the
+     * players who they are. That scan is bounded by MOCK230_PLAYER_MAX and runs
+     * once per zone ever created, against once per subscription.
+     */
+    zone = zone_by_index(srv, index);
+    if( !zone )
+        return;
+    list_add(&zone->subscribers, &zone->subscriber_count, &zone->subscriber_capacity,
+             player->pid);
+    area_take_zone(player, zone);
+}
+
+static void
+area_unsubscribe(
+    struct Mock230Player* player,
+    int index)
+{
+    struct Mock230Server* srv = player->world;
+    struct Mock230Zone* zone = zone_by_index(srv, index);
+
+    area_list_del(player->area.zones, &player->area.zone_count, index);
+    /* The loaded set is a subset of the subscription by definition, so it
+     * follows it out. A zone re-entered is re-stated in full, which is what the
+     * flush already does for anything not in `loaded`. */
+    area_list_del(player->area.loaded, &player->area.loaded_count, index);
+    if( !zone )
+        return;
+    list_del(zone->subscribers, &zone->subscriber_count, player->pid);
+    area_drop_zone(player, zone);
+}
+
+void
+mock230_area_clear(struct Mock230Player* player)
+{
+    /* Backwards: `area_unsubscribe` compacts `zones` by swapping the tail down,
+     * so walking forwards would skip whatever it moved. */
+    while( player->area.zone_count > 0 )
+        area_unsubscribe(player, player->area.zones[player->area.zone_count - 1]);
+    player->area.npc_count = 0;
+    player->area.player_count = 0;
+    player->area.loaded_count = 0;
+    player->zone_index = -1;
+}
+
+/*
+ * Move the window to wherever the player is now, touching only what changed.
+ *
+ * Phase 8, after the map has reconciled membership. Does nothing at all when
+ * the player has not changed zone, which is the common case — a player walking
+ * within one zone costs a compare.
+ */
+void
+mock230_area_move(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+    int here;
+    int centre_x;
+    int centre_z;
+    int wanted[MOCK230_ZONE_ACTIVE_MAX];
+    int wanted_count = 0;
+
+    if( !srv )
+        return;
+    here = mock230_zone_index(player->x, player->z, player->level);
+    if( player->zone_index == here && player->area.zone_count > 0 &&
+        player->area.built_zone_x == srv->zone_x && player->area.built_zone_z == srv->zone_z )
+        return;
+
+    centre_x = player->x >> 3;
+    centre_z = player->z >> 3;
     for( int x = centre_x - MOCK230_ZONE_VIEW_RADIUS; x <= centre_x + MOCK230_ZONE_VIEW_RADIUS;
          x++ )
     {
         for( int z = centre_z - MOCK230_ZONE_VIEW_RADIUS;
              z <= centre_z + MOCK230_ZONE_VIEW_RADIUS; z++ )
         {
-            if( x < left || x > right || z < bottom || z > top )
-                continue;
             for( int level = 0; level < MOCK230_ZONE_LEVELS; level++ )
             {
-                if( player->area.zone_count >= MOCK230_ZONE_ACTIVE_MAX )
+                int index = mock230_zone_index(x << 3, z << 3, level);
+
+                if( !window_holds(srv, centre_x, centre_z, index) )
                     continue;
-                player->area.zones[player->area.zone_count++] =
-                    mock230_zone_index(x << 3, z << 3, level);
+                if( wanted_count < MOCK230_ZONE_ACTIVE_MAX )
+                    wanted[wanted_count++] = index;
             }
         }
+    }
+
+    /* Leave first, so the entity lists never have to hold both sides of the
+     * move at once. Backwards for the same reason mock230_area_clear is. */
+    for( int i = player->area.zone_count - 1; i >= 0; i-- )
+    {
+        int index = player->area.zones[i];
+
+        if( !holds(wanted, wanted_count, index) )
+            area_unsubscribe(player, index);
+    }
+    for( int i = 0; i < wanted_count; i++ )
+    {
+        if( !holds(player->area.zones, player->area.zone_count, wanted[i]) )
+            area_subscribe(player, wanted[i]);
+    }
+    player->zone_index = here;
+    player->area.built_zone_x = srv->zone_x;
+    player->area.built_zone_z = srv->zone_z;
+}
+
+/*
+ * Recount what this client's area *should* hold, from scratch.
+ *
+ * The audit an incremental structure needs and a rebuilt one does not. Every
+ * tick the area is maintained by deltas — subscribe, unsubscribe, push — and
+ * the failure mode of every such structure is the same: a change that never
+ * arrives, leaving a client silently missing an entity standing in front of it
+ * with nothing anywhere to say so. This recomputes the answer the slow way so a
+ * test can compare, and it is the reason the push model is safe to prefer over
+ * the pull it replaced.
+ *
+ * Returns the count and fills `out` if given.
+ */
+int
+mock230_area_audit_npcs(
+    const struct Mock230Player* player,
+    int* out,
+    int max)
+{
+    struct Mock230Server* srv = player->world;
+    int count = 0;
+
+    if( !srv )
+        return 0;
+    for( int i = 0; i < player->area.zone_count; i++ )
+    {
+        struct Mock230Zone* zone = zone_by_index(srv, player->area.zones[i]);
+
+        if( !zone )
+            continue;
+        for( int n = 0; n < zone->npc_count; n++ )
+        {
+            if( out && count < max )
+                out[count] = zone->npcs[n];
+            count++;
+        }
+    }
+    return count;
+}
+
+/*
+ * Membership changed in a zone: tell the clients that asked, and nobody else.
+ *
+ * This is the push, and it is the reason the world map can be unbounded. The
+ * cost of an npc taking a step is the number of clients subscribed to the zones
+ * it left and entered — not the number of npcs in the world, and not the number
+ * of clients in it.
+ */
+static void
+zone_notify_add(
+    struct Mock230Server* srv,
+    struct Mock230Zone* zone,
+    int slot,
+    enum Mock230ZoneKind kind)
+{
+    if( !zone || kind == MOCK230_ZONE_KIND_OBJ )
+        return;
+    for( int i = 0; i < zone->subscriber_count; i++ )
+    {
+        struct Mock230Player* sub = &srv->players[zone->subscribers[i]];
+
+        if( kind == MOCK230_ZONE_KIND_NPC )
+            area_list_add(sub->area.npcs, &sub->area.npc_count, MOCK230_AREA_NPC_MAX, slot,
+                          "npc");
+        else
+            area_list_add(sub->area.players, &sub->area.player_count,
+                          MOCK230_AREA_PLAYER_MAX, slot, "player");
+    }
+}
+
+static void
+zone_notify_del(
+    struct Mock230Server* srv,
+    struct Mock230Zone* zone,
+    int slot,
+    enum Mock230ZoneKind kind)
+{
+    if( !zone || kind == MOCK230_ZONE_KIND_OBJ )
+        return;
+    for( int i = 0; i < zone->subscriber_count; i++ )
+    {
+        struct Mock230Player* sub = &srv->players[zone->subscribers[i]];
+
+        if( kind == MOCK230_ZONE_KIND_NPC )
+            area_list_del(sub->area.npcs, &sub->area.npc_count, slot);
+        else
+            area_list_del(sub->area.players, &sub->area.player_count, slot);
     }
 }
 
@@ -1129,95 +1521,6 @@ build_shared(
     }
 }
 
-/*
- * Rebuild this client's area: the zone subscription, then the entities in it.
- *
- * Once per tick per player, in phase 8, after the map's own membership sync and
- * before anything encodes. That ordering is the contract: PLAYER_INFO, NPC_INFO
- * and the zone flush all read what this leaves behind, so they see one snapshot
- * and cannot disagree about who is nearby.
- *
- * It used to happen inside `mock230_zone_update_player`, which runs *after* the
- * entity streams in `phase_client_out` — so a player who changed zone this tick
- * had their npc and player adds judged against the window computed for where
- * they stood last tick.
- */
-void
-mock230_area_refresh(struct Mock230Player* player)
-{
-    struct Mock230Server* srv = player->world;
-    int here;
-
-    if( !srv )
-        return;
-    here = mock230_zone_index(player->x, player->z, player->level);
-    if( player->zone_index != here || player->area.zone_count == 0 )
-    {
-        rebuild_active(player);
-        player->zone_index = here;
-    }
-
-    player->area.npc_count = 0;
-    player->area.player_count = 0;
-    for( int i = 0; i < player->area.zone_count; i++ )
-    {
-        int index = player->area.zones[i];
-        /* The same unpacking the zone flush does, and for the same reason: a
-         * zone describes its own plane rather than borrowing the player's. The
-         * subscription spans all four (a loc change one storey up still has to
-         * be addressable); the entity streams span one. */
-        int zone_x = (index & 0x7ff) << 3;
-        int zone_z = ((index >> 11) & 0x7ff) << 3;
-        int zone_level = (index >> 22) & 3;
-        struct Mock230Zone* zone;
-
-        if( zone_level != player->level )
-            continue;
-        if( zone_x > player->x + MOCK230_NPC_VIEW_TILES ||
-            zone_x + MOCK230_ZONE_TILES - 1 < player->x - MOCK230_NPC_VIEW_TILES )
-            continue;
-        if( zone_z > player->z + MOCK230_NPC_VIEW_TILES ||
-            zone_z + MOCK230_ZONE_TILES - 1 < player->z - MOCK230_NPC_VIEW_TILES )
-            continue;
-        zone = zone_by_index(srv, index);
-        if( !zone )
-            continue;
-        /*
-         * Membership says which zone an entity is filed under; the entity's own
-         * tile says where it is. They agree after `mock230_zone_sync_*`, which
-         * runs immediately above this in phase 8 — and "immediately above" is a
-         * fact about one call site, not a property of this function.
-         *
-         * So the tile decides. An entity whose filing is stale is skipped
-         * rather than listed under a zone it has left, which is the
-         * conservative direction: it is picked up on the next refresh, and in
-         * the meantime nothing tells a client about something outside the zones
-         * it holds. Without this the area is only as correct as its caller's
-         * ordering, and the caller cannot be checked by the thing it calls.
-         */
-        for( int n = 0; n < zone->npc_count; n++ )
-        {
-            const struct Mock230Npc* npc = &srv->npcs[zone->npcs[n]];
-
-            if( player->area.npc_count >= MOCK230_TRACKED_NPC_MAX )
-                break;
-            if( mock230_zone_index(npc->x, npc->z, npc->level) != index )
-                continue;
-            player->area.npcs[player->area.npc_count++] = zone->npcs[n];
-        }
-        for( int n = 0; n < zone->player_count; n++ )
-        {
-            const struct Mock230Player* other = &srv->players[zone->players[n]];
-
-            if( player->area.player_count >= MOCK230_PLAYER_MAX )
-                break;
-            if( mock230_zone_index(other->x, other->z, other->level) != index )
-                continue;
-            player->area.players[player->area.player_count++] = zone->players[n];
-        }
-    }
-}
-
 void
 mock230_zone_update_player(struct Mock230Player* player)
 {
@@ -1225,7 +1528,7 @@ mock230_zone_update_player(struct Mock230Player* player)
     int kept[MOCK230_ZONE_ACTIVE_MAX];
     int kept_count = 0;
 
-    mock230_area_refresh(player);
+    mock230_area_move(player);
 
     /* Drop what fell out of the window. The client keeps drawing those zones —
      * they are still inside its 104x104 scene — it simply stops being told
@@ -1352,7 +1655,15 @@ mock230_zone_update_player(struct Mock230Player* player)
 void
 mock230_zone_player_reset(struct Mock230Player* player)
 {
-    player->area.loaded_count = 0;
-    player->area.zone_count = 0;
-    player->zone_index = -1;
+    /*
+     * Through the unsubscribe path, not by zeroing the counts.
+     *
+     * The counts used to be the whole of a client's area, so clearing them was
+     * the whole reset. They are one end of a two-ended relationship now: every
+     * zone in the window holds this player's pid in its subscriber list, and a
+     * reset that only cleared this side would leave the map pushing membership
+     * into an area that no longer claims the zone — and, after enough rebuilds,
+     * pushing to a pid that has logged out and been reused.
+     */
+    mock230_area_clear(player);
 }

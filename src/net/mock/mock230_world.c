@@ -2333,6 +2333,21 @@ npc_spawn(
         struct Mock230Npc* npc = &srv->npcs[slot];
         if( npc->active )
             continue;
+        /*
+         * Unfile the previous occupant before taking its slot — mock230_zone.h
+         * asks the pool allocators to do exactly this, and this is the pool
+         * allocator.
+         *
+         * Every path that frees an npc clears `active`, and not all of them
+         * refile; the tick's reconcile normally papers over that because it
+         * only ever sees the end state. It cannot paper over a slot freed and
+         * handed out again inside one tick: the map would still hold the slot
+         * number under the old zone, and a client subscribed to that zone would
+         * be holding the *new* npc under the old one's position. Doing it here,
+         * with `active` still 0, covers every free site at once rather than
+         * asking each of them to remember.
+         */
+        mock230_zone_npc_refile(srv, slot);
         memset(npc, 0, sizeof(*npc));
         npc->active = 1;
         npc->type = type;
@@ -4873,14 +4888,26 @@ handle_cheat(
 
     if( strncmp(text, "setlevel", 8) == 0 )
     {
-        /* `::setlevel <stat> <level>` — the combat formulas are only
-         * interesting if the inputs can be moved. XP is set to the threshold
-         * for that level so base survives logout (LostCity setLevel). */
-        int stat = 0;
+        /* `::setlevel <stat> <level>` — accept either the pack name (`magic`,
+         * `summoning`) or the diagnostic numeric id.  Resolving through the
+         * stat pack keeps game-facing names and ids out of this engine seam.
+         * XP is set to the threshold for that level so base survives logout
+         * (LostCity setLevel). */
+        char stat_arg[64] = { 0 };
+        int stat = -1;
         int level = 1;
 
-        if( sscanf(text, "setlevel %d %d", &stat, &level) == 2 && stat >= 0 &&
-            stat < MOCK230_STAT_COUNT && level >= 1 && level <= 99 )
+        if( sscanf(text, "setlevel %63s %d", stat_arg, &level) == 2 )
+        {
+            char* end = NULL;
+            long numeric = strtol(stat_arg, &end, 10);
+
+            if( end && end != stat_arg && *end == '\0' )
+                stat = (int)numeric;
+            else
+                stat = mock230_content_symbol(MOCK230_PACK_STAT, stat_arg);
+        }
+        if( stat >= 0 && stat < MOCK230_STAT_COUNT && level >= 1 && level <= 99 )
         {
             mock230_combat_set_level(player, stat, level);
             say(srv, "Set stat %d to %d.", stat, level);
@@ -7160,7 +7187,19 @@ mock230_world_remove_player(
      */
     mock230_friends_logout(player->name37);
     player_set_occupancy(player, 0);
+    /*
+     * Out of the ZoneMap, both ends, BEFORE `active` clears.
+     *
+     * A pid is a pool index and the pool is reused, so a subscription left
+     * behind is not merely stale — it is a subscription the *next* person to
+     * log into this slot inherits, to zones they have never been near, with
+     * whatever entities those zones hold already in their area. Both halves
+     * have to go: the zones' subscriber lists hold this pid, and the player's
+     * own filing holds them.
+     */
+    mock230_area_clear(player);
     player->active = 0;
+    mock230_zone_player_refile(srv, player->pid);
     player->session = NULL;
     /* Everyone else is holding this pid. Clearing `active` is what the next
      * PLAYER_INFO reads to retire it; nothing has to be sent from here. */
@@ -7541,6 +7580,17 @@ world_static_npcs_sync(struct Mock230Server* srv)
          * is not dying, the world is looking away from it. */
         npc_set_occupancy(npc, 0);
         npc->active = 0;
+        /*
+         * And out of the ZoneMap, now rather than at the next sync.
+         *
+         * mock230_zone.h says the pool allocators must refile before they
+         * recycle a slot, and this is one: the slot is free the moment `active`
+         * clears. Leaving it to phase 8 was invisible while a client's area was
+         * rebuilt from the map every tick, and is not now — the area is pushed
+         * to, so an entity that leaves the map without saying so stays in
+         * whichever areas had already taken it.
+         */
+        mock230_zone_npc_refile(srv, slot);
         g_static_realised[index] = 0;
     }
 
@@ -8621,7 +8671,7 @@ phase_zones(struct Mock230Server* srv)
     {
         if( !player->world )
             continue;
-        mock230_area_refresh(player);
+        mock230_area_move(player);
     }
 }
 
@@ -14546,6 +14596,25 @@ mock230_world_selftest(void)
             loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
             fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
+
+        /* Summoning occupies protocol stat 24 but is not a combat input. Pin
+         * that relation over the whole level range so widening the stat arrays
+         * cannot silently widen the combat-level formula later. */
+        {
+            int saved_summoning = player->stat_level[MOCK230_STAT_SUMMONING];
+            int combat_before = mock230_combat_level(player);
+
+            for( int level = 1; level <= 99; level++ )
+            {
+                player->stat_level[MOCK230_STAT_SUMMONING] = level;
+                SELFTEST_CHECK(
+                    mock230_combat_level(player) == combat_before,
+                    "Summoning level %d must not change combat level %d",
+                    level,
+                    combat_before);
+            }
+            player->stat_level[MOCK230_STAT_SUMMONING] = saved_summoning;
+        }
 
         /* The goblin roster entry, whatever slot it landed in. 3028 is the id
          * OpenRune's gameval table calls `npcs.goblin`, checked against
@@ -22001,7 +22070,19 @@ mock230_world_selftest(void)
 
         player->tracked_count = 0;
         memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
-        mock230_area_refresh(player);
+        /*
+         * Phase 8's order, by hand, because this test does not run a tick.
+         *
+         * The area is fed by the map's membership lists, and the scene rebuild
+         * above re-windowed the world roster — so the npcs it just stood up are
+         * filed nowhere until the reconcile runs. Skipping it here read as "the
+         * area collects nothing", which is a true statement about a world whose
+         * map has not been synced and says nothing about the area.
+         */
+        mock230_zone_sync_npcs(&srv);
+        mock230_zone_sync_objs(&srv);
+        mock230_zone_sync_players(&srv);
+        mock230_area_move(player);
         mock230_send_npc_info(player);
 
         SELFTEST_CHECK(player->area.zone_count > 0,
@@ -22042,22 +22123,65 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(area_stray == 0,
                        "everything the area lists should stand in a zone the area holds, "
                        "%d do not", area_stray);
+
         /*
-         * And on the player's own plane. A separate check because the
-         * subscription is deliberately not: `area.zones` spans all four planes
-         * so a loc change one storey up stays addressable, which means the
-         * check above passes for an npc upstairs and only this one does not.
-         * The entity streams are single-plane — a client shown the floor above
-         * draws it standing on the floor it is on.
+         * And the audit: the incrementally maintained list must equal what a
+         * from-scratch walk of the subscription produces.
+         *
+         * This is the check the push model exists to earn. Subscribe,
+         * unsubscribe and the map's own pushes each maintain `area.npcs` by
+         * delta, and every one of them can drop a change silently — the client
+         * simply never hears about an npc, and nothing anywhere says so. The
+         * cheap version of this bug is already in the history of this file: a
+         * retired roster npc kept its slot in a zone list, was handed to the
+         * next spawn, and sat in a client's area under the wrong identity.
          */
-        for( int i = 0; i < player->area.npc_count; i++ )
-            if( srv.npcs[player->area.npcs[i]].level != player->level )
-                area_offplane++;
-        for( int i = 0; i < player->area.player_count; i++ )
-            if( srv.players[player->area.players[i]].level != player->level )
+        {
+            int expect[MOCK230_AREA_NPC_MAX];
+            int expect_count = mock230_area_audit_npcs(player, expect, MOCK230_AREA_NPC_MAX);
+            int missing = 0;
+            int extra = 0;
+
+            for( int i = 0; i < expect_count; i++ )
+            {
+                int found = 0;
+
+                for( int j = 0; j < player->area.npc_count; j++ )
+                    found = found || player->area.npcs[j] == expect[i];
+                if( !found )
+                    missing++;
+            }
+            for( int i = 0; i < player->area.npc_count; i++ )
+            {
+                int found = 0;
+
+                for( int j = 0; j < expect_count; j++ )
+                    found = found || expect[j] == player->area.npcs[i];
+                if( !found )
+                    extra++;
+            }
+            SELFTEST_CHECK(missing == 0 && extra == 0,
+                           "the incremental area should equal a from-scratch rebuild, "
+                           "%d missing and %d extra of %d", missing, extra, expect_count);
+        }
+        /*
+         * The plane filter, asserted on what is TRACKED rather than on the
+         * area.
+         *
+         * The area deliberately holds every plane: it is a subscription, and a
+         * loc change one storey up has to reach this client. So an npc upstairs
+         * in the area is correct, and the single-plane rule belongs to the
+         * entity streams, which is where the filter now lives. Checking it here
+         * is what keeps that filter falsifiable — removing it from
+         * mock230_encode.c fails this line.
+         */
+        for( int i = 0; i < player->tracked_count; i++ )
+            if( srv.npcs[player->tracked[i]].active &&
+                srv.npcs[player->tracked[i]].level != player->level )
                 area_offplane++;
         SELFTEST_CHECK(area_offplane == 0,
-                       "and on the player's own plane, %d do not", area_offplane);
+                       "and every tracked npc should be on the player's plane, %d is not",
+                       area_offplane);
         SELFTEST_CHECK(player->area.npc_count > 0,
                        "and the area should have collected some npcs to check");
         SELFTEST_CHECK(player->tracked_count > 0,
