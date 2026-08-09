@@ -605,6 +605,99 @@ tool_dat2_framemap_load(
     return RSCache_Dat2FramemapNewFromCache(c->disk, framemap_id);
 }
 
+struct RSCache_Dat2AnimMaya*
+tool_dat2_animaya_load(
+    struct Tool_Dat2Cache* c,
+    int anim_maya_id)
+{
+    assert(c && c->disk);
+    if( anim_maya_id <= 0 )
+        return NULL;
+
+    int table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_ANIMAYAS);
+    if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return NULL;
+
+    int archive_id = (anim_maya_id >> 16) & 0xFFFF;
+    int file_id = anim_maya_id & 0xFFFF;
+
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
+    if( !archive )
+        return NULL;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    struct RSCache_Dat2AnimMaya* maya = NULL;
+    int pos = tool_archive_file_position(archive, file_id);
+    if( pos >= 0 && pos < files->file_count && files->file_sizes[pos] > 0 )
+        maya = RSCache_Dat2AnimMayaNewDecode(
+            anim_maya_id, files->files[pos], files->file_sizes[pos]);
+
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return maya;
+}
+
+struct RSCache_Dat2SkeletalBase*
+tool_dat2_skeletal_base_load(
+    struct Tool_Dat2Cache* c,
+    int base_id)
+{
+    assert(c && c->disk);
+    if( base_id < 0 )
+        return NULL;
+
+    struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(c, base_id);
+    if( !fm )
+        return NULL;
+
+    struct RSCache_Dat2SkeletalBase* base = RSCache_Dat2SkeletalBaseNewFromFramemap(fm);
+    RSCache_Dat2FramemapFree(fm);
+    return base;
+}
+
+int
+tool_dat2_seq_rig_id(
+    struct Tool_Dat2Cache* c,
+    const struct RSCache_Dat2ConfigSequence* seq,
+    int* out_is_skeletal)
+{
+    assert(c && seq);
+    if( out_is_skeletal )
+        *out_is_skeletal = 0;
+
+    if( seq->frame_ids && seq->frame_count > 0 )
+        return tool_dat2_seq_framemap_id(c, seq, 0);
+
+    if( seq->anim_maya_id <= 0 )
+        return -1;
+
+    struct RSCache_Dat2AnimMaya* maya = tool_dat2_animaya_load(c, seq->anim_maya_id);
+    if( !maya )
+        return -1;
+
+    int base_id = maya->base_id;
+    RSCache_Dat2AnimMayaFree(maya);
+
+    if( base_id < 0 )
+        return -1;
+    if( out_is_skeletal )
+        *out_is_skeletal = 1;
+    return base_id;
+}
+
 struct RSCache_Dat2Frame*
 tool_dat2_frame_load(
     struct Tool_Dat2Cache* c,

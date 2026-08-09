@@ -2381,6 +2381,11 @@ npc_spawn(
         npc->attack_seq = def->attack_anim;
         npc->block_seq = def->defend_anim;
         npc->death_seq = def->death_anim;
+        /* Beside the animation each one belongs to, from the same record and on
+         * the same line, because they are one event. */
+        npc->attack_sound = def->attack_sound;
+        npc->block_sound = def->defend_sound;
+        npc->death_sound = def->death_sound;
 
         npc_set_occupancy(npc, 1);
 

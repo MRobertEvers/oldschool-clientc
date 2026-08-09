@@ -227,6 +227,14 @@ What exists, and is verified usable:
 
 ---
 
+> **Built.** `tools/gen_npc_combat.py` implements the pipeline sketched below and
+> `docs/DEATH_ATK_DEF_ANIMS.md` is its documentation, with the measured results.
+> Two things changed once it was run against real data, and both are recorded
+> there rather than here: the rig gate turned out to apply to *authored* rows too
+> (457 of LostCity's 1,303 name a sequence the npc's model can no longer play),
+> and grading the layers against one blended "truth" hid the fact that they
+> disagree with LostCity mostly by being correct about a 239 cache.
+
 # Automating it — the layered pipeline
 
 *(added after the search above concluded; this is the design for identifying

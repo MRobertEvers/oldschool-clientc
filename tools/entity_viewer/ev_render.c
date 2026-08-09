@@ -115,6 +115,83 @@ ev_frame_delay(int index)
     return g_anim->frames[index].delay;
 }
 
+/*
+ * Put the model in the pose for `frame`; -1 is the bind pose.
+ *
+ * Two kinds of animation, one frame index. A skeletal (Animaya) sequence has no
+ * base and no frames — it is a baked matrix palette, and posing goes through the
+ * model's per-vertex bone influences instead. Only this call branches;
+ * everything around it, including how frames are stepped, is the same.
+ *
+ * The guards are not decoration. ToriDraw_ModelAnimateSkeletal asserts on a
+ * model with no Animaya skin, and such a model cannot play a skeletal sequence
+ * at all — the catalog's `animaya_skinned` column asks the same question ahead
+ * of time.
+ *
+ * Exported because the self-test needs the same pose the renderer uses. A
+ * second copy of this branch is how the self-test crashed on the first skeletal
+ * npc it was pointed at: it called ToriDraw_ModelAnimateFrame unconditionally,
+ * on an animation whose `base` is NULL.
+ */
+void
+ev_pose(int frame)
+{
+    if( !g_model )
+        return;
+
+    ToriDraw_ModelAnimateReset(g_model);
+    if( !g_anim || frame < 0 || frame >= g_anim->frame_count )
+        return;
+
+    if( g_anim->skeletal )
+    {
+        if( g_model->animaya_group_counts && g_model->animaya_groups &&
+            g_model->animaya_scales && g_model->animaya_vertex_count > 0 &&
+            frame < g_anim->skeletal->frame_count && g_anim->skeletal->matrices )
+            ToriDraw_ModelAnimateSkeletal(g_model, g_anim->skeletal, frame);
+    }
+    else if( g_anim->base && g_anim->frames )
+        ToriDraw_ModelAnimateFrame(g_model, g_anim->base, &g_anim->frames[frame]);
+}
+
+int
+ev_pose_moved_vertices(int frame)
+{
+    if( !g_model || !g_model->original_vertices_x )
+        return -1;
+
+    ev_pose(frame);
+
+    int moved = 0;
+    for( int i = 0; i < g_model->vertex_count; i++ )
+        if( g_model->vertices_x[i] != g_model->original_vertices_x[i] ||
+            g_model->vertices_y[i] != g_model->original_vertices_y[i] ||
+            g_model->vertices_z[i] != g_model->original_vertices_z[i] )
+            moved++;
+    return moved;
+}
+
+/** Whether the loaded animation is a skeletal (Animaya) one. */
+int
+ev_anim_is_skeletal(void)
+{
+    return g_anim && g_anim->skeletal ? 1 : 0;
+}
+
+/** Whether the loaded model carries an Animaya skin, i.e. can be posed
+ *  skeletally at all. */
+int
+ev_model_has_animaya(void)
+{
+    return g_model && g_model->animaya_vertex_count > 0 && g_model->animaya_group_counts ? 1 : 0;
+}
+
+int
+ev_model_vertex_count(void)
+{
+    return g_model ? g_model->vertex_count : 0;
+}
+
 static int
 ensure_buffers(int w, int h)
 {
@@ -166,9 +243,7 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
      * the last and the model tears itself apart over a few seconds — slowly
      * enough to look like a decode bug rather than a missing call.
      */
-    ToriDraw_ModelAnimateReset(g_model);
-    if( g_anim && frame >= 0 && frame < g_anim->frame_count )
-        ToriDraw_ModelAnimateFrame(g_model, g_anim->base, &g_anim->frames[frame]);
+    ev_pose(frame);
 
     for( int i = 0; i < width * height; i++ )
         g_pixels[i] = (toripixel_t)EV_BG;

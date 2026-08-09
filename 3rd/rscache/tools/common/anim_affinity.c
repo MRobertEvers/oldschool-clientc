@@ -248,6 +248,7 @@ tool_dat2_build_framemap_index(
     {
         struct RSCache_Dat2ConfigSequence* seq = seqs[i];
         int fm = -1;
+        int skeletal = 0;
         if( seq->frame_ids && seq->frame_count > 0 )
         {
             int archive_id = (seq->frame_ids[0] >> 16) & 0xFFFF;
@@ -257,9 +258,26 @@ tool_dat2_build_framemap_index(
             if( fm < 0 )
                 fm = tool_dat2_seq_framemap_id(c, seq, 0);
         }
+        else
+        {
+            /* Skeletal (Animaya): no frame list at all, so the rig comes from
+             * the curve set's base id. Without this every modern OldSchool npc
+             * — the DT2 bosses and everything after — has an empty rig set. */
+            fm = tool_dat2_seq_rig_id(c, seq, &skeletal);
+        }
+        /* A skeletal sequence has no frame list, so `frame_count` would read 0
+         * for every one of them. Its playable length is the config's own maya
+         * range, which is what a caller means by "how long is this". A range of
+         * 0 means "the whole bake", and only the bake knows that — left at 0
+         * rather than guessed. */
+        int frames = seq->frame_count;
+        if( skeletal && seq->anim_maya_end > seq->anim_maya_start )
+            frames = seq->anim_maya_end - seq->anim_maya_start;
+
         out->entries[out->count].seq_id = ids[i];
         out->entries[out->count].framemap_id = fm;
-        out->entries[out->count].frame_count = seq->frame_count;
+        out->entries[out->count].frame_count = frames;
+        out->entries[out->count].skeletal = skeletal;
         out->count++;
         RSCache_Dat2ConfigSequenceFree(seq);
     }

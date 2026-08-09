@@ -35,6 +35,16 @@ put_i32(struct EV_WireBuf* b, int32_t v)
     return 1;
 }
 
+/* A float as its raw bits. The skinning palette is 16 floats per bone per
+ * frame and quantising it would show up as a pose that drifts. */
+static int
+put_f32(struct EV_WireBuf* b, float v)
+{
+    uint32_t bits;
+    memcpy(&bits, &v, sizeof(bits));
+    return put_i32(b, (int32_t)bits);
+}
+
 /*
  * An optional array: a presence flag then the elements.
  *
@@ -134,6 +144,28 @@ ev_wire_write_model(
     if( !write_bones(out, m->face_bones) )
         return 0;
 
+    /*
+     * The Animaya skin: per-vertex bone influences and their weights.
+     *
+     * Classic frame animation does not use it, which is why it was missing here
+     * — and why skeletal sequences posed nothing in the browser. A model
+     * without it is not mis-animated by ToriDraw_ModelAnimateSkeletal, it is
+     * simply left in its bind pose, so the failure looked like a stuck
+     * animation rather than a dropped field.
+     */
+    if( !put_i32(out, m->animaya_vertex_count) )
+        return 0;
+    for( int i = 0; i < m->animaya_vertex_count; i++ )
+    {
+        int cnt = m->animaya_group_counts ? m->animaya_group_counts[i] : 0;
+        if( !put_i32(out, cnt) )
+            return 0;
+        for( int j = 0; j < cnt; j++ )
+            if( !put_i32(out, m->animaya_groups[i][j]) ||
+                !put_i32(out, m->animaya_scales[i][j]) )
+                return 0;
+    }
+
     return 1;
 }
 
@@ -142,13 +174,33 @@ ev_wire_write_anim(
     struct EV_WireBuf* out,
     const struct ToriDraw_Animation* a)
 {
-    if( !a || !a->base )
+    if( !a || (!a->base && !a->skeletal) )
         return 0;
 
     if( !put_i32(out, (int32_t)EV_WIRE_ANIM_MAGIC) )
         return 0;
     if( !put_i32(out, a->frame_count) || !put_i32(out, a->frame_step) )
         return 0;
+
+    /*
+     * Which kind of animation this is. The two are exclusive in a
+     * ToriDraw_Animation — a skeletal one has no base and no frames — so the
+     * flag chooses which of the two bodies follows.
+     */
+    if( !put_i32(out, a->skeletal ? 1 : 0) )
+        return 0;
+    if( a->skeletal )
+    {
+        const struct ToriDraw_SkeletalAnim* sk = a->skeletal;
+        if( !put_i32(out, sk->id) || !put_i32(out, sk->bone_count) ||
+            !put_i32(out, sk->frame_count) )
+            return 0;
+        size_t floats = (size_t)sk->frame_count * (size_t)sk->bone_count * 16;
+        for( size_t i = 0; i < floats; i++ )
+            if( !put_f32(out, sk->matrices[i]) )
+                return 0;
+        return 1;
+    }
 
     const struct ToriDraw_AnimBase* base = a->base;
     if( !put_i32(out, base->length) )
@@ -193,6 +245,9 @@ struct Cur
     int bad;
 };
 
+static float
+get_f32(struct Cur* c);
+
 static int32_t
 get_i32(struct Cur* c)
 {
@@ -205,6 +260,15 @@ get_i32(struct Cur* c)
                           ((uint32_t)c->p[2] << 16) | ((uint32_t)c->p[3] << 24));
     c->p += 4;
     c->left -= 4;
+    return v;
+}
+
+static float
+get_f32(struct Cur* c)
+{
+    uint32_t bits = (uint32_t)get_i32(c);
+    float v;
+    memcpy(&v, &bits, sizeof(v));
     return v;
 }
 
@@ -354,6 +418,39 @@ ev_wire_read_model(
     if( cur.bad )
         goto fail;
 
+    m->animaya_vertex_count = get_i32(&cur);
+    if( cur.bad || m->animaya_vertex_count < 0 )
+        goto fail;
+    if( m->animaya_vertex_count > 0 )
+    {
+        int n = m->animaya_vertex_count;
+        m->animaya_group_counts = calloc((size_t)n, 1);
+        m->animaya_groups = calloc((size_t)n, sizeof(uint8_t*));
+        m->animaya_scales = calloc((size_t)n, sizeof(uint8_t*));
+        if( !m->animaya_group_counts || !m->animaya_groups || !m->animaya_scales )
+            goto fail;
+        for( int i = 0; i < n; i++ )
+        {
+            int cnt = get_i32(&cur);
+            if( cur.bad || cnt < 0 )
+                goto fail;
+            m->animaya_group_counts[i] = (uint8_t)cnt;
+            if( cnt == 0 )
+                continue;
+            m->animaya_groups[i] = malloc((size_t)cnt);
+            m->animaya_scales[i] = malloc((size_t)cnt);
+            if( !m->animaya_groups[i] || !m->animaya_scales[i] )
+                goto fail;
+            for( int j = 0; j < cnt; j++ )
+            {
+                m->animaya_groups[i][j] = (uint8_t)get_i32(&cur);
+                m->animaya_scales[i][j] = (uint8_t)get_i32(&cur);
+            }
+        }
+        if( cur.bad )
+            goto fail;
+    }
+
     /* The animator transforms `vertices_*` away from a pristine copy, so it
      * needs that copy taken before the first frame is applied. */
     ToriDraw_ModelCaptureOriginalVertices(m);
@@ -388,6 +485,34 @@ ev_wire_read_anim(
     a->frame_step = get_i32(&cur);
     if( cur.bad || a->frame_count < 0 )
         goto bad;
+
+    a->replaceheldleft = -1;
+    a->replaceheldright = -1;
+
+    if( get_i32(&cur) )
+    {
+        struct ToriDraw_SkeletalAnim* sk = calloc(1, sizeof(*sk));
+        if( !sk )
+            goto bad;
+        a->skeletal = sk;
+        sk->id = get_i32(&cur);
+        sk->bone_count = get_i32(&cur);
+        sk->frame_count = get_i32(&cur);
+        if( cur.bad || sk->bone_count < 0 || sk->frame_count < 0 )
+            goto bad;
+        size_t floats = (size_t)sk->frame_count * (size_t)sk->bone_count * 16;
+        if( floats > 0 )
+        {
+            sk->matrices = malloc(floats * sizeof(float));
+            if( !sk->matrices )
+                goto bad;
+            for( size_t i = 0; i < floats; i++ )
+                sk->matrices[i] = get_f32(&cur);
+            if( cur.bad )
+                goto bad;
+        }
+        return a;
+    }
 
     a->base = calloc(1, sizeof(*a->base));
     if( !a->base )

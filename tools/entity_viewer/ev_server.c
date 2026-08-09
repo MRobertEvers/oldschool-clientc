@@ -653,12 +653,13 @@ selftest(int npc_id, int seq_id)
                 textured++;
     fprintf(
         stderr,
-        "  model: %d vertices, %d faces (%d textured), vertex_bones %s, "
-        "face_priorities %s\n",
+        "  model: %d vertices, %d faces (%d textured), classic rig %s, "
+        "animaya skin %s, face_priorities %s\n",
         model->vertex_count,
         model->face_count,
         textured,
-        model->vertex_bones ? "yes" : "NO (will not animate)",
+        model->vertex_bones ? "yes" : "no",
+        model->animaya_vertex_count > 0 ? "yes" : "no",
         model->face_priorities ? "yes" : "no");
 
     struct EV_WireBuf mb = { 0 };
@@ -689,12 +690,21 @@ selftest(int npc_id, int seq_id)
         fprintf(stderr, "  seq %d: no animation\n", seq_id);
         return 1;
     }
-    fprintf(
-        stderr,
-        "  anim: %d frames on rig %d, base length %d\n",
-        anim->frame_count,
-        framemap_id,
-        anim->base->length);
+    if( anim->skeletal )
+        fprintf(
+            stderr,
+            "  anim: skeletal, %d frames on rig %d (%d bones, %d baked)\n",
+            anim->frame_count,
+            framemap_id,
+            anim->skeletal->bone_count,
+            anim->skeletal->frame_count);
+    else
+        fprintf(
+            stderr,
+            "  anim: classic, %d frames on rig %d, base length %d\n",
+            anim->frame_count,
+            framemap_id,
+            anim->base->length);
 
     struct EV_WireBuf ab = { 0 };
     if( !ev_wire_write_anim(&ab, anim) )
@@ -709,19 +719,10 @@ selftest(int npc_id, int seq_id)
         return 1;
     }
     fprintf(stderr, "  anim: %zu bytes, round-trip %d frames\n", ab.len, aback->frame_count);
+    ToriDraw_AnimationFree(aback);
 
     /* Applying a frame is where a wrong rig binding shows: if the pose does not
      * move a single vertex the model and the animation do not agree. */
-    ToriDraw_ModelCaptureOriginalVertices(back);
-    int moved = 0;
-    ToriDraw_ModelAnimateReset(back);
-    ToriDraw_ModelAnimateFrame(back, aback->base, &aback->frames[0]);
-    for( int i = 0; i < back->vertex_count; i++ )
-        if( back->vertices_x[i] != back->original_vertices_x[i] ||
-            back->vertices_y[i] != back->original_vertices_y[i] ||
-            back->vertices_z[i] != back->original_vertices_z[i] )
-            moved++;
-    fprintf(stderr, "  frame 0 moves %d of %d vertices\n", moved, back->vertex_count);
 
     /*
      * Run the browser's exact render path natively.
@@ -755,6 +756,18 @@ selftest(int npc_id, int seq_id)
 
     ev_set_model(mb.data, (int)mb.len);
     ev_set_anim(ab.data, (int)ab.len);
+
+    /* The pose the renderer would apply, through the renderer's own branch. */
+    fprintf(
+        stderr,
+        "  frame 0 (%s) moves %d of %d vertices%s\n",
+        ev_anim_is_skeletal() ? "skeletal" : "classic",
+        ev_pose_moved_vertices(0),
+        ev_model_vertex_count(),
+        ev_anim_is_skeletal() && !ev_model_has_animaya()
+            ? "  — model has no Animaya skin, so it cannot play this"
+            : "");
+
     int h = ev_model_height();
     int zoom = h * 3 > 400 ? h * 3 : 400;
     uint8_t* rgba = ev_render(256, 256, 0, 200, zoom, 0);

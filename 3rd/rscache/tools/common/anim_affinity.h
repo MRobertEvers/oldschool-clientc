@@ -46,6 +46,12 @@ struct Tool_FramemapIndexEntry
     int seq_id;
     int framemap_id;
     int frame_count;
+    /** 1 when the rig was reached through the sequence's Animaya curve set
+     *  rather than its frame list. Both kinds address the same idx1 id space,
+     *  so `framemap_id` means the same thing either way — this only says which
+     *  path answered, which is what a caller needs to know before deciding a
+     *  model without an Animaya skin can play it. */
+    int skeletal;
 };
 
 struct Tool_FramemapIndex

@@ -371,7 +371,7 @@ def load_authored_blocks(content_dir, exclude_path):
     def with the same id — so a generated block restating an authored npc would
     silently shadow a hand-checked port.
     """
-    authored = set()
+    authored = {}
     root = os.path.join(content_dir, "server", "scripts")
     exclude = os.path.abspath(exclude_path)
     for dirpath, _dirs, files in os.walk(root):
@@ -385,8 +385,51 @@ def load_authored_blocks(content_dir, exclude_path):
                 for line in f:
                     line = line.strip()
                     if line.startswith("[") and line.endswith("]") and line != "[default]":
-                        authored.add(line[1:-1])
+                        authored.setdefault(line[1:-1],
+                                            os.path.relpath(full, content_dir))
     return authored
+
+
+def claim_server_membership(content_dir, names):
+    """Name every configured npc in `pack/npc.server`, and return how many were new.
+
+    That file is the tree's statement of which npcs have a *server half*, and
+    `cachepack pack` routes on it: a record gets a server band only if this file
+    names it, and stating a server field without being named is a hard error --
+    "an entity cannot carry a field its own side does not receive". So giving an
+    npc `attack_anim` and leaving this file alone does not half-work, it fails the
+    pack.
+
+    `content.ini` declares this namespace `membership = authored`, meaning a
+    person decides and nothing regenerates the file. This does not regenerate it:
+    it merges, never removing a name and never rewriting the header.
+
+    Insertion is in sorted position rather than by rebuilding the file, and that
+    is load-bearing: the roster carries an eight-line comment block *mid-file*, at
+    the point where a `default` entry used to sit, explaining why it was removed.
+    Splitting on "comments first, names after" sweeps those lines into the sorted
+    body and scatters them.
+    """
+    path = os.path.join(content_dir, "pack", "npc.server")
+    with open(path, encoding="latin-1") as f:
+        lines = f.read().splitlines()
+    listed = {l.strip() for l in lines
+              if l.strip() and not l.strip().startswith("//")}
+    new = sorted(set(names) - listed)
+    if not new:
+        return 0
+    out = []
+    pending = list(new)
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("//"):
+            while pending and pending[0] < stripped:
+                out.append(pending.pop(0))
+        out.append(line)
+    out.extend(pending)
+    with open(path, "w", encoding="latin-1") as f:
+        f.write("\n".join(out) + "\n")
+    return len(new)
 
 
 def load_default_attackrate(content_dir):
@@ -458,10 +501,20 @@ LEDGER_HEADER = """\
 """
 
 
-def write_ledger(path, display, npc_id, rig_note, source, rows):
+def write_ledger(path, display, npc_id, rig_note, source, rows, shadowed_by=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     out = [LEDGER_HEADER.format(display=display or "(unnamed)", npc_id=npc_id,
                                 rig_note=rig_note)]
+    if shadowed_by:
+        # Without this line the file is a trap: someone pins a value here, sets
+        # `source = authored`, watches the pin survive every regeneration, and
+        # never sees it in the game -- because a hand-written `.npc` block wins
+        # over the compiled one and the compiler skips this npc entirely. Saying
+        # so costs one line and turns a silent no-op into an instruction.
+        out.append("// NOT COMPILED. %s states its own [%s] block, and an authored\n"
+                   "// .npc block always wins over this generator's output. Edit that\n"
+                   "// file instead; changes here will not reach the game.\n"
+                   % (shadowed_by, os.path.basename(path)[:-len(".combat")]))
     out.append("source       = %s" % source)
     out.append("")
     width = max(len(k) for k in list(ANIM_KEYS) + list(SOUND_KEYS))
@@ -1005,13 +1058,15 @@ def main():
             value, layer, why = sounds[key]
             rows[key] = (value, "%s  %s" % (layer, why))
         write_ledger(ledger_path(args.content, gameval), rec.get("name", [""])[0],
-                     npc_id, rig_note, "generated", rows)
+                     npc_id, rig_note, "generated", rows,
+                     shadowed_by=authored_elsewhere.get(gameval))
         written += 1
     print("\nwrote %d ledger files under %s/%s/"
           % (written, args.content, LEDGER_DIR))
 
     # ---- the compiled config --------------------------------------------
     blocks = []
+    emitted_names = []
     emitted = kept_rates = shadowed = 0
     for gameval in all_gamevals:
         npc_id, anims, sounds, _held, _blind = decisions[gameval]
@@ -1029,15 +1084,27 @@ def main():
             # Above the header, not after it: cachepack's config parser reads the
             # rest of a `[...]` line as part of the name.
             blocks.append("// %s" % display)
+        # Provenance goes on its own line, never trailing a `param=`.
+        #
+        # A `.npc` line's value is the whole rest of the line: cachepack read
+        # `param=attack_anim,monalisk_creature_attack  // a2` as a sequence named
+        # "monalisk_creature_attack  // a2", which names nothing, and reported
+        # 5,826 unresolved values. The layer is the ledger's job anyway --
+        # `npc_combat/<npc>.combat` states it per row, with the reasoning -- and
+        # this line is the index into it.
+        note = " ".join("%s=%s" % (k.split("_")[0], l) for k, _v, l in picked)
+        snote = " ".join("%s=%s" % (k.split("_")[0], l) for k, _v, l in picked_sounds)
+        if note or snote:
+            blocks.append("// anim: %s%s" % (note or "none",
+                                             ("  sound: " + snote) if snote else ""))
         blocks.append("[%s]" % gameval)
-        for key, value, layer in picked:
-            blocks.append("param=%s,%s  // %s" % (key, value, layer))
-        for key, value, layer in picked_sounds:
+        for key, value, _layer in picked:
+            blocks.append("param=%s,%s" % (key, value))
+        for key, value, _layer in picked_sounds:
             # A bare id, because cachepack has no `synth` type for a `ref` to
-            # name. The ledger keeps `%s`, which is the half that survives a
+            # name. The ledger keeps the name, which is the half that survives a
             # cache revision.
-            blocks.append("param=%s,%d  // %s %s"
-                          % (key, sound_by_name[value], layer, value))
+            blocks.append("param=%s,%d" % (key, sound_by_name[value]))
         rate = rec.get("param", [])
         cache_rate = None
         for p in rate:
@@ -1048,6 +1115,7 @@ def main():
             kept_rates += 1
         blocks.append("")
         emitted += 1
+        emitted_names.append(gameval)
 
     header = [
         "// Per-npc attack / defend / death animations and combat sounds.",
@@ -1077,6 +1145,9 @@ def main():
         f.write("\n".join(header + blocks))
     print("wrote %s (%d blocks, %d restating attackrate, %d left to authored files)"
           % (out_path, emitted, kept_rates, shadowed))
+
+    added = claim_server_membership(args.content, emitted_names)
+    print("pack/npc.server: %d name(s) added" % added)
     return 0
 
 

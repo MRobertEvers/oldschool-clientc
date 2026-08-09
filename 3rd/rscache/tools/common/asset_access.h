@@ -175,6 +175,53 @@ tool_dat2_framemap_load(
     int framemap_id);
 
 /**
+ * Load and decode a sequence's idx22 Animaya curve set.
+ *
+ * `anim_maya_id` is the sequence config's own field, packed `archive << 16 |
+ * file`. Caller frees with RSCache_Dat2AnimMayaFree.
+ */
+struct RSCache_Dat2AnimMaya*
+tool_dat2_animaya_load(
+    struct Tool_Dat2Cache* c,
+    int anim_maya_id);
+
+/**
+ * Load the skeletal (Animaya) rig with the given idx1 archive id.
+ *
+ * The rig rides in the *tail* of a framemap file, after the classic
+ * transform-type lists, so this decodes the framemap with the cache's own codec
+ * and reads the tail rather than re-walking the era-dependent header. Returns
+ * NULL for any framemap that carries no skeletal rig, which is every
+ * pre-Animaya cache. Caller frees with RSCache_Dat2SkeletalBaseFree.
+ */
+struct RSCache_Dat2SkeletalBase*
+tool_dat2_skeletal_base_load(
+    struct Tool_Dat2Cache* c,
+    int base_id);
+
+/**
+ * The rig a sequence animates, whichever kind it is.
+ *
+ * A classic sequence names frames and the rig is the framemap those frames were
+ * built against. A skeletal one names no frames at all: seq opcode 13 gives an
+ * idx22 curve set, and the rig is that curve set's `base_id`. Both are idx1
+ * archive ids — `RSCache_Dat2SkeletalBase.id` *is* the framemap id — so the two
+ * kinds share one id space and one reverse index.
+ *
+ * That shared space is the whole reason this can be one function: asking "what
+ * rig is this" of a skeletal sequence used to return -1, so every modern
+ * OldSchool npc that animates this way was missing from the rig walk entirely.
+ *
+ * `out_is_skeletal` (optional) reports which path answered. Returns -1 when
+ * neither does.
+ */
+int
+tool_dat2_seq_rig_id(
+    struct Tool_Dat2Cache* c,
+    const struct RSCache_Dat2ConfigSequence* seq,
+    int* out_is_skeletal);
+
+/**
  * Decode one animation frame, by the packed id a sequence config carries.
  *
  * `packed_frame_id` is `archive << 16 | file`, which is how `frame_ids` stores

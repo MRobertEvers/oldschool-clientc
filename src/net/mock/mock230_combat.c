@@ -222,6 +222,58 @@ play_npc_seq(struct Mock230Npc* npc, int seq_id)
     mock230_anim_play_npc(npc, seq_id, 0);
 }
 
+/*
+ * How far an npc's combat noise carries, in tiles.
+ *
+ * LostCity's `[proc,npc_death]` passes 12 to `~sound_within_distance` with an
+ * `// osrs` note, and it is the only figure any reference states for this, so
+ * the same number answers for all three sounds rather than three invented ones.
+ */
+#define MOCK230_NPC_SOUND_TILES 12
+
+/*
+ * An npc's own sound, to everyone near enough to hear it.
+ *
+ * `SYNTH_SOUND` is a per-player packet, so "a noise happened at this tile" has
+ * to be spelled as a loop. LostCity spells it as a per-player proc
+ * (`~sound_within_distance`) which only ever runs for whoever triggered it —
+ * fine there, because every one of its call sites is inside a player's own
+ * script. This site is not: an npc flinches and dies inside the engine, and a
+ * second player standing next to the fight should hear it too. Broadcasting is
+ * the same rule stated from the emitter's side instead of the listener's.
+ *
+ * Silence is `-1`, and it is the common case. The guard is here as well as in
+ * `SS_OP_SOUND_SYNTH` because this path never goes through the opcode.
+ */
+static void
+npc_sound_nearby(
+    struct Mock230Server* srv,
+    struct Mock230Npc const* npc,
+    int sound_id,
+    int delay)
+{
+    if( sound_id < 0 )
+        return;
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+
+        if( !player->active || player->level != npc->level )
+            continue;
+        if( tile_distance(player->x, player->z, npc->x, npc->z) >
+            MOCK230_NPC_SOUND_TILES )
+            continue;
+        /* One loop, not zero, and this is checkable rather than a preference:
+         * `RS_Audio_QueueEffect` (src/game/rs_audio.c) *refuses* `loops == 0`,
+         * matching the reference's `Message.queueSoundEffect` requiring
+         * `var1 != 0` — the count it hands the mixer is `loops - 1`, so zero
+         * means the caller asked for nothing. LostCity's own
+         * `~sound_within_distance` passes 0 and would be silent here; every
+         * direct `sound_synth` call site in both trees passes 1. */
+        mock230_send_synth_sound(player, sound_id, 1, delay);
+    }
+}
+
 
 static int
 hitsplat_block(void)
@@ -551,10 +603,27 @@ mock230_combat_hit_npc(
     mock230_npc_face_player(npc, npc->combat_target);
     /* Flinch. Overwritten below if this was the killing blow. */
     play_npc_seq(npc, npc->block_seq);
+    npc_sound_nearby(srv, npc, npc->block_sound, 0);
 
     if( npc->hitpoints == 0 )
     {
         play_npc_seq(npc, npc->death_seq);
+        /*
+         * The death noise replaces the flinch noise it just queued, the same
+         * way the death animation replaces the flinch animation on the line
+         * above. Both are sent, and the client's effect queue is what resolves
+         * them: two entries land on the same tick, the flinch first.
+         *
+         * That is a real difference from the animation, where the second
+         * `play_npc_seq` overwrites the first in one mask and only the death is
+         * ever seen. Left as it is rather than suppressed, because a creature
+         * being hit *and* dying makes both noises in the reference — LostCity
+         * plays `defend_sound` from the player's attack script and
+         * `death_sound` from `[proc,npc_death]`, with nothing between them
+         * cancelling the first.
+         */
+        npc_sound_nearby(srv, npc, npc->death_sound, 0);
+
         /*
          * How long the corpse lies there is the record's, beside the animation
          * that has to finish inside it — `death_delay` on the npc, defaulting

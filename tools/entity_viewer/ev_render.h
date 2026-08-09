@@ -49,6 +49,26 @@ ev_frame_delay(int index);
 uint8_t*
 ev_render(int width, int height, int yaw, int pitch, int zoom, int frame);
 
+/** Pose the model for `frame`; -1 is the bind pose. Branches between classic
+ *  and skeletal animation, and is the only place that does. */
+void
+ev_pose(int frame);
+
+/** Pose for `frame` and report how many vertices moved from the bind pose.
+ *  -1 when there is no model. Zero means the animation does not drive this
+ *  model's rig, whatever a catalog said. */
+int
+ev_pose_moved_vertices(int frame);
+
+int
+ev_anim_is_skeletal(void);
+
+int
+ev_model_has_animaya(void);
+
+int
+ev_model_vertex_count(void);
+
 /** The model's height in world units, so a caller can frame it. */
 int
 ev_model_height(void);

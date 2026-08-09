@@ -375,20 +375,34 @@ main(int argc, char** argv)
 
     /* framemap -> sequences. Written once; an npc's rigging matches are this
      * table joined on the framemaps in npc_rigs.csv. */
-    fputs("framemap_id,seq_id,frame_count,seq_name\n", f_fm);
+    fputs("framemap_id,seq_id,kind,frame_count,seq_name\n", f_fm);
     int max_framemap = 0;
     for( int i = 0; i < fm_index.count; i++ )
         if( fm_index.entries[i].framemap_id > max_framemap )
             max_framemap = fm_index.entries[i].framemap_id;
 
     int* fm_seq_count = calloc((size_t)max_framemap + 1, sizeof(int));
+    int* fm_skeletal_count = calloc((size_t)max_framemap + 1, sizeof(int));
     for( int i = 0; i < fm_index.count; i++ )
     {
         const struct Tool_FramemapIndexEntry* e = &fm_index.entries[i];
         if( e->framemap_id < 0 )
             continue;
         fm_seq_count[e->framemap_id]++;
-        fprintf(f_fm, "%d,%d,%d,", e->framemap_id, e->seq_id, e->frame_count);
+        if( e->skeletal )
+            fm_skeletal_count[e->framemap_id]++;
+        /* `kind` is how the rig was reached, not a different id space: a
+         * skeletal sequence's base id and a classic sequence's framemap id are
+         * the same idx1 archive, so both kinds sit in this one table and an
+         * npc's rig set is the union. It matters because playing a skeletal
+         * sequence needs a model with an Animaya skin. */
+        fprintf(
+            f_fm,
+            "%d,%d,%s,%d,",
+            e->framemap_id,
+            e->seq_id,
+            e->skeletal ? "skeletal" : "classic",
+            e->frame_count);
         csv_name(f_fm, name_of(&seq_names, e->seq_id));
         fputc('\n', f_fm);
     }
@@ -397,7 +411,8 @@ main(int argc, char** argv)
     fputs("npc_id,gameval,seq_id,seq_name,score,in_rig_set\n", f_nm);
     fputs(
         "npc_id,npc_name,gameval,models,seed_seqs,framemaps,rig_match_seqs,"
-        "strict_covers,name_match_seqs,name_matches_outside_rig\n",
+        "rig_match_skeletal,animaya_skinned,strict_covers,name_match_seqs,"
+        "name_matches_outside_rig\n",
         f_cat);
 
     int* npc_ids = NULL;
@@ -450,39 +465,61 @@ main(int argc, char** argv)
         /* Does every rig cover the bone labels the npc's models actually use?
          * Reported, not enforced: a model using a subset of a rig animates
          * correctly, so this is a confidence signal rather than a filter. */
-        int strict_covers = 1;
-        if( fm_count > 0 && npc->models_count > 0 )
+        /*
+         * Two questions about the npc's own geometry, asked in one pass over
+         * its models because decoding them is the expensive part of this sweep.
+         *
+         * `animaya_skinned` — can it be posed by a skeletal sequence at all? A
+         * skeletal animation drives per-vertex bone influences; a model without
+         * them is left in its bind pose rather than mis-animated, so a skeletal
+         * rig match on an unskinned npc is not playable and the two columns have
+         * to be read together.
+         *
+         * `strict_covers` — does every rig cover the bone labels the models
+         * actually reference? Reported, not enforced: a model using a subset of
+         * a rig animates correctly.
+         */
+        int animaya_skinned = 0;
+        int strict_covers = fm_count > 0 ? 1 : 0;
+
+        if( npc->models_count > 0 )
         {
-            for( int k = 0; k < fm_count && strict_covers; k++ )
+            struct RSCache_Dat2Framemap** rig_maps =
+                fm_count > 0 ? calloc((size_t)fm_count, sizeof(*rig_maps)) : NULL;
+            for( int k = 0; k < fm_count; k++ )
             {
-                struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(&cache, fms[k]);
-                if( !fm )
-                {
+                rig_maps[k] = tool_dat2_framemap_load(&cache, fms[k]);
+                if( !rig_maps[k] )
                     strict_covers = 0;
-                    break;
-                }
-                for( int m = 0; m < npc->models_count; m++ )
-                {
-                    struct RSCache_Model* model = tool_dat2_model_load(&cache, npc->models[m]);
-                    if( !model )
-                        continue;
-                    if( !tool_framemap_covers_model(fm, model) )
-                        strict_covers = 0;
-                    RSCache_ModelFree(model);
-                    if( !strict_covers )
-                        break;
-                }
-                RSCache_Dat2FramemapFree(fm);
             }
+
+            for( int m = 0; m < npc->models_count; m++ )
+            {
+                struct RSCache_Model* model = tool_dat2_model_load(&cache, npc->models[m]);
+                if( !model )
+                    continue;
+                if( model->animaya_vertex_count > 0 )
+                    animaya_skinned = 1;
+                for( int k = 0; k < fm_count && strict_covers; k++ )
+                    if( rig_maps[k] && !tool_framemap_covers_model(rig_maps[k], model) )
+                        strict_covers = 0;
+                RSCache_ModelFree(model);
+            }
+
+            for( int k = 0; k < fm_count; k++ )
+                RSCache_Dat2FramemapFree(rig_maps[k]);
+            free(rig_maps);
         }
-        else if( fm_count == 0 )
-            strict_covers = 0;
 
         int rig_matches = 0;
+        int rig_skeletal = 0;
         for( int k = 0; k < fm_count; k++ )
         {
             if( fms[k] >= 0 && fms[k] <= max_framemap )
+            {
                 rig_matches += fm_seq_count[fms[k]];
+                rig_skeletal += fm_skeletal_count[fms[k]];
+            }
 
             fprintf(f_rig, "%d,", npc_id);
             csv_name(f_rig, npc->name);
@@ -562,8 +599,10 @@ main(int argc, char** argv)
             fprintf(f_cat, k ? " %d" : "%d", fms[k]);
         fprintf(
             f_cat,
-            ",%d,%s,%d,%d\n",
+            ",%d,%d,%s,%s,%d,%d\n",
             rig_matches,
+            rig_skeletal,
+            animaya_skinned ? "true" : "false",
             strict_covers ? "true" : "false",
             name_match_count,
             name_outside_rig);
@@ -598,6 +637,7 @@ main(int argc, char** argv)
         total_name);
 
     free(matches);
+    free(fm_skeletal_count);
     free(seq_framemap);
     free(seq_tokens);
     free(fm_seq_count);

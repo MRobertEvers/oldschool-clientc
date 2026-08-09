@@ -1783,6 +1783,22 @@ struct Mock230Npc
     int attack_seq;
     int block_seq;
     int death_seq;
+    /**
+     * The sound that goes with each of the three, as a synth id; -1 = silent.
+     *
+     * Sound rides animation: an npc's flinch noise and its flinch animation are
+     * one event, so they are one field pair set from one record and played on
+     * one line. Identified per npc by `tools/gen_npc_combat.py` and documented
+     * in docs/DEATH_ATK_DEF_ANIMS.md.
+     *
+     * -1 and not 0. Sound effect 0 is a real clip, so silence cannot be spelled
+     * as zero — the mistake that made all 1,083 weapons play the same noise on
+     * every swing (docs/WEAPON_FX.md 6.6). Most npcs are legitimately -1: no
+     * public source describes npc combat sound for a modern cache.
+     */
+    int attack_sound;
+    int block_sound;
+    int death_sound;
 };
 
 /*

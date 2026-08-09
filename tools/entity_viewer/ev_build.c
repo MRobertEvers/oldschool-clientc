@@ -168,6 +168,60 @@ ev_build_seq_anim(
     struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(c, seq_id);
     if( !seq )
         return NULL;
+
+    /*
+     * Skeletal (Animaya) first: these sequences carry no frame list at all, so
+     * the classic path below would see an empty sequence and give up. Every
+     * modern OldSchool npc animates this way.
+     *
+     * The result is still a ToriDraw_Animation — `skeletal` set, `base`/`frames`
+     * NULL — so frame stepping is identical and only the pose call branches.
+     * `frame_count` is the config's play range when it states one, which is how
+     * one baked palette serves several sequences that slice it differently.
+     */
+    if( seq->frame_count <= 0 && seq->anim_maya_id > 0 )
+    {
+        struct RSCache_Dat2AnimMaya* maya = tool_dat2_animaya_load(c, seq->anim_maya_id);
+        struct ToriDraw_Animation* anim = NULL;
+
+        if( maya && maya->base_id >= 0 )
+        {
+            if( out_framemap_id )
+                *out_framemap_id = maya->base_id;
+
+            struct RSCache_Dat2SkeletalBase* base =
+                tool_dat2_skeletal_base_load(c, maya->base_id);
+            struct ToriDraw_SkeletalAnim* skeletal =
+                ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, base);
+
+            if( skeletal )
+            {
+                anim = calloc(1, sizeof(*anim));
+                if( anim )
+                {
+                    int play = skeletal->frame_count;
+                    if( seq->anim_maya_end > seq->anim_maya_start )
+                    {
+                        play = seq->anim_maya_end - seq->anim_maya_start;
+                        if( play > skeletal->frame_count )
+                            play = skeletal->frame_count;
+                    }
+                    anim->skeletal = skeletal;
+                    anim->frame_count = play > 0 ? play : 1;
+                    anim->replaceheldleft = -1;
+                    anim->replaceheldright = -1;
+                }
+                else
+                    ToriDraw_SkeletalAnimFree(skeletal);
+            }
+            RSCache_Dat2SkeletalBaseFree(base);
+        }
+
+        RSCache_Dat2AnimMayaFree(maya);
+        RSCache_Dat2ConfigSequenceFree(seq);
+        return anim;
+    }
+
     if( !seq->frame_ids || seq->frame_count <= 0 )
     {
         RSCache_Dat2ConfigSequenceFree(seq);
