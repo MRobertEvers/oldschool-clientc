@@ -58,6 +58,12 @@ static const struct ServerField k_npc_fields[] = {
      * that opcode already carries this tree's `nomove` boolean. */
     { 156, WIRE_U1, offsetof(struct Mock230NpcDef, blockwalk),   "blockwalk"   },
     { 157, WIRE_U1, offsetof(struct Mock230NpcDef, blocksight),  "blocksight"  },
+    /* The three combat sounds. u4 for the same reason as death_drop at 151:
+     * they default to -1, and only u4 round-trips a negative through a
+     * zero-extending decode. */
+    { 158, WIRE_U4, offsetof(struct Mock230NpcDef, attack_sound), "attack_sound" },
+    { 159, WIRE_U4, offsetof(struct Mock230NpcDef, defend_sound), "defend_sound" },
+    { 160, WIRE_U4, offsetof(struct Mock230NpcDef, death_sound),  "death_sound"  },
     { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
     { 201, WIRE_U2, offsetof(struct Mock230NpcDef, maxrange),    "maxrange"    },
     { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },

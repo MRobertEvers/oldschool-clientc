@@ -41,8 +41,7 @@ ev_build_seq_anim(
     int seq_id,
     int* out_framemap_id);
 
-/** Release an animation built here, including its rig. */
-void
-ev_build_free_anim(struct ToriDraw_Animation* anim);
+/* Release one with ToriDraw_AnimationFree — it is a plain ToriDraw_Animation,
+ * assembled by the client's own ToriDraw_AnimationFromRSCache. */
 
 #endif

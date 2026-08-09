@@ -515,7 +515,7 @@ handle_seq_anim(int fd, int seq_id)
 
     struct EV_WireBuf buf = { 0 };
     int ok = ev_wire_write_anim(&buf, anim);
-    ev_build_free_anim(anim);
+    ToriDraw_AnimationFree(anim);
 
     if( !ok )
     {
@@ -646,12 +646,20 @@ selftest(int npc_id, int seq_id)
         fprintf(stderr, "  npc %d: no model\n", npc_id);
         return 1;
     }
+    int textured = 0;
+    if( model->face_textures )
+        for( int i = 0; i < model->face_count; i++ )
+            if( model->face_textures[i] >= 0 )
+                textured++;
     fprintf(
         stderr,
-        "  model: %d vertices, %d faces, vertex_bones %s\n",
+        "  model: %d vertices, %d faces (%d textured), vertex_bones %s, "
+        "face_priorities %s\n",
         model->vertex_count,
         model->face_count,
-        model->vertex_bones ? "yes" : "NO (will not animate)");
+        textured,
+        model->vertex_bones ? "yes" : "NO (will not animate)",
+        model->face_priorities ? "yes" : "no");
 
     struct EV_WireBuf mb = { 0 };
     if( !ev_wire_write_model(&mb, model) )
@@ -722,7 +730,29 @@ selftest(int npc_id, int seq_id)
      * ran, or it ran and the projection culled the model — and only this tells
      * them apart. The count is of pixels that are not the background.
      */
+    /*
+     * Render twice and compare: once from the model this process built, once
+     * from the model rebuilt out of the wire bytes the browser receives.
+     *
+     * The browser half can only render what ev_wire carries, and a field the
+     * format silently drops shows up as an artefact there and nowhere here.
+     * Any non-zero difference means the two halves are not looking at the same
+     * model.
+     */
     ev_init();
+
+    struct EV_WireBuf direct = { 0 };
+    ev_wire_write_model(&direct, model);
+    ev_set_model(direct.data, (int)direct.len);
+    ev_set_anim(ab.data, (int)ab.len);
+    int h0 = ev_model_height();
+    int zoom0 = h0 * 3 > 400 ? h0 * 3 : 400;
+    uint8_t* a = ev_render(256, 256, 0, 200, zoom0, 0);
+    uint8_t* a_copy = malloc(256 * 256 * 4);
+    if( a && a_copy )
+        memcpy(a_copy, a, 256 * 256 * 4);
+    ev_wire_free(&direct);
+
     ev_set_model(mb.data, (int)mb.len);
     ev_set_anim(ab.data, (int)ab.len);
     int h = ev_model_height();
@@ -733,6 +763,13 @@ selftest(int npc_id, int seq_id)
         for( int i = 0; i < 256 * 256; i++ )
             if( rgba[i * 4] != 0x14 || rgba[i * 4 + 1] != 0x18 || rgba[i * 4 + 2] != 0x21 )
                 lit++;
+    int differing = 0;
+    if( a_copy && rgba )
+        for( int i = 0; i < 256 * 256 * 4; i++ )
+            if( a_copy[i] != rgba[i] )
+                differing++;
+    free(a_copy);
+
     fprintf(
         stderr,
         "  render: height %d, zoom %d, cull %d, %d of %d pixels drawn\n",
@@ -741,11 +778,15 @@ selftest(int npc_id, int seq_id)
         ev_last_cull(),
         lit,
         256 * 256);
+    fprintf(
+        stderr,
+        "  wire round-trip: %d byte(s) differ from the directly built model\n",
+        differing);
 
     ToriDraw_ModelFree(model);
     ToriDraw_ModelFree(back);
-    ev_build_free_anim(anim);
-    ev_wire_free_anim(aback);
+    ToriDraw_AnimationFree(anim);
+    ToriDraw_AnimationFree(aback);
     ev_wire_free(&mb);
     ev_wire_free(&ab);
     return 0;

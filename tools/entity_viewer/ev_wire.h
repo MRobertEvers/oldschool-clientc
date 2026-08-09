@@ -76,8 +76,8 @@ ev_wire_read_anim(
     const uint8_t* data,
     size_t len);
 
-/** Release an animation built by ev_wire_read_anim, including its rig. */
-void
-ev_wire_free_anim(struct ToriDraw_Animation* anim);
+/* An animation read back here is a plain ToriDraw_Animation, laid out exactly
+ * as the library builds one, so ToriDraw_AnimationFree releases it. This file
+ * deliberately owns no free of its own. */
 
 #endif

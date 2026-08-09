@@ -138,15 +138,62 @@ applies frame 0 and reports how many vertices moved, then runs the browser's
 exact render path natively and counts drawn pixels:
 
 ```
-  model: 988 vertices, 1934 faces, vertex_bones yes
+  model: 988 vertices, 1934 faces (0 textured), vertex_bones yes, face_priorities no
   model: 94664 bytes, round-trip 988/988 vertices, 1934/1934 faces
   anim: 49 frames on rig 184, base length 171
   frame 0 moves 988 of 988 vertices
   render: height 1318, zoom 3954, cull 0, 2000 of 65536 pixels drawn
+  wire round-trip: 0 byte(s) differ from the directly built model
 ```
 
-Both numbers matter and neither is implied by the other. "0 vertices moved"
-means the model and the animation do not share a rig, whatever the catalog said.
-"cull 3" is `TORIDRAW_CULL_ERROR` and means the model has no bounds cylinder —
-which renders as a blank canvas with no error anywhere, and is what this caught
-the first time.
+Four numbers, none implied by the others:
+
+- **vertices moved by frame 0.** Zero means the model and the animation do not
+  share a rig, whatever the catalog said.
+- **cull.** `3` is `TORIDRAW_CULL_ERROR` and means the model has no bounds
+  cylinder, which renders as a blank canvas with no error anywhere.
+- **pixels drawn.** Separates "the module never ran" from "it ran and drew
+  nothing".
+- **wire round-trip.** Renders the model this process built and the model
+  rebuilt from the bytes the browser receives, and compares the two images. The
+  browser can only draw what `ev_wire` carries, so a field the format drops is
+  an artefact there and invisible here. Anything but 0 means the two halves are
+  not looking at the same model.
+
+## Nothing here converts cache data
+
+Every cache→renderer step is the client's or the tool library's:
+
+| Step | Whose |
+|---|---|
+| model | `ToriRS_ModelFromRSCache` → `ToriDraw_ModelFromToriRS` (`src/engine/`) |
+| animation | `ToriDraw_AnimationFromRSCache` (`src/engine/`) |
+| frame decode | `tool_dat2_frame_load` (`3rd/rscache/tools/common/`) |
+| framemap, models, seqs, npcs | `tool_dat2_*` (`3rd/rscache/tools/common/`) |
+| rig walk | `tool_dat2_build_framemap_index` (`anim_affinity.c`) |
+| `id=name` packs | `lc_pack_load` (`3rd/rscache/tools/port_lostcity/`) |
+| animation free | `ToriDraw_AnimationFree` |
+
+This was not true at first, and the cost was a rendering bug with no visible
+cause. The hand-written model converter got face priority wrong — the cache
+stores **one byte per face**, the renderer **two 4-bit fields per byte** — so a
+verbatim copy gave every face some other face's priority. Priority is the
+primary key of `ToriDraw_RenderModel2SortFaces`, so the painter's sort ran on
+nonsense and models drew with holes that looked like near-plane clipping. The
+copy even carried a comment asserting the layouts matched.
+
+The npc build follows app.c's order step for step, which is also where the
+missing `ToriDraw_ModelScale` came from: npc opcodes 97/98 were never applied,
+so every npc with a scale of its own drew at the model's raw size.
+
+What is genuinely this directory's, because no equivalent exists:
+
+- **`ev_wire.c`** — a ToriDraw model/animation as bytes. `trspk` is GPU vertex
+  packing and rscache's encoders are cache format; neither is transport.
+- **`ev_render.c`** — the orbit framing. It matches
+  `ToriDraw_SpriteNewFromModelRaster` (same `sin_pitch`/`cos_pitch` orbit, same
+  `near_plane_z = 1` for a close-up) minus that path's widget-rect offset, since
+  this one centres via the viewport instead. The world's `near_plane_z = 50`
+  is wrong here: at a camera orbiting one model it sits *inside* big models and
+  clips their nearest faces.
+- **`ev_server.c`** — the HTTP surface.

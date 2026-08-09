@@ -175,6 +175,25 @@ tool_dat2_framemap_load(
     int framemap_id);
 
 /**
+ * Decode one animation frame, by the packed id a sequence config carries.
+ *
+ * `packed_frame_id` is `archive << 16 | file`, which is how `frame_ids` stores
+ * it. `framemap` is the rig the frame is read against — the decoder needs it to
+ * know how many transforms each entry has — and is usually
+ * `tool_dat2_framemap_load(tool_dat2_seq_framemap_id(...))`.
+ *
+ * Caller frees with RSCache_Dat2FrameFree. Returns NULL when the archive, the
+ * file or the decode fails, which callers should treat as "this frame holds"
+ * rather than dropping it: dropping shortens the sequence and moves every later
+ * frame's timing.
+ */
+struct RSCache_Dat2Frame*
+tool_dat2_frame_load(
+    struct Tool_Dat2Cache* c,
+    struct RSCache_Dat2Framemap* framemap,
+    int packed_frame_id);
+
+/**
  * Find the file position of `file_id` inside an archive's file_ids[].
  * Returns -1 if not found. When file_ids is NULL, returns file_id if in range.
  */

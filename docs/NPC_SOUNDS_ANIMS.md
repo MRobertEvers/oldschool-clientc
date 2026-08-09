@@ -224,3 +224,120 @@ What exists, and is verified usable:
    `SYNTH_SOUND` packets observed from a live server, keyed by the npc that was
    attacking. That is what rsmod's 53 rows almost certainly are, and it is the
    only route that scales to modern content. It needs a capture, not a lookup.
+
+---
+
+# Automating it — the layered pipeline
+
+*(added after the search above concluded; this is the design for identifying
+attack / defend / death animations for every npc, and their sounds.)*
+
+The conclusion above — "no public source states npc combat sounds" — turns out
+to be only half the problem, and the easier half at that. Four measurements
+change the picture:
+
+```
+seq records in this content tree, all carrying Jagex's 2025 names   14,413
+  named *attack*  1,277     *death*  758     *block/defend/hit*  642
+npcs anchored to a rig (readyanim= in the cache -> framemap)        14,053 of 16,292
+seqs carrying their sound IN-BAND (sound=frame,id,loops,...)         1,588
+  of which attack-named 283, death-named 135
+LostCity combat-anim names that resolve against the 2025 seq names  240 of 263
+```
+
+And the client already plays frame sounds (`app_play_frame_sounds`,
+`src/app.c`) with the weight-based selection. So the shape of the solution is:
+
+> **Animations are cache-decidable** — the rig closes the candidate set, the
+> leaked names classify within it. **Sounds ride the animations** — 1,588 seqs
+> carry theirs in-band and the client plays them for free; the rest fall back
+> to the 646 server rows found above, then silence.
+
+## What already exists
+
+- `out/osrs239_anims/` — the entity-viewer catalog: `npc_rigs.csv` (npc →
+  framemap), `framemap_seqs.csv` (framemap → seqs, 13,470 rows),
+  `npc_name_matches.csv` (scored npc↔seq name affinity, 314k rows).
+- `tools/entity_viewer/gen_npc_anims.py` — rig gate ∧ name gate → suffix
+  classify. Today: **3,185 npcs** given anims; skips 10,073 as "its name is not
+  what its rig is for", 483 as "its own sequences name no action", 115 no
+  distinctive word.
+
+## Animation layers
+
+Each layer fills only what earlier layers left empty; each row records which
+layer produced it; every layer's precision is measured against held-out ground
+truth before it is allowed to write.
+
+- **A0 — authored truth.** LostCity's `attack_anim`/`defend_anim`/`death_anim`
+  params: 550/557/564 rows, 240 of 263 distinct names resolving directly
+  against the 2025 seq names (the same two-independent-datasets collision that
+  validated the sounds). rsmod's toml likewise if it states anims. These rows
+  are data, not inference — and they double as the validation set for every
+  layer below.
+- **A1 — rig ∧ name-share** (the existing generator, unchanged): 3,185 npcs.
+- **A2 — rig-unique suffix.** Drop the name gate where the rig itself is
+  unambiguous: if an npc's rig(s) offer exactly one `*_death` seq, that is its
+  death — every npc on that rig dies that way, whatever it is called. Measured
+  potential among the 7,093 npcs on ordinary (≤200-seq) rigs:
+
+  | action | unique candidate | multiple | none |
+  |---|---|---|---|
+  | death | **2,487** | 3,219 | 1,387 |
+  | attack | **1,455** | 4,242 | 1,396 |
+  | defend | **2,161** | 2,824 | 2,108 |
+
+  The name gate stays for mega-rigs (6,960 npcs sit on rigs with >200 seqs —
+  the human pile, framemap 0's 3,905 seqs) — but those are mostly humans, for
+  whom the `npc_default.npc` human set is already *correct*, and armed humans
+  already get weapon-carried anims from the weapon-FX work.
+- **A3 — tie-breaks for the multis.** Within a rig, several `*_attack` seqs are
+  usually variants. Break ties in order: (1) name-affinity score from
+  `npc_name_matches.csv` — the existing scorer, demoted from gate to
+  tie-break; (2) shared name stem with the npc's own `readyanim`
+  (`swarm_ready` → `swarm_attack`); (3) the unsuffixed base over numbered
+  variants (`X_attack` over `X_attack2`); (4) still tied → review file, keep
+  default.
+- **A4 — kinematic classify** for rigs whose seqs name no action (~1,400–2,100
+  npcs per action). Features per seq, all computable with existing machinery
+  (`anim_compare`, poser-gl-c frame application): duration in server ticks,
+  loop/replay mode, final-frame collapse (bbox height of last frame vs
+  readyanim — death anims end prone), returns-to-start-pose (attack/defend do,
+  death does not), and the seq's frame-sound *name* (a seq whose in-band sound
+  resolves to `*_death` is a death anim whatever the seq is called). Classify
+  only when signals agree; precision measured on A0 before it may write.
+- **A5 — default + report.** Whatever survives keeps the human default and the
+  report says so, per npc, with the reason. No family guessing.
+
+## Sound layers
+
+- **S0 — in-band frame sounds.** If the chosen seq carries `sound=`, done: the
+  client plays it when the anim plays. No data to port, no server change beyond
+  playing the right seq. 283 attack-named and 135 death-named seqs qualify
+  today, and A2/A4 will pick more.
+- **S1 — server params.** The validated LostCity ∪ rsmod union: 646 npcs
+  (rsmod wins its 7 disagreements). Fills 2004-era rigs, whose seqs predate
+  in-band sounds.
+- **S2 — name join.** 1,254 sound names carry combat suffixes. Candidate: the
+  sound whose name equals/prefixes the chosen seq's name (`swarm_attack` seq →
+  `swarm_attack` sound). Ship only if its precision on the S1 overlap measures
+  high; otherwise drop the layer.
+- **S3 — silence.** The honest default, already supported by the −1 sentinel.
+
+## Validation harness
+
+Hold out A0 (the 240 resolvable LostCity names): run A1–A4 blind, compare
+prediction to truth per layer, report precision/recall and the full
+disagreement table (expect a handful of genuine era drifts, like rsmod's 7).
+Same for S0/S2 against S1's overlap: where LostCity states the sound *and* the
+chosen seq carries one in-band, do they agree? Only layers that clear the bar
+write rows; every written row carries a provenance comment
+(`// a2: rig 1392's only *_death`).
+
+## Write-layer traps (already learned once)
+
+- An npc gaining an Attack option needs `attackrate` and combat stats, or its
+  pacing is wrong (`npc-anims-from-rig-catalog`).
+- New param rows must respect npc.server membership and the pack/names
+  two-layer namespace.
+- The generator owns its output block; the 197 authored blocks always win.

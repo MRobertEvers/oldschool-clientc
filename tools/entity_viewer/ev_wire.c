@@ -370,31 +370,6 @@ fail:
     return NULL;
 }
 
-void
-ev_wire_free_anim(struct ToriDraw_Animation* anim)
-{
-    if( !anim )
-        return;
-    if( anim->base )
-    {
-        for( int i = 0; i < anim->base->length; i++ )
-            free(anim->base->bone_groups ? anim->base->bone_groups[i] : NULL);
-        free(anim->base->bone_groups);
-        free(anim->base->bone_group_lengths);
-        free(anim->base->types);
-        free(anim->base);
-    }
-    for( int f = 0; f < anim->frame_count; f++ )
-    {
-        free(anim->frames[f].groups);
-        free(anim->frames[f].x);
-        free(anim->frames[f].y);
-        free(anim->frames[f].z);
-    }
-    free(anim->frames);
-    free(anim);
-}
-
 struct ToriDraw_Animation*
 ev_wire_read_anim(
     const uint8_t* data,
@@ -478,6 +453,6 @@ ev_wire_read_anim(
     return a;
 
 bad:
-    ev_wire_free_anim(a);
+    ToriDraw_AnimationFree(a);
     return NULL;
 }

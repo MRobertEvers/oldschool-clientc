@@ -380,6 +380,21 @@ struct Mock230NpcDef
     int death_drop; /* obj id, -1 for `param=death_drop,null` */
 
     /*
+     * The sounds that go with the three animations above: swinging, being hit,
+     * and dying. Synth ids, -1 for silent.
+     *
+     * -1 and not 0, because sound effect 0 is a real clip and "states no sound"
+     * has to be a value rather than an absence -- a 0 default is exactly what
+     * made every weapon in the game play the same sound on every swing
+     * (docs/WEAPON_FX.md 6.6). Most npcs are legitimately -1: no public source
+     * describes npc combat sound for a modern cache, so the honest answer for
+     * the ~96% nothing covers is silence (docs/NPC_SOUNDS_ANIMS.md).
+     */
+    int attack_sound;
+    int defend_sound;
+    int death_sound;
+
+    /*
      * The same authored params again, filed under their param *id*.
      *
      * The fields above are what the engine reads; this is what `npc_param`

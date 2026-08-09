@@ -49,6 +49,7 @@
 
 #include "anim_affinity.h"
 #include "asset_access.h"
+#include "lc_pack.h"
 #include "tool_profile.h"
 
 #include <ctype.h>
@@ -59,92 +60,22 @@
 /* ---- gameval names ------------------------------------------------------ */
 
 /*
- * `id=name` per line, from OSRS-Content's `configs/all.<type>.compack`.
+ * `id=name`, from OSRS-Content's `configs/all.<type>.compack`.
  *
- * These are the content team's names, not display names: an npc's display name
- * is in the cache record, but `Aberrant spectre` tells you nothing about which
- * sequence is its death animation, where `slayer_abberant_spectre_1` and
- * `abberant_spectre_death` share a token.
+ * Read with the tree's own pack reader rather than a private parser: these are
+ * the same files `cachepack` and `port_lostcity` read, comments and all, and a
+ * second parser for them is a second thing to keep in step with the format.
+ *
+ * The names matter because a display name says nothing about animation —
+ * "Aberrant spectre" gives no handle at all, where `slayer_abberant_spectre_1`
+ * and `abberant_spectre_death` share a word.
  */
-struct NameTable
-{
-    char** names; /* indexed by id; NULL where absent */
-    int count;
-};
-
-static void
-name_table_free(struct NameTable* t)
-{
-    for( int i = 0; i < t->count; i++ )
-        free(t->names[i]);
-    free(t->names);
-    t->names = NULL;
-    t->count = 0;
-}
-
 static const char*
-name_of(const struct NameTable* t, int id)
+name_of(const struct LC_Pack* pack, int id)
 {
-    if( id < 0 || id >= t->count )
+    if( id < 0 || id > pack->max || !pack->names )
         return NULL;
-    return t->names[id];
-}
-
-static int
-name_table_load(struct NameTable* t, const char* path)
-{
-    FILE* f = fopen(path, "rb");
-    if( !f )
-        return 0;
-
-    t->names = NULL;
-    t->count = 0;
-    int cap = 0;
-
-    char line[1024];
-    while( fgets(line, sizeof(line), f) )
-    {
-        if( line[0] == '/' || line[0] == '\n' || line[0] == '\r' )
-            continue;
-        char* eq = strchr(line, '=');
-        if( !eq )
-            continue;
-        *eq = '\0';
-        int id = atoi(line);
-        if( id < 0 )
-            continue;
-
-        char* name = eq + 1;
-        size_t len = strlen(name);
-        while( len && (name[len - 1] == '\n' || name[len - 1] == '\r') )
-            name[--len] = '\0';
-        if( !len )
-            continue;
-
-        if( id >= cap )
-        {
-            int next = cap ? cap * 2 : 1024;
-            while( next <= id )
-                next *= 2;
-            char** grown = realloc(t->names, (size_t)next * sizeof(char*));
-            if( !grown )
-            {
-                fclose(f);
-                return 0;
-            }
-            for( int i = cap; i < next; i++ )
-                grown[i] = NULL;
-            t->names = grown;
-            cap = next;
-        }
-        if( id >= t->count )
-            t->count = id + 1;
-        free(t->names[id]);
-        t->names[id] = strdup(name);
-    }
-
-    fclose(f);
-    return 1;
+    return pack->names[id];
 }
 
 /* ---- name tokenising ---------------------------------------------------- */
@@ -357,22 +288,22 @@ main(int argc, char** argv)
     }
     tool_print_profile(cache_dir, &profile);
 
-    struct NameTable npc_names = { 0 };
-    struct NameTable seq_names = { 0 };
+    struct LC_Pack npc_names = { 0 };
+    struct LC_Pack seq_names = { 0 };
     if( names_dir )
     {
         char path[2048];
         snprintf(path, sizeof(path), "%s/configs/all.npc.compack", names_dir);
-        if( !name_table_load(&npc_names, path) )
+        if( !lc_pack_load(&npc_names, path, "npc", 1) )
             fprintf(stderr, "warning: no npc gameval names at %s\n", path);
         snprintf(path, sizeof(path), "%s/configs/all.seq.compack", names_dir);
-        if( !name_table_load(&seq_names, path) )
+        if( !lc_pack_load(&seq_names, path, "seq", 1) )
             fprintf(stderr, "warning: no seq gameval names at %s\n", path);
         fprintf(
             stderr,
             "gameval names: %d npc, %d seq\n",
-            npc_names.count,
-            seq_names.count);
+            lc_pack_named_count(&npc_names),
+            lc_pack_named_count(&seq_names));
     }
 
     /* One sweep of every sequence to its framemap. This is the expensive part
@@ -414,15 +345,16 @@ main(int argc, char** argv)
     /* Pre-tokenise every sequence name once; doing it inside the npc loop would
      * re-tokenise 14,413 names 16,292 times. */
     struct Tokens* seq_tokens = NULL;
-    if( seq_names.count > 0 )
+    int seq_name_capacity = seq_names.max + 1;
+    if( seq_name_capacity > 1 )
     {
-        seq_tokens = calloc((size_t)seq_names.count, sizeof(struct Tokens));
+        seq_tokens = calloc((size_t)seq_name_capacity, sizeof(struct Tokens));
         if( !seq_tokens )
         {
             fprintf(stderr, "out of memory tokenising sequence names\n");
             return 1;
         }
-        for( int i = 0; i < seq_names.count; i++ )
+        for( int i = 0; i < seq_name_capacity; i++ )
             tokenise(name_of(&seq_names, i), &seq_tokens[i]);
     }
 
@@ -484,7 +416,7 @@ main(int argc, char** argv)
     int npcs_with_name = 0;
 
     struct NameMatch* matches =
-        seq_tokens ? malloc((size_t)seq_names.count * sizeof(struct NameMatch)) : NULL;
+        seq_tokens ? malloc((size_t)seq_name_capacity * sizeof(struct NameMatch)) : NULL;
 
     for( int n = 0; n < npc_count; n++ )
     {
@@ -575,7 +507,7 @@ main(int argc, char** argv)
             int found = 0;
             if( npc_tok.count > 0 )
             {
-                for( int s = 0; s < seq_names.count; s++ )
+                for( int s = 0; s < seq_name_capacity; s++ )
                 {
                     if( seq_tokens[s].count == 0 )
                         continue;
@@ -671,8 +603,8 @@ main(int argc, char** argv)
     free(fm_seq_count);
     free(npc_ids);
     tool_framemap_index_free(&fm_index);
-    name_table_free(&npc_names);
-    name_table_free(&seq_names);
+    lc_pack_free(&npc_names);
+    lc_pack_free(&seq_names);
     tool_dat2_close(&cache);
     return 0;
 }

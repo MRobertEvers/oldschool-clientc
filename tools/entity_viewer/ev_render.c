@@ -87,7 +87,7 @@ ev_set_anim(const uint8_t* data, int len)
     if( !next )
         return 0;
 
-    ev_wire_free_anim(g_anim);
+    ToriDraw_AnimationFree(g_anim);
     g_anim = next;
     return g_anim->frame_count;
 }
@@ -96,7 +96,7 @@ ev_set_anim(const uint8_t* data, int len)
 void
 ev_clear_anim(void)
 {
-    ev_wire_free_anim(g_anim);
+    ToriDraw_AnimationFree(g_anim);
     g_anim = NULL;
 }
 
@@ -195,7 +195,16 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     camera.roll = 0;
     camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
     camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
-    camera.near_plane_z = 50;
+    /*
+     * 1, not the world's 50.
+     *
+     * 50 is the scene near plane — Client-TS's `midZ - radiusZ <= 50` — and it
+     * is right for a camera looking across a map. This camera orbits a single
+     * model at roughly its own height, so a 50-unit near plane sits inside big
+     * models and clips their nearest faces away. `ToriDraw_SpriteNewFromModelRaster`
+     * uses 1 for the same reason: it is a close-up preview, and so is this.
+     */
+    camera.near_plane_z = 1;
 
     /*
      * The same framing ToriDraw_ModelSprite uses: a pitched orbit, with the
@@ -211,6 +220,9 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
     int model_height = bounds ? (bounds->max_y - bounds->min_y) : 0;
 
+    /* Same placement as ToriDraw_SpriteNewFromModelRaster, minus its widget
+     * term: that path blits into a widget rect and offsets by the widget's own
+     * height, where this one centres in the viewport via y_center. */
     struct ToriDraw_Position position = { 0 };
     position.x = 0;
     position.y = sin_pitch + (model_height / 2);

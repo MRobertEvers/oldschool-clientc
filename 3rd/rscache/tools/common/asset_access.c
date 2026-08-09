@@ -605,6 +605,47 @@ tool_dat2_framemap_load(
     return RSCache_Dat2FramemapNewFromCache(c->disk, framemap_id);
 }
 
+struct RSCache_Dat2Frame*
+tool_dat2_frame_load(
+    struct Tool_Dat2Cache* c,
+    struct RSCache_Dat2Framemap* framemap,
+    int packed_frame_id)
+{
+    assert(c && c->disk);
+
+    int archive_id = (packed_frame_id >> 16) & 0xFFFF;
+    int file_id = packed_frame_id & 0xFFFF;
+    int anim_table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
+
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(c->disk, anim_table, archive_id);
+    if( !archive )
+        return NULL;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return NULL;
+    }
+
+    struct RSCache_Dat2Frame* frame = NULL;
+    int pos = tool_archive_file_position(archive, file_id);
+    if( pos >= 0 && pos < files->file_count && files->file_sizes[pos] > 0 )
+        frame = RSCache_Dat2FrameNewDecodeProfile(
+            &c->profile, packed_frame_id, framemap, files->files[pos], files->file_sizes[pos]);
+
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return frame;
+}
+
 struct RSCache_Model*
 tool_dat2_model_load(
     struct Tool_Dat2Cache* c,

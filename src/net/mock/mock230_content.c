@@ -1050,6 +1050,33 @@ apply_param(
             return 0;
         resolved = def->death_drop;
     }
+    /*
+     * The three combat sounds, and the one place in this function that takes a
+     * bare integer where its neighbours take a name.
+     *
+     * Not an inconsistency to tidy: `param_symbol` resolves through a pack
+     * namespace and there is no `synth` param *type* for cachepack to declare
+     * (`cp_common.c`'s `k_param_types`), so a `.npc` block cannot spell a sound
+     * by name at all. `tools/gen_npc_combat.py` does the name resolution, where
+     * it can be checked against `pack/4_soundeffects.pack`, and keeps the name in
+     * `npc_combat/<npc>.combat` beside the id. The number that arrives here has
+     * already been through a name.
+     */
+    else if( strcmp(text, "attack_sound") == 0 )
+    {
+        def->attack_sound = atoi(value);
+        resolved = def->attack_sound;
+    }
+    else if( strcmp(text, "defend_sound") == 0 )
+    {
+        def->defend_sound = atoi(value);
+        resolved = def->defend_sound;
+    }
+    else if( strcmp(text, "death_sound") == 0 )
+    {
+        def->death_sound = atoi(value);
+        resolved = def->death_sound;
+    }
     else
     {
         CONTENT_ERROR("%s: unknown param `%s`\n", where, text);
@@ -3044,6 +3071,11 @@ init_defaults(void)
     g_npc_default.defend_anim = -1;
     g_npc_default.death_anim = -1;
     g_npc_default.death_drop = -1;
+    /* Silent unless something states otherwise. Sound effect 0 is a real clip,
+     * so this cannot be 0 — see the field comment in mock230_content.h. */
+    g_npc_default.attack_sound = -1;
+    g_npc_default.defend_sound = -1;
+    g_npc_default.death_sound = -1;
     g_npc_default.defaultmode = MOCK230_NPCMODE_NONE;
 }
 

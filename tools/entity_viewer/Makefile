@@ -13,11 +13,12 @@ REPO    := $(abspath ../..)
 RSCACHE := $(REPO)/3rd/rscache
 THIRD   := $(REPO)/3rd
 COMMON  := $(RSCACHE)/tools/common
+PORTLC  := $(RSCACHE)/tools/port_lostcity
 
 TORIDRAW := $(THIRD)/toridraw
 
-INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) -I$(COMMON) \
-	-I$(TORIDRAW) -I$(THIRD) -I$(REPO) \
+INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) -I$(COMMON) -I$(PORTLC) \
+	-I$(TORIDRAW) -I$(THIRD) -I$(REPO) -I$(REPO)/src -I$(THIRD)/hmap \
 	-I$(THIRD)/bmp -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini
 
 # -O2: a catalog run walks every npc, every sequence and the framemap of each.
@@ -81,7 +82,12 @@ $(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
 $(BUILD)/ev_catalog.o: ev_catalog.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-ev_catalog: $(BUILD)/ev_catalog.o $(COMMON_OBJS) $(DEP_OBJS)
+# The tree's own `id=name` pack reader, rather than a second parser for the
+# compacks here.
+$(BUILD)/lc_pack.o: $(PORTLC)/lc_pack.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+ev_catalog: $(BUILD)/ev_catalog.o $(BUILD)/lc_pack.o $(COMMON_OBJS) $(DEP_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # ---- server: rscache + toridraw, natively --------------------------------
@@ -103,11 +109,27 @@ $(BUILD)/ev_build.o: ev_build.c | $(BUILD)
 $(BUILD)/ev_render.o: ev_render.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# The client's own model conversion, rather than a second copy of it in this
+# directory. Three self-contained files: no CacheProvider, no task pipeline.
+$(BUILD)/torirs_types.o: $(REPO)/src/engine/torirs_types.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+$(BUILD)/torirs_model_from_rscache.o: $(REPO)/src/engine/torirs_model_from_rscache.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+$(BUILD)/toridraw_model_from_torirs.o: $(REPO)/src/engine/toridraw_model_from_torirs.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+$(BUILD)/toridraw_animation_from_rscache.o: $(REPO)/src/engine/toridraw_animation_from_rscache.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
-		$(BUILD)/ev_render.o \
+		$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
+		$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
+		$(BUILD)/toridraw_animation_from_rscache.o \
 		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o $(COMMON_OBJS) $(DEP_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
