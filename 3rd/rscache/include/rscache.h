@@ -69,6 +69,7 @@
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_config_sequence.h"
+#include "datatypes/dat2_config_soundscape.h"
 #include "datatypes/dat2_animaya.h"
 #include "datatypes/dat1_anim_frame.h"
 #include "datatypes/dat1_config_seq.h"

@@ -130,7 +130,7 @@ toridraw_proj_cot16_from_fov(int fov_rpi2048)
         fov_rpi2048 = TORIDRAW_PROJ_FOV_MIN;
     if( fov_rpi2048 > TORIDRAW_PROJ_FOV_MAX )
         fov_rpi2048 = TORIDRAW_PROJ_FOV_MAX;
-    return g_tan_table[1536 - (fov_rpi2048 >> 1)];
+    return ToriDraw_ReadTanTable(1536 - (fov_rpi2048 >> 1));
 }
 
 /**
@@ -182,7 +182,7 @@ toridraw_proj_fov_from_scale(int proj_scale)
     while( lo < hi )
     {
         int mid = (lo + hi) >> 1;
-        if( g_tan_table[1536 - mid] > want )
+        if( ToriDraw_ReadTanTable(1536 - mid) > want )
             lo = mid + 1;
         else
             hi = mid;
@@ -191,8 +191,8 @@ toridraw_proj_fov_from_scale(int proj_scale)
      * lands closer so the round trip does not systematically bias one way. */
     if( lo > (TORIDRAW_PROJ_FOV_MIN >> 1) )
     {
-        int a = g_tan_table[1536 - (lo - 1)];
-        int b = g_tan_table[1536 - lo];
+        int a = ToriDraw_ReadTanTable(1536 - (lo - 1));
+        int b = ToriDraw_ReadTanTable(1536 - lo);
         if( a - want < want - b )
             lo = lo - 1;
     }

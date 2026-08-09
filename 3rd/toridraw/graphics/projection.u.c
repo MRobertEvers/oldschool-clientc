@@ -45,20 +45,20 @@ project_orthographic(
     assert(pitch >= 0 && pitch < 2048);
     assert(roll >= 0 && roll < 2048);
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_roll = g_cos_table[camera_roll];
-    int sin_camera_roll = g_sin_table[camera_roll];
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int cos_camera_roll = ToriDraw_ReadCosTable(camera_roll);
+    int sin_camera_roll = ToriDraw_ReadSinTable(camera_roll);
 
     // Apply model rotation — Jagex/Client-TS objRender order: roll (Z), pitch (X), yaw (Y).
-    int sin_pitch = g_sin_table[pitch];
-    int cos_pitch = g_cos_table[pitch];
-    int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
-    int sin_roll = g_sin_table[roll];
-    int cos_roll = g_cos_table[roll];
+    int sin_pitch = ToriDraw_ReadSinTable(pitch);
+    int cos_pitch = ToriDraw_ReadCosTable(pitch);
+    int sin_yaw = ToriDraw_ReadSinTable(yaw);
+    int cos_yaw = ToriDraw_ReadCosTable(yaw);
+    int sin_roll = ToriDraw_ReadSinTable(roll);
+    int cos_roll = ToriDraw_ReadCosTable(roll);
 
     int x_rotated = x;
     int y_rotated = y;
@@ -239,7 +239,7 @@ ToriDraw_TrigSinFromShared(
     void* user)
 {
     (void)user;
-    return g_sin_table[angle_r2pi2048];
+    return ToriDraw_ReadSinTable(angle_r2pi2048);
 }
 
 static inline int
@@ -248,7 +248,7 @@ ToriDraw_TrigCosFromShared(
     void* user)
 {
     (void)user;
-    return g_cos_table[angle_r2pi2048];
+    return ToriDraw_ReadCosTable(angle_r2pi2048);
 }
 
 static inline int
@@ -257,7 +257,7 @@ ToriDraw_TrigTanFromShared(
     void* user)
 {
     (void)user;
-    return g_tan_table[angle_r2pi2048];
+    return ToriDraw_ReadTanTable(angle_r2pi2048);
 }
 
 static inline void
@@ -368,10 +368,10 @@ project_orthographic_fast_pitchyaw(
     int camera_pitch,
     int camera_yaw)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
 
     int x_rotated = x;
     int y_rotated = y;
@@ -379,8 +379,8 @@ project_orthographic_fast_pitchyaw(
 
     if( pitch != 0 )
     {
-        int sin_pitch = g_sin_table[pitch];
-        int cos_pitch = g_cos_table[pitch];
+        int sin_pitch = ToriDraw_ReadSinTable(pitch);
+        int cos_pitch = ToriDraw_ReadCosTable(pitch);
         y_rotated = y * cos_pitch - z * sin_pitch;
         y_rotated >>= 16;
         z_rotated = y * sin_pitch + z * cos_pitch;
@@ -389,8 +389,8 @@ project_orthographic_fast_pitchyaw(
 
     if( yaw != 0 )
     {
-        int sin_yaw = g_sin_table[yaw];
-        int cos_yaw = g_cos_table[yaw];
+        int sin_yaw = ToriDraw_ReadSinTable(yaw);
+        int cos_yaw = ToriDraw_ReadCosTable(yaw);
         int x_yaw = x_rotated * cos_yaw + z_rotated * sin_yaw;
         x_yaw >>= 16;
         z_rotated = z_rotated * cos_yaw - x_rotated * sin_yaw;
@@ -738,17 +738,17 @@ project_fast_notex(
     int screen_width,
     int screen_height)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch_r2pi2048];
-    int sin_camera_pitch = g_sin_table[camera_pitch_r2pi2048];
-    int cos_camera_yaw = g_cos_table[camera_yaw_r2pi2048];
-    int sin_camera_yaw = g_sin_table[camera_yaw_r2pi2048];
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch_r2pi2048);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch_r2pi2048);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw_r2pi2048);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw_r2pi2048);
 
     int x_rotated = x;
     int z_rotated = z;
     if( yaw_r2pi2048 != 0 )
     {
-        int sin_yaw = g_sin_table[yaw_r2pi2048];
-        int cos_yaw = g_cos_table[yaw_r2pi2048];
+        int sin_yaw = ToriDraw_ReadSinTable(yaw_r2pi2048);
+        int cos_yaw = ToriDraw_ReadCosTable(yaw_r2pi2048);
         x_rotated = x * cos_yaw + z * sin_yaw;
         x_rotated >>= 16;
         z_rotated = z * cos_yaw - x * sin_yaw;
@@ -792,19 +792,19 @@ project_notex(
     int screen_width,
     int screen_height)
 {
-    int cos_camera_pitch = g_cos_table[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_roll = g_cos_table[camera_roll];
-    int sin_camera_roll = g_sin_table[camera_roll];
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int cos_camera_roll = ToriDraw_ReadCosTable(camera_roll);
+    int sin_camera_roll = ToriDraw_ReadSinTable(camera_roll);
 
-    int sin_pitch = g_sin_table[pitch];
-    int cos_pitch = g_cos_table[pitch];
-    int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
-    int sin_roll = g_sin_table[roll];
-    int cos_roll = g_cos_table[roll];
+    int sin_pitch = ToriDraw_ReadSinTable(pitch);
+    int cos_pitch = ToriDraw_ReadCosTable(pitch);
+    int sin_yaw = ToriDraw_ReadSinTable(yaw);
+    int cos_yaw = ToriDraw_ReadCosTable(yaw);
+    int sin_roll = ToriDraw_ReadSinTable(roll);
+    int cos_roll = ToriDraw_ReadCosTable(roll);
 
     /* Model rotation: roll → pitch → yaw (matches project_orthographic / objRender). */
     int x_rotated = x;
@@ -880,10 +880,10 @@ project_notex(
 // {
 //     int offset = 0;
 
-//     int cos_camera_pitch = g_cos_table[camera_pitch];
-//     int sin_camera_pitch = g_sin_table[camera_pitch];
-//     int cos_camera_yaw = g_cos_table[camera_yaw];
-//     int sin_camera_yaw = g_sin_table[camera_yaw];
+//     int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+//     int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+//     int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+//     int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
 
 // #if defined(__ARM_NEON) || defined(__ARM_NEON__)
 
@@ -913,8 +913,8 @@ project_notex(
 //         int32x4_t vsin_yaw, vcos_yaw;
 //         if( yaw != 0 )
 //         {
-//             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
+//             int sin_yaw = ToriDraw_ReadSinTable(yaw);
+//             int cos_yaw = ToriDraw_ReadCosTable(yaw);
 //             vsin_yaw = vdupq_n_s32(sin_yaw);
 //             vcos_yaw = vdupq_n_s32(cos_yaw);
 //         }
@@ -989,8 +989,8 @@ project_notex(
 
 //         if( yaw != 0 )
 //         {
-//             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
+//             int sin_yaw = ToriDraw_ReadSinTable(yaw);
+//             int cos_yaw = ToriDraw_ReadCosTable(yaw);
 
 //             x_rotated = (x * cos_yaw + z * sin_yaw) >> 16;
 //             z_rotated = (z * cos_yaw - x * sin_yaw) >> 16;
@@ -1036,7 +1036,7 @@ project_notex(
 // #if defined(__ARM_NEON) || defined(__ARM_NEON__)
 //     // Calculate FOV scale based on the angle using sin/cos tables
 //     int fov_half = fov >> 1;
-//     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+//     int cot_fov_half_ish16 = ToriDraw_ReadTanTable(1536 - fov_half);
 //     static const int scale_angle = 1;
 //     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
 //     int32x4_t vcot = vdupq_n_s32(cot_fov_half_ish_scaled);
@@ -1171,7 +1171,7 @@ project_notex(
 //         assert(z[i] != 0);
 
 //         int fov_half = fov >> 1;
-//         int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+//         int cot_fov_half_ish16 = ToriDraw_ReadTanTable(1536 - fov_half);
 //         static const int scale_angle = 1;
 //         int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
 

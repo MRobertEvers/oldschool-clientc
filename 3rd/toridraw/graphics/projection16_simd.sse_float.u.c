@@ -29,12 +29,12 @@ project_vertices_array_sse_float(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -132,8 +132,8 @@ project_vertices_array_sse_float(
         float z = (float)vertex_z[i];
 
         // Model yaw rotation
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -143,14 +143,14 @@ project_vertices_array_sse_float(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -192,10 +192,10 @@ project_vertices_array_sse_float_noyaw(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -300,14 +300,14 @@ project_vertices_array_sse_float_noyaw(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -638,12 +638,12 @@ project_vertices_array_sse_float_notex(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -721,8 +721,8 @@ project_vertices_array_sse_float_notex(
         float y = (float)vertex_y[i];
         float z = (float)vertex_z[i];
 
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -730,13 +730,13 @@ project_vertices_array_sse_float_notex(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -770,10 +770,10 @@ project_vertices_array_sse_float_noyaw_notex(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -855,13 +855,13 @@ project_vertices_array_sse_float_noyaw_notex(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -1162,12 +1162,12 @@ project_vertices_array_fused_sse_float_clip(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -1301,8 +1301,8 @@ project_vertices_array_fused_sse_float_clip(
         float z = (float)vertex_z[i];
 
         // Model yaw rotation
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -1312,14 +1312,14 @@ project_vertices_array_fused_sse_float_clip(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -1379,12 +1379,12 @@ project_vertices_array_fused_sse_float_noclip(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -1508,8 +1508,8 @@ project_vertices_array_fused_sse_float_noclip(
         float z = (float)vertex_z[i];
 
         // Model yaw rotation
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -1519,14 +1519,14 @@ project_vertices_array_fused_sse_float_noclip(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -1575,10 +1575,10 @@ project_vertices_array_fused_sse_float_noyaw_clip(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -1719,14 +1719,14 @@ project_vertices_array_fused_sse_float_noyaw_clip(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -1785,10 +1785,10 @@ project_vertices_array_fused_sse_float_noyaw_noclip(
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -1919,14 +1919,14 @@ project_vertices_array_fused_sse_float_noyaw_noclip(
         float z_trans = z_rotated + (float)scene_z;
 
         // Camera yaw rotation
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
         // Camera pitch rotation
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -1971,12 +1971,12 @@ project_vertices_array_fused_sse_float_notex_clip(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -2090,8 +2090,8 @@ project_vertices_array_fused_sse_float_notex_clip(
         float y = (float)vertex_y[i];
         float z = (float)vertex_z[i];
 
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -2099,13 +2099,13 @@ project_vertices_array_fused_sse_float_notex_clip(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -2157,12 +2157,12 @@ project_vertices_array_fused_sse_float_notex_noclip(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
-    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
-    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(model_yaw) * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(model_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -2266,8 +2266,8 @@ project_vertices_array_fused_sse_float_notex_noclip(
         float y = (float)vertex_y[i];
         float z = (float)vertex_z[i];
 
-        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
-        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float cos_model_yaw_f = ToriDraw_ReadCosTable(model_yaw) * inv_scale;
+        float sin_model_yaw_f = ToriDraw_ReadSinTable(model_yaw) * inv_scale;
         float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
         float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
 
@@ -2275,13 +2275,13 @@ project_vertices_array_fused_sse_float_notex_noclip(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -2322,10 +2322,10 @@ project_vertices_array_fused_sse_float_noyaw_notex_clip(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -2443,13 +2443,13 @@ project_vertices_array_fused_sse_float_noyaw_notex_clip(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 
@@ -2500,10 +2500,10 @@ project_vertices_array_fused_sse_float_noyaw_notex_noclip(
     int cot_fov_half_ish16 = camera_cot16;
 
     const float inv_scale = 1.0f / 65535.0f;
-    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
-    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
-    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
-    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_camera_pitch = _mm_set1_ps(ToriDraw_ReadCosTable(camera_pitch) * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(ToriDraw_ReadSinTable(camera_pitch) * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(ToriDraw_ReadCosTable(camera_yaw) * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(ToriDraw_ReadSinTable(camera_yaw) * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
     __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
@@ -2611,13 +2611,13 @@ project_vertices_array_fused_sse_float_noyaw_notex_noclip(
         float y_trans = y + (float)scene_y;
         float z_trans = z_rotated + (float)scene_z;
 
-        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
-        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float cos_camera_yaw_f = ToriDraw_ReadCosTable(camera_yaw) * inv_scale;
+        float sin_camera_yaw_f = ToriDraw_ReadSinTable(camera_yaw) * inv_scale;
         float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
         float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
 
-        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
-        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float cos_camera_pitch_f = ToriDraw_ReadCosTable(camera_pitch) * inv_scale;
+        float sin_camera_pitch_f = ToriDraw_ReadSinTable(camera_pitch) * inv_scale;
         float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
         float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
 

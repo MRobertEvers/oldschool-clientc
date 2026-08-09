@@ -19,9 +19,10 @@ main(void)
 
     ToriDraw_SetCosTable(rscache_builtin);
     assert(ToriDraw_GetCosTable() == rscache_builtin);
+    assert(ToriDraw_ReadCosTable(0) == rscache_builtin[0]);
     assert(ToriDraw_Cos(0) == rscache_builtin[0]);
 
-    ToriDraw_SetCosTable(NULL);
+    ToriDraw_InitCosTable();
     assert(ToriDraw_GetCosTable() == toridraw_builtin);
 
     RSCache_NoiseSetCosTable(toridraw_builtin);

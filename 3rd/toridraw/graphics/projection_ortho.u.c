@@ -135,12 +135,12 @@ project_vertices_array_ortho_fused_noclip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = g_cos_table[camera_pitch];
-    int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = g_cos_table[camera_yaw];
-    int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = g_cos_table[model_yaw];
-    int const sin_model_yaw = g_sin_table[model_yaw];
+    int const cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int const sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int const cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int const sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
+    int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
     int i = 0;
 
@@ -315,12 +315,12 @@ project_vertices_array_ortho_fused_clip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = g_cos_table[camera_pitch];
-    int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = g_cos_table[camera_yaw];
-    int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = g_cos_table[model_yaw];
-    int const sin_model_yaw = g_sin_table[model_yaw];
+    int const cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int const sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int const cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int const sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
+    int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
     int i = 0;
 
@@ -505,12 +505,12 @@ project_vertices_array_ortho_fused_notex_noclip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = g_cos_table[camera_pitch];
-    int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = g_cos_table[camera_yaw];
-    int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = g_cos_table[model_yaw];
-    int const sin_model_yaw = g_sin_table[model_yaw];
+    int const cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int const sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int const cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int const sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
+    int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
     int i = 0;
 
@@ -666,12 +666,12 @@ project_vertices_array_ortho_fused_notex_clip(
     int camera_pitch,
     int camera_yaw)
 {
-    int const cos_camera_pitch = g_cos_table[camera_pitch];
-    int const sin_camera_pitch = g_sin_table[camera_pitch];
-    int const cos_camera_yaw = g_cos_table[camera_yaw];
-    int const sin_camera_yaw = g_sin_table[camera_yaw];
-    int const cos_model_yaw = g_cos_table[model_yaw];
-    int const sin_model_yaw = g_sin_table[model_yaw];
+    int const cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int const sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int const cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int const sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int const cos_model_yaw = ToriDraw_ReadCosTable(model_yaw);
+    int const sin_model_yaw = ToriDraw_ReadSinTable(model_yaw);
 
     int i = 0;
 

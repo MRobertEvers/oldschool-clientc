@@ -385,6 +385,13 @@ cs2_cc_scan(struct cs2_cc_compiler* cc, struct cs2_cc_token* token)
         while( cc->source[cc->position] )
         {
             char current = cc->source[cc->position];
+            if( current == '\\' &&
+                (cc->source[cc->position + 1] == '"' ||
+                 cc->source[cc->position + 1] == '\\') )
+            {
+                cc->position += 2;
+                continue;
+            }
             if( current == '"' && depth == 0 )
                 break;
             if( current == '<' )
@@ -959,8 +966,15 @@ static const char*
 cs2_cc_decode_string(struct cs2_cc_compiler* cc, const char* utf8, int length)
 {
     char* scratch = (char*)RSCache_CS2_ArenaAlloc(&cc->arena, (size_t)length + 1);
-    memcpy(scratch, utf8, (size_t)length);
-    scratch[length] = '\0';
+    int written = 0;
+    for( int i = 0; i < length; i++ )
+    {
+        if( utf8[i] == '\\' && i + 1 < length &&
+            (utf8[i + 1] == '"' || utf8[i + 1] == '\\') )
+            i++;
+        scratch[written++] = utf8[i];
+    }
+    scratch[written] = '\0';
     char* out = (char*)RSCache_CS2_ArenaAlloc(&cc->arena, (size_t)length + 1);
     RSCache_Utf8ToCp1252(scratch, out, length + 1);
     return out;
@@ -1182,6 +1196,9 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
     cs2_cc_emit(cc, RSCACHE_CS2_OP_GOSUB_WITH_PARAMS, callee_id);
 }
 
+static bool
+cs2_cc_call_argument_word(struct cs2_cc_compiler* cc, int index, char* out, int capacity);
+
 /**
  * The type an expression will push, as far as the source can say.
  *
@@ -1341,7 +1358,8 @@ cs2_cc_infer_call_type(struct cs2_cc_compiler* cc)
     if( !info ||
         (info->kind != RSCACHE_CS2_CMD_ENUM && info->kind != RSCACHE_CS2_CMD_PARAM &&
          info->kind != RSCACHE_CS2_CMD_ACTIVE_PARAM &&
-         info->kind != RSCACHE_CS2_CMD_COMPONENT_PARAM) )
+         info->kind != RSCACHE_CS2_CMD_COMPONENT_PARAM &&
+         info->kind != RSCACHE_CS2_CMD_DB_GETFIELD) )
         return cs2_cc_infer_type(cc, cc->token.text, cc->token.kind);
 
     int position = cc->position;
@@ -1362,6 +1380,35 @@ cs2_cc_infer_call_type(struct cs2_cc_compiler* cc)
                 cs2_cc_next(cc);
                 if( cs2_cc_accept_punct(cc, ',') && cc->token.kind == CS2_CC_TOK_IDENT )
                     result = RSCache_CS2_TypeOfLiteral(cc->token.text);
+            }
+        }
+        else if( info->kind == RSCACHE_CS2_CMD_DB_GETFIELD && cc->options &&
+                 cc->options->db_columns.load )
+        {
+            char literal[64];
+            int scan_position = cc->position;
+            cc->position = position;
+            bool have_literal =
+                cs2_cc_call_argument_word(cc, 1, literal, (int)sizeof(literal));
+            cc->position = scan_position;
+            if( have_literal )
+            {
+                char* end = NULL;
+                long packed_long = strtol(literal, &end, 0);
+                if( end && *end == '\0' )
+                {
+                    int packed = (int)packed_long;
+                    int table_id = (packed >> 12) & 0xFFFFF;
+                    int column_id = (packed >> 4) & 0xFF;
+                    int field = (packed & 0xF) - 1;
+                    enum RSCache_CS2_Type types[32];
+                    int count = cc->options->db_columns.load(
+                        cc->options->db_columns.user, table_id, column_id, types, 32);
+                    if( field >= 0 && field < count )
+                        result = types[field];
+                    else if( field < 0 && count == 1 )
+                        result = types[0];
+                }
             }
         }
         else if( (info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||
@@ -1631,6 +1678,12 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
             while( text[cursor] )
             {
                 char current = text[cursor];
+                if( current == '\\' &&
+                    (text[cursor + 1] == '"' || text[cursor + 1] == '\\') )
+                {
+                    cursor += 2;
+                    continue;
+                }
                 if( current == '"' && depth == 0 )
                     break;
                 if( current == '(' || current == '<' )
@@ -1742,12 +1795,48 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                     const struct RSCache_CS2_CommandInfo* probe =
                         probe_opcode >= 0 ? RSCache_CS2_CommandGet(probe_opcode) : NULL;
                     enum RSCache_CS2_Type pushed = RSCACHE_CS2_TYPE_NONE;
+                    enum RSCache_CS2_Type db_pushed[32];
+                    int db_push_count = 0;
                     char literal[64];
 
                     if( probe && probe->kind == RSCACHE_CS2_CMD_ENUM &&
                         cs2_cc_call_argument_word(cc, 1, literal, (int)sizeof(literal)) )
                     {
                         pushed = RSCache_CS2_TypeOfLiteral(literal);
+                    }
+                    else if( probe && probe->kind == RSCACHE_CS2_CMD_DB_GETFIELD )
+                    {
+                        if( cc->options && cc->options->db_columns.load &&
+                            cs2_cc_call_argument_word(
+                                cc, 1, literal, (int)sizeof(literal)) )
+                        {
+                            char* end = NULL;
+                            long packed_long = strtol(literal, &end, 0);
+                            if( end && *end == '\0' )
+                            {
+                                int packed = (int)packed_long;
+                                int table_id = (packed >> 12) & 0xFFFFF;
+                                int column_id = (packed >> 4) & 0xFF;
+                                int field = (packed & 0xF) - 1;
+                                enum RSCache_CS2_Type column_types[32];
+                                int count = cc->options->db_columns.load(
+                                    cc->options->db_columns.user,
+                                    table_id,
+                                    column_id,
+                                    column_types,
+                                    32);
+                                if( field >= 0 && field < count )
+                                    db_pushed[db_push_count++] = column_types[field];
+                                else if( field < 0 && count > 0 )
+                                {
+                                    memcpy(
+                                        db_pushed,
+                                        column_types,
+                                        (size_t)count * sizeof(column_types[0]));
+                                    db_push_count = count;
+                                }
+                            }
+                        }
                     }
                     else if(
                         probe &&
@@ -1775,6 +1864,23 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                         }
                     }
 
+                    if( db_push_count > 0 )
+                    {
+                        if( descriptor_length + db_push_count >=
+                            (int)sizeof(descriptor) - 1 )
+                        {
+                            cs2_cc_fail(cc, "callback takes too many arguments");
+                            cs2_cc_leave_fragment(cc, &saved);
+                            return;
+                        }
+                        for( int i = 0; i < db_push_count; i++ )
+                            descriptor[descriptor_length++] =
+                                cs2_cc_descriptor_letter(db_pushed[i]);
+                        cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+                        if( !cs2_cc_accept_punct(cc, ',') )
+                            break;
+                        continue;
+                    }
                     if( pushed != RSCACHE_CS2_TYPE_NONE )
                     {
                         if( descriptor_length >= (int)sizeof(descriptor) - 2 )

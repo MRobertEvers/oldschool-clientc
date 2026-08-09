@@ -71,6 +71,7 @@
 #include "src/datatypes/dat2_framemap.c"
 #include "src/datatypes/dat2_frame.c"
 #include "src/datatypes/dat2_config_sequence.c"
+#include "src/datatypes/dat2_config_soundscape.c"
 #include "src/datatypes/dat2_animaya.c"
 #include "src/datatypes/dat2_skeletalbase.c"
 #include "src/datatypes/dat1_anim_frame.c"

@@ -162,17 +162,17 @@ init_hsl16_to_rgb_table(void)
 }
 
 void
-init_sin_table(void)
+ToriDraw_InitSinTable(void)
 {
 }
 
 void
-init_cos_table(void)
+ToriDraw_InitCosTable(void)
 {
 }
 
 void
-init_tan_table(void)
+ToriDraw_InitTanTable(void)
 {
 }
 
@@ -191,28 +191,31 @@ init_hsl16_to_rgb_table(void)
 }
 
 void
-init_sin_table(void)
+ToriDraw_InitSinTable(void)
 {
     // 0.0030679615 = 2 * PI / 2048
     // (int)(sin((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
         g_sin_table_builtin[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
+    g_sin_table = g_sin_table_builtin;
 }
 
 void
-init_cos_table(void)
+ToriDraw_InitCosTable(void)
 {
     // 0.0030679615 = 2 * PI / 2048
     // (int)(cos((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
         g_cos_table_builtin[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+    g_cos_table = g_cos_table_builtin;
 }
 
 void
-init_tan_table(void)
+ToriDraw_InitTanTable(void)
 {
     for( int i = 0; i < 2048; i++ )
         g_tan_table_builtin[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
+    g_tan_table = g_tan_table_builtin;
 }
 
 void
@@ -263,22 +266,4 @@ ToriDraw_SetTanTable(const int* table)
 #else
     g_tan_table = table;
 #endif
-}
-
-const int*
-ToriDraw_GetSinTable(void)
-{
-    return g_sin_table;
-}
-
-const int*
-ToriDraw_GetCosTable(void)
-{
-    return g_cos_table;
-}
-
-const int*
-ToriDraw_GetTanTable(void)
-{
-    return g_tan_table;
 }

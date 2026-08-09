@@ -147,8 +147,8 @@ ToriDraw_FastCull(
     int model_center_to_top_edge = bc->center_to_top_edge;
 
     int model_center_to_bottom_edge =
-        (bc->center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
-        (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+        (bc->center_to_bottom_edge * ToriDraw_ReadCosTable(camera_pitch) >> 16) +
+        (model_edge_radius * ToriDraw_ReadSinTable(camera_pitch) >> 16);
 
     int screen_y_min_unoffset;
     int screen_y_max_unoffset;

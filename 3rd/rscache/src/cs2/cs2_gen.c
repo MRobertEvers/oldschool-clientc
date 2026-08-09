@@ -88,7 +88,14 @@ cs2_put_cache_string(struct cs2_writer* writer, const char* text)
         }
         RSCache_Cp1252ToUtf8(text, buffer, needed + 1);
     }
-    RSCache_CS2_StrBufAppend(writer->out, buffer);
+    /* Quote the two bytes that delimit source strings. The compiler removes
+     * these escapes before converting the text back to cache bytes. */
+    for( const char* cursor = buffer; *cursor; cursor++ )
+    {
+        if( *cursor == '"' || *cursor == '\\' )
+            RSCache_CS2_StrBufAppendChar(writer->out, '\\');
+        RSCache_CS2_StrBufAppendChar(writer->out, *cursor);
+    }
     if( buffer != stack_buffer )
         free(buffer);
 }

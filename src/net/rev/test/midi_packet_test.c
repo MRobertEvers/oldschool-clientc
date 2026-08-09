@@ -291,8 +291,11 @@ test_sound_area_does_not_truncate_a_zone_batch(void)
     printf("-- a SOUND_AREA does not truncate the zone batch after it\n");
     memset(&out, 0, sizeof(out));
     g_w = bytes;
-    p1(40); /* base x */
-    p1(50); /* base z */
+    /* DesktopUpdateZonePartialEnclosed v18 (rev 239): p1Alt2 level,
+     * p1Alt1 zoneZ, p1Alt1 zoneX. */
+    p1_alt2(0);  /* level  */
+    p1_alt1(50); /* zone z */
+    p1_alt1(40); /* zone x */
 
     p1(14);        /* ordinal: SOUND_AREA */
     p1_alt3(0x35);
@@ -304,14 +307,14 @@ test_sound_area_does_not_truncate_a_zone_batch(void)
 
     p1(5); /* ordinal: MAP_ANIM */
     {
-        /* MapAnimEncoder v19: p1Alt2 delay, p2Alt2 id, p1Alt1 height,
-         * p1Alt2 coordInZone -- transcribed from the generated codec. */
+        /* MapAnimEncoder v19: p1 height, p2Alt1 id, p2Alt1 delay,
+         * p1 coordInZone -- transcribed from the generated codec. */
         uint8_t* start = g_w;
-        p1_alt2(11);    /* delay  */
-        p2_alt2(0x0777); /* id     */
-        p1_alt1(4);      /* height */
-        p1_alt2(0x21);   /* coordInZone */
-        CHECK_EQ(g_w - start, 5);
+        p1(4);           /* height      */
+        p2_alt1(0x0777); /* id          */
+        p2_alt1(11);     /* delay       */
+        p1(0x21);        /* coordInZone */
+        CHECK_EQ(g_w - start, 6);
     }
 
     len = (int)(g_w - bytes);

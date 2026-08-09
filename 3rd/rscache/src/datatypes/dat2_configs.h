@@ -17,6 +17,19 @@ enum RSCache_Dat2ConfigKind
     RSCACHE_DAT2_CONFIG_KIND_SEQUENCE = 12,
     RSCACHE_DAT2_CONFIG_KIND_SPOTANIM = 13,
     RSCACHE_DAT2_CONFIG_KIND_VARBIT = 14,
+    /**
+     * Group 15 is era-dependent, and the two readings are nothing like each
+     * other.
+     *
+     * In OldSchool it is the ambient soundscape type (`dat2_config_soundscape`),
+     * added somewhere in 231..239: `cache.osrs239` holds eight records averaging
+     * 58 bytes, `cache.osrs230` has no group 15 at all. The varclient-string
+     * reading comes from the config-kind numbering other games use, and is kept
+     * only because callers name it; nothing decodes it. Telling them apart by
+     * shape is easy if it is ever needed -- a varclient-string group has
+     * hundreds of one-byte records, this one has a handful of long ones.
+     */
+    RSCACHE_DAT2_CONFIG_KIND_SOUNDSCAPE = 15,
     RSCACHE_DAT2_CONFIG_KIND_VARCLIENT_STRING = 15,
     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER = 16,
     RSCACHE_DAT2_CONFIG_KIND_VARCLIENT = 19,

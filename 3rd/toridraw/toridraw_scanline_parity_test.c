@@ -658,9 +658,9 @@ int
 main(void)
 {
     init_hsl16_to_rgb_table();
-    init_sin_table();
-    init_cos_table();
-    init_tan_table();
+    ToriDraw_InitSinTable();
+    ToriDraw_InitCosTable();
+    ToriDraw_InitTanTable();
     init_reciprocal16();
 
     /* Checkerboard with a transparent (0) quadrant so the textrans gate and

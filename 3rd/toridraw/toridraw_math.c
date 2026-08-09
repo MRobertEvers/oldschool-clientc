@@ -5,8 +5,8 @@
 void
 ToriDraw_InitMath(void)
 {
-    init_sin_table();
-    init_cos_table();
-    init_tan_table();
+    ToriDraw_InitSinTable();
+    ToriDraw_InitCosTable();
+    ToriDraw_InitTanTable();
     init_reciprocal16();
 }

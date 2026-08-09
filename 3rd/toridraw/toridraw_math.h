@@ -15,21 +15,21 @@ static inline int
 ToriDraw_Cos(int angle_r2pi2048)
 {
     assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
-    return g_cos_table[angle_r2pi2048];
+    return ToriDraw_ReadCosTable(angle_r2pi2048);
 }
 
 static inline int
 ToriDraw_Sin(int angle_r2pi2048)
 {
     assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
-    return g_sin_table[angle_r2pi2048];
+    return ToriDraw_ReadSinTable(angle_r2pi2048);
 }
 
 static inline int
 ToriDraw_Tan(int angle_r2pi2048)
 {
     assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
-    return g_tan_table[angle_r2pi2048];
+    return ToriDraw_ReadTanTable(angle_r2pi2048);
 }
 
 static inline int

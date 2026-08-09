@@ -35,6 +35,16 @@ extern const int* g_sin_table;
 extern const int* g_cos_table;
 extern const int* g_tan_table;
 
+/** Initialize and select ToriDraw's built-in 2,048-entry sine table. */
+void
+ToriDraw_InitSinTable(void);
+/** Initialize and select ToriDraw's built-in 2,048-entry cosine table. */
+void
+ToriDraw_InitCosTable(void);
+/** Initialize and select ToriDraw's built-in 2,048-entry tangent table. */
+void
+ToriDraw_InitTanTable(void);
+
 void
 ToriDraw_SetSinTable(const int* table);
 /**
@@ -48,13 +58,44 @@ void
 ToriDraw_SetCosTable(const int* table);
 void
 ToriDraw_SetTanTable(const int* table);
-const int*
-ToriDraw_GetSinTable(void);
+
+static inline const int*
+ToriDraw_GetSinTable(void)
+{
+    return g_sin_table;
+}
+
 /** Return the cosine-table pointer currently used by ToriDraw. */
-const int*
-ToriDraw_GetCosTable(void);
-const int*
-ToriDraw_GetTanTable(void);
+static inline const int*
+ToriDraw_GetCosTable(void)
+{
+    return g_cos_table;
+}
+
+static inline const int*
+ToriDraw_GetTanTable(void)
+{
+    return g_tan_table;
+}
+
+/** Hot-path indexed readers. Callers are responsible for a 0..2047 index. */
+static inline int
+ToriDraw_ReadSinTable(int index)
+{
+    return g_sin_table[index];
+}
+
+static inline int
+ToriDraw_ReadCosTable(int index)
+{
+    return g_cos_table[index];
+}
+
+static inline int
+ToriDraw_ReadTanTable(int index)
+{
+    return g_tan_table[index];
+}
 
 extern TORIDRAW_TABLE_QUAL int g_reciprocal16[4096];
 extern TORIDRAW_TABLE_QUAL int g_reciprocal15[4096];
@@ -72,12 +113,6 @@ extern uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 
 void
 init_hsl16_to_rgb_table(void);
-void
-init_sin_table(void);
-void
-init_cos_table(void);
-void
-init_tan_table(void);
 void
 init_reciprocal16(void);
 

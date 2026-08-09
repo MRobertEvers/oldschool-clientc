@@ -295,13 +295,18 @@ cs2_dominator_tree(struct cs2_flow* flow)
         for( int i = order_count - 2; i >= 0; i-- )
         {
             struct cs2_block* block = order[i];
-            if( block->preds.count == 0 )
-                continue;
-            struct cs2_block* new_idom = (struct cs2_block*)block->preds.items[0];
-            for( int j = 1; j < block->preds.count; j++ )
+            struct cs2_block* new_idom = NULL;
+            for( int j = 0; j < block->preds.count; j++ )
             {
                 struct cs2_block* pred = (struct cs2_block*)block->preds.items[j];
-                if( pred->idom || pred == order[order_count - 1] )
+                /* An unreachable predecessor is not another entry point. It
+                 * has no post-order/idom and feeding it to intersect made a
+                 * reachable join look multi-entry (script 8997). */
+                if( !pred->in_post_order )
+                    continue;
+                if( !new_idom )
+                    new_idom = pred;
+                else if( pred->idom || pred == order[order_count - 1] )
                     new_idom = cs2_dom_intersect(flow, pred, new_idom);
                 if( flow->failed )
                 {
@@ -309,6 +314,8 @@ cs2_dominator_tree(struct cs2_flow* flow)
                     return false;
                 }
             }
+            if( !new_idom )
+                continue;
             if( block->idom != new_idom )
             {
                 block->idom = new_idom;
