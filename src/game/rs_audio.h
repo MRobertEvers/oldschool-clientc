@@ -51,6 +51,7 @@ struct TaskRunner;
 struct ToriRS_FeatureTable;
 struct ToriDraw_Scene;
 struct World;
+struct RS_Soundscapes;
 
 /** Reference cap: waveIds/waveLoops/waveDelay are 50 long and the packet
  *  handler drops anything past that. */
@@ -97,6 +98,26 @@ struct World;
 /** Gap used when a random-set loc declares a degenerate one (min == max == 0).
  *  Ten seconds: audible as "occasionally", which is what the field means. */
 #define RS_AUDIO_AREA_SET_FALLBACK_TICKS 500
+
+/** Soundscape caps, matching the cache type's own. */
+#define RS_AUDIO_MAX_AMBIENT_LOOPS 8
+#define RS_AUDIO_MAX_AMBIENT_SETS 8
+
+/**
+ * One of a soundscape's timed random sets, live.
+ *
+ * `ids` is borrowed from the soundscape table, which outlives the bed: the
+ * table is loaded once at boot and never rewritten.
+ */
+struct RS_AudioAmbientSet
+{
+    const int* ids;
+    int id_count;
+    int ticks_min;
+    int ticks_max;
+    int ticks_until_next;
+    uint32_t rng;
+};
 
 struct RS_AudioEntry
 {
@@ -209,16 +230,32 @@ struct RS_Audio
     bool music_loading;
 
     /**
-     * The region's background bed (AMBIENTSOUND_START): one looping,
-     * *unpositioned* sound the server names directly. Distinct from the
-     * loc-driven area emitters below, which have positions and are found by
-     * walking the scene -- an area routinely has both, and this is the one that
-     * makes a place sound like somewhere when nothing in it is making a noise.
+     * The region's background bed (AMBIENTSOUND_START): an *unpositioned* set of
+     * sounds the server names with one id. Distinct from the loc-driven area
+     * emitters below, which have positions and are found by walking the scene --
+     * an area routinely has both, and this is the one that makes a place sound
+     * like somewhere when nothing in it is making a noise.
+     *
+     * The id is a **soundscape config id**, not a sound-effect id: it names a
+     * record holding several continuous loops plus up to eight independently
+     * timed random sets. `soundscapes` is the table it resolves through, loaded
+     * once at boot and borrowed here. When that table is empty -- every cache
+     * before OldSchool 231 -- the id is treated as a single looping effect,
+     * which is all the older revisions can have meant by it.
      */
     int ambient_sound_id;
-    int ambient_voice_id;
     int ambient_fade_ms;
     bool ambient_started;
+    struct RS_Soundscapes const* soundscapes;
+
+    /** The bed's live streams. `legacy_voice_id` is the pre-231 single-effect
+     *  form; `loop_voice_id[]` and `sets[]` are the soundscape form. */
+    int ambient_legacy_voice_id;
+    int ambient_loop_voice_id[RS_AUDIO_MAX_AMBIENT_LOOPS];
+    int ambient_loop_sound_id[RS_AUDIO_MAX_AMBIENT_LOOPS];
+    int ambient_loop_count;
+    struct RS_AudioAmbientSet ambient_sets[RS_AUDIO_MAX_AMBIENT_SETS];
+    int ambient_set_count;
 
     struct RS_AudioAreaVoice area[RS_AUDIO_MAX_AREA_VOICES];
     /** The world's area-sound generation this layer last synchronised with. */
@@ -287,14 +324,23 @@ RS_Audio_SynthAt(
 /**
  * AMBIENTSOUND_START / _STOP: set the region's background bed, or -1 to stop it.
  *
- * Plays at full volume on the area bus: it is a bed, not a thing in the world,
- * so it is neither attenuated nor panned.
+ * `id` is a soundscape config id when a soundscape table has been bound and
+ * holds it, and a bare sound-effect id otherwise. Either way the bed plays at
+ * full volume on the area bus: it is a bed, not a thing in the world, so it is
+ * neither attenuated nor panned.
  */
 void
 RS_Audio_SetAmbient(
     struct RS_Audio* audio,
-    int sound_id,
+    int id,
     int fade_ms);
+
+/** Bind the soundscape table AMBIENTSOUND_START ids resolve through. Borrowed,
+ *  not owned; pass NULL to unbind. */
+void
+RS_Audio_SetSoundscapes(
+    struct RS_Audio* audio,
+    struct RS_Soundscapes const* soundscapes);
 
 /** MIDI_SONG / MIDI_SONG_V2: play a track from cache index 6. */
 void

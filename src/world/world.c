@@ -107,6 +107,39 @@ World_AddAreaSound(
     }
 
     world->area_sounds[world->area_sound_count++] = *source;
+    /* A new emitter is a change the audio layer has to notice, the same as a
+     * removal: without the bump it stays bound to the generation it last
+     * synchronised with and never acquires this one. */
+    world->area_sound_generation++;
+}
+
+int
+World_RemoveAreaSoundAt(
+    struct World* world,
+    int x,
+    int z,
+    int level)
+{
+    int removed = 0;
+
+    if( !world )
+        return 0;
+    for( int i = 0; i < world->area_sound_count; )
+    {
+        struct World_AreaSound* entry = &world->area_sounds[i];
+        if( entry->x != x || entry->z != z || entry->level != level )
+        {
+            i++;
+            continue;
+        }
+        /* Order is not meaningful here -- voices are bound by (loc_id, level,
+         * x, z), not by index -- so a swap-with-last beats a memmove. */
+        *entry = world->area_sounds[--world->area_sound_count];
+        removed++;
+    }
+    if( removed > 0 )
+        world->area_sound_generation++;
+    return removed;
 }
 
 int

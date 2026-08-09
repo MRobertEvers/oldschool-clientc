@@ -47,9 +47,16 @@
  *
  * The second recorded lowering, 6,485 -> 6,293, is G12: rev-239 opcodes whose
  * int/string bank is selected by runtime metadata cannot reproduce a 2021
- * reference decompiler that forced them through a fixed int signature. */
-#define CS2_EXPECT_MIN_IDENTICAL 6293
-#define CS2_EXPECT_MAX_DIFFERENT 194
+ * reference decompiler that forced them through a fixed int signature.
+ *
+ * G13 records 6,293 -> 6,271. The old array-argument heuristic conflated an
+ * ordinary int argument with the VM's independent array slot, and opcode 210's
+ * officially-observed active-form flag was discarded. Correcting both makes 20
+ * more sources deliberately differ from the older reference. The four extra
+ * comparisons (6,487 -> 6,491) are scripts this port now decompiles and upstream
+ * did not, so the divergence ceiling moves by 26 in total. */
+#define CS2_EXPECT_MIN_IDENTICAL 6271
+#define CS2_EXPECT_MAX_DIFFERENT 220
 #define CS2_EXPECT_MIN_DECOMPILED 7467
 
 struct cs2_entry
@@ -356,7 +363,7 @@ main(int argc, char** argv)
     /* Allowed by exact count, not blanket-skipped: a third divergence fails. */
     RSCACHE_CHECK(different <= CS2_EXPECT_MAX_DIFFERENT);
     if( different > 0 && different <= CS2_EXPECT_MAX_DIFFERENT )
-        printf("   ALLOWED %d divergence(s) — see EXCEPTIONS.md G1/G10/G12\n", different);
+        printf("   ALLOWED %d divergence(s) — see EXCEPTIONS.md G1/G10/G12/G13\n", different);
 
     free(ids);
     for( int i = 0; i < fixture.count; i++ )

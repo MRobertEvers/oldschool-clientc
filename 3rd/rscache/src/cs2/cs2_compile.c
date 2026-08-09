@@ -1797,9 +1797,27 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                     enum RSCache_CS2_Type pushed = RSCACHE_CS2_TYPE_NONE;
                     enum RSCache_CS2_Type db_pushed[32];
                     int db_push_count = 0;
+                    enum RSCache_CS2_Type static_pushed[32];
+                    int static_push_count = 0;
                     char literal[64];
 
-                    if( probe && probe->kind == RSCACHE_CS2_CMD_ENUM &&
+                    /* A fixed-signature command may itself fill several
+                     * callback slots. `worldmap_getconfigbounds` is the rev-239
+                     * witness: its four int results are one source expression,
+                     * but four values are passed to script1713 and therefore
+                     * require four descriptor letters. Treating an expression
+                     * as one callback argument shortened `iiiiiiiiiiii` to
+                     * `iiiiiiiii` while leaving the executable opcode stream
+                     * otherwise intact. */
+                    if( probe && probe->kind == RSCACHE_CS2_CMD_BASIC &&
+                        probe->def_count > 1 && probe->def_count <= 32 )
+                    {
+                        for( int i = 0; i < probe->def_count; i++ )
+                            static_pushed[static_push_count++] = RSCache_CS2_ProtoGet(
+                                RSCache_CS2_CommandDef(probe, i))
+                                                                    ->type;
+                    }
+                    else if( probe && probe->kind == RSCACHE_CS2_CMD_ENUM &&
                         cs2_cc_call_argument_word(cc, 1, literal, (int)sizeof(literal)) )
                     {
                         pushed = RSCache_CS2_TypeOfLiteral(literal);
@@ -1864,6 +1882,23 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
                         }
                     }
 
+                    if( static_push_count > 0 )
+                    {
+                        if( descriptor_length + static_push_count >=
+                            (int)sizeof(descriptor) - 1 )
+                        {
+                            cs2_cc_fail(cc, "callback takes too many arguments");
+                            cs2_cc_leave_fragment(cc, &saved);
+                            return;
+                        }
+                        for( int i = 0; i < static_push_count; i++ )
+                            descriptor[descriptor_length++] =
+                                cs2_cc_descriptor_letter(static_pushed[i]);
+                        cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+                        if( !cs2_cc_accept_punct(cc, ',') )
+                            break;
+                        continue;
+                    }
                     if( db_push_count > 0 )
                     {
                         if( descriptor_length + db_push_count >=
@@ -2092,7 +2127,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
             cs2_cc_argument(cc, RSCACHE_CS2_TYPE_INT);
         }
         cs2_cc_expect_punct(cc, ')');
-        cs2_cc_emit(cc, opcode, 0);
+        cs2_cc_emit(cc, opcode, dot ? 1 : 0);
         return;
     }
     if( info->kind == RSCACHE_CS2_CMD_PARAM || info->kind == RSCACHE_CS2_CMD_ACTIVE_PARAM ||

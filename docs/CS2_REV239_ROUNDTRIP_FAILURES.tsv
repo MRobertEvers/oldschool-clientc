@@ -1,1187 +1,1055 @@
-# round-trip: 9615/9725 decompiled, 9610 compiled, 9161 same-length, 8540 exact
-script_id	stage	detail
-0	decompile	script 0 is not in this cache
-3	diff	same length, different bytes
-8	diff	same length, different bytes
-15	diff	35 bytes vs 38
-19	diff	6843 bytes vs 6825
-23	diff	same length, different bytes
-74	diff	2004 bytes vs 1998
-79	diff	512 bytes vs 506
-84	decompile	script 84 pc 421: opcode 34 expected a int on the operand stack
-89	decompile	script 89 pc 379: opcode 34 expected a int on the operand stack
-90	diff	same length, different bytes
-91	diff	552 bytes vs 546
-100	diff	same length, different bytes
-125	diff	3435 bytes vs 3423
-166	diff	610 bytes vs 604
-172	diff	1119 bytes vs 1113
-179	diff	453 bytes vs 447
-185	diff	164 bytes vs 158
-192	decompile	script 192 pc 48: opcode 34 expected a int on the operand stack
-193	diff	same length, different bytes
-206	diff	same length, different bytes
-210	diff	same length, different bytes
-212	diff	same length, different bytes
-234	diff	same length, different bytes
-247	diff	same length, different bytes
-252	diff	same length, different bytes
-279	diff	same length, different bytes
-323	diff	101 bytes vs 98
-376	diff	135 bytes vs 120
-386	diff	5399 bytes vs 5396
-403	diff	same length, different bytes
-413	diff	584 bytes vs 578
-417	diff	same length, different bytes
-438	diff	same length, different bytes
-445	diff	same length, different bytes
-451	diff	same length, different bytes
-452	diff	same length, different bytes
-464	diff	same length, different bytes
-506	diff	same length, different bytes
-514	diff	same length, different bytes
-568	diff	same length, different bytes
-572	diff	357 bytes vs 351
-607	diff	same length, different bytes
-633	diff	same length, different bytes
-653	diff	same length, different bytes
-660	diff	833 bytes vs 827
-661	diff	819 bytes vs 813
-663	decompile	script 663 pc 29: opcode 34 expected a int on the operand stack
-667	diff	1086 bytes vs 1080
-671	diff	1154 bytes vs 1148
-675	diff	same length, different bytes
-677	diff	643 bytes vs 637
-702	diff	same length, different bytes
-708	diff	same length, different bytes
-747	diff	1212 bytes vs 1215
-758	diff	same length, different bytes
-763	diff	same length, different bytes
-823	diff	250 bytes vs 244
-824	diff	same length, different bytes
-892	diff	4371 bytes vs 4365
-900	diff	same length, different bytes
-921	diff	same length, different bytes
-922	diff	same length, different bytes
-961	diff	same length, different bytes
-974	diff	same length, different bytes
-1002	diff	795 bytes vs 789
-1063	diff	877 bytes vs 871
-1064	diff	1117 bytes vs 1111
-1090	diff	same length, different bytes
-1105	diff	same length, different bytes
-1128	diff	same length, different bytes
-1129	diff	same length, different bytes
-1181	diff	same length, different bytes
-1189	decompile	script 1189 pc 125: return leaves 10 values, the script declares 0
-1196	diff	242 bytes vs 227
-1202	decompile	script 1202 pc 76: opcode 1132 was given an argument of the wrong stack type
-1205	diff	same length, different bytes
-1211	decompile	script 1211 pc 125: return leaves 5 values, the script declares 0
-1212	decompile	script 1212 pc 18: opcode 1132 was given an argument of the wrong stack type
-1216	diff	same length, different bytes
-1217	diff	same length, different bytes
-1260	diff	same length, different bytes
-1292	diff	109 bytes vs 136
-1324	diff	same length, different bytes
-1351	diff	same length, different bytes
-1353	diff	same length, different bytes
-1406	diff	same length, different bytes
-1411	diff	334 bytes vs 319
-1442	diff	same length, different bytes
-1443	diff	189 bytes vs 186
-1445	diff	same length, different bytes
-1447	diff	same length, different bytes
-1448	diff	same length, different bytes
-1450	diff	same length, different bytes
-1452	diff	same length, different bytes
-1456	diff	same length, different bytes
-1479	diff	same length, different bytes
-1484	diff	633 bytes vs 627
-1560	diff	332 bytes vs 323
-1599	diff	same length, different bytes
-1629	diff	99 bytes vs 78
-1630	diff	99 bytes vs 78
-1658	diff	4527 bytes vs 4503
-1701	diff	same length, different bytes
-1702	diff	same length, different bytes
-1707	diff	same length, different bytes
-1712	diff	587 bytes vs 590
-1738	decompile	script 1738 pc 49: opcode 8 left 2 values on the operand stack
-1760	diff	2141 bytes vs 2135
-1768	diff	857 bytes vs 851
-1772	diff	same length, different bytes
-1788	diff	same length, different bytes
-1795	diff	same length, different bytes
-1806	diff	452 bytes vs 443
-1812	diff	173 bytes vs 158
-1814	diff	same length, different bytes
-1815	diff	23 bytes vs 26
-1825	diff	same length, different bytes
-1860	diff	242 bytes vs 227
-1862	diff	same length, different bytes
-1863	diff	23 bytes vs 26
-1917	diff	same length, different bytes
-1935	diff	same length, different bytes
-1936	diff	587 bytes vs 581
-1939	decompile	script 1939 pc 551: opcode 2311 was given an argument of the wrong stack type
-1942	diff	same length, different bytes
-1968	diff	same length, different bytes
-1969	diff	same length, different bytes
-1979	diff	same length, different bytes
-2046	diff	same length, different bytes
-2068	diff	837 bytes vs 831
-2080	diff	same length, different bytes
-2082	diff	same length, different bytes
-2094	diff	1580 bytes vs 1574
-2110	diff	1114 bytes vs 1108
-2151	diff	same length, different bytes
-2163	diff	same length, different bytes
-2175	diff	same length, different bytes
-2200	diff	1258 bytes vs 1252
-2228	diff	179 bytes vs 167
-2244	diff	82 bytes vs 91
-2245	diff	1302 bytes vs 1290
-2259	diff	same length, different bytes
-2260	diff	325 bytes vs 319
-2261	diff	same length, different bytes
-2265	diff	846 bytes vs 834
-2277	diff	same length, different bytes
-2278	diff	same length, different bytes
-2279	diff	242 bytes vs 236
-2288	diff	same length, different bytes
-2333	diff	4119 bytes vs 4113
-2351	diff	same length, different bytes
-2357	diff	295 bytes vs 289
-2360	diff	464 bytes vs 461
-2364	diff	46 bytes vs 52
-2373	diff	same length, different bytes
-2387	diff	same length, different bytes
-2414	diff	same length, different bytes
-2420	diff	730 bytes vs 724
-2431	diff	same length, different bytes
-2448	diff	same length, different bytes
-2476	diff	same length, different bytes
-2480	diff	753 bytes vs 771
-2481	diff	same length, different bytes
-2482	diff	290 bytes vs 344
-2492	diff	same length, different bytes
-2499	diff	same length, different bytes
-2520	diff	same length, different bytes
-2529	diff	same length, different bytes
-2579	diff	154 bytes vs 148
-2611	diff	4742 bytes vs 4736
-2614	diff	same length, different bytes
-2619	diff	same length, different bytes
-2620	diff	same length, different bytes
-2625	diff	same length, different bytes
-2626	diff	same length, different bytes
-2627	diff	same length, different bytes
-2628	diff	261 bytes vs 255
-2633	decompile	script 2633 pc 46: array element type does not match the stack slot
-2664	diff	same length, different bytes
-2665	diff	same length, different bytes
-2669	diff	1093 bytes vs 1087
-2670	diff	same length, different bytes
-2671	diff	same length, different bytes
-2681	diff	1093 bytes vs 1087
-2741	diff	886 bytes vs 880
-2759	diff	same length, different bytes
-2786	diff	202 bytes vs 196
-2820	diff	same length, different bytes
-2828	diff	same length, different bytes
-2829	diff	242 bytes vs 236
-2862	diff	same length, different bytes
-2863	diff	same length, different bytes
-2871	diff	same length, different bytes
-2872	diff	same length, different bytes
-2891	diff	same length, different bytes
-2959	diff	80 bytes vs 71
-2960	diff	80 bytes vs 71
-2961	diff	80 bytes vs 71
-2962	diff	80 bytes vs 71
-2963	diff	80 bytes vs 71
-2964	diff	80 bytes vs 71
-2965	diff	80 bytes vs 71
-2966	diff	80 bytes vs 71
-2968	diff	206 bytes vs 200
-2973	diff	same length, different bytes
-2976	diff	548 bytes vs 539
-2978	diff	548 bytes vs 539
-2981	diff	548 bytes vs 539
-2983	diff	548 bytes vs 539
-2987	diff	548 bytes vs 539
-2989	diff	548 bytes vs 539
-2992	diff	23 bytes vs 26
-3067	diff	same length, different bytes
-3074	diff	2060 bytes vs 2054
-3075	diff	887 bytes vs 881
-3076	diff	2297 bytes vs 2291
-3077	diff	971 bytes vs 965
-3101	diff	same length, different bytes
-3103	diff	288 bytes vs 273
-3104	diff	240 bytes vs 195
-3105	diff	648 bytes vs 603
-3106	diff	648 bytes vs 603
-3107	diff	648 bytes vs 603
-3108	diff	648 bytes vs 603
-3113	diff	same length, different bytes
-3123	diff	same length, different bytes
-3159	diff	same length, different bytes
-3160	diff	same length, different bytes
-3165	diff	same length, different bytes
-3166	diff	same length, different bytes
-3197	diff	same length, different bytes
-3204	diff	3096 bytes vs 3093
-3210	diff	196 bytes vs 190
-3216	diff	same length, different bytes
-3235	diff	same length, different bytes
-3238	diff	same length, different bytes
-3283	diff	1631 bytes vs 1622
-3297	diff	same length, different bytes
-3303	compile	line 9: expected ')'
-3309	diff	same length, different bytes
-3310	diff	3914 bytes vs 3905
-3325	diff	same length, different bytes
-3362	diff	same length, different bytes
-3435	diff	same length, different bytes
-3483	diff	same length, different bytes
-3509	diff	same length, different bytes
-3512	diff	same length, different bytes
-3516	diff	same length, different bytes
-3535	diff	same length, different bytes
-3536	diff	same length, different bytes
-3537	diff	same length, different bytes
-3581	diff	244 bytes vs 238
-3582	diff	280 bytes vs 274
-3588	diff	same length, different bytes
-3591	diff	901 bytes vs 898
-3612	diff	1516 bytes vs 1504
-3620	diff	662 bytes vs 656
-3633	diff	495 bytes vs 489
-3640	diff	1593 bytes vs 1581
-3646	diff	329 bytes vs 335
-3656	diff	551 bytes vs 545
-3681	diff	same length, different bytes
-3697	diff	same length, different bytes
-3699	diff	same length, different bytes
-3719	diff	same length, different bytes
-3720	diff	same length, different bytes
-3741	diff	same length, different bytes
-3745	diff	233 bytes vs 227
-3750	diff	2634 bytes vs 2628
-3780	diff	150 bytes vs 135
-3781	diff	185 bytes vs 173
-3789	diff	same length, different bytes
-3790	diff	725 bytes vs 737
-3809	diff	same length, different bytes
-3833	diff	same length, different bytes
-3844	diff	same length, different bytes
-3880	diff	same length, different bytes
-3910	diff	640 bytes vs 637
-3931	diff	same length, different bytes
-3936	diff	same length, different bytes
-3937	diff	same length, different bytes
-3955	diff	same length, different bytes
-3956	diff	same length, different bytes
-3957	diff	same length, different bytes
-3958	diff	same length, different bytes
-3959	diff	same length, different bytes
-3961	diff	297 bytes vs 282
-3962	diff	1456 bytes vs 1441
-3963	diff	697 bytes vs 682
-3964	diff	472 bytes vs 457
-3994	diff	same length, different bytes
-4014	diff	104 bytes vs 101
-4015	diff	104 bytes vs 101
-4024	diff	4957 bytes vs 4951
-4025	diff	same length, different bytes
-4026	diff	same length, different bytes
-4028	diff	same length, different bytes
-4031	diff	174 bytes vs 168
-4032	diff	288 bytes vs 282
-4043	diff	2253 bytes vs 2265
-4052	diff	726 bytes vs 720
-4053	diff	857 bytes vs 851
-4072	diff	658 bytes vs 652
-4073	diff	658 bytes vs 643
-4096	diff	2978 bytes vs 2975
-4102	diff	same length, different bytes
-4103	diff	2920 bytes vs 2905
-4109	diff	249 bytes vs 255
-4128	diff	same length, different bytes
-4129	diff	same length, different bytes
-4131	diff	same length, different bytes
-4133	diff	244 bytes vs 238
-4136	diff	same length, different bytes
-4138	diff	same length, different bytes
-4174	diff	3136 bytes vs 3121
-4197	diff	same length, different bytes
-4202	diff	same length, different bytes
-4203	diff	same length, different bytes
-4204	diff	23 bytes vs 26
-4221	diff	288 bytes vs 282
-4232	diff	3973 bytes vs 3961
-4245	diff	same length, different bytes
-4288	diff	302 bytes vs 296
-4302	diff	same length, different bytes
-4303	diff	same length, different bytes
-4304	diff	754 bytes vs 748
-4333	diff	150 bytes vs 144
-4398	diff	96 bytes vs 90
-4422	diff	243 bytes vs 237
-4440	diff	199 bytes vs 184
-4481	diff	same length, different bytes
-4503	diff	300 bytes vs 291
-4505	diff	342 bytes vs 348
-4510	diff	same length, different bytes
-4511	diff	534 bytes vs 528
-4512	diff	650 bytes vs 644
-4547	diff	same length, different bytes
-4557	diff	same length, different bytes
-4558	diff	same length, different bytes
-4561	diff	same length, different bytes
-4566	diff	same length, different bytes
-4592	diff	same length, different bytes
-4666	diff	169 bytes vs 163
-4684	diff	2935 bytes vs 2926
-4712	diff	1093 bytes vs 1078
-4714	diff	1087 bytes vs 1075
-4732	diff	same length, different bytes
-4738	diff	same length, different bytes
-4739	diff	same length, different bytes
-4740	diff	same length, different bytes
-4795	diff	50 bytes vs 47
-4798	diff	1063 bytes vs 1060
-4800	diff	same length, different bytes
-4819	diff	same length, different bytes
-4824	diff	150 bytes vs 144
-4865	diff	same length, different bytes
-4866	diff	same length, different bytes
-4956	diff	2989 bytes vs 2992
-4959	diff	same length, different bytes
-4976	diff	475 bytes vs 544
-4978	diff	same length, different bytes
-4979	diff	same length, different bytes
-4991	diff	726 bytes vs 720
-4992	diff	857 bytes vs 851
-5015	diff	same length, different bytes
-5017	diff	same length, different bytes
-5018	diff	same length, different bytes
-5019	diff	same length, different bytes
-5020	diff	same length, different bytes
-5021	diff	same length, different bytes
-5022	diff	same length, different bytes
-5027	diff	same length, different bytes
-5028	diff	same length, different bytes
-5033	diff	same length, different bytes
-5034	diff	same length, different bytes
-5039	diff	same length, different bytes
-5040	diff	same length, different bytes
-5045	diff	same length, different bytes
-5046	diff	same length, different bytes
-5051	diff	same length, different bytes
-5052	diff	same length, different bytes
-5057	diff	same length, different bytes
-5058	diff	same length, different bytes
-5063	diff	same length, different bytes
-5064	diff	same length, different bytes
-5069	diff	same length, different bytes
-5070	diff	same length, different bytes
-5073	diff	same length, different bytes
-5079	diff	same length, different bytes
-5080	diff	same length, different bytes
-5081	diff	same length, different bytes
-5082	diff	same length, different bytes
-5083	diff	same length, different bytes
-5102	diff	same length, different bytes
-5109	diff	287 bytes vs 278
-5119	diff	same length, different bytes
-5135	diff	same length, different bytes
-5136	diff	same length, different bytes
-5161	decompile	script 5161 pc 42: opcode 34 expected a int on the operand stack
-5215	diff	same length, different bytes
-5216	diff	same length, different bytes
-5217	diff	200 bytes vs 197
-5222	diff	same length, different bytes
-5227	diff	356 bytes vs 350
-5234	diff	2475 bytes vs 2457
-5262	diff	same length, different bytes
-5272	diff	same length, different bytes
-5305	diff	same length, different bytes
-5309	diff	same length, different bytes
-5314	diff	same length, different bytes
-5315	diff	same length, different bytes
-5333	diff	182 bytes vs 179
-5339	diff	same length, different bytes
-5353	diff	164 bytes vs 149
-5355	decompile	script 5355 pc 191: opcode 8 left 3 values on the operand stack
-5357	diff	same length, different bytes
-5358	diff	same length, different bytes
-5360	decompile	script 5360 pc 15: opcode 3170 was given an argument of the wrong stack type
-5381	diff	same length, different bytes
-5383	diff	633 bytes vs 618
-5385	diff	same length, different bytes
-5386	diff	633 bytes vs 618
-5388	diff	633 bytes vs 618
-5390	diff	633 bytes vs 618
-5392	diff	633 bytes vs 618
-5394	diff	633 bytes vs 618
-5397	diff	754 bytes vs 739
-5399	diff	288 bytes vs 273
-5401	diff	288 bytes vs 273
-5403	diff	288 bytes vs 273
-5405	diff	288 bytes vs 273
-5407	diff	288 bytes vs 273
-5409	diff	288 bytes vs 273
-5411	diff	288 bytes vs 273
-5413	diff	288 bytes vs 273
-5415	diff	288 bytes vs 273
-5417	diff	288 bytes vs 273
-5419	diff	288 bytes vs 273
-5421	diff	288 bytes vs 273
-5423	diff	288 bytes vs 273
-5425	diff	288 bytes vs 273
-5427	diff	288 bytes vs 273
-5429	diff	288 bytes vs 273
-5431	diff	288 bytes vs 273
-5433	diff	288 bytes vs 273
-5435	diff	288 bytes vs 273
-5437	diff	288 bytes vs 273
-5439	diff	288 bytes vs 273
-5441	diff	288 bytes vs 273
-5443	diff	288 bytes vs 273
-5472	diff	173 bytes vs 167
-5476	diff	173 bytes vs 167
-5479	diff	173 bytes vs 167
-5481	diff	354 bytes vs 348
-5482	diff	166 bytes vs 160
-5483	diff	166 bytes vs 160
-5500	compile	line 26: expected ','
-5501	diff	same length, different bytes
-5520	diff	107 bytes vs 104
-5529	diff	same length, different bytes
-5548	diff	same length, different bytes
-5556	diff	same length, different bytes
-5720	diff	2475 bytes vs 2469
-5732	diff	338 bytes vs 332
-5733	diff	398 bytes vs 392
-5739	diff	same length, different bytes
-5787	diff	431 bytes vs 416
-5788	diff	1277 bytes vs 1262
-5791	diff	219 bytes vs 204
-5833	diff	260 bytes vs 266
-5847	diff	728 bytes vs 722
-5848	diff	261 bytes vs 255
-5849	diff	same length, different bytes
-5878	diff	same length, different bytes
-5892	diff	same length, different bytes
-5894	diff	same length, different bytes
-5911	diff	same length, different bytes
-5921	diff	same length, different bytes
-5928	diff	143 bytes vs 137
-5944	diff	136 bytes vs 130
-5945	diff	90 bytes vs 84
-5946	diff	same length, different bytes
-5955	decompile	script 5955 pc 11: opcode 7453 has no recorded signature
-5989	diff	same length, different bytes
-5990	diff	same length, different bytes
-5991	diff	same length, different bytes
-5992	diff	200 bytes vs 191
-5993	diff	same length, different bytes
-5994	diff	same length, different bytes
-6016	diff	same length, different bytes
-6037	diff	452 bytes vs 443
-6042	diff	127 bytes vs 121
-6045	diff	same length, different bytes
-6065	diff	same length, different bytes
-6074	diff	same length, different bytes
-6080	diff	4006 bytes vs 4012
-6087	diff	same length, different bytes
-6099	diff	same length, different bytes
-6100	diff	same length, different bytes
-6105	diff	595 bytes vs 589
-6119	diff	same length, different bytes
-6146	diff	839 bytes vs 833
-6152	diff	same length, different bytes
-6153	diff	same length, different bytes
-6154	diff	same length, different bytes
-6155	diff	same length, different bytes
-6173	diff	same length, different bytes
-6189	diff	same length, different bytes
-6190	diff	same length, different bytes
-6202	diff	586 bytes vs 607
-6208	diff	same length, different bytes
-6263	diff	same length, different bytes
-6264	diff	same length, different bytes
-6268	diff	2046 bytes vs 2049
-6269	diff	3519 bytes vs 3525
-6270	diff	826 bytes vs 694
-6288	diff	1426 bytes vs 1453
-6306	diff	266 bytes vs 260
-6311	diff	same length, different bytes
-6319	diff	same length, different bytes
-6325	diff	197 bytes vs 191
-6335	diff	272 bytes vs 266
-6359	diff	same length, different bytes
-6360	diff	same length, different bytes
-6373	diff	5297 bytes vs 5261
-6374	diff	same length, different bytes
-6390	diff	same length, different bytes
-6391	diff	same length, different bytes
-6397	diff	same length, different bytes
-6419	diff	217 bytes vs 211
-6425	diff	same length, different bytes
-6432	diff	137 bytes vs 131
-6484	diff	same length, different bytes
-6485	diff	1613 bytes vs 1604
-6498	decompile	script 6498 pc 13: opcode 8 left 1 values on the operand stack
-6501	decompile	script 6501 pc 13: opcode 8 left 2 values on the operand stack
-6503	decompile	script 6503 pc 13: opcode 8 left 2 values on the operand stack
-6505	decompile	script 6505 pc 13: opcode 8 left 1 values on the operand stack
-6507	decompile	script 6507 pc 13: opcode 8 left 1 values on the operand stack
-6524	diff	167 bytes vs 161
-6536	diff	same length, different bytes
-6545	diff	same length, different bytes
-6551	diff	same length, different bytes
-6587	diff	138 bytes vs 141
-6593	diff	131 bytes vs 128
-6626	diff	215 bytes vs 209
-6647	diff	287 bytes vs 281
-6649	diff	266 bytes vs 260
-6650	diff	same length, different bytes
-6652	diff	197 bytes vs 191
-6653	diff	997 bytes vs 991
-6654	diff	479 bytes vs 473
-6655	diff	974 bytes vs 968
-6658	diff	120 bytes vs 114
-6664	diff	same length, different bytes
-6668	diff	same length, different bytes
-6677	diff	279 bytes vs 276
-6679	diff	same length, different bytes
-6680	diff	same length, different bytes
-6689	decompile	script 6689 pc 16: opcode 7042 was given an argument of the wrong stack type
-6716	diff	7686 bytes vs 7671
-6723	diff	104 bytes vs 95
-6755	diff	same length, different bytes
-6759	diff	4244 bytes vs 4238
-6794	diff	1631 bytes vs 1622
-6797	diff	same length, different bytes
-6803	diff	same length, different bytes
-6806	diff	same length, different bytes
-6807	diff	same length, different bytes
-6809	diff	same length, different bytes
-6810	diff	same length, different bytes
-6811	diff	same length, different bytes
-6812	diff	same length, different bytes
-6830	diff	same length, different bytes
-6854	diff	546 bytes vs 540
-6856	diff	same length, different bytes
-6859	diff	same length, different bytes
-6905	diff	1114 bytes vs 1120
-6906	diff	1231 bytes vs 1237
-6922	diff	134 bytes vs 131
-6924	diff	same length, different bytes
-6930	diff	same length, different bytes
-6941	diff	same length, different bytes
-6957	diff	242 bytes vs 227
-6958	diff	242 bytes vs 227
-6966	diff	196 bytes vs 190
-6981	diff	452 bytes vs 443
-6999	diff	452 bytes vs 443
-7008	diff	178 bytes vs 166
-7014	diff	196 bytes vs 190
-7016	diff	302 bytes vs 296
-7054	diff	104 bytes vs 95
-7056	diff	same length, different bytes
-7104	diff	195 bytes vs 201
-7106	diff	238 bytes vs 232
-7110	diff	182 bytes vs 179
-7121	diff	104 bytes vs 101
-7144	diff	same length, different bytes
-7152	diff	317 bytes vs 323
-7167	diff	288 bytes vs 282
-7168	diff	288 bytes vs 282
-7178	diff	same length, different bytes
-7179	diff	939 bytes vs 945
-7180	diff	677 bytes vs 683
-7214	diff	23 bytes vs 26
-7225	diff	same length, different bytes
-7227	decompile	script 7227 pc 19: opcode 8 left 2 values on the operand stack
-7228	diff	same length, different bytes
-7232	decompile	script 7232 pc 273: opcode 6860 has no recorded signature
-7235	diff	634 bytes vs 622
-7236	diff	same length, different bytes
-7238	diff	same length, different bytes
-7239	diff	same length, different bytes
-7240	diff	same length, different bytes
-7241	diff	same length, different bytes
-7242	diff	same length, different bytes
-7243	diff	same length, different bytes
-7254	diff	3291 bytes vs 3288
-7257	diff	same length, different bytes
-7259	diff	same length, different bytes
-7263	diff	same length, different bytes
-7264	diff	203 bytes vs 209
-7265	diff	same length, different bytes
-7266	diff	same length, different bytes
-7273	diff	same length, different bytes
-7281	diff	same length, different bytes
-7293	diff	same length, different bytes
-7295	diff	same length, different bytes
-7300	diff	15519 bytes vs 15513
-7304	diff	same length, different bytes
-7305	diff	893 bytes vs 887
-7309	diff	same length, different bytes
-7310	diff	same length, different bytes
-7315	diff	same length, different bytes
-7319	diff	same length, different bytes
-7320	diff	same length, different bytes
-7323	diff	same length, different bytes
-7324	diff	same length, different bytes
-7327	diff	same length, different bytes
-7328	diff	same length, different bytes
-7334	diff	same length, different bytes
-7347	diff	same length, different bytes
-7349	diff	same length, different bytes
-7350	diff	same length, different bytes
-7351	diff	288 bytes vs 282
-7366	diff	same length, different bytes
-7371	diff	same length, different bytes
-7372	diff	same length, different bytes
-7383	diff	same length, different bytes
-7384	diff	same length, different bytes
-7385	diff	186 bytes vs 171
-7413	diff	411 bytes vs 408
-7424	diff	833 bytes vs 827
-7425	diff	1704 bytes vs 1698
-7430	diff	same length, different bytes
-7443	diff	same length, different bytes
-7496	decompile	script 7496 pc 93: opcode 7816 has no recorded signature
-7514	diff	same length, different bytes
-7527	diff	131 bytes vs 134
-7530	diff	401 bytes vs 395
-7535	diff	385 bytes vs 379
-7542	diff	329 bytes vs 326
-7547	decompile	script 7547 pc 4: opcode 7806 has no recorded signature
-7551	decompile	script 7551 pc 6: opcode 7808 has no recorded signature
-7603	diff	same length, different bytes
-7617	diff	same length, different bytes
-7618	diff	same length, different bytes
-7619	diff	same length, different bytes
-7620	diff	same length, different bytes
-7621	diff	same length, different bytes
-7622	diff	same length, different bytes
-7623	diff	same length, different bytes
-7624	diff	same length, different bytes
-7625	diff	same length, different bytes
-7626	diff	same length, different bytes
-7627	diff	95 bytes vs 89
-7652	diff	same length, different bytes
-7653	diff	same length, different bytes
-7691	diff	same length, different bytes
-7692	diff	same length, different bytes
-7693	diff	290 bytes vs 284
-7695	diff	same length, different bytes
-7698	diff	587 bytes vs 581
-7705	diff	530 bytes vs 524
-7709	diff	same length, different bytes
-7710	diff	1014 bytes vs 1005
-7716	diff	same length, different bytes
-7736	diff	same length, different bytes
-7754	diff	642 bytes vs 645
-7774	diff	295 bytes vs 289
-7777	decompile	script 7777 pc 35: opcode 2311 was given an argument of the wrong stack type
-7781	diff	same length, different bytes
-7794	diff	same length, different bytes
-7795	diff	same length, different bytes
-7796	diff	same length, different bytes
-7800	diff	same length, different bytes
-7823	diff	same length, different bytes
-7824	diff	same length, different bytes
-7834	diff	same length, different bytes
-7856	diff	same length, different bytes
-7863	diff	221 bytes vs 206
-7866	diff	1323 bytes vs 1308
-7867	diff	same length, different bytes
-7869	diff	same length, different bytes
-7889	diff	same length, different bytes
-7890	diff	same length, different bytes
-7898	decompile	script 7898 pc 19: opcode 2929 underflowed the operand stack
-7925	diff	same length, different bytes
-7934	diff	same length, different bytes
-7935	diff	same length, different bytes
-7936	diff	same length, different bytes
-7937	diff	same length, different bytes
-7953	diff	same length, different bytes
-7958	diff	same length, different bytes
-7967	decompile	script 7967 pc 26: return leaves 3 values, the script declares 0
-7969	decompile	script 7969 pc 38: return leaves 3 values, the script declares 0
-7983	diff	same length, different bytes
-7985	diff	same length, different bytes
-8025	diff	298 bytes vs 292
-8026	diff	219 bytes vs 213
-8027	diff	219 bytes vs 213
-8028	diff	219 bytes vs 213
-8029	diff	219 bytes vs 213
-8030	diff	219 bytes vs 213
-8031	diff	219 bytes vs 213
-8032	diff	219 bytes vs 213
-8033	diff	219 bytes vs 213
-8034	diff	316 bytes vs 307
-8043	diff	same length, different bytes
-8046	diff	265 bytes vs 259
-8047	diff	265 bytes vs 259
-8051	diff	same length, different bytes
-8052	diff	same length, different bytes
-8053	diff	same length, different bytes
-8054	diff	same length, different bytes
-8055	diff	same length, different bytes
-8057	diff	264 bytes vs 270
-8062	diff	1171 bytes vs 1162
-8075	diff	239 bytes vs 236
-8078	diff	same length, different bytes
-8091	diff	493 bytes vs 487
-8117	decompile	script 8117 pc 36: opcode 36 underflowed the operand stack
-8118	decompile	script 8118 pc 18: opcode 36 underflowed the operand stack
-8120	decompile	script 8120 pc 94: return leaves 3 values, the script declares 0
-8124	diff	4870 bytes vs 4867
-8127	decompile	script 8127 pc 8: return leaves 2 values, the script declares 0
-8132	decompile	script 8132 pc 16: opcode 8 underflowed the operand stack
-8135	decompile	script 8135 pc 306: opcode 36 underflowed the operand stack
-8140	decompile	script 8140 pc 3: opcode 36 underflowed the operand stack
-8141	diff	200 bytes vs 194
-8145	diff	same length, different bytes
-8149	decompile	script 8149 pc 691: gosub to 8151 passes an argument of the wrong stack type
-8159	decompile	script 8159 pc 19: opcode 2929 underflowed the operand stack
-8161	diff	same length, different bytes
-8162	diff	same length, different bytes
-8163	diff	same length, different bytes
-8164	diff	same length, different bytes
-8173	diff	1631 bytes vs 1622
-8183	diff	same length, different bytes
-8203	diff	1590 bytes vs 1596
-8204	diff	977 bytes vs 983
-8206	diff	323 bytes vs 329
-8207	diff	194 bytes vs 200
-8208	diff	641 bytes vs 647
-8210	diff	245 bytes vs 251
-8211	diff	608 bytes vs 614
-8214	diff	same length, different bytes
-8215	diff	same length, different bytes
-8216	diff	same length, different bytes
-8225	diff	258 bytes vs 252
-8227	diff	346 bytes vs 340
-8236	decompile	script 8236 pc 40: opcode 1927 underflowed the operand stack
-8243	diff	same length, different bytes
-8244	decompile	script 8244 pc 237: opcode 36 underflowed the operand stack
-8245	decompile	script 8245 pc 39: return leaves 1 values, the script declares 0
-8246	decompile	script 8246 pc 169: opcode 36 underflowed the operand stack
-8247	diff	same length, different bytes
-8255	diff	same length, different bytes
-8263	diff	188 bytes vs 182
-8264	diff	188 bytes vs 182
-8265	diff	93 bytes vs 87
-8266	diff	161 bytes vs 155
-8267	diff	171 bytes vs 165
-8268	decompile	script 8268 pc 57: return leaves 1 values, the script declares 0
-8271	decompile	script 8271 pc 3: opcode 36 underflowed the operand stack
-8272	decompile	script 8272 pc 3: opcode 36 underflowed the operand stack
-8276	diff	351 bytes vs 345
-8277	diff	same length, different bytes
-8280	diff	3233 bytes vs 3218
-8281	diff	same length, different bytes
-8282	diff	256 bytes vs 250
-8284	diff	same length, different bytes
-8290	diff	474 bytes vs 468
-8291	diff	169 bytes vs 163
-8292	diff	same length, different bytes
-8293	diff	same length, different bytes
-8296	diff	same length, different bytes
-8297	diff	same length, different bytes
-8298	diff	same length, different bytes
-8305	diff	same length, different bytes
-8306	diff	same length, different bytes
-8307	diff	same length, different bytes
-8308	diff	same length, different bytes
-8309	diff	same length, different bytes
-8316	diff	23 bytes vs 26
-8322	diff	same length, different bytes
-8323	diff	same length, different bytes
-8325	decompile	script 8325 pc 225: opcode 1409 expected a string on the operand stack
-8327	decompile	script 8327 pc 55: opcode 8 left 2 values on the operand stack
-8328	diff	same length, different bytes
-8340	decompile	script 8340 pc 54: opcode 2929 underflowed the operand stack
-8341	decompile	script 8341 pc 8: opcode 2929 underflowed the operand stack
-8342	decompile	script 8342 pc 69: opcode 4103 was given an argument of the wrong stack type
-8343	diff	same length, different bytes
-8344	decompile	script 8344 pc 67: gosub to 8345 passes an argument of the wrong stack type
-8350	diff	same length, different bytes
-8351	decompile	script 8351 pc 88: gosub to 8353 passes an argument of the wrong stack type
-8354	diff	same length, different bytes
-8356	diff	same length, different bytes
-8361	diff	same length, different bytes
-8364	diff	same length, different bytes
-8366	diff	same length, different bytes
-8367	diff	same length, different bytes
-8369	diff	23 bytes vs 26
-8384	diff	23 bytes vs 26
-8386	diff	same length, different bytes
-8387	diff	same length, different bytes
-8389	decompile	script 8389 pc 19: return leaves 1 values, the script declares 0
-8392	diff	884 bytes vs 875
-8402	diff	same length, different bytes
-8404	diff	same length, different bytes
-8405	diff	same length, different bytes
-8406	decompile	script 8406 pc 6: opcode 36 underflowed the operand stack
-8410	decompile	script 8410 pc 30: opcode 6 left 1 values on the operand stack
-8411	decompile	script 8411 pc 33: opcode 6 left 2 values on the operand stack
-8412	diff	same length, different bytes
-8413	diff	same length, different bytes
-8417	diff	same length, different bytes
-8418	diff	same length, different bytes
-8423	diff	same length, different bytes
-8424	decompile	script 8424 pc 6: opcode 36 underflowed the operand stack
-8425	diff	same length, different bytes
-8426	decompile	script 8426 pc 31: opcode 6 left 2 values on the operand stack
-8427	diff	same length, different bytes
-8429	diff	same length, different bytes
-8430	diff	same length, different bytes
-8431	decompile	script 8431 pc 130: opcode 36 underflowed the operand stack
-8433	decompile	script 8433 pc 96: opcode 36 underflowed the operand stack
-8434	diff	same length, different bytes
-8436	decompile	script 8436 pc 33: opcode 2929 was given an argument of the wrong stack type
-8437	decompile	script 8437 pc 30: return leaves 1 values, the script declares 0
-8438	decompile	script 8438 pc 29: opcode 2929 was given an argument of the wrong stack type
-8439	diff	same length, different bytes
-8440	diff	same length, different bytes
-8441	diff	same length, different bytes
-8446	decompile	script 8446 pc 30: opcode 2929 was given an argument of the wrong stack type
-8447	decompile	script 8447 pc 35: opcode 2929 was given an argument of the wrong stack type
-8448	diff	same length, different bytes
-8460	decompile	script 8460 pc 6: opcode 36 underflowed the operand stack
-8462	decompile	script 8462 pc 6: opcode 36 underflowed the operand stack
-8466	decompile	script 8466 pc 1: opcode 36 underflowed the operand stack
-8468	decompile	script 8468 pc 18: return leaves 1 values, the script declares 0
-8469	diff	347 bytes vs 326
-8472	decompile	script 8472 pc 26: opcode 36 underflowed the operand stack
-8474	compile	line 7: cannot determine the type of a callback argument; a hook's descriptor needs one letter per argument
-8476	diff	380 bytes vs 386
-8489	diff	same length, different bytes
-8491	decompile	script 8491 pc 47: return leaves 1 values, the script declares 0
-8564	decompile	script 8564 pc 73: return leaves 1 values, the script declares 0
-8567	diff	155 bytes vs 143
-8584	diff	same length, different bytes
-8602	diff	same length, different bytes
-8606	diff	2608 bytes vs 2602
-8611	diff	same length, different bytes
-8613	diff	same length, different bytes
-8662	diff	same length, different bytes
-8690	decompile	script 8690 pc 83: hook descriptor byte 0x57 is not a known type
-8691	diff	same length, different bytes
-8697	diff	same length, different bytes
-8702	decompile	script 8702 pc 50: array element type does not match the stack slot
-8703	diff	same length, different bytes
-8730	diff	same length, different bytes
-8732	diff	same length, different bytes
-8733	diff	same length, different bytes
-8734	diff	same length, different bytes
-8737	diff	same length, different bytes
-8752	diff	548 bytes vs 539
-8754	diff	548 bytes vs 539
-8756	diff	548 bytes vs 539
-8761	diff	1387 bytes vs 1378
-8762	diff	1851 bytes vs 1842
-8763	diff	same length, different bytes
-8764	diff	same length, different bytes
-8765	diff	same length, different bytes
-8773	diff	1043 bytes vs 1034
-8774	diff	1121 bytes vs 1112
-8775	diff	1016 bytes vs 1007
-8781	diff	same length, different bytes
-8797	diff	708 bytes vs 702
-8806	diff	same length, different bytes
-8808	diff	same length, different bytes
-8812	diff	same length, different bytes
-8816	diff	same length, different bytes
-8817	diff	same length, different bytes
-8818	decompile	script 8818 pc 107: array element type does not match the stack slot
-8826	diff	same length, different bytes
-8828	decompile	script 8828 pc 69: return leaves 1 values, the script declares 0
-8834	decompile	script 8834 pc 36: return leaves 1 values, the script declares 0
-8835	diff	same length, different bytes
-8839	diff	same length, different bytes
-8840	diff	same length, different bytes
-8859	diff	same length, different bytes
-8862	diff	same length, different bytes
-8867	diff	99 bytes vs 93
-8868	diff	same length, different bytes
-8869	diff	same length, different bytes
-8873	diff	1163 bytes vs 1157
-8887	diff	same length, different bytes
-8896	diff	1008 bytes vs 1002
-8899	diff	same length, different bytes
-8906	diff	same length, different bytes
-8907	diff	256 bytes vs 250
-8924	diff	same length, different bytes
-8928	diff	same length, different bytes
-8930	diff	same length, different bytes
-8931	diff	same length, different bytes
-8934	diff	same length, different bytes
-8935	diff	same length, different bytes
-8936	diff	same length, different bytes
-8938	diff	288 bytes vs 273
-8942	diff	same length, different bytes
-8943	diff	same length, different bytes
-8948	diff	same length, different bytes
-8949	diff	same length, different bytes
-8950	diff	87 bytes vs 81
-8951	diff	104 bytes vs 98
-8963	diff	same length, different bytes
-8964	diff	same length, different bytes
-8965	diff	same length, different bytes
-8966	diff	same length, different bytes
-8967	diff	same length, different bytes
-8968	diff	same length, different bytes
-8975	diff	same length, different bytes
-8976	diff	same length, different bytes
-8977	diff	same length, different bytes
-8980	diff	same length, different bytes
-8982	diff	same length, different bytes
-8983	diff	same length, different bytes
-8985	diff	same length, different bytes
-8986	diff	same length, different bytes
-8987	diff	same length, different bytes
-8988	diff	same length, different bytes
-8989	diff	same length, different bytes
-8990	diff	same length, different bytes
-8991	diff	same length, different bytes
-8992	diff	same length, different bytes
-8993	diff	same length, different bytes
-8994	diff	same length, different bytes
-8995	diff	same length, different bytes
-8996	diff	same length, different bytes
-8997	decompile	flow graph has no single entry point
-8999	decompile	script 8999 pc 9: enum type descriptor 0xd8 / 0x69 is not known
-9004	diff	668 bytes vs 736
-9005	diff	288 bytes vs 282
-9006	diff	298 bytes vs 292
-9010	diff	same length, different bytes
-9018	diff	same length, different bytes
-9019	diff	same length, different bytes
-9021	diff	same length, different bytes
-9022	diff	same length, different bytes
-9025	diff	same length, different bytes
-9026	diff	same length, different bytes
-9027	diff	same length, different bytes
-9028	diff	357 bytes vs 351
-9029	diff	same length, different bytes
-9030	diff	same length, different bytes
-9033	diff	same length, different bytes
-9034	diff	2551 bytes vs 2545
-9035	diff	same length, different bytes
-9036	diff	same length, different bytes
-9038	diff	474 bytes vs 468
-9039	diff	same length, different bytes
-9040	diff	426 bytes vs 420
-9041	diff	305 bytes vs 299
-9043	diff	same length, different bytes
-9044	diff	same length, different bytes
-9045	diff	same length, different bytes
-9046	diff	407 bytes vs 470
-9047	diff	310 bytes vs 373
-9048	diff	322 bytes vs 385
-9050	diff	same length, different bytes
-9051	diff	same length, different bytes
-9054	diff	same length, different bytes
-9059	diff	same length, different bytes
-9061	diff	same length, different bytes
-9063	diff	same length, different bytes
-9064	diff	418 bytes vs 412
-9066	diff	same length, different bytes
-9067	diff	same length, different bytes
-9069	diff	484 bytes vs 478
-9070	diff	435 bytes vs 429
-9071	diff	436 bytes vs 430
-9072	diff	427 bytes vs 421
-9073	diff	436 bytes vs 430
-9074	diff	188 bytes vs 182
-9075	diff	same length, different bytes
-9077	diff	same length, different bytes
-9078	diff	567 bytes vs 576
-9081	diff	286 bytes vs 271
-9082	diff	436 bytes vs 430
-9088	diff	257 bytes vs 251
-9089	diff	173 bytes vs 167
-9093	diff	same length, different bytes
-9094	diff	same length, different bytes
-9095	diff	same length, different bytes
-9098	diff	173 bytes vs 167
-9099	diff	same length, different bytes
-9101	diff	same length, different bytes
-9102	diff	same length, different bytes
-9104	diff	same length, different bytes
-9105	diff	same length, different bytes
-9109	diff	708 bytes vs 705
-9115	diff	same length, different bytes
-9120	diff	same length, different bytes
-9130	decompile	script 9130 pc 6: hook descriptor byte 0x58 is not a known type
-9136	diff	219 bytes vs 213
-9137	diff	same length, different bytes
-9138	diff	same length, different bytes
-9142	decompile	script 9142 pc 234: gosub to 9143 passes an argument of the wrong stack type
-9148	diff	same length, different bytes
-9151	diff	1384 bytes vs 1432
-9152	diff	1999 bytes vs 2143
-9153	diff	3186 bytes vs 3390
-9154	diff	1748 bytes vs 1892
-9155	diff	3080 bytes vs 3323
-9156	diff	1687 bytes vs 1825
-9157	diff	3772 bytes vs 3952
-9158	diff	1336 bytes vs 1423
-9159	diff	1395 bytes vs 1488
-9160	diff	3014 bytes vs 3272
-9161	diff	1439 bytes vs 1523
-9162	compile	line 12: expected ')'
-9163	diff	2892 bytes vs 3078
-9164	diff	2636 bytes vs 2762
-9165	diff	1526 bytes vs 1619
-9166	diff	1773 bytes vs 1866
-9167	diff	1904 bytes vs 2066
-9168	diff	1291 bytes vs 1357
-9169	diff	3839 bytes vs 4100
-9170	diff	1433 bytes vs 1484
-9171	diff	1916 bytes vs 2114
-9172	diff	1890 bytes vs 2016
-9173	diff	775 bytes vs 805
-9174	diff	3103 bytes vs 3313
-9176	diff	790 bytes vs 781
-9181	diff	same length, different bytes
-9183	decompile	script 9183 pc 17: opcode 4121 was given an argument of the wrong stack type
-9184	diff	same length, different bytes
-9188	decompile	script 9188 pc 86: opcode 4117 was given an argument of the wrong stack type
-9191	diff	187 bytes vs 193
-9192	diff	140 bytes vs 125
-9193	diff	143 bytes vs 128
-9194	diff	same length, different bytes
-9195	compile	line 54: cannot determine the type of a callback argument; a hook's descriptor needs one letter per argument
-9213	diff	same length, different bytes
-9215	diff	127 bytes vs 121
-9219	diff	same length, different bytes
-9260	decompile	script 9260 pc 65: return leaves 1 values, the script declares 0
-9266	decompile	script 9266 pc 65: return leaves 1 values, the script declares 0
-9272	decompile	script 9272 pc 65: return leaves 1 values, the script declares 0
-9278	decompile	script 9278 pc 65: return leaves 1 values, the script declares 0
-9290	decompile	script 9290 pc 53: array element type does not match the stack slot
-9291	diff	same length, different bytes
-9303	diff	same length, different bytes
-9304	diff	145 bytes vs 139
-9305	diff	145 bytes vs 139
-9306	diff	145 bytes vs 139
-9307	diff	same length, different bytes
-9308	diff	same length, different bytes
-9309	diff	same length, different bytes
-9310	diff	same length, different bytes
-9311	diff	same length, different bytes
-9312	diff	same length, different bytes
-9313	diff	same length, different bytes
-9314	diff	same length, different bytes
-9315	diff	same length, different bytes
-9316	diff	2958 bytes vs 2952
-9318	diff	2958 bytes vs 2952
-9320	diff	2958 bytes vs 2952
-9335	diff	same length, different bytes
-9336	diff	same length, different bytes
-9345	decompile	script 9345 pc 11: opcode 6 left 1 values on the operand stack
-9348	diff	610 bytes vs 604
-9350	diff	same length, different bytes
-9352	diff	same length, different bytes
-9354	diff	same length, different bytes
-9361	diff	same length, different bytes
-9368	diff	same length, different bytes
-9369	decompile	script 9369 pc 21: opcode 8 underflowed the operand stack
-9370	diff	2405 bytes vs 2399
-9383	decompile	script 9383 pc 162: opcode 2929 was given an argument of the wrong stack type
-9384	diff	same length, different bytes
-9385	diff	same length, different bytes
-9391	diff	same length, different bytes
-9392	diff	3207 bytes vs 3201
-9393	diff	277 bytes vs 268
-9394	diff	277 bytes vs 268
-9395	diff	150 bytes vs 135
-9396	diff	same length, different bytes
-9398	decompile	script 9398 pc 8: opcode 8 underflowed the operand stack
-9399	decompile	script 9399 pc 13: opcode 8 underflowed the operand stack
-9401	diff	same length, different bytes
-9405	decompile	script 9405 pc 13: opcode 8 underflowed the operand stack
-9406	decompile	script 9406 pc 13: opcode 8 underflowed the operand stack
-9407	decompile	script 9407 pc 13: opcode 8 underflowed the operand stack
-9416	diff	196 bytes vs 190
-9420	diff	272 bytes vs 269
-9428	diff	same length, different bytes
-9429	diff	3192 bytes vs 3216
-9440	diff	same length, different bytes
-9444	diff	1573 bytes vs 1570
-9448	diff	227 bytes vs 233
-9450	diff	same length, different bytes
-9452	diff	same length, different bytes
-9455	diff	same length, different bytes
-9456	diff	same length, different bytes
-9457	diff	705 bytes vs 699
-9458	diff	2117 bytes vs 2126
-9460	decompile	script 9460 pc 143: return leaves 1 values, the script declares 0
-9461	decompile	script 9461 pc 2: opcode 36 underflowed the operand stack
-9462	diff	196 bytes vs 190
-9463	diff	same length, different bytes
-9464	diff	same length, different bytes
-9466	diff	same length, different bytes
-9469	diff	same length, different bytes
-9470	diff	2135 bytes vs 2129
-9474	diff	453 bytes vs 459
-9477	diff	same length, different bytes
-9478	diff	same length, different bytes
-9479	diff	same length, different bytes
-9482	diff	same length, different bytes
-9487	diff	same length, different bytes
-9511	decompile	script 9511 pc 85: opcode 4103 was given an argument of the wrong stack type
-9520	decompile	script 9520 pc 8: opcode 8 underflowed the operand stack
-9526	decompile	script 9526 pc 8: return value 0 is a int, the script declares a string
-9535	diff	same length, different bytes
-9551	diff	836 bytes vs 830
-9552	diff	512 bytes vs 506
-9553	diff	518 bytes vs 512
-9554	diff	578 bytes vs 572
-9555	diff	same length, different bytes
-9561	diff	same length, different bytes
-9564	diff	2135 bytes vs 2129
-9566	diff	same length, different bytes
-9567	diff	same length, different bytes
-9568	diff	233 bytes vs 236
-9569	diff	518 bytes vs 512
-9570	diff	572 bytes vs 563
-9574	decompile	script 9574 pc 42: opcode 36 expected a string on the operand stack
-9575	diff	same length, different bytes
-9584	decompile	script 9584 pc 33: opcode 6 left 4 values on the operand stack
-9588	decompile	script 9588 pc 30: opcode 8 left 4 values on the operand stack
-9591	decompile	script 9591 pc 32: opcode 36 expected a string on the operand stack
-9601	decompile	script 9601 pc 18: return leaves 1 values, the script declares 0
-9611	decompile	script 9611 pc 50: opcode 4127 was given an argument of the wrong stack type
-9613	diff	same length, different bytes
-9648	diff	242 bytes vs 227
-9666	diff	same length, different bytes
-9689	diff	150 bytes vs 135
-9693	diff	150 bytes vs 135
-9695	diff	same length, different bytes
-9697	diff	104 bytes vs 89
-9699	diff	same length, different bytes
-9701	diff	104 bytes vs 89
-9703	diff	219 bytes vs 204
-9706	diff	127 bytes vs 112
-9708	diff	149 bytes vs 155
-9710	diff	242 bytes vs 227
-9712	diff	same length, different bytes
-9713	diff	same length, different bytes
-9714	diff	333 bytes vs 339
-9716	diff	same length, different bytes
-9721	decompile	script 9721 pc 14: opcode 1927 underflowed the operand stack
-9723	diff	23 bytes vs 26
+# round-trip: 9724/9725 decompiled, 9724 compiled, 9271 same-length, 8672 exact
+script_id	stage	category	detail
+0	decompile	absent_cache_entry	script 0 is not in this cache
+3	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+8	diff	branch_targets	pc 34 branch: 263 -> 275; pc 69 branch: 228 -> 240; pc 104 branch: 193 -> 205; and 5 more
+15	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+19	diff	control_flow_structure	opcode edits: remove none; add 6x3
+23	diff	frame_metadata	locals 16i/1s/0l -> 16i/0s/0l; args 8i/0s/0l -> 8i/0s/0l
+74	diff	control_flow_structure	opcode edits: remove none; add 6x1
+79	diff	control_flow_structure	opcode edits: remove none; add 6x1
+90	diff	erased_narrow_return_type	pc 507 push_constant_int: -1 -> 0
+91	diff	control_flow_structure	opcode edits: remove none; add 6x1
+100	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+125	diff	mixed_instruction_shape	opcode edits: remove 0x4,6x4,3632x4; add 0x4,6x6,3632x4
+166	diff	control_flow_structure	opcode edits: remove none; add 6x1
+172	diff	mixed_instruction_shape	opcode edits: remove 0x5,3x5,1300x5; add 0x5,3x5,6x1,1300x5
+179	diff	control_flow_structure	opcode edits: remove none; add 6x1
+185	diff	control_flow_structure	opcode edits: remove none; add 6x1
+193	diff	erased_narrow_return_type	pc 160 push_constant_int: -1 -> 0
+206	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+210	diff	erased_narrow_return_type	pc 80 push_constant_int: -1 -> 0
+212	diff	branch_targets	pc 216 branch: 6 -> 10
+234	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+247	diff	erased_narrow_return_type	pc 44 push_constant_int: -1 -> 0
+252	diff	erased_narrow_return_type	pc 44 push_constant_int: -1 -> 0
+279	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0
+323	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+376	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+386	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+403	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+413	diff	control_flow_structure	opcode edits: remove none; add 6x1
+417	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+438	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+445	diff	erased_narrow_return_type	pc 32 push_constant_int: -1 -> 0
+451	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+452	diff	erased_narrow_return_type	pc 48 push_constant_int: -1 -> 0
+464	diff	erased_narrow_return_type	pc 53 push_constant_int: -1 -> 0
+506	diff	erased_narrow_return_type	pc 417 push_constant_int: -1 -> 0
+514	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+568	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+572	diff	control_flow_structure	opcode edits: remove none; add 6x1
+607	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+633	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+653	diff	frame_metadata	locals 22i/1s/0l -> 22i/0s/0l; args 19i/0s/0l -> 19i/0s/0l
+660	diff	control_flow_structure	opcode edits: remove none; add 6x1
+661	diff	control_flow_structure	opcode edits: remove none; add 6x1
+667	diff	mixed_instruction_shape	opcode edits: remove 0x5,3x5,6x1,10x1,25x2,37x1,40x1,1300x4; add 0x5,3x5,6x2,10x1,25x2,37x1,40x1,1300x4
+671	diff	mixed_instruction_shape	opcode edits: remove 0x5,3x5,6x1,10x1,25x2,37x1,40x1,1300x4; add 0x5,3x5,6x2,10x1,25x2,37x1,40x1,1300x4
+675	diff	frame_metadata	locals 24i/1s/0l -> 24i/0s/0l; args 8i/0s/0l -> 8i/0s/0l
+677	diff	mixed_instruction_shape	opcode edits: remove 0x14,3x1,2000x1,2001x1,2003x1,2400x1; add 0x14,3x1,6x1,2000x1,2001x1,2003x1,2400x1
+702	diff	erased_narrow_return_type	pc 218 push_constant_int: -1 -> 0
+708	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0
+747	diff	string_segmentation	opcode edits: remove 3x1; add none
+758	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0; pc 39 push_constant_int: -1 -> 0; pc 40 push_constant_int: -1 -> 0; and 1 more
+763	diff	frame_metadata	locals 18i/2s/0l -> 18i/0s/0l; args 7i/0s/0l -> 7i/0s/0l
+823	diff	control_flow_structure	opcode edits: remove none; add 6x1
+824	diff	erased_narrow_return_type	pc 40 push_constant_int: -1 -> 0
+892	diff	mixed_instruction_shape	opcode edits: remove 0x8,6x2,33x128,34x16,40x8; add 0x8,6x3,33x128,34x16,40x8
+900	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0
+921	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+922	diff	erased_narrow_return_type	pc 34 push_constant_int: -1 -> 0
+961	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+974	diff	mixed_instruction_shape	opcode edits: remove 0x1,6x1,33x6,34x2,40x1,3302x1; add 0x1,6x1,33x6,34x2,40x1,3302x1
+1002	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1063	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1064	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1090	diff	mixed_instruction_shape	opcode edits: remove 0x1,33x1,34x2,4000x1,7501x1; add 0x1,33x1,34x2,4000x1,7501x1
+1105	diff	other_operand_encoding	pc 9 push_constant_int: 0 -> 1; pc 14 push_constant_int: 1 -> 0; switch entries also differ; plus 1 branch target(s)
+1128	diff	frame_metadata	locals 23i/2s/0l -> 23i/1s/0l; args 5i/1s/0l -> 5i/1s/0l
+1129	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+1181	diff	frame_metadata	locals 2i/3s/0l -> 3i/0s/0l; args 1i/0s/0l -> 1i/0s/0l
+1196	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+1205	diff	frame_metadata	locals 5i/1s/0l -> 5i/0s/0l; args 0i/0s/0l -> 0i/0s/0l
+1216	diff	frame_metadata	locals 29i/1s/0l -> 29i/0s/0l; args 28i/0s/0l -> 28i/0s/0l
+1217	diff	frame_metadata	locals 29i/1s/0l -> 29i/0s/0l; args 28i/0s/0l -> 28i/0s/0l
+1260	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+1292	diff	string_segmentation	opcode edits: remove 3x3,37x3; add none
+1324	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+1351	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+1353	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+1406	diff	frame_metadata	locals 11i/2s/0l -> 11i/1s/0l; args 2i/0s/0l -> 2i/0s/0l
+1411	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+1443	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+1445	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+1452	diff	erased_narrow_return_type	pc 52 push_constant_int: -1 -> 0
+1456	diff	other_operand_encoding	pc 53 cc_deleteall: 1 -> 0
+1479	diff	erased_narrow_return_type	pc 258 push_constant_int: -1 -> 0; pc 259 push_constant_int: -1 -> 0
+1484	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1560	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+1599	diff	erased_narrow_return_type	pc 32 push_constant_int: -1 -> 0
+1629	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x2,6x1,21x1
+1630	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x2,6x1,21x1
+1658	diff	mixed_instruction_shape	opcode edits: remove 0x4,3646x4; add 0x4,6x4,3646x4
+1701	diff	erased_narrow_return_type	pc 143 push_constant_int: -1 -> 0
+1702	diff	other_operand_encoding	pc 6 push_constant_int: 29054198 -> 54; pc 18 push_constant_int: 297571551 -> 31; pc 30 push_constant_int: 297014473 -> 9; and 173 more
+1707	diff	frame_metadata	locals 49i/4s/0l -> 49i/3s/0l; args 25i/0s/0l -> 25i/0s/0l
+1760	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1768	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1772	diff	erased_narrow_return_type	pc 40 push_constant_int: -1 -> 0
+1788	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+1795	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+1806	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+1812	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+1814	diff	erased_narrow_return_type	pc 42 push_constant_int: -1 -> 0
+1815	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+1825	diff	frame_metadata	locals 4i/1s/0l -> 4i/0s/0l; args 0i/0s/0l -> 0i/0s/0l
+1860	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+1862	diff	erased_narrow_return_type	pc 24 push_constant_int: -1 -> 0
+1863	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+1917	diff	mixed_instruction_shape	opcode edits: remove 0x2,3x34,6x4,8x2,33x2,36x3,37x3; add 0x2,3x34,6x4,8x2,33x2,36x3,37x3
+1935	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+1936	diff	control_flow_structure	opcode edits: remove none; add 6x1
+1942	diff	erased_narrow_return_type	pc 2 push_constant_int: -1 -> 0
+1968	diff	erased_narrow_return_type	pc 874 push_constant_int: -1 -> 0
+1969	diff	erased_narrow_return_type	pc 175 push_constant_int: -1 -> 0; plus 14 branch target(s)
+1979	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+2046	diff	frame_metadata	locals 36i/3s/0l -> 36i/2s/0l; args 21i/1s/0l -> 21i/1s/0l
+2068	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2080	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+2082	diff	erased_narrow_return_type	pc 2 push_constant_int: -1 -> 0
+2094	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2110	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2151	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+2163	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0
+2175	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+2200	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2228	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+2244	diff	string_segmentation	opcode edits: remove 3x1,37x1; add none
+2245	diff	control_flow_epilogue_shape	opcode edits: remove 3x1,21x1; add 3x2,6x1,21x2
+2259	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+2260	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2261	diff	erased_narrow_return_type	pc 31 push_constant_int: -1 -> 0
+2265	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+2277	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+2278	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+2279	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2288	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+2333	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2351	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0
+2357	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2360	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+2364	diff	epilogue_shape	opcode edits: remove 3x1,21x1; add none
+2373	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+2387	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+2414	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0
+2420	diff	mixed_instruction_shape	opcode edits: remove 0x3,3x4,33x16,40x4; add 0x3,3x4,6x1,33x16,40x4
+2431	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+2448	diff	erased_narrow_return_type	pc 47 push_constant_int: -1 -> 0; pc 48 push_constant_int: -1 -> 0
+2476	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+2480	diff	string_segmentation	opcode edits: remove 3x2,37x2; add none
+2481	diff	erased_narrow_return_type	pc 49 push_constant_int: -1 -> 0
+2482	diff	string_segmentation	opcode edits: remove 3x6,37x6; add none
+2492	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+2499	diff	erased_narrow_return_type	pc 62 push_constant_int: -1 -> 0
+2520	diff	erased_narrow_return_type	pc 154 push_constant_int: -1 -> 0
+2529	diff	erased_narrow_return_type	pc 62 push_constant_int: -1 -> 0
+2579	diff	control_flow_epilogue_shape	opcode edits: remove 3x1,21x1; add 3x1,6x1,21x1
+2611	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2614	diff	erased_narrow_return_type	pc 347 push_constant_int: -1 -> 0; pc 348 push_constant_int: -1 -> 0
+2619	diff	erased_narrow_return_type	pc 86 push_constant_int: -1 -> 0
+2620	diff	erased_narrow_return_type	pc 358 push_constant_int: -1 -> 0
+2625	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0; pc 23 push_constant_int: -1 -> 0; pc 24 push_constant_int: -1 -> 0
+2626	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+2627	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+2628	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2664	diff	erased_narrow_return_type	pc 707 push_constant_int: -1 -> 0
+2665	diff	branch_targets	pc 8 branch: 559 -> 561; pc 17 branch: 550 -> 552; pc 26 branch: 541 -> 543; and 41 more
+2669	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2670	diff	erased_narrow_return_type	pc 272 push_constant_int: -1 -> 0
+2671	diff	erased_narrow_return_type	pc 272 push_constant_int: -1 -> 0
+2681	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2741	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2759	diff	erased_narrow_return_type	pc 17 push_constant_int: -1 -> 0
+2786	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2820	diff	frame_metadata	locals 26i/3s/0l -> 26i/0s/0l; args 8i/0s/0l -> 8i/0s/0l
+2828	diff	branch_targets	pc 6 branch: 48 -> 50; pc 13 branch: 41 -> 43; pc 20 branch: 34 -> 36; and 4 more
+2829	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2862	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+2863	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+2871	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+2872	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+2891	diff	erased_narrow_return_type	pc 83 push_constant_int: -1 -> 0; pc 84 push_constant_int: -1 -> 0
+2959	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2960	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2961	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2962	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2963	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2964	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2965	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2966	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2968	diff	control_flow_structure	opcode edits: remove none; add 6x1
+2973	diff	branch_targets	pc 75 branch: 12 -> 16
+2976	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2978	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2981	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2983	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2987	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2989	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+2992	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+3067	diff	frame_metadata	locals 17i/1s/0l -> 17i/0s/0l; args 7i/0s/0l -> 7i/0s/0l
+3074	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3075	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3076	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3077	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3101	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+3103	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3104	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x6,6x1,21x1
+3105	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x6,6x1,21x1
+3106	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x6,6x1,21x1
+3107	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x6,6x1,21x1
+3108	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x6,6x1,21x1
+3113	diff	mixed_instruction_shape	opcode edits: remove 0x18,6x6,33x6,35x6,40x6,4001x6; add 0x18,6x6,33x6,35x6,40x6,4001x6
+3123	diff	branch_targets	pc 8 branch: 71 -> 73; pc 17 branch: 62 -> 64; pc 26 branch: 53 -> 55; and 5 more
+3159	diff	erased_narrow_return_type	pc 70 push_constant_int: -1 -> 0
+3160	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+3165	diff	erased_narrow_return_type	pc 181 push_constant_int: -1 -> 0
+3166	diff	mixed_instruction_shape	opcode edits: remove 33x2,34x1,4000x1; add 33x2,34x1,4000x1
+3197	diff	erased_narrow_return_type	pc 52 push_constant_int: -1 -> 0
+3204	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+3210	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3216	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+3235	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+3238	diff	erased_narrow_return_type	pc 111 push_constant_int: -1 -> 0
+3283	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+3297	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+3303	diff	mixed_instruction_shape	opcode edits: remove 3x1,35x1,36x1,40x1; add 37x1
+3309	diff	erased_narrow_return_type	pc 153 push_constant_int: -1 -> 0
+3310	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+3325	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+3362	diff	erased_narrow_return_type	pc 262 push_constant_int: -1 -> 0
+3435	diff	frame_metadata	locals 6i/2s/0l -> 6i/0s/0l; args 0i/0s/0l -> 0i/0s/0l
+3483	diff	mixed_instruction_shape	opcode edits: remove 0x4,3x7,6x1,33x13,40x6,2408x2; add 0x4,3x7,6x1,33x13,40x6,2408x2
+3509	diff	frame_metadata	locals 19i/2s/0l -> 19i/1s/0l; args 1i/1s/0l -> 1i/1s/0l
+3512	diff	branch_targets	pc 10 branch: 16 -> 18
+3516	diff	erased_narrow_return_type	pc 31 push_constant_int: -1 -> 0
+3535	diff	erased_narrow_return_type	pc 385 push_constant_int: -1 -> 0
+3536	diff	erased_narrow_return_type	pc 499 push_constant_int: -1 -> 0
+3537	diff	erased_narrow_return_type	pc 191 push_constant_int: -1 -> 0
+3581	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3582	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3588	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+3591	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+3612	diff	control_flow_structure	opcode edits: remove none; add 6x2
+3620	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3633	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3640	diff	control_flow_structure	opcode edits: remove none; add 6x2
+3646	diff	control_flow_structure	opcode edits: remove 6x1; add none
+3656	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3681	diff	erased_narrow_return_type	pc 53 push_constant_int: -1 -> 0
+3697	diff	branch_targets	pc 74 branch: 10 -> 12; pc 98 branch: 10 -> 12; pc 122 branch: 10 -> 12; and 5 more
+3699	diff	erased_narrow_return_type	pc 138 push_constant_int: -1 -> 0
+3719	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+3720	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+3741	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+3745	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3750	diff	control_flow_structure	opcode edits: remove none; add 6x1
+3780	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3781	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+3789	diff	other_operand_encoding	pc 33 push_constant_int: 9491 -> 9498; pc 36 push_constant_int: 9498 -> 9499; pc 39 push_constant_int: 9499 -> 9500; and 8 more; switch entries also differ; plus 1 branch target(s)
+3790	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,6x2,21x2; add 0x2,21x2
+3809	diff	erased_narrow_return_type	pc 170 push_constant_int: -1 -> 0
+3833	diff	erased_narrow_return_type	pc 56 push_constant_int: -1 -> 0
+3844	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0
+3880	diff	erased_narrow_return_type	pc 146 push_constant_int: -1 -> 0
+3910	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+3931	diff	erased_narrow_return_type	pc 27 push_constant_int: -1 -> 0
+3936	diff	frame_metadata	locals 2i/3s/0l -> 3i/3s/0l; args 0i/0s/0l -> 0i/0s/0l
+3937	diff	erased_narrow_return_type	pc 43 push_constant_int: -1 -> 0
+3955	diff	erased_narrow_return_type	pc 401 push_constant_int: -1 -> 0
+3956	diff	erased_narrow_return_type	pc 32 push_constant_int: -1 -> 0
+3957	diff	erased_narrow_return_type	pc 63 push_constant_int: -1 -> 0
+3958	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,6x2,21x2; add 0x2,6x2,21x2
+3959	diff	epilogue_shape	opcode edits: remove 0x1,21x1; add 0x1,21x1
+3961	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3962	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3963	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3964	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+3994	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+4014	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+4015	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+4024	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4025	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+4026	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+4028	diff	erased_narrow_return_type	pc 85 push_constant_int: -1 -> 0
+4031	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4032	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4043	diff	control_flow_return_shape	opcode edits: remove 6x2,21x2; add 21x2
+4052	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4053	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4072	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4073	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+4096	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+4102	diff	erased_narrow_return_type	pc 553 push_constant_int: -1 -> 0; plus 41 branch target(s)
+4103	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+4109	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+4128	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+4129	diff	erased_narrow_return_type	pc 24 push_constant_int: -1 -> 0
+4131	diff	erased_narrow_return_type	pc 50 push_constant_int: -1 -> 0
+4133	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,21x1; add 0x2,6x1,21x1
+4136	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+4138	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+4174	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x2,6x1,21x2
+4197	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+4202	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+4203	diff	erased_narrow_return_type	pc 156 push_constant_int: -1 -> 0
+4204	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+4221	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4232	diff	mixed_instruction_shape	opcode edits: remove 0x4,6x8,33x24,40x8; add 0x4,6x10,33x24,40x8
+4245	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+4288	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4302	diff	other_operand_encoding	pc 24 push_constant_int: 0 -> 10; pc 25 push_constant_int: 9 -> 19; pc 30 push_constant_int: 10 -> 20; and 53 more; switch entries also differ; plus 1 branch target(s)
+4303	diff	other_operand_encoding	pc 23 push_varbit: 12187 -> 12188; pc 26 push_varbit: 12188 -> 12189; pc 29 push_varbit: 12189 -> 12190; and 21 more; switch entries also differ; plus 1 branch target(s)
+4304	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4333	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4398	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4422	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4440	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+4481	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+4503	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+4505	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+4510	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+4511	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,21x1; add 0x2,6x1,21x1
+4512	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,21x1; add 0x2,6x1,21x1
+4547	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+4557	diff	erased_narrow_return_type	pc 182 push_constant_int: -1 -> 0
+4558	diff	erased_narrow_return_type	pc 201 push_constant_int: -1 -> 0
+4561	diff	erased_narrow_return_type	pc 246 push_constant_int: -1 -> 0
+4566	diff	erased_narrow_return_type	pc 146 push_constant_int: -1 -> 0
+4592	diff	branch_targets	pc 33 branch: 51 -> 60
+4666	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4684	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+4712	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+4714	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+4732	diff	erased_narrow_return_type	pc 60 push_constant_int: -1 -> 0
+4738	diff	erased_narrow_return_type	pc 210 push_constant_int: -1 -> 0
+4739	diff	erased_narrow_return_type	pc 207 push_constant_int: -1 -> 0
+4740	diff	erased_narrow_return_type	pc 204 push_constant_int: -1 -> 0
+4795	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+4798	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+4800	diff	frame_metadata	locals 36i/2s/0l -> 36i/1s/0l; args 13i/0s/0l -> 13i/0s/0l
+4819	diff	erased_narrow_return_type	pc 51 push_constant_int: -1 -> 0
+4824	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4865	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+4866	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+4956	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+4959	diff	erased_narrow_return_type	pc 50 push_constant_int: -1 -> 0
+4976	diff	mixed_instruction_shape	opcode edits: remove 0x8,21x1,33x1,100x1,1113x1,1114x1,1115x1; add none
+4978	diff	erased_narrow_return_type	pc 4 push_constant_int: -1 -> 0
+4979	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+4991	diff	control_flow_structure	opcode edits: remove none; add 6x1
+4992	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5015	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+5017	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+5018	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+5019	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+5020	diff	erased_narrow_return_type	pc 49 push_constant_int: -1 -> 0
+5021	diff	erased_narrow_return_type	pc 28 push_constant_int: -1 -> 0
+5022	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+5027	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+5028	diff	erased_narrow_return_type	pc 34 push_constant_int: -1 -> 0
+5033	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5034	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5039	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5040	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5045	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5046	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5051	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5052	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5057	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5058	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5063	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5064	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5069	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5070	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5073	diff	ignored_basic_operand	pc 0 _4124: 1 -> 0
+5079	diff	ignored_basic_operand	pc 3 _4123: 1 -> 0
+5080	diff	ignored_basic_operand	pc 4 _4123: 1 -> 0
+5081	diff	ignored_basic_operand	pc 3 _4123: 1 -> 0
+5082	diff	ignored_basic_operand	pc 4 _4123: 1 -> 0
+5083	diff	ignored_basic_operand	pc 7 _4123: 1 -> 0
+5102	diff	erased_narrow_return_type	pc 17 push_constant_int: -1 -> 0
+5109	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+5119	diff	branch_targets	pc 6 branch: 6 -> 8
+5135	diff	ignored_basic_operand	pc 3 _4123: 1 -> 0
+5136	diff	ignored_basic_operand	pc 4 _4123: 1 -> 0
+5215	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+5216	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+5217	diff	control_flow_epilogue_shape	opcode edits: remove 6x1; add 0x1,21x1
+5222	diff	branch_targets	pc 6 branch: 21 -> 23
+5227	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5234	diff	control_flow_structure	opcode edits: remove none; add 6x3
+5262	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+5272	diff	erased_narrow_return_type	pc 119 push_constant_int: -1 -> 0
+5305	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+5309	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+5314	diff	erased_narrow_return_type	pc 4 push_constant_int: -1 -> 0
+5315	diff	erased_narrow_return_type	pc 4 push_constant_int: -1 -> 0
+5333	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+5339	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0; plus 2 branch target(s)
+5353	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5357	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0
+5358	diff	erased_narrow_return_type	pc 57 push_constant_int: -1 -> 0
+5381	diff	erased_narrow_return_type	pc 24 push_constant_int: -1 -> 0
+5383	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5385	diff	erased_narrow_return_type	pc 170 push_constant_int: -1 -> 0
+5386	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5388	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5390	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5392	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5394	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5397	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5399	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5401	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5403	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5405	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5407	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5409	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5411	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5413	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5415	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5417	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5419	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5421	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5423	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5425	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5427	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5429	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5431	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5433	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5435	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5437	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5439	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5441	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5443	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5472	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5476	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5479	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5481	diff	mixed_instruction_shape	opcode edits: remove 0x2,203x2; add 0x2,38x2,202x2
+5482	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5483	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5501	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+5520	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+5529	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+5548	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+5556	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+5720	diff	mixed_instruction_shape	opcode edits: remove 0x155,3x30,6x30,33x90,1407x30; add 0x155,3x30,6x31,33x90,1407x30
+5732	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5733	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5739	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+5787	diff	epilogue_shape	opcode edits: remove none; add 0x2,21x1
+5788	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5791	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+5833	diff	control_flow_structure	opcode edits: remove 6x1; add none
+5847	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5848	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5849	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+5878	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+5892	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+5894	diff	erased_narrow_return_type	pc 33 push_constant_int: -1 -> 0
+5911	diff	erased_narrow_return_type	pc 108 push_constant_int: -1 -> 0
+5921	diff	erased_narrow_return_type	pc 54 push_constant_int: -1 -> 0
+5928	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5944	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5945	diff	control_flow_structure	opcode edits: remove none; add 6x1
+5946	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0
+5989	diff	erased_narrow_return_type	pc 102 push_constant_int: -1 -> 0
+5990	diff	erased_narrow_return_type	pc 44 push_constant_int: -1 -> 0
+5991	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+5992	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+5993	diff	erased_narrow_return_type	pc 155 push_constant_int: -1 -> 0
+5994	diff	erased_narrow_return_type	pc 105 push_constant_int: -1 -> 0
+6016	diff	erased_narrow_return_type	pc 28 push_constant_int: -1 -> 0
+6037	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+6042	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6045	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+6065	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+6074	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+6080	diff	mixed_instruction_shape	opcode edits: remove 0x202,1x8,3x14,6x39,7x13,8x16,10x3,21x1,33x125,34x105,37x2,38x4,40x24,100x1,1000x1,1001x1,1101x1,1112x1,1113x1,1114x1,1115x1,2100x1,2120x1,2427x1,2502x1,2503x2,2601x1,2604x1,3408x4,4000x22,4001x11,4002x10,4003x3,4011x3,4016x1,4017x1,4106x2; add 0x202,1x8,3x14,6x38,7x13,8x16,10x3,21x1,33x125,34x105,37x2,38x4,40x24,100x1,1000x1,1001x1,1101x1,1112x1,1113x1,1114x1,1115x1,2100x1,2120x1,2427x1,2502x1,2503x2,2601x1,2604x1,3408x4,4000x22,4001x11,4002x10,4003x3,4011x3,4016x1,4017x1,4106x2
+6087	diff	erased_narrow_return_type	pc 460 push_constant_int: -1 -> 0
+6099	diff	erased_narrow_return_type	pc 109 push_constant_int: -1 -> 0
+6100	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+6105	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6119	diff	branch_targets	pc 10 branch: 39 -> 41; pc 21 branch: 28 -> 30; pc 32 branch: 17 -> 19; and 1 more
+6146	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6152	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+6153	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+6154	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+6155	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+6173	diff	erased_narrow_return_type	pc 54 push_constant_int: -1 -> 0
+6189	diff	frame_metadata	locals 38i/1s/0l -> 38i/0s/0l; args 28i/0s/0l -> 28i/0s/0l
+6190	diff	frame_metadata	locals 17i/1s/0l -> 17i/0s/0l; args 14i/0s/0l -> 14i/0s/0l
+6202	diff	mixed_instruction_shape	opcode edits: remove 3x3,37x3; add 6x1
+6208	diff	frame_metadata	locals 38i/4s/0l -> 38i/0s/0l; args 4i/0s/0l -> 4i/0s/0l
+6263	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+6264	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+6268	diff	string_segmentation	opcode edits: remove 3x1; add none
+6269	diff	string_segmentation	opcode edits: remove 3x2; add none
+6270	diff	control_flow_epilogue_shape	opcode edits: remove 0x14,21x1; add 3x14,6x1,21x1
+6288	diff	mixed_instruction_shape	opcode edits: remove 3x5,33x4,37x3; add 3x2,33x4
+6306	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6311	diff	frame_metadata	locals 34i/2s/0l -> 34i/0s/0l; args 6i/0s/0l -> 6i/0s/0l
+6319	diff	frame_metadata	locals 14i/1s/0l -> 14i/0s/0l; args 4i/0s/0l -> 4i/0s/0l
+6325	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6335	diff	control_flow_epilogue_shape	opcode edits: remove 0x8,21x1; add 0x8,6x1,21x1
+6359	diff	erased_narrow_return_type	pc 216 push_constant_int: -1 -> 0
+6360	diff	erased_narrow_return_type	pc 488 push_constant_int: -1 -> 0
+6373	diff	epilogue_shape	opcode edits: remove 0x4; add 3x4
+6374	diff	erased_narrow_return_type	pc 256 push_constant_int: -1 -> 0
+6390	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+6391	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+6397	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+6419	diff	control_flow_epilogue_shape	opcode edits: remove 0x4,21x1; add 0x4,6x1,21x1
+6425	diff	erased_narrow_return_type	pc 93 push_constant_int: -1 -> 0
+6432	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6484	diff	erased_narrow_return_type	pc 197 push_constant_int: -1 -> 0
+6485	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+6524	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6536	diff	frame_metadata	locals 11i/2s/0l -> 11i/1s/0l; args 4i/0s/0l -> 4i/0s/0l
+6545	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+6551	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+6587	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+6593	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+6626	diff	mixed_instruction_shape	opcode edits: remove 3x2,21x1,35x1,37x1; add 3x2,6x1,21x1,35x1,37x1
+6647	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6649	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6650	diff	erased_narrow_return_type	pc 71 push_constant_int: -1 -> 0
+6652	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6653	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6654	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6655	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6658	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6664	diff	erased_narrow_return_type	pc 62 push_constant_int: -1 -> 0
+6668	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+6677	diff	mixed_instruction_shape	opcode edits: remove 0x1,203x1; add 0x1,38x1,202x1
+6679	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+6680	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+6716	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x2,6x1,21x2
+6723	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+6755	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0
+6759	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6794	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+6797	diff	erased_narrow_return_type	pc 62 push_constant_int: -1 -> 0
+6803	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+6806	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+6807	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+6809	diff	erased_narrow_return_type	pc 102 push_constant_int: -1 -> 0
+6810	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+6811	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+6812	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+6830	diff	erased_narrow_return_type	pc 46 push_constant_int: -1 -> 0
+6854	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6856	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+6859	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+6905	diff	mixed_instruction_shape	opcode edits: remove 0x2,6x1,21x1,2003x1; add 0x2,21x1,2003x1
+6906	diff	mixed_instruction_shape	opcode edits: remove 0x2,6x1,21x1,2003x1; add 0x2,21x1,2003x1
+6922	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+6924	diff	erased_narrow_return_type	pc 81 push_constant_int: -1 -> 0
+6930	diff	erased_narrow_return_type	pc 70 push_constant_int: -1 -> 0
+6941	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+6957	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+6958	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+6966	diff	control_flow_structure	opcode edits: remove none; add 6x1
+6981	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+6999	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+7008	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+7014	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7016	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7054	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+7056	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7104	diff	control_flow_structure	opcode edits: remove 6x1; add none
+7106	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7110	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+7121	diff	mixed_instruction_shape	opcode edits: remove 203x1; add 38x1,202x1
+7144	diff	erased_narrow_return_type	pc 601 push_constant_int: -1 -> 0
+7152	diff	mixed_instruction_shape	opcode edits: remove 6x1,21x1,33x2; add 21x1,33x2
+7167	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7168	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7178	diff	mixed_instruction_shape	opcode edits: remove 3931x1; add 3931x1
+7179	diff	control_flow_structure	opcode edits: remove 6x1; add none
+7180	diff	mixed_instruction_shape	opcode edits: remove 6x1,3931x1; add 3931x1
+7214	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+7225	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+7227	diff	frame_metadata	locals 26i/5s/0l -> 26i/0s/0l; args 1i/0s/0l -> 1i/0s/0l
+7228	diff	erased_narrow_return_type	pc 32 push_constant_int: -1 -> 0
+7232	diff	other_operand_encoding	pc 97 _103: 1 -> 0; pc 333 _103: 1 -> 0
+7235	diff	mixed_instruction_shape	opcode edits: remove 203x4; add 38x4,202x4
+7236	diff	mixed_instruction_shape	opcode edits: remove 3931x1; add 3931x1
+7238	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+7239	diff	mixed_instruction_shape	opcode edits: remove 3931x1; add 3931x1
+7240	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+7241	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0; plus 2 branch target(s)
+7242	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0; plus 2 branch target(s)
+7243	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0; plus 2 branch target(s)
+7254	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+7257	diff	branch_targets	pc 5 branch: 32 -> 34; pc 8 branch: 29 -> 31; pc 11 branch: 26 -> 28; and 8 more
+7259	diff	erased_narrow_return_type	pc 219 push_constant_int: -1 -> 0
+7263	diff	erased_narrow_return_type	pc 143 push_constant_int: -1 -> 0
+7264	diff	control_flow_structure	opcode edits: remove 6x1; add none
+7265	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+7266	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+7273	diff	mixed_instruction_shape	opcode edits: remove 6x1,8x1,33x2,34x1,60x1; add 6x1,8x1,33x2,34x1,60x1
+7281	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+7293	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+7295	diff	erased_narrow_return_type	pc 308 push_constant_int: -1 -> 0
+7300	diff	mixed_instruction_shape	opcode edits: remove 0x553,3x276,6x276,34x552,36x276; add 0x553,3x276,6x277,34x552,36x276
+7304	diff	erased_narrow_return_type	pc 662 push_constant_int: -1 -> 0
+7305	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7309	diff	erased_narrow_return_type	pc 33 push_constant_int: -1 -> 0
+7310	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+7315	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+7319	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+7320	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+7323	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+7324	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+7327	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+7328	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+7334	diff	erased_narrow_return_type	pc 186 push_constant_int: -1 -> 0
+7347	diff	erased_narrow_return_type	pc 117 push_constant_int: -1 -> 0
+7349	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+7350	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+7351	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7366	diff	erased_narrow_return_type	pc 97 push_constant_int: -1 -> 0
+7371	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+7372	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+7383	diff	erased_narrow_return_type	pc 40 push_constant_int: -1 -> 0
+7384	diff	erased_narrow_return_type	pc 32 push_constant_int: -1 -> 0
+7385	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+7413	diff	mixed_instruction_shape	opcode edits: remove 6x4,21x4,33x1,40x2; add 6x4,21x5,33x1,40x2
+7424	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7425	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7430	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+7443	diff	erased_narrow_return_type	pc 42 push_constant_int: -1 -> 0; plus 4 branch target(s)
+7514	diff	mixed_instruction_shape	opcode edits: remove 6x1,21x1,33x1; add 6x1,21x1,33x1
+7527	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+7530	diff	mixed_instruction_shape	opcode edits: remove 40x1; add 6x1,40x1
+7535	diff	mixed_instruction_shape	opcode edits: remove 40x1; add 6x1,40x1
+7542	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+7603	diff	erased_narrow_return_type	pc 115 push_constant_int: -1 -> 0; pc 118 push_constant_int: -1 -> 0; pc 121 push_constant_int: -1 -> 0; and 1 more
+7617	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7618	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7619	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7620	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7621	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7622	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7623	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7624	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7625	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7626	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7627	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7652	diff	branch_targets	pc 58 branch: 13 -> 15; pc 65 branch: 6 -> 8
+7653	diff	branch_targets	pc 11 branch: 23 -> 25; pc 23 branch: 11 -> 13
+7691	diff	erased_narrow_return_type	pc 95 push_constant_int: -1 -> 0
+7692	diff	erased_narrow_return_type	pc 60 push_constant_int: -1 -> 0
+7693	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7695	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+7698	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7705	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7709	diff	frame_metadata	locals 17i/2s/0l -> 17i/0s/0l; args 0i/0s/0l -> 0i/0s/0l
+7710	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+7716	diff	erased_narrow_return_type	pc 77 push_constant_int: -1 -> 0
+7736	diff	erased_narrow_return_type	pc 17 push_constant_int: -1 -> 0
+7754	diff	string_segmentation	opcode edits: remove 3x1; add none
+7774	diff	control_flow_structure	opcode edits: remove none; add 6x1
+7794	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+7795	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+7796	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+7800	diff	erased_narrow_return_type	pc 105 push_constant_int: -1 -> 0; pc 107 push_constant_int: -1 -> 0
+7823	diff	erased_narrow_return_type	pc 87 push_constant_int: -1 -> 0
+7824	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+7834	diff	branch_targets	pc 9 branch: 54 -> 56; pc 16 branch: 47 -> 49; pc 23 branch: 40 -> 42; and 5 more
+7856	diff	erased_narrow_return_type	pc 566 push_constant_int: -1 -> 0
+7863	diff	epilogue_shape	opcode edits: remove none; add 0x2,21x1
+7866	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+7867	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+7869	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0
+7889	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+7890	diff	erased_narrow_return_type	pc 4 push_constant_int: -1 -> 0
+7925	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+7934	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+7935	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+7936	diff	erased_narrow_return_type	pc 59 push_constant_int: -1 -> 0
+7937	diff	erased_narrow_return_type	pc 29 push_constant_int: -1 -> 0
+7953	diff	erased_narrow_return_type	pc 28 push_constant_int: -1 -> 0
+7958	diff	erased_narrow_return_type	pc 48 push_constant_int: -1 -> 0
+7983	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+7985	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+8025	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8026	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8027	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8028	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8029	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8030	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8031	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8032	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8033	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8034	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8043	diff	erased_narrow_return_type	pc 60 push_constant_int: -1 -> 0
+8046	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8047	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8051	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+8052	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+8053	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+8054	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+8055	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+8057	diff	string_segmentation	opcode edits: remove 3x2; add none
+8062	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+8075	diff	control_flow_epilogue_shape	opcode edits: remove 6x1; add 0x1,21x1
+8078	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+8091	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8117	diff	erased_narrow_return_type	pc 286 push_constant_int: -1 -> 0
+8120	diff	mixed_instruction_shape	opcode edits: remove 63x3; add 3x3
+8124	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+8140	diff	branch_targets	pc 15 branch: 2 -> 31
+8141	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8145	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0; pc 41 push_constant_int: -1 -> 0; pc 42 push_constant_int: -1 -> 0
+8161	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0; pc 38 push_constant_int: -1 -> 0
+8162	diff	erased_narrow_return_type	pc 4 push_constant_int: -1 -> 0; pc 5 push_constant_int: -1 -> 0
+8163	diff	erased_narrow_return_type	pc 279 push_constant_int: -1 -> 0; pc 280 push_constant_int: -1 -> 0
+8164	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0; pc 4 push_constant_int: -1 -> 0
+8173	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+8183	diff	erased_narrow_return_type	pc 44 push_constant_int: -1 -> 0
+8203	diff	mixed_instruction_shape	opcode edits: remove 0x1,6x1,21x1,33x1; add 0x1,21x1,33x1
+8204	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8206	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8207	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8208	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8210	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8211	diff	control_flow_return_shape	opcode edits: remove 6x1,21x1; add 21x1
+8214	diff	erased_narrow_return_type	pc 3 push_constant_int: -1 -> 0
+8215	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+8216	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+8225	diff	control_flow_epilogue_shape	opcode edits: remove 0x4,21x1; add 0x4,6x1,21x1
+8227	diff	mixed_instruction_shape	opcode edits: remove 0x4,21x1,42x4,4017x4; add 0x4,6x1,21x1,42x4,4017x4
+8243	diff	erased_narrow_return_type	pc 379 push_constant_int: -1 -> 0; pc 380 push_constant_int: -1 -> 0
+8244	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8245	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8246	diff	mixed_instruction_shape	opcode edits: remove 63x2; add 3x2
+8247	diff	erased_narrow_return_type	pc 9 push_constant_int: -1 -> 0
+8255	diff	erased_narrow_return_type	pc 62 push_constant_int: -1 -> 0
+8263	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x1,6x1,21x1
+8264	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x1,6x1,21x1
+8265	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x1,6x1,21x1
+8266	diff	control_flow_epilogue_shape	opcode edits: remove 0x1,21x1; add 0x1,6x1,21x1
+8267	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8268	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8271	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8272	diff	erased_narrow_return_type	pc 53 push_constant_int: -1 -> 0
+8276	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,33x1,37x1,40x1,4106x1; add 0x1,3x1,6x1,21x1,33x1,37x1,40x1,4106x1
+8277	diff	erased_narrow_return_type	pc 50 push_constant_int: -1 -> 0
+8280	diff	mixed_instruction_shape	opcode edits: remove 0x53,6x104,8x52,21x53,25x52,27x52,33x104; add 0x54,6x105,8x52,21x54,25x52,27x52,33x104
+8281	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+8282	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x2,21x1,33x1,37x1,40x1,4106x1; add 0x1,3x2,6x1,21x1,33x1,37x1,40x1,4106x1
+8284	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+8290	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,33x1,37x1,40x1,4106x1; add 0x1,3x1,6x1,21x1,33x1,37x1,40x1,4106x1
+8291	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,33x1,37x1,40x1,4106x1; add 0x1,3x1,6x1,21x1,33x1,37x1,40x1,4106x1
+8292	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+8293	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+8296	diff	erased_narrow_return_type	pc 65 push_constant_int: -1 -> 0
+8297	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+8298	diff	erased_narrow_return_type	pc 2 push_constant_int: -1 -> 0
+8305	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+8306	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0
+8307	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+8308	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+8309	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+8316	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+8364	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+8369	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+8384	diff	redundant_return_elision	opcode edits: remove 21x1; add none
+8389	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8392	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8417	diff	erased_narrow_return_type	pc 6 push_constant_int: -1 -> 0
+8418	diff	erased_narrow_return_type	pc 6 push_constant_int: -1 -> 0
+8424	diff	frame_metadata	locals 20i/5s/0l -> 20i/4s/0l; args 7i/3s/0l -> 7i/3s/0l
+8437	diff	mixed_instruction_shape	opcode edits: remove 38x1,63x1; add 3x1
+8466	diff	frame_metadata	locals 10i/2s/0l -> 10i/1s/0l; args 0i/0s/0l -> 0i/0s/0l
+8468	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8469	diff	epilogue_shape	opcode edits: remove none; add 0x3,21x1
+8476	diff	mixed_instruction_shape	opcode edits: remove 3x2,6x1,21x1,40x1; add 3x2,21x1,40x1
+8491	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8564	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+8567	diff	control_flow_epilogue_shape	opcode edits: remove none; add 3x1,6x1,21x1
+8584	diff	erased_narrow_return_type	pc 36 push_constant_int: -1 -> 0
+8602	diff	erased_narrow_return_type	pc 5 push_constant_int: -1 -> 0
+8606	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8611	diff	erased_narrow_return_type	pc 38 push_constant_int: -1 -> 0
+8613	diff	erased_narrow_return_type	pc 85 push_constant_int: -1 -> 0
+8662	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0; pc 27 push_constant_int: -1 -> 0
+8690	diff	string_literal_encoding	pc 81 push_constant_string: "iiiiiWii" -> "iiiiisii"
+8703	diff	erased_narrow_return_type	pc 112 push_constant_int: -1 -> 0
+8730	diff	erased_narrow_return_type	pc 747 push_constant_int: -1 -> 0
+8732	diff	erased_narrow_return_type	pc 894 push_constant_int: -1 -> 0
+8733	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+8734	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+8737	diff	erased_narrow_return_type	pc 81 push_constant_int: -1 -> 0
+8752	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8754	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8756	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8761	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+8762	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+8763	diff	erased_narrow_return_type	pc 31 push_constant_int: -1 -> 0
+8764	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+8765	diff	erased_narrow_return_type	pc 296 push_constant_int: -1 -> 0
+8773	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8774	diff	epilogue_shape	opcode edits: remove 0x1; add 3x1
+8775	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+8781	diff	frame_metadata	locals 25i/2s/0l -> 25i/1s/0l; args 14i/0s/0l -> 14i/0s/0l
+8797	diff	mixed_instruction_shape	opcode edits: remove 3x2,21x1,33x2,37x1,40x1,4106x1; add 3x2,6x1,21x1,33x2,37x1,40x1,4106x1
+8806	diff	erased_narrow_return_type	pc 74 push_constant_int: -1 -> 0
+8808	diff	erased_narrow_return_type	pc 141 push_constant_int: -1 -> 0
+8812	diff	frame_metadata	locals 17i/2s/0l -> 17i/1s/0l; args 0i/0s/0l -> 0i/0s/0l
+8816	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8817	diff	erased_narrow_return_type	pc 129 push_constant_int: -1 -> 0
+8826	diff	erased_narrow_return_type	pc 257 push_constant_int: -1 -> 0
+8835	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+8839	diff	erased_narrow_return_type	pc 105 push_constant_int: -1 -> 0
+8840	diff	erased_narrow_return_type	pc 40 push_constant_int: -1 -> 0; pc 42 push_constant_int: -1 -> 0
+8859	diff	erased_narrow_return_type	pc 155 push_constant_int: -1 -> 0
+8862	diff	erased_narrow_return_type	pc 19 push_constant_int: -1 -> 0; pc 20 push_constant_int: -1 -> 0
+8867	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8868	diff	erased_narrow_return_type	pc 67 push_constant_int: -1 -> 0
+8869	diff	mixed_instruction_shape	opcode edits: remove 1x1; add 0x1
+8873	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8887	diff	erased_narrow_return_type	pc 49 push_constant_int: -1 -> 0
+8896	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8899	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+8906	diff	erased_narrow_return_type	pc 17 push_constant_int: -1 -> 0
+8907	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8924	diff	erased_narrow_return_type	pc 33 push_constant_int: -1 -> 0
+8928	diff	erased_narrow_return_type	pc 98 push_constant_int: -1 -> 0
+8930	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0; pc 21 push_constant_int: -1 -> 0; pc 22 push_constant_int: -1 -> 0
+8931	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+8934	diff	erased_narrow_return_type	pc 12 push_constant_int: -1 -> 0
+8935	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+8936	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+8938	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+8942	diff	erased_narrow_return_type	pc 268 push_constant_int: -1 -> 0
+8943	diff	erased_narrow_return_type	pc 232 push_constant_int: -1 -> 0
+8948	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8949	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8950	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8951	diff	control_flow_structure	opcode edits: remove none; add 6x1
+8963	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0
+8964	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+8965	diff	erased_narrow_return_type	pc 27 push_constant_int: -1 -> 0
+8966	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+8967	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+8968	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+8975	diff	erased_narrow_return_type	pc 40 push_constant_int: -1 -> 0
+8976	diff	erased_narrow_return_type	pc 37 push_constant_int: -1 -> 0
+8977	diff	erased_narrow_return_type	pc 27 push_constant_int: -1 -> 0
+8980	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+8982	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8983	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8985	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8986	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8987	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8988	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8989	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8990	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8991	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8992	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8993	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8994	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8995	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+8996	diff	erased_narrow_return_type	pc 7 push_constant_int: -1 -> 0
+8997	diff	control_flow_structure	opcode edits: remove 6x1; add none
+9004	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,40x1; add none
+9005	diff	mixed_instruction_shape	opcode edits: remove 0x3,3x3,21x1,33x1,37x1,40x1,4001x1,4106x2; add 0x3,3x3,6x1,21x1,33x1,37x1,40x1,4001x1,4106x2
+9006	diff	mixed_instruction_shape	opcode edits: remove 0x3,3x3,21x1,33x1,37x1,40x1,4001x1,4106x2; add 0x3,3x3,6x1,21x1,33x1,37x1,40x1,4001x1,4106x2
+9010	diff	erased_narrow_return_type	pc 22 push_constant_int: -1 -> 0
+9018	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+9019	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+9021	diff	branch_targets	pc 9 branch: 20 -> 22; pc 16 branch: 13 -> 15; pc 23 branch: 6 -> 8
+9022	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+9025	diff	erased_narrow_return_type	pc 46 push_constant_int: -1 -> 0
+9026	diff	erased_narrow_return_type	pc 54 push_constant_int: -1 -> 0
+9027	diff	erased_narrow_return_type	pc 91 push_constant_int: -1 -> 0
+9028	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9029	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+9030	diff	erased_narrow_return_type	pc 328 push_constant_int: -1 -> 0
+9033	diff	erased_narrow_return_type	pc 24 push_constant_int: -1 -> 0
+9034	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,3x4,21x2; add 0x2,3x4,6x1,21x2
+9035	diff	erased_narrow_return_type	pc 35 push_constant_int: -1 -> 0
+9036	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+9038	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9039	diff	erased_narrow_return_type	pc 43 push_constant_int: -1 -> 0
+9040	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9041	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9043	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+9044	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+9045	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+9046	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,40x1; add 6x1
+9047	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x1,21x1,40x1; add 6x1
+9048	diff	mixed_instruction_shape	opcode edits: remove 3x1,21x1,33x1,40x1; add 6x1
+9050	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+9051	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+9059	diff	erased_narrow_return_type	pc 67 push_constant_int: -1 -> 0
+9061	diff	erased_narrow_return_type	pc 66 push_constant_int: -1 -> 0
+9063	diff	erased_narrow_return_type	pc 67 push_constant_int: -1 -> 0
+9064	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9066	diff	erased_narrow_return_type	pc 42 push_constant_int: -1 -> 0
+9067	diff	erased_narrow_return_type	pc 93 push_constant_int: -1 -> 0
+9069	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9070	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9071	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9072	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9073	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9074	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9075	diff	erased_narrow_return_type	pc 127 push_constant_int: -1 -> 0
+9077	diff	erased_narrow_return_type	pc 27 push_constant_int: -1 -> 0
+9078	diff	epilogue_shape	opcode edits: remove 0x1,21x1; add none
+9081	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9082	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9088	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9089	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9093	diff	erased_narrow_return_type	pc 71 push_constant_int: -1 -> 0; pc 72 push_constant_int: -1 -> 0; pc 73 push_constant_int: -1 -> 0; and 2 more
+9094	diff	erased_narrow_return_type	pc 51 push_constant_int: -1 -> 0
+9095	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+9098	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9099	diff	erased_narrow_return_type	pc 31 push_constant_int: -1 -> 0
+9101	diff	erased_narrow_return_type	pc 11 push_constant_int: -1 -> 0
+9102	diff	erased_narrow_return_type	pc 34 push_constant_int: -1 -> 0
+9104	diff	erased_narrow_return_type	pc 243 push_constant_int: -1 -> 0
+9105	diff	erased_narrow_return_type	pc 13 push_constant_int: -1 -> 0
+9109	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+9115	diff	erased_narrow_return_type	pc 178 push_constant_int: -1 -> 0
+9120	diff	branch_targets	pc 23 branch: 22 -> 30
+9130	diff	hook_descriptor_normalization	pc 5 push_constant_string: "iiiX" -> "iiis"
+9136	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9137	diff	erased_narrow_return_type	pc 71 push_constant_int: -1 -> 0
+9138	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+9148	diff	branch_targets	pc 6 branch: 31 -> 33; pc 17 branch: 20 -> 22; pc 27 branch: 10 -> 12
+9151	diff	string_segmentation	opcode edits: remove 3x10,37x3; add none
+9152	diff	string_segmentation	opcode edits: remove 3x34,37x7; add none
+9153	diff	mixed_instruction_shape	opcode edits: remove 0x2,3x50,37x9,40x1,46x1; add 0x2,40x1,46x1
+9154	diff	string_segmentation	opcode edits: remove 3x40,37x4; add none
+9155	diff	string_segmentation	opcode edits: remove 3x57,37x12; add none
+9156	diff	string_segmentation	opcode edits: remove 3x32,37x7; add none
+9157	diff	string_segmentation	opcode edits: remove 3x44,37x8; add none
+9158	diff	string_segmentation	opcode edits: remove 3x23,37x3; add none
+9159	diff	string_segmentation	opcode edits: remove 3x25,37x3; add none
+9160	diff	string_segmentation	opcode edits: remove 3x66,37x10; add none
+9161	diff	string_segmentation	opcode edits: remove 3x22,37x3; add none
+9162	diff	string_segmentation	opcode edits: remove 3x42,37x14; add none
+9163	diff	string_segmentation	opcode edits: remove 3x44,37x9; add none
+9164	diff	string_segmentation	opcode edits: remove 3x32,37x5; add none
+9165	diff	string_segmentation	opcode edits: remove 3x25,37x3; add none
+9166	diff	string_segmentation	opcode edits: remove 3x27,37x2; add none
+9167	diff	string_segmentation	opcode edits: remove 3x36,37x9; add none
+9168	diff	string_segmentation	opcode edits: remove 3x16,37x3; add none
+9169	diff	mixed_instruction_shape	opcode edits: remove 0x3,3x67,37x10,40x1,46x2; add 0x3,40x1,46x2
+9170	diff	string_segmentation	opcode edits: remove 3x13,37x2; add none
+9171	diff	string_segmentation	opcode edits: remove 3x50,37x8; add none
+9172	diff	string_segmentation	opcode edits: remove 3x28,37x7; add none
+9173	diff	string_segmentation	opcode edits: remove 3x6,37x2; add none
+9174	diff	string_segmentation	opcode edits: remove 3x52,37x9; add none
+9176	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+9191	diff	string_segmentation	opcode edits: remove 3x2; add none
+9192	diff	epilogue_shape	opcode edits: remove none; add 0x2,21x1
+9193	diff	epilogue_shape	opcode edits: remove none; add 0x2,21x1
+9195	diff	epilogue_shape	opcode edits: remove 0x4; add 3x4
+9213	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+9215	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9219	diff	frame_metadata	locals 12i/1s/0l -> 12i/0s/0l; args 1i/0s/0l -> 1i/0s/0l
+9291	diff	erased_narrow_return_type	pc 45 push_constant_int: -1 -> 0
+9303	diff	erased_narrow_return_type	pc 26 push_constant_int: -1 -> 0
+9304	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9305	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9306	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9307	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+9308	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9309	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9310	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+9311	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9312	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9313	diff	erased_narrow_return_type	pc 20 push_constant_int: -1 -> 0
+9314	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9315	diff	erased_narrow_return_type	pc 23 push_constant_int: -1 -> 0
+9316	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9318	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9320	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9335	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+9336	diff	erased_narrow_return_type	pc 8 push_constant_int: -1 -> 0
+9348	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9350	diff	erased_narrow_return_type	pc 41 push_constant_int: -1 -> 0
+9352	diff	erased_narrow_return_type	pc 123 push_constant_int: -1 -> 0
+9368	diff	erased_narrow_return_type	pc 53 push_constant_int: -1 -> 0
+9370	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9384	diff	erased_narrow_return_type	pc 17 push_constant_int: -1 -> 0
+9385	diff	erased_narrow_return_type	pc 65 push_constant_int: -1 -> 0
+9391	diff	erased_narrow_return_type	pc 18 push_constant_int: -1 -> 0
+9392	diff	control_flow_epilogue_shape	opcode edits: remove 0x8,21x2; add 0x8,6x1,21x2
+9393	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+9394	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+9395	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9396	diff	erased_narrow_return_type	pc 2 push_constant_int: -1 -> 0
+9416	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9420	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+9429	diff	string_segmentation	opcode edits: remove 3x8; add none
+9440	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+9444	diff	redundant_return_elision	opcode edits: remove none; add 21x1
+9448	diff	control_flow_structure	opcode edits: remove 6x1; add none
+9450	diff	erased_narrow_return_type	pc 10 push_constant_int: -1 -> 0
+9452	diff	erased_narrow_return_type	pc 21 push_constant_int: -1 -> 0
+9455	diff	erased_narrow_return_type	pc 66 push_constant_int: -1 -> 0
+9456	diff	erased_narrow_return_type	pc 70 push_constant_int: -1 -> 0
+9457	diff	mixed_instruction_shape	opcode edits: remove 0x1,3x3,21x1,33x2,37x1,40x1,4106x2; add 0x1,3x3,6x1,21x1,33x2,37x1,40x1,4106x2
+9458	diff	epilogue_shape	opcode edits: remove 0x1,21x1; add none
+9460	diff	mixed_instruction_shape	opcode edits: remove 63x1; add 3x1
+9462	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9463	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+9464	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+9466	diff	erased_narrow_return_type	pc 48 push_constant_int: -1 -> 0
+9469	diff	erased_narrow_return_type	pc 30 push_constant_int: -1 -> 0
+9470	diff	mixed_instruction_shape	opcode edits: remove 1x62,6x62,21x62,33x62,4010x62; add 1x62,6x63,21x62,33x62,4010x62
+9474	diff	string_segmentation	opcode edits: remove 3x2; add none
+9477	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+9478	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+9479	diff	erased_narrow_return_type	pc 15 push_constant_int: -1 -> 0
+9482	diff	erased_narrow_return_type	pc 27 push_constant_int: -1 -> 0
+9487	diff	branch_targets	pc 5 branch: 41 -> 43; pc 8 branch: 38 -> 40; pc 11 branch: 35 -> 37; and 10 more
+9526	diff	frame_metadata	locals 1i/3s/0l -> 3i/3s/0l; args 1i/3s/0l -> 1i/3s/0l
+9535	diff	erased_narrow_return_type	pc 14 push_constant_int: -1 -> 0
+9551	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9552	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9553	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9554	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9555	diff	erased_narrow_return_type	pc 144 push_constant_int: -1 -> 0
+9561	diff	frame_metadata	locals 2i/3s/0l -> 3i/3s/0l; args 2i/0s/0l -> 2i/0s/0l
+9564	diff	control_flow_epilogue_shape	opcode edits: remove 0x2,21x2; add 0x2,6x1,21x2
+9566	diff	erased_narrow_return_type	pc 58 push_constant_int: -1 -> 0
+9567	diff	mixed_instruction_shape	opcode edits: remove 4223x1; add 4223x1
+9568	diff	string_segmentation	opcode edits: remove 3x1; add none
+9569	diff	control_flow_structure	opcode edits: remove none; add 6x1
+9570	diff	epilogue_shape	opcode edits: remove none; add 0x1,21x1
+9575	diff	frame_metadata	locals 4i/3s/0l -> 4i/2s/0l; args 1i/0s/0l -> 1i/0s/0l
+9613	diff	erased_narrow_return_type	pc 33 push_constant_int: -1 -> 0
+9648	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9666	diff	erased_narrow_return_type	pc 28 push_constant_int: -1 -> 0
+9689	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9693	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9695	diff	erased_narrow_return_type	pc 39 push_constant_int: -1 -> 0
+9697	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9699	diff	erased_narrow_return_type	pc 28 push_constant_int: -1 -> 0
+9701	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9703	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9706	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9708	diff	control_flow_structure	opcode edits: remove 6x1; add none
+9710	diff	control_flow_epilogue_shape	opcode edits: remove none; add 0x1,6x1,21x1
+9712	diff	erased_narrow_return_type	pc 16 push_constant_int: -1 -> 0
+9713	diff	branch_targets	pc 28 branch: 12 -> 16
+9714	diff	control_flow_structure	opcode edits: remove 6x1; add none
+9716	diff	erased_narrow_return_type	pc 25 push_constant_int: -1 -> 0
+9723	diff	redundant_return_elision	opcode edits: remove 21x1; add none

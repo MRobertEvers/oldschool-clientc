@@ -2128,6 +2128,11 @@ struct Mock230Player
     /** Packed zone this client was last in, or -1. */
     int zone_index;
 
+    /** The song this client is currently being played, or -1. Held so entering
+     *  a second map square that maps to the same track does not restart it --
+     *  a track restarting every 64 tiles is the tell that this is missing. */
+    int music_track;
+
     /*
      * ── The two coordinate latches `updateMap` holds ─────────────────
      *
@@ -4724,6 +4729,17 @@ mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms);
 /** Revision-adapted MIDI_SONG; rev 239 writes the 10-byte V2 envelope. */
+void
+mock230_send_ambientsound_start(
+    struct Mock230Player* player,
+    int id,
+    int fade);
+
+void
+mock230_send_ambientsound_stop(
+    struct Mock230Player* player,
+    int fade);
+
 void
 mock230_send_midi_song(
     struct Mock230Player* player,

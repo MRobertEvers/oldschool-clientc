@@ -357,18 +357,16 @@ cs2_find_array_args_calls(struct cs2_dfa* dfa, int script_id)
 static void
 cs2_find_array_args(struct cs2_dfa* dfa, struct RSCache_CS2_Function* function)
 {
-    bool has_int_arg = false;
-    for( int i = 0; i < function->arguments.count; i++ )
-    {
-        struct RSCache_CS2_Variable* variable =
-            (struct RSCache_CS2_Variable*)function->arguments.items[i];
-        if( RSCache_CS2_VarStackType(variable->kind) == RSCACHE_CS2_STACK_INT )
-        {
-            has_int_arg = true;
-            break;
-        }
-    }
-    if( !has_int_arg )
+    /* Array handles are string-bank arguments in rev 239 (script465 is the
+     * recursive witness). Merely reading array slot 0 is not enough: script8367
+     * has one ordinary int argument and independently reads the VM's array slot
+     * 0, so the old `has any int argument` test fused two unrelated slots and
+     * rewrote its trailer from 1i/0s to 0i/1s. Argument ordering has already run
+     * above, placing a real array handle first. */
+    if( function->arguments.count == 0 ||
+        RSCache_CS2_VarStackType(
+            ((struct RSCache_CS2_Variable*)function->arguments.items[0])->kind) !=
+            RSCACHE_CS2_STACK_STRING )
         return;
 
     for( struct RSCache_CS2_Insn* insn = function->instructions.first; insn; insn = insn->next )

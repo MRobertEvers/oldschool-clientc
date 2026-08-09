@@ -143,6 +143,19 @@ CreateTask_Dat2HitsplatLoad(
     struct CacheProvider* provider,
     struct RS_Hitsplats* hitsplats);
 
+/*
+ * Ambient soundscapes (config group 15), whole-group and eager.
+ *
+ * An OldSchool 231+ type; a cache without the group leaves the table empty,
+ * which the audio layer reads as "AMBIENTSOUND_START ids are sound-effect ids
+ * on this revision".
+ */
+struct RS_Soundscapes;
+struct ToriRS_Task*
+CreateTask_Dat2SoundscapeLoad(
+    struct CacheProvider* provider,
+    struct RS_Soundscapes* soundscapes);
+
 struct ToriRS_Task*
 CreateTask_Dat2ParamLoad(
     struct CacheProvider* provider,

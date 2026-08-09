@@ -1,5 +1,7 @@
 #include "rs_audio.h"
 
+#include "rs_soundscape.h"
+
 #include "audio/torirs_mixer.h"
 #include "engine/cache_provider.h"
 #include "task_runner.h"
@@ -616,6 +618,14 @@ area_rand(struct RS_AudioAreaVoice* voice)
     return voice->rng >> 16;
 }
 
+/** The same, for a soundscape's random sets. */
+static uint32_t
+ambient_rand(struct RS_AudioAmbientSet* set)
+{
+    set->rng = set->rng * 1664525u + 1013904223u;
+    return set->rng >> 16;
+}
+
 static void
 stop_area_stream(
     int* voice_id,
@@ -973,21 +983,35 @@ tick_area_sounds(
 /* --- the region's background bed ------------------------------------------ */
 
 void
+RS_Audio_SetSoundscapes(
+    struct RS_Audio* audio,
+    struct RS_Soundscapes const* soundscapes)
+{
+    if( !audio )
+        return;
+    audio->soundscapes = soundscapes;
+    /* A bed already playing was resolved against the old table -- which, at
+     * boot, is the empty one. Re-resolve it rather than leaving the region
+     * humming the fallback for as long as the player stays in it. */
+    audio->ambient_started = false;
+}
+
+void
 RS_Audio_SetAmbient(
     struct RS_Audio* audio,
-    int sound_id,
+    int id,
     int fade_ms)
 {
     if( !audio )
         return;
-    if( audio->ambient_sound_id == sound_id )
+    if( audio->ambient_sound_id == id )
         return;
-    audio->ambient_sound_id = sound_id;
+    audio->ambient_sound_id = id;
     audio->ambient_fade_ms = fade_ms;
-    /* Clear the started flag so the tick re-acquires: the clip may not be
+    /* Clear the started flag so the tick re-acquires: the clips may not be
      * resident yet, and the tick is where loads are requested. */
     audio->ambient_started = false;
-    AUDIO_TRACE("rs_audio: ambient bed %d (fade %dms)\n", sound_id, fade_ms);
+    AUDIO_TRACE("rs_audio: ambient soundscape %d (fade %dms)\n", id, fade_ms);
 }
 
 /**
@@ -998,6 +1022,85 @@ RS_Audio_SetAmbient(
  * both, which is how the reference's "area sound" slider behaves.
  */
 static void
+stop_ambient_streams(
+    struct RS_Audio* audio,
+    struct ToriRS_AudioQueue* out)
+{
+    stop_area_stream(&audio->ambient_legacy_voice_id, out, audio->ambient_fade_ms);
+    for( int i = 0; i < audio->ambient_loop_count; i++ )
+        stop_area_stream(&audio->ambient_loop_voice_id[i], out, audio->ambient_fade_ms);
+    audio->ambient_loop_count = 0;
+    audio->ambient_set_count = 0;
+}
+
+/**
+ * Bind the soundscape record `id` names, or fall back to the legacy reading.
+ *
+ * Returns true when a soundscape was bound. False means either "no table" (a
+ * cache older than OldSchool 231) or "no such record", and both take the
+ * pre-231 path: the id is a sound-effect id and the bed is that one clip
+ * looping.
+ */
+static bool
+bind_ambient_soundscape(
+    struct RS_Audio* audio,
+    int id)
+{
+    const struct RS_Soundscape* scape = RS_Soundscapes_Get(audio->soundscapes, id);
+
+    if( !scape )
+        return false;
+
+    audio->ambient_loop_count =
+        scape->loop_count < RS_AUDIO_MAX_AMBIENT_LOOPS ? scape->loop_count
+                                                       : RS_AUDIO_MAX_AMBIENT_LOOPS;
+    for( int i = 0; i < audio->ambient_loop_count; i++ )
+    {
+        audio->ambient_loop_sound_id[i] = scape->loop_ids[i];
+        audio->ambient_loop_voice_id[i] = 0;
+    }
+
+    audio->ambient_set_count =
+        scape->set_count < RS_AUDIO_MAX_AMBIENT_SETS ? scape->set_count
+                                                     : RS_AUDIO_MAX_AMBIENT_SETS;
+    for( int i = 0; i < audio->ambient_set_count; i++ )
+    {
+        struct RS_AudioAmbientSet* set = &audio->ambient_sets[i];
+        set->ids = scape->sets[i].ids;
+        set->id_count = scape->sets[i].id_count;
+        /* The cache states the gap in milliseconds; the tick is 20ms. */
+        set->ticks_min = scape->sets[i].min_ms / 20;
+        set->ticks_max = scape->sets[i].max_ms / 20;
+        /* Seeded per (soundscape, set) so the sets do not fire in lockstep and
+         * the same region sounds the same on a headless replay. */
+        set->rng = (uint32_t)(id * 2654435761u) ^ (uint32_t)((i + 1) * 40503u);
+        /* Staggered first fire: without this every set in a soundscape speaks
+         * on the tick the region loads, which is the one moment they should
+         * not all speak at once. */
+        set->ticks_until_next =
+            set->ticks_min +
+            (set->ticks_max > set->ticks_min
+                 ? (int)(ambient_rand(set) % (uint32_t)(set->ticks_max - set->ticks_min))
+                 : 0);
+    }
+
+    if( scape->fade_in_ms > 0 )
+        audio->ambient_fade_ms = scape->fade_in_ms;
+    return true;
+}
+
+/**
+ * The region's background bed.
+ *
+ * Unpositioned and unattenuated -- it is the region's bed, not a thing standing
+ * somewhere. It shares the area bus with the loc emitters so one setting covers
+ * both, which is how the reference's "area sound" slider behaves.
+ *
+ * Unlike the loc emitters this runs every tick rather than once: a soundscape's
+ * random sets each have their own countdown, and a loop whose clip was not yet
+ * resident has to be retried.
+ */
+static void
 tick_ambient_bed(
     struct RS_Audio* audio,
     struct CacheProvider* provider,
@@ -1006,52 +1109,122 @@ tick_ambient_bed(
     struct ToriRS_AudioQueue* out)
 {
     struct ToriRS_AudioCommand command;
-    struct ToriDraw_Sound* sound;
 
-    if( audio->ambient_started )
+    /* A new id: tear the old bed down and resolve the new one, once. */
+    if( !audio->ambient_started )
+    {
+        stop_ambient_streams(audio, out);
+        audio->ambient_started = true;
+        if( audio->ambient_sound_id < 0 )
+            return;
+        if( !bind_ambient_soundscape(audio, audio->ambient_sound_id) )
+        {
+            /* Pre-231 reading: the id is one looping sound effect. Modelled as a
+             * single-loop soundscape so the drive loop below is the only place
+             * that starts a voice. */
+            audio->ambient_loop_count = 1;
+            audio->ambient_loop_sound_id[0] = audio->ambient_sound_id;
+            audio->ambient_loop_voice_id[0] = 0;
+            audio->ambient_set_count = 0;
+        }
+        AUDIO_TRACE(
+            "rs_audio: ambient bed %d -> %d loops, %d sets\n",
+            audio->ambient_sound_id,
+            audio->ambient_loop_count,
+            audio->ambient_set_count);
+    }
+
+    if( audio->ambient_sound_id < 0 )
         return;
 
-    /* Stop whatever bed is playing when the id changes or clears. */
-    if( audio->ambient_voice_id > 0 && out )
+    /* --- the continuous loops --- */
+    for( int i = 0; i < audio->ambient_loop_count; i++ )
     {
-        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_STOP);
-        command.voice_id = audio->ambient_voice_id;
+        struct ToriDraw_Sound* sound;
+
+        if( audio->ambient_loop_voice_id[i] > 0 )
+            continue;
+        sound = publish_sound(audio, provider, scene, out, audio->ambient_loop_sound_id[i]);
+        if( !sound )
+        {
+            if( provider && runner )
+            {
+                struct ToriRS_Task* task =
+                    CreateTask_SoundLoad(provider, audio->ambient_loop_sound_id[i]);
+                if( task )
+                    ToriRS_TaskQueue_Add(runner->queue, task);
+            }
+            continue; /* try again next tick */
+        }
+        if( !out )
+            continue;
+
+        audio->ambient_loop_voice_id[i] = next_voice_id(audio);
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+        command.asset_id = audio->ambient_loop_sound_id[i];
+        command.voice_id = audio->ambient_loop_voice_id[i];
+        command.bus = TORIRS_AUDIO_BUS_AREA;
+        command.volume = TORIRS_AUDIO_VOLUME_MAX;
+        command.pan = TORIRS_AUDIO_PAN_CENTRE;
+        command.loop_count = -1;
+        command.source_id = audio->ambient_loop_sound_id[i];
         command.fade_ms = audio->ambient_fade_ms;
         ToriRS_AudioQueue_Push(out, &command);
-        audio->ambient_voice_id = 0;
-    }
-    if( audio->ambient_sound_id < 0 )
-    {
-        audio->ambient_started = true;
-        return;
+        AUDIO_TRACE("rs_audio: ambient loop %d playing\n", audio->ambient_loop_sound_id[i]);
     }
 
-    sound = publish_sound(audio, provider, scene, out, audio->ambient_sound_id);
-    if( !sound )
+    /* --- the timed random sets --- */
+    for( int i = 0; i < audio->ambient_set_count; i++ )
     {
-        if( provider && runner )
+        struct RS_AudioAmbientSet* set = &audio->ambient_sets[i];
+        struct ToriDraw_Sound* sound;
+        int pick;
+
+        if( set->id_count <= 0 || !set->ids )
+            continue;
+        if( set->ticks_until_next > 0 )
         {
-            struct ToriRS_Task* task = CreateTask_SoundLoad(provider, audio->ambient_sound_id);
-            if( task )
-                ToriRS_TaskQueue_Add(runner->queue, task);
+            set->ticks_until_next--;
+            continue;
         }
-        return; /* try again next tick */
-    }
-    if( !out )
-        return;
 
-    audio->ambient_voice_id = next_voice_id(audio);
-    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
-    command.asset_id = audio->ambient_sound_id;
-    command.voice_id = audio->ambient_voice_id;
-    command.bus = TORIRS_AUDIO_BUS_AREA;
-    command.volume = TORIRS_AUDIO_VOLUME_MAX;
-    command.pan = TORIRS_AUDIO_PAN_CENTRE;
-    command.loop_count = -1;
-    command.source_id = audio->ambient_sound_id;
-    ToriRS_AudioQueue_Push(out, &command);
-    audio->ambient_started = true;
-    AUDIO_TRACE("rs_audio: ambient bed %d playing\n", audio->ambient_sound_id);
+        /* Uniform over the list -- the format weights by *repeating* an id, so
+         * a set listing silence six times and a drip three times drips a third
+         * of the time. Weighting the pick as well would square that. */
+        pick = set->ids[ambient_rand(set) % (uint32_t)set->id_count];
+        sound = publish_sound(audio, provider, scene, out, pick);
+        if( !sound )
+        {
+            if( provider && runner )
+            {
+                struct ToriRS_Task* task = CreateTask_SoundLoad(provider, pick);
+                if( task )
+                    ToriRS_TaskQueue_Add(runner->queue, task);
+            }
+            continue;
+        }
+
+        {
+            int span = set->ticks_max - set->ticks_min;
+            set->ticks_until_next =
+                set->ticks_min + (span > 0 ? (int)(ambient_rand(set) % (uint32_t)span) : 0);
+            if( set->ticks_until_next <= 0 )
+                set->ticks_until_next = RS_AUDIO_AREA_SET_FALLBACK_TICKS;
+        }
+        if( !out )
+            continue;
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+        command.asset_id = pick;
+        command.voice_id = next_voice_id(audio);
+        command.bus = TORIRS_AUDIO_BUS_AREA;
+        command.volume = TORIRS_AUDIO_VOLUME_MAX;
+        command.pan = TORIRS_AUDIO_PAN_CENTRE;
+        command.loop_count = 0;
+        command.source_id = pick;
+        ToriRS_AudioQueue_Push(out, &command);
+        AUDIO_TRACE(
+            "rs_audio: ambient one-shot %d, next in %d ticks\n", pick, set->ticks_until_next);
+    }
 }
 
 /* --- music ---------------------------------------------------------------- */
@@ -1274,7 +1447,7 @@ RS_Audio_StopAll(
         return;
     audio->count = 0;
     audio->ambient_sound_id = -1;
-    audio->ambient_voice_id = 0;
+    stop_ambient_streams(audio, NULL);
     audio->ambient_started = true;
     for( int i = 0; i < RS_AUDIO_MAX_AREA_VOICES; i++ )
         memset(&audio->area[i], 0, sizeof(audio->area[i]));

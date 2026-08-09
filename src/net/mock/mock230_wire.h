@@ -191,6 +191,10 @@ struct Mock230WirePayload
         int fade_out_speed,
         int fade_in_delay,
         int fade_in_speed);
+    /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
+     *  is a config-group-15 record, not a sound effect. */
+    void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);
+    void (*ambientsound_stop)(struct RSAreaBuf* buf, int fade);
     void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
      *  the classic p8 base37 + p1 world tuple. */

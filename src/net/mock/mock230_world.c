@@ -13,6 +13,7 @@
  * place that needs to know about the origin zone.
  */
 #include "mock230.h"
+#include "mock230_music_regions.gen.h"
 
 #include "mock230_container.h"
 #include "mock230_content.h"
@@ -7018,6 +7019,7 @@ mock230_world_player_init(struct Mock230Player* player)
     player->last_zone_x = -1;
     player->last_zone_z = -1;
     player->last_map_x = -1;
+    player->music_track = -1;
     player->last_map_z = -1;
     /* A memset leaves `zone_index` at 0, which is a real zone. This is what
      * makes the first flush compute an active window rather than believe the
@@ -7480,7 +7482,28 @@ mock230_world_login_finish(struct Mock230Player* player)
         const char* override = getenv("MOCK230_SONG");
         int song = override ? atoi(override) : 0;
         if( song >= 0 )
+        {
+            player->music_track = song;
             mock230_send_midi_song(player, song);
+        }
+    }
+
+    /*
+     * 7b. The ambient bed.
+     *
+     * Same argument as the song above: until something sends
+     * AMBIENTSOUND_START, the whole bed path -- the group-15 soundscape
+     * decoder, the multi-loop bed, the timed random sets -- is unreachable from
+     * a running client. Soundscape 1 is the one whose four random sets are
+     * transcribed in `test_soundscape`; override with MOCK230_AMBIENT=<id>, or
+     * -1 for none. A cache without group 15 (anything before OldSchool 231)
+     * treats the id as a sound effect, which is that revision's own reading.
+     */
+    {
+        const char* override = getenv("MOCK230_AMBIENT");
+        int scape = override ? atoi(override) : 1;
+        if( scape >= 0 )
+            mock230_send_ambientsound_start(player, scape, 1);
     }
 
     mock230_send_tick_end(player);
@@ -8127,6 +8150,95 @@ phase_info(struct Mock230Server* srv)
     maybe_rebuild(srv);
 }
 
+/*
+ * Region music.
+ *
+ * The client cache names the tracks and says which varp bit records each
+ * unlock, but it does not say which map square plays which track -- that is
+ * server data and no cache carries it. `mock230_music_regions.gen.h` is a join
+ * of a community region table with the cache's own DBTable 44; see
+ * `tools/gen_music_regions.py` for provenance and `docs/AUDIO_ACCURACY.md` §2.
+ *
+ * Two things happen on entering a mapped square, in the reference's order:
+ * unlock the track if it is not already unlocked, then play it. The unlock bit
+ * is a real varp bit the music-player interface reads, so writing it is what
+ * makes the track selectable afterwards rather than merely audible now.
+ */
+static const struct Mock230MusicRegion*
+mock230_music_for_region(int region)
+{
+    /* The table is sorted by region, so this is a binary search rather than a
+     * 433-entry walk on every map-square crossing. */
+    int lo = 0;
+    int hi = k_mock230_music_region_count - 1;
+
+    while( lo <= hi )
+    {
+        int mid = (lo + hi) / 2;
+        int at = k_mock230_music_regions[mid].region;
+        if( at == region )
+            return &k_mock230_music_regions[mid];
+        if( at < region )
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return NULL;
+}
+
+static void
+mock230_music_enter_region(
+    struct Mock230Player* player,
+    int map_x,
+    int map_z)
+{
+    const struct Mock230MusicRegion* track =
+        mock230_music_for_region((map_x << 8) | map_z);
+
+    if( !track )
+        return; /* 433 squares are mapped; the rest of the world is silent */
+
+    /*
+     * Unlock first. `varp` is -1 for a track whose DBTable row carried no
+     * unlock pair, which is a handful of them -- those play without ever
+     * becoming selectable, which is better than writing varp -1.
+     */
+    if( track->varp >= 0 && track->bit >= 0 && track->varp < MOCK230_VARP_COUNT )
+    {
+        int mask = 1 << track->bit;
+        if( (player->varps[track->varp] & mask) == 0 )
+        {
+            char line[128];
+            /*
+             * A bit write, not a varp write -- so it takes the varbit writers'
+             * path (patch `varps[]`, then mark it for phase 10) rather than
+             * `mock230_world_set_varp`.
+             *
+             * The distinction is enforced, not stylistic: music unlock flags
+             * live in varps that also carry other varbits, and a whole-varp
+             * write clears every neighbouring bit in the same word. The
+             * selftest's carrier-write counter catches exactly this and caught
+             * it here -- the first version of this function used the whole-varp
+             * setter and wiped bits belonging to unrelated content.
+             */
+            player->varps[track->varp] |= mask;
+            mock230_world_mark_varp(player, track->varp);
+            snprintf(
+                line,
+                sizeof(line),
+                "<col=ff0000>You have unlocked a new music track: %s",
+                track->name);
+            mock230_send_message(player, line);
+        }
+    }
+
+    if( player->music_track != track->song )
+    {
+        player->music_track = track->song;
+        mock230_send_midi_song(player, track->song);
+    }
+}
+
 /**
  * The zone family's producer — `NetworkPlayer.updateMap`, triage §9 step 5c.
  *
@@ -8166,6 +8278,9 @@ mock230_world_update_map(struct Mock230Player* player)
         mock230_scripts_queue_trigger_at(srv, SS_TRIGGER_MAPZONE, 0, player->x, player->z);
         player->last_map_x = mx;
         player->last_map_z = mz;
+        /* The map square is exactly the granularity music is keyed at, which is
+         * why this hangs off the mapzone latch rather than the zone one. */
+        mock230_music_enter_region(player, mx, mz);
     }
 
     if( player->last_zone_level != player->level || player->last_zone_x != zx ||

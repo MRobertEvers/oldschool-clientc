@@ -3618,6 +3618,9 @@ App_Shutdown(struct App* app)
         free(app->painter_buffer);
     }
     RS_Audio_Shutdown(&app->audio);
+    /* The bed holds borrowed pointers into this table, so it has to outlive the
+     * audio layer's teardown. */
+    RS_Soundscapes_Free(&app->soundscapes);
     RS_EntitySync_Free(&app->esync);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
@@ -4763,6 +4766,17 @@ Task_AppBoot_Run(
      * binds — so this is a dat2-only load and an absent group is not an error. */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
         TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
+
+    /*
+     * Ambient soundscapes. dat2 only, and OldSchool 231+ within that -- an
+     * absent group leaves the table empty, which the audio layer reads as the
+     * pre-231 meaning of AMBIENTSOUND_START (the id is a sound effect). Binding
+     * the table unconditionally is deliberate: the empty case is a supported
+     * reading, not a failure to load.
+     */
+    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+        TASK_AWAITSELF_IF(CreateTask_Dat2SoundscapeLoad(app->provider, &app->soundscapes));
+    RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
      * Seed the four audio volumes.

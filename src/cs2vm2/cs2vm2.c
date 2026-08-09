@@ -9619,12 +9619,13 @@ CS2VM2_RunOp(
     case CS2_OP_UIZOOM_RESET:
     case CS2_OP_UIZOOM_GETDEFAULT:
         return CS2VM2_Op_UiZoom(vm, opcode, false);
-    /* Safe-area bounds (6220..6223, 6231): no-arg getters. */
+    /* Safe-area bounds (6220..6223): no-arg getters. Numeric id 6231 was
+     * reclaimed by rev 239 and now consumes two ints; it falls through to the
+     * generated stack handler below. */
     case CS2_OP_SAFEAREA_GETMINX:
     case CS2_OP_SAFEAREA_GETMINY:
     case CS2_OP_SAFEAREA_GETMAXX:
     case CS2_OP_SAFEAREA_GETMAXY:
-    case CS2_OP_SAFEAREA_GETMAXY_ALT:
         return CS2VM2_Op_SafeArea(vm, opcode);
     case CS2_OP_LOGOUT:
     {
@@ -10506,13 +10507,8 @@ CS2VM2_RunOp(
         request.kind = CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT;
         return vm->vm->host_exec(vm, &request);
     }
-    case CS2_OP_CAM_GETYAW:
-    {
-        struct CS2VM_HostRequest request;
-        memset(&request, 0, sizeof(request));
-        request.kind = CS2VM_HOST_REQUEST_CAM_GETYAW;
-        return vm->vm->host_exec(vm, &request);
-    }
+    /* Numeric id 6232 is not CAM_GETYAW in rev 239: its cache sites consume
+     * one mode int and return nothing. It reaches StackMetaStub below. */
     /* CAM_FORCEANGLE / CAM_GETANGLE_XA / CAM_GETANGLE_YA (5504..5506): the
      * orbit camera's pitch and yaw, in the units the scripts use — pitch
      * 128..383, yaw 0..2047, matching the reference's orbitCameraPitch /

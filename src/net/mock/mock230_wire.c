@@ -542,6 +542,26 @@ w239_midi_song(
     rsab_p2_alt3(buf, fade_out_speed);
 }
 
+/*
+ * AmbientSoundStartEncoder / AmbientSoundStopEncoder.
+ *
+ * The client reads the first byte as a boolean ("fade rather than cut"), not as
+ * a duration -- `boolean var = g1Add() == 1` in the 239 deob. The id that
+ * follows is a soundscape config id.
+ */
+static void
+w239_ambientsound_start(struct RSAreaBuf* buf, int id, int fade)
+{
+    rsab_p1_add128(buf, fade ? 1 : 0);
+    rsab_p2(buf, id);
+}
+
+static void
+w239_ambientsound_stop(struct RSAreaBuf* buf, int fade)
+{
+    rsab_p1(buf, fade ? 1 : 0);
+}
+
 /* FriendListLoadedEncoder writes nothing: the packet is zero-length at this
  * revision where the classic carries a status byte. */
 static void
@@ -1017,6 +1037,8 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .chat_filter = w239_chat_filter,
     .synth_sound = w239_synth_sound,
     .midi_song = w239_midi_song,
+    .ambientsound_start = w239_ambientsound_start,
+    .ambientsound_stop = w239_ambientsound_stop,
     .friendlist_loaded = w239_friendlist_loaded,
     .friend_entry = w239_friend_entry,
     .inv_header = w239_inv_header,

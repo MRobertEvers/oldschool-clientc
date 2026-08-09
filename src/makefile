@@ -258,6 +258,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 	game/rs_player_stats.c game/rs_cs1_host.c game/task_cs1_run.c \
 	game/rs_hitsplat.c engine/dat2/task_dat2_hitsplat_load.c \
+	game/rs_soundscape.c engine/dat2/task_dat2_soundscape_load.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \

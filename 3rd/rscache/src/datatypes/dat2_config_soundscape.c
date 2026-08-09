@@ -57,6 +57,10 @@ RSCache_Dat2ConfigSoundscapeDecodeInplace(
         case 1:
         {
             int count = g1(&buf);
+            /* Assignment, not append -- the reference does `def.ids = new
+             * int[n]`, so a second opcode 1 replaces the first outright. */
+            if( entry->loop_ids )
+                entry->superseded_loops++;
             free(entry->loop_ids);
             entry->loop_ids = NULL;
             entry->loop_count = 0;
@@ -265,9 +269,9 @@ RSCache_Dat2ConfigSoundscapeEncode(
 
     if( !entry || !out )
         return 0;
-    /* A record that lost a set to the caps cannot be rebuilt from what was
+    /* A record whose decode threw payload away cannot be rebuilt from what was
      * kept. Saying so beats writing a shorter record that looks fine. */
-    if( entry->dropped_sets > 0 )
+    if( entry->dropped_sets > 0 || entry->superseded_loops > 0 )
         return 0;
     if( out_capacity < RSCache_Dat2ConfigSoundscapeEncodeBound(entry) )
         return 0;

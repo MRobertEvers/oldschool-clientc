@@ -113,17 +113,19 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6211: (0, 0, 1, 0),  # UIZOOM_GET -> value
     6212: (0, 0, 0, 0),  # UIZOOM_RESET
     6214: (0, 0, 1, 0),  # UIZOOM_GETDEFAULT -> value
-    # Safe-area bounds (6220..6223, plus the 6231 alternate MAXY). Dedicated
+    # Safe-area bounds (6220..6223). Dedicated
     # dispatch in cs2vm2.c forwards them to the host
     # (CS2VM_HOST_REQUEST_SAFEAREA).
     6220: (0, 0, 1, 0),  # SAFEAREA_GETMINX -> value
     6221: (0, 0, 1, 0),  # SAFEAREA_GETMINY -> value
     6222: (0, 0, 1, 0),  # SAFEAREA_GETMAXX -> value
     6223: (0, 0, 1, 0),  # SAFEAREA_GETMAXY -> value
-    6231: (0, 0, 1, 0),  # SAFEAREA_GETMAXY_ALT -> value
-    # CAM_GETYAW: no-arg getter. Dedicated dispatch in cs2vm2.c forwards it to the
-    # host (CS2VM_HOST_REQUEST_CAM_GETYAW), like CAM_GETFOLLOWHEIGHT.
-    6232: (0, 0, 1, 0),
+    # The neighbouring numeric ids were reclaimed by rev 239. Their old names
+    # survive in cs2_opcode.h, but the cache establishes setter-like stack
+    # shapes: 6231 consumes (x,y), 6232 consumes a mode. They deliberately fall
+    # through to StackMetaStub instead of the stale safe-area/camera handlers.
+    6231: (2, 0, 0, 0),
+    6232: (1, 0, 0, 0),
     # Orbit camera angles (5504..5506). Dedicated dispatch in cs2vm2.c forwards
     # them to the host; these document the contracts. Units are the script's,
     # not the renderer's: pitch 128..383, yaw 0..2047.
@@ -437,7 +439,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # call-site evidence against cache.osrs239, not guessed. 8019 was corrected
     # 2026-08-03: it pushes the joined string (script 9153 → gosub 9182; xrsps
     # ARRAY_JOIN). 8023/8024 are the Overview-tab resize/append pair.
-    8001: (3, 0, 0, 0),  # ARRAY_SORT_BY(array, start, end) — ints only in older deob
+    # Official method12336: two ints plus the class486 handle from field252.
+    8001: (2, 1, 0, 0),  # ARRAY_SORT_BY(handle:string, start, end)
     8003: (0, 1, 1, 0),  # ARRAY_LENGTH(handle) -> int
     8012: (0, 1, 0, 0),  # _8012(handle) — mutate in place; meaning unknown
     8018: (0, 2, 0, 1),  # ARRAY_SPLIT(string, sep) -> handle
@@ -556,19 +559,11 @@ BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     3850: (0, 0, 1, 0),  # activeclanchannel_find_listened
     4104: (1, 0, 0, 1),  # fromdate
     4200: (1, 0, 0, 1),  # oc_name
-    4201: (2, 0, 0, 1),  # oc_op
-    4202: (2, 0, 0, 1),  # oc_iop
     4210: (1, 1, 1, 0),  # oc_find
     6618: (1, 0, 4, 0),  # _6618
-    6623: (1, 0, 2, 0),  # _6623
     6638: (2, 0, 2, 0),  # _6638
-    6639: (0, 0, 4, 0),  # worldmap_listelement_start
-    6640: (0, 0, 4, 0),  # worldmap_listelement_next
-    6693: (1, 0, 0, 2),  # mec_text
-    6695: (1, 0, 2, 0),  # mec_category
     6696: (1, 0, 2, 0),  # mec_sprite
     7506: (1, 0, 1, 0),  # db_getrow
-    8000: (1, 0, 0, 0),  # _8000
 }
 
 

@@ -552,47 +552,39 @@ pass, and the changes made from that evidence.
 
 The authoritative list is
 [`CS2_REV239_ROUNDTRIP_FAILURES.tsv`](CS2_REV239_ROUNDTRIP_FAILURES.tsv). It has
-one row for every non-exact script, including the stage and diagnostic. It is
-generated from the unsuppressed whole-corpus output so IDs are not copied by
-hand:
+one row for every non-exact script, including a structural category and the
+first concrete bytecode difference. It is generated from the unsuppressed
+whole-corpus output and the two disassemblies, so neither IDs nor explanations
+are copied by hand:
 
 ```sh
 make -C 3rd/rscache tools
 ./3rd/rscache/tools/cs2/cs2 roundtrip \
-  --cache cache.osrs239 --rev osrs239 > /tmp/cs2-roundtrip.log 2>&1
-python3 tools/perf/cs2_roundtrip_report.py /tmp/cs2-roundtrip.log \
+  --cache cache.osrs239 --rev osrs239 --dump /tmp/cs2-roundtrip-dump \
+  > /tmp/cs2-roundtrip.log 2>&1
+./3rd/rscache/tools/cs2/cs2 disassemble --raw /tmp/cs2-roundtrip-dump/orig \
+  --rev osrs239 > /tmp/cs2-orig.dis
+./3rd/rscache/tools/cs2/cs2 disassemble --raw /tmp/cs2-roundtrip-dump/rebuilt \
+  --rev osrs239 > /tmp/cs2-rebuilt.dis
+python3 tools/perf/cs2_roundtrip_classify.py /tmp/cs2-roundtrip.log \
+  /tmp/cs2-orig.dis /tmp/cs2-rebuilt.dis \
   > docs/CS2_REV239_ROUNDTRIP_FAILURES.tsv
 ```
 
-Measured on 2026-08-09 after the changes below:
+Final measurement on 2026-08-09 after the changes below:
 
 ```text
-9615/9725 decompiled, 9610 compiled, 9161 same-length, 8540 exact
+9724/9725 decompiled, 9724 compiled, 9271 same-length, 8672 exact
 ```
 
-That is 1,185 identified non-exact scripts: 110 decompile failures, 5 compile
-failures, and 1,070 compiled byte differences. The five compile failures are
-3303, 5500, 8474, 9162, and 9195. The decompile failures are:
-
-```text
-0,84,89,192,663,1189,1202,1211,1212,1738,1939,2633,5161,5355,5360,
-5955,6498,6501,6503,6505,6507,6689,7227,7232,7496,7547,7551,7777,
-7898,7967,7969,8117,8118,8120,8127,8132,8135,8140,8149,8159,8236,
-8244,8245,8246,8268,8271,8272,8325,8327,8340,8341,8342,8344,8351,
-8389,8406,8410,8411,8424,8426,8431,8433,8436,8437,8438,8446,8447,
-8460,8462,8466,8468,8472,8491,8564,8690,8702,8818,8828,8834,8997,
-8999,9130,9142,9183,9188,9260,9266,9272,9278,9290,9345,9369,9383,
-9398,9399,9405,9406,9407,9460,9461,9511,9520,9526,9574,9584,9588,
-9591,9601,9611,9721
-```
-
-The dominant reported decompile endpoints are 21 bad return depths, 19 string
-local pops, 18 equality branches, and 9 opcode-2929 sites. Most are downstream
-symptoms of an earlier bad stack shape, not faults in return/local/branch.
+Every cache entry now decompiles and recompiles. ID 0 is counted in the 9,725
+numeric range but is not present in the cache, so it is the sole reported
+decompile failure and is not a CS2 failure. The remaining 1,052 present scripts
+all compile: 599 differ at the same byte length and 453 differ in length.
 
 For comparison, the current checkout began this pass at
 `9094/9725 decompiled, 9090 compiled, 8658 same-length, 8070 exact`. The net
-gain is 521 decompiles, 520 recompiles, 503 same-length results, and 470 exact
+gain is 630 decompiles, 634 recompiles, 613 same-length results, and 602 exact
 roundtrips.
 
 ### 10.2 Plan for running the failure queue in the official deob
@@ -641,7 +633,9 @@ the harness.
 | 8005, script 9455 | Goes from `4i/1s` to `1i/0s`: four int inputs plus the string handle are consumed and one int is produced. | The dynamic value is an additional input, not one of the three fixed ints. |
 | 8010, script 8729 | Goes from `4i/1s` to `0i/0s`. | Same inputs as 8005, no result. |
 | 8024/8025, `method12336` | Pop type code, then one selected value, then the string array handle; 8025 additionally pops the insertion index. | Their static int-only signatures lose string arrays. |
-| 2929, `method1005`/`method989` | Pops a descriptor string, one int/string argument per descriptor character, then three fixed ints. | Still needs a dedicated variable-arity hook kind; it accounts for 9 current decompile failures. |
+| 2929, `method1005`/`method989` | Pops a descriptor string, one int/string argument per descriptor character, then three fixed ints. | Implemented as the dedicated `DESCRIPTOR_ARGS` kind; all nine former failures now compile. |
+| 6860/6861 and 7453–7456 | Their range handlers contain no matching case and return the official interpreter's unhandled status. | These cache instructions are unreachable/unsupported in this client; call-site balance is the only available stack evidence. |
+| 7800-series witnesses | `method11128` implements 7900/7901 but not the observed 780x cases; targeted invocation aborts as unhandled. | Record the lack of official behavior rather than inventing a handler semantic. Their stack shapes are constrained from the corpus only. |
 
 The selector passed to `method6560` is the serialized `class634` ID: 0 int, 1
 long, 2 string (and 5 is the unsupported custom entry). `method10054` then
@@ -661,9 +655,69 @@ switches on a different internal field whose case labels are 3 int, 1 long, and
   bank from an immediately following typed selector or string-local store. This
   is what allows scripts 8430 and 9400 to round-trip without pretending every
   array element is int.
+- Added the descriptor-driven opcode-2929 path and dynamic component-param
+  lookup, plus the official signatures and no-result corrections for the
+  remaining 1000/6000/7000-range witnesses.
+- Typed array elements by their defining/consuming bank rather than assuming
+  int, and propagated that type through callers, hooks and procedure calls.
+- Preserved chronological procedure arguments while mapping each physical
+  int/string bank independently. This keeps byte order without assuming source
+  parameter interleaving is recoverable from the trailer.
+- Added `enumkey_d8`, the rev-239 DB tuple result inference needed inside hook
+  callbacks, and static multi-result callback expansion (script 1712's
+  `worldmap_getconfigbounds` contributes four descriptor letters).
+- Escaped and decoded quote/backslash string literals, fixing compiler failures
+  3303, 5500 and 9162, and taught the control-flow builder to ignore unreachable
+  predecessors when finding dominators (script 8997).
+- Made opcode 210 explicitly variadic for the six/seven-int rev-239 payload,
+  preserved its official active-component operand, and stopped inferring an
+  array argument merely because an ordinary-int-argument script reads VM array
+  slot 0.
+- Regenerated the client VM stack bridge. The check exposed stale pre-rev-239
+  meanings for 6231/6232 and an int-only 8001; the runtime now uses the same
+  `(2i)->()`, `(1i)->()` and `(2i,1s)->()` shapes as the decompiler table and
+  official `method12336`, instead of silently dispatching the reclaimed ids as
+  safe-area/camera getters.
 
-Focused checks now make scripts 41, 8872, 8729, and 9400 byte-exact; 8430 now
-decompiles and recompiles at the original length. The next implementation group
-is opcode 2929, followed by the missing signatures 7453, 6860, 7816, 7806, and
-7808. After each group, regenerate the TSV and feed only its remaining IDs back
-through the targeted official-client runner.
+Focused checks make the original official witnesses 41, 8872, 8729 and 9400
+byte-exact. Scripts 1712 and 8367 became exact in the final classification pass.
+
+### 10.5 Final residual classification
+
+There are no remaining stack-model, decompile or compile failures for a script
+that exists. The 1,052 byte differences are closed as a documented information-
+loss queue rather than described as one generic “DIFF” bucket:
+
+| count | TSV category | specific reason |
+| ---: | --- | --- |
+| 485 | `erased_narrow_return_type` | The unreachable epilogue says only “some int-bank fine type” by pushing `-1`; it does not identify which of boolean/component/coord/etc. Source therefore prints unconstrained `int`, whose canonical epilogue is `0`. Fabricating a fine type would make the source lie. |
+| 172 | `control_flow_structure` | Structured `if`/`else`/loop source cannot retain every unreachable or fall-through `branch` chosen by the original compiler. The TSV lists the exact branch edit for each script. |
+| 98 | `control_flow_epilogue_shape` | The same structured-control-flow normalization also adds or removes the canonical default-value/return epilogue. |
+| 72 | `mixed_instruction_shape` | Larger equivalent block reconstruction changes several opcode runs; each row records the removed and added opcode multiset, rather than assigning it to an unrelated signature. |
+| 57 | `epilogue_shape` | The cache omitted, duplicated or typed an unreachable epilogue differently from the one the source compiler necessarily synthesizes. |
+| 36 | `redundant_return_elision` | Dead-code removal discards a return immediately followed by the compiler epilogue; script 15 is the minimal `return; return;` witness. |
+| 35 | `string_segmentation` | Interpolation and markup survive as the same source string but not as the original split of `push_constant_string`/`join_string` instructions. |
+| 35 | `frame_metadata` | Unread and unwritten local slots exist only in the trailer counts. They have no source declaration or instruction from which the compiler could recover them. |
+| 22 | `ignored_basic_operand` | Opcodes 4123/4124 carry operand 1, but the official handler never reads the operand. Emitting a fake dot form would claim behavior the client does not have. |
+| 22 | `branch_targets` | The opcode stream is identical, but reconstruction selects different relative branch targets; every changed pc and target is in the TSV. |
+| 9 | `control_flow_return_shape` | Control-flow normalization changes branches together with an otherwise redundant return. |
+| 7 | `other_operand_encoding` | Isolated switch ordering, opaque `_103` operand bytes, or reordered constants; the row gives the first three concrete operand changes and notes the rest. |
+| 1 | `string_literal_encoding` | Script 8690 uses hook descriptor `W`; the official parser treats every non-`i` descriptor as string, so source recompiles it canonically as `s`. |
+| 1 | `hook_descriptor_normalization` | Script 9130 is the same officially-equivalent `X` to `s` descriptor normalization. |
+
+The categories sum to 1,052. Together with absent ID 0 they account for every
+row in the generated TSV. None is an unidentified failure, and no residual is
+being used to justify a guessed official signature.
+
+### 10.6 Verification
+
+- Whole rev-239 corpus: `9724/9725 decompiled, 9724 compiled, 9271 same-length,
+  8672 exact`.
+- `build/test_cs2`: 7,884 scripts, 7,600 decompiled, 6,491 compared, 6,271
+  identical, 220 explicitly allowed rev-era divergences; all three checks pass.
+- `src/cs2vm2/gen_opcode_stack.py` regenerates cleanly (999 known rows) and
+  `make -C src test-cs2-math` passes after rebuilding `cs2vm2.c`.
+- `make -C 3rd/rscache test`: all compiled/running suites passed except the
+  final pre-existing cachepack-fidelity fixture check, where three indexed font
+  files (`p11_full`, `p12_full`, `q8_full`) are absent from the checkout. The
+  CS2 suite itself passes, and `cachepack-fidelity` reported no missing scripts.

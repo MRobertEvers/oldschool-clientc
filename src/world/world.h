@@ -407,6 +407,24 @@ World_AddAreaSound(
     struct World* world,
     const struct World_AreaSound* source);
 
+/**
+ * Drop every emitter whose south-west tile is (x, z) on `level`.
+ *
+ * For a runtime loc change: a door that opens, a machine that is switched off.
+ * Without this the emitter list is only ever rebuilt by a full scene build, so a
+ * loc that stops existing keeps humming until the player walks far enough to
+ * force a rebuild. Bumps `area_sound_generation` when it removes anything,
+ * which is what makes the audio layer re-resolve its live voices.
+ *
+ * Returns the number removed.
+ */
+int
+World_RemoveAreaSoundAt(
+    struct World* world,
+    int x,
+    int z,
+    int level);
+
 void
 World_SetHeightFn(
     struct World* world,

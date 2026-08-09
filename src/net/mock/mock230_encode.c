@@ -142,6 +142,8 @@ enum
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
+    OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
+    OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
 };
 /* One packet's worth of scratch. Reset per send; sized for the largest packet
@@ -1776,6 +1778,46 @@ mock230_send_midi_song(
         }
     }
     flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+/*
+ * AMBIENTSOUND_START -- the region's background bed.
+ *
+ * `id` names a soundscape record (config group 15), not a sound effect. Nothing
+ * sent this before, which is why the whole bed path -- the group-15 decoder, the
+ * multi-loop bed, the timed random sets -- was unreachable from a running
+ * client. Reachability is the point: a subsystem nothing can reach is one
+ * nobody notices is broken.
+ */
+void
+mock230_send_ambientsound_start(
+    struct Mock230Player* player,
+    int id,
+    int fade)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->ambientsound_start )
+            pl->ambientsound_start(&buf, id, fade);
+    }
+    flush(player, &buf, OP_AMBIENTSOUND_START, 0);
+}
+
+void
+mock230_send_ambientsound_stop(
+    struct Mock230Player* player,
+    int fade)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    {
+        const struct Mock230WirePayload* pl = wire_payload(player);
+        if( pl && pl->ambientsound_stop )
+            pl->ambientsound_stop(&buf, fade);
+    }
+    flush(player, &buf, OP_AMBIENTSOUND_STOP, 0);
 }
 
 void

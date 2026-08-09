@@ -94,10 +94,21 @@ struct RSCache_Dat2ConfigSoundscape
     uint8_t order[RSCACHE_SOUNDSCAPE_MAX_OPCODES];
     int order_count;
 
-    /** Sets read off the wire but not retained, because they were past one of
-     *  the reference's caps. Non-zero makes the record un-re-encodable, which
-     *  the encoder reports rather than papering over. No cache record does it. */
+    /**
+     * Payload the decode read and then threw away, which makes the record
+     * un-re-encodable. The encoder reports that by refusing, rather than
+     * writing a shorter record that looks fine.
+     *
+     * `dropped_sets` counts sets past one of the reference's caps -- no cache
+     * record does this. `superseded_loops` counts opcode-1 lists overwritten by
+     * a later one: the reference *assigns* the loop list rather than appending,
+     * so a record carrying opcode 1 twice keeps only the last, and the first
+     * list is gone before any caller sees the record. `cache.osrs239` record 6
+     * is exactly that (`01 01 2d 67  01 01 2d 5b ...`, ids 11623 then 11611),
+     * and it is the only record in either cache that does not round trip.
+     */
     int dropped_sets;
+    int superseded_loops;
 
     /** Bytes consumed, set on reaching the terminating opcode 0. Zero when the
      *  decode stopped early, the same diagnostic the other config types carry. */
@@ -120,8 +131,14 @@ RSCache_Dat2ConfigSoundscapeFreeInplace(struct RSCache_Dat2ConfigSoundscape* ent
 void
 RSCache_Dat2ConfigSoundscapeFree(struct RSCache_Dat2ConfigSoundscape* entry);
 
-/** Encode `entry` back to the wire. Byte-exact for every record in
- *  `cache.osrs239`; see test_soundscape. Returns bytes written, 0 on failure. */
+/**
+ * Encode `entry` back to the wire.
+ *
+ * Byte-exact for 7 of `cache.osrs239`'s 8 records; the eighth carries opcode 1
+ * twice and the decode discards the superseded list, so it cannot be rebuilt
+ * (see `superseded_loops`). Returns bytes written, or 0 -- which also means
+ * "this record is not re-encodable", not only "the buffer was too small".
+ */
 uint32_t
 RSCache_Dat2ConfigSoundscapeEncode(
     const struct RSCache_Dat2ConfigSoundscape* entry,

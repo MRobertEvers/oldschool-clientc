@@ -943,6 +943,17 @@ WorldBuilder_ApplyLocChange(
         World_SceneryRemove(world, idx);
     }
 
+    /*
+     * 1b. Drop the old loc's ambient emitter, if it had one.
+     *
+     * The emitter list is otherwise only ever built by a full scene walk, so a
+     * loc that stops existing keeps sounding until the player walks far enough
+     * to force a rebuild -- a switched-off machine that hums until you leave the
+     * room. Keyed on the tile rather than the loc id because the id here is the
+     * base and the emitter was registered against the resolved multiloc.
+     */
+    World_RemoveAreaSoundAt(world, scene_x, scene_z, level);
+
     /* 2. Spawn the replacement loc (LOC_DEL passes loc_id < 0 and stops here). */
     if( loc_id >= 0 )
     {
@@ -982,6 +993,10 @@ WorldBuilder_ApplyLocChange(
             if( World_SceneryFindAt(world, scene_x, scene_z, level, shape) >= 0 )
             {
                 world_collision_add_loc(builder, &ml, cfg, scene_x, scene_z);
+                /* And the new loc's ambient emitter. `cfg` is the resolved
+                 * multiloc, which is what decides the sound -- a lever's two
+                 * states can name different ones. */
+                world_builder_add_loc_area_sound(builder, &ml, cfg, scene_x, scene_z);
                 /* Draw the new loc's minimap line (red when interactive — an
                  * open door keeps its red line at the new edge). */
                 /* Mapscene locs draw a sprite, not lines (drawDetail skips

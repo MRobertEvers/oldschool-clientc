@@ -143,6 +143,7 @@ sweep_cache(const char* cache_dir, const char* rev_name)
     int table;
     int records = 0;
     int exact = 0;
+    int lossy = 0;
 
     if( !RSCache_ProfileByName(rev_name, &profile) )
     {
@@ -195,6 +196,13 @@ sweep_cache(const char* cache_dir, const char* rev_name)
             continue;
         }
 
+        if( s.superseded_loops > 0 || s.dropped_sets > 0 )
+        {
+            lossy++;
+            RSCache_Dat2ConfigSoundscapeFreeInplace(&s);
+            continue;
+        }
+
         bound = RSCache_Dat2ConfigSoundscapeEncodeBound(&s);
         re = (uint8_t*)malloc(bound);
         wrote = re ? RSCache_Dat2ConfigSoundscapeEncode(&s, re, bound) : 0;
@@ -227,9 +235,21 @@ sweep_cache(const char* cache_dir, const char* rev_name)
         RSCache_Dat2ConfigSoundscapeFreeInplace(&s);
     }
     g_checks++;
-    if( records != exact )
+    /*
+     * `lossy` is not a shortfall to be tolerated quietly -- it is counted, and
+     * the total has to add up. A record whose decode discarded payload (a
+     * superseded opcode-1 list, or a set past the reference's caps) cannot be
+     * re-encoded from what was kept, and the encoder says so by returning 0.
+     * Everything else must be byte-exact.
+     */
+    if( exact + lossy != records )
         g_fail++;
-    printf("  %s: %d/%d records byte-exact\n", cache_dir, exact, records);
+    printf(
+        "  %s: %d/%d records byte-exact, %d lossy by decode\n",
+        cache_dir,
+        exact,
+        records,
+        lossy);
 
     if( files )
         RSCache_FileListFree(files);

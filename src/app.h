@@ -37,6 +37,7 @@
 #include "varc/varc_manager.h"
 #include "game/rs_loot_store.h"
 #include "game/rs_hitsplat.h"
+#include "game/rs_soundscape.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
 
@@ -584,6 +585,9 @@ struct App
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
     struct RS_Hitsplats hitsplats;
+    /** Ambient soundscapes (config group 15). Empty before OldSchool 231, and
+     *  the audio layer reads empty as "AMBIENTSOUND_START ids are effect ids". */
+    struct RS_Soundscapes soundscapes;
     struct VarCManager varcs;
     struct LootStore loot;
     struct RS_PlayerStats stats;

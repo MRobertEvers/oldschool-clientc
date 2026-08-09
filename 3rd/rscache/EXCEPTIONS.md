@@ -1107,8 +1107,7 @@ fixed-shape records with nothing for a decoder to lose.
 byte-exact — once a second constraint broke the tie exact consumption could not (B16,
 B17).
 
-Only `varclient_string` remains, and it is the one genuinely blocked case: the corpus
-cannot validate a decoder for it at all.
+`varclient_string` is **resolved, and it was never varclient_string** — see B22.
 
 #### The original survey
 
@@ -1142,6 +1141,38 @@ loader parses the *dat1* `varbit.dat` blob and is called only from tests. So
 every CS2 script branching on one takes the zero path, and no CS2 hook triggering on a
 varbit ever fires. Varps themselves are unaffected (`apply_varp_value` grows `var[]`
 untyped on server writes); it is specifically the types that are absent.
+
+### B22. Config group 15 is the OldSchool ambient soundscape, not varclient_string *(Resolved)*
+
+B13 left group 15 as "the one genuinely blocked case: the corpus cannot validate a
+decoder for it at all", on the evidence that its 8 records in `cache.osrs239` "do not
+look like string variables at all". They do not, because they are not. Group 15 in an
+OldSchool cache is the **ambient soundscape** type — what an `AMBIENTSOUND_START`
+packet's id resolves through.
+
+The block was a search in the wrong direction: the corpus was being asked to settle a
+wire format for a type the group does not hold. The format came instead from the
+client's own decoder (`class410`, osrs239 deob), and the corpus then confirmed it.
+`dat2_config_soundscape.{c,h}` and `test/test_soundscape.c`.
+
+Three things about it are worth keeping:
+
+- **The group id is genuinely reused across games.** `RSCACHE_DAT2_CONFIG_KIND_SOUNDSCAPE`
+  and `RSCACHE_DAT2_CONFIG_KIND_VARCLIENT_STRING` are both 15. They are told apart by
+  era, not by content sniffing — but the shapes are also nothing alike, so a
+  misidentification is loud: a varclient-string group is hundreds of one-byte records,
+  this one is eight records averaging 58 bytes.
+- **It is an OldSchool 231..239 addition.** `cache.osrs230` has no group 15 at all.
+  Anything driving behaviour off this type has to be era-gated or it will silently do
+  nothing on the older cache.
+- **7 of 8 records round-trip byte-exactly; the eighth cannot, and that is the
+  reference's doing.** Record 6 carries opcode 1 twice (`01 01 2d 67  01 01 2d 5b`) and
+  the reference *assigns* rather than appends the loop list, so id 11623 is discarded
+  during the decode itself. The struct counts that (`superseded_loops`) and the encoder
+  refuses the record rather than emitting a shorter one that looks correct. Opcode
+  *order* is preserved (`order[]`, the same device `RSCache_SoundBank.order[]` uses) —
+  four of the eight records write their random sets before their loop list, so an
+  ascending-order encoder differs at byte 0.
 
 ### B14. Engine wiring — done, with two sites deliberately left *(Gap)*
 
@@ -2492,6 +2523,29 @@ pins both figures: a 195th divergence still fails, while the known set remains
 visible on every run. The rev-239 whole-cache result and the complete residual
 inventory are recorded in `docs/CS2_REV239_ROUNDTRIP_QUEUE.md` §10.
 
+### G13. Rev-239 array slots and opcode 210 differ from the older source model *(Deviation)*
+
+Two more places where byte evidence from rev 239 is stronger than agreement
+with RuneStar's 2021 source fixture:
+
+- A real array argument arrives on the string argument bank (recursive script
+  465 is byte-exact evidence). Reading VM array slot 0 is not by itself proof
+  that the script's first ordinary int argument is that array. Script 8367 has
+  `1i/0s` arguments and independently reads array slot 0; merging them changed
+  its trailer to `0i/1s`. Requiring a string-bank first argument prevents that
+  false inference and fixes the same shape across rev 239.
+- The official opcode-210 handler reads its active-component flag. Its custom
+  variable-arity translator used to discard that operand, so the decompiler
+  could not print the dot form and the compiler rewrote operand 1 to 0. The
+  custom path now applies the same checked boolean rule as BASIC commands.
+
+Together with four newly comparable scripts from the preceding rev-239 work,
+the reference measurement is now 6,491 compared, 6,271 identical and exactly
+220 different. `test_cs2` pins those values: this is an enumerated deviation,
+not a blanket relaxation. On `cache.osrs239`, these changes raise byte-exact
+round trips and make script 8367 exact; the final figures are in §10 of the
+round-trip queue document.
+
 ---
 
 ## F. Not ours
@@ -2557,9 +2611,9 @@ table with the cap printed).
 
 Remaining, both additive and neither blocking:
 
-- **One missing decoder** — varclient_string, the only genuinely blocked case: absent
-  from two caches, empty in a third, and the 8 records in osrs239 do not look like
-  string variables at all. Six of the original seven are done — see B13, B16 and B17.
+- **No missing decoders.** All seven of B13's original list are done: six as
+  themselves (B13, B16, B17), and the seventh — group 15, filed as `varclient_string`
+  — once it was identified as the ambient soundscape type instead (B22).
 - **The remaining revision-taking call sites.** Phase 7 converted the ones that
   matter (see B14); `spotanim` and `component` still take a bare revision. spotanim
   `(void)`s it, so converting it changes no behaviour — cosmetic, and left alone
