@@ -57,6 +57,10 @@ struct UIInputResult
     int drag_source_id;
     int drag_target_id;
     int deferred_click_fired;
+    /** Widget that owned this frame's mouse-up, even when the release was not
+     * also a click (pointer moved away or a drag completed). */
+    int32_t released_source_idx;
+    int released_source_id;
     /* 1 = clicked was armed on the press edge (non-draggable). interact_click
      * must use the current pointer, not last_click_* (set only on release). */
     int press_click;

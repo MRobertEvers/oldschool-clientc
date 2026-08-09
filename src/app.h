@@ -326,13 +326,20 @@ struct App
      * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
      * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
      * nearby ground. cam_key_* latch arrow-held state for the follow step,
-     * which runs before key sampling in the frame. */
+     * which runs before key sampling in the frame.
+     *
+     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
+     * client.field917/field879, eased in client.method1605). An integer
+     * `anchor += (target - anchor) / 16` never converges: once the gap drops
+     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
+     * units short on each axis and the camera orbits a point beside the
+     * player instead of the player. */
     int orbit_yaw;
     int orbit_pitch;
     int orbit_yaw_vel;
     int orbit_pitch_vel;
-    int orbit_x;
-    int orbit_z;
+    float orbit_x;
+    float orbit_z;
     int camera_pitch_clamp;
     int cam_key_left;
     int cam_key_right;

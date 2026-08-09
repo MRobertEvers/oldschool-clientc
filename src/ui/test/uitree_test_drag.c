@@ -549,3 +549,75 @@ test_drag_cc_dragpickup_seeds(void)
 
     UITree_Free(tree);
 }
+
+/* A press-owned hook stays attached to the component that received mouse-down:
+ * click-repeat runs while held, and release still runs after the cursor leaves
+ * the component. */
+void
+test_press_repeat_and_release(void)
+{
+    printf("TEST: press click-repeat / release ownership\n");
+
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    UITree_TestHostInit(&host, &hs);
+
+    int32_t button = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_GRAPHIC, 980, 100, 100, 40, 40);
+    UITree_HooksMut(&tree->components[button])->on_click_repeat.script_id = 801;
+    UITree_HooksMut(&tree->components[button])->on_release.script_id = 802;
+    UITree_TestResolve(tree);
+
+    struct UIInteraction interact;
+    UIInteraction_Init(&interact);
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input = LibToriRS_Input_Init(&storage, 0);
+
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 110, 112);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 112);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        int found_repeat = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].component_id == 980 && out.intents[i].hook &&
+                out.intents[i].hook->script_id == 801 )
+            {
+                found_repeat = 1;
+                TEST_ASSERT(out.intents[i].has_event_mouse, "repeat has event mouse");
+                TEST_ASSERT(out.intents[i].event_mouse_x == 10, "repeat mouse x is relative");
+                TEST_ASSERT(out.intents[i].event_mouse_y == 12, "repeat mouse y is relative");
+            }
+        }
+        TEST_ASSERT(found_repeat, "on_click_repeat emitted while pressed");
+    }
+
+    /* Release well outside the button. The hook still belongs to component 980. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, 250, 260);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 250, 260);
+    LibToriRS_Input_End(input);
+    {
+        struct UIInteractOut out;
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        int found_release = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].component_id == 980 && out.intents[i].hook &&
+                out.intents[i].hook->script_id == 802 )
+            {
+                found_release = 1;
+                TEST_ASSERT(out.intents[i].has_event_mouse, "release has event mouse");
+                TEST_ASSERT(out.intents[i].event_mouse_x == 150, "release mouse x is relative");
+                TEST_ASSERT(out.intents[i].event_mouse_y == 160, "release mouse y is relative");
+            }
+        }
+        TEST_ASSERT(found_release, "on_release emitted for original press owner");
+    }
+
+    UITree_Free(tree);
+}

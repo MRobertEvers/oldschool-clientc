@@ -278,12 +278,51 @@ collision_map_bfs_path(
     int* path_z,
     int max_path);
 
+/*
+ * "Could not reach it — walk as close as possible." The mechanism, in terms of
+ * which the named models of enum ToriRS_NearestModel are expressed.
+ *
+ * Every model floods first and ranks only tiles the flood already reached, so
+ * one is a box radius plus a ranking rule. `range = 0` disables the fallback
+ * entirely. Do not hand-roll these three numbers at a call site: name a model
+ * and call collision_nearest_opts_from_model, so "which reference is this" has
+ * one answer per call rather than one per literal.
+ */
+struct CollisionNearestOpts
+{
+    /** Box radius around the destination. 0 = no fallback. */
+    int range;
+    /** Upper bound on the flooded step count of a candidate. Every reference
+     *  uses 100; 0 is read as 100. */
+    int max_dist;
+    /** 0 = lowest step count wins (Client-TS's 3x3 ring). 1 = lowest squared
+     *  distance to the loc_width x loc_length rect at the destination, ties
+     *  broken by step count (the official / rsmod 21x21 search). */
+    int rank_by_rect_distance;
+};
+
+/**
+ * Fill `out` from an enum ToriRS_NearestModel value (int, so this header stays
+ * free of features.h). THE place the numeric encoding of each model lives.
+ *
+ * An unrecognised model is the classic ring, not a crash — the field reaches
+ * here from a manifest key and an era table, and a boot that mistypes one
+ * should path like 2004 rather than not path at all.
+ */
+void
+collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts* out);
+
 /* Reference Client.tryMove route (ground/minimap clicks): BFS from src to
  * dst, then backtrace recording only direction changes. route[0] = the
  * destination, ascending toward the source (the source tile is never
- * stored) — the layout the MOVE_* packets are built from. When the
- * destination is unreachable and try_nearest is set, falls back to the
- * lowest-distance tile in the 3x3 ring around it (*out_used_nearest = 1).
+ * stored) — the layout the MOVE_* packets are built from.
+ *
+ * `nearest` is the unreachable fallback, built with
+ * collision_nearest_opts_from_model from the era's ground_click_nearest_model.
+ * NULL (or range 0) means an unreachable destination is simply no route;
+ * otherwise the route ends on the chosen fallback tile and *out_used_nearest
+ * reports that it did.
+ *
  * Returns the number of route entries (>= 1; src == dst yields 1), or -1
  * when no route exists / the route overflows max_route. */
 int
@@ -293,7 +332,7 @@ collision_map_try_route(
     int src_z,
     int dst_x,
     int dst_z,
-    bool try_nearest,
+    struct CollisionNearestOpts const* nearest,
     int* route_x,
     int* route_z,
     int max_route,
@@ -405,28 +444,6 @@ collision_approach_from_shape(
     int forceapproach_rotated,
     int mover_size,
     struct CollisionApproach* out);
-
-/*
- * "Could not reach it — walk as close as possible."
- *
- * Client-TS has exactly one of these, the 3x3 ring on a ground/minimap click
- * (`range = 1`, first tile with the lowest step count wins), and deliberately
- * none for interactions. XRSPS's server runs one for every request over a
- * 21x21 box ranked by squared distance to the target rectangle. Both are
- * expressed here; `range = 0` disables the fallback entirely.
- */
-struct CollisionNearestOpts
-{
-    /** Box radius around the destination. 0 = no fallback. */
-    int range;
-    /** Upper bound on the flooded step count of a candidate. Both references
-     *  use 100; 0 is read as 100. */
-    int max_dist;
-    /** 0 = lowest step count wins (the reference's 3x3 ring). 1 = lowest
-     *  squared distance to the loc_width x loc_length rect at the destination,
-     *  ties broken by step count (XRSPS's alternative-route search). */
-    int rank_by_rect_distance;
-};
 
 /* Same backtrace/route layout as collision_map_try_route, but arrival is decided
  * by `approach`. route[0] is the arrival tile (which may be adjacent to the loc,

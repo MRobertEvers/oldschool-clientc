@@ -42,7 +42,7 @@ int
 net_out_map_build_complete(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);
 
-/** WINDOW_STATUS: Display layout mode 0/1/2 + canvas size. */
+/** WINDOW_STATUS: Display layout mode 0/1/2 + canvas size; encoded per revision. */
 int
 net_out_window_status(
     struct GameProtoRevTable const* rev,

@@ -13,6 +13,9 @@ struct RecordingHost
     enum CS2VM_HostRequestKind kind;
     int component_id;
     int op_index;
+    int script_id;
+    int argc;
+    int argv[2];
     char text[32];
 };
 
@@ -27,6 +30,30 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
         host->component_id = request->u.if_set_target_verb.component_id;
         snprintf(host->text, sizeof(host->text), "%s", request->u.if_set_target_verb.text);
     }
+    else if( request->kind == CS2VM_HOST_REQUEST_IF_SETONTARGETENTER ||
+             request->kind == CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE ||
+             request->kind == CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT ||
+             request->kind == CS2VM_HOST_REQUEST_IF_SETONRELEASE ||
+             request->kind == CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT )
+    {
+        host->component_id = request->u.if_set_on_op.component_id;
+        host->script_id = request->u.if_set_on_op.script_id;
+        host->argc = request->u.if_set_on_op.int_arg_count;
+        memcpy(host->argv, request->u.if_set_on_op.int_args, sizeof(host->argv));
+    }
+    else if( request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETENTER ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONRELEASE ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT ||
+             request->kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
+    {
+        host->component_id = request->u.cc_set_on_op.component_id;
+        host->script_id = request->u.cc_set_on_op.script_id;
+        host->argc = request->u.cc_set_on_op.int_arg_count;
+        memcpy(host->argv, request->u.cc_set_on_op.int_args, sizeof(host->argv));
+    }
     else if( request->kind == CS2VM_HOST_REQUEST_CC_GETOP ||
              request->kind == CS2VM_HOST_REQUEST_IF_GETOP )
     {
@@ -35,6 +62,77 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
         return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "fixture operation"));
     }
     return CS2VM_EXECNO_OK;
+}
+
+static int
+is_named_set_on_opcode(int opcode)
+{
+    switch( opcode )
+    {
+    case CS2_OP_IF_SETONTARGETENTER:
+    case CS2_OP_IF_SETONTARGETLEAVE:
+    case CS2_OP_IF_SETONCLICKREPEAT:
+    case CS2_OP_IF_SETONRELEASE:
+    case CS2_OP_IF_SETONDIALOGABORT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static int
+run_target_hook(
+    int opcode,
+    int operand,
+    int named_component,
+    int active,
+    int dot,
+    struct RecordingHost* host)
+{
+    struct CS2VM2 vm;
+    struct CS2VM2_Script script;
+    struct CS2VM2_Thread* thread;
+    int const named = is_named_set_on_opcode(opcode);
+    int const op_count = named ? 7 : 6;
+
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, host, recording_host_exec);
+    CS2VM2_ScriptInit(&script);
+    script.script_id = 9447;
+    script.op_count = op_count;
+    script.opcodes = calloc((size_t)op_count, sizeof(uint16_t));
+    script.int_operands = calloc((size_t)op_count, sizeof(int));
+    script.string_operands = calloc((size_t)op_count, sizeof(char*));
+    script.opcodes[0] = CS2_OP_PUSH_CONSTANT_INT;
+    script.int_operands[0] = 2617;
+    script.opcodes[1] = CS2_OP_PUSH_CONSTANT_INT;
+    script.int_operands[1] = 1;
+    script.opcodes[2] = CS2_OP_PUSH_CONSTANT_INT;
+    script.int_operands[2] = 556;
+    script.opcodes[3] = CS2_OP_PUSH_CONSTANT_STRING;
+    script.string_operands[3] = strdup("ii");
+    if( named )
+    {
+        script.opcodes[4] = CS2_OP_PUSH_CONSTANT_INT;
+        script.int_operands[4] = named_component;
+    }
+    script.opcodes[op_count - 2] = (uint16_t)opcode;
+    script.int_operands[op_count - 2] = operand;
+    script.opcodes[op_count - 1] = CS2_OP_RETURN;
+
+    thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_SetTargetComponentId(thread, 0, active);
+    CS2VM2_SetTargetComponentId(thread, 1, dot);
+    CS2VM2_PushCallScript(thread, &script);
+    {
+        int const result = CS2VM2_RunScript(thread);
+        CS2VM2_Free(&vm);
+        free(script.string_operands[3]);
+        free(script.opcodes);
+        free(script.int_operands);
+        free(script.string_operands);
+        return result;
+    }
 }
 
 static int
@@ -154,6 +252,76 @@ main(void)
     }
 
     memset(&host, 0, sizeof(host));
+    if( run_target_hook(
+            CS2_OP_IF_SETONTARGETENTER, 0, child, -1, -1, &host) != CS2VM_EXECNO_DONE ||
+        host.calls != 1 || host.kind != CS2VM_HOST_REQUEST_IF_SETONTARGETENTER ||
+        host.component_id != child || host.script_id != 2617 || host.argc != 2 ||
+        host.argv[0] != 1 || host.argv[1] != 556 )
+    {
+        fputs("IF_SETONTARGETENTER did not preserve the spellbook hook\n", stderr);
+        return 1;
+    }
+
+    memset(&host, 0, sizeof(host));
+    if( run_target_hook(
+            CS2_OP_CC_SETONTARGETLEAVE, 1, -1, inventory, child, &host) !=
+            CS2VM_EXECNO_DONE ||
+        host.calls != 1 || host.kind != CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE ||
+        host.component_id != child || host.script_id != 2617 || host.argc != 2 ||
+        host.argv[0] != 1 || host.argv[1] != 556 )
+    {
+        fputs("CC_SETONTARGETLEAVE did not preserve its dot-target hook\n", stderr);
+        return 1;
+    }
+
+    {
+        struct HookCase
+        {
+            int opcode;
+            enum CS2VM_HostRequestKind kind;
+            int named;
+            char const* name;
+        } const hook_cases[] = {
+            { CS2_OP_CC_SETONCLICKREPEAT,
+              CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT, 0, "CC_SETONCLICKREPEAT" },
+            { CS2_OP_CC_SETONRELEASE,
+              CS2VM_HOST_REQUEST_CC_SETONRELEASE, 0, "CC_SETONRELEASE" },
+            { CS2_OP_CC_SETONDIALOGABORT,
+              CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT, 0, "CC_SETONDIALOGABORT" },
+            { CS2_OP_CC_SETONFRIENDTRANSMIT,
+              CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, 0, "CC_SETONFRIENDTRANSMIT" },
+            { CS2_OP_CC_SETONSTATTRANSMIT,
+              CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT, 0, "CC_SETONSTATTRANSMIT" },
+            { CS2_OP_IF_SETONCLICKREPEAT,
+              CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, 1, "IF_SETONCLICKREPEAT" },
+            { CS2_OP_IF_SETONRELEASE,
+              CS2VM_HOST_REQUEST_IF_SETONRELEASE, 1, "IF_SETONRELEASE" },
+            { CS2_OP_IF_SETONDIALOGABORT,
+              CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, 1, "IF_SETONDIALOGABORT" },
+        };
+        size_t i;
+        for( i = 0; i < sizeof(hook_cases) / sizeof(hook_cases[0]); i++ )
+        {
+            int expect_component = hook_cases[i].named ? inventory : child;
+            memset(&host, 0, sizeof(host));
+            if( run_target_hook(
+                    hook_cases[i].opcode,
+                    hook_cases[i].named ? 0 : 1,
+                    inventory,
+                    inventory,
+                    child,
+                    &host) != CS2VM_EXECNO_DONE ||
+                host.calls != 1 || host.kind != hook_cases[i].kind ||
+                host.component_id != expect_component || host.script_id != 2617 ||
+                host.argc != 2 || host.argv[0] != 1 || host.argv[1] != 556 )
+            {
+                fprintf(stderr, "%s did not preserve its runtime hook\n", hook_cases[i].name);
+                return 1;
+            }
+        }
+    }
+
+    memset(&host, 0, sizeof(host));
     if( run_get_op(CS2_OP_CC_GETOP, 1, -1, inventory, child, 1, &host) !=
             CS2VM_EXECNO_DONE ||
         host.calls != 1 || host.kind != CS2VM_HOST_REQUEST_CC_GETOP ||
@@ -173,6 +341,6 @@ main(void)
         return 1;
     }
 
-    puts("target-verb/getop opcodes: CC and IF forms passed");
+    puts("target verb/getop/runtime-hook opcodes: CC and IF forms passed");
     return 0;
 }

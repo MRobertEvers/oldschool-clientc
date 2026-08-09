@@ -4248,6 +4248,72 @@ CS2VM2_Op_CC_SetOnMouseLeave(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE, &request);
 }
 
+static int
+CS2VM2_Op_CC_SetOnTargetEnter(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETENTER, &request);
+}
+
+static int
+CS2VM2_Op_CC_SetOnTargetLeave(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE, &request);
+}
+
+static int
+CS2VM2_Op_CC_SetOnClickRepeat(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT, &request);
+}
+
+static int
+CS2VM2_Op_CC_SetOnRelease(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONRELEASE, &request);
+}
+
+static int
+CS2VM2_Op_CC_SetOnDialogAbort(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT, &request);
+}
+
+static int
+CS2VM2_Op_CC_SetOnFriendTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, &request);
+}
+
 int
 CS2VM2_Op_CC_SetOnMouseRepeat(
     struct CS2VM2_Thread* vm,
@@ -4846,6 +4912,66 @@ CS2VM2_Op_IF_SetOnMouseLeave(
     struct CS2VM_HostRequest_IF_SetOnOp request;
     return CS2VM2_Op_IF_SetOnEventHandler(
         vm, frame, CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE, &request);
+}
+
+static int
+CS2VM2_Op_IF_SetOnTargetEnter(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    (void)operand;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETENTER, &request);
+}
+
+static int
+CS2VM2_Op_IF_SetOnTargetLeave(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    (void)operand;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE, &request);
+}
+
+static int
+CS2VM2_Op_IF_SetOnClickRepeat(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    (void)operand;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT, &request);
+}
+
+static int
+CS2VM2_Op_IF_SetOnRelease(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    (void)operand;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONRELEASE, &request);
+}
+
+static int
+CS2VM2_Op_IF_SetOnDialogAbort(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    (void)operand;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT, &request);
 }
 
 int
@@ -7601,6 +7727,17 @@ CS2VM2_Op_CC_SetOnInvTransmit(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT, &req);
 }
 
+static int
+CS2VM2_Op_CC_SetOnStatTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp req;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT, &req);
+}
+
 /* Print the calling script and a window of ops around the current pc when an
  * unimplemented opcode is hit, so its stack signature can be read off the
  * surrounding pushes/pops (how the MANUAL_STACK entries in gen_opcode_stack.py
@@ -9677,6 +9814,18 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnMouseOver(vm, frame, operand);
     case CS2_OP_CC_SETONMOUSELEAVE:
         return CS2VM2_Op_CC_SetOnMouseLeave(vm, frame, operand);
+    case CS2_OP_CC_SETONTARGETENTER:
+        return CS2VM2_Op_CC_SetOnTargetEnter(vm, frame, operand);
+    case CS2_OP_CC_SETONTARGETLEAVE:
+        return CS2VM2_Op_CC_SetOnTargetLeave(vm, frame, operand);
+    case CS2_OP_CC_SETONCLICKREPEAT:
+        return CS2VM2_Op_CC_SetOnClickRepeat(vm, frame, operand);
+    case CS2_OP_CC_SETONRELEASE:
+        return CS2VM2_Op_CC_SetOnRelease(vm, frame, operand);
+    case CS2_OP_CC_SETONDIALOGABORT:
+        return CS2VM2_Op_CC_SetOnDialogAbort(vm, frame, operand);
+    case CS2_OP_CC_SETONFRIENDTRANSMIT:
+        return CS2VM2_Op_CC_SetOnFriendTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONMOUSEREPEAT:
         return CS2VM2_Op_CC_SetOnMouseRepeat(vm, frame, operand);
     case CS2_OP_CC_SETONDRAG:
@@ -9765,6 +9914,16 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnMouseOver(vm, frame, operand);
     case CS2_OP_IF_SETONMOUSELEAVE:
         return CS2VM2_Op_IF_SetOnMouseLeave(vm, frame, operand);
+    case CS2_OP_IF_SETONTARGETENTER:
+        return CS2VM2_Op_IF_SetOnTargetEnter(vm, frame, operand);
+    case CS2_OP_IF_SETONTARGETLEAVE:
+        return CS2VM2_Op_IF_SetOnTargetLeave(vm, frame, operand);
+    case CS2_OP_IF_SETONCLICKREPEAT:
+        return CS2VM2_Op_IF_SetOnClickRepeat(vm, frame, operand);
+    case CS2_OP_IF_SETONRELEASE:
+        return CS2VM2_Op_IF_SetOnRelease(vm, frame, operand);
+    case CS2_OP_IF_SETONDIALOGABORT:
+        return CS2VM2_Op_IF_SetOnDialogAbort(vm, frame, operand);
     case CS2_OP_IF_SETONMOUSEREPEAT:
         return CS2VM2_Op_IF_SetOnMouseRepeat(vm, frame, operand);
     case CS2_OP_IF_SETONTIMER:
@@ -10081,24 +10240,19 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETONINVTRANSMIT:
         return CS2VM2_Op_CC_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONSTATTRANSMIT:
+        return CS2VM2_Op_CC_SetOnStatTransmit(vm, frame, operand);
     /* No model for these events yet. They MUST still be parsed: the handler
      * signature string drives how many operands to pop, so the static stack
      * table cannot describe them and the StackMetaStub fallback would pop
      * nothing and desync the operand stack for every later opcode. */
-    case CS2_OP_CC_SETONRELEASE:
-    case CS2_OP_CC_SETONTARGETLEAVE:
-    case CS2_OP_CC_SETONTARGETENTER:
-    case CS2_OP_CC_SETONCLICKREPEAT:
     case CS2_OP_CC_SETONCHATTRANSMIT:
     /* CC_SETONFRIENDTRANSMIT (1420) was the one member of this list nobody
      * added. Its IF twin was in the matching group, so the omission was
      * invisible until a script reached it — and then it did not no-op, it
      * ASSERTED, because the generated stack table has no signature for a
      * signature-driven SETON op. */
-    case CS2_OP_CC_SETONFRIENDTRANSMIT:
     case CS2_OP_CC_SETONCLANTRANSMIT:
     case CS2_OP_CC_SETONMISCTRANSMIT:
-    case CS2_OP_CC_SETONDIALOGABORT:
     case CS2_OP_CC_SETONSTOCKTRANSMIT:
     case CS2_OP_CC_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_CC_SETONCLANCHANNELTRANSMIT:
@@ -10132,20 +10286,12 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetComponentParam(vm, frame, operand);
     case CS2_OP_IF_SETONHOLD:
         return CS2VM2_Op_IF_SetOnHold(vm, frame, operand);
-    case CS2_OP_IF_SETONRELEASE:
-    case CS2_OP_IF_SETONTARGETLEAVE:
-    case CS2_OP_IF_SETONTARGETENTER:
-    /* IF_SETONFRIENDTRANSMIT (2420) used to be here. It is now registered for
-     * real (see CS2VM2_Op_IF_SetOnFriendTransmit); its CC twin below is still
-     * discarded, because cc_created rows are rebuilt wholesale by the panel's
-     * own repaint and a per-row listener would have nothing to add. */
+    /* Friend transmit is registered for both IF and CC forms now. */
     case CS2_OP_IF_SETONCLANTRANSMIT:
-    case CS2_OP_IF_SETONDIALOGABORT:
     case CS2_OP_IF_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_IF_SETONCLANCHANNELTRANSMIT:
     /* Same reasoning as the CC_SETON* discard group above: signature-driven
      * operand counts, so they must be parsed rather than left to the stub. */
-    case CS2_OP_IF_SETONCLICKREPEAT:
     case CS2_OP_IF_SETONCHATTRANSMIT:
     case CS2_OP_IF_SETONSTOCKTRANSMIT:
     case CS2_OP_IF_SETONITEMONITEM:

@@ -13769,6 +13769,116 @@ mock230_world_selftest(void)
         goblin = selftest_find_npc(&srv, 3028);
         SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
 
+        /*
+         * The combat tab's auto-retaliate button, end to end.
+         *
+         * The cache supplies the client half of this contract: component
+         * 593:32 runs clientscript 325 on load and whenever varp 172 changes.
+         * That script reads 0 as On and 1 as Off, then redraws the button,
+         * icon and text.  The server half must therefore arm that exact
+         * component, accept its op-1 packet, toggle option_nodef with the
+         * inverted values, and transmit the varp so script 325 runs again.
+         *
+         * Exercise the packet rather than calling the trigger directly.  A
+         * correctly written [if_button] body behind an unarmed or incorrectly
+         * routed component is still a dead button in the client.  Then drive
+         * the retaliation queue in both states: changing only the visual varp
+         * would pass the click checks while combat ignored the setting.
+         */
+        if( loaded && goblin >= 0 )
+        {
+            int option_nodef =
+                mock230_content_symbol(MOCK230_PACK_VARP, "option_nodef");
+            int retaliate = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "combat_interface:retaliate");
+            int armed = 0;
+            uint8_t button[6];
+
+            SELFTEST_CHECK(option_nodef == 172,
+                           "option_nodef must remain CS2 varp 172, got %d",
+                           option_nodef);
+            SELFTEST_CHECK(retaliate == MOCK230_COM(593, 32),
+                           "combat_interface:retaliate must remain 593:32, got %d:%d",
+                           retaliate >> 16, retaliate & 0xffff);
+
+            mock230_scripts_run_proc(
+                &srv, "[proc,combat_tab_login]", NULL, 0);
+            for( int i = 0; i < player->interfaces.event_count; i++ )
+            {
+                const struct Mock230IfEventRange* range =
+                    &player->interfaces.events[i];
+
+                if( range->component_uid == retaliate && range->start == 0 &&
+                    range->end == 0 && range->events1 == 0 && range->events2 == 1 )
+                {
+                    armed = 1;
+                    break;
+                }
+            }
+            SELFTEST_CHECK(
+                armed,
+                "combat_tab_login must arm auto-retaliate op 1 over sub 0 exactly");
+
+            button[0] = (uint8_t)(retaliate >> 24);
+            button[1] = (uint8_t)(retaliate >> 16);
+            button[2] = (uint8_t)(retaliate >> 8);
+            button[3] = (uint8_t)retaliate;
+            button[4] = 0xff;
+            button[5] = 0xff;
+
+            /* This section follows UI fixtures which may leave a modal or a
+             * p_delay behind.  A normal player queue deliberately waits for
+             * both; clear that unrelated state so the two drains below test
+             * option_nodef rather than Player.canAccess(). */
+            mock230_world_close_modal(&srv);
+            player->delayed_until = srv.tick;
+
+            player->varps[option_nodef] = 0; /* CS2: Auto Retaliate (On). */
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(
+                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(player->varps[option_nodef] == 1,
+                           "the combat-tab click should turn auto-retaliate off");
+            SELFTEST_CHECK(
+                mock230_capture_find(
+                    &capture,
+                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                    0) >= 0,
+                "turning auto-retaliate off must transmit varp 172 for CS2 325");
+
+            mock230_combat_stop_player(&srv);
+            SELFTEST_CHECK(
+                mock230_scripts_queue_named(
+                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
+                "the retaliation fixture should queue while the option is off");
+            mock230_scripts_process_queues(&srv);
+            SELFTEST_CHECK(player->combat_target == -1,
+                           "auto-retaliate Off must leave the player idle");
+
+            mock230_capture_begin(&srv, &capture);
+            mock230_world_handle(
+                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+            mock230_capture_end(&srv);
+            SELFTEST_CHECK(player->varps[option_nodef] == 0,
+                           "a second combat-tab click should turn auto-retaliate on");
+            SELFTEST_CHECK(
+                mock230_capture_find(
+                    &capture,
+                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                    0) >= 0,
+                "turning auto-retaliate on must transmit varp 172 for CS2 325");
+
+            SELFTEST_CHECK(
+                mock230_scripts_queue_named(
+                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
+                "the retaliation fixture should queue while the option is on");
+            mock230_scripts_process_queues(&srv);
+            SELFTEST_CHECK(player->combat_target == goblin,
+                           "auto-retaliate On must engage the attacking npc");
+            mock230_combat_stop_player(&srv);
+        }
+
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];

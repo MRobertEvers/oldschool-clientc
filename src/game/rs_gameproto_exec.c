@@ -8,6 +8,7 @@
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_cs2_dispatch.h"
 #include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
 #include "rs_player_stats.h"
@@ -169,6 +170,33 @@ zone_header_level(struct App* app, int header_level)
     if( header_level >= 0 )
         return header_level;
     return zone_player_level(app);
+}
+
+/* TRIGGER_ONDIALOGABORT is a broadcast over the currently active interface
+ * tree. Closed packs remain allocated for reuse, so hidden ancestry is the
+ * boundary between active listeners and stale registrations. */
+static void
+exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
+{
+    struct App* app;
+
+    if( !ctx || !ctx->app || !ctx->tree )
+        return;
+    app = ctx->app;
+    for( uint32_t i = 0; i < ctx->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* node = &ctx->tree->components[i];
+        struct UITreeRuntimeScriptHook hook;
+        if( node->freed || node->component_id < 0 )
+            continue;
+        hook = UITree_Hooks(node)->on_dialog_abort;
+        if( hook.script_id <= 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(ctx->tree, node->component_id) )
+            continue;
+        RS_CS2_DispatchHook(&app->host, &app->runner, node->component_id, &hook);
+    }
+    app->need_redraw = 1;
 }
 
 /* Where a zone sub-packet applies: base + packed nibbles, at `level`. The
@@ -854,6 +882,9 @@ RS_GameProto_Exec(
     case PKT_NAME_RUNCLIENTSCRIPT:
         if( ctx->app )
             App_RunClientScript(ctx->app, &packet->_runclientscript);
+        break;
+    case PKT_NAME_TRIGGER_ONDIALOGABORT:
+        exec_trigger_on_dialog_abort(ctx);
         break;
 
     /* ---- chat ---- */

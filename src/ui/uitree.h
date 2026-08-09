@@ -201,6 +201,12 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_mouse_over;
     struct UITreeRuntimeScriptHook on_mouse_leave;
     struct UITreeRuntimeScriptHook on_mouse_repeat;
+    struct UITreeRuntimeScriptHook on_click_repeat;
+    struct UITreeRuntimeScriptHook on_release;
+    /* BUTTON_TARGET selection lifecycle. Spellbook icons use these to swap
+     * their outline when target mode is armed/cancelled. */
+    struct UITreeRuntimeScriptHook on_target_enter;
+    struct UITreeRuntimeScriptHook on_target_leave;
     struct UITreeRuntimeScriptHook on_drag;
     struct UITreeRuntimeScriptHook on_drag_complete;
     struct UITreeRuntimeScriptHook on_scroll_wheel;
@@ -213,6 +219,7 @@ struct UITreeRuntimeHooks
     /** IF_SETONFRIENDTRANSMIT. Like on_misc_transmit it carries no trigger
      *  list: every registered hook re-runs when the friend store changes. */
     struct UITreeRuntimeScriptHook on_friend_transmit;
+    struct UITreeRuntimeScriptHook on_dialog_abort;
     struct UITreeRuntimeScriptHook on_resize;
     struct UITreeRuntimeScriptHook on_sub_change;
 };

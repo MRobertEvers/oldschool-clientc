@@ -6627,10 +6627,12 @@ app_update_painter_cull(
     }
     if( follow_cam )
     {
-        center_sx = app->orbit_x >> 7;
-        center_sz = app->orbit_z >> 7;
-        anchor_x = app->orbit_x;
-        anchor_z = app->orbit_z;
+        /* (int) then >>7, as the reference does: field2354 is `(int) field917`
+         * and the camera tile is that mirror shifted (client.java:9373). */
+        center_sx = (int)app->orbit_x >> 7;
+        center_sz = (int)app->orbit_z >> 7;
+        anchor_x = (int)app->orbit_x;
+        anchor_z = (int)app->orbit_z;
         painter_set_draw_center(painter, center_sx, center_sz);
     }
     else
@@ -10924,17 +10926,30 @@ app_world_camera_follow(struct App* app)
     target_x = (int)player->draw_position.x;
     target_z = (int)player->draw_position.z;
 
-    /* Anchor: snap when >500 units out (teleport), else ease 1/16. */
-    if( app->orbit_x - target_x < -500 || app->orbit_x - target_x > 500 ||
-        app->orbit_z - target_z < -500 || app->orbit_z - target_z > 500 )
+    /* Anchor: snap when >500 units out (teleport), else ease 1/16 — in FLOAT,
+     * per the reference's client.method1605 (rev-239 deob):
+     *
+     *     field917 = (targetX - field917) * (dtNanos / 3.2e8) + field917;
+     *
+     * dt is one 20 ms client cycle here, and 2e7 / 3.2e8 is exactly 1/16, so
+     * the rate is the reference's. What matters is the type: the old integer
+     * form `orbit_x += (target_x - orbit_x) / 16` truncates the step to 0 once
+     * the gap falls below 16, so the anchor stopped a permanent ~15 units short
+     * on each axis (~21 units diagonally, a sixth of a tile) in whichever
+     * direction the player last walked. The eye is built around that anchor, so
+     * the player model swung round a point beside itself while orbiting — the
+     * camera appeared to orbit the tile rather than the player. */
+    if( app->orbit_x - (float)target_x < -500.0f || app->orbit_x - (float)target_x > 500.0f ||
+        app->orbit_z - (float)target_z < -500.0f || app->orbit_z - (float)target_z > 500.0f )
     {
-        app->orbit_x = target_x;
-        app->orbit_z = target_z;
+        app->orbit_x = (float)target_x;
+        app->orbit_z = (float)target_z;
     }
-    if( app->orbit_x != target_x )
-        app->orbit_x += (target_x - app->orbit_x) / 16;
-    if( app->orbit_z != target_z )
-        app->orbit_z += (target_z - app->orbit_z) / 16;
+    else
+    {
+        app->orbit_x += ((float)target_x - app->orbit_x) / 16.0f;
+        app->orbit_z += ((float)target_z - app->orbit_z) / 16.0f;
+    }
 
     /* Arrow keys -> yaw/pitch velocity (impulse 24/12, halved decay). */
     if( app->cam_key_left )
@@ -10964,9 +10979,11 @@ app_world_camera_follow(struct App* app)
     {
         struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
         int level = player->grid_position.level;
-        int orbit_tile_x = app->orbit_x >> 7;
-        int orbit_tile_z = app->orbit_z >> 7;
-        int orbit_y = app_world_height(app, app->orbit_x, app->orbit_z, level);
+        int orbit_ix = (int)app->orbit_x;
+        int orbit_iz = (int)app->orbit_z;
+        int orbit_tile_x = orbit_ix >> 7;
+        int orbit_tile_z = orbit_iz >> 7;
+        int orbit_y = app_world_height(app, orbit_ix, orbit_iz, level);
         int max_y = 0;
         int clamp;
 
@@ -11006,9 +11023,16 @@ app_world_camera_follow(struct App* app)
     off_y = 0;
     off_z = distance;
 
-    target_y = app_world_height(app, target_x, target_z, player->grid_position.level) - 50;
-    target_x = app->orbit_x;
-    target_z = app->orbit_z;
+    /* Look-at height: the reference samples the ground under the ACTOR (not
+     * under the eased anchor), takes the minimum over its footprint, then
+     * drops 8, then the camera's own 50 — client.method1605:
+     *   var14 = method1569(wv, actor.x, actor.z, level, footprintSize) - 8
+     *   field753 = var14 - field999          (field999 defaults to 50)
+     * method1569 degenerates to a single method1812 sample for a size-1
+     * footprint, which the local player always has. */
+    target_y = app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
+    target_x = (int)app->orbit_x;
+    target_z = (int)app->orbit_z;
 
     inv_pitch = (2048 - pitch) & 0x7ff;
     inv_yaw = (2048 - yaw) & 0x7ff;
@@ -11034,6 +11058,26 @@ app_world_camera_follow(struct App* app)
     app->world_camera_pos.z = target_z - off_z;
     app->world_camera.pitch = pitch;
     app->world_camera.yaw = yaw;
+
+    /* TORIRS_ORBIT_DEBUG: the anchor's residual against the player it follows.
+     * The orbit point is what the whole eye is built around, and an offset one
+     * is invisible in a still frame — it only shows as the model swinging in a
+     * circle while you rotate, which reads as "the camera orbits the tile".
+     * This is the number that says whether it does: settled, it must go to 0. */
+    if( getenv("TORIRS_ORBIT_DEBUG") )
+        fprintf(
+            stderr,
+            "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
+            "pitch=%d yaw=%d dist=%d\n",
+            (double)app->orbit_x,
+            (double)app->orbit_z,
+            (int)player->draw_position.x,
+            (int)player->draw_position.z,
+            (double)((float)(int)player->draw_position.x - app->orbit_x),
+            (double)((float)(int)player->draw_position.z - app->orbit_z),
+            pitch,
+            yaw,
+            distance);
 }
 
 /* Apply queued WorldEventKind_EntityRemoved: free the DYNAMIC scene element.
@@ -11378,6 +11422,39 @@ app_inv_cell_op_flash(
     RS_CS2_SetEventOp(&app->host, 1, 0);
 }
 
+/* Target-mode visuals are script-owned. The spellbook registers
+ * IF_SETONTARGETENTER/LEAVE on every targetable spell; those hooks set outline
+ * 2 (white) while armed and restore outline 0 when the selection ends. */
+static void
+app_targetsel_dispatch_hook(
+    struct App* app,
+    int entering)
+{
+    int32_t idx;
+    struct UITreeRuntimeScriptHook hook;
+
+    if( !app || !app->tree || app->targetsel.component_id < 0 )
+        return;
+    idx = UITree_FindByComponentId(app->tree, app->targetsel.component_id);
+    if( idx < 0 )
+        return;
+    hook = entering ? UITree_Hooks(&app->tree->components[idx])->on_target_enter
+                    : UITree_Hooks(&app->tree->components[idx])->on_target_leave;
+    RS_CS2_DispatchHook(
+        &app->host, &app->runner, app->targetsel.component_id, &hook);
+}
+
+static void
+app_targetsel_clear(
+    struct App* app)
+{
+    if( !app || !app->targetsel.active )
+        return;
+    app_targetsel_dispatch_hook(app, 0);
+    app->targetsel.active = 0;
+    app->need_redraw = 1;
+}
+
 /* Execute one selected (or defaulted) menu row: cross feedback + hook
  * dispatch with the row's op index (v1 ui_click_use_minimenu_option). The
  * cross colour comes from the action alone (RS_Minimenu_CrossModeForAction,
@@ -11420,7 +11497,7 @@ app_minimenu_inv_action(
             net_out_opheldt(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 obj_id, slot, com_id, app->targetsel.component_id));
-        app->targetsel.active = 0;
+        app_targetsel_clear(app);
         app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
@@ -11481,6 +11558,7 @@ app_minimenu_inv_action(
         /* "Use <item>": enter selection mode; the next click targets it.
          * No selectedArea / settrans flash — white outline only. */
         struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+        app_targetsel_clear(app);
         app->objsel.active = 1;
         app->objsel.obj_id = obj_id;
         app->objsel.slot = slot;
@@ -12103,6 +12181,7 @@ app_minimenu_run_option(
     {
         int32_t idx = UITree_FindByComponentId(app->tree, opt.pick.id);
         app->objsel.active = 0;
+        app_targetsel_clear(app);
         app->targetsel.active = 1;
         app->targetsel.component_id = opt.pick.id;
         app->targetsel.mask = 0;
@@ -12126,6 +12205,7 @@ app_minimenu_run_option(
                         app->targetsel.op, sizeof(app->targetsel.op), "%s %s", verb, base);
             }
         }
+        app_targetsel_dispatch_hook(app, 1);
         app->need_redraw = 1;
         return 1;
     }
@@ -12249,7 +12329,7 @@ app_minimenu_run_option(
             break;
         }
         app->objsel.active = 0;
-        app->targetsel.active = 0;
+        app_targetsel_clear(app);
         return 0;
     }
 
@@ -12555,7 +12635,7 @@ app_minimenu_use_option(
         action != REVCONFIG_MINIMENU_TGT_BUTTON )
     {
         app->objsel.active = 0;
-        app->targetsel.active = 0;
+        app_targetsel_clear(app);
         if( had_selection )
             app->need_redraw = 1;
     }
@@ -13234,7 +13314,7 @@ App_RunOnce(
              * ran. Drop the armed selection here — clicking off any surface that
              * can't be a "use" target cancels and clears the white outline. */
             app->objsel.active = 0;
-            app->targetsel.active = 0;
+            app_targetsel_clear(app);
             app->need_redraw = 1;
         }
     }
@@ -13312,7 +13392,7 @@ App_RunOnce(
              * later world click is also inert and the world reads as
              * "unclickable". Drop the armed selection and its white outline. */
             app->objsel.active = 0;
-            app->targetsel.active = 0;
+            app_targetsel_clear(app);
             app->need_redraw = 1;
         }
     }
@@ -13332,7 +13412,7 @@ App_RunOnce(
           app_world_drawable(app)) )
     {
         app->objsel.active = 0;
-        app->targetsel.active = 0;
+        app_targetsel_clear(app);
         app->need_redraw = 1;
     }
 

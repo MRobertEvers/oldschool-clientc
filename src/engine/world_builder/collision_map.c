@@ -1468,7 +1468,7 @@ collision_map_try_route(
     int src_z,
     int dst_x,
     int dst_z,
-    bool try_nearest,
+    struct CollisionNearestOpts const* nearest,
     int* route_x,
     int* route_z,
     int max_route,

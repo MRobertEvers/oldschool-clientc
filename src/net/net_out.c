@@ -172,9 +172,20 @@ net_out_window_status(
     int height)
 {
     struct RSCache_Buffer b;
+    int wire_mode = mode;
+
+    /* Revision 239 reports only the window class: 1 is fixed and 2 is
+     * resizable.  The Display setting is finer grained (0 fixed, 1 resizable
+     * classic, 2 resizable modern), so sending it verbatim turns Classic's 1
+     * into Fixed on the server and causes the selected layout to be remounted
+     * briefly before snapping back.  Revision 230's mock-local extension does
+     * carry the three-way layout value and must remain unchanged. */
+    if( rev && rev->revision == GAMEPROTO_REVISION_OSRS239 )
+        wire_mode = mode == 0 ? 1 : 2;
+
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_WINDOW_STATUS, 5, &b) < 0 )
         return -1;
-    p1(&b, mode & 0xff);
+    p1(&b, wire_mode & 0xff);
     p2(&b, width & 0xffff);
     p2(&b, height & 0xffff);
     return 1 + (int)b.position;

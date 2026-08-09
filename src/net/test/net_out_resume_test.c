@@ -15,6 +15,7 @@ main(void)
     };
     uint8_t packet[16] = { 0 };
     struct Isaac* random = isaac_new(NULL, 0);
+    struct Isaac* random230 = NULL;
     int length = net_out_resume_pausebutton(
         GameProtoRev_OSRS239(), random, packet, (int)sizeof(packet), 0x12345678, 7);
 
@@ -34,7 +35,42 @@ main(void)
         isaac_free(random);
         return 1;
     }
+
+    /* Rev 239's field is the fixed/resizable window class, not the three-way
+     * Display layout index.  Classic and Modern must both encode resizable. */
+    for( int mode = 0; mode <= 2; mode++ )
+    {
+        int expected_wire_mode = mode == 0 ? 1 : 2;
+
+        memset(packet, 0, sizeof(packet));
+        length = net_out_window_status(
+            GameProtoRev_OSRS239(), random, packet, (int)sizeof(packet), mode, 765, 503);
+        if( length != 6 || packet[1] != expected_wire_mode || packet[2] != 0x02 ||
+            packet[3] != 0xfd || packet[4] != 0x01 || packet[5] != 0xf7 )
+        {
+            fprintf(stderr, "WINDOW_STATUS encoded rev239 layout %d incorrectly\n", mode);
+            isaac_free(random);
+            return 1;
+        }
+    }
+
+    /* Rev 230 uses the mock-local three-way convention. */
+    random230 = isaac_new(NULL, 0);
+    for( int mode = 0; mode <= 2; mode++ )
+    {
+        memset(packet, 0, sizeof(packet));
+        length = net_out_window_status(
+            GameProtoRev_OSRS230(), random230, packet, (int)sizeof(packet), mode, 765, 503);
+        if( length != 6 || packet[1] != mode )
+        {
+            fprintf(stderr, "WINDOW_STATUS changed rev230 layout %d encoding\n", mode);
+            isaac_free(random230);
+            isaac_free(random);
+            return 1;
+        }
+    }
+    isaac_free(random230);
     isaac_free(random);
-    puts("net-out-resume: rev239 resume and object-backed IF_BUTTONX bytes passed");
+    puts("net-out-resume: rev239 buttons and revision-specific window status bytes passed");
     return 0;
 }

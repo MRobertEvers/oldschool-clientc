@@ -54,6 +54,42 @@ enum ToriRS_PathingMode
     TORIRS_PATHING_SERVER_AUTHORITATIVE = 1,
 };
 
+/**
+ * "Could not reach it — walk as close as possible."
+ *
+ * Both references flood the map first and only rank *already-flooded* tiles, so
+ * a model is a box size plus a ranking rule; the implementation of both lives in
+ * collision_nearest_fallback (src/engine/world_builder/collision_map.c) and the
+ * numeric encoding of each model in collision_nearest_opts_from_model.
+ *
+ * The zero value is the 2004 behaviour, per the table's zero-is-classic rule.
+ */
+enum ToriRS_NearestModel
+{
+    /**
+     * Client-TS `tryMove` (`Client-TS/src/client/Client.ts`, the `tryNearest`
+     * block): the 3x3 ring around the destination, first tile with the lowest
+     * step count wins, step count capped at 100. Its `for (padding = 1;
+     * padding < 2; padding++)` never widens past one tile.
+     */
+    TORIRS_NEAREST_RING3_STEPS = 0,
+    /**
+     * Official OSRS. The rev-239 client carries this routine verbatim
+     * (`Statics.method5592`, the `!arrived` branch) and the rsmod/LostCity
+     * servers call it `findClosestApproachPoint`: scan the 21x21 box (+/-10)
+     * around the destination, keep tiles the flood reached in under 100 steps,
+     * rank by squared distance to the *target rectangle*, break ties on the
+     * shorter flood. Nothing in the box -> no movement at all.
+     *
+     * The two only agree when the destination's immediate neighbours are
+     * reachable. Clicking across a river, into a walled compound or past a
+     * fence is exactly where RING3 gives up and this one walks you to the wall.
+     */
+    TORIRS_NEAREST_BOX10_RECT = 1,
+    /** No fallback: unreachable means no route. */
+    TORIRS_NEAREST_NONE = 2,
+};
+
 /** How "close enough to interact" is decided for a loc / npc target. */
 enum ToriRS_ApproachModel
 {
@@ -88,20 +124,37 @@ struct ToriRS_FeatureTable
     /**
      * Radius of the "could not reach it, walk as close as possible" box for an
      * *interaction* click. 0 = no fallback at all (Client-TS passes
-     * tryNearest=false for every type-2 tryMove); 10 = XRSPS
-     * Pathfinder.ALTERNATIVE_ROUTE_RANGE.
+     * tryNearest=false for every type-2 tryMove); 10 = the rsmod/XRSPS
+     * alternative-route search, which is TORIRS_NEAREST_BOX10_RECT's radius.
      *
-     * Ground and minimap clicks are NOT affected — both references use the
-     * same 3x3 ring there, so it stays hard-coded in collision_map.c.
+     * Ground and minimap clicks are NOT affected — they carry their own model,
+     * `ground_click_nearest_model`, because the two click kinds genuinely
+     * diverge in the 2004 client (ring for the ground, nothing for an op).
      */
     int op_click_nearest_range;
     /**
      * Ranking for that fallback. 0 = the reference's "first tile with the
-     * lowest step count wins" (only meaningful for the 3x3 ring); 1 = XRSPS's
-     * "lowest squared distance to the target rectangle, ties broken by fewest
-     * steps", which is the only sane rule once the box is 21x21.
+     * lowest step count wins" (only meaningful for the 3x3 ring); 1 = "lowest
+     * squared distance to the target rectangle, ties broken by fewest steps",
+     * which is the only sane rule once the box is 21x21.
      */
     int nearest_ranks_by_rect_distance;
+    /**
+     * enum ToriRS_NearestModel for a *ground or minimap* click on a tile that
+     * cannot be reached. 0 = RING3_STEPS, the Client-TS behaviour.
+     *
+     * Modern OSRS uses BOX10_RECT, and it is a *server* behaviour there: the
+     * client sends MOVE_GAMECLICK (opcode 114, 5 bytes: absolute x, absolute z,
+     * key combination) with no reachability test of its own, and the server
+     * answers with the route to the closest approach point. The rev-239 client
+     * still carries the identical routine for reconstructing a reported move,
+     * which is where the constants above were read from.
+     *
+     * Both halves of this tree read the same field: the client for its
+     * legacy-era local BFS (app.c), the mock server for every ground click it
+     * routes (mock230_scene_route). They must not disagree.
+     */
+    int ground_click_nearest_model;
     /**
      * 0 = asymmetric LoS (2004 / LostCity / live PvM): A can range B while B
      * cannot range back. 1 = modern symmetric LoS for *player-vs-player only*
@@ -171,6 +224,20 @@ ToriRS_Features_ServerRouted(void);
 /** Resolve by name ("lostcity", "osrs", "server_routed"); NULL when unknown. */
 struct ToriRS_FeatureTable const*
 ToriRS_Features_ByName(char const* name);
+
+/**
+ * Resolve an enum ToriRS_NearestModel by name, for the manifest key and the
+ * mock server's env override: "ring3", "box10_rect", "none". Returns -1 when
+ * the name is not one of those, so a typo can be reported rather than silently
+ * read as the zero model.
+ */
+int
+ToriRS_Features_NearestModelByName(char const* name);
+
+/** The name `ToriRS_Features_NearestModelByName` would map back to a model, for
+ *  logging. Unknown values read as "?". */
+char const*
+ToriRS_Features_NearestModelName(int model);
 
 /**
  * Derive an era from the cache identity, for boots that do not state one.

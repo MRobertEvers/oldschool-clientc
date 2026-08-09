@@ -3455,7 +3455,9 @@ rs_cs2_hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
 {
     assert(hooks);
     return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
-           hooks->on_hold.script_id > 0 || hooks->on_drag.script_id > 0 ||
+           hooks->on_hold.script_id > 0 || hooks->on_click_repeat.script_id > 0 ||
+           hooks->on_release.script_id > 0 || hooks->on_target_enter.script_id > 0 ||
+           hooks->on_target_leave.script_id > 0 || hooks->on_drag.script_id > 0 ||
            hooks->on_drag_complete.script_id > 0;
 }
 
@@ -3483,6 +3485,7 @@ rs_cs2_clear_reactive_hooks_at(
     memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
     memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
     memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
+    memset(&hooks->on_dialog_abort, 0, sizeof(hooks->on_dialog_abort));
     memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
     memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
     /* Mouse-over/leave/repeat and scroll-wheel are not interaction clicks but
@@ -3780,6 +3783,30 @@ exec_set_on_cc_transmit(
         return CS2VM_EXECNO_OK;
     }
 
+    if( kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
+    {
+        struct RS_CS2StatTransmitHook* hook;
+        hook = rs_cs2_acquire_stat_transmit_hook(host, component_id);
+        if( !hook )
+            return CS2VM_EXECNO_OK;
+        hook->component_id = component_id;
+        hook->script_id = request->script_id;
+        hook->int_arg_count = request->int_arg_count;
+        if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+            hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
+        hook->trigger_count = request->trigger_count;
+        if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+            hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+        if( request->trigger_ids && hook->trigger_count > 0 )
+            memcpy(
+                hook->trigger_ids,
+                request->trigger_ids,
+                (size_t)hook->trigger_count * sizeof(int));
+        return CS2VM_EXECNO_OK;
+    }
+
     return CS2VM_EXECNO_OK;
 }
 
@@ -3812,6 +3839,21 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return &hooks->on_mouse_leave;
+    case CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT:
+        return &hooks->on_click_repeat;
+    case CS2VM_HOST_REQUEST_IF_SETONRELEASE:
+    case CS2VM_HOST_REQUEST_CC_SETONRELEASE:
+        return &hooks->on_release;
+    case CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT:
+    case CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT:
+        return &hooks->on_dialog_abort;
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETENTER:
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETENTER:
+        return &hooks->on_target_enter;
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE:
+        return &hooks->on_target_leave;
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
         return &hooks->on_mouse_repeat;
@@ -3847,10 +3889,7 @@ rs_cs2_runtime_hook_slot(
          * run orb never repainted on its own. */
         return &hooks->on_misc_transmit;
     case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
-        /* IF_ only, like misc: CC_SETONFRIENDTRANSMIT (1420) is parsed into
-         * the discard group. The friends and ignore panels register this on
-         * their root component in scripts 123 / 127, and it is the only thing
-         * that ever asks them to repaint. */
+    case CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT:
         return &hooks->on_friend_transmit;
     default:
         return NULL;
@@ -3871,6 +3910,16 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "IF_SETONMOUSEOVER";
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
         return "IF_SETONMOUSELEAVE";
+    case CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT:
+        return "IF_SETONCLICKREPEAT";
+    case CS2VM_HOST_REQUEST_IF_SETONRELEASE:
+        return "IF_SETONRELEASE";
+    case CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT:
+        return "IF_SETONDIALOGABORT";
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETENTER:
+        return "IF_SETONTARGETENTER";
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE:
+        return "IF_SETONTARGETLEAVE";
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
         return "IF_SETONKEY";
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
@@ -3883,6 +3932,16 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "CC_SETONMOUSEOVER";
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
         return "CC_SETONMOUSELEAVE";
+    case CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT:
+        return "CC_SETONCLICKREPEAT";
+    case CS2VM_HOST_REQUEST_CC_SETONRELEASE:
+        return "CC_SETONRELEASE";
+    case CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT:
+        return "CC_SETONDIALOGABORT";
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETENTER:
+        return "CC_SETONTARGETENTER";
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE:
+        return "CC_SETONTARGETLEAVE";
     case CS2VM_HOST_REQUEST_IF_SETONDRAG:
         return "IF_SETONDRAG";
     case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
@@ -6237,6 +6296,13 @@ rs_cs2_host_exec_dispatch(
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT:
+    case CS2VM_HOST_REQUEST_IF_SETONRELEASE:
+    case CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETENTER:
+    case CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE:
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONDRAG:
     case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
@@ -6262,6 +6328,12 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
+    case CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT:
+    case CS2VM_HOST_REQUEST_CC_SETONRELEASE:
+    case CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT:
+    case CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETENTER:
+    case CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
     case CS2VM_HOST_REQUEST_CC_SETONDRAG:
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
@@ -6274,6 +6346,7 @@ rs_cs2_host_exec_dispatch(
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT:
         return exec_set_on_cc_transmit(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_SETANTIDRAG:
         if( tree )

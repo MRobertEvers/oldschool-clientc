@@ -87,7 +87,8 @@ UITree_ComponentIsPassThrough(
      * if it is a layer or decorative graphic (scrollbar arrows are hold-only). */
     struct UITreeRuntimeHooks const* hooks = UITree_Hooks(component);
     if( hooks->on_click.script_id > 0 || hooks->on_op.script_id > 0 ||
-        hooks->on_hold.script_id > 0 || hooks->on_drag.script_id > 0 ||
+        hooks->on_hold.script_id > 0 || hooks->on_click_repeat.script_id > 0 ||
+        hooks->on_release.script_id > 0 || hooks->on_drag.script_id > 0 ||
         UITree_ComponentIsDraggable(component) )
         return false;
 
@@ -691,6 +692,8 @@ UITree_InputUpdate(
     result.drag_source_idx = -1;
     result.drag_source_id = -1;
     result.drag_target_id = -1;
+    result.released_source_idx = -1;
+    result.released_source_id = -1;
 
     assert(state);
     assert(tree);
@@ -757,6 +760,9 @@ UITree_InputUpdate(
     {
         int32_t const up_hit = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->hovered = up_hit;
+        result.released_source_idx = state->pressed;
+        if( state->pressed >= 0 && (uint32_t)state->pressed < tree->component_count )
+            result.released_source_id = tree->components[state->pressed].component_id;
         if( state->drag_active )
         {
             result.drag_ended = 1;

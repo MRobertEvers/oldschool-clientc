@@ -772,7 +772,7 @@ interact_drag(
     }
 }
 
-/* onHold fires every tick while a widget stays pressed and no drag is active
+/* onHold/onClickRepeat fire every tick while a widget stays pressed and no drag is active
  * (reference OsrsClient: clickedWidget && isHolding && !isDraggingWidget;
  * holdCtx mouse is relative to the widget's drawn position). Scrollbar arrows
  * hold-scroll through this. */
@@ -796,20 +796,65 @@ interact_hold(
         struct UITreeComponent* c = &tree->components[st->pressed];
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
-        struct UIIntent intent = {
-            .component_id = c->component_id,
-            .hook = &UITree_Hooks(c)->on_hold,
-        };
-        if( UITree_Hooks(c)->on_hold.script_id <= 0 )
-            return;
+        struct UITreeRuntimeHooks const* hooks = UITree_Hooks(c);
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, st->pressed, &offx, &offy);
-        intent.has_event_mouse = 1;
-        intent.event_mouse_x = input->curr.mouse_x - (bx - offx);
-        intent.event_mouse_y = input->curr.mouse_y - (by - offy);
-        intent_push(out, &intent);
-        out->need_redraw = 1;
+        if( hooks->on_hold.script_id > 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = c->component_id,
+                .hook = &hooks->on_hold,
+                .has_event_mouse = 1,
+                .event_mouse_x = input->curr.mouse_x - (bx - offx),
+                .event_mouse_y = input->curr.mouse_y - (by - offy),
+            };
+            intent_push(out, &intent);
+            out->need_redraw = 1;
+        }
+        if( hooks->on_click_repeat.script_id > 0 )
+        {
+            struct UIIntent intent = {
+                .component_id = c->component_id,
+                .hook = &hooks->on_click_repeat,
+                .has_event_mouse = 1,
+                .event_mouse_x = input->curr.mouse_x - (bx - offx),
+                .event_mouse_y = input->curr.mouse_y - (by - offy),
+            };
+            intent_push(out, &intent);
+            out->need_redraw = 1;
+        }
     }
+}
+
+/* onRelease belongs to the widget that received mouse-down, not whatever is
+ * under the pointer on mouse-up. It fires after drag completion, too. */
+static void
+interact_release(
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInputResult const* ui_result,
+    struct UIInteractOut* out)
+{
+    int32_t idx = ui_result->released_source_idx;
+    struct UITreeComponent const* c;
+    struct UITreeRuntimeScriptHook const* hook;
+    struct UIIntent intent;
+
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    c = &tree->components[idx];
+    if( c->freed || c->component_id != ui_result->released_source_id )
+        return;
+    hook = &UITree_Hooks(c)->on_release;
+    if( hook->script_id <= 0 )
+        return;
+    memset(&intent, 0, sizeof(intent));
+    intent.component_id = c->component_id;
+    intent.hook = hook;
+    hover_event_coords(
+        tree, c->component_id, input->curr.mouse_x, input->curr.mouse_y, &intent);
+    intent_push(out, &intent);
+    out->need_redraw = 1;
 }
 
 static void
@@ -1242,6 +1287,8 @@ UITree_InteractFrame(
         ui_result.drag_source_idx = -1;
         ui_result.drag_source_id = -1;
         ui_result.drag_target_id = -1;
+        ui_result.released_source_idx = -1;
+        ui_result.released_source_id = -1;
     }
     else
         ui_result = bridge_input_to_uitree(&interact->input_state, tree, ui_host, input);
@@ -1255,6 +1302,7 @@ UITree_InteractFrame(
 
     interact_wheel(tree, input, out);
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
+    interact_release(tree, input, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);
     interact_hover(interact, tree, ui_host, input, now_ms, out);
     if( !swallow_click )

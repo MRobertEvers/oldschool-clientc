@@ -25,7 +25,9 @@ static int
 hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
 {
     return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
-           hooks->on_hold.script_id > 0 || hooks->on_drag.script_id > 0 ||
+           hooks->on_hold.script_id > 0 || hooks->on_click_repeat.script_id > 0 ||
+           hooks->on_release.script_id > 0 || hooks->on_target_enter.script_id > 0 ||
+           hooks->on_target_leave.script_id > 0 || hooks->on_drag.script_id > 0 ||
            hooks->on_drag_complete.script_id > 0;
 }
 
@@ -44,6 +46,7 @@ clear_reactive_hooks_at(struct UITree* tree, int32_t idx)
     memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
     memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
     memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
+    memset(&hooks->on_dialog_abort, 0, sizeof(hooks->on_dialog_abort));
     memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
     memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
     if( !hooks_have_interaction(hooks) )
