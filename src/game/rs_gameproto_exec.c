@@ -860,8 +860,28 @@ RS_GameProto_Exec(
     case PKT_NAME_MESSAGE_GAME:
         if( ctx->chat )
             RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "message_game: %s\n", packet->_message_game.text);
+        /*
+         * Printed by default, and that is a deliberate inversion.
+         *
+         * This used to be gated on TORIRS_NET_DEBUG — the whole packet
+         * firehose — which made a script's own `mes` output invisible to
+         * anyone who had not already guessed that variable. A headless run
+         * paints no chatbox, so stderr is the only channel content has, and
+         * `mes` is how a debugproc reports what it found. Gating the one line
+         * a test harness exists to read behind a general-purpose trace switch
+         * cost this session three misdiagnoses: a probe that ran correctly and
+         * printed nothing reads exactly like a script that aborted.
+         *
+         * The volume does not justify a gate — login sends five of these and a
+         * busy tick a handful — so the switch is an opt-OUT for a caller that
+         * genuinely wants silence.
+         */
+        {
+            char const* quiet = getenv("TORIRS_MES");
+
+            if( !quiet || strcmp(quiet, "0") != 0 )
+                fprintf(stderr, "message_game: %s\n", packet->_message_game.text);
+        }
         break;
 
     /* ---- world rebuild ---- */
@@ -1401,6 +1421,14 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_SERVER_TICK_END:
+        /* The fence. Every packet of this tick has been applied, so the scripts
+         * the tick pushed can now repaint against the state the server meant
+         * them to see — see `pending_clientscripts` in app.h. */
+        if( ctx->app )
+        {
+            ctx->app->server_tick_fence_seen = 1;
+            App_FlushPendingClientScripts(ctx->app);
+        }
         break;
 
     default:

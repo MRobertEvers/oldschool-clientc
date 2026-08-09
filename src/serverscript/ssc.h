@@ -108,6 +108,19 @@ enum SSC_SymbolKind
     SSC_SYM_TYPE,
     SSC_SYM_DBTABLE,
     SSC_SYM_DBCOLUMN,
+    /**
+     * A row of a dbtable.
+     *
+     * Its own kind rather than UNKNOWN because 102 of the rows in this tree are
+     * named after the obj they describe — `bronze_sword`, `rune_platebody`, the
+     * whole smithing equipment ladder. An UNKNOWN symbol answers a lookup of
+     * ANY kind, so whichever pack loaded first won the name, and `bronze_sword`
+     * in an obj position compiled to dbrow 65811 instead of obj 1277. Nothing
+     * downstream can tell: `oc_cost` answers the unknown-obj default, so the
+     * guide price reads 0 and the starting kit contains an item that is not
+     * the one it names.
+     */
+    SSC_SYM_DBROW,
     SSC_SYM_ENUM,
     SSC_SYM_STRUCT,
     SSC_SYM_PARAM,

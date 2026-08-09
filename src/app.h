@@ -261,6 +261,26 @@ enum ToriRS_WorldRenderMode
 /** Frames the developer overlay's frame-time readout averages over. */
 #define APP_DEBUG_FRAME_SAMPLES 10
 
+/**
+ * RUNCLIENTSCRIPT payloads one server tick may push before the fence.
+ *
+ * Measured rather than guessed: the busiest tick in this tree is a panel open
+ * (`~pricechecker_open` pushes two, a bank open pushes six), and login's burst
+ * is the outlier at just under twenty. 64 leaves that room; past it the script
+ * runs immediately, so the cap costs ordering and never a script.
+ */
+#define APP_PENDING_CLIENTSCRIPT_MAX 64
+
+/**
+ * Logic cycles a held clientscript may wait for a fence that never comes.
+ *
+ * A server tick is 600ms against a 20ms logic cycle, so 30 cycles is one whole
+ * tick — long enough that a healthy connection never reaches it, short enough
+ * that a tick truncated by a disconnect costs one tick of delay rather than the
+ * script.
+ */
+#define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES 30
+
 struct App
 {
     struct AppConfig cfg;
@@ -762,6 +782,45 @@ struct App
     int npc_update_origin_z;
     int npc_update_origin_valid;
     /**
+     * RUNCLIENTSCRIPT payloads held until the server tick that pushed them has
+     * been applied in full.
+     *
+     * A pushed script repaints from client state that LATER packets of the same
+     * tick are about to change, and this pipeline applies one packet at a time
+     * with a frame rendered between them (see `app_logic_tick`). Running the
+     * script where it arrives therefore paints a half-applied tick and shows it:
+     * the price checker's `ge_pricechecker_prices` lands before the
+     * UPDATE_INV_PARTIAL that removes the item, so the removed item stays drawn
+     * with a price of 0 for as long as the repaint plus the remaining packets
+     * take — about ten frames, and plainly visible.
+     *
+     * The reference has the same arrival order and no such artifact, because it
+     * decodes a whole tick's packets in one cycle and only then draws.
+     * SERVER_TICK_END is that fence on the wire, so the scripts are drained
+     * there; `app_flush_pending_clientscripts` is also called when the pipeline
+     * runs dry, which is what carries revisions that send no fence (lc254).
+     *
+     * The payload is a flat POD, so entries are held by value. Overflow runs
+     * the script immediately rather than dropping it — degrading to the old
+     * ordering is a cosmetic bug, losing a script is not.
+     */
+    struct PktRunClientScript pending_clientscripts[APP_PENDING_CLIENTSCRIPT_MAX];
+    int pending_clientscript_count;
+    /**
+     * Has this connection ever sent SERVER_TICK_END?
+     *
+     * The pipeline pops a packet only when it runs dry, and a tick's packets do
+     * not all arrive in one read — so "nothing left to apply" happens *inside* a
+     * tick as often as at its end, and treating it as the fence flushes early
+     * and reproduces exactly the artifact the fence exists to remove. Where a
+     * real fence exists it is therefore the only one used; the dry-pipeline
+     * fallback is for revisions that send none (lc254).
+     */
+    int server_tick_fence_seen;
+    /** Logic cycle the oldest held script has been waiting since, so a fence
+     *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
+    int pending_clientscript_cycle;
+    /**
      * Zone sub-packets that arrived while the world was still async-loading.
      *
      * The reference cannot receive one mid-build — its scene build runs
@@ -1020,6 +1079,12 @@ void
 App_RunClientScript(
     struct App* app,
     struct PktRunClientScript const* request);
+
+/** Dispatch every RUNCLIENTSCRIPT held since the last fence, in arrival order.
+ *  Called at SERVER_TICK_END and whenever the packet pipeline runs dry — see
+ *  `pending_clientscripts` for why they are held at all. */
+void
+App_FlushPendingClientScripts(struct App* app);
 
 /**
  * IDK_SAVEDESIGN: send the accepted character design (reference

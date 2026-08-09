@@ -494,6 +494,11 @@ SSC_SymbolKindForNamespace(const char* ns)
         { "enum",      SSC_SYM_ENUM      },
         { "struct",    SSC_SYM_STRUCT    },
         { "dbtable",   SSC_SYM_DBTABLE   },
+        /* Listed for the shadowing, not for completeness: 102 dbrows in this
+         * tree are named after the obj they describe, and an unlisted pack
+         * loads as UNKNOWN, which answers a lookup of any kind. See
+         * SSC_SYM_DBROW for what that cost. */
+        { "dbrow",     SSC_SYM_DBROW     },
         { "param",     SSC_SYM_PARAM     },
         { "category",  SSC_SYM_CATEGORY  },
         { "synth",     SSC_SYM_SYNTH     },

@@ -4723,6 +4723,43 @@ Task_AppBoot_Run(
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
         TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
 
+    /*
+     * Seed the four audio volumes.
+     *
+     * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
+     * but the varps those sliders actually read are whatever SetVarpTypes left
+     * behind, which is zero. Interface 116 believes the varps: script 7101
+     * greys every bobble while %var3796 <= 0 and script 9254 shows the mute
+     * cross on all four icons, so a client that is audibly playing at full
+     * volume comes up looking muted. Worse, the first click on "Mute" reads the
+     * zero, takes script 9255's unmute branch and turns the volume *up*.
+     *
+     * These are ordinary player varps, so a server that sends VARP_SMALL/LARGE
+     * for them overwrites this — which is the right precedence. It matters only
+     * where nothing does, which is every standalone boot and mock230 today.
+     *
+     * Optimistic (not the server setter) so the ChangeFn runs and the host
+     * snapshot stays in agreement with the varps; and before the tree is built,
+     * so 116 constructs its bobbles green rather than needing a repaint.
+     */
+    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MASTER_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MUSIC_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_SOUND_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_AREA_VOLUME, 100);
+    if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
+        fprintf(
+            stderr,
+            "audio: seeded volume varps master(%d)=%d music(%d)=%d "
+            "sfx(%d)=%d area(%d)=%d\n",
+            RS_CS2_VARP_MASTER_VOLUME,
+            VarPManager_GetVarp(&app->varps, RS_CS2_VARP_MASTER_VOLUME),
+            RS_CS2_VARP_MUSIC_VOLUME,
+            VarPManager_GetVarp(&app->varps, RS_CS2_VARP_MUSIC_VOLUME),
+            RS_CS2_VARP_SOUND_VOLUME,
+            VarPManager_GetVarp(&app->varps, RS_CS2_VARP_SOUND_VOLUME),
+            RS_CS2_VARP_AREA_VOLUME,
+            VarPManager_GetVarp(&app->varps, RS_CS2_VARP_AREA_VOLUME));
+
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
      * Skipped when networked, for the same reason [ui:gameframe] is. */
@@ -5163,42 +5200,75 @@ App_MoveSubInterface(
     App_OpenSubInterface(app, dest_uid, group_id, type);
 }
 
-void
-App_RunClientScript(
+/** Hand one held payload to the CS2 dispatch. */
+static void
+app_dispatch_clientscript(
     struct App* app,
     struct PktRunClientScript const* request)
 {
     char const* strp[PKT_RUNCLIENTSCRIPT_ARG_MAX];
-
-    assert(app);
-    assert(request);
-    if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "runclientscript: script=%d argc=%d str_mask=0x%x\n",
-            request->script_id,
-            request->argc,
-            (unsigned)request->str_mask);
 
     /*
      * The packet indexes strings by ARGUMENT, the CS2 dispatch wants them
      * COMPACTED — see `pkt_runclientscript_compact_strings` for which is which
      * and for what handing over the sparse array did.
      */
-    {
-        int str_count = pkt_runclientscript_compact_strings(
-            request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
+    int str_count =
+        pkt_runclientscript_compact_strings(request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
 
-        RS_CS2_RunScript(
-            &app->host,
-            &app->runner,
+    RS_CS2_RunScript(
+        &app->host,
+        &app->runner,
+        request->script_id,
+        request->intv,
+        request->argc,
+        request->str_mask,
+        strp,
+        str_count);
+}
+
+void
+App_FlushPendingClientScripts(struct App* app)
+{
+    int count;
+
+    assert(app);
+    count = app->pending_clientscript_count;
+    if( count <= 0 )
+        return;
+    /* Cleared before dispatching: a script that pushes another (CC_TRIGGEROP's
+     * queue drain reaches this path) must append to an empty list rather than
+     * be run twice by the loop it is inside. */
+    app->pending_clientscript_count = 0;
+    for( int i = 0; i < count; i++ )
+        app_dispatch_clientscript(app, &app->pending_clientscripts[i]);
+}
+
+void
+App_RunClientScript(
+    struct App* app,
+    struct PktRunClientScript const* request)
+{
+    assert(app);
+    assert(request);
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "runclientscript: script=%d argc=%d str_mask=0x%x (held for tick fence)\n",
             request->script_id,
-            request->intv,
             request->argc,
-            request->str_mask,
-            strp,
-            str_count);
+            (unsigned)request->str_mask);
+
+    /* Held, not run — see `pending_clientscripts` in app.h for why, and
+     * `App_FlushPendingClientScripts` for where they go. */
+    if( app->pending_clientscript_count < APP_PENDING_CLIENTSCRIPT_MAX )
+    {
+        if( !app->pending_clientscript_count )
+            app->pending_clientscript_cycle = app->logic_cycle;
+        app->pending_clientscripts[app->pending_clientscript_count++] = *request;
     }
+    else
+        app_dispatch_clientscript(app, request);
 }
 
 void
@@ -5333,6 +5403,7 @@ app_logic_tick(struct App* app)
      * spans frames while gating everything behind it. */
     {
         int pops = 0;
+        int drained = 0;
         for( int steps = 0; steps < 64; steps++ )
         {
             if( TaskRunner_Step(&app->exec_runner) == TASK_RUNNER_IDLE )
@@ -5340,12 +5411,33 @@ app_logic_tick(struct App* app)
                 struct RevPacket packet;
                 if( !app->net || pops >= 10 ||
                     !ToriRS_Network_PopPacket(app->net, &packet) )
+                {
+                    drained = 1;
                     break;
+                }
                 ToriRS_TaskQueue_Add(
                     app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
                 pops++;
                 redraw = 1;
             }
+        }
+        /*
+         * The fence for revisions that send none, plus a bounded backstop.
+         *
+         * A dry pipeline is NOT a tick boundary on a revision that has one: a
+         * tick's packets arrive over several reads, so the queue runs dry mid-
+         * tick and flushing there is the early dispatch this whole mechanism
+         * exists to prevent. Once a SERVER_TICK_END has been seen, only that
+         * fence dispatches — except after APP_CLIENTSCRIPT_FENCE_MAX_CYCLES,
+         * so a tick cut short by a disconnect cannot strand a script forever.
+         */
+        if( drained && app->pending_clientscript_count &&
+            (!app->server_tick_fence_seen ||
+             app->logic_cycle - app->pending_clientscript_cycle >=
+                 APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
+        {
+            App_FlushPendingClientScripts(app);
+            redraw = 1;
         }
     }
 
