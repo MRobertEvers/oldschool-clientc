@@ -37,8 +37,17 @@ static int g_checks = 0;
         }                                                                                          \
     } while( 0 )
 
-/* Record 1 of cache.osrs239, transcribed byte for byte. Four random sets, no
- * continuous loop, no fades -- the shape the format is really for. */
+/*
+ * The first four random sets of cache.osrs239 record 1, transcribed byte for
+ * byte and then terminated early.
+ *
+ * Deliberately a fragment, not the whole record: what this case is for is the
+ * *field-level* reading -- the tick-to-millisecond conversion, the id order,
+ * the repetition weighting -- on values that can be checked by eye against the
+ * hex. The whole record (77 bytes; it goes on to carry a continuous loop and
+ * both fades) is covered by the round-trip sweep below, which is the check that
+ * would catch a field read in the wrong order.
+ */
 static const uint8_t k_record1[] = {
     0x02, 0x01, 0x5e, 0x02, 0x8a, 0x04, 0x2d, 0x46, 0x2d, 0x47, 0x2d, 0x48, 0x2d, 0x49,
     0x02, 0x01, 0x5e, 0x06, 0x40, 0x02, 0x2d, 0x4f, 0x09, 0x6b,

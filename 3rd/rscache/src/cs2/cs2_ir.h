@@ -499,6 +499,14 @@ struct RSCache_CS2_Function
     struct RSCache_CS2_Chain instructions;
     enum RSCache_CS2_StackType* return_types;
     int return_type_count;
+    /* Serialized facts which structured source cannot otherwise retain. */
+    int original_local_int_count;
+    int original_local_string_count;
+    int original_int_argument_count;
+    int original_string_argument_count;
+    bool preserve_frame_counts;
+    int* return_default_values;
+    bool* return_default_is_int_constant;
 };
 
 struct RSCache_CS2_FunctionSet

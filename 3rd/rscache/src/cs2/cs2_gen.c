@@ -885,9 +885,67 @@ RSCache_CS2_Generate(
     for( int i = 0; i < function->arguments.count; i++ )
         RSCache_CS2_VecAddUnique(&writer.defined_locals, function->arguments.items[i]);
 
+    struct RSCache_CS2_TypingList* returns = NULL;
+    if( function->return_type_count > 0 )
+        returns = RSCache_CS2_TypingsReturns(
+            &fs->typings, function->id, function->return_types, function->return_type_count);
+
     cs2_put(&writer, "// ");
     cs2_put_int(&writer, function->id);
     cs2_next_line(&writer);
+
+    int generated_int_args = 0;
+    int generated_string_args = 0;
+    for( int i = 0; i < function->arguments.count; i++ )
+    {
+        struct RSCache_CS2_Variable* argument =
+            (struct RSCache_CS2_Variable*)function->arguments.items[i];
+        if( argument->kind == RSCACHE_CS2_VAR_ARRAY ||
+            RSCache_CS2_VarStackType(argument->kind) == RSCACHE_CS2_STACK_STRING )
+            generated_string_args++;
+        else
+            generated_int_args++;
+    }
+    bool preserve_frame = function->preserve_frame_counts ||
+                          generated_int_args != function->original_int_argument_count ||
+                          generated_string_args != function->original_string_argument_count;
+    if( preserve_frame )
+    {
+        cs2_put(&writer, "// @rscache-frame ");
+        cs2_put_int(&writer, function->original_local_int_count);
+        cs2_put_char(&writer, ' ');
+        cs2_put_int(&writer, function->original_local_string_count);
+        cs2_put_char(&writer, ' ');
+        cs2_put_int(&writer, function->original_int_argument_count);
+        cs2_put_char(&writer, ' ');
+        cs2_put_int(&writer, function->original_string_argument_count);
+        cs2_next_line(&writer);
+    }
+
+    bool wrote_epilogue = false;
+    for( int i = 0; returns && i < returns->count; i++ )
+    {
+        if( !function->return_default_is_int_constant[i] ||
+            RSCache_CS2_TypeStackType(returns->items[i]->type) != RSCACHE_CS2_STACK_INT ||
+            function->return_default_values[i] ==
+                RSCache_CS2_TypeEpilogueDefault(returns->items[i]->type) )
+            continue;
+        if( !wrote_epilogue )
+        {
+            cs2_put(&writer, "// @rscache-epilogue ");
+            wrote_epilogue = true;
+        }
+        else
+        {
+            cs2_put_char(&writer, ' ');
+        }
+        cs2_put_int(&writer, i);
+        cs2_put_char(&writer, '=');
+        cs2_put_int(&writer, function->return_default_values[i]);
+    }
+    if( wrote_epilogue )
+        cs2_next_line(&writer);
+
     cs2_put(&writer, script_name);
 
     if( function->arguments.count > 0 )
@@ -914,8 +972,6 @@ RSCache_CS2_Generate(
 
     if( function->return_type_count > 0 )
     {
-        struct RSCache_CS2_TypingList* returns = RSCache_CS2_TypingsReturns(
-            &fs->typings, function->id, function->return_types, function->return_type_count);
         cs2_put_char(&writer, '(');
         for( int i = 0; i < returns->count; i++ )
         {

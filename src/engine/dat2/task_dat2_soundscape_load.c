@@ -156,17 +156,37 @@ Task_Dat2SoundscapeLoad_Run(
      * stretch the bed exists for. A soundscape's whole clip set is a handful of
      * short effects.
      */
+    /*
+     * Every value here is re-read from the task struct, and none of it is
+     * hoisted into a local. `TASK_AWAITEX_IF` yields, and a resumed protothread
+     * jumps straight back to a `case` label inside this loop -- so a
+     * `struct RS_Soundscape const* s = &entries[i]` above the yield is *not*
+     * re-initialised on resume, and the second iteration reads a dangling
+     * pointer. That is exactly what the first version of this loop did, and it
+     * segfaulted on the second soundscape. The same trap is on record in
+     * task_dat2_music_load.c, where a loop-local patch id collapsed a whole
+     * soundfont into one slot.
+     *
+     * Only the continuous loops are preloaded, not the random sets: a set can
+     * list 48 ids and a soundscape can hold eight of them, where the loops are
+     * one or two clips. The sets are loaded on their first fire, which their own
+     * multi-second timers give plenty of room for.
+     */
     for( task->preload_index = 0; task->preload_index < task->soundscapes->count;
          task->preload_index++ )
     {
-        struct RS_Soundscape const* s = &task->soundscapes->entries[task->preload_index];
-        if( !s->present )
+        if( !task->soundscapes->entries[task->preload_index].present )
             continue;
-        for( task->preload_sub = 0; task->preload_sub < s->loop_count; task->preload_sub++ )
+        for( task->preload_sub = 0;
+             task->preload_sub < task->soundscapes->entries[task->preload_index].loop_count;
+             task->preload_sub++ )
             TASK_AWAITEX_IF(
                 &task->pt,
                 io,
-                CreateTask_SoundLoad(&task->bc->base, s->loop_ids[task->preload_sub]));
+                CreateTask_SoundLoad(
+                    &task->bc->base,
+                    task->soundscapes->entries[task->preload_index]
+                        .loop_ids[task->preload_sub]));
     }
 
     PT_END(&task->pt);

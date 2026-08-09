@@ -139,6 +139,13 @@ struct cs2_cc_compiler
     int script_id;
     enum RSCache_CS2_Type return_types[128];
     int return_type_count;
+    bool frame_counts_override;
+    int override_local_int_count;
+    int override_local_string_count;
+    int override_int_argument_count;
+    int override_string_argument_count;
+    bool return_default_override[128];
+    int return_default_values[128];
 
     /*
      * Nesting depth inside a `calc(...)`.
@@ -3774,6 +3781,48 @@ RSCache_CS2_Compile(
     cc.error = error;
     cc.error_capacity = error_capacity;
 
+    /* Generated source uses comments as a lossless side channel for serialized
+     * facts the structured language cannot express. Hand-written source keeps
+     * canonical behavior because these comments are optional. */
+    {
+        const char* frame = strstr(source, "// @rscache-frame ");
+        if( frame )
+        {
+            int li = 0, ls = 0, ai = 0, as = 0;
+            if( sscanf(frame, "// @rscache-frame %d %d %d %d", &li, &ls, &ai, &as) == 4 &&
+                li >= 0 && ls >= 0 && ai >= 0 && as >= 0 )
+            {
+                cc.frame_counts_override = true;
+                cc.override_local_int_count = li;
+                cc.override_local_string_count = ls;
+                cc.override_int_argument_count = ai;
+                cc.override_string_argument_count = as;
+            }
+        }
+
+        const char* epilogue = strstr(source, "// @rscache-epilogue ");
+        if( epilogue )
+        {
+            epilogue += strlen("// @rscache-epilogue ");
+            while( *epilogue && *epilogue != '\n' && *epilogue != '\r' )
+            {
+                while( *epilogue == ' ' || *epilogue == '\t' )
+                    epilogue++;
+                char* end = NULL;
+                long slot = strtol(epilogue, &end, 10);
+                if( end == epilogue || slot < 0 || slot >= 128 || *end != '=' )
+                    break;
+                epilogue = end + 1;
+                long value = strtol(epilogue, &end, 10);
+                if( end == epilogue )
+                    break;
+                cc.return_default_override[slot] = true;
+                cc.return_default_values[slot] = (int)value;
+                epilogue = end;
+            }
+        }
+    }
+
     /* The leading `// <id>` comment is the only place the script's own id
      * appears; the lexer skips comments, so it is read directly. */
     {
@@ -3818,7 +3867,9 @@ RSCache_CS2_Compile(
                 cs2_cc_emit_string(&cc, "");
             else
                 cs2_cc_emit(&cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT,
-                            RSCache_CS2_TypeEpilogueDefault(cc.return_types[i]));
+                            cc.return_default_override[i]
+                                ? cc.return_default_values[i]
+                                : RSCache_CS2_TypeEpilogueDefault(cc.return_types[i]));
         }
         cs2_cc_emit(&cc, RSCACHE_CS2_OP_RETURN, 0);
     }
@@ -3840,10 +3891,16 @@ RSCache_CS2_Compile(
         script->int_operands = cc.ops.int_operands;
         script->string_operands = cc.ops.string_operands;
         script->long_operands = (int64_t*)calloc((size_t)cc.ops.count, sizeof(int64_t));
-        script->int_argument_count = cc.int_argument_count;
-        script->string_argument_count = cc.string_argument_count;
-        script->local_int_count = cc.int_local_count;
-        script->local_string_count = cc.string_local_count;
+        script->int_argument_count = cc.frame_counts_override ? cc.override_int_argument_count
+                                                              : cc.int_argument_count;
+        script->string_argument_count = cc.frame_counts_override
+                                            ? cc.override_string_argument_count
+                                            : cc.string_argument_count;
+        script->local_int_count = cc.frame_counts_override ? cc.override_local_int_count
+                                                           : cc.int_local_count;
+        script->local_string_count = cc.frame_counts_override
+                                         ? cc.override_local_string_count
+                                         : cc.string_local_count;
 
         if( RSCache_CS2_ScriptAllocSwitches(script, cc.switch_count) )
         {

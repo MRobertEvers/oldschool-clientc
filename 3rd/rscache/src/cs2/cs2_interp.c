@@ -2365,6 +2365,88 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
         interp->return_types,
         (size_t)interp->return_type_count * sizeof(enum RSCache_CS2_StackType));
     function->return_type_count = interp->return_type_count;
+    function->original_local_int_count = script->local_int_count;
+    function->original_local_string_count = script->local_string_count;
+    function->original_int_argument_count = script->int_argument_count;
+    function->original_string_argument_count = script->string_argument_count;
+
+    /* Trailing unused frame slots and VM array slots have no ordinary source
+     * declaration. Mark scripts whose exact trailer therefore needs the
+     * lossless metadata comment emitted by cs2_gen. */
+    int used_int_locals = script->int_argument_count;
+    int used_string_locals = script->string_argument_count;
+    bool has_array_opcode = false;
+    for( int i = 0; i < script->op_count; i++ )
+    {
+        int opcode = script->opcodes[i];
+        int slot = script->int_operands[i];
+        if( (opcode == RSCACHE_CS2_OP_PUSH_INT_LOCAL ||
+             opcode == RSCACHE_CS2_OP_POP_INT_LOCAL) &&
+            slot + 1 > used_int_locals )
+            used_int_locals = slot + 1;
+        else if( (opcode == RSCACHE_CS2_OP_PUSH_STRING_LOCAL ||
+                  opcode == RSCACHE_CS2_OP_POP_STRING_LOCAL) &&
+                 slot + 1 > used_string_locals )
+            used_string_locals = slot + 1;
+        if( opcode == RSCACHE_CS2_OP_DEFINE_ARRAY || opcode == RSCACHE_CS2_OP_PUSH_ARRAY_INT ||
+            opcode == RSCACHE_CS2_OP_POP_ARRAY_INT )
+            has_array_opcode = true;
+    }
+    function->preserve_frame_counts =
+        has_array_opcode || used_int_locals != script->local_int_count ||
+        used_string_locals != script->local_string_count;
+
+    function->return_default_values = (int*)RSCache_CS2_ArenaAlloc(
+        cs2_arena(interp),
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(int));
+    function->return_default_is_int_constant = (bool*)RSCache_CS2_ArenaAlloc(
+        cs2_arena(interp),
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(bool));
+    memset(
+        function->return_default_is_int_constant,
+        0,
+        (size_t)(interp->return_type_count > 0 ? interp->return_type_count : 1) * sizeof(bool));
+
+    /* Align the serialized epilogue producers with return slots. This mirrors
+     * ScriptReturnTypes' backwards boundary scan, then records literal int
+     * defaults only; typed zero-argument producers remain canonical source. */
+    int epilogue_first = script->op_count - 1;
+    for( int i = script->op_count - 2; i >= 0; i-- )
+    {
+        int opcode = script->opcodes[i];
+        if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT ||
+            opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+        {
+            epilogue_first = i;
+            continue;
+        }
+        const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+        if( !info || info->kind != RSCACHE_CS2_CMD_BASIC || info->arg_count != 0 ||
+            info->def_count == 0 )
+            break;
+        epilogue_first = i;
+    }
+    int return_slot = 0;
+    for( int i = epilogue_first;
+         i < script->op_count - 1 && return_slot < interp->return_type_count;
+         i++ )
+    {
+        int opcode = script->opcodes[i];
+        if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_INT )
+        {
+            function->return_default_is_int_constant[return_slot] = true;
+            function->return_default_values[return_slot++] = script->int_operands[i];
+        }
+        else if( opcode == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING )
+        {
+            return_slot++;
+        }
+        else
+        {
+            const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+            return_slot += info ? info->def_count : 0;
+        }
+    }
 
     for( int i = 0; i < script->int_argument_count; i++ )
         RSCache_CS2_VecPush(
