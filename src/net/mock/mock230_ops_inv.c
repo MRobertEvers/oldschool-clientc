@@ -484,6 +484,63 @@ mock230_ops_inv(
         return 1;
     }
 
+    /*
+     * `[command,inv_changeslot](inv $inv, namedobj $find, namedobj $replace,
+     * int $replace_count)` — engine.rs2:829 (and `.inv_changeslot` at :831).
+     * Four ints in, nothing out.
+     *
+     * `InvOps.ts:86`: walk the container from slot 0 and turn the **first** slot
+     * holding `$find` into `$replace` × `$replace_count`. The reference
+     * `return`s out of its own loop on the first match, and that is the whole
+     * behaviour rather than an optimisation — `desert_heat.rs2` fires once a
+     * tick and degrades *one* container of water per tick, so a body that
+     * changed every match would empty a pack of four waterskins in one go.
+     *
+     * In place, and not `inv_del` + `inv_add`: the point of the opcode is that
+     * the obj stays in the cell it was in, so a waterskin degrades where it lies
+     * instead of jumping to the front of the backpack. That is exactly
+     * `SS_OP_INV_SETSLOT`'s body, so this is a scan plus that one call, and the
+     * registry's own mutator owns the dirty flag for both.
+     *
+     * A container that holds no `$find` is not an error — the reference's loop
+     * simply ends — and it is not one here. What *is* an abort is an unknown
+     * container, matching the reference's `throw new Error('inv is null')`.
+     *
+     * The two gaps its neighbours above already name apply here too and are not
+     * re-stated per case: no `invType.protect` / scope check (there is no
+     * `fields/inv.ini`), and `$find` / `$replace` are not validated against
+     * `ObjTypeValid` because `mock230_objinfo` answers for every id.
+     */
+    case SS_OP_INV_CHANGESLOT:
+    {
+        int32_t values[4];
+        struct Mock230Container* row;
+
+        /* Call is inv_changeslot(inv, find, replace, replace_count) — pop into
+         * values[0..3]. */
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        row = container(state, values[0], opcode);
+        if( !row )
+            return 1;
+        for( int slot = 0; slot < row->slots; slot++ )
+        {
+            /* The reference skips an empty cell before it compares, so an empty
+             * cell can never match however `$find` is spelled. Empty is -1
+             * here, so the guard is not redundant with the compare. */
+            if( row->items[slot].obj_id < 0 )
+                continue;
+            if( row->items[slot].obj_id != (int)values[1] )
+                continue;
+            mock230_container_set(row, slot, (int)values[2], (int)values[3]);
+            return 1;
+        }
+        return 1;
+    }
+
     default:
         return 0;
     }

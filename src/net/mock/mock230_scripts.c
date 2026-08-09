@@ -406,6 +406,58 @@ opcode_implemented(int opcode)
     return 0;
 }
 
+/*
+ * Opcodes content uses that this engine deliberately does not implement.
+ *
+ * Same shape and same discipline as `k_engine_fallbacks` above: a row is a
+ * *stated* gap with a reason, not a tolerance. The gate checks it BOTH ways —
+ * every reported gap must be on this list, and nothing on this list may be
+ * implemented — so a row cannot quietly outlive the reason it was written for,
+ * and a brand-new gap still fails the build. That is the property a bare
+ * threshold does not have.
+ *
+ * The bar for a row is not "hard". It is that implementing the opcode alone
+ * would produce a **silent no-op**: a server that sends a packet nothing reads
+ * is strictly worse than a reported gap, because the gap has a symptom and the
+ * no-op does not (PORTING_GUIDE §4.3).
+ */
+static const struct
+{
+    const char* name;
+    const char* blocked_on;
+} k_opcode_gap_allowed[] = {
+    { "HINT_NPC",
+      "Nothing exists end to end. There is no server encoder; rev230's table maps "
+      "HINT_ARROW to PKT_NAME_NONE (net/rev/osrs230/packetin.h) where rev239 maps it; "
+      "and the client stores the state but never draws it — app.h calls the drawing "
+      "'a flagged follow-on'. So the opcode on its own would encode nothing, or encode "
+      "into a packet the client discards: a no-op that looks implemented. Blocked on "
+      "the client's hint-arrow render lane, and it deletes itself the day that lands. "
+      "Siblings HINT_COORD/HINT_PL/HINT_STOP are absent too and no content wants them "
+      "yet. 5 sites, 3 live, all in quest_mm's demon fight",
+    },
+};
+
+#define MOCK230_OPCODE_GAP_ALLOWED_COUNT                                                           \
+    ((int)(sizeof(k_opcode_gap_allowed) / sizeof(k_opcode_gap_allowed[0])))
+
+/** Is this opcode a *stated* gap? Matched by name, because the numbers move
+ *  between revisions and the name is what the row is about. */
+static int
+opcode_gap_allowed(int opcode)
+{
+    const char* name = SSVM_OpcodeName(opcode);
+
+    if( !name )
+        return 0;
+    for( int i = 0; i < MOCK230_OPCODE_GAP_ALLOWED_COUNT; i++ )
+    {
+        if( strcmp(k_opcode_gap_allowed[i].name, name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
 /**
  * Report every opcode the loaded content uses that nothing implements.
  *
@@ -458,8 +510,43 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
                 continue;
             seen[opcode] = 1;
             first_user[opcode] = script->name ? script->name : "?";
+            if( !opcode_gap_allowed(opcode) )
+                missing++;
+        }
+    }
+
+    /*
+     * The inverse check, and the reason this is a list rather than a number.
+     *
+     * A row whose opcode HAS been implemented is a stale statement about the
+     * engine, and stale statements are how `k_engine_npc_verbs` came to claim a
+     * verb dispatch had stopped honouring. Counted into the return value so it
+     * fails the same gate: the fix is to delete the row, which is one line.
+     */
+    for( int i = 0; i < MOCK230_OPCODE_GAP_ALLOWED_COUNT; i++ )
+    {
+        for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+        {
+            const char* name = SSVM_OpcodeName(opcode);
+
+            if( !name || strcmp(name, k_opcode_gap_allowed[i].name) != 0 )
+                continue;
+            if( !opcode_implemented(opcode) )
+                continue;
+            fprintf(stderr,
+                    "mock230: %s is implemented but still listed as a stated gap — "
+                    "delete its row in k_opcode_gap_allowed\n",
+                    name);
             missing++;
         }
+    }
+
+    for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+    {
+        if( !seen[opcode] || !opcode_gap_allowed(opcode) )
+            continue;
+        fprintf(stderr, "mock230: stated gap %-20s (first wanted by %s)\n",
+                SSVM_OpcodeName(opcode), first_user[opcode]);
     }
 
     if( missing == 0 )
@@ -469,7 +556,7 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
             missing);
     for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
     {
-        if( !seen[opcode] )
+        if( !seen[opcode] || opcode_gap_allowed(opcode) )
             continue;
         fprintf(stderr, "  %-28s first wanted by %s\n", SSVM_OpcodeName(opcode),
                 first_user[opcode]);
@@ -2547,6 +2634,27 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
         trigger = SSVM_LookupKeyTrigger(script->lookup_key);
         verb = mock230_world_engine_claimed_verb(trigger, script->lookup_key >> 10);
         if( !verb )
+            continue;
+
+        /*
+         * A `_` wildcard on the same trigger has already taken the verb, so the
+         * engine's fallback cannot run for ANY record and a per-record script
+         * cannot be shadowing it.
+         *
+         * This is what made the report say 43 while nothing was wrong.
+         * `skill_combat/combat.rs2` binds `[opnpc2,_]`, and dispatch resolves
+         * type -> category -> `_` (SSVM_ProviderGetByTrigger), so the Attack
+         * branch in `interaction_engine_npc` has been unreachable for npc op 2
+         * since that binding landed. `k_engine_npc_verbs` still claimed it —
+         * the same dead-claim the loc family carried before its eviction, and
+         * the hazard that list's own header warns about: two statements of one
+         * fact, and only one of them was updated.
+         *
+         * Asking dispatch rather than re-deriving the answer is the point. This
+         * TIGHTENS the report — it now agrees with what the engine will
+         * actually do — rather than tolerating a category of hit.
+         */
+        if( SSVM_ProviderGetByTriggerSpecific(srv->scripts, trigger, -1, -1) )
             continue;
 
         discharge = discharging_opcode(trigger);
@@ -4676,6 +4784,79 @@ mock230_script_command(
     }
 
     /*
+     * npc_statadd(stat, constant, percent) — `NpcOps.ts:507`, engine.rs2:599.
+     * The mirror of `npc_statsub` above and the same formula against the same
+     * base, in the other direction:
+     *
+     *     level = min(current + (constant + base * percent / 100), 255)
+     *
+     * Two things it is *not*, both of which read as the obvious implementation:
+     *
+     *  - It is not `npc_statheal`. That one clamps at the authored base, which
+     *    is what "heal" means; this one clamps at 255 and is allowed to leave
+     *    the npc above the level its content block states. `NpcOps.ts:241` vs
+     *    `:507` differ in exactly that clamp, so collapsing the two would be
+     *    invisible until something buffed a full-health npc.
+     *  - It is not `npc_statsub` with a negated argument. `npc_statsub` clamps
+     *    the *drain* at zero on purpose (see its note), so a restore can never
+     *    push a level above the authored one. This opcode is the one that may.
+     *
+     * The one caller is `[proc,slayer_after_player_hit]`
+     * (skill_slayer/slayer_specials.rs2:77): a banshee regains one hitpoint per
+     * landed hit. Stubbed, it healed nothing and the npc was simply easier.
+     *
+     * Hitpoints route to `npc->hitpoints`, the other five to `stat_drain[]` —
+     * the same split `npc_stat` / `npc_statsub` use, so a boost is a negative
+     * drain and `npc_basestat` keeps answering the authored level, which is what
+     * the reference's untouched `baseLevels[]` does.
+     *
+     * The 255 is the reference's own ceiling on a stat level (the wire holds one
+     * byte), not a content-shaped number. Nothing here marks the npc alive or
+     * dead: the reference does not either, for the reason `npc_statsub` gives.
+     */
+    case SS_OP_NPC_STATADD:
+    {
+        int32_t values[3];
+        struct Mock230Npc* npc = active_npc(state);
+        int step;
+        int i;
+
+        /* Call is npc_statadd(stat, constant, percent) — pop into values[0..2]. */
+        for( i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_statadd with no active npc");
+            return 1;
+        }
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "npc_statadd %d is not a skill", values[0]);
+            return 1;
+        }
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+        {
+            step = values[1] + (npc->base_hitpoints * values[2]) / 100;
+            npc->hitpoints += step;
+            if( npc->hitpoints > MOCK230_NPC_STAT_MAX )
+                npc->hitpoints = MOCK230_NPC_STAT_MAX;
+            if( npc->hitpoints < 0 )
+                npc->hitpoints = 0;
+            return 1;
+        }
+        step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
+        npc->stat_drain[values[0]] -= step;
+        /* Clamp the *level* at 255, which over a drain is a floor: level is
+         * `base - drain`, so drain may not fall below `base - 255`. */
+        if( npc_base_stat(npc, values[0]) - npc->stat_drain[values[0]] > MOCK230_NPC_STAT_MAX )
+            npc->stat_drain[values[0]] = npc_base_stat(npc, values[0]) - MOCK230_NPC_STAT_MAX;
+        return 1;
+    }
+
+    /*
      * npc_sethuntmode(hunt) — `NpcOps.ts` NPC_SETHUNTMODE. Turn this npc's
      * hunting on or off, `null` being off.
      *
@@ -6311,6 +6492,42 @@ mock230_script_command(
             return 1;
         }
         npc->delayed_until = srv->tick + 1 + ticks;
+        SSVM_Suspend(state, SSVM_NPC_SUSPENDED);
+        return 1;
+    }
+
+    /*
+     * `npc_arrivedelay` — LostCity `NpcOps.ts:557`, ported verbatim:
+     *
+     *     if (activeNpc.lastMovement < World.currentTick - 1) return;
+     *     delayed = true;
+     *     delayedUntil = lastMovement === currentTick - 1
+     *         ? currentTick + 1 : currentTick + 2;
+     *     execution = ScriptState.NPC_SUSPENDED;
+     *
+     * "Let the step I am mid-way through finish before I act." `last_movement`
+     * is the moving tick **plus one** (see its comment on `Mock230Npc`), so
+     * `< tick - 1` means "has not moved for two ticks" and the script runs on
+     * without waiting at all — an npc standing still must not be delayed, or
+     * `[ai_queue3]` death sequences would stall a tick every time.
+     *
+     * Suspension is `npc_delay`'s machinery unchanged: phase 4 offers the
+     * parked script a resume once `srv->tick >= delayed_until`, and the npc is
+     * invalid — no timers, queues, hunts or modes — until then.
+     */
+    case SS_OP_NPC_ARRIVEDELAY:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_arrivedelay with no active npc");
+            return 1;
+        }
+        if( npc->last_movement < srv->tick - 1 )
+            return 1;
+        npc->delayed_until =
+            npc->last_movement == srv->tick - 1 ? srv->tick + 1 : srv->tick + 2;
         SSVM_Suspend(state, SSVM_NPC_SUSPENDED);
         return 1;
     }
@@ -8052,6 +8269,73 @@ mock230_script_command(
         mock230_zone_loc_merge(
             srv, loc->x, loc->z, loc->level, loc->shape, loc->angle, loc->loc_id,
             (int)start_cycle, (int)end_cycle, player->pid, east, south, west, north);
+        return 1;
+    }
+
+    /*
+     * `p_exactmove(start, end, start_cycle, end_cycle, direction)` —
+     * LostCity `PlayerOps.ts:939`:
+     *
+     *     state.activePlayer.unsetMapFlag();
+     *     state.activePlayer.exactMove(startPos.x, startPos.z, endPos.x,
+     *                                  endPos.z, startCycle, endCycle, direction);
+     *
+     * and `Player.exactMove` (`Player.ts:2109`) *teleports the player to the
+     * END tile first*, then records the window and raises the EXACT_MOVE mask.
+     * That order is the whole opcode: the player is already standing at the
+     * destination as far as the server, collision and every other client are
+     * concerned, and the glide the observer sees is purely the extended-info
+     * block replaying the two tiles over the cycle window. A version that
+     * moved the player when the animation ended would desync anything that
+     * asked where they were mid-swing.
+     *
+     * `this.teleport(endX, endZ, this.level)` — the reference passes its own
+     * level, not the coord's, so an exactmove never changes plane and none of
+     * `p_teleport`'s plane bookkeeping applies here.
+     *
+     * The other half of the pair is `p_locmerge` above; content calls both
+     * from `[proc,agility_exactmove]`, which is every agility obstacle.
+     */
+    case SS_OP_P_EXACTMOVE:
+    {
+        int32_t start;
+        int32_t end;
+        int32_t start_cycle;
+        int32_t end_cycle;
+        int32_t direction;
+
+        if( !SSVM_PopInt(state, &direction) )
+            return 1;
+        if( !SSVM_PopInt(state, &end_cycle) )
+            return 1;
+        if( !SSVM_PopInt(state, &start_cycle) )
+            return 1;
+        if( !SSVM_PopInt(state, &end) )
+            return 1;
+        if( !SSVM_PopInt(state, &start) )
+            return 1;
+
+        /* `unsetMapFlag()` = clearWaypoints + the UnsetMapFlag packet. Same
+         * three lines the same-tile arm of `p_walk` above uses. */
+        mock230_world_steps_clear(player);
+        player->dest_x = -1;
+        player->dest_z = -1;
+        player->clear_map_flag = 1;
+
+        player->exact_start_x = coord_x(start);
+        player->exact_start_z = coord_z(start);
+        player->exact_end_x = coord_x(end);
+        player->exact_end_z = coord_z(end);
+        player->exact_start_cycle = (int)start_cycle;
+        player->exact_end_cycle = (int)end_cycle;
+        player->exact_direction = (int)direction;
+
+        player->x = player->exact_end_x;
+        player->z = player->exact_end_z;
+        player->place_dirty = 1;
+        player->waypoint_index = -1;
+
+        player->masks |= MOCK230_PMASK_EXACT_MOVE;
         return 1;
     }
 

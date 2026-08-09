@@ -1512,16 +1512,33 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 # sets, three each, differing in a pair of npc-pathing checks. Under
 # MallocScribble/MallocPreScribble the result is the same every run. That
 # signature — varies with heap contents, stabilises when the heap is poisoned —
-# is an uninitialised read, and it is somewhere under the interaction re-flood
+# is a read of dead memory, and it is somewhere under the interaction re-flood
 # path (`collision_flood` initialises its own dir/dist maps, so it is not those).
 #
-# The site is NOT found yet. Running under scribble is therefore a gate, not a
-# cure, and it deliberately errs the loud way: poisoned memory makes the
-# affected checks FAIL consistently rather than pass consistently, so the bug
-# stays visible and the count stays comparable between runs. A suite whose
-# failure count wandered 10..14 could not answer "did I break something", which
-# is exactly how four regressions reached a user with "baseline, no regression"
-# attached to them.
+# **The site was found on 2026-08-08, and it was a use-after-free in the
+# selftest's own fixture, not an uninitialised read in the engine.** The
+# re-flood stanza took `mock230_scene_find_loc` for the castle door, then called
+# `selftest_park_player`, then dereferenced the loc. A park ends in
+# `maybe_rebuild` -> `mock230_scene_build` -> `mock230_scene_free`, which
+# `free()`s `g_locs` — so both the slot index and the pointer died at the park,
+# and the interaction was latched on whatever the freed page happened to hold.
+# Under scribble that reads 0x55555555 every time, which is why poisoning made
+# it deterministic. When the garbage happened to spell a routable loc the checks
+# PASSED for the wrong reason, routing 74 steps to a loc 34 tiles away.
+#
+# The fixture now resolves the loc after the park (the same rule `p_oploc`
+# states for itself in mock230_ops_player.c: a rebuild reallocates the array
+# underneath anything holding into it). Both checks were mutation-tested
+# afterwards — skipping `queue_path_as_waypoints` in the re-flood turns exactly
+# those two red — so they measure the engine path they name rather than the heap.
+#
+# Scribble stays, because it turned a 1-in-8 flake into a reproducible failure
+# and that is what made this findable. It deliberately errs the loud way:
+# poisoned memory makes an affected check FAIL consistently rather than pass
+# consistently, so the bug stays visible and the count stays comparable between
+# runs. A suite whose failure count wandered 10..14 could not answer "did I
+# break something", which is exactly how four regressions reached a user with
+# "baseline, no regression" attached to them.
 test-mock230-dev: mock230-dev
 	cd $(REPO_ROOT) && MallocScribble=1 MallocPreScribble=1 \
 		./src/$(OBJ_DIR)/dev_mock230 --selftest

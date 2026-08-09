@@ -2476,6 +2476,28 @@ mock230_step_delta(
  *   Fields go in ascending bit order, because that is the order the reader
  *   tests them in. The mask says which fields are present, never where.
  */
+/*
+ * The exact-move facing, as each revision spells it.
+ *
+ * Content states a direction (`^exact_north`=0 .. `^exact_west`=3), because
+ * that is what the reference's `p_exactmove` takes and what the classic block
+ * puts on the wire as one byte. Revision 239 replaced the field with a yaw,
+ * so the era translation has to happen somewhere, and the wire encoder is
+ * where every other one in this file happens.
+ *
+ * The table is not a choice: it is the client's own, `k_facing_yaw` in
+ * `world_cycle.c`, which is the four `dstYaw` assignments Client-TS makes when
+ * it decodes a direction byte. Anything else would make the same obstacle face
+ * two different ways depending on which client watched it.
+ */
+static int
+exact_move_yaw(int direction)
+{
+    static const int k_yaw[4] = { 1024, 1536, 0, 512 };
+
+    return k_yaw[direction & 3];
+}
+
 static void
 put_player_extended(
     struct RSAreaBuf* buf,
@@ -2556,6 +2578,32 @@ put_player_extended(
     {
         rsab_p2(buf, player->spotanim_id < 0 ? 65535 : player->spotanim_id);
         rsab_p4(buf, player->spotanim_height_delay);
+    }
+    if( mask & MOCK230_PMASK_EXACT_MOVE )
+    {
+        /*
+         * Client-TS `Client.ts:8202`: four unsigned bytes, two cycle words,
+         * one direction byte — and the tiles are read absolutely, as
+         * scene-local squares, with no `pathX[0]` added. That is the whole
+         * difference from the v239 block in `mock239_playerinfo.c`, which
+         * states the same two tiles as signed deltas from the player.
+         *
+         * This arm exists whether or not a classic client is watching: the
+         * mask word above is written before any field, so a bit set with no
+         * body does not drop a field — it eats the next player's block and
+         * corrupts everything after it in the stream.
+         */
+        struct Mock230Server* srv = player->world;
+        int origin_x = mock230_scene_origin(srv->zone_x);
+        int origin_z = mock230_scene_origin(srv->zone_z);
+
+        rsab_p1(buf, (player->exact_start_x - origin_x) & 0xff);
+        rsab_p1(buf, (player->exact_start_z - origin_z) & 0xff);
+        rsab_p1(buf, (player->exact_end_x - origin_x) & 0xff);
+        rsab_p1(buf, (player->exact_end_z - origin_z) & 0xff);
+        rsab_p2(buf, player->exact_start_cycle);
+        rsab_p2(buf, player->exact_end_cycle);
+        rsab_p1(buf, player->exact_direction & 3);
     }
     if( mask & MOCK230_PMASK_DAMAGE2 )
     {
@@ -3189,6 +3237,17 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
+            if( player->masks & MOCK230_PMASK_EXACT_MOVE )
+            {
+                ext.has_exact_move = 1;
+                ext.exact_start_x = player->exact_start_x - player->x;
+                ext.exact_start_z = player->exact_start_z - player->z;
+                ext.exact_end_x = player->exact_end_x - player->x;
+                ext.exact_end_z = player->exact_end_z - player->z;
+                ext.exact_start_cycle = player->exact_start_cycle;
+                ext.exact_end_cycle = player->exact_end_cycle;
+                ext.exact_facing = exact_move_yaw(player->exact_direction);
+            }
             /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
              * one since it was written; without the pair, "the animation did
              * not play" cannot be split into "the server never set the mask"
@@ -3196,11 +3255,14 @@ mock230_send_player_info(struct Mock230Player* player)
             if( getenv("MOCK230_EXT_DEBUG") )
                 fprintf(stderr,
                         "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
-                        "seq=%d/%d face=%d appearance=%d\n",
+                        "seq=%d/%d face=%d appearance=%d exactmove=%d "
+                        "(%d,%d)->(%d,%d) %d..%d yaw=%d\n",
                         player->masks, movement, movement_value,
                         ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
                         ext.hit_value, ext.seq_id, ext.seq_delay, ext.has_face,
-                        (int)rsab_len(&ap));
+                        (int)rsab_len(&ap), ext.has_exact_move, ext.exact_start_x,
+                        ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
+                        ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);
             mock239_playerinfo_write(&buf, mock230_wire_player_index(player->pid), movement,
                                      movement_value, player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);

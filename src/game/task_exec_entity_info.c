@@ -460,6 +460,16 @@ player_apply_op(
             ex += player->pathing.route_x[0];
             ez += player->pathing.route_z[0];
         }
+        /* The client half of MOCK230_EXT_DEBUG's exact-move line. Without the
+         * pair, "the obstacle did not glide" cannot be split into "the server
+         * never set the mask" and "the client dropped the block". */
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr,
+                    "exactmove player idx=%d (%d,%d)->(%d,%d) cycles %d..%d "
+                    "facing=%d yaw=%d\n",
+                    idx, sx, sz, ex, ez, op->_exactmove.start_cycle_delta,
+                    op->_exactmove.end_cycle_delta, op->_exactmove.facing,
+                    (int)op->_exactmove.facing_is_yaw);
         World_PlayerSetExactMoveDetailed(
             world,
             idx,

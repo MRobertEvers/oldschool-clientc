@@ -2033,6 +2033,66 @@ was the missing zone emit. `P_LOCMERGE` (2075) likewise emits
 `App_WorldLocMerge` handle the hide window (player riding-loc model draw still
 partial — see `CLIENT_TS_PARITY.md` §56).
 
+**`p_exactmove` (2074) — landed 2026-08-06, and it was the missing half of that
+pair.** Every agility obstacle in the tree reaches it through
+`[proc,agility_exactmove]` (53 call sites / 17 files), which calls `p_locmerge`
+and `p_exactmove` back to back. Everything below the opcode already existed —
+`MOCK230_PMASK_EXACT_MOVE`, `Mock239PlayerExt.has_exact_move`,
+`PKT_PLAYER_INFO_OP_EXACT_MOVE` and `World_PlayerSetExactMoveDetailed` — so what
+was missing was the opcode body and one arm in each of the two encoders.
+
+Three things about it are not obvious from the wire and each has a way of being
+silently wrong:
+
+- **It teleports first.** `Player.exactMove` (`Player.ts:2109`) calls
+  `this.teleport(endX, endZ, this.level)` before storing anything, so the player
+  is at the destination for collision, for the next script line and for every
+  other client, and the glide is purely the extended block replaying the two
+  tiles. An implementation that moved the player when the animation ended would
+  pass any check made a few ticks later. Note `this.level`, not the coord's —
+  an exactmove never changes plane, so none of `p_teleport`'s plane bookkeeping
+  applies.
+- **The two tiles are stated differently per revision**, which is why the player
+  stores them in absolute world coordinates and each encoder transforms: the
+  classic block carries scene-local squares and a direction byte (Client-TS
+  `Client.ts:8202` adds nothing to them), the rev-239 block carries *signed
+  deltas from the player's own tile* and the decoder adds `route_x[0]` back.
+- **The facing changed units.** Content states `^exact_north`..`^exact_west`
+  (0..3, `engine.constant`); revision 239 replaced the field with a yaw, so
+  `exact_move_yaw` maps through the client's own table — `k_facing_yaw` in
+  `world_cycle.c`, the four `dstYaw` assignments Client-TS makes for a direction
+  byte. Anything else makes one obstacle face two ways depending on the viewer.
+
+One consequence worth knowing before looking for the block on an onlooker's
+stream: there isn't one. A teleporting player leaves every observer's
+high-resolution list (`info.ts:73` filters on `other.tele`), so only the player
+performing the obstacle is sent it — `info.ts:53` writes their own teleport with
+the extended bit still set.
+
+Verified in the real client, headless, at the revision that matters:
+
+```
+SDL_VIDEODRIVER=dummy MOCK230_EXT_DEBUG=1 TORIRS_NET_DEBUG=1 \
+TORIRS_NET_CHEAT=exactmove TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/em.bmp \
+  ./src/torirs --manifest manifest_osrs239.ini      # needs EMBED_SERVER=1
+```
+
+which prints the server's block, the script's own view and the client's apply:
+
+```
+ext player: masks=0x203 movement=3/3 … exactmove=1 (0,-3)->(0,0) 0..60 yaw=1024
+message_game: Debug: exactmove to 3228,3221 over 60 cycles; now at 3228,3221.
+exactmove player idx=0 (60,50)->(60,53) cycles 60..0 facing=1024 yaw=1
+```
+
+The three lines are the three claims: the mask carries the block with deltas
+relative to the *post-teleport* tile, the script is already standing at the
+destination on its next line, and the client reconstructed the absolute pair
+three tiles apart. `[debugproc,exactmove]` is in
+`general/scripts/misc/engine_op_debug.rs2` with the other engine-op proofs; the
+`cycles 60..0` inversion is the decoder's naming, not a transposition — this
+client's `move_end` is the glide's *start* cycle (`world_cycle.c`).
+
 One was measured and cut on data, not on scope:
 
 - **`lc_desc` (4102) — 0 of the 62,194 loc records carry a `desc`.** The field is
@@ -2285,8 +2345,20 @@ comments stripped and `engine.rs2` excluded.
   per-npc huntMode/huntrange, a HuntVis test and a per-tick hunt pass. One
   feature wearing several opcodes. `npc_hunt`/`npc_huntall` above are the two
   that are pure searches and need none of it.
-- **`npc_arrivedelay` (2/2)** — needs `lastMovement` against the current tick
-  (`NpcOps.ts:542`), a field written by the mover.
+- ~~**`npc_arrivedelay` (2/2)**~~ — **landed 2026-08-06**, and the refusal was
+  right about the shape and wrong about the size: it named "a field written by
+  the mover", which turned out to be one `int` and one line. `Mock230Npc` gained
+  `last_movement`, written in `phase_cleanup` off the tick's final `step_dir`
+  rather than at the five `npc_take_step` call sites — the phase sees the tick's
+  answer whichever mover produced it (wander, go-home, combat), and
+  `npc_take_step` is handed an npc and not the server, the same reason
+  `frozen_ticks` is a countdown. The opcode is `NpcOps.ts:557` verbatim over
+  `npc_delay`'s existing `SSVM_NPC_SUSPENDED` machinery. The one thing worth
+  carrying: `lastMovement` is the moving tick **plus one**
+  (`Npc.processMovement`), so normalising the offset away shifts *both* arms of
+  the reference's comparison by a tick. Checked in `test-mock230-embed` with all
+  three arms — not delayed, one tick, two ticks — because the middle one is the
+  only arm a "suspend unconditionally" implementation gets wrong.
 - **`npc_inrange` (2/1)** — `targetWithinMaxRange()` (`Npc.ts:635`) reads the
   npc's `target`, `targetOp`, spawn tile and `type.maxrange`. This server has a
   `combat_target` and nothing else that answers "what is this npc interacting

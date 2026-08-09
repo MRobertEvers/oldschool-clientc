@@ -10,15 +10,15 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    224  host commands
+ *    229  host commands
  *      9  host commands (db)
- *      7  host commands (inv)
+ *      8  host commands (inv)
  *      8  host commands (loc)
- *      7  host commands (npc)
+ *      8  host commands (npc)
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    336  total, of 424 declared opcodes
+ *    343  total, of 426 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 336
-#define MOCK230_OPCODE_DECLARED_COUNT 424
+#define MOCK230_OPCODE_COVERAGE_COUNT 343
+#define MOCK230_OPCODE_DECLARED_COUNT 426
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11020
+#define MOCK230_OPCODE_VALUE_LIMIT 11022
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -139,6 +139,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2070, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2072, /* SS_OP_P_COUNTDIALOG (host commands) */
     2073, /* SS_OP_P_DELAY (host commands) */
+    2074, /* SS_OP_P_EXACTMOVE (host commands) */
     2075, /* SS_OP_P_FINDUID (host commands) */
     2076, /* SS_OP_P_LOCMERGE (host commands) */
     2077, /* SS_OP_P_LOGOUT (host commands) */
@@ -187,6 +188,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2136, /* SS_OP_WEAKQUEUEVARARG (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
+    2502, /* SS_OP_NPC_ARRIVEDELAY (host commands) */
     2503, /* SS_OP_NPC_ATTACKRANGE (host commands) */
     2504, /* SS_OP_NPC_BASESTAT (host commands) */
     2505, /* SS_OP_NPC_CATEGORY (host commands (npc)) */
@@ -199,6 +201,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2513, /* SS_OP_NPC_FIND (host commands) */
     2514, /* SS_OP_NPC_FINDALL (host commands) */
     2515, /* SS_OP_NPC_FINDALLANY (host commands) */
+    2516, /* SS_OP_NPC_FINDALLZONE (host commands (npc)) */
     2517, /* SS_OP_NPC_FINDCAT (host commands (npc)) */
     2518, /* SS_OP_NPC_FINDEXACT (host commands) */
     2519, /* SS_OP_NPC_FINDHERO (host commands) */
@@ -217,6 +220,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2536, /* SS_OP_NPC_SETMODE (host commands) */
     2537, /* SS_OP_NPC_SETTIMER (host commands) */
     2538, /* SS_OP_NPC_STAT (host commands) */
+    2539, /* SS_OP_NPC_STATADD (host commands) */
     2540, /* SS_OP_NPC_STATHEAL (host commands) */
     2541, /* SS_OP_NPC_STATSUB (host commands) */
     2542, /* SS_OP_NPC_TELE (host commands) */
@@ -275,6 +279,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4214, /* SS_OP_OC_WEARPOS2 (host commands (obj)) */
     4215, /* SS_OP_OC_WEARPOS3 (host commands (obj)) */
     4302, /* SS_OP_INV_ADD (host commands) */
+    4304, /* SS_OP_INV_CHANGESLOT (host commands (inv)) */
     4305, /* SS_OP_INV_CLEAR (host commands) */
     4306, /* SS_OP_INV_DEBUGNAME (host commands) */
     4307, /* SS_OP_INV_DEL (host commands) */
@@ -376,6 +381,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11017, /* SS_OP_INV_GETVAR (host commands) */
     11018, /* SS_OP_NPC_FREEZE (host commands) */
     11019, /* SS_OP_NPC_FROZEN (host commands) */
+    11020, /* SS_OP_OC_PLACEHOLDER (host commands) */
+    11021, /* SS_OP_OC_UNPLACEHOLDER (host commands) */
 };
 
 #endif

@@ -389,6 +389,63 @@ mock230_ops_npc(
     }
 
     /*
+     * `[command,npc_findallzone](coord $coord)` — engine.rs2:627. One int in,
+     * nothing out; `npc_findnext` walks what it leaves behind.
+     *
+     * `NpcOps.ts:439` builds a `NpcIterator` in `NpcIteratorType.ZONE` mode,
+     * which is the reference's *only* iterator that reads a zone's own npc list
+     * rather than sweeping a radius — so the shape to copy here is
+     * `SS_OP_LOC_FINDALLZONE` (mock230_scripts.c), not `npc_findall` beside it.
+     * A zone is 8x8 and `$coord` names any tile in it, which is why the bounds
+     * come from masking rather than from the coord itself.
+     *
+     * Distance and `checkvis` are absent on purpose and not defaulted: the
+     * reference passes `0` for both and `NpcIteratorType.ZONE` never consults
+     * them. Reusing `search_matches` with distance 0 would look equivalent and
+     * is not — it is a 1x1 radius around one tile, not the containing zone.
+     *
+     * The one caller is `[proc,rd_spawn_leye]`
+     * (quest_recruitmentdrive/recruitmentdrive_kuam.rs2:37), which sweeps the
+     * spawn zone to delete whatever the last attempt left standing before it
+     * spawns the puzzle's npcs. Stubbed, the sweep found nothing and the room
+     * accumulated a second set on every re-entry.
+     *
+     * The single global cursor is shared with `npc_findall` / `npc_huntall` and
+     * the loc iterators, with the consequence `npc_huntall` above states.
+     */
+    case SS_OP_NPC_FINDALLZONE:
+    {
+        int32_t coord;
+        int zone_x;
+        int zone_z;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !srv )
+            return 1;
+        zone_x = mock230_coord_x(coord) & ~7;
+        zone_z = mock230_coord_z(coord) & ~7;
+
+        srv->iterator.count = 0;
+        srv->iterator.cursor = 0;
+        srv->iterator.kind = SSVM_ENT_NPC;
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            const struct Mock230Npc* npc = &srv->npcs[slot];
+
+            if( !npc->active || npc->level != mock230_coord_level(coord) )
+                continue;
+            if( npc->x < zone_x || npc->x >= zone_x + 8 || npc->z < zone_z ||
+                npc->z >= zone_z + 8 )
+                continue;
+            if( srv->iterator.count <
+                (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
+                srv->iterator.slots[srv->iterator.count++] = slot;
+        }
+        return 1;
+    }
+
+    /*
      * `[command,npc_hunt](coord $source, int $distance, int $checkvis)(boolean)`
      * — engine.rs2:21 — and
      * `[command,npc_findcat](coord, category $category, int $distance,
@@ -492,17 +549,27 @@ mock230_ops_npc(
  *     files *look* ported while every npc arrived instantly, which is worse
  *     than the stub because it is silent.
  *
- * `npc_statheal` (16/10), `npc_statsub` (9/6), `npc_statadd` (1/1).
- *     All three write `npc.levels[stat]` (NpcOps.ts:241, :492, :506) against a
- *     `baseLevels[stat]` they clamp to. This engine has no per-npc mutable stat
- *     store: `SS_OP_NPC_STAT` reads `npc->def->attack/strength/defence/...`
- *     straight off the content block and hitpoints is the only number that
- *     moves. Writing a value nothing reads is worse than the stub.
+ * ~~`npc_statheal` (16/10), `npc_statsub` (9/6), `npc_statadd` (1/1)~~ — **all
+ * three are implemented**, in mock230_scripts.c beside `npc_stat`.
+ *     This row's reason ("this engine has no per-npc mutable stat store:
+ *     `SS_OP_NPC_STAT` reads `npc->def->attack/...` straight off the content
+ *     block and hitpoints is the only number that moves") expired without being
+ *     edited, which is PORTING_GUIDE §2.4 item 7 happening to this file:
+ *     `Mock230Npc.stat_drain[]` is that store, `npc_statsub` landed against it
+ *     and `npc_statheal` against `hitpoints`/`base_hitpoints`, and both were
+ *     sitting a hundred lines from a paragraph saying they could not be written.
+ *     `npc_statadd` (NpcOps.ts:507) landed 2026-08-08 alongside them, and its
+ *     clamp is what distinguishes the three: heal stops at the authored base,
+ *     add stops at `MOCK230_NPC_STAT_MAX`, sub cannot restore past the base.
+ *     A stat boost is a negative drain, which `Mock230Npc.stat_drain` states.
  *
  * `npc_changetype_keepall` (36/17).
  *     Verified at Npc.ts:426-449: the *only* difference from `npc_changetype`
- *     is whether `levels[]`/`baseLevels[]` are re-derived from the new type —
- *     the same store the row above says does not exist here. So the two are the
+ *     is whether `levels[]`/`baseLevels[]` are re-derived from the new type.
+ *     That used to read "the store the row above says does not exist here",
+ *     which is no longer the reason — `stat_drain[]` exists — but the answer is
+ *     unchanged, because nothing in this engine re-derives a level from a type
+ *     on a changetype either way. So the two are the
  *     same operation in this engine, and the cheapest correct fix is one
  *     fallthrough line, `case SS_OP_NPC_CHANGETYPE_KEEPALL:` above
  *     `case SS_OP_NPC_CHANGETYPE:` in mock230_scripts.c. Not done here because
@@ -517,11 +584,11 @@ mock230_ops_npc(
  *     it would be stack-correct and silent, which is exactly what the stub does
  *     out loud.
  *
- * `npc_sethuntmode` (14/7), `npc_sethunt` (1/1).
- *     A `hunt` config namespace, a per-npc huntMode/huntrange, and a per-tick
- *     hunt pass. `npc_hunt` / `npc_huntall` above are pure searches and now
- *     honour HuntVis (`checkvis`); the remaining set-hunt opcodes still need
- *     the config namespace and the tick pass.
+ * `npc_sethunt` (1/1) — and **not** `npc_sethuntmode` (14/7), which landed in
+ * mock230_scripts.c as the two-value reduction its own case documents.
+ *     What is still missing is a `hunt` config namespace and a per-tick hunt
+ *     pass. `npc_hunt` / `npc_huntall` above are pure searches and now
+ *     honour HuntVis (`checkvis`).
  *
  * `npc_arrivedelay` (2/2).
  *     Needs `lastMovement` compared against the current tick (NpcOps.ts:542) —
@@ -533,7 +600,15 @@ mock230_ops_npc(
  *     `combat_target` and nothing else that answers "what is this npc
  *     interacting with", so the question cannot be asked here yet.
  *
- * `npc_findallzone` (0 uses) and `nc_desc` (0 uses).
- *     No caller anywhere in the reference tree. `nc_desc` additionally cannot
- *     be answered — a dat2 npc record has no description at this revision.
+ * `nc_desc` (0 uses).
+ *     No caller anywhere in the reference tree, and it additionally cannot be
+ *     answered — a dat2 npc record has no description at this revision.
+ *
+ *     `npc_findallzone` used to be listed here on the same "0 uses" evidence,
+ *     and the evidence was sound *and about the wrong tree*: it has no caller in
+ *     LostCity_Server, one in OSRS-Content
+ *     (`[proc,rd_spawn_leye]`, recruitmentdrive_kuam.rs2:37), and the gap report
+ *     reads the tree that is loaded. Implemented above 2026-08-08. Worth keeping
+ *     as a note rather than deleting: a use count measured over the reference is
+ *     a statement about what would need porting, not about what already did.
  */

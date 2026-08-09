@@ -711,7 +711,7 @@ re-measured over `LostCity_Server/content` today (see below for the method):
 | `npc_statheal` / `statsub` / `statadd` | 16 / 10, 9 / 6, 1 / 1 | all write `npc.levels[stat]`; here `npc_stat` reads the content block and hitpoints is the only number that moves. Writing a value nothing reads is worse than the stub. |
 | `npc_sethuntmode`, `npc_sethunt` | 14 / 7, 1 / 1 | one *feature* wearing five opcodes (a `hunt` namespace, per-npc huntMode/range, a HuntVis test, a per-tick pass). `npc_hunt`/`npc_huntall` are the two of the five that are pure searches. |
 | `npc_heropoints` | 14 / 14 | needs per-player damage attribution plus the drop consumer; `npc_findhero` pushes the constant 1 because there is one player. |
-| `npc_arrivedelay`, `npc_inrange` | 2 / 2, 2 / 1 | both read per-npc fields the mover and the interaction machinery would have to write. |
+| `npc_inrange` | 2 / 1 | `targetWithinMaxRange()` (`Npc.ts:635`) reads the npc's `target`, `targetOp`, spawn tile and `type.maxrange`. This server has a `combat_target` and nothing else that answers "what is this npc interacting with". (`npc_arrivedelay` shared this row until 2026-08-06 — see below.) |
 | `lc_desc` | 0 / 0 | **measured: 0 of 62,194 loc records carry a `desc`.** The field is gone from OSRS loc configs at this revision; a handler could only ever push `'null'`. |
 | `lc_debugname` | 1 / 1 | `debugname` is a LostCity build-time symbol; the dat2 record has no such field. |
 | `buildappearance` | 18 / 7 | **the sharpest §3.13d case so far.** In the reference it is two lines — `this.appearanceInv = inv; masks \|= APPEARANCE` — and the first of them is *read*: `Player.ts:1366` builds the appearance out of `getInventory(this.appearanceInv)`. Its job is **selecting which container the encoder reads**. `put_appearance` (`mock230_encode.c:915`) reads `player->worn` unconditionally, so accepting the argument and raising the mask would make `buildappearance(<anything else>)` silently paint the worn set — plausible, wrong, quiet. The mask half meanwhile is already *unforgettable* here and is not in the reference: the worn container is adopted with `appearance = 1`, so every ServerScript write to it raises `MOCK230_PMASK_APPEARANCE` through `mock230_container_mark`. Implementable the day the encoder gains a selectable source, and not before. |
@@ -737,13 +737,28 @@ were all refused here, and both refusals were plausible when written:
 The counts stay in the census above so they can be re-run; `loc_category` at
 38 / 16 is also this table's worked example of the zero-argument blindness below.
 
+**A fourth left on 2026-08-06, and it is the cheapest kind of stale row.**
+`npc_arrivedelay` (2 / 2) shared a line with `npc_inrange` under one reason —
+*"both read per-npc fields the mover and the interaction machinery would have to
+write"*. True of both, and the two halves are nothing like the same size:
+`npc_inrange` needs an interaction subject this server does not model, while
+`npc_arrivedelay` needed **one `int` and one line** (`Mock230Npc.last_movement`,
+written in `phase_cleanup` off the tick's final `step_dir`). Pairing a cheap
+refusal with an expensive one under a shared reason is how a row outlives its
+reason without ever being wrong. `osrs230_mockserver.md` §3.13g has the port.
+`p_exactmove` (2074) landed in the same pass and was never in this table — it is
+the missing half of `p_locmerge`, and the whole pipe below it already existed.
+
 `LC_OP`, `OC_IOP` and `OC_OP` remain the sharper case one rung up: they are
 `known = 0`, so the VM refuses to execute them at all rather than guessing an
 arity (see *What is not ported, on purpose*). `oc_desc` was written and then
 **removed** on the same ground.
 
-Seven of the npc refusals are blocked on the same thing — per-npc engine state in
-`mock230_world.c`. The next npc item is not an opcode.
+Six of the npc refusals are blocked on the same thing — per-npc engine state in
+`mock230_world.c`. The next npc item is not an opcode. (Seven until 2026-08-06;
+`npc_arrivedelay` was the one whose per-npc state turned out to be a single
+`int`, which is exactly why the count is written as a number that has to be
+re-derived when a row leaves.)
 
 ### Measured, 2026-08-01, and re-run 2026-08-02
 

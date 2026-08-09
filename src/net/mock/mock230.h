@@ -492,6 +492,17 @@ enum
 };
 
 /*
+ * The ceiling a script may raise an npc stat to.
+ *
+ * The reference's own, and engine rather than content: `NpcOps.ts:507`
+ * (`NPC_STATADD`) ends `levels[stat] = Math.min(added, 255)`, and 255 is there
+ * because a stat level is one byte on the wire, not because any npc is meant to
+ * have that much of anything. Named rather than spelled at the two clamps so it
+ * cannot be mistaken for a balance number.
+ */
+#define MOCK230_NPC_STAT_MAX 255
+
+/*
  * Attack styles, in the order the combat interface lists them. OldSchool folds
  * the style into the effective level before the roll: accurate is +3 attack,
  * aggressive +3 strength, defensive +3 defence, controlled +1 to all three.
@@ -1606,7 +1617,13 @@ struct Mock230Npc
 
     /**
      * How much a script has drained each stat below the level the content block
-     * authored — `npc_statsub`, and nothing else, writes it.
+     * authored — `npc_statsub` and `npc_statadd` write it, and nothing else.
+     *
+     * `npc_statadd` writes it *negative*, which is a boost above the authored
+     * level: the reference keeps `baseLevels[]` untouched and lets `levels[]`
+     * rise (`NpcOps.ts:507`), so a delta below zero is that same state said the
+     * other way round. `npc_basestat` keeps answering the authored level either
+     * way.
      *
      * A *delta* rather than a copy of the levels, because the authored level is
      * already the base and duplicating it would give an npc two answers to
@@ -1649,6 +1666,23 @@ struct Mock230Npc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+
+    /**
+     * The tick this npc last changed tile, **plus one** — LostCity
+     * `PathingEntity.lastMovement`, written by `Npc.processMovement` as
+     * `World.currentTick + 1` whenever `lastTickX/Z` differ from `x/z`.
+     *
+     * The `+ 1` is not a quirk to normalise away: `npc_arrivedelay` reads this
+     * against `srv->tick - 1` and `srv->tick`, so removing the offset shifts
+     * both of its arms by a tick. Kept in the reference's own units.
+     *
+     * Written once per tick in `phase_cleanup`, off `step_dir`, rather than at
+     * the five `npc_take_step` call sites: the phase sees the tick's final
+     * answer no matter which mover produced it (wander, go-home, combat), and
+     * `npc_take_step` is handed an npc and not the server — the same reason
+     * `frozen_ticks` is a countdown.
+     */
+    int last_movement;
 
     /**
      * Tick at which this npc stops being frozen — `npc_freeze(ticks)`.
@@ -2013,6 +2047,28 @@ struct Mock230Player
     char say[80];
     int spotanim_id;
     int spotanim_height_delay;
+    /**
+     * `p_exactmove` — the pair `p_locmerge` belongs to. The two tiles the
+     * client glides between, in **absolute world** coordinates, plus the cycle
+     * window and the reference's 0..3 facing direction
+     * (`^exact_north`..`^exact_west`, engine.constant).
+     *
+     * Stored absolute rather than wire-shaped because the two revisions state
+     * the same fact differently and only the encoder knows which one it is
+     * writing: the classic block carries scene-local tiles and a direction
+     * byte (Client-TS `Client.ts:8202`), the rev-239 block carries signed
+     * deltas from the player's own tile and a yaw
+     * (`osrs239_entity_info.c` sets `relative` and `facing_is_yaw`).
+     * Read only while MOCK230_PMASK_EXACT_MOVE is set, so phase 11's mask
+     * clear is the whole lifetime.
+     */
+    int exact_start_x;
+    int exact_start_z;
+    int exact_end_x;
+    int exact_end_z;
+    int exact_start_cycle;
+    int exact_end_cycle;
+    int exact_direction;
     int damage;
     int damage_type;
     int hitpoints;
@@ -3374,12 +3430,22 @@ mock230_world_walk_to_approach(
     struct CollisionApproach const* approach);
 
 /**
- * One tile of an npc's walk toward (target_x, target_z), routing around
- * anything in the way. Returns 1 when it moved.
+ * One tile of an npc's walk toward (target_x, target_z). Returns 1 when it
+ * moved.
  *
- * This is the npc half of `mock230_scene_route` — the reference's
- * `pathToTarget()` + `updateMovement()` at one tile a tick — and the only mover
- * an npc has: the chase, the follow modes and the walk home all go through it.
+ * It does NOT route around anything, and that is the contract rather than a
+ * shortfall. LostCity builds every `Npc` with `MoveStrategy.NAIVE`
+ * (engine/src/engine/entity/Npc.ts:78) and only `MoveStrategy.SMART` reaches
+ * the BFS, which no npc ever has — so an npc takes one greedy step, slides
+ * along a wall when a diagonal has an open leg, and otherwise stalls. That
+ * stall is what safespotting is.
+ *
+ * This is the reference's `pathToTarget()` + `updateMovement()` at one tile a
+ * tick, and the only mover an npc has: the chase, the follow modes and the walk
+ * home all go through it. It said "the npc half of `mock230_scene_route`" until
+ * 2026-08-08, which stopped being true at e410a84c when the BFS here was
+ * replaced by `mock230_scene_naive_path`; two selftest checks went on demanding
+ * the old behaviour for five days on the strength of this paragraph.
  */
 int
 mock230_world_npc_walk_to(

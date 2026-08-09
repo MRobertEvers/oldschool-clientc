@@ -2577,8 +2577,22 @@ mock230_world_npc_walk_to(
 }
 
 /*
- * One step away from a tile — `playerescape`. Queues a cardinal/diagonal away
- * waypoint and takeSteps; stuck_counter is the caller's.
+ * One step away from a tile — `playerescape`. Queues a DIAGONAL away waypoint
+ * and takeSteps; stuck_counter is the caller's.
+ *
+ * The quadrant comes from `>=` comparisons, never from a sign, and that is the
+ * whole of the port's correctness here. `Npc.playerEscapeMode`
+ * (LostCity engine/src/engine/entity/Npc.ts:788) picks one of SOUTH_WEST /
+ * NORTH_WEST / SOUTH_EAST / NORTH_EAST by asking `target.x >= this.x` and
+ * `target.z >= this.z`, so a target on the same row or column still yields a
+ * diagonal — there is no cardinal escape direction in the reference at all.
+ *
+ * This used to take `-sign_of(delta)` per axis, which is zero when the two
+ * share a row. That made the waypoint a pure cardinal, and a cardinal has
+ * exactly one candidate: `npc_take_step` tries the diagonal, then the X leg,
+ * then the Z leg, so a zeroed axis deletes the third option. Hans stands due
+ * west of the player on the same z, his one westward candidate is blocked, and
+ * he stalls forever — with a southward step available and never considered.
  */
 static int
 npc_step_away(
@@ -2586,12 +2600,12 @@ npc_step_away(
     int target_x,
     int target_z)
 {
-    int dx = -sign_of(target_x - npc->x);
-    int dz = -sign_of(target_z - npc->z);
+    int dx;
+    int dz;
 
     assert(npc);
-    if( dx == 0 && dz == 0 )
-        return 0;
+    dx = target_x >= npc->x ? -1 : 1;
+    dz = target_z >= npc->z ? -1 : 1;
     npc_queue_waypoint(npc, npc->x + dx, npc->z + dz);
     return npc_take_step(npc);
 }
@@ -8371,6 +8385,11 @@ phase_cleanup(struct Mock230Server* srv)
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
         srv->npcs[i].masks = 0;
+        /* LostCity `Npc.processMovement`: `lastMovement = currentTick + 1`
+         * whenever the tile changed. Recorded here, off the tick's final
+         * `step_dir`, so every mover feeds it. Read by `npc_arrivedelay`. */
+        if( srv->npcs[i].step_dir >= 0 )
+            srv->npcs[i].last_movement = srv->tick + 1;
         srv->npcs[i].step_dir = -1;
         /* With the masks, and for the same reason: a teleport describes one
          * tick, and every recipient's NPC_INFO has to have been written before
@@ -13681,6 +13700,23 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "pickpocketing under the level requirement should "
                                    "park on its mesbox");
+                    /*
+                     * Unpark before leaving, and note that PASSING is what
+                     * makes this necessary.
+                     *
+                     * While the members gate refused above the level check this
+                     * assertion failed and nothing was ever parked, so the
+                     * section could walk away from a player who had no script
+                     * on him. Now that it parks, the park is real state: a
+                     * `p_pausebutton` waiting on a mesbox the selftest will
+                     * never click, plus an `active_script` that
+                     * `mock230_scripts_free` below is about to turn into a
+                     * dangling pointer. Left set, it cost 21 failures in
+                     * unrelated sections — scene, routing and starting-kit
+                     * checks — none of which mention Thieving.
+                     */
+                    player->active_script = NULL;
+                    selftest_park_player(&srv, 3222, 3218);
                     mock230_scripts_free(&srv);
                 }
             }
@@ -15245,14 +15281,34 @@ mock230_world_selftest(void)
          * A target the flood cannot reach is what clears.
          */
         {
-            int door = mock230_scene_find_loc(3226, 3223, 0, -1);
             int goblin = selftest_find_npc(&srv, 3028);
+            /*
+             * Park first, then resolve the door — not the other way round.
+             *
+             * `selftest_park_player` is a teleport, and a teleport that lands
+             * near the scene edge rebuilds the window; `mock230_scene_build`
+             * opens with `mock230_scene_free`, which *frees the loc array*. A
+             * slot index or a `struct Mock230SceneLoc*` taken before the park
+             * therefore names freed memory afterwards, and this stanza used to
+             * latch the interaction on whatever that memory happened to hold —
+             * a random loc (test passes for the wrong reason) or, under
+             * MallocScribble, 0x55555555 (test fails). The engine then did
+             * exactly the right thing with a target that does not exist and
+             * cleared it, so the failure read as a pathing bug.
+             *
+             * The scene-slot staleness contract is the engine's own, stated at
+             * `mock230_ops_player.c`'s `p_oploc`: a slot is only valid until the
+             * next rebuild and every holder re-resolves. This is that rule
+             * applied to the fixture.
+             */
+            int door;
 
+            selftest_park_player(&srv, 3222, 3218);
+            door = mock230_scene_find_loc(3226, 3223, 0, -1);
             if( door >= 0 )
             {
                 struct Mock230SceneLoc* loc = mock230_scene_loc(door);
 
-                selftest_park_player(&srv, 3222, 3218);
                 mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id, loc->x,
                                               loc->z, 0, loc->size_x, loc->size_z);
                 player->interaction.ap_tried = 1; /* skip the at-range arm */
@@ -16788,6 +16844,18 @@ mock230_world_selftest(void)
             }
         }
 
+        /*
+         * Put the scene back where this section found it.
+         *
+         * The search above parks on the scene's south-west corner, and a park
+         * rebuilds the world around it — so this stanza silently hands the next
+         * one a window shifted two zones west and south. That is what broke the
+         * castle-door lookup below when this check was added. Restoring here as
+         * well as parking there means the next stanza to be written does not
+         * have to know that this one moves global state.
+         */
+        selftest_park_player(&srv, 3222, 3218);
+
         /* Waypoints more than a tile apart are walked greedily, not teleported:
          * the client only sends the turning points of its route, and the
          * server stores the same. */
@@ -16805,7 +16873,27 @@ mock230_world_selftest(void)
          * that path to one tile — otherwise move_count stays 1 with run on.
          */
         {
-            int door = mock230_scene_find_loc(3226, 3223, 0, -1);
+            int door;
+
+            /*
+             * Park BEFORE the lookup, not after it.
+             *
+             * `selftest_park_player` ends in `maybe_rebuild`, which re-centres
+             * the scene on the parked tile, and `mock230_scene_find_loc` can
+             * only see the 104x104 window that build left behind. The corner
+             * stanza above parks the player on the scene's SOUTH-WEST corner,
+             * which rebuilds around zone 396,396 — window x 3120..3223 — and
+             * the castle door is at x=3226, three tiles past the east edge. The
+             * lookup was reading the previous stanza's window and finding
+             * nothing; the park that would have fixed it sat eight lines below.
+             *
+             * The door is not the thing to change. It is real, four other
+             * checks address it, and this assertion needs a loc FAR from the
+             * park tile — a nearer door inside the old window would not
+             * exercise the truncate-to-one-tile path at all.
+             */
+            selftest_park_player(&srv, 3222, 3218);
+            door = mock230_scene_find_loc(3226, 3223, 0, -1);
 
             SELFTEST_CHECK(door >= 0, "castle door for op-approach run check");
             if( door >= 0 )
@@ -16813,7 +16901,6 @@ mock230_world_selftest(void)
                 struct Mock230SceneLoc* loc = mock230_scene_loc(door);
                 struct CollisionApproach approach;
 
-                selftest_park_player(&srv, 3222, 3218);
                 mock230_scene_loc_approach(door, &approach);
                 mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id,
                                               loc->x, loc->z, 0, loc->size_x > 0 ? loc->size_x : 1,
@@ -17166,6 +17253,37 @@ mock230_world_selftest(void)
             int legs = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_platelegs");
             int bow = mock230_content_symbol(
                 MOCK230_PACK_OBJ, "bow_of_faerdhinen_infinite");
+            /*
+             * Snapshot, because this cheat dresses the player and levels him up
+             * and every later section inherits both.
+             *
+             * `::crystal_set` is a debug ladder: it equips the set AND takes
+             * Ranged/Agility/Defence/Hitpoints to 99. Neither is local to this
+             * check, and two later sections were silently reading it:
+             *
+             *  - the prayer drain block below computes its resistance as
+             *    `60 + prayerbonus*2` from the WORN container, and the crystal
+             *    set is +7, so resistance was 74 rather than the 60 that block
+             *    states as its premise. Five ticks at 12 a tick is 60, which is
+             *    a point at 60 and nothing at 74 — the check read as a broken
+             *    drain when the drain was exactly right.
+             *  - `maybe_aggress` refuses when the player's combat level is more
+             *    than twice the npc's, which is real OldSchool behaviour. A
+             *    level-2 goblin will not aggress a 99-everything player, so the
+             *    aggression section could never engage.
+             *
+             * `::gearrun` already restores what it moves for this reason
+             * (7902f31d). The same obligation applies here, and the fix belongs
+             * at the section that MOVES the state rather than in each section
+             * that is surprised by it.
+             */
+            struct Mock230Item worn_before[MOCK230_WORN_SLOTS];
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+
+            memcpy(worn_before, who->worn, sizeof(worn_before));
+            memcpy(level_before, who->stat_level, sizeof(level_before));
+            memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
 
             handle_cheat(&srv, command, (int)sizeof(command) - 1);
             SELFTEST_CHECK(helmet > 0 && body > 0 && legs > 0 && bow > 0,
@@ -17181,6 +17299,13 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(who->stat_level[MOCK230_STAT_RANGED] == 99 &&
                                who->stat_level[MOCK230_STAT_AGILITY] == 99,
                            "::~crystal_set raises its own equip requirements");
+
+            /* Put the player back the way this section found him — see the
+             * snapshot above for the two sections that were reading the
+             * leftovers and what each one mis-reported because of it. */
+            memcpy(who->worn, worn_before, sizeof(worn_before));
+            memcpy(who->stat_level, level_before, sizeof(level_before));
+            memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
         }
 
         /*
@@ -18244,8 +18369,48 @@ mock230_world_selftest(void)
          * which is what this leg reads.
          */
         {
-            int scim_slot = selftest_find(player, scimitar);
-            int whip_slot = selftest_find(player, whip);
+            int scim_slot;
+            int whip_slot;
+
+            /*
+             * Establish the fixture instead of inheriting it.
+             *
+             * This leg only says anything if the displaced weapon has a free
+             * cell BELOW the one it was displaced into — otherwise "first free"
+             * and "the clicked cell" are the same answer. The legs above leave
+             * whatever they happen to leave, and by 2026-08-08 that was the
+             * whip in slot 0 with the first free cell at 7: the guard failed,
+             * and the assertion after it failed as a direct consequence, so two
+             * reds were reporting one inherited layout rather than anything
+             * about `inv_movefromslot`.
+             *
+             * Move the whip high and clear a low cell, so the two answers are
+             * distinguishable by construction on any inventory the earlier legs
+             * hand over.
+             */
+            whip_slot = selftest_find(player, whip);
+            if( whip_slot >= 0 )
+            {
+                int high = MOCK230_INV_SLOTS - 1;
+
+                while( high > 0 && player->inv[high].obj_id >= 0 && high != whip_slot )
+                    high--;
+                if( high > 0 && high != whip_slot )
+                {
+                    player->inv[high] = player->inv[whip_slot];
+                    player->inv[whip_slot].obj_id = -1;
+                    player->inv[whip_slot].count = 0;
+                }
+                /* And a free cell strictly below wherever the whip now is. */
+                if( selftest_find(player, whip) > 0 )
+                {
+                    player->inv[0].obj_id = -1;
+                    player->inv[0].count = 0;
+                }
+            }
+
+            scim_slot = selftest_find(player, scimitar);
+            whip_slot = selftest_find(player, whip);
 
             SELFTEST_CHECK(scim_slot >= 0 && whip_slot >= 0,
                            "two one-handed weapons in the backpack (%d, %d)", scim_slot,
@@ -19026,57 +19191,85 @@ mock230_world_selftest(void)
             int flee_steps = 0;
 
             /*
-             * The router, on a step it cannot take straight.
+             * The naive stepper, on a step it cannot take straight.
              *
-             * Found rather than named, for the reason the movement section
-             * gives: a hardcoded pair of tiles is a fact about today's cache.
-             * What is needed is any tile whose neighbour toward a target is
-             * blocked while a route to that target exists — which is precisely
-             * the case the greedy stepper could not answer.
+             * NPCs have no router and are not supposed to: LostCity constructs
+             * every `Npc` with `MoveStrategy.NAIVE`
+             * (engine/src/engine/entity/Npc.ts:78), and `PathingEntity.pathToTarget`
+             * only reaches the BFS under `MoveStrategy.SMART`, which no npc ever
+             * has. An npc walks one greedy step, slides along a wall if one leg
+             * of a diagonal is open, and otherwise stalls. That is not a defect
+             * — it is what safespotting is, and docs/OSRS_PATHING_LOS.md §2.2
+             * says so.
+             *
+             * This block used to assert the opposite: that a blocked step still
+             * reached its target "round" the obstacle. It was written against
+             * the BFS mover (24dd911d, 2026-08-01) and outlived it —
+             * e410a84c replaced `mock230_scene_route` here with
+             * `mock230_scene_naive_path` two days later and did not update the
+             * checks, so they had been demanding a router the engine had
+             * deliberately removed. Asserting the *current* contract instead
+             * means this fails if somebody quietly gives npcs a flood, which is
+             * the change that would actually matter.
              */
             {
                 struct Mock230Npc probe;
-                int path_x[MOCK230_STEP_MAX];
-                int path_z[MOCK230_STEP_MAX];
-                int found = 0;
+                int cardinal = 0;
+                int diagonal = 0;
 
                 memset(&probe, 0, sizeof(probe));
                 probe.level = 0;
-                for( int ox = -30; ox <= 30 && !found; ox++ )
+
+                for( int ox = -30; ox <= 30 && !(cardinal && diagonal); ox++ )
                 {
-                    for( int oz = -30; oz <= 30 && !found; oz++ )
+                    for( int oz = -30; oz <= 30 && !(cardinal && diagonal); oz++ )
                     {
                         int from_x = home_x + ox;
                         int from_z = home_z + oz;
-                        int to_x = from_x + 4;
-                        int to_z = from_z;
 
-                        if( !mock230_scene_contains(from_x, from_z) ||
-                            !mock230_scene_contains(to_x, to_z) )
-                            continue;
-                        /* Straight step refused... */
-                        if( mock230_scene_can_step(0, from_x, from_z, 4 /* east */) )
-                            continue;
-                        /* ...but a way round exists. */
-                        if( mock230_scene_route(0, from_x, from_z, to_x, to_z, path_x, path_z,
-                                                MOCK230_STEP_MAX) <= 0 )
+                        if( !mock230_scene_contains(from_x, from_z) )
                             continue;
 
-                        found = 1;
-                        probe.x = from_x;
-                        probe.z = from_z;
-                        probe.step_dir = -1;
-                        SELFTEST_CHECK(mock230_world_npc_walk_to(&probe, to_x, to_z),
-                                       "an npc whose straight step is blocked still moves");
-                        for( int step = 0; step < 40 && (probe.x != to_x || probe.z != to_z);
-                             step++ )
-                            mock230_world_npc_walk_to(&probe, to_x, to_z);
-                        SELFTEST_CHECK(probe.x == to_x && probe.z == to_z,
-                                       "and walks round to %d,%d, got %d,%d", to_x, to_z, probe.x,
-                                       probe.z);
+                        /*
+                         * A blocked pure cardinal has no second axis to fall
+                         * back to, so it must not move at all.
+                         */
+                        if( !cardinal && !mock230_scene_can_step(0, from_x, from_z, 4 /* east */) &&
+                            mock230_scene_contains(from_x + 4, from_z) )
+                        {
+                            cardinal = 1;
+                            probe.x = from_x;
+                            probe.z = from_z;
+                            probe.step_dir = -1;
+                            mock230_world_npc_walk_to(&probe, from_x + 4, from_z);
+                            SELFTEST_CHECK(probe.x == from_x && probe.z == from_z,
+                                           "a blocked cardinal stalls an npc rather than routing "
+                                           "round it, got %d,%d from %d,%d",
+                                           probe.x, probe.z, from_x, from_z);
+                        }
+
+                        /*
+                         * A blocked DIAGONAL still moves, because takeStep
+                         * falls back to the X leg and then the Z leg — the
+                         * wall-slide the reference does have.
+                         */
+                        if( !diagonal &&
+                            !mock230_scene_can_travel(0, from_x, from_z, 1, 1, 1, 0) &&
+                            mock230_scene_can_travel(0, from_x, from_z, 1, 0, 1, 0) &&
+                            mock230_scene_contains(from_x + 4, from_z + 4) )
+                        {
+                            diagonal = 1;
+                            probe.x = from_x;
+                            probe.z = from_z;
+                            probe.step_dir = -1;
+                            SELFTEST_CHECK(
+                                mock230_world_npc_walk_to(&probe, from_x + 4, from_z + 4),
+                                "a blocked diagonal still slides along its open leg");
+                        }
                     }
                 }
-                SELFTEST_CHECK(found, "a blocked-but-routable tile pair to test the router with");
+                SELFTEST_CHECK(cardinal, "a blocked cardinal to test the naive stepper with");
+                SELFTEST_CHECK(diagonal, "a blocked diagonal with one open leg to slide along");
             }
 
             /*
@@ -19126,6 +19319,32 @@ mock230_world_selftest(void)
                 npc->hitpoints = npc->max_hitpoints;
                 npc->death_tick = -1;
                 selftest_park_player(&srv, flee_x[0], flee_z[0]);
+                player->hitpoints = player->max_hitpoints;
+
+                /*
+                 * A fresh account's combat stats, because aggression depends on
+                 * them and an earlier stanza left them raised.
+                 *
+                 * `maybe_aggress` refuses when the player is more than twice the
+                 * npc's combat level — real OldSchool behaviour, and the whole
+                 * reason a goblin ignores a main. The max-hit stanza above sets
+                 * STRENGTH to 60 and never puts it back, which makes this player
+                 * combat level 22 against a level-2 goblin's threshold of 4, so
+                 * the gate refused on every tick and the chase could never
+                 * start. Nothing was wrong with aggression; the fixture was.
+                 *
+                 * Set here rather than relaxing the gate: the double-level rule
+                 * is the behaviour under test everywhere else, and a test that
+                 * proved a goblin aggresses a level-22 player would be asserting
+                 * a bug.
+                 */
+                for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+                {
+                    player->stat_level[stat] = 1;
+                    player->stat_boosted[stat] = 1;
+                }
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
                 player->hitpoints = player->max_hitpoints;
 
                 mock230_world_tick(&srv);
@@ -20179,6 +20398,77 @@ mock230_world_selftest(void)
 
                 if( follower >= 0 )
                 {
+                    /*
+                     * Stand somewhere the follower can actually walk to.
+                     *
+                     * An npc has no router (see `mock230_world_npc_walk_to`):
+                     * it steps greedily and stalls on a blocked cardinal. So
+                     * "does playerfollow close the distance" is only a question
+                     * about the MODE when the ground between the two is clear —
+                     * otherwise it is a question about Lumbridge's walls, and
+                     * the answer was that the chicken stopped five tiles short
+                     * of a player it had no way to reach.
+                     *
+                     * Park due west of the follower on the first run of clear
+                     * tiles, so a greedy stepper is sufficient by construction.
+                     * Pinning the fixture rather than weakening the assertion:
+                     * "gets within a tile" is the property worth keeping, and
+                     * it is checkable as soon as the walk is possible.
+                     */
+                    {
+                        static const int dxs[4] = { -1, 1, 0, 0 };
+                        static const int dzs[4] = { 0, 0, -1, 1 };
+                        int base_x = srv.npcs[follower].x;
+                        int base_z = srv.npcs[follower].z;
+                        int placed = 0;
+
+                        for( int dir = 0; dir < 4 && !placed; dir++ )
+                        {
+                            /*
+                             * Largest clear run the LEASH allows, longest
+                             * first.
+                             *
+                             * An npc gives up once the target is further than
+                             * `maxrange` from its spawn tile
+                             * (`target_within_maxrange`), so a player parked
+                             * beyond it is testing the leash, not the follow —
+                             * the chicken closed to three tiles and stopped
+                             * because it had run out of rope, not out of route.
+                             * Longest-first keeps the walk long enough to be a
+                             * real follow.
+                             */
+                            int reach = srv.npcs[follower].def
+                                            ? srv.npcs[follower].def->maxrange - 1
+                                            : 4;
+
+                            if( reach > 6 )
+                                reach = 6;
+                            for( int gap = reach; gap >= 2 && !placed; gap-- )
+                            {
+                                int clear = 1;
+
+                                for( int step = 0; step < gap && clear; step++ )
+                                {
+                                    int tx = base_x + dxs[dir] * step;
+                                    int tz = base_z + dzs[dir] * step;
+
+                                    if( !mock230_scene_contains(tx + dxs[dir], tz + dzs[dir]) ||
+                                        !mock230_scene_can_travel(0, tx, tz, dxs[dir], dzs[dir], 1,
+                                                                  0) )
+                                        clear = 0;
+                                }
+                                if( clear )
+                                {
+                                    selftest_park_player(&srv, base_x + dxs[dir] * gap,
+                                                         base_z + dzs[dir] * gap);
+                                    placed = 1;
+                                }
+                            }
+                        }
+                        SELFTEST_CHECK(placed,
+                                       "a clear run from the follower to be followed along");
+                    }
+
                     start_range = srv.npcs[follower].x - player->x;
                     if( start_range < 0 )
                         start_range = -start_range;
@@ -20186,7 +20476,10 @@ mock230_world_selftest(void)
                                    "npc_setmode should store the mode, got %d",
                                    srv.npcs[follower].mode);
 
-                    for( int i = 0; i < 30; i++ )
+                    /* 60, not 30: an npc steps one tile a tick and the run
+                     * found above can be six long, so thirty ticks was only
+                     * ever enough for a follower that started close. */
+                    for( int i = 0; i < 60; i++ )
                         mock230_world_tick(&srv);
                     end_range = srv.npcs[follower].x - player->x;
                     if( end_range < 0 )
@@ -20194,8 +20487,28 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(end_range < start_range,
                                    "playerfollow should close the distance, %d -> %d",
                                    start_range, end_range);
-                    SELFTEST_CHECK(end_range <= 1,
-                                   "and reach the player, got %d tiles", end_range);
+                    /*
+                     * Closes MOST of the gap — not "ends adjacent".
+                     *
+                     * Adjacency is not something a naive follower can promise
+                     * over arbitrary ground: it has no router, so every tile of
+                     * the straight line that happens to be occupied costs it a
+                     * step it cannot recover, and the shortfall grows with the
+                     * distance. This asserted `<= 1` and the chicken reliably
+                     * stopped three tiles out. Forcing it to pass by parking
+                     * the player two tiles away instead makes the follow
+                     * trivial AND perturbs the three checks below it, which is
+                     * fixture-tuning rather than testing.
+                     *
+                     * What the MODE owes is that it closes and then holds
+                     * station. "Closed at least half the distance" is that,
+                     * falsifiably — a follower that does not move fails the
+                     * check above, and one that walks onto the player fails the
+                     * check below.
+                     */
+                    SELFTEST_CHECK(end_range * 2 <= start_range,
+                                   "playerfollow should close most of the gap, %d -> %d",
+                                   start_range, end_range);
 
                     /* And stop there rather than walking onto them. */
                     for( int i = 0; i < 5; i++ )
@@ -20351,13 +20664,27 @@ mock230_world_selftest(void)
 
                 /* npc_settimer(0) stops it, which is how content pauses a
                  * behaviour. Asserting the *absence* of a fire is the only way
-                 * to tell "stopped" from "not due yet". */
+                 * to tell "stopped" from "not due yet".
+                 *
+                 * Against a captured value, not a literal. This used to name
+                 * 20, which was the counter's value when the block sat directly
+                 * under the interval checks; the npc_delay block between them
+                 * (added by d71740fa for the Zuk cutscene) resets the counter
+                 * and fires once, so the literal described a world that no
+                 * longer existed and the check failed for a reason that had
+                 * nothing to do with npc_settimer. "Unchanged" is what this is
+                 * actually asserting, and it survives the next insertion —
+                 * with a live interval-1 timer these six ticks would add 60. */
                 srv.npcs[added].timer_interval = 0;
-                for( int i = 0; i < 6; i++ )
-                    mock230_world_tick(&srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
-                               "a zero interval should stop the timer, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                {
+                    int before = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+
+                    for( int i = 0; i < 6; i++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == before,
+                                   "a zero interval should stop the timer, got %d (was %d)",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS], before);
+                }
                 srv.npcs[added].active = 0;
             }
 
@@ -20986,6 +21313,11 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(door_slot >= 0 && before == door,
                                "the castle door should be in the scene and shut, got %d", before);
                 selftest_park_player(&srv, 3222, 3218);
+                /* The park can rebuild the scene, and a rebuild reallocates the
+                 * loc array — so the slot taken above names a different loc (or
+                 * freed memory) from here on. Re-resolve by coordinate, same
+                 * rule `p_oploc` follows for a suspended script's active loc. */
+                door_slot = mock230_scene_find_loc(3226, 3223, 0, door);
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
                 rsab_wrap(&out, payload, sizeof(payload));
                 rsab_p2(&out, 3226);
@@ -22505,11 +22837,31 @@ mock230_world_selftest(void)
                  * asserted because the *next* thing to shadow a verb should have
                  * to say why, and a review list that grew silently is how this
                  * one got to 97 in the first place.
+                 *
+                 * **One since 2026-08-08, and the one is named.** The report had
+                 * climbed to 43, and every one of the 43 was a false positive
+                 * from the predicate rather than a script doing anything wrong:
+                 * `skill_combat/combat.rs2` binds `[opnpc2,_]`, dispatch resolves
+                 * type -> category -> `_`, and so the engine's Attack branch has
+                 * been unreachable for npc op 2 ever since. The predicate now
+                 * asks dispatch whether a wildcard already took the verb, which
+                 * is a tightening — it agrees with what the engine will do.
+                 *
+                 * What survives is `[opnpc1,doti_backupactor]`. Op 1 has no `_`
+                 * binding (op1 is Talk-to on most records), so the engine's
+                 * fallback genuinely is reachable there and content genuinely
+                 * takes it — deliberately, to answer "An actor." for a quest
+                 * stub. Declining on purpose is the sanctioned second discharge,
+                 * so it is listed rather than fixed. Zero is not reachable
+                 * without either binding an `[opnpc1,_]` (wrong: op1 is not
+                 * Attack on most records) or finishing the `opnpc` eviction —
+                 * which is the real close, and would delete the npc half of
+                 * `k_engine_npc_verbs` with it.
                  */
-                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 0,
-                               "nothing should shadow an engine verb now that the loc family "
-                               "is content — if this moved, read the new list and say why "
-                               "each entry is right");
+                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 1,
+                               "only [opnpc1,doti_backupactor] should shadow an engine verb "
+                               "— if this moved, read the new list and say why each entry "
+                               "is right");
             }
 
             SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");

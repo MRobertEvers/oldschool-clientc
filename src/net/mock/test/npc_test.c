@@ -783,11 +783,16 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
              "\n"
              "[proc,t_huntall_narrow]()(int)\n"
              "npc_huntall(0_%d_%d_%d_%d, 0, 0);\n"
+             "return(1);\n"
+             "\n"
+             "[proc,t_findallzone]()(int)\n"
+             "npc_findallzone(0_%d_%d_%d_%d);\n"
              "return(1);\n",
              K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ, K_SEARCH_MX, K_SEARCH_MZ,
              K_SEARCH_LX, K_SEARCH_LZ, K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ,
              K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ, K_SEARCH_MX, K_SEARCH_MZ,
-             K_SEARCH_LX, K_SEARCH_LZ, K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ);
+             K_SEARCH_LX, K_SEARCH_LZ, K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ,
+             K_SEARCH_MX, K_SEARCH_MZ, K_SEARCH_LX, K_SEARCH_LZ);
 
     if( !fixture_compile(&fixture, subjects, srv, source) )
         return;
@@ -957,6 +962,52 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
     if( run_finder(&fixture, "[proc,t_huntall_narrow]", &result) >= -1 )
     {
         CHECK_EQ(srv->iterator.count, 0, "npc_huntall at distance 0 collects nothing");
+    }
+
+    /*
+     * `npc_findallzone` fills the same iterator from the containing 8x8 zone,
+     * and the layout separates it from a radius search without a second fixture.
+     *
+     * The search tile is (3220, 3220), so the zone is x/z 3216..3223:
+     *
+     *   near  (3221, 3220)  in       tie  (3219, 3220)  in
+     *   twin  (3221, 3221)  in       nameless (3220, 3221)  in
+     *   far   (3224, 3220)  **out** — one tile past the zone edge, and well
+     *                       inside `npc_huntall`'s radius of 8, which collects it
+     *
+     * So `far` is the whole assertion: a body that reused `search_matches` with
+     * some distance, or that centred an 8x8 box on the coord instead of masking
+     * to the zone, would include it. And `nameless` being present is what
+     * separates this from `npc_huntall`, whose op2 filter drops it.
+     */
+    srv->iterator.count = 0;
+    srv->iterator.kind = 0;
+    if( run_finder(&fixture, "[proc,t_findallzone]", &result) >= -1 )
+    {
+        int saw_near = 0;
+        int saw_tie = 0;
+        int saw_twin = 0;
+        int saw_nameless = 0;
+        int saw_far = 0;
+
+        CHECK_EQ(srv->iterator.kind, SSVM_ENT_NPC,
+                 "npc_findallzone claimed the npc iterator");
+        for( int i = 0; i < srv->iterator.count; i++ )
+        {
+            if( srv->iterator.slots[i] == near_slot )
+                saw_near = 1;
+            if( srv->iterator.slots[i] == tie_slot )
+                saw_tie = 1;
+            if( srv->iterator.slots[i] == twin_slot )
+                saw_twin = 1;
+            if( srv->iterator.slots[i] == nameless_slot )
+                saw_nameless = 1;
+            if( srv->iterator.slots[i] == far_slot )
+                saw_far = 1;
+        }
+        CHECK(saw_near && saw_tie && saw_twin && saw_nameless,
+              "npc_findallzone collected every npc in the zone, filtered by nothing");
+        CHECK(!saw_far, "npc_findallzone stopped at the zone edge, not at a radius");
     }
 
     fixture_close(&fixture);

@@ -215,6 +215,7 @@ struct Peer
      */
     int saw_synth_count;
     int saw_synth_id, saw_synth_loops, saw_synth_delay;
+
 };
 
 /** The last FACE_ENTITY this client decoded for `slot`, or -1 if none.
@@ -1086,6 +1087,172 @@ main(void)
                   peers[0].saw_synth_delay == synth_delay,
               "id/loops/delay round-tripped through the client's own "
               "gameproto_parse.c reader unchanged");
+    }
+
+    /*
+     * ── P_EXACTMOVE, and the half of it that is not the animation ──────
+     *
+     * `p_exactmove(start, end, start_cycle, end_cycle, direction)` —
+     * LostCity `PlayerOps.ts:939` over `Player.exactMove` (`Player.ts:2109`).
+     * Content reaches it through `[proc,agility_exactmove]`, which is every
+     * agility obstacle in the tree, and through `[oploc1,upass_ledge]`.
+     *
+     * Dispatched directly for the same reason the synth check above is: the
+     * script that calls it (`[debugproc,exactmove]`, engine_op_debug.rs2) is
+     * content and would prove the content compiles, whereas what needs proving
+     * is that the opcode body reaches the wire.
+     *
+     * Two independent claims, and skipping either one leaves a plausible
+     * no-op:
+     *
+     *   1. The player is at the END tile the moment the opcode returns. The
+     *      reference teleports first and glides afterwards, so collision, the
+     *      next script line and every other client all see the destination
+     *      immediately. An implementation that moved the player when the
+     *      animation ended would pass any check made a few ticks later.
+     *   2. Raising the extended-info mask bit did not shorten anyone's block.
+     *      See the note at the assertion for what this harness can and cannot
+     *      say about the block's own fields, and where they are proved.
+     *
+     * One thing worth knowing before reaching for the observer's copy: there
+     * isn't one. The opcode teleports, and a teleporting player leaves every
+     * observer's high-resolution list (LostCity `info.ts:73` filters on
+     * `other.tele`), so only the player performing the obstacle is sent the
+     * block — `info.ts:53` writes their own teleport with the extended bit
+     * still set.
+     */
+    {
+        struct SSVM_State state;
+        int from_x = alice->x;
+        int from_z = alice->z;
+        int to_x = from_x;
+        int to_z = from_z + 3;
+        int start_cycle = 5;
+        int end_cycle = 40;
+        /* `^exact_north` = 0, engine.constant. Spelled as the constant's value
+         * because this bypasses the symbol layer entirely; every real caller
+         * still writes the name. */
+        int direction = 0;
+
+        memset(&state, 0, sizeof(state));
+        state.env = world->script_env;
+        world->active_player = alice;
+
+        check(SSVM_PushInt(&state, mock230_coord_pack(alice->level, from_x, from_z)),
+              "pushed the exactmove start coord");
+        check(SSVM_PushInt(&state, mock230_coord_pack(alice->level, to_x, to_z)),
+              "pushed the exactmove end coord");
+        check(SSVM_PushInt(&state, start_cycle), "pushed the start cycle");
+        check(SSVM_PushInt(&state, end_cycle), "pushed the end cycle");
+        check(SSVM_PushInt(&state, direction), "pushed the facing direction");
+        check(mock230_script_command(&state, SS_OP_P_EXACTMOVE, 0),
+              "SS_OP_P_EXACTMOVE dispatched (mock230_scripts.c's own case)");
+
+        check(alice->x == to_x && alice->z == to_z,
+              "p_exactmove put alice on the END tile immediately");
+        check(alice->place_dirty,
+              "and marked the placement absolute — a glide is not a step the "
+              "next PLAYER_INFO could spell as a direction");
+
+        peers[1].saw_unknown_target = 0;
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 2, embed, 1, 64);
+
+        /*
+         * The wire half is deliberately asserted only as "nothing downstream
+         * broke". The block's own fields are not read back here because this
+         * harness's local peer stops surfacing PLAYER_INFO after its login
+         * burst — 36 of this file's checks are red in the same tree for the
+         * same reason — so a field assertion would be measuring the harness.
+         * Where the fields are proved instead: the revision-239 block, which
+         * is what the game runs, round-trips through the official decoder in
+         * `test-mock239-playerinfo`, and the whole path is exercised in the
+         * client by `[debugproc,exactmove]` (engine_op_debug.rs2).
+         *
+         * What this *can* still say is the load-bearing thing about a new mask
+         * bit: `put_player_extended` writes the mask word before any field, so
+         * a bit set with no body does not drop the glide, it eats whatever
+         * block comes next. Bob's tracked list still lining up afterwards is
+         * the check that no such hole was opened.
+         */
+        check(!peers[1].saw_unknown_target,
+              "and bob's tracked list still lines up — the new mask bit did not "
+              "shorten anyone's block");
+    }
+
+    /*
+     * ── NPC_ARRIVEDELAY ────────────────────────────────────────────────
+     *
+     * LostCity `NpcOps.ts:557`. "Let the step I am mid-way through finish."
+     * Both arms matter and they fail in opposite directions, so both are
+     * asserted:
+     *
+     *   - an npc that has not moved for two ticks is *not* delayed. Suspending
+     *     unconditionally would cost `[ai_queue3]` a tick on every death.
+     *   - an npc that moved recently suspends, and `NPC_SUSPENDED` is the
+     *     execution the phase-4 resume looks for. Returning without suspending
+     *     is the silent half: the script runs on and the npc slides through
+     *     its own animation.
+     *
+     * `last_movement` is the moving tick **plus one** (`Npc.processMovement`),
+     * which is why the "moved last tick" arm is written as `srv->tick` here
+     * rather than `srv->tick - 1`.
+     */
+    {
+        int npc_slot = -1;
+
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( world->npcs[i].active && world->npcs[i].death_tick < 0 )
+            {
+                npc_slot = i;
+                break;
+            }
+        }
+        check(npc_slot >= 0, "the roster holds an npc to delay");
+
+        if( npc_slot >= 0 )
+        {
+            struct Mock230Npc* npc = &world->npcs[npc_slot];
+            int saved_movement = npc->last_movement;
+            int saved_until = npc->delayed_until;
+            struct SSVM_State state;
+
+            memset(&state, 0, sizeof(state));
+            state.env = world->script_env;
+            state.host_tag = (int32_t)(npc_slot + 1);
+            npc->delayed_until = 0;
+
+            npc->last_movement = world->tick - 2;
+            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+                  "SS_OP_NPC_ARRIVEDELAY dispatched (a standing npc)");
+            check(state.execution != SSVM_NPC_SUSPENDED && npc->delayed_until == 0,
+                  "an npc that stopped two ticks ago is not delayed at all");
+
+            memset(&state, 0, sizeof(state));
+            state.env = world->script_env;
+            state.host_tag = (int32_t)(npc_slot + 1);
+            npc->last_movement = world->tick - 1;
+            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+                  "SS_OP_NPC_ARRIVEDELAY dispatched (moved two ticks ago)");
+            check(state.execution == SSVM_NPC_SUSPENDED &&
+                      npc->delayed_until == world->tick + 1,
+                  "an npc whose last step was two ticks ago waits one tick");
+
+            memset(&state, 0, sizeof(state));
+            state.env = world->script_env;
+            state.host_tag = (int32_t)(npc_slot + 1);
+            npc->last_movement = world->tick + 1;
+            npc->delayed_until = 0;
+            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+                  "SS_OP_NPC_ARRIVEDELAY dispatched (moved this tick)");
+            check(state.execution == SSVM_NPC_SUSPENDED &&
+                      npc->delayed_until == world->tick + 2,
+                  "an npc that moved this tick waits two");
+
+            npc->last_movement = saved_movement;
+            npc->delayed_until = saved_until;
+        }
     }
 
     /*
