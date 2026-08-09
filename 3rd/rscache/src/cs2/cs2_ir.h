@@ -504,6 +504,8 @@ struct RSCache_CS2_Function
     int original_local_string_count;
     int original_int_argument_count;
     int original_string_argument_count;
+    /** Generator may emit fingerprinted/serialized lossless comment metadata. */
+    bool generate_lossless_metadata;
     bool preserve_frame_counts;
     int* return_default_values;
     bool* return_default_is_int_constant;

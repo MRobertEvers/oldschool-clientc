@@ -1,10 +1,15 @@
-# Audio accuracy — where every sound is specified, and what we are dropping
+# Audio accuracy — where every sound is specified, and what we do with it
 
 The audio *engine* works (`AUDIO_SYSTEM_OPUS.md`, [[audio-system-retained]]):
 effects, area sounds, music and jingles all reach the speaker from a real cache.
 This document is about the layer above that — **which sound should play, where,
-and how loud** — and it is written from three sources, in this order of
-authority:
+when, and how loud**.
+
+It began as a findings register and is now also the record of the work those
+findings produced. Every deviation §1–§3 describes has been fixed unless it is
+explicitly marked **open**; §4 is what is left.
+
+Sources, in order of authority:
 
 1. the deobfuscated OldSchool 239 client (`Deobfuscator/src_osrs239_rl1_12_33`),
 2. Kronos's bundled `runescape-client` (OldSchool **184**, RuneLite's exported
@@ -21,23 +26,23 @@ labelled **unconfirmed**.
 
 ---
 
-## 0. The map: four sources of sound, and who owns each
+## 0. The map: the sources of sound, and who owns each
 
-| Source | Specified in | Reaches the client as | Our status |
+| Source | Specified in | Reaches the client as | Status |
 |---|---|---|---|
-| Loc area sound | `LocType` opcodes 78/79/91/93/95 | cache, read at scene build | plays; falloff and layering wrong (§1) |
-| NPC / player area sound | `NpcType` opcodes 134/140 (RS3), 148–152 (OSRS 239) | cache | **not implemented**; absent from both OSRS caches (§1.5) |
-| Region ambience ("the bed") | config **group 15** soundscape record | `AMBIENTSOUND_START <flag><id>` | **id is treated as a sound-effect id — it is a config id** (§1.6) |
-| Region soundtrack | server-side region table; names/unlocks in **DBTable 44** | `MIDI_SONG <id>` | packet wired; **no region→track table exists in this tree** (§2) |
-| Combat / weapon | obj params, read by the **server** | `SYNTH_SOUND` | wired end-to-end, but **mistimed** (§3.1, §3.2) |
-| Any positional server sound | server script | `SOUND_AREA` (zone sub 14 / opcode 32) | **not decoded — and it truncates the zone batch** (§3.4) |
-| Skilling / loc animation | `SeqType` frame sounds | cache, played on frame advance | plays; radius, weights and multi-sound frames dropped (§3.3) |
+| Loc area sound | `LocType` opcodes 78/79/91/93/95 | cache, read at scene build | **done** — box distance, inner radius, both streams, live loc updates (§1) |
+| NPC / player area sound | `NpcType` 134/140 (RS3), 148–152 (OSRS 239) | cache | **open**, and absent from both OSRS caches — nothing to validate against (§1.5) |
+| Region ambience ("the bed") | config **group 15** soundscape record | `AMBIENTSOUND_START <flag><id>` | **done** — group 15 decoded, N loops + 8 timed sets (§1.6) |
+| Region soundtrack | server-side region table; names/unlocks in **DBTable 44** | `MIDI_SONG <id>` | **done** for 433 map squares, from a join no cache carries (§2) |
+| Combat / weapon | obj params, read by the **server** | `SYNTH_SOUND` | **done** — the chain was complete, the *timing* was not (§3.1, §3.2) |
+| Any positional server sound | server script | `SOUND_AREA` (zone sub 14 / opcode 32) | **done** — was undecoded, and was truncating zone batches (§3.4) |
+| Skilling / loc animation | `SeqType` frame sounds | cache, played on frame advance | **done** — radius and weighted alternatives (§3.3) |
 | Spotanim | — | — | spotanims carry no sound in any era we decode |
 
-The single most important structural fact: **the client cache never says which
-music plays where.** It names tracks, describes where they unlock in prose, and
-says which varp bit records the unlock — but the coordinate → track mapping is
-server data. §2 is about sourcing it.
+The single most important structural fact, and the one that shaped §2: **the
+client cache never says which music plays where.** It names tracks, describes
+where they unlock in prose, and says which varp bit records the unlock — but the
+coordinate → track mapping is server data.
 
 ---
 
@@ -99,59 +104,70 @@ Measured (`soundscan`, §5):
 Radius distribution is dominated by 3 (766 locs) and 5 (374); 20-tile emitters
 (105) are the region-scale ones.
 
-### 1.3 What we do instead
+### 1.3 What we do — and the seven deviations that are now closed
 
-`world_builder_add_loc_area_sound` ([world_scenery.u.c:1953](src/engine/world_builder/world_scenery.u.c#L1953))
-records the footprint **centre tile**, the sound id *or* the set, the tick range
-and the radius. `tick_area_sounds` ([rs_audio.c:530](src/game/rs_audio.c#L530))
-then drives up to `RS_AUDIO_MAX_AREA_VOICES` (12) of them.
+`world_builder_add_loc_area_sound` ([world_scenery.u.c](src/engine/world_builder/world_scenery.u.c))
+records the footprint's **south-west tile plus its size**, the loc id, the
+continuous sound *and* the random set, the tick range, and both radii.
+`tick_area_sounds` ([rs_audio.c](src/game/rs_audio.c)) drives up to
+`RS_AUDIO_MAX_AREA_VOICES` (12) of them.
 
-Ranked gaps:
+What was wrong, and what it is now:
 
-1. **A loc with both a continuous sound and a random set only plays the
-   continuous one.** `voice->random_set = source->sound_id < 0 && count > 0`
-   ([rs_audio.c:606](src/game/rs_audio.c#L606)) makes the two mutually
-   exclusive. 33 locs in osrs239, 30 in osrs230, and they are exactly the
-   busiest emitters (a machine that hums *and* clanks).
-2. **Distance is measured from the centre tile, not the footprint box.** A large
-   loc is quietest where it is biggest. `World_AreaSound` does not carry
-   `size_x`/`size_z` at all, so this cannot be fixed in the audio layer alone.
-3. **Two different distance metrics.** Acquisition uses Manhattan
-   ([rs_audio.c:582](src/game/rs_audio.c#L582)); `positional_gain` uses
-   Chebyshev ([rs_audio.c:206](src/game/rs_audio.c#L206)). An emitter can be
-   audible by one and never selected by the other. The reference uses Manhattan
-   for both — but on the *box*, with the `−64` dead zone, which is what the
-   Chebyshev change was really compensating for.
-4. **The falloff has an invented floor.** `if (falloff < base/4) falloff = base/4`
-   makes everything inside the radius at least a quarter volume and then cuts to
-   silence at the edge — a step exactly where the reference is smoothest. The
-   reference has no floor; it has an *inner radius* (54 locs use it) that does
-   the job properly, plus an easing curve.
-5. **Fades are not applied.** `sound_fade_in_curve/duration`,
-   `sound_fade_out_curve/duration` (11 non-default locs) and the reference's
-   unconditional 150 ms out-of-range ramp are all decoded and unused; we
-   hard-stop.
-6. **Random-set gaps are deterministic**, cycling `tick % (span+1)`
-   ([rs_audio.c:668](src/game/rs_audio.c#L668)), and the *sound* is never
-   re-picked — `voice->sound_id` is fixed to `sound_ids[0]` at acquisition. The
-   reference re-rolls the id on every fire. This is the difference between a
-   forest that sounds alive and one bird that repeats.
-7. **Every voice is dropped on scene rebuild** (`area_generation` mismatch), so
-   crossing a chunk boundary restarts every waterfall. The reference keys loc
-   emitters by `(level, x, z, locType.id)` and removes only what actually left.
-8. **12-voice cap** where the reference has none, and it is a first-come cap: a
-   nearer emitter appearing later does not displace a further one already
-   playing.
-9. **Multilocs never re-resolve.** The sound is snapshotted at scene build.
-10. **`sound_visibility` (op 95, 134 locs) is decoded and unused** — semantics
-    **unconfirmed**; `class596.field6577` is an enum that `class91` itself never
-    reads, so it is likely consumed by the emitter's owner rather than the voice.
+1. **Both streams, not one.** `RS_AudioAreaVoice` used a single `random_set`
+   flag, which made a continuous sound and a random set mutually exclusive — so
+   the 33 osrs239 locs (30 on osrs230) declaring both were the *busiest*
+   emitters and heard the least. The voice now holds `primary_sound` and
+   `set_ids` independently and runs both, as `AreaSoundManager` does with its
+   `primaryStream`/`secondaryStream` pair.
+2. **Distance to the box, not to a point.** `World_AreaSound` now carries
+   `size_x`/`size_z` (orientation applied) and `box_distance_fine` clamps the
+   listener against `[min,max]` on each axis. A four-tile waterfall no longer
+   gets quieter towards its ends.
+3. **One metric.** Acquisition and gain both use the reference's
+   Manhattan-on-the-box minus a half-tile dead zone. The previous split
+   (Manhattan to acquire, Chebyshev to attenuate) meant an emitter could be
+   audible by one rule and never selected by the other.
+4. **The invented quarter-volume floor is gone**, replaced by the thing it was
+   standing in for: `falloff_volume` is flat out to `inner` and eases to zero at
+   `radius`, which is what the fourth field of opcode 78/79 is for. 54 osrs239
+   locs state one.
+5. **Fades.** Start, stop and out-of-range all ramp over
+   `RS_AUDIO_AREA_FADE_MS` (150, the reference's figure) instead of cutting.
+6. **The random set re-rolls.** Both the sound and the gap are drawn from a
+   per-emitter LCG seeded from `(x, z, loc_id)`, so two identical emitters do not
+   fire in lockstep and a headless run is still reproducible. The previous code
+   fixed the sound to `sound_ids[0]` for the emitter's whole life and cycled the
+   gap off the global tick — one bird, on a metronome, for the whole forest.
+7. **Emitters survive a rebuild.** A voice is re-bound to the matching emitter
+   in the new generation by `(loc_id, level, x, z)` rather than stopped and
+   restarted, so crossing a chunk boundary no longer restarts every waterfall.
+   A multiloc that changed state stops only its primary stream, which is
+   `AreaSound.update()`'s rule.
 
-### 1.4 Loc changes do not move sound
+Two deviations remain, both deliberate:
 
-`World_AddAreaSound` has exactly one call site — the scene builder. `LOC_ADD_CHANGE`
-and friends update geometry and collision but never the emitter list, so a door
-that opens or a machine that is built is silent until the next full rebuild.
+- **The 12-voice cap** is ours; the reference has no cap. It is a first-come cap
+  over the nearest emitters, so a nearer one appearing later does not displace a
+  further one already playing. **Open**, and not obviously worth fixing: 12
+  simultaneous emitters is already more than any scene in the two caches puts
+  within earshot.
+- **`sound_visibility` (op 95, 134 locs) is decoded and unused.** Semantics
+  **unconfirmed** — `class596.field6577` is an enum `class91` itself never reads,
+  so it is consumed by the emitter's owner rather than by the voice.
+
+### 1.4 Loc changes move sound
+
+`World_AddAreaSound` used to have exactly one call site — the scene builder — so
+`LOC_ADD_CHANGE` and friends updated geometry and collision but never the
+emitter list. A door that opened or a machine that was switched off kept
+sounding until the next full rebuild.
+
+`WorldBuilder_ApplyLocChange` now drops the emitter at the tile before it
+removes the loc, and registers the replacement's emitter after the spawn, from
+the *resolved* multiloc config — a lever's two states can name different sounds.
+`World_RemoveAreaSoundAt` bumps `area_sound_generation`, which is what makes the
+audio layer re-resolve its live voices.
 
 ### 1.5 NPC and player area sound: absent, and absent from the data too
 
@@ -181,9 +197,9 @@ byte-exactly with our decoder, which stops on any unknown opcode, so none of
 Player-emitted sound (`Player.getSound`, `player.soundRadius`) has no
 counterpart at all in this tree.
 
-### 1.6 The region bed is a config record, and we treat it as a sound id
+### 1.6 The region bed is a config record, and now it is read as one
 
-This is the largest single fidelity gap in the ambient system.
+This was the largest single fidelity gap in the ambient system.
 
 `AMBIENTSOUND_START` in osrs239 is `u8 flag, u16 id` and the client does
 (`deob/client.java:3744`):
@@ -207,36 +223,42 @@ field907.method10558(var626, var624, <setting>);
 Up to **8** random sets per record (`field5221` is `new ArrayList(8)`, and
 opcode 2 is skipped past `n > 48` or a full list). `class471` holds one stream
 per continuous id and one per random set, each set with its own independent
-next-play deadline.
+next-play deadline. Weighting is by **repetition**: a set listing silence six
+times and a drip three times drips a third of the time.
 
 Measured: **group 15 exists in `cache.osrs239` with 8 records** (mean 58 bytes)
 and is **absent from `cache.osrs230`** — the type is a 231–239 addition.
-Record 1 decodes cleanly against that grammar:
+
+**Implemented.** `3rd/rscache/src/datatypes/dat2_config_soundscape.{c,h}` decodes
+and re-encodes it (7 of 8 records byte-exact; the eighth carries opcode 1 twice
+and the reference's decode discards the superseded list — rscache
+`EXCEPTIONS.md` B22). `CreateTask_Dat2SoundscapeLoad` loads the group once at
+boot into `RS_Soundscapes` and preloads the continuous clips.
+`RS_Audio_SetAmbient` resolves the packet's id through that table and runs the
+bed as N loops plus M independently-timed sets.
+
+**The era gate is the empty table, and it is a supported reading rather than a
+fallback.** A cache with no group 15 leaves `RS_Soundscapes.count == 0`, and the
+bed then treats the id as a single looping sound effect — which is the only
+thing revisions before 231 can have meant by it. `RSCACHE_DAT2_CONFIG_KIND_SOUNDSCAPE`
+and `..._VARCLIENT_STRING` are both 15, distinguished by era, not by sniffing.
+
+**mock230 now sends it** (`MOCK230_AMBIENT=<id>`, default soundscape 1), because
+nothing did before and an unreachable subsystem is one nobody notices is broken.
+A live run against the embed server:
 
 ```
-02 015e 028a 04 2d46 2d47 2d48 2d49      set: every 7.0–13.0 s, one of 11590..11593
-02 015e 0640 02 2d4f 096b                set: every 7.0–32.0 s, 11599 or 2411
-02 00fa 03e8 05 2d4a 2d4b 096b 096b 096b set: every 5.0–20.0 s, weighted 2:3 toward 2411
-02 00fa 0320 09 2d4c 2d4d 2d4e 096b ×6   set: every 5.0–16.0 s, weighted 3:6
+soundscape load: 9 ids (8 records)
+rs_audio: ambient soundscape 1 (fade 20ms)
+rs_audio: ambient bed 1 -> 1 loops, 4 sets
+rs_audio: ambient loop 11601 playing
+rs_audio: ambient one-shot 2411,  next in 718 ticks
+rs_audio: ambient one-shot 11593, next in 573 ticks
+rs_audio: ambient one-shot 2411,  next in 264 ticks
 ```
 
-Note the weighting idiom: repeating an id in the list biases the uniform pick.
-
-We do none of this. `RS_Audio_SetAmbient` takes the packet's id straight to
-`publish_sound` / `CreateTask_SoundLoad` ([rs_audio.c:776](src/game/rs_audio.c#L776)),
-i.e. it plays **sound effect N** on a permanent loop. On osrs239 that is the
-wrong asset entirely; on osrs230 there is no such config type, so the current
-behaviour is the only thing possible there and should stay era-gated.
-
-`rscache` has no decoder for group 15, and `RSCACHE_DAT2_CONFIG_KIND_VARCLIENT_STRING = 15`
-claims the slot. Nothing reads that constant, so the collision is inert — but 15
-in an OldSchool cache is the soundscape type, not varclient strings (group 15 has
-8 large records; varplayer 16 has 5,705 one-byte ones and varclient 19 has 1,505).
-
-Finally: **`mock230` never sends `AMBIENTSOUND_START`.** Nothing exercises this
-path against the embedded server, which is why the gap survived the audio work.
-
----
+— one drone under four sets firing on unrelated timers, which is the whole point
+of the type.
 
 ## 2. Region soundtracks
 
@@ -284,21 +306,22 @@ Dumped to **[docs/audio/music_tracks_osrs239.tsv](audio/music_tracks_osrs239.tsv
 
 ### 2.3 The region → track table
 
-Nothing in this tree has one. The best machine-readable source found is Kronos's
-`MusicPlayer.java` (`~/Documents/git_repos/kronos-osrs-184/…/inter/handlers/MusicPlayer.java`),
-which states `{displayName, songArchiveName, ...regionIds}` for 535 tracks.
-Extracted to **[docs/audio/music_regions.tsv](audio/music_regions.tsv)**:
+Nothing in any cache has one, so it is built from two sources and committed:
 
-- 364 of 535 tracks carry regions; **440 region entries over 435 distinct map
-  squares**.
-- 5 squares are claimed by two tracks (Courage/Long Way Home at 11826,
-  Dance of Death/Dance of the Undead at 14131, …) — these need a tiebreak the
-  source does not provide.
-- The remaining 171 tracks are marked `//todo` upstream, and osrs239 has 876
-  tracks against Kronos's 535, so **coverage is roughly 40 %** of the modern
-  track list.
+| file | what it gives | from |
+|---|---|---|
+| [docs/audio/music_tracks_osrs239.tsv](audio/music_tracks_osrs239.tsv) | 876 tracks: name, unlock-hint prose, song archive id, unlock (varp, bit) | DBTable 44 of `cache.osrs239` |
+| [docs/audio/music_regions.tsv](audio/music_regions.tsv) | 440 region → track-name entries over 435 map squares | Kronos's `MusicPlayer.java` (OSRS 184) |
 
-Spot-validated against the OSRS Wiki and against the cache's own hint text:
+`tools/gen_music_regions.py` joins them into
+`src/net/mock/mock230_music_regions.gen.h` — **433 map squares** with a song
+archive id and an unlock bit each. The join matches names case-insensitively
+against both the display and sort forms, because the two sources disagree on the
+capitalisation of small words and on where the article goes; two names
+(`Castlewars`, `Duel Arena`) still do not match and five squares are claimed by
+two tracks upstream, all reported by the generator rather than silently dropped.
+
+Spot-validated against the OSRS Wiki and the cache's own hint text:
 
 | track | region | → tile | cache hint | wiki |
 |---|---|---|---|---|
@@ -311,31 +334,31 @@ Spot-validated against the OSRS Wiki and against the cache's own hint text:
 The dual-square Barbarianism entry is the shape to expect: an overworld square
 plus the `+6400` underground square.
 
-**To complete the table**, the sources in order of usefulness:
+**Coverage is the honest limit.** Kronos maps 364 of its own 535 tracks; the
+osrs239 cache has 876. So roughly half the modern track list has no square, and
+the unmapped half of the world is silent rather than wrong. To extend it, in
+order of usefulness: the wiki's `Map:Music_tracks` data page (not the rendered
+map), its `/Classic` one-square-per-track variant, the cache's own 876 hint
+strings as the checklist, and the 634-era coordinate dump on Rune-Server.
 
-1. `https://oldschool.runescape.wiki/w/Map:Music_tracks` — the authoritative
-   polygon-per-track map; the underlying data page is what to scrape, not the
-   rendered map.
-2. `https://oldschool.runescape.wiki/w/Map:Music_tracks/Classic` — the
-   pre-rework, one-square-per-track mapping, which is *closer* to what a
-   region-keyed server implementation wants.
-3. The cache's own hint strings (column 2 above, all 876 of them) — prose, but
-   they name the place for every track including the ones Kronos never mapped,
-   so they are the checklist.
-4. `https://rune-server.org/threads/634-all-music-track-map-coordinates.698625/`
-   — a 634-era coordinate dump; wrong era, useful for the classic-era tracks.
+### 2.4 The server side
 
-### 2.4 Client-side gaps
+`mock230_music_enter_region` hangs off the **map-square** latch in
+`mock230_world_update_map` — the same granularity music is keyed at, and next to
+the `[mapzone]` trigger it shares the latch with. On entering a mapped square it
+unlocks the track if the bit is clear, then plays it if the song differs from
+what is already playing (`player->music_track`, so a track does not restart
+every 64 tiles).
 
-- `MIDI_SONG` / `MIDI_SONG_WITHSECONDARY` / `MIDI_SWAP` / `MIDI_JINGLE` /
-  `MIDI_SONG_STOP` are all parsed and played ([rs_gameproto_exec.c:1341](src/game/rs_gameproto_exec.c#L1341)).
-  Nothing to do here.
-- `mock230` sends a song **once, on login** (`MOCK230_SONG=<id>`). There is no
-  zone-entry hook, no unlock varp write, and no music-player widget text.
-- The unlock bits (column 5) are a varp range the content tree does not declare;
-  this overlaps the undeclared-varp work in `docs/CS2_UNIMPLEMENTED_VARPS.md`.
+> **The unlock is a bit write, and that distinction is enforced.** Music unlock
+> flags share varps with other varbits, so the first version — which used
+> `mock230_world_set_varp` — wiped neighbouring bits. mock230's selftest counts
+> whole-varp writes that land on a carrier varp and failed immediately. It now
+> patches `varps[]` and calls `mock230_world_mark_varp`, which is the path the
+> varbit writers take. See [[varp-two-writers-side-effects]].
 
----
+`MIDI_SONG` / `_WITHSECONDARY` / `MIDI_SWAP` / `MIDI_JINGLE` / `MIDI_SONG_STOP`
+were already parsed and played client-side; nothing there needed changing.
 
 ## 3. Combat, weapon and loc sounds
 
@@ -360,7 +383,7 @@ rather than erroring, so count the defaults, don't grep for failures.
 > sets `soundLocations[i] = 0`, and the drain reads location 0 as "use
 > `soundEffectVolume`" — full volume, no pan. Nothing more to do here.
 
-### 3.2 Effect timing: the queue is right in shape and wrong in two places
+### 3.2 Effect timing — the bug behind "weapon sounds are mistimed"
 
 This is the answer to "weapon sounds are not timed correctly", and both faults
 are in `tick_effect_queue` ([rs_audio.c:441](src/game/rs_audio.c#L441)).
@@ -419,26 +442,39 @@ Two smaller deviations in the same function:
 4. `entry->waited` counts *residency* attempts, not lateness, so the give-up
    condition is unrelated to when the sound was supposed to happen.
 
-The fix for (1) and (2) is small and belongs together: decrement unconditionally
-at the top of the loop, drop the entry once `delay < -10`, and delete
-`RS_AUDIO_LOAD_WAIT_TICKS` (the −10 window replaces it).
+**Fixed.** `tick_effect_queue` now decrements unconditionally at the top of the
+loop, discards the entry once `delay < -RS_AUDIO_LATE_LIMIT_TICKS` (10, the
+reference's window), and `RS_AUDIO_LOAD_WAIT_TICKS` is gone — the −10 window
+replaces it. `queue_effect` also refuses `loops == 0` outright, as
+`Message.queueSoundEffect` does.
 
-> **Why the tests never caught it.** `rs_audio_test.c:463` asserts an effect
-> plays on pass `delay + trim + 1`, which is the reference's schedule — and it
-> stays true under the fix, because for a **resident** clip the unconditional
-> decrement and the deferred one give the same answer. The whole defect lives in
-> the not-yet-resident case, and the harness publishes its clip before it
-> queues. A test that reproduces this has to queue an effect whose asset is not
-> yet in the scene and count passes, not just assert that it eventually plays.
+The behaviour change worth stating: a cold clip whose load takes longer than ten
+ticks is now **silent rather than late**. That is the reference's bargain (its
+archive reads are synchronous and in-memory, so it never hits the window), and
+the next request for the same effect finds it resident and plays on time. A
+swing sound that lands on the *next* swing is worse than no swing sound.
 
-### 3.3 Frame sounds: plumbed, but one sound per frame, no weighting, no radius
+> **Why the tests never caught it, and what now does.** `rs_audio_test.c` asserts
+> an effect plays on pass `delay + trim + 1`, which is the reference's schedule —
+> and it stays true under the fix, because for a **resident** clip the
+> unconditional decrement and the deferred one give the same answer. The whole
+> defect lives in the not-yet-resident case, and every other test in the file
+> publishes its clip before it queues.
+>
+> `test_late_load_timing` is the one that sees it: it queues an effect with a
+> delay, then runs frames *without* draining the task runner so the clip cannot
+> become resident, and asserts the effect fires on the single tick its clip
+> finally arrives — not `delay` ticks later. Its second half queues an
+> unresolvable id and asserts the entry is discarded on schedule and counted.
 
-The cache's per-frame sounds *are* now wired — `docs/WEAPON_FX.md` §6.5's claim
-that "nothing plays them" is stale. `seq_copy_frame_sounds`
-([task_dat2_sequence_load.c:124](src/engine/dat2/task_dat2_sequence_load.c#L124))
-copies them into the animation and `app_play_frame_sounds`
-([app.c:6268](src/app.c#L6268)) fires on frame advance, positioned by the
-element's world coordinates.
+### 3.3 Frame sounds: radius, and one of several by weight
+
+The cache's per-frame sounds *are* wired — `docs/WEAPON_FX.md` §6.5's claim that
+"nothing plays them" is stale. `seq_copy_frame_sounds`
+([task_dat2_sequence_load.c](src/engine/dat2/task_dat2_sequence_load.c)) copies
+them into the animation and `app_play_frame_sounds`
+([app.c](src/app.c)) fires on frame advance, positioned by the element's world
+coordinates.
 
 Measured:
 
@@ -451,74 +487,81 @@ Measured:
 | entries with `retain ≠ 0` | 621 | 1,076 |
 | entries with `location ≠ 0` | 2,840 | 3,906 |
 
-> **`location` is the audible radius in tiles.** `class30.addSequenceSoundEffect`
-> packs `soundLocations[i] = location | (tileZ << 8) | (tileX << 16)`, and the
-> drain reads `(soundLocations & 255) * 128` as the radius in fine units, with
-> the sound *discarded* (`delays = -100`) when the listener is outside it. So
-> `location` is not a position flag; it is the range. A frame sound with
-> `location == 0` has radius 0 and is audible essentially nowhere, which is what
-> the 423 zero entries in osrs239 mean.
+> **`location` is the audible radius in tiles**, and the field is now named
+> `radius` in `ToriDraw_AnimFrameSound` because that is what the client does with
+> it. `class30.addSequenceSoundEffect` packs
+> `soundLocations[i] = location | (tileZ << 8) | (tileX << 16)`, and the sound
+> queue reads `(word & 255) * 128` back as a range in fine units, *discarding*
+> the sound outside it rather than attenuating. It is not a position or a
+> placement mode. A frame sound with `location == 0` has radius 0 and is audible
+> essentially nowhere, which is what osrs239's 423 zero entries mean.
 
-Gaps:
+Two deviations closed:
 
-1. **Only `id` and `loops` survive the port.** `location` (= radius, 90 % of
-   entries), `retain` and `weight` are decoded by `rscache` and dropped at
-   [task_dat2_sequence_load.c:145](src/engine/dat2/task_dat2_sequence_load.c#L145).
-   `RS_Audio_SynthAt` has no radius parameter at all, so every positional effect
-   uses the hardcoded `AUDIO_DEFAULT_DISTANCE = 12`
-   ([rs_audio.c:28](src/game/rs_audio.c#L28)) — a chop that should carry 3 tiles
-   is heard across a quarter of the scene.
-2. **A frame with several sounds plays exactly one, chosen by binary-search
-   landing.** `app_play_frame_sounds` binary-searches `frame_indices` and
-   `return`s on the first hit — its own comment says "queue all sounds for this
-   frame" but it queues one, and *which* one depends on where the search lands,
-   not on `weight`. Every entry in both caches carries a weight and 67 osrs239
-   frames have up to 6 alternatives, so this is the weighted-random-pick
-   mechanism going unused. `weight` semantics remain **unconfirmed** (the rev184
-   client predates the field); the data shape implies weighted selection.
-3. The positional volume for effects reuses `positional_gain`'s Chebyshev metric
-   and quarter-volume floor, where the reference uses the same
-   Manhattan-minus-128 falloff as area sounds and cuts to silence at the radius.
-   Same fix as §1.3 (3)(4).
-4. **`sounds_cross_world_view` (seq opcode 19) is decoded and unused** — the flag
-   that says a sound is audible beyond the normal cull.
-5. Frame sounds fire when `anim_seq_id != old_seq_id || anim_frame != old_frame`.
-   Correct for advance, but it also fires on a *re-application* that changes the
-   frame — worth checking against [[chathead-anim-reapply-reset]], the same class
-   of bug in the UI path.
+1. **The radius survives the port.** `location`, `retain` and `weight` were all
+   dropped at the copy, so every positional effect fell back to
+   `AUDIO_DEFAULT_DISTANCE` (12 tiles) — a chop meant to carry three tiles
+   carried twelve. `RS_Audio_SynthAt` now takes a radius (and an inner radius,
+   which `SOUND_AREA` supplies and frame sounds do not).
+2. **A frame's alternatives are picked by weight.** The map is sorted by frame
+   index *with repeats*, so a frame's alternatives are a contiguous run;
+   `app_play_frame_sounds` binary-searches to a member of that run, widens to the
+   run's ends, and picks in proportion to the entries' weights. It used to
+   `return` on the first hit, which made the choice a function of where the
+   binary search happened to land.
 
-### 3.4 `SOUND_AREA` is unimplemented, and it truncates zone batches
+Still open, both small:
+
+- **`retain` is carried but unused.** Semantics **unconfirmed**.
+- **`sounds_cross_world_view` (seq opcode 19) is decoded and unused** — the flag
+  that says a sound is audible beyond the normal cull.
+- Frame sounds fire when `anim_seq_id != old_seq_id || anim_frame != old_frame`,
+  which is correct for advance but also fires on a *re-application* that changes
+  the frame — worth checking against [[chathead-anim-reapply-reset]], the same
+  class of bug in the UI path.
+
+### 3.4 `SOUND_AREA`, which was silent *and* was eating zone batches
 
 The server's *positional* sound packet — the one that makes a door three squares
-away sound like it is three squares away — is not decoded:
+away sound like it is three squares away — was not decoded:
 
 ```
-src/net/rev/osrs239/zoneprot.h:38   OSRS239_ZONE_SOUND_AREA = 14
-src/net/rev/osrs239/packetin.h:92   {  32, 7, PKT_NAME_NONE, "SOUND_AREA" }
+src/net/rev/osrs239/zoneprot.h   OSRS239_ZONE_SOUND_AREA = 14
+src/net/rev/osrs239/packetin.h   {  32, 7, PKT_NAME_NONE, "SOUND_AREA" }
 ```
 
-Reference payload (the zone form, from the rev184 client's zone reader):
-`p1 coordInZone`, `p1 (radius << 4) | loops`, `p2 id`, `p1 delay` — 5 bytes, and
-the client range-checks against `radius + 1` tiles before queueing it with
-`soundLocations` set, i.e. it goes through the same effect queue as §3.2 but
-positioned and radius-limited.
+Two consequences, and the second was not an audio bug at all:
 
-Two consequences, and the second is not an audio bug:
+- Every server-driven positional sound was silent.
+- Ordinal 14 inside an `UPDATE_ZONE_PARTIAL_ENCLOSED` batch had no case in
+  `osrs239_zone_name`, so `osrs239_read_zone_sub` failed and the enclosed loop
+  **`break`ed**, discarding every remaining sub-packet in that batch — loc
+  changes, obj spawns, projectiles. One area sound from a live server silently
+  dropped the rest of that zone update, logging only
+  `osrs239: ZONE_ENCLOSED unknown sub-ordinal 14`.
 
-- Every server-driven positional sound is silent.
-- Ordinal 14 inside an `UPDATE_ZONE_PARTIAL_ENCLOSED` batch has no case in
-  `osrs239_zone_name`, so `osrs239_read_zone_sub` fails and the enclosed loop
-  **`break`s** ([osrs239_parse.c:1337](src/net/rev/osrs239/osrs239_parse.c#L1337)),
-  discarding every remaining sub-packet in that batch — loc changes, obj spawns,
-  projectiles. One area sound from a live server silently drops the rest of that
-  zone update. It prints `osrs239: ZONE_ENCLOSED unknown sub-ordinal 14` to
-  stderr, which is the string to grep for.
+**Fixed.** The generated codec for it already existed (`3rd/rsprot/packets/sound_area.c`);
+what was missing was the ordinal case, the payload struct and the route. The
+rev-239 layout is richer than the 2004-era one and splits the two radii the way
+loc ambient sounds do:
 
-This is latent against `mock230`, which never sends it: `[proc,sound_area]` in
-the content tree fans out plain `sound_synth` to every player found by `huntall`
-([mock230_scripts.c:4356](src/net/mock/mock230_scripts.c#L4356)) — the LostCity
-254-era emulation. So against the mock, an area sound arrives unpositioned and
-plays centred at full volume however far away it was.
+```
+p1Alt3 coordInZone   p1Alt2 dropOffRange (inner)   p1 range (radius)
+p1Alt2 delay         p1Alt1 loops                  p2 id
+```
+
+It goes through the same effect queue as `SYNTH_SOUND` (§3.2), positioned and
+radius-limited, via `App_PlaySoundAt`.
+
+`test_sound_area_does_not_truncate_a_zone_batch` in `midi_packet_test.c` is the
+regression: a SOUND_AREA followed by a MAP_ANIM in one enclosed batch, asserting
+the **MAP_ANIM** arrives. Deleting the ordinal case fails it, which is the check
+that it can fail.
+
+This stays latent against `mock230`, which never sends it: `[proc,sound_area]`
+in the content tree fans out plain `sound_synth` to every player found by
+`huntall` — the LostCity 254-era emulation. So against the mock an area sound
+still arrives unpositioned and plays centred. **Open**, and content-side.
 
 ### 3.5 Loc interaction sounds
 
@@ -529,36 +572,24 @@ the *ambient* loc sound (§1) is cache-side.
 
 ---
 
-## 4. Suggested order of work
+## 4. What is left
 
-Ranked by audible effect per unit of risk:
+Everything ranked in the original work order is done. What remains, in the order
+it is worth doing:
 
-1. **§3.2 (1)(2) — effect timing.** Decrement the delay unconditionally, drop at
-   `< -10`, delete `RS_AUDIO_LOAD_WAIT_TICKS`. ~10 lines, fixes the reported
-   mistimed weapon sounds, and it is the only item here that makes *existing*
-   sounds land where they should rather than adding new ones.
-2. §3.4 — decode `SOUND_AREA`. Do the zone-ordinal case even before the audio
-   side: an unknown ordinal 14 currently discards the rest of the zone batch, so
-   this is a correctness fix that happens to be in the audio chapter.
-3. §1.3 (1) — play both streams for the 33 dual-source locs. Local change to
-   `RS_AudioAreaVoice`.
-4. §1.3 (6) — re-roll the random set's id on each fire, and use a real gap.
-5. §1.3 (2)(3)(4) + §3.3 (1)(3) — thread `size_x`/`size_z`, the inner radius and
-   the frame sound's own radius through to one shared falloff, then replace
-   `positional_gain` with the reference formula. One coherent change; do them
-   together or the metric stays inconsistent between the two callers.
-6. §3.3 (2) — play every sound on a frame, or pick by weight. Cheap.
-7. §1.6 — decode config group 15 and drive `AMBIENTSOUND_START` from it, era-gated
-   (osrs239 only; osrs230 has no such group). Needs a new `rscache` datatype and
-   a `mock230` sender to exercise it.
-8. §2.3 — finish the region → track table from the wiki, then a zone-entry hook
-   in `mock230` that unlocks and plays.
-9. §1.3 (5)(7)(9), §1.4 — fades, emitter persistence across rebuilds, multiloc
-   re-resolve, loc-change updates.
-10. §1.5 — npc/player movement sounds. Last: no cache in this tree carries the
-    data, so it cannot be validated by playing it.
-
----
+1. **§3.4 — mock230 should send `SOUND_AREA`.** The client decodes it; the mock
+   still emulates area sound the LostCity way by fanning out unpositioned
+   `sound_synth`. Content-side work, and the only reason the new decode path is
+   not exercised end-to-end against the embed server.
+2. **§2.3 — extend the region table.** 433 of ~876 tracks have a square. The
+   cache's own 876 unlock-hint strings are the checklist.
+3. **§1.5 — npc and player movement sounds.** No cache in this tree carries the
+   data (zero records use npc opcode 134/140, and osrs239's 148–152 are unused
+   too), so this cannot be validated by playing it. Last for that reason, not
+   because it is hard.
+4. **§1.3 — the 12-voice cap**, and **§3.3 — `retain`** and
+   `sounds_cross_world_view`. Small, and none of them is currently audible.
+5. **§1.3 — `sound_visibility` (op 95)**, whose semantics are still unconfirmed.
 
 ## 5. Reproducing the measurements
 
@@ -584,6 +615,23 @@ cc -std=c11 -O2 -w -I3rd/rscache/include -I3rd/rscache/src -I3rd/rscache \
 Sources kept under the session scratchpad; copy them into
 `3rd/rscache/tools/` if any of them earns a second run.
 
+The data they produced is committed, and one of them has a permanent generator:
+
+| committed | produced by |
+|---|---|
+| `docs/audio/music_tracks_osrs239.tsv` | `dbdump --sweep 44 --tsv` |
+| `docs/audio/music_regions.tsv` | a parse of Kronos's `MusicPlayer.java` |
+| `src/net/mock/mock230_music_regions.gen.h` | **`tools/gen_music_regions.py`** — rerun it when either TSV changes |
+
+Tests that hold this work:
+
+| target | what it would catch |
+|---|---|
+| `make -C src test-sound` | the effect queue's schedule, including `test_late_load_timing` — the one that sees a clip arriving after its due time |
+| `make -C src test-midi-packets` | the SOUND_AREA layout, and that a SOUND_AREA does not truncate the zone batch after it |
+| `3rd/rscache/build/test_soundscape <root>` | the group-15 format, byte-exact over the whole cache |
+| `make -C src test-mock230` | among much else, the carrier-varp rule the music unlock has to obey |
+
 Two traps worth repeating from [[audio-harness-and-measurement-traps]]:
 
 - **A field being non-zero is not the same as the opcode being present.** The
@@ -600,6 +648,7 @@ Two traps worth repeating from [[audio-harness-and-measurement-traps]]:
 
 - `AUDIO_SYSTEM_OPUS.md` — the engine: mixer, synth, MIDI, soundbank, harnesses.
 - `docs/WEAPON_FX.md` §6 — the weapon-sound chain (§6.5 is superseded by §3.3 here).
+- `3rd/rscache/EXCEPTIONS.md` B22 — config group 15, and why it was filed as `varclient_string` for so long.
 - `docs/RSPROT_OSRS239_PORT.md` — where the sound packets are declared.
 - Memories: [[audio-system-retained]], [[sound-audio-session]],
   [[audio-harness-and-measurement-traps]], [[weapon-fx-and-rsmod-reference]].

@@ -27,6 +27,7 @@
 
 #include "../rsbuffer.h"
 #include "cs2_command.h"
+#include "cs2_lossless.h"
 #include "cs2_support.h"
 
 #include <ctype.h>
@@ -3781,6 +3782,43 @@ RSCache_CS2_Compile(
     cc.error = error;
     cc.error_capacity = error_capacity;
 
+    /* A generated listing may end in a lossless snapshot when its structured
+     * spelling cannot express the original bytecode layout. Parse it only when
+     * the source prefix still has the recorded fingerprint and nothing but
+     * whitespace follows the snapshot. We still compile the structured source
+     * normally; the snapshot replaces the result only after that succeeds. */
+    struct RSCache_ClientScript lossless_script;
+    memset(&lossless_script, 0, sizeof(lossless_script));
+    bool have_lossless_script = false;
+    {
+        static const char marker_text[] = "// @rscache-lossless-v1 ";
+        const char* marker = strstr(source, marker_text);
+        if( marker && (marker == source || marker[-1] == '\n') )
+        {
+            const char* cursor = marker + sizeof(marker_text) - 1;
+            char* hash_end = NULL;
+            unsigned long long recorded_hash = strtoull(cursor, &hash_end, 16);
+            if( hash_end == cursor + 16 && *hash_end == ' ' &&
+                (uint64_t)recorded_hash ==
+                    RSCache_CS2_LosslessHash(source, (size_t)(marker - source)) )
+            {
+                const char* payload_end = NULL;
+                if( RSCache_CS2_LosslessDecode(
+                        hash_end + 1, &lossless_script, &payload_end) )
+                {
+                    const char* suffix = payload_end;
+                    while( *suffix == ' ' || *suffix == '\t' || *suffix == '\r' ||
+                           *suffix == '\n' )
+                        suffix++;
+                    if( *suffix == '\0' )
+                        have_lossless_script = true;
+                    else
+                        RSCache_ClientScriptFreeInplace(&lossless_script);
+                }
+            }
+        }
+    }
+
     /* Generated source uses comments as a lossless side channel for serialized
      * facts the structured language cannot express. Hand-written source keeps
      * canonical behavior because these comments are optional. */
@@ -3935,6 +3973,17 @@ RSCache_CS2_Compile(
                 snprintf(error, (size_t)error_capacity, "out of memory");
         }
     }
+
+    if( ok && have_lossless_script )
+    {
+        RSCache_ClientScriptFreeInplace(out);
+        *out = lossless_script;
+        memset(&lossless_script, 0, sizeof(lossless_script));
+        have_lossless_script = false;
+    }
+
+    if( have_lossless_script )
+        RSCache_ClientScriptFreeInplace(&lossless_script);
 
     cs2_cc_ops_free(&cc.ops);
     for( int i = 0; i < cc.switch_count; i++ )

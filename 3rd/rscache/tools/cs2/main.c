@@ -501,6 +501,9 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
     decompile_options.db_columns.load = tool_db_columns_lookup;
     decompile_options.names = &names;
 
+    /* CLI listings are intended to compile back byte-for-byte. */
+    decompile_options.lossless = true;
+
     if( options->out_directory )
         tool_mkdir(options->out_directory);
 
@@ -1345,6 +1348,7 @@ run_roundtrip(struct options* options, struct script_store* store, int* ids, int
     decompile_options.db_columns.user = db_columns;
     decompile_options.db_columns.load = tool_db_columns_lookup;
     decompile_options.names = &names;
+    decompile_options.lossless = true;
 
     struct RSCache_CS2_CompileOptions compile_options;
     memset(&compile_options, 0, sizeof(compile_options));

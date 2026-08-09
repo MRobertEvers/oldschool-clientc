@@ -300,7 +300,13 @@ minting readable names is optional polish.
 So the sound gap is: one `packetin.h` line, one encoder, one opcode body, and
 then a data table. Not an era limitation.
 
-### 6.5 Separately: 1,588 seqs carry frame sounds that nothing plays
+### 6.5 Separately: 1,588 seqs carry frame sounds that nothing plays *(superseded)*
+
+> **Superseded 2026-08-09.** Frame sounds are wired and played; the radius and
+> the weighted pick among a frame's alternatives are implemented too. See
+> `docs/AUDIO_ACCURACY.md` §3.3. The grep below now finds plenty. The section is
+> kept because the *measurement* in it is still correct and is the basis of the
+> newer one.
 
 `configs/all.seq` has 4,329 `sound=` lines across 1,588 records — the cache's
 own per-frame sound effects. `3rd/rscache/src/datatypes/dat2_config_sequence.c`

@@ -2546,6 +2546,32 @@ not a blanket relaxation. On `cache.osrs239`, these changes raise byte-exact
 round trips and make script 8367 exact; the final figures are in §10 of the
 round-trip queue document.
 
+### G14. Byte-exact CS2 source needs lossless metadata *(Resolved)*
+
+Structured CS2 deliberately normalizes facts that do not affect execution:
+redundant returns, unreachable epilogues, equivalent branch layouts, string
+join segmentation, ignored operands, unused frame slots and non-canonical hook
+descriptor letters. After every present rev-239 script decompiled and compiled,
+those erased choices still left 1,052 byte differences. Their complete
+pre-metadata classification and official-client evidence are retained in
+`docs/CS2_REV239_ROUNDTRIP_QUEUE.md` §10.
+
+CLI decompilation now opts into three comment metadata forms. Targeted frame and
+epilogue comments retain their otherwise-inexpressible fields. For any listing
+that still compiles to a different decoded script, `@rscache-lossless-v1`
+records the instruction/operand/trailer/switch snapshot. It is guarded by a
+fingerprint of the structured source, and the compiler always parses and
+successfully compiles that source before applying the snapshot. Editing the
+source invalidates the fingerprint, so hand-written or modified source uses the
+normal canonical compiler result rather than stale bytecode.
+
+The library option defaults off to preserve the strict generator's canonical
+text and RuneStar comparison corpus; the `cs2 decompile` and `cs2 roundtrip`
+commands enable it. On `cache.osrs239`, 539 listings need the full snapshot.
+The final gate is **9,724/9,724 present scripts byte-exact**; numeric ID 0 is the
+only one of the scanned 9,725 IDs not decompiled because it is absent from the
+cache.
+
 ---
 
 ## F. Not ours

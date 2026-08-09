@@ -906,9 +906,10 @@ RSCache_CS2_Generate(
         else
             generated_int_args++;
     }
-    bool preserve_frame = function->preserve_frame_counts ||
-                          generated_int_args != function->original_int_argument_count ||
-                          generated_string_args != function->original_string_argument_count;
+    bool preserve_frame = function->generate_lossless_metadata &&
+                          (function->preserve_frame_counts ||
+                           generated_int_args != function->original_int_argument_count ||
+                           generated_string_args != function->original_string_argument_count);
     if( preserve_frame )
     {
         cs2_put(&writer, "// @rscache-frame ");
@@ -923,7 +924,9 @@ RSCache_CS2_Generate(
     }
 
     bool wrote_epilogue = false;
-    for( int i = 0; returns && i < returns->count; i++ )
+    for( int i = 0;
+         function->generate_lossless_metadata && returns && i < returns->count;
+         i++ )
     {
         if( !function->return_default_is_int_constant[i] ||
             RSCache_CS2_TypeStackType(returns->items[i]->type) != RSCACHE_CS2_STACK_INT ||

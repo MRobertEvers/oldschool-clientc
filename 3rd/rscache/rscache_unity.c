@@ -35,6 +35,7 @@
 #include "src/cs2/cs2_dfa.c"
 #include "src/cs2/cs2_cfa.c"
 #include "src/cs2/cs2_gen.c"
+#include "src/cs2/cs2_lossless.c"
 #include "src/cs2/cs2_decompile.c"
 #include "src/cs2/cs2_compile.c"
 #include "src/datatypes/dat1_config_obj.c"

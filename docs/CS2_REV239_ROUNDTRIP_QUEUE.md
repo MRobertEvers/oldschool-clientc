@@ -30,6 +30,7 @@ Baseline, `cache.osrs239`, 2026-08-05, and where it stands after the work in §8
 ```
 2026-08-05  9507/9725 decompiled, 9440 compiled, 3850 same-length, 3080 exact
 2026-08-05  9556/9725 decompiled, 9551 compiled, 8951 same-length, 8405 exact   (after §8)
+2026-08-09  9724/9725 decompiled, 9724 compiled, 9724 same-length, 9724 exact  (final, §10)
 ```
 
 | | baseline | after §8 | of 9725 |
@@ -571,7 +572,8 @@ python3 tools/perf/cs2_roundtrip_classify.py /tmp/cs2-roundtrip.log \
   > docs/CS2_REV239_ROUNDTRIP_FAILURES.tsv
 ```
 
-Final measurement on 2026-08-09 after the changes below:
+Intermediate measurement on 2026-08-09 after the official-client and
+stack-model changes, before lossless source metadata:
 
 ```text
 9724/9725 decompiled, 9724 compiled, 9271 same-length, 8672 exact
@@ -579,8 +581,10 @@ Final measurement on 2026-08-09 after the changes below:
 
 Every cache entry now decompiles and recompiles. ID 0 is counted in the 9,725
 numeric range but is not present in the cache, so it is the sole reported
-decompile failure and is not a CS2 failure. The remaining 1,052 present scripts
-all compile: 599 differ at the same byte length and 453 differ in length.
+decompile failure and is not a CS2 failure. At this intermediate point the
+remaining 1,052 present scripts all compiled: 599 differed at the same byte
+length and 453 differed in length. Sections 10.5–10.7 explain how that final
+information-loss gap was closed without changing the readable source model.
 
 For comparison, the current checkout began this pass at
 `9094/9725 decompiled, 9090 compiled, 8658 same-length, 8070 exact`. The net
@@ -682,11 +686,11 @@ switches on a different internal field whose case labels are 3 int, 1 long, and
 Focused checks make the original official witnesses 41, 8872, 8729 and 9400
 byte-exact. Scripts 1712 and 8367 became exact in the final classification pass.
 
-### 10.5 Final residual classification
+### 10.5 Pre-metadata residual classification
 
-There are no remaining stack-model, decompile or compile failures for a script
-that exists. The 1,052 byte differences are closed as a documented information-
-loss queue rather than described as one generic “DIFF” bucket:
+There were no remaining stack-model, decompile or compile failures for a script
+that exists. Before lossless metadata, the 1,052 byte differences formed this
+documented information-loss queue rather than one generic “DIFF” bucket:
 
 | count | TSV category | specific reason |
 | ---: | --- | --- |
@@ -705,14 +709,46 @@ loss queue rather than described as one generic “DIFF” bucket:
 | 1 | `string_literal_encoding` | Script 8690 uses hook descriptor `W`; the official parser treats every non-`i` descriptor as string, so source recompiles it canonically as `s`. |
 | 1 | `hook_descriptor_normalization` | Script 9130 is the same officially-equivalent `X` to `s` descriptor normalization. |
 
-The categories sum to 1,052. Together with absent ID 0 they account for every
-row in the generated TSV. None is an unidentified failure, and no residual is
-being used to justify a guessed official signature.
+The categories sum to 1,052. None was an unidentified failure, and no residual
+was used to justify a guessed official signature. The historical classification
+is retained here because it explains why source alone cannot reproduce all of
+the original serialization choices; the current TSV contains only absent ID 0.
 
-### 10.6 Verification
+### 10.6 Lossless, edit-safe source metadata
 
-- Whole rev-239 corpus: `9724/9725 decompiled, 9724 compiled, 9271 same-length,
-  8672 exact`.
+The CLI now enables `RSCache_CS2_DecompileOptions.lossless`. Generated listings
+remain ordinary structured CS2, with comments carrying facts the language
+cannot express:
+
+- `@rscache-frame` preserves original local and argument bank counts.
+- `@rscache-epilogue` preserves non-canonical fine-type return defaults.
+- `@rscache-lossless-v1` is emitted only after compiling the generated source
+  and proving that some serialized field still differs. It contains a versioned
+  hexadecimal snapshot of the decoded instruction stream, operands, trailer and
+  switch tables.
+
+The snapshot is conditional, not a blind raw-byte substitution. Its FNV-1a
+fingerprint covers all structured source before the metadata line. The compiler
+always parses and compiles that source first, and restores the snapshot only
+after compilation succeeds and the fingerprint still matches. Any source edit
+invalidates the snapshot and the normal compiler output wins. Appending content
+after the metadata also invalidates it. The core library option defaults to
+false so canonical-source callers and the RuneStar reference test keep the
+strict generator's historical output; CLI `decompile` and `roundtrip` opt in.
+
+On rev 239, 539 of 9,724 listings need the full snapshot after the targeted
+frame/epilogue metadata has been applied. A complete lossless source export is
+41 MiB. This makes all non-semantic original compiler choices recoverable while
+keeping hand-written and edited CS2 canonical.
+
+An explicit edit-safety test inserted a blank line into lossless script 15. The
+source still compiled, its fingerprint no longer matched, and the result was the
+normal 35-byte canonical script rather than the original 38-byte snapshot.
+
+### 10.7 Final verification
+
+- Whole rev-239 corpus: `9724/9725 decompiled, 9724 compiled, 9724 same-length,
+  9724 exact`. ID 0 is absent, so this is 100% of scripts present in the cache.
 - `build/test_cs2`: 7,884 scripts, 7,600 decompiled, 6,491 compared, 6,271
   identical, 220 explicitly allowed rev-era divergences; all three checks pass.
 - `src/cs2vm2/gen_opcode_stack.py` regenerates cleanly (999 known rows) and

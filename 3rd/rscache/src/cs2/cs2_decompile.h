@@ -81,6 +81,13 @@ struct RSCache_CS2_DecompileOptions
     struct RSCache_CS2_DbColumnTypes db_columns;
     /** Optional; without it every id decompiles under a synthesised name. */
     const struct RSCache_CS2_Names* names;
+    /**
+     * Preserve non-semantic bytecode layout in fingerprinted source metadata.
+     * Disabled by default so callers comparing canonical source keep the
+     * reference generator's text; the command-line decompile and roundtrip
+     * workflows enable it for byte-exact recompilation.
+     */
+    bool lossless;
 };
 
 /**
