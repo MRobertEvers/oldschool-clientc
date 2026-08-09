@@ -106,6 +106,13 @@ bug there can only ever be a rendering bug.
 
 `ev_wire.c` is compiled into both, so the format they speak has one definition.
 
+Both lists are searchable. The npc box matches display name, gameval or id; the
+animation box matches gameval name, a full sequence id, or the words `skeletal`
+/ `classic`. The animation one is not a nicety — a human-rigged npc lists 3,905
+sequences, and typing `death` is the difference between that and the 46 worth
+looking at. The query survives changing npc on purpose, so "what is each of
+these creatures' death animation" is one keystroke per npc.
+
 ## Configuring npcs from the catalog
 
 `tools/gen_npc_combat.py` turns this catalog into content — per-npc attack /

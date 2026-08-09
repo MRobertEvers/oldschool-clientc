@@ -112,6 +112,24 @@ ev_frame_delay(int index)
 {
     if( !g_anim || index < 0 || index >= g_anim->frame_count )
         return 0;
+
+    /*
+     * A skeletal animation has no `frames` array at all — it is a baked matrix
+     * palette — so this must not index one. The client's own tick makes the
+     * same split: its skeletal branch advances one baked frame per client tick
+     * unconditionally (app.c's `anim_cycle++; if (anim_cycle >= 1)`), where the
+     * classic branch consults each frame's own length.
+     *
+     * Reading `frames[index]` through a NULL pointer does not trap in wasm —
+     * low linear memory is ordinary addressable memory — so it returned
+     * whatever bytes happened to live there. The player multiplied that by the
+     * tick length and stalled at whichever index landed on a large value, the
+     * same index every time because the layout is deterministic. It looked like
+     * the sequence ending at frame 37.
+     */
+    if( g_anim->skeletal || !g_anim->frames )
+        return 1;
+
     return g_anim->frames[index].delay;
 }
 

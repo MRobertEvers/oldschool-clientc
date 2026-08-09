@@ -873,6 +873,29 @@ selftest(int npc_id, int seq_id)
             ? "  — model has no Animaya skin, so it cannot play this"
             : "");
 
+    {
+        /* Every frame's delay, so a bad one cannot hide: the player stalls on
+         * whichever frame reports a huge length, and that is invisible in a
+         * still. */
+        int min_delay = 1 << 30;
+        int max_delay = 0;
+        for( int i = 0; i < ev_frame_count(); i++ )
+        {
+            int d = ev_frame_delay(i);
+            if( d < min_delay )
+                min_delay = d;
+            if( d > max_delay )
+                max_delay = d;
+        }
+        if( ev_frame_count() > 0 )
+            fprintf(
+                stderr,
+                "  frame delays: min %d, max %d ticks over %d frames\n",
+                min_delay,
+                max_delay,
+                ev_frame_count());
+    }
+
     int h = ev_model_height();
     int zoom = h * 3 > 400 ? h * 3 : 400;
     uint8_t* rgba = ev_render(256, 256, 0, 200, zoom, 0);

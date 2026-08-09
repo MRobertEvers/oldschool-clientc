@@ -150,20 +150,40 @@ async function selectNpc(id) {
   renderAnimList();
 }
 
+/**
+ * Does this animation match the search box?
+ *
+ * Matches the gameval name, the sequence id typed in full, and the words
+ * `skeletal` / `classic` — an npc on the human rig lists 3,905 sequences, and
+ * `walk` or `death` is how you get from that to the handful you want. The id is
+ * compared as a whole word rather than a substring so `9421` does not also
+ * bring back 19421.
+ */
+function animMatches(a, q) {
+  if (!q) return true;
+  if (String(a.seq) === q) return true;
+  if ((a.name || '').toLowerCase().includes(q)) return true;
+  const kind = a.skeletal ? 'skeletal' : 'classic';
+  return kind.startsWith(q);
+}
+
 function renderAnimList() {
   const el = document.getElementById('animList');
   const d = state.detail;
   el.innerHTML = '';
   if (!d) { el.innerHTML = '<div class="note">Pick an npc.</div>'; return; }
 
+  const q = document.getElementById('animSearch').value.trim().toLowerCase();
+  const rig = d.rig.filter((a) => animMatches(a, q));
+
   const frag = document.createDocumentFragment();
 
   frag.appendChild(group(
-    'rig', `Rigging matches (${d.rig.length})`,
+    'rig', `Rigging matches (${countLabel(rig.length, d.rig.length)})`,
     'Sequences built on this npc’s own rig. Concrete: sharing a rig is the ' +
     'precondition for an animation applying at all.'));
 
-  for (const a of d.rig) {
+  for (const a of rig) {
     /* A skeletal sequence poses through the model's Animaya skin. An npc
      * without one is left in its bind pose rather than mis-animated, so say so
      * on the row instead of letting it look like a broken animation. */
@@ -172,10 +192,11 @@ function renderAnimList() {
     frag.appendChild(animRow(a.seq, a.name, badge, false, unplayable));
   }
 
-  const maybes = d.maybe.filter((m) => !m.in_rig);
-  const corroborated = d.maybe.length - maybes.length;
+  const allMaybes = d.maybe.filter((m) => !m.in_rig);
+  const maybes = allMaybes.filter((m) => animMatches(m, q));
+  const corroborated = d.maybe.length - allMaybes.length;
   frag.appendChild(group(
-    'maybe', `Name guesses (${maybes.length})`,
+    'maybe', `Name guesses (${countLabel(maybes.length, allMaybes.length)})`,
     'Sequences whose gameval name shares a distinctive word with this npc’s. ' +
     'A guess — it finds animations nothing points at, and it produces false ' +
     `positives.${corroborated ? ` ${corroborated} more also matched by rig.` : ''}`));
@@ -186,14 +207,30 @@ function renderAnimList() {
   if (!maybes.length) {
     const n = document.createElement('div');
     n.className = 'note';
-    n.textContent = 'No name guesses outside the rig set.';
+    n.textContent = allMaybes.length
+      ? 'No name guesses match the search.'
+      : 'No name guesses outside the rig set.';
+    frag.appendChild(n);
+  }
+  if (q && !rig.length && !maybes.length) {
+    const n = document.createElement('div');
+    n.className = 'note';
+    n.textContent = `Nothing matches “${q}”.`;
     frag.appendChild(n);
   }
 
   el.appendChild(frag);
-  const skel = d.rig.filter((a) => a.skeletal).length;
+
+  const skel = rig.filter((a) => a.skeletal).length;
   document.getElementById('animCount').textContent =
-    `${d.rig.length} rig${skel ? ` (${skel} skeletal)` : ''} · ${maybes.length} maybe`;
+    `${countLabel(rig.length, d.rig.length)} rig` +
+    (skel ? ` (${skel} skeletal)` : '') +
+    ` · ${countLabel(maybes.length, allMaybes.length)} maybe`;
+}
+
+/** `n` when nothing is filtered, `n of total` when something is. */
+function countLabel(shown, total) {
+  return shown === total ? `${total}` : `${shown} of ${total}`;
 }
 
 function group(kind, title, note) {
@@ -314,6 +351,9 @@ function wireInput() {
   }, { passive: false });
 
   document.getElementById('npcSearch').addEventListener('input', renderNpcList);
+  /* The animation query survives changing npc on purpose: comparing "what is
+   * each of these creatures' death animation" is the reason to have it. */
+  document.getElementById('animSearch').addEventListener('input', renderAnimList);
 
   document.getElementById('playBtn').onclick = () => {
     state.playing = !state.playing;

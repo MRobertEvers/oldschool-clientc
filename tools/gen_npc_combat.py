@@ -896,6 +896,91 @@ def validate(all_seq, feats, lostcity, rsmod, seq_framemaps, sound_by_name, deci
 # ---------------------------------------------------------------------------
 
 
+def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
+                 decisions, write):
+    """Correct animation rows in hand-authored `.npc` files that name a sequence
+    the npc's own model cannot play.
+
+    An authored block always wins over this generator's output, and that is the
+    right rule for a *preference*. It is the wrong rule for a row that does not
+    work: 54 of the 374 animation rows across the tree's authored `.npc` files
+    name a sequence built on a framemap the npc is not on, so the client is told
+    to drive bones the model does not have and nothing plays. Every one of them
+    is a LostCity port that predates Jagex re-rigging the creature.
+
+    This is the failure a player actually sees, and it hid behind the rule: the
+    Lumbridge roster is all authored, so the goblin, cow, chicken and rat kept
+    `goblin_death` / `cow_death` / `chicken_death` / `rat_death` — framemaps 308,
+    282, 281, 331 against rigs 1415, 1338, 1255, 326 — and looked like they were
+    still using the human default. The generator had already worked out the right
+    answers (`slice_surface_goblin_death`, `cow_update_death`,
+    `lore_chicken_death`, `mouse_death`) and was skipping those npcs.
+
+    Only off-rig rows are touched. An authored row that works is left exactly as
+    its author wrote it.
+    """
+    root = os.path.join(content_dir, "server", "scripts")
+    exclude = os.path.abspath(out_path)
+    fixed, unfixable, checked, playable = [], [], 0, 0
+
+    for dirpath, _dirs, files in os.walk(root):
+        for fn in sorted(files):
+            if not fn.endswith(".npc"):
+                continue
+            full = os.path.join(dirpath, fn)
+            if os.path.abspath(full) == exclude:
+                continue
+            with open(full, encoding="latin-1") as f:
+                lines = f.read().splitlines()
+            current = None
+            changed = False
+            for i, line in enumerate(lines):
+                s = line.strip()
+                if s.startswith("[") and s.endswith("]"):
+                    current = s[1:-1]
+                    continue
+                if not current or not s.startswith("param="):
+                    continue
+                key, _, value = s[6:].partition(",")
+                if key not in ANIM_KEYS or not value:
+                    continue
+                rigs = npc_rigs.get(gameval_to_id.get(current, -1), set())
+                if not rigs or value not in seq_framemaps:
+                    continue
+                checked += 1
+                if seq_framemaps[value] & rigs:
+                    playable += 1
+                    continue
+                # Off-rig. What did the rig walk decide for this npc?
+                entry = decisions.get(current)
+                replacement = entry[1].get(key, (None,))[0] if entry else None
+                if not replacement or not (seq_framemaps.get(replacement, set()) & rigs):
+                    unfixable.append((current, key, value, fn))
+                    continue
+                lines[i] = line.replace("param=%s,%s" % (key, value),
+                                        "param=%s,%s" % (key, replacement))
+                fixed.append((current, key, value, replacement, fn))
+                changed = True
+            if changed and write:
+                with open(full, "w", encoding="latin-1") as f:
+                    f.write("\n".join(lines) + "\n")
+
+    print("\nauthored .npc animation rows checked against each npc's own rig: %d"
+          % checked)
+    print("   playable                              %d" % playable)
+    print("   off-rig, corrected from the rig walk  %d" % len(fixed))
+    print("   off-rig, no on-rig answer known       %d" % len(unfixable))
+    for npc, key, old, new, fn in fixed[:12]:
+        print("      %-24s %-12s %-24s -> %s   [%s]" % (npc, key, old, new, fn))
+    if len(fixed) > 12:
+        print("      ... and %d more" % (len(fixed) - 12))
+    for npc, key, old, fn in unfixable[:6]:
+        print("      LEFT %-22s %-12s %-24s [%s]" % (npc, key, old, fn))
+    if not write:
+        print("   (dry run — pass --write to correct them)")
+    return len(fixed)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalog", default="out/osrs239_anims")
@@ -909,6 +994,8 @@ def main():
                     help="write the ledger and the compiled config")
     ap.add_argument("--validate", action="store_true",
                     help="measure every layer against held-out authored data")
+    ap.add_argument("--fix-authored", action="store_true",
+                    help="correct off-rig animation rows in hand-authored .npc files")
     args = ap.parse_args()
 
     out_path = os.path.join(args.content, "server", "scripts", "npc", "configs",
@@ -1030,6 +1117,10 @@ def main():
         rsmod_rigs = {gv: npc_rigs.get(gameval_to_id.get(gv, -1), set()) for gv in rsmod}
         validate(all_seq, feats, lostcity, rsmod, seq_framemaps, sound_by_name,
                  decisions, rsmod_rigs)
+
+    if args.fix_authored:
+        fix_authored(args.content, out_path, seq_framemaps, npc_rigs,
+                     gameval_to_id, decisions, args.write)
 
     if not args.write:
         print("\n(dry run — pass --write to author the ledger and the config)")

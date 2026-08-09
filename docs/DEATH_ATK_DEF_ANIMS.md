@@ -368,6 +368,37 @@ mixer is `loops - 1`. A literal port of that proc would have been silent. Both
 `general/scripts/misc/sound.rs2` still pass 0 and are unused; anything that
 starts calling them will be silent until they are fixed.
 
+### The authored blocks were the ones actually broken
+
+Wiring the sounds surfaced this, and it is the failure a player sees.
+
+`--fix-authored` checks every animation row in every hand-written `.npc` file
+against the npc's own rig. **54 of 374 named a sequence the model cannot play.**
+Every one was a LostCity port predating a Jagex re-rig — the same 35% failure
+rate a0 hits, arriving through the one door the rig gate did not cover, because
+*an authored block always wins*.
+
+The Lumbridge roster is entirely authored, so this is what a player fought:
+
+| npc | authored (2004) | on framemap | npc's rig | corrected to |
+|---|---|---|---|---|
+| goblin | `goblin_death` | 308 | 1415 | `slice_surface_goblin_death` |
+| cow | `cow_death` | 282 | 1338 | `cow_update_death` |
+| chicken | `chicken_death` | 281 | 1255 | `lore_chicken_death` |
+| rat | `rat_death` | 331 | 326 | `mouse_death` |
+
+Nothing animated, which reads exactly like the npc still using the human default
+— and no test noticed, because the id resolved, the pack was clean and the server
+sent the animation faithfully.
+
+39 rows corrected from the rig walk's own answers. 15 are left: the Mort'ton
+shades (`shade_attack`/`shade_block`/`shade_sink` on framemap 649 against rig
+651) have no on-rig alternative in the catalog, so they are reported rather than
+guessed. `--fix-authored` now reports `0` correctable and is the standing check.
+
+The goblin's selftest pins moved with it — 309/312/313 to 6184/6183/6182 — and
+the check catching that change is the reason it is worth pinning ids at all.
+
 The three params are new: `npc_combat.param` (`type=int`, `default=-1`),
 `fields/npc.ini` opcodes 158–160 (`u4`, so -1 round-trips), `k_npc_fields` in
 `mock230_servercodec.c`, and `Mock230NpcDef` / `Mock230Npc`. `type=synth` does

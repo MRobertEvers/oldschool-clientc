@@ -14136,15 +14136,34 @@ mock230_world_selftest(void)
                 npc->masks = 0;
             }
 
-            /* Combat animations are named by content and resolved against the
+            /*
+             * Combat animations are named by content and resolved against the
              * cache, so a rename upstream shows up here rather than as an npc
-             * that silently stops animating. */
-            SELFTEST_CHECK(npc->attack_seq == 309,
-                           "goblin_attack_unarmed should resolve to 309, got %d",
+             * that silently stops animating.
+             *
+             * These were 309 / 312 / 313 — `goblin_attack_unarmed`,
+             * `goblin_block`, `goblin_death` — until 2026-08-09, and all three
+             * were **unplayable**. Those sequences are built on framemap 308 and
+             * this cache's goblin is on 1415, so the client was told to drive
+             * bones the model does not have and nothing animated. They came from
+             * a LostCity port that predates Jagex re-rigging the goblin, and the
+             * authored `.npc` block kept them because an authored block wins.
+             *
+             * The rig walk had the right answers the whole time
+             * (`tools/gen_npc_combat.py --fix-authored`, docs/DEATH_ATK_DEF_ANIMS.md
+             * §6b): `slice_surface_goblin_*`, which is the family the goblin's own
+             * `readyanim` — `slice_surface_goblin_squat_ready` — names. 39 rows
+             * across the tree's authored files were wrong the same way.
+             */
+            SELFTEST_CHECK(npc->attack_seq == 6184,
+                           "slice_surface_goblin_squat_unarmed_attack should resolve "
+                           "to 6184, got %d",
                            npc->attack_seq);
-            SELFTEST_CHECK(npc->block_seq == 312, "goblin_block should be 312, got %d",
+            SELFTEST_CHECK(npc->block_seq == 6183,
+                           "slice_surface_goblin_defend should be 6183, got %d",
                            npc->block_seq);
-            SELFTEST_CHECK(npc->death_seq == 313, "goblin_death should be 313, got %d",
+            SELFTEST_CHECK(npc->death_seq == 6182,
+                           "slice_surface_goblin_death should be 6182, got %d",
                            npc->death_seq);
             /*
              * The combat sounds, and the whole chain behind them in one line.
@@ -14183,6 +14202,54 @@ mock230_world_selftest(void)
                  * sentinel *because* synth 0 is a real clip. */
                 SELFTEST_CHECK(mock230_content_npc_default()->attack_sound == -1,
                                "an npc nothing describes is silent, not synth 0");
+            }
+
+            /*
+             * The whole roster, not one bat: how many npcs actually reached the
+             * runtime carrying combat animations and sounds.
+             *
+             * A floor rather than an exact count, because the generator is
+             * expected to find *more* over time and a test that pins the number
+             * would fail on every improvement. What it catches is the failure
+             * that has already happened once: `npc_anims.generated.npc` being
+             * reverted, half-written or emptied, which no other check notices —
+             * the tree still packs cleanly with zero blocks in it, and every npc
+             * silently falls back to the human unarmed set.
+             *
+             * Floors are set roughly 10% under what
+             * `tools/gen_npc_combat.py --write` currently produces (6,099 /
+             * 5,032 / 6,077 animations and 424 / 427 / 446 sounds), which is far
+             * enough below to survive normal churn and nowhere near zero.
+             */
+            {
+                int with_attack = 0, with_defend = 0, with_death = 0;
+                int with_asound = 0, with_dsound = 0, with_xsound = 0;
+
+                for( int id = 0; id < MOCK230_NPC_TYPE_MAX; id++ )
+                {
+                    struct Mock230NpcDef const* d = mock230_content_npc(id);
+
+                    if( !d )
+                        continue;
+                    with_attack += d->attack_anim >= 0;
+                    with_defend += d->defend_anim >= 0;
+                    with_death += d->death_anim >= 0;
+                    with_asound += d->attack_sound >= 0;
+                    with_dsound += d->defend_sound >= 0;
+                    with_xsound += d->death_sound >= 0;
+                }
+                SELFTEST_CHECK(with_attack >= 5400,
+                               "npcs with their own attack animation, got %d", with_attack);
+                SELFTEST_CHECK(with_defend >= 4500,
+                               "npcs with their own defend animation, got %d", with_defend);
+                SELFTEST_CHECK(with_death >= 5400,
+                               "npcs with their own death animation, got %d", with_death);
+                SELFTEST_CHECK(with_asound >= 380,
+                               "npcs with an attack sound, got %d", with_asound);
+                SELFTEST_CHECK(with_dsound >= 380,
+                               "npcs with a defend sound, got %d", with_dsound);
+                SELFTEST_CHECK(with_xsound >= 400,
+                               "npcs with a death sound, got %d", with_xsound);
             }
             SELFTEST_CHECK(mock230_seq_by_name("human_unarmedpunch") == 422,
                            "human_unarmedpunch should be 422");
