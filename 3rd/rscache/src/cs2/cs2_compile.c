@@ -1232,7 +1232,10 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
         int opcode = RSCache_CS2_CommandOfName(text);
         const struct RSCache_CS2_CommandInfo* info =
             opcode >= 0 ? RSCache_CS2_CommandGet(opcode) : NULL;
-        if( info && info->kind == RSCACHE_CS2_CMD_BASIC && info->def_count > 0 )
+        if( info &&
+            (info->kind == RSCACHE_CS2_CMD_BASIC ||
+             info->kind == RSCACHE_CS2_CMD_TYPED_POP) &&
+            info->def_count > 0 )
         {
             const struct RSCache_CS2_Prototype* proto =
                 RSCache_CS2_ProtoGet(RSCache_CS2_CommandDef(info, 0));
@@ -1429,7 +1432,11 @@ cs2_cc_command_arguments(
             return;
         enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
         if( written < info->arg_count )
-            expected = RSCache_CS2_ProtoGet(RSCache_CS2_CommandArg(info, written))->type;
+        {
+            enum RSCache_CS2_ProtoId proto = RSCache_CS2_CommandArg(info, written);
+            if( proto != RSCACHE_CS2_PROTO_NONE )
+                expected = RSCache_CS2_ProtoGet(proto)->type;
+        }
         /* Only where the argument could *be* arithmetic. `cs2_cc_calc` types its
          * leaf `int`, which loses any narrower expectation — and a narrower
          * expectation is what resolves a named constant. `parawidth($string0,
@@ -1963,7 +1970,7 @@ cs2_cc_command(struct cs2_cc_compiler* cc, const char* name, bool dot)
         cs2_cc_emit(cc, opcode, 0);
         return;
     }
-    if( info->kind != RSCACHE_CS2_CMD_BASIC )
+    if( info->kind != RSCACHE_CS2_CMD_BASIC && info->kind != RSCACHE_CS2_CMD_TYPED_POP )
     {
         cs2_cc_fail(cc, "'%s' cannot be written as a call", name);
         return;
@@ -2974,6 +2981,7 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
         switch( info->kind )
         {
         case RSCACHE_CS2_CMD_BASIC:
+        case RSCACHE_CS2_CMD_TYPED_POP:
             for( int i = 0; i < info->def_count && count < 64; i++ )
             {
                 const struct RSCache_CS2_Prototype* proto =

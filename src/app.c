@@ -10938,6 +10938,48 @@ app_world_camera_cinema(struct App* app)
     app->need_redraw = 1;
 }
 
+/*
+ * Orbit distance zoom (reference Statics.method6352, and the identical
+ * expression inlined in client.method2068 and client.method2066).
+ *
+ * The follow camera's `pitch * 3 + 600` is a FIXED-VIEWPORT distance: the
+ * reference then scales it by an endpoint pair interpolated over the world
+ * viewport HEIGHT, exactly the way the projection scale is (app_world_proj_scale
+ * / class159.method5357), and over the same `height - 334` in [0,100] band:
+ *
+ *     zoom = (far - near) * clamp(vpH - 334, 0, 100) / 100 + near
+ *     distance = (pitch * 3 + 600) * zoom / 256
+ *
+ * near/far are client.field780/field747 — CS2 VIEWPORT_SETZOOM (6201), default
+ * 256 and 320. A fixed 334-high viewport therefore leaves the distance alone,
+ * and a resizable one (503 here) pulls the eye a full 25% further out.
+ *
+ * Missing this term is what docs/ORANGE_WEDGE.md 7(b) measured as "the C eye
+ * sits ~15% too close" and left open. Distance is not just closeness: the eye is
+ * `pivot - distance` along pitch/yaw, so a short distance lowers the eye by the
+ * same fraction. That is the "camera is too low" symptom.
+ */
+static int
+app_world_cam_dist_zoom(struct App* app)
+{
+    int near_zoom = app->host.viewport_zoom;
+    int far_zoom = app->host.viewport_zoom_max;
+    int d;
+
+    if( near_zoom <= 0 )
+        near_zoom = 256;
+    if( far_zoom <= 0 )
+        far_zoom = 320;
+    /* No laid-out viewport yet: 334 is the reference's fixed height, which puts
+     * the interpolation on its near endpoint and leaves the distance unscaled. */
+    d = (app->world_view_valid ? app->world_emit_desc.h : 334) - 334;
+    if( d < 0 )
+        d = 0;
+    if( d > 100 )
+        d = 100;
+    return (far_zoom - near_zoom) * d / 100 + near_zoom;
+}
+
 /* Reference followCamera + camFollow (Client-TS 3459/4669): a 1/16-eased
  * orbit anchor trails the player, arrow keys accumulate yaw/pitch velocity,
  * a terrain scan raises pitch so the eye stays above nearby ground, then the
@@ -11064,9 +11106,11 @@ app_world_camera_follow(struct App* app)
     if( app->camera_pitch_clamp / 256 > pitch )
         pitch = app->camera_pitch_clamp / 256;
     yaw = app->orbit_yaw & 0x7ff;
-    /* Reference distance is `pitch * 3 + 600`; wheel zoom scales it. At 100%
-     * (the default, and the only value the reference has) this is exact. */
-    distance = (pitch * 3 + 600) * app->world_zoom_pct / APP_WORLD_ZOOM_DEFAULT_PCT;
+    /* Reference distance is `(pitch * 3 + 600) * viewportZoom / 256`
+     * (client.method2068); our own wheel zoom scales that. At 100% (the
+     * default, and the only value the reference has) the last term is exact. */
+    distance = (pitch * 3 + 600) * app_world_cam_dist_zoom(app) / 256;
+    distance = distance * app->world_zoom_pct / APP_WORLD_ZOOM_DEFAULT_PCT;
     off_x = 0;
     off_y = 0;
     off_z = distance;
@@ -11116,7 +11160,7 @@ app_world_camera_follow(struct App* app)
         fprintf(
             stderr,
             "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
-            "pitch=%d yaw=%d dist=%d\n",
+            "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
             (double)app->orbit_x,
             (double)app->orbit_z,
             (int)player->draw_position.x,
@@ -11125,7 +11169,11 @@ app_world_camera_follow(struct App* app)
             (double)((float)(int)player->draw_position.z - app->orbit_z),
             pitch,
             yaw,
-            distance);
+            distance,
+            target_y,
+            app->world_camera_pos.x,
+            app->world_camera_pos.y,
+            app->world_camera_pos.z);
 }
 
 /* Apply queued WorldEventKind_EntityRemoved: free the DYNAMIC scene element.

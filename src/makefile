@@ -1997,6 +1997,7 @@ test-port:
 	@cd $(REPO_ROOT) && python3 tools/port_config_diff.py \
 		--tree $(MOCK230_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_vars_diff.py --check
+	@cd $(REPO_ROOT) && python3 tools/cs2_varp_audit.py --check
 	@cd $(REPO_ROOT) && python3 tools/port_names_diff.py \
 		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \

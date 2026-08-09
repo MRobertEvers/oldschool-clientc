@@ -187,14 +187,10 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_7819": (["STRING"], ["INT"], False),
     "_7824": (["INT"], [], False),
     # Solved jointly, and each of these was reached from more than one partner:
-    # 1704 balances at three ints in and nothing out against 222, 1703 and 8003
-    # across eleven scripts, and no other arity does in any of them. The rest
-    # agree across two pairings each.
-    # 1704 was three ints from `infer-arity`. The rev-239 client says two:
-    # method12337's case pops a type code and a param id, and takes the
-    # component from the handler preamble's active-component slot, not the
-    # stack. It is named in 7 of the corpus's decompile failures.
-    "_1704": (["INT", "INT"], [], False),
+    # The rev-239 client pops the final base-type code, then a value from the
+    # selected int/string/long stack, then the param id. The active component
+    # comes from the handler preamble and the operand selects its dot form.
+    "_1704": (["INT", "NONE", "INT"], [], True),
     # 2929 has NO fixed signature and this one is wrong. The rev-239 client
     # calls `method989` — pop a descriptor string, then one value per character,
     # 'i' from the int stack and anything else from the string stack — which is
@@ -264,18 +260,17 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # ARRAY_COUNT_MATCHES when the type names a string; Overview only uses
     # int. xrsps names the broader op ARRAY_INSERT (with an index); this
     # cache's sites have no index.
-    # 8024 was three from the Overview call sites. The rev-239 client pops two:
-    # one int (a type code, fed to method6560) and one array handle. method12336.
-    "_8024": (["STRING", "INT"], [], False),
+    # The final base-type code tells method6560 which stack holds the inserted
+    # value. `NONE` is a deliberate placeholder interpreted by TYPED_POP.
+    "_8024": (["STRING", "NONE", "INT"], [], False),
     # 2704: IF_SETPARAM. xrsps WidgetOps: (param, value, uid, child, type)
     # with typed value. Script 9176: five ints, nothing consumed. Override
     # scoring `--override 2704:5,0,0,0` recovers 9176; the vendored
     # if_haschild_modal (2i->1i) from an older deob does not. LOCAL_NAMES
     # renames the row away from that stale spelling.
-    # 2704 was five ints, from xrsps by way of a call-site count. The client
-    # says four: method3056's case pops three, resolves a component from the
-    # first two, then pops one more. Read the case, not the call site.
-    "IF_SETPARAM": (["INT", "INT", "INT", "INT"], [], False),
+    # method3056 pops (uid, child, type) together, then a typed value and the
+    # param. Source order is therefore (param, value, uid, child, type).
+    "IF_SETPARAM": (["INT", "NONE", "INT", "INT", "INT"], [], False),
 
     # ---------------------------------------------------------------
     # Settled from call sites rather than by search, against cache.osrs239.
@@ -547,7 +542,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # corpus: 208 reads it and is the one opcode here whose operand byte is 1 at
     # its only call site, and 216, which does not read it, is 0 at all 56 of its.
     "_208": ([], ["INT"], True),                    # method4548 case 208
-    "_216": (["INT", "INT"], ["INT"], False),       # method4548 case 216
+    "_216": (["INT", "NONE", "INT"], ["INT"], False),  # method4548 case 216
     "_1707": ([], ["INT"], True),                   # method12337 case 1707
     # 2506/2624: nothing in the case body, one int from the handler preamble.
     "_2506": (["COMPONENT"], ["INT"], False),       # method4787 preamble + case
@@ -564,9 +559,10 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # client feeds it to `method6560`, which resolves a base var type rather
     # than reading a value, so all four arguments are int-stack.
     "_8002": (["STRING"], ["INT"], False),                       # method12336
-    "_8005": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
-    "_8007": (["STRING", "INT", "INT", "INT"], ["INT"], False),  # method12336
-    "_8010": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "_8005": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "_8006": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "_8007": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "_8010": (["STRING", "NONE", "INT", "INT", "INT"], [], False),
     "_8011": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
     "_8014": (["STRING", "INT", "INT"], [], False),              # method12336
     "_8015": (["STRING", "STRING", "INT", "INT", "INT"], [], False),  # method12336
@@ -581,7 +577,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # Second pass, once the block above stopped hiding these behind other
     # unknowns. Same tree, same method.
     "_4224": (["INT"], ["INT"], False),          # method2965, the `var0 != 4224` arm
-    "_8025": (["STRING", "INT", "INT"], [], False),              # method12336
+    "_8025": (["STRING", "INT", "NONE", "INT"], [], False),
     "_8027": (["STRING", "STRING"], [], False),                  # method12336
     # 8009 is polymorphic like 8026 — it pushes to the int stack or the string
     # stack depending on the array's element type. Recorded as int because all
@@ -672,7 +668,11 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # because only one split is consistent with both the net and the handler
     # source; where it was not, the entry was left alone rather than guessed.
     "cc_setop": (["INT", "STRING"], [], True),            # net (-1,-1) x51047
-    "if_setop": (["COMPONENT", "INT", "STRING"], [], False),  # net (-2,-1) x3725
+    # method12438 pops the explicit COMPONENT in the >=2000 preamble, then
+    # case 1300 pops OPINDEX and OP. Keep Command.kt's source/bytecode order:
+    # the measured stack deltas establish the banks, but cannot establish how
+    # values from the independent int and string stacks were interleaved.
+    "if_setop": (["INT", "STRING", "COMPONENT"], [], False),  # net (-2,-1) x3725
     "if_getop": (["COMPONENT", "INT"], ["STRING"], False),    # net (-2,+1) x11
     "oc_iop": (["OBJ", "INT"], ["STRING"], False),        # net (-2,+1) x47
     "openurl": (["STRING", "INT"], [], False),            # net (-1,-1) x11
@@ -730,7 +730,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "_1128": (["INT", "INT"], [], True),
     "_1506": ([], ["INT"], True),
     "_1624": ([], ["INT"], True),
-    "cc_setcomponentparam": (["INT", "INT"], [], True),
+    "cc_setcomponentparam": (["INT", "NONE", "INT"], [], True),
     "cc_callonresize": (["BOOLEAN"], [], True),
 }
 
@@ -753,6 +753,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
 # one out -- desynchronised the operand stack of every script that read a
 # multi-field column, which is what took script 7603 and 79 others.
 LOCAL_KINDS: dict[int, str] = {
+    216: "TYPED_POP",
+    1704: "TYPED_POP",
+    2704: "TYPED_POP",
+    8005: "TYPED_POP",
+    8006: "TYPED_POP",
+    8007: "TYPED_POP",
+    8010: "TYPED_POP",
+    8024: "TYPED_POP",
+    8025: "TYPED_POP",
     7502: "DB_GETFIELD",
     7500: "DB_FIND",
     7507: "DB_FIND",

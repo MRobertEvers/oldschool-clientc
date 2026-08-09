@@ -103,6 +103,8 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_DISCARD,
     RSCACHE_CS2_CMD_ASSIGN,
     RSCACHE_CS2_CMD_BASIC,
+    /** One argument's stack is selected by the final literal base-type code. */
+    RSCACHE_CS2_CMD_TYPED_POP,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
     /** db_getfield: pops (dbrow, dbcolumn, index), pushes the column's fields. */

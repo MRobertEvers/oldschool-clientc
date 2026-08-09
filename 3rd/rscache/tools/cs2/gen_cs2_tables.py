@@ -82,6 +82,7 @@ KINDS = [
     "DISCARD",
     "ASSIGN",
     "BASIC",
+    "TYPED_POP",
     "CLIENTSCRIPT",
     "PARAM",
     "DB_GETFIELD",

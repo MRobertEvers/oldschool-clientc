@@ -681,8 +681,13 @@ RS_CS2Host_Init(
      * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
     host->viewport_fov = 128;
     host->viewport_fov_max = 896;
-    host->viewport_zoom = 128;
-    host->viewport_zoom_max = 896;
+    /* Orbit-distance zoom endpoints (reference client.field780/field747, set at
+     * client.java:4264). These are read by the follow camera every cycle, so the
+     * defaults have to be the reference's, not the old GETZOOM placeholders —
+     * 128/896 would have shrunk the orbit distance by half at a fixed viewport
+     * and stretched it 3.5x at a tall one. */
+    host->viewport_zoom = 256;
+    host->viewport_zoom_max = 320;
     /* Reference default for the interpolation endpoints (class159 reads them
      * before any SETFOV has run). Written here, read only by the env-gated
      * TORIRS_WEDGE_SCALE path — nothing in the default build looks at them. */
@@ -1959,8 +1964,12 @@ exec_viewport(
         return CS2VM2_PushInt(thread, host->viewport_fov_max);
     }
     case CS2_OP_VIEWPORT_SETZOOM:
-        host->viewport_zoom = request.args[0];
-        host->viewport_zoom_max = request.args[1];
+        /* Reference Statics.method6341 case 6201: the two args are the NEAR and
+         * FAR endpoints of the follow camera's orbit-distance zoom (field780 /
+         * field747), stored raw — no method5659 decode, unlike SETFOV — with
+         * distinct <= 0 fallbacks. GETZOOM (6204) pushes them back unchanged. */
+        host->viewport_zoom = request.args[0] > 0 ? request.args[0] : 256;
+        host->viewport_zoom_max = request.args[1] > 0 ? request.args[1] : 320;
         return CS2VM_EXECNO_OK;
     case CS2_OP_VIEWPORT_GETZOOM:
     {

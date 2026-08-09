@@ -3333,6 +3333,20 @@ mock230_world_npc_died(
     struct Mock230Server* srv,
     int slot);
 
+/**
+ * The mode a *fresh* npc of this record stands in: patrol when it has a route,
+ * else a content `defaultmode=`, else wander when it has a radius and none when
+ * it has not.
+ *
+ * Shared rather than restated, because "what was this npc doing before anything
+ * happened to it" is asked at three different moments — spawn, the escape mode
+ * giving up, and a death — and the three answers have to agree. They did not:
+ * the escape fallback omitted the patrol clause, so Hans, shoved into
+ * `playerescape` and stuck, came back a wanderer.
+ */
+int
+mock230_world_npc_default_mode(const struct Mock230Npc* npc);
+
 /** When a just-appeared npc may first consider roaming, staggered so a room
  *  spawned on one tick does not step in unison. Spawn and respawn both use it. */
 void

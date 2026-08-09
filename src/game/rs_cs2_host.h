@@ -364,6 +364,12 @@ struct RS_CS2Host
      *  match the values these getters returned before they were host-routed. */
     int viewport_fov;
     int viewport_fov_max;
+    /** VIEWPORT_SETZOOM/GETZOOM (6201/6204) = reference client.field780 and
+     *  field747: the NEAR and FAR endpoints of the FOLLOW CAMERA'S ORBIT
+     *  DISTANCE, interpolated over the world viewport height the same way
+     *  viewport_zoom_near/far below interpolate the projection scale. Stored
+     *  raw (SETFOV's method5659 decode does not apply here). Read every cycle
+     *  by app_world_cam_dist_zoom — not a value/max pair. */
     int viewport_zoom;
     int viewport_zoom_max;
 

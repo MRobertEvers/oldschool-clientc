@@ -536,6 +536,171 @@ cs2_translate_basic(
 }
 
 /**
+ * Commands which call Statics.method6560 in the rev-239 client have one value
+ * whose physical stack is selected by the final base-type argument: 0 is int,
+ * 1 is long and 2 is string. The source language currently models the client's
+ * int and string banks, so a long selector is reported rather than silently
+ * consuming an int. LOCAL_BASIC marks the selected slot with PROTO_NONE.
+ */
+static struct RSCache_CS2_Insn*
+cs2_translate_typed_pop(
+    struct cs2_interp* interp,
+    int opcode,
+    const struct RSCache_CS2_CommandInfo* info)
+{
+    struct RSCache_CS2_Arena* arena = cs2_arena(interp);
+
+    bool dot = false;
+    if( info->dot_capable )
+    {
+        int operand = cs2_operand_int(interp);
+        if( operand != 0 && operand != 1 )
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: opcode %d active-form flag was %d, not a boolean",
+                interp->script_id,
+                interp->pc,
+                opcode,
+                operand);
+            return NULL;
+        }
+        dot = operand == 1;
+    }
+
+    if( info->arg_count < 2 || info->arg_count > 64 )
+    {
+        cs2_fail(
+            interp, "script %d pc %d: opcode %d has an invalid typed-pop signature",
+            interp->script_id, interp->pc, opcode);
+        return NULL;
+    }
+
+    int dynamic_index = -1;
+    for( int i = 0; i < info->arg_count; i++ )
+    {
+        if( RSCache_CS2_CommandArg(info, i) != RSCACHE_CS2_PROTO_NONE )
+            continue;
+        if( dynamic_index >= 0 )
+        {
+            cs2_fail(
+                interp, "script %d pc %d: opcode %d has multiple typed-pop arguments",
+                interp->script_id, interp->pc, opcode);
+            return NULL;
+        }
+        dynamic_index = i;
+    }
+    if( dynamic_index < 0 )
+    {
+        cs2_fail(
+            interp, "script %d pc %d: opcode %d has no typed-pop argument",
+            interp->script_id, interp->pc, opcode);
+        return NULL;
+    }
+
+    const struct RSCache_CS2_Value* selector = cs2_peek_value(interp);
+    enum RSCache_CS2_Type dynamic_type = RSCACHE_CS2_TYPE_INT;
+    if( selector && selector->stack_type == RSCACHE_CS2_STACK_INT )
+    {
+        if( selector->int_value == 2 )
+            dynamic_type = RSCACHE_CS2_TYPE_STRING;
+        else if( selector->int_value != 0 )
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: opcode %d uses unsupported base-type selector %d",
+                interp->script_id,
+                interp->pc,
+                opcode,
+                selector->int_value);
+            return NULL;
+        }
+    }
+    else if( !selector )
+    {
+        int depth = info->arg_count - 1 - dynamic_index;
+        dynamic_type = cs2_peek_stack_type_at(interp, depth) == RSCACHE_CS2_STACK_STRING
+                           ? RSCACHE_CS2_TYPE_STRING
+                           : RSCACHE_CS2_TYPE_INT;
+    }
+    else
+    {
+        cs2_fail(
+            interp, "script %d pc %d: opcode %d base-type selector is not an int",
+            interp->script_id, interp->pc, opcode);
+        return NULL;
+    }
+
+    struct RSCache_CS2_Expr* popped[64];
+    cs2_pop_many(interp, info->arg_count, popped);
+    struct RSCache_CS2_Expr* arguments =
+        RSCache_CS2_ExprFromList(arena, popped, info->arg_count);
+    for( int i = 0; i < info->arg_count && !interp->failed; i++ )
+    {
+        enum RSCache_CS2_ProtoId proto = RSCache_CS2_CommandArg(info, i);
+        if( proto == RSCACHE_CS2_PROTO_NONE )
+        {
+            if( !RSCache_CS2_TypingFreezeType(
+                    RSCache_CS2_TypingsOfElement(cs2_typings(interp), popped[i]), dynamic_type) )
+                cs2_fail(
+                    interp,
+                    "script %d pc %d: opcode %d selected the wrong value stack",
+                    interp->script_id,
+                    interp->pc,
+                    opcode);
+        }
+        else
+        {
+            cs2_assign_element_to_proto(interp, popped[i], proto);
+        }
+    }
+    if( interp->failed )
+        return NULL;
+
+    enum RSCache_CS2_StackType def_stack_types[64];
+    enum RSCache_CS2_ProtoId def_protos[64];
+    for( int i = 0; i < info->def_count; i++ )
+    {
+        def_protos[i] = RSCache_CS2_CommandDef(info, i);
+        def_stack_types[i] =
+            RSCache_CS2_TypeStackType(RSCache_CS2_ProtoGet(def_protos[i])->type);
+    }
+
+    struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
+        arena, def_stack_types, info->def_count, opcode, arguments, dot);
+    struct RSCache_CS2_TypingList* operation_typing =
+        RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation);
+    for( int i = 0; i < info->def_count; i++ )
+    {
+        if( !RSCache_CS2_TypingFreezeProto(operation_typing->items[i], def_protos[i]) )
+        {
+            cs2_fail(
+                interp,
+                "script %d pc %d: opcode %d result %d does not match its recorded type",
+                interp->script_id,
+                interp->pc,
+                opcode,
+                i);
+            return NULL;
+        }
+    }
+
+    struct RSCache_CS2_Expr* pushed[64];
+    cs2_push_types(interp, def_stack_types, info->def_count, pushed);
+    struct RSCache_CS2_Expr* definitions =
+        RSCache_CS2_ExprFromList(arena, pushed, info->def_count);
+    if( !RSCache_CS2_TypingAssignLists(
+            operation_typing, RSCache_CS2_TypingsOfExpr(cs2_typings(interp), definitions)) )
+    {
+        cs2_fail(
+            interp, "script %d pc %d: opcode %d results do not match what it pushed",
+            interp->script_id, interp->pc, opcode);
+        return NULL;
+    }
+    return RSCache_CS2_InsnAssignment(arena, definitions, operation);
+}
+
+/**
  * Parse a hook's argument descriptor.
  *
  * The descriptor is the type letter of each argument in order, optionally
@@ -1258,6 +1423,9 @@ cs2_translate(struct cs2_interp* interp)
 
     case RSCACHE_CS2_CMD_BASIC:
         return cs2_translate_basic(interp, opcode, info);
+
+    case RSCACHE_CS2_CMD_TYPED_POP:
+        return cs2_translate_typed_pop(interp, opcode, info);
 
     case RSCACHE_CS2_CMD_CLIENTSCRIPT:
         return cs2_translate_clientscript(interp, opcode);

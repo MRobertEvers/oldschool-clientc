@@ -578,6 +578,27 @@ mock230_combat_hit_npc(
         srv->loot_credit_event_id = ++srv->loot_credit_seq;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         mock230_combat_stop_npc(srv, slot);
+        /*
+         * And the *other* half of a target: the mode.
+         *
+         * `combat_target` is only one of the two things that point an npc at a
+         * player. `npc->mode` is the other — `playerfollow`, `opplayer<n>` and
+         * the rest name a victim just as durably, and `npc_setmode` states the
+         * pairing itself ("a targetless mode CLEARS THE TARGET"). Clearing one
+         * and not the other is a half-cleared aggression.
+         *
+         * Nothing acts on it while the corpse lies there — the npc phase skips
+         * anything with a `death_tick` — so it looks harmless until the respawn
+         * runs the mode again. A goblin killed mid-chase came back at its spawn
+         * tile still in `playerfollow` and walked straight back at whoever it
+         * had been fighting, ignoring its own wander radius and its leash: a
+         * fresh npc that had never been hit, hunting.
+         *
+         * Before `mock230_world_npc_died`, so an `[ai_queue3]` that sets a mode
+         * on the way out keeps it — the same ordering `npc_run_mode` uses when
+         * it clears a mode before firing the trigger, and for the same reason.
+         */
+        npc->mode = mock230_world_npc_default_mode(npc);
         for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
@@ -1099,6 +1120,25 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->level = npc->spawn_level;
         npc->hitpoints = npc->base_hitpoints;
         npc->combat_target = -1;
+        /*
+         * A respawn is a fresh npc, and that has to include what it is *doing*.
+         *
+         * The death above puts the mode back already; this is the second half of
+         * the same claim, for the state a script can still change while the
+         * corpse is on the ground (`[ai_queue3]` runs during the death) and for
+         * `huntmode`, which death does not touch at all because it is a standing
+         * disposition rather than a target. `npc_sethuntmode` overrides the
+         * record per npc — a boss that turned aggressive for one phase stayed
+         * aggressive for every life after it, which reads as the record being
+         * wrong rather than as the override outliving the npc it was made for.
+         *
+         * Content that wants any of it back gets it back: `spawn_pending` below
+         * re-runs `[ai_spawn]`, which is where those overrides are set.
+         */
+        npc->mode = mock230_world_npc_default_mode(npc);
+        npc->huntmode = npc_def(npc)->huntmode;
+        npc->patrol_index = 0;
+        npc->patrol_pause = 0;
         npc->attack_clock = 0;
         npc->step_dir = -1;
         /* A respawn is a fresh npc to every observer, so it faces the way a

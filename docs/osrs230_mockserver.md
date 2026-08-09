@@ -1363,6 +1363,24 @@ non-active players found while an npc death walks the pool. Otherwise the
 `p_opnpc(2)` interaction left armed between swings can re-engage after either
 the npc or player has died even though `combat_target` briefly reads −1.
 
+**And an npc's own death drops both halves of *its* aggression** (2026-08-09).
+`combat_target` is one of the two fields that point an npc at a player;
+`npc->mode` is the other, and `playerfollow` / `opplayer<n>` name a victim just
+as durably — `NPC_SETMODE` states the pairing itself by clearing the target
+whenever a targetless mode is set. Death cleared only the integer. Nothing reads
+the mode while the corpse lies there (the npc phase skips anything holding a
+`death_tick`), so it surfaced one respawn later: a goblin that had never been
+touched stood up at its spawn tile already following whoever killed the last one,
+past its own wander radius and outside its `maxrange` leash. The mode goes back
+to `mock230_world_npc_default_mode()` — the one function all three sites ask now
+(spawn, the escape mode giving up, death), which is also how the escape fallback
+stopped losing a patrol route. The reset runs *before* `[ai_queue3]` so a death
+script that sets a mode on the way out keeps it. The respawn restores the mode
+again for the state a script can change while the corpse is down, and restores
+`huntmode` from the record: `npc_sethuntmode` is per npc, so a boss turned
+aggressive for one phase used to stay aggressive for every life after it.
+Selftest: *death releases an npc's aggression*.
+
 What it leaves behind expires on `^lootdrop_duration`
 (`drop_tables/configs/lootdrop.constant`), which the engine now reads through
 `mock230_ids()` instead of keeping its own 200 in `MOCK230_LOOT_TICKS`.

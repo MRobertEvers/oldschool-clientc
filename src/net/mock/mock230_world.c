@@ -2235,6 +2235,40 @@ mock230_world_npc_queue_waypoint(
     npc_queue_waypoint(npc, x, z);
 }
 
+/*
+ * What this npc does when nothing is being done to it — see the header for why
+ * it is one function and not three copies of the same three lines.
+ *
+ * Reads the npc rather than the def because `wander_radius` is per-npc: a
+ * `nomove` record zeroes it at spawn, and an npc whose radius was taken away
+ * must not come back a wanderer.
+ */
+int
+mock230_world_npc_default_mode(const struct Mock230Npc* npc)
+{
+    const struct Mock230NpcDef* def;
+    int mode;
+
+    assert(npc);
+    def = npc->def ? npc->def : mock230_content_npc_default();
+    /*
+     * Wander is the *default*, not the absence of a mode — see the field's
+     * comment. An npc with no radius starts on `none`.
+     *
+     * A content `defaultmode=` outranks both, and patrol is why it exists:
+     * Hans walks a fixed ring round the castle grounds, which is a route, not a
+     * radius. Expressing him as a wanderer (which is what this tree did) puts
+     * him somewhere random in a hundred tiles and makes the greeter outside the
+     * castle the hardest npc in Lumbridge to find.
+     */
+    mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
+    if( def->defaultmode != MOCK230_NPCMODE_NONE )
+        mode = def->defaultmode;
+    if( def->patrol_count > 0 )
+        mode = MOCK230_NPCMODE_PATROL;
+    return mode;
+}
+
 static int
 npc_spawn(
     struct Mock230Server* srv,
@@ -2301,21 +2335,7 @@ npc_spawn(
         npc->follow_z = npc->last_step_z;
         npc->waypoint_index = -1;
         npc->stuck_counter = 0;
-        /*
-         * Wander is the *default*, not the absence of a mode — see the field's
-         * comment. An npc with no radius starts on `none`.
-         *
-         * A content `defaultmode=` outranks both, and patrol is why it exists:
-         * Hans walks a fixed ring round the castle grounds, which is a route,
-         * not a radius. Expressing him as a wanderer (which is what this tree
-         * did) puts him somewhere random in a hundred tiles and makes the
-         * greeter outside the castle the hardest npc in Lumbridge to find.
-         */
-        npc->mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
-        if( def->defaultmode != MOCK230_NPCMODE_NONE )
-            npc->mode = def->defaultmode;
-        if( def->patrol_count > 0 )
-            npc->mode = MOCK230_NPCMODE_PATROL;
+        npc->mode = mock230_world_npc_default_mode(npc);
         npc->patrol_index = 0;
         npc->patrol_pause = 0;
         mock230_world_npc_roam_stagger(srv, npc);
@@ -2740,9 +2760,7 @@ npc_run_mode(
         }
         if( npc->stuck_counter >= 5 )
         {
-            npc->mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
-            if( npc->def && npc->def->defaultmode != MOCK230_NPCMODE_NONE )
-                npc->mode = npc->def->defaultmode;
+            npc->mode = mock230_world_npc_default_mode(npc);
             npc->stuck_counter = 0;
         }
         return 1;
@@ -14154,6 +14172,103 @@ mock230_world_selftest(void)
              * has been told about it again. */
             SELFTEST_CHECK(player->npc_tracked[goblin],
                            "and re-added to the client's npc list");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: death releases an npc's aggression\n");
+    {
+        /*
+         * Two fields point an npc at a player, and a death has to drop both.
+         *
+         * `combat_target` is the one everybody thinks of, and it was already
+         * cleared. `mode` is the other: `playerfollow` and `opplayer<n>` name a
+         * victim just as durably — `npc_setmode` says so itself, clearing the
+         * target whenever a *targetless* mode is set — and death left it alone.
+         *
+         * Nothing reads it while the corpse is on the ground, which is why this
+         * hid: the npc phase skips anything holding a `death_tick`. It surfaces
+         * one respawn later, when a goblin that had never been touched stands up
+         * at its spawn tile already following whoever killed the last one, past
+         * its own wander radius and outside its leash.
+         *
+         * `huntmode` is the disposition rather than the target, so the death
+         * leaves it and the respawn restores it: a `npc_sethuntmode` made for
+         * one phase of one fight used to outlive the npc it was made for.
+         */
+        int goblin = selftest_find_npc(&srv, 3028);
+
+        SELFTEST_CHECK(goblin >= 0, "the roster should include a goblin");
+        if( goblin >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[goblin];
+            int want_mode;
+            int want_hunt;
+
+            /* Asked before anything is done to it, and asked of the engine: a
+             * test that restated "wander, unless patrol, unless defaultmode"
+             * would pass over a broken helper by agreeing with it in the wrong
+             * place. */
+            want_mode = mock230_world_npc_default_mode(npc);
+            want_hunt = npc->def->huntmode;
+            SELFTEST_CHECK(want_mode != MOCK230_NPCMODE_PLAYERFOLLOW,
+                           "the fixture's mode has to differ from the default one "
+                           "or the check below cannot fail");
+
+            selftest_park_player(&srv, npc->x + 1, npc->z);
+            player->level = npc->level;
+            npc->death_tick = -1;
+            npc->hitpoints = npc->max_hitpoints;
+
+            /* A chase in progress, spelled the way a script spells one. */
+            npc->mode = MOCK230_NPCMODE_PLAYERFOLLOW;
+            npc->combat_target = player->pid;
+            npc->huntmode = want_hunt == MOCK230_HUNT_AGGRESSIVE ? MOCK230_HUNT_NONE
+                                                                 : MOCK230_HUNT_AGGRESSIVE;
+
+            mock230_combat_hit_npc(&srv, goblin, 0, npc->hitpoints);
+            SELFTEST_CHECK(npc->death_tick >= 0, "the killing blow starts the death");
+            SELFTEST_CHECK(npc->combat_target == -1, "which releases the target");
+            SELFTEST_CHECK(npc->mode == want_mode,
+                           "and the mode that was naming one, want %d got %d", want_mode,
+                           npc->mode);
+
+            /*
+             * Stand well clear of the spawn tile before waiting, for the same
+             * reason the section above does: an aggressive npc that respawns
+             * beside the player takes a target on the tick it appears, which is
+             * correct behaviour and would make these checks measure two things.
+             */
+            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            for( int i = 0; i < npc->def->death_delay + 2 && npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(!npc->active, "the corpse despawns");
+            for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
+                mock230_world_tick(&srv);
+            SELFTEST_CHECK(npc->active, "and the goblin respawns");
+            SELFTEST_CHECK(npc->mode == want_mode,
+                           "a respawn is a fresh npc: mode want %d got %d", want_mode,
+                           npc->mode);
+            SELFTEST_CHECK(npc->huntmode == want_hunt,
+                           "with the record's huntmode back, want %d got %d", want_hunt,
+                           npc->huntmode);
+            SELFTEST_CHECK(npc->combat_target == -1, "and nobody to hunt");
+
+            /*
+             * Put the fixture back by hand, after the checks rather than
+             * instead of them.
+             *
+             * The engine has just done this, so the assignments look redundant
+             * — they are not, they are what keeps the *next* section measuring
+             * its own subject. Without them the aggression section 5,000 lines
+             * down inherits whichever huntmode this one left, and while the
+             * restore was missing it read as five failures about pursuit: a
+             * goblin that would not aggress, would not keep up and would not
+             * catch a player who stopped, none of which was about pursuit at
+             * all.
+             */
+            npc->mode = want_mode;
+            npc->huntmode = want_hunt;
+            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
         }
     }
 
