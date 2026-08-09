@@ -248,7 +248,7 @@ because ~11 classes of defect were repaired. `instr/build.sh` then
   `exact` counts before and after every change; a fix that raises one family and
   lowers another is not progress unless the total moves.
 - Do not regress `make -C 3rd/rscache test` (`cachepack-fidelity: all bars met`)
-  or `tools/cs2_parity/`. Read `3rd/rscache/EXCEPTIONS.md` **before** touching
+  or `tools/deprecated/cs2_parity/`. Read `3rd/rscache/EXCEPTIONS.md` **before** touching
   any rscache write path.
 - Keep `src/cs2vm2/` (the client's runtime VM) consistent with the tables. A
   signature that only the tools know is a future divergence.
@@ -470,7 +470,7 @@ handler, because reading the handler was wrong 21 times out of 328.
 
 | piece | what |
 | --- | --- |
-| `Deobfuscator/instr/src/CS2Trace.java` | samples the three operand-stack pointers either side of every executed opcode; also a per-instruction trace in `tools/cs2_parity`'s schema |
+| `Deobfuscator/instr/src/CS2Trace.java` | samples the three operand-stack pointers either side of every executed opcode; also a per-instruction trace in `tools/deprecated/cs2_parity`'s schema |
 | `Deobfuscator/instr/src/CS2Sweep.java` | runs every script in the cache, batched back onto the event queue so the client keeps answering |
 | `Deobfuscator/instr/src/JCtl.java` | `cs2sweep lo hi`, `cs2status`, `cs2run`, `cs2trace <id> <path>`, `cs2dump` |
 | `tools/perf/cs2_sweep.sh` | drives it, dumps after every window, relaunches a client that dies |
@@ -525,11 +525,11 @@ already provides for the ones that have it. It accounts for the 8005 (10), 2929
 
 `cs2trace <id> <path>` writes one record per executed instruction — step, pc,
 opcode, int/string stack pointers, top of the int stack — in the schema
-`tools/cs2_parity` already defines. Checked against this repo's own
+`tools/deprecated/cs2_parity` already defines. Checked against this repo's own
 disassembler on script 3, the executed path matches instruction for instruction
 and stack depth for stack depth.
 
-The C half is not done. `tools/cs2_parity/parity_exec.c` writes `"trace": []`
+The C half is not done. `tools/deprecated/cs2_parity/parity_exec.c` writes `"trace": []`
 — the field exists and has never been populated — so aligning `src/cs2vm2`
 against the client means emitting the same records there and diffing. The
 oracle, the schema and the Java side are in place; the C emitter and the diff

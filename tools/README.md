@@ -1,6 +1,11 @@
 # `tools/` — developer utilities
 
-Scripts and small subprojects used during development and content generation. **Release zip packaging** is under [`tools/ci/`](ci/README.md).
+Scripts and small subprojects used during development and content generation.
+
+Everything documented below builds and runs against the current tree. Tools that
+were tied to the retired CMake lane, to `src2/`, or to the parts of `src/` that
+moved into `v0/` now live under [`deprecated/`](deprecated/README.md) — including
+the old `tools/ci/` release packaging.
 
 ---
 
@@ -14,19 +19,23 @@ Records malloc/calloc/realloc/free with call stacks to `memtrace.bin`, with a br
 **Quick start (browser):**
 
 ```bash
-make -C src2/programs/browser MEMTRACE=1 clean all
-python3 -m http.server -d src2/programs/browser/dist 8080
+make -C src MEMTRACE=1 web          # -> build-web/torirs.js
+python3 -m http.server -d build-web 8080
 # Open http://localhost:8080/ → click Memtrace
 ```
 
 **Quick start (native):**
 
 ```bash
-make -C src2/programs/sdl2 MEMTRACE=1
-TORIRS_MEMTRACE_OUT=../../tools/memtrace/bins/memtrace.bin ./sdl2
+make -C src MEMTRACE=1              # -> src/torirs
+TORIRS_MEMTRACE_OUT=tools/memtrace/bins/memtrace.bin src/torirs
 python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 # Load bins/decoded/events.jsonl in viewer.html
 ```
+
+> `memtrace/sizes.c` and a few paths in `memtrace/README.md` /
+> `memtrace/AI_ANALYSIS.md` still name `src2/`. The tracer itself is live at
+> [`src/platform/torirs_memtrace.c`](../src/platform/torirs_memtrace.c).
 
 ---
 
@@ -49,32 +58,6 @@ make -C src check-crystal-set-contract
 
 Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).
 
-### `gen_lua_api_ht.py`
-
-**What it does:** Code generator. Scans `src/osrs/lua_sidecar/*.inc` for `LUA_API_X(...)` lines and emits `src/osrs/lua_sidecar/lua_api_ht.c` and `src/platforms/browser2/luajs_api_maps.js`.
-
-**When to run:** After changing the Lua API registry in the `.inc` files.
-
-```bash
-python3 tools/gen_lua_api_ht.py
-```
-
-**Requirements:** Python 3.10+.
-
----
-
-### `patch_interface_remaining.py`
-
-**What it does:** One-shot maintenance script that applies a large structured edit to `src/osrs/interface.c` (includes, layer wrapper, hover/scrollbar helpers). Uses fixed patterns; re-running on an already-patched tree may fail.
-
-```bash
-python3 tools/patch_interface_remaining.py
-```
-
-Run from repo root. Review the diff before committing.
-
----
-
 ### `win_window_screenshot.py`
 
 **What it does:** **Windows only.** Library-style helpers to capture a top-level visible window (by PID/HWND) to a 24-bit BMP via `PrintWindow` + GDI.
@@ -89,26 +72,6 @@ python3 tools/win_window_screenshot.py
 
 ---
 
-## `gen_painters_cullmap/`
-
-Host **C** tool plus **Node** batch driver for painters frustum cullmap blobs.
-
-**Build:**
-
-```bash
-cd tools/gen_painters_cullmap && make
-```
-
-**Batch regenerate** (from repo root):
-
-```bash
-node tools/gen_painters_cullmap/batch_cullmaps.mjs
-```
-
-See `src/osrs/revconfig/configs/cullmaps/README.md` for options. Keep `BAKE_*` / `DEFAULT_NEAR` in `batch_cullmaps.mjs` aligned with `PCULL_BAKE_*` in `src/osrs/painters_cullmap_baked_path.c`.
-
----
-
 ## `dump_interface/`
 
 Human-readable dump of dat1/dat2 interface widgets (types, layout, INV slot graphics, ops).
@@ -116,18 +79,15 @@ Human-readable dump of dat1/dat2 interface widgets (types, layout, INV slot grap
 **Build:**
 
 ```bash
-# CMake (dump targets are built without sanitizers even if the tree has ASAN)
-cmake --build build --target dump_interface
-# binary: build/dump_interface
-
-# Standalone (no CMake required)
 make -C tools/dump_interface
 # binary: tools/dump_interface/dump_interface
 ```
 
-CMake wires dump tools through a dedicated non-sanitized `rscache_dump` library so
-`build/dump_interface` does not hang on macOS when the project was configured with
-`-DCMAKE_C_FLAGS="-fsanitize=address"`.
+> The CMake target is gone with the rest of the CMake lane. The standalone
+> Makefile still compiles `v0/osrs/rscache/unity.c` rather than the live
+> [`3rd/rscache`](../3rd/rscache), so it decodes with the archived copy of the
+> cache library — fine for dat1/dat2 interfaces, but it will not learn anything
+> `3rd/rscache` has gained since the split. Same for `dump_interface_layout`.
 
 **Usage:**
 
@@ -144,44 +104,26 @@ tools/dump_interface/dump_interface cache.dat1 --dat1 --iface 1644
 
 Layout-only list: `make -C tools/dump_interface_layout` → `tools/dump_interface_layout/dump_interface_layout`
 
-## `dump_graphic/`
+## `dump_npc/` and `dump_stats/`
 
-Human-readable dump of dat1/dat2 sprite graphics (dimensions, frames, palette, offsets). Optional BMP export.
-
-**Build:**
+Standalone dumps built against the live [`3rd/rscache`](../3rd/rscache) — this is
+the pattern to copy for a new cache tool.
 
 ```bash
-make -C tools/dump_graphic
-# binary: tools/dump_graphic/dump_graphic
+make -C tools/dump_npc     # binary: tools/dump_npc/dump_npc
+make -C tools/dump_stats   # binary: tools/dump_stats/dump_stats
 ```
 
-**Usage:**
+`dump_stats` writes npc/obj records to CSV for any dat2 cache; see
+[`dump_stats/README.md`](dump_stats/README.md).
+
+## `entity_viewer/`
+
+npc → animation catalog plus a wasm/toridraw viewer.
+See [`entity_viewer/README.md`](entity_viewer/README.md).
 
 ```bash
-# dat2 sprite archive id (matches interface graphic= fields)
-tools/dump_graphic/dump_graphic cache --graphic 675
-tools/dump_graphic/dump_graphic cache --graphic 299 --frame 3 --bmp cross3.bmp
-tools/dump_graphic/dump_graphic cache --graphic 675 --json
-
-# dat1 media jagfile ref
-tools/dump_graphic/dump_graphic cache.dat1 --ref wornicons,3
-tools/dump_graphic/dump_graphic cache.dat1 --ref invback.dat --bmp invback.bmp
-```
-
-## `interface161_test/`
-
-Offline dat2 interface decoder and BMP renderer (layout debug, Equipment panel 387, batch export).
-
-**Full documentation:** [`interface161_test/README.md`](interface161_test/README.md)
-
-**Quick start:**
-
-```bash
-make -C tools/interface161_test
-
-./tools/interface161_test/interface161_test cache.kronos --iface 387 --sprites \
-  --fixture tools/interface161_test/fixtures/equipment_387.json \
-  build/interface_387.bmp
+make -C tools/entity_viewer   # -> ev_catalog, ev_server
 ```
 
 ## Cache porting (`3rd/rscache/tools/`)

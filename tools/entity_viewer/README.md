@@ -84,6 +84,48 @@ bug there can only ever be a rendering bug.
 
 `ev_wire.c` is compiled into both, so the format they speak has one definition.
 
+## Configuring npcs from the catalog
+
+`gen_npc_anims.py` turns the catalog into content. Every npc in OSRS-Content is
+seeded from `[default]` in `server/scripts/general/configs/npc_default.npc`,
+which hands out the human unarmed set — right as a universal fallback, wrong for
+every non-human npc. This gives 3,185 of them their own.
+
+```sh
+python3 tools/entity_viewer/gen_npc_anims.py \
+    --catalog out/osrs239_anims \
+    --content OSRS-Content/osrs239-content            # dry run
+python3 tools/entity_viewer/gen_npc_anims.py ... --write
+make -C src mock230-servpack                          # repack the server band
+```
+
+A sequence is only taken when the rig *and* the name agree: it must be built on
+one of the npc's own framemaps, and its gameval name must share a distinctive
+word with the npc's. The name test alone is not enough — `slayer_nechryael_spawn`
+sits on the shared human rig, the cache holds no nechryael animation at all, and
+matching on `slayer` handed it the player's abyssal whip swing. So a third gate
+asks whether the npc's name accounts for at least 10% of its own rig: `gnome` is
+40 of its rig's 98 sequences and `zombie` 47 of 50, while `slayer` is about 1% of
+framemap 0's 3,905. That is what separates a creature from a namespace, and no
+property of the word itself does.
+
+Where a creature has several variants of an action, the npc's own name decides —
+`skeleton_armed` takes `skeleton_update_attack_sword`, `zombie_unarmed4` takes
+the unarmed form — and with no hint the unarmed variant wins, for the same reason
+npc_default.npc gives for the global fallback. This is the one genuinely
+judgemental step and `WIELD_HINTS` is where it is written down.
+
+It writes three things:
+
+| What | Why |
+|---|---|
+| `server/scripts/npc/configs/npc_anims.generated.npc` | the blocks |
+| `pack/npc.server` (merge, never remove) | `cachepack pack` gives a record a server band only if this names it; stating a server field without it is a hard error |
+| `param=attackrate` on 503 blocks | not animation work — an npc with no block is answered from the cache, and gaining one drops `[default]`'s `attackrate=4` on top, so the cache's value is restated to keep it |
+
+Npcs that already have an authored block anywhere in `server/scripts` are skipped,
+so a hand-checked port always wins.
+
 ## Testing without a browser
 
 ```sh

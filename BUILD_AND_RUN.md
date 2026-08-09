@@ -1122,14 +1122,20 @@ Detail: [`docs/serverscript.md`](docs/serverscript.md).
 | `dump_interface` | `make -C tools/dump_interface` | human-readable dump of dat1/dat2 interface widgets — types, layout, INV slot graphics, ops | ✅ builds |
 | `dump_interface_layout` | `make -C tools/dump_interface_layout` | layout-only listing | ✅ builds |
 | `dump_npc` | `make -C tools/dump_npc` | decoded dat2 NPC definitions | ✅ builds |
-| `interface161_test` | `make -C tools/interface161_test` | offline dat2 interface decoder + BMP renderer | ❌ broken (see §12) |
-| `interfacex` | `make -C tools/interfacex` | static component parenting / layer clipping harness | ❌ broken (builds against `v0`/`v1`) |
-| `gen_painters_cullmap` | `make -C tools/gen_painters_cullmap` | painters frustum cullmap blobs (+ `batch_cullmaps.mjs` Node driver) | ❌ broken |
-| `cs2_parity` | `make -C tools/cs2_parity` | C-vs-TypeScript CS2 comparison harness | ❌ broken |
-| `dump_graphic` | `make -C tools/dump_graphic` | sprite dump (+ BMP export) | ❌ broken (stale `src/osrs/` path) |
-| `dump_interface_index`, `dump_map_index`, `match_dat2_interface` | — | reference-table / map-index / dat1↔dat2 matching dumps | ❌ CMake-only (retired build) |
-| `dump_map_locs`, `dump_loc_shapes`, `dump_font_metrics` | — | loc placements, loc shapes/models, font metrics | source only, no standalone makefile |
-| `async_cache` | — | async cache-IO harness | ❌ references the removed `src2/` tree |
+| `dump_stats` | `make -C tools/dump_stats` | npc/obj records to CSV for any dat2 cache | ✅ builds |
+| `entity_viewer` | `make -C tools/entity_viewer` | npc→anim catalog + wasm/toridraw viewer | ✅ builds |
+
+`dump_interface` and `dump_interface_layout` still compile `v0/osrs/rscache/unity.c`
+rather than the live `3rd/rscache`; `dump_npc`, `dump_stats` and `entity_viewer`
+link `3rd/rscache` and are the pattern to copy for a new cache tool.
+
+Everything that used to be listed here as ❌ broken now lives under
+[`tools/deprecated/`](tools/deprecated/README.md) — `interface161_test`,
+`interfacex`, `gen_painters_cullmap`, `cs2_parity`, `dump_graphic`,
+`dump_interface_index`, `dump_map_index`, `match_dat2_interface`,
+`dump_map_locs`, `dump_loc_shapes`, `dump_font_metrics`, `async_cache`, and the
+source-less object trees (`gamecache2_test`, `npc_add_test`, `uitree_load_test`,
+`uitree_loader_test`).
 
 ```sh
 # interfaces
@@ -1166,18 +1172,19 @@ changes.
 | `src/net/mock/gen_opcode_coverage.py` | the `case SS_OP_*:` labels themselves | `mock230_opcode_coverage.gen.h` (`--check` gates it) |
 | `tools/rsprot_gen_tables.py` | RSProt's Kotlin | `{name, opcode, size}` prot tables for all 19 vendored revisions |
 | `tools/rsprot_gen_codec.py`, `rsprot_gen_rev.py`, `rsprot_dump_prot.py`, `rsprot_version_ledger.py` | RSProt | codec bodies, per-revision tables, ledgers |
-| `tools/gen_painters_cullmap/` + `batch_cullmaps.mjs` | baked geometry | cullmap `.bin` blobs |
-| `tools/gen_osrs_ui_ini.py`, `gen_kronos_ui_ini.py`, `gen_kronos_xteas.py`, `gen_osrs_ui_common.py` | caches | RevConfig UI INIs |
-| `tools/gen_levelrequire_dbrow.py`, `gen_lua_api_ht.py` | content / `.inc` registries | DBRows, Lua API hash tables |
+| `tools/gen_levelrequire_dbrow.py` | content | DBRows |
+| `tools/gen_music_regions.py`, `gen_sound_names.py` | caches | music-region and sound-name tables |
 
 ```sh
 python3 tools/cs2_gen_opcodes/gen_opcodes.py
 python3 tools/rsprot_gen_tables.py
-node tools/gen_painters_cullmap/batch_cullmaps.mjs
 ```
 
-Keep `BAKE_*` / `DEFAULT_NEAR` in `batch_cullmaps.mjs` aligned with `PCULL_BAKE_*`
-in the C source, or the baked path and the runtime disagree.
+The cullmap generator (`gen_painters_cullmap/` + `batch_cullmaps.mjs`), the
+RevConfig UI INI generators (`gen_osrs_ui_ini.py`, `gen_kronos_ui_ini.py`,
+`gen_kronos_xteas.py`, `gen_osrs_ui_common.py`) and `gen_lua_api_ht.py` are
+retired — see [`tools/deprecated/`](tools/deprecated/README.md). They wrote into
+the `configs/` and `lua_sidecar/` trees that moved to `v0/`.
 
 ### 9.5 Content porting and audit helpers — `tools/*.py`
 
@@ -1191,25 +1198,26 @@ All are `python3 tools/<name>.py`, run from the repository root.
 | `port_config_diff.py`, `port_name_diff.py`, `port_names_diff.py`, `port_vars_diff.py`, `port_constant_diff.py` | diff configs / names / vars / constants against a reference server |
 | `port_droptables_check.py`, `port_category_crawl.py`, `port_weapon_fx.py` | drop-table, category and weapon-FX porting checks |
 | `questhelper_extract.py`, `bank_import.py`, `ladder_import.py` | pull structured content out of external sources |
-| `scan_loc_shapes.py`, `jag_crc.py`, `audit_buffer_accessors.py` | loc-shape scan, cache CRC, buffer-accessor audit |
+| `jag_crc.py`, `audit_buffer_accessors.py` | cache CRC, buffer-accessor audit |
+| `cs2_varp_audit.py`, `js5_cache_verify.py`, `js5_probe.py` | varp audit, JS5 cache verification and probing |
 | `torirs_javconfig.py` | serves a `jav_config` for RuneLite (see §8) |
+| `runelite_patch.py`, `runelite_debug.py`, `runelite239_ctl.py`, `verify_runelite239_interfaces.py` | RuneLite jar patching, debug control, interface verification |
 | `win_window_screenshot.py` | **Windows only** — capture a window to BMP via `PrintWindow` + GDI |
-| `patch_interface_remaining.py` | one-shot structured edit; re-running on a patched tree may fail |
 
-### 9.6 Release packaging — `tools/ci/`
+`scan_loc_shapes.py` and `patch_interface_remaining.py` are retired — see
+[`tools/deprecated/`](tools/deprecated/README.md).
 
-```sh
-python3 tools/ci/package_build.py -o dist/osx_bundle.zip
-```
+### 9.6 Release packaging
 
-> ⚠️ `package_build.py` drives **CMake**, which is the retired build path. It
-> reads `.env` (copy [`.env.template`](.env.template)) and expects a `build-*`
-> CMake tree. It is kept for the LAN WinXP CI split layout under
-> `tools/ci/{build_host,runner,client}/`. For a current Windows deliverable, the
-> PowerShell wrappers already produce a single self-contained `.exe` — that is
-> the package.
+There is no packaging script on the live build path. The PowerShell wrappers
+([`build_winxp.ps1`](build_winxp.ps1), [`build_windows.ps1`](build_windows.ps1))
+already produce a single self-contained `.exe` — that is the package.
 
-Detail: [`tools/ci/README.md`](tools/ci/README.md).
+The old `tools/ci/` tree (`package_build.py` plus the LAN WinXP CI split under
+`build_host/`, `runner/`, `client/`) drove **CMake**, the retired build path, and
+packed `src/osrs/scripts` + `src/osrs/revconfig/configs`, both of which moved to
+`v0/`. It is archived at
+[`tools/deprecated/ci/`](tools/deprecated/ci/README.md).
 
 ---
 
@@ -1336,11 +1344,14 @@ Detail: [`tools/memtrace/README.md`](tools/memtrace/README.md).
 | Command | Symptom | Cause |
 |---|---|---|
 | `make -C src io-server` | `Undefined symbols: _ToriRS_Features_ByName, referenced from _bm_set_kv in bootmanifest.o` | `IO_SERVER_SRCS` in [`src/makefile:573`](src/makefile#L573) lists `bootmanifest/bootmanifest.c` but not `features/features.c`, which it now calls. Pre-existing; unrelated to any working-tree change. **This blocks running the web build**, since the module cannot read a cache without it. |
-| `make -C tools/dump_graphic` | `No rule to make target '.../src/osrs/rscache/unity.c'` | the makefile points at the removed `src/osrs/` layout |
-| `make -C tools/dump_interface_index`<br>`make -C tools/dump_map_index`<br>`make -C tools/match_dat2_interface` | `This CMake build is deprecated and cannot configure: its sources moved to v0/` | they defer to the retired root CMake project |
-| `make -C tools/interface161_test`<br>`make -C tools/interfacex`<br>`make -C tools/cs2_parity`<br>`make -C tools/gen_painters_cullmap` | compile errors | built against the `v0`/`v1` historical trees, which have drifted |
-| `tools/async_cache` | `src2/…` include failures | references a tree that no longer exists |
-| `tools/README.md` memtrace quick start | paths do not exist | says `make -C src2/programs/sdl2` — the current command is `make -C src MEMTRACE=1` (see [§11](#11-profiling-and-diagnostics)) |
+| `tools/memtrace/sizes.c` | `#include "../../src2/platforms/torirs_memtrace.c"` | a scratch `sizeof` printer left pointing at the removed `src2/` tree. The tracer itself is live at `src/platform/torirs_memtrace.c` |
+
+The tool breaks previously listed here (`dump_graphic`, `dump_interface_index`,
+`dump_map_index`, `match_dat2_interface`, `interface161_test`, `interfacex`,
+`cs2_parity`, `gen_painters_cullmap`, `async_cache`) were moved to
+[`tools/deprecated/`](tools/deprecated/README.md) on 2026-08-09 rather than
+fixed. The `tools/README.md` memtrace quick start was corrected to
+`make -C src MEMTRACE=1`.
 
 Everything else in this document was built and run successfully on macOS arm64:
 the native client, `lane-check-all`, the web lane, `mock230`, `js5_server`,

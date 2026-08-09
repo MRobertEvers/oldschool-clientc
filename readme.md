@@ -2094,7 +2094,7 @@ Sub-interfaces are moved via enum maps 1129–1132.
 
 ## interfacex — static component parenting
 
-`tools/interfacex` builds a `UITreeX` from the static component definitions in the cache before running onLoad / var-transmit CS2 scripts. Each component has a `layer` field (decoded as a packed parent id: `layer += component_id & 0xFFFF0000` in `dat2a_component.c`) that names which other component should be its parent in the tree.
+`tools/deprecated/interfacex` builds a `UITreeX` from the static component definitions in the cache before running onLoad / var-transmit CS2 scripts. Each component has a `layer` field (decoded as a packed parent id: `layer += component_id & 0xFFFF0000` in `dat2a_component.c`) that names which other component should be its parent in the tree.
 
 ### What was going wrong
 
@@ -2120,7 +2120,7 @@ All non-root links are deferred, not only forward references. That preserves sib
 
 `SetActiveParentByUserId` was also hardened: if a parent id is not found, it now resets `parent_idx = -1` instead of silently keeping a stale value. That path is still used by dynamic `CC_CREATE` operations at runtime; the static build uses the pending-parent list instead.
 
-Implementation: `UITreeXBuilder_EnqueueParent` / `UITreeXBuilder_ResolvePendingParents` in `tools/interfacex/main.c`, called after the `process_component` loop and before script execution.
+Implementation: `UITreeXBuilder_EnqueueParent` / `UITreeXBuilder_ResolvePendingParents` in `tools/deprecated/interfacex/main.c`, called after the `process_component` loop and before script execution.
 
 ## interfacex — layer clipping
 
@@ -2128,7 +2128,7 @@ OSRS clips **every** positive-size layer/container to its own bounds before draw
 
 ### How interfacex implements it
 
-`UITreeX_RenderNode` in `tools/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`ToriDraw2D_FillRect`, `ToriDraw2D_DrawLine`, text, sprites) already drop pixels outside that clip.
+`UITreeX_RenderNode` in `tools/deprecated/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`ToriDraw2D_FillRect`, `ToriDraw2D_DrawLine`, text, sprites) already drop pixels outside that clip.
 
 Scroll is separate: scroll offsets shift child positions during layout; clipping still uses the layer's visible bounds.
 
@@ -2152,14 +2152,14 @@ Scanned all **917** interface archives in `cache/` with `tools/dump_interface/du
 
 `clientCode` is decoded from each component record (see
 [`dat2_component.h`](3rd/rscache/src/datatypes/dat2_component.h)). In
-interfacex it is stored on the root [`UITreeXNode`](tools/interfacex/main.c) as
+interfacex it is stored on the root [`UITreeXNode`](tools/deprecated/interfacex/main.c) as
 `client_code`.
 
 Many codes from [`Client-TS/src/client/ClientCode.ts`](Client-TS/src/client/ClientCode.ts) (friends list slots 1–203, ignores 401–503, friends2 701–900, player design 300–327, etc.) are assigned **at runtime** by the client to dynamic list rows — they do not appear as baked `clientCode` fields in the cache dump. Only values actually stored on widgets are listed below.
 
 ### Gameframe content slots (1336–1401)
 
-These mount special client content into layer/graphic placeholders on the gameframe chrome (161 resizable box, 164 resizable bottom, 548 fixed, 601, etc.). Interfacex defines the main ones in [`tools/interfacex/main.c`](tools/interfacex/main.c):
+These mount special client content into layer/graphic placeholders on the gameframe chrome (161 resizable box, 164 resizable bottom, 548 fixed, 601, etc.). Interfacex defines the main ones in [`tools/deprecated/interfacex/main.c`](tools/deprecated/interfacex/main.c):
 
 | clientCode | Name                      | Widget type | Count | Interfaces                 |
 | ---------- | ------------------------- | ----------- | ----- | -------------------------- |
@@ -2278,7 +2278,7 @@ Interfacex maps `modelType` 5 to `INTERFACEX_MODEL_KIND_PLAYER_SELF` and handles
 
 ```bash
 tools/dump_interface/dump_interface cache --iface 161
-tools/interfacex/interfacex --no-bmp 601
+tools/deprecated/interfacex/interfacex --no-bmp 601
 ```
 
 To rescan: list interface archive ids with `dump_interface_index`, then grep `dump_interface` output for `clientCode=` (layer fields in the dump include a packed-id suffix after the hex id, so parse with field-specific regex rather than a single full-line pattern).

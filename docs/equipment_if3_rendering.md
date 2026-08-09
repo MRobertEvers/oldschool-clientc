@@ -9,7 +9,7 @@ Related docs:
 - [CS2 VM](cs2vm.md) — host opcodes (`cc_create`, `inv_getobj`, …)
 - [UI Inventory System](ui_inventory_system.md) — click/hit-test/minimenu
 - [UI Click System](ui_click_system.md) — input routing
-- Offline reference: [`tools/interface161_test`](../tools/interface161_test/) with `fixtures/equipment_387.json`
+- Offline reference: [`tools/deprecated/interface161_test`](../tools/deprecated/interface161_test/) with `fixtures/equipment_387.json`
 - Interface dump: [`if_387.txt`](../if_387.txt) at repo root
 
 ---
@@ -106,9 +106,9 @@ them through host callbacks.
 **Offline:**
 
 ```bash
-make -C tools/interface161_test
-./tools/interface161_test/interface161_test cache.kronos --iface 387 --sprites \
-  --fixture tools/interface161_test/fixtures/equipment_387.json \
+make -C tools/deprecated/interface161_test
+./tools/deprecated/interface161_test/interface161_test cache.kronos --iface 387 --sprites \
+  --fixture tools/deprecated/interface161_test/fixtures/equipment_387.json \
   --panel build/equipment_387_cs2.bmp
 ```
 
