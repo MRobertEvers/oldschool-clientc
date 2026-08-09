@@ -65,6 +65,16 @@
 struct Mock230Server;
 struct Mock230Player;
 
+/** What a zone's membership lists hold. One enum rather than the `is_npc`
+ *  boolean `refile` took, because there are three kinds now and a boolean that
+ *  has to mean "obj" when false is a boolean waiting to be misread. */
+enum Mock230ZoneKind
+{
+    MOCK230_ZONE_KIND_NPC = 0,
+    MOCK230_ZONE_KIND_OBJ,
+    MOCK230_ZONE_KIND_PLAYER,
+};
+
 enum
 {
     /** Tiles on a side. Not negotiable: it is the wire's `pos` field. */
@@ -246,6 +256,17 @@ mock230_zone_sync_npcs(struct Mock230Server* srv);
 void
 mock230_zone_sync_objs(struct Mock230Server* srv);
 
+/** Reconcile which zone every logged-in player is filed under. Phase 8, beside
+ *  the npcs and objs, and for the same reason: membership is what makes
+ *  "who does this client hold" answerable without a pool scan. */
+void
+mock230_zone_sync_players(struct Mock230Server* srv);
+
+void
+mock230_zone_player_refile(
+    struct Mock230Server* srv,
+    int pid);
+
 /**
  * Reconcile one slot immediately rather than waiting for the tick's pass.
  *
@@ -259,20 +280,21 @@ void
 mock230_zone_npc_refile(
     struct Mock230Server* srv,
     int slot);
+
 void
 mock230_zone_obj_refile(
     struct Mock230Server* srv,
     int slot);
 
 /**
- * Npc slots within `radius` tiles of (x, z) on `level`, for NPC_INFO's
- * entering-view scan.
+ * Npc slots within `radius` tiles of (x, z) on `level`.
  *
- * This is the flat scan the npc cap was propping up: the old encoder walked
- * every slot in the world for every player every tick, so "how many npcs can
- * exist" and "how many can be on one client's screen" were the same number.
- * They are not: the wire's tracked count is 8 bits (255 per client) and its
- * slot field is 14, and the world's own capacity is a memory decision.
+ * The world's own proximity query, and no longer what NPC_INFO asks: a tile box
+ * is not clipped to the build area, so near its edge this answers with npcs
+ * standing outside the region a client has a scene for. What a client is told
+ * about comes from `struct Mock230PlayerArea` instead. This stays for the
+ * world-side callers that genuinely want "who is near this tile" with no client
+ * in the question.
  *
  * Returns the number written to `out`, never more than `max`.
  */
@@ -285,6 +307,18 @@ mock230_zone_npcs_near(
     int radius,
     int* out,
     int max);
+
+/**
+ * Rebuild `player->area` — the zone subscription and the entities in it.
+ *
+ * Phase 8, once per player, after the map's membership sync and before anything
+ * encodes. PLAYER_INFO, NPC_INFO and the zone flush all read what this leaves;
+ * calling it later than the entity streams (which is where it used to happen,
+ * inside `mock230_zone_update_player`) judges a player who changed zone this
+ * tick against last tick's window.
+ */
+void
+mock230_area_refresh(struct Mock230Player* player);
 
 /* ------------------------------------------------------------------ */
 /* Loc records                                                         */

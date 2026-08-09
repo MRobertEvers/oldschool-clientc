@@ -195,11 +195,22 @@ enum
      * are free to be different sizes.
      *
      * 4096 is sized against MOCK230_STATIC_SPAWN_OUT below, not against the
-     * roster: the world roster is 23,139 spawns (docs/ITEM_AND_NPCS.md) and no
-     * cap could hold it — 16,383 is the wire's own ceiling and the roster is
-     * above it. What has to fit is the densest *window*, which is 2,250 spawns
-     * (Varrock, centred near 3392,3328), and the rest of 4096 is headroom for
-     * everything content npc_adds on top.
+     * roster: the world roster is 23,139 spawns (docs/ITEM_AND_NPCS.md) and
+     * what has to fit is the densest *window*, 2,250 spawns (Varrock, near
+     * 3392,3328). The rest is headroom for everything content npc_adds.
+     *
+     * **This is a memory decision and not a wire one**, and an earlier version
+     * of this comment had that wrong. The wire's ceiling is per revision and
+     * both are above the roster's needs at the window sizes here:
+     *
+     *   classic (230)  MOCK230_NPC_SLOT_BITS, 14 -> 16,383 npcs addressable
+     *   v5 (239)       a 16-bit index (mock230_encode.c) -> 65,534
+     *
+     * So "the roster cannot all exist because the wire is 14 bits" was only
+     * ever true of the older wire, and is not what bounds this. What a *client*
+     * is told about is bounded by neither: it comes out of that client's
+     * `Mock230PlayerArea`, and a 7x7 zone window cannot hold more npcs than the
+     * stream's own MOCK230_TRACKED_NPC_MAX.
      */
     MOCK230_NPC_MAX = 4096,
     MOCK230_TRACKED_NPC_MAX = 255,
@@ -280,6 +291,33 @@ enum
      * comes within 16 tiles of an edge, the same margin the reference uses. */
     MOCK230_SCENE_TILES = 104,
     MOCK230_REBUILD_MARGIN = 16,
+
+    /*
+     * How far NPC_INFO reaches — the radius the low-resolution adds use and the
+     * range the high-resolution loop keeps at. The 6-bit delta on the v5 wire
+     * could carry ±31, and using it would be wrong: an npc added at 20 tiles is
+     * out of range on the very next tick, so it is removed, re-added, removed,
+     * and never renders. The wire's capacity is not the view distance.
+     *
+     * It sits one tile inside MOCK230_REBUILD_MARGIN, and that is not a
+     * coincidence to be left unwritten. The player's zone window is clipped to
+     * the build area (`rebuild_active`), so once this exceeds the margin the
+     * scene stops being re-centred before the view reaches past the build
+     * area's edge, and NPC_INFO starts naming npcs the client has no scene for.
+     * `mock230_zone_npcs_active` makes that structural rather than a margin, but
+     * the margin is what made it safe before and the assertion below is what
+     * stops the two drifting apart silently.
+     */
+    MOCK230_NPC_VIEW_TILES = 15,
+
+    /*
+     * The same distance for players, and a separate constant because it is a
+     * separate wire fact: a new-player record carries 5-bit signed deltas, so
+     * it reaches -16..15 and 15 is the most that can be added without the
+     * coordinate wrapping and putting the player on the wrong side of the
+     * observer. The npc figure is a choice about churn; this one is arithmetic.
+     */
+    MOCK230_PLAYER_VIEW_TILES = 15,
 
     /*
      * Player variables the scripts can read and write.
@@ -542,8 +580,8 @@ enum
 /*
  * Skills. The index is the protocol's: UPDATE_STAT carries it, the client's own
  * stat table uses it, and content/pack/stat.pack names it. Only the six combat
- * skills are used, but the array is the full 23 so a stat id from the wire is
- * never out of range.
+ * skills are used, but the array includes Sailing (23) and feature-flagged
+ * Summoning (24) so every stat id the rev-239 client can store stays in range.
  */
 enum
 {
@@ -555,7 +593,9 @@ enum
     MOCK230_STAT_PRAYER = 5,
     MOCK230_STAT_MAGIC = 6,
     MOCK230_STAT_AGILITY = 16,
-    MOCK230_STAT_COUNT = 23,
+    MOCK230_STAT_SAILING = 23,
+    MOCK230_STAT_SUMMONING = 24,
+    MOCK230_STAT_COUNT = 25,
 };
 
 /*
@@ -1621,8 +1661,12 @@ struct Mock230Npc
 
     /** Packed zone index **plus one** — 0 means "filed nowhere". Maintained by
      *  `mock230_zone_sync_npcs`, which reconciles rather than hooks because an
-     *  npc's tile is written from five places. See `refile` in mock230_zone.c. */
-    int zone_index;
+     *  npc's tile is written from five places. See `refile` in mock230_zone.c.
+     *
+     *  Named `zone_filed` rather than `zone_index` since players joined the map:
+     *  a player has both, they mean opposite things, and two fields with one
+     *  name across two structs is how the wrong one gets used. */
+    int zone_filed;
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
@@ -1951,6 +1995,71 @@ mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
     npc->masks |= MOCK230_NMASK_FACE_ENTITY;
 }
 
+/*
+ * One client's view of the world — the zones it subscribes to and the entities
+ * standing in them.
+ *
+ * The world has a `Mock230ZoneMap`: zones keyed by packed index, each holding
+ * the npcs, objs and players standing in it. That is the right structure for
+ * *the world*, and it is the wrong one to answer "what goes in this client's
+ * area packets", because that question is per client and the map is shared.
+ *
+ * Before this, the per-client answer did not live anywhere. It was four flat
+ * arrays — a zone window, a loaded-zone set, and two `tracked` bitmaps — and
+ * each of the three area packets re-derived its own candidates: PLAYER_INFO
+ * walked the whole player pool and applied a tile radius, NPC_INFO asked the
+ * map for a tile box, and the zone flush walked the window. Three answers to
+ * one question, so they could and did disagree: the tile box is not clipped to
+ * the build area and the window is, which is how NPC_INFO came to name npcs
+ * standing outside the region the client has a scene for.
+ *
+ * So it is one structure, refreshed once per tick in phase 8, and the three
+ * encoders read it rather than each asking the world their own way. Being
+ * *materialised* rather than queried is the point: a snapshot two packets share
+ * cannot disagree with itself, and it can be asserted about (see the
+ * `NPC_INFO tracks only the player's own zones` selftest) which a query
+ * scattered across two files could not.
+ *
+ * What it is NOT is a copy of the world. It holds slot ids, refreshed each
+ * tick from the map's membership lists; the entities themselves stay where
+ * they are. The cost is a few hundred ints per client.
+ */
+struct Mock230PlayerArea
+{
+    /**
+     * The subscription: the 7x7 zone window around the player, all four
+     * planes, clipped to the 13x13 build area. Recomputed when the player
+     * changes zone. This is the authority on "does this client hold that
+     * zone", and every other field here is derived from it.
+     */
+    int zones[MOCK230_ZONE_ACTIVE_MAX];
+    int zone_count;
+    /** The subset of `zones` the client has been sent full state for. A zone
+     *  in `zones` but not here gets FULL_FOLLOWS; one in both gets this tick's
+     *  events. */
+    int loaded[MOCK230_ZONE_ACTIVE_MAX];
+    int loaded_count;
+
+    /**
+     * The npcs and players standing in `zones` and within view — the candidate
+     * sets NPC_INFO and PLAYER_INFO add from.
+     *
+     * Bounded by what the wire can carry rather than by what the world holds,
+     * which is the whole reason a world roster of 23,139 npcs needs no ceiling
+     * of its own: a client is only ever told about its own zones, and a 7x7
+     * zone window cannot hold more npcs than the stream's own 255.
+     *
+     * The view radius is applied while collecting rather than afterwards. A
+     * filter applied after would let these fill with npcs 20 tiles away and
+     * drop ones at 5 — unreachable while the roster was 63 npcs and ordinary
+     * now.
+     */
+    int npcs[MOCK230_TRACKED_NPC_MAX];
+    int npc_count;
+    int players[MOCK230_PLAYER_MAX];
+    int player_count;
+};
+
 struct Mock230Player
 {
     /**
@@ -2220,25 +2329,30 @@ struct Mock230Player
     uint8_t player_tracked[MOCK230_PLAYER_MAX];
 
     /*
-     * ── Zones ────────────────────────────────────────────────────────
+     * ── This client's area ───────────────────────────────────────────
      *
      * `ground_sent[MOCK230_GROUND_MAX]` was here: one flag per ground slot per
      * client, rescanned flat every tick. It is gone, and what replaced it is
-     * not a smaller flag array — it is `loaded_zones`. "Has this client been
+     * not a smaller flag array — it is the area below. "Has this client been
      * told about that obj" turns out to be the wrong question; the right one is
      * "does this client hold that zone", because the answer covers the locs and
      * the replay too, and because it is the question the wire asks.
-     *
-     * `active_zones` is the 7x7 window around the player clipped to the build
-     * area, recomputed when `zone_index` changes. `loaded_zones` is the subset
-     * the client has been sent state for. See mock230_zone.h.
      */
-    int active_zones[MOCK230_ZONE_ACTIVE_MAX];
-    int active_zone_count;
-    int loaded_zones[MOCK230_ZONE_ACTIVE_MAX];
-    int loaded_zone_count;
+    struct Mock230PlayerArea area;
     /** Packed zone this client was last in, or -1. */
     int zone_index;
+    /**
+     * Packed zone index **plus one** of where the ZoneMap has this player
+     * filed, 0 for nowhere — the same convention the npcs and objs use.
+     *
+     * NOT `zone_index` above, and the distinction is load-bearing:
+     * `zone_index` is the *window* latch and `mock230_zone_player_reset` sets
+     * it to -1 on every scene rebuild so the window is recomputed. Filing off a
+     * field that is cleared behind your back would unfile the player on every
+     * rebuild and never re-file them, so after 88 tiles of walking nobody could
+     * see anybody.
+     */
+    int zone_filed;
 
     /** The song this client is currently being played, or -1. Held so entering
      *  a second map square that maps to the same track does not restart it --

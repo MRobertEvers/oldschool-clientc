@@ -3090,7 +3090,8 @@ player_in_view(
         return 0;
     dx = other->x - player->x;
     dz = other->z - player->z;
-    return dx >= -15 && dx <= 15 && dz >= -15 && dz <= 15;
+    return dx >= -MOCK230_PLAYER_VIEW_TILES && dx <= MOCK230_PLAYER_VIEW_TILES &&
+           dz >= -MOCK230_PLAYER_VIEW_TILES && dz <= MOCK230_PLAYER_VIEW_TILES;
 }
 
 /*
@@ -3434,12 +3435,25 @@ mock230_send_player_info(struct Mock230Player* player)
      * appearance: the client spawns a default-looking body on the pid alone and
      * has nothing else to replace it with.
      */
-    for( int pid = 0; pid < srv->player_count; pid++ )
+    /*
+     * The player's OWN zones, from the ZoneMap — not a walk of `srv->players`.
+     *
+     * The flat scan was affordable (MOCK230_PLAYER_MAX is 8) and asked the
+     * wrong question: `player_in_view` is a raw tile box, and near the build
+     * area's edge a tile box reaches outside the region this client has a scene
+     * for. `player_in_view` still decides — it also carries the level and
+     * liveness tests — but it now decides over candidates that are, by
+     * construction, in a zone this client holds.
+     */
+    for( int i = 0; i < player->area.player_count; i++ )
     {
+        int pid = player->area.players[i];
         struct Mock230Player* other = &srv->players[pid];
         int dx;
         int dz;
 
+        if( pid < 0 || pid >= srv->player_count )
+            continue;
         if( player->player_tracked[pid] || !player_in_view(player, other) )
             continue;
 
@@ -3849,8 +3863,6 @@ mock230_send_npc_info(struct Mock230Player* player)
     int kept_count = 0;
     /* The candidates for the entering-view section: whoever the ZoneMap says
      * stands within the add radius, rather than every npc in the world. */
-    int nearby[MOCK230_TRACKED_NPC_MAX];
-    int nearby_count;
 
     /*
      * Revision 239's npc stream.
@@ -3971,11 +3983,13 @@ mock230_send_npc_info(struct Mock230Player* player)
             }
         }
 
-        nearby_count = mock230_zone_npcs_near(srv, player->x, player->z, player->level, 15,
-                                              nearby, MOCK230_TRACKED_NPC_MAX);
-        for( int i = 0; i < nearby_count; i++ )
+        /* The player's OWN zones, not a tile box around them. See
+         * mock230_zone_npcs_active: a raw box reaches outside the build area
+         * near its edge, and an npc the client has no scene for is placed at a
+         * coordinate that does not exist for it. */
+        for( int i = 0; i < player->area.npc_count; i++ )
         {
-            int slot = nearby[i];
+            int slot = player->area.npcs[i];
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx;
             int dz;
@@ -3991,7 +4005,8 @@ mock230_send_npc_info(struct Mock230Player* player)
              * removed... every tick, and never renders. The wire's capacity is
              * not the view distance.
              */
-            if( dx < -15 || dx > 15 || dz < -15 || dz > 15 )
+            if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
+            dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
                 continue;
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;
@@ -4177,18 +4192,19 @@ mock230_send_npc_info(struct Mock230Player* player)
      * exact range test below still decides; what changed is how many npcs it is
      * asked about.
      */
-    nearby_count = mock230_zone_npcs_near(srv, player->x, player->z, player->level, 15, nearby,
-                                          MOCK230_TRACKED_NPC_MAX);
-    for( int i = 0; i < nearby_count; i++ )
+    /* Same query as the v5 path above, and it has to be the same: the two
+     * encoders differ in how they spell an add, not in who is addable. */
+    for( int i = 0; i < player->area.npc_count; i++ )
     {
-        int slot = nearby[i];
+        int slot = player->area.npcs[i];
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx, dz;
         if( !npc->active || player->npc_tracked[slot] )
             continue;
         dx = npc->x - player->x;
         dz = npc->z - player->z;
-        if( dx < -15 || dx > 15 || dz < -15 || dz > 15 )
+        if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
+            dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
             continue;
         /* The tracked count is 8 bits, so 255 is the ceiling the *stream* has —
          * nothing to do with how many npcs the world holds. */

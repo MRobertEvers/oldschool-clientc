@@ -62,13 +62,21 @@ user stops the loop.
 |---|---|
 | `content/global/bots/**` | server bots, not content |
 | `core/game/worldevents/holiday/**`, holiday AME | seasonal custom / holiday randoms |
-| `content/global/skill/summoning/**`, Wolf Whistle | Summoning is not in OSRS |
 | `content/minigame/fog/**` | Fist of Guthix removed from OSRS |
 | `whileguthixsleeps` | RS2-only; never shipped in OSRS |
-| Evil Turnip / summoning-linked patches | Summoning ecosystem |
 | `content/global/activity/cchallange` | community challenge custom |
 | Discord / Grafana / SQLite integrations | infra, not content |
 | Donor / loyalty / profit hooks if any appear | against 2009scape's own values and ours |
+
+### Moved off this skip list
+
+`content/global/skill/summoning/**`, Wolf Whistle, Evil Turnip and the
+summoning-linked patches were skipped here as "not in OSRS". They are now an
+**explicitly flagged port** with their own queue —
+[`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md) — and must not be
+re-added here. Summoning content is gated behind a feature flag and lives in a
+marked `ported/scape2009_summoning/` lane; it is not claimed to be authentic
+OldSchool content. Do not port summoning slices under *this* queue's loop.
 
 ## Ownership vs Kronos
 

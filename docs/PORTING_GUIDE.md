@@ -32,7 +32,7 @@ Four repositories:
 | this repo (`3draster`) | the client, the server (`src/net/mock/`, "mock230" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
 | `OSRS-Content/osrs239-content` (submodule) | **the content tree** — the destination for all ported content |
 | `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
-| `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/Summoning/RS2-only. Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
+| `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/RS2-only. **Summoning is no longer skipped** — it is a flagged port with its own queue: [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md). Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
 | `/Users/matthewevers/Documents/git_repos/Kronos184-Fixed_2` | **modern / post-2009 OSRS behaviour reference** (Java). Use when LostCity *and* 2009scape have no proc (Wintertodt, Motherlode, rooftops, Zulrah, …). Never copy rev-184 ids; skip custom private-server packs. Queue: [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md). Wire/UI role still per [`UI_ERA_PORTING_GUIDE.md`](UI_ERA_PORTING_GUIDE.md) |
 | `/Users/matthewevers/Documents/git_repos/quest-helper` | **OSRS-era quest state machines / test guides** (RuneLite plugin). `helpers/quests/*/…` `steps.put(N, …)` is the quest varbit progression; gameval names resolve in the osrs239 pack with no remapping. Does **not** define dialogue/combat implementation. Queue: [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md) |
 
@@ -680,7 +680,8 @@ content, not as engine — and **prefer 2009scape over Kronos** for this era
    never paste `FarmingPatch.kt` ints into authored content unchecked.
 3. Skip the custom / non-OSRS skip-list in
    [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md)
-   (bots, holiday events, Summoning, Fist of Guthix, While Guthix Sleeps, …).
+   (bots, holiday events, Fist of Guthix, While Guthix Sleeps, …). **Summoning
+   is not on that skip-list any more** — see [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md).
 4. Same §4.1 order: measure opcode gaps → symbols → configs → scripts → verify.
    If a new Server VM opcode is required, add it to that queue's opcode-gap
    log, implement it, then land the content — never a one-off C hook that

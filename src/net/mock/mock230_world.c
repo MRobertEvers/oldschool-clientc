@@ -8596,11 +8596,33 @@ mock230_world_obj_delayed_queue(
 static void
 phase_zones(struct Mock230Server* srv)
 {
+    struct Mock230Player* player;
+
     mock230_world_loc_reverts(srv);
     mock230_world_obj_delayed(srv);
     ground_tick(srv);
     mock230_zone_sync_npcs(srv);
     mock230_zone_sync_objs(srv);
+    /* And the players. Membership is what lets a client's area be built by
+     * asking the map "who is in the zones I hold" instead of walking the pool
+     * and testing a tile radius. */
+    mock230_zone_sync_players(srv);
+
+    /*
+     * Then each client's own view of it, built once and read three times.
+     *
+     * Here rather than in phase_client_out, and that is the whole ordering
+     * argument: PLAYER_INFO, NPC_INFO and the zone flush all read
+     * `player->area`, so it has to be current before the first of them runs
+     * and identical for all three. It used to be rebuilt inside
+     * `mock230_zone_update_player`, which comes *after* both entity streams.
+     */
+    MOCK230_FOR_EACH_PLAYER(srv, player)
+    {
+        if( !player->world )
+            continue;
+        mock230_area_refresh(player);
+    }
 }
 
 /**
@@ -21923,6 +21945,174 @@ mock230_world_selftest(void)
             mock230_world_scene_rebuild(&srv);
             (void)spawns;
         }
+    }
+
+    fprintf(stderr, "mock230 selftest: NPC_INFO tracks only the player's own zones\n");
+    {
+        /*
+         * The invariant: every npc this client is tracking stands in a zone the
+         * client holds. Not "within 15 tiles" — that is a *consequence*, and it
+         * is already checked where the adds are written. What this asserts is
+         * the window itself, because the two can disagree.
+         *
+         * They disagree at the build area's edge. `active_zones` is 7x7 zones
+         * around the player CLIPPED to the 13x13 build area; a tile box is not
+         * clipped to anything, so near that edge a box answers with npcs
+         * standing outside the 104x104 region the client has a scene for, and
+         * the client is told to place an entity at a coordinate it does not
+         * have.
+         *
+         * **The edge has to be built rather than walked to.** `maybe_rebuild`
+         * re-centres the scene once the player is MOCK230_REBUILD_MARGIN (16)
+         * tiles from an edge, and the npc view is 15 — so a player who walks
+         * there is moved back to the middle before a box could overhang, by
+         * exactly one tile. That one tile is the whole reason this passed by
+         * accident for as long as it did, and a test that lets the re-centre
+         * happen proves nothing. So the build area is moved *off* the player
+         * directly and NPC_INFO is called without a tick around it.
+         *
+         * Reverting mock230_encode.c to `mock230_zone_npcs_near` fails this
+         * with a dozen npcs named.
+         */
+        int saved_zone_x = srv.zone_x;
+        int saved_zone_z = srv.zone_z;
+        int checked = 0;
+        int outside = 0;
+        int off_area = 0;
+        int area_stray = 0;
+        int area_offplane = 0;
+        int base_x;
+        int base_z;
+
+        selftest_park_player(&srv, 3222, 3218);
+        /* Put the player in the south-west CORNER zone of the build area: its
+         * origin becomes (player_zone + 6 - 6) * 8, so everything south or west
+         * of the player's own zone is outside the region entirely. */
+        srv.zone_x = (3222 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
+        srv.zone_z = (3218 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
+        mock230_world_scene_rebuild(&srv);
+        base_x = mock230_scene_origin(srv.zone_x);
+        base_z = mock230_scene_origin(srv.zone_z);
+        SELFTEST_CHECK(player->x - base_x < MOCK230_NPC_VIEW_TILES ||
+                           player->z - base_z < MOCK230_NPC_VIEW_TILES,
+                       "the fixture has to put the view box over the build edge, "
+                       "player is %d,%d into a region based at %d,%d",
+                       player->x - base_x, player->z - base_z, base_x, base_z);
+
+        player->tracked_count = 0;
+        memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+        mock230_area_refresh(player);
+        mock230_send_npc_info(player);
+
+        SELFTEST_CHECK(player->area.zone_count > 0,
+                       "the player should hold some zones, got %d", player->area.zone_count);
+
+        /*
+         * The area's own consistency, before anything encoded from it.
+         *
+         * `player->area` is the one snapshot PLAYER_INFO, NPC_INFO and the zone
+         * flush all read, so the property worth stating is about the structure
+         * rather than about any one packet: everything it lists stands in a
+         * zone it subscribes to. Both halves, because both are collected by the
+         * same loop and a filter dropped from one of them would otherwise only
+         * show up in whichever stream is exercised elsewhere.
+         */
+        for( int i = 0; i < player->area.npc_count; i++ )
+        {
+            struct Mock230Npc* npc = &srv.npcs[player->area.npcs[i]];
+            int index = mock230_zone_index(npc->x, npc->z, npc->level);
+            int held = 0;
+
+            for( int z = 0; z < player->area.zone_count; z++ )
+                held = held || player->area.zones[z] == index;
+            if( !held )
+                area_stray++;
+        }
+        for( int i = 0; i < player->area.player_count; i++ )
+        {
+            struct Mock230Player* other = &srv.players[player->area.players[i]];
+            int index = mock230_zone_index(other->x, other->z, other->level);
+            int held = 0;
+
+            for( int z = 0; z < player->area.zone_count; z++ )
+                held = held || player->area.zones[z] == index;
+            if( !held )
+                area_stray++;
+        }
+        SELFTEST_CHECK(area_stray == 0,
+                       "everything the area lists should stand in a zone the area holds, "
+                       "%d do not", area_stray);
+        /*
+         * And on the player's own plane. A separate check because the
+         * subscription is deliberately not: `area.zones` spans all four planes
+         * so a loc change one storey up stays addressable, which means the
+         * check above passes for an npc upstairs and only this one does not.
+         * The entity streams are single-plane — a client shown the floor above
+         * draws it standing on the floor it is on.
+         */
+        for( int i = 0; i < player->area.npc_count; i++ )
+            if( srv.npcs[player->area.npcs[i]].level != player->level )
+                area_offplane++;
+        for( int i = 0; i < player->area.player_count; i++ )
+            if( srv.players[player->area.players[i]].level != player->level )
+                area_offplane++;
+        SELFTEST_CHECK(area_offplane == 0,
+                       "and on the player's own plane, %d do not", area_offplane);
+        SELFTEST_CHECK(player->area.npc_count > 0,
+                       "and the area should have collected some npcs to check");
+        SELFTEST_CHECK(player->tracked_count > 0,
+                       "and be tracking something, or there is nothing to check");
+        for( int i = 0; i < player->tracked_count; i++ )
+        {
+            int slot = player->tracked[i];
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int index;
+            int held = 0;
+
+            if( !npc->active )
+                continue;
+            checked++;
+            index = mock230_zone_index(npc->x, npc->z, npc->level);
+            for( int z = 0; z < player->area.zone_count; z++ )
+            {
+                if( player->area.zones[z] == index )
+                {
+                    held = 1;
+                    break;
+                }
+            }
+            if( !held )
+            {
+                outside++;
+                if( outside <= 5 )
+                    fprintf(stderr,
+                            "    npc %d (type %d) at %d,%d level %d is tracked and its zone "
+                            "is not one this player holds\n",
+                            slot, npc->type, npc->x, npc->z, npc->level);
+            }
+            /* The consequence, stated separately: a zone outside the window is
+             * usually also outside the client's scene, and that is the part
+             * that draws wrong rather than merely being over-reported. */
+            if( npc->x < base_x || npc->x >= base_x + MOCK230_SCENE_TILES || npc->z < base_z ||
+                npc->z >= base_z + MOCK230_SCENE_TILES )
+                off_area++;
+        }
+        SELFTEST_CHECK(outside == 0,
+                       "every tracked npc should stand in a zone the player holds, "
+                       "%d of %d do not", outside, checked);
+        SELFTEST_CHECK(off_area == 0,
+                       "and inside the build area the client has a scene for, %d do not",
+                       off_area);
+
+        /* Put the world back under the player for the suites below. */
+        srv.zone_x = saved_zone_x;
+        srv.zone_z = saved_zone_z;
+        mock230_world_scene_rebuild(&srv);
+        selftest_park_player(&srv, g_home_x, g_home_z);
+        mock230_zone_player_reset(player);
+        player->tracked_count = 0;
+        memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+        mock230_world_tick(&srv);
     }
 
     fprintf(stderr, "mock230 selftest: npc queues and timers\n");

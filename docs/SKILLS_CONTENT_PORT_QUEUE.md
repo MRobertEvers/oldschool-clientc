@@ -98,7 +98,8 @@ Log; re-arm `AGENT_LOOP_WAKE_skills_port` (~120s). **Stop re-arming** when no
 | Item | Why skip |
 |---|---|
 | Sailing | Explicitly excluded from this queue |
-| Summoning / Fist of Guthix / RS2-only | not in OSRS |
+| Fist of Guthix / RS2-only | not in OSRS |
+| ~~Summoning~~ | **no longer skipped** — flagged port, own queue: [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md) |
 | Donor / loyalty / custom private-server skill packs | skip-lists on Kronos/2009 |
 | Quest-gated skill arms owned by QUESTHELPER | route there |
 | Live POH (`skill_construction/` 4a+4b) / live MTA | do not re-edit from this lane; residual gaps → `blocked` redirects |
@@ -345,7 +346,8 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - audit Farming done: wiki [Farming](https://oldschool.runescape.wiki/w/Farming). In-tree: classic herb/allot/flower/compost/tree/fruit/hops/bush + farming_view (SCAPE2009 §1a–1g). Gaps: higher tiers, disease/gardeners, Zeah compost, spirit/calquat, Geomancy/secateurs, leprechaun notes, cape; Guild/Tithe→Kronos. Emitted #131–138. Next audit = Construction.
 - audit Construction done: wiki [Construction](https://oldschool.runescape.wiki/w/Construction). In-tree: estate buy, enter/leave instance, garden hotspot Build/Remove (`::poh`/`::pohbuild`) — SCAPE2009 §4a+4b **live, do not park**. Gaps: furniture IF/rooms (§4c), persistence, move/redecorate/cape, servants, gilded altar (#25). Emitted #139–145. Next audit = Hunter.
 - audit Hunter done: wiki [Hunter](https://oldschool.runescape.wiki/w/Hunter). In-tree: bird snare, box chin, baby impling, falconry (SCAPE2009 §2a–2d), Puro-Puro enter (§8). Gaps: expanded prey, butterflies, salamander/deadfall/tracking, jar loot, falcon polish, cape; bird houses/Herbiboar/Guild/aerial→Kronos. Emitted #146–153.
-- **Audit roster complete** (23/23, Sailing skipped). Finish queue seeded #1–153. Stop re-arming audit sleeper. Port loop is separate work.
+- **Audit roster complete** (23/23 OSRS skills, Sailing skipped). Finish queue seeded #1–153. Stop re-arming audit sleeper. Port loop is separate work.
+  - **Summoning is a 24th row and is deliberately *not* counted in that 23/23.** It is not an OldSchool skill; it is a flagged port from 2009scape tracked in [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md). Do not re-open this audit for it.
 - **Port loop armed** (skills_port). Selection: lowest pending, deps-first; stop when no actionable pending rows.
 - port #1 specials done: LC `skill_combat/scripts/player/{specwep,player_special_attack}.rs2` + `specs/pvm_*`. In-tree: `specwep`/`sa_energy`/`sa_kind` params, energy regen timer, `combat_interface:special_attack` + orb `@specbar_pressed`, combat-start divert, equip clears `%sa_attack`, PvM dds/dlong/dmace/claws + instant dbaxe/Excalibur. Era: drop sound_synth; ranged→#18; spear/halberd deferred. Verified pack 0 err + mock230-scripts. Next = #2 PvP melee.
 - port #2 PvP melee → blocked: LC `pvp/pvp_*.rs2` needs secondary-player dialect; `MOCK230_PLAYER_MAX` is 1 (combat_stats.rs2 documents `.` variants not ported). Opcode gap logged. Next = #3 Attack potion.

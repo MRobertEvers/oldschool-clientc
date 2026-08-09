@@ -268,16 +268,110 @@ be **disjoint**. (Ardougne rather than Varrock: Varrock is 208 tiles from the
 castle and OUT is 224, so 709 Lumbridge npcs are still legitimately standing
 there and the check would read as a bug in the sync.)
 
-**Nothing about how many npcs the client hears about changed, and nothing needed
-to.** NPC_INFO never scanned the pool: `mock230_encode.c` asks
-`mock230_zone_npcs_near(…, 15, …)` for the low-resolution adds — a ZoneMap query
-over the 31×31-tile box, not a walk of the roster — clamps each add to ±15 tiles
-again on the way in, and caps the set at `MOCK230_TRACKED_NPC_MAX` (255). The
-high-resolution loop iterates `player->tracked_count`, never `npc_slot_max`. So
-per-player cost is bounded by what the player can see, at 63 npcs in the world
-or at 23,139. (`rsareabuf` is the buffer those bits are *written* with — an
-arena-backed port of LostCity's `rsbuf` — rather than the thing that decides who
-is nearby; the ZoneMap is what decides.)
+### Every client gets its own view: `Mock230PlayerArea`
+
+**How much a client hears about never changed and could not**: NPC_INFO clamps
+adds to ±`MOCK230_NPC_VIEW_TILES` (15) and caps at `MOCK230_TRACKED_NPC_MAX`
+(255); the high-resolution loop iterates `tracked_count`, never `npc_slot_max`.
+Per-client cost is bounded by what the client can see, at 63 npcs in the world
+or at 23,139.
+
+**Which entities it could name was a different question, and nothing owned it.**
+The world has a `Mock230ZoneMap` — zones keyed by packed index, each holding the
+npcs and objs standing in it — and that is the right structure for the *world*.
+There was no equivalent for a *client*. A client's view was four flat arrays
+(`active_zones`, `loaded_zones`, `npc_tracked[]`, `player_tracked[]`), and each
+of the three area packets re-derived its own candidates:
+
+| packet | how it found candidates | bounded by |
+|---|---|---|
+| PLAYER_INFO | walked the whole player pool | a raw ±15 tile test |
+| NPC_INFO | `mock230_zone_npcs_near`, a tile box | a raw ±15 tile box |
+| zone flush | walked `active_zones` | the build area |
+
+Three answers to one question, so they could disagree — and did. `active_zones`
+is clipped to the 13×13 build area; a tile box is clipped to nothing. Near that
+edge NPC_INFO named npcs standing outside the 104×104 region the client has a
+scene for, and the client was told to place an entity at a coordinate it does
+not have: the same failure mode as a missing SET_NPC_UPDATE_ORIGIN, and as
+quiet. Players had the identical defect, hidden behind `MOCK230_PLAYER_MAX` 8
+making the wrong question cheap to ask.
+
+It never fired for npcs, by **one tile**: `maybe_rebuild` re-centres once the
+player is within `MOCK230_REBUILD_MARGIN` (16) tiles of an edge, and the view is
+15. Two constants in two files with nothing connecting them.
+
+So the per-client view is now a structure — `struct Mock230PlayerArea`, one per
+player:
+
+```c
+int zones[MOCK230_ZONE_ACTIVE_MAX];  int zone_count;   /* the subscription */
+int loaded[MOCK230_ZONE_ACTIVE_MAX]; int loaded_count; /* state already sent  */
+int npcs[MOCK230_TRACKED_NPC_MAX];   int npc_count;    /* who is in them      */
+int players[MOCK230_PLAYER_MAX];     int player_count;
+```
+
+`mock230_area_refresh` fills it once per tick in **phase 8**, immediately after
+the map reconciles membership, and all three encoders read it. Four things fell
+out of writing it down:
+
+- **Players joined the ZoneMap.** Zones tracked npcs and objs and not players,
+  which is why PLAYER_INFO had to scan the pool. `mock230_zone_sync_players`
+  files them beside the others, and `refile`'s `is_npc` boolean became
+  `enum Mock230ZoneKind`.
+- **The refresh moved ahead of the entity streams.** It used to happen inside
+  `mock230_zone_update_player`, which runs *after* both of them in
+  `phase_client_out`, so a player who changed zone this tick had their adds
+  judged against last tick's window.
+- **The collector trusts the entity's tile, not its filing.** Membership and
+  position agree right after the sync, and "right after" is a fact about one
+  call site rather than a property of the function. An entity whose filing is
+  stale is skipped rather than listed under a zone it has left.
+- **`zone_index` vs `zone_filed`.** Players now have both and they are
+  opposites: the window latch is reset to -1 on every scene rebuild, so filing
+  off it would unfile the player on every rebuild and never re-file them.
+
+A compile-time assertion states `MOCK230_NPC_VIEW_TILES < MOCK230_REBUILD_MARGIN`
+so the margin cannot silently close.
+
+`mock230 selftest: NPC_INFO tracks only the player's own zones` asserts three
+things — everything the area lists stands in a zone the area subscribes to,
+everything in it is on the player's own plane (the subscription spans all four
+planes on purpose, the entity streams do not), and everything the client ends up
+*tracking* is inside the build area. It has to **build** the edge rather than
+walk to one, because a player who walks there is re-centred first.
+
+Each check was verified by mutation:
+
+| mutation | result |
+|---|---|
+| drop the build-area clip in `rebuild_active` | `FAIL … inside the build area …, 9 do not` |
+| drop the plane filter in `mock230_area_refresh` | `FAIL and on the player's own plane, 1 do not` |
+| (before the refactor) use `mock230_zone_npcs_near` | `FAIL … 14 of 29 do not` |
+
+### What the wire actually limits
+
+An earlier draft of this document claimed the roster "cannot all be live"
+because the npc slot is 14 bits. That is true of the **classic** wire and not of
+the one this runs on:
+
+| wire | npc index | npcs addressable |
+|---|---|---|
+| classic (rev 230) | `MOCK230_NPC_SLOT_BITS`, 14 | 16,383 |
+| v5 (rev 239) | 16-bit index, `0xFFFF` terminator | 65,534 |
+
+So 23,139 fits the 239 wire with room to spare, and `MOCK230_NPC_MAX` is a
+memory decision — `struct Mock230Npc` is 608 bytes, so the full roster is 14.1 MB
+of pool. Holding all of it needs two small changes and no new mechanism: the
+selftest's `struct Mock230Server srv` is the last stack-allocated one (the
+server binary's is `static`, the embed's is `calloc`'d), and the classic wire
+would need the window kept. The AI cost is not the obstacle — measured, 993 live
+npcs run the selftest in 29.4s and 3,427 in 30.3s.
+
+(`rsareabuf` is the buffer these bits are *written* into — an arena-backed port
+of LostCity's `rsbuf`, where "area" is its allocation arena rather than a region
+of the map. The ZoneMap decides who is nearby; `Mock230PlayerArea` decides who
+this client hears about.)
 
 ### What this cost the selftests
 

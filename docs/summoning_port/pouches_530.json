@@ -1,0 +1,1468 @@
+[
+{
+"name": "SPIRIT_WOLF_POUCH",
+"slot": 0,
+"abyssal": false,
+"pouch": 12047,
+"lvl": 1,
+"cxp": 4.8,
+"npc": 6829,
+"sxp": 0.1,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(2859)",
+"new Item(12183, 7)"
+]
+},
+{
+"name": "DREADFOWL_POUCH",
+"slot": 1,
+"abyssal": false,
+"pouch": 12043,
+"lvl": 4,
+"cxp": 9.3,
+"npc": 6825,
+"sxp": 0.1,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(2138)",
+"new Item(12183, 8)"
+]
+},
+{
+"name": "SPIRIT_SPIDER_POUCH",
+"slot": 2,
+"abyssal": false,
+"pouch": 12059,
+"lvl": 10,
+"cxp": 12.6,
+"npc": 6841,
+"sxp": 0.2,
+"cost": 2,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(6291)",
+"new Item(12183, 8)"
+]
+},
+{
+"name": "THORNY_SNAIL_POUCH",
+"slot": 3,
+"abyssal": false,
+"pouch": 12019,
+"lvl": 13,
+"cxp": 12.6,
+"npc": 6806,
+"sxp": 0.2,
+"cost": 2,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(3363)",
+"new Item(12183, 9)"
+]
+},
+{
+"name": "GRANITE_CRAB_POUCH",
+"slot": 4,
+"abyssal": false,
+"pouch": 12009,
+"lvl": 16,
+"cxp": 21.6,
+"npc": 6796,
+"sxp": 0.2,
+"cost": 2,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(440)",
+"new Item(12183, 7)"
+]
+},
+{
+"name": "SPIRIT_MOSQUITO_POUCH",
+"slot": 5,
+"abyssal": false,
+"pouch": 12778,
+"lvl": 17,
+"cxp": 46.5,
+"npc": 7331,
+"sxp": 0.5,
+"cost": 2,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(6319)",
+"new Item(12183, 1)"
+]
+},
+{
+"name": "DESERT_WYRM_POUCH",
+"slot": 6,
+"abyssal": false,
+"pouch": 12049,
+"lvl": 18,
+"cxp": 31.2,
+"npc": 6831,
+"sxp": 0.4,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(1783)",
+"new Item(12183, 45)"
+]
+},
+{
+"name": "SPIRIT_SCORPION_POUCH",
+"slot": 7,
+"abyssal": false,
+"pouch": 12055,
+"lvl": 19,
+"cxp": 83.2,
+"npc": 6837,
+"sxp": 0.9,
+"cost": 2,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(3095)",
+"new Item(12183, 57)"
+]
+},
+{
+"name": "SPIRIT_TZ_KIH_POUCH",
+"slot": 8,
+"abyssal": false,
+"pouch": 12808,
+"lvl": 22,
+"cxp": 96.8,
+"npc": 7361,
+"sxp": 1.1,
+"cost": 3,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12168)",
+"new Item(12155)",
+"new Item(12183, 64)"
+]
+},
+{
+"name": "ALBINO_RAT_POUCH",
+"slot": 9,
+"abyssal": false,
+"pouch": 12067,
+"lvl": 23,
+"cxp": 202.4,
+"npc": 6847,
+"sxp": 2.3,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2134)",
+"new Item(12183, 75)"
+]
+},
+{
+"name": "SPIRIT_KALPHITE_POUCH",
+"slot": 10,
+"abyssal": false,
+"pouch": 12063,
+"lvl": 25,
+"cxp": 220.0,
+"npc": 6994,
+"sxp": 2.5,
+"cost": 3,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(3138)",
+"new Item(12183, 51)"
+]
+},
+{
+"name": "COMPOST_MOUND_POUCH",
+"slot": 11,
+"abyssal": false,
+"pouch": 12091,
+"lvl": 28,
+"cxp": 49.8,
+"npc": 6871,
+"sxp": 0.6,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(6032)",
+"new Item(12183, 47)"
+]
+},
+{
+"name": "GIANT_CHINCHOMPA_POUCH",
+"slot": 12,
+"abyssal": false,
+"pouch": 12800,
+"lvl": 29,
+"cxp": 255.2,
+"npc": 7353,
+"sxp": 2.9,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(10033)",
+"new Item(12183, 84)"
+]
+},
+{
+"name": "VAMPIRE_BAT_POUCH",
+"slot": 13,
+"abyssal": false,
+"pouch": 12053,
+"lvl": 31,
+"cxp": 136.0,
+"npc": 6835,
+"sxp": 1.5,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(3325)",
+"new Item(12183, 81)"
+]
+},
+{
+"name": "HONEY_BADGER_POUCH",
+"slot": 14,
+"abyssal": false,
+"pouch": 12065,
+"lvl": 32,
+"cxp": 140.8,
+"npc": 6845,
+"sxp": 1.6,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(12156)",
+"new Item(12183, 84)"
+]
+},
+{
+"name": "BEAVER_POUCH",
+"slot": 15,
+"abyssal": false,
+"pouch": 12021,
+"lvl": 33,
+"cxp": 57.6,
+"npc": 6808,
+"sxp": 0.7,
+"cost": 4,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(1519)",
+"new Item(12183, 72)"
+]
+},
+{
+"name": "VOID_RAVAGER_POUCH",
+"slot": 16,
+"abyssal": false,
+"pouch": 12818,
+"lvl": 34,
+"cxp": 59.6,
+"npc": 7370,
+"sxp": 0.7,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12164)",
+"new Item(12155)",
+"new Item(12183, 74)"
+]
+},
+{
+"name": "VOID_SPINNER_POUCH",
+"slot": 17,
+"abyssal": false,
+"pouch": 12780,
+"lvl": 34,
+"cxp": 59.6,
+"npc": 7333,
+"sxp": 0.7,
+"cost": 4,
+"peaceful": "true",
+"items": [
+"new Item(12163)",
+"new Item(12166)",
+"new Item(12155)",
+"new Item(12183, 74)"
+]
+},
+{
+"name": "VOID_TORCHER_POUCH",
+"slot": 18,
+"abyssal": false,
+"pouch": 12798,
+"lvl": 34,
+"cxp": 59.6,
+"npc": 7351,
+"sxp": 0.7,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12167)",
+"new Item(12155)",
+"new Item(12183, 74)"
+]
+},
+{
+"name": "VOID_SHIFTER_POUCH",
+"slot": 19,
+"abyssal": false,
+"pouch": 12814,
+"lvl": 34,
+"cxp": 59.6,
+"npc": 7367,
+"sxp": 0.7,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12165)",
+"new Item(12155)",
+"new Item(12183, 74)"
+]
+},
+{
+"name": "BRONZE_MINOTAUR_POUCH",
+"slot": 64,
+"abyssal": false,
+"pouch": 12073,
+"lvl": 36,
+"cxp": 316.8,
+"npc": 6853,
+"sxp": 3.6,
+"cost": 3,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2349)",
+"new Item(12183, 102)"
+]
+},
+{
+"name": "IRON_MINOTAUR_POUCH",
+"slot": 65,
+"abyssal": false,
+"pouch": 12075,
+"lvl": 46,
+"cxp": 404.8,
+"npc": 6855,
+"sxp": 4.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2351)",
+"new Item(12183, 125)"
+]
+},
+{
+"name": "STEEL_MINOTAUR_POUCH",
+"slot": 66,
+"abyssal": false,
+"pouch": 12077,
+"lvl": 56,
+"cxp": 492.8,
+"npc": 6857,
+"sxp": 5.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2353)",
+"new Item(12183, 141)"
+]
+},
+{
+"name": "MITHRIL_MINOTAUR_POUCH",
+"slot": 67,
+"abyssal": false,
+"pouch": 12079,
+"lvl": 66,
+"cxp": 580.8,
+"npc": 6859,
+"sxp": 6.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2359)",
+"new Item(12183, 152)"
+]
+},
+{
+"name": "ADAMANT_MINOTAUR_POUCH",
+"slot": 68,
+"abyssal": false,
+"pouch": 12081,
+"lvl": 76,
+"cxp": 668.8,
+"npc": 6861,
+"sxp": 7.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2361)",
+"new Item(12183, 144)"
+]
+},
+{
+"name": "RUNE_MINOTAUR_POUCH",
+"slot": 69,
+"abyssal": false,
+"pouch": 12083,
+"lvl": 86,
+"cxp": 756.8,
+"npc": 6863,
+"sxp": 8.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(2363)",
+"new Item(12183, 1)"
+]
+},
+{
+"name": "BULL_ANT_POUCH",
+"slot": 20,
+"abyssal": false,
+"pouch": 12087,
+"lvl": 40,
+"cxp": 52.8,
+"npc": 6867,
+"sxp": 0.6,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(6010)",
+"new Item(12183, 11)"
+]
+},
+{
+"name": "MACAW_POUCH",
+"slot": 21,
+"abyssal": false,
+"pouch": 12071,
+"lvl": 41,
+"cxp": 72.4,
+"npc": 6851,
+"sxp": 0.8,
+"cost": 5,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(249)",
+"new Item(12183, 78)"
+]
+},
+{
+"name": "EVIL_TURNIP_POUCH",
+"slot": 22,
+"abyssal": false,
+"pouch": 12051,
+"lvl": 42,
+"cxp": 184.8,
+"npc": 6833,
+"sxp": 2.1,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(12153)",
+"new Item(12183, 104)"
+]
+},
+{
+"name": "SPIRIT_COCKATRICE_POUCH",
+"slot": 23,
+"abyssal": false,
+"pouch": 12095,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6875,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12109)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_GUTHATRICE_POUCH",
+"slot": 24,
+"abyssal": false,
+"pouch": 12097,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6877,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12111)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_SARATRICE_POUCH",
+"slot": 25,
+"abyssal": false,
+"pouch": 12099,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6879,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12113)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_ZAMATRICE_POUCH",
+"slot": 26,
+"abyssal": false,
+"pouch": 12101,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6881,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12115)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_PENGATRICE_POUCH",
+"slot": 27,
+"abyssal": false,
+"pouch": 12103,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6883,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12117)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_CORAXATRICE_POUCH",
+"slot": 28,
+"abyssal": false,
+"pouch": 12105,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6885,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12119)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "SPIRIT_VULATRICE",
+"slot": 29,
+"abyssal": false,
+"pouch": 12107,
+"lvl": 43,
+"cxp": 75.2,
+"npc": 6887,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12121)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "PYRELORD_POUCH",
+"slot": 30,
+"abyssal": false,
+"pouch": 12816,
+"lvl": 46,
+"cxp": 202.4,
+"npc": 7377,
+"sxp": 2.3,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(590)",
+"new Item(12183, 111)"
+]
+},
+{
+"name": "MAGPIE_POUCH",
+"slot": 31,
+"abyssal": false,
+"pouch": 12041,
+"lvl": 47,
+"cxp": 83.2,
+"npc": 6824,
+"sxp": 0.9,
+"cost": 5,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(1635)",
+"new Item(12183, 88)"
+]
+},
+{
+"name": "BLOATED_LEECH_POUCH",
+"slot": 32,
+"abyssal": false,
+"pouch": 12061,
+"lvl": 49,
+"cxp": 215.2,
+"npc": 6843,
+"sxp": 2.4,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(2132)",
+"new Item(12183, 117)"
+]
+},
+{
+"name": "SPIRIT_TERRORBIRD_POUCH",
+"slot": 33,
+"abyssal": false,
+"pouch": 12007,
+"lvl": 52,
+"cxp": 68.4,
+"npc": 6794,
+"sxp": 0.8,
+"cost": 6,
+"peaceful": "true",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(9978)",
+"new Item(12183, 12)"
+]
+},
+{
+"name": "ABYSSAL_PARASITE_POUCH",
+"slot": 34,
+"abyssal": true,
+"pouch": 12035,
+"lvl": 54,
+"cxp": 94.8,
+"npc": 6818,
+"sxp": 1.1,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12161)",
+"new Item(12183, 106)"
+]
+},
+{
+"name": "SPIRIT_JELLY_POUCH",
+"slot": 35,
+"abyssal": false,
+"pouch": 12027,
+"lvl": 55,
+"cxp": 484.0,
+"npc": 6992,
+"sxp": 5.5,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(1937)",
+"new Item(12183, 151)"
+]
+},
+{
+"name": "IBIS_POUCH",
+"slot": 36,
+"abyssal": false,
+"pouch": 12531,
+"lvl": 56,
+"cxp": 98.8,
+"npc": 6991,
+"sxp": 1.1,
+"cost": 6,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(311)",
+"new Item(12183, 109)"
+]
+},
+{
+"name": "SPIRIT_KYATT_POUCH",
+"slot": 37,
+"abyssal": false,
+"pouch": 12812,
+"lvl": 57,
+"cxp": 501.6,
+"npc": 7365,
+"sxp": 5.7,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(10103)",
+"new Item(12183, 153)"
+]
+},
+{
+"name": "SPIRIT_LARUPIA_POUCH",
+"slot": 38,
+"abyssal": false,
+"pouch": 12784,
+"lvl": 57,
+"cxp": 501.6,
+"npc": 7337,
+"sxp": 5.7,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(10095)",
+"new Item(12183, 155)"
+]
+},
+{
+"name": "SPIRIT_GRAAHK_POUCH",
+"slot": 39,
+"abyssal": false,
+"pouch": 12810,
+"lvl": 57,
+"cxp": 501.6,
+"npc": 7363,
+"sxp": 5.7,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(10099)",
+"new Item(12183, 154)"
+]
+},
+{
+"name": "KARAMTHULHU_POUCH",
+"slot": 40,
+"abyssal": false,
+"pouch": 12023,
+"lvl": 58,
+"cxp": 510.4,
+"npc": 6809,
+"sxp": 5.8,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(6667)",
+"new Item(12183, 144)"
+]
+},
+{
+"name": "SMOKE_DEVIL_POUCH",
+"slot": 41,
+"abyssal": false,
+"pouch": 12085,
+"lvl": 61,
+"cxp": 268.0,
+"npc": 6865,
+"sxp": 3.0,
+"cost": 7,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(9736)",
+"new Item(12183, 141)"
+]
+},
+{
+"name": "ABYSSAL_LUKRER",
+"slot": 42,
+"abyssal": true,
+"pouch": 12037,
+"lvl": 62,
+"cxp": 109.6,
+"npc": 6820,
+"sxp": 1.9,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(12161)",
+"new Item(12183, 119)"
+]
+},
+{
+"name": "SPIRIT_COBRA_POUCH",
+"slot": 43,
+"abyssal": false,
+"pouch": 12015,
+"lvl": 63,
+"cxp": 276.8,
+"npc": 6802,
+"sxp": 3.1,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(6287)",
+"new Item(12183, 116)"
+]
+},
+{
+"name": "STRANGER_PLANT_POUCH",
+"slot": 44,
+"abyssal": false,
+"pouch": 12045,
+"lvl": 64,
+"cxp": 281.6,
+"npc": 6827,
+"sxp": 3.2,
+"cost": 6,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(8431)",
+"new Item(12183, 128)"
+]
+},
+{
+"name": "BARKER_TOAD_POUCH",
+"slot": 45,
+"abyssal": false,
+"pouch": 12123,
+"lvl": 66,
+"cxp": 87.0,
+"npc": 6889,
+"sxp": 1.0,
+"cost": 7,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(2150)",
+"new Item(12183, 11)"
+]
+},
+{
+"name": "WAR_TORTOISE_POUCH",
+"slot": 46,
+"abyssal": false,
+"pouch": 12031,
+"lvl": 67,
+"cxp": 58.6,
+"npc": 6815,
+"sxp": 0.7,
+"cost": 7,
+"peaceful": "true",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(7939)",
+"new Item(12183, 1)"
+]
+},
+{
+"name": "BUNYIP_POUCH",
+"slot": 47,
+"abyssal": false,
+"pouch": 12029,
+"lvl": 68,
+"cxp": 119.2,
+"npc": 6813,
+"sxp": 1.4,
+"cost": 7,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(383)",
+"new Item(12183, 110)"
+]
+},
+{
+"name": "FRUIT_BAT_POUCH",
+"slot": 48,
+"abyssal": false,
+"pouch": 12033,
+"lvl": 69,
+"cxp": 121.2,
+"npc": 6817,
+"sxp": 1.4,
+"cost": 8,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(1963)",
+"new Item(12183, 130)"
+]
+},
+{
+"name": "RAVENOUS_LOCUST_POUCH",
+"slot": 49,
+"abyssal": false,
+"pouch": 12820,
+"lvl": 70,
+"cxp": 132.0,
+"npc": 7372,
+"sxp": 1.5,
+"cost": 4,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(1933)",
+"new Item(12183, 79)"
+]
+},
+{
+"name": "ARCTIC_BEAR_POUCH",
+"slot": 50,
+"abyssal": false,
+"pouch": 12057,
+"lvl": 71,
+"cxp": 93.2,
+"npc": 6839,
+"sxp": 1.1,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12158)",
+"new Item(12155)",
+"new Item(10117)",
+"new Item(12183, 14)"
+]
+},
+{
+"name": "PHOENIX_POUCH",
+"slot": 50,
+"abyssal": false,
+"pouch": 14623,
+"lvl": 72,
+"cxp": 93.2,
+"npc": 8575,
+"sxp": 1.1,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12160, 1)",
+"new Item(12183, 165)",
+"new Item(12155, 1)",
+"new Item(14616, 1)"
+]
+},
+{
+"name": "OBSIDIAN_GOLEM_POUCH",
+"slot": 51,
+"abyssal": false,
+"pouch": 12792,
+"lvl": 73,
+"cxp": 642.4,
+"npc": 7345,
+"sxp": 7.3,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12155)",
+"new Item(12168)",
+"new Item(12183, 195)"
+]
+},
+{
+"name": "GRANITE_LOBSTER_POUCH",
+"slot": 52,
+"abyssal": false,
+"pouch": 12069,
+"lvl": 74,
+"cxp": 325.6,
+"npc": 6849,
+"sxp": 3.7,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(6979)",
+"new Item(12183, 166)"
+]
+},
+{
+"name": "PRAYING_MANTIS_POUCH",
+"slot": 53,
+"abyssal": false,
+"pouch": 12011,
+"lvl": 75,
+"cxp": 329.6,
+"npc": 6798,
+"sxp": 3.6,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(2460)",
+"new Item(12183, 168)"
+]
+},
+{
+"name": "FORGE_REGENT_BEAST",
+"slot": 54,
+"abyssal": false,
+"pouch": 12782,
+"lvl": 76,
+"cxp": 134.0,
+"npc": 7335,
+"sxp": 1.5,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12155)",
+"new Item(10020)",
+"new Item(12183, 141)"
+]
+},
+{
+"name": "TALON_BEAST_POUCH",
+"slot": 55,
+"abyssal": false,
+"pouch": 12794,
+"lvl": 77,
+"cxp": 1015.2,
+"npc": 7347,
+"sxp": 3.8,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(12155)",
+"new Item(12162)",
+"new Item(12183, 174)"
+]
+},
+{
+"name": "GIANT_ENT_POUCH",
+"slot": 56,
+"abyssal": false,
+"pouch": 12013,
+"lvl": 78,
+"cxp": 136.8,
+"npc": 6800,
+"sxp": 1.6,
+"cost": 8,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(5933)",
+"new Item(12155)",
+"new Item(12183, 124)"
+]
+},
+{
+"name": "HYDRA_POUCH",
+"slot": 60,
+"abyssal": false,
+"pouch": 12025,
+"lvl": 80,
+"cxp": 140.8,
+"npc": 6811,
+"sxp": 1.6,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(571)",
+"new Item(12155)",
+"new Item(12183, 128)"
+]
+},
+{
+"name": "SPIRIT_DAGANNOTH_POUCH",
+"slot": 61,
+"abyssal": false,
+"pouch": 12017,
+"lvl": 83,
+"cxp": 364.8,
+"npc": 6804,
+"sxp": 4.1,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(6155)",
+"new Item(12155)",
+"new Item(12183, 1)"
+]
+},
+{
+"name": "UNICORN_STALLION_POUCH",
+"slot": 70,
+"abyssal": false,
+"pouch": 12039,
+"lvl": 88,
+"cxp": 154.4,
+"npc": 6822,
+"sxp": 1.8,
+"cost": 9,
+"peaceful": "true",
+"items": [
+"new Item(12159)",
+"new Item(237)",
+"new Item(12155)",
+"new Item(12183, 140)"
+]
+},
+{
+"name": "WOLPERTINGER_POUCH",
+"slot": 72,
+"abyssal": false,
+"pouch": 12089,
+"lvl": 92,
+"cxp": 404.8,
+"npc": 6869,
+"sxp": 4.5,
+"cost": 10,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(2859)",
+"new Item(3226)",
+"new Item(12155)",
+"new Item(12183, 203)"
+]
+},
+{
+"name": "PACK_YAK_POUCH",
+"slot": 75,
+"abyssal": false,
+"pouch": 12093,
+"lvl": 96,
+"cxp": 422.4,
+"npc": 6873,
+"sxp": 4.8,
+"cost": 10,
+"peaceful": "true",
+"items": [
+"new Item(12160)",
+"new Item(10818)",
+"new Item(12155)",
+"new Item(12183, 211)"
+]
+},
+{
+"name": "FIRE_TITAN_POUCH",
+"slot": 57,
+"abyssal": false,
+"pouch": 12802,
+"lvl": 79,
+"cxp": 695.2,
+"npc": 7355,
+"sxp": 7.9,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(1442)",
+"new Item(12155)",
+"new Item(12183, 198)"
+]
+},
+{
+"name": "MOSS_TITAN_POUCH",
+"slot": 58,
+"abyssal": false,
+"pouch": 12804,
+"lvl": 79,
+"cxp": 695.2,
+"npc": 7357,
+"sxp": 7.9,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(1440)",
+"new Item(12155)",
+"new Item(12183, 198)"
+]
+},
+{
+"name": "ICE_TITAN_POUCH",
+"slot": 59,
+"abyssal": false,
+"pouch": 12806,
+"lvl": 79,
+"cxp": 695.2,
+"npc": 7359,
+"sxp": 7.9,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(1438)",
+"new Item(1444)",
+"new Item(12155)",
+"new Item(12183, 198)"
+]
+},
+{
+"name": "LAVA_TITAN_POUCH",
+"slot": 62,
+"abyssal": false,
+"pouch": 12788,
+"lvl": 83,
+"cxp": 730.4,
+"npc": 7341,
+"sxp": 8.3,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(12168)",
+"new Item(12155)",
+"new Item(12183, 219)"
+]
+},
+{
+"name": "SWAMP_TITAN_POUCH",
+"slot": 63,
+"abyssal": false,
+"pouch": 12776,
+"lvl": 85,
+"cxp": 373.6,
+"npc": 7329,
+"sxp": 4.2,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(10149)",
+"new Item(12155)",
+"new Item(12183, 150)"
+]
+},
+{
+"name": "GEYSER_TITAN_POUCH",
+"slot": 71,
+"abyssal": false,
+"pouch": 12786,
+"lvl": 89,
+"cxp": 783.2,
+"npc": 7339,
+"sxp": 8.9,
+"cost": 9,
+"peaceful": "false",
+"items": [
+"new Item(12163)",
+"new Item(1444)",
+"new Item(12155)",
+"new Item(12183, 222)"
+]
+},
+{
+"name": "ABYSSAL_TITAN_POUCH",
+"slot": 73,
+"abyssal": true,
+"pouch": 12796,
+"lvl": 93,
+"cxp": 163.2,
+"npc": 7349,
+"sxp": 1.9,
+"cost": 10,
+"peaceful": "false",
+"items": [
+"new Item(12159)",
+"new Item(12161)",
+"new Item(12155)",
+"new Item(12183, 113)"
+]
+},
+{
+"name": "IRON_TITAN_POUCH",
+"slot": 74,
+"abyssal": false,
+"pouch": 12822,
+"lvl": 95,
+"cxp": 417.6,
+"npc": 7375,
+"sxp": 4.7,
+"cost": 10,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(1115)",
+"new Item(12155)",
+"new Item(12183, 198)"
+]
+},
+{
+"name": "STEEL_TITAN_POUCH",
+"slot": 76,
+"abyssal": false,
+"pouch": 12790,
+"lvl": 99,
+"cxp": 435.2,
+"npc": 7343,
+"sxp": 4.9,
+"cost": 10,
+"peaceful": "false",
+"items": [
+"new Item(12160)",
+"new Item(1119)",
+"new Item(12155)",
+"new Item(12183, 178)"
+]
+},
+{
+"name": "SACRED_CLAY_POUCH_1",
+"slot": -1,
+"abyssal": false,
+"pouch": 14422,
+"lvl": 1,
+"cxp": 0.0,
+"npc": 8240,
+"sxp": 0.0,
+"cost": 1,
+"peaceful": "false",
+"items": [
+"new Item(14182)"
+]
+},
+{
+"name": "SACRED_CLAY_POUCH_2",
+"slot": -1,
+"abyssal": false,
+"pouch": 14424,
+"lvl": 20,
+"cxp": 0.0,
+"npc": 8242,
+"sxp": 0.0,
+"cost": 3,
+"peaceful": "false",
+"items": [
+"new Item(14184)"
+]
+},
+{
+"name": "SACRED_CLAY_POUCH_3",
+"slot": -1,
+"abyssal": false,
+"pouch": 14426,
+"lvl": 40,
+"cxp": 0.0,
+"npc": 8244,
+"sxp": 0.0,
+"cost": 5,
+"peaceful": "false",
+"items": [
+"new Item(14186)"
+]
+},
+{
+"name": "SACRED_CLAY_POUCH_4",
+"slot": -1,
+"abyssal": false,
+"pouch": 14428,
+"lvl": 60,
+"cxp": 0.0,
+"npc": 8246,
+"sxp": 0.0,
+"cost": 7,
+"peaceful": "false",
+"items": [
+"new Item(14188)"
+]
+}
+]

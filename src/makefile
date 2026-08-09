@@ -1569,11 +1569,18 @@ test-mock230-alt: mock230-alt
 # A fourth binary on 43601, for the bank work. Same sources, same reason as the
 # two above: a live session that owns its own port and its own output file.
 # manifest_osrs230_bank.ini points at it.
+# `rsprot_buf.o` is in this list because $(MOCK230_SRCS) includes
+# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `mock230`
+# links it and this target did not, so `mock230-bank` had been failing to link
+# since that file joined the sources — a build break nothing ran often enough to
+# notice.
 mock230-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_mock230 $(MOCK230_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
 	@echo "built $(OBJ_DIR)/bank_mock230"
 
 test-mock230-bank: mock230-bank
@@ -2010,6 +2017,10 @@ test-port:
 		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \
 		--tree $(MOCK230_CONTENT_DIR) --check -v
+	@cd $(REPO_ROOT) && python3 tools/port_summoning_ids.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
+		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/ladder_import.py \
 		--content $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/bank_import.py \
