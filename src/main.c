@@ -594,6 +594,8 @@ static long frame_count;
 static struct NetTransport* sock;
 static int sim_openmain = -1;
 static int sim_openmain_done;
+static int sim_openside = -1;
+static int sim_openside_done;
 static int sim_openchat = -1;
 static int sim_openchat_done;
 static int boot_stats;
@@ -729,6 +731,13 @@ frame_loop_step(void)
         fprintf(stderr, "sim_openmain: opening main modal iface=%d\n", sim_openmain);
         RS_UISlots_OpenMain(&app, sim_openmain);
         sim_openmain_done = 1;
+    }
+
+    if( sim_openside > 0 && !sim_openside_done && app.app_state == APP_STATE_READY )
+    {
+        fprintf(stderr, "sim_openside: opening side panel iface=%d\n", sim_openside);
+        RS_UISlots_OpenSide(&app, sim_openside);
+        sim_openside_done = 1;
     }
 
     if( sim_openchat > 0 && !sim_openchat_done && app.app_state == APP_STATE_READY )
@@ -1662,12 +1671,22 @@ frame_loop_teardown(void)
                     continue;
                 fprintf(
                     stderr,
-                    "BOUNDS com=0x%08x (%d|%d) type=%d abs=%d,%d %dx%d "
+                    "BOUNDS com=0x%08x (%d|%d) type=%d graphic=%d hidden=%d "
+                    "abs=%d,%d %dx%d "
                     "wh=%d,%d modes=w%d,h%d,x%d,y%d scroll=%dx%d off=%d,%d\n",
                     (unsigned)c->component_id,
                     (c->component_id >> 16) & 0xFFFF,
                     c->component_id & 0xFFFF,
                     (int)c->type,
+                    /* Which sprite a graphic node resolved to. A settings
+                     * slider bobble is 2860 when green and 4894 when grey, and
+                     * that pair is the only way to tell the two apart from
+                     * outside the renderer. */
+                    c->type == UIELEM_RS_GRAPHIC
+                        ? UITreeSceneBridge_SpriteCacheIdForScene(
+                              &app.bridge, c->u.rs_graphic.scene_id)
+                        : -1,
+                    dump_node_hidden(app.tree, (int32_t)i),
                     c->position.abs_x, c->position.abs_y,
                     c->position.abs_w, c->position.abs_h,
                     c->position.width, c->position.height,
@@ -3563,6 +3582,15 @@ main(
                                ? (int)strtol(getenv("TORIRS_SIM_OPENMAIN"), NULL, 0)
                                : -1;
         sim_openmain_done = 0;
+
+        /* TORIRS_SIM_OPENSIDE=<iface>: the same for the side-panel slot. The
+         * main-modal slot refuses a side interface ("no mount region"), so the
+         * sidebar panels — settings_side 116 and friends — are only reachable
+         * offline through here. */
+        sim_openside = getenv("TORIRS_SIM_OPENSIDE")
+                               ? (int)strtol(getenv("TORIRS_SIM_OPENSIDE"), NULL, 0)
+                               : -1;
+        sim_openside_done = 0;
 
         /* TORIRS_SIM_OPENCHAT=<iface>: same, for the chatback dialog slot
          * (reference IF_OPENCHAT / chatComId). Offline repro for the

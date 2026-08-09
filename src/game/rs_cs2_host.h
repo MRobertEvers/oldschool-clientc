@@ -670,6 +670,28 @@ RS_CS2Host_TakeTriggerOpLocal(
     struct RS_CS2Host* host,
     struct RS_CS2TriggerOpLocal* out);
 
+/**
+ * A script-side varp/varbit write: the optimistic value, plus a var-transmit
+ * notification when — and only when — the value actually moved.
+ *
+ * The change gate is load-bearing, not an optimisation. Announcing every write
+ * lets a hook that re-asserts the var it watches re-trigger itself forever;
+ * announcing none leaves interface 116's slider bobbles grey after the mute
+ * icon writes %var3796, because script 7101 re-colours them from that varp's
+ * transmit hook and nothing else calls it on that path.
+ */
+void
+RS_CS2Host_ScriptWriteVarp(
+    struct RS_CS2Host* host,
+    int varp_id,
+    int value);
+
+void
+RS_CS2Host_ScriptWriteVarbit(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value);
+
 /** Signal that a varp/varc value changed: bumps var_change_serial and flags a
  *  var-transmit re-dispatch for the tick. Wired to the var managers' change
  *  callbacks; safe to call with any/no var id. */

@@ -21,14 +21,21 @@ struct RSCache_VorbisSetup;
  * That is a dozen or more cache reads, so it is asynchronous and lives in a
  * task; this holds the state that task fills and the state playback needs.
  *
- * ## Why a stream rather than an asset
+ * ## An asset the backend pulls
  *
- * A four-minute track at 22050 stereo is ~21MB of PCM. Rendering it up front
- * would stall the frame that started it and hold the memory for as long as the
- * song plays. So music is a *stream*: the synth renders a few frames' worth
- * each tick into a scratch block and pushes it, and the backend rings it. The
- * game asks the host how much headroom the ring has (ToriRS_AudioFeedback) and
- * fills exactly that, so latency stays bounded in both directions.
+ * A four-minute track at 22050 stereo is ~21MB of PCM, so it cannot be resident
+ * the way an effect is. It is still an *asset*: ASSET_LOAD publishes the synth
+ * as a `ToriRS_AudioSource`, VOICE_START plays it with a loop condition,
+ * VOICE_UPDATE fades it and ASSET_UNLOAD retires it -- the same four verbs a
+ * sound effect uses. Only where the samples come from differs: the backend
+ * pulls each block out of the synth as it plays it.
+ *
+ * It used to be a push stream, with the synth run once per tick into a scratch
+ * block and the game sizing its own lookahead from a headroom number. That made
+ * the game a real-time producer feeding a consumer on a different clock, so a
+ * slow frame was an audible gap. Pulling deletes the buffer that was being
+ * under-filled: the backend asks for exactly the frames it is about to play, at
+ * the moment it plays them, and there is nothing left to run dry.
  *
  * ## Jingles
  *
@@ -120,16 +127,6 @@ struct ToriRS_MusicPlayer
     /** Fade-in the next stream open should use. Recorded at install time
      *  because the loader has no command queue to open the stream with. */
     int pending_fade_in_ms;
-
-    /**
-     * Scratch the synth renders into and STREAM_PUSH borrows.
-     *
-     * Owned here and only rewritten on the next push, which is what makes the
-     * "borrowed for the duration of the submit" rule safe: the host copies it
-     * during the same frame it was filled.
-     */
-    int16_t* block;
-    int block_frames;
 
     /* Counters for the debug readout. */
     int reported_drops;

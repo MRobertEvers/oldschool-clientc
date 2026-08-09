@@ -133,6 +133,18 @@ VarPManager_GetVarbit(
     const struct VarPManager* mgr,
     int id);
 
+/**
+ * The varp a varbit is packed into, or -1 when the id is unknown.
+ *
+ * Var-transmit hooks list *varp* ids as their triggers, so a caller that writes
+ * a varbit and needs to announce the change has to name the base varp — the
+ * varbit id itself matches no hook.
+ */
+int
+VarPManager_VarbitBaseVar(
+    const struct VarPManager* mgr,
+    int varbit_id);
+
 int
 VarPManager_GetClientcode(
     const struct VarPManager* mgr,

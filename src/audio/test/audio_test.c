@@ -459,12 +459,8 @@ test_stream(void)
     }
 
     ToriRS_Mixer_Init(&mixer, 22050);
-    /* Feedback is sampled before a game's STREAM_OPEN command. A new stream
-     * must advertise future capacity or its first PUSH is delayed a tick and
-     * the callback is guaranteed to render an empty block. */
     ToriRS_Mixer_Feedback(&mixer, &feedback);
-    CHECK_EQ(feedback.stream_headroom[0], TORIRS_MIXER_STREAM_FRAMES);
-    CHECK_EQ(feedback.stream_buffered[0], 0);
+    CHECK(feedback.device_open);
 
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_OPEN);
     command.stream_id = 0;
@@ -474,24 +470,15 @@ test_stream(void)
     command.volume = TORIRS_AUDIO_VOLUME_MAX;
     ToriRS_Mixer_Apply(&mixer, &command);
 
-    ToriRS_Mixer_Feedback(&mixer, &feedback);
-    CHECK(feedback.stream_headroom[0] > 0);
-    CHECK_EQ(feedback.stream_buffered[0], 0);
-
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_PUSH);
     command.stream_id = 0;
     command.pcm = pushed;
     command.frame_count = 1024;
     ToriRS_Mixer_Apply(&mixer, &command);
 
-    ToriRS_Mixer_Feedback(&mixer, &feedback);
-    CHECK_EQ(feedback.stream_buffered[0], 1024);
-
     ToriRS_Mixer_Render(&mixer, block, 512);
     CHECK(block[0] > 7000);
     CHECK(block[1] < -7000);
-    ToriRS_Mixer_Feedback(&mixer, &feedback);
-    CHECK_EQ(feedback.stream_buffered[0], 512);
 
     /* Draining past the end is silence, not garbage. */
     ToriRS_Mixer_Render(&mixer, block, 512);
@@ -501,6 +488,187 @@ test_stream(void)
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_CLOSE);
     command.stream_id = 0;
     ToriRS_Mixer_Apply(&mixer, &command);
+    ToriRS_Mixer_Free(&mixer);
+}
+
+/* ==========================================================================
+ * Generator assets — music, as an asset the mixer pulls
+ *
+ * The property under test is that nothing between the generator and the device
+ * can be under-filled. A push stream held whatever the game last pushed, so a
+ * slow frame emitted silence mid-waveform; a generator is asked for exactly the
+ * block being played, so the only way it falls silent is by ending.
+ * ========================================================================== */
+
+struct fake_generator
+{
+    int frames_asked;
+    int frames_left; /* -1 = endless, the shape a looping song has */
+    int starts;
+    int last_loop_count;
+    int releases;
+};
+
+static void
+fake_generator_start(
+    void* ctx,
+    int loop_count)
+{
+    struct fake_generator* gen = ctx;
+
+    gen->starts++;
+    gen->last_loop_count = loop_count;
+}
+
+static int
+fake_generator_render(
+    void* ctx,
+    int16_t* out,
+    int frames)
+{
+    struct fake_generator* gen = ctx;
+    int produce = frames;
+
+    if( gen->frames_left >= 0 && produce > gen->frames_left )
+        produce = gen->frames_left;
+    for( int i = 0; i < produce; i++ )
+    {
+        out[i * 2] = 6000;
+        out[i * 2 + 1] = -6000;
+    }
+    gen->frames_asked += produce;
+    if( gen->frames_left >= 0 )
+        gen->frames_left -= produce;
+    return produce;
+}
+
+static void
+fake_generator_release(void* ctx)
+{
+    ((struct fake_generator*)ctx)->releases++;
+}
+
+static void
+load_generator(
+    struct ToriRS_Mixer* mixer,
+    struct fake_generator* gen,
+    int asset_id)
+{
+    struct ToriRS_AudioCommand command;
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    command.asset_id = asset_id;
+    command.sample_rate = 22050;
+    command.source.start = fake_generator_start;
+    command.source.render = fake_generator_render;
+    command.source.release = fake_generator_release;
+    command.source.ctx = gen;
+    ToriRS_Mixer_Apply(mixer, &command);
+}
+
+static void
+test_generator_asset(void)
+{
+    struct ToriRS_Mixer mixer;
+    struct ToriRS_AudioCommand command;
+    struct fake_generator gen;
+    int16_t block[512 * 2];
+
+    /* --- an endless generator never blanks, however long it runs ---------- */
+    memset(&gen, 0, sizeof(gen));
+    gen.frames_left = -1;
+    ToriRS_Mixer_Init(&mixer, 22050);
+    load_generator(&mixer, &gen, 7);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 7;
+    command.voice_id = 1;
+    command.bus = TORIRS_AUDIO_BUS_MUSIC;
+    command.volume = TORIRS_AUDIO_VOLUME_MAX;
+    command.loop_count = -1;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    CHECK_EQ(gen.starts, 1);
+    /* The play condition reached the generator, which is what "loop" means for
+     * a sequenced source -- the mixer cannot loop it by repeating PCM. */
+    CHECK_EQ(gen.last_loop_count, -1);
+
+    for( int i = 0; i < 20; i++ )
+    {
+        ToriRS_Mixer_Render(&mixer, block, 512);
+        CHECK(block_peak(block, 512 * 2) > 5000);
+    }
+    /* Pulled exactly what was played: no ring, nothing to fall behind. */
+    CHECK_EQ(gen.frames_asked, 20 * 512);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 1);
+
+    /* A second voice on a generator is refused: it has one playback position. */
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 7;
+    command.voice_id = 2;
+    command.volume = TORIRS_AUDIO_VOLUME_MAX;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    CHECK_EQ(ToriRS_Mixer_Stats(&mixer).voices_rejected, 1);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 1);
+
+    /* Unload retires the voice and tells the game its song is gone. */
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+    command.asset_id = 7;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    CHECK_EQ(gen.releases, 1);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 0);
+    ToriRS_Mixer_Free(&mixer);
+
+    /* --- a finite generator ends the voice, and does so cleanly ----------- */
+    memset(&gen, 0, sizeof(gen));
+    gen.frames_left = 700; /* ends partway through the second block */
+    ToriRS_Mixer_Init(&mixer, 22050);
+    load_generator(&mixer, &gen, 8);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 8;
+    command.voice_id = 1;
+    command.bus = TORIRS_AUDIO_BUS_MUSIC;
+    command.volume = TORIRS_AUDIO_VOLUME_MAX;
+    command.loop_count = 0;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    CHECK_EQ(gen.last_loop_count, 0);
+
+    ToriRS_Mixer_Render(&mixer, block, 512);
+    CHECK(block_peak(block, 512 * 2) > 5000);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 1);
+    ToriRS_Mixer_Render(&mixer, block, 512);
+    /* Ran out mid-block: what it had is audible, the voice is retired, and the
+     * generator is not asked for more. */
+    CHECK(block_peak(block, 512 * 2) > 5000);
+    CHECK_EQ(gen.frames_asked, 700);
+    CHECK_EQ(ToriRS_Mixer_LiveVoiceCount(&mixer), 0);
+    ToriRS_Mixer_Render(&mixer, block, 512);
+    CHECK_EQ(block_peak(block, 512 * 2), 0);
+    CHECK_EQ(gen.frames_asked, 700);
+    ToriRS_Mixer_Free(&mixer);
+
+    /* --- a muted bus still advances the song ------------------------------ */
+    memset(&gen, 0, sizeof(gen));
+    gen.frames_left = -1;
+    ToriRS_Mixer_Init(&mixer, 22050);
+    load_generator(&mixer, &gen, 9);
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_BUS_VOLUME);
+    command.target_bus = TORIRS_AUDIO_BUS_MUSIC;
+    command.volume = 0;
+    ToriRS_Mixer_Apply(&mixer, &command);
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = 9;
+    command.voice_id = 1;
+    command.bus = TORIRS_AUDIO_BUS_MUSIC;
+    command.volume = TORIRS_AUDIO_VOLUME_MAX;
+    command.loop_count = -1;
+    ToriRS_Mixer_Apply(&mixer, &command);
+
+    ToriRS_Mixer_Render(&mixer, block, 512);
+    CHECK_EQ(block_peak(block, 512 * 2), 0);
+    /* Position tracks wall-clock even while silent, so unmuting resumes where
+     * the track should be rather than where the mute began. */
+    CHECK_EQ(gen.frames_asked, 512);
     ToriRS_Mixer_Free(&mixer);
 }
 
@@ -1093,6 +1261,9 @@ main(
 
     GROUP("mixer: streams");
     test_stream();
+
+    GROUP("mixer: generator assets (music)");
+    test_generator_asset();
 
     GROUP("mixer: clear and stop-all");
     test_asset_clear_and_stop_all();

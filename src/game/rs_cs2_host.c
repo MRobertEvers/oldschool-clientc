@@ -761,6 +761,42 @@ RS_CS2Host_NotifyVarChanged(
 }
 
 void
+RS_CS2Host_ScriptWriteVarp(
+    struct RS_CS2Host* host,
+    int varp_id,
+    int value)
+{
+    int before;
+
+    if( !host || !host->varps )
+        return;
+    before = VarPManager_GetVarp(host->varps, varp_id);
+    VarPManager_SetVarpOptimistic(host->varps, varp_id, value);
+    if( VarPManager_GetVarp(host->varps, varp_id) != before )
+        RS_CS2Host_NotifyVarChanged(host, varp_id);
+}
+
+void
+RS_CS2Host_ScriptWriteVarbit(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value)
+{
+    int base;
+    int before;
+
+    if( !host || !host->varps )
+        return;
+    /* Transmit hooks are keyed by varp, so the base varp is what "changed" as
+     * far as a trigger list is concerned — the varbit id matches nothing. */
+    base = VarPManager_VarbitBaseVar(host->varps, varbit_id);
+    before = base >= 0 ? VarPManager_GetVarp(host->varps, base) : 0;
+    VarPManager_SetVarbitOptimistic(host->varps, varbit_id, value);
+    if( base >= 0 && VarPManager_GetVarp(host->varps, base) != before )
+        RS_CS2Host_NotifyVarChanged(host, base);
+}
+
+void
 RS_CS2Host_NotifyInvChanged(
     struct RS_CS2Host* host,
     int container_id)
@@ -5064,27 +5100,31 @@ rs_cs2_host_exec_dispatch(
      * copy (var_serv) does not — the reference does the same, and the server
      * re-asserts with VARP_SMALL/LARGE when it disagrees.
      *
-     * These deliberately do NOT go through RS_CS2Host_NotifyVarChanged. That
-     * feeds the var-transmit ring, which only the three server-packet handlers
-     * may touch (VarPManager_ServerUpdateFn's header states why): a widget
-     * whose transmit hook writes the same var would re-trigger itself forever
-     * — and the world map's key panel is exactly that shape, script 1717
-     * registering a transmit hook on varp 1568 while script 1718 writes
-     * varbit 5640 over it. VarPManager_SetVarpOptimistic still fires the
-     * plain ChangeFn, which is the non-recursive notification (loc transforms,
-     * UI invalidation) and is all a script write is entitled to. */
+     * A script write DOES feed the var-transmit ring, but only when the value
+     * actually moved. The reference depends on this: the settings mute icon
+     * (script 9255) writes %var3796 and then re-syncs only the icon itself
+     * (script 9254) — the four slider bobbles are re-coloured by script 7101
+     * hanging off var3796's transmit hook, and nothing else ever calls it on
+     * that path. The drag handlers (9232/9238/9244/9250) call ~script9256
+     * explicitly precisely because they are the case that does not rely on the
+     * hook. Suppress the notification and the bobbles keep whatever colour they
+     * were built with, which reads as "the sliders are stuck grey".
+     *
+     * The change gate is what keeps this non-recursive. An earlier attempt
+     * wired the ring to the unconditional ChangeFn and had rev230's gameframe
+     * rebuilding its popout strip every few frames: a hook that re-asserts the
+     * var it watches re-triggered itself forever. VarPManager_SetVarpOptimistic
+     * early-returns on an equal write, so a hook that writes the same value
+     * back announces nothing and the cascade stops on its own. Only a genuine
+     * new value re-dispatches. */
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR:
-        if( host->varps )
-            VarPManager_SetVarpOptimistic(
-                host->varps, request->u.vars_write_varp.varp_id, request->u.vars_write_varp.value);
+        RS_CS2Host_ScriptWriteVarp(
+            host, request->u.vars_write_varp.varp_id, request->u.vars_write_varp.value);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
-        if( host->varps )
-            VarPManager_SetVarbitOptimistic(
-                host->varps,
-                request->u.vars_write_varbit.varbit_id,
-                request->u.vars_write_varbit.value);
+        RS_CS2Host_ScriptWriteVarbit(
+            host, request->u.vars_write_varbit.varbit_id, request->u.vars_write_varbit.value);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:

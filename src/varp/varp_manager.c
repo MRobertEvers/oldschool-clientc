@@ -454,6 +454,17 @@ VarPManager_GetVarbit(
 }
 
 int
+VarPManager_VarbitBaseVar(
+    const struct VarPManager* mgr,
+    int varbit_id)
+{
+    assert(mgr);
+    if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
+        return -1;
+    return mgr->varbit_types[varbit_id].basevar;
+}
+
+int
 VarPManager_GetClientcode(
     const struct VarPManager* mgr,
     int id)

@@ -48,7 +48,19 @@ struct ToriRS_MixerAsset
 {
     int asset_id; /* -1 when the slot is free */
     struct ToriRS_PcmSound sound;
-    int16_t* samples; /* owned copy */
+    int16_t* samples; /* owned copy; NULL for a generator */
+    /**
+     * A generator-backed asset: the mixer pulls its PCM instead of holding it.
+     *
+     * This is how music is an asset at all. A four-minute track is ~21MB
+     * rendered, so it cannot be resident -- but everything else about it is
+     * asset-shaped, so the difference is confined to where the samples come
+     * from. `render` is NULL for an ordinary resident asset.
+     *
+     * A generator is stateful, so unlike resident PCM it backs exactly one
+     * voice at a time; a second VOICE_START on it is rejected.
+     */
+    struct ToriRS_AudioSource source;
 };
 
 struct ToriRS_MixerVoice
@@ -59,6 +71,8 @@ struct ToriRS_MixerVoice
     struct ToriRS_PcmVoice voice;
     /** For logs: which cache effect this is. */
     int source_id;
+    /** Playing a generator asset: pull each block rather than read samples. */
+    bool generator;
 };
 
 struct ToriRS_MixerStream
@@ -107,6 +121,10 @@ struct ToriRS_Mixer
     int bus_volume[TORIRS_AUDIO_BUS_COUNT];
     int32_t* accumulator; /* frames * 2 int32, grown on demand */
     int accumulator_frames;
+    /** Staging for a pull source's block, grown on demand like the
+     *  accumulator. Shared across streams: sources render one at a time. */
+    int16_t* source_scratch;
+    int source_scratch_frames;
     struct ToriRS_MixerStats stats;
 };
 

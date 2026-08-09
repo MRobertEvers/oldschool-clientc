@@ -8,21 +8,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** The mixer stream music uses. Stream 0 is music by convention; nothing else
- *  streams today, and a second one would be a second id here. */
+/** Legacy id kept for the player's own bookkeeping. */
 #define MUSIC_STREAM_ID 0
 
-/**
- * Frames rendered per tick, at most.
+/*
+ * Music's asset and voice ids.
  *
- * One client tick is 20ms = 441 frames at 22050. The callback consumes this
- * ring while the game thread is loading a scene; measured live stalls exceed
- * the old four-tick (80ms) target. Stream and bus gain are applied when the
- * callback consumes these samples, so a 500ms PCM reserve does not delay a
- * volume change or fade.
+ * Both spaces reserve negative values -- an asset slot marks itself free with
+ * asset_id -1, and TORIRS_AUDIO_VOICE_ANON is -1 -- so a synthetic id has to be
+ * positive and simply far above the real ones. Effect assets are cache effect
+ * ids (low thousands) and voices come from the game's own counter, so this is
+ * out of reach of both. Same convention as the synthetic sprite ids in the dat1
+ * bridge.
+ *
+ * There is exactly one of each: a generator holds its own playback position, so
+ * the mixer refuses a second voice on it.
  */
-#define MUSIC_TARGET_BUFFER_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 2)
-#define MUSIC_MAX_RENDER_FRAMES (TORIRS_AUDIO_SAMPLE_RATE / 50 * 8)
+#define MUSIC_ASSET_ID 0x40000000
+#define MUSIC_VOICE_ID 0x40000000
 
 #define MUSIC_TRACE(...)                                                                           \
     do                                                                                             \
@@ -71,9 +74,6 @@ ToriRS_Music_Free(struct ToriRS_MusicPlayer* player)
     ToriRS_SoundBank_Free(&player->bank);
     RSCache_VorbisSetupFree(player->vorbis_setup);
     player->vorbis_setup = NULL;
-    free(player->block);
-    player->block = NULL;
-    player->block_frames = 0;
 }
 
 void
@@ -250,6 +250,80 @@ ToriRS_Music_TakeLoadRequest(
     return true;
 }
 
+/*
+ * The generator the backend pulls while a song plays.
+ *
+ * `ctx` is the player itself, borrowed. The synth is only advanced from here,
+ * so the song's position is a function of what the device consumed rather than
+ * of how many times the frame loop happened to run.
+ */
+static int
+music_source_render(
+    void* ctx,
+    int16_t* out,
+    int frames)
+{
+    struct ToriRS_MusicPlayer* player = ctx;
+
+    /*
+     * Report "finished" only for a song that has genuinely run out. A looping
+     * song never reaches this, because the synth restarts its own sequence --
+     * which is the whole reason looping belongs to the synth and not to the
+     * mixer. Ending here is what lets a jingle hand back to the track it
+     * interrupted.
+     */
+    if( ToriRS_MidiSynth_Finished(&player->synth) )
+        return 0;
+    ToriRS_MidiSynth_Render(&player->synth, out, frames);
+    player->frames_pushed += frames;
+
+    /* Notes that never sound are the tell that the soundbank did not fill: the
+     * stream stays open, frames keep flowing, and every one of them is zero. */
+    if( player->synth.stats.notes_dropped_no_patch + player->synth.stats.notes_dropped_no_sample >
+        player->reported_drops )
+    {
+        player->reported_drops = player->synth.stats.notes_dropped_no_patch +
+                                 player->synth.stats.notes_dropped_no_sample;
+        MUSIC_TRACE(
+            "music: %d notes started, %d dropped (no patch %d, no sample %d)\n",
+            player->synth.stats.notes_started,
+            player->reported_drops,
+            player->synth.stats.notes_dropped_no_patch,
+            player->synth.stats.notes_dropped_no_sample);
+    }
+    return frames;
+}
+
+/** VOICE_START's condition, handed to the sequencer. */
+static void
+music_source_start(
+    void* ctx,
+    int loop_count)
+{
+    struct ToriRS_MusicPlayer* player = ctx;
+
+    if( !player->song )
+        return;
+    ToriRS_MidiSynth_Play(
+        &player->synth, player->song->midi, player->song->midi_size, loop_count != 0);
+}
+
+/** The backend has dropped the asset, whoever unloaded it. */
+static void
+music_source_release(void* ctx)
+{
+    struct ToriRS_MusicPlayer* player = ctx;
+
+    player->stream_open = false;
+}
+
+/*
+ * Publish the song as a generator asset and play it.
+ *
+ * `stream_id` is reused as the asset/voice id: music occupies exactly one of
+ * each, and effects are keyed by cache effect id, so a dedicated negative id
+ * keeps the two spaces from meeting.
+ */
 static void
 open_stream(
     struct ToriRS_MusicPlayer* player,
@@ -260,20 +334,33 @@ open_stream(
 
     if( !out )
         return;
-    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_OPEN);
-    command.stream_id = player->stream_id;
-    command.channels = 2;
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_LOAD);
+    command.asset_id = MUSIC_ASSET_ID;
     command.sample_rate = TORIRS_AUDIO_SAMPLE_RATE;
+    command.source.start = music_source_start;
+    command.source.render = music_source_render;
+    command.source.release = music_source_release;
+    command.source.ctx = player;
+    ToriRS_AudioQueue_Push(out, &command);
+
+    ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_START);
+    command.asset_id = MUSIC_ASSET_ID;
+    command.voice_id = MUSIC_VOICE_ID;
+    command.source_id = player->current_song;
     command.bus = TORIRS_AUDIO_BUS_MUSIC;
     command.volume = fade_in_ms > 0 ? 0 : TORIRS_AUDIO_VOLUME_MAX;
+    /* The play condition. The synth restarts its own sequence on a loop, so
+     * this is the whole of "play once" versus "play forever". */
+    command.loop_count = player->current_loop ? -1 : 0;
     ToriRS_AudioQueue_Push(out, &command);
     player->stream_open = true;
 
     if( fade_in_ms > 0 )
     {
-        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_VOLUME);
-        command.stream_id = player->stream_id;
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_UPDATE);
+        command.voice_id = MUSIC_VOICE_ID;
         command.volume = TORIRS_AUDIO_VOLUME_MAX;
+        command.pan = TORIRS_AUDIO_PAN_CENTRE;
         command.fade_ms = fade_in_ms;
         ToriRS_AudioQueue_Push(out, &command);
     }
@@ -290,8 +377,11 @@ close_stream(
         return;
     if( out )
     {
-        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_CLOSE);
-        command.stream_id = player->stream_id;
+        /* Unload rather than just stopping the voice: the generator borrows the
+         * player's synth, and leaving it resident would let the mixer pull a
+         * song that has been released. ASSET_UNLOAD stops the voice first. */
+        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+        command.asset_id = MUSIC_ASSET_ID;
         ToriRS_AudioQueue_Push(out, &command);
     }
     player->stream_open = false;
@@ -419,23 +509,6 @@ ToriRS_Music_LoadFailed(
         player->state = player->current_song >= 0 ? TORIRS_MUSIC_PLAYING : TORIRS_MUSIC_IDLE;
 }
 
-static bool
-ensure_block(
-    struct ToriRS_MusicPlayer* player,
-    int frames)
-{
-    int16_t* grown;
-
-    if( player->block_frames >= frames )
-        return true;
-    grown = realloc(player->block, (size_t)frames * 2 * sizeof(int16_t));
-    if( !grown )
-        return false;
-    player->block = grown;
-    player->block_frames = frames;
-    return true;
-}
-
 void
 ToriRS_Music_Tick(
     struct ToriRS_MusicPlayer* player,
@@ -443,9 +516,11 @@ ToriRS_Music_Tick(
     struct ToriRS_AudioQueue* out)
 {
     struct ToriRS_AudioCommand command;
-    int buffered;
-    int headroom;
-    int wanted;
+
+    /* Kept in the signature because every caller passes it and `device_open`
+     * may yet be worth reading here; the pacing fields it used to carry are
+     * gone along with the pushing. */
+    (void)feedback;
 
     if( !player )
         return;
@@ -489,47 +564,12 @@ ToriRS_Music_Tick(
 
     if( player->state != TORIRS_MUSIC_PLAYING && player->state != TORIRS_MUSIC_FADING )
         return;
+    /*
+     * Publish once and stop. Everything after this is the backend pulling the
+     * generator for exactly the frames it is about to play -- there is no
+     * per-tick synthesis here any more, and therefore no way for a slow frame
+     * to leave the device without samples.
+     */
     if( !player->stream_open && player->current_song >= 0 )
         open_stream(player, out, player->pending_fade_in_ms);
-    if( !feedback || !feedback->device_open || !player->stream_open )
-        return;
-
-    buffered = feedback->stream_buffered[player->stream_id & 3];
-    headroom = feedback->stream_headroom[player->stream_id & 3];
-    wanted = MUSIC_TARGET_BUFFER_FRAMES - buffered;
-    if( wanted > MUSIC_MAX_RENDER_FRAMES )
-        wanted = MUSIC_MAX_RENDER_FRAMES;
-    if( wanted > headroom )
-        wanted = headroom;
-    if( wanted <= 0 )
-        return;
-    if( !ensure_block(player, wanted) )
-        return;
-
-    ToriRS_MidiSynth_Render(&player->synth, player->block, wanted);
-    /* Notes that never sound are the tell that the soundbank did not fill: the
-     * stream stays open, frames keep flowing, and every one of them is zero. */
-    if( player->synth.stats.notes_dropped_no_patch + player->synth.stats.notes_dropped_no_sample >
-        player->reported_drops )
-    {
-        player->reported_drops = player->synth.stats.notes_dropped_no_patch +
-                                 player->synth.stats.notes_dropped_no_sample;
-        MUSIC_TRACE(
-            "music: %d notes started, %d dropped (no patch %d, no sample %d)\n",
-            player->synth.stats.notes_started,
-            player->reported_drops,
-            player->synth.stats.notes_dropped_no_patch,
-            player->synth.stats.notes_dropped_no_sample);
-    }
-
-    if( out )
-    {
-        ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_PUSH);
-        command.stream_id = player->stream_id;
-        command.pcm = player->block;
-        command.frame_count = wanted;
-        command.channels = 2;
-        ToriRS_AudioQueue_Push(out, &command);
-        player->frames_pushed += wanted;
-    }
 }

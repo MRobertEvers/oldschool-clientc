@@ -55,6 +55,7 @@
 #include "inv/inv_manager.h"
 #include "task_runner.h"
 #include "ui/uitree.h"
+#include "varp/varp_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -489,6 +490,85 @@ test_dynamic_drag_target_uses_parent_address(void)
     fixture_free(&fx);
 }
 
+/* ==========================================================================
+ * A script-side varp write announces itself — but only on a real change
+ *
+ * Interface 116's mute icon (clientscript 9255) writes %var3796 and then
+ * re-syncs only the icon (9254). The four slider bobbles are re-coloured by
+ * script 7101, which runs off var3796's *transmit hook* — the drag handlers
+ * (9232/9238/9244/9250) call ~script9256 by hand precisely because they are
+ * the path that does not rely on it. So a POP_VARP that does not notify leaves
+ * every bobble grey after a mute or unmute.
+ *
+ * The other half is why this cannot simply notify unconditionally: a hook whose
+ * script re-asserts the var it watches would re-trigger itself every tick, which
+ * is what once had rev230's gameframe rebuilding its popout strip forever. The
+ * equal-write case below is that guard.
+ * ========================================================================== */
+
+static void
+test_script_varp_write_notifies_on_change_only(void)
+{
+    struct Fixture fx;
+    struct VarPManager varps;
+    struct VarBitType vb;
+
+    printf("pump: a script varp write announces a real change, and only that\n");
+
+    fixture_init(&fx);
+    VarPManager_Init(&varps);
+    fx.host.varps = &varps;
+
+    /* One varbit over varp 3796's low bits, so the varbit path can be driven
+     * without a cache. */
+    memset(&vb, 0, sizeof(vb));
+    vb.basevar = 3796;
+    vb.startbit = 0;
+    vb.endbit = 7;
+    VarPManager_SetVarbitTypes(&varps, &vb, 1);
+
+    host_quiesce(&fx.host);
+    RS_CS2Host_ScriptWriteVarp(&fx.host, 3796, 100);
+    CHECK(
+        VarPManager_GetVarp(&varps, 3796) == 100,
+        "the write lands, got %d",
+        VarPManager_GetVarp(&varps, 3796));
+    CHECK(fx.host.var_transmit_dirty == 1, "a 0 -> 100 write marks the host dirty");
+
+    /* The loop guard: same value again, nothing announced. */
+    host_quiesce(&fx.host);
+    RS_CS2Host_ScriptWriteVarp(&fx.host, 3796, 100);
+    CHECK(
+        fx.host.var_transmit_dirty == 0,
+        "re-writing the same value announces nothing (the self-retrigger guard)");
+
+    /* Muting is the case the bobbles depend on. */
+    host_quiesce(&fx.host);
+    RS_CS2Host_ScriptWriteVarp(&fx.host, 3796, 0);
+    CHECK(fx.host.var_transmit_dirty == 1, "muting (100 -> 0) marks the host dirty");
+    CHECK(
+        fx.host.var_changed_all || fx.host.var_changed_count == 1,
+        "and names varp 3796 as the changed id");
+
+    /* A varbit write has to announce its BASE varp — hooks list varps, so
+     * naming the varbit id would match nothing. */
+    host_quiesce(&fx.host);
+    RS_CS2Host_ScriptWriteVarbit(&fx.host, 0, 42);
+    CHECK(fx.host.var_transmit_dirty == 1, "a varbit write marks the host dirty");
+    CHECK(
+        fx.host.var_changed_all ||
+            (fx.host.var_changed_count == 1 && fx.host.var_changed_ids[0] == 3796),
+        "and names the base varp, not the varbit id");
+
+    host_quiesce(&fx.host);
+    RS_CS2Host_ScriptWriteVarbit(&fx.host, 0, 42);
+    CHECK(fx.host.var_transmit_dirty == 0, "an equal varbit write announces nothing");
+
+    fx.host.varps = NULL;
+    VarPManager_Free(&varps);
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -500,6 +580,7 @@ main(void)
     test_flag_count_pinned();
     test_clear_hooks_preserves_compass_on_op();
     test_dynamic_drag_target_uses_parent_address();
+    test_script_varp_write_notifies_on_change_only();
 
     if( g_fail )
     {

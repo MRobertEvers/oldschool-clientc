@@ -118,7 +118,7 @@ enum ToriRS_AudioCommandKind
     /** Stop a voice, optionally with a fade so it does not click. */
     TORIRS_AUDIO_CMD_VOICE_STOP,
 
-    /** Create (or reset) a stream. */
+    /** Create (or reset) a push stream, fed by STREAM_PUSH. */
     TORIRS_AUDIO_CMD_STREAM_OPEN,
     /** Append interleaved PCM for `channels` channels. Frames past the ring's
      *  capacity are dropped and counted. */
@@ -133,12 +133,60 @@ enum ToriRS_AudioCommandKind
     TORIRS_AUDIO_CMD_STOP_ALL,
 };
 
+/**
+ * An asset whose PCM the backend pulls instead of holding.
+ *
+ * This is what makes music an ordinary asset. A four-minute track is ~21MB
+ * rendered, so it cannot be resident -- but load / unload / play-with-
+ * conditions is exactly the right vocabulary for it, and the only thing that
+ * has to differ is where the samples come from. Attach one of these to
+ * ASSET_LOAD instead of `pcm` and every other command works unchanged:
+ * VOICE_START plays it, `loop_count` says how, VOICE_STOP fades it,
+ * ASSET_UNLOAD retires it.
+ *
+ * Before this, music was pushed a tick at a time by the game, which made every
+ * gap in the frame loop a gap in the audio. Pulling removes the buffer that was
+ * being under-filled: the backend asks for exactly the frames it is about to
+ * play, at the moment it plays them.
+ *
+ * `render` runs inside the backend's mix, on the frame thread like everything
+ * else -- so its cost is frame time. It must not do IO, must not block, and
+ * should not allocate: whatever it needs is resident before the asset loads.
+ */
+struct ToriRS_AudioSource
+{
+    /**
+     * Begin, or restart from the top. `loop_count` is VOICE_START's, verbatim:
+     * 0 plays once, -1 repeats forever, n > 0 repeats n times.
+     *
+     * The condition belongs here rather than in the mixer because for a
+     * sequenced source looping means restarting the *sequence*; repeating the
+     * rendered PCM would loop whichever bar was in the buffer. Optional.
+     */
+    void (*start)(void* ctx, int loop_count);
+    /**
+     * Fill up to `frames` interleaved stereo frames at the mixer's rate.
+     *
+     * Returns the frames actually produced. A short return means finished, and
+     * the voice ends; a looping source simply never returns short.
+     */
+    int (*render)(void* ctx, int16_t* out, int frames);
+    /** Optional. Called when the asset is replaced, unloaded or freed. The
+     *  source is borrowed, so this is a notification, not a transfer. */
+    void (*release)(void* ctx);
+    void* ctx;
+};
+
 struct ToriRS_AudioCommand
 {
     enum ToriRS_AudioCommandKind kind;
 
     /* ASSET_LOAD / ASSET_UNLOAD, and the asset a VOICE_START refers to. */
     int asset_id;
+    /** ASSET_LOAD: a generator to pull from instead of `pcm`. Set `render` to
+     *  use it; borrowed, so the game must ASSET_UNLOAD before tearing `ctx`
+     *  down. Leave zeroed for an ordinary resident asset. */
+    struct ToriRS_AudioSource source;
     /** Borrowed for the duration of the submit call only. 16-bit signed mono. */
     const int16_t* pcm;
     int sample_count;
@@ -197,20 +245,19 @@ struct ToriRS_AudioQueue
 /**
  * What the host tells the game before it builds a frame's audio.
  *
- * Only streams need this. The game synthesises music itself and has to know how
- * far ahead it is allowed to run; without a number from the device it would
- * either starve (audible gaps) or run away (seconds of latency). Everything
- * else in this interface is one-way.
+ * Deliberately almost empty. It used to carry per-stream headroom, because the
+ * game synthesised music and had to be told how far ahead it was allowed to
+ * run. That made the game a real-time producer feeding a consumer on a
+ * different clock, and it is exactly the coupling SOURCE_OPEN removes: a pull
+ * source is asked for what is needed when it is needed, so there is no budget
+ * to communicate. If anything ever needs a headroom number back here again,
+ * something has gone back to pushing.
  */
 struct ToriRS_AudioFeedback
 {
-    /** True when a device is open. When false the game may skip synthesis
-     *  entirely rather than render PCM nobody will hear. */
+    /** True when a device is open. When false the game may skip work entirely
+     *  rather than prepare audio nobody will hear. */
     bool device_open;
-    /** Frames of headroom in stream 0's ring: how many the game may push now. */
-    int stream_headroom[4];
-    /** Frames still buffered in stream 0's ring, for latency diagnostics. */
-    int stream_buffered[4];
 };
 
 #define TORIRS_AUDIO_STREAM_MAX 4

@@ -42,9 +42,16 @@ ToriRS_Mixer_Init(
 static void
 free_asset_slot(struct ToriRS_MixerAsset* asset)
 {
+    /* A generator is borrowed, so release is a notification rather than a free:
+     * it is how the game learns its song is no longer resident. Taken before
+     * the memset so a release that reloads the slot is not undone. */
+    struct ToriRS_AudioSource source = asset->source;
+
     free(asset->samples);
     memset(asset, 0, sizeof(*asset));
     asset->asset_id = -1;
+    if( source.release )
+        source.release(source.ctx);
 }
 
 static void
@@ -67,6 +74,9 @@ ToriRS_Mixer_Free(struct ToriRS_Mixer* mixer)
     free(mixer->accumulator);
     mixer->accumulator = NULL;
     mixer->accumulator_frames = 0;
+    free(mixer->source_scratch);
+    mixer->source_scratch = NULL;
+    mixer->source_scratch_frames = 0;
     for( int i = 0; i < TORIRS_MIXER_MAX_VOICES; i++ )
         mixer->voices[i].voice_id = -1;
 }
@@ -139,15 +149,23 @@ asset_load(
     const struct ToriRS_AudioCommand* command)
 {
     struct ToriRS_MixerAsset* slot;
-    int16_t* copy;
+    int16_t* copy = NULL;
+    bool generator = command->source.render != NULL;
 
-    if( command->asset_id < 0 || !command->pcm || command->sample_count <= 0 )
+    if( command->asset_id < 0 )
+        return;
+    if( !generator && (!command->pcm || command->sample_count <= 0) )
         return;
 
-    copy = malloc((size_t)command->sample_count * sizeof(int16_t));
-    if( !copy )
-        return;
-    memcpy(copy, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
+    /* A generator carries no samples: the mixer pulls them a block at a time,
+     * which is the only way a multi-megabyte track can be an asset. */
+    if( !generator )
+    {
+        copy = malloc((size_t)command->sample_count * sizeof(int16_t));
+        if( !copy )
+            return;
+        memcpy(copy, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
+    }
 
     slot = find_asset(mixer, command->asset_id);
     if( slot )
@@ -155,6 +173,8 @@ asset_load(
         /* Replacing in place: every voice on the old samples has to go before
          * the samples do. */
         stop_voices_on_asset(mixer, command->asset_id);
+        if( slot->source.release )
+            slot->source.release(slot->source.ctx);
         free(slot->samples);
     }
     else
@@ -178,6 +198,7 @@ asset_load(
 
     slot->asset_id = command->asset_id;
     slot->samples = copy;
+    slot->source = command->source;
     slot->sound.samples = copy;
     slot->sound.sample_count = command->sample_count;
     slot->sound.sample_rate = command->sample_rate > 0 ? command->sample_rate : mixer->sample_rate;
@@ -185,14 +206,21 @@ asset_load(
     slot->sound.loop_end = command->loop_end;
     slot->sound.ping_pong = false;
     mixer->stats.assets_loaded++;
-    MIXER_TRACE(
-        "audio: asset %d loaded (%d samples @%dHz, loop %d..%d), %d live\n",
-        command->asset_id,
-        command->sample_count,
-        slot->sound.sample_rate,
-        command->loop_start,
-        command->loop_end,
-        mixer->stats.assets_live);
+    if( generator )
+        MIXER_TRACE(
+            "audio: asset %d loaded (generator @%dHz), %d live\n",
+            command->asset_id,
+            slot->sound.sample_rate,
+            mixer->stats.assets_live);
+    else
+        MIXER_TRACE(
+            "audio: asset %d loaded (%d samples @%dHz, loop %d..%d), %d live\n",
+            command->asset_id,
+            command->sample_count,
+            slot->sound.sample_rate,
+            command->loop_start,
+            command->loop_end,
+            mixer->stats.assets_live);
 }
 
 static void
@@ -289,6 +317,25 @@ voice_start(
             "audio: voice %d wants absent asset %d\n", command->voice_id, command->asset_id);
         return;
     }
+    /* A generator holds its own playback position, so it can back only one
+     * voice. Two would share a cursor and interleave blocks between them. */
+    if( asset->source.render )
+    {
+        for( int i = 0; i < TORIRS_MIXER_MAX_VOICES; i++ )
+        {
+            if( mixer->voices[i].voice.active && mixer->voices[i].generator &&
+                mixer->voices[i].asset_id == command->asset_id )
+            {
+                mixer->stats.voices_rejected++;
+                MIXER_TRACE(
+                    "audio: generator asset %d is already sounding, voice %d refused\n",
+                    command->asset_id,
+                    command->voice_id);
+                return;
+            }
+        }
+    }
+
     slot = acquire_voice(mixer, command->voice_id);
     if( !slot )
         return;
@@ -302,14 +349,31 @@ voice_start(
                     ? command->bus
                     : TORIRS_AUDIO_BUS_EFFECTS;
     slot->source_id = command->source_id;
-    ToriRS_PcmVoice_Start(
-        &slot->voice,
-        &asset->sound,
-        rate_numerator,
-        mixer->sample_rate,
-        command->volume << TORIRS_PCM_VOLUME_SHIFT,
-        command->pan,
-        command->loop_count);
+    slot->generator = asset->source.render != NULL;
+    if( slot->generator )
+    {
+        /*
+         * The play condition goes to the generator, because for a sequenced
+         * source looping means restarting the *sequence*. Repeating the
+         * rendered PCM instead would loop whatever bar happened to be in the
+         * buffer.
+         */
+        if( asset->source.start )
+            asset->source.start(asset->source.ctx, command->loop_count);
+        ToriRS_PcmVoice_StartExternal(
+            &slot->voice, command->volume << TORIRS_PCM_VOLUME_SHIFT, command->pan);
+    }
+    else
+    {
+        ToriRS_PcmVoice_Start(
+            &slot->voice,
+            &asset->sound,
+            rate_numerator,
+            mixer->sample_rate,
+            command->volume << TORIRS_PCM_VOLUME_SHIFT,
+            command->pan,
+            command->loop_count);
+    }
     mixer->stats.voices_started++;
     MIXER_TRACE(
         "audio: voice %d start asset %d (source %d) vol %d pan %d loops %d bus %d\n",
@@ -552,6 +616,23 @@ ensure_accumulator(
     return true;
 }
 
+static bool
+ensure_source_scratch(
+    struct ToriRS_Mixer* mixer,
+    int frames)
+{
+    int16_t* grown;
+
+    if( mixer->source_scratch_frames >= frames )
+        return true;
+    grown = realloc(mixer->source_scratch, (size_t)frames * 2 * sizeof(int16_t));
+    if( !grown )
+        return false;
+    mixer->source_scratch = grown;
+    mixer->source_scratch_frames = frames;
+    return true;
+}
+
 /** Mix one stream's buffered frames in, applying its ramped gain and bus. */
 static void
 render_stream(
@@ -631,7 +712,40 @@ ToriRS_Mixer_Render(
             continue;
         bus_gain = mixer->bus_volume[slot->bus];
         slot->voice.bus_gain = bus_gain * TORIRS_PCM_BUS_ONE / TORIRS_AUDIO_VOLUME_MAX;
-        if( bus_gain <= 0 )
+        if( slot->generator )
+        {
+            /*
+             * Pull exactly this block, now. There is no buffer between the
+             * generator and the device, so there is nothing that can be short:
+             * the only way a generator voice falls silent is by ending, and a
+             * looping one never does.
+             *
+             * A muted bus still pulls. Skipping the render would freeze the
+             * song's position, so unmuting would resume where the mute began
+             * instead of where the track should be.
+             */
+            struct ToriRS_MixerAsset* asset = find_asset(mixer, slot->asset_id);
+            int got = 0;
+
+            if( asset && asset->source.render && ensure_source_scratch(mixer, frames) )
+            {
+                got = asset->source.render(asset->source.ctx, mixer->source_scratch, frames);
+                if( got < 0 )
+                    got = 0;
+                if( got > frames )
+                    got = frames;
+            }
+            ToriRS_PcmVoice_MixExternal(
+                &slot->voice,
+                bus_gain > 0 ? mixer->source_scratch : NULL,
+                bus_gain > 0 ? got : 0,
+                accumulator,
+                frames);
+            /* Ran out: the track is over and the slot retires below. */
+            if( got < frames )
+                slot->voice.active = false;
+        }
+        else if( bus_gain <= 0 )
         {
             /* Muted, but still ageing: a one-shot muted mid-flight must still
              * end, or its slot never comes back. */
@@ -645,6 +759,7 @@ ToriRS_Mixer_Render(
         {
             slot->voice_id = -1;
             slot->voice.sound = NULL;
+            slot->generator = false;
         }
     }
 
@@ -677,20 +792,6 @@ ToriRS_Mixer_Feedback(
     if( !mixer )
         return;
     feedback->device_open = true;
-    /* Feedback precedes STREAM_OPEN by a frame. Advertise the capacity a new
-     * stream will have so OPEN and its first PUSH can land in the same tick;
-     * zero here otherwise guarantees one empty callback at every song start. */
-    for( int i = 0; i < 4; i++ )
-        feedback->stream_headroom[i] = TORIRS_MIXER_STREAM_FRAMES;
-    for( int i = 0; i < TORIRS_MIXER_MAX_STREAMS && i < 4; i++ )
-    {
-        const struct ToriRS_MixerStream* stream = &mixer->streams[i];
-        if( stream->stream_id < 0 )
-            continue;
-        feedback->stream_buffered[stream->stream_id & 3] = stream->buffered_frames;
-        feedback->stream_headroom[stream->stream_id & 3] =
-            TORIRS_MIXER_STREAM_FRAMES - stream->buffered_frames;
-    }
 }
 
 int

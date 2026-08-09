@@ -415,6 +415,57 @@ step_ramp(struct ToriRS_PcmVoice* voice)
     }
 }
 
+void
+ToriRS_PcmVoice_StartExternal(
+    struct ToriRS_PcmVoice* voice,
+    int volume,
+    int pan)
+{
+    if( !voice )
+        return;
+    memset(voice, 0, sizeof(*voice));
+    voice->volume = volume;
+    voice->pan = pan;
+    ToriRS_PcmGains(volume, pan, &voice->left_gain, &voice->right_gain);
+    voice->target_left_gain = voice->left_gain;
+    voice->target_right_gain = voice->right_gain;
+    voice->bus_gain = TORIRS_PCM_BUS_ONE;
+    voice->active = true;
+}
+
+bool
+ToriRS_PcmVoice_MixExternal(
+    struct ToriRS_PcmVoice* voice,
+    const int16_t* stereo,
+    int available,
+    int32_t* out,
+    int frames)
+{
+    if( !voice || !voice->active || !out )
+        return voice && voice->active;
+
+    for( int i = 0; i < frames; i++ )
+    {
+        int left = (voice->left_gain * voice->bus_gain) >> TORIRS_PCM_BUS_SHIFT;
+        int right = (voice->right_gain * voice->bus_gain) >> TORIRS_PCM_BUS_SHIFT;
+
+        /*
+         * The ramp advances across the whole block, including any tail the
+         * generator did not fill. A fade that stalled where the audio ran out
+         * would leave `ramp_to_stop` unresolved and the voice pinned live.
+         */
+        if( stereo && i < available )
+        {
+            out[i * 2] += (stereo[i * 2] * left) >> TORIRS_PCM_GAIN_SHIFT;
+            out[i * 2 + 1] += (stereo[i * 2 + 1] * right) >> TORIRS_PCM_GAIN_SHIFT;
+        }
+        step_ramp(voice);
+        if( !voice->active )
+            return false;
+    }
+    return true;
+}
+
 bool
 ToriRS_PcmVoice_Mix(
     struct ToriRS_PcmVoice* voice,

@@ -209,6 +209,34 @@ ToriRS_PcmVoice_Mix(
     int32_t* out,
     int frames);
 
+/**
+ * A voice with no sound of its own: gain, pan and ramp only.
+ *
+ * Backs a generator-fed asset (music), where the samples are produced on demand
+ * rather than held. Everything a voice means -- volume, fades, stopping -- is
+ * the same; only where the PCM comes from differs.
+ */
+void
+ToriRS_PcmVoice_StartExternal(
+    struct ToriRS_PcmVoice* voice,
+    int volume,
+    int pan);
+
+/**
+ * Mix caller-supplied interleaved stereo through this voice's gain and ramp.
+ *
+ * `available` is how many of `frames` the generator actually produced; the
+ * remainder is silent but still advances the ramp, so a fade completes even at
+ * the end of a track. Returns true while the voice is still sounding.
+ */
+bool
+ToriRS_PcmVoice_MixExternal(
+    struct ToriRS_PcmVoice* voice,
+    const int16_t* stereo,
+    int available,
+    int32_t* out,
+    int frames);
+
 /** Advance without producing output — a muted voice must still age. */
 void
 ToriRS_PcmVoice_Skip(
