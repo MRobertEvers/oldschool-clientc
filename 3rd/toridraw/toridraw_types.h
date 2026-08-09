@@ -455,7 +455,14 @@ struct ToriDraw_Scene
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;
     faceint_t* tmp_priority_face_count;
-    faceint_t* tmp_priority_depth_sum;
+    /* Sum of face depths per priority, for the flexible-priority averages in
+     * sort_face_draw_order. **int, not faceint_t**: this accumulates, where
+     * every other scratch array here holds one face index. A depth is 0..1499
+     * and a model can have hundreds of faces at one priority, so an int16 wraps
+     * — 451 faces at priority 4 on npc 999 sum past 32767 long before the
+     * average is taken. The reference holds these in an int array for the same
+     * reason. */
+    int* tmp_priority_depth_sum;
     faceint_t* tmp_priority_faces;
     int* tmp_flex_prio11_face_to_depth;
     int* tmp_flex_prio12_face_to_depth;

@@ -391,10 +391,45 @@ Nothing animated, which reads exactly like the npc still using the human default
 — and no test noticed, because the id resolved, the pack was clean and the server
 sent the animation faithfully.
 
-39 rows corrected from the rig walk's own answers. 15 are left: the Mort'ton
-shades (`shade_attack`/`shade_block`/`shade_sink` on framemap 649 against rig
-651) have no on-rig alternative in the catalog, so they are reported rather than
-guessed. `--fix-authored` now reports `0` correctable and is the standing check.
+44 rows corrected from the rig walk's own answers.
+
+### The second half: rows that were absent, not wrong
+
+Correcting the stated rows was not enough, and the reason is the same rule seen
+from the other side. An authored block that *omits* `defend_anim` inherits
+`npc_default.npc`'s `human_unarmedblock` — which is on framemap **0**. For a man
+or a guard that is exactly right, and is why the default is the human set. For
+anything on another rig it is another silent no-op.
+
+That is what was left in Lumbridge after the first pass: the cow, chicken, rat,
+imp, duck and giant spiders stated an attack and a death and **no `defend_anim`
+at all**, so being hit produced no reaction whatsoever.
+
+So `--fix-authored` also *fills* a missing row, under a gate that keeps the
+default's authority where it is real:
+
+> fill only when the npc has a rig, the inherited default cannot be played on it,
+> and the rig walk has an on-rig answer.
+
+**85 rows filled.** An npc on framemap 0 is never touched.
+
+### Where a re-rig renamed the creature and kept the action
+
+Five rows had no rig-walk answer and were still fixable, because the *authored
+row states an intent*: `shade_sink` (framemap 649) against rig 651, whose four
+sequences are `shadeshadow_ready/_rise/_sink/_walk`. A re-rig usually renames the
+creature and keeps the action word, so the last underscore-token of the broken
+name is a key into the rig — accepted only when it matches exactly one sequence
+there. `sink` is a shade's death and nothing in `ACTION_WORDS` knows that.
+
+### What genuinely cannot be answered
+
+**10 rows**: the Mort'ton shades' `attack_anim` and `defend_anim`. Their rig
+carries four sequences and none of them is an attack or a block, so the animation
+does not exist in this cache at any name. Reported, not guessed.
+
+`--fix-authored` now reports **0 correctable and 0 fillable**, and is the standing
+check.
 
 The goblin's selftest pins moved with it — 309/312/313 to 6184/6183/6182 — and
 the check catching that change is the reason it is worth pinning ids at all.

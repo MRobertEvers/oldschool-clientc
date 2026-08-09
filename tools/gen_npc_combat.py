@@ -432,6 +432,30 @@ def claim_server_membership(content_dir, names):
     return len(new)
 
 
+def load_default_anims(content_dir):
+    """`[default]`'s three animations from `npc_default.npc`.
+
+    Read rather than assumed, because they are what an authored block that omits
+    a slot silently inherits — and whether that inheritance *works* is the whole
+    question `fix_authored` asks. They are the human unarmed set, which is on
+    framemap 0: right for a human, unplayable for anything else.
+    """
+    path = os.path.join(content_dir, "server", "scripts", "general", "configs",
+                        "npc_default.npc")
+    out = {}
+    in_default = False
+    with open(path, encoding="latin-1") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("[") and line.endswith("]"):
+                in_default = line == "[default]"
+            elif in_default and line.startswith("param="):
+                key, _, value = line[6:].partition(",")
+                if key in ANIM_KEYS:
+                    out[key] = value
+    return out
+
+
 def load_default_attackrate(content_dir):
     """`[default] param=attackrate` — the value a block imposes just by existing."""
     path = os.path.join(content_dir, "server", "scripts", "general", "configs",
@@ -896,6 +920,14 @@ def validate(all_seq, feats, lostcity, rsmod, seq_framemaps, sound_by_name, deci
 # ---------------------------------------------------------------------------
 
 
+def seq_names_by_rig(rigs, rig_seq_index):
+    """Every sequence name on any of an npc's framemaps."""
+    out = set()
+    for fm in rigs:
+        out |= rig_seq_index.get(fm, set())
+    return out
+
+
 def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                  decisions, write):
     """Correct animation rows in hand-authored `.npc` files that name a sequence
@@ -921,7 +953,14 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     """
     root = os.path.join(content_dir, "server", "scripts")
     exclude = os.path.abspath(out_path)
-    fixed, unfixable, checked, playable = [], [], 0, 0
+    defaults = load_default_anims(content_dir)
+    fixed, filled, unfixable, unfillable = [], [], [], []
+    checked = playable = 0
+    states_server_field = set()
+    rig_seq_index = defaultdict(set)
+    for name, fms in seq_framemaps.items():
+        for fm in fms:
+            rig_seq_index[fm].add(name)
 
     for dirpath, _dirs, files in os.walk(root):
         for fn in sorted(files):
@@ -932,53 +971,140 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                 continue
             with open(full, encoding="latin-1") as f:
                 lines = f.read().splitlines()
+
+            # Block-aware, because filling a missing row needs somewhere to put
+            # it: the line after the block's last `param=`.
+            blocks = []   # (gameval, header_index, end_index_exclusive)
             current = None
-            changed = False
+            start = 0
             for i, line in enumerate(lines):
                 s = line.strip()
                 if s.startswith("[") and s.endswith("]"):
-                    current = s[1:-1]
+                    if current:
+                        blocks.append((current, start, i))
+                    current, start = s[1:-1], i
+            if current:
+                blocks.append((current, start, len(lines)))
+
+            edits = []   # (line_index, new_text) and inserts, applied back to front
+            for gameval, head, end in blocks:
+                rigs = npc_rigs.get(gameval_to_id.get(gameval, -1), set())
+                if not rigs:
                     continue
-                if not current or not s.startswith("param="):
-                    continue
-                key, _, value = s[6:].partition(",")
-                if key not in ANIM_KEYS or not value:
-                    continue
-                rigs = npc_rigs.get(gameval_to_id.get(current, -1), set())
-                if not rigs or value not in seq_framemaps:
-                    continue
-                checked += 1
-                if seq_framemaps[value] & rigs:
-                    playable += 1
-                    continue
-                # Off-rig. What did the rig walk decide for this npc?
-                entry = decisions.get(current)
-                replacement = entry[1].get(key, (None,))[0] if entry else None
-                if not replacement or not (seq_framemaps.get(replacement, set()) & rigs):
-                    unfixable.append((current, key, value, fn))
-                    continue
-                lines[i] = line.replace("param=%s,%s" % (key, value),
-                                        "param=%s,%s" % (key, replacement))
-                fixed.append((current, key, value, replacement, fn))
-                changed = True
-            if changed and write:
+                entry = decisions.get(gameval)
+                stated = {}
+                last_param = head
+                for i in range(head + 1, end):
+                    s = lines[i].strip()
+                    if not s.startswith("param="):
+                        continue
+                    last_param = i
+                    key, _, value = s[6:].partition(",")
+                    if key in ANIM_KEYS and value:
+                        stated[key] = (i, value)
+                    if key in ANIM_KEYS or key in SOUND_KEYS:
+                        states_server_field.add(gameval)
+
+                # (a) rows that are stated but cannot be played
+                for key, (i, value) in stated.items():
+                    if value not in seq_framemaps:
+                        continue
+                    checked += 1
+                    if seq_framemaps[value] & rigs:
+                        playable += 1
+                        continue
+                    fix = entry[1].get(key, (None,))[0] if entry else None
+                    if not fix or not (seq_framemaps.get(fix, set()) & rigs):
+                        # The rig walk has no answer, but the *authored row* still
+                        # states an intent, and a re-rig usually renames the
+                        # creature and keeps the action: `shade_sink` on framemap
+                        # 649 becomes `shadeshadow_sink` on 651. So the last
+                        # underscore-token of the broken name is a key into the
+                        # rig -- narrow enough to be safe (it must be on this
+                        # npc's own rig and end in the same word) and the only
+                        # thing that answers for an action the classifier has no
+                        # word for. `sink` is a shade's death and nothing in
+                        # ACTION_WORDS knows that.
+                        tail = value.rsplit("_", 1)[-1]
+                        onrig = sorted(
+                            n for n in seq_names_by_rig(rigs, rig_seq_index)
+                            if n.rsplit("_", 1)[-1] == tail)
+                        if len(onrig) != 1:
+                            unfixable.append((gameval, key, value, fn))
+                            continue
+                        fix = onrig[0]
+                    edits.append((i, lines[i].replace("param=%s,%s" % (key, value),
+                                                      "param=%s,%s" % (key, fix))))
+                    fixed.append((gameval, key, value, fix, fn))
+
+                # (b) rows that are *absent*, where the inherited default cannot
+                #     be played either.
+                #
+                # An omitted slot is not automatically a bug: it inherits
+                # `npc_default.npc`, and for an npc on framemap 0 the human
+                # unarmed set is exactly right — that is why the default is the
+                # human one. It is only a bug when the npc is on some other rig,
+                # because then the inherited sequence drives bones the model does
+                # not have and the npc simply does not react.
+                #
+                # That is what was left after the first pass: the Lumbridge cow,
+                # chicken, rat, imp, duck and giant spiders state an attack and a
+                # death and no `defend_anim` at all, so being hit produced
+                # nothing at all rather than a flinch.
+                for key in ANIM_KEYS:
+                    if key in stated:
+                        continue
+                    fallback = defaults.get(key)
+                    if fallback and (seq_framemaps.get(fallback, set()) & rigs):
+                        continue   # the default plays here; leave it alone
+                    fill = entry[1].get(key, (None,))[0] if entry else None
+                    if not fill or not (seq_framemaps.get(fill, set()) & rigs):
+                        unfillable.append((gameval, key, fn))
+                        continue
+                    edits.append((last_param + 0.5, "param=%s,%s" % (key, fill)))
+                    filled.append((gameval, key, fill, fn))
+                    states_server_field.add(gameval)
+
+            if edits and write:
+                for pos, text in sorted(edits, key=lambda e: -e[0]):
+                    if isinstance(pos, float):
+                        lines.insert(int(pos) + 1, text)
+                    else:
+                        lines[pos] = text
                 with open(full, "w", encoding="latin-1") as f:
                     f.write("\n".join(lines) + "\n")
 
-    print("\nauthored .npc animation rows checked against each npc's own rig: %d"
-          % checked)
-    print("   playable                              %d" % playable)
-    print("   off-rig, corrected from the rig walk  %d" % len(fixed))
-    print("   off-rig, no on-rig answer known       %d" % len(unfixable))
-    for npc, key, old, new, fn in fixed[:12]:
-        print("      %-24s %-12s %-24s -> %s   [%s]" % (npc, key, old, new, fn))
-    if len(fixed) > 12:
-        print("      ... and %d more" % (len(fixed) - 12))
-    for npc, key, old, fn in unfixable[:6]:
-        print("      LEFT %-22s %-12s %-24s [%s]" % (npc, key, old, fn))
+    print("\nauthored .npc animation rows, against each npc's own rig:")
+    print("   stated and playable                     %d" % playable)
+    print("   stated but OFF-RIG, corrected           %d" % len(fixed))
+    print("   stated but off-rig, no answer known     %d" % len(unfixable))
+    print("   ABSENT and the default cannot play, filled  %d" % len(filled))
+    print("   absent, default cannot play, no answer      %d" % len(unfillable))
+    for npc, key, old, new, fn in fixed[:6]:
+        print("      fix  %-22s %-12s %-24s -> %s" % (npc, key, old, new))
+    if len(fixed) > 6:
+        print("      ... and %d more corrections" % (len(fixed) - 6))
+    for npc, key, new, fn in filled[:8]:
+        print("      add  %-22s %-12s %s   [%s]" % (npc, key, new, fn))
+    if len(filled) > 8:
+        print("      ... and %d more additions" % (len(filled) - 8))
+    # An npc this pass gave a row to now states a server field, and
+    # `cachepack pack` refuses a record that states one without being named in
+    # `pack/npc.server` — "an entity cannot carry a field its own side does not
+    # receive". The generated config's own npcs are claimed at the end of main();
+    # these are authored npcs it only *edited*, so nothing else would claim them.
+    # Every authored npc that states one of these rows, not merely the ones this
+    # run edited: the invariant is "states a server field => named in
+    # pack/npc.server", and a previous run's edit needs claiming just as much as
+    # this one's. Claiming is a merge, so restating an already-listed name is a
+    # no-op.
+    touched = sorted(states_server_field)
+    if write and touched:
+        added = claim_server_membership(content_dir, touched)
+        print("   pack/npc.server: %d name(s) added for edited authored npcs" % added)
     if not write:
-        print("   (dry run — pass --write to correct them)")
-    return len(fixed)
+        print("   (dry run — pass --write to apply)")
+    return len(fixed) + len(filled)
 
 
 def main():

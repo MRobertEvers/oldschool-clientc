@@ -1582,6 +1582,7 @@ UITree_SetBehavior(
     dst->button_type = src->button_type;
     dst->client_code = src->client_code;
     dst->click_mask = src->click_mask;
+    dst->target_mask = src->target_mask;
     dst->over_layer_id = src->over_layer_id;
     dst->over_color = src->over_color;
     dst->active_color = src->active_color;

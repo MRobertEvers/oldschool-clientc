@@ -100,6 +100,8 @@ struct UIBuildComponent
     int button_type;
     int client_code;
     int32_t click_mask;
+    /** Normalised `IfType.targetMask` — see ToriRS_Component.target_mask. */
+    int32_t target_mask;
     int over_layer_id;
     int over_color;
     int active_color;

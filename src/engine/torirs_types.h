@@ -750,6 +750,34 @@ enum ToriRS_ComponentType
 #define TORIRS_INVENTORY_TRIGGER_MAX 8
 #define TORIRS_VARP_TRIGGER_MAX 8
 
+/**
+ * Target-mask flags — "what may this component be aimed at".
+ *
+ * Client-TS `Client.targetMask` names the low four (`& 0x1` ground obj,
+ * `& 0x2` npc, `& 0x4` loc, `& 0x8` player) and they mean the same thing in
+ * every generation this client reads. The held-item flag does NOT: dat1 spells
+ * carry it at 0x10 (Client.ts `targetMask & 0x10` in the inventory branch, and
+ * the `targetMask === 0x10` test that snaps the sidebar to the backpack), while
+ * dat2 spells carry it at 0x20 — `magic_spellbook:high_alchemy` decodes to
+ * exactly 0x20, and clientscript 2617 reads it as `testbit(mask, 5)`.
+ *
+ * Both are therefore real, era-owned values and neither is remapped on the way
+ * in: `if_gettargetmask` has to hand a dat2 script back the bit its own cache
+ * wrote. `ToriRS_Features.target_mask_held` is what a *client-side* reader asks
+ * instead of hardcoding either one.
+ */
+#define TORIRS_TARGET_MASK_OBJ 0x01
+#define TORIRS_TARGET_MASK_NPC 0x02
+#define TORIRS_TARGET_MASK_LOC 0x04
+#define TORIRS_TARGET_MASK_PLAYER 0x08
+/** dat1 held-item flag (Client.ts). */
+#define TORIRS_TARGET_MASK_HELD_CLASSIC 0x10
+/** dat2 held-item flag (OldSchool IF3). */
+#define TORIRS_TARGET_MASK_HELD_OSRS 0x20
+/** Where dat2 packs the six target flags inside `clickMask`. */
+#define TORIRS_TARGET_MASK_IF3_SHIFT 11
+#define TORIRS_TARGET_MASK_IF3_BITS 0x3F
+
 /** Hook string args (e.g. button labels passed to onLoad procs) are rare and
  * short — keep a small inline pool so hooks stay memcpy-safe PODs. */
 #define TORIRS_COMPONENT_HOOK_STR_MAX 4
@@ -909,6 +937,21 @@ struct ToriRS_Component
     int client_code;
     /** IF1/IF3 clickMask / serverActiveProperties.events. */
     int32_t click_mask;
+    /**
+     * Which kinds of thing this component can be aimed at once its target verb
+     * is armed — the reference `IfType.targetMask` / `if_gettargetmask`.
+     *
+     * Normalised here rather than at the call site because the two cache
+     * generations store it in different places: dat1 keeps it as its own 2-byte
+     * field on a BUTTON_TARGET/INV component, dat2 folds it into `clickMask`
+     * bits 11..16. Both decode to the same low four flags (see
+     * `TORIRS_TARGET_MASK_*`); the held-item flag is the one that moved between
+     * eras, which is why reading it goes through ToriRS_Features.
+     *
+     * 0 for every component that is not targetable, which is what makes
+     * `if_gettargetmask() != 0` the spellbook's own is-this-a-target test.
+     */
+    int32_t target_mask;
     /** Client.ts overLayerId. dat1 overlayer / dat2 linkedComponentId. -1 = none. */
     int over_layer_id;
     /** Client.ts colourOver: hover tint when inactive. 0 = none. */

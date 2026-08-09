@@ -90,7 +90,27 @@ ev_build_npc_model(
         struct ToriDraw_Model* part = ToriDraw_ModelFromToriRS(mid);
         ToriRS_ModelFree(mid);
         if( part )
-            parts[part_count++] = part;
+        {
+            /* What each part brings to the merge's priority fold. A part with
+             * neither a per-face array nor a model_priority contributes faces
+             * at priority 0, which draws them behind everything. */
+            if( getenv("EV_PART_DEBUG") )
+                fprintf(
+                    stderr,
+                    "    part model=%d faces=%d face_priorities=%s model_priority=%d\n",
+                    npc->models[i],
+                    part->face_count,
+                    part->face_priorities ? "yes" : "no",
+                    part->model_priority);
+            /* EV_ONLY_PART=<index> keeps a single part of a merged npc, so a
+             * shape that looks wrong can be attributed to the model that
+             * actually contains it rather than guessed at from the composite. */
+            const char* only = getenv("EV_ONLY_PART");
+            if( only && atoi(only) != i )
+                ToriDraw_ModelFree(part);
+            else
+                parts[part_count++] = part;
+        }
     }
 
     struct ToriDraw_Model* merged = NULL;
@@ -99,6 +119,44 @@ ev_build_npc_model(
     else if( part_count > 1 )
     {
         merged = ToriDraw_ModelMerge(parts, part_count);
+
+        /*
+         * Check the merge's index arithmetic against a plain concatenation.
+         *
+         * A merged model's face must point at vertices belonging to the part it
+         * came from, shifted by that part's vertex offset. Getting it wrong
+         * produces geometry that is *somewhere*, so it renders — a ghost copy of
+         * a part at the wrong place, which is what a shield appearing twice
+         * looks like.
+         */
+        if( merged && getenv("EV_CHECK_MERGE") )
+        {
+            int voff = 0;
+            int foff = 0;
+            int bad = 0;
+            for( int pi = 0; pi < part_count; pi++ )
+            {
+                for( int f = 0; f < parts[pi]->face_count; f++ )
+                {
+                    int d = foff + f;
+                    if( merged->face_indices_a[d] != parts[pi]->face_indices_a[f] + voff ||
+                        merged->face_indices_b[d] != parts[pi]->face_indices_b[f] + voff ||
+                        merged->face_indices_c[d] != parts[pi]->face_indices_c[f] + voff )
+                        bad++;
+                }
+                for( int v = 0; v < parts[pi]->vertex_count; v++ )
+                    if( merged->vertices_x[voff + v] != parts[pi]->vertices_x[v] ||
+                        merged->vertices_y[voff + v] != parts[pi]->vertices_y[v] ||
+                        merged->vertices_z[voff + v] != parts[pi]->vertices_z[v] )
+                        bad++;
+                voff += parts[pi]->vertex_count;
+                foff += parts[pi]->face_count;
+            }
+            fprintf(
+                stderr,
+                "  merge check: %d parts, %d vertices, %d faces, %d mismatch(es)\n",
+                part_count, voff, foff, bad);
+        }
         for( int i = 0; i < part_count; i++ )
             ToriDraw_ModelFree(parts[i]);
     }

@@ -251,6 +251,7 @@ UITree_PushBuildComponent(
     behavior.button_type = comp->button_type;
     behavior.client_code = comp->client_code;
     behavior.click_mask = comp->click_mask;
+    behavior.target_mask = comp->target_mask;
     behavior.over_layer_id = comp->over_layer_id;
     behavior.over_color = comp->over_color;
     behavior.active_color = comp->active_color;

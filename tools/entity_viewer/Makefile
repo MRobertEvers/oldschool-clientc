@@ -100,6 +100,11 @@ $(BUILD)/toridraw_unity.o: $(TORIDRAW)/toridraw_unity.c | $(BUILD)
 $(BUILD)/toridraw_font.o: $(TORIDRAW)/toridraw_font.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -I$(REPO)/v0 -c $< -o $@
 
+# Also outside the unity. The self-test uses it as an oracle: it is the model
+# rasteriser the client itself renders chatheads and interface previews with.
+$(BUILD)/toridraw_model_sprite.o: $(TORIDRAW)/toridraw_model_sprite.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_wire.o: ev_wire.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -130,7 +135,8 @@ ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
 		$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
 		$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 		$(BUILD)/toridraw_animation_from_rscache.o \
-		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o $(COMMON_OBJS) $(DEP_OBJS)
+		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+		$(BUILD)/toridraw_model_sprite.o $(COMMON_OBJS) $(DEP_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # ---- browser: toridraw only, to WebAssembly ------------------------------

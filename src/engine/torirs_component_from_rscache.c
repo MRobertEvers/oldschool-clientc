@@ -336,6 +336,13 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
     dst->click_mask = src->clickMask;
+    /* dat2 has no standalone target-mask field in either widget family: IF1
+     * folds its 6-bit button-2 mask in at bit 11 on the way through the decoder
+     * (dat2_component.c, `clickMask |= local808 << 11`) and IF3 writes those
+     * same six bits straight into its 3-byte events word — which is why the IF3
+     * decoder gates its target triplet on exactly this field. */
+    dst->target_mask =
+        (src->clickMask >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS;
     dst->over_color = src->overColour;
     dst->active_color = src->activeColour;
     dst->active_over_color = src->activeOverColour;
@@ -426,6 +433,12 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
     dst->click_mask = src->targetMask;
+    /* dat1 keeps the mask as its own field, decoded only for a BUTTON_TARGET or
+     * an INV, and left at -1 ("never read") everywhere else. -1 is not a mask:
+     * passed on as one it would answer yes to every target kind, so the
+     * not-a-target case is spelled 0 here the way every other generation
+     * spells it. */
+    dst->target_mask = src->targetMask > 0 ? src->targetMask : 0;
     dst->parent_id = src->layer;
 
     if( src->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )

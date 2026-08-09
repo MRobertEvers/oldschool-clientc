@@ -305,6 +305,22 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_GETINVOBJECT,
     CS2VM_HOST_REQUEST_CC_GETINVCOUNT,
     CS2VM_HOST_REQUEST_CC_GETTRANS,
+    /*
+     * CC_GETTARGETMASK (1800) / IF_GETTARGETMASK (2800): the component's
+     * `IfType.targetMask` — which kinds of thing it may be aimed at once its
+     * target verb is armed, and 0 when it is not targetable at all.
+     *
+     * The spellbook's own setup script asks this about every spell it paints
+     * and *branches* on it (clientscript 2616): a non-zero answer wires
+     * `if_setontargetenter/leave` — the white selection outline — and a zero one
+     * wires a plain `if_setonop` instead. So an unimplemented read here does not
+     * degrade the outline, it silently converts every targeted spell into a
+     * non-targeted button, and nothing downstream can tell that happened. The
+     * enter hook then reads the mask again (`testbit(mask, 5)`, clientscript
+     * 2617) to decide whether selecting the spell should snap the sidebar to the
+     * backpack, which is what makes High Alchemy open the inventory.
+     */
+    CS2VM_HOST_REQUEST_CC_GETTARGETMASK,
     /* CC_GETCOMPONENTPARAM / CC_SETCOMPONENTPARAM (1703/1704): the component's
      * own runtime param table, which the gameframe scripts use to tag the
      * widgets they build and recognise them again later. Nothing but these two
@@ -323,6 +339,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR,
     CS2VM_HOST_REQUEST_IF_GETINVOBJECT,
     CS2VM_HOST_REQUEST_IF_GETINVCOUNT,
+    /** IF_GETTARGETMASK (2800) — the CC form's twin; see CC_GETTARGETMASK. */
+    CS2VM_HOST_REQUEST_IF_GETTARGETMASK,
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,

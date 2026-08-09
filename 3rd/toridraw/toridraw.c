@@ -195,7 +195,7 @@ ToriDraw_SceneAllocBuffers(
         scene->tmp_depth_faces = malloc(
             (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
         scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));
-        scene->tmp_priority_depth_sum = malloc(12 * sizeof(faceint_t));
+        scene->tmp_priority_depth_sum = malloc(12 * sizeof(int));
         scene->tmp_priority_faces =
             malloc(12 * (size_t)caps->priority_stride * sizeof(faceint_t));
         scene->tmp_flex_prio11_face_to_depth =

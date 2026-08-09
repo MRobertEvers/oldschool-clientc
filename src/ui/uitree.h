@@ -268,6 +268,11 @@ struct UITreeBehavior
     int button_type;
     int client_code;
     int32_t click_mask;
+    /** `IfType.targetMask`, normalised across cache generations by the
+     *  component decoders — what a spell/prayer button may be aimed at once its
+     *  target verb is armed, and 0 for everything that is not targetable.
+     *  See ToriRS_Component.target_mask and TORIRS_TARGET_MASK_*. */
+    int32_t target_mask;
     int over_layer_id;
     int over_color;
     int active_color;

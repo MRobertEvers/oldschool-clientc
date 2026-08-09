@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "graphics/dash_restrict.h"
 #include "graphics/projection.h"
 #include "toridraw_math.h"
@@ -406,7 +407,7 @@ static inline void
 partition_and_accumulate_faces_by_priority(
     faceint_t* face_priority_buckets,
     faceint_t* face_priority_bucket_counts,
-    faceint_t* priority_depths,
+    int* priority_depths,
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* counts,
@@ -436,7 +437,7 @@ partition_and_accumulate_faces_by_priority(
 
             if( prio < 10 )
             {
-                priority_depths[prio] += (faceint_t)depth;
+                priority_depths[prio] += depth;
             }
             else if( prio == 10 )
             {
@@ -460,7 +461,7 @@ partition_and_accumulate_faces_by_priority(
  */
 static inline int
 sort_face_draw_order(
-    faceint_t* priority_depths,
+    int* priority_depths,
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* face_draw_order,
@@ -488,6 +489,30 @@ sort_face_draw_order(
 
     int flexible_face_index = 0;
     int order_index = 0;
+
+    /* One getenv for the process, then a branch the predictor gets right — the
+     * flexible-priority interleave is decided by three averages that nothing
+     * else prints, and guessing at them is how an afternoon goes. */
+    static int sort_debug = -1;
+    if( sort_debug < 0 )
+        sort_debug = getenv("TORIDRAW_SORT_DEBUG") ? 1 : 0;
+    if( sort_debug )
+    {
+        int flex_min = 1 << 30, flex_max = -1;
+        for( int i = 0; i < counts[10]; i++ )
+        {
+            int d = flex_prio11_face_to_depth[i] & 0xFFFF;
+            if( d < flex_min ) flex_min = d;
+            if( d > flex_max ) flex_max = d;
+        }
+        fprintf(stderr,
+            "sort: counts 0..11 = %d %d %d %d %d %d %d %d %d %d %d %d | "
+            "avg12=%d avg34=%d avg68=%d | flex depth %d..%d\n",
+            counts[0],counts[1],counts[2],counts[3],counts[4],counts[5],
+            counts[6],counts[7],counts[8],counts[9],counts[10],counts[11],
+            average_depth1_2, average_depth3_4, average_depth6_8,
+            flex_min, flex_max);
+    }
 
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
@@ -613,7 +638,7 @@ ToriDraw_ComputeProjectedFaceOrder(
         return;
     }
 
-    memset(scene->tmp_priority_depth_sum, 0, 12 * sizeof(faceint_t));
+    memset(scene->tmp_priority_depth_sum, 0, 12 * sizeof(int));
     memset(scene->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
 
     int counts[12] = { 0 };
@@ -724,7 +749,7 @@ bucket_sort_by_average_depth_small(
 static inline void
 partition_and_accumulate_faces_by_priority_small(
     struct ToriDraw_Scene* scene,
-    faceint_t* priority_depths,
+    int* priority_depths,
     int* counts,
     const uint8_t* face_priorities,
     int depth_lower_bound,
@@ -752,7 +777,7 @@ partition_and_accumulate_faces_by_priority_small(
 
             if( prio < 10 )
             {
-                priority_depths[prio] += (faceint_t)depth;
+                priority_depths[prio] += depth;
             }
             else if( prio == 10 )
             {
@@ -773,7 +798,7 @@ static inline int
 sort_face_draw_order_small(
     struct ToriDraw_Scene* scene,
     int* face_draw_order,
-    faceint_t* priority_depths,
+    int* priority_depths,
     int* counts)
 {
     const int max_faces = scene->max_faces;
@@ -925,7 +950,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         return;
     }
 
-    faceint_t priority_depths[12] = { 0 };
+    int priority_depths[12] = { 0 };
     int counts[12] = { 0 };
 
     partition_and_accumulate_faces_by_priority_small(

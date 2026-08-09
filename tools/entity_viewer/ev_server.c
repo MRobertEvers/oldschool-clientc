@@ -20,6 +20,9 @@
 
 #include "ev_build.h"
 #include "ev_render.h"
+
+#include "bmp.h"
+#include "toridraw_model_sprite.h"
 #include "ev_wire.h"
 #include "tool_profile.h"
 
@@ -731,6 +734,106 @@ handle_request(int fd, const char* target)
         handle_static(fd, target[0] == '/' ? target + 1 : target);
 }
 
+/*
+ * Every field of a model, compared.
+ *
+ * The check this replaces rendered the model twice and compared the images —
+ * but both renders went through ev_wire, so it compared wire(model) against
+ * wire(model) and could only ever prove determinism. A field the format drops
+ * is dropped identically on both sides and the images agree. This compares the
+ * model this process *built* against the one rebuilt from the bytes, which is
+ * the question that was meant to be asked.
+ */
+#define EV_CMP(what, cond)                                                                         \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "  wire LOSES %s\n", (what));                                          \
+            diffs++;                                                                               \
+        }                                                                                          \
+    } while( 0 )
+
+static int
+compare_models(
+    const struct ToriDraw_Model* a,
+    const struct ToriDraw_Model* b)
+{
+    int diffs = 0;
+
+    EV_CMP("vertex_count", a->vertex_count == b->vertex_count);
+    EV_CMP("face_count", a->face_count == b->face_count);
+    EV_CMP("flags", a->flags == b->flags);
+    EV_CMP("model_priority", a->model_priority == b->model_priority);
+    EV_CMP("textured_face_count", a->textured_face_count == b->textured_face_count);
+    if( diffs )
+        return diffs;
+
+    for( int i = 0; i < a->vertex_count; i++ )
+        EV_CMP(
+            "vertices",
+            a->vertices_x[i] == b->vertices_x[i] && a->vertices_y[i] == b->vertices_y[i] &&
+                a->vertices_z[i] == b->vertices_z[i]);
+
+    for( int i = 0; i < a->face_count; i++ )
+        EV_CMP(
+            "face indices",
+            a->face_indices_a[i] == b->face_indices_a[i] &&
+                a->face_indices_b[i] == b->face_indices_b[i] &&
+                a->face_indices_c[i] == b->face_indices_c[i]);
+
+#define EV_CMP_OPT(name, field, count)                                                             \
+    do                                                                                             \
+    {                                                                                              \
+        EV_CMP(name " presence", (a->field == NULL) == (b->field == NULL));                        \
+        if( a->field && b->field )                                                                 \
+            for( int i = 0; i < (count); i++ )                                                     \
+                EV_CMP(name, a->field[i] == b->field[i]);                                          \
+    } while( 0 )
+
+    EV_CMP_OPT("face_colors", face_colors, a->face_count);
+    EV_CMP_OPT("face_alphas", face_alphas, a->face_count);
+    EV_CMP_OPT("face_infos", face_infos, a->face_count);
+    EV_CMP_OPT("face_textures", face_textures, a->face_count);
+    EV_CMP_OPT("face_priorities", face_priorities, (a->face_count + 1) / 2);
+    EV_CMP_OPT("face_colors_a", face_colors_a, a->face_count);
+    EV_CMP_OPT("face_colors_b", face_colors_b, a->face_count);
+    EV_CMP_OPT("face_colors_c", face_colors_c, a->face_count);
+    EV_CMP_OPT("face_texture_coords", face_texture_coords, a->face_count);
+    EV_CMP_OPT("textured_p", textured_p_coordinate, a->textured_face_count);
+    EV_CMP_OPT("textured_m", textured_m_coordinate, a->textured_face_count);
+    EV_CMP_OPT("textured_n", textured_n_coordinate, a->textured_face_count);
+    EV_CMP_OPT("animaya_group_counts", animaya_group_counts, a->animaya_vertex_count);
+#undef EV_CMP_OPT
+
+    EV_CMP("vertex_bones presence", (a->vertex_bones == NULL) == (b->vertex_bones == NULL));
+    if( a->vertex_bones && b->vertex_bones )
+    {
+        EV_CMP("vertex_bones count", a->vertex_bones->bones_count == b->vertex_bones->bones_count);
+        for( int i = 0; i < a->vertex_bones->bones_count && !diffs; i++ )
+        {
+            EV_CMP("vertex_bones size", a->vertex_bones->bones_sizes[i] ==
+                                            b->vertex_bones->bones_sizes[i]);
+            for( int j = 0; j < a->vertex_bones->bones_sizes[i]; j++ )
+                EV_CMP("vertex_bones", a->vertex_bones->bones[i][j] ==
+                                           b->vertex_bones->bones[i][j]);
+        }
+    }
+
+    EV_CMP("animaya_vertex_count", a->animaya_vertex_count == b->animaya_vertex_count);
+    for( int i = 0; i < a->animaya_vertex_count && a->animaya_groups && b->animaya_groups; i++ )
+    {
+        int n = a->animaya_group_counts[i];
+        for( int j = 0; j < n; j++ )
+            EV_CMP(
+                "animaya skin",
+                a->animaya_groups[i][j] == b->animaya_groups[i][j] &&
+                    a->animaya_scales[i][j] == b->animaya_scales[i][j]);
+    }
+
+    return diffs;
+}
+
 /**
  * Bake one npc and one sequence, round-trip both through the wire format, and
  * report. `--selftest` runs it and exits.
@@ -751,6 +854,30 @@ selftest(int npc_id, int seq_id)
         fprintf(stderr, "  npc %d: no model\n", npc_id);
         return 1;
     }
+    /*
+     * Face priority as the raster will actually see it.
+     *
+     * Priority is the primary key of the painter's sort, and the way it goes
+     * wrong is not an error — it is a histogram that collapses to one bucket,
+     * at which point every part of a merged npc sorts by depth alone and arms
+     * fall behind torsos. So print the distribution rather than asserting
+     * anything about it.
+     */
+    {
+        int hist[16] = { 0 };
+        if( model->face_priorities )
+            for( int i = 0; i < model->face_count; i++ )
+                hist[ToriDraw_ModelGetFacePriority(model->face_priorities, i) & 15]++;
+        fprintf(stderr, "  face priorities:");
+        if( !model->face_priorities )
+            fprintf(stderr, " none (uniform model_priority %d)", model->model_priority);
+        else
+            for( int p = 0; p < 16; p++ )
+                if( hist[p] )
+                    fprintf(stderr, " p%d=%d", p, hist[p]);
+        fprintf(stderr, "\n");
+    }
+
     int textured = 0;
     if( model->face_textures )
         for( int i = 0; i < model->face_count; i++ )
@@ -836,29 +963,16 @@ selftest(int npc_id, int seq_id)
      * ran, or it ran and the projection culled the model — and only this tells
      * them apart. The count is of pixels that are not the background.
      */
-    /*
-     * Render twice and compare: once from the model this process built, once
-     * from the model rebuilt out of the wire bytes the browser receives.
-     *
-     * The browser half can only render what ev_wire carries, and a field the
-     * format silently drops shows up as an artefact there and nowhere here.
-     * Any non-zero difference means the two halves are not looking at the same
-     * model.
-     */
+    {
+        int diffs = compare_models(model, back);
+        fprintf(
+            stderr,
+            "  wire fidelity: %d field difference(s) between the built model and "
+            "the one the browser rebuilds\n",
+            diffs);
+    }
+
     ev_init();
-
-    struct EV_WireBuf direct = { 0 };
-    ev_wire_write_model(&direct, model);
-    ev_set_model(direct.data, (int)direct.len);
-    ev_set_anim(ab.data, (int)ab.len);
-    int h0 = ev_model_height();
-    int zoom0 = h0 * 3 > 400 ? h0 * 3 : 400;
-    uint8_t* a = ev_render(256, 256, 0, 200, zoom0, 0);
-    uint8_t* a_copy = malloc(256 * 256 * 4);
-    if( a && a_copy )
-        memcpy(a_copy, a, 256 * 256 * 4);
-    ev_wire_free(&direct);
-
     ev_set_model(mb.data, (int)mb.len);
     ev_set_anim(ab.data, (int)ab.len);
 
@@ -896,6 +1010,154 @@ selftest(int npc_id, int seq_id)
                 ev_frame_count());
     }
 
+    /*
+     * Does the priority sort change anything?
+     *
+     * Render once as-is, then again with the priority array removed, and count
+     * differing pixels. A model whose faces span several priorities must look
+     * different without them — if it does not, the sort is not consulting them
+     * and the layering the merge worked out is being thrown away downstream.
+     */
+    {
+        uint8_t* with = ev_render(256, 256, 0, 200, ev_model_height() * 3, 0);
+        uint8_t* copy = malloc(256 * 256 * 4);
+        if( with && copy )
+            memcpy(copy, with, 256 * 256 * 4);
+
+        struct EV_WireBuf flat = { 0 };
+        struct ToriDraw_Model* stripped = ev_wire_read_model(mb.data, mb.len);
+        if( stripped )
+        {
+            free(stripped->face_priorities);
+            stripped->face_priorities = NULL;
+            stripped->model_priority = 0;
+            ev_wire_write_model(&flat, stripped);
+            ToriDraw_ModelFree(stripped);
+            ev_set_model(flat.data, (int)flat.len);
+            ev_set_anim(ab.data, (int)ab.len);
+
+            uint8_t* without = ev_render(256, 256, 0, 200, ev_model_height() * 3, 0);
+            int differ = 0;
+            if( copy && without )
+                for( int i = 0; i < 256 * 256 * 4; i++ )
+                    if( copy[i] != without[i] )
+                        differ++;
+            fprintf(
+                stderr,
+                "  priority effect: %d byte(s) differ between sorted-with and "
+                "sorted-without face priorities\n",
+                differ);
+            ev_wire_free(&flat);
+        }
+        free(copy);
+
+        /* Put the real model back for the render report below. */
+        ev_set_model(mb.data, (int)mb.len);
+        ev_set_anim(ab.data, (int)ab.len);
+    }
+
+    /*
+     * The library's own model rasteriser, as an oracle.
+     *
+     * ToriDraw_SpriteNewFromModelRaster is what the client uses for chatheads
+     * and interface model previews — same scene, same sort, same raster, and a
+     * framing this viewer's was copied from. Dumping both means "does my render
+     * differ from the library's" is a picture rather than an argument.
+     *
+     * EV_DUMP_BMP=<prefix> writes <prefix>_ev.bmp and <prefix>_lib.bmp.
+     */
+    const char* dump = getenv("EV_DUMP_BMP");
+    if( dump )
+    {
+        char path[1024];
+        int side = 512;
+        int zoom_px = ev_model_height() * 3 > 400 ? ev_model_height() * 3 : 400;
+
+        /* A strip of yaws at the viewer's own framing. One angle proves
+         * nothing about a depth sort: the layering that goes wrong does so at
+         * the angles where two parts overlap. */
+        static const int yaws[4] = { 0, 512, 1024, 1536 };
+        int strip_w = side * 4;
+        int* strip = calloc((size_t)strip_w * side, sizeof(int));
+        for( int v = 0; v < 4; v++ )
+        {
+            uint8_t* mine = ev_render(side, side, yaws[v], 200, zoom_px, -1);
+            if( !mine )
+                continue;
+            for( int y = 0; y < side; y++ )
+                for( int x = 0; x < side; x++ )
+                {
+                    int i = y * side + x;
+                    strip[y * strip_w + v * side + x] =
+                        (int)(0xFF000000u | ((uint32_t)mine[i * 4] << 16) |
+                              ((uint32_t)mine[i * 4 + 1] << 8) | (uint32_t)mine[i * 4 + 2]);
+                }
+        }
+        snprintf(path, sizeof(path), "%s_ev.bmp", dump);
+        bmp_write_file(path, strip, strip_w, side);
+        free(strip);
+
+        struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = back;
+
+        int* lib_strip = calloc((size_t)strip_w * side, sizeof(int));
+        for( int v = 0; v < 4; v++ )
+        {
+            struct ToriDraw_Sprite* sprite = ToriDraw_SpriteNewFromModelRaster(
+                scene, hnd, zoom_px, 200, yaws[v], side, side, false);
+            if( !sprite )
+                continue;
+            for( int y = 0; y < side && y < sprite->height; y++ )
+                for( int x = 0; x < side && x < sprite->width; x++ )
+                    lib_strip[y * strip_w + v * side + x] =
+                        (int)sprite->pixels_argb[y * sprite->width + x];
+            ToriDraw_SpriteFree(sprite);
+        }
+        snprintf(path, sizeof(path), "%s_lib.bmp", dump);
+        bmp_write_file(path, lib_strip, strip_w, side);
+        free(lib_strip);
+        ToriDraw_SceneFree(scene);
+
+        /* The same yaws with the priority array removed, so "is the priority
+         * sort helping or hurting" is a picture too. */
+        struct ToriDraw_Model* flat_model = ev_wire_read_model(mb.data, mb.len);
+        if( flat_model )
+        {
+            free(flat_model->face_priorities);
+            flat_model->face_priorities = NULL;
+            flat_model->model_priority = 0;
+            struct EV_WireBuf fb = { 0 };
+            ev_wire_write_model(&fb, flat_model);
+            ToriDraw_ModelFree(flat_model);
+            ev_set_model(fb.data, (int)fb.len);
+
+            int* nop = calloc((size_t)strip_w * side, sizeof(int));
+            for( int v = 0; v < 4; v++ )
+            {
+                uint8_t* r = ev_render(side, side, yaws[v], 200, zoom_px, -1);
+                if( !r )
+                    continue;
+                for( int y = 0; y < side; y++ )
+                    for( int x = 0; x < side; x++ )
+                    {
+                        int i = y * side + x;
+                        nop[y * strip_w + v * side + x] =
+                            (int)(0xFF000000u | ((uint32_t)r[i * 4] << 16) |
+                                  ((uint32_t)r[i * 4 + 1] << 8) | (uint32_t)r[i * 4 + 2]);
+                    }
+            }
+            snprintf(path, sizeof(path), "%s_noprio.bmp", dump);
+            bmp_write_file(path, nop, strip_w, side);
+            free(nop);
+            ev_wire_free(&fb);
+            ev_set_model(mb.data, (int)mb.len);
+        }
+        fprintf(stderr, "  dumped %s_ev.bmp and %s_lib.bmp\n", dump, dump);
+    }
+
     int h = ev_model_height();
     int zoom = h * 3 > 400 ? h * 3 : 400;
     uint8_t* rgba = ev_render(256, 256, 0, 200, zoom, 0);
@@ -904,13 +1166,6 @@ selftest(int npc_id, int seq_id)
         for( int i = 0; i < 256 * 256; i++ )
             if( rgba[i * 4] != 0x14 || rgba[i * 4 + 1] != 0x18 || rgba[i * 4 + 2] != 0x21 )
                 lit++;
-    int differing = 0;
-    if( a_copy && rgba )
-        for( int i = 0; i < 256 * 256 * 4; i++ )
-            if( a_copy[i] != rgba[i] )
-                differing++;
-    free(a_copy);
-
     fprintf(
         stderr,
         "  render: height %d, zoom %d, cull %d, %d of %d pixels drawn\n",
@@ -919,10 +1174,6 @@ selftest(int npc_id, int seq_id)
         ev_last_cull(),
         lit,
         256 * 256);
-    fprintf(
-        stderr,
-        "  wire round-trip: %d byte(s) differ from the directly built model\n",
-        differing);
 
     ToriDraw_ModelFree(model);
     ToriDraw_ModelFree(back);
