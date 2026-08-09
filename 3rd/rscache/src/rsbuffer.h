@@ -172,6 +172,17 @@ RSCache_BufferWriteUsmart(
     struct RSCache_Buffer* buffer,
     int value);
 
+/**
+ * RS2 build-669+ "varuint": a u16 when the top bit of the first byte is clear,
+ * otherwise a u32 with that bit masked off.
+ *
+ * Distinct from RSCache_BufferReadBigSmart, which is the same width rule with a
+ * reserved 32767 meaning -1. Model ids in the 727-era npc/obj records use this
+ * form, where 32767 is an ordinary id and must not become a sentinel.
+ */
+int
+RSCache_BufferReadVarUInt(struct RSCache_Buffer* buffer);
+
 int
 RSCache_BufferReadBigSmart(struct RSCache_Buffer* buffer);
 /** -1 encodes as the reserved 2-byte 32767. */
@@ -472,6 +483,7 @@ RSCache_BufferP4_2143(struct RSCache_Buffer* b, int v)
 #define pf(buffer, value) RSCache_BufferWriteFloat(buffer, value)
 #define gusmart(buffer) RSCache_BufferReadUsmart(buffer)
 #define pusmart(buffer, value) RSCache_BufferWriteUsmart(buffer, value)
+#define gvaruint(buffer) RSCache_BufferReadVarUInt(buffer)
 #define gbigsmart(buffer) RSCache_BufferReadBigSmart(buffer)
 #define pbigsmart(buffer, value) RSCache_BufferWriteBigSmart(buffer, value)
 #define gushortsmart(buffer) RSCache_BufferReadUnsignedShortSmart(buffer)

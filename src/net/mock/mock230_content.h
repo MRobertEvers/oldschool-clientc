@@ -79,6 +79,18 @@ enum Mock230PackKind
     MOCK230_PACK_HITSPLAT,
     MOCK230_PACK_HEALTHBAR,
     /*
+     * Sound effects, `pack/4_soundeffects.pack`, where the id *is* the name
+     * (`1352=synth_1352`).
+     *
+     * A namespace whose names carry no information looks pointless, and is not:
+     * without it a `param=attack_sound_stance1,synth_1352` row has no kind to
+     * resolve against, so every weapon sound overlay fails the pack validator.
+     * That is why no weapon in this tree states an attack sound, which is why
+     * every weapon swings the `attack_sound_stanceN` default. See
+     * docs/WEAPON_FX.md §6.6.
+     */
+    MOCK230_PACK_SYNTH,
+    /*
      * The server's own namespaces.
      *
      * Nothing in the cache names an enum, struct or dbtable the *server* defines,

@@ -20,6 +20,8 @@
 
 #include "rscache.h"
 
+#include "windows_cp1252.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +36,37 @@ csv_sep(FILE* f, int* first)
         *first = 0;
     else
         fputc(',', f);
+}
+
+/*
+ * One character, transcoded.
+ *
+ * Cache strings are windows-1252 bytes and rscache keeps them byte-transparent,
+ * so writing them straight out produces a file that is not valid UTF-8 — real
+ * names carry 0x92 (a right single quote) and 0xF9, and a CSV reader stops dead
+ * on the first one. Everything below 0x80 is already UTF-8.
+ */
+static void
+csv_putc(FILE* f, unsigned char c)
+{
+    if( c < 0x80 )
+    {
+        fputc(c, f);
+        return;
+    }
+
+    uint16_t u = cp1252_decode_to_utf16(c);
+    if( u < 0x800 )
+    {
+        fputc(0xC0 | (u >> 6), f);
+        fputc(0x80 | (u & 0x3F), f);
+    }
+    else
+    {
+        fputc(0xE0 | (u >> 12), f);
+        fputc(0x80 | ((u >> 6) & 0x3F), f);
+        fputc(0x80 | (u & 0x3F), f);
+    }
 }
 
 /** A field needing no quoting is written verbatim; anything else is quoted with
@@ -55,22 +88,18 @@ csv_str(FILE* f, int* first, const char* s)
         }
     }
 
-    if( !needs_quote )
-    {
-        fputs(s, f);
-        return;
-    }
-
-    fputc('"', f);
+    if( needs_quote )
+        fputc('"', f);
     for( const char* p = s; *p; p++ )
     {
-        if( *p == '"' )
-            fputc('"', f);
         if( *p == '\r' )
             continue;
-        fputc(*p, f);
+        if( *p == '"' )
+            fputc('"', f);
+        csv_putc(f, (unsigned char)*p);
     }
-    fputc('"', f);
+    if( needs_quote )
+        fputc('"', f);
 }
 
 static void

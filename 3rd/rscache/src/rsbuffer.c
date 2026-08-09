@@ -430,6 +430,15 @@ RSCache_BufferWriteUsmart(
 }
 
 int
+RSCache_BufferReadVarUInt(struct RSCache_Buffer* buffer)
+{
+    int peek = buffer->data[buffer->position] & 0xFF;
+    if( peek < 128 )
+        return RSCache_BufferG2(buffer);
+    return RSCache_BufferG4(buffer) & 0x7FFFFFFF;
+}
+
+int
 RSCache_BufferReadBigSmart(struct RSCache_Buffer* buffer)
 {
     int peek = buffer->data[buffer->position] & 0xFF;

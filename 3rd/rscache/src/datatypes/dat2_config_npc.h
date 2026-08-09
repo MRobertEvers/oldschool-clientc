@@ -194,9 +194,43 @@ struct RSCache_Dat2ConfigNpc
 /** Rev 233+: opcode 111 means renderPriority=2 instead of isFollower. */
 #define RSCACHE_CONFIG_NPC_DECODE_REV233_OP111 256
 
+/**
+ * The RS2 build-669+ branch (rev 727 and its neighbours).
+ *
+ * Not a widening of the 643 shape — a different stream. Model ids in opcodes 1
+ * and 60 became **varuint** (two bytes, or four when the top bit of the first is
+ * set), so a model list only reads at the right length by accident and every
+ * field after it lands in the wrong place; that alone is why 9,258 of 15,661
+ * npc records in `cache.rs727_preeoc` stopped mid-record under the 643 codec.
+ * Opcodes 106 and 118 also changed structure, and roughly thirty opcodes have
+ * no 643 counterpart at all.
+ *
+ * Because the same opcode number means a different structure, this gets its own
+ * codec version rather than a flag on the 643 body — the rule stated in
+ * dat2_config_loc.h, applied here for the same reason.
+ */
+#define RSCACHE_CONFIG_NPC_DECODE_RS2_BUILD669 512
+
 /** Archive revision at which the head-icon bitfield appeared (game rev 210).
  *  RuneLite's NpcLoader gates the same field on the same value. */
 #define RSCACHE_NPC_ARCHIVE_REV_210 1493
+
+/*
+ * Codec versions.
+ *
+ * A field that merely got wider or gained a flag is absorbed by
+ * RSCache_Dat2ConfigNpcFlags. A different *stream shape* gets a version here,
+ * and a revision module pins it (see rev_dat2_rs727.c). The derivation below is
+ * only the fallback for a cache nobody declared.
+ */
+#define RSCACHE_CODEC_NPC_OSRS 1
+#define RSCACHE_CODEC_NPC_RS2 2
+/** RS2 build 669+: varuint model ids and the later opcode set. */
+#define RSCACHE_CODEC_NPC_RS2_BUILD669 3
+
+/** Which npc codec this cache uses. */
+int
+RSCache_Dat2ConfigNpcCodecVersion(const struct RSCache* cache);
 
 /** Era payload flags for this cache. */
 int

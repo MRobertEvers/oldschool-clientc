@@ -327,6 +327,76 @@ do *not* have frame sounds: `slayer_abyssal_whip_attack` and
 fix the other, and confusing them would send someone to the wrong lane.
 
 ---
+### 6.6 The swing sound was wrong for every weapon, and why *(resolved)*
+
+Recorded 2026-08-09, after a report that "the bow of faerdhinen sounds like a
+regular bow". It did not: **every weapon in the game played sound effect 0.**
+
+Three faults in series, each invisible on its own.
+
+**1. The "nothing" sentinel was a real sound.** `attack_sound_stance1..4`
+declared `default=0`, and `[proc,combat_attack_sound]` returned that default
+verbatim. Sound effect 0 exists in the cache (1,275 bytes, a real synth
+program), and the client's queue only refuses a *negative* id — so the default
+was not silence, it was a specific noise, played identically by every weapon.
+LostCity gets this right by construction: its equivalents are `type=synth,
+default=null`, and its engine refuses a null (`check(synth, NumberNotNull)`,
+PlayerOps.ts). Ours are now `default=-1`, guarded at both swing sites and
+dropped by `SS_OP_SOUND_SYNTH`.
+
+This is the [[weapon-fx-and-rsmod-reference]] trap in its purest form — *a param
+with a default turns a missing port into a plausible wrong answer* — and it beat
+the audit that memory came from, because that audit counted weapons falling
+through to the **animation** default and never asked the same question of the
+sound.
+
+**2. No weapon stated a sound, and none could.** The port writer refused to emit
+sound params at all: `pack/4_soundeffects.pack` named every sound `synth_<id>`,
+the id spelled back at itself, so there was nothing for a value to resolve
+against and `mock230_content.c` had no `synth` pack kind to resolve it with.
+Both are fixed — `MOCK230_PACK_SYNTH` exists, and `tools/gen_sound_names.py`
+fills the pack with **Jagex's own config names** (see §6.7). 902 weapons now
+state their swing sounds, emitted by `tools/port_weapon_fx.py --write-sounds`.
+
+**3. The keying disagreed with the animation's.** LostCity returns anim and
+sound from *one* proc keyed by damage type
+(`[proc,combat_swing_anim_and_synth]`, combat.rs2:64), so the two can never
+disagree. This tree keyed the anim by stance-then-damage-type and the sound by
+stance only, with no fallback. `[proc,combat_attack_sound]` now has the same
+two-stage shape the anim side has, and `stab_sound` / `slash_sound` /
+`crush_sound` / `rangeattack_sound` are declared — which also makes LostCity's
+own 444 rows usable here without re-keying them.
+
+### 6.7 Sound effects have real names now *(resolved)*
+
+`pack/4_soundeffects.pack` was 12,010 rows of `synth_<id>`. It is now 10,113
+rows of Jagex's own config names, from the OSRS Wiki's
+[[List of sound IDs]] — which the wiki says became knowable because Jagex
+"accidentally transmitted their names" in the February 2025 *Game Jam: POH
+Improvements* update. `tools/gen_sound_names.py` regenerates it from
+`docs/audio/osrs_wiki_sound_ids.wikitext`, committed so the generator needs no
+network.
+
+That they are Jagex's own names is checkable, and it checks three ways:
+2500 is `hacksword_slash` and 2501 `hacksword_stab`, the exact spellings
+LostCity wrote from the 2004 cache years earlier; 2247/2248 are
+`equip_staff`/`equip_sword`, matching what rsmod assigns as `equipment_sound` on
+staves and swords; and 1352 is `crystal_bow2`, which is what rsmod assigns to the
+bow of faerdhinen — a crystal bow.
+
+**That last line is what makes the port safe.** rsmod targets revision 231 and
+this tree is 239, rsmod's `synth.sym` names only 187 sounds (none of the ones
+weapons use), so before the names existed a sound could only cross as a raw
+integer — exactly what §4.1 rule 4 forbids. Two things now stand behind it: the
+names mediate the crossing the way they do for animations, and the id space was
+checked directly — all 97 distinct sound ids rsmod cites are present and
+**byte-identical** in `cache.osrs230` and `cache.osrs239`, which bracket 231.
+
+The same wiki leak covered **sounds only**. `List of sound IDs` is the only page
+on the wiki that cites it, and a full-text search for the phrase returns that one
+page — so there is no equivalent windfall waiting for varps, scripts, npcs or
+structs.
+
 
 ## 7. The keying decision: stance, not damage type
 

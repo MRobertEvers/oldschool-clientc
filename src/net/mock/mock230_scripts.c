@@ -7650,6 +7650,16 @@ mock230_script_command(
         if( srv->verbose )
             fprintf(stderr, "mock230: sound_synth(%d, %d, %d)\n", values[0], values[1],
                     values[2]);
+        /*
+         * A negative id is "no sound", not sound -1. LostCity's engine rejects
+         * it outright (`check(synth, NumberNotNull)` in PlayerOps.ts) because
+         * its sound params default to `null`; this tree's default to -1 for the
+         * same reason, and a caller that forgets to guard should cost a dropped
+         * packet rather than a wrong noise. Zero is deliberately NOT filtered:
+         * sound effect 0 exists and something may legitimately want it.
+         */
+        if( values[0] < 0 )
+            return 1;
         if( player != NULL )
             mock230_send_synth_sound(player, values[0], values[1], values[2]);
         return 1;

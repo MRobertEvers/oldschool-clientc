@@ -50,6 +50,15 @@ RSCache_ProfileDat1Lc245_2(void);
 struct RSCache
 RSCache_ProfileDat2Rs643(void);
 
+/**
+ * The 727 / pre-EoC branch (`cache.rs727_preeoc`). game=rs2 epoch=dat2
+ * revision=727. Shares 643's container and geometry codecs; pins its own npc
+ * and obj codecs, whose streams changed at build 669/670. Decode only — there
+ * is no 727 encoder (EXCEPTIONS.md B23).
+ */
+struct RSCache
+RSCache_ProfileDat2Rs727(void);
+
 /** Kronos-flavoured OSRS 184 (`cache.kronos`). Carries RSCACHE_QUIRK_KRONOS. */
 struct RSCache
 RSCache_ProfileDat2Osrs184Kronos(void);
@@ -99,7 +108,7 @@ RSCache_ProfileDat2Osrs239(void);
 
 /**
  * Profile by name, matching the manifest/CLI vocabulary: "lc254", "lc245_2",
- * "osrs230", "xrsps233", "osrs239", "osrs184", "kronos", "643".
+ * "osrs230", "xrsps233", "osrs239", "osrs184", "kronos", "643", "727".
  * Returns false and leaves *out untouched when the name is unknown.
  */
 bool

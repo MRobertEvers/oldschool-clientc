@@ -362,7 +362,7 @@ were already parsed and played client-side; nothing there needed changing.
 
 ## 3. Combat, weapon and loc sounds
 
-### 3.1 Weapon and combat sound is server-driven — and that chain is complete
+### 3.1 Weapon and combat sound is server-driven — the chain was complete, the data was not
 
 `docs/WEAPON_FX.md` §6 established the chain and it is now closed:
 weapon obj params (`sound_stance1..4`, `equipment_sound`; 2,307 objs carry one)
@@ -377,6 +377,18 @@ sounds, and neither do `slayer_abyssal_whip_attack` or `human_scythe_slash`. A
 silent swing is a content/param gap, not a cache-decode gap — and per
 [[weapon-fx-and-rsmod-reference]], a missing param falls through to a *default*
 rather than erroring, so count the defaults, don't grep for failures.
+
+> **And that is exactly what happened here.** Every link above worked and every
+> weapon still sounded wrong, because `attack_sound_stanceN` declared
+> `default=0`, sound effect 0 is a real clip, and no weapon in the tree stated
+> the param — so all 1,083 of them swung with the same noise. Reported as "the
+> bow of faerdhinen sounds like a regular bow"; it was not a bow sound, it was
+> effect 0 for everything. Fixed in three parts (`docs/WEAPON_FX.md` §6.6): the
+> sentinel is `-1` and guarded, `[proc,combat_attack_sound]` gained LostCity's
+> damage-type fallback, and 831 weapons now state their real sound. The lesson
+> is the one the memory already carried and this still evaded — a sentinel that
+> collides with real data is not a sentinel, and "the pipeline is complete" says
+> nothing about what is flowing through it.
 
 > **Correction to an earlier note.** `SYNTH_SOUND` really is unpositioned, and
 > that is the reference's behaviour, not a gap in ours. `Message.queueSoundEffect`

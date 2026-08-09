@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Entity viewer — osrs239</title>
+<style>
+  :root {
+    --bg: #0d1016;
+    --panel: #141821;
+    --panel-2: #1b2130;
+    --line: #262d3d;
+    --text: #dfe4ee;
+    --dim: #8b93a7;
+    --accent: #6ea8fe;
+    --rig: #7ee081;
+    --maybe: #e0c07e;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; grid-template-columns: 300px 1fr 340px; height: 100vh;
+  }
+  .col { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+  .col:last-child { border-right: 0; border-left: 1px solid var(--line); }
+  h2 { margin: 0; padding: 10px 12px; font-size: 11px; letter-spacing: .09em;
+       text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
+  .scroll { overflow-y: auto; flex: 1; min-height: 0; }
+  input[type=search] {
+    width: calc(100% - 20px); margin: 10px; padding: 7px 9px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 6px; color: var(--text); font: inherit;
+  }
+  input[type=search]:focus { outline: none; border-color: var(--accent); }
+  .row {
+    padding: 6px 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.03);
+    display: flex; gap: 8px; align-items: baseline;
+  }
+  .row:hover { background: var(--panel); }
+  .row.sel { background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent); }
+  .row .id { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 11px; min-width: 44px; }
+  .row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .gv { color: var(--dim); font-size: 11px; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; }
+  .row .badge { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center;
+           background: var(--panel); min-height: 0; }
+  canvas { image-rendering: pixelated; cursor: grab; touch-action: none; }
+  canvas:active { cursor: grabbing; }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 10px 12px;
+         border-top: 1px solid var(--line); flex-wrap: wrap; }
+  button { background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+           border-radius: 6px; padding: 5px 11px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
+  input[type=range] { flex: 1; min-width: 100px; accent-color: var(--accent); }
+  .meta { padding: 8px 12px; color: var(--dim); font-size: 11px;
+          border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  .tag.rig { background: var(--rig); }
+  .tag.maybe { background: var(--maybe); }
+  .grouphead { padding: 8px 12px; font-size: 11px; color: var(--dim);
+               background: var(--panel); border-bottom: 1px solid var(--line);
+               position: sticky; top: 0; display: flex; gap: 8px; align-items: center; }
+  .note { padding: 10px 12px; color: var(--dim); font-size: 11px; }
+  .corroborated { color: var(--rig); }
+</style>
+</head>
+<body>
+  <div class="col">
+    <h2>NPCs</h2>
+    <input type="search" id="npcSearch" placeholder="name, gameval or id" autocomplete="off">
+    <div class="scroll" id="npcList"></div>
+    <div class="meta" id="npcCount">loading…</div>
+  </div>
+
+  <div class="col">
+    <h2 id="stageTitle">Entity viewer</h2>
+    <div class="stage"><canvas id="view" width="512" height="512"></canvas></div>
+    <div class="bar">
+      <button id="playBtn">Pause</button>
+      <button id="bindBtn">Bind pose</button>
+      <input type="range" id="frameSlider" min="0" max="0" value="0">
+      <span class="meta" style="border:0;padding:0" id="frameLabel">—</span>
+    </div>
+    <div class="meta" id="stageMeta">drag to orbit · wheel to zoom</div>
+  </div>
+
+  <div class="col">
+    <h2>Animations</h2>
+    <div class="scroll" id="animList">
+      <div class="note">Pick an npc.</div>
+    </div>
+    <div class="meta" id="animCount"></div>
+  </div>
+
+  <script src="ev_wasm.js"></script>
+  <script src="ev.js"></script>
+</body>
+</html>

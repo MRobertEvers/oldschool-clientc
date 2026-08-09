@@ -572,6 +572,8 @@ pack_kind_name(enum Mock230PackKind kind)
         [MOCK230_PACK_PARAM] = "param",
         [MOCK230_PACK_HITSPLAT] = "hitsplat",
         [MOCK230_PACK_HEALTHBAR] = "healthbar",
+        /* Cache index 4's archive index, same shape as 3_interfaces above. */
+        [MOCK230_PACK_SYNTH] = "4_soundeffects",
         [MOCK230_PACK_ENUM] = "enum",
         [MOCK230_PACK_STRUCT] = "struct",
         [MOCK230_PACK_DBTABLE] = "dbtable",
@@ -588,9 +590,10 @@ pack_kind_name(enum Mock230PackKind kind)
  * 1 when this kind's records are files of a config archive, so its index is a
  * `.compack` beside `configs/all.<type>` rather than a pack in `pack/`.
  *
- * The four that are not: interfaces are cache index 3 and get an archive-level
- * pack; components are named across every one of those archives at once; `stat` is
- * fixed by the wire; `category` is an obj field the cache numbers and nothing names.
+ * The five that are not: interfaces and sound effects are whole cache archives
+ * (index 3 and 4) and get an archive-level pack; components are named across
+ * every interface archive at once; `stat` is fixed by the wire; `category` is an
+ * obj field the cache numbers and nothing names.
  */
 static int
 pack_kind_is_config(enum Mock230PackKind kind)
@@ -601,6 +604,10 @@ pack_kind_is_config(enum Mock230PackKind kind)
     case MOCK230_PACK_COMPONENT:
     case MOCK230_PACK_STAT:
     case MOCK230_PACK_CATEGORY:
+    /* Sound effects are cache index 4 and get an archive-level pack, the same
+     * shape as interfaces above: there is no `configs/all.synth`, because a
+     * sound effect is a whole archive rather than a file inside one. */
+    case MOCK230_PACK_SYNTH:
         return 0;
     default:
         return 1;
@@ -1443,12 +1450,17 @@ obj_resolve_param_value(
         *out = atoi(value);
         return 1;
     }
-    /* Symbolic: try seq first (anims / baseanim), then obj / spotanim. */
+    /* Symbolic: try seq first (anims / baseanim), then obj / spotanim, then
+     * synth. Synth is last because its names are `synth_<id>` and carry no
+     * information — a lookup there can only succeed on a name shaped for it, so
+     * it can never shadow one of the others. */
     if( mock230_content_symbol_checked(MOCK230_PACK_SEQ, value, out) )
         return 1;
     if( mock230_content_symbol_checked(MOCK230_PACK_OBJ, value, out) )
         return 1;
     if( mock230_content_symbol_checked(MOCK230_PACK_SPOTANIM, value, out) )
+        return 1;
+    if( mock230_content_symbol_checked(MOCK230_PACK_SYNTH, value, out) )
         return 1;
     CONTENT_ERROR("%s: cannot resolve param value `%s`\n", where, value);
     return 0;
@@ -1669,6 +1681,7 @@ pack_kind_for_type(const char* name)
         { "npc", MOCK230_PACK_NPC },         { "namedobj", MOCK230_PACK_OBJ },
         { "obj", MOCK230_PACK_OBJ },         { "loc", MOCK230_PACK_LOC },
         { "seq", MOCK230_PACK_SEQ },         { "spotanim", MOCK230_PACK_SPOTANIM },
+        { "4_soundeffects", MOCK230_PACK_SYNTH },
         { "inv", MOCK230_PACK_INV },         { "varp", MOCK230_PACK_VARP },
         { "varbit", MOCK230_PACK_VARBIT },
         { "interface", MOCK230_PACK_INTERFACE },

@@ -16,10 +16,45 @@ decode_npc_type(
     int flags,
     struct RSCache_Buffer* buffer);
 
+/**
+ * The RS2 build at which npc model ids became varuint.
+ *
+ * From rsmv's `src/opcodes/npcs.jsonc`, which gates opcode 0x01 and 0x3C on
+ * `buildnr >= 669`. Everything else that separates the two RS2 npc streams
+ * moves at the same time, so one threshold selects the whole codec.
+ */
+#define REV_NPC_RS2_VARUINT_MODELS 669
+
+int
+RSCache_Dat2ConfigNpcCodecVersion(const struct RSCache* cache)
+{
+    int derived = RSCACHE_CODEC_NPC_OSRS;
+    if( RSCache_IsRs2Dat2(cache) )
+    {
+        derived = RSCache_RevisionAtLeastRs2(
+                      cache,
+                      RSCACHE_TYPE_NPC,
+                      REV_NPC_RS2_VARUINT_MODELS,
+                      RSCACHE_GROUP_REVISION_UNKNOWN,
+                      false)
+                      ? RSCACHE_CODEC_NPC_RS2_BUILD669
+                      : RSCACHE_CODEC_NPC_RS2;
+    }
+    /* An explicit pin from the revision module wins — that is the point of the pin. */
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_NPC, derived);
+}
+
 int
 RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache)
 {
     int flags = 0;
+
+    /* The codec version decides the stream shape; the flag is how the shared
+     * decoder body is told which one it is. Routing it through CodecVersion
+     * rather than testing the revision here is what lets a revision module pin
+     * it explicitly. */
+    if( RSCache_Dat2ConfigNpcCodecVersion(cache) == RSCACHE_CODEC_NPC_RS2_BUILD669 )
+        return RSCACHE_CONFIG_NPC_DECODE_RS2_BUILD669;
 
     /* The head-icon bitfield is an OldSchool-only addition. Non-OSRS (RS2 dat1,
      * RS2 dat2) takes the RS2 opcode set and never reaches the OSRS threshold —
@@ -550,6 +585,417 @@ RSCache_Dat2ConfigNpcFree(struct RSCache_Dat2ConfigNpc* npc)
     free(npc);
 }
 
+
+/* ---- RS2 build 669+ (rev 727) ------------------------------------------- */
+
+/*
+ * A separate stream, not a widening of the 643 one. Sourced from rsmv's
+ * `src/opcodes/npcs.jsonc` resolved at buildnr 727, and checked the only way a
+ * layout can be: every config record ends with opcode 0 at exactly its file
+ * length, so a wrong payload width anywhere makes a record miss its terminator.
+ * 15,632 of the 15,661 npc records in `cache.rs727_preeoc` consume exactly under
+ * this table (see the 29 that do not, below).
+ *
+ * Only the fields this struct already models are stored. The rest are consumed
+ * at the right width and dropped, which is what keeps the record aligned — the
+ * alternative, stopping at the first opcode with no home, is what the 643 body
+ * does and is why most 727 records decoded to a name and nothing else.
+ */
+
+/** A count field: one byte below 128, otherwise two with the top bit masked. */
+static int
+g_count(struct RSCache_Buffer* buffer)
+{
+    return gushortsmart(buffer);
+}
+
+static void
+npc_b669_read_model_list(
+    struct RSCache_Buffer* buffer,
+    int** out_ids,
+    int* out_count)
+{
+    int length = g_count(buffer);
+
+    free(*out_ids);
+    *out_ids = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    *out_count = *out_ids ? length : 0;
+
+    for( int i = 0; i < length; i++ )
+    {
+        /* Read even when the allocation failed: the point of this loop is to
+         * leave the cursor where the next opcode starts. */
+        int id = gvaruint(buffer);
+        if( *out_ids )
+            (*out_ids)[i] = id;
+    }
+}
+
+static void
+npc_b669_read_pairs(
+    struct RSCache_Buffer* buffer,
+    int** out_from,
+    int** out_to,
+    int* out_count)
+{
+    int length = g_count(buffer);
+
+    free(*out_from);
+    free(*out_to);
+    *out_from = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    *out_to = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    *out_count = (*out_from && *out_to) ? length : 0;
+
+    for( int i = 0; i < length; i++ )
+    {
+        int from = g2(buffer);
+        int to = g2(buffer);
+        if( *out_count )
+        {
+            (*out_from)[i] = from;
+            (*out_to)[i] = to;
+        }
+    }
+}
+
+/** Read a NUL-terminated string into `*slot`, replacing whatever was there. */
+static void
+npc_b669_read_string(
+    struct RSCache_Buffer* buffer,
+    char** slot)
+{
+    char* s = gcstring(buffer);
+    if( !slot )
+    {
+        free(s);
+        return;
+    }
+    free(*slot);
+    *slot = s;
+}
+
+/**
+ * The morph blocks, opcodes 0x6A and 0x76.
+ *
+ * `[u32, u8-counted u16 list, u32]` and `[u32, u16, u8-counted u16 list, u32]`.
+ * Structurally unlike the 643 opcodes 106/118 that share their numbers, which is
+ * the clearest single reason this needed its own codec rather than a flag.
+ *
+ * The id list lands in `configs`; the surrounding words are consumed. They are
+ * not varbit/varp ids in this shape, and parking them in `varbit_id` /
+ * `varp_index` would be inventing a mapping this decoder cannot support.
+ */
+static void
+npc_b669_read_morphs(
+    struct RSCache_Buffer* buffer,
+    struct RSCache_Dat2ConfigNpc* npc,
+    bool has_extra_short)
+{
+    g4(buffer);
+    if( has_extra_short )
+        g2(buffer);
+
+    int length = g1(buffer);
+    free(npc->configs);
+    npc->configs = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    npc->configs_count = npc->configs ? length : 0;
+    for( int i = 0; i < length; i++ )
+    {
+        int id = g2(buffer);
+        if( npc->configs )
+            npc->configs[i] = id == 0xFFFF ? -1 : id;
+    }
+
+    g4(buffer);
+}
+
+static bool
+npc_decode_op_rs2_b669(
+    struct RSCache_Dat2ConfigNpc* npc,
+    int opcode,
+    struct RSCache_Buffer* buffer)
+{
+    switch( opcode )
+    {
+    case 0x01: /* models */
+        npc_b669_read_model_list(buffer, &npc->models, &npc->models_count);
+        return true;
+    case 0x3C: /* chathead models */
+        npc_b669_read_model_list(buffer, &npc->chathead_models, &npc->chathead_models_count);
+        return true;
+
+    case 0x02: /* name */
+        npc_b669_read_string(buffer, &npc->name);
+        return true;
+    case 0x03: /* examine — retired in 2006, still in the opcode table */
+    {
+        char* discard = gcstring(buffer);
+        free(discard);
+        return true;
+    }
+
+    case 0x1E:
+    case 0x1F:
+    case 0x20:
+    case 0x21:
+    case 0x22: /* ground/entity ops */
+        npc_b669_read_string(buffer, &npc->actions[opcode - 0x1E]);
+        if( npc->actions[opcode - 0x1E] && strcmp(npc->actions[opcode - 0x1E], "Hidden") == 0 )
+        {
+            free(npc->actions[opcode - 0x1E]);
+            npc->actions[opcode - 0x1E] = NULL;
+        }
+        return true;
+
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9A: /* members-only ops: the reference reads and discards them */
+        npc_b669_read_string(buffer, NULL);
+        return true;
+
+    case 0x28: /* colour replacements */
+        npc_b669_read_pairs(
+            buffer, &npc->recolor_to_find, &npc->recolor_to_replace, &npc->recolor_count);
+        return true;
+    case 0x29: /* material replacements */
+        npc_b669_read_pairs(
+            buffer, &npc->retexture_to_find, &npc->retexture_to_replace, &npc->retexture_count);
+        return true;
+    case 0x2A: /* recolour palette */
+    {
+        int length = g_count(buffer);
+        for( int i = 0; i < length; i++ )
+            g1(buffer);
+        return true;
+    }
+
+    case 0x0C: /* bound size */
+        npc->size = g1(buffer);
+        return true;
+    case 0x5F: /* combat level */
+        npc->combat_level = g2(buffer);
+        return true;
+    case 0x61: /* scale XZ */
+        npc->width_scale = g2(buffer);
+        return true;
+    case 0x62: /* scale Y */
+        npc->height_scale = g2(buffer);
+        return true;
+    case 0x64: /* ambience */
+        npc->ambient = g1b(buffer);
+        return true;
+    case 0x65: /* model contrast; stored pre-scaled as everywhere else here */
+        npc->contrast = g1b(buffer) * 5;
+        return true;
+    case 0x66: /* head icon — the pre-210 bare u16 shape */
+    {
+        free(npc->head_icon_archive_ids);
+        free(npc->head_icon_sprite_index);
+        npc->head_icon_archive_ids = malloc(sizeof(int));
+        npc->head_icon_sprite_index = malloc(sizeof(short));
+        if( npc->head_icon_archive_ids && npc->head_icon_sprite_index )
+        {
+            npc->head_icon_count = 1;
+            npc->head_icon_archive_ids[0] = -1;
+            npc->head_icon_sprite_index[0] = (short)g2(buffer);
+        }
+        else
+        {
+            npc->head_icon_count = 0;
+            g2(buffer);
+        }
+        return true;
+    }
+    case 0x67: /* rotation speed */
+        npc->rotation_speed = g2(buffer);
+        return true;
+    case 0x7B: /* icon height */
+        npc->height = g2(buffer);
+        return true;
+    case 0x7F: /* animation group == BasType */
+        npc->bas_type_id = g2(buffer);
+        return true;
+
+    case 0x5D: /* draw map dot = false */
+        npc->is_minimap_visible = false;
+        return true;
+    case 0x63: /* render priority */
+        npc->has_render_priority = true;
+        npc->render_priority = 1;
+        return true;
+    case 0x6B: /* not interactable */
+        npc->is_interactable = false;
+        return true;
+    case 0x6D: /* slow walk */
+        npc->rotation_flag = false;
+        return true;
+
+    case 0x86: /* ambient sound: four effect ids and a radius */
+        npc->sound_idle = g2(buffer);
+        npc->sound_crawl = g2(buffer);
+        npc->sound_walk = g2(buffer);
+        npc->sound_run = g2(buffer);
+        npc->sound_radius = g1(buffer);
+        if( npc->sound_idle == 65535 )
+            npc->sound_idle = -1;
+        if( npc->sound_crawl == 65535 )
+            npc->sound_crawl = -1;
+        if( npc->sound_walk == 65535 )
+            npc->sound_walk = -1;
+        if( npc->sound_run == 65535 )
+            npc->sound_run = -1;
+        return true;
+
+    case 0x6A: /* morphs, short form */
+        npc_b669_read_morphs(buffer, npc, false);
+        return true;
+    case 0x76: /* morphs, long form */
+        npc_b669_read_morphs(buffer, npc, true);
+        return true;
+
+    case 0xF9: /* params */
+        gparams(buffer, &npc->params);
+        return true;
+
+    /* --- consumed at the right width, nothing in this struct to hold them --- */
+
+    case 0x6F: /* animate idle */
+    case 0x8D:
+    case 0x8F:
+    case 0x9E:
+    case 0x9F:
+    case 0xA2:
+    case 0xA9:
+    case 0xB2:
+    case 0xB6:
+    case 0xB9:
+        return true; /* payload-free flags */
+
+    case 0x08:
+    case 0x0B:
+    case 0x77: /* movement capabilities */
+    case 0x7D: /* respawn direction */
+    case 0x80: /* movement type */
+    case 0x8C:
+    case 0xA3:
+    case 0xA5:
+    case 0xA8:
+    case 0xB4:
+    case 0xB7:
+    case 0xB8:
+    case 0xDB:
+    case 0xFD:
+        g1(buffer);
+        return true;
+
+    case 0x0D:
+    case 0x0E:
+    case 0x2C:
+    case 0x2D:
+    case 0x7A:
+    case 0x89: /* attack cursor */
+    case 0x8E: /* map function */
+    case 0xAA:
+    case 0xAB:
+    case 0xAC:
+    case 0xAD:
+    case 0xAE:
+    case 0xAF:
+        g2(buffer);
+        return true;
+
+    case 0x72: /* shadow alpha intensity */
+    case 0x73:
+        g1(buffer);
+        g1(buffer);
+        return true;
+
+    case 0x87: /* cursor op + cursor */
+    case 0x88:
+        g1(buffer);
+        g2(buffer);
+        return true;
+
+    case 0x71: /* shadow src/dst colour */
+    case 0xA4:
+        g2(buffer);
+        g2(buffer);
+        return true;
+
+    case 0x9B: /* four signed bytes */
+        g1b(buffer);
+        g1b(buffer);
+        g1b(buffer);
+        g1b(buffer);
+        return true;
+
+    case 0x11: /* four shorts */
+        g2(buffer);
+        g2(buffer);
+        g2(buffer);
+        g2(buffer);
+        return true;
+
+    case 0x78:
+        g2(buffer);
+        g2(buffer);
+        g2(buffer);
+        g1(buffer);
+        return true;
+
+    case 0xB5:
+        g2(buffer);
+        g1(buffer);
+        return true;
+
+    case 0x8A: /* army icon: a varshort, so one byte or two */
+        gushortsmart(buffer);
+        return true;
+
+    case 0xB3: /* six varshorts */
+        for( int i = 0; i < 6; i++ )
+            gushortsmart(buffer);
+        return true;
+
+    case 0x79: /* per-model translations, four bytes each */
+    {
+        int length = g_count(buffer);
+        for( int i = 0; i < length; i++ )
+            g4(buffer);
+        return true;
+    }
+
+    case 0xA0: /* quest ids */
+    {
+        int length = g_count(buffer);
+        for( int i = 0; i < length; i++ )
+            g2(buffer);
+        return true;
+    }
+
+    default:
+        /*
+         * Stop rather than misalign, for the same reason the 643 body does: an
+         * unknown opcode has an unknown payload length.
+         *
+         * 29 records in `cache.rs727_preeoc` reach here, all npcs in one family
+         * (ids 8729-9065, the "Dwarf squad" dummies), using opcodes 0xCC-0xDF
+         * that no available reference documents. Their ids and names decode;
+         * `_consumed` stays short, which is the signal a caller checks.
+         */
+        if( getenv("RSCACHE_NPC_DEBUG") )
+            fprintf(
+                stderr,
+                "npc(rs2 b669): unimplemented opcode %d at offset %d\n",
+                opcode,
+                (int)buffer->position - 1);
+        npc->_consumed = (int)buffer->position;
+        return false;
+    }
+}
+
 /**
  * @brief
  *
@@ -584,6 +1030,11 @@ RSCache_Dat2ConfigNpcDecodeOp(
 
     (void)rev210_head_icons;
     (void)rs2;
+
+    /* A different stream, not a wider field: dispatch whole rather than
+     * threading build-669 exceptions through every case below. */
+    if( flags & RSCACHE_CONFIG_NPC_DECODE_RS2_BUILD669 )
+        return npc_decode_op_rs2_b669(npc, opcode, buffer);
 
         switch( opcode )
         {

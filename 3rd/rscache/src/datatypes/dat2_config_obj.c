@@ -13,12 +13,41 @@
 void
 RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object);
 
+/**
+ * The RS2 build at which obj model ids became varuint.
+ *
+ * From rsmv's `src/opcodes/typedef.jsonc`: `item_modelid` is
+ * `{">=670":"varuint", ">=0":"ushort"}`.
+ */
+#define REV_OBJ_RS2_VARUINT_MODELS 670
+
+int
+RSCache_Dat2ConfigObjCodecVersion(const struct RSCache* cache)
+{
+    int derived = RSCACHE_CODEC_OBJ_DEFAULT;
+    if( RSCache_IsRs2Dat2(cache) &&
+        RSCache_RevisionAtLeastRs2(
+            cache,
+            RSCACHE_TYPE_OBJ,
+            REV_OBJ_RS2_VARUINT_MODELS,
+            RSCACHE_GROUP_REVISION_UNKNOWN,
+            false) )
+        derived = RSCACHE_CODEC_OBJ_RS2_BUILD670;
+    /* An explicit pin from the revision module wins. */
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_OBJ, derived);
+}
+
 int
 RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
 {
     int flags = 0;
 
     assert(cache);
+    /* The codec version decides the stream shape; the flag carries it into the
+     * shared decoder body, so a revision module can pin it. */
+    if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD670 )
+        return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670;
+
     if( !RSCache_IsOsrs(cache) )
         return 0;
 
@@ -552,6 +581,325 @@ RSCache_Dat2ConfigObjDecodeInplace(
     RSCache_Dat2ConfigObjDecodeInplaceFlags(object, data, data_size, 0);
 }
 
+
+/* ---- RS2 build 670+ (rev 727) ------------------------------------------- */
+
+/*
+ * A separate stream from the 643/OldSchool one. Sourced from rsmv's
+ * `src/opcodes/items.jsonc` resolved at buildnr 727, and checked the only way a
+ * layout can be: a config record ends with opcode 0 at exactly its file length,
+ * so a wrong payload width anywhere makes a record miss its terminator. All
+ * 24,803 obj records in `cache.rs727_preeoc` consume exactly under this table.
+ *
+ * Fields this struct already models are stored; the rest are consumed at the
+ * right width and dropped, which is what keeps the record aligned.
+ */
+
+static void
+obj_b670_read_string(
+    struct RSCache_Buffer* buffer,
+    char** slot)
+{
+    char* s = gcstring(buffer);
+    if( !slot )
+    {
+        free(s);
+        return;
+    }
+    free(*slot);
+    *slot = s;
+}
+
+static void
+obj_b670_read_pairs(
+    struct RSCache_Buffer* buffer,
+    int** out_from,
+    int** out_to,
+    int* out_count)
+{
+    int length = gushortsmart(buffer);
+
+    free(*out_from);
+    free(*out_to);
+    *out_from = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    *out_to = length > 0 ? malloc((size_t)length * sizeof(int)) : NULL;
+    *out_count = (*out_from && *out_to) ? length : 0;
+
+    for( int i = 0; i < length; i++ )
+    {
+        int from = g2(buffer);
+        int to = g2(buffer);
+        if( *out_count )
+        {
+            (*out_from)[i] = from;
+            (*out_to)[i] = to;
+        }
+    }
+}
+
+static bool
+obj_decode_op_rs2_b670(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
+    struct RSCache_Buffer* buffer)
+{
+    switch( opcode )
+    {
+    /* Every model field is a varuint here — the whole reason for this codec. */
+    case 0x01:
+        object->inventory_model_id = gvaruint(buffer);
+        return true;
+    case 0x17: /* male model 0; the trailing type byte went away at build 502 */
+        object->male_model_0 = gvaruint(buffer);
+        return true;
+    case 0x18:
+        object->male_model_1 = gvaruint(buffer);
+        return true;
+    case 0x19: /* female model 0 */
+        object->female_model_0 = gvaruint(buffer);
+        return true;
+    case 0x1A:
+        object->female_model_1 = gvaruint(buffer);
+        return true;
+    case 0x4E:
+        object->male_model_2 = gvaruint(buffer);
+        return true;
+    case 0x4F:
+        object->female_model_2 = gvaruint(buffer);
+        return true;
+    case 0x5A:
+        object->male_head_model = gvaruint(buffer);
+        return true;
+    case 0x5B:
+        object->female_head_model = gvaruint(buffer);
+        return true;
+    case 0x5C:
+        object->male_head_model_2 = gvaruint(buffer);
+        return true;
+    case 0x5D:
+        object->female_head_model_2 = gvaruint(buffer);
+        return true;
+
+    case 0x02:
+        obj_b670_read_string(buffer, &object->name);
+        return true;
+    case 0x03: /* buff effect, where OldSchool keeps the examine text */
+        obj_b670_read_string(buffer, &object->examine);
+        return true;
+
+    case 0x1E:
+    case 0x1F:
+    case 0x20:
+    case 0x21:
+    case 0x22:
+        obj_b670_read_string(buffer, &object->actions[opcode - 0x1E]);
+        return true;
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x26:
+    case 0x27:
+        obj_b670_read_string(buffer, &object->if_actions[opcode - 0x23]);
+        return true;
+    case 0xA4: /* combine shard name */
+        obj_b670_read_string(buffer, NULL);
+        return true;
+
+    case 0x04:
+        object->zoom2d = g2(buffer);
+        return true;
+    case 0x05:
+        object->xan2d = g2(buffer);
+        return true;
+    case 0x06:
+        object->yan2d = g2(buffer);
+        return true;
+    case 0x5F:
+        object->zan2d = g2(buffer);
+        return true;
+    case 0x07:
+        object->offset_x2d = g2b(buffer);
+        return true;
+    case 0x08:
+        object->offset_y2d = g2b(buffer);
+        return true;
+
+    case 0x0B:
+        object->stacking_behaviour = 1;
+        return true;
+    case 0xA5: /* never stackable */
+        object->stacking_behaviour = 0;
+        return true;
+    case 0x0C:
+        object->cost = g4(buffer);
+        return true;
+    case 0x0D:
+        object->wearpos_1 = g1(buffer);
+        return true;
+    case 0x0E:
+        object->wearpos_2 = g1(buffer);
+        return true;
+    case 0x1B:
+        object->wearpos_3 = g1(buffer);
+        return true;
+    case 0x10:
+        object->is_members = true;
+        return true;
+    case 0x41: /* tradeable */
+        object->ge_tradeable = true;
+        return true;
+
+    case 0x28:
+        obj_b670_read_pairs(
+            buffer, &object->recolors_from, &object->recolors_to, &object->recolor_count);
+        return true;
+    case 0x29:
+        obj_b670_read_pairs(
+            buffer, &object->retextures_from, &object->retextures_to, &object->retexture_count);
+        return true;
+    case 0x2A: /* recolour palette: (index, value) byte pairs */
+    {
+        int length = gushortsmart(buffer);
+        for( int i = 0; i < length; i++ )
+        {
+            g1(buffer);
+            g1(buffer);
+        }
+        return true;
+    }
+
+    case 0x5E:
+        object->category = g2(buffer);
+        return true;
+    case 0x61:
+        object->noted_id = g2(buffer);
+        return true;
+    case 0x62:
+        object->noted_template = g2(buffer);
+        return true;
+    case 0x8B: /* bind link / bought id */
+        object->bought_id = g2(buffer);
+        return true;
+    case 0x8C:
+        object->bought_template_id = g2(buffer);
+        return true;
+    case 0x73:
+        object->team = g1(buffer);
+        return true;
+    case 0x86: /* pick size shift */
+        object->shift_click_drop_index = g1b(buffer);
+        return true;
+
+    case 0x64:
+    case 0x65:
+    case 0x66:
+    case 0x67:
+    case 0x68:
+    case 0x69:
+    case 0x6A:
+    case 0x6B:
+    case 0x6C:
+    case 0x6D:
+        object->count_obj[opcode - 0x64] = g2(buffer);
+        object->count_co[opcode - 0x64] = g2(buffer);
+        return true;
+
+    case 0x6E:
+        object->resize_x = g2(buffer);
+        return true;
+    case 0x6F:
+        object->resize_y = g2(buffer);
+        return true;
+    case 0x70:
+        object->resize_z = g2(buffer);
+        return true;
+    case 0x71:
+        object->ambient = g1b(buffer);
+        return true;
+    case 0x72:
+        object->contrast = g1b(buffer) * 5;
+        return true;
+
+    case 0xF9:
+        RSCache_BufferReadParams(buffer, &object->params);
+        return true;
+
+    /* --- consumed at the right width, nothing in this struct to hold them --- */
+
+    case 0x0F:
+    case 0x9C:
+    case 0x9D:
+    case 0xA7:
+    case 0xA8:
+    case 0xB2:
+        return true; /* payload-free flags */
+
+    case 0x60: /* dummy item */
+        g1(buffer);
+        return true;
+
+    case 0x0A:
+    case 0x12: /* multi stack size */
+    case 0x2C:
+    case 0x2D:
+    case 0x79: /* loan id */
+    case 0x7A: /* loan template */
+    case 0x8E:
+    case 0x8F:
+    case 0x90:
+    case 0x91:
+    case 0x92:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9A:
+    case 0xA1:
+    case 0xA2:
+    case 0xA3:
+        g2(buffer);
+        return true;
+
+    case 0x2B: /* name colour */
+    case 0x45: /* buy limit */
+        g4(buffer);
+        return true;
+
+    case 0x7D: /* male wear translate */
+    case 0x7E: /* female wear translate */
+        g1(buffer);
+        g1(buffer);
+        g1(buffer);
+        return true;
+
+    case 0x7F:
+    case 0x80:
+    case 0x81:
+    case 0x82:
+        g1(buffer);
+        g2(buffer);
+        return true;
+
+    case 0xB5: /* big value: two ints */
+        g4(buffer);
+        g4(buffer);
+        return true;
+
+    case 0x84: /* quest ids */
+    {
+        int length = gushortsmart(buffer);
+        for( int i = 0; i < length; i++ )
+            g2(buffer);
+        return true;
+    }
+
+    default:
+        /* Unknown payload length: stop rather than misalign later fields. No
+         * record in `cache.rs727_preeoc` reaches here. */
+        return false;
+    }
+}
+
 bool
 RSCache_Dat2ConfigObjDecodeOp(
     struct RSCache_Dat2ConfigObj* object,
@@ -559,6 +907,11 @@ RSCache_Dat2ConfigObjDecodeOp(
     struct RSCache_Buffer* buffer,
     unsigned flags)
 {
+        /* A different stream, not a wider field: dispatch whole rather than
+         * threading build-670 exceptions through every case below. */
+        if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 )
+            return obj_decode_op_rs2_b670(object, opcode, buffer);
+
         switch( opcode )
         {
         case 1:

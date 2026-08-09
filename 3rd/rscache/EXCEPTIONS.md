@@ -1393,6 +1393,40 @@ task keeps an owned byte copy and cursor per `(group, file)` so sibling
 records advance one stream. Exact leftover-byte check under
 `TORIRS_WORLDMAP_DEBUG`.
 
+### B23. Rev 727 is decode-only, and 29 npc records stay short *(Gap)*
+
+`cache.rs727_preeoc` decodes through a new profile (`rev_dat2_rs727.c`) that pins its
+own npc and obj codecs — `RSCACHE_CODEC_NPC_RS2_BUILD669` and
+`RSCACHE_CODEC_OBJ_RS2_BUILD670`. Two shortfalls, both deliberate.
+
+**No encoder.** Only the decode side exists, so this profile must not be used to write
+a cache. The usual validation here is a byte-exact round trip (B2, B3); the check used
+instead is exact consumption, which is what a decode-only path can be held to: a config
+record ends with opcode 0 at exactly its file length, so a wrong payload width anywhere
+makes a record miss its terminator.
+
+| Type | Records | Consume exactly |
+|---|---|---|
+| obj | 24,803 | 24,803 (100%) |
+| npc | 15,661 | 15,632 (99.81%) |
+
+**29 npc records stop short.** All of them are one family — ids 8729-9065, the "Dwarf
+squad" and neighbouring dummies — and all stop on an opcode in 0xCC-0xDF. No available
+reference documents that range: rsmv's `npcs.jsonc`, the source for the rest of the
+table, lists 0xDB and nothing else in it. Fitting a length to them was tried and
+rejected: with unknown opcodes every byte is a plausible opcode, so a search over
+lengths finds tables that score 95%+ while quietly rewriting opcode 13 from a u16
+animation id into one byte. Length alone is not identification.
+
+Those records decode up to the unknown opcode — id, name, size, combat level and models
+all land — and leave `_consumed` short, which is the signal every caller already checks.
+
+The table itself came from rsmv (`~/Documents/git_repos/rsmv/src/opcodes/`), whose
+opcode definitions carry `buildnr` gates across the RS2/RS3 lineage. What moved by 727
+and had silently corrupted every record past it: npc opcodes 0x01/0x3C and every obj
+model field hold **varuint** ids from build 669/670, not u16 — two bytes when the top
+bit of the first is clear, four when it is set.
+
 ## C. Open — real defects deliberately not fixed
 
 ### C1. dat2 npc has no reference defaults, and it reaches rendering *(Open)*

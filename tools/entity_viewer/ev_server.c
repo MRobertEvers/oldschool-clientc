@@ -1,0 +1,860 @@
+/*
+ * ev_server — the entity viewer's cache half.
+ *
+ * The browser cannot open a 216 MB cache, so this does: it holds the cache, the
+ * catalog ev_catalog produced, and answers three kinds of request.
+ *
+ *   GET /api/npcs.json          every npc, for the picker
+ *   GET /api/npc/<id>.json      one npc's animation lists (rig matches, name guesses)
+ *   GET /api/npc/<id>.model     the built, merged, lit model in ev_wire format
+ *   GET /api/seq/<id>.anim      one sequence as an animation in ev_wire format
+ *   GET /<anything else>        static files from the web directory
+ *
+ * Single-threaded and blocking on purpose: one viewer, one browser tab, and a
+ * request is a cache read that takes milliseconds. Concurrency here would buy
+ * nothing and cost the ability to reason about the cache handle.
+ *
+ * Usage:
+ *   ev_server --rev osrs239 <cache_dir> --catalog <dir> [--port 8099] [--web DIR]
+ */
+
+#include "ev_build.h"
+#include "ev_render.h"
+#include "ev_wire.h"
+#include "tool_profile.h"
+
+#include "toridraw.h"
+
+#include <arpa/inet.h>
+#include <ctype.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+/* ---- catalog in memory -------------------------------------------------- */
+
+struct SeqRow
+{
+    int seq_id;
+    int framemap_id;
+    int frame_count;
+    char* name;
+};
+
+struct NpcRow
+{
+    int npc_id;
+    char* name;    /* display name from the cache record */
+    char* gameval; /* content-team name */
+    int framemaps[16];
+    int framemap_count;
+    int rig_match_seqs;
+    int name_match_seqs;
+};
+
+struct NameMatchRow
+{
+    int npc_id;
+    int seq_id;
+    int score;
+    int in_rig;
+};
+
+static struct SeqRow* g_seqs = NULL;
+static int g_seq_count = 0;
+static struct NpcRow* g_npcs = NULL;
+static int g_npc_count = 0;
+static struct NameMatchRow* g_name_matches = NULL;
+static int g_name_match_count = 0;
+
+static struct Tool_Dat2Cache g_cache;
+static const char* g_web_dir = NULL;
+
+/**
+ * One CSV field, unquoted in place.
+ *
+ * Only what these four files actually contain: comma separation, and quoted
+ * fields with doubled quotes, which is what ev_catalog writes for npc names.
+ */
+static char*
+csv_field(char** cursor)
+{
+    char* p = *cursor;
+    if( !p )
+        return NULL;
+
+    if( *p == '"' )
+    {
+        p++;
+        char* out = p;
+        char* w = p;
+        while( *p )
+        {
+            if( *p == '"' && p[1] == '"' )
+            {
+                *w++ = '"';
+                p += 2;
+                continue;
+            }
+            if( *p == '"' )
+            {
+                p++;
+                break;
+            }
+            *w++ = *p++;
+        }
+        *w = '\0';
+        if( *p == ',' )
+            p++;
+        *cursor = p;
+        return out;
+    }
+
+    char* out = p;
+    while( *p && *p != ',' && *p != '\n' && *p != '\r' )
+        p++;
+    if( *p )
+    {
+        *p = '\0';
+        p++;
+    }
+    else
+        p = NULL;
+    *cursor = p;
+    return out;
+}
+
+static int
+load_catalog(const char* dir)
+{
+    char path[2048];
+    char line[8192];
+    FILE* f;
+
+    /* framemap_seqs.csv: framemap_id,seq_id,frame_count,seq_name */
+    snprintf(path, sizeof(path), "%s/framemap_seqs.csv", dir);
+    f = fopen(path, "rb");
+    if( !f )
+    {
+        fprintf(stderr, "cannot read %s\n", path);
+        return 0;
+    }
+    int cap = 1024;
+    g_seqs = malloc((size_t)cap * sizeof(*g_seqs));
+    fgets(line, sizeof(line), f); /* header */
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* cur = line;
+        int fm = atoi(csv_field(&cur));
+        int seq = atoi(csv_field(&cur));
+        int frames = atoi(csv_field(&cur));
+        char* name = csv_field(&cur);
+        if( g_seq_count == cap )
+        {
+            cap *= 2;
+            g_seqs = realloc(g_seqs, (size_t)cap * sizeof(*g_seqs));
+        }
+        g_seqs[g_seq_count].seq_id = seq;
+        g_seqs[g_seq_count].framemap_id = fm;
+        g_seqs[g_seq_count].frame_count = frames;
+        g_seqs[g_seq_count].name = name && *name ? strdup(name) : NULL;
+        g_seq_count++;
+    }
+    fclose(f);
+
+    /* npc_catalog.csv: id,name,gameval,models,seeds,framemaps,rig,strict,nm,nm_outside */
+    snprintf(path, sizeof(path), "%s/npc_catalog.csv", dir);
+    f = fopen(path, "rb");
+    if( !f )
+    {
+        fprintf(stderr, "cannot read %s\n", path);
+        return 0;
+    }
+    cap = 1024;
+    g_npcs = malloc((size_t)cap * sizeof(*g_npcs));
+    fgets(line, sizeof(line), f);
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* cur = line;
+        int id = atoi(csv_field(&cur));
+        char* name = csv_field(&cur);
+        char* gv = csv_field(&cur);
+        csv_field(&cur); /* models */
+        csv_field(&cur); /* seed seqs */
+        char* fms = csv_field(&cur);
+        int rig = atoi(csv_field(&cur));
+        csv_field(&cur); /* strict */
+        int nm = atoi(csv_field(&cur));
+
+        if( g_npc_count == cap )
+        {
+            cap *= 2;
+            g_npcs = realloc(g_npcs, (size_t)cap * sizeof(*g_npcs));
+        }
+        struct NpcRow* row = &g_npcs[g_npc_count++];
+        memset(row, 0, sizeof(*row));
+        row->npc_id = id;
+        row->name = name && *name ? strdup(name) : NULL;
+        row->gameval = gv && *gv ? strdup(gv) : NULL;
+        row->rig_match_seqs = rig;
+        row->name_match_seqs = nm;
+        for( char* t = fms; t && *t && row->framemap_count < 16; )
+        {
+            while( *t == ' ' )
+                t++;
+            if( !*t )
+                break;
+            row->framemaps[row->framemap_count++] = atoi(t);
+            while( *t && *t != ' ' )
+                t++;
+        }
+    }
+    fclose(f);
+
+    /* npc_name_matches.csv: npc_id,gameval,seq_id,seq_name,score,in_rig_set */
+    snprintf(path, sizeof(path), "%s/npc_name_matches.csv", dir);
+    f = fopen(path, "rb");
+    if( f )
+    {
+        cap = 4096;
+        g_name_matches = malloc((size_t)cap * sizeof(*g_name_matches));
+        fgets(line, sizeof(line), f);
+        while( fgets(line, sizeof(line), f) )
+        {
+            char* cur = line;
+            int npc = atoi(csv_field(&cur));
+            csv_field(&cur); /* gameval */
+            int seq = atoi(csv_field(&cur));
+            csv_field(&cur); /* seq name */
+            int score = atoi(csv_field(&cur));
+            char* in_rig = csv_field(&cur);
+            if( g_name_match_count == cap )
+            {
+                cap *= 2;
+                g_name_matches = realloc(g_name_matches, (size_t)cap * sizeof(*g_name_matches));
+            }
+            g_name_matches[g_name_match_count].npc_id = npc;
+            g_name_matches[g_name_match_count].seq_id = seq;
+            g_name_matches[g_name_match_count].score = score;
+            g_name_matches[g_name_match_count].in_rig =
+                in_rig && strncmp(in_rig, "true", 4) == 0 ? 1 : 0;
+            g_name_match_count++;
+        }
+        fclose(f);
+    }
+
+    fprintf(
+        stderr,
+        "catalog: %d npcs, %d rigged sequences, %d name matches\n",
+        g_npc_count,
+        g_seq_count,
+        g_name_match_count);
+    return 1;
+}
+
+static const struct NpcRow*
+npc_row(int id)
+{
+    for( int i = 0; i < g_npc_count; i++ )
+        if( g_npcs[i].npc_id == id )
+            return &g_npcs[i];
+    return NULL;
+}
+
+static const char*
+seq_name(int seq_id)
+{
+    for( int i = 0; i < g_seq_count; i++ )
+        if( g_seqs[i].seq_id == seq_id )
+            return g_seqs[i].name;
+    return NULL;
+}
+
+/* ---- http --------------------------------------------------------------- */
+
+static void
+send_all(int fd, const void* data, size_t len)
+{
+    const char* p = data;
+    while( len )
+    {
+        ssize_t n = write(fd, p, len);
+        if( n <= 0 )
+            return;
+        p += n;
+        len -= (size_t)n;
+    }
+}
+
+static void
+send_response(
+    int fd,
+    const char* status,
+    const char* content_type,
+    const void* body,
+    size_t len)
+{
+    char head[512];
+    int n = snprintf(
+        head,
+        sizeof(head),
+        "HTTP/1.1 %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Cache-Control: no-store\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        status,
+        content_type,
+        len);
+    send_all(fd, head, (size_t)n);
+    if( body && len )
+        send_all(fd, body, len);
+}
+
+static void
+send_404(int fd)
+{
+    static const char body[] = "not found";
+    send_response(fd, "404 Not Found", "text/plain", body, sizeof(body) - 1);
+}
+
+/** A growable text buffer, for building JSON without a dependency. */
+struct Str
+{
+    char* p;
+    size_t len;
+    size_t cap;
+};
+
+static void
+str_add(struct Str* s, const char* fmt, ...)
+{
+    va_list ap;
+    for( ;; )
+    {
+        size_t room = s->cap - s->len;
+        va_start(ap, fmt);
+        int n = vsnprintf(s->p + s->len, room, fmt, ap);
+        va_end(ap);
+        if( n >= 0 && (size_t)n < room )
+        {
+            s->len += (size_t)n;
+            return;
+        }
+        size_t next = s->cap ? s->cap * 2 : 4096;
+        while( next < s->len + (size_t)(n > 0 ? n : 64) + 1 )
+            next *= 2;
+        char* grown = realloc(s->p, next);
+        if( !grown )
+            return;
+        s->p = grown;
+        s->cap = next;
+    }
+}
+
+/** JSON string escaping, enough for the names these files carry. */
+static void
+str_add_json(struct Str* s, const char* text)
+{
+    if( !text )
+    {
+        str_add(s, "null");
+        return;
+    }
+    str_add(s, "\"");
+    for( const unsigned char* p = (const unsigned char*)text; *p; p++ )
+    {
+        if( *p == '"' || *p == '\\' )
+            str_add(s, "\\%c", *p);
+        else if( *p < 0x20 )
+            str_add(s, "\\u%04x", *p);
+        else if( *p < 0x80 )
+            str_add(s, "%c", *p);
+        else
+            /* Cache text is windows-1252; the high half is emitted as its
+             * Latin-1 code point, which is what the browser will render. */
+            str_add(s, "\\u%04x", *p);
+    }
+    str_add(s, "\"");
+}
+
+static void
+handle_npcs_json(int fd)
+{
+    struct Str s = { 0 };
+    str_add(&s, "[");
+    for( int i = 0; i < g_npc_count; i++ )
+    {
+        const struct NpcRow* r = &g_npcs[i];
+        str_add(&s, i ? ",{" : "{");
+        str_add(&s, "\"id\":%d,\"name\":", r->npc_id);
+        str_add_json(&s, r->name);
+        str_add(&s, ",\"gameval\":");
+        str_add_json(&s, r->gameval);
+        str_add(
+            &s,
+            ",\"rig\":%d,\"maybe\":%d}",
+            r->rig_match_seqs,
+            r->name_match_seqs);
+    }
+    str_add(&s, "]");
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+static void
+handle_npc_json(int fd, int npc_id)
+{
+    const struct NpcRow* r = npc_row(npc_id);
+    if( !r )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct Str s = { 0 };
+    str_add(&s, "{\"id\":%d,\"name\":", r->npc_id);
+    str_add_json(&s, r->name);
+    str_add(&s, ",\"gameval\":");
+    str_add_json(&s, r->gameval);
+
+    str_add(&s, ",\"framemaps\":[");
+    for( int i = 0; i < r->framemap_count; i++ )
+        str_add(&s, i ? ",%d" : "%d", r->framemaps[i]);
+    str_add(&s, "]");
+
+    /* Rigging matches: every sequence built on any of this npc's rigs. */
+    str_add(&s, ",\"rig\":[");
+    int first = 1;
+    for( int i = 0; i < g_seq_count; i++ )
+    {
+        int hit = 0;
+        for( int k = 0; k < r->framemap_count; k++ )
+            if( g_seqs[i].framemap_id == r->framemaps[k] )
+                hit = 1;
+        if( !hit )
+            continue;
+        str_add(&s, first ? "{" : ",{");
+        first = 0;
+        str_add(
+            &s,
+            "\"seq\":%d,\"frames\":%d,\"framemap\":%d,\"name\":",
+            g_seqs[i].seq_id,
+            g_seqs[i].frame_count,
+            g_seqs[i].framemap_id);
+        str_add_json(&s, g_seqs[i].name);
+        str_add(&s, "}");
+    }
+    str_add(&s, "]");
+
+    /* Name guesses, each carrying whether the rig walk already found it. */
+    str_add(&s, ",\"maybe\":[");
+    first = 1;
+    for( int i = 0; i < g_name_match_count; i++ )
+    {
+        if( g_name_matches[i].npc_id != npc_id )
+            continue;
+        str_add(&s, first ? "{" : ",{");
+        first = 0;
+        str_add(
+            &s,
+            "\"seq\":%d,\"score\":%d,\"in_rig\":%s,\"name\":",
+            g_name_matches[i].seq_id,
+            g_name_matches[i].score,
+            g_name_matches[i].in_rig ? "true" : "false");
+        str_add_json(&s, seq_name(g_name_matches[i].seq_id));
+        str_add(&s, "}");
+    }
+    str_add(&s, "]}");
+
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+static void
+handle_npc_model(int fd, int npc_id)
+{
+    struct ToriDraw_Model* model = ev_build_npc_model(&g_cache, npc_id);
+    if( !model )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct EV_WireBuf buf = { 0 };
+    int ok = ev_wire_write_model(&buf, model);
+    ToriDraw_ModelFree(model);
+
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+    send_response(fd, "200 OK", "application/octet-stream", buf.data, buf.len);
+    ev_wire_free(&buf);
+}
+
+static void
+handle_seq_anim(int fd, int seq_id)
+{
+    int framemap_id = -1;
+    struct ToriDraw_Animation* anim = ev_build_seq_anim(&g_cache, seq_id, &framemap_id);
+    if( !anim )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct EV_WireBuf buf = { 0 };
+    int ok = ev_wire_write_anim(&buf, anim);
+    ev_build_free_anim(anim);
+
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+    send_response(fd, "200 OK", "application/octet-stream", buf.data, buf.len);
+    ev_wire_free(&buf);
+}
+
+static const char*
+mime_for(const char* path)
+{
+    const char* dot = strrchr(path, '.');
+    if( !dot )
+        return "application/octet-stream";
+    if( strcmp(dot, ".html") == 0 )
+        return "text/html; charset=utf-8";
+    if( strcmp(dot, ".js") == 0 )
+        return "text/javascript";
+    if( strcmp(dot, ".css") == 0 )
+        return "text/css";
+    if( strcmp(dot, ".wasm") == 0 )
+        return "application/wasm";
+    if( strcmp(dot, ".json") == 0 )
+        return "application/json";
+    return "application/octet-stream";
+}
+
+static void
+handle_static(int fd, const char* rel)
+{
+    if( strstr(rel, "..") )
+    {
+        send_404(fd);
+        return;
+    }
+
+    char path[2048];
+    snprintf(path, sizeof(path), "%s/%s", g_web_dir, rel[0] ? rel : "index.html");
+
+    FILE* f = fopen(path, "rb");
+    if( !f )
+    {
+        send_404(fd);
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* body = malloc((size_t)(len > 0 ? len : 1));
+    if( !body || fread(body, 1, (size_t)len, f) != (size_t)len )
+    {
+        fclose(f);
+        free(body);
+        send_404(fd);
+        return;
+    }
+    fclose(f);
+
+    send_response(fd, "200 OK", mime_for(path), body, (size_t)len);
+    free(body);
+}
+
+/**
+ * Match `/<prefix><id><suffix>` exactly, yielding the id.
+ *
+ * Not sscanf: `sscanf("/api/npc/2042.model", "/api/npc/%d.json", &id)` returns
+ * 1, because the return counts *assignments made*, not whether the rest of the
+ * format matched. Every .model request was answered with JSON until this
+ * replaced it, and the browser reported it as a corrupt model rather than as a
+ * routing bug.
+ */
+static int
+route_id(const char* target, const char* prefix, const char* suffix, int* out_id)
+{
+    size_t plen = strlen(prefix);
+    if( strncmp(target, prefix, plen) != 0 )
+        return 0;
+
+    const char* p = target + plen;
+    if( !isdigit((unsigned char)*p) )
+        return 0;
+
+    char* end = NULL;
+    long id = strtol(p, &end, 10);
+    if( !end || strcmp(end, suffix) != 0 )
+        return 0;
+
+    *out_id = (int)id;
+    return 1;
+}
+
+static void
+handle_request(int fd, const char* target)
+{
+    int id = 0;
+    if( strcmp(target, "/api/npcs.json") == 0 )
+        handle_npcs_json(fd);
+    else if( route_id(target, "/api/npc/", ".json", &id) )
+        handle_npc_json(fd, id);
+    else if( route_id(target, "/api/npc/", ".model", &id) )
+        handle_npc_model(fd, id);
+    else if( route_id(target, "/api/seq/", ".anim", &id) )
+        handle_seq_anim(fd, id);
+    else
+        handle_static(fd, target[0] == '/' ? target + 1 : target);
+}
+
+/**
+ * Bake one npc and one sequence, round-trip both through the wire format, and
+ * report. `--selftest` runs it and exits.
+ *
+ * The point is that it exercises the exact path a request takes with no socket
+ * in the way: when the server died on its first .model request, the socket made
+ * the failure look like a networking problem, and this said in one line that it
+ * was the bake.
+ */
+static int
+selftest(int npc_id, int seq_id)
+{
+    fprintf(stderr, "selftest: npc %d, seq %d\n", npc_id, seq_id);
+
+    struct ToriDraw_Model* model = ev_build_npc_model(&g_cache, npc_id);
+    if( !model )
+    {
+        fprintf(stderr, "  npc %d: no model\n", npc_id);
+        return 1;
+    }
+    fprintf(
+        stderr,
+        "  model: %d vertices, %d faces, vertex_bones %s\n",
+        model->vertex_count,
+        model->face_count,
+        model->vertex_bones ? "yes" : "NO (will not animate)");
+
+    struct EV_WireBuf mb = { 0 };
+    if( !ev_wire_write_model(&mb, model) )
+    {
+        fprintf(stderr, "  model: encode failed\n");
+        return 1;
+    }
+    struct ToriDraw_Model* back = ev_wire_read_model(mb.data, mb.len);
+    if( !back )
+    {
+        fprintf(stderr, "  model: %zu bytes written, decode failed\n", mb.len);
+        return 1;
+    }
+    fprintf(
+        stderr,
+        "  model: %zu bytes, round-trip %d/%d vertices, %d/%d faces\n",
+        mb.len,
+        back->vertex_count,
+        model->vertex_count,
+        back->face_count,
+        model->face_count);
+
+    int framemap_id = -1;
+    struct ToriDraw_Animation* anim = ev_build_seq_anim(&g_cache, seq_id, &framemap_id);
+    if( !anim )
+    {
+        fprintf(stderr, "  seq %d: no animation\n", seq_id);
+        return 1;
+    }
+    fprintf(
+        stderr,
+        "  anim: %d frames on rig %d, base length %d\n",
+        anim->frame_count,
+        framemap_id,
+        anim->base->length);
+
+    struct EV_WireBuf ab = { 0 };
+    if( !ev_wire_write_anim(&ab, anim) )
+    {
+        fprintf(stderr, "  anim: encode failed\n");
+        return 1;
+    }
+    struct ToriDraw_Animation* aback = ev_wire_read_anim(ab.data, ab.len);
+    if( !aback )
+    {
+        fprintf(stderr, "  anim: %zu bytes written, decode failed\n", ab.len);
+        return 1;
+    }
+    fprintf(stderr, "  anim: %zu bytes, round-trip %d frames\n", ab.len, aback->frame_count);
+
+    /* Applying a frame is where a wrong rig binding shows: if the pose does not
+     * move a single vertex the model and the animation do not agree. */
+    ToriDraw_ModelCaptureOriginalVertices(back);
+    int moved = 0;
+    ToriDraw_ModelAnimateReset(back);
+    ToriDraw_ModelAnimateFrame(back, aback->base, &aback->frames[0]);
+    for( int i = 0; i < back->vertex_count; i++ )
+        if( back->vertices_x[i] != back->original_vertices_x[i] ||
+            back->vertices_y[i] != back->original_vertices_y[i] ||
+            back->vertices_z[i] != back->original_vertices_z[i] )
+            moved++;
+    fprintf(stderr, "  frame 0 moves %d of %d vertices\n", moved, back->vertex_count);
+
+    /*
+     * Run the browser's exact render path natively.
+     *
+     * "Nothing on the canvas" has two very different causes — the module never
+     * ran, or it ran and the projection culled the model — and only this tells
+     * them apart. The count is of pixels that are not the background.
+     */
+    ev_init();
+    ev_set_model(mb.data, (int)mb.len);
+    ev_set_anim(ab.data, (int)ab.len);
+    int h = ev_model_height();
+    int zoom = h * 3 > 400 ? h * 3 : 400;
+    uint8_t* rgba = ev_render(256, 256, 0, 200, zoom, 0);
+    int lit = 0;
+    if( rgba )
+        for( int i = 0; i < 256 * 256; i++ )
+            if( rgba[i * 4] != 0x14 || rgba[i * 4 + 1] != 0x18 || rgba[i * 4 + 2] != 0x21 )
+                lit++;
+    fprintf(
+        stderr,
+        "  render: height %d, zoom %d, cull %d, %d of %d pixels drawn\n",
+        h,
+        zoom,
+        ev_last_cull(),
+        lit,
+        256 * 256);
+
+    ToriDraw_ModelFree(model);
+    ToriDraw_ModelFree(back);
+    ev_build_free_anim(anim);
+    ev_wire_free_anim(aback);
+    ev_wire_free(&mb);
+    ev_wire_free(&ab);
+    return 0;
+}
+
+int
+main(int argc, char** argv)
+{
+    const char* rev_name = NULL;
+    const char* cache_dir = NULL;
+    const char* catalog_dir = NULL;
+    int port = 8099;
+    int selftest_npc = -1;
+    int selftest_seq = -1;
+
+    /* Relative to the binary's directory by default, so the usual invocation
+     * from the repo root needs no --web. */
+    static char web_default[2048];
+    snprintf(web_default, sizeof(web_default), "tools/entity_viewer/web");
+    g_web_dir = web_default;
+
+    for( int i = 1; i < argc; i++ )
+    {
+        if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
+            rev_name = argv[++i];
+        else if( strcmp(argv[i], "--catalog") == 0 && i + 1 < argc )
+            catalog_dir = argv[++i];
+        else if( strcmp(argv[i], "--web") == 0 && i + 1 < argc )
+            g_web_dir = argv[++i];
+        else if( strcmp(argv[i], "--port") == 0 && i + 1 < argc )
+            port = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--selftest") == 0 && i + 2 < argc )
+        {
+            selftest_npc = atoi(argv[++i]);
+            selftest_seq = atoi(argv[++i]);
+        }
+        else if( argv[i][0] != '-' )
+            cache_dir = argv[i];
+    }
+
+    if( !rev_name || !cache_dir || !catalog_dir )
+    {
+        fprintf(
+            stderr,
+            "Usage: %s --rev osrs239 <cache_dir> --catalog <dir> "
+            "[--port 8099] [--web DIR]\n",
+            argv[0]);
+        return 1;
+    }
+
+    struct RSCache profile;
+    if( !tool_resolve_profile(rev_name, NULL, NULL, NULL, NULL, &profile) )
+        return 1;
+    if( !tool_dat2_open(cache_dir, &profile, &g_cache) )
+    {
+        fprintf(stderr, "cannot open cache at %s\n", cache_dir);
+        return 1;
+    }
+    if( !load_catalog(catalog_dir) )
+        return 1;
+
+    ToriDraw_Init();
+
+    if( selftest_npc >= 0 )
+        return selftest(selftest_npc, selftest_seq);
+
+    signal(SIGPIPE, SIG_IGN);
+
+    int srv = socket(AF_INET, SOCK_STREAM, 0);
+    int one = 1;
+    setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons((uint16_t)port);
+    if( bind(srv, (struct sockaddr*)&addr, sizeof(addr)) != 0 || listen(srv, 16) != 0 )
+    {
+        fprintf(stderr, "cannot listen on port %d: %s\n", port, strerror(errno));
+        return 1;
+    }
+
+    fprintf(stderr, "entity viewer on http://127.0.0.1:%d/\n", port);
+
+    for( ;; )
+    {
+        int fd = accept(srv, NULL, NULL);
+        if( fd < 0 )
+            continue;
+
+        char req[4096];
+        ssize_t n = read(fd, req, sizeof(req) - 1);
+        if( n > 0 )
+        {
+            req[n] = '\0';
+            char method[16] = { 0 };
+            char target[1024] = { 0 };
+            if( sscanf(req, "%15s %1023s", method, target) == 2 &&
+                strcmp(method, "GET") == 0 )
+            {
+                char* q = strchr(target, '?');
+                if( q )
+                    *q = '\0';
+                handle_request(fd, target);
+            }
+            else
+                send_404(fd);
+        }
+        close(fd);
+    }
+}

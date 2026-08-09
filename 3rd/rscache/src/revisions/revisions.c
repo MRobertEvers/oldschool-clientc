@@ -41,6 +41,8 @@ static const struct revision_entry REVISIONS[] = {
     { "osrs239", RSCache_ProfileDat2Osrs239 },
     { "643", RSCache_ProfileDat2Rs643 },
     { "rs643", RSCache_ProfileDat2Rs643 },
+    { "727", RSCache_ProfileDat2Rs727 },
+    { "rs727", RSCache_ProfileDat2Rs727 },
 };
 
 #define REVISION_COUNT ((int)(sizeof(REVISIONS) / sizeof(REVISIONS[0])))

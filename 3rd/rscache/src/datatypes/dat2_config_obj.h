@@ -108,6 +108,35 @@ struct RSCache_Dat2ConfigObj
 /** Rev 239+: opcode 160 stackable = 2. */
 #define RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2 8
 
+/**
+ * The RS2 build-670+ branch (rev 727 and its neighbours).
+ *
+ * Every model field became **varuint** — two bytes, or four when the top bit of
+ * the first is set — so an inventory model or a worn model reads at the right
+ * length only by accident and the rest of the record lands wrong. Opcodes 0x17
+ * and 0x19 also dropped the trailing type byte at build 502, 0x2A and 0x2B were
+ * reused for other data, and around thirty opcodes have no counterpart in the
+ * 643 table.
+ *
+ * The same opcode number meaning a different structure is what makes this a
+ * codec version rather than a flag on the existing body — the rule stated in
+ * dat2_config_loc.h.
+ */
+#define RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 16
+
+/*
+ * Codec versions. A field that merely got wider is absorbed by
+ * RSCache_Dat2ConfigObjFlags; a different stream shape gets a version here, and
+ * a revision module pins it (see rev_dat2_rs727.c).
+ */
+#define RSCACHE_CODEC_OBJ_DEFAULT 1
+/** RS2 build 670+: varuint model ids and the later opcode set. */
+#define RSCACHE_CODEC_OBJ_RS2_BUILD670 2
+
+/** Which obj codec this cache uses. */
+int
+RSCache_Dat2ConfigObjCodecVersion(const struct RSCache* cache);
+
 int
 RSCache_Dat2ConfigObjFlags(const struct RSCache* cache);
 
