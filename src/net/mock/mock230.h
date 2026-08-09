@@ -4760,6 +4760,15 @@ void
 mock230_send_midi_song(
     struct Mock230Player* player,
     int id);
+/* SYNTH_SOUND. Declared here because two callers want it: `SS_OP_SOUND_SYNTH`,
+ * where a script asks for a noise, and mock230_combat.c, where an npc makes one
+ * without a script being involved. */
+void
+mock230_send_synth_sound(
+    struct Mock230Player* player,
+    int id,
+    int loops,
+    int delay);
 void
 mock230_send_message(
     struct Mock230Player* player,

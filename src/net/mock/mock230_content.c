@@ -1056,9 +1056,10 @@ apply_param(
      *
      * Not an inconsistency to tidy: `param_symbol` resolves through a pack
      * namespace and there is no `synth` param *type* for cachepack to declare
-     * (`cp_common.c`'s `k_param_types`), so a `.npc` block cannot spell a sound
-     * by name at all. `tools/gen_npc_combat.py` does the name resolution, where
-     * it can be checked against `pack/4_soundeffects.pack`, and keeps the name in
+     * (`cp_common.c`'s `k_param_types` — the letter a sound would want, 'P', is
+     * already `param`). So a `.npc` block cannot spell a sound by name at all.
+     * `tools/gen_npc_combat.py` does the name resolution, where it can be
+     * checked against `pack/4_soundeffects.pack`, and keeps the name in
      * `npc_combat/<npc>.combat` beside the id. The number that arrives here has
      * already been through a name.
      */

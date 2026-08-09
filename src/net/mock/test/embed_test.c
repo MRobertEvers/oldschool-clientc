@@ -1722,6 +1722,84 @@ main(void)
             check(!peers[0].saw_npc_unknown_target && !peers[1].saw_npc_unknown_target,
                   "with every npc block attributed to a tracked npc");
 
+            /*
+             * ── The npc's combat sounds ─────────────────────────────────
+             *
+             * `docs/DEATH_ATK_DEF_ANIMS.md` identifies a flinch and a death
+             * sound per npc; this is the half that proves one reaches a client.
+             *
+             * The ids are *set here* rather than taken from whichever npc the
+             * nearest-attackable search happened to land on. Most npcs are
+             * legitimately silent (-1) — no public source describes npc combat
+             * sound for a modern cache — so a test that read the roster's own
+             * values would pass by finding nothing on almost every run, which is
+             * indistinguishable from the feature being broken.
+             *
+             * Bob is what makes this worth writing. He is three tiles away and
+             * has not touched the npc, and he must hear it anyway: LostCity
+             * spells this as `~sound_within_distance`, a per-player proc that
+             * only ever runs for whoever triggered it, and porting that shape
+             * literally would have sent the noise to alice alone. The engine
+             * broadcasts from the emitter instead (`npc_sound_nearby`), and
+             * bob's stream is the only place that difference is visible.
+             */
+            {
+                const int flinch_synth = 472; /* goblin_hit */
+                const int death_synth = 471;  /* goblin_death */
+                int alice_flinch, bob_flinch;
+
+                npc->block_sound = flinch_synth;
+                npc->death_sound = death_synth;
+                npc->hitpoints = 10;
+
+                peers[0].saw_synth_count = 0;
+                peers[1].saw_synth_count = 0;
+                mock230_world_set_active(world, alice);
+                mock230_combat_hit_npc(world, npc_slot, 0, 1);
+                for( int round = 0; round < 4; round++ )
+                    pump(peers, 2, embed, 1, 64);
+
+                alice_flinch = peers[0].saw_synth_count;
+                bob_flinch = peers[1].saw_synth_count;
+                check(alice_flinch > 0 && peers[0].saw_synth_id == flinch_synth,
+                      "the npc's flinch sound reached the player who hit it");
+                check(bob_flinch > 0 && peers[1].saw_synth_id == flinch_synth,
+                      "and the bystander three tiles away heard it too — the "
+                      "emitter broadcasts, it is not a per-player proc");
+                check(peers[0].saw_synth_loops == 1,
+                      "with loops=1: RS_Audio_QueueEffect refuses loops=0, so a "
+                      "literal port of ~sound_within_distance would be silent");
+
+                /* The killing blow. Same npc, same observers. */
+                peers[0].saw_synth_count = 0;
+                peers[1].saw_synth_count = 0;
+                mock230_combat_hit_npc(world, npc_slot, 0, npc->hitpoints);
+                for( int round = 0; round < 4; round++ )
+                    pump(peers, 2, embed, 1, 64);
+                check(peers[0].saw_synth_count > 0 &&
+                          peers[0].saw_synth_id == death_synth,
+                      "and its death sound went out on the killing blow, after "
+                      "the flinch rather than instead of it");
+
+                /*
+                 * Silence has to be reachable, or every assertion above is
+                 * satisfied by a server that plays a noise unconditionally.
+                 * -1 is the sentinel precisely because sound effect 0 is a real
+                 * clip (docs/WEAPON_FX.md 6.6), so this is the check that the
+                 * sentinel is honoured rather than compared as a number.
+                 */
+                world->npcs[npc_slot].hitpoints = 10;
+                world->npcs[npc_slot].death_tick = -1;
+                world->npcs[npc_slot].block_sound = -1;
+                peers[0].saw_synth_count = 0;
+                mock230_combat_hit_npc(world, npc_slot, 0, 1);
+                for( int round = 0; round < 4; round++ )
+                    pump(peers, 2, embed, 1, 64);
+                check(peers[0].saw_synth_count == 0,
+                      "an npc whose flinch sound is -1 makes none — the same "
+                      "test with a real id having just passed");
+            }
+
             /* Put the world back: end the fight and return everybody to where
              * the previous section left them, so the door checks below are not
              * reading a position this one chose. */

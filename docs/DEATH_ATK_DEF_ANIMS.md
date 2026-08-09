@@ -324,16 +324,88 @@ reports.
 
 ---
 
+## 6b. Playing them
+
+Identifying a sound and playing it are two jobs; this is the second.
+
+**Each sound sits with the animation it belongs to** — that is the whole placement
+rule, and it decides engine-vs-content on its own rather than by preference:
+
+| event | animation played by | so the sound goes |
+|---|---|---|
+| npc swings | content, `[ai_opplayer2,_]` | content, beside `npc_anim` |
+| npc flinches | engine, `play_npc_seq(npc->block_seq)` | engine, `npc_sound_nearby` |
+| npc dies | engine, `play_npc_seq(npc->death_seq)` | engine, `npc_sound_nearby` |
+
+Two things came out of doing it.
+
+**The npc melee attack animation was never played.** `npc->attack_seq` was
+resolved at spawn, asserted by a selftest, and read by nothing — the port of
+LostCity's `[proc,npc_default_attack]` kept its last line (`~npc_meleeattack`)
+and dropped `npc_anim(npc_param(attack_anim), 0)`. `npc_combat_ranged.rs2:28`
+was the only place in the tree that played an npc's attack animation, so every
+melee npc in the game attacked without animating, and the 5,938 attack animations
+this pipeline identifies had nowhere to arrive. Both lines are restored in
+`combat.rs2`.
+
+**The death sound cannot hang off `[ai_queue3]`.** That trigger is exclusive —
+type, then category, then `_` — so the 136 drop-table binds suppress the default
+rung, and a sound there would miss exactly the npcs players kill. It is engine-
+side instead, which is also where the death animation already was.
+
+**Broadcast, not per-player.** LostCity spells this as `~sound_within_distance`,
+a proc that only ever runs for whoever triggered it; every one of its call sites
+is inside a player's own script, so that is fine there and wrong here. An npc
+flinches and dies inside the engine, and a bystander should hear it. The engine
+emits to every active player within 12 tiles on the npc's level — LostCity's own
+figure, `// osrs`.
+
+**`loops` must be 1, not 0.** `~sound_within_distance` passes 0, and
+`RS_Audio_QueueEffect` *refuses* `loops == 0` — matching the reference's
+`Message.queueSoundEffect` requiring `var1 != 0`, because the count handed to the
+mixer is `loops - 1`. A literal port of that proc would have been silent. Both
+`[proc,sound_area]` and `[proc,sound_within_distance]` in
+`general/scripts/misc/sound.rs2` still pass 0 and are unused; anything that
+starts calling them will be silent until they are fixed.
+
+The three params are new: `npc_combat.param` (`type=int`, `default=-1`),
+`fields/npc.ini` opcodes 158–160 (`u4`, so -1 round-trips), `k_npc_fields` in
+`mock230_servercodec.c`, and `Mock230NpcDef` / `Mock230Npc`. `type=synth` does
+not exist — `cp_common.c`'s `k_param_types` has no entry for it and `'P'` is
+already `param` — which is why the config carries a bare id and the ledger keeps
+the name.
+
 ## 7. Verification
 
-- `mock230_pack`: **0 errors**, 17 warnings (all pre-existing), 8,177 archives
+- `mock230_pack`: **0 errors**, 17 warnings (all pre-existing), 8,319 archives
   verified against the text parse.
-- `mock230 --selftest`: **all checks passed**.
+- `mock230 --selftest`: **all checks passed**, including a new check that walks
+  the whole sound chain in one assertion — `npc_combat/bat.combat` says
+  `attack_sound = bat_attack`, the generator resolves that name through
+  `pack/4_soundeffects.pack` to 292, the config carries the id, the param is
+  declared, and `Mock230NpcDef.attack_sound` holds 292. Five links, none of which
+  anything else would notice breaking, because a silent npc is the *correct*
+  outcome for most of the roster. Proven by mutation: changing the expected value
+  makes it fail with `got 292`.
+- `test-servercodec`: **31/31**, which is what caught the three new opcodes
+  missing from the C mirror of `fields/npc.ini` before they could silently not
+  pack.
 - Sound and animation values: **0 unresolved names** through cachepack.
 - Freeze contract: pin a value, regenerate, confirm it survives in the ledger and
   reaches the compiled config. Tested by mutation, not by inspection.
 - Idempotence: two consecutive `--write` runs produce byte-identical ledger,
   config and `pack/npc.server`.
+
+**Not verified, and why.** That the sound reaches a *client* is
+`test-mock230-embed`'s job and it cannot run: the suite has a pre-existing
+failure where nothing decodes past login — its own SYNTH_SOUND check, plus every
+PLAYER_INFO, door and friends-list check, all fail together. Confirmed
+pre-existing by checking out `4963347b` (before any of this work) and reproducing
+the identical first failure. The checks for the flinch and death sounds are
+written and in place at `embed_test.c`, including the two-observer case that
+distinguishes a broadcast from a per-player send; they will pass when the decode
+path is fixed. The one that does pass today is the negative — an npc whose sound
+is -1 sends nothing.
 
 `make -C src test-content` currently fails at `test-port`, which is **pre-existing
 and unrelated** — verified by an A/B: reverting all three of this change's

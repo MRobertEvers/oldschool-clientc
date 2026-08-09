@@ -18,6 +18,28 @@ tools/entity_viewer/ev_server --rev osrs239 cache.osrs239 \
 # -> http://127.0.0.1:8099/
 ```
 
+## Two kinds of rig
+
+An animation is bound to a rig one of two ways, and both had to be walked:
+
+- **Classic** — the sequence names frames, and the rig is the *framemap* those
+  frames were built against.
+- **Skeletal (Animaya)** — the sequence names no frames at all. Seq opcode 13
+  gives an idx22 curve set, and the rig is that curve set's `base_id`, which
+  lives in the *tail* of an idx1 framemap file. Every modern OldSchool npc — the
+  Tombs of Amascut bosses and everything after — animates this way.
+
+The two share one id space: `RSCache_Dat2SkeletalBase.id` **is** the framemap id.
+So one reverse index covers both, and an npc's rig set is the union — which is
+what `tool_dat2_seq_rig_id` resolves. Asking the old question of a skeletal
+sequence returned -1, so 943 sequences and 422 npcs had no rig at all.
+
+Playing one needs more than the rig: a skeletal sequence poses through the
+model's per-vertex bone influences, so a model with no Animaya skin is left in
+its bind pose rather than mis-animated. `framemap_seqs.csv` carries `kind` and
+`npc_catalog.csv` carries `animaya_skinned`; they have to be read together, and
+the viewer greys out a skeletal row an npc cannot play.
+
 ## The two passes
 
 **Rigging matches — concrete.** An animation frame addresses bones by index into
@@ -52,9 +74,9 @@ membership.
 
 | File | Rows | What |
 |---|---|---|
-| `npc_catalog.csv` | one per npc | counts and ids — the browsable table |
+| `npc_catalog.csv` | one per npc | counts and ids — the browsable table; `rig_match_skeletal` and `animaya_skinned` say whether the skeletal half is playable |
 | `npc_rigs.csv` | one per (npc, rig) | an npc's seed sequences and the framemaps they use |
-| `framemap_seqs.csv` | one per sequence | framemap → every sequence built on it |
+| `framemap_seqs.csv` | one per sequence | framemap → every sequence on it, `kind` = classic or skeletal |
 | `npc_name_matches.csv` | one per guess | npc → guessed sequence, score, and whether the rig walk also found it |
 
 An npc's rigging matches are `npc_rigs ⋈ framemap_seqs` on framemap id.
@@ -86,79 +108,20 @@ bug there can only ever be a rendering bug.
 
 ## Configuring npcs from the catalog
 
-`gen_npc_anims.py` turns the catalog into content. Every npc in OSRS-Content is
-seeded from `[default]` in `server/scripts/general/configs/npc_default.npc`,
-which hands out the human unarmed set — right as a universal fallback, wrong for
-every non-human npc. This gives 3,185 of them their own.
+`tools/gen_npc_combat.py` turns this catalog into content — per-npc attack /
+defend / death animations under `OSRS-Content/.../npc_combat/`, compiled into
+`server/scripts/npc/configs/npc_anims.generated.npc`. See
+`docs/DEATH_ATK_DEF_ANIMS.md`.
 
-```sh
-python3 tools/entity_viewer/gen_npc_anims.py \
-    --catalog out/osrs239_anims \
-    --content OSRS-Content/osrs239-content            # dry run
-python3 tools/entity_viewer/gen_npc_anims.py ... --write
-make -C src mock230-servpack                          # repack the server band
-```
+It reads `framemap_seqs.csv` and `npc_rigs.csv` by column name, so extending the
+catalog reaches it without any change there: adding skeletal rigs put 943 more
+sequences and 422 more npcs in front of it automatically.
 
-A sequence is only taken when the rig *and* the name agree: it must be built on
-one of the npc's own framemaps, and its gameval name must share a distinctive
-word with the npc's. The name test alone is not enough — `slayer_nechryael_spawn`
-sits on the shared human rig, the cache holds no nechryael animation at all, and
-matching on `slayer` handed it the player's abyssal whip swing. So a third gate
-asks whether the npc's name accounts for at least 10% of its own rig: `gnome` is
-40 of its rig's 98 sequences and `zombie` 47 of 50, while `slayer` is about 1% of
-framemap 0's 3,905. That is what separates a creature from a namespace, and no
-property of the word itself does.
-
-Where a creature has several variants of an action, the npc's own name decides —
-`skeleton_armed` takes `skeleton_update_attack_sword`, `zombie_unarmed4` takes
-the unarmed form — and with no hint the unarmed variant wins, for the same reason
-npc_default.npc gives for the global fallback. This is the one genuinely
-judgemental step and `WIELD_HINTS` is where it is written down.
-
-It writes three things:
-
-| What | Why |
-|---|---|
-| `server/scripts/npc/configs/npc_anims.generated.npc` | the blocks |
-| `pack/npc.server` (merge, never remove) | `cachepack pack` gives a record a server band only if this names it; stating a server field without it is a hard error |
-| `param=attackrate` on 503 blocks | not animation work — an npc with no block is answered from the cache, and gaining one drops `[default]`'s `attackrate=4` on top, so the cache's value is restated to keep it |
-
-Npcs that already have an authored block anywhere in `server/scripts` are skipped,
-so a hand-checked port always wins.
-
-## Testing without a browser
-
-```sh
-tools/entity_viewer/ev_server --rev osrs239 cache.osrs239 \
-    --catalog out/osrs239_anims --selftest 2042 5804
-```
-
-Bakes one npc and one sequence, round-trips both through the wire format,
-applies frame 0 and reports how many vertices moved, then runs the browser's
-exact render path natively and counts drawn pixels:
-
-```
-  model: 988 vertices, 1934 faces (0 textured), vertex_bones yes, face_priorities no
-  model: 94664 bytes, round-trip 988/988 vertices, 1934/1934 faces
-  anim: 49 frames on rig 184, base length 171
-  frame 0 moves 988 of 988 vertices
-  render: height 1318, zoom 3954, cull 0, 2000 of 65536 pixels drawn
-  wire round-trip: 0 byte(s) differ from the directly built model
-```
-
-Four numbers, none implied by the others:
-
-- **vertices moved by frame 0.** Zero means the model and the animation do not
-  share a rig, whatever the catalog said.
-- **cull.** `3` is `TORIDRAW_CULL_ERROR` and means the model has no bounds
-  cylinder, which renders as a blank canvas with no error anywhere.
-- **pixels drawn.** Separates "the module never ran" from "it ran and drew
-  nothing".
-- **wire round-trip.** Renders the model this process built and the model
-  rebuilt from the bytes the browser receives, and compares the two images. The
-  browser can only draw what `ev_wire` carries, so a field the format drops is
-  an artefact there and invisible here. Anything but 0 means the two halves are
-  not looking at the same model.
+`gen_npc_anims.py` in this directory is the earlier, simpler generator and
+writes **the same file**. Two generators over one output path is a race — run
+each once in the wrong order and the tree keeps whichever finished last. Use
+`tools/gen_npc_combat.py`; this one is kept only because it is committed, and
+retiring it is a call for whoever owns the successor.
 
 ## Nothing here converts cache data
 

@@ -138,8 +138,9 @@ async function selectNpc(id) {
      * two thirds of the canvas. */
     state.zoom = Math.max(260, Math.min(6000, Math.round(h * 1.6) || 900));
     document.getElementById('stageMeta').textContent =
-      `${faces} faces · rigs ${detail.framemaps.join(', ') || 'none'} · ` +
-      'drag to orbit · wheel to zoom';
+      `${faces} faces · rigs ${detail.framemaps.join(', ') || 'none'}` +
+      (detail.skinned ? ' · animaya skinned' : '') +
+      ' · drag to orbit · wheel to zoom';
   }
 
   state.wasm.clearAnim();
@@ -163,7 +164,12 @@ function renderAnimList() {
     'precondition for an animation applying at all.'));
 
   for (const a of d.rig) {
-    frag.appendChild(animRow(a.seq, a.name, `${a.frames} frames`, false));
+    /* A skeletal sequence poses through the model's Animaya skin. An npc
+     * without one is left in its bind pose rather than mis-animated, so say so
+     * on the row instead of letting it look like a broken animation. */
+    const unplayable = a.skeletal && !d.skinned;
+    const badge = (a.skeletal ? 'skeletal · ' : '') + `${a.frames} frames`;
+    frag.appendChild(animRow(a.seq, a.name, badge, false, unplayable));
   }
 
   const maybes = d.maybe.filter((m) => !m.in_rig);
@@ -185,8 +191,9 @@ function renderAnimList() {
   }
 
   el.appendChild(frag);
+  const skel = d.rig.filter((a) => a.skeletal).length;
   document.getElementById('animCount').textContent =
-    `${d.rig.length} rig · ${maybes.length} maybe`;
+    `${d.rig.length} rig${skel ? ` (${skel} skeletal)` : ''} · ${maybes.length} maybe`;
 }
 
 function group(kind, title, note) {
@@ -202,7 +209,7 @@ function group(kind, title, note) {
   return wrap;
 }
 
-function animRow(seq, name, badge, isMaybe) {
+function animRow(seq, name, badge, isMaybe, unplayable) {
   const row = document.createElement('div');
   row.className = 'row' + (seq === state.seqId ? ' sel' : '');
   row.innerHTML =
@@ -210,6 +217,10 @@ function animRow(seq, name, badge, isMaybe) {
     `<span class="gv" style="flex:1">${escapeHtml(name || '(unnamed)')}</span>` +
     `<span class="badge">${escapeHtml(badge)}</span>`;
   if (isMaybe) row.style.opacity = '0.85';
+  if (unplayable) {
+    row.style.opacity = '0.45';
+    row.title = 'skeletal, but this npc has no Animaya skin — it cannot play this';
+  }
   row.onclick = () => selectSeq(seq);
   return row;
 }

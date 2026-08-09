@@ -14146,6 +14146,44 @@ mock230_world_selftest(void)
                            npc->block_seq);
             SELFTEST_CHECK(npc->death_seq == 313, "goblin_death should be 313, got %d",
                            npc->death_seq);
+            /*
+             * The combat sounds, and the whole chain behind them in one line.
+             *
+             * A value here means `npc_combat/bat.combat` said `attack_sound =
+             * bat_attack`, `tools/gen_npc_combat.py` resolved that name through
+             * `pack/4_soundeffects.pack` to 292, the compiled config carried the
+             * id, `npc_combat.param` declared the param, and the parser filed it
+             * — five links, and nothing else in the tree would notice any of
+             * them breaking, because a silent npc is the *correct* outcome for
+             * the ~96% of the roster no source describes (see
+             * docs/DEATH_ATK_DEF_ANIMS.md and docs/NPC_SOUNDS_ANIMS.md).
+             *
+             * The bat rather than the goblin: the goblin has an authored block
+             * in `areas/lumbridge/configs/lumbridge.npc`, and an authored block
+             * always wins over the generated one, so its sounds are -1 by
+             * design. Checking it would assert that the feature does nothing.
+             */
+            {
+                struct Mock230NpcDef const* bat =
+                    mock230_content_npc(mock230_content_symbol(MOCK230_PACK_NPC, "bat"));
+
+                SELFTEST_CHECK(bat != NULL, "the content tree should describe a bat");
+                if( bat )
+                {
+                    SELFTEST_CHECK(bat->attack_sound == 292,
+                                   "bat_attack should reach the def as synth 292, got %d",
+                                   bat->attack_sound);
+                    SELFTEST_CHECK(bat->defend_sound == 294,
+                                   "bat_hit should be 294, got %d", bat->defend_sound);
+                    SELFTEST_CHECK(bat->death_sound == 293,
+                                   "bat_death should be 293, got %d", bat->death_sound);
+                }
+                /* And silence stays reachable, or the three above are satisfied
+                 * by a parser that files any number it is handed. -1 is the
+                 * sentinel *because* synth 0 is a real clip. */
+                SELFTEST_CHECK(mock230_content_npc_default()->attack_sound == -1,
+                               "an npc nothing describes is silent, not synth 0");
+            }
             SELFTEST_CHECK(mock230_seq_by_name("human_unarmedpunch") == 422,
                            "human_unarmedpunch should be 422");
             SELFTEST_CHECK(mock230_seq_by_name("not_a_real_sequence") == -1,

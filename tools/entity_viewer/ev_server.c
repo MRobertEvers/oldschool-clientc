@@ -44,6 +44,10 @@ struct SeqRow
     int seq_id;
     int framemap_id;
     int frame_count;
+    /** Reached through the sequence's Animaya curve set rather than a frame
+     *  list. Same rig id space either way; playing one needs a model with an
+     *  Animaya skin. */
+    int skeletal;
     char* name;
 };
 
@@ -55,6 +59,8 @@ struct NpcRow
     int framemaps[16];
     int framemap_count;
     int rig_match_seqs;
+    int rig_match_skeletal;
+    int animaya_skinned;
     int name_match_seqs;
 };
 
@@ -130,6 +136,68 @@ csv_field(char** cursor)
     return out;
 }
 
+/*
+ * A CSV row addressed by column *name*.
+ *
+ * The reader used to take fields in order, which meant adding a column to
+ * ev_catalog silently shifted every later one: the day `kind` and
+ * `rig_match_skeletal` appeared, the viewer showed sequence names where frame
+ * counts belonged and zero name-matches for every npc. Nothing failed — the
+ * numbers were just wrong, which is the worst way for a format change to land.
+ */
+#define CSV_MAX_COLS 32
+
+struct CsvHeader
+{
+    char* name[CSV_MAX_COLS];
+    int count;
+};
+
+static void
+csv_header_parse(struct CsvHeader* h, char* line)
+{
+    h->count = 0;
+    char* cur = line;
+    while( cur && h->count < CSV_MAX_COLS )
+    {
+        char* field = csv_field(&cur);
+        if( !field )
+            break;
+        h->name[h->count++] = field;
+    }
+}
+
+static int
+csv_col(const struct CsvHeader* h, const char* name)
+{
+    for( int i = 0; i < h->count; i++ )
+        if( strcmp(h->name[i], name) == 0 )
+            return i;
+    return -1;
+}
+
+/** Split a row into fields, in place. Returns how many were found. */
+static int
+csv_split(char* line, char** out, int max)
+{
+    int n = 0;
+    char* cur = line;
+    while( cur && n < max )
+    {
+        char* field = csv_field(&cur);
+        if( !field )
+            break;
+        out[n++] = field;
+    }
+    return n;
+}
+
+static const char*
+csv_get(char** fields, int count, int col)
+{
+    return (col >= 0 && col < count) ? fields[col] : "";
+}
+
 static int
 load_catalog(const char* dir)
 {
@@ -147,23 +215,40 @@ load_catalog(const char* dir)
     }
     int cap = 1024;
     g_seqs = malloc((size_t)cap * sizeof(*g_seqs));
-    fgets(line, sizeof(line), f); /* header */
+
+    char header_line[8192];
+    struct CsvHeader h;
+    char* fields[CSV_MAX_COLS];
+
+    if( !fgets(header_line, sizeof(header_line), f) )
+    {
+        fclose(f);
+        return 0;
+    }
+    csv_header_parse(&h, header_line);
+    int c_fm = csv_col(&h, "framemap_id");
+    int c_seq = csv_col(&h, "seq_id");
+    int c_kind = csv_col(&h, "kind");
+    int c_frames = csv_col(&h, "frame_count");
+    int c_name = csv_col(&h, "seq_name");
+
     while( fgets(line, sizeof(line), f) )
     {
-        char* cur = line;
-        int fm = atoi(csv_field(&cur));
-        int seq = atoi(csv_field(&cur));
-        int frames = atoi(csv_field(&cur));
-        char* name = csv_field(&cur);
+        int n = csv_split(line, fields, CSV_MAX_COLS);
+        if( n == 0 )
+            continue;
         if( g_seq_count == cap )
         {
             cap *= 2;
             g_seqs = realloc(g_seqs, (size_t)cap * sizeof(*g_seqs));
         }
-        g_seqs[g_seq_count].seq_id = seq;
-        g_seqs[g_seq_count].framemap_id = fm;
-        g_seqs[g_seq_count].frame_count = frames;
-        g_seqs[g_seq_count].name = name && *name ? strdup(name) : NULL;
+        const char* name = csv_get(fields, n, c_name);
+        g_seqs[g_seq_count].seq_id = atoi(csv_get(fields, n, c_seq));
+        g_seqs[g_seq_count].framemap_id = atoi(csv_get(fields, n, c_fm));
+        g_seqs[g_seq_count].frame_count = atoi(csv_get(fields, n, c_frames));
+        g_seqs[g_seq_count].skeletal =
+            strcmp(csv_get(fields, n, c_kind), "skeletal") == 0 ? 1 : 0;
+        g_seqs[g_seq_count].name = *name ? strdup(name) : NULL;
         g_seq_count++;
     }
     fclose(f);
@@ -178,19 +263,32 @@ load_catalog(const char* dir)
     }
     cap = 1024;
     g_npcs = malloc((size_t)cap * sizeof(*g_npcs));
-    fgets(line, sizeof(line), f);
+    if( !fgets(header_line, sizeof(header_line), f) )
+    {
+        fclose(f);
+        return 0;
+    }
+    csv_header_parse(&h, header_line);
+    int n_id = csv_col(&h, "npc_id");
+    int n_name = csv_col(&h, "npc_name");
+    int n_gv = csv_col(&h, "gameval");
+    int n_fms = csv_col(&h, "framemaps");
+    int n_rig = csv_col(&h, "rig_match_seqs");
+    int n_skel = csv_col(&h, "rig_match_skeletal");
+    int n_skin = csv_col(&h, "animaya_skinned");
+    int n_nm = csv_col(&h, "name_match_seqs");
+
     while( fgets(line, sizeof(line), f) )
     {
-        char* cur = line;
-        int id = atoi(csv_field(&cur));
-        char* name = csv_field(&cur);
-        char* gv = csv_field(&cur);
-        csv_field(&cur); /* models */
-        csv_field(&cur); /* seed seqs */
-        char* fms = csv_field(&cur);
-        int rig = atoi(csv_field(&cur));
-        csv_field(&cur); /* strict */
-        int nm = atoi(csv_field(&cur));
+        int n = csv_split(line, fields, CSV_MAX_COLS);
+        if( n == 0 )
+            continue;
+        int id = atoi(csv_get(fields, n, n_id));
+        const char* name = csv_get(fields, n, n_name);
+        const char* gv = csv_get(fields, n, n_gv);
+        const char* fms = csv_get(fields, n, n_fms);
+        int rig = atoi(csv_get(fields, n, n_rig));
+        int nm = atoi(csv_get(fields, n, n_nm));
 
         if( g_npc_count == cap )
         {
@@ -200,11 +298,13 @@ load_catalog(const char* dir)
         struct NpcRow* row = &g_npcs[g_npc_count++];
         memset(row, 0, sizeof(*row));
         row->npc_id = id;
-        row->name = name && *name ? strdup(name) : NULL;
-        row->gameval = gv && *gv ? strdup(gv) : NULL;
+        row->name = *name ? strdup(name) : NULL;
+        row->gameval = *gv ? strdup(gv) : NULL;
         row->rig_match_seqs = rig;
+        row->rig_match_skeletal = atoi(csv_get(fields, n, n_skel));
+        row->animaya_skinned = strcmp(csv_get(fields, n, n_skin), "true") == 0 ? 1 : 0;
         row->name_match_seqs = nm;
-        for( char* t = fms; t && *t && row->framemap_count < 16; )
+        for( const char* t = fms; t && *t && row->framemap_count < 16; )
         {
             while( *t == ' ' )
                 t++;
@@ -217,37 +317,38 @@ load_catalog(const char* dir)
     }
     fclose(f);
 
-    /* npc_name_matches.csv: npc_id,gameval,seq_id,seq_name,score,in_rig_set */
     snprintf(path, sizeof(path), "%s/npc_name_matches.csv", dir);
     f = fopen(path, "rb");
-    if( f )
+    if( f && fgets(header_line, sizeof(header_line), f) )
     {
         cap = 4096;
         g_name_matches = malloc((size_t)cap * sizeof(*g_name_matches));
-        fgets(line, sizeof(line), f);
+        csv_header_parse(&h, header_line);
+        int m_npc = csv_col(&h, "npc_id");
+        int m_seq = csv_col(&h, "seq_id");
+        int m_score = csv_col(&h, "score");
+        int m_rig = csv_col(&h, "in_rig_set");
+
         while( fgets(line, sizeof(line), f) )
         {
-            char* cur = line;
-            int npc = atoi(csv_field(&cur));
-            csv_field(&cur); /* gameval */
-            int seq = atoi(csv_field(&cur));
-            csv_field(&cur); /* seq name */
-            int score = atoi(csv_field(&cur));
-            char* in_rig = csv_field(&cur);
+            int n = csv_split(line, fields, CSV_MAX_COLS);
+            if( n == 0 )
+                continue;
             if( g_name_match_count == cap )
             {
                 cap *= 2;
                 g_name_matches = realloc(g_name_matches, (size_t)cap * sizeof(*g_name_matches));
             }
-            g_name_matches[g_name_match_count].npc_id = npc;
-            g_name_matches[g_name_match_count].seq_id = seq;
-            g_name_matches[g_name_match_count].score = score;
+            g_name_matches[g_name_match_count].npc_id = atoi(csv_get(fields, n, m_npc));
+            g_name_matches[g_name_match_count].seq_id = atoi(csv_get(fields, n, m_seq));
+            g_name_matches[g_name_match_count].score = atoi(csv_get(fields, n, m_score));
             g_name_matches[g_name_match_count].in_rig =
-                in_rig && strncmp(in_rig, "true", 4) == 0 ? 1 : 0;
+                strcmp(csv_get(fields, n, m_rig), "true") == 0 ? 1 : 0;
             g_name_match_count++;
         }
-        fclose(f);
     }
+    if( f )
+        fclose(f);
 
     fprintf(
         stderr,
@@ -400,8 +501,10 @@ handle_npcs_json(int fd)
         str_add_json(&s, r->gameval);
         str_add(
             &s,
-            ",\"rig\":%d,\"maybe\":%d}",
+            ",\"rig\":%d,\"skeletal\":%d,\"skinned\":%s,\"maybe\":%d}",
             r->rig_match_seqs,
+            r->rig_match_skeletal,
+            r->animaya_skinned ? "true" : "false",
             r->name_match_seqs);
     }
     str_add(&s, "]");
@@ -425,6 +528,7 @@ handle_npc_json(int fd, int npc_id)
     str_add(&s, ",\"gameval\":");
     str_add_json(&s, r->gameval);
 
+    str_add(&s, ",\"skinned\":%s", r->animaya_skinned ? "true" : "false");
     str_add(&s, ",\"framemaps\":[");
     for( int i = 0; i < r->framemap_count; i++ )
         str_add(&s, i ? ",%d" : "%d", r->framemaps[i]);
@@ -445,10 +549,11 @@ handle_npc_json(int fd, int npc_id)
         first = 0;
         str_add(
             &s,
-            "\"seq\":%d,\"frames\":%d,\"framemap\":%d,\"name\":",
+            "\"seq\":%d,\"frames\":%d,\"framemap\":%d,\"skeletal\":%s,\"name\":",
             g_seqs[i].seq_id,
             g_seqs[i].frame_count,
-            g_seqs[i].framemap_id);
+            g_seqs[i].framemap_id,
+            g_seqs[i].skeletal ? "true" : "false");
         str_add_json(&s, g_seqs[i].name);
         str_add(&s, "}");
     }
