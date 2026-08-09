@@ -106,7 +106,7 @@ struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 
 /*
- * Re-run every IF_SETONFRIENDTRANSMIT hook: the friends (429) and ignore (432)
+ * Re-run every CC/IF_SETONFRIENDTRANSMIT hook: the friends (429) and ignore (432)
  * side panels.
  *
  * Same contract as the misc dispatch above — no trigger set, so every

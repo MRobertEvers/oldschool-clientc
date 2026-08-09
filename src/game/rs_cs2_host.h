@@ -441,7 +441,7 @@ struct RS_CS2Host
     int misc_transmit_dirty;
     /** Set when the friend/ignore store changed — a friend's world, a list
      *  entry, the friend-server status or the chat filter modes. No id set
-     *  beside it for the same reason as misc: IF_SETONFRIENDTRANSMIT carries no
+     *  beside it for the same reason as misc: CC/IF_SETONFRIENDTRANSMIT carries no
      *  trigger list, so every registered hook re-runs. Wired to the four social
      *  packets via RS_CS2Host_NotifyFriendChanged. Without it the friends panel
      *  paints once at mount and never again. */

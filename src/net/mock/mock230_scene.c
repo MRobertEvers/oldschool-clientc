@@ -1759,6 +1759,13 @@ mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out)
     out->rank_by_rect_distance = features->nearest_ranks_by_rect_distance;
 }
 
+void
+mock230_scene_ground_nearest_opts(struct CollisionNearestOpts* out)
+{
+    assert(out);
+    collision_nearest_opts_from_model(mock230_scene_features()->ground_click_nearest_model, out);
+}
+
 static void
 route_trace(
     int level,
@@ -1811,16 +1818,20 @@ mock230_scene_route(
     }
 
     {
-        /* Ground clicks get the 3x3 nearest ring — same as the client's
-         * collision_map_try_route. */
-        struct CollisionNearestOpts const ring = {
-            .range = 1,
-            .max_dist = 100,
-            .rank_by_rect_distance = 0,
-        };
+        /*
+         * The unreachable fallback for a bare ground / minimap click. Under the
+         * osrs era this is the official BOX10_RECT search, which is what makes
+         * a click across a river or into a walled compound walk the player up
+         * to the obstacle instead of doing nothing: the modern client sends
+         * MOVE_GAMECLICK and no path, so every bit of "as close as it can get"
+         * is decided right here.
+         */
+        struct CollisionNearestOpts nearest_opts;
+
+        mock230_scene_ground_nearest_opts(&nearest_opts);
         steps = collision_map_route_tiles(
             map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z, NULL,
-            &ring, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
+            &nearest_opts, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
     }
     if( steps < 0 )
     {

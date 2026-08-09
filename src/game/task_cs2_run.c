@@ -2134,7 +2134,7 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
 /*
  * Friend-transmit dispatch — the friends (429) and ignore (432) side panels.
  *
- * The same walker as misc for the same reason: IF_SETONFRIENDTRANSMIT carries
+ * The same walker as misc for the same reason: CC/IF_SETONFRIENDTRANSMIT carries
  * no trigger list, so a change to the friend store re-runs every registered
  * hook. The hooks re-entered here are scripts 631 and 630, which are one-line
  * forwarders to the list builders 125 and 129 — and those cc_deleteall the row

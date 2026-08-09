@@ -198,6 +198,9 @@ struct BootManifest
     /* [features:boot] — client-behaviour era name; "" = derive from the cache
      * identity (ToriRS_Features_ForCache). */
     char features_era[32];
+    /* [features:boot] ground_click_nearest — enum ToriRS_NearestModel, or -1
+     * for "not stated, keep the era's". Defaulted in BootManifest_Init. */
+    int features_ground_click_nearest;
 
     /* [render:light] — optional overrides. Each *_set flag is 1 when the key
      * was present; App_Init merges set fields over the era/compiled defaults. */

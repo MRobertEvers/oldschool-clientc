@@ -1,5 +1,7 @@
 #include "collision_map.h"
 
+#include "features/features.h" /* enum ToriRS_NearestModel */
+
 #include <rscache.h>
 
 #include <assert.h>
@@ -929,13 +931,52 @@ collision_approach_from_shape(
     }
 }
 
+void
+collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts* out)
+{
+    assert(out);
+    switch( nearest_model )
+    {
+    case TORIRS_NEAREST_NONE:
+        /* Client-TS passes tryNearest=false for every interaction tryMove:
+         * unreachable is simply no route, and no map flag is drawn. */
+        out->range = 0;
+        out->max_dist = 0;
+        out->rank_by_rect_distance = 0;
+        return;
+
+    case TORIRS_NEAREST_BOX10_RECT:
+        /* Official OSRS. rev-239 client Statics.method5592, `!arrived` branch:
+         *   byte radius = 10; bestCost = bestDist = Integer.MAX_VALUE;
+         *   ... if (distMap[lx][lz] >= 100) continue;
+         *   cost = dx*dx + dz*dz  (dx/dz measured to the target RECTANGLE)
+         *   if (cost < bestCost || (cost == bestCost && dist < bestDist)) ...
+         * The same routine is rsmod / LostCity findClosestApproachPoint on the
+         * server, which is what actually answers a modern MOVE_GAMECLICK. */
+        out->range = 10;
+        out->max_dist = 100;
+        out->rank_by_rect_distance = 1;
+        return;
+
+    case TORIRS_NEAREST_RING3_STEPS:
+    default:
+        /* Client-TS tryMove: `for (padding = 1; padding < 2; padding++)` over
+         * the 3x3 ring, `min = 100`, strictly-lower step count wins. An
+         * unrecognised model lands here on purpose — see the header. */
+        out->range = 1;
+        out->max_dist = 100;
+        out->rank_by_rect_distance = 0;
+        return;
+    }
+}
+
 /*
  * The unreachable fallback, shared by ground clicks and (under the modern era)
  * interaction clicks. Scans a (2*range+1)-square box around the destination for
  * the best flooded tile and writes it through out_x / out_z. Returns 1 when one
  * was found.
  *
- * Two rankings, because the two references rank differently and the choice only
+ * Two rankings, because the references rank differently and the choice only
  * makes sense alongside the box size — see struct CollisionNearestOpts.
  */
 static int
@@ -1500,22 +1541,16 @@ collision_map_try_route(
     int arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, NULL, dir_map, dist_map, queue_x, queue_z, NULL, NULL);
 
-    if( !arrived && try_nearest )
+    /* The ground/minimap unreachable fallback. Which model this is belongs to
+     * the caller's era table (ground_click_nearest_model), not to the router —
+     * the 2004 client's 3x3 ring and the official 21x21 rect search are both
+     * "walk as close as you can" and they disagree on most real clicks. */
+    if( !arrived &&
+        collision_nearest_fallback(cm, dst_x, dst_z, NULL, nearest, dist_map, &end_x, &end_z) )
     {
-        /* Reference ground/minimap nearest fallback: the lowest-distance
-         * flooded tile in the 3x3 ring around the destination (dist < 100).
-         * Identical in both references, so it is not era-conditional. */
-        struct CollisionNearestOpts const ring = {
-            .range = 1,
-            .max_dist = 100,
-            .rank_by_rect_distance = 0,
-        };
-        if( collision_nearest_fallback(cm, dst_x, dst_z, NULL, &ring, dist_map, &end_x, &end_z) )
-        {
-            arrived = 1;
-            if( out_used_nearest )
-                *out_used_nearest = 1;
-        }
+        arrived = 1;
+        if( out_used_nearest )
+            *out_used_nearest = 1;
     }
 
     int length = arrived

@@ -1,6 +1,7 @@
 #include "entity_pathing.h"
 
 #include "engine/world_builder/collision_map.h"
+#include "features/features.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -172,8 +173,17 @@ World_EntityPathingJumpCollisionAware(
     {
         int route_x[10];
         int route_z[10];
-        int route_len = collision_map_try_route(
-            collision, src_x, src_z, x, z, true, route_x, route_z, 10, NULL);
+        /* The endpoint here is a tile the *server* just said the entity stands
+         * on, so the fallback is all but unreachable — but method2600 passes
+         * findClosest=true, so keep one. The classic ring is what this path has
+         * always used; it is not a click, so it does not read the era's
+         * ground_click_nearest_model. */
+        struct CollisionNearestOpts nearest;
+        int route_len;
+
+        collision_nearest_opts_from_model(TORIRS_NEAREST_RING3_STEPS, &nearest);
+        route_len = collision_map_try_route(
+            collision, src_x, src_z, x, z, &nearest, route_x, route_z, 10, NULL);
 
         /* try_route is destination-first; actor queues are filled source-first.
          * Exclude route[0], because World_EntityPathingJump queues the reported

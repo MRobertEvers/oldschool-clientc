@@ -7199,8 +7199,9 @@ app_world_mouse_gate(
 
 /* Reference Client.tryMove for ground (type 0) / minimap (type 1) clicks:
  * BFS route on the local player's level from the player's final route tile
- * (routeX[0]) to the clicked scene tile with the try-nearest 3x3 fallback,
- * send the MOVE_* waypoint packet, latch the minimap flag from the routed
+ * (routeX[0]) to the clicked scene tile with the era's unreachable fallback
+ * (features->ground_click_nearest_model), send the MOVE_* waypoint packet,
+ * latch the minimap flag from the routed
  * destination (route[0]). The local player is NOT moved here — the
  * PLAYER_INFO echo drives movement, exactly like the reference; the old
  * World_PlayerPathJump prediction fought the echo and made the player jump
@@ -7266,13 +7267,17 @@ app_try_move(
     }
     else
     {
+        struct CollisionNearestOpts nearest_opts;
+
+        collision_nearest_opts_from_model(
+            app->features->ground_click_nearest_model, &nearest_opts);
         route_len = collision_map_try_route(
             cm,
             player->pathing.route_x[0],
             player->pathing.route_z[0],
             dst_x,
             dst_z,
-            true,
+            &nearest_opts,
             route_x,
             route_z,
             (int)(sizeof(route_x) / sizeof(route_x[0])),

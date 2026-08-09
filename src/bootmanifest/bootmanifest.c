@@ -672,6 +672,20 @@ bm_set_kv(
             snprintf(bm->features_era, sizeof(bm->features_era), "%s", value);
             return;
         }
+        if( strcmp(key, "ground_click_nearest") == 0 )
+        {
+            int model = ToriRS_Features_NearestModelByName(value);
+            if( model < 0 )
+            {
+                fprintf(stderr,
+                        "bootmanifest: [features] ground_click_nearest must be "
+                        "ring3|box10_rect|none, got '%s'\n",
+                        value);
+                return;
+            }
+            bm->features_ground_click_nearest = model;
+            return;
+        }
         break;
 
     case BM_SECTION_RENDER:
