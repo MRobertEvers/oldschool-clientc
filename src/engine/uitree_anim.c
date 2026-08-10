@@ -4,6 +4,7 @@
 #include "perf/torirs_perf.h"
 #include "toridraw_animation.h"
 #include "toridraw_model.h"
+#include "toridraw_model_transform.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -185,6 +186,8 @@ UITreeAnim_Advance(
             /* An empty frame (no translators) is the rest pose — reset only. */
             if( anim->frames[fr].length > 0 )
                 ToriDraw_ModelAnimateFrame(hnd.u.model.model, anim->base, &anim->frames[fr]);
+            else
+                ToriDraw_ModelSetBoundsCylinder(hnd.u.model.model);
             applied = 1;
         }
     }

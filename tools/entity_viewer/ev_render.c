@@ -47,7 +47,8 @@ ev_init(void)
     if( g_scene )
         return;
     ToriDraw_Init();
-    g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    g_scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 }
 
 /* JS hands bytes over by writing into a block it asked for here. */
@@ -159,7 +160,10 @@ ev_pose(int frame)
 
     ToriDraw_ModelAnimateReset(g_model);
     if( !g_anim || frame < 0 || frame >= g_anim->frame_count )
+    {
+        ToriDraw_ModelSetBoundsCylinder(g_model);
         return;
+    }
 
     if( g_anim->skeletal )
     {

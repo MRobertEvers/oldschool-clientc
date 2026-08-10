@@ -197,6 +197,7 @@ RSCache_Dat2MaterialTableNewDecode(
     for( i = 0; i < count; i++ )
         table->materials[i].exists = (g1(&buffer) == 1);
 
+    /* 727 ImageIndexLoader names the inverse `isGroundMesh` (`byte == 0`). */
     MATERIAL_COLUMN(m->valid = (g1(&buffer) == 1))
 
     /* The `alpha` column exists only BEFORE alpha blending arrives; from 629 it is replaced

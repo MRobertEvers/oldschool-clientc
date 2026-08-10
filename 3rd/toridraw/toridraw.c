@@ -18,21 +18,22 @@
 #define TORIDRAW_MED_FLEX_PRIO11     8192
 #define TORIDRAW_MED_FLEX_PRIO12     8192
 
-/* HIGH_8K is the existing QBD-safe allocation.  Do not reduce it without
- * replacing the explicit capacity guard in ToriDraw_Project: the merged
- * sleeping QBD has 6,223 vertices and 9,012 faces. */
+/* HIGH_8K is the existing QBD-safe vertex/face allocation.  Do not reduce it
+ * without replacing the explicit capacity guard in ToriDraw_Project: the
+ * merged sleeping QBD has 6,223 vertices and 9,012 faces.  Its 4,791-unit
+ * animated bounding sphere separately requires TORIDRAW_SCENE_DEPTH_16K. */
 #define TORIDRAW_HIGH_MAX_VERTICES    8192
 #define TORIDRAW_HIGH_MAX_FACES       16384
 #define TORIDRAW_HIGH_PRIORITY_STRIDE 16384
 #define TORIDRAW_HIGH_FLEX_PRIO11     16384
 #define TORIDRAW_HIGH_FLEX_PRIO12     16384
 
-#define TORIDRAW_FULL_DEPTH_LEVELS 1500
+#define TORIDRAW_DEPTH_LEVELS_REFERENCE 1500
+#define TORIDRAW_DEPTH_LEVELS_16K       16384
 #define TORIDRAW_FULL_DEPTH_STRIDE 512
 
 #define TORIDRAW_SMALL_MAX_VERTICES  1024
 #define TORIDRAW_SMALL_MAX_FACES     2048
-#define TORIDRAW_SMALL_DEPTH_LEVELS  1500
 #define TORIDRAW_SMALL_FLEX_PRIO11   TORIDRAW_SMALL_MAX_FACES
 #define TORIDRAW_SMALL_FLEX_PRIO12   TORIDRAW_SMALL_MAX_FACES
 
@@ -105,12 +106,14 @@ resolve_caps(
     profile = &g_scratch_profiles[scratch_buffer_size];
     caps->small_mode = (flags & TORIDRAW_SCENE_SMALL) != 0;
     caps->lazy_textures = (flags & TORIDRAW_SCENE_LAZY_TEXTURES) != 0;
+    caps->depth_levels = (flags & TORIDRAW_SCENE_DEPTH_16K)
+                             ? TORIDRAW_DEPTH_LEVELS_16K
+                             : TORIDRAW_DEPTH_LEVELS_REFERENCE;
 
     if( caps->small_mode )
     {
         caps->max_vertices = TORIDRAW_SMALL_MAX_VERTICES;
         caps->max_faces = TORIDRAW_SMALL_MAX_FACES;
-        caps->depth_levels = TORIDRAW_SMALL_DEPTH_LEVELS;
         caps->depth_stride = 0;
         caps->priority_stride = 0;
         caps->flex_prio11 = TORIDRAW_SMALL_FLEX_PRIO11;
@@ -120,7 +123,6 @@ resolve_caps(
     {
         caps->max_vertices = profile->max_vertices;
         caps->max_faces = profile->max_faces;
-        caps->depth_levels = TORIDRAW_FULL_DEPTH_LEVELS;
         caps->depth_stride = TORIDRAW_FULL_DEPTH_STRIDE;
         caps->priority_stride = profile->priority_stride;
         caps->flex_prio11 = profile->flex_prio11;
@@ -143,7 +145,7 @@ full_sort_buffer_bytes(const struct ToriDraw_SceneCaps* caps)
     bytes += (size_t)caps->depth_levels * sizeof(faceint_t);
     bytes += (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t);
     bytes += 12 * sizeof(faceint_t);
-    bytes += 12 * sizeof(faceint_t);
+    bytes += 12 * sizeof(int);
     bytes += 12 * (size_t)caps->priority_stride * sizeof(faceint_t);
     bytes += (size_t)caps->flex_prio11 * sizeof(int);
     bytes += (size_t)caps->flex_prio12 * sizeof(int);
@@ -338,11 +340,12 @@ ToriDraw_ScenePrintSize(
     size_t tex_bytes = caps.lazy_textures ? 0 : sizeof(struct ToriDraw_TextureState);
     size_t total = struct_bytes + vertex_bytes + order_bytes + sort_bytes + tex_bytes;
 
-    printf("toridraw scene size (scratch=%s, flags=0x%x%s%s):\n",
+    printf("toridraw scene size (scratch=%s, flags=0x%x%s%s%s):\n",
            profile_name,
            (unsigned)flags,
            caps.small_mode ? ", SMALL" : ", FULL",
-           caps.lazy_textures ? ", LAZY_TEXTURES" : "");
+           caps.lazy_textures ? ", LAZY_TEXTURES" : "",
+           (flags & TORIDRAW_SCENE_DEPTH_16K) ? ", DEPTH_16K" : "");
     printf("  struct:     %6zu bytes\n", struct_bytes);
     printf("  vertices:   %6zu bytes (%d verts x 6 arrays)\n", vertex_bytes, caps.max_vertices);
     printf("  face order: %6zu bytes (%d faces)\n", order_bytes, caps.max_faces);

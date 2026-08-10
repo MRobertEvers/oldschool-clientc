@@ -1042,18 +1042,22 @@ direct face materials and 22 retexture materials (overlapping sets), plus 36
 transitive programs and six source sprites. It successfully bakes and remaps all
 660 models. This is a deterministic OSRS-compatible approximation, not an HD
 shader claim: each graph becomes a 128x128, 6x7x6-palette sprite with alpha
-thresholded at 128. Of the rows, 204 are HD-only, 25 animate, five animate both
-axes, and 126 contain transparency; repeat/clamp, mipmap, shader, float and
-unverified program-tail differences still require source-client visual QA.
+thresholded at 128. Of the rows, 204 are marked `isGroundMesh`, 25 animate, five
+animate both axes, and 126 contain transparency; repeat/clamp, mipmap, shader,
+float and unverified program-tail differences still require source-client
+visual QA.
 
-The bridge also applies the revision-727 SD selection rule before writing each
-destination OB3. Faces whose material has `TextureLoader.isSd=false` discard
-that selector and retain their underlying HSL colour for ordinary destination
-lighting. This removed 274,715 invalid face selectors across the 660-model
-closure while retaining all 256 baked assets for inspection/future HD use. In
-particular, all nine TD materials and all three left-claw materials are HD-only;
-forcing their normal/noise graphs into diffuse sprites was the concrete cause
-of the previously white claw and apparently corrupt demon rendering.
+The historical cache-decoder field name `valid` is misleading. The supplied
+727 `ImageIndexLoader` decodes the same byte as
+`isGroundMesh = readUnsignedByte() == 0`; it is not an `isSd` or global
+HD-only flag. The 727 mesh renderer conditionally removes those selectors when
+its model-render flags include `0x40`. OSRS239 has no equivalent combination of
+procedural material and model flag, so the lane's OB3 compatibility fallback
+clears texture ID, UV coordinate, and textured-face-info state together while
+retaining the original face HSL for normal lighting. It applies that fallback
+to 274,715 faces across the 660-model closure and retains all 256 baked assets
+for inspection or a future fuller renderer. Clearing only the texture ID was
+the concrete cause of the mouth-only QBD intermediate render.
 
 QBD recorded audio is bridged rather than copied into the wrong cache table.
 The foreign setup remains at index 14 archive 16000, all 83 samples retain exact
@@ -1159,10 +1163,10 @@ The following are completed machine checks, not a list of aspirations:
   without an unknown key, source-ID leak, or allocation overlap with base
   OSRS239 or the separate Summoning lane.
 - The material bridge decodes, rewrites, encodes, and decodes all 660 destination
-  models. It preserves mapping arrays for selected SD materials, applies the
-  source SD fallback to 274,715 HD-only face selectors, and resolves all 256
-  material rows. This is a structural/codec assertion, not visual proof of an
-  HD shader match.
+  models. It preserves mapping arrays for ordinary materials, applies the
+  complete OB3 HSL fallback to 274,715 `isGroundMesh` face selectors, and
+  resolves all 256 material rows. This is a structural/codec assertion, not
+  visual proof of a procedural-shader match.
 - `tools/test_rs2012_map_port.py` proves 20 decoded source squares, 55,187 exact
   source placement tuples, 1,006 map-referenced loc configs, 12 underlays, and
   12 overlays; the surface placement is audited separately because it was
@@ -1256,8 +1260,11 @@ debug account before deployment.
 
 A first destination-client visual pass is complete and recorded in
 `docs/rs2012_qbd_arena/README.md`. It proves the same-packet NPC replacement
-installs type 25003, the arena/platform/claw scene loads, and the corrected SD
-materials remove the white-claw and black-platform failures. Source TD
+installs type 25003 and the arena/platform/claw scene loads. A 1200×800 live
+capture shows the complete QBD head and both independent foreclaw location
+models simultaneously after the OB3 texture/UV/face-info fallback repair. This
+proves render presence and geometry, not pixel-identical 727 procedural
+shading. Source TD
 8349/10921 and destination TD 25006/22017 also produce byte-identical four-yaw
 renders. The dylib-backed macOS ASan build exposed and verified the fix for a
 real renderer overflow: sleeping QBD has 6,223 vertices/9,012 faces and exceeded
@@ -1367,11 +1374,11 @@ Media/world pass:
   clue reader/step/reward progression is a wider-content dependency and is not
   supplied here. Likewise, royal armour assets and requirements are present,
   while a full pre-EoC Crafting-interface recreation is outside this slice.
-- Selected SD materials use a deterministic 128x128 palette/alpha bridge and
-  HD-only selectors correctly fall back to lit HSL, but this is not the RS727
-  HD procedural renderer. Animated axes, alpha, mipmaps, shader parameters,
-  repeat/clamp behavior, and unverified program tails require the side-by-side
-  visual pass in §10.3.
+- Materials use a deterministic 128x128 palette/alpha bridge, while selectors
+  marked `isGroundMesh` use the documented OB3 lit-HSL compatibility fallback.
+  This is not the full RS727 procedural/model-flag renderer. Animated axes,
+  alpha, mipmaps, shader parameters, repeat/clamp behavior, and unverified
+  program tails require further side-by-side visual QA.
 - All primary QBD sequence events, loc ambience references, and music payloads
   are bridged and decode from the composed cache. Random alternative IDs beyond
   the primary per-frame event are not representable in the destination sequence

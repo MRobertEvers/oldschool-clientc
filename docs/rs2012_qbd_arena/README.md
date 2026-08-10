@@ -54,14 +54,14 @@ and the remaining material/camera work.
 
 ![After NPC and scene-capacity repair](images/03_after_npc_and_capacity_fix.png)
 
-The material cause is now concrete. RS727 material `valid` is the SD-selection
-bit, and all three left-claw materials plus all nine Tormented Demon materials
-are HD-only (`valid=0`). The first bridge forced their procedural shader inputs
-into OSRS diffuse sprites; material 285, for example, is pale normal/noise data,
-which is why the claw looked like a white malformed mass. The revised bridge
-retains every baked asset but drops HD-only selectors from destination model
-faces so OSRS239 lights their underlying HSL colours, matching the source 2012
-SD client.
+The first material diagnosis was incomplete. The bridge forced 727 procedural
+shader inputs into OSRS diffuse sprites; material 285, for example, is pale
+normal/noise data, which explains the white malformed claw. However, the first
+material-table byte is not an `isSd` or “HD-only” bit. The supplied 727 client
+decodes it as `isGroundMesh = readUnsignedByte() == 0`. Treating every such
+material as globally hidden removed most QBD textures, and clearing only the
+texture ID left the OB3 face encoded as textured. That combination produced the
+mouth-only intermediate capture below.
 
 A second defect was in the server's revision-239 NPC encoder, not in the chosen
 25000–25009 allocation. The per-client NPC index is 16 bits, but an
@@ -84,24 +84,55 @@ in this image was only a diagnostic and is no longer the implementation.
 
 ![Intermediate NPC-wire diagnostic](images/02_npc_wire_diagnostic.png)
 
-## 2026-08-10 — source SD material selection restored
+## 2026-08-10 — failed ground-material experiment
 
-The regenerated composed cache now applies the same selection rule as the
-revision-727 SD client: a face whose procedural material has `isSd=false`
-does not sample that material. It keeps and lights the face's underlying HSL
-colour instead. The bridge removed 274,715 invalid selectors across the full
-660-model closure while retaining all 256 baked material assets for inspection
-and a future HD renderer.
+The first fallback cleared the material ID but not the OB3 texture-coordinate
+and face-info state. It made the platform and west claw less obviously corrupt,
+but QBD still rendered primarily as a mouth. This image is retained as failed
+evidence and must not be used as visual acceptance.
 
-The live result below resolves the two largest false-corruption symptoms. The
-west claw is dark red/black instead of white, and the bronze/stone platform no
-longer contains the solid black material rectangle. QBD is a composite scene:
-the centered head/neck is NPC type 25003, while the two foreclaws are separate
-location models. They must not be merged into a single NPC model. This capture
-uses one 200% QA zoom-out so the north NPC and west location are visible
-together; camera presentation remains a separate encounter task.
+![Failed mouth-only material fallback](images/04_qbd_sd_material_fix.png)
 
-![QBD after SD material-selection repair](images/04_qbd_sd_material_fix.png)
+## 2026-08-10 — QBD head and both foreclaws restored
+
+The corrected OB3 conversion treats `!valid` by its actual 727 meaning,
+`isGroundMesh`. Because OSRS239 has no equivalent procedural-material plus
+model-render-flag contract, the compatibility fallback clears the texture ID,
+texture coordinate, and textured face-info state as one operation while
+preserving the face's original HSL colour for ordinary lighting. All baked
+materials remain in the lane for inspection and a future renderer.
+
+The isolated sleeping-QBD render now resolves 6,223 vertices and 9,012 faces,
+animates every vertex, and shows the complete head, horns, jaw, and neck. The
+live 1200×800 capture below proves the scene composition as well: NPC type
+25003 supplies the centered head/neck, while location 70822/model 69885 and
+location 70818/model 69887 supply the left and right foreclaws. Both claws,
+the head, and the phase-one platforms render at the same time. This is a
+render-presence and geometry acceptance image, not a claim that the flat HSL
+fallback reproduces the 727 procedural shader pixel-for-pixel.
+
+![QBD head and both foreclaws rendered](images/06_qbd_head_and_both_claws.png)
+
+The capture was produced headlessly with the macOS ASan-compatible client and
+the scanline software rasterizer (the separate legacy branching-raster item-icon
+palette fault is outside this encounter):
+
+```sh
+env SDL_VIDEODRIVER=dummy \
+  TORIDRAW_RASTER_SCANLINE=1 \
+  TORIRS_MAX_FRAMES=850 \
+  TORIRS_EXIT_BMP=/tmp/qbd_full_scene.bmp \
+  TORIRS_SIM_WINDOW='500,1200x800' \
+  TORIRS_SIM_WHEEL='650,500,350,-4,1' \
+  ASAN_OPTIONS='detect_leaks=0:halt_on_error=1:abort_on_error=1' \
+  ./src/torirs --manifest manifest_osrs239_rs2012.ini \
+  --user qbdvisual --pass test --soft3d
+sips -s format png /tmp/qbd_full_scene.bmp \
+  --out docs/rs2012_qbd_arena/images/06_qbd_head_and_both_claws.png
+```
+
+The saved PNG has SHA-256
+`1dbeaa558e3c52c8bad17b94ea2cb2029384dde8fb42951dc539bde70952a9a2`.
 
 The Tormented Demon check uses source NPC 8349/sequence 10921 and destination
 NPC 25006/sequence 22017. Both resolve to 984 vertices, 1,974 faces, a
@@ -145,9 +176,16 @@ skills or quest state.
   alone hang during dyld/allocator initialisation on macOS 26.
 - [x] Isolate the common renderer crash under a dylib-backed macOS ASan build.
 - [x] Identify and repair the QBD projection/face-order buffer overflow.
-- [x] Apply the source SD material-selection rule to imported model faces.
-- [x] Validate QBD, claws, platforms, and TD with destination materials enabled.
+- [x] Correct the material flag interpretation from “HD-only” to
+  `isGroundMesh`.
+- [x] Clear texture, UV, and textured-face state together for the OSRS239 OB3
+  ground-material fallback.
+- [x] Validate the complete QBD head and both claw location models in one live
+  destination-client frame.
 - [x] Capture corrected QBD arena and QBD/TD model images.
+- [ ] Reproduce 727 procedural shading pixel-for-pixel; the current HSL
+  fallback intentionally prioritises complete visible geometry.
 - [ ] Make the TD visual manifest survive long enough to inspect all six demons
   without weakening the production encounter or mutating account progress.
-- [ ] Run the composed-cache, map, UI, combat, and client-launch regressions.
+- [x] Run the composed-cache, map, UI, combat, mock-server, NPC-wire, and
+  dylib-backed client-launch regressions after the visual fix.

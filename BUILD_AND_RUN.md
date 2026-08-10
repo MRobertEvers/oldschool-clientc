@@ -1345,6 +1345,13 @@ That flavor statically links SDL, compiles `platform/asan_compat.c`, and links
 ASan allocator is initialising (LLVM #182943). `MallocScribble=1` remains a
 useful independent diagnostic, but it is not a substitute for this ASan build.
 
+For model face-order diagnostics, set `TORIDRAW_SORT_DEBUG=1`. It reports only
+vertex/face capacity failures, insufficient depth capacity, out-of-range face
+depths, and per-depth bucket overflow, which keeps a live-client capture
+manageable. Set `TORIDRAW_SORT_DEBUG=all` (or `2`) to emit the same counters for
+every sorted model, including its current bounds, required/configured depth
+levels, observed face-depth range, and accepted/ordered face totals.
+
 ---
 
 ## 12. Troubleshooting and known breaks

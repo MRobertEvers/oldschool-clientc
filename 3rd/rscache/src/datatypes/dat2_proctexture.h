@@ -448,6 +448,9 @@ struct RSCache_Dat2ProcTexture
 struct RSCache_Dat2Material
 {
     bool exists;
+    /* Historical field name retained for API compatibility. In 727 the
+     * source client decodes `isGroundMesh = byte == 0`, so this is its inverse
+     * (`byte == 1`), not a generic validity or isSd bit. */
     bool valid;
     bool alpha;
     bool small;

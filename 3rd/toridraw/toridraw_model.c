@@ -4,6 +4,7 @@
 #include "toridraw_animation.h"
 #include "toridraw_lighting.h"
 #include "toridraw_math.h"
+#include "toridraw_model_transform.h"
 
 #include <assert.h>
 #include <math.h>
@@ -553,6 +554,12 @@ ToriDraw_ModelAnimateFrame(
             frame->z[i],
             model);
     }
+
+    /* Projection culling and the face-sort depth bias both consume this
+     * cylinder.  Keeping the bind-pose cylinder on a large deformation can
+     * make valid depths negative even when the scene's depth table is large
+     * enough (animated QBD reaches radius 4,791 from a bind radius of 1,899). */
+    ToriDraw_ModelSetBoundsCylinder(model);
 }
 
 /* One masked pass of Model.ts maskAnimate: apply `frame`'s ops to groups
@@ -622,6 +629,7 @@ ToriDraw_ModelAnimateFrameMasked(
     }
     model_animate_frame_mask_pass(model, base, primary, walkmerge, 0);
     model_animate_frame_mask_pass(model, base, secondary, walkmerge, 1);
+    ToriDraw_ModelSetBoundsCylinder(model);
 }
 
 int
@@ -729,6 +737,8 @@ ToriDraw_ModelAnimateSkeletal(
             model->vertices_z[vi] = model->original_vertices_z[vi];
         }
     }
+
+    ToriDraw_ModelSetBoundsCylinder(model);
 }
 
 void

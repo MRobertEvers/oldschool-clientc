@@ -551,10 +551,11 @@ dump_spawns(const char* root, int map_x, int map_z)
 }
 
 /*
- * Print one material's flags, or with id -1 a summary of the whole table. `valid` is the one
- * that matters for rendering: rs-map-viewer's isSd() is exactly this flag, and ModelData.light
- * drops the texture from any face whose material is not valid — those are HD-only materials
- * the SD renderer draws as plain coloured faces.
+ * Print one material's flags, or with id -1 a summary of the whole table. The
+ * historical `valid` field name is misleading: ImageIndexLoader decodes the
+ * source byte as `isGroundMesh = readUnsignedByte() == 0`, so `!valid` means
+ * isGroundMesh. Mesh rendering may drop that selector when its creation flags
+ * include 0x40; it is not a global isSd/HD-only classification.
  *
  *   test_rs2_sweep <root> materials [id]
  */
@@ -619,28 +620,30 @@ dump_materials(const char* root, int want_id)
             else if( invalid_ids < 40 )
             {
                 if( invalid_ids == 0 )
-                    printf("  not-SD ids:");
+                    printf("  ground-mesh ids:");
                 printf(" %d", i);
                 invalid_ids++;
             }
         }
         if( invalid_ids )
             printf("%s\n", invalid_ids == 40 ? " ..." : "");
-        printf("materials: %d, exists=%d, valid(SD)=%d, not-SD=%d\n",
+        printf("materials: %d, exists=%d, non-ground-mesh=%d, ground-mesh=%d\n",
                table->count, exists, valid, exists - valid);
-        /* The engine's texture maps are 256-slot (scene map, texture_failed, the raster's
-         * id guard), so an SD id past 255 would silently never draw. Report the split. */
+        /* The engine's texture maps are 256-slot (scene map, texture_failed,
+         * the raster's id guard), so a non-ground-mesh id past 255 would
+         * silently never draw. Report the split. */
         {
-            int sd_above_255 = 0;
-            int max_sd = -1;
+            int nonground_above_255 = 0;
+            int max_nonground = -1;
             for( int i = 0; i < table->count; i++ )
                 if( table->materials[i].exists && table->materials[i].valid )
                 {
                     if( i > 255 )
-                        sd_above_255++;
-                    max_sd = i;
+                        nonground_above_255++;
+                    max_nonground = i;
                 }
-            printf("  SD ids above 255: %d (highest SD id %d)\n", sd_above_255, max_sd);
+            printf("  non-ground-mesh ids above 255: %d (highest %d)\n",
+                   nonground_above_255, max_nonground);
         }
     }
 

@@ -1116,7 +1116,7 @@ selftest(int npc_id, int seq_id)
         free(strip);
 
         struct ToriDraw_Scene* scene = ToriDraw_SceneNew(
-            0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+            TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
         struct ToriDraw_ModelHandle hnd;
         memset(&hnd, 0, sizeof(hnd));
         hnd.kind = TORIDRAWMK_MODEL;

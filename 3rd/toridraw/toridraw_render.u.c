@@ -7,11 +7,8 @@
 
 #include <assert.h>
 #include <limits.h>
-#include <string.h>
-#ifdef TORIDRAW_NEAR_CLIP_STATS
 #include <stdio.h>
-#include <stdlib.h>
-#endif
+#include <string.h>
 
 #ifndef VERTEXINT_BITS
 #define VERTEXINT_BITS 16
@@ -30,6 +27,117 @@ static inline int
 div3_fast_fixedpoint(int z_sum)
 {
     return (z_sum * 21845) >> 16;
+}
+
+struct ToriDraw_FaceSortDebugStats
+{
+    int front_facing;
+    int back_facing;
+    int degenerate;
+    int accepted;
+    int depth_out_low;
+    int depth_out_high;
+    int bucket_overflow;
+    int min_depth_seen;
+    int max_depth_seen;
+    int max_bucket_occupancy;
+    int first_depth_out_face;
+    int first_depth_out_value;
+};
+
+/** TORIDRAW_SORT_DEBUG is intentionally runtime-selectable: the counters below
+ * remain disabled on the normal render path, while an ASan reproduction can
+ * turn them on without rebuilding a multi-minute client. */
+static inline int
+toridraw_sort_debug_level(void)
+{
+    static int level = -1;
+    if( level < 0 )
+    {
+        const char* value = getenv("TORIDRAW_SORT_DEBUG");
+        if( !value || value[0] == '\0' || value[0] == '0' )
+            level = 0;
+        else if( strcmp(value, "all") == 0 || strcmp(value, "verbose") == 0 ||
+                 strcmp(value, "2") == 0 )
+            level = 2;
+        else
+            level = 1;
+    }
+    return level;
+}
+
+static inline bool
+toridraw_sort_debug_enabled(void)
+{
+    return toridraw_sort_debug_level() != 0;
+}
+
+static inline void
+toridraw_face_sort_debug_init(struct ToriDraw_FaceSortDebugStats* stats)
+{
+    memset(stats, 0, sizeof(*stats));
+    stats->min_depth_seen = INT_MAX;
+    stats->max_depth_seen = INT_MIN;
+    stats->first_depth_out_face = -1;
+    stats->first_depth_out_value = -1;
+}
+
+static inline void
+toridraw_face_sort_debug_print(
+    const struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_FaceSortDebugStats* stats,
+    int ordered)
+{
+    const struct ToriDraw_BoundsCylinder* bounds = model_bounds_cylinder(hnd);
+    int const depth_bias = bounds ? bounds->min_z_depth_any_rotation : 0;
+    int const xz_radius = bounds ? bounds->radius : 0;
+    int const min_y = bounds ? bounds->min_y : 0;
+    int const max_y = bounds ? bounds->max_y : 0;
+    long long const conservative_levels = (long long)depth_bias * 2 + 1;
+    int const depth_min = stats->min_depth_seen == INT_MAX ? -1 : stats->min_depth_seen;
+    int const depth_max = stats->max_depth_seen == INT_MIN ? -1 : stats->max_depth_seen;
+
+    /* Level 1 is an anomaly detector suitable for a live client.  `all` (or
+     * level 2) emits clean models too when comparing an exact reproduction. */
+    if( toridraw_sort_debug_level() < 2 && stats->depth_out_low == 0 &&
+        stats->depth_out_high == 0 && stats->bucket_overflow == 0 &&
+        ordered == stats->accepted )
+        return;
+
+    fprintf(
+        stderr,
+        "sort_depth: model=%p vertices=%d/%d faces=%d/%d "
+        "bounds={y=%d..%d,xz=%d,bias=%d} "
+        "bound_levels=%lld depth_levels=%d depth_stride=%d observed=%d..%d "
+        "front=%d accepted=%d ordered=%d back=%d degenerate=%d "
+        "out_low=%d out_high=%d bucket_overflow=%d max_bucket=%d "
+        "first_out_face=%d first_out_depth=%d\n",
+        (void*)model_as_full(hnd),
+        model_vertex_count(hnd),
+        scene->max_vertices,
+        model_face_count(hnd),
+        scene->max_faces,
+        min_y,
+        max_y,
+        xz_radius,
+        depth_bias,
+        conservative_levels,
+        scene->depth_levels,
+        scene->depth_stride,
+        depth_min,
+        depth_max,
+        stats->front_facing,
+        stats->accepted,
+        ordered,
+        stats->back_facing,
+        stats->degenerate,
+        stats->depth_out_low,
+        stats->depth_out_high,
+        stats->bucket_overflow,
+        stats->max_bucket_occupancy,
+        stats->first_depth_out_face,
+        stats->first_depth_out_value);
 }
 
 static inline int
@@ -339,6 +447,7 @@ bucket_sort_by_average_depth(
     faceint_t* RESTRICT face_depth_bucket_counts,
     int depth_levels,
     int depth_stride,
+    struct ToriDraw_FaceSortDebugStats* debug_stats,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -362,10 +471,20 @@ bucket_sort_by_average_depth(
         const int dx2 = vx[c] - vx[b];
         const int dy2 = vy[c] - vy[b];
 
-        if( (dx1 * dy2 - dy1 * dx2) > 0 )
+        int const winding = dx1 * dy2 - dy1 * dx2;
+        if( winding > 0 )
         {
             int z_sum = vz[a] + vz[b] + vz[c];
             int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
+
+            if( debug_stats )
+            {
+                debug_stats->front_facing++;
+                if( depth_avg < debug_stats->min_depth_seen )
+                    debug_stats->min_depth_seen = depth_avg;
+                if( depth_avg > debug_stats->max_depth_seen )
+                    debug_stats->max_depth_seen = depth_avg;
+            }
 
             if( (unsigned int)depth_avg < (unsigned int)depth_levels )
             {
@@ -381,14 +500,50 @@ bucket_sort_by_average_depth(
                     face_depth_bucket_counts[depth_avg] = count + 1;
                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
 
+                    if( debug_stats )
+                    {
+                        debug_stats->accepted++;
+                        if( count + 1 > debug_stats->max_bucket_occupancy )
+                            debug_stats->max_bucket_occupancy = count + 1;
+                    }
+
                     if( depth_avg < min_d )
                         min_d = depth_avg;
                     if( depth_avg > max_d )
                         max_d = depth_avg;
                 }
+                else if( debug_stats )
+                {
+                    debug_stats->bucket_overflow++;
+                }
+            }
+            else if( debug_stats )
+            {
+                if( depth_avg < 0 )
+                    debug_stats->depth_out_low++;
+                else
+                    debug_stats->depth_out_high++;
+                if( debug_stats->first_depth_out_face < 0 )
+                {
+                    debug_stats->first_depth_out_face = f;
+                    debug_stats->first_depth_out_value = depth_avg;
+                }
             }
         }
+        else if( debug_stats )
+        {
+            if( winding == 0 )
+                debug_stats->degenerate++;
+            else
+                debug_stats->back_facing++;
+        }
     }
+
+    if( debug_stats )
+        assert(
+            debug_stats->front_facing ==
+            debug_stats->accepted + debug_stats->depth_out_low +
+                debug_stats->depth_out_high + debug_stats->bucket_overflow);
 
     if( min_d > max_d )
         return 0;
@@ -496,13 +651,9 @@ sort_face_draw_order(
     int flexible_face_index = 0;
     int order_index = 0;
 
-    /* One getenv for the process, then a branch the predictor gets right — the
-     * flexible-priority interleave is decided by three averages that nothing
-     * else prints, and guessing at them is how an afternoon goes. */
-    static int sort_debug = -1;
-    if( sort_debug < 0 )
-        sort_debug = getenv("TORIDRAW_SORT_DEBUG") ? 1 : 0;
-    if( sort_debug )
+    /* The flexible-priority interleave is decided by three averages that
+     * nothing else prints, and guessing at them is how an afternoon goes. */
+    if( toridraw_sort_debug_level() >= 2 )
     {
         int flex_min = 1 << 30, flex_max = -1;
         for( int i = 0; i < counts[10]; i++ )
@@ -582,6 +733,8 @@ ToriDraw_ComputeProjectedFaceOrder(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
+    struct ToriDraw_FaceSortDebugStats debug_stats_storage;
+    struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
     faceint_t* fia = NULL;
     faceint_t* fib = NULL;
     faceint_t* fic = NULL;
@@ -608,6 +761,12 @@ ToriDraw_ComputeProjectedFaceOrder(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
+    if( toridraw_sort_debug_enabled() )
+    {
+        toridraw_face_sort_debug_init(&debug_stats_storage);
+        debug_stats = &debug_stats_storage;
+    }
+
     memset(
         scene->tmp_depth_face_count,
         0,
@@ -618,6 +777,7 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->tmp_depth_face_count,
         scene->depth_levels,
         scene->depth_stride,
+        debug_stats,
         model_min_depth,
         face_count,
         scene->screen_vertices_x,
@@ -648,6 +808,8 @@ ToriDraw_ComputeProjectedFaceOrder(
             }
         }
         scene->tmp_face_order_count = order_index;
+        if( debug_stats )
+            toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         return;
     }
 
@@ -680,11 +842,15 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->tmp_priority_faces,
         counts,
         scene->priority_stride);
+    if( debug_stats )
+        toridraw_face_sort_debug_print(
+            scene, hnd, debug_stats, scene->tmp_face_order_count);
 }
 
 static inline int
 bucket_sort_by_average_depth_small(
     struct ToriDraw_Scene* scene,
+    struct ToriDraw_FaceSortDebugStats* debug_stats,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -713,23 +879,65 @@ bucket_sort_by_average_depth_small(
         const int dx2 = vx[c] - vx[b];
         const int dy2 = vy[c] - vy[b];
 
-        if( (dx1 * dy2 - dy1 * dx2) > 0 )
+        int const winding = dx1 * dy2 - dy1 * dx2;
+        if( winding > 0 )
         {
             int z_sum = vz[a] + vz[b] + vz[c];
             int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
+
+            if( debug_stats )
+            {
+                debug_stats->front_facing++;
+                if( depth_avg < debug_stats->min_depth_seen )
+                    debug_stats->min_depth_seen = depth_avg;
+                if( depth_avg > debug_stats->max_depth_seen )
+                    debug_stats->max_depth_seen = depth_avg;
+            }
 
             if( (unsigned int)depth_avg < (unsigned int)depth_levels )
             {
                 scene->sm_face_depth[f] = (faceint_t)depth_avg;
                 scene->sm_depth_offset[depth_avg]++;
 
+                if( debug_stats )
+                {
+                    debug_stats->accepted++;
+                    if( scene->sm_depth_offset[depth_avg] > debug_stats->max_bucket_occupancy )
+                        debug_stats->max_bucket_occupancy = scene->sm_depth_offset[depth_avg];
+                }
+
                 if( depth_avg < min_d )
                     min_d = depth_avg;
                 if( depth_avg > max_d )
                     max_d = depth_avg;
             }
+            else if( debug_stats )
+            {
+                if( depth_avg < 0 )
+                    debug_stats->depth_out_low++;
+                else
+                    debug_stats->depth_out_high++;
+                if( debug_stats->first_depth_out_face < 0 )
+                {
+                    debug_stats->first_depth_out_face = f;
+                    debug_stats->first_depth_out_value = depth_avg;
+                }
+            }
+        }
+        else if( debug_stats )
+        {
+            if( winding == 0 )
+                debug_stats->degenerate++;
+            else
+                debug_stats->back_facing++;
         }
     }
+
+    if( debug_stats )
+        assert(
+            debug_stats->front_facing ==
+            debug_stats->accepted + debug_stats->depth_out_low +
+                debug_stats->depth_out_high);
 
     if( min_d > max_d )
         return 0;
@@ -906,6 +1114,8 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd)
 {
+    struct ToriDraw_FaceSortDebugStats debug_stats_storage;
+    struct ToriDraw_FaceSortDebugStats* debug_stats = NULL;
     faceint_t* fia = NULL;
     faceint_t* fib = NULL;
     faceint_t* fic = NULL;
@@ -932,8 +1142,15 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
 
+    if( toridraw_sort_debug_enabled() )
+    {
+        toridraw_face_sort_debug_init(&debug_stats_storage);
+        debug_stats = &debug_stats_storage;
+    }
+
     int bounds = bucket_sort_by_average_depth_small(
         scene,
+        debug_stats,
         model_min_depth,
         face_count,
         scene->screen_vertices_x,
@@ -949,6 +1166,8 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     if( bounds == 0 )
     {
         scene->tmp_face_order_count = 0;
+        if( debug_stats )
+            toridraw_face_sort_debug_print(scene, hnd, debug_stats, 0);
         return;
     }
 
@@ -964,6 +1183,8 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
                 scene->tmp_face_order[order_index++] = scene->sm_faces_by_depth[j];
         }
         scene->tmp_face_order_count = order_index;
+        if( debug_stats )
+            toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         return;
     }
 
@@ -975,6 +1196,9 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
 
     scene->tmp_face_order_count =
         sort_face_draw_order_small(scene, scene->tmp_face_order, priority_depths, counts);
+    if( debug_stats )
+        toridraw_face_sort_debug_print(
+            scene, hnd, debug_stats, scene->tmp_face_order_count);
 }
 
 /*
@@ -1442,7 +1666,47 @@ ToriDraw_Project(
      * carry a large enough declared capacity for the imported encounter. */
     if( model_vertex_count(hnd) > scene->max_vertices ||
         model_face_count(hnd) > scene->max_faces )
+    {
+        if( toridraw_sort_debug_enabled() )
+            fprintf(
+                stderr,
+                "sort_capacity: model=%p vertices=%d/%d faces=%d/%d rejected=1\n",
+                (void*)model_as_full(hnd),
+                model_vertex_count(hnd),
+                scene->max_vertices,
+                model_face_count(hnd),
+                scene->max_faces);
         return TORIDRAW_CULL_ERROR;
+    }
+
+    /* Surface an undersized depth table before fast/AABB culling can hide the
+     * model from the face-sort diagnostics.  The bound is deliberately
+     * rotation-independent: every sorted face depth lies within [-bias,+bias]
+     * before the sorter adds bias, hence the required diameter is 2*bias+1. */
+    if( toridraw_sort_debug_enabled() )
+    {
+        const struct ToriDraw_BoundsCylinder* bounds = model_bounds_cylinder(hnd);
+        if( bounds )
+        {
+            long long const required_levels =
+                (long long)bounds->min_z_depth_any_rotation * 2 + 1;
+            if( required_levels > scene->depth_levels )
+                fprintf(
+                    stderr,
+                    "sort_depth_capacity: model=%p vertices=%d faces=%d "
+                    "bounds={y=%d..%d,xz=%d,bias=%d} required=%lld "
+                    "depth_levels=%d rejected=0\n",
+                    (void*)model_as_full(hnd),
+                    model_vertex_count(hnd),
+                    model_face_count(hnd),
+                    bounds->min_y,
+                    bounds->max_y,
+                    bounds->radius,
+                    bounds->min_z_depth_any_rotation,
+                    required_levels,
+                    scene->depth_levels);
+        }
+    }
 
     int cull = TORIDRAW_CULL_VISIBLE;
 

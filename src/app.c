@@ -3316,7 +3316,8 @@ App_Init(
         assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
-    app->scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    app->scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 
@@ -10127,9 +10128,15 @@ app_if_head_poll(struct App* app)
     {
         struct AppIfHead* head = &app->if_heads[i];
         int scene_id;
+        int first_apply;
 
         if( head->applied_gen == app->tree->generation )
             continue;
+        /* UI mutations can advance the tree generation every tick.  The
+         * binding still re-applies as required, but its diagnostic should say
+         * when this stored request first became visible to the tree, not flood
+         * the trace once per unrelated UI mutation. */
+        first_apply = head->applied_gen == 0;
 
         if( head->kind == APP_IFHEAD_PLAYER )
         {
@@ -10155,6 +10162,17 @@ app_if_head_poll(struct App* app)
 
         if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )
         {
+            /* Server IF_SETNPCHEAD reaches this async App path rather than the
+             * CS2 host opcode path, so mirror the latter's opt-in trace here.
+             * It makes a composed-but-currently-tab-hidden portrait observable
+             * without changing its render or visibility state. */
+            if( first_apply && head->kind == APP_IFHEAD_NPC && getenv("TORIRS_NPC_HEAD_DEBUG") )
+                fprintf(
+                    stderr,
+                    "npc_head: npc=%d component=0x%08x scene=%d applied=1\n",
+                    head->npc_id,
+                    (unsigned)head->com_id,
+                    scene_id);
             /* Reference IF_SETOBJECT: modelXAn/YAn from the objtype, modelZoom
              * = zoom2d * 100 / wire zoom (Client.ts:6342). */
             if( head->kind == APP_IFHEAD_OBJ )
@@ -15137,6 +15155,19 @@ App_WorldApplyNpcType(
         World_NpcSetType(
             app->world, world_idx, npc_type, npctype->size > 0 ? npctype->size : 1, &idle);
     }
+    /*
+     * A newly-added NPC reaches its ready pose through app_world_spawn_npc_now,
+     * but a revision-239 CHANGE_TYPE keeps the same scene element.  Rebind the
+     * replacement type's ready sequence here as well: World_NpcSetType clears
+     * the old primary track, and waiting for the next world cycle otherwise
+     * leaves a frame (and an async-load gap) driven by the former type.
+     *
+     * This is intentionally general rather than familiar-specific.  The
+     * regular entity sync will take over with the new idle/walk state on the
+     * next world tick, just as it does after a normal spawn.
+     */
+    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        app_world_apply_seq(app, element_id, npctype->readyanim);
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
         if( npc )

@@ -2,7 +2,8 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–4 are implemented; Phase 5 breadth is next.
+**Status:** Phases 0–4 and the bounded Phase-5b Dreadfowl cohort are implemented; the remaining
+Phase-5 breadth is next.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -446,9 +447,10 @@ summon-sound table** (`Familiar.java:713` is a TODO) — one shared summon sound
 **Phase 5a — roster boundary and provenance audit (done).**
 [`pouches_530.json`](summoning_port/pouches_530.json) records 82 source pouches: 78 active
 familiar/pouch pairs and four Sacred Clay pairs that remain explicitly deferred. The separate
-[`roster_boundary_530.json`](summoning_port/roster_boundary_530.json) allows the existing
-Spirit-wolf proof roots but admits no breadth cohort. It permits the documented safe source synth
-188 only as policy; it does not turn an unreviewed import into accepted content.
+[`roster_boundary_530.json`](summoning_port/roster_boundary_530.json) originally allowed only the
+existing Spirit-wolf proof roots; its one later, separately owned Phase-5b admission is Dreadfowl.
+That does not admit any entry from the broad generated roster. The boundary permits the documented
+safe source synth 188 only as policy; it does not turn an unreviewed import into accepted content.
 
 The earlier generated `summoning_roster_530` import is preserved intact as review-only evidence:
 630 source files, 2,175 pack references, and 1,365 ledger rows. Its last broad CSV and INI manifests
@@ -457,13 +459,33 @@ than being overwritten by the bounded candidate. It is neither deleted nor silen
 Feature-on staging withholds its cohort-named assets and its line-oriented mixed pack rows, then
 asserts that no review-only marker reaches the staged tree. The same audit fails closed for any
 other generated cohort, pet record, unsafe synth, or `npc_sounds=yes` closure. The permanent
-`test-summoning-phase5a` target performs 75 checks over that boundary, the ledger, archive hashes,
-preservation counts, and staging exclusion. Final evidence: isolated Phase-4f 69/0; staging
-admission 4,504/0 with 2,805 review-only artifacts/rows held; feature cache 16,994 records with
-0 failures, 182 asset archives, all 23 tables, and CS2 6/6; staged flag-off comparison 25/0;
-isolation 665,997/0; and `mock230_pack --check-only` 0 errors. Phase 5b—not 5a—may admit one
-bounded familiar/pouch cohort, after its animations, model, and real-client summon acceptance are
-reviewed.
+`test-summoning-phase5a` target performs 94 checks over that boundary, the ledger, archive hashes,
+preservation counts, and staging exclusion. Current evidence: `port_summoning_ids.py --check`
+reports 1,541 required rows and 1,418 total ledger rows, 0 errors; staging admission is 4,545/0,
+with 3,785 review-only references held and 2,805 withheld, yielding 417 staged actual files and a
+417/0 review-exclusion check; the feature cache is 16,998 records/0 errors, 187 asset archives/23
+tables, CS2 6/0, ServerScript 12,963 scripts, and `mock230_pack --check-only` 8,340/0; the staged
+flag-off comparison remains 25/0. Phase 5a did not accept the broad roster; the separately owned
+Phase-5b closure below does not change its review-only status.
+
+**Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The sole admitted breadth closure
+is source NPC 6825 / pouch 12043 to target NPC 26000 / pouch 46000. Its exact closure is body,
+head, and pouch models 120000/120001/120002 from source 30429/31147/30664; ready/walk sequences
+23000/23001 from source 5386/7808; animation archive 1399 at target 23000; and framemap 1255 at
+target 10000. The separate nine-row Dreadfowl ledger is deliberately `minted`/`unreviewed`: it is
+not a human material or signoff approval. No combat, pet, scroll/special-move, or audio closure is
+accepted with this cohort.
+
+`test-summoning-phase5b` passes 202/0 while preserving the broad review-only footprint. The
+normal embedded-client acceptance, `test-summoning-phase5b-runtime`, passes 110/0 using the actual
+right-click Dreadfowl-pouch menu: authored `ifop4=Summon` appears as native action 2231/op 5,
+serializes as dynamic `IF_BUTTONX op=6`, dispatches canonically to `OPHELD4`, consumes the pouch,
+and summons Dreadfowl rather than dropping it. Fresh-save and no-cheat relog sessions render the
+live type-26000 body/head and ready sequence, include normal-server `IF_SETNPCHEAD` and its
+`npc_head ... applied=1` sidebar marker and title, prove the 400-tick persisted lifetime plus the
+one-point summon and 100-tick drain boundary, and exercise
+real sidebar Call and Dismiss. The retained logs and framebuffers are under
+`build/summoning-phase5b-runtime/`.
 
 **Client acceptance for breadth:** every familiar must be summoned in the real client with its
 model and animations rendered, and every scroll must be activated through its actual client

@@ -10,13 +10,23 @@
 #define TORIDRAW_SCENE_FULL          0u
 #define TORIDRAW_SCENE_SMALL         (1u << 0)
 #define TORIDRAW_SCENE_LAZY_TEXTURES (1u << 1)
+/**
+ * Allocate 16,384 face-sort depth levels instead of the reference-era 1,500.
+ *
+ * This is independent of the vertex/face scratch tier below.  Large imported
+ * models can fit HIGH_8K's projection and face-order arrays while still having
+ * a bounding-sphere diameter greater than 1,500; without this flag their
+ * otherwise valid faces fall outside the depth table and are omitted.
+ */
+#define TORIDRAW_SCENE_DEPTH_16K     (1u << 2)
 
 /**
  * Capacity tier for a scene's reusable model-render scratch buffers.
  *
  * The tier is deliberately separate from TORIDRAW_SCENE_SMALL: that flag
- * selects the compact CSR face sorter, whereas this enum selects the normal
- * full-sorter's model capacity.  HIGH_8K preserves the post-QBD limits.
+ * selects the compact CSR face sorter, whereas this enum selects the model's
+ * vertex/face capacity.  Depth capacity is independently selected with
+ * TORIDRAW_SCENE_DEPTH_16K.  HIGH_8K preserves the post-QBD vertex/face limits.
  */
 enum ToriDraw_ScratchBufferSize
 {

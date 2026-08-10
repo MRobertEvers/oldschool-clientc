@@ -1390,7 +1390,10 @@ ToriDraw_SceneElementSetAnimation(
             element->skeletal_play_frames = 0;
             scene->anim_list_dirty = true;
             if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
+            {
                 ToriDraw_ModelAnimateReset(element->model.u.model.model);
+                ToriDraw_ModelSetBoundsCylinder(element->model.u.model.model);
+            }
         }
         td_scene_emit(
             scene, TORIDRAW_EVENT_ANIM_UNLOAD, 0, element_id, 0, 0, &element->model, NULL, NULL);
@@ -1424,6 +1427,7 @@ ToriDraw_SceneElementSetAnimationSeq(
     {
         struct ToriDraw_Model* model = element->model.u.model.model;
         ToriDraw_ModelAnimateReset(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
         ToriDraw_ModelCaptureOriginalVertices(model);
     }
 }
@@ -1516,6 +1520,7 @@ ToriDraw_SceneElementApplyAnimation(
         if( animation->frames[frame].length <= 0 )
         {
             ToriDraw_ModelAnimateReset(model);
+            ToriDraw_ModelSetBoundsCylinder(model);
             return;
         }
         ToriDraw_ModelAnimateReset(model);

@@ -121,7 +121,7 @@ struct texture_entry
 static struct texture_entry g_textures[MAX_TEXTURES];
 static uint8_t g_reasons[MAX_TEXTURES];
 static struct material_mapping g_mapping[MAX_TEXTURES];
-static int g_hd_model_faces_dropped;
+static int g_ground_mesh_model_faces_fallback;
 
 static int
 int_compare(const void* lhs, const void* rhs)
@@ -999,17 +999,19 @@ prepare_model_outputs(
                     goto fail;
                 }
                 /* RS727's first material flag is the inverse of the source
-                 * client's `isGroundMesh`. When the model renderer rejects one
-                 * of those selectors it does not merely write texture=-1: the
-                 * source conversion clears the textured-face/UV state and
-                 * lights the OB3 face's own HSL tint. (OB2 is different: it
-                 * stores the texture id in its colour slot, so port_lostcity
-                 * must synthesize an average colour there.)
+                 * client's `isGroundMesh`; it is NOT an isSd/HD-only flag.
+                 * MeshRasterizer_Sub1 removes an isGroundMesh selector when
+                 * its model-render flags include 0x40. OSRS239 has no matching
+                 * procedural-material/model-flag contract, so this lane emits
+                 * the compatible OB3 fallback: clear texture, UV, and textured
+                 * face-info state together, then light the face's original HSL
+                 * colour. Merely writing texture=-1 leaves the face encoded as
+                 * textured and produced QBD's mouth-only render.
                  *
-                 * Keeping the model's old colour here left QBD's texture-only
-                 * head/arm faces on their placeholder HSL, so only the mouth
-                 * rendered. Preserve the baked asset for inspection, but emit
-                 * the complete source fallback into the OSRS239 OB3. */
+                 * OB2 is different: it stores the texture id in its colour
+                 * slot, so port_lostcity must synthesize an average colour.
+                 * The baked material remains available for inspection and a
+                 * future renderer that carries the full 727 contract. */
                 if( !materials->materials[source].valid )
                 {
                     if( model->face_infos )
@@ -1018,7 +1020,7 @@ prepare_model_outputs(
                     if( model->face_texture_coords )
                         model->face_texture_coords[face] = -1;
                     model->face_textures[face] = (int16_t)-1;
-                    g_hd_model_faces_dropped++;
+                    g_ground_mesh_model_faces_fallback++;
                 }
                 else
                     model->face_textures[face] =
@@ -1592,7 +1594,7 @@ main(int argc, char** argv)
         disk, model_table, materials, &models, &model_outputs);
     if( ok ) ok = prepare_config_outputs(to_tree, config_outputs);
 
-    int mappings = 0, model_materials = 0, retextures = 0, hd_only = 0;
+    int mappings = 0, model_materials = 0, retextures = 0, ground_mesh = 0;
     int animated = 0, dual_axis = 0, source_transparent = 0, baked_transparent = 0;
     if( ok )
         for( int source = 0; source < MAX_TEXTURES; source++ )
@@ -1602,7 +1604,7 @@ main(int argc, char** argv)
             mappings++;
             if( g_reasons[source] & REASON_MODEL ) model_materials++;
             if( g_reasons[source] & REASON_RETEXTURE ) retextures++;
-            if( !material->valid ) hd_only++;
+            if( !material->valid ) ground_mesh++;
             if( material->anim_u || material->anim_v ) animated++;
             if( material->anim_u && material->anim_v ) dual_axis++;
             if( g_textures[source].source_transparent ) source_transparent++;
@@ -1615,11 +1617,11 @@ main(int argc, char** argv)
                "retexture_materials=%d transitive_programs=%d source_sprites=%d\n",
                apply ? "apply" : "dry-run", models.count, mappings, model_materials,
                retextures, dependency_count, sprite_dependency_count);
-        printf("  baked=%d hd_only=%d animated=%d dual_axis=%d "
+        printf("  baked=%d ground_mesh=%d animated=%d dual_axis=%d "
                "source_transparent=%d threshold_transparent=%d "
-               "sd_fallback_faces=%d\n",
-               baked_count, hd_only, animated, dual_axis, source_transparent,
-               baked_transparent, g_hd_model_faces_dropped);
+               "ground_mesh_fallback_faces=%d\n",
+               baked_count, ground_mesh, animated, dual_axis, source_transparent,
+               baked_transparent, g_ground_mesh_model_faces_fallback);
         printf("  reserved overlays: 348->211 408->212 600->213 616->214 651->215\n");
     }
 
