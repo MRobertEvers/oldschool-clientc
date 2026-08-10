@@ -955,6 +955,10 @@ that fails loudly on a stale band.*
    an NPC cache/config-id ceiling. NPC_INFO's 14-bit slot identifies one nearby
    instance in one client's local table; the revision-specific type field
    identifies the NPC definition.
+   Do not generalize that result to loc configs. In rev239 `LOC_ADD_CHANGE_V2`
+   writes the loc config id as `p2Alt3`, exactly 16 bits. A generic loc allocation
+   at 70000 truncates on that wire; runtime-added locs need a collision-checked
+   target id no greater than 65535 (the Summoning obelisk uses 62201).
    Re-measured rather than inherited: the zone-trigger count is 806
    (`zone` 262, `zoneexit` 165, `mapzone` 306, `mapzoneexit` 73) and the
    triage is right about it — but only **427** are zone-keyed. `mapzone` and

@@ -1,0 +1,255 @@
+entity_kind,entry,stage,source_npc,source_obj,source_name,base_seqs,framemaps,rig_candidate_count,attack_seq,magic_seq,range_seq,defend_seq,death_seq,combat_audio,asset_status
+familiar,spirit_wolf,familiar,6829,12047,Spirit wolf,8297 8291,1491,53,8292,8292,8292,8294,8295,,catalogued
+familiar,dreadfowl,familiar,6825,12043,Dreadfowl,5386 7808,1255,13,7810,7810,7810,5388,5389,,catalogued
+familiar,spirit_spider,familiar,6841,12059,Spirit spider,5326 5325,1248,24,5327,5327,5327,5328,5329,"537,539,538",catalogued
+familiar,thorny_snail,familiar,6806,12019,Thorny snail,8146 8145,1730,10,8143,8143,8143,8145,8143,,catalogued
+familiar,granite_crab,familiar,6796,12009,Granite crab,8098 8100,559,21,8104,8104,8104,8105,8106,,catalogued
+familiar,spirit_mosquito,familiar,7331,12778,Spirit mosquito,8035 8038,1745,22,8032,8032,8032,8034,8033,,catalogued
+familiar,desert_wyrm,familiar,6831,12049,Desert wyrm,7793 7792,1725,20,7795,,,,7797,,catalogued
+familiar,spirit_scorpion,familiar,6837,12055,Spirit scorpion,6252 6253,1426,21,6254,,,,6256,"3611,3612,3610",catalogued
+familiar,spirit_tz_kih,familiar,7361,12808,Spirit Tz-Kih,8255 8256,1722,17,8257,,,,8258,,catalogued
+familiar,albino_rat,familiar,6847,12067,Albino rat,4932 4931,1152,10,,,,,,"703,705,704",catalogued
+familiar,spirit_kalphite,familiar,6994,12063,Spirit kalphite,8518 6220,1422,31,6223,,,,6228,,catalogued
+familiar,compost_mound,familiar,6871,12091,Compost mound,7772 7768,1728,11,7769,,,,7770,,catalogued
+familiar,giant_chinchompa,familiar,7353,12800,Giant chinchompa,7751 7750,1749,9,7755,,,,7758,,catalogued
+familiar,vampire_bat,familiar,6835,12053,Vampire bat,8271 8273,1153,17,8275,,,,8276,,catalogued
+familiar,honey_badger,familiar,6845,12065,Honey badger,7924 7923,1724,9,7928,,,,7925,,catalogued
+familiar,beaver,familiar,6808,12021,Beaver,7718 7719,1748,9,,,,,,,catalogued
+familiar,void_ravager,familiar,7370,12818,Void ravager,8089 8092,1747,12,8086,,,,8087,,catalogued
+familiar,void_spinner,familiar,7333,12780,Void spinner,8171 8175,1744,10,8172,,,,8176,,catalogued
+familiar,void_torcher,familiar,7351,12798,Void torcher,8233 8234,1735,9,8235,,,,8236,,catalogued
+familiar,void_shifter,familiar,7367,12814,Void shifter,8129 8128,1742,9,8131,,,,8133,,catalogued
+familiar,bronze_minotaur,familiar,6853,12073,Bronze minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,iron_minotaur,familiar,6855,12075,Iron minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,steel_minotaur,familiar,6857,12077,Steel minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,mithril_minotaur,familiar,6859,12079,Mithril minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,adamant_minotaur,familiar,6861,12081,Adamant minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,rune_minotaur,familiar,6863,12083,Rune minotaur,8021 8022,1718,9,8024,,,8023,8025,,catalogued
+familiar,bull_ant,familiar,6867,12087,Bull ant,7893 7899,1745,22,7896,,,,7897,,catalogued
+familiar,macaw,familiar,6851,12071,Macaw,8008 8007,1537,16,,,,,8012,,catalogued
+familiar,evil_turnip,familiar,6833,12051,Evil turnip,8246 8245,1717,8,8248,,,,8250,,catalogued
+familiar,spirit_cockatrice,familiar,6875,12095,Spirit cockatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,spirit_guthatrice,familiar,6877,12097,Spirit guthatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,spirit_saratrice,familiar,6879,12099,Spirit saratrice,7760 7759,1755,9,7762,,,,7763,"703,705,704",catalogued
+familiar,spirit_zamatrice,familiar,6881,12101,Spirit zamatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,spirit_pengatrice,familiar,6883,12103,Spirit pengatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,spirit_coraxatrice,familiar,6885,12105,Spirit coraxatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,spirit_vulatrice,familiar,6887,12107,Spirit vulatrice,7760 7759,1755,9,7762,,,,7763,,catalogued
+familiar,pyrelord,familiar,7377,12816,Pyrelord,8077 8076,1727,12,8080,,,,8078,,catalogued
+familiar,magpie,familiar,6824,12041,Magpie,8008 8007,1537,16,7810,,,5388,8012,,catalogued
+familiar,bloated_leech,familiar,6843,12061,Bloated leech,7654 7653,1726,10,7657,,,,7656,,catalogued
+familiar,spirit_terrorbird,familiar,6794,12007,Spirit terrorbird,1008 1007,1533,26,1010,,,,1013,,catalogued
+familiar,abyssal_parasite,familiar,6818,12035,Abyssal parasite,7668 7667,1732,10,8910,,,,7671,,catalogued
+familiar,spirit_jelly,familiar,6992,12027,Spirit jelly,8572 8575,1903,10,8569,,,,8570,,catalogued
+familiar,ibis,familiar,6991,12531,Ibis,8197 8198,1743,36,,,,,,,catalogued
+familiar,spirit_kyatt,familiar,7365,12812,Spirit kyatt,5225 5226,1206,28,5228,,,,5230,,catalogued
+familiar,spirit_larupia,familiar,7337,12784,Spirit larupia,5225 5226,1206,28,5228,,,,5230,,catalogued
+familiar,spirit_graahk,familiar,7363,12810,Spirit graahk,5225 5226,1206,28,5229,,,,5230,,catalogued
+familiar,karamthulhu,familiar,6809,12023,Karamthulhu overlord,7968 7961,1723,11,7963,,,,7964,,catalogued
+familiar,smoke_devil,familiar,6865,12085,Smoke devil,7815 7814,1741,10,7816,,,,7818,,catalogued
+familiar,abyssal_lukrer,familiar,6820,12037,Abyssal lurker,7677 7678,1743,36,7680,,,,7684,,catalogued
+familiar,spirit_cobra,familiar,6802,12015,Spirit cobra,8155 8158,1725,20,8152,,,,8153,,catalogued
+familiar,stranger_plant,familiar,6827,12045,Stranger plant,8204 8207,1719,11,8208,,,,8209,,catalogued
+familiar,barker_toad,familiar,6889,12123,Barker toad,7258 7259,1643,12,7260,,,,7256,,catalogued
+familiar,war_tortoise,familiar,6815,12031,War tortoise,8284 8281,1720,9,8286,,,,8285,,catalogued
+familiar,bunyip,familiar,6813,12029,Bunyip,7738 7735,1733,10,7741,,,7742,7740,,catalogued
+familiar,fruit_bat,familiar,6817,12033,Fruit bat,8271 8273,1153,17,,,,,,,catalogued
+familiar,ravenous_locust,familiar,7372,12820,Ravenous locust,7992 7991,1752,12,,,,,,,catalogued
+familiar,arctic_bear,familiar,6839,12057,Arctic bear,4919 4923,1151,20,4925,,,4928,4929,"498,500,499",catalogued
+familiar,phoenix,familiar,8575,14623,Phoenix,11092 11094,2430,18,,,,,,,catalogued
+familiar,obsidian_golem,familiar,7345,12792,Obsidian golem,8047 8046,1729,9,8050,,,8051,8052,,catalogued
+familiar,granite_lobster,familiar,6849,12069,Granite lobster,8116 8115,1736,9,8112,,,8114,8113,,catalogued
+familiar,praying_mantis,familiar,6798,12011,Praying mantis,8067 8072,1739,11,8069,,,,8065,,catalogued
+familiar,forge_regent_beast,familiar,7335,12782,Forge regent,7867 7868,1722,17,7863,,,,7864,,catalogued
+familiar,talon_beast,familiar,7347,12794,Talon beast,5986 5987,1372,9,5989,,,,5990,,catalogued
+familiar,giant_ent,familiar,6800,12013,Giant ent,7849 7848,1731,10,7853,,,,7854,,catalogued
+familiar,hydra,familiar,6811,12025,Hydra,7938 7941,1746,10,7935,,,7936,7937,,catalogued
+familiar,spirit_dagannoth,familiar,6804,12017,Spirit dagannoth,7781 7784,1737,10,7786,,,,7780,,catalogued
+familiar,unicorn_stallion,familiar,6822,12039,Unicorn stallion,6374 6373,1472,9,6376,6376,6376,6375,6377,"4135,4196,4195",catalogued
+familiar,wolpertinger,familiar,6869,12089,Wolpertinger,8301 8302,1716,9,8304,8304,8304,8306,8305,,catalogued
+familiar,pack_yak,familiar,6873,12093,Pack yak,5785 5781,1338,21,5782,5782,5782,5783,5784,,catalogued
+familiar,fire_titan,familiar,7355,12802,Fire titan,7831 7828,1751,9,7834,7834,7834,7832,7833,,catalogued
+familiar,moss_titan,familiar,7357,12804,Moss titan,7841 7838,1740,41,7844,7834,7834,7832,7843,,catalogued
+familiar,ice_titan,familiar,7359,12806,Ice titan,8186 7847,1740,41,7845,7834,7834,7832,7846,,catalogued
+familiar,lava_titan,familiar,7341,12788,Lava titan,7978 7977,1734,9,7980,,,,7979,,catalogued
+familiar,swamp_titan,familiar,7329,12776,Swamp titan,8220 8219,1753,9,8222,,,8224,8226,,catalogued
+familiar,geyser_titan,familiar,7339,12786,Geyser titan,7876 7877,1714,11,7879,422,422,7878,7880,,catalogued
+familiar,abyssal_titan,familiar,7349,12796,Abyssal titan,7690 7687,1740,41,7693,,,,7692,,catalogued
+familiar,iron_titan,familiar,7375,12822,Iron titan,7949 7952,1740,41,7946,,,7948,7947,,catalogued
+familiar,steel_titan,familiar,7343,12790,Steel titan,8186 8189,1740,41,8183,8183,8183,8185,8184,,catalogued
+pet,cat,baby,761,1555,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat,grown,768,1561,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat,overgrown,774,1567,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_1,baby,762,1556,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_1,grown,769,1562,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_1,overgrown,775,1568,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_2,baby,763,1557,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_2,grown,770,1563,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_2,overgrown,776,1569,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_3,baby,764,1558,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_3,grown,771,1564,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_3,overgrown,777,1570,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_4,baby,765,1559,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_4,grown,772,1565,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_4,overgrown,778,1571,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_5,baby,766,1560,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_5,grown,773,1566,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_5,overgrown,779,1572,Overgrown cat,9158 9157,2035,31,,,,,,,catalogued
+pet,hellcat,baby,3505,7583,Hell-kitten,9158 9157,2035,31,,,,,,,catalogued
+pet,hellcat,grown,3504,7582,Hellcat,9158 9157,2035,31,,,,,,,catalogued
+pet,hellcat,overgrown,3503,7581,Overgrown hellcat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_6,baby,8217,14089,Kitten,9158 9156,2035,31,,,,,,,catalogued
+pet,cat_6,grown,8214,14090,Cat,9158 9157,2035,31,,,,,,,catalogued
+pet,cat_6,overgrown,8216,15092,Overgrown cat,9158 9157,2035,31,,,,,,,source_obj_missing
+pet,clockwork_cat,baby,3598,7771,Clockwork cat,9158 9157,2035,31,,,,,,,catalogued
+pet,bulldog,baby,6969,12522,Bulldog puppy,7575 8329,1491,53,8304,,,8306,8305,,catalogued
+pet,bulldog,grown,6968,12523,Bulldog,7575 7576,1491,53,,,,,,,catalogued
+pet,bulldog_1,baby,7259,12720,Bulldog puppy,8338 8329,1491,53,,,,,,,catalogued
+pet,bulldog_1,grown,7257,12721,Bulldog,8338 7576,1491,53,,,,,,,catalogued
+pet,bulldog_2,baby,7260,12722,Bulldog puppy,8339 8329,1491,53,,,,,,,catalogued
+pet,bulldog_2,grown,7258,12723,Bulldog,8339 7576,1491,53,,,,,,,catalogued
+pet,dalmatian,baby,6964,12518,Dalmatian puppy,7575 8330,1491,53,,,,,,,catalogued
+pet,dalmatian,grown,6965,12519,Dalmatian,7575 8331,1491,53,,,,,,,catalogued
+pet,dalmatian_1,baby,7249,12712,Dalmatian puppy,8338 8330,1491,53,,,,,,,catalogued
+pet,dalmatian_1,grown,7250,12713,Dalmatian,8338 8331,1491,53,,,,,,,catalogued
+pet,dalmatian_2,baby,7251,12714,Dalmatian puppy,8339 8330,1491,53,,,,,,,catalogued
+pet,dalmatian_2,grown,7252,12715,Dalmatian,8339 8331,1491,53,,,,,,,catalogued
+pet,greyhound,baby,6960,12514,Greyhound puppy,7575 8332,1491,53,,,,,,,catalogued
+pet,greyhound,grown,6961,12515,Greyhound,7575 8333,1491,53,,,,,,,catalogued
+pet,greyhound_1,baby,7241,12704,Greyhound puppy,8338 8332,1491,53,,,,,,,catalogued
+pet,greyhound_1,grown,7242,12705,Greyhound,8338 8333,1491,53,,,,,,,catalogued
+pet,greyhound_2,baby,7243,12706,Greyhound puppy,8339 8332,1491,53,,,,,,,catalogued
+pet,greyhound_2,grown,7244,12707,Greyhound,8339 8333,1491,53,,,,,,,catalogued
+pet,labrador,baby,6962,12516,Labrador puppy,7575 8334,1491,53,,,,,,,catalogued
+pet,labrador,grown,6963,12517,Labrador,7575 8335,1491,53,,,,,,,catalogued
+pet,labrador_1,baby,7245,12708,Labrador puppy,8338 8334,1491,53,,,,,,,catalogued
+pet,labrador_1,grown,7246,12709,Labrador,8338 8335,1491,53,,,,,,,catalogued
+pet,labrador_2,baby,7247,12710,Labrador puppy,8339 8334,1491,53,,,,,,,catalogued
+pet,labrador_2,grown,7248,12711,Labrador,8339 8335,1491,53,,,,,,,catalogued
+pet,sheepdog,baby,6966,12520,Sheepdog puppy,7575 8334,1491,53,,,,,,,catalogued
+pet,sheepdog,grown,6967,12521,Sheepdog,7575 8335,1491,53,,,,,,,catalogued
+pet,sheepdog_1,baby,7253,12716,Sheepdog puppy,8338 8334,1491,53,,,,,,,catalogued
+pet,sheepdog_1,grown,7254,12717,Sheepdog,8338 8335,1491,53,,,,,,,catalogued
+pet,sheepdog_2,baby,7255,12718,Sheepdog puppy,8339 8334,1491,53,,,,,,,catalogued
+pet,sheepdog_2,grown,7256,12719,Sheepdog,8339 8335,1491,53,,,,,,,catalogued
+pet,terrier,baby,6958,12512,Terrier puppy,7575 8336,1491,53,,,,,,,catalogued
+pet,terrier,grown,6959,12513,Terrier,7575 8337,1491,53,,,,,,,catalogued
+pet,terrier_1,baby,7237,12700,Terrier puppy,8338 8336,1491,53,,,,,,,catalogued
+pet,terrier_1,grown,7238,12701,Terrier,8338 8337,1491,53,,,,,,,catalogued
+pet,terrier_2,baby,7239,12702,Terrier puppy,8339 8336,1491,53,,,,,,,catalogued
+pet,terrier_2,grown,7240,12703,Terrier,8339 8337,1491,53,,,,,,,catalogued
+pet,gecko,baby,6915,12488,Baby gecko,8360 8358,1629,17,,,,,,,catalogued
+pet,gecko,grown,6916,12489,Gecko,8360 8357,1629,17,,,,,,,catalogued
+pet,gecko_1,baby,7277,12738,Baby gecko,8360 8358,1629,17,,,,,,,catalogued
+pet,gecko_1,grown,7281,12742,Gecko,8360 8357,1629,17,,,,,,,catalogued
+pet,gecko_2,baby,7278,12739,Baby gecko,8360 8358,1629,17,,,,,,,catalogued
+pet,gecko_2,grown,7282,12743,Gecko,8360 8357,1629,17,,,,,,,catalogued
+pet,gecko_3,baby,7279,12740,Baby gecko,8360 8358,1629,17,,,,,,,catalogued
+pet,gecko_3,grown,7283,12744,Gecko,8360 8357,1629,17,,,,,,,catalogued
+pet,gecko_4,baby,7280,12741,Baby gecko,8360 8358,1629,17,,,,,,,catalogued
+pet,gecko_4,grown,7284,12745,Gecko,8360 8357,1629,17,,,,,,,catalogued
+pet,platypus,baby,7018,12551,Baby platypus,8671 8670,1912,7,,,,,,,catalogued
+pet,platypus,grown,7015,12548,Platypus,8671 8672,1912,7,,,,,,,catalogued
+pet,platypus_1,baby,7019,12552,Baby platypus,8671 8670,1912,7,,,,,,,catalogued
+pet,platypus_1,grown,7016,12549,Platypus,8671 8672,1912,7,,,,,,,catalogued
+pet,platypus_2,baby,7020,12553,Baby platypus,8671 8670,1912,7,,,,,,,catalogued
+pet,platypus_2,grown,7017,12550,Platypus,8671 8672,1912,7,,,,,,,catalogued
+pet,broav,baby,8491,14533,Broav,7728 10954,1721,9,,,,,,,catalogued
+pet,penguin,baby,6908,12481,Baby penguin,8319 8318,1310,58,,,,,,,catalogued
+pet,penguin,grown,6909,12482,Penguin,8315 8314,1310,58,,,,,,,catalogued
+pet,penguin_1,baby,7313,12763,Baby penguin,8319 8318,1310,58,,,,,,,catalogued
+pet,penguin_1,grown,7314,12762,Penguin,8315 8314,1310,58,,,,,,,catalogued
+pet,penguin_2,baby,7316,12765,Baby penguin,8319 8318,1310,58,,,,,,,catalogued
+pet,penguin_2,grown,7317,12764,Penguin,8315 8314,1310,58,,,,,,,catalogued
+pet,giant_crab,baby,6947,12500,Baby giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab,grown,6948,12501,Giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_1,baby,7293,12746,Baby giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_1,grown,7294,12747,Giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_2,baby,7295,12748,Baby giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_2,grown,7296,12749,Giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_3,baby,7297,12750,Baby giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_3,grown,7298,12751,Giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_4,baby,7299,12752,Baby giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,giant_crab_4,grown,7300,12753,Giant crab,8098 8101,559,21,,,,,,,catalogued
+pet,raven,baby,6911,12484,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven,grown,6912,12485,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,raven_1,baby,7261,12724,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven_1,grown,7262,12725,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,raven_2,baby,7263,12726,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven_2,grown,7264,12727,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,raven_3,baby,7265,12728,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven_3,grown,7266,12729,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,raven_4,baby,7267,12730,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven_4,grown,7268,12731,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,raven_5,baby,7269,12732,Raven chick,8310 8312,1537,16,,,,,,,catalogued
+pet,raven_5,grown,7270,12733,Raven,8008 8007,1537,16,,,,,,,catalogued
+pet,squirrel,baby,6919,12490,Baby squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel,grown,6920,12491,Squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_1,baby,7301,12754,Baby squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_1,grown,7302,12755,Squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_2,baby,7303,12756,Baby squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_2,grown,7304,12757,Squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_3,baby,7305,12758,Baby squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_3,grown,7306,12759,Squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_4,baby,7307,12760,Baby squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,squirrel_4,grown,7308,12761,Squirrel,8324 8326,1750,5,,,,,,,catalogued
+pet,saradomin_owl,baby,6949,12503,Saradomin chick,8310 8312,1537,16,,,,,,,catalogued
+pet,saradomin_owl,grown,6950,12504,Saradomin bird,8008 8007,1537,16,,,,,,,catalogued
+pet,saradomin_owl,overgrown,6951,12505,Saradomin owl,8008 8007,1537,16,,,,,,,catalogued
+pet,zamorak_hawk,baby,6952,12506,Zamorak chick,8310 8312,1537,16,,,,,,,catalogued
+pet,zamorak_hawk,grown,6953,12507,Zamorak bird,8008 8007,1537,16,,,,,,,catalogued
+pet,zamorak_hawk,overgrown,6954,12508,Zamorak hawk,8008 8007,1537,16,,,,,,,catalogued
+pet,guthix_raptor,baby,6955,12509,Guthix chick,8310 8312,1537,16,,,,,,,catalogued
+pet,guthix_raptor,grown,6956,12510,Guthix bird,8008 8007,1537,16,,,,,,,catalogued
+pet,guthix_raptor,overgrown,6957,12511,Guthix raptor,8008 8007,1537,16,,,,,,,catalogued
+pet,ex_ex_parrot,baby,7844,13335,Ex-ex-parrot,8008 8007,1537,16,,,,,,,catalogued
+pet,cute_phoenix_eggling,baby,8578,14627,Phoenix eggling,11083 11082,2433,7,,,,,,,catalogued
+pet,mean_phoenix_eggling,baby,8577,14626,Phoenix eggling,11138 11139,2433,7,,,,,,,catalogued
+pet,raccoon,baby,6913,12486,Baby raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,raccoon,grown,6914,12487,Raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,raccoon_1,baby,7271,12734,Baby raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,raccoon_1,grown,7272,12735,Raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,raccoon_2,baby,7273,12736,Baby raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,raccoon_2,grown,7274,12737,Raccoon,7718 7719,1748,9,,,,,,,catalogued
+pet,vulture,baby,6945,12498,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture,grown,6946,12499,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,vulture_1,baby,7319,12766,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture_1,grown,7320,12767,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,vulture_2,baby,7321,12768,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture_2,grown,7322,12769,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,vulture_3,baby,7323,12770,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture_3,grown,7324,12771,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,vulture_4,baby,7325,12772,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture_4,grown,7326,12773,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,vulture_5,baby,7327,12774,Vulture chick,8310 8312,1537,16,,,,,,,catalogued
+pet,vulture_5,grown,7328,12775,Vulture,7659 7658,1743,36,,,,,,,catalogued
+pet,chameleon,baby,6922,12492,Baby chameleon,8363 8365,1754,3,,,,,,,catalogued
+pet,chameleon,grown,6923,12493,Chameleon,8363 8365,1754,3,,,,,,,catalogued
+pet,monkey,baby,6942,12496,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey,grown,6943,12497,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_1,baby,7210,12682,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_1,grown,7211,12683,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_2,baby,7212,12684,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_2,grown,7213,12685,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_3,baby,7214,12686,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_3,grown,7215,12687,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_4,baby,7216,12688,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_4,grown,7217,12689,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_5,baby,7218,12690,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_5,grown,7219,12691,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_6,baby,7220,12692,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_6,grown,7221,12693,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_7,baby,7222,12694,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_7,grown,7223,12695,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_8,baby,7224,12696,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_8,grown,7225,12697,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_9,baby,7226,12698,Baby monkey,8346 8348,1738,8,,,,,,"629,631,630",catalogued
+pet,monkey_9,grown,7227,12699,Monkey,8344 8343,1738,8,,,,,,"629,631,630",catalogued
+pet,baby_dragon,baby,6900,12469,Hatchling dragon,27 21,1080,54,,,,,,"408,410,409",catalogued
+pet,baby_dragon,grown,6901,12470,Baby dragon,27 21,1080,54,,,,,,"407,405,406",catalogued
+pet,baby_dragon_1,baby,6902,12471,Hatchling dragon,27 21,1080,54,,,,,,"408,410,409",catalogued
+pet,baby_dragon_1,grown,6903,12472,Baby dragon,27 21,1080,54,,,,,,"407,405,406",catalogued
+pet,baby_dragon_2,baby,6904,12473,Hatchling dragon,27 21,1080,54,,,,,,"408,410,409",catalogued
+pet,baby_dragon_2,grown,6905,12474,Baby dragon,27 21,1080,54,,,,,,"407,405,406",catalogued
+pet,baby_dragon_3,baby,6906,12475,Hatchling dragon,27 21,1080,54,,,,,,"408,410,409",catalogued
+pet,baby_dragon_3,grown,6907,12476,Baby dragon,27 21,1080,54,,,,,,"407,405,406",catalogued

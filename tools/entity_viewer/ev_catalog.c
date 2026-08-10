@@ -237,11 +237,12 @@ usage(const char* argv0)
     fprintf(
         stderr,
         "Usage:\n"
-        "  %s --rev NAME <cache_dir> [--names <content_dir>] [--out DIR]\n"
+        "  %s --rev NAME <cache_dir> [--names <content_dir>] [--out DIR] [--npc-scan-to ID]\n"
         "\n"
         "  --names DIR  OSRS-Content revision dir holding configs/all.{npc,seq}.compack;\n"
         "               without it pass 2 (name matches) is skipped\n"
-        "  --out DIR    where the CSVs go (default \".\")\n",
+        "  --out DIR    where the CSVs go (default \".\")\n"
+        "  --npc-scan-to ID  also probe sparse NPC ids through ID (for overlay-minted ids)\n",
         argv0);
 }
 
@@ -252,6 +253,7 @@ main(int argc, char** argv)
     const char* cache_dir = NULL;
     const char* names_dir = NULL;
     const char* out_dir = ".";
+    int npc_scan_to = -1;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -261,6 +263,8 @@ main(int argc, char** argv)
             names_dir = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_dir = argv[++i];
+        else if( strcmp(argv[i], "--npc-scan-to") == 0 && i + 1 < argc )
+            npc_scan_to = atoi(argv[++i]);
         else if( argv[i][0] == '-' )
         {
             usage(argv[0]);
@@ -422,6 +426,22 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "Failed to list npc ids\n");
         return 1;
+    }
+    if( npc_scan_to >= 0 )
+    {
+        int listed_max = -1;
+        for( int i = 0; i < npc_count; i++ )
+            if( npc_ids[i] > listed_max ) listed_max = npc_ids[i];
+        for( int id = listed_max + 1; id <= npc_scan_to; id++ )
+        {
+            struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(&cache, id);
+            if( !npc ) continue;
+            RSCache_Dat2ConfigNpcFree(npc);
+            int* grown = realloc(npc_ids, (size_t)(npc_count + 1) * sizeof(*npc_ids));
+            if( !grown ) { free(npc_ids); return 1; }
+            npc_ids = grown;
+            npc_ids[npc_count++] = id;
+        }
     }
     fprintf(stderr, "npcs: %d\n", npc_count);
 

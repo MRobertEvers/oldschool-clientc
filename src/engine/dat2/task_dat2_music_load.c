@@ -352,6 +352,19 @@ Task_Dat2MusicLoad_Run(
             task->note_index++;
         }
 
+        /* A required foreign sample failed after the patch was decoded (or
+         * borrowed).  Do not retain or publish that incomplete patch: doing
+         * so would make a later retry appear resident while one of its notes
+         * is still unresolved. */
+        if( task->failed )
+        {
+            if( !task->pending_patch_borrowed )
+                RSCache_MusicPatchFree(task->pending_patch);
+            task->pending_patch = NULL;
+            task->pending_patch_borrowed = false;
+            break;
+        }
+
         if( task->pending_patch_borrowed )
         {
             struct ToriRS_SoundBankPatch* slot =

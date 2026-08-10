@@ -11,6 +11,7 @@
  *   audioprobe <cache> <rev>                    survey every audio table
  *   audioprobe <cache> <rev> <table> <archive>  hexdump one archive
  *   audioprobe <cache> <rev> --sample <id> [--out f.wav]   decode a music sample
+ *   audioprobe <cache> <rev> --sample-with-setup <setup> <id>  foreign setup
  *   audioprobe <cache> <rev> --effect <id> [--out f.wav]   decode a sound effect
  *   audioprobe <cache> <rev> --song   <id> [--out f.mid]   unpack a music track
  *   audioprobe <cache> <rev> --jingle <id> [--out f.mid]   unpack a jingle
@@ -92,14 +93,14 @@ write_wav(
     return 1;
 }
 
-/** Load the shared music-sample setup header (index 14 archive 0). */
+/** Load a shared music-sample setup header from index 14. */
 static struct RSCache_VorbisSetup*
-load_music_setup(struct Tool_Dat2Cache* c)
+load_music_setup(struct Tool_Dat2Cache* c, int setup_id)
 {
     struct Tool_Bytes bytes = { 0 };
     struct RSCache_VorbisSetup* setup;
 
-    if( !tool_dat2_archive_bytes(c, TABLE_MUSIC_SAMPLES, 0, &bytes) )
+    if( !tool_dat2_archive_bytes(c, TABLE_MUSIC_SAMPLES, setup_id, &bytes) )
         return NULL;
     setup = RSCache_VorbisSetupNewDecode((const char*)bytes.data, bytes.size);
     tool_bytes_free(&bytes);
@@ -185,16 +186,17 @@ report_sample(
 static int
 decode_music_sample(
     struct Tool_Dat2Cache* c,
+    int setup_id,
     int id,
     const char* out_path)
 {
-    struct RSCache_VorbisSetup* setup = load_music_setup(c);
+    struct RSCache_VorbisSetup* setup = load_music_setup(c, setup_id);
     struct Tool_Bytes bytes = { 0 };
     struct RSCache_AudioSample* sample;
 
     if( !setup )
     {
-        fprintf(stderr, "music sample setup (table 14 archive 0) did not decode\n");
+        fprintf(stderr, "music sample setup (table 14 archive %d) did not decode\n", setup_id);
         return 2;
     }
     if( !tool_dat2_archive_bytes(c, TABLE_MUSIC_SAMPLES, id, &bytes) )
@@ -223,7 +225,7 @@ decode_music_sample(
 static int
 sweep_samples(struct Tool_Dat2Cache* c)
 {
-    struct RSCache_VorbisSetup* setup = load_music_setup(c);
+    struct RSCache_VorbisSetup* setup = load_music_setup(c, 0);
     struct RSCache_ReferenceTable* ref = c->disk->tables[TABLE_MUSIC_SAMPLES];
     int ok = 0;
     int failed = 0;
@@ -563,7 +565,12 @@ main(
     }
     else if( strcmp(argv[arg], "--sample") == 0 && arg + 1 < argc )
     {
-        status = decode_music_sample(&cache, atoi(argv[arg + 1]), out_path);
+        status = decode_music_sample(&cache, 0, atoi(argv[arg + 1]), out_path);
+    }
+    else if( strcmp(argv[arg], "--sample-with-setup") == 0 && arg + 2 < argc )
+    {
+        status = decode_music_sample(
+            &cache, atoi(argv[arg + 1]), atoi(argv[arg + 2]), out_path);
     }
     else if( strcmp(argv[arg], "--effect") == 0 && arg + 1 < argc )
     {

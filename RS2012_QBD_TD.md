@@ -890,7 +890,7 @@ corrected them to `rs2012_loc_70816/70817`.
 
 The definitive append-stable import ledger contains **10 NPCs, 63 objects,
 1,074 locations, 32 spot animations, 660 models, 81 sequences, 31 frame
-archives, 29 framemaps, and 30 index-4 synths**. Client closure adds two
+archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
 interfaces, two native clientscripts, 256 baked materials, and 288 total
 sprites: 256 material sprites at 8535–8790 plus 32 UI sprites at 13000–13031.
 Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy

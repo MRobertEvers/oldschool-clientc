@@ -34,6 +34,7 @@ ASSET_ROOTS = (
     "synth",
     "samples",
     "patches",
+    "songs",
     "maps",
     "interfaces",
     "scripts",
@@ -265,6 +266,11 @@ def merge_texture_archive_zero(tree: Path, lane: Path, out: Path) -> int:
 
     destination_text = out / "textures/texture_0.texture"
     destination_index = out / "textures/texture_0.compack"
+    # Both destinations normally already exist because the sparse lane was
+    # copied before this merge.  Count only newly materialized paths, not the
+    # two in-place rewrites, so the reported total remains a physical-file
+    # count rather than a write-operation count.
+    created = sum(not path.exists() for path in (destination_text, destination_index))
     destination_text.parent.mkdir(parents=True, exist_ok=True)
     destination_text.write_text(
         base_text.read_text().rstrip() + "\n\n" + lane_text.read_text().lstrip()
@@ -273,7 +279,7 @@ def merge_texture_archive_zero(tree: Path, lane: Path, out: Path) -> int:
     destination_index.write_text(
         "".join(f"{ident}={merged[ident]}\n" for ident in sorted(merged))
     )
-    return 2
+    return created
 
 
 def copy_base_map_members(tree: Path, lane: Path, out: Path) -> int:
@@ -503,6 +509,11 @@ def stage(tree: Path, out: Path) -> int:
 
     if copied == 0:
         raise fail("staged zero files")
+    physical = len(ensure_plain_tree(out, "staged output"))
+    if copied != physical:
+        raise fail(
+            f"file accounting mismatch: counted {copied}, materialized {physical}"
+        )
     print(f"stage_rs2012_overlay: staged {copied} files in {out}")
     return 0
 

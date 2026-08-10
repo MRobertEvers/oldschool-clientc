@@ -6,7 +6,9 @@
 > based on 14 bits is superseded. Rev-727 CS2 is likewise not osrs239 source: preserve raw
 > instruction/operand plus stack-effect disassembly, decompile with an explicit 727 dialect, and
 > translate only accepted logic into newly authored osrs239 CS2. The plan and red-team document
-> remain authoritative over these historical designs.
+> remain authoritative over these historical designs. Loc ids are separate again:
+> `LOC_ADD_CHANGE_V2` carries the loc config as an exact 16-bit `p2Alt3`, so historical loc 70000
+> examples are invalid for runtime placement; the obelisk uses target loc 62201.
 
 ===== DESIGN: design-asset-pipeline =====
 # 530 → 239 asset import pipeline — design
@@ -313,7 +315,7 @@ pack/npc.alloc         20000=summ_spirit_wolf
 pack/obj.alloc         40000=summ_spirit_wolf_pouch
 pack/seq.alloc         20000=summ_spirit_wolf_howl
 pack/spotanim.alloc     6000=summ_puff_small
-pack/loc.alloc         70000=summ_obelisk
+pack/loc.alloc         62201=summoning_obelisk
 ```
 
 This keeps the machine-owned `configs/` tree untouched, which is what `test-server-clean` (`src/Makefile:1876-1886`) demands.
@@ -1908,7 +1910,7 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 
 - **R1 — CORRECTED: no 14-bit cache NPC-id ceiling.** The 14-bit field is the per-player client-local slot for nearby NPC instances. Rev239's separate cache type is 16 bits. The measured free run below 16384 is not a roster budget.
 - **R2 — missing-interface behaviour is unverified.** No handler was found for `IF_OPENSUB` targeting a group absent from the cache. If it hangs rather than logs-and-drops, "flag-off client, flag-on server" is a hard failure. **Verify this before Phase D**; it is a 10-minute experiment (`if_opensub` a nonexistent group against pristine `cache.osrs239`).
-- **R3 — `loc` `server_base = 70000` exceeds 16 bits.** Verify the loc-id width in `LOC_ADD_CHANGE` before allocating the obelisk; same class of bug as the npc base. obj base 40000 is under 65535 and is fine.
+- **R3 — CORRECTED: `loc` `server_base = 70000` exceeds the measured wire.** Rev239 `LOC_ADD_CHANGE_V2` writes an exact 16-bit `p2Alt3`; 70000 truncates to 4464. Source obelisk 28716 is mapped to the free native-contiguous target id 62201. This is not analogous to NPC_INFO, whose 14-bit field is an instance slot and whose definition type is separate.
 - **R4 — the stats tab has no free cell.** `[universe]` is 190×261 with a 3×8 grid at 62px columns and `[total]` at y=241; `1 + 8*30 + 19 + 1 = 261` exactly. A 25th cell needs `[universe]` and `[total]` geometry changed, and the sidebar container that hosts it lives in gameframe 161 — **unverified whether rev-239's sidebar renders a taller 320 without clipping.**
 - **R5 — `configs/` is machine-owned and `test-server-clean` guards it.** Whether a hand-added line in `configs/all.inv.compack` survives the next `cachepack unpack` is unverified (`content.ini:19-22` claims pack saves merge, but that guarantee is stated for `pack/<ns>.pack`, not for `all.<ns>.compack`). Prefer the rank-1 `.inv` route and prove it empirically in E3.
 - **R6 — no authored CS2 has ever existed in this tree.** Every `pack/12_clientscripts.pack` line is `<id>=script_<id>`; zero named script files, zero ids above the cache's. Also **95 of 9,368 committed `.cs2` sources do not compile back today** (stale, written by an older cachepack), including `script_1904.cs2` (the skill-guide layout builder, `unknown command '_1703'`). Fresh decompiles round-trip exactly, so `cachepack unpack --assets=scripts` is the fix — but it will overwrite the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trip `tools/check_crystal_set_contract.py`, a hard prerequisite of `mock230-cache`. Re-apply those comments or unpack selectively.

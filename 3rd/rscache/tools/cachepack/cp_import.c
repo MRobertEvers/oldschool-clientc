@@ -1297,7 +1297,12 @@ static int import_run(struct Import_Manifest* m, int apply)
         int exact = 0;
         source_npcs[n] = tool_dat2_npc_load_checked(&src, m->npcs.v[n].source_id, &exact);
         if( !source_npcs[n] || !exact || !tool_neutral_npc_from_dat2(
-                &src, source_npcs[n], m->npcs.v[n].source_id, &neutral[n]) ) ok = 0;
+                &src, source_npcs[n], m->npcs.v[n].source_id, &neutral[n]) )
+        {
+            fprintf(stderr, "cachepack import: npc %d did not decode or normalize exactly\n",
+                    m->npcs.v[n].source_id);
+            ok = 0;
+        }
         for( int i = 0; ok && i < neutral[n].models_count; i++ )
             ok = ints_add(&models, neutral[n].models[i]);
         for( int i = 0; ok && i < neutral[n].chathead_models_count; i++ )
@@ -1317,7 +1322,10 @@ static int import_run(struct Import_Manifest* m, int apply)
     {
         uint8_t* raw = NULL; int size = 0;
         if( !record_load(&src, RSCACHE_TYPE_OBJ, m->objs.v[i].source_id, &raw, &size) )
-        { ok = 0; break; }
+        {
+            fprintf(stderr, "cachepack import: cannot load obj %d\n", m->objs.v[i].source_id);
+            ok = 0; break;
+        }
         objects[i] = RSCache_Dat2ConfigObjNewDecodeProfile(&from, (char*)raw, size);
         free(raw);
         if( !objects[i] || objects[i]->_consumed != size )
@@ -1630,6 +1638,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                 else
                     seq->frame_sounds.sounds[s].id = mapped_sound;
             }
+            /* RS2 stores an empty hand in this unsigned field as 65535.  The
+             * OSRS text codec expects the signed sentinel -1 instead. */
+            if( seq->left_hand_item == 65535 ) seq->left_hand_item = -1;
+            if( seq->right_hand_item == 65535 ) seq->right_hand_item = -1;
             int mapped = -1;
             if( seq->left_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->left_hand_item, &mapped) )
                 seq->left_hand_item = mapped;

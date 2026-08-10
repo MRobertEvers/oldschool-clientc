@@ -2,7 +2,7 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–3 and Phase 4 slices 4a–4d are implemented; 4e is next.
+**Status:** Phases 0–3 and Phase 4 slices 4a–4e are implemented; 4f is next.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -237,14 +237,14 @@ deleting the lane until that is fixed.
 - [x] **No `CLAUDE.md` prerequisite.** The user explicitly rejected restoring an agent-specific
       file. The four stale citations were deleted; binding process rules remain in
       `PORTING_GUIDE.md`, the queue documents and `.cursor/rules/no-park-sibling-content.mdc`.
-- [ ] `docs/SUMMONING_PORT_QUEUE.md` — the per-slice loop doc, in the house queue format
-- [ ] `port/summoning_530.map` ledger + `tools/port_summoning_ids.py --check`, wired into
+- [x] `docs/SUMMONING_PORT_QUEUE.md` — the per-slice loop doc, in the house queue format
+- [x] `port/summoning_530.map` ledger + `tools/port_summoning_ids.py --check`, wired into
       `make -C src test-port`
-- [ ] **Byte-identity harness** — prove the flag-off bake is unchanged. `stage_summoning_overlay.py`
+- [x] **Byte-identity harness** — prove the flag-off bake is unchanged. `stage_summoning_overlay.py`
       does not exist; this is new work and the whole isolation claim rests on it
-- [ ] `check_summoning_isolation.py` — **must print and assert a non-zero check count.** A skip
+- [x] `check_summoning_isolation.py` — **must print and assert a non-zero check count.** A skip
       that reads as a pass is the #1 risk (§8)
-- [ ] **Spike the membership add-path** on a throwaway obj before designing on top. All five
+- [x] **Spike the membership add-path** on a throwaway obj before designing on top. All five
       `pack/*.client` files have **zero data lines**; `PACK_ENTITY_SPLIT_PLAN.md` §11.1 says step 4
       "author" is unexercised. This port is that mechanism's first consumer. Budget a full day
 - [x] Characterise `IF_OPENSUB` on a cache-absent group — graceful logged skip; script continues
@@ -412,12 +412,15 @@ movable seven-tab strip left one cell and places the new stone/icon at the freed
 uses the exact rev-530 sprite-222 wolf head (target graphic 229), opens group 969, and composes
 NPC 20000's packed chathead rather than a raw body or fallback model. Real-client acceptance
 asserts the final model draw id (`0x50004e20`), live points text, Call and Dismiss in every
-gameframe. Obelisk via runtime `loc_add`, which
-sidesteps `maps/` entirely. ⚠ `content_register.c:65` gives loc `server_base = 70000` and **no
-`loc_type_bits` field exists anywhere** in `src/net/rev/` — verify the loc wire width before
-allocating, or loc 70000 may truncate. Do not analogize this to NPC type 20000: rev239 NPC_INFO
-has already been corrected and regression-tested as a 14-bit client-local slot plus a separate
-16-bit cache/config type. Infusion UI authored fresh in the 239
+gameframe. The obelisk is now installed by feature-gated, idempotent runtime `loc_add`, which
+sidesteps `maps/` entirely. The rev239 `LOC_ADD_CHANGE_V2` measurement is settled: its loc config
+id is `p2Alt3`, exactly 16 bits, so the generic loc `server_base = 70000` cannot be used on this
+wire (70000 would truncate to 4464). The imported source loc 28716 is therefore mapped to the
+first free target id, 62201. This is deliberately different from NPC_INFO: its 14-bit value is a
+per-player nearby-instance slot, while the separate NPC cache/config type is 16 bits and type
+20000 is valid. Real-client acceptance picks loc 62201, selects its actual second menu option,
+restores points 0/1→1/1, decodes player sequence 20003 and spotanim 20000, combines the imported
+effect model, and verifies the visible green effect in the framebuffer. Infusion UI authored fresh in the 239
 vocabulary; do not transcode 530's interface 669.
 
 **Phase 5 — breadth.** 82 familiars · 67 scroll objs · special moves · the ~60 tertiary ingredients

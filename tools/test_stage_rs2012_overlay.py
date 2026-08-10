@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -61,6 +63,14 @@ def main() -> int:
         put(lane / "pack/loc.alloc", "63000=rs2012_loc_1\n")
         put(lane / "pack/loc.client", "rs2012_loc_1\n")
         put(lane / "pack/5_maps.pack", "10074=m39_90\n")
+        put(lane / "pack/4_soundeffects.pack", "16000=ported/rs2012_qbd_td/fixture_synth\n")
+        put(lane / "pack/6_musictracks.pack", "1118=ported/rs2012_qbd_td/fixture_song\n")
+        put(lane / "pack/14_musicsamples.pack", "16000=ported/rs2012_qbd_td/fixture_setup\n")
+        put(lane / "pack/15_musicpatches.pack", "1157=ported/rs2012_qbd_td/fixture_patch\n")
+        put(tree / "synth/ported/rs2012_qbd_td/fixture_synth.synth", b"synth fixture")
+        put(tree / "songs/ported/rs2012_qbd_td/fixture_song.jmid", b"song fixture")
+        put(tree / "samples/ported/rs2012_qbd_td/fixture_setup.sample", b"setup fixture")
+        put(tree / "patches/ported/rs2012_qbd_td/fixture_patch.patch", b"patch fixture")
         put(lane / "textures/texture_0.texture", "[rs2012_material_408]\nrgb=0x010203\n")
         put(lane / "textures/texture_0.compack", "200=rs2012_material_408\n")
         put(tree / "textures/texture_0.texture", "[base_material]\nrgb=0xAABBCC\n")
@@ -93,7 +103,12 @@ def main() -> int:
             put(path, data)
         before = {path: sha(path) for path in base_files}
 
-        assert stage_module.stage(tree, out) == 0
+        output = io.StringIO()
+        with redirect_stdout(output):
+            assert stage_module.stage(tree, out) == 0
+        physical_count = sum(path.is_file() for path in out.rglob("*"))
+        assert physical_count == 31
+        assert f"staged {physical_count} files" in output.getvalue()
 
         # Historical members 0/1 shadow only the disposable output.
         assert (out / "maps/m39_90.jm2").read_text().startswith("==== MAP ====")
@@ -123,6 +138,23 @@ def main() -> int:
         assert (out / "configs/all.loc.compack").read_text() == "1=base_loc\n"
         assert "[rs2012_loc_1]" in (out / "configs/rs2012.loc").read_text()
         assert (out / "pack/loc.alloc").read_text() == "63000=rs2012_loc_1\n"
+        # Every audio table required by the QBD lane is staged with both its
+        # archive authority and exact payload; omitting songs used to make the
+        # cache compose successfully but leave tracks 1118/1119 absent.
+        for pack, expected in {
+            "4_soundeffects.pack": "16000=ported/rs2012_qbd_td/fixture_synth\n",
+            "6_musictracks.pack": "1118=ported/rs2012_qbd_td/fixture_song\n",
+            "14_musicsamples.pack": "16000=ported/rs2012_qbd_td/fixture_setup\n",
+            "15_musicpatches.pack": "1157=ported/rs2012_qbd_td/fixture_patch\n",
+        }.items():
+            assert (out / "pack" / pack).read_text() == expected
+        for relative, expected in {
+            "synth/ported/rs2012_qbd_td/fixture_synth.synth": b"synth fixture",
+            "songs/ported/rs2012_qbd_td/fixture_song.jmid": b"song fixture",
+            "samples/ported/rs2012_qbd_td/fixture_setup.sample": b"setup fixture",
+            "patches/ported/rs2012_qbd_td/fixture_patch.patch": b"patch fixture",
+        }.items():
+            assert (out / relative).read_bytes() == expected
         texture_text = (out / "textures/texture_0.texture").read_text()
         assert "[base_material]" in texture_text and "[rs2012_material_408]" in texture_text
         assert (out / "textures/texture_0.compack").read_text() == (

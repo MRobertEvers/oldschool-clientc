@@ -5,7 +5,9 @@
 > in 16 bits. Any older ceiling, free-run, tier, or id-budget conclusion is void. Also, a 727 CS2
 > decompile is not trusted until raw instruction/operand and stack-effect disassembly has been
 > preserved and an explicit 727 dialect has produced the readable form; relevant logic must then
-> be rewritten as fresh osrs239 CS2.
+> be rewritten as fresh osrs239 CS2. Separately, rev239 `LOC_ADD_CHANGE_V2` carries loc config ids
+> in an exact 16-bit `p2Alt3`; the generic loc base 70000 truncates and must not be used for runtime
+> placement. The Summoning obelisk maps source 28716 to target 62201.
 
 ===== RECON: scape-summoning-logic =====
 # 2009scape Summoning — server behavioural spec (recon)
@@ -1559,7 +1561,7 @@ Measured just now from `configs/all.*.compack` and `pack/*.pack`:
 |---|---:|---:|---:|---|
 | `npc` | :63 | **20000** | 16,293 | ✅ |
 | `obj` | :64 | **40000** | 34,304 | ✅ |
-| `loc` | :65 | **70000** | 62,200 | ✅ |
+| `loc` | :65 | **70000** | 62,200 | ❌ runtime `LOC_ADD_CHANGE_V2` is 16-bit; Summoning uses 62201 |
 | `seq` | :66 | **20000** | 14,428 | ✅ |
 | `spotanim` | :67 | **6000** | 4,009 | ✅ |
 | `inv` | :68 | **2000** | 1,025 | ✅ (swept) |
@@ -1824,7 +1826,7 @@ Probes run with `--rev rs643` (read-only):
 |---|---|---|---|
 | `npc` | 20000 (`:63`) | 16,293 | ✅ |
 | `obj` | 40000 (`:64`) | 34,304 | ✅ |
-| `loc` | 70000 (`:65`) | 62,200 | ✅ |
+| `loc` | 70000 (`:65`) | 62,200 | ❌ runtime loc-add wire is 16-bit; use a collision-checked id ≤65535 |
 | `seq` | 20000 (`:66`) | 14,428 | ✅ |
 | `spotanim` | 6000 (`:67`) | 4,009 | ✅ |
 | `struct` | 8000 (`:137`) | 6,499 | ✅ |
@@ -3216,7 +3218,7 @@ From `docs/CONTENT_ARCHITECTURE.md` (1,074 lines), `docs/CONTENT_PACK_PLAN.md` (
 **Namespace / id rules**
 - Three axes, never collapsed (`CONTENT_ARCHITECTURE.md` §4, L268–283): **A** id authority, **B** name authority, **C** field scope.
 - `content.ini` is the register; loaders start from built-in defaults and it *overlays* them (file header, L10–13). `names = cache` requires a gameval archive and vice-versa, enforced at load.
-- Server-allocatable bases (`src/content/content_register.c:63–109`): `npc 20000`, `obj 40000`, `loc 70000`, `seq 20000`, `dbtable 2048`, `dbrow 65536`, sprites/sounds/animations 20000. **Allocation is `max+1` off layer 0, recorded in `pack/<ns>.alloc`** — never a hand-picked "surely nothing is up here" constant (§3.3, §4.4, §6.7 item 1).
+- Server-allocatable bases (`src/content/content_register.c:63–109`): `npc 20000`, `obj 40000`, `loc 70000`, `seq 20000`, `dbtable 2048`, `dbrow 65536`, sprites/sounds/animations 20000. **Allocation is `max+1` off layer 0, recorded in `pack/<ns>.alloc`** — never a hand-picked "surely nothing is up here" constant (§3.3, §4.4, §6.7 item 1). Binding exception: rev239 runtime loc-add has a 16-bit config field, so loc 70000 cannot cross that wire; allocate a collision-checked id ≤65535 (62201 for this obelisk).
 - **A server-allocated varp must be `transmit=no`** (§8.3) — a real rev-230 client has no varp of that id.
 - Table sizing: anything indexed by a namespace the server can allocate into needs headroom (`MOCK230_VARP_CACHE_MAX 5705 + HEADROOM 512`); a silent bounds-check return is the failure mode (§8.3).
 - `varp`/`varbit`/`varn`/`vars` share one `%name` domain; a cross-namespace collision is a load error (§4.1).
@@ -3370,7 +3372,7 @@ the applicable rules remain in `PORTING_GUIDE.md`, the queue documents, and
 16. New namespaces (e.g. `familiar`, if one is minted) ⇒ a `[namespace:*]` block in `content.ini` + `fields/<name>.ini` + a decode struct; prefer a **`.dbtable`** before minting anything (§3.4).
 17. New server fields on npc/obj/loc ⇒ `fields/<type>.ini` row with `server = opcode:<N>` (64..255) + `mock230_servercodec.c` decode table + a `fields/<type>.ini` entry, or `mock230_servercodec_test` fails.
 18. Any new npc/obj/loc/enum/param/varp record ⇒ add it to `pack/<ns>.client` and/or `pack/<ns>.server`, or it lands in split-plan **cell (c)** and `cachepack pack` returns non-zero.
-19. Server-allocated ids come from `pack/<ns>.alloc` via `tools/ss_allocate.py` (bases: npc 20000, obj 40000, loc 70000, seq 20000, dbtable 2048, dbrow 65536). Never a hand-picked constant.
+19. Server-allocated ids come from `pack/<ns>.alloc` via `tools/ss_allocate.py` (bases: npc 20000, obj 40000, loc 70000, seq 20000, dbtable 2048, dbrow 65536). Never a hand-picked constant. For locs sent through rev239 `LOC_ADD_CHANGE_V2`, the 70000 base is invalid because the config id is 16-bit; use a collision-checked allocation ≤65535.
 20. Every server varp: `transmit=no`. Check table sizing headroom for anything indexed by an allocatable namespace.
 21. Client-visible assets: file in `assets/<type>/`, id from `pack/<type>.pack`, hand-authored additions in manifest `[extra:<name>]` sections; transcode via `tools/port_lostcity`, **not** cachepack. `make -C src mock230-cache` is required for any client-visible edit, and then **both** the world and JS5 must point at the baked cache.
 22. Server RS2 must never enter the client cache; `test-server-clean` must stay green (`git status` clean under `configs/`, `pack/*.pack`, `pack/*.client`).

@@ -7914,7 +7914,13 @@ mock230_script_command(
         if( srv->verbose )
             fprintf(stderr, "mock230: midi_song(%d)\n", id);
         if( player != NULL )
+        {
+            /* Keep scripted overrides in the same state slot as region music.
+             * The next mapped region can then restore its normal track when an
+             * instanced encounter teleports the player back out. */
+            player->music_track = id;
             mock230_send_midi_song(player, id);
+        }
         return 1;
     }
 

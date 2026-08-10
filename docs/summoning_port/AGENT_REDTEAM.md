@@ -7,6 +7,10 @@ Everything marked **[measured]** I ran against the two trees during this pass.
 - NPC_INFO's 14-bit value is the per-player client-local slot for a nearby NPC instance. It is
   not the NPC definition. Rev239 carries the separate cache/config type in 16 bits; type 20000 is
   regression-tested. No roster tier, id ceiling, or allocation budget follows from the slot.
+- `LOC_ADD_CHANGE_V2` is a different wire contract: its loc config id is an exact 16-bit
+  `p2Alt3`. The generic loc base 70000 is unusable there and would truncate to 4464. The port maps
+  source obelisk 28716 to free target loc 62201; do not transfer the NPC slot/type conclusion to
+  loc configs.
 - Treat rev-727 clientscripts as a distinct, unverified dialect. Capture raw instructions,
   operands, and stack effects before decompilation; use an explicit 727 dialect; then translate
   relevant logic into newly authored osrs239 CS2. A readable decompile alone is not evidence of
@@ -82,9 +86,13 @@ at 14 bits and carries the separate cache type in 16 bits; a regression round-tr
 with type 20000. `content_register.c:63`'s `server_base = 20000` is therefore valid and must not
 be moved to 16294. The measured free run below 16384 is irrelevant to Summoning scope.
 
-### E6. `loc` has the same latent bug and nobody checked it.
+### E6. CORRECTED — the loc wire risk was real and is now measured/fixed.
 
-`content_register.c:65` gives loc `server_base = 70000`; **[measured]** `configs/all.loc.compack` max is 62200. design-server-content's obelisk plan is `loc_add` at runtime. I could find **no `loc_type_bits` field anywhere** in `src/net/rev/` — the width of the loc id in `LOC_ADD_CHANGE` is undetermined. If it is 16 bits, 70000 truncates to 4464 and a random loc appears. Flagged as unverified in §2, but named here because design-server-content asserts the obelisk plan works without checking.
+`content_register.c:65` gives loc `server_base = 70000`, while the native cache high-water is
+62200. Rev239 `LocAddChangeV2Encoder` writes the loc config id as `p2Alt3`: obfuscation changes
+byte order/value transforms, not width, so the field is exactly 16 bits and 70000 truncates to
+4464. The Summoning port does not use that base: source obelisk 28716 maps to target 62201.
+Permanent client acceptance proves the runtime packet decodes/picks 62201 and never 4464.
 
 ### E7. design-asset-pipeline oversells "already written".
 
