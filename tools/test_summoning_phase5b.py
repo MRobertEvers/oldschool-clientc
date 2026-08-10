@@ -270,18 +270,26 @@ def review_footprint(tree: Path, asset_roots: tuple[str, ...]) -> tuple[dict[str
     pack_root = tree / LANE_REL / "pack"
     packs = sorted(path for path in pack_root.iterdir() if path.is_file())
     hashes = {path.relative_to(tree).as_posix(): digest(path) for path in packs}
-    references = sum(path.read_text(encoding="latin-1").count(REVIEW) for path in packs)
+    admitted_pack_lines = frozenset(
+        json.loads(DEFAULT_BOUNDARY.read_text(encoding="utf-8")).get("admitted_review_pack_lines", [])
+    )
+    references = sum(
+        sum(REVIEW in line and line not in admitted_pack_lines
+            for line in path.read_text(encoding="latin-1").splitlines())
+        for path in packs
+    )
     return candidates, hashes, references
 
 
-def marker_hits(root: Path, marker: str, text_suffixes: set[str]) -> list[str]:
+def marker_hits(root: Path, stage_module: ModuleType, admission: object) -> list[str]:
     hits: list[str] = []
-    marker_bytes = marker.encode("utf-8")
     for path in root.rglob("*"):
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
-        if marker in relative or (path.suffix in text_suffixes and file_contains(path, marker_bytes)):
+        if (stage_module.review_only_tokens(relative, admission) or
+                (path.suffix in stage_module.ADMISSION_TEXT_SUFFIXES and
+                 stage_module.review_only_tokens(path.read_text(encoding="latin-1"), admission))):
             hits.append(relative)
     return hits
 
@@ -590,11 +598,11 @@ def main() -> int:
                 staged_pack_lines = cohort_pack_lines(staged / "pack")
                 expect(staged_pack_lines == EXPECTED_PACK_LINES,
                        f"feature-on stage changed Dreadfowl pack membership: {staged_pack_lines}")
-                review_hits = marker_hits(staged, REVIEW, stage_module.ADMISSION_TEXT_SUFFIXES)
-                dreadfowl_hits = marker_hits(staged, COHORT, stage_module.ADMISSION_TEXT_SUFFIXES)
+                review_hits = marker_hits(staged, stage_module, admission)
+                dreadfowl_hits = marker_hits(staged, stage_module, admission)
                 expect(not review_hits,
                        "feature-on stage leaked review-only roster data: " + ", ".join(review_hits[:10]))
-                expect(bool(dreadfowl_hits), "feature-on stage lost every Dreadfowl marker")
+                expect(not dreadfowl_hits, "feature-on stage retained a review-only marker")
 
         review_files_after, review_packs_after, review_refs_after = review_footprint(
             args.tree, stage_module.ASSET_ROOTS

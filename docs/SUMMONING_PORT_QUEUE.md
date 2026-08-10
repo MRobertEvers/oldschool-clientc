@@ -189,7 +189,7 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 7a | Per-account Summoning unlock + sidebar root sync | 7 | **done** | Persisted `summoning_unlocked` syncs `content_restrict_summoning_serverside` at login; runtime entries are account-gated; locked/unlocked/relog client acceptance is 42/0. Group 969 mounts through the live gameframe role, and the real Spirit-terrorbird Store → relog → Withdraw → Dismiss-spill regression passes. |
 | 7b | Wolf Whistle unlock writer | 7 | **done** | Upstream completion contract verified: persist unlock, grant 276 Summoning XP and 275 gold charms. Generic charm `12158→40002` was already admitted; the distinct quest-reward copy `12527→40256` has its own audited ledger and cannot enter infusion. `summoning_wolf_whistle_complete` is idempotent, persists the gate, grants 2760 ServerScript XP units and 275 copies, and has real-client/relog harness proof. |
 | 7c | Safe shared familiar audio | 7 | **done** | Source synth 188 is ledgered against cache-native `summon_npc` after a byte-identical payload check. The actual sidebar Call path emits SYNTH_SOUND 188 (one loop, zero delay), retained in the permanent real-client log. 4161/4164/4214/4265/4372 remain withheld until transcoded and verified. |
-| 7d | First pet lifecycle | 7 | **pending** | Admit one complete pet closure in its own ledger; implement separate persisted type/state and prove release, pickup/dismiss/death, and relog without reusing familiar timers/ownership. |
+| 7d | First pet lifecycle | 7 | **in_progress** | Selected the smallest source-complete candidate: Clockwork cat (source item `7771`, NPC `3598`). Its source policy has no growth or hunger (`Pets.CLOCKWORK_CAT`, `Pet.java`), so the first closure can prove independent persisted pet state, release, pickup/dismiss/death, and relog without coupling to familiar timers, points, BoB, or special moves. The exact preserved assets are model sources `34024/34040/34083`, sequences `9158/9157`, animation archive `2260`, and framemap `2035`; admission must mint a dedicated ledger/config/pack surface rather than promote the broad review-only records. |
 | 7e | Wolf Whistle interaction | 7 | **done** | The feature-on obelisk exposes `Begin Wolf Whistle` as its third ordinary operation, available to locked accounts and wired directly to the idempotent writer. The permanent fresh-save harness sends the normal client `OPLOC3` packet, confirms the reward/state, and verifies the unlocked tab after relog. |
 | 7f | Completion audit | 7 | **pending** | Resolve every remaining audio/pet holdback to either an admitted, interaction-proven closure or an explicit codec/asset disposition. No Phase-7 row may remain open at completion. |
 
@@ -197,14 +197,14 @@ Phases 5–7 (breadth, Beast of Burden, polish) are scoped in
 [`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9. Phase 5 is complete: the preserved generated
 experiment remains review-only and is not accepted merely because its importer dry-run succeeds.
 Phases 6, 7a, 7b, 7c, and 7e are complete. The next unblocked slice is 7d, the separate pet
-lifecycle.
+lifecycle; it is now in progress with the Clockwork-cat closure selected.
 
 ---
 
 ## Loop prompt
 
-Read [`SUMMONING_PORT.md`](SUMMONING_PORT.md) + `PORTING_GUIDE` §4/§4.5/§7; take the next pending
-unblocked slice (currently 7d); completion authority permits required bounded quest/audio/pet
+Read [`SUMMONING_PORT.md`](SUMMONING_PORT.md) + `PORTING_GUIDE` §4/§4.5/§7; continue the active
+7d slice; completion authority permits required bounded quest/audio/pet
 closures, never bulk review-only promotion; verify (`mock230_pack --check-only`,
 `make -C src mock230-scripts`, and the flag-off byte-identity check); update this file and the
 budget/opcode tables; re-arm. Stop only when the user stops the loop.

@@ -12,6 +12,23 @@
     "familiar",
     "pouch"
   ],
+  "admitted_pet_prefixes": [
+    "summoning_pet_clockwork_cat"
+  ],
+  "admitted_review_references": [
+    "summoning_roster_530_model_34024",
+    "summoning_roster_530_model_34040",
+    "summoning_roster_530_model_34083",
+    "summoning_roster_530_animset_2260",
+    "summoning_roster_530_framemap_2035"
+  ],
+  "admitted_review_pack_lines": [
+    "123000=ported/scape2009_summoning/summoning_roster_530_model_34024",
+    "123001=ported/scape2009_summoning/summoning_roster_530_model_34040",
+    "123002=ported/scape2009_summoning/summoning_roster_530_model_34083",
+    "25300=ported/scape2009_summoning/summoning_roster_530_animset_2260",
+    "11300=ported/scape2009_summoning/summoning_roster_530_framemap_2035"
+  ],
   "deferred_entity_kinds": {
     "pet": "Phase 7 lifecycle/save work",
     "scroll": "later Phase 5 special-move slice",

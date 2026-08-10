@@ -148,6 +148,8 @@ def review_only_source_fingerprint(tree: Path, prefix: str, stage_module: Module
             path.read_bytes(),
         )
 
+    boundary_json = json.loads(BOUNDARY.read_text(encoding="utf-8"))
+    admitted_pack_lines = frozenset(boundary_json.get("admitted_review_pack_lines", []))
     pack_root = tree / "ported/scape2009_summoning/pack"
     pack_records: list[tuple[str, bytes]] = []
     if pack_root.exists():
@@ -157,7 +159,7 @@ def review_only_source_fingerprint(tree: Path, prefix: str, stage_module: Module
             pack_records.extend(
                 (relative, line)
                 for line in path.read_bytes().splitlines(keepends=True)
-                if prefix.encode("utf-8") in line
+                if prefix.encode("utf-8") in line and line.decode("latin-1").strip() not in admitted_pack_lines
             )
     for relative, line in pack_records:
         add_record(b"review-pack-line", relative, line)
@@ -309,6 +311,10 @@ def main() -> int:
     roster_module = load_module("summoning_phase5a_roster", ROSTER_TOOL)
     ledger_module = load_module("summoning_phase5a_ledger", LEDGER_TOOL)
     stage_module = load_module("summoning_phase5a_stager", STAGER)
+    stage_admission = stage_module.load_roster_boundary(args.boundary)
+    admitted_pack_lines = frozenset(
+        json.loads(args.boundary.read_text(encoding="utf-8")).get("admitted_review_pack_lines", [])
+    )
     try:
         roster_module.validate_candidate_manifest(candidate_text)
     except ValueError as exc:
@@ -495,7 +501,8 @@ def main() -> int:
     ]
     pack_root = args.tree / "ported/scape2009_summoning/pack"
     source_pack_references = sum(
-        path.read_text(encoding="latin-1").count(review_prefix)
+        sum(review_prefix in line and line not in admitted_pack_lines
+            for line in path.read_text(encoding="latin-1").splitlines())
         for path in pack_root.iterdir() if path.is_file()
     )
     expect(
@@ -671,12 +678,17 @@ def main() -> int:
             expect(False, f"real-tree feature-on staging failed: {exc}")
         else:
             staged_files = [path for path in staged.rglob("*") if path.is_file()]
-            marker = b"summoning_roster_530"
             marker_hits = [
                 path.relative_to(staged).as_posix()
                 for path in staged_files
-                if marker in path.relative_to(staged).as_posix().encode("utf-8")
-                or file_contains(path, marker)
+                if stage_module.review_only_tokens(
+                    path.relative_to(staged).as_posix(), stage_admission
+                ) or (
+                    path.suffix in stage_module.ADMISSION_TEXT_SUFFIXES and
+                    stage_module.review_only_tokens(
+                        path.read_text(encoding="latin-1"), stage_admission
+                    )
+                )
             ]
             expect(stage_result == 0 and bool(staged_files), "real-tree stage produced zero files")
             expect(
@@ -694,7 +706,8 @@ def main() -> int:
                 if path.is_file() and review_prefix in path.name
             ]
             post_pack_references = sum(
-                path.read_text(encoding="latin-1").count(review_prefix)
+                sum(review_prefix in line and line not in admitted_pack_lines
+                    for line in path.read_text(encoding="latin-1").splitlines())
                 for path in pack_root.iterdir() if path.is_file()
             )
             expect(
