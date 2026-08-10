@@ -84,16 +84,54 @@ in this image was only a diagnostic and is no longer the implementation.
 
 ![Intermediate NPC-wire diagnostic](images/02_npc_wire_diagnostic.png)
 
+## 2026-08-10 — source SD material selection restored
+
+The regenerated composed cache now applies the same selection rule as the
+revision-727 SD client: a face whose procedural material has `isSd=false`
+does not sample that material. It keeps and lights the face's underlying HSL
+colour instead. The bridge removed 274,715 invalid selectors across the full
+660-model closure while retaining all 256 baked material assets for inspection
+and a future HD renderer.
+
+The live result below resolves the two largest false-corruption symptoms. The
+west claw is dark red/black instead of white, and the bronze/stone platform no
+longer contains the solid black material rectangle. QBD is a composite scene:
+the centered head/neck is NPC type 25003, while the two foreclaws are separate
+location models. They must not be merged into a single NPC model. This capture
+uses one 200% QA zoom-out so the north NPC and west location are visible
+together; camera presentation remains a separate encounter task.
+
+![QBD after SD material-selection repair](images/04_qbd_sd_material_fix.png)
+
+The Tormented Demon check uses source NPC 8349/sequence 10921 and destination
+NPC 25006/sequence 22017. Both resolve to 984 vertices, 1,974 faces, a
+32-frame classic animation on source framemap 2401/destination 9002, and the
+same SD-lit four-yaw bitmap. The source and destination BMP files compare
+byte-for-byte equal; their converted PNG SHA-256 is
+`7b4cc81719a6a9370d748f7929ff749e8030b1d66b25913fce524f7417d2e569`.
+This separates cache-port fidelity from encounter-camera problems: the demon
+model and animation are not being numerically altered by the 727→239 bridge.
+
+![Tormented Demon source/destination four-yaw match](images/05_td_source_destination_match.png)
+
+The live TD manifest also entered the authentic 40_89 instance and announced
+all six demons, but a level-1 QA account died before the final frame was
+captured. That is recorded as a manifest usability issue rather than hidden by
+changing the demons' production damage or granting quest/combat progress.
+
 ### Reproduction
 
 ```sh
 make -C src mock230-cache-rs2012
 ./run-live.sh manifest_osrs239_rs2012.ini qbdrepro test --opengl3
+./run-live.sh manifest_osrs239_rs2012_td.ini tdrepro test --opengl3
 ```
 
-The manifest's startup cheat is deliberately separate from the production
-portal gate. It bypasses only the 60 Summoning requirement and does not change
-the account's skills or quest state.
+The QBD manifest invokes `::rs2012qbdmanifest`; this is deliberately separate
+from the production portal and `::rs2012qbd` gates and bypasses only the 60
+Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
+`::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
+skills or quest state.
 
 ### Repair checklist
 
@@ -105,9 +143,11 @@ the account's skills or quest state.
   domain.
 - [x] Restore the macOS ASan dylib/static-SDL build path; plain sanitizer flags
   alone hang during dyld/allocator initialisation on macOS 26.
-- [ ] Isolate the OpenGL crash under an instrumented build.
+- [x] Isolate the common renderer crash under a dylib-backed macOS ASan build.
 - [x] Identify and repair the QBD projection/face-order buffer overflow.
 - [x] Apply the source SD material-selection rule to imported model faces.
-- [ ] Validate QBD, claws, platforms, and TD with destination materials enabled.
-- [ ] Capture corrected QBD arena and QBD/TD model images.
+- [x] Validate QBD, claws, platforms, and TD with destination materials enabled.
+- [x] Capture corrected QBD arena and QBD/TD model images.
+- [ ] Make the TD visual manifest survive long enough to inspect all six demons
+  without weakening the production encounter or mutating account progress.
 - [ ] Run the composed-cache, map, UI, combat, and client-launch regressions.

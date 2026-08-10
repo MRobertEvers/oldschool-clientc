@@ -31,6 +31,24 @@ extern TORIDRAW_TABLE_QUAL uint16_t g_hsl16_to_rgb_table[65536];
 extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
 #endif
 
+/*
+ * Gouraud rasterizers carry packed HSL16 in 8.8 fixed point while walking a
+ * span.  A triangle edge can land one subpixel past its last vertex after the
+ * fixed-point nudge/rounding, so the interpolant is not guaranteed to remain
+ * inside the palette's unsigned-16 range even though every vertex is.  Keep
+ * that rounding from turning into an out-of-bounds palette read.  This is
+ * deliberately only for interpolated values: callers with a real hsl16_t
+ * already have a valid index and retain the branch-free direct lookup.
+ */
+static inline int
+ToriDraw_Hsl16Ish8ToRgb(int hsl16_ish8)
+{
+    int hsl16 = hsl16_ish8 >> 8;
+    if( (unsigned)hsl16 > 0xFFFFu )
+        hsl16 = hsl16 < 0 ? 0 : 0xFFFF;
+    return g_hsl16_to_rgb_table[hsl16];
+}
+
 extern const int* g_sin_table;
 extern const int* g_cos_table;
 extern const int* g_tan_table;

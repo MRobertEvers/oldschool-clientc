@@ -302,6 +302,63 @@ test_gouraud(int* ref, int* got)
     }
 }
 
+/*
+ * Item-icon rendering exposed this at 36x32: a fixed-point Gouraud edge can
+ * sample one HSL16 unit just outside the palette after its subpixel nudge. The
+ * production crash was the no-clip s4 tail, so keep that exact three-pixel
+ * shape here as a cache-independent regression. ASan turns the old lookup at
+ * 65536 into a global-buffer-overflow; the saturated lookup must instead use
+ * the last palette entry. Check the lower edge too because the same plane can
+ * undershoot at the opposite side of a triangle.
+ */
+static void
+test_gouraud_hsl16_palette_bounds(void)
+{
+    enum
+    {
+        ICON_W = 36,
+        ICON_H = 32,
+        ICON_ROW = 16,
+        ICON_X = 12,
+    };
+    int icon[ICON_W * ICON_H];
+    int const high_ish8 = 0x10000 << 8;
+    int const low_ish8 = -1;
+    int const high_rgb = g_hsl16_to_rgb_table[0xFFFF];
+    int const low_rgb = g_hsl16_to_rgb_table[0];
+
+    printf("gouraud HSL16 palette bounds (36x32 obj icon tail)\n");
+
+    if( ToriDraw_Hsl16Ish8ToRgb(high_ish8) != high_rgb ||
+        ToriDraw_Hsl16Ish8ToRgb(low_ish8) != low_rgb )
+    {
+        printf("  FAIL interpolated HSL16 palette clamp\n");
+        g_fail++;
+        return;
+    }
+
+    for( int i = 0; i < ICON_W * ICON_H; i++ )
+        icon[i] = 0x00112233;
+
+    draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+        icon,
+        ICON_ROW * ICON_W,
+        ICON_X << 16,
+        (ICON_X + 3) << 16,
+        high_ish8,
+        0);
+
+    for( int x = ICON_X; x < ICON_X + 3; x++ )
+    {
+        if( icon[ICON_ROW * ICON_W + x] != high_rgb )
+        {
+            printf("  FAIL no-clip s4 tail did not saturate HSL16\n");
+            g_fail++;
+            return;
+        }
+    }
+}
+
 /* --------------------------------------------------------------- texture */
 
 /* Orthographic uv basis placed well in front of the near plane so the
@@ -684,6 +741,7 @@ main(void)
 
     test_flat(ref, got);
     test_gouraud(ref, got);
+    test_gouraud_hsl16_palette_bounds();
     test_texture_anchor(ref, got);
     test_texture_chain(ref, got);
     test_texture_facealpha_blend(ref, got);

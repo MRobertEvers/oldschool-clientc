@@ -43,8 +43,7 @@ draw_scanline_gouraud_screen_alpha_bary_branching_s1_ordered(
 
     for( int i = 0; i < stride; i++ )
     {
-        int color_hsl16 = color_hsl16_ish8 >> 8;
-        int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+        int rgb_color = ToriDraw_Hsl16Ish8ToRgb(color_hsl16_ish8);
         int rgb_blend = pixel_buffer[offset];
         rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
         pixel_buffer[offset] = rgb_blend;
